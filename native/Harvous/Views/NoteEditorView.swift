@@ -1,18 +1,59 @@
 import SwiftUI
 import SwiftData
 
+/// Debounces SwiftData writes without touching `@State`, so typing does not rebuild `HarvousEditor` every keystroke.
+private final class EditorAutosaveDebouncer {
+    private var workItem: DispatchWorkItem?
+    private(set) var latestTitle: String = ""
+    private(set) var latestBody: String = ""
+    private(set) var latestRefs: [String] = []
+
+    func cancel() {
+        workItem?.cancel()
+        workItem = nil
+    }
+
+    func updateSnapshot(title: String, body: String, refs: [String]) {
+        latestTitle = title
+        latestBody = body
+        latestRefs = refs
+    }
+
+    func schedule(after delay: TimeInterval = 1, note: Note, context: ModelContext) {
+        workItem?.cancel()
+        let item = DispatchWorkItem { [weak self] in
+            guard let self else { return }
+            note.title = self.latestTitle
+            note.body = self.latestBody
+            note.detectedRefs = self.latestRefs
+            note.updatedAt = Date()
+            BibleStudyTagSuggester.applyToNote(note)
+            try? context.save()
+        }
+        workItem = item
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: item)
+    }
+}
+
 struct NoteEditorView: View {
     @Binding var note: Note?
 
     @Environment(\.modelContext) private var context
+    @Environment(\.scenePhase) private var scenePhase
     @State private var editorState = EditorState()
     @State private var title = ""
-    @State private var saveDebounce: Date = .distantPast
+    /// Reference-type debounce — must not use `@State` timestamps keyed to each keypress (that remounts the editor).
+    @State private var autosave = EditorAutosaveDebouncer()
     @FocusState private var titleFocused: Bool
 
     #if os(macOS)
-    @State private var proxy = EditorProxy()
-    @State private var showInspector = false
+    @StateObject private var proxy = EditorProxy()
+    var showInspector: Binding<Bool> = .constant(false)
+    #else
+    @State private var showInspectorIOS = false
+    @StateObject private var iosBodyProxy = IOSNoteBodyProxy()
+    @State private var showScriptureEditorSheet = false
+    @State private var scripturePassageSheet: ScripturePassageSheetItem?
     #endif
 
     // MARK: - Body
@@ -25,7 +66,29 @@ struct NoteEditorView: View {
                 emptyDetail
             }
         }
-        .onChange(of: note?.id) { _, _ in syncFromNote() }
+        .onChange(of: note?.id) { oldId, _ in
+            #if os(iOS)
+            showScriptureEditorSheet = false
+            DispatchQueue.main.async {
+                iosBodyProxy.resetForNewNote()
+            }
+            #endif
+            autosave.cancel()
+            // Capture UI before any child representable runs; avoids persisting wrong note after a switch.
+            let snapshotTitle = title
+            let snapshotBody = editorState.plainText
+            let snapshotRefs = editorState.detectedRefs
+            if let oldId {
+                flushPendingEdits(forNoteId: oldId, title: snapshotTitle, body: snapshotBody, refs: snapshotRefs)
+            }
+            syncFromNote()
+        }
+        .onChange(of: scenePhase) { _, phase in
+            guard phase == .inactive || phase == .background else { return }
+            guard let n = note else { return }
+            autosave.cancel()
+            persistEditorIntoNote(n)
+        }
         .onAppear { syncFromNote() }
         // Auto-focus title when a brand-new empty note is opened (Apple Notes UX)
         .task(id: note?.id) {
@@ -33,9 +96,6 @@ struct NoteEditorView: View {
             try? await Task.sleep(for: .milliseconds(80))
             titleFocused = true
         }
-        #if os(macOS)
-        .toolbar { editorToolbar }
-        #endif
     }
 
     // MARK: - Empty state
@@ -47,7 +107,6 @@ struct NoteEditorView: View {
             Text("Select a note from the list, or press ⌘N to compose a new one.")
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color.surfaceElevated)
     }
 
     // MARK: - Editor canvas
@@ -60,145 +119,183 @@ struct NoteEditorView: View {
                 VStack(alignment: .leading, spacing: 0) {
                     // Title — Apple Notes style: large, bold, full-width
                     TextField("Title", text: $title, axis: .vertical)
-                        .font(.system(size: 22, weight: .bold))
-                        .foregroundStyle(Color.inkPrimary)
+                        .font(HarvousTypography.composeTitleField)
+                        .foregroundStyle(.primary)
                         .textFieldStyle(.plain)
+                        #if os(iOS)
+                        .autocorrectionDisabled(false)
+                        .textInputAutocapitalization(.sentences)
+#endif
                         .focused($titleFocused)
+                        .onChange(of: titleFocused) { _, focused in
+                            if focused {
+                                #if os(macOS)
+                                DispatchQueue.main.async {
+                                    proxy.clearActiveScripturePill()
+                                }
+                                #endif
+                            }
+                        }
                         .padding(.horizontal, 32)
                         .padding(.top, 24)
-                        .padding(.bottom, 4)
+                        .padding(.bottom, 12)
                         .onChange(of: title) { _, _ in scheduleAutosave(note) }
 
-                    // Date line — Apple Notes-style subtle date below title
-                    Text(note.updatedAt.formatted(date: .long, time: .omitted))
-                        .font(.system(size: 12))
-                        .foregroundStyle(Color.inkTertiary)
-                        .padding(.horizontal, 32)
-                        .padding(.bottom, 16)
-
-                    // Scripture refs strip (Harvous addition — tasteful)
-                    if !editorState.detectedRefs.isEmpty {
-                        refsBar
-                            .padding(.horizontal, 32)
-                            .padding(.bottom, 12)
-                    }
-
-                    // Body — TextKit 2
+                    // Body — same horizontal inset as title (TextKit defaults add extra leading; zeroed in HarvousEditor)
                     #if os(macOS)
                     HarvousEditor(
                         state: $editorState,
                         proxy: proxy,
+                        noteID: note.id,
+                        documentBody: note.body,
                         placeholder: "Start writing…",
-                        font: .systemFont(ofSize: 15, weight: .regular)
+                        font: HarvousFonts.system(size: 16, weight: 400, design: .default),
+                        onScripturePillTap: { scripturePillTapped(reference: $0, translation: $1, range: $2) }
                     )
                     .frame(minHeight: 400)
-                    .padding(.horizontal, 28)
+                    .padding(.horizontal, 32)
                     .onChange(of: editorState.plainText) { _, _ in scheduleAutosave(note) }
                     #else
                     HarvousEditor(
                         state: $editorState,
-                        placeholder: "Start writing…"
+                        noteID: note.id,
+                        documentBody: note.body,
+                        placeholder: "Start writing…",
+                        scriptureProxy: iosBodyProxy,
+                        onScripturePillTap: { scripturePillTapped(reference: $0, translation: $1, range: $2) }
                     )
                     .frame(minHeight: 400)
-                    .padding(.horizontal, 28)
+                    .padding(.horizontal, 32)
                     .onChange(of: editorState.plainText) { _, _ in scheduleAutosave(note) }
                     #endif
 
                     Spacer().frame(height: 80)
                 }
             }
-            .background(Color.surfaceElevated)
 
             #if os(macOS)
-            // Conditional format bar — peeks up from the bottom when text is selected
-            if proxy.hasSelection {
-                FormatToolbar(proxy: proxy)
+            // Bottom bar: format toolbar when selected, while typing, or when pointer is on the bar
+            if proxy.shouldShowNoteToolbar {
+                NoteToolbar(proxy: proxy)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+            } else if proxy.activeScripturePill != nil {
+                ScripturePillActionBar(proxy: proxy)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+            } else {
+                NoteActionBar(note: note)
                     .transition(.move(edge: .bottom).combined(with: .opacity))
             }
             #endif
         }
         #if os(macOS)
-        .animation(HarvousAnimation.spring, value: proxy.hasSelection)
-        .inspector(isPresented: $showInspector) {
-            NoteInspectorView(note: note)
-                .inspectorColumnWidth(min: 240, ideal: 280, max: 320)
+        .sheet(isPresented: $proxy.showAddLinkSheet) {
+            AddLinkSheetView(proxy: proxy)
         }
-        #endif
-        .background { autosaveBackground(note: note) }
-    }
-
-    // MARK: - Native toolbar (macOS)
-    // Formatting lives in the conditional bottom bar; toolbar carries note-level actions only.
-
-    #if os(macOS)
-    @ToolbarContentBuilder
-    private var editorToolbar: some ToolbarContent {
-        // Share
-        ToolbarItem(placement: .primaryAction) {
-            Button { } label: {
-                Image(systemName: "square.and.arrow.up")
-            }
-            .help("Share")
-            .disabled(note == nil)
-        }
-
-        // Inspector toggle — thread, tags, refs, dates
-        ToolbarItem(placement: .primaryAction) {
-            Button {
-                withAnimation(HarvousAnimation.spring) { showInspector.toggle() }
-            } label: {
-                Image(systemName: showInspector ? "info.circle.fill" : "info.circle")
-                    .foregroundStyle(showInspector ? Color.harvousAccent : .primary)
-            }
-            .help(showInspector ? "Hide Info" : "Show Info")
-            .disabled(note == nil)
-        }
-    }
-    #endif
-
-    // MARK: - Refs bar (Harvous scripture strip)
-
-    private var refsBar: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
-                ForEach(editorState.detectedRefs, id: \.self) { ref in
-                    HStack(spacing: 4) {
-                        Image(systemName: "book.closed.fill")
-                            .font(.system(size: 9))
-                        Text(ref)
-                            .font(.system(size: 12, weight: .medium))
-                    }
-                    .foregroundStyle(.tint)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 5)
-                    .background(.tint.opacity(0.08), in: Capsule())
-                    .overlay(Capsule().strokeBorder(.tint.opacity(0.2), lineWidth: 0.5))
+        .onChange(of: proxy.showAddLinkSheet) { _, open in
+            if !open, proxy.hasActiveAddLinkSession {
+                DispatchQueue.main.async {
+                    proxy.cancelAddLinkSheet()
                 }
             }
         }
-        .transition(.move(edge: .top).combined(with: .opacity))
-        .animation(HarvousAnimation.spring, value: editorState.detectedRefs.count)
+        .animation(HarvousAnimation.spring, value: proxy.shouldShowNoteToolbar)
+        .animation(HarvousAnimation.spring, value: proxy.activeScripturePill != nil)
+        .inspector(isPresented: showInspector) {
+            inspectorContent(note: note)
+        }
+        #else
+        .inspector(isPresented: $showInspectorIOS) {
+            inspectorContent(note: note)
+        }
+        .sheet(isPresented: $showScriptureEditorSheet) {
+            ScripturePillEditorSheet(proxy: iosBodyProxy) { ref, trans in
+                scripturePassageSheet = ScripturePassageSheetItem(reference: ref, translation: trans)
+            }
+        }
+        .onChange(of: showScriptureEditorSheet) { _, open in
+            if !open {
+                DispatchQueue.main.async {
+                    iosBodyProxy.clearActiveScripturePill()
+                }
+            }
+        }
+        .sheet(item: $scripturePassageSheet) { item in
+            NavigationStack {
+                ScrollView {
+                    ScripturePassageView(reference: item.reference, translation: item.translation, showHeader: true)
+                        .padding(20)
+                }
+                .navigationTitle("Passage")
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Done") { scripturePassageSheet = nil }
+                    }
+                }
+            }
+        }
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                Button {
+                    withAnimation(HarvousAnimation.spring) { showInspectorIOS.toggle() }
+                } label: {
+                    Label("Note details", systemImage: "sidebar.right")
+                }
+            }
+        }
+        #endif
+    }
+
+    @ViewBuilder
+    private func inspectorContent(note: Note) -> some View {
+        NoteInspectorView(note: note)
+        #if os(macOS)
+        .inspectorColumnWidth(min: 240, ideal: 280, max: 320)
+        #endif
+    }
+
+    private func scripturePillTapped(reference: String, translation: String, range: NSRange) {
+        Task { @MainActor in
+            let pill = ActiveScripturePill(attachmentRange: range, reference: reference, translation: translation)
+            #if os(macOS)
+            proxy.activeScripturePill = pill
+            #else
+            iosBodyProxy.activeScripturePill = pill
+            showScriptureEditorSheet = true
+            #endif
+        }
     }
 
     // MARK: - Autosave
 
     private func scheduleAutosave(_ note: Note) {
-        saveDebounce = Date()
-        _ = note
+        autosave.updateSnapshot(title: title, body: editorState.plainText, refs: editorState.detectedRefs)
+        autosave.schedule(note: note, context: context)
     }
 
-    @ViewBuilder
-    private func autosaveBackground(note: Note) -> some View {
-        Color.clear.task(id: saveDebounce) {
-            guard saveDebounce != .distantPast else { return }
-            try? await Task.sleep(for: .seconds(1))
-            guard !Task.isCancelled else { return }
-            note.title = title
-            note.body = editorState.plainText
-            note.detectedRefs = editorState.detectedRefs
-            note.updatedAt = Date()
-        }
-        .frame(width: 0, height: 0)
+    /// Writes the in-memory title/editor fields into a note row and commits the store.
+    private func persistEditorIntoNote(_ n: Note) {
+        n.title = title
+        n.body = editorState.plainText
+        n.detectedRefs = editorState.detectedRefs
+        n.updatedAt = Date()
+        BibleStudyTagSuggester.applyToNote(n)
+        try? context.save()
+        autosave.updateSnapshot(title: title, body: editorState.plainText, refs: editorState.detectedRefs)
+    }
+
+    /// When the selected note changes (or clears), persist UI state to the *previous* note so
+    /// a pending debounced save is not lost when work is cancelled.
+    private func flushPendingEdits(forNoteId id: UUID, title: String, body: String, refs: [String]) {
+        let targetId = id
+        let descriptor = FetchDescriptor<Note>(predicate: #Predicate { $0.id == targetId })
+        guard let previous = try? context.fetch(descriptor).first else { return }
+        previous.title = title
+        previous.body = body
+        previous.detectedRefs = refs
+        previous.updatedAt = Date()
+        BibleStudyTagSuggester.applyToNote(previous)
+        try? context.save()
+        autosave.updateSnapshot(title: title, body: body, refs: refs)
     }
 
     // MARK: - Sync
@@ -207,9 +304,12 @@ struct NoteEditorView: View {
         if let note {
             title = note.title
             editorState = EditorState(plainText: note.body, detectedRefs: note.detectedRefs)
+            BibleStudyTagSuggester.applyToNote(note)
+            autosave.updateSnapshot(title: title, body: editorState.plainText, refs: editorState.detectedRefs)
         } else {
             title = ""
             editorState = EditorState()
+            autosave.updateSnapshot(title: "", body: "", refs: [])
         }
     }
 }

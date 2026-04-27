@@ -1,4 +1,4 @@
-import SwiftUI
+import Foundation
 import SwiftData
 
 @Model
@@ -7,8 +7,11 @@ final class Note {
     var title: String
     var body: String                    // plain text body, pills re-detected on open
     var detectedRefs: [String]          // e.g. ["John 3:16", "Phil 4:13"]
-    var threadColor: String?            // color key: "blue", "yellow", etc.
+    /// Legacy — unused in UI; kept for SwiftData compatibility.
+    var threadColor: String?
     var threadName: String?
+    /// Smart collection label (theme / subject) from on-device keyword tagging.
+    var primaryCollection: String?
     var tags: [String]
     var createdAt: Date
     var updatedAt: Date
@@ -19,6 +22,7 @@ final class Note {
         detectedRefs: [String] = [],
         threadColor: String? = nil,
         threadName: String? = nil,
+        primaryCollection: String? = nil,
         tags: [String] = []
     ) {
         self.id = UUID()
@@ -27,6 +31,7 @@ final class Note {
         self.detectedRefs = detectedRefs
         self.threadColor = threadColor
         self.threadName = threadName
+        self.primaryCollection = primaryCollection
         self.tags = tags
         self.createdAt = Date()
         self.updatedAt = Date()
@@ -41,17 +46,4 @@ final class Note {
 
     /// Primary scripture reference for card badge
     var primaryRef: String? { detectedRefs.first }
-
-    /// SwiftUI Color from stored color key
-    var color: Color? {
-        guard let key = threadColor else { return nil }
-        return HarvousColors.thread(key)
-    }
-
-    // Auto-assign a thread color from the palette on first save
-    static func nextColor(existing: [Note]) -> String {
-        let palette = ["blue", "yellow", "green", "pink", "orange", "purple"]
-        let used = existing.compactMap(\.threadColor)
-        return palette.first { !used.contains($0) } ?? palette[existing.count % palette.count]
-    }
 }

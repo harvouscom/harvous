@@ -1,9 +1,25 @@
-import SwiftUI
 import SwiftData
+import SwiftUI
+
+#if os(iOS)
+import UIKit
+#endif
 
 @main
 struct HarvousApp: App {
-    @State private var showCompose = false
+    init() {
+        #if os(iOS)
+        let navTitle = HarvousFonts.system(size: 17, weight: 600, design: .default)
+        let navLarge = HarvousFonts.system(size: 28, weight: 600, design: .rounded)
+        let appearance = UINavigationBarAppearance()
+        appearance.configureWithDefaultBackground()
+        appearance.titleTextAttributes = [.font: navTitle]
+        appearance.largeTitleTextAttributes = [.font: navLarge]
+        UINavigationBar.appearance().standardAppearance = appearance
+        UINavigationBar.appearance().scrollEdgeAppearance = appearance
+        UINavigationBar.appearance().compactAppearance = appearance
+        #endif
+    }
 
     var body: some Scene {
         WindowGroup {
@@ -11,10 +27,12 @@ struct HarvousApp: App {
         }
         .modelContainer(for: [Note.self])
         .commands {
-            HarvousCommands(showCompose: $showCompose)
+            HarvousCommands()
         }
         #if os(macOS)
-        .defaultSize(width: 1200, height: 740)
+        // Without this, an empty `navigationTitle` still shows `CFBundleName` (“Harvous”) in the title bar.
+        .windowToolbarStyle(.unified(showsTitle: false))
+        .defaultSize(width: 1100, height: 720)
         .windowResizability(.contentMinSize)
         #endif
     }

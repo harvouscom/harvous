@@ -10,19 +10,11 @@ struct ComposeView: View {
     @State private var editorState = EditorState()
     @FocusState private var titleFocused: Bool
     @FocusState private var editorFocused: Bool
+    @State private var scriptureSheet: ScripturePassageSheetItem?
 
-    // Derived tag suggestions from content keywords
-    private var suggestedTags: [String] {
-        let text = editorState.plainText.lowercased()
-        var tags: [String] = []
-        if text.contains("faith")   { tags.append("faith") }
-        if text.contains("grace")   { tags.append("grace") }
-        if text.contains("love")    { tags.append("love") }
-        if text.contains("hope")    { tags.append("hope") }
-        if text.contains("prayer")  { tags.append("prayer") }
-        if text.contains("worship") { tags.append("worship") }
-        if !editorState.detectedRefs.isEmpty { tags.append("scripture") }
-        return Array(tags.prefix(4))
+    private var tagResult: (primaryCollection: String?, tags: [String]) {
+        let body = editorState.plainText
+        return BibleStudyTagSuggester.result(title: title, body: body)
     }
 
     private var canSave: Bool {
@@ -32,10 +24,13 @@ struct ComposeView: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                // Title
                 TextField("Title", text: $title)
-                    .font(.system(size: 22, weight: .bold))
+                    .font(HarvousTypography.composeTitleField)
                     .textFieldStyle(.plain)
+                    #if os(iOS)
+                    .autocorrectionDisabled(false)
+                    .textInputAutocapitalization(.sentences)
+#endif
                     .focused($titleFocused)
                     .padding(.horizontal, 20)
                     .padding(.top, 20)
@@ -47,19 +42,17 @@ struct ComposeView: View {
 
                 Divider().padding(.horizontal, 20)
 
-                // Editor — the primary surface
-                HarvousEditor(state: $editorState)
+                HarvousEditor(
+                    state: $editorState,
+                    onScripturePillTap: { ref, trans, _ in
+                        scriptureSheet = ScripturePassageSheetItem(reference: ref, translation: trans)
+                    }
+                )
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .padding(.horizontal, 16)
                     .padding(.top, 8)
 
-                // Live scripture detection feedback
-                if !editorState.detectedRefs.isEmpty {
-                    refsStrip
-                }
-
-                // Footer: tags + thread indicator
-                composeFooter
+                composeMetadataBar
             }
             .navigationTitle("New Note")
             #if os(iOS)
@@ -80,80 +73,63 @@ struct ComposeView: View {
                 }
             }
             .onAppear {
-                // Focus title on open
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
                     titleFocused = true
                 }
             }
-        }
-    }
-
-    // MARK: - Detected refs strip
-
-    private var refsStrip: some View {
-        HStack(spacing: 0) {
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 8) {
-                    Image(systemName: "book.closed.fill")
-                        .font(.caption)
-                        .foregroundStyle(.tint)
-
-                    ForEach(editorState.detectedRefs, id: \.self) { ref in
-                        Text(ref)
-                            .font(.subheadline)
-                            .foregroundStyle(.tint)
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 4)
-                            .background(.tint.opacity(0.08), in: Capsule())
+            .sheet(item: $scriptureSheet) { item in
+                NavigationStack {
+                    ScrollView {
+                        ScripturePassageView(reference: item.reference, translation: item.translation, showHeader: true)
+                            .padding(20)
                     }
-                }
-                .padding(.horizontal, 20)
-                .padding(.vertical, 10)
-            }
-        }
-        .background(.bar)
-        .transition(.move(edge: .bottom).combined(with: .opacity))
-        .animation(HarvousAnimation.spring, value: editorState.detectedRefs.count)
-    }
-
-    // MARK: - Compose footer
-
-    private var composeFooter: some View {
-        HStack(spacing: 8) {
-            // Tag chips
-            if suggestedTags.isEmpty {
-                Label("Tags appear as you write", systemImage: "tag")
-                    .font(.subheadline)
-                    .foregroundStyle(.tertiary)
-            } else {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 6) {
-                        ForEach(suggestedTags, id: \.self) { tag in
-                            Text("#\(tag)")
-                                .font(.subheadline)
-                                .foregroundStyle(.secondary)
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 3)
-                                .background(.quaternary, in: Capsule())
+                    .navigationTitle("Passage")
+                    #if os(iOS)
+                    .navigationBarTitleDisplayMode(.inline)
+                    #endif
+                    .toolbar {
+                        ToolbarItem(placement: .confirmationAction) {
+                            Button("Done") { scriptureSheet = nil }
                         }
                     }
                 }
             }
+        }
+    }
 
-            Spacer()
+    // MARK: - Theme tags + scripture chips (unified)
 
-            // Auto-thread indicator
-            HStack(spacing: 4) {
-                Image(systemName: "sparkles")
-                    .font(.caption)
-                    .foregroundStyle(.tint)
-                Text("Auto-organized")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
+    private var composeMetadataBar: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            let hasTheme = !tagResult.tags.isEmpty
+            let hasRefs = !editorState.detectedRefs.isEmpty
+
+            if hasTheme || hasRefs {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 6) {
+                        ForEach(tagResult.tags, id: \.self) { tag in
+                            ThemeTagChip(text: tag)
+                        }
+                        ForEach(editorState.detectedRefs, id: \.self) { ref in
+                            ScriptureRefChip(reference: ref) {
+                                scriptureSheet = ScripturePassageSheetItem(
+                                    reference: ref,
+                                    translation: ScriptureReference.defaultTranslation
+                                )
+                            }
+                        }
+                    }
+                    .padding(.horizontal, 20)
+                }
+            } else {
+                Label("Tags and references appear as you write", systemImage: "tag")
+                    .font(HarvousTypography.subheadline)
+                    .foregroundStyle(.tertiary)
+                    .padding(.horizontal, 20)
             }
         }
-        .padding(.horizontal, 20)
         .padding(.vertical, 12)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .background(.bar)
     }
 
@@ -166,11 +142,11 @@ struct ComposeView: View {
         let note = Note(
             title: title.trimmingCharacters(in: .whitespacesAndNewlines),
             body: body,
-            detectedRefs: editorState.detectedRefs,
-            threadColor: Note.nextColor(existing: existingNotes),
-            tags: suggestedTags
+            detectedRefs: editorState.detectedRefs
         )
+        BibleStudyTagSuggester.applyToNote(note)
         context.insert(note)
+        try? context.save()
         dismiss()
     }
 }

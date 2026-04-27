@@ -4,18 +4,21 @@ import SwiftData
 struct LibraryView: View {
     @Query(sort: \Note.updatedAt, order: .reverse) private var notes: [Note]
 
-    // Group notes by threadColor as a stand-in for thread grouping
-    private var grouped: [(color: String, notes: [Note])] {
-        let colorOrder = ["blue", "yellow", "green", "pink", "orange", "purple"]
+    private var grouped: [(key: String, notes: [Note])] {
         var dict: [String: [Note]] = [:]
         for note in notes {
-            let key = note.threadColor ?? "blue"
-            dict[key, default: []].append(note)
+            let k = (note.primaryCollection?.trimmingCharacters(in: .whitespacesAndNewlines)).flatMap { $0.isEmpty ? nil : $0 } ?? "Ungrouped"
+            dict[k, default: []].append(note)
         }
-        return colorOrder.compactMap { color in
-            guard let group = dict[color], !group.isEmpty else { return nil }
-            return (color: color, notes: group)
-        }
+        return dict
+            .map { (key: $0.key, notes: $0.value) }
+            .sorted { a, b in
+                if a.key == "Ungrouped" { return false }
+                if b.key == "Ungrouped" { return true }
+                let aDate = a.notes.map(\.updatedAt).max() ?? .distantPast
+                let bDate = b.notes.map(\.updatedAt).max() ?? .distantPast
+                return aDate > bDate
+            }
     }
 
     var body: some View {
@@ -45,14 +48,14 @@ struct LibraryView: View {
 
     private var groupedList: some View {
         List {
-            ForEach(grouped, id: \.color) { group in
+            ForEach(grouped, id: \.key) { group in
                 Section {
                     ForEach(group.notes) { note in
                         NavigationLink { StatefulNoteEditorView(note: note) } label: {
                             HStack(spacing: 12) {
-                                Circle()
-                                    .fill(HarvousColors.thread(group.color) ?? .clear)
-                                    .frame(width: 10, height: 10)
+                                Image(systemName: "folder.fill")
+                                    .font(.system(size: 12))
+                                    .foregroundStyle(.secondary)
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text(note.title.isEmpty ? note.excerpt : note.title)
                                         .font(HarvousTypography.caption)
@@ -68,15 +71,11 @@ struct LibraryView: View {
                     }
                 } header: {
                     HStack(spacing: 6) {
-                        RoundedRectangle(cornerRadius: 3)
-                            .fill(HarvousColors.thread(group.color) ?? .clear)
-                            .frame(width: 14, height: 14)
-                        Text("\(group.notes.count) note\(group.notes.count == 1 ? "" : "s")")
+                        Text(group.key)
                             .font(HarvousTypography.caption)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(.primary)
                         Spacer()
-                        // In the real build this would be the named thread
-                        Text("Auto-group")
+                        Text("\(group.notes.count) note\(group.notes.count == 1 ? "" : "s")")
                             .font(HarvousTypography.footnote)
                             .foregroundStyle(.tertiary)
                     }

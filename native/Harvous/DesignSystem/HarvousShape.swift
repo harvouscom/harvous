@@ -7,6 +7,8 @@ enum HarvousRadius {
     static let pill:         CGFloat = 999
     static let rowHighlight: CGFloat = 10   // warm rounded row selection
     static let formatButton: CGFloat = 8    // format toolbar button press
+    /// macOS sidebar: **bottom** leading corner radius (split side stays square; top leading stays 0 for title bar). Tune vs system chrome.
+    static let sidebarGlassLeading: CGFloat = 16
 }
 
 enum HarvousAnimation {

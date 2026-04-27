@@ -49,6 +49,32 @@ struct ScriptureDetector {
         let range: NSRange
     }
 
+    /// Raw regex capture for structured editing (book substring as matched, e.g. `1 Cor` or `Philippians`).
+    struct ParsedReferenceFields {
+        let bookRaw: String
+        let chapter: Int
+        let verseStart: Int
+        let verseEnd: Int?
+    }
+
+    /// First reference match in `text`; `text` is usually one pill’s reference line.
+    static func parseReferenceFields(in text: String) -> ParsedReferenceFields? {
+        guard let regex = referenceRegex else { return nil }
+        let nsText = text as NSString
+        let full = NSRange(location: 0, length: nsText.length)
+        guard let result = regex.firstMatch(in: text, options: [], range: full), result.numberOfRanges >= 4 else { return nil }
+        let bookRaw = nsText.substring(with: result.range(at: 1))
+        let chapterStr = nsText.substring(with: result.range(at: 2))
+        let v1Str = nsText.substring(with: result.range(at: 3))
+        guard let chapter = Int(chapterStr), let verseStart = Int(v1Str) else { return nil }
+        var verseEnd: Int?
+        if result.numberOfRanges > 4, result.range(at: 4).location != NSNotFound {
+            let v2Str = nsText.substring(with: result.range(at: 4))
+            verseEnd = Int(v2Str)
+        }
+        return ParsedReferenceFields(bookRaw: bookRaw, chapter: chapter, verseStart: verseStart, verseEnd: verseEnd)
+    }
+
     static func detect(in text: String) -> [Match] {
         guard let regex = referenceRegex else { return [] }
         let nsText = text as NSString

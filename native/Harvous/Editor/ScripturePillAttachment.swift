@@ -1,10 +1,17 @@
 import Foundation
 
+// Shared constants so init and renderPill agree on the same values.
+private let kRefSize:  CGFloat = 15   // match body prose size
+private let kTransSize: CGFloat = 11  // translation badge — slightly smaller
+private let kHPad:  CGFloat = 7
+private let kVPad:  CGFloat = 2   // vertical inset for pill background; lower = shallower chip
+private let kGap:   CGFloat = 4
+private let kRadius: CGFloat = 4      // rounded rect, not oval
+
 #if os(macOS)
 import AppKit
 
-/// NSTextAttachment that renders a scripture reference as an inline pill.
-/// The pill is rendered to an NSImage at init time and set as self.image.
+/// NSTextAttachment that renders a scripture reference as an inline rounded-rect pill.
 final class ScripturePillAttachment: NSTextAttachment {
     let reference: String
     var translation: String
@@ -13,43 +20,54 @@ final class ScripturePillAttachment: NSTextAttachment {
         self.reference = reference
         self.translation = translation
         super.init(data: nil, ofType: nil)
-        self.image = Self.renderPill(reference: reference, translation: translation)
-        if let img = self.image {
-            self.bounds = CGRect(origin: CGPoint(x: 0, y: -3), size: img.size)
-        }
+
+        let img = Self.renderPill(reference: reference, translation: translation)
+        self.image = img
+
+        // Correct baseline formula:
+        // In flipped:false NSImage, draw(at:) places the BOTTOM of the bounding box at y.
+        // So the text baseline sits |descender| above y.
+        // We want pill-baseline == surrounding-baseline, so:
+        //   bounds.origin.y = -(y_in_image + |descender|) = refFont.descender - kVPad
+        let refFont = HarvousFonts.system(size: kRefSize, weight: 500)
+        self.bounds = CGRect(
+            origin: CGPoint(x: 0, y: refFont.descender - kVPad),
+            size: img.size
+        )
     }
 
     required init?(coder: NSCoder) { fatalError() }
 
     static func renderPill(reference: String, translation: String) -> NSImage {
-        let refFont = NSFont.systemFont(ofSize: 13, weight: .medium)
-        let transFont = NSFont.systemFont(ofSize: 11, weight: .regular)
-        let hPad: CGFloat = 10, vPad: CGFloat = 3, gap: CGFloat = 5
+        let refFont   = HarvousFonts.system(size: kRefSize, weight: 500)
+        let transFont = HarvousFonts.system(size: kTransSize, weight: 400)
+        let displayTranslation = ScriptureReference.displayTranslationLabel(translation)
 
-        let refAttrs: [NSAttributedString.Key: Any] = [.font: refFont, .foregroundColor: NSColor.systemBlue]
-        let transAttrs: [NSAttributedString.Key: Any] = [.font: transFont, .foregroundColor: NSColor.systemBlue.withAlphaComponent(0.7)]
-        let refStr = NSAttributedString(string: reference, attributes: refAttrs)
-        let transStr = NSAttributedString(string: translation, attributes: transAttrs)
-        let refSize = refStr.size()
+        let refAttrs: [NSAttributedString.Key: Any]   = [.font: refFont,
+                                                          .foregroundColor: NSColor.systemBlue]
+        let transAttrs: [NSAttributedString.Key: Any] = [.font: transFont,
+                                                          .foregroundColor: NSColor.systemBlue.withAlphaComponent(0.55)]
+        let refStr   = NSAttributedString(string: reference,   attributes: refAttrs)
+        let transStr = NSAttributedString(string: displayTranslation, attributes: transAttrs)
+        let refSize   = refStr.size()
         let transSize = transStr.size()
 
-        let w = hPad + refSize.width + gap + transSize.width + hPad
-        let h = max(refSize.height, transSize.height) + vPad * 2
+        let w = kHPad + refSize.width + kGap + transSize.width + kHPad
+        let h = max(refSize.height, transSize.height) + kVPad * 2
         let size = NSSize(width: ceil(w), height: ceil(h))
 
         return NSImage(size: size, flipped: false) { bounds in
-            // Capsule background
-            let path = NSBezierPath(roundedRect: bounds, xRadius: 999, yRadius: 999)
-            NSColor.systemBlue.withAlphaComponent(0.10).setFill()
-            path.fill()
-            NSColor.systemBlue.withAlphaComponent(0.25).setStroke()
-            path.lineWidth = 0.5
-            path.stroke()
+            // Rounded rect (not oval)
+            let pill = NSBezierPath(roundedRect: bounds.insetBy(dx: 0.25, dy: 0.25),
+                                    xRadius: kRadius, yRadius: kRadius)
+            NSColor.systemBlue.withAlphaComponent(0.08).setFill(); pill.fill()
+            NSColor.systemBlue.withAlphaComponent(0.20).setStroke(); pill.lineWidth = 0.5; pill.stroke()
 
-            // Reference
-            refStr.draw(at: NSPoint(x: hPad, y: (size.height - refSize.height) / 2))
-            // Translation
-            transStr.draw(at: NSPoint(x: hPad + refSize.width + gap, y: (size.height - transSize.height) / 2))
+            // draw(at:) in flipped:false places bottom of bbox at y — so centre by offsetting half the remaining height
+            let refY   = (size.height - refSize.height)   / 2
+            let transY = (size.height - transSize.height) / 2
+            refStr.draw(at:   NSPoint(x: kHPad,                       y: refY))
+            transStr.draw(at: NSPoint(x: kHPad + refSize.width + kGap, y: transY))
             return true
         }
     }
@@ -58,7 +76,7 @@ final class ScripturePillAttachment: NSTextAttachment {
 #else
 import UIKit
 
-/// NSTextAttachment that renders a scripture reference as an inline pill on iOS.
+/// NSTextAttachment that renders a scripture reference as an inline rounded-rect pill on iOS.
 final class ScripturePillAttachment: NSTextAttachment {
     let reference: String
     var translation: String
@@ -67,40 +85,54 @@ final class ScripturePillAttachment: NSTextAttachment {
         self.reference = reference
         self.translation = translation
         super.init(data: nil, ofType: nil)
-        self.image = Self.renderPill(reference: reference, translation: translation)
-        if let img = self.image {
-            self.bounds = CGRect(origin: CGPoint(x: 0, y: -3), size: img.size)
-        }
+
+        let img = Self.renderPill(reference: reference, translation: translation)
+        self.image = img
+
+        // iOS UIGraphicsImageRenderer uses Y-down. draw(at:) places the TOP of the bbox at y.
+        // Baseline from image top = kVPad + refFont.ascender.
+        // In attachment Y-up coords: bounds.origin.y = -(size.height - baseline_from_top)
+        //   = -(size.height - kVPad - ascender)
+        //   = descender - kVPad   (same formula as macOS — verified algebraically)
+        let refFont = HarvousFonts.system(size: kRefSize, weight: 500)
+        self.bounds = CGRect(
+            origin: CGPoint(x: 0, y: CGFloat(refFont.descender) - kVPad),
+            size: img.size
+        )
     }
 
     required init?(coder: NSCoder) { fatalError() }
 
     static func renderPill(reference: String, translation: String) -> UIImage {
-        let refFont = UIFont.systemFont(ofSize: 13, weight: .medium)
-        let transFont = UIFont.systemFont(ofSize: 11, weight: .regular)
-        let hPad: CGFloat = 10, vPad: CGFloat = 3, gap: CGFloat = 5
+        let refFont   = HarvousFonts.system(size: kRefSize, weight: 500)
+        let transFont = HarvousFonts.system(size: kTransSize, weight: 400)
+        let displayTranslation = ScriptureReference.displayTranslationLabel(translation)
 
-        let refAttrs: [NSAttributedString.Key: Any] = [.font: refFont, .foregroundColor: UIColor.systemBlue]
-        let transAttrs: [NSAttributedString.Key: Any] = [.font: transFont, .foregroundColor: UIColor.systemBlue.withAlphaComponent(0.7)]
-        let refStr = NSAttributedString(string: reference, attributes: refAttrs)
-        let transStr = NSAttributedString(string: translation, attributes: transAttrs)
-        let refSize = refStr.size()
+        let refAttrs: [NSAttributedString.Key: Any]   = [.font: refFont,
+                                                          .foregroundColor: UIColor.systemBlue]
+        let transAttrs: [NSAttributedString.Key: Any] = [.font: transFont,
+                                                          .foregroundColor: UIColor.systemBlue.withAlphaComponent(0.55)]
+        let refStr   = NSAttributedString(string: reference,   attributes: refAttrs)
+        let transStr = NSAttributedString(string: displayTranslation, attributes: transAttrs)
+        let refSize   = refStr.size()
         let transSize = transStr.size()
 
-        let w = hPad + refSize.width + gap + transSize.width + hPad
-        let h = max(refSize.height, transSize.height) + vPad * 2
+        let w = kHPad + refSize.width + kGap + transSize.width + kHPad
+        let h = max(refSize.height, transSize.height) + kVPad * 2
         let size = CGSize(width: ceil(w), height: ceil(h))
 
         return UIGraphicsImageRenderer(size: size).image { _ in
             let bounds = CGRect(origin: .zero, size: size)
-            let path = UIBezierPath(roundedRect: bounds, cornerRadius: 999)
-            UIColor.systemBlue.withAlphaComponent(0.10).setFill()
-            path.fill()
-            UIColor.systemBlue.withAlphaComponent(0.25).setStroke()
-            path.lineWidth = 0.5
-            path.stroke()
-            refStr.draw(at: CGPoint(x: hPad, y: (size.height - refSize.height) / 2))
-            transStr.draw(at: CGPoint(x: hPad + refSize.width + gap, y: (size.height - transSize.height) / 2))
+            let pill = UIBezierPath(roundedRect: bounds.insetBy(dx: 0.25, dy: 0.25),
+                                    cornerRadius: kRadius)
+            UIColor.systemBlue.withAlphaComponent(0.08).setFill(); pill.fill()
+            UIColor.systemBlue.withAlphaComponent(0.20).setStroke(); pill.lineWidth = 0.5; pill.stroke()
+
+            // draw(at:) in UIKit places top-left of bbox at the point (Y-down)
+            let refY   = (size.height - refSize.height)   / 2
+            let transY = (size.height - transSize.height) / 2
+            refStr.draw(at:   CGPoint(x: kHPad,                       y: refY))
+            transStr.draw(at: CGPoint(x: kHPad + refSize.width + kGap, y: transY))
         }
     }
 }

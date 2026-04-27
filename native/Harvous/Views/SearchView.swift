@@ -29,6 +29,10 @@ struct SearchView: View {
             }
             .navigationTitle("Search")
             .searchable(text: $query, prompt: "Notes, verses, tags…")
+            #if os(iOS)
+            .autocorrectionDisabled(true)
+            .textInputAutocapitalization(.never)
+#endif
         }
     }
 

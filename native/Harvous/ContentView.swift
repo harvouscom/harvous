@@ -3,91 +3,98 @@ import SwiftData
 
 struct ContentView: View {
     var body: some View {
-        #if os(macOS)
-        MacRootView()
-        #else
-        iOSRootView()
-        #endif
+        Group {
+            #if os(macOS)
+            MacRootView()
+            #else
+            iOSRootView()
+            #endif
+        }
     }
 }
 
-// MARK: - macOS: Two-column — sidebar navigates, editor is the canvas
+// MARK: - macOS: Sidebar + editor
 
 #if os(macOS)
 struct MacRootView: View {
-    /// nil = sidebar showing thread list.
-    /// non-nil = sidebar showing note list for that filter.
-    @State private var selectedFilter: NoteFilter? = nil
     @State private var selectedNote: Note?
     @State private var lastSelectedNote: Note?
+    @State private var showSearch = false
+    @State private var showInspector = false
     @Environment(\.modelContext) private var context
 
     var body: some View {
         NavigationSplitView {
-            // Single sidebar column — swaps between thread list and note list
-            sidebarContent
-                .navigationSplitViewColumnWidth(min: 240, ideal: 280, max: 340)
+            SidebarPanelView(selectedNote: $selectedNote)
+                .navigationSplitViewColumnWidth(min: 220, ideal: 260, max: 340)
         } detail: {
-            NoteEditorView(note: $selectedNote)
+            NavigationStack {
+                NoteEditorView(note: $selectedNote, showInspector: $showInspector as Binding<Bool>)
+                    .toolbar {
+                        // Different placements: multiple `.primaryAction` items are merged into one NSSegment; `.navigation` is its own slot (like the space switcher).
+                        ToolbarItem(placement: .navigation) {
+                            Button(action: createNewNote) {
+                                Image(systemName: "square.and.pencil")
+                            }
+                            .buttonStyle(.bordered)
+                            .help("New Note (⌘N)")
+                        }
+                        ToolbarItem(placement: .primaryAction) {
+                            Menu {
+                                Button {
+                                    withAnimation(HarvousAnimation.spring) { showInspector = true }
+                                } label: {
+                                    Label("Note details", systemImage: "sidebar.right")
+                                }
+                                .disabled(selectedNote == nil || showInspector)
+
+                                Button {
+                                    withAnimation(HarvousAnimation.spring) { showInspector = false }
+                                } label: {
+                                    Label("Hide note details", systemImage: "sidebar.left")
+                                }
+                                .disabled(selectedNote == nil || !showInspector)
+                            } label: {
+                                Image(systemName: "ellipsis")
+                                    .font(.system(size: 16, weight: .medium))
+                            }
+                            .buttonStyle(.bordered)
+                            .menuIndicator(.hidden)
+                            .help("More")
+                            .disabled(selectedNote == nil)
+                        }
+                    }
+            }
         }
         .navigationSplitViewStyle(.balanced)
-        // Empty note cleanup on navigate-away
+        .focusedSceneValue(\.newNoteAction, createNewNote)
+        .focusedSceneValue(\.showSearchAction, { showSearch = true })
         .onChange(of: selectedNote?.id) { _, _ in
-            if let prev = lastSelectedNote,
-               prev.id != selectedNote?.id,
-               prev.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-               prev.body.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                context.delete(prev)
+            let newNote = selectedNote
+            let previous = lastSelectedNote
+            Task { @MainActor in
+                if let prev = previous,
+                   prev.id != newNote?.id,
+                   prev.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+                   prev.body.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    context.delete(prev)
+                    try? context.save()
+                }
+                lastSelectedNote = newNote
             }
-            lastSelectedNote = selectedNote
+        }
+        .overlay {
+            if showSearch {
+                SpotlightSearchView(isPresented: $showSearch, selectedNote: $selectedNote)
+                    .ignoresSafeArea()
+            }
         }
     }
-
-    // MARK: - Sidebar content (dynamic — thread list or note list)
-
-    @ViewBuilder
-    private var sidebarContent: some View {
-        if let filter = selectedFilter {
-            // Note list — fills the sidebar when user is browsing a thread/filter
-            NoteListColumn(
-                filter: filter,
-                selectedNote: $selectedNote,
-                onNewNote: createNewNote
-            )
-            .toolbar {
-                // Back button returns to thread list
-                ToolbarItem(placement: .navigation) {
-                    Button {
-                        withAnimation(HarvousAnimation.spring) { selectedFilter = nil }
-                    } label: {
-                        Label("Threads", systemImage: "chevron.backward")
-                    }
-                }
-                // Compose button stays accessible
-                ToolbarItem(placement: .primaryAction) {
-                    Button(action: createNewNote) {
-                        Image(systemName: "square.and.pencil")
-                    }
-                    .keyboardShortcut("n", modifiers: .command)
-                    .help("New Note (⌘N)")
-                }
-            }
-        } else {
-            // Thread list — default sidebar view
-            SidebarView(selectedFilter: $selectedFilter, onNewNote: createNewNote)
-        }
-    }
-
-    // MARK: - Create note inline (Apple Notes style)
 
     private func createNewNote() {
-        // If we're at the root, drill into "All Notes" first so user sees the new note
-        if selectedFilter == nil {
-            withAnimation(HarvousAnimation.spring) { selectedFilter = .all }
-        }
         let note = Note()
-        if case .thread(let key) = selectedFilter { note.threadColor = key }
         context.insert(note)
+        try? context.save()
         selectedNote = note
     }
 }

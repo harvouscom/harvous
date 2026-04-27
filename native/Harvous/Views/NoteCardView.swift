@@ -3,45 +3,34 @@ import SwiftUI
 struct NoteCardView: View {
     let note: Note
 
-    private var relativeDate: String {
-        let formatter = RelativeDateTimeFormatter()
-        formatter.unitsStyle = .abbreviated
-        return formatter.localizedString(for: note.updatedAt, relativeTo: Date())
-    }
-
     var body: some View {
         RoundedRectangle(cornerRadius: HarvousRadius.card)
             .fill(.background)
             .cardShadow()
             .overlay(alignment: .topLeading) {
                 VStack(alignment: .leading, spacing: 0) {
-                    // Thread color bar + name
-                    if let color = note.color {
-                        HStack(spacing: 8) {
-                            Rectangle()
-                                .fill(color)
-                                .frame(width: 4)
-
-                            if let name = note.threadName {
-                                Text(name)
-                                    .font(HarvousTypography.caption)
-                                    .foregroundStyle(.secondary)
-                            }
+                    if let collection = note.primaryCollection, !collection.isEmpty {
+                        HStack(spacing: 6) {
+                            Image(systemName: "folder.fill")
+                                .font(.system(size: 10))
+                            Text(collection)
+                                .font(HarvousTypography.caption)
+                                .lineLimit(1)
                         }
-                        .frame(height: 32)
+                        .foregroundStyle(.secondary)
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(color.opacity(0.12))
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 8)
+                        .background(Color.secondary.opacity(0.06))
                     }
 
                     VStack(alignment: .leading, spacing: 6) {
-                        // Title
                         if !note.title.isEmpty {
                             Text(note.title)
-                                .font(HarvousTypography.title)
+                                .font(HarvousTypography.noteCardTitle)
                                 .lineLimit(2)
                         }
 
-                        // Excerpt
                         if !note.excerpt.isEmpty {
                             Text(note.excerpt)
                                 .font(HarvousTypography.body)
@@ -50,18 +39,16 @@ struct NoteCardView: View {
                                 .lineSpacing(2)
                         }
 
-                        // Footer: primary ref + date
-                        HStack {
+                        HStack(alignment: .center, spacing: 6) {
                             if let ref = note.primaryRef {
-                                Label(ref, systemImage: "book.closed")
-                                    .font(HarvousTypography.caption)
-                                    .foregroundStyle(Color.harvousAccent)
-                                    .labelStyle(.titleAndIcon)
+                                ScriptureRefChip(reference: ref)
                             }
                             Spacer()
-                            Text(relativeDate)
-                                .font(HarvousTypography.footnote)
-                                .foregroundStyle(.tertiary)
+                            TimelineView(.periodic(from: .now, by: 30)) { context in
+                                Text(NoteRelativeTime.formatted(note.updatedAt, relativeTo: context.date, abbreviated: true))
+                                    .font(HarvousTypography.footnote)
+                                    .foregroundStyle(.tertiary)
+                            }
                         }
                     }
                     .padding(14)
