@@ -677,20 +677,21 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
   const effectiveSelectedSpaceIdRef = useRef(effectiveSelectedSpaceId);
   effectiveSelectedSpaceIdRef.current = effectiveSelectedSpaceId;
 
-  // Capture ?space= from URL once per active thread ID so later effect runs
-  // (triggered by async title/gradient updates) don't re-read a stale URL.
+  // Capture URL space for thread/note routes when the active thread id or `?space=` changes
+  // (same thread can be opened in multiple spaces). Uses routeSelectedSpaceId so we stay in
+  // sync with NavigationColumn’s URL resolution without re-firing on storage-only space changes.
   const spaceIdForHistoryRef = useRef<string | null>(null);
   useEffect(() => {
     if (!activeThreadForHistory?.id) return;
-    let captured: string | null = null;
-    if (typeof window !== 'undefined') {
-      try {
-        const fromUrl = new URLSearchParams(window.location.search).get('space');
-        if (fromUrl && fromUrl.startsWith('space_')) captured = fromUrl;
-      } catch { /* ignore */ }
+    const path = typeof window !== 'undefined' ? window.location.pathname : pathname;
+    if (!path.startsWith('/thread/') && !path.startsWith('/note/')) {
+      spaceIdForHistoryRef.current = null;
+      return;
     }
+    let captured: string | null = routeSelectedSpaceId;
+    if (captured && !captured.startsWith('space_')) captured = null;
     spaceIdForHistoryRef.current = captured;
-  }, [activeThreadForHistory?.id]);
+  }, [activeThreadForHistory?.id, routeSelectedSpaceId, pathname]);
 
   useEffect(() => {
     if (!activeThreadForHistory?.id || !activeThreadForHistory.id.startsWith('thread_')) return;
@@ -726,7 +727,7 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
       openedInSpaceIds: [openedInSpaceId],
       openedInSpaceId: openedInSpaceId,
     });
-  }, [activeThreadForHistory?.id, activeThreadForHistory?.title, activeThreadForHistory?.backgroundGradient, activeThreadForHistory?.noteCount]);
+  }, [activeThreadForHistory?.id, activeThreadForHistory?.title, activeThreadForHistory?.backgroundGradient, activeThreadForHistory?.noteCount, routeSelectedSpaceId]);
 
   // currentItemId is already initialized from pathname in useState
   // This useEffect just updates it when the page changes

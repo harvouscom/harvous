@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useParams, useRouterState } from '@tanstack/react-router';
 import { useThread } from '../hooks/queries/useThread';
@@ -107,13 +107,16 @@ export default function ThreadPage() {
 
   // TanStack Router may not include unvalidated search params in location.search;
   // fall back to window.location.search so ?space= is always picked up.
-  let urlSpaceId = getSpaceIdFromSearch(search);
-  if (!urlSpaceId && typeof window !== 'undefined') {
-    try {
-      const fromUrl = new URLSearchParams(window.location.search).get('space');
-      if (fromUrl && fromUrl.startsWith('space_')) urlSpaceId = fromUrl;
-    } catch { /* ignore */ }
-  }
+  const urlSpaceId = useMemo(() => {
+    let id = getSpaceIdFromSearch(search);
+    if (!id && typeof window !== 'undefined') {
+      try {
+        const fromUrl = new URLSearchParams(window.location.search).get('space');
+        if (fromUrl && fromUrl.startsWith('space_')) id = fromUrl;
+      } catch { /* ignore */ }
+    }
+    return id;
+  }, [search]);
 
   // Use nav data as an instant fallback while thread detail loads — avoids a hard
   // loading skeleton swap. Nav query is already warm from app startup.
@@ -136,22 +139,15 @@ export default function ThreadPage() {
     notes.forEach((n: ListNoteForSeed) => seedNoteFromList(queryClient, n, threadContext));
   };
 
-  // Capture ?space= from URL once per threadId so later effect runs (triggered by async
-  // thread/nav data) don't re-read the URL after the user has navigated away.
+  // Capture ?space= from URL when thread or URL space context changes (same thread can be
+  // opened in multiple spaces; ref must not stay on the first space only).
   const spaceIdRef = useRef<string | null>(null);
   useEffect(() => {
-    let captured: string | null = null;
-    if (typeof window !== 'undefined') {
-      try {
-        const fromUrl = new URLSearchParams(window.location.search).get('space');
-        if (fromUrl && fromUrl.startsWith('space_')) captured = fromUrl;
-      } catch { /* ignore */ }
-    }
-    spaceIdRef.current = captured;
-  }, [threadId]);
+    spaceIdRef.current = urlSpaceId;
+  }, [threadId, urlSpaceId]);
 
   // Sync nav badge count: update navigationHistory entry with the correct noteCount
-  // and space scope. Uses the ref so the space captured on mount is stable across re-renders.
+  // and space scope. Uses the ref so async title/count updates do not re-read a stale URL.
   useEffect(() => {
     const effectSpaceId = spaceIdRef.current;
     const navThread = nav?.threads.find(t => t.id === threadId);
@@ -174,7 +170,7 @@ export default function ThreadPage() {
         openedInSpaceId,
       });
     }
-  }, [threadId, thread, nav, isUnorganized]);
+  }, [threadId, thread, nav, isUnorganized, urlSpaceId]);
 
   const tabs = TABS.map(t => ({ ...t, isActive: t.id === noteTypeFilter }));
 

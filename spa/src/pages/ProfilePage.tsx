@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { useUser } from '@clerk/clerk-react';
-import { useProfile, useXP } from '../hooks/queries/useProfile';
+import { useProfile, useXP, getCachedUserColor } from '../hooks/queries/useProfile';
 import CardStack from '../components/CardStack';
 import ProfileCardStackHeader from '../../../src/components/react/ProfileCardStackHeader';
 import ProfileOptionsList from '../../../src/components/react/ProfileOptionsList';
@@ -18,7 +18,7 @@ export default function ProfilePageWrapper() {
   const { user } = useUser();
   const { data: profile } = useProfile();
   const { data: xp, isPending: xpPending } = useXP();
-  const userColor = profile?.userColor ?? 'blue';
+  const userColor = profile?.userColor ?? getCachedUserColor() ?? 'blue';
   const joinDate = formatJoinDate(user?.createdAt);
   const seasonalXP = xp?.seasonalXP ?? 0;
   const seasonName = xp?.seasonName ?? getSeasonDisplayName();

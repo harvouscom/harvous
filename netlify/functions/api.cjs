@@ -18204,6 +18204,7 @@ var init_schema2 = __esm({
         userId: text("userId").notNull(),
         isPublic: boolean("isPublic").notNull().default(false),
         isFeatured: boolean("isFeatured").notNull().default(false),
+        isPinned: boolean("isPinned").notNull().default(false),
         order: integer("order").notNull().default(0),
         shareToken: text("shareToken"),
         shareTokenCreatedAt: ts("shareTokenCreatedAt"),
@@ -30507,7 +30508,7 @@ async function fetchVerseText(reference, translation = "NET") {
       throw cacheReadErr;
     }
   }
-  if (cached?.content && cached.content.length > 0) {
+  if (cached?.content && cached.content.length > 0 && cached.content.includes('<sup class="verse-num"')) {
     return cached.content;
   }
   let verseGroups = parseVerseGroups(cleanReference);
@@ -30566,7 +30567,7 @@ async function fetchVerseText(reference, translation = "NET") {
       if (groupVerses.length > 0) {
         const label = group.start === group.end ? `Verse ${group.start}:` : `Verses ${group.start}-${group.end}:`;
         formattedParts.push(`<p><strong>${label}</strong></p>`);
-        const groupText = groupVerses.map((v2) => `<sup>${v2.verse}</sup>${v2.text}`).join(" ");
+        const groupText = groupVerses.map((v2) => `<sup class="verse-num" style="font-size:0.55em; line-height:0; vertical-align:super;">${v2.verse}</sup>${v2.text}`).join(" ");
         formattedParts.push(`<p>${groupText}</p>`);
         if (index2 < verseGroups.length - 1) {
           formattedParts.push('<hr style="margin: 1rem 0; border: none; border-top: 1px solid var(--color-stone-grey); opacity: 0.3;" />');
@@ -30577,7 +30578,7 @@ async function fetchVerseText(reference, translation = "NET") {
     });
     formatted = formattedParts.join("");
   } else {
-    formatted = allVerses.map((v2) => `<sup>${v2.verse}</sup>${v2.text}`).join(" ");
+    formatted = allVerses.map((v2) => `<sup class="verse-num" style="font-size:0.55em; line-height:0; vertical-align:super;">${v2.verse}</sup>${v2.text}`).join(" ");
   }
   try {
     await db.insert(VerseTextCache).values({
@@ -30585,7 +30586,13 @@ async function fetchVerseText(reference, translation = "NET") {
       translation,
       content: formatted,
       createdAt: nowISO()
-    }).onConflictDoNothing();
+    }).onConflictDoUpdate({
+      target: [VerseTextCache.reference, VerseTextCache.translation],
+      set: {
+        content: formatted,
+        createdAt: nowISO()
+      }
+    });
   } catch (cacheErr) {
     console.error(`[fetchVerseText] Cache insert failed for ${normalizedKey} (${translation}):`, cacheErr?.message ?? cacheErr);
   }
@@ -71448,6 +71455,7 @@ var NOTE_SELECT_COLUMNS = {
   noteType: Notes.noteType,
   isPublic: Notes.isPublic,
   isFeatured: Notes.isFeatured,
+  isPinned: Notes.isPinned,
   createdAt: Notes.createdAt,
   updatedAt: Notes.updatedAt,
   lastVisited: Notes.lastVisited,
@@ -72111,7 +72119,8 @@ async function getNotesForSpace(spaceId, userId, limit = 20, offset = 0) {
   try {
     const fetchLimit = limit + offset + 1;
     const chronological = await spaceUsesChronologicalOrdering(spaceId);
-    const allNotes = chronological ? await db.select(NOTE_SELECT_COLUMNS).from(Notes).where(and(eq(Notes.spaceId, spaceId), eq(Notes.userId, userId))).orderBy(asc(Notes.createdAt), asc(Notes.id)).limit(fetchLimit) : await db.select(NOTE_SELECT_COLUMNS).from(Notes).where(and(eq(Notes.spaceId, spaceId), eq(Notes.userId, userId))).orderBy(
+    const allNotes = chronological ? await db.select(NOTE_SELECT_COLUMNS).from(Notes).where(and(eq(Notes.spaceId, spaceId), eq(Notes.userId, userId))).orderBy(desc(Notes.isPinned), asc(Notes.createdAt), asc(Notes.id)).limit(fetchLimit) : await db.select(NOTE_SELECT_COLUMNS).from(Notes).where(and(eq(Notes.spaceId, spaceId), eq(Notes.userId, userId))).orderBy(
+      desc(Notes.isPinned),
       asc(sql`CASE WHEN ${Notes.lastVisited} IS NOT NULL THEN 0 ELSE 1 END`),
       desc(Notes.lastVisited),
       desc(Notes.updatedAt),
@@ -72184,7 +72193,8 @@ async function getNotesForSpaceForMember(spaceId, ownerUserId, limit = 100, offs
   try {
     const fetchLimit = limit + offset + 1;
     const chronological = await spaceUsesChronologicalOrdering(spaceId);
-    const allNotes = chronological ? await db.select({ ...NOTE_SELECT_COLUMNS, userId: Notes.userId }).from(Notes).where(and(eq(Notes.spaceId, spaceId), eq(Notes.contentEncrypted, false))).orderBy(asc(Notes.createdAt), asc(Notes.id)).limit(fetchLimit) : await db.select({ ...NOTE_SELECT_COLUMNS, userId: Notes.userId }).from(Notes).where(and(eq(Notes.spaceId, spaceId), eq(Notes.contentEncrypted, false))).orderBy(
+    const allNotes = chronological ? await db.select({ ...NOTE_SELECT_COLUMNS, userId: Notes.userId }).from(Notes).where(and(eq(Notes.spaceId, spaceId), eq(Notes.contentEncrypted, false))).orderBy(desc(Notes.isPinned), asc(Notes.createdAt), asc(Notes.id)).limit(fetchLimit) : await db.select({ ...NOTE_SELECT_COLUMNS, userId: Notes.userId }).from(Notes).where(and(eq(Notes.spaceId, spaceId), eq(Notes.contentEncrypted, false))).orderBy(
+      desc(Notes.isPinned),
       asc(sql`CASE WHEN ${Notes.lastVisited} IS NOT NULL THEN 0 ELSE 1 END`),
       desc(Notes.lastVisited),
       desc(Notes.updatedAt),
@@ -87801,6 +87811,41 @@ route11.post("/api/spaces/:spaceId/remove-items", requireAuth, async (c) => {
     return c.json({ success: true, removedNotes, removedThreads, errors: errors.length > 0 ? errors : void 0 });
   } catch (error) {
     const standardError = handleAPIError(error, { endpoint: "/api/spaces/[spaceId]/remove-items", action: "remove_items_from_space" });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+route11.post("/api/spaces/:spaceId/pin-item", requireAuth, async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const spaceId = requireParam(c, "spaceId");
+    let accessInfo;
+    try {
+      accessInfo = await requireSpaceAccess(spaceId, auth.userId);
+    } catch (err) {
+      if (err instanceof SpaceAccessError) return c.json({ error: err.message, code: err.code }, err.status);
+      throw err;
+    }
+    if (accessInfo.role !== "owner") {
+      return c.json({ error: "Only the space owner can pin items", code: "FORBIDDEN" }, 403);
+    }
+    const { itemId, itemType, isPinned } = await c.req.json();
+    if (!itemId || !itemType || typeof isPinned !== "boolean") {
+      return c.json({ error: "itemId, itemType, and isPinned are required", code: "BAD_REQUEST" }, 400);
+    }
+    if (itemType === "note") {
+      const note = first(await db.select({ id: Notes.id }).from(Notes).where(and(eq(Notes.id, itemId), eq(Notes.spaceId, spaceId))).limit(1));
+      if (!note) return c.json({ error: "Note not found in space", code: "NOT_FOUND" }, 404);
+      await db.update(Notes).set({ isPinned }).where(eq(Notes.id, itemId));
+    } else if (itemType === "thread") {
+      const thread = first(await db.select({ id: Threads.id }).from(Threads).where(and(eq(Threads.id, itemId), eq(Threads.spaceId, spaceId))).limit(1));
+      if (!thread) return c.json({ error: "Thread not found in space", code: "NOT_FOUND" }, 404);
+      await db.update(Threads).set({ isPinned }).where(eq(Threads.id, itemId));
+    } else {
+      return c.json({ error: 'itemType must be "note" or "thread"', code: "BAD_REQUEST" }, 400);
+    }
+    return c.json({ success: true });
+  } catch (error) {
+    const standardError = handleAPIError(error, { endpoint: "/api/spaces/[spaceId]/pin-item", action: "pin_space_item" });
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });

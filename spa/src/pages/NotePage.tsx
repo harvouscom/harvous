@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef } from 'react';
-import { useNavigate, useParams } from '@tanstack/react-router';
+import { useNavigate, useParams, useRouterState } from '@tanstack/react-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { useUser } from '@clerk/clerk-react';
 import { useNote } from '../hooks/queries/useNote';
@@ -13,6 +13,30 @@ import { detectScriptureReferences } from '@/utils/scripture-detector';
 import { debug } from '@/utils/logger';
 import { MY_PILE_THREAD_TITLE } from '@/utils/my-pile-thread';
 
+function getThreadIdFromSearch(search: string | Record<string, unknown> | undefined): string | null {
+  if (search == null) return null;
+  if (typeof search === 'object') {
+    const t = (search as Record<string, unknown>).thread;
+    return typeof t === 'string' && t.startsWith('thread_') ? t : null;
+  }
+  const raw = typeof search === 'string' ? search : '';
+  const params = new URLSearchParams(raw.startsWith('?') ? raw : `?${raw}`);
+  const thread = params.get('thread');
+  return thread && thread.startsWith('thread_') ? thread : null;
+}
+
+function getSpaceIdFromSearch(search: string | Record<string, unknown> | undefined): string | null {
+  if (search == null) return null;
+  if (typeof search === 'object') {
+    const space = (search as Record<string, unknown>).space;
+    return typeof space === 'string' && space.startsWith('space_') ? space : null;
+  }
+  const raw = typeof search === 'string' ? search : '';
+  const params = new URLSearchParams(raw.startsWith('?') ? raw : `?${raw}`);
+  const space = params.get('space');
+  return space && space.startsWith('space_') ? space : null;
+}
+
 export default function NotePage() {
   const { noteId: noteSlug } = useParams({ strict: false }) as { noteId: string };
   // URL param is the slug (e.g. "def456"); DB + API need the full prefixed ID
@@ -22,6 +46,27 @@ export default function NotePage() {
   const { data: _nav } = useNavigation(); // kept warm for nav sidebar
   const queryClient = useQueryClient();
   const navigate = useNavigate();
+  const search = useRouterState({ select: (s) => s.location.search });
+  const urlThreadId = useMemo(() => {
+    let id = getThreadIdFromSearch(search);
+    if (!id && typeof window !== 'undefined') {
+      try {
+        const fromUrl = new URLSearchParams(window.location.search).get('thread');
+        if (fromUrl && fromUrl.startsWith('thread_')) id = fromUrl;
+      } catch { /* ignore */ }
+    }
+    return id;
+  }, [search]);
+  const urlSpaceId = useMemo(() => {
+    let id = getSpaceIdFromSearch(search);
+    if (!id && typeof window !== 'undefined') {
+      try {
+        const fromUrl = new URLSearchParams(window.location.search).get('space');
+        if (fromUrl && fromUrl.startsWith('space_')) id = fromUrl;
+      } catch { /* ignore */ }
+    }
+    return id;
+  }, [search]);
   const updateNoteMutation = useUpdateNote();
   const processScriptureMutation = useProcessScriptureRefs();
 
@@ -87,23 +132,12 @@ export default function NotePage() {
     return () => window.removeEventListener('noteRemovedFromThread', handler);
   }, [noteId, navigate, queryClient]);
 
-  // Capture ?thread= / ?space= from URL once per noteId so later logic (and async effects)
-  // don't lose context if the SPA strips the query string.
+  // Capture ?thread= / ?space= when note id or URL query context changes (same note can
+  // be opened from another thread/space without remounting).
   useEffect(() => {
-    let capturedThread: string | null = null;
-    let capturedSpace: string | null = null;
-    if (typeof window !== 'undefined') {
-      try {
-        const params = new URLSearchParams(window.location.search);
-        const thread = params.get('thread');
-        if (thread && thread.startsWith('thread_')) capturedThread = thread;
-        const space = params.get('space');
-        if (space && space.startsWith('space_')) capturedSpace = space;
-      } catch { /* ignore */ }
-    }
-    noteThreadFromUrlRef.current = capturedThread;
-    noteSpaceIdRef.current = capturedSpace;
-  }, [noteId]);
+    noteThreadFromUrlRef.current = urlThreadId;
+    noteSpaceIdRef.current = urlSpaceId;
+  }, [noteId, urlThreadId, urlSpaceId]);
 
   // When opening a note that has scripture refs but no pill markup (e.g. onboarding or legacy notes),
   // or has pending pills (from deferred create), run scripture processing once then refetch.
@@ -121,8 +155,8 @@ export default function NotePage() {
     const runReprocess = () => {
       reprocessAttemptedRef.current = noteId;
       const threads = note.threads ?? [];
-      let threadIdFromUrl: string | null = null;
-      if (typeof window !== 'undefined') {
+      let threadIdFromUrl: string | null = urlThreadId;
+      if (typeof window !== 'undefined' && !threadIdFromUrl) {
         try {
           const t = new URLSearchParams(window.location.search).get('thread');
           if (t?.startsWith('thread_')) threadIdFromUrl = t;
@@ -155,14 +189,14 @@ export default function NotePage() {
     const refs = detectScriptureReferences(plainText);
     if (refs.length === 0) return;
     runReprocess();
-  }, [note, noteId, isLoading, processScriptureMutation]);
+  }, [note, noteId, isLoading, processScriptureMutation, urlThreadId]);
 
   // Parent thread: prefer ?thread= (multi-note membership) over API order (threads[0]).
   // When the API returns no threads (e.g. rare member edge) but the URL has ?thread=, keep that context.
   const parentThread = useMemo(() => {
     const threads = note?.threads ?? [];
-    let threadId: string | null = null;
-    if (typeof window !== 'undefined') {
+    let threadId: string | null = urlThreadId;
+    if (!threadId && typeof window !== 'undefined') {
       try {
         const fromUrl = new URLSearchParams(window.location.search).get('thread');
         if (fromUrl?.startsWith('thread_')) threadId = fromUrl;
@@ -183,7 +217,7 @@ export default function NotePage() {
       };
     }
     return undefined;
-  }, [note?.threads, noteId]);
+  }, [note?.threads, noteId, urlThreadId]);
   const parentThreadId = parentThread?.id ?? undefined;
 
   // Note detail API includes threadId on the row, but seeded list cache often only has threads[].
@@ -252,7 +286,7 @@ export default function NotePage() {
       openedInSpaceIds: [openedInSpaceId],
       openedInSpaceId: openedInSpaceId,
     });
-  }, [note, parentThread]);
+  }, [note, parentThread, urlSpaceId]);
 
   // Diagnostic (dev): log whether note content has scripture pill markup (helps distinguish "no pills in content" vs "pills not rendering" for member view).
   useEffect(() => {

@@ -16,6 +16,11 @@ export default function ProfileCardStackHeader({
 }: ProfileCardStackHeaderProps) {
   const [color, setColor] = useState(initialColor);
 
+  // Sync state with props when they change (e.g., after profile query / cache hydrates)
+  useEffect(() => {
+    setColor(initialColor);
+  }, [initialColor]);
+
   useEffect(() => {
     const handleProfileUpdate = (event: CustomEvent) => {
       const { selectedColor } = event.detail;

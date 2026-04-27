@@ -92,7 +92,7 @@ export default function SignUpPage() {
                     className: 'hidden',
                     style: { display: 'none' },
                   },
-                  formFieldError: { className: 'clerk-form-error' },
+                  formFieldErrorText: { className: 'clerk-form-error' },
                   formFieldAlert: {
                     className: 'clerk-form-alert',
                     style: {
@@ -101,6 +101,77 @@ export default function SignUpPage() {
                       boxSizing: 'border-box',
                       overflowWrap: 'break-word',
                       wordWrap: 'break-word',
+                      whiteSpace: 'normal',
+                    },
+                  },
+                  formFieldWarningText: {
+                    className: 'clerk-form-alert',
+                    style: {
+                      maxWidth: '100%',
+                      width: '100%',
+                      boxSizing: 'border-box',
+                      overflowWrap: 'break-word',
+                      wordWrap: 'break-word',
+                      whiteSpace: 'normal',
+                    },
+                  },
+                  alert: {
+                    className: 'clerk-form-alert clerk-form-banner-alert',
+                    style: {
+                      maxWidth: '100%',
+                      width: '100%',
+                      boxSizing: 'border-box',
+                      flexWrap: 'wrap',
+                      alignItems: 'flex-start',
+                    },
+                  },
+                  alertText: {
+                    className: 'clerk-form-alert',
+                    style: {
+                      maxWidth: '100%',
+                      boxSizing: 'border-box',
+                      overflowWrap: 'break-word',
+                      whiteSpace: 'normal',
+                    },
+                  },
+                  alertTextContainer: {
+                    className: 'clerk-form-alert-text-container',
+                    style: {
+                      flex: '1 1 0',
+                      minWidth: 0,
+                      maxWidth: '100%',
+                      boxSizing: 'border-box',
+                      overflowWrap: 'break-word',
+                      whiteSpace: 'normal',
+                    },
+                  },
+                  'alert__warning': {
+                    className: 'clerk-form-alert clerk-form-banner-alert',
+                    style: {
+                      maxWidth: '100%',
+                      width: '100%',
+                      boxSizing: 'border-box',
+                      flexWrap: 'wrap',
+                      alignItems: 'flex-start',
+                    },
+                  },
+                  'alertText__warning': {
+                    className: 'clerk-form-alert',
+                    style: {
+                      maxWidth: '100%',
+                      boxSizing: 'border-box',
+                      overflowWrap: 'break-word',
+                      whiteSpace: 'normal',
+                    },
+                  },
+                  'alertTextContainer__warning': {
+                    className: 'clerk-form-alert-text-container',
+                    style: {
+                      flex: '1 1 0',
+                      minWidth: 0,
+                      maxWidth: '100%',
+                      boxSizing: 'border-box',
+                      overflowWrap: 'break-word',
                       whiteSpace: 'normal',
                     },
                   },
