@@ -147,6 +147,7 @@ struct ComposeView: View {
         BibleStudyTagSuggester.applyToNote(note)
         context.insert(note)
         try? context.save()
+        HarvousRecallOSIntegration.afterNotePersisted(note: note, modelContext: context)
         dismiss()
     }
 }

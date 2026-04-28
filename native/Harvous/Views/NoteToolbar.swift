@@ -16,6 +16,14 @@ struct NoteToolbar: View {
 
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 0) {
+                    // Undo / redo
+                    group {
+                        iconButton("arrow.uturn.backward", isEnabled: proxy.formatToolbar.canUndo) { proxy.undoEdit() }
+                        iconButton("arrow.uturn.forward", isEnabled: proxy.formatToolbar.canRedo) { proxy.redoEdit() }
+                    }
+
+                    warmDivider
+
                     // Inline
                     group {
                         textButton("B", weight: .bold, isActive: proxy.formatToolbar.isBold) { proxy.bold() }
@@ -34,10 +42,11 @@ struct NoteToolbar: View {
 
                     warmDivider
 
-                    // Lists
+                    // Lists + indent
                     group {
-                        iconButton("list.bullet") { proxy.insertBullet() }
-                        iconButton("list.number") { proxy.insertNumbered() }
+                        iconButton("list.bullet", isActive: proxy.formatToolbar.isBulletList) { proxy.insertBullet() }
+                        iconButton("list.number", isActive: proxy.formatToolbar.isNumberedList) { proxy.insertNumbered() }
+                        iconButton("decrease.indent", isEnabled: proxy.formatToolbar.isIndented) { proxy.outdent() }
                         iconButton("increase.indent", isActive: proxy.formatToolbar.isIndented) { proxy.indent() }
                     }
 
@@ -82,7 +91,12 @@ struct NoteToolbar: View {
         .buttonStyle(NoteToolbarButtonStyle(isActive: isActive))
     }
 
-    private func iconButton(_ symbol: String, isActive: Bool = false, action: @escaping () -> Void) -> some View {
+    private func iconButton(
+        _ symbol: String,
+        isActive: Bool = false,
+        isEnabled: Bool = true,
+        action: @escaping () -> Void
+    ) -> some View {
         Button(action: action) {
             Image(systemName: symbol)
                 .font(.system(size: 14, weight: .medium))
@@ -90,6 +104,8 @@ struct NoteToolbar: View {
                 .contentShape(Rectangle())
         }
         .buttonStyle(NoteToolbarButtonStyle(isActive: isActive))
+        .disabled(!isEnabled)
+        .opacity(isEnabled ? 1 : 0.35)
     }
 
     @ViewBuilder

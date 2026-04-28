@@ -2,15 +2,16 @@ import SwiftUI
 import SwiftData
 
 /// Debounces SwiftData writes without touching `@State`, so typing does not rebuild `HarvousEditor` every keystroke.
+@MainActor
 private final class EditorAutosaveDebouncer {
-    private var workItem: DispatchWorkItem?
+    private var task: Task<Void, Never>?
     private(set) var latestTitle: String = ""
     private(set) var latestBody: String = ""
     private(set) var latestRefs: [String] = []
 
     func cancel() {
-        workItem?.cancel()
-        workItem = nil
+        task?.cancel()
+        task = nil
     }
 
     func updateSnapshot(title: String, body: String, refs: [String]) {
@@ -20,18 +21,22 @@ private final class EditorAutosaveDebouncer {
     }
 
     func schedule(after delay: TimeInterval = 1, note: Note, context: ModelContext) {
-        workItem?.cancel()
-        let item = DispatchWorkItem { [weak self] in
-            guard let self else { return }
+        task?.cancel()
+        task = Task { @MainActor in
+            let nanos = UInt64((delay * 1_000_000_000).rounded())
+            try? await Task.sleep(nanoseconds: nanos)
+            guard !Task.isCancelled else { return }
+            let unchanged =
+                note.title == self.latestTitle && note.body == self.latestBody && note.detectedRefs == self.latestRefs
+            guard !unchanged else { return }
             note.title = self.latestTitle
             note.body = self.latestBody
             note.detectedRefs = self.latestRefs
             note.updatedAt = Date()
             BibleStudyTagSuggester.applyToNote(note)
             try? context.save()
+            HarvousRecallOSIntegration.afterNotePersisted(note: note, modelContext: context)
         }
-        workItem = item
-        DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: item)
     }
 }
 
@@ -114,64 +119,73 @@ struct NoteEditorView: View {
     @ViewBuilder
     private func editorCanvas(note: Note) -> some View {
         VStack(spacing: 0) {
-            // Scrollable writing surface
-            ScrollView {
-                VStack(alignment: .leading, spacing: 0) {
-                    // Title — Apple Notes style: large, bold, full-width
-                    TextField("Title", text: $title, axis: .vertical)
-                        .font(HarvousTypography.composeTitleField)
-                        .foregroundStyle(.primary)
-                        .textFieldStyle(.plain)
-                        #if os(iOS)
-                        .autocorrectionDisabled(false)
-                        .textInputAutocapitalization(.sentences)
+            // Scrollable writing surface — `minHeight` matches viewport so paper runs flush to the footer (no dead band).
+            GeometryReader { geo in
+                let viewportH = max(geo.size.height, 1)
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 0) {
+                        // Title — Apple Notes style: large, bold, full-width
+                        TextField("Title", text: $title, axis: .vertical)
+                            .font(HarvousTypography.composeTitleField)
+                            .foregroundStyle(.primary)
+                            .textFieldStyle(.plain)
+                            #if os(iOS)
+                            .autocorrectionDisabled(false)
+                            .textInputAutocapitalization(.sentences)
 #endif
-                        .focused($titleFocused)
-                        .onChange(of: titleFocused) { _, focused in
-                            if focused {
-                                #if os(macOS)
-                                DispatchQueue.main.async {
-                                    proxy.clearActiveScripturePill()
+                            .focused($titleFocused)
+                            .onChange(of: titleFocused) { _, focused in
+                                if focused {
+                                    #if os(macOS)
+                                    DispatchQueue.main.async {
+                                        proxy.clearActiveScripturePill()
+                                    }
+                                    #endif
                                 }
-                                #endif
                             }
-                        }
+                            .padding(.horizontal, 32)
+                            .padding(.top, 24)
+                            .padding(.bottom, 12)
+                            .onChange(of: title) { _, _ in scheduleAutosave(note) }
+
+                        // Body — same horizontal inset as title (TextKit defaults add extra leading; zeroed in HarvousEditor)
+                        #if os(macOS)
+                        HarvousEditor(
+                            state: $editorState,
+                            proxy: proxy,
+                            noteID: note.id,
+                            documentBody: note.body,
+                            placeholder: "Start writing…",
+                            font: HarvousFonts.system(size: 16, weight: 400, design: .default),
+                            onScripturePillTap: { scripturePillTapped(reference: $0, translation: $1, range: $2) }
+                        )
+                        .frame(minHeight: 400)
                         .padding(.horizontal, 32)
-                        .padding(.top, 24)
-                        .padding(.bottom, 12)
-                        .onChange(of: title) { _, _ in scheduleAutosave(note) }
+                        .onChange(of: editorState.plainText) { _, _ in scheduleAutosave(note) }
+                        #else
+                        HarvousEditor(
+                            state: $editorState,
+                            noteID: note.id,
+                            documentBody: note.body,
+                            placeholder: "Start writing…",
+                            scriptureProxy: iosBodyProxy,
+                            onScripturePillTap: { scripturePillTapped(reference: $0, translation: $1, range: $2) }
+                        )
+                        .frame(minHeight: 400)
+                        .padding(.horizontal, 32)
+                        .onChange(of: editorState.plainText) { _, _ in scheduleAutosave(note) }
+                        #endif
 
-                    // Body — same horizontal inset as title (TextKit defaults add extra leading; zeroed in HarvousEditor)
-                    #if os(macOS)
-                    HarvousEditor(
-                        state: $editorState,
-                        proxy: proxy,
-                        noteID: note.id,
-                        documentBody: note.body,
-                        placeholder: "Start writing…",
-                        font: HarvousFonts.system(size: 16, weight: 400, design: .default),
-                        onScripturePillTap: { scripturePillTapped(reference: $0, translation: $1, range: $2) }
-                    )
-                    .frame(minHeight: 400)
-                    .padding(.horizontal, 32)
-                    .onChange(of: editorState.plainText) { _, _ in scheduleAutosave(note) }
-                    #else
-                    HarvousEditor(
-                        state: $editorState,
-                        noteID: note.id,
-                        documentBody: note.body,
-                        placeholder: "Start writing…",
-                        scriptureProxy: iosBodyProxy,
-                        onScripturePillTap: { scripturePillTapped(reference: $0, translation: $1, range: $2) }
-                    )
-                    .frame(minHeight: 400)
-                    .padding(.horizontal, 32)
-                    .onChange(of: editorState.plainText) { _, _ in scheduleAutosave(note) }
-                    #endif
-
-                    Spacer().frame(height: 80)
+                        #if os(iOS)
+                        Spacer().frame(height: 80)
+                        #else
+                        Spacer(minLength: 0)
+                        #endif
+                    }
+                    .frame(maxWidth: .infinity, minHeight: viewportH, alignment: .top)
                 }
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
 
             #if os(macOS)
             // Bottom bar: format toolbar when selected, while typing, or when pointer is on the bar
@@ -274,13 +288,20 @@ struct NoteEditorView: View {
 
     /// Writes the in-memory title/editor fields into a note row and commits the store.
     private func persistEditorIntoNote(_ n: Note) {
+        let body = editorState.plainText
+        let refs = editorState.detectedRefs
+        guard n.title != title || n.body != body || n.detectedRefs != refs else {
+            autosave.updateSnapshot(title: title, body: body, refs: refs)
+            return
+        }
         n.title = title
-        n.body = editorState.plainText
-        n.detectedRefs = editorState.detectedRefs
+        n.body = body
+        n.detectedRefs = refs
         n.updatedAt = Date()
         BibleStudyTagSuggester.applyToNote(n)
         try? context.save()
-        autosave.updateSnapshot(title: title, body: editorState.plainText, refs: editorState.detectedRefs)
+        HarvousRecallOSIntegration.afterNotePersisted(note: n, modelContext: context)
+        autosave.updateSnapshot(title: title, body: body, refs: refs)
     }
 
     /// When the selected note changes (or clears), persist UI state to the *previous* note so
@@ -289,12 +310,17 @@ struct NoteEditorView: View {
         let targetId = id
         let descriptor = FetchDescriptor<Note>(predicate: #Predicate { $0.id == targetId })
         guard let previous = try? context.fetch(descriptor).first else { return }
+        guard previous.title != title || previous.body != body || previous.detectedRefs != refs else {
+            autosave.updateSnapshot(title: title, body: body, refs: refs)
+            return
+        }
         previous.title = title
         previous.body = body
         previous.detectedRefs = refs
         previous.updatedAt = Date()
         BibleStudyTagSuggester.applyToNote(previous)
         try? context.save()
+        HarvousRecallOSIntegration.afterNotePersisted(note: previous, modelContext: context)
         autosave.updateSnapshot(title: title, body: body, refs: refs)
     }
 

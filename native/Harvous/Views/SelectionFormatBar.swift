@@ -9,6 +9,22 @@ struct SelectionFormatBar: View {
 
     var body: some View {
         HStack(spacing: 0) {
+            pill(help: "Undo", disabled: !proxy.formatToolbar.canUndo) {
+                Image(systemName: "arrow.uturn.backward")
+                    .font(.system(size: 14))
+                    .frame(width: 36, height: 36)
+            } action: { proxy.undoEdit() }
+
+            sep
+
+            pill(help: "Redo", disabled: !proxy.formatToolbar.canRedo) {
+                Image(systemName: "arrow.uturn.forward")
+                    .font(.system(size: 14))
+                    .frame(width: 36, height: 36)
+            } action: { proxy.redoEdit() }
+
+            sep
+
             // Bold
             pill(help: "Bold") {
                 Text("B").font(HarvousTypography.formatBarKeyBold)
@@ -50,6 +66,14 @@ struct SelectionFormatBar: View {
 
             sep
 
+            pill(help: "Outdent", disabled: !proxy.formatToolbar.isIndented) {
+                Image(systemName: "decrease.indent")
+                    .font(.system(size: 14))
+                    .frame(width: 36, height: 36)
+            } action: { proxy.outdent() }
+
+            sep
+
             // Indent
             pill(help: "Indent") {
                 Image(systemName: "increase.indent")
@@ -81,6 +105,7 @@ struct SelectionFormatBar: View {
     @ViewBuilder
     private func pill<Label: View>(
         help: String,
+        disabled: Bool = false,
         @ViewBuilder label: () -> Label,
         action: @escaping () -> Void
     ) -> some View {
@@ -88,8 +113,10 @@ struct SelectionFormatBar: View {
             label().contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .foregroundStyle(.primary)
+        .foregroundStyle(disabled ? Color.secondary : Color.primary)
+        .opacity(disabled ? 0.35 : 1)
         .help(help)
+        .disabled(disabled)
     }
 }
 

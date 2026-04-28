@@ -6,6 +6,8 @@ import SwiftUI
 struct ScripturePillActionBar: View {
     /// Matches `NoteToolbar` (36×36) and `NoteActionBar` typography (`HarvousTypography.actionBar*` at 15pt).
     private static let toolbarControlHeight: CGFloat = 36
+    /// Caps chapter / verse menu pickers so the row stays compact (still fits three-digit values e.g. Ps 150).
+    private static let scriptureNumberPickerMaxWidth: CGFloat = 46
 
     @ObservedObject var proxy: EditorProxy
 
@@ -25,7 +27,8 @@ struct ScripturePillActionBar: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            HStack(alignment: .center, spacing: 12) {
+            // No spacing between scroll and Apply: horizontal clip runs flush to the button edge (avoids a dead band when content is clipped).
+            HStack(alignment: .center, spacing: 0) {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(alignment: .center, spacing: 8) {
                         Group {
@@ -63,14 +66,14 @@ struct ScripturePillActionBar: View {
                                 .pickerStyle(.menu)
                                 .controlSize(.regular)
                                 .labelsHidden()
-                                .fixedSize(horizontal: true, vertical: false)
+                                .frame(maxWidth: Self.scriptureNumberPickerMaxWidth)
                                 .frame(height: Self.toolbarControlHeight)
                                 .accessibilityLabel("Chapter")
 
                                 Text(":")
                                     .font(HarvousTypography.actionBarMeta)
                                     .foregroundStyle(HarvousColors.scripturePillForeground.opacity(0.45))
-                                    .frame(width: 10, alignment: .center)
+                                    .frame(width: 8, alignment: .center)
 
                                 Picker("Verse", selection: $verseStart) {
                                     ForEach(1...maxVerse, id: \.self) { v in
@@ -80,7 +83,7 @@ struct ScripturePillActionBar: View {
                                 .pickerStyle(.menu)
                                 .controlSize(.regular)
                                 .labelsHidden()
-                                .fixedSize(horizontal: true, vertical: false)
+                                .frame(maxWidth: Self.scriptureNumberPickerMaxWidth)
                                 .frame(height: Self.toolbarControlHeight)
                                 .accessibilityLabel("Verse")
 
@@ -88,7 +91,7 @@ struct ScripturePillActionBar: View {
                                     Text("–")
                                         .font(HarvousTypography.actionBarMeta)
                                         .foregroundStyle(HarvousColors.scripturePillForeground.opacity(0.45))
-                                        .frame(width: 12, alignment: .center)
+                                        .frame(width: 10, alignment: .center)
 
                                     Picker("End verse", selection: $verseEnd) {
                                         ForEach(verseStart...maxVerse, id: \.self) { v in
@@ -98,7 +101,7 @@ struct ScripturePillActionBar: View {
                                     .pickerStyle(.menu)
                                     .controlSize(.regular)
                                     .labelsHidden()
-                                    .fixedSize(horizontal: true, vertical: false)
+                                    .frame(maxWidth: Self.scriptureNumberPickerMaxWidth)
                                     .frame(height: Self.toolbarControlHeight)
                                     .accessibilityLabel("End verse")
                                 }
@@ -124,11 +127,10 @@ struct ScripturePillActionBar: View {
                         .help(useVerseRange ? "Single verse" : "Verse range")
 
                     }
-                    .padding(.trailing, 4)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
 
-                HStack(alignment: .center, spacing: 8) {
+                HStack(alignment: .center, spacing: 0) {
                     Button("Apply") {
                         applyReference()
                     }

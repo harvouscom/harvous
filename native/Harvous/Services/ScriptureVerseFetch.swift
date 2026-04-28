@@ -34,6 +34,21 @@ enum ScriptureVerseFetch {
         let text: String
     }
 
+    /// Wakes the Netlify function and opens the Supabase pool via `GET /api/health?warm=db` so the first real
+    /// `fetchVerseHTML` is faster. Call once from app launch (non-blocking).
+    static func warmBackendForVerseFetch() {
+        Task(priority: .background) {
+            guard let url = URL(string: HarvousAPI.baseURL + "/api/health?warm=db") else { return }
+            var request = URLRequest(url: url)
+            request.httpMethod = "GET"
+            do {
+                _ = try await URLSession.shared.data(for: request)
+            } catch {
+                // Non-critical
+            }
+        }
+    }
+
     /// Fetches HTML verse content (superscript verse numbers, etc.) from `POST /api/scripture/fetch-verse`.
     static func fetchVerseHTML(reference: String, translation: String) async throws -> String {
         let trimmedRef = reference.trimmingCharacters(in: .whitespacesAndNewlines)

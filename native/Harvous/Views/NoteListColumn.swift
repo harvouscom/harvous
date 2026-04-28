@@ -74,7 +74,7 @@ struct NoteListColumn: View {
         }
         #if os(macOS)
         .toolbarBackground(.clear, for: .automatic)
-        .modifier(SidebarTransparentWindowToolbar())
+        .modifier(HarvousSidebarTransparentWindowToolbar())
         .navigationTitle("")
         #else
         .navigationTitle(filter.displayName)
@@ -203,8 +203,10 @@ struct NoteListColumn: View {
                         Button(role: .destructive) {
                             withAnimation {
                                 if selectedNote?.id == note.id { selectedNote = nil }
+                                let nid = note.id
                                 context.delete(note)
                                 try? context.save()
+                                HarvousRecallOSIntegration.afterNoteDeleted(id: nid, modelContext: context)
                             }
                         } label: {
                             Label("Delete", systemImage: "trash")
@@ -229,7 +231,7 @@ struct NoteListColumn: View {
 
 #if os(macOS)
 /// Hides the default window toolbar backdrop so sidebar glass reads continuously under the traffic lights (macOS 15+).
-private struct SidebarTransparentWindowToolbar: ViewModifier {
+struct HarvousSidebarTransparentWindowToolbar: ViewModifier {
     func body(content: Content) -> some View {
         if #available(macOS 15.0, *) {
             content.toolbarBackgroundVisibility(.hidden, for: .windowToolbar)
