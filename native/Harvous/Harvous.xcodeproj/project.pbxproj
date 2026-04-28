@@ -7,6 +7,36 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		C9F100000000000000000001 /* HarvousAppRouter.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9E100000000000000000001 /* HarvousAppRouter.swift */; };
+		C9F100000000000000000002 /* HarvousAppRouter.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9E100000000000000000001 /* HarvousAppRouter.swift */; };
+		C9F100000000000000000003 /* HarvousAppIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9E100000000000000000002 /* HarvousAppIntents.swift */; };
+		C9F100000000000000000004 /* HarvousAppIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9E100000000000000000002 /* HarvousAppIntents.swift */; };
+		C9F100000000000000000005 /* HarvousAppShortcuts.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9E100000000000000000003 /* HarvousAppShortcuts.swift */; };
+		C9F100000000000000000006 /* HarvousAppShortcuts.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9E100000000000000000003 /* HarvousAppShortcuts.swift */; };
+		C9F100000000000000000007 /* HarvousAppGroup.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9E100000000000000000004 /* HarvousAppGroup.swift */; };
+		C9F100000000000000000008 /* HarvousAppGroup.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9E100000000000000000004 /* HarvousAppGroup.swift */; };
+		C9F100000000000000000009 /* RecallSharedModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9E100000000000000000005 /* RecallSharedModels.swift */; };
+		C9F10000000000000000000A /* RecallSharedModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9E100000000000000000005 /* RecallSharedModels.swift */; };
+		C9F10000000000000000000B /* RecallActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9E100000000000000000006 /* RecallActivityAttributes.swift */; };
+		C9F10000000000000000000C /* HarvousNoteSpotlightIndexer.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9E100000000000000000007 /* HarvousNoteSpotlightIndexer.swift */; };
+		C9F10000000000000000000D /* HarvousNoteSpotlightIndexer.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9E100000000000000000007 /* HarvousNoteSpotlightIndexer.swift */; };
+		C9F10000000000000000000E /* HarvousRecallSnapshotWriter.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9E100000000000000000008 /* HarvousRecallSnapshotWriter.swift */; };
+		C9F10000000000000000000F /* HarvousRecallSnapshotWriter.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9E100000000000000000008 /* HarvousRecallSnapshotWriter.swift */; };
+		C9F100000000000000000010 /* HarvousRecallOSIntegration.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9E100000000000000000009 /* HarvousRecallOSIntegration.swift */; };
+		C9F100000000000000000011 /* HarvousRecallOSIntegration.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9E100000000000000000009 /* HarvousRecallOSIntegration.swift */; };
+		C9F100000000000000000012 /* HarvousRecallNotifications.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9E10000000000000000000A /* HarvousRecallNotifications.swift */; };
+		C9F100000000000000000013 /* HarvousRecallNotifications.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9E10000000000000000000A /* HarvousRecallNotifications.swift */; };
+		C9F100000000000000000014 /* HarvousCalendarStudyNotifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9E10000000000000000000B /* HarvousCalendarStudyNotifier.swift */; };
+		C9F100000000000000000015 /* HarvousCalendarStudyNotifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9E10000000000000000000B /* HarvousCalendarStudyNotifier.swift */; };
+		C9F100000000000000000016 /* HarvousLiveActivityController.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9E10000000000000000000C /* HarvousLiveActivityController.swift */; };
+		C9F100000000000000000017 /* HarvousWidgetBundle.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9E10000000000000000000D /* HarvousWidgetBundle.swift */; };
+		C9F100000000000000000018 /* RecallCardWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9E10000000000000000000E /* RecallCardWidget.swift */; };
+		C9F100000000000000000019 /* RecallLiveActivityWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9E10000000000000000000F /* RecallLiveActivityWidget.swift */; };
+		C9F10000000000000000001A /* RecallWidgetIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9E100000000000000000010 /* RecallWidgetIntents.swift */; };
+		C9F10000000000000000001B /* HarvousAppGroup.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9E100000000000000000004 /* HarvousAppGroup.swift */; };
+		C9F10000000000000000001C /* RecallSharedModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9E100000000000000000005 /* RecallSharedModels.swift */; };
+		C9F10000000000000000001D /* RecallActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9E100000000000000000006 /* RecallActivityAttributes.swift */; };
+		C9F10000000000000000001E /* HarvousWidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = C9E100000000000000000011 /* HarvousWidgetExtension.appex */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		00D118AAD2EB053B23E27351 /* SidebarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2C6D1224F965D7DAF8B1A2E /* SidebarView.swift */; };
 		05A5A4F94605710C92CA410D /* HarvousCommands.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1774DF51E262C76E2037DDE /* HarvousCommands.swift */; };
 		0F23E90BE5CFE5B6DE5E8CC6 /* NoteToolbar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4DDA4F38E9CBF0A99695D91E /* NoteToolbar.swift */; };
@@ -92,9 +122,34 @@
 		F3F3F3F33F3F3F3F3F3F3F33 /* ScripturePillActionBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3F3F3F31F3F3F3F3F3F3F31 /* ScripturePillActionBar.swift */; };
 		A0A0A0A02A0A0A0A0A0A0A0A2 /* ScriptureApplyFeedback.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0A0A0A01A0A0A0A0A0A0A0A1 /* ScriptureApplyFeedback.swift */; };
 		A0A0A0A03A0A0A0A0A0A0A0A3 /* ScriptureApplyFeedback.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0A0A0A01A0A0A0A0A0A0A0A1 /* ScriptureApplyFeedback.swift */; };
+		C9F100000000000000000020 /* HarvousSettingsRoute.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9E100000000000000000020 /* HarvousSettingsRoute.swift */; };
+		C9F100000000000000000021 /* HarvousSettingsRoute.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9E100000000000000000020 /* HarvousSettingsRoute.swift */; };
+		C9F100000000000000000022 /* ProfileAndSettingsViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9E100000000000000000021 /* ProfileAndSettingsViews.swift */; };
+		C9F100000000000000000023 /* ProfileAndSettingsViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9E100000000000000000021 /* ProfileAndSettingsViews.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		C9E100000000000000000001 /* HarvousAppRouter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HarvousAppRouter.swift; sourceTree = "<group>"; };
+		C9E100000000000000000020 /* HarvousSettingsRoute.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HarvousSettingsRoute.swift; sourceTree = "<group>"; };
+		C9E100000000000000000021 /* ProfileAndSettingsViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileAndSettingsViews.swift; sourceTree = "<group>"; };
+		C9E100000000000000000002 /* HarvousAppIntents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HarvousAppIntents.swift; sourceTree = "<group>"; };
+		C9E100000000000000000003 /* HarvousAppShortcuts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HarvousAppShortcuts.swift; sourceTree = "<group>"; };
+		C9E100000000000000000004 /* HarvousAppGroup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HarvousAppGroup.swift; sourceTree = "<group>"; };
+		C9E100000000000000000005 /* RecallSharedModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecallSharedModels.swift; sourceTree = "<group>"; };
+		C9E100000000000000000006 /* RecallActivityAttributes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecallActivityAttributes.swift; sourceTree = "<group>"; };
+		C9E100000000000000000007 /* HarvousNoteSpotlightIndexer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HarvousNoteSpotlightIndexer.swift; sourceTree = "<group>"; };
+		C9E100000000000000000008 /* HarvousRecallSnapshotWriter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HarvousRecallSnapshotWriter.swift; sourceTree = "<group>"; };
+		C9E100000000000000000009 /* HarvousRecallOSIntegration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HarvousRecallOSIntegration.swift; sourceTree = "<group>"; };
+		C9E10000000000000000000A /* HarvousRecallNotifications.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HarvousRecallNotifications.swift; sourceTree = "<group>"; };
+		C9E10000000000000000000B /* HarvousCalendarStudyNotifier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HarvousCalendarStudyNotifier.swift; sourceTree = "<group>"; };
+		C9E10000000000000000000C /* HarvousLiveActivityController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HarvousLiveActivityController.swift; sourceTree = "<group>"; };
+		C9E10000000000000000000D /* HarvousWidgetBundle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HarvousWidgetBundle.swift; sourceTree = "<group>"; };
+		C9E10000000000000000000E /* RecallCardWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecallCardWidget.swift; sourceTree = "<group>"; };
+		C9E10000000000000000000F /* RecallLiveActivityWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecallLiveActivityWidget.swift; sourceTree = "<group>"; };
+		C9E100000000000000000010 /* RecallWidgetIntents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecallWidgetIntents.swift; sourceTree = "<group>"; };
+		C9E100000000000000000012 /* HarvousWidget.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = HarvousWidget.entitlements; sourceTree = "<group>"; };
+		C9E100000000000000000022 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		C9E100000000000000000011 /* HarvousWidgetExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = HarvousWidgetExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		0D2F7D25DE72AA00178B669B /* NoteEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NoteEditorView.swift; sourceTree = "<group>"; };
 		19A8E6EB0CD972726ED60880 /* HarvousEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HarvousEditor.swift; sourceTree = "<group>"; };
 		1C6480C8077C89F754042C6F /* NoteCardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NoteCardView.swift; sourceTree = "<group>"; };
@@ -144,6 +199,37 @@
 		E71DE04A6AE210B9D54FE8A0 /* HarvousTypography.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HarvousTypography.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
+/* Begin PBXFrameworksBuildPhase section */
+		C9FP00000000000000000001 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		C9FP00000000000000000002 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		C9EM00000000000000000001 /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				C9F10000000000000000001E /* HarvousWidgetExtension.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
 /* Begin PBXGroup section */
 		0B3488CB29D37D4E6D35DBA3 /* Views */ = {
 			isa = PBXGroup;
@@ -165,6 +251,7 @@
 				F3F3F3F31F3F3F3F3F3F3F31 /* ScripturePillActionBar.swift */,
 				1E7587B49945E3F37FDB606B /* SearchView.swift */,
 				9A1F98DAB48131E648607CDB /* SelectionFormatBar.swift */,
+				C9E100000000000000000021 /* ProfileAndSettingsViews.swift */,
 				326645C025CE83554007016A /* SidebarPanelView.swift */,
 				D2C6D1224F965D7DAF8B1A2E /* SidebarView.swift */,
 				92DDE26789E878D4C7F476FA /* SpotlightSearchView.swift */,
@@ -207,6 +294,7 @@
 			children = (
 				AA9454B67B2D0A05909AD0C1 /* Harvous.app */,
 				915A5644BFB467992F95CF49 /* Harvous.app */,
+				C9E100000000000000000011 /* HarvousWidgetExtension.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -223,10 +311,57 @@
 		090909090909090909090909 /* Services */ = {
 			isa = PBXGroup;
 			children = (
+				C9E10000000000000000000B /* HarvousCalendarStudyNotifier.swift */,
+				C9E10000000000000000000C /* HarvousLiveActivityController.swift */,
+				C9E100000000000000000007 /* HarvousNoteSpotlightIndexer.swift */,
+				C9E100000000000000000009 /* HarvousRecallOSIntegration.swift */,
+				C9E10000000000000000000A /* HarvousRecallNotifications.swift */,
+				C9E100000000000000000008 /* HarvousRecallSnapshotWriter.swift */,
 				E8E8E8E81E8E8E8E8E8E8E8E8 /* ScripturePassageCache.swift */,
 				09AAA09AAA09AAA09AAA09AA /* ScriptureVerseFetch.swift */,
 			);
 			path = Services;
+			sourceTree = "<group>";
+		};
+		C9G000000000000000000001 /* App */ = {
+			isa = PBXGroup;
+			children = (
+				C9E100000000000000000001 /* HarvousAppRouter.swift */,
+				C9E100000000000000000020 /* HarvousSettingsRoute.swift */,
+			);
+			path = App;
+			sourceTree = "<group>";
+		};
+		C9G000000000000000000002 /* Intents */ = {
+			isa = PBXGroup;
+			children = (
+				C9E100000000000000000002 /* HarvousAppIntents.swift */,
+				C9E100000000000000000003 /* HarvousAppShortcuts.swift */,
+			);
+			path = Intents;
+			sourceTree = "<group>";
+		};
+		C9G000000000000000000003 /* Recall */ = {
+			isa = PBXGroup;
+			children = (
+				C9E100000000000000000004 /* HarvousAppGroup.swift */,
+				C9E100000000000000000006 /* RecallActivityAttributes.swift */,
+				C9E100000000000000000005 /* RecallSharedModels.swift */,
+			);
+			path = Recall;
+			sourceTree = "<group>";
+		};
+		C9G000000000000000000004 /* HarvousWidget */ = {
+			isa = PBXGroup;
+			children = (
+				C9E100000000000000000022 /* Info.plist */,
+				C9E100000000000000000012 /* HarvousWidget.entitlements */,
+				C9E10000000000000000000D /* HarvousWidgetBundle.swift */,
+				C9E10000000000000000000E /* RecallCardWidget.swift */,
+				C9E10000000000000000000F /* RecallLiveActivityWidget.swift */,
+				C9E100000000000000000010 /* RecallWidgetIntents.swift */,
+			);
+			path = HarvousWidget;
 			sourceTree = "<group>";
 		};
 		B8FEF4F5B506D6273B39E775 /* DesignSystem */ = {
@@ -243,16 +378,20 @@
 		DDE35B3AEF88A091A6883303 /* Harvous */ = {
 			isa = PBXGroup;
 			children = (
+				C9G000000000000000000001 /* App */,
 				24CB35E22B6D8A4DAC98F84B /* ContentView.swift */,
 				DC1067124A419BAF7002F22E /* Harvous.entitlements */,
 				1D3CDB28BB9BF31E5832F658 /* HarvousApp.swift */,
 				A1774DF51E262C76E2037DDE /* HarvousCommands.swift */,
+				C9G000000000000000000004 /* HarvousWidget */,
 				CD0F9C5430AFA2554D051317 /* Info.plist */,
+				C9G000000000000000000002 /* Intents */,
 				613771F7E191505CBC5A994B /* NoteRelativeTime.swift */,
 				C1C1C1C1C1C1C1C1C1C1C1C1 /* BibleStudyTagSuggester.swift */,
 				B8FEF4F5B506D6273B39E775 /* DesignSystem */,
 				88A80108D7D42FBAF959DE12 /* Editor */,
 				B3E10A8C25338538DE86ED6E /* Models */,
+				C9G000000000000000000003 /* Recall */,
 				090909090909090909090909 /* Services */,
 				0B3488CB29D37D4E6D35DBA3 /* Views */,
 			);
@@ -275,10 +414,13 @@
 			buildConfigurationList = DC724654113F0B27BC2BDC46 /* Build configuration list for PBXNativeTarget "Harvous_iOS" */;
 			buildPhases = (
 				F759D4B7B441BC53CAC022FB /* Sources */,
+				C9FP00000000000000000001 /* Frameworks */,
+				C9EM00000000000000000001 /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				C9TD00000000000000000001 /* PBXTargetDependency */,
 			);
 			name = Harvous_iOS;
 			packageProductDependencies = (
@@ -286,6 +428,24 @@
 			productName = Harvous_iOS;
 			productReference = AA9454B67B2D0A05909AD0C1 /* Harvous.app */;
 			productType = "com.apple.product-type.application";
+		};
+		C9TG00000000000000000001 /* HarvousWidgetExtension */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = C9CL00000000000000000001 /* Build configuration list for PBXNativeTarget "HarvousWidgetExtension" */;
+			buildPhases = (
+				C9TS00000000000000000001 /* Sources */,
+				C9FP00000000000000000002 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = HarvousWidgetExtension;
+			packageProductDependencies = (
+			);
+			productName = HarvousWidgetExtension;
+			productReference = C9E100000000000000000011 /* HarvousWidgetExtension.appex */;
+			productType = "com.apple.product-type.app-extension";
 		};
 		E9A68082A2E766335E1B890F /* Harvous_macOS */ = {
 			isa = PBXNativeTarget;
@@ -313,6 +473,9 @@
 				BuildIndependentTargetsInParallel = YES;
 				LastUpgradeCheck = 1600;
 				TargetAttributes = {
+					C9TG00000000000000000001 = {
+						ProvisioningStyle = Manual;
+					};
 					D4AAC31C4026BAF3DD0A2E6E = {
 						ProvisioningStyle = Manual;
 					};
@@ -337,9 +500,28 @@
 			targets = (
 				D4AAC31C4026BAF3DD0A2E6E /* Harvous_iOS */,
 				E9A68082A2E766335E1B890F /* Harvous_macOS */,
+				C9TG00000000000000000001 /* HarvousWidgetExtension */,
 			);
 		};
 /* End PBXProject section */
+
+/* Begin PBXContainerItemProxy section */
+		C9TP00000000000000000001 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 4702CCF9BB5864A58A2EF33D /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = C9TG00000000000000000001;
+			remoteInfo = HarvousWidgetExtension;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXTargetDependency section */
+		C9TD00000000000000000001 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = C9TG00000000000000000001 /* HarvousWidgetExtension */;
+			targetProxy = C9TP00000000000000000001 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin PBXSourcesBuildPhase section */
 		186C1B9BE7F2FDBBD025BCD5 /* Sources */ = {
@@ -353,6 +535,7 @@
 				11E4CA639E3852FB2B83ED7C /* HarvousApp.swift in Sources */,
 				FD7CF438EE5B995144C56E98 /* HarvousColors.swift in Sources */,
 				05A5A4F94605710C92CA410D /* HarvousCommands.swift in Sources */,
+				C9F100000000000000000020 /* HarvousSettingsRoute.swift in Sources */,
 				5568166DFC4154581BAE0965 /* HarvousEditor.swift in Sources */,
 				5BBF4DB824B33F6286B390E9 /* HarvousFonts.swift in Sources */,
 				52FC0797E465D1D5F756A78D /* HarvousShape.swift in Sources */,
@@ -365,6 +548,7 @@
 				F44657A819035C7E2AF76E18 /* NoteEditorView.swift in Sources */,
 				30643B6C28BBCF90AE8C6E7E /* NoteInspectorView.swift in Sources */,
 				4516BEEC0FEA8BDCECCD6B4E /* NoteListColumn.swift in Sources */,
+				C9F100000000000000000022 /* ProfileAndSettingsViews.swift in Sources */,
 				B5749B884617FE5ED1D361A9 /* NoteRelativeTime.swift in Sources */,
 				B3B3B3B3B3B3B3B3B3B3B3B3 /* BibleStudyTagSuggester.swift in Sources */,
 				B4B4B4B4B4B4B4B4B4B4B4B4 /* TagChipViews.swift in Sources */,
@@ -389,6 +573,16 @@
 				54553F10D2B0C99E657FA641 /* SpotlightSearchView.swift in Sources */,
 				F7E2D4C8A1B3590E2F4A6C8D1 /* SpaceSwitcherView.swift in Sources */,
 				2C480230041FBA380D8FA2EB /* StatefulNoteEditorView.swift in Sources */,
+				C9F100000000000000000002 /* HarvousAppRouter.swift in Sources */,
+				C9F100000000000000000004 /* HarvousAppIntents.swift in Sources */,
+				C9F100000000000000000006 /* HarvousAppShortcuts.swift in Sources */,
+				C9F100000000000000000008 /* HarvousAppGroup.swift in Sources */,
+				C9F10000000000000000000A /* RecallSharedModels.swift in Sources */,
+				C9F10000000000000000000D /* HarvousNoteSpotlightIndexer.swift in Sources */,
+				C9F10000000000000000000F /* HarvousRecallSnapshotWriter.swift in Sources */,
+				C9F100000000000000000011 /* HarvousRecallOSIntegration.swift in Sources */,
+				C9F100000000000000000013 /* HarvousRecallNotifications.swift in Sources */,
+				C9F100000000000000000015 /* HarvousCalendarStudyNotifier.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -403,6 +597,7 @@
 				F60C8B807A8DBE88FCD14498 /* HarvousApp.swift in Sources */,
 				E426C127FD63E2EA7C70DF37 /* HarvousColors.swift in Sources */,
 				56BE852ADFC48CCECEB7B69F /* HarvousCommands.swift in Sources */,
+				C9F100000000000000000021 /* HarvousSettingsRoute.swift in Sources */,
 				211E0564D2EF1C8286A1FA2C /* HarvousEditor.swift in Sources */,
 				6155AA0F5058A47B8CD36B36 /* HarvousFonts.swift in Sources */,
 				CAC91B6BC58F835BD72A53F4 /* HarvousShape.swift in Sources */,
@@ -415,6 +610,7 @@
 				D6740D47CEA724D15735486D /* NoteEditorView.swift in Sources */,
 				D98B18D424706063C6CAF06E /* NoteInspectorView.swift in Sources */,
 				C40976D6744319E0A7DE6BA1 /* NoteListColumn.swift in Sources */,
+				C9F100000000000000000023 /* ProfileAndSettingsViews.swift in Sources */,
 				1F606A9798D7F26CDFBCCDCC /* NoteRelativeTime.swift in Sources */,
 				B1B1B1B1B1B1B1B1B1B1B1B1 /* BibleStudyTagSuggester.swift in Sources */,
 				B2B2B2B2B2B2B2B2B2B2B2B2 /* TagChipViews.swift in Sources */,
@@ -438,6 +634,32 @@
 				00D118AAD2EB053B23E27351 /* SidebarView.swift in Sources */,
 				2A3A86779A42DFBB0D6A039D /* SpotlightSearchView.swift in Sources */,
 				11E76E611295AAE9DF380859 /* StatefulNoteEditorView.swift in Sources */,
+				C9F100000000000000000001 /* HarvousAppRouter.swift in Sources */,
+				C9F100000000000000000003 /* HarvousAppIntents.swift in Sources */,
+				C9F100000000000000000005 /* HarvousAppShortcuts.swift in Sources */,
+				C9F100000000000000000007 /* HarvousAppGroup.swift in Sources */,
+				C9F100000000000000000009 /* RecallSharedModels.swift in Sources */,
+				C9F10000000000000000000B /* RecallActivityAttributes.swift in Sources */,
+				C9F10000000000000000000C /* HarvousNoteSpotlightIndexer.swift in Sources */,
+				C9F10000000000000000000E /* HarvousRecallSnapshotWriter.swift in Sources */,
+				C9F100000000000000000010 /* HarvousRecallOSIntegration.swift in Sources */,
+				C9F100000000000000000012 /* HarvousRecallNotifications.swift in Sources */,
+				C9F100000000000000000014 /* HarvousCalendarStudyNotifier.swift in Sources */,
+				C9F100000000000000000016 /* HarvousLiveActivityController.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		C9TS00000000000000000001 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				C9F100000000000000000017 /* HarvousWidgetBundle.swift in Sources */,
+				C9F100000000000000000018 /* RecallCardWidget.swift in Sources */,
+				C9F100000000000000000019 /* RecallLiveActivityWidget.swift in Sources */,
+				C9F10000000000000000001A /* RecallWidgetIntents.swift in Sources */,
+				C9F10000000000000000001B /* HarvousAppGroup.swift in Sources */,
+				C9F10000000000000000001C /* RecallSharedModels.swift in Sources */,
+				C9F10000000000000000001D /* RecallActivityAttributes.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -659,6 +881,58 @@
 			};
 			name = Debug;
 		};
+		C9CF00000000000000000001 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = HarvousWidget/HarvousWidget.entitlements;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = HarvousWidget/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = Harvous;
+				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.harvous.app.widget;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SWIFT_STRICT_CONCURRENCY = targeted;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		C9CF00000000000000000002 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = HarvousWidget/HarvousWidget.entitlements;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = HarvousWidget/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = Harvous;
+				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.harvous.app.widget;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SWIFT_STRICT_CONCURRENCY = targeted;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -685,6 +959,15 @@
 			buildConfigurations = (
 				954613EBA9EB8CF891607A31 /* Debug */,
 				84D20695F4B076A732336AE6 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		C9CL00000000000000000001 /* Build configuration list for PBXNativeTarget "HarvousWidgetExtension" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				C9CF00000000000000000001 /* Debug */,
+				C9CF00000000000000000002 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Debug;

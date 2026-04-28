@@ -1,5 +1,19 @@
 import Foundation
 
+/// Backing store for the user’s preferred translation code. Matches SwiftUI `@AppStorage` in settings
+/// (`SettingsDefaultBibleView`) and `UserMetadata.defaultTranslation` on the web.
+enum HarvousStudyDefaults {
+    static let defaultTranslationStorageKey = "harvous.settings.study.defaultTranslation"
+
+    /// Reads `UserDefaults.standard` so native scripture pills and chips respect the same value as `@AppStorage`.
+    static func resolvedPreferredTranslation() -> String {
+        let raw = (UserDefaults.standard.string(forKey: defaultTranslationStorageKey) ?? "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        if raw.isEmpty { return "NET" }
+        return raw
+    }
+}
+
 /// Inline scripture pill currently focused for editing (UTF-16 ranges in `NSTextStorage` / `UITextView`).
 struct ActiveScripturePill: Equatable, Sendable {
     var attachmentRange: NSRange
@@ -28,5 +42,6 @@ struct ScriptureReference: Equatable, Sendable {
         "MSG": "MSG",
     ]
     static func displayTranslationLabel(_ id: String) -> String { translationLabels[id] ?? id }
-    static let defaultTranslation = "ESV"
+    /// Preferred translation for new pills when plain text has no trailing code (see `HarvousStudyDefaults`).
+    static var defaultTranslation: String { HarvousStudyDefaults.resolvedPreferredTranslation() }
 }

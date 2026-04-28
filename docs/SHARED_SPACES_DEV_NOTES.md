@@ -94,7 +94,7 @@ Owner-only endpoints: `update`, `share-link` (POST), `members/invite`, `delete`.
 
 **Invisible cap:** 150 people per space (both tiers), not shown in UI—like YouVersion. Enforced in `canAddMemberToSpace` / `canAddMemberToSpaceByOwnerId`; when hit, user sees "This space has reached its people limit."
 
-Implementation: `src/utils/tier-limits.ts` (`TIER_LIMITS`, `canCreateSharedSpace`, `canOwnerAddOneMoreSharedSpace`, `canAddMemberToSpace`, etc.).
+Implementation: [server/utils/tier-limits.ts](../server/utils/tier-limits.ts) (`TIER_LIMITS`, `canCreateSharedSpace`, `canOwnerAddOneMoreSharedSpace`, `canAddMemberToSpace`, etc.). Product summary: [future/SPACE_MODES_PRODUCT.md](future/SPACE_MODES_PRODUCT.md).
 
 ---
 

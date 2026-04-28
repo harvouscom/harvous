@@ -187,6 +187,15 @@ private func applyDefaultBodyTypingAttributes(to textView: UITextView) {
 #if os(macOS)
 import AppKit
 
+/// Keeps indents/layout from the saved paragraph but reapplies canonical body min/max line height (list hard-newline continuation).
+private func mergedParagraphStyleWithCanonicalLineMetrics(_ saved: NSParagraphStyle) -> NSParagraphStyle {
+    let m = saved.mutableCopy() as! NSMutableParagraphStyle
+    let canonical = noteBodyParagraphStyle()
+    m.minimumLineHeight = canonical.minimumLineHeight
+    m.maximumLineHeight = canonical.maximumLineHeight
+    return m
+}
+
 /// Single-clicks on `ScripturePillAttachment` activate scripture editing after normal `NSTextView` handling so the I-beam/caret still appears.
 private final class HarvousNoteTextView: NSTextView {
     /// UTF-16 attachment range in storage.
@@ -194,6 +203,299 @@ private final class HarvousNoteTextView: NSTextView {
 
     /// Ensures `mouseMoved` / `cursorUpdate` fire for this view while hovering, not only when it is first responder.
     private var pillHoverTracking: NSTrackingArea?
+
+    /// Matches `EditorProxy` list marker font (body size) so toolbar list detection stays consistent.
+    private static func noteListMarkerPrefixAttributes() -> [NSAttributedString.Key: Any] {
+        [
+            .font: HarvousFonts.system(size: 16, weight: 400),
+            .foregroundColor: NSColor.labelColor,
+        ]
+    }
+
+    /// `1.` … `9999.` immediately before a typed space at paragraph start (caret after `.`).
+    private static func numberedDigitDotPrefixLength(ns: NSString, paraStart: Int, caret: Int) -> Int? {
+        guard caret > paraStart else { return nil }
+        let len = caret - paraStart
+        guard len >= 2, len <= 6 else { return nil }
+        var i = paraStart
+        let end = caret
+        let digitStart = i
+        while i < end {
+            let c = ns.character(at: i)
+            if c >= 48 && c <= 57 {
+                i += 1
+                if i - digitStart > 4 { return nil }
+                continue
+            }
+            break
+        }
+        guard i > digitStart, i < end, ns.character(at: i) == 46 else { return nil }
+        guard i + 1 == end else { return nil }
+        return len
+    }
+
+    /// Same rules as `EditorProxy.bulletPrefixLength` / `numberedPrefixLength` (list toolbar + toggles).
+    private static func bulletPrefixLength(ns: NSString, para: NSRange) -> Int? {
+        guard para.length >= 2 else { return nil }
+        let bulletScalar: unichar = 0x2022
+        if ns.character(at: para.location) == bulletScalar, ns.character(at: para.location + 1) == 32 {
+            return 2
+        }
+        return nil
+    }
+
+    private static func numberedPrefixLength(ns: NSString, para: NSRange) -> Int? {
+        guard para.length >= 3 else { return nil }
+        var i = para.location
+        let end = NSMaxRange(para)
+        let digitStart = i
+        while i < end {
+            let c = ns.character(at: i)
+            if c >= 48 && c <= 57 {
+                i += 1
+                if i - digitStart > 4 { return nil }
+                continue
+            }
+            break
+        }
+        guard i > digitStart else { return nil }
+        guard i < end, ns.character(at: i) == 46 else { return nil }
+        i += 1
+        guard i < end, ns.character(at: i) == 32 else { return nil }
+        return i - para.location + 1
+    }
+
+    private static func numberedListStartValue(ns: NSString, para: NSRange, prefixLength: Int) -> Int? {
+        var acc = 0
+        var i = para.location
+        let stop = para.location + prefixLength
+        while i < stop {
+            let c = ns.character(at: i)
+            if c >= 48 && c <= 57 {
+                acc = acc * 10 + Int(c - 48)
+                i += 1
+            } else if c == 46 {
+                return acc
+            } else {
+                return nil
+            }
+        }
+        return nil
+    }
+
+    /// Rewrites `N. ` prefixes for one contiguous numbered block (blank line or non-numbered paragraph ends the run).
+    /// Applies replacements from the last paragraph toward the first so UTF-16 indices stay valid.
+    private static func renumberNumberedListRun(storage: NSTextStorage, anchorLocation: Int) {
+        let ns = storage.string as NSString
+        guard ns.length > 0 else { return }
+        let anchor = min(max(0, anchorLocation), ns.length - 1)
+        var runStart = ns.paragraphRange(for: NSRange(location: anchor, length: 0)).location
+        while runStart > 0 {
+            let prevPara = ns.paragraphRange(for: NSRange(location: runStart - 1, length: 0))
+            guard Self.numberedPrefixLength(ns: ns, para: prevPara) != nil else { break }
+            runStart = prevPara.location
+        }
+        var segments: [(start: Int, oldLen: Int)] = []
+        var loc = runStart
+        while loc < ns.length {
+            let pr = ns.paragraphRange(for: NSRange(location: loc, length: 0))
+            guard let plen = Self.numberedPrefixLength(ns: ns, para: pr) else { break }
+            segments.append((pr.location, plen))
+            let next = NSMaxRange(pr)
+            if next <= loc { break }
+            loc = next
+        }
+        guard segments.count >= 2 else { return }
+        for i in stride(from: segments.count - 1, through: 0, by: -1) {
+            let newNum = i + 1
+            let seg = segments[i]
+            let replacement = NSAttributedString(string: "\(newNum). ", attributes: Self.noteListMarkerPrefixAttributes())
+            storage.replaceCharacters(in: NSRange(location: seg.start, length: seg.oldLen), with: replacement)
+        }
+    }
+
+    /// Return / Option-Return in list body: hard newline + list marker; numbered blocks get a full sequential renumber.
+    private func tryApplyListContinuationOnHardNewline(sender: Any?) -> Bool {
+        guard let storage = textStorage else { return false }
+        let sel = selectedRange()
+        guard sel.length == 0 else { return false }
+        let loc = sel.location
+        let ns = storage.string as NSString
+        guard ns.length > 0 else { return false }
+
+        let paraAnchor = min(max(0, loc), ns.length - 1)
+        let pr = ns.paragraphRange(for: NSRange(location: paraAnchor, length: 0))
+        if storage.attribute(.attachment, at: pr.location, effectiveRange: nil) != nil {
+            return false
+        }
+
+        let bLen = Self.bulletPrefixLength(ns: ns, para: pr)
+        let nLen = Self.numberedPrefixLength(ns: ns, para: pr)
+        let prefixLen = bLen ?? nLen
+        guard let plen = prefixLen, loc >= pr.location + plen else { return false }
+
+        let savedParaStyle = storage.attribute(.paragraphStyle, at: pr.location, effectiveRange: nil) as? NSParagraphStyle
+        let wasNumbered = nLen != nil
+
+        let listInsert: NSAttributedString?
+        if bLen != nil {
+            listInsert = NSAttributedString(string: "\u{2022} ", attributes: Self.noteListMarkerPrefixAttributes())
+        } else if let nln = nLen, let v = Self.numberedListStartValue(ns: ns, para: pr, prefixLength: nln) {
+            listInsert = NSAttributedString(string: "\(v + 1). ", attributes: Self.noteListMarkerPrefixAttributes())
+        } else {
+            listInsert = nil
+        }
+        guard let insert = listInsert else { return false }
+
+        super.insertNewline(sender)
+
+        let newSel = selectedRange()
+        let newLoc = newSel.location
+        let live = storage.string as NSString
+        guard newLoc <= live.length else { return true }
+        let prNew = live.paragraphRange(for: NSRange(location: min(newLoc, max(0, live.length - 1)), length: 0))
+        if Self.bulletPrefixLength(ns: live, para: prNew) != nil || Self.numberedPrefixLength(ns: live, para: prNew) != nil {
+            return true
+        }
+
+        storage.beginEditing()
+        storage.insert(insert, at: prNew.location)
+        if let ps = savedParaStyle {
+            let after = storage.string as NSString
+            let fullNew = after.paragraphRange(for: NSRange(location: prNew.location, length: 0))
+            storage.addAttribute(.paragraphStyle, value: mergedParagraphStyleWithCanonicalLineMetrics(ps), range: fullNew)
+        }
+        if wasNumbered {
+            Self.renumberNumberedListRun(storage: storage, anchorLocation: prNew.location)
+        }
+        storage.endEditing()
+        didChangeText()
+        let finalNs = storage.string as NSString
+        guard finalNs.length > 0 else { return true }
+        let caretPara = finalNs.paragraphRange(for: NSRange(location: min(prNew.location, finalNs.length - 1), length: 0))
+        let prefixUTF16 = Self.bulletPrefixLength(ns: finalNs, para: caretPara)
+            ?? Self.numberedPrefixLength(ns: finalNs, para: caretPara)
+            ?? insert.length
+        let caretPos = min(caretPara.location + prefixUTF16, storage.length)
+        setSelectedRange(NSRange(location: caretPos, length: 0))
+        return true
+    }
+
+    /// Markdown-style list triggers at paragraph start: `- ` / `* ` / `+ ` / `1. ` (space typed to confirm).
+    override func insertText(_ insertString: Any, replacementRange: NSRange) {
+        if hasMarkedText() {
+            super.insertText(insertString, replacementRange: replacementRange)
+            return
+        }
+
+        let isPlainSpace: Bool = {
+            if let s = insertString as? String { return s == " " }
+            if let a = insertString as? NSAttributedString {
+                return a.length == 1 && a.string == " "
+            }
+            return false
+        }()
+
+        if !isPlainSpace {
+            super.insertText(insertString, replacementRange: replacementRange)
+            return
+        }
+
+        guard let storage = textStorage else {
+            super.insertText(insertString, replacementRange: replacementRange)
+            return
+        }
+
+        let sel = selectedRange()
+        guard sel.length == 0 else {
+            super.insertText(insertString, replacementRange: replacementRange)
+            return
+        }
+
+        let loc = sel.location
+        guard loc > 0, loc <= storage.length else {
+            super.insertText(insertString, replacementRange: replacementRange)
+            return
+        }
+
+        let ns = storage.string as NSString
+        let paraRange = ns.paragraphRange(for: NSRange(location: loc - 1, length: 0))
+        let p = paraRange.location
+        guard loc > p else {
+            super.insertText(insertString, replacementRange: replacementRange)
+            return
+        }
+
+        if storage.attribute(.attachment, at: p, effectiveRange: nil) != nil {
+            super.insertText(insertString, replacementRange: replacementRange)
+            return
+        }
+
+        let prefixLen = loc - p
+        let first = ns.character(at: p)
+        let bulletScalar: unichar = 0x2022
+        if prefixLen >= 2, first == bulletScalar, ns.character(at: p + 1) == 32 {
+            super.insertText(insertString, replacementRange: replacementRange)
+            return
+        }
+
+        if prefixLen == 1 {
+            let c = first
+            if c == 45 || c == 42 || c == 43 {
+                let bullet = NSAttributedString(string: "\u{2022} ", attributes: Self.noteListMarkerPrefixAttributes())
+                storage.beginEditing()
+                storage.replaceCharacters(in: NSRange(location: p, length: 1), with: bullet)
+                storage.endEditing()
+                didChangeText()
+                setSelectedRange(NSRange(location: p + bullet.length, length: 0))
+                return
+            }
+        }
+
+        if let dotLen = Self.numberedDigitDotPrefixLength(ns: ns, paraStart: p, caret: loc) {
+            let digitsDot = ns.substring(with: NSRange(location: p, length: dotLen))
+            let replacement = NSAttributedString(string: digitsDot + " ", attributes: Self.noteListMarkerPrefixAttributes())
+            storage.beginEditing()
+            storage.replaceCharacters(in: NSRange(location: p, length: dotLen), with: replacement)
+            storage.endEditing()
+            didChangeText()
+            setSelectedRange(NSRange(location: p + replacement.length, length: 0))
+            return
+        }
+
+        super.insertText(insertString, replacementRange: replacementRange)
+    }
+
+    /// After Return, new paragraphs inherit `• ` / `N+1. ` when the caret was in list body (not inside the prefix).
+    override func insertNewline(_ sender: Any?) {
+        if hasMarkedText() {
+            super.insertNewline(sender)
+            return
+        }
+        if tryApplyListContinuationOnHardNewline(sender: sender) { return }
+        super.insertNewline(sender)
+    }
+
+    /// Option-Return uses the same hard break + list continuation as Return (standard in many note apps).
+    override func insertLineBreak(_ sender: Any?) {
+        if hasMarkedText() {
+            super.insertLineBreak(sender)
+            return
+        }
+        if tryApplyListContinuationOnHardNewline(sender: sender) { return }
+        super.insertLineBreak(sender)
+    }
+
+    /// Match note body styling; rich HTML/RTF from the pasteboard should not override font or colors.
+    override func paste(_ sender: Any?) {
+        let pb = NSPasteboard.general
+        let trimmed = (pb.string(forType: .string) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty, pb.canReadObject(forClasses: [NSImage.self], options: nil) {
+            super.paste(sender)
+            return
+        }
+        pasteAsPlainText(sender)
+    }
 
     override func mouseDown(with event: NSEvent) {
         guard event.clickCount == 1,
@@ -480,6 +782,9 @@ struct HarvousEditor: NSViewRepresentable {
         textView.allowsUndo = true
         textView.isContinuousSpellCheckingEnabled = true
         textView.isAutomaticSpellingCorrectionEnabled = true
+        // Inline predictions (gray ghost words) race with our debounced `NSTextStorage` pill rewrites and can
+        // crash or hang TextKit (`EXC_BAD_ACCESS` in `swift_getObjectType` while prediction UI is visible).
+        textView.inlinePredictionType = .no
         // Horizontal inset comes from SwiftUI padding; keep TextKit leading flush with title TextField.
         textView.textContainerInset = NSSize(width: 0, height: 8)
         if let tc = textView.textContainer {
@@ -800,6 +1105,9 @@ struct HarvousEditor: NSViewRepresentable {
                 capturedProxy?.activeScripturePill = activeScripturePillFromNSTextViewSelection(tv)
                 guard let p = capturedProxy else { return }
                 if hasSelection {
+                    // `resetFormatBarStateForNewNote` clears `formatBarUnlocked`; if the body stayed first responder
+                    // across a note switch, `textDidBeginEditing` may not fire again — selection alone must unlock.
+                    p.formatBarUnlocked = true
                     self.cancelFormatBarHide()
                 } else {
                     if self.suppressFormatBarOnNextBodyCaretUpdate {
@@ -810,6 +1118,8 @@ struct HarvousEditor: NSViewRepresentable {
                         // A programmatic selection while the title field is first responder still has `body` not key.
                         let bodyIsKey = (tv.window?.firstResponder as AnyObject?) === (tv as AnyObject)
                         guard self.isEditing || bodyIsKey else { return }
+                        // Same unlock as `hasSelection`: caret placement after a note switch without a new begin-edit.
+                        p.formatBarUnlocked = true
                         p.showFormatBarForActivity = true
                         self.scheduleFormatBarHide()
                     }
@@ -863,6 +1173,8 @@ struct HarvousEditor: NSViewRepresentable {
             debounceTask = Task { @MainActor in
                 try? await Task.sleep(for: .milliseconds(400))
                 guard !Task.isCancelled else { return }
+                // Do not mutate storage while IME/marked text or a different document view is active.
+                guard tv === self.textView, !tv.hasMarkedText() else { return }
                 self.detectAndInsertPills(in: tv, text: plain)
             }
 
@@ -1100,6 +1412,8 @@ struct HarvousEditor: UIViewRepresentable {
         var placeholderText: String = "What are you studying?"
         var onScripturePillTap: ((String, String, NSRange) -> Void)?
         private var debounceTask: Task<Void, Never>?
+        /// Pauses scripture pill detection while Apple Writing Tools mutates the document (iOS 18+).
+        private var isWritingToolsActive = false
 
         init(state: Binding<EditorState>) { _state = state }
 
@@ -1202,9 +1516,27 @@ struct HarvousEditor: UIViewRepresentable {
             }
 
             debounceTask?.cancel()
+            if isWritingToolsActive { return }
             debounceTask = Task { @MainActor in
                 try? await Task.sleep(for: .milliseconds(400))
                 guard !Task.isCancelled else { return }
+                self.detectAndInsertPills(in: textView, text: plain)
+            }
+        }
+
+        @available(iOS 18.0, *)
+        func textViewWritingToolsWillBegin(_ textView: UITextView) {
+            isWritingToolsActive = true
+            debounceTask?.cancel()
+            debounceTask = nil
+        }
+
+        @available(iOS 18.0, *)
+        func textViewWritingToolsDidEnd(_ textView: UITextView) {
+            isWritingToolsActive = false
+            let plain = plainBodyStringByExpandingPillAttachments(in: textView.textStorage)
+            Task { @MainActor in
+                self.state.plainText = plain
                 self.detectAndInsertPills(in: textView, text: plain)
             }
         }

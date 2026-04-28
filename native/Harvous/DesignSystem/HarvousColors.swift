@@ -24,10 +24,24 @@ extension Color {
         default:       return nil
         }
     }
+
+    /// Saturated foreground for glyphs/icons on `thread(_:)` pastel fills (toolbar avatar, etc.).
+    static func threadGlyph(_ key: String) -> Color? {
+        switch key {
+        case "blue":   return harvousAccent
+        case "yellow": return Color(red: 0.62, green: 0.48, blue: 0.05)
+        case "green":  return Color(red: 0.18, green: 0.52, blue: 0.22)
+        case "pink":   return Color(red: 0.58, green: 0.18, blue: 0.48)
+        case "orange": return Color(red: 0.72, green: 0.38, blue: 0.06)
+        case "purple": return Color(red: 0.42, green: 0.22, blue: 0.72)
+        default:       return nil
+        }
+    }
 }
 
 enum HarvousColors {
     static func thread(_ key: String) -> Color? { Color.thread(key) }
+    static func threadGlyph(_ key: String) -> Color? { Color.threadGlyph(key) }
 
     /// Aligned with `ScripturePillAttachment` (system blue, soft fill, hairline stroke) — use SwiftUI `Color` only.
     static var scripturePillForeground: Color { .blue }

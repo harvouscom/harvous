@@ -1,3 +1,4 @@
+import Foundation
 import SwiftUI
 
 // MARK: - Focused value keys
@@ -41,6 +42,14 @@ struct HarvousCommands: Commands {
             Button("Search") { showSearchAction?() }
                 .keyboardShortcut("k", modifiers: .command)
                 .disabled(showSearchAction == nil)
+        }
+
+        // Preferences use a `Window` scene (not `Settings`) so chrome matches the main window; wire ⌘, here.
+        CommandGroup(replacing: .appSettings) {
+            Button("Settings…") {
+                NotificationCenter.default.post(name: .harvousOpenMacPreferences, object: nil)
+            }
+            .keyboardShortcut(",", modifiers: .command)
         }
         #else
         CommandGroup(after: .newItem) {

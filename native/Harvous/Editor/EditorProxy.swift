@@ -11,8 +11,14 @@ struct FormatToolbarState: Equatable {
     var isItalic = false
     var isStrikethrough = false
     /// Matched when the dominant font matches `HarvousFonts.headingFont` levels 2…4 (body only; title is separate).
+    /// Suppressed when the selection includes a list paragraph so list toggles do not read as H4 (list markers were 15pt).
     var headingLevel: Int?
     var isIndented = false
+    /// All covered paragraphs use the same list prefix (matches toggle logic).
+    var isBulletList = false
+    var isNumberedList = false
+    var canUndo = false
+    var canRedo = false
 }
 
 /// Observable proxy bridging SwiftUI toolbar buttons to the live NSTextView.
@@ -220,17 +226,58 @@ final class EditorProxy: ObservableObject {
 
     func insertNumbered() { toggleNumberedList() }
 
+    /// Persists canonical body min/max line height while adjusting indents—avoids overwriting implicit line metrics with zeros.
+    private func mergedBodyParagraphStyleForIndentChange(existingAttr: Any?, firstLineDelta: CGFloat, headDelta: CGFloat) -> NSParagraphStyle {
+        let m = noteBodyParagraphStyleForInserts().mutableCopy() as! NSMutableParagraphStyle
+        guard let existing = existingAttr as? NSParagraphStyle else {
+            m.firstLineHeadIndent = max(0, firstLineDelta)
+            m.headIndent = max(0, headDelta)
+            return m
+        }
+        m.firstLineHeadIndent = max(0, existing.firstLineHeadIndent + firstLineDelta)
+        m.headIndent = max(0, existing.headIndent + headDelta)
+        m.alignment = existing.alignment
+        if existing.lineSpacing != 0 { m.lineSpacing = existing.lineSpacing }
+        m.baseWritingDirection = existing.baseWritingDirection
+        if existing.tailIndent != 0 { m.tailIndent = existing.tailIndent }
+        return m
+    }
+
     func indent() {
         guard let tv = textView, let storage = tv.textStorage else { return }
         let paraRange = (storage.string as NSString).paragraphRange(for: tv.selectedRange())
         let existing = storage.attribute(.paragraphStyle, at: paraRange.location, effectiveRange: nil)
-        let mutable = (existing as? NSParagraphStyle)?.mutableCopy() as? NSMutableParagraphStyle
-                      ?? NSMutableParagraphStyle()
-        mutable.firstLineHeadIndent += 20
-        mutable.headIndent += 20
+        let next = mergedBodyParagraphStyleForIndentChange(existingAttr: existing, firstLineDelta: 20, headDelta: 20)
         storage.beginEditing()
-        storage.addAttribute(.paragraphStyle, value: mutable, range: paraRange)
+        storage.addAttribute(.paragraphStyle, value: next, range: paraRange)
         storage.endEditing()
+        refocusTextView()
+        refreshFormatState()
+    }
+
+    /// Decreases paragraph indent (paired with `indent`); does not remove list prefixes.
+    func outdent() {
+        guard let tv = textView, let storage = tv.textStorage else { return }
+        let paraRange = (storage.string as NSString).paragraphRange(for: tv.selectedRange())
+        let existing = storage.attribute(.paragraphStyle, at: paraRange.location, effectiveRange: nil)
+        let next = mergedBodyParagraphStyleForIndentChange(existingAttr: existing, firstLineDelta: -20, headDelta: -20)
+        storage.beginEditing()
+        storage.addAttribute(.paragraphStyle, value: next, range: paraRange)
+        storage.endEditing()
+        refocusTextView()
+        refreshFormatState()
+    }
+
+    func undoEdit() {
+        guard let tv = textView, let undo = tv.undoManager, undo.canUndo else { return }
+        undo.undo()
+        refocusTextView()
+        refreshFormatState()
+    }
+
+    func redoEdit() {
+        guard let tv = textView, let undo = tv.undoManager, undo.canRedo else { return }
+        undo.redo()
         refocusTextView()
         refreshFormatState()
     }
@@ -485,8 +532,12 @@ final class EditorProxy: ObservableObject {
         storage.endEditing()
     }
 
+    /// Match body size (16pt) so list markers are not mistaken for H4 (15pt rounded heading).
     private func listPrefixAttributes() -> [NSAttributedString.Key: Any] {
-        [.font: HarvousFonts.system(size: 15, weight: 400)]
+        [
+            .font: HarvousFonts.system(size: 16, weight: 400),
+            .foregroundColor: NSColor.labelColor,
+        ]
     }
 
     /// Paragraph ranges from the paragraph containing the caret through every paragraph intersecting the selection.
@@ -616,15 +667,33 @@ final class EditorProxy: ObservableObject {
         let bold = traitActive(mask: .boldFontMask, range: range, tv: tv, storage: storage, mgr: mgr)
         let italic = traitActive(mask: .italicFontMask, range: range, tv: tv, storage: storage, mgr: mgr)
         let strike = strikethroughActive(range: range, tv: tv, storage: storage)
+        let lists = listToolbarFlags(selection: range, storage: storage)
         let heading = headingLevelActive(range: range, tv: tv, storage: storage)
         let indent = indentActive(tv: tv, storage: storage)
+        let undo = tv.undoManager
         return FormatToolbarState(
             isBold: bold,
             isItalic: italic,
             isStrikethrough: strike,
             headingLevel: heading,
-            isIndented: indent
+            isIndented: indent,
+            isBulletList: lists.bullet,
+            isNumberedList: lists.numbered,
+            canUndo: undo?.canUndo ?? false,
+            canRedo: undo?.canRedo ?? false
         )
+    }
+
+    /// Highlight list buttons the same way toggling applies: all covered paragraphs share that list kind.
+    private func listToolbarFlags(selection: NSRange, storage: NSTextStorage) -> (bullet: Bool, numbered: Bool) {
+        let ns = storage.string as NSString
+        guard ns.length > 0 else { return (false, false) }
+        let paras = paragraphRangesCovering(selection: selection, ns: ns)
+        guard !paras.isEmpty else { return (false, false) }
+        let live = storage.string as NSString
+        let allBullet = paras.allSatisfy { bulletPrefixLength(ns: live, para: $0) != nil }
+        let allNumbered = paras.allSatisfy { numberedPrefixLength(ns: live, para: $0) != nil }
+        return (allBullet, allNumbered)
     }
 
     private func traitActive(
@@ -703,12 +772,21 @@ final class EditorProxy: ObservableObject {
     }
 
     /// Uses the font at the insertion point / selection start (same idea as the rest of the bar).
+    /// Any covered paragraph that is a list line hides heading highlights so list + 15pt markers do not read as H4.
     private func headingLevelActive(range: NSRange, tv: NSTextView, storage: NSTextStorage) -> Int? {
+        let ns = storage.string as NSString
+        guard storage.length > 0 else { return nil }
+        let paras = paragraphRangesCovering(selection: range, ns: ns)
+        let live = storage.string as NSString
+        for pr in paras {
+            if bulletPrefixLength(ns: live, para: pr) != nil || numberedPrefixLength(ns: live, para: pr) != nil {
+                return nil
+            }
+        }
         if range.length == 0 {
             let font = (tv.typingAttributes[.font] as? NSFont) ?? HarvousFonts.system(size: 16, weight: 400)
             return HarvousFonts.bodyHeadingLevel(matching: font)
         }
-        guard storage.length > 0 else { return nil }
         let loc = min(max(range.location, 0), storage.length - 1)
         let font = (storage.attribute(.font, at: loc, effectiveRange: nil) as? NSFont) ?? HarvousFonts.system(size: 16, weight: 400)
         return HarvousFonts.bodyHeadingLevel(matching: font)
