@@ -1,0 +1,65 @@
+{
+  "/Users/heyderekj/harvous/native/Harvous/Views/ConnectNotePicker.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/ConnectNotePicker.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/ConnectNotePicker.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/ConnectNotePicker.dia",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/ConnectNotePicker.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/ConnectNotePicker.swiftdeps"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/Views/NoteActionBar.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/NoteActionBar.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/NoteActionBar.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/NoteActionBar.dia",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/NoteActionBar.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/NoteActionBar.swiftdeps"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/Views/NoteCardView.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/NoteCardView.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/NoteCardView.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/NoteCardView.dia",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/NoteCardView.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/NoteCardView.swiftdeps"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/Views/NoteConnectionsBar.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/NoteConnectionsBar.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/NoteConnectionsBar.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/NoteConnectionsBar.dia",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/NoteConnectionsBar.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/NoteConnectionsBar.swiftdeps"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/Views/NoteEditorView.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/NoteEditorView.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/NoteEditorView.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/NoteEditorView.dia",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/NoteEditorView.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/NoteEditorView.swiftdeps"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/Views/NoteInspectorView.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/NoteInspectorView.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/NoteInspectorView.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/NoteInspectorView.dia",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/NoteInspectorView.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/NoteInspectorView.swiftdeps"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/Views/ThreadQuickOptionsPanel.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/ThreadQuickOptionsPanel.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/ThreadQuickOptionsPanel.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/ThreadQuickOptionsPanel.dia",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/ThreadQuickOptionsPanel.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/ThreadQuickOptionsPanel.swiftdeps"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/Views/ThreadSelectionIndicator.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/ThreadSelectionIndicator.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/ThreadSelectionIndicator.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/ThreadSelectionIndicator.dia",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/ThreadSelectionIndicator.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/ThreadSelectionIndicator.swiftdeps"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/Views/ThreadWorkspaceView.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/ThreadWorkspaceView.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/ThreadWorkspaceView.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/ThreadWorkspaceView.dia",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/ThreadWorkspaceView.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/ThreadWorkspaceView.swiftdeps"
+  }
+}

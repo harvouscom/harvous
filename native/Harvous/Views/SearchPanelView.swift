@@ -8,6 +8,7 @@ import SwiftData
 struct SearchPanelView: View {
     @Binding var selectedNote: Note?
     @Query private var notes: [Note]
+    @EnvironmentObject private var spaceStore: SpaceStore
     @State private var query = ""
     @FocusState private var fieldFocused: Bool
 
@@ -95,7 +96,7 @@ struct SearchPanelView: View {
         List {
             ForEach(results, id: \.id) { note in
                 let isSelected = selectedNote?.id == note.id
-                NoteRow(note: note)
+                NoteFeedRow(note: note, variant: .sidebarCompact)
                     .listRowInsets(EdgeInsets(top: 4, leading: 6, bottom: 4, trailing: 8))
                     .listRowBackground(
                         RoundedRectangle(cornerRadius: HarvousRadius.rowHighlight)
@@ -111,7 +112,8 @@ struct SearchPanelView: View {
 
 #Preview {
     SearchPanelView(selectedNote: .constant(nil))
-        .modelContainer(for: [Note.self], inMemory: true)
+        .environmentObject(SpaceStore())
+        .modelContainer(for: [Note.self, Space.self, SpaceMember.self, SpaceInvite.self, SpaceJoinLink.self], inMemory: true)
         .frame(width: 280, height: 600)
 }
 

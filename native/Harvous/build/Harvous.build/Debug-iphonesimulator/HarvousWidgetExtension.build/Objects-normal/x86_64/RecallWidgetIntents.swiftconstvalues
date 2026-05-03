@@ -1,0 +1,166 @@
+[
+  {
+    "typeName": "HarvousWidgetExtension.MarkRecallReviewedIntent",
+    "mangledTypeName": "22HarvousWidgetExtension24MarkRecallReviewedIntentV",
+    "kind": "struct",
+    "file": "/Users/heyderekj/harvous/native/Harvous/HarvousWidget/RecallWidgetIntents.swift",
+    "line": 6,
+    "conformances": [
+      "AppIntents.AppIntent",
+      "AppIntents.PersistentlyIdentifiable",
+      "AppIntents._SupportsAppDependencies",
+      "Swift.Sendable",
+      "Swift.SendableMetatype",
+      "Swift.BitwiseCopyable"
+    ],
+    "allConformances": [
+      {
+        "protocolName": "AppIntents.AppIntent",
+        "conformanceDefiningModule": "HarvousWidgetExtension"
+      },
+      {
+        "protocolName": "AppIntents.PersistentlyIdentifiable",
+        "conformanceDefiningModule": "HarvousWidgetExtension"
+      },
+      {
+        "protocolName": "AppIntents._SupportsAppDependencies",
+        "conformanceDefiningModule": "HarvousWidgetExtension"
+      },
+      {
+        "protocolName": "Swift.Sendable",
+        "conformanceDefiningModule": "HarvousWidgetExtension"
+      },
+      {
+        "protocolName": "Swift.SendableMetatype",
+        "conformanceDefiningModule": "HarvousWidgetExtension"
+      },
+      {
+        "protocolName": "Swift.BitwiseCopyable",
+        "conformanceDefiningModule": "HarvousWidgetExtension"
+      }
+    ],
+    "associatedTypeAliases": [
+      {
+        "typeAliasName": "PerformResult",
+        "substitutedTypeName": "some AppIntents.IntentResult",
+        "substitutedMangledTypeName": "22HarvousWidgetExtension24MarkRecallReviewedIntentV7performQryYaKFQOy_Qo_",
+        "opaqueTypeProtocolRequirements": [
+          "AppIntents.IntentResult"
+        ],
+        "opaqueTypeSameTypeRequirements": []
+      },
+      {
+        "typeAliasName": "SummaryContent",
+        "substitutedTypeName": "some AppIntents.ParameterSummary",
+        "substitutedMangledTypeName": "10AppIntents0A6IntentPAAE16parameterSummaryQrvpZQOy22HarvousWidgetExtension018MarkRecallReviewedC0V_Qo_",
+        "opaqueTypeProtocolRequirements": [
+          "AppIntents.ParameterSummary"
+        ],
+        "opaqueTypeSameTypeRequirements": []
+      }
+    ],
+    "properties": [
+      {
+        "label": "title",
+        "type": "Foundation.LocalizedStringResource",
+        "mangledTypeName": "n/a - deprecated",
+        "isStatic": "true",
+        "isComputed": "false",
+        "file": "/Users/heyderekj/harvous/native/Harvous/HarvousWidget/RecallWidgetIntents.swift",
+        "line": 7,
+        "valueKind": "RawLiteral",
+        "value": "Mark reviewed"
+      }
+    ],
+    "availabilityAttributes": [
+      {
+        "platform": "iOS",
+        "introducedVersion": "17.0",
+        "isUnavailable": false,
+        "isDeprecated": false
+      }
+    ]
+  },
+  {
+    "typeName": "HarvousWidgetExtension.SkipRecallIntent",
+    "mangledTypeName": "22HarvousWidgetExtension16SkipRecallIntentV",
+    "kind": "struct",
+    "file": "/Users/heyderekj/harvous/native/Harvous/HarvousWidget/RecallWidgetIntents.swift",
+    "line": 19,
+    "conformances": [
+      "AppIntents.AppIntent",
+      "AppIntents.PersistentlyIdentifiable",
+      "AppIntents._SupportsAppDependencies",
+      "Swift.Sendable",
+      "Swift.SendableMetatype",
+      "Swift.BitwiseCopyable"
+    ],
+    "allConformances": [
+      {
+        "protocolName": "AppIntents.AppIntent",
+        "conformanceDefiningModule": "HarvousWidgetExtension"
+      },
+      {
+        "protocolName": "AppIntents.PersistentlyIdentifiable",
+        "conformanceDefiningModule": "HarvousWidgetExtension"
+      },
+      {
+        "protocolName": "AppIntents._SupportsAppDependencies",
+        "conformanceDefiningModule": "HarvousWidgetExtension"
+      },
+      {
+        "protocolName": "Swift.Sendable",
+        "conformanceDefiningModule": "HarvousWidgetExtension"
+      },
+      {
+        "protocolName": "Swift.SendableMetatype",
+        "conformanceDefiningModule": "HarvousWidgetExtension"
+      },
+      {
+        "protocolName": "Swift.BitwiseCopyable",
+        "conformanceDefiningModule": "HarvousWidgetExtension"
+      }
+    ],
+    "associatedTypeAliases": [
+      {
+        "typeAliasName": "PerformResult",
+        "substitutedTypeName": "some AppIntents.IntentResult",
+        "substitutedMangledTypeName": "22HarvousWidgetExtension16SkipRecallIntentV7performQryYaKFQOy_Qo_",
+        "opaqueTypeProtocolRequirements": [
+          "AppIntents.IntentResult"
+        ],
+        "opaqueTypeSameTypeRequirements": []
+      },
+      {
+        "typeAliasName": "SummaryContent",
+        "substitutedTypeName": "some AppIntents.ParameterSummary",
+        "substitutedMangledTypeName": "10AppIntents0A6IntentPAAE16parameterSummaryQrvpZQOy22HarvousWidgetExtension010SkipRecallC0V_Qo_",
+        "opaqueTypeProtocolRequirements": [
+          "AppIntents.ParameterSummary"
+        ],
+        "opaqueTypeSameTypeRequirements": []
+      }
+    ],
+    "properties": [
+      {
+        "label": "title",
+        "type": "Foundation.LocalizedStringResource",
+        "mangledTypeName": "n/a - deprecated",
+        "isStatic": "true",
+        "isComputed": "false",
+        "file": "/Users/heyderekj/harvous/native/Harvous/HarvousWidget/RecallWidgetIntents.swift",
+        "line": 20,
+        "valueKind": "RawLiteral",
+        "value": "Skip recall"
+      }
+    ],
+    "availabilityAttributes": [
+      {
+        "platform": "iOS",
+        "introducedVersion": "17.0",
+        "isUnavailable": false,
+        "isDeprecated": false
+      }
+    ]
+  }
+]

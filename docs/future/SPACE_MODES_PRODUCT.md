@@ -1,6 +1,6 @@
 # Space modes — product rules
 
-**Status:** Canonical product reference for how additional spaces behave relative to **My Home**, aligned with [redesign-exploration.md](./redesign-exploration.md) (Concept 2 — Spaces as modes, not folders). **Data model is unchanged:** one `Spaces` table, membership for collaboration, `isPublic` / share tokens as today.
+**Status:** Canonical product reference for how additional spaces behave relative to **My Home**, aligned with [redesign-exploration.md](./redesign-exploration.md) (Concept 2 — Spaces as modes, not folder-style stacks). **Data model is unchanged:** one `Spaces` table, membership for collaboration, `isPublic` / share tokens as today.
 
 **Implementation:** Tier enforcement lives in [server/utils/tier-limits.ts](../../server/utils/tier-limits.ts). Shared-space visibility and permissions: [SHARED_SPACES_DEV_NOTES.md](../SHARED_SPACES_DEV_NOTES.md).
 

@@ -26,6 +26,10 @@ struct ScripturePassageView: View {
     @State private var passageAttributed: NSAttributedString?
     @State private var loadError: String?
 
+    private var translationAttribution: ScriptureReference.TranslationAttribution? {
+        ScriptureReference.attribution(for: translation)
+    }
+
     private var verseFont: Font {
         useReadingTypography ? HarvousTypography.body : HarvousTypography.inspectorBody
     }
@@ -50,6 +54,22 @@ struct ScripturePassageView: View {
                 } else if let passageAttributed {
                     ScripturePassageFittingTextView(attributed: passageAttributed)
                         .frame(maxWidth: .infinity, alignment: .leading)
+                }
+            }
+
+            if let attribution = translationAttribution {
+                Divider()
+                    .padding(.top, 2)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(attribution.copyright)
+                        .font(.system(size: 10))
+                        .foregroundStyle(.secondary)
+                    if let websiteURL = URL(string: attribution.website) {
+                        Link(ScriptureReference.displayTranslationLabel(translation), destination: websiteURL)
+                            .font(.system(size: 10))
+                            .foregroundStyle(.secondary)
+                            .underline()
+                    }
                 }
             }
         }

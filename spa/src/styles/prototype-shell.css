@@ -1,0 +1,251 @@
+/**
+ * Prototype shell — NavigationSplitView-like grid layout.
+ * Only structural/layout rules live here. Component visuals are in prototype-components.css.
+ */
+
+/* ─── Root grid ──────────────────────────────────────────────────────────── */
+.proto-shell {
+  height: 100vh;
+  height: 100dvh;
+  background: var(--pds-bg-page);
+  display: grid;
+  grid-template-rows: var(--pds-toolbar-h) minmax(0, 1fr) var(--pds-footer-h);
+  grid-template-columns: var(--pds-sidebar-w) minmax(0, 1fr);
+  overflow: hidden;
+}
+
+/* Inspector column (when open on desktop) */
+.proto-shell--inspector-open {
+  grid-template-columns: var(--pds-sidebar-w) minmax(0, 1fr) var(--pds-inspector-w);
+}
+
+/* No footer (search route) */
+.proto-shell--no-footer {
+  grid-template-rows: var(--pds-toolbar-h) minmax(0, 1fr);
+}
+
+/* No sidebar (search full-width) */
+.proto-shell--no-sidebar .proto-shell__sidebar-cell {
+  display: none !important;
+}
+.proto-shell--no-sidebar {
+  grid-template-columns: minmax(0, 1fr);
+}
+.proto-shell--no-sidebar.proto-shell--inspector-open {
+  grid-template-columns: minmax(0, 1fr) var(--pds-inspector-w);
+}
+
+/* Desktop sidebar collapsed (⌘\ equivalent) */
+.proto-shell--sidebar-collapsed .proto-shell__sidebar-cell.proto-shell-drawer-sidebar {
+  width: 0;
+  min-width: 0;
+  padding: 0;
+  opacity: 0;
+  visibility: hidden;
+  border-right: none;
+  overflow: hidden;
+}
+.proto-shell--sidebar-collapsed:not(.proto-shell--no-sidebar) {
+  grid-template-columns: 0 minmax(0, 1fr);
+}
+.proto-shell--sidebar-collapsed.proto-shell--inspector-open:not(.proto-shell--no-sidebar) {
+  grid-template-columns: 0 minmax(0, 1fr) var(--pds-inspector-w);
+}
+
+/* ─── Grid cells ─────────────────────────────────────────────────────────── */
+.proto-shell__toolbar-cell {
+  grid-column: 1 / -1;
+  grid-row: 1;
+  display: flex;
+  align-items: center;
+  position: relative;
+  z-index: 1200;
+  isolation: isolate;
+  border-bottom: 1px solid var(--pds-border);
+  background: var(--pds-bg-toolbar);
+  backdrop-filter: saturate(150%) blur(20px);
+  -webkit-backdrop-filter: saturate(150%) blur(20px);
+}
+
+.proto-shell__sidebar-cell {
+  grid-column: 1;
+  grid-row: 2;
+  min-height: 0;
+  overflow: hidden;
+  border-right: 1px solid var(--pds-border);
+  background: var(--pds-bg-sidebar);
+  display: flex;
+  flex-direction: column;
+}
+
+.proto-shell__main-cell {
+  grid-column: 2;
+  grid-row: 2;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  background: var(--pds-bg-main);
+}
+
+.proto-shell__inspector-cell {
+  grid-column: 3;
+  grid-row: 2;
+  min-height: 0;
+  overflow: hidden;
+  border-left: 1px solid var(--pds-border);
+  background: var(--pds-bg-sidebar);
+  display: flex;
+  flex-direction: column;
+}
+
+.proto-shell--no-sidebar .proto-shell__main-cell {
+  grid-column: 1;
+}
+.proto-shell--no-sidebar.proto-shell--inspector-open .proto-shell__main-cell {
+  grid-column: 1;
+}
+.proto-shell--no-sidebar.proto-shell--inspector-open .proto-shell__inspector-cell {
+  grid-column: 2;
+}
+
+.proto-shell__footer-cell {
+  grid-column: 1 / -1;
+  grid-row: 3;
+  border-top: 1px solid var(--pds-border);
+  background: var(--pds-bg-footer);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  display: flex;
+  align-items: center;
+  padding: 0 14px;
+}
+
+/* ─── Sidebar root ───────────────────────────────────────────────────────── */
+.proto-sidebar-root {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.proto-sidebar-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+/* ─── Main pane ──────────────────────────────────────────────────────────── */
+.proto-main-pane {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  font-family: var(--pds-font-body);
+}
+
+.proto-main-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 200px;
+  padding: 32px;
+  color: var(--pds-text-secondary);
+  font-size: 0.9375rem;
+  text-align: center;
+  gap: 8px;
+}
+
+/* ─── Mobile drawer ──────────────────────────────────────────────────────── */
+.proto-shell-drawer-overlay {
+  display: none;
+}
+
+@media (max-width: 899px) {
+  .proto-shell {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: var(--pds-toolbar-h) minmax(0, 1fr);
+  }
+
+  .proto-shell--inspector-open {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .proto-shell__footer-cell {
+    display: none;
+  }
+
+  .proto-shell__inspector-cell {
+    display: none;
+  }
+
+  .proto-shell__sidebar-cell.proto-shell-drawer-sidebar {
+    position: fixed;
+    top: var(--pds-toolbar-h);
+    left: 0;
+    bottom: 0;
+    width: min(300px, 88vw);
+    z-index: 150;
+    transform: translateX(-100%);
+    transition: transform 0.26s cubic-bezier(0.32, 0.72, 0.24, 1);
+    border-right: 1px solid var(--pds-border);
+    box-shadow: 6px 0 24px rgba(0, 0, 0, 0.08);
+    background: var(--pds-bg-sidebar);
+  }
+
+  .proto-shell-drawer-overlay {
+    display: none;
+    pointer-events: none;
+    position: fixed;
+    inset: var(--pds-toolbar-h) 0 0 0;
+    background: rgba(0, 0, 0, 0.18);
+    z-index: 140;
+  }
+
+  .proto-shell--drawer-open .proto-shell-drawer-overlay {
+    display: block;
+    pointer-events: auto;
+  }
+
+  .proto-shell--drawer-open .proto-shell-drawer-sidebar {
+    transform: translateX(0);
+  }
+
+  .proto-shell__main-cell {
+    border-left: none;
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+
+  .proto-shell__sidebar-cell:not(.proto-shell-drawer-sidebar) {
+    display: none;
+  }
+
+  /* Sidebar-collapsed rules reset to mobile defaults */
+  .proto-shell--sidebar-collapsed:not(.proto-shell--no-sidebar) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .proto-shell--sidebar-collapsed .proto-shell__sidebar-cell.proto-shell-drawer-sidebar {
+    visibility: visible;
+    opacity: 1;
+    width: min(300px, 88vw);
+  }
+}
+
+@media (min-width: 900px) {
+  .proto-shell__sidebar-cell.proto-shell-drawer-sidebar {
+    position: relative;
+    transform: none !important;
+    transition: none;
+    width: auto;
+    height: auto;
+    box-shadow: none;
+    top: auto;
+    bottom: auto;
+    left: auto;
+  }
+
+  .proto-shell-drawer-overlay {
+    display: none !important;
+  }
+}

@@ -69,7 +69,7 @@ public/                      # Static assets, sw.js, manifest.json
 - **CRITICAL — Production = SPA + Hono API.** For UI changes that must appear in production, edit `spa/src/` or shared `src/components/react/`.
 - **Netlify build**: `npm run build` = inject SW + build:api + build:spa. Publish directory is `dist-spa/`.
 - **Production routing** (`public/_redirects`): List SPA routes (e.g. `/`, `/note/*`, `/thread/*`, `/dashboard`, …) → `/index.html` 200. Include the root `/` so the dashboard at `/` loads the SPA. Do **not** add a rule for `/api/*` — leave it unmatched so the Netlify SSR function (path: `/*`) handles API requests. A catch-all `/*` → `/index.html` would make API calls return HTML and break the app.
-- **Routing**: TanStack Router in `spa/src/router.tsx`. Use `router.navigate()`. Shared code that calls `safeNavigate()` uses the shim in `spa/src/shims/astro-transitions.ts` to drive the router.
+- **Routing**: TanStack Router in `spa/src/router.tsx`. Use `router.navigate()`. Shared code that calls `safeNavigate()` uses the shim in `spa/src/shims/astro-transitions.ts` to drive the router. Optional **simplified prototype** (native-like shell, no thread UI): `/prototype` — see [docs/SIMPLIFIED_WEB_PROTOTYPE.md](docs/SIMPLIFIED_WEB_PROTOTYPE.md).
 - **Data fetching**: React Query hooks in `spa/src/hooks/queries/`. API calls via `spa/src/lib/api.ts`.
 - **Note IDs**: Never reuse deleted IDs; track highest via `UserMetadata.highestSimpleNoteId`.
 - **Events**: CustomEvents for cross-component updates (e.g. `noteAddedToThread`).

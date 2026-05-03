@@ -1,4 +1,9 @@
 import SwiftUI
+#if os(macOS)
+import AppKit
+#elseif os(iOS) || os(tvOS) || os(visionOS)
+import UIKit
+#endif
 
 extension Color {
     // MARK: - Brand accent
@@ -40,11 +45,180 @@ extension Color {
 }
 
 enum HarvousColors {
-    static func thread(_ key: String) -> Color? { Color.thread(key) }
-    static func threadGlyph(_ key: String) -> Color? { Color.threadGlyph(key) }
+    enum ThemeVariant: String, CaseIterable, Identifiable {
+        case blue
+        case purple
+        case teal
+        case green
+        case orange
+        case rose
+        case indigo
 
-    /// Aligned with `ScripturePillAttachment` (system blue, soft fill, hairline stroke) — use SwiftUI `Color` only.
-    static var scripturePillForeground: Color { .blue }
-    static var scripturePillBackground: Color { Color.blue.opacity(0.08) }
-    static var scripturePillBorder: Color { Color.blue.opacity(0.2) }
+        var id: String { rawValue }
+
+        var pickerLabel: String {
+            switch self {
+            case .blue: return "Blue"
+            case .purple: return "Purple"
+            case .teal: return "Teal"
+            case .green: return "Green"
+            case .orange: return "Orange"
+            case .rose: return "Rose"
+            case .indigo: return "Indigo"
+            }
+        }
+    }
+
+    enum ChipVariant {
+        case scripture
+    }
+
+    /// sRGB components for scripture pills and matching toolbar accents.
+    private static func themeBaseRGB(_ variant: ThemeVariant) -> (CGFloat, CGFloat, CGFloat) {
+        switch variant {
+        case .blue: return (0.0, 0.48, 1.0)
+        case .purple: return (0.55, 0.27, 0.92)
+        case .teal: return (0.0, 0.58, 0.62)
+        case .green: return (0.20, 0.62, 0.35)
+        case .orange: return (0.95, 0.45, 0.10)
+        case .rose: return (0.90, 0.28, 0.40)
+        case .indigo: return (0.29, 0.32, 0.75)
+        }
+    }
+
+    static func themeAccent(_ variant: ThemeVariant) -> Color {
+        let (r, g, b) = themeBaseRGB(variant)
+        return Color(red: Double(r), green: Double(g), blue: Double(b))
+    }
+
+    static func themePressedBackground(_ variant: ThemeVariant) -> Color {
+        themeAccent(variant).opacity(0.18)
+    }
+
+    static func themeActiveBackground(_ variant: ThemeVariant) -> Color {
+        themeAccent(variant).opacity(0.12)
+    }
+
+    static func themeToolbarBackground(_ variant: ThemeVariant) -> Color {
+        themeAccent(variant).opacity(0.18)
+    }
+
+    // MARK: - Platform colors (inline scripture attachments)
+
+    #if os(macOS)
+    static func nsScriptureAccent(_ theme: ThemeVariant) -> NSColor {
+        let (r, g, b) = themeBaseRGB(theme)
+        return NSColor(calibratedRed: r, green: g, blue: b, alpha: 1)
+    }
+    #elseif os(iOS) || os(tvOS) || os(visionOS)
+    static func uiScriptureAccent(_ theme: ThemeVariant) -> UIColor {
+        let (r, g, b) = themeBaseRGB(theme)
+        return UIColor(red: r, green: g, blue: b, alpha: 1)
+    }
+    #endif
+
+    // MARK: - Scripture chip (SwiftUI)
+
+    private static func scriptureDayProgress(now: Date = Date()) -> CGFloat {
+        let hour = Calendar.current.component(.hour, from: now)
+        return CGFloat(hour) / 23
+    }
+
+    static func scriptureChipForeground(_ theme: ThemeVariant) -> Color {
+        themeAccent(theme)
+    }
+
+    static func scriptureChipBackground(_ theme: ThemeVariant) -> Color {
+        themeAccent(theme).opacity(0.075)
+    }
+
+    static func scriptureChipGradientTop(_ theme: ThemeVariant) -> Color {
+        themeAccent(theme).opacity(0.10)
+    }
+
+    static func scriptureChipGradientBottom(_ theme: ThemeVariant) -> Color {
+        themeAccent(theme).opacity(0.065)
+    }
+
+    static func scriptureChipBorder(_ theme: ThemeVariant) -> Color {
+        themeAccent(theme).opacity(0.2)
+    }
+
+    /// Subtle "sun path" drift: morning light starts from the left side, then moves right by evening.
+    static func scriptureChipGradientStartPoint(_ theme: ThemeVariant) -> UnitPoint {
+        let progress = scriptureDayProgress()
+        let x = 0.35 + (0.30 * progress)
+        return UnitPoint(x: x, y: 0.0)
+    }
+
+    static func scriptureChipGradientEndPoint(_ theme: ThemeVariant) -> UnitPoint {
+        let progress = scriptureDayProgress()
+        let x = 0.35 + (0.30 * progress)
+        return UnitPoint(x: x, y: 1.0)
+    }
+
+    /// Legacy: scripture styling without a space theme (defaults to blue).
+    static func chipForeground(_ variant: ChipVariant) -> Color {
+        switch variant {
+        case .scripture: return scriptureChipForeground(.blue)
+        }
+    }
+
+    static func chipBackground(_ variant: ChipVariant) -> Color {
+        switch variant {
+        case .scripture: return scriptureChipBackground(.blue)
+        }
+    }
+
+    static func chipGradientTop(_ variant: ChipVariant) -> Color {
+        switch variant {
+        case .scripture: return scriptureChipGradientTop(.blue)
+        }
+    }
+
+    static func chipGradientBottom(_ variant: ChipVariant) -> Color {
+        switch variant {
+        case .scripture: return scriptureChipGradientBottom(.blue)
+        }
+    }
+
+    static func chipBorder(_ variant: ChipVariant) -> Color {
+        switch variant {
+        case .scripture: return scriptureChipBorder(.blue)
+        }
+    }
+
+    static func chipGradientStartPoint(_ variant: ChipVariant) -> UnitPoint {
+        switch variant {
+        case .scripture: return scriptureChipGradientStartPoint(.blue)
+        }
+    }
+
+    static func chipGradientEndPoint(_ variant: ChipVariant) -> UnitPoint {
+        switch variant {
+        case .scripture: return scriptureChipGradientEndPoint(.blue)
+        }
+    }
+
+    // Backward-compatible scripture aliases (blue only).
+    static var scripturePillForeground: Color { chipForeground(.scripture) }
+    static var scripturePillBackground: Color { chipBackground(.scripture) }
+    static var scripturePillGradientTop: Color { chipGradientTop(.scripture) }
+    static var scripturePillGradientBottom: Color { chipGradientBottom(.scripture) }
+    static var scripturePillBorder: Color { chipBorder(.scripture) }
+    static var scripturePillGradientStartPoint: UnitPoint { chipGradientStartPoint(.scripture) }
+    static var scripturePillGradientEndPoint: UnitPoint { chipGradientEndPoint(.scripture) }
+}
+
+// MARK: - Space scripture theme (SwiftUI environment)
+
+private struct HarvousScriptureThemeKey: EnvironmentKey {
+    static let defaultValue: HarvousColors.ThemeVariant = .blue
+}
+
+extension EnvironmentValues {
+    var harvousScriptureTheme: HarvousColors.ThemeVariant {
+        get { self[HarvousScriptureThemeKey.self] }
+        set { self[HarvousScriptureThemeKey.self] = newValue }
+    }
 }

@@ -7,6 +7,12 @@ import SignUpPage from './pages/SignUpPage';
 import SpacePage from './pages/SpacePage';
 import ThreadPage from './pages/ThreadPage';
 import NotePage from './pages/NotePage';
+import SimplifiedPrototypeLayout from './layouts/SimplifiedPrototypeLayout';
+import PrototypeHomePage from './pages/prototype/PrototypeHomePage';
+import PrototypeSpaceLayout from './pages/prototype/PrototypeSpaceLayout';
+import PrototypeSpaceIndexPage from './pages/prototype/PrototypeSpaceIndexPage';
+import PrototypeNotePage from './pages/prototype/PrototypeNotePage';
+import PrototypeSearchPage from './pages/prototype/PrototypeSearchPage';
 
 // Root route
 const rootRoute = createRootRoute();
@@ -146,6 +152,46 @@ const invitationRoute = createRoute({
   component: lazyRouteComponent(() => import('./pages/InvitationPage')),
 });
 
+/** Simplified prototype — parallel shell, no threads in UI (see docs/SIMPLIFIED_WEB_PROTOTYPE.md). */
+const simplifiedPrototypeRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/prototype',
+  component: SimplifiedPrototypeLayout,
+});
+
+const prototypeHomeRoute = createRoute({
+  getParentRoute: () => simplifiedPrototypeRoute,
+  path: '/',
+  component: PrototypeHomePage,
+});
+
+const prototypeSearchRoute = createRoute({
+  getParentRoute: () => simplifiedPrototypeRoute,
+  path: 'search',
+  component: PrototypeSearchPage,
+  validateSearch: (search: Record<string, unknown>) => ({
+    space: typeof search.space === 'string' ? search.space : undefined,
+  }),
+});
+
+const prototypeSpaceLayoutRoute = createRoute({
+  getParentRoute: () => simplifiedPrototypeRoute,
+  path: 'space/$spaceId',
+  component: PrototypeSpaceLayout,
+});
+
+const prototypeSpaceIndexRoute = createRoute({
+  getParentRoute: () => prototypeSpaceLayoutRoute,
+  path: '/',
+  component: PrototypeSpaceIndexPage,
+});
+
+const prototypeSpaceNoteRoute = createRoute({
+  getParentRoute: () => prototypeSpaceLayoutRoute,
+  path: 'n/$noteId',
+  component: PrototypeNotePage,
+});
+
 // 404 catch-all — must be last
 const notFoundRoute = createRoute({
   getParentRoute: () => rootRoute,
@@ -175,6 +221,11 @@ const routeTree = rootRoute.addChildren([
   sharedNoteRoute,
   sharedThreadRoute,
   invitationRoute,
+  simplifiedPrototypeRoute.addChildren([
+    prototypeHomeRoute,
+    prototypeSearchRoute,
+    prototypeSpaceLayoutRoute.addChildren([prototypeSpaceIndexRoute, prototypeSpaceNoteRoute]),
+  ]),
   notFoundRoute,
 ]);
 

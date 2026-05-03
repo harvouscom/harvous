@@ -476,19 +476,20 @@ struct YouRootView: View {
 
             Section("Go to") {
                 Button {
-                    appRouter.iosSelectedTab = 0
+                    appRouter.selectIOSListSurface(.notes)
                 } label: {
                     Label("Notes", systemImage: "note.text")
                 }
                 Button {
-                    appRouter.iosSelectedTab = 1
+                    appRouter.selectIOSListSurface(.notes)
+                    appRouter.iosNotesFilterSearchPresented = true
                 } label: {
                     Label("Search", systemImage: "magnifyingglass")
                 }
                 Button {
-                    appRouter.iosSelectedTab = 2
+                    appRouter.selectIOSListSurface(.collections)
                 } label: {
-                    Label("Library", systemImage: "books.vertical")
+                    Label("Collections", systemImage: "rectangle.stack")
                 }
             }
 
@@ -498,7 +499,8 @@ struct YouRootView: View {
                 }
             }
         }
-        .navigationTitle("Profile")
+        .navigationTitle("More")
+        .navigationBarTitleDisplayMode(.inline)
     }
 }
 

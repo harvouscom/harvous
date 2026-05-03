@@ -1,0 +1,51 @@
+{
+  "/Users/heyderekj/harvous/native/Harvous/Editor/IOSNoteBodyProxy.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/IOSNoteBodyProxy.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/IOSNoteBodyProxy.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/IOSNoteBodyProxy.dia",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/IOSNoteBodyProxy.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/IOSNoteBodyProxy.swiftdeps"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/Editor/ScriptureCanon.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/ScriptureCanon.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/ScriptureCanon.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/ScriptureCanon.dia",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/ScriptureCanon.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/ScriptureCanon.swiftdeps"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/Editor/ScriptureReferenceParser.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/ScriptureReferenceParser.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/ScriptureReferenceParser.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/ScriptureReferenceParser.dia",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/ScriptureReferenceParser.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/ScriptureReferenceParser.swiftdeps"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/Models/ScriptureReference.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/ScriptureReference.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/ScriptureReference.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/ScriptureReference.dia",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/ScriptureReference.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/ScriptureReference.swiftdeps"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/Services/ScripturePassageCache.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/ScripturePassageCache.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/ScripturePassageCache.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/ScripturePassageCache.dia",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/ScripturePassageCache.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/ScripturePassageCache.swiftdeps"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/Services/ScriptureVerseFetch.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/ScriptureVerseFetch.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/ScriptureVerseFetch.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/ScriptureVerseFetch.dia",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/ScriptureVerseFetch.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/ScriptureVerseFetch.swiftdeps"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/Views/ScripturePassageView.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/ScripturePassageView.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/ScripturePassageView.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/ScripturePassageView.dia",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/ScripturePassageView.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/ScripturePassageView.swiftdeps"
+  }
+}

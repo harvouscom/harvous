@@ -5,10 +5,14 @@ import SwiftUI
 
 enum NoteFilter: Hashable, Sendable {
     case all
+    case collection(String?) // nil = ungrouped
 
     var displayName: String {
         switch self {
         case .all: return "Home"
+        case .collection(let name):
+            if let name, !name.isEmpty { return name }
+            return "Ungrouped"
         }
     }
 }

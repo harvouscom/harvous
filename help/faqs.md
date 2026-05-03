@@ -25,7 +25,7 @@ Yes! Harvous works great on mobile, tablet, and desktop. It's a Progressive Web 
 ### What's the difference between Spaces, Threads, and Notes?
 
 - **Spaces**: Top-level containers (like main drawers) - e.g., "Bible Study", "Prayer Journal"
-- **Threads**: Collections within spaces (like folders) - e.g., "Gospel of John", "Romans Study"
+- **Threads**: Collections within spaces (groupings for a topic or study) — e.g., "Gospel of John", "Romans Study"
 - **Notes**: Individual pieces of content (like documents) - e.g., "John 3:16 Reflection"
 
 ### Can notes belong to multiple threads?

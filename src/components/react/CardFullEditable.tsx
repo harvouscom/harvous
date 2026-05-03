@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useMemo, useRef, lazy, Suspense } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback, lazy, Suspense } from 'react';
+import { createPortal } from 'react-dom';
 import { TextSelection } from '@tiptap/pm/state';
 import ButtonSmall from './ButtonSmall';
 import ActionButton from './ActionButton';
@@ -19,6 +20,13 @@ import Icon from './Icon';
 import SharedNoteCTAFooter from './SharedNoteCTAFooter';
 import LockNoteButton from './LockNoteButton';
 import InlinePinUnlock from './InlinePinUnlock';
+/** Collection-only inline bar (`prototypeNative`); tags are edited in Note Details — same on mobile new-note sheet and Mac web. */
+import NoteProductionActionBar from './NoteProductionActionBar';
+import {
+  applyAutoCollectionAfterEdit,
+  type CollectionChromeState,
+  suggestPrimaryCollectionFromNote,
+} from '@/utils/bible-study-collection-web';
 
 // Lazy load TiptapEditor to reduce initial bundle size - only loads when user enters edit mode
 const TiptapEditor = lazy(() => import('./TiptapEditor'));
@@ -34,6 +42,7 @@ function looksLikeEncryptedBlob(s: string): boolean {
 const TITLE_SOFT_LIMIT = 30;  // Show counter when >= 30
 const TITLE_WARNING_LIMIT = 45;  // Red text when >= 45 (within 5 of limit)
 const TITLE_HARD_LIMIT = 50;  // Maximum allowed
+const TITLE_SINGLE_ROW_MIN_HEIGHT_PX = 36;
 
 interface CardFullEditableProps {
   title: string;
@@ -49,7 +58,15 @@ interface CardFullEditableProps {
   contentEncrypted?: boolean;
   className?: string;
   isEditable?: boolean;
-  onSave?: (title: string, content: string) => Promise<any>;
+  onSave?: (
+    title: string,
+    content: string,
+    collectionExtras?: {
+      primaryCollection?: string | null;
+      collectionPinned?: boolean;
+      collectionUserOverride?: boolean;
+    },
+  ) => Promise<any>;
   footer?: React.ReactNode;
   // Props for shared note CTA footer
   shareToken?: string;
@@ -58,6 +75,26 @@ interface CardFullEditableProps {
   inBottomSheet?: boolean;
   /** Welcome-thread pack notes (system): same as scripture — no title/body editing in the card. */
   readOnlyLikeScripture?: boolean;
+  /** Prototype-only: native-like editor chrome (format vs scripture vs note action bar). */
+  editorChromeMode?: 'default' | 'prototypeNative';
+  /** Shown when prototype bottom mode is `noteActions` (below editor, above save/cancel).
+   *  Ignored when `formatToolbarPortalTarget` is set — parent renders the bar at column level.
+   */
+  prototypeNoteActionBar?: React.ReactNode;
+  /** Prototype-only: when set, the format toolbar is portaled into this element so the
+   *  parent can render bars (format / note actions) as siblings of the scroll container,
+   *  pinned to the bottom of the editor column. */
+  formatToolbarPortalTarget?: HTMLElement | null;
+  /** Prototype-only: bubbles up the current bottom chrome mode (format / scripture / noteActions). */
+  onPrototypeChromeModeChange?: (mode: 'format' | 'scripture' | 'noteActions') => void;
+  /** When set with prototype chrome + column shell, portals the native-like note actions bar here. */
+  noteActionsPortalTarget?: HTMLElement | null;
+  /** Server-stored Bible study collection (native parity). */
+  initialPrimaryCollection?: string | null;
+  initialCollectionPinned?: boolean;
+  initialCollectionUserOverride?: boolean;
+  initialCollectionLastAutoUpdatedAtIso?: string | null;
+  scriptureChromePortalTarget?: HTMLElement | null;
 }
 
 export default function CardFullEditable({ 
@@ -80,6 +117,16 @@ export default function CardFullEditable({
   isAuthenticated,
   inBottomSheet = false,
   readOnlyLikeScripture = false,
+  editorChromeMode = 'default',
+  prototypeNoteActionBar,
+  formatToolbarPortalTarget = null,
+  onPrototypeChromeModeChange,
+  noteActionsPortalTarget = null,
+  initialPrimaryCollection = null,
+  initialCollectionPinned = false,
+  initialCollectionUserOverride = false,
+  initialCollectionLastAutoUpdatedAtIso = null,
+  scriptureChromePortalTarget = null,
 }: CardFullEditableProps) {
   // Override isEditable for scripture notes, onboarding pack notes, and offline (create-only mode)
   const isCurrentlyOffline = useIsOffline();
@@ -110,6 +157,69 @@ export default function CardFullEditable({
   const saveChangesRef = useRef<() => void>(() => {});
   const [scrollPosition, setScrollPosition] = useState(0);
   const [parentThreadId, setParentThreadId] = useState<string | undefined>(undefined);
+  const [prototypeBottomChromeMode, setPrototypeBottomChromeModeInternal] = useState<
+    'format' | 'scripture' | 'noteActions'
+  >('noteActions');
+  const onPrototypeChromeModeChangeRef = useRef(onPrototypeChromeModeChange);
+  useEffect(() => {
+    onPrototypeChromeModeChangeRef.current = onPrototypeChromeModeChange;
+  }, [onPrototypeChromeModeChange]);
+  const setPrototypeBottomChromeMode = useCallback(
+    (mode: 'format' | 'scripture' | 'noteActions') => {
+      setPrototypeBottomChromeModeInternal(mode);
+      onPrototypeChromeModeChangeRef.current?.(mode);
+    },
+    [],
+  );
+
+  useEffect(() => {
+    if (!isContentEditing) {
+      setPrototypeBottomChromeMode('noteActions');
+    }
+  }, [isContentEditing, setPrototypeBottomChromeMode]);
+
+  const [collectionChrome, setCollectionChrome] = useState<CollectionChromeState>({
+    primaryCollection: initialPrimaryCollection ?? null,
+    collectionPinned: !!initialCollectionPinned,
+    collectionUserOverride: !!initialCollectionUserOverride,
+    collectionLastAutoUpdatedAtIso: initialCollectionLastAutoUpdatedAtIso ?? null,
+  });
+
+  useEffect(() => {
+    setCollectionChrome({
+      primaryCollection: initialPrimaryCollection ?? null,
+      collectionPinned: !!initialCollectionPinned,
+      collectionUserOverride: !!initialCollectionUserOverride,
+      collectionLastAutoUpdatedAtIso: initialCollectionLastAutoUpdatedAtIso ?? null,
+    });
+  }, [
+    noteId,
+    initialPrimaryCollection,
+    initialCollectionPinned,
+    initialCollectionUserOverride,
+    initialCollectionLastAutoUpdatedAtIso,
+  ]);
+
+  useEffect(() => {
+    if (editorChromeMode !== 'prototypeNative') return;
+    if (!isTitleEditing && !isContentEditing) return;
+    const timer = window.setTimeout(() => {
+      setCollectionChrome(prev => {
+        if (prev.collectionPinned || prev.collectionUserOverride) return prev;
+        let body = editContent;
+        if (editorInstanceRef.current && !editorInstanceRef.current.isDestroyed) {
+          try {
+            body = editorInstanceRef.current.getHTML();
+          } catch {
+            /* keep editContent */
+          }
+        }
+        return applyAutoCollectionAfterEdit(prev, editTitle, body, new Date());
+      });
+    }, 400);
+    return () => window.clearTimeout(timer);
+  }, [editTitle, editContent, editorChromeMode, isTitleEditing, isContentEditing]);
+
   // Track if we've updated content locally (e.g., with a highlight)
   const hasLocalContentUpdate = useRef(false);
   // Skip next init-effect overwrite when we just set decrypted content from pinEntryComplete (avoids race where effect runs with stale lockStateOverride and overwrites with encrypted content)
@@ -1008,14 +1118,23 @@ export default function CardFullEditable({
         }
       }
 
+      const collectionExtras =
+        editorChromeMode === 'prototypeNative' && effectiveIsEditable
+          ? {
+              primaryCollection: collectionChrome.primaryCollection,
+              collectionPinned: collectionChrome.collectionPinned,
+              collectionUserOverride: collectionChrome.collectionUserOverride,
+            }
+          : undefined;
+
       let saveResult: any = null;
       if (onSave) {
-        saveResult = await onSave(editTitle, editorContent);
+        saveResult = await onSave(editTitle, editorContent, collectionExtras);
       } else {
         // Fallback to global save callback
         const globalCallback = (window as any).noteSaveCallback;
         if (globalCallback) {
-          saveResult = await globalCallback(editTitle, editorContent);
+          saveResult = await globalCallback(editTitle, editorContent, collectionExtras);
         }
       }
 
@@ -1213,9 +1332,18 @@ export default function CardFullEditable({
 
   const handleTitleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const newValue = e.target.value.slice(0, TITLE_HARD_LIMIT); // Enforce hard limit
+    e.target.style.height = '0px';
+    e.target.style.height = `${Math.max(TITLE_SINGLE_ROW_MIN_HEIGHT_PX, e.target.scrollHeight)}px`;
     setEditTitle(newValue);
     setHasChanges(newValue !== displayTitle || editContent !== displayContent);
   };
+
+  useEffect(() => {
+    if (!isTitleEditing || !titleInputRef.current) return;
+    const el = titleInputRef.current;
+    el.style.height = '0px';
+    el.style.height = `${Math.max(TITLE_SINGLE_ROW_MIN_HEIGHT_PX, el.scrollHeight)}px`;
+  }, [isTitleEditing, editTitle]);
 
   // Prefetch scripture note page on hover for faster navigation
   const prefetchedUrls = useRef(new Set<string>());
@@ -1384,6 +1512,7 @@ export default function CardFullEditable({
     const effectiveContent = displayContent || resourceDescription || '';
 
     return (
+      <>
       <div
         ref={cardRootRef}
         className={`card-full-editable ${className}`}
@@ -1524,7 +1653,7 @@ export default function CardFullEditable({
                     value={editTitle}
                     onChange={handleTitleChange}
                     maxLength={TITLE_HARD_LIMIT}
-                    rows={2}
+                    rows={1}
                     className="w-full bg-transparent border-0 rounded focus:outline-none font-bold"
                     style={{
                       lineHeight: '1.2',
@@ -1593,12 +1722,22 @@ export default function CardFullEditable({
                       parentThreadId={parentThreadId}
                       sourceNoteId={noteId}
                       onEditorReady={handleEditorReady}
+                      editorChromeMode={editorChromeMode}
+                      onPrototypeChromeModeChange={
+                        editorChromeMode === 'prototypeNative' ? setPrototypeBottomChromeMode : undefined
+                      }
+                      formatToolbarPortalTarget={
+                        editorChromeMode === 'prototypeNative' ? formatToolbarPortalTarget : null
+                      }
+                      scriptureChromePortalTarget={
+                        editorChromeMode === 'prototypeNative' ? scriptureChromePortalTarget : null
+                      }
                     />
                   </Suspense>
                 </div>
                 
                 {/* Save/Cancel buttons */}
-                {isContentEditing && renderSaveCancelButtons('px-3')}
+                {editorChromeMode !== 'prototypeNative' && isContentEditing && renderSaveCancelButtons('px-3')}
               </div>
             )}
           </div>
@@ -1627,9 +1766,61 @@ export default function CardFullEditable({
           )}
 
           {/* Save/Cancel buttons when only title is being edited - shown at bottom */}
-          {isTitleEditing && !isContentEditing && renderSaveCancelButtons('px-3')}
+          {editorChromeMode !== 'prototypeNative' &&
+            isTitleEditing &&
+            !isContentEditing &&
+            renderSaveCancelButtons('px-3')}
+
+          {editorChromeMode === 'prototypeNative' &&
+            !formatToolbarPortalTarget &&
+            !noteActionsPortalTarget &&
+            prototypeBottomChromeMode === 'noteActions' &&
+            prototypeNoteActionBar ? (
+            <div className="w-full shrink-0 px-3">{prototypeNoteActionBar}</div>
+          ) : null}
         </div>
       </div>
+      {editorChromeMode === 'prototypeNative' &&
+        noteActionsPortalTarget &&
+        createPortal(
+          <NoteProductionActionBar
+            collectionDraft={collectionChrome.primaryCollection ?? ''}
+            onDraftChange={(v) => {
+              const t = v.trim();
+              setCollectionChrome(c => ({
+                ...c,
+                primaryCollection: t.length ? t : null,
+                collectionUserOverride: true,
+              }));
+            }}
+            collectionPinned={collectionChrome.collectionPinned}
+            collectionUserOverride={collectionChrome.collectionUserOverride}
+            onTogglePinned={() =>
+              setCollectionChrome(c => ({ ...c, collectionPinned: !c.collectionPinned }))
+            }
+            onRestoreAuto={() => {
+              let body = editContent;
+              if (editorInstanceRef.current && !editorInstanceRef.current.isDestroyed) {
+                try {
+                  body = editorInstanceRef.current.getHTML();
+                } catch {
+                  /* keep editContent */
+                }
+              }
+              const sug = suggestPrimaryCollectionFromNote(editTitle, body);
+              setCollectionChrome(c => ({
+                ...c,
+                primaryCollection: sug,
+                collectionUserOverride: false,
+                collectionPinned: false,
+                collectionLastAutoUpdatedAtIso: new Date().toISOString(),
+              }));
+            }}
+            disabled={!effectiveIsEditable}
+          />,
+          noteActionsPortalTarget,
+        )}
+      </>
     );
   }
 
@@ -1702,7 +1893,7 @@ export default function CardFullEditable({
                 value={editTitle}
                 onChange={handleTitleChange}
                 maxLength={TITLE_HARD_LIMIT}
-                rows={2}
+                rows={1}
                 className="w-full bg-transparent border-0 rounded focus:outline-none font-bold"
                 style={{
                   lineHeight: '1.2',
@@ -1723,50 +1914,19 @@ export default function CardFullEditable({
             </div>
           )}
         </div>
-        {noteType === 'scripture' ? (
-          <>
-            {displayScriptureVersion && (
-              <span
-                style={{
-                  fontFamily: 'var(--font-sans)',
-                  fontSize: '12px',
-                  fontWeight: 'normal',
-                  color: 'var(--color-stone-grey)',
-                  flexShrink: 0,
-                }}
-              >
-                {getTranslationAbbreviationDisplay(displayScriptureVersion)}
-              </span>
-            )}
-            <div className="relative shrink-0 size-5" title="Note type switching disabled until designs are ready">
-              <Icon name="scroll" size={20} style={{ color: 'var(--color-deep-grey)' }} />
-            </div>
-          </>
-        ) : (
-          /* Icon only for non-scripture notes */
-          (() => {
-            const noteTypeConfig: Record<'resource' | 'default', { label: string; icon: React.ReactElement }> = {
-              resource: {
-                label: 'Resource',
-                icon: <Icon name="newspaper" size={20} style={{ color: 'var(--color-deep-grey)' }} />
-              },
-              default: {
-                label: 'Note',
-                icon: (
-                  <svg className="block max-w-none size-full text-[var(--color-deep-grey)]" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M17 3H7c-1.1 0-2 .9-2 2v16l7-3 7 3V5c0-1.1-.9-2-2-2z"/>
-                  </svg>
-                )
-              }
-            };
-            const config = noteTypeConfig[noteType];
-            return (
-              <div className="relative shrink-0 size-5" title={`${config.label} type`} style={{ marginTop: '4px' }}>
-                {config.icon}
-              </div>
-            );
-          })()
-        )}
+        {noteType === 'scripture' && displayScriptureVersion ? (
+          <span
+            style={{
+              fontFamily: 'var(--font-sans)',
+              fontSize: '12px',
+              fontWeight: 'normal',
+              color: 'var(--color-stone-grey)',
+              flexShrink: 0,
+            }}
+          >
+            {getTranslationAbbreviationDisplay(displayScriptureVersion)}
+          </span>
+        ) : null}
       </div>
       
       {/* Content */}
@@ -1824,18 +1984,31 @@ export default function CardFullEditable({
                     parentThreadId={parentThreadId}
                     sourceNoteId={noteId}
                     onEditorReady={handleEditorReady}
+                    editorChromeMode={editorChromeMode}
+                    onPrototypeChromeModeChange={
+                      editorChromeMode === 'prototypeNative' ? setPrototypeBottomChromeMode : undefined
+                    }
+                    formatToolbarPortalTarget={
+                      editorChromeMode === 'prototypeNative' ? formatToolbarPortalTarget : null
+                    }
+                    scriptureChromePortalTarget={
+                      editorChromeMode === 'prototypeNative' ? scriptureChromePortalTarget : null
+                    }
                   />
                 </Suspense>
               </div>
               
               {/* Save/Cancel buttons */}
-              {isContentEditing && renderSaveCancelButtons('px-3')}
+              {editorChromeMode !== 'prototypeNative' && isContentEditing && renderSaveCancelButtons('px-3')}
             </div>
           )}
         </div>
 
         {/* Save/Cancel buttons when only title is being edited - shown at bottom like content editing */}
-        {isTitleEditing && !isContentEditing && renderSaveCancelButtons('px-3')}
+        {editorChromeMode !== 'prototypeNative' &&
+          isTitleEditing &&
+          !isContentEditing &&
+          renderSaveCancelButtons('px-3')}
 
         {/* Bible Translation Attribution — same footer structure as ScriptureComparePanel (border + top padding); px-3 matches main column shell; p keeps right inset for FAB */}
         {noteType === 'scripture' && displayScriptureVersion && (() => {
@@ -1909,8 +2082,56 @@ export default function CardFullEditable({
             />
           </div>
         ) : null}
+
+        {editorChromeMode === 'prototypeNative' &&
+          !formatToolbarPortalTarget &&
+          !noteActionsPortalTarget &&
+          prototypeBottomChromeMode === 'noteActions' &&
+          prototypeNoteActionBar ? (
+          <div className="w-full shrink-0 px-3">{prototypeNoteActionBar}</div>
+        ) : null}
       </div>
       </div>
+      {editorChromeMode === 'prototypeNative' &&
+        noteActionsPortalTarget &&
+        createPortal(
+          <NoteProductionActionBar
+            collectionDraft={collectionChrome.primaryCollection ?? ''}
+            onDraftChange={(v) => {
+              const t = v.trim();
+              setCollectionChrome(c => ({
+                ...c,
+                primaryCollection: t.length ? t : null,
+                collectionUserOverride: true,
+              }));
+            }}
+            collectionPinned={collectionChrome.collectionPinned}
+            collectionUserOverride={collectionChrome.collectionUserOverride}
+            onTogglePinned={() =>
+              setCollectionChrome(c => ({ ...c, collectionPinned: !c.collectionPinned }))
+            }
+            onRestoreAuto={() => {
+              let body = editContent;
+              if (editorInstanceRef.current && !editorInstanceRef.current.isDestroyed) {
+                try {
+                  body = editorInstanceRef.current.getHTML();
+                } catch {
+                  /* keep editContent */
+                }
+              }
+              const sug = suggestPrimaryCollectionFromNote(editTitle, body);
+              setCollectionChrome(c => ({
+                ...c,
+                primaryCollection: sug,
+                collectionUserOverride: false,
+                collectionPinned: false,
+                collectionLastAutoUpdatedAtIso: new Date().toISOString(),
+              }));
+            }}
+            disabled={!effectiveIsEditable}
+          />,
+          noteActionsPortalTarget,
+        )}
     </>
   );
 }

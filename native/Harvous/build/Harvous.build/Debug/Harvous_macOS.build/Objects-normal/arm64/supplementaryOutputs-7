@@ -1,0 +1,65 @@
+{
+  "/Users/heyderekj/harvous/native/Harvous/App/HarvousAppRouter.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/HarvousAppRouter.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/HarvousAppRouter.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/HarvousAppRouter.dia",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/HarvousAppRouter.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/HarvousAppRouter.swiftdeps"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/Intents/HarvousAppIntents.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/HarvousAppIntents.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/HarvousAppIntents.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/HarvousAppIntents.dia",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/HarvousAppIntents.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/HarvousAppIntents.swiftdeps"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/Models/HarvousLocalIdentity.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/HarvousLocalIdentity.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/HarvousLocalIdentity.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/HarvousLocalIdentity.dia",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/HarvousLocalIdentity.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/HarvousLocalIdentity.swiftdeps"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/Models/HarvousSpaceBootstrap.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/HarvousSpaceBootstrap.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/HarvousSpaceBootstrap.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/HarvousSpaceBootstrap.dia",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/HarvousSpaceBootstrap.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/HarvousSpaceBootstrap.swiftdeps"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/Services/SpaceStore.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/SpaceStore.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/SpaceStore.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/SpaceStore.dia",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/SpaceStore.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/SpaceStore.swiftdeps"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/Views/NoteFeedRow.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/NoteFeedRow.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/NoteFeedRow.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/NoteFeedRow.dia",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/NoteFeedRow.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/NoteFeedRow.swiftdeps"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/Views/SpaceManagementViews.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/SpaceManagementViews.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/SpaceManagementViews.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/SpaceManagementViews.dia",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/SpaceManagementViews.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/SpaceManagementViews.swiftdeps"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/Views/SpaceSwitcherView.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/SpaceSwitcherView.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/SpaceSwitcherView.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/SpaceSwitcherView.dia",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/SpaceSwitcherView.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/SpaceSwitcherView.swiftdeps"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/Views/StatefulNoteEditorView.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/StatefulNoteEditorView.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/StatefulNoteEditorView.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/StatefulNoteEditorView.dia",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/StatefulNoteEditorView.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/StatefulNoteEditorView.swiftdeps"
+  }
+}

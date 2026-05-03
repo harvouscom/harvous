@@ -1,14 +1,25 @@
 import SwiftUI
 import SwiftData
+#if os(macOS)
+import AppKit
+#elseif os(iOS)
+import UIKit
+#endif
 
 struct SearchView: View {
     @Query private var notes: [Note]
+    @EnvironmentObject private var spaceStore: SpaceStore
     @State private var query = ""
+
+    private var notesInActiveSpace: [Note] {
+        let sid = spaceStore.activeSpaceUUID()
+        return notes.filter { $0.resolvedSpaceId() == sid }
+    }
 
     private var results: [Note] {
         guard !query.isEmpty else { return [] }
         let q = query.lowercased()
-        return notes.filter {
+        return notesInActiveSpace.filter {
             $0.title.lowercased().contains(q) ||
             $0.body.lowercased().contains(q) ||
             $0.detectedRefs.contains(where: { $0.lowercased().contains(q) }) ||
@@ -17,23 +28,36 @@ struct SearchView: View {
     }
 
     var body: some View {
-        NavigationStack {
-            Group {
-                if query.isEmpty {
-                    emptyPrompt
-                } else if results.isEmpty {
-                    noResults
-                } else {
-                    resultsList
-                }
+        Group {
+            if query.isEmpty {
+                emptyPrompt
+            } else if results.isEmpty {
+                noResults
+            } else {
+                resultsList
             }
-            .navigationTitle("Search")
-            .searchable(text: $query, prompt: "Notes, verses, tags…")
-            #if os(iOS)
-            .autocorrectionDisabled(true)
-            .textInputAutocapitalization(.never)
-#endif
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(harvousListChromeBackground)
+        .navigationTitle("Search")
+        #if os(iOS)
+        .navigationBarTitleDisplayMode(.inline)
+        #endif
+        .searchable(text: $query, prompt: "Notes, verses, tags…")
+        #if os(iOS)
+        .autocorrectionDisabled(true)
+        .textInputAutocapitalization(.never)
+        #endif
+    }
+
+    private var harvousListChromeBackground: Color {
+        #if os(iOS)
+        Color(uiColor: .systemGroupedBackground)
+        #elseif os(macOS)
+        Color(nsColor: .windowBackgroundColor)
+        #else
+        Color.clear
+        #endif
     }
 
     private var emptyPrompt: some View {
@@ -62,18 +86,30 @@ struct SearchView: View {
 
     private var resultsList: some View {
         ScrollView {
-            LazyVStack(spacing: 12) {
+            LazyVStack(spacing: 0) {
                 ForEach(results) { note in
-                    NavigationLink { StatefulNoteEditorView(note: note) } label: { NoteCardView(note: note) }
+                    VStack(spacing: 0) {
+                        NavigationLink {
+                            StatefulNoteEditorView(note: note)
+                        } label: {
+                            NoteFeedRow(note: note, variant: .conversation)
+                                .padding(.horizontal, 16)
+                        }
                         .buttonStyle(.plain)
+                        Divider()
+                            .padding(.leading, 72)
+                    }
                 }
             }
-            .padding(16)
+            .padding(.vertical, 8)
         }
     }
 }
 
 #Preview {
-    SearchView()
-        .modelContainer(for: [Note.self], inMemory: true)
+    NavigationStack {
+        SearchView()
+            .environmentObject(SpaceStore())
+            .modelContainer(for: [Note.self, Space.self, SpaceMember.self, SpaceInvite.self, SpaceJoinLink.self], inMemory: true)
+    }
 }

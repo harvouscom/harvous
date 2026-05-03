@@ -1036,6 +1036,7 @@ export default function EditSpacePanel({
                 {/* Space title and color: owner only; members only see tab nav below */}
                 {isOwner && (
                   <>
+                    <p className="panel__section-eyebrow">Appearance</p>
                     <DebouncedEntityTitleInput
                       key={spaceId}
                       pendingStorageKey={`pendingSpaceTitle_${spaceId}`}
@@ -1098,6 +1099,7 @@ export default function EditSpacePanel({
                 )}
 
                 <div className="edit-panel-tab-stack w-full flex flex-col gap-1 min-h-0 flex-1">
+                <p className="panel__section-eyebrow">Content</p>
                 {/* Tab navigation and Created by (same row, justify-between); Created by only for members */}
                 <div className="flex-between w-full shrink-0" style={{ gap: "0.5rem" }}>
                   <TabNav

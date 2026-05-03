@@ -98,8 +98,22 @@ export interface SpaceContentItem {
   isPinned?: boolean;
 }
 
-interface SpaceItemsPage {
-  items: SpaceItem[];
+export interface SpaceNoteRow {
+  id: string;
+  title?: string | null;
+  content?: string | null;
+  noteType?: string;
+  createdAt?: string;
+  updatedAt?: string | null;
+  lastVisited?: string | null;
+  lastUpdated?: string;
+  resourceTitle?: string | null;
+  contentEncrypted?: boolean;
+}
+
+/** Paginated notes-only list from `GET /api/spaces/:spaceId/notes` */
+interface SpaceNotesPage {
+  notes: SpaceNoteRow[];
   hasMore: boolean;
   offset: number;
   limit: number;
@@ -122,14 +136,15 @@ export function useSpace(spaceId: string) {
 }
 
 export function useSpaceNotes(spaceId: string, limit = 20) {
+  const id = spaceId.startsWith('space_') ? spaceId : `space_${spaceId}`;
   return useInfiniteQuery({
-    queryKey: ['space', spaceId, 'notes'],
+    queryKey: ['space', id, 'notes'],
     queryFn: ({ pageParam = 0 }) =>
-      api.get<SpaceItemsPage>(`/api/spaces/${spaceId}/notes`, { offset: pageParam, limit }),
+      api.get<SpaceNotesPage>(`/api/spaces/${id}/notes`, { offset: pageParam, limit }),
     getNextPageParam: (lastPage) =>
       lastPage.hasMore ? lastPage.offset + lastPage.limit : undefined,
     initialPageParam: 0,
-    enabled: !!spaceId,
+    enabled: !!id,
     staleTime: 30_000,
   });
 }

@@ -77,6 +77,11 @@ export const Notes = pgTable(
     shareToken: text('shareToken'),
     shareTokenCreatedAt: ts('shareTokenCreatedAt'),
     contentEncrypted: boolean('contentEncrypted').notNull().default(false),
+    /** Primary study collection label — native parity (`note.primaryCollection`). */
+    primaryCollection: text('primaryCollection'),
+    collectionPinned: boolean('collectionPinned').notNull().default(false),
+    collectionUserOverride: boolean('collectionUserOverride').notNull().default(false),
+    collectionLastAutoUpdatedAt: ts('collectionLastAutoUpdatedAt'),
     /** Note created from highlighted text in this source note (same user only). */
     linkedFromNoteId: text('linkedFromNoteId'),
   },

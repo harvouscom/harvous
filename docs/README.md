@@ -50,6 +50,9 @@ Complete documentation index for the Harvous Bible study notes application.
 - **[native-prototype/SPA_RETIREMENT_AND_PUBLIC_WEB.md](./native-prototype/SPA_RETIREMENT_AND_PUBLIC_WEB.md)** - Retiring the full SPA while retaining HTTPS surfaces for share links, space joins, invitations, and related API contracts (branch: `native-prototype`)
 - **[native/PROFILE_PREFERENCES_IA.md](./native/PROFILE_PREFERENCES_IA.md)** - Native macOS/iOS profile & settings information architecture, deep links, and web panel inventory
 
+### Design Parity
+- **[design-parity/HARVOUS_DESIGN_PARITY_SPEC.md](./design-parity/HARVOUS_DESIGN_PARITY_SPEC.md)** - Native-first, web-secondary parity policy with feature-level implementation template
+
 ### Issue Tracking & Lessons
 - **[ALPINE_JS_LESSONS.md](./ALPINE_JS_LESSONS.md)** - Alpine.js lessons learned
 - **[NAVIGATION_HISTORY_PERSISTENCE_LESSONS.md](./NAVIGATION_HISTORY_PERSISTENCE_LESSONS.md)** - Navigation persistence patterns

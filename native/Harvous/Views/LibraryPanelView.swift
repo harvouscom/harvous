@@ -8,6 +8,12 @@ import SwiftData
 struct LibraryPanelView: View {
     @Binding var selectedNote: Note?
     @Query(sort: \Note.updatedAt, order: .reverse) private var notes: [Note]
+    @EnvironmentObject private var spaceStore: SpaceStore
+
+    private var notesInActiveSpace: [Note] {
+        let sid = spaceStore.activeSpaceUUID()
+        return notes.filter { $0.resolvedSpaceId() == sid }
+    }
 
     // MARK: - Auto-grouping by scripture
 
@@ -21,7 +27,7 @@ struct LibraryPanelView: View {
 
     private var groups: [(key: String, notes: [Note])] {
         var dict: [String: [Note]] = [:]
-        for note in notes {
+        for note in notesInActiveSpace {
             let key = groupKey(for: note)
             dict[key, default: []].append(note)
         }
@@ -41,7 +47,7 @@ struct LibraryPanelView: View {
 
     var body: some View {
         Group {
-            if notes.isEmpty {
+            if notesInActiveSpace.isEmpty {
                 emptyState
             } else {
                 libraryList
@@ -56,7 +62,7 @@ struct LibraryPanelView: View {
                 Section(group.key) {
                     ForEach(group.notes) { note in
                         let isSelected = selectedNote?.id == note.id
-                        NoteRow(note: note)
+                        NoteFeedRow(note: note, variant: .sidebarCompact)
                             .listRowInsets(EdgeInsets(top: 4, leading: 6, bottom: 4, trailing: 8))
                             .listRowBackground(
                                 RoundedRectangle(cornerRadius: HarvousRadius.rowHighlight)
@@ -84,7 +90,8 @@ struct LibraryPanelView: View {
     NavigationStack {
         LibraryPanelView(selectedNote: .constant(nil))
     }
-    .modelContainer(for: [Note.self], inMemory: true)
+    .environmentObject(SpaceStore())
+    .modelContainer(for: [Note.self, Space.self, SpaceMember.self, SpaceInvite.self, SpaceJoinLink.self], inMemory: true)
     .frame(width: 280, height: 600)
 }
 

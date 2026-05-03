@@ -7,8 +7,9 @@ struct ScripturePillActionBar: View {
     /// Matches `NoteToolbar` (36×36) and `NoteActionBar` typography (`HarvousTypography.actionBar*` at 15pt).
     private static let toolbarControlHeight: CGFloat = 36
     /// Caps chapter / verse menu pickers so the row stays compact (still fits three-digit values e.g. Ps 150).
-    private static let scriptureNumberPickerMaxWidth: CGFloat = 46
+    private static let scriptureNumberPickerMaxWidth: CGFloat = 58
 
+    @Environment(\.harvousScriptureTheme) private var scriptureTheme
     @ObservedObject var proxy: EditorProxy
 
     @State private var bookIndex: Int = 0
@@ -72,7 +73,7 @@ struct ScripturePillActionBar: View {
 
                                 Text(":")
                                     .font(HarvousTypography.actionBarMeta)
-                                    .foregroundStyle(HarvousColors.scripturePillForeground.opacity(0.45))
+                                    .foregroundStyle(HarvousColors.scriptureChipForeground(scriptureTheme).opacity(0.45))
                                     .frame(width: 8, alignment: .center)
 
                                 Picker("Verse", selection: $verseStart) {
@@ -90,7 +91,7 @@ struct ScripturePillActionBar: View {
                                 if useVerseRange {
                                     Text("–")
                                         .font(HarvousTypography.actionBarMeta)
-                                        .foregroundStyle(HarvousColors.scripturePillForeground.opacity(0.45))
+                                        .foregroundStyle(HarvousColors.scriptureChipForeground(scriptureTheme).opacity(0.45))
                                         .frame(width: 10, alignment: .center)
 
                                     Picker("End verse", selection: $verseEnd) {
@@ -147,13 +148,11 @@ struct ScripturePillActionBar: View {
                     .buttonStyle(.borderless)
                     .controlSize(.regular)
                     .font(HarvousTypography.actionBarMeta)
-                    .foregroundStyle(HarvousColors.scripturePillForeground.opacity(0.65))
+                    .foregroundStyle(HarvousColors.scriptureChipForeground(scriptureTheme).opacity(0.65))
                 }
             }
             .frame(height: 44)
             .padding(.horizontal, 20)
-
-            scripturePillHairline
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 14) {
@@ -178,11 +177,22 @@ struct ScripturePillActionBar: View {
             }
             .frame(maxHeight: 400)
         }
-        .background(HarvousColors.scripturePillBackground)
+        .background(.bar)
         .overlay {
-            Rectangle()
-                .strokeBorder(HarvousColors.scripturePillBorder, lineWidth: 0.5)
+            HarvousColors.scriptureChipBackground(scriptureTheme).opacity(0.30)
+                .allowsHitTesting(false)
         }
+        .clipShape(
+            UnevenRoundedRectangle(
+                cornerRadii: .init(
+                    topLeading: HarvousRadius.sidebarGlassLeading,
+                    bottomLeading: 0,
+                    bottomTrailing: 0,
+                    topTrailing: HarvousRadius.sidebarGlassLeading
+                ),
+                style: .continuous
+            )
+        )
         .onAppear { syncFromProxy() }
         .onChange(of: proxy.activeScripturePill) { _, _ in syncFromProxy() }
         .onChange(of: bookIndex) { _, _ in clampSelectionToCanon() }
@@ -193,13 +203,6 @@ struct ScripturePillActionBar: View {
         .task(id: passagePrefetchToken) {
             await ScripturePassageCache.shared.prefetch(reference: formattedReference(), translation: translation)
         }
-    }
-
-    /// Matches `ScripturePillAttachment` hairline between the controls row and passage.
-    private var scripturePillHairline: some View {
-        HarvousColors.scripturePillBorder
-            .frame(maxWidth: .infinity)
-            .frame(height: 0.5)
     }
 
     private func clampSelectionToCanon() {
@@ -228,7 +231,7 @@ struct ScripturePillActionBar: View {
 
     private func applyReference() {
         let ref = formattedReference()
-        proxy.replaceActiveScripturePill(reference: ref, translation: translation)
+        proxy.replaceActiveScripturePill(reference: ref, translation: translation, theme: scriptureTheme)
         ScriptureApplyFeedback.notifyScripturePillApplied()
     }
 
@@ -255,8 +258,9 @@ struct ScripturePillActionBar: View {
 
 /// iOS: full-screen sheet for editing the active scripture pill (same fields as macOS action bar).
 struct ScripturePillEditorSheet: View {
-    @ObservedObject var proxy: IOSNoteBodyProxy
+    @ObservedObject var proxy: EditorProxy
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.harvousScriptureTheme) private var scriptureTheme
     var onShowPassage: (_ reference: String, _ translation: String) -> Void
 
     @State private var bookIndex: Int = 0
@@ -387,7 +391,7 @@ struct ScripturePillEditorSheet: View {
             verseStart: verseStart,
             verseEnd: end
         )
-        proxy.replaceActiveScripturePill(reference: ref, translation: translation)
+        proxy.replaceActiveScripturePill(reference: ref, translation: translation, theme: scriptureTheme)
         ScriptureApplyFeedback.notifyScripturePillApplied()
     }
 }

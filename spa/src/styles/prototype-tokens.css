@@ -1,0 +1,288 @@
+/**
+ * Prototype Design System — tokens derived directly from native Swift values.
+ *
+ * HarvousColors  → --pds-color-*
+ * HarvousShape   → --pds-radius-*
+ * HarvousTypography / HarvousFonts → --pds-font-* and type classes
+ * CardShadow → --pds-shadow-card / --pds-shadow-card-sm
+ *
+ * Nothing here references SPA CSS variables (--color-*, --font-sans, etc.).
+ */
+
+/* ─── Design tokens ──────────────────────────────────────────────────────── */
+:root {
+  /* Brand accent — Color(red:0.22, green:0.41, blue:0.90) */
+  --pds-accent:         rgb(56, 105, 230);
+  --pds-accent-pressed: rgb(42, 88, 200);
+  --pds-accent-active-bg:  rgba(56, 105, 230, 0.12);
+  --pds-accent-pressed-bg: rgba(56, 105, 230, 0.18);
+
+  /* Scripture chip colors (blue theme — default) */
+  --pds-scripture-fg:     rgb(0, 78, 203);
+  --pds-scripture-bg:     rgba(0, 122, 255, 0.075);
+  --pds-scripture-border: rgba(0, 122, 255, 0.20);
+
+  /* Thread pastel fills */
+  --pds-thread-blue:   rgb(194, 227, 255);
+  --pds-thread-yellow: rgb(250, 222, 120);
+  --pds-thread-green:  rgb(199, 237, 186);
+  --pds-thread-pink:   rgb(247, 207, 237);
+  --pds-thread-orange: rgb(252, 217, 161);
+  --pds-thread-purple: rgb(232, 201, 255);
+
+  /* Page / surface backgrounds */
+  --pds-bg-page:    #f7f6f3;
+  --pds-bg-sidebar: rgba(246, 245, 242, 0.97);
+  --pds-bg-main:    #ffffff;
+  --pds-bg-toolbar: rgba(255, 255, 255, 0.78);
+  --pds-bg-footer:  rgba(250, 250, 248, 0.97);
+  --pds-bg-popover: rgba(252, 252, 250, 0.98);
+  --pds-bg-input:   rgba(0, 0, 0, 0.055);
+  --pds-bg-input-hover: rgba(0, 0, 0, 0.07);
+  --pds-bg-row-hover: rgba(0, 0, 0, 0.038);
+  --pds-bg-row-selected: rgba(0, 0, 0, 0.065);
+  --pds-bg-section:  rgba(0, 0, 0, 0.038);
+
+  /* Text */
+  --pds-text-primary:   #1d1d1f;
+  --pds-text-secondary: rgba(29, 29, 31, 0.50);
+  --pds-text-tertiary:  rgba(29, 29, 31, 0.32);
+  --pds-text-link:      var(--pds-accent);
+
+  /* Borders / separators */
+  --pds-border:      rgba(0, 0, 0, 0.072);
+  --pds-border-soft: rgba(0, 0, 0, 0.040);
+
+  /* Radii — HarvousShape */
+  --pds-radius-card:     20px;
+  --pds-radius-button:   12px;
+  --pds-radius-input:    10px;
+  --pds-radius-pill:     999px;
+  --pds-radius-row:      10px;
+  --pds-radius-format:    8px;
+  --pds-radius-menu:     10px;
+  --pds-radius-scripture: 7px;
+
+  /* Shadows — CardShadow (6%/8 + 3%/2) */
+  --pds-shadow-card:
+    0 2px  8px rgba(0, 0, 0, 0.06),
+    0 1px  2px rgba(0, 0, 0, 0.03);
+  --pds-shadow-popover:
+    0 10px 32px rgba(0, 0, 0, 0.10),
+    0  3px  8px rgba(0, 0, 0, 0.04);
+
+  /* Font stacks — SF Pro (body) / SF Rounded (display) */
+  --pds-font-body:    -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, "Helvetica Neue", Arial, sans-serif;
+  --pds-font-display: -apple-system, BlinkMacSystemFont, "SF Pro Rounded", ui-rounded, "Helvetica Neue", Arial, sans-serif;
+  --pds-font-mono:    ui-monospace, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+
+  /* Chrome dimensions */
+  --pds-toolbar-h: 44px;
+  --pds-footer-h:  36px;
+  --pds-sidebar-w: 280px;
+  --pds-inspector-w: 260px;
+}
+
+/* ─── Shell reset / base ─────────────────────────────────────────────────── */
+.proto-shell,
+.proto-shell * {
+  box-sizing: border-box;
+  font-family: var(--pds-font-body);
+}
+
+/* Override SPA :root font on the shell root */
+.proto-shell {
+  font-family: var(--pds-font-body);
+  font-size: 16px;
+  line-height: 1.45;
+  color: var(--pds-text-primary);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Suppress link underlines and SPA-inherited button resets inside prototype */
+.proto-shell a {
+  color: inherit;
+  text-decoration: none;
+}
+
+/* ─── Typography classes ─────────────────────────────────────────────────── */
+
+/* HarvousTypography.largeTitle — 34pt / 620 / rounded */
+.pds-title-xl {
+  font-family: var(--pds-font-display);
+  font-size: 2.125rem;
+  font-weight: 620;
+  letter-spacing: -0.025em;
+  line-height: 1.1;
+  color: var(--pds-text-primary);
+}
+
+/* HarvousTypography.title — 20pt / 580 / rounded (section headers) */
+.pds-title {
+  font-family: var(--pds-font-display);
+  font-size: 1.25rem;
+  font-weight: 580;
+  letter-spacing: -0.018em;
+  line-height: 1.2;
+  color: var(--pds-text-primary);
+}
+
+/* HarvousTypography.composeTitleField — 22pt / 600 / rounded */
+.pds-compose-title {
+  font-family: var(--pds-font-display);
+  font-size: 1.375rem;
+  font-weight: 600;
+  line-height: 1.25;
+  color: var(--pds-text-primary);
+}
+
+/* HarvousTypography.noteCardTitle — 16pt / 600 */
+.pds-note-card-title {
+  font-size: 1rem;
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--pds-text-primary);
+}
+
+/* HarvousTypography.body — 16pt / 400 */
+.pds-body {
+  font-size: 1rem;
+  font-weight: 400;
+  line-height: 1.5;
+  color: var(--pds-text-primary);
+}
+
+/* HarvousTypography.noteListTitle — 15pt / 500 */
+.pds-list-title {
+  font-family: var(--pds-font-body);
+  font-size: 0.9375rem;
+  font-weight: 500;
+  line-height: 1.25;
+  color: var(--pds-text-primary);
+}
+
+/* HarvousTypography.noteListPreview — 12pt / 400 */
+.pds-list-preview {
+  font-family: var(--pds-font-body);
+  font-size: 0.75rem;
+  font-weight: 400;
+  line-height: 1.35;
+  color: var(--pds-text-secondary);
+}
+
+/* HarvousTypography.caption — 13pt / 500 */
+.pds-caption {
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--pds-text-secondary);
+  line-height: 1.3;
+}
+
+/* HarvousTypography.footnote — 11pt / 400 */
+.pds-footnote {
+  font-size: 0.6875rem;
+  font-weight: 400;
+  color: var(--pds-text-secondary);
+  line-height: 1.3;
+}
+
+/* HarvousTypography.subheadline — 15pt / 400 */
+.pds-subheadline {
+  font-size: 0.9375rem;
+  font-weight: 400;
+  line-height: 1.35;
+  color: var(--pds-text-primary);
+}
+
+/* HarvousTypography.inspectorSectionLabel — 10pt / 600 */
+.pds-inspector-label {
+  font-size: 0.625rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--pds-text-secondary);
+}
+
+/* HarvousTypography.inspectorBody — 12pt / 400 */
+.pds-inspector-body {
+  font-size: 0.75rem;
+  font-weight: 400;
+  color: var(--pds-text-primary);
+  line-height: 1.4;
+}
+
+/* HarvousTypography.searchSpotlightTitle — 13pt / 500 */
+.pds-search-result-title {
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--pds-text-primary);
+}
+
+/* HarvousTypography.searchSpotlightMeta — 11pt / 400 */
+.pds-search-result-meta {
+  font-size: 0.6875rem;
+  font-weight: 400;
+  color: var(--pds-text-secondary);
+}
+
+/* ─── Legacy proto-* aliases (referenced from existing JSX) ──────────────── */
+/* These map old class names to new token values without SPA dependencies. */
+
+.proto-theme {
+  font-family: var(--pds-font-body);
+  font-size: 16px;
+  font-weight: 400;
+  line-height: 1.45;
+  color: var(--pds-text-primary);
+  -webkit-font-smoothing: antialiased;
+}
+
+.proto-display { font-family: var(--pds-font-display); }
+
+.proto-title-lg {
+  font-family: var(--pds-font-display);
+  font-size: 1.25rem;
+  font-weight: 580;
+  letter-spacing: -0.018em;
+  line-height: 1.2;
+}
+
+.proto-title-md {
+  font-family: var(--pds-font-display);
+  font-size: 0.9375rem;
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+.proto-body {
+  font-size: 1rem;
+  font-weight: 400;
+  line-height: 1.45;
+}
+
+.proto-list-title {
+  font-size: 0.9375rem;
+  font-weight: 500;
+  line-height: 1.2;
+  color: var(--pds-text-primary);
+}
+
+.proto-list-preview {
+  font-size: 0.75rem;
+  font-weight: 400;
+  line-height: 1.35;
+  color: var(--pds-text-secondary);
+}
+
+.proto-caption {
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--pds-text-secondary);
+}
+
+.proto-footnote {
+  font-size: 0.6875rem;
+  font-weight: 400;
+  color: var(--pds-text-secondary);
+}

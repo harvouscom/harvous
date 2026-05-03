@@ -1,9 +1,19 @@
 import Combine
 import Foundation
+import SwiftUI
 
 #if os(macOS)
 import AppKit
 import UniformTypeIdentifiers
+#elseif os(iOS)
+import UIKit
+#endif
+
+#if os(macOS)
+typealias HVTextView = NSTextView
+#else
+typealias HVTextView = UITextView
+#endif
 
 /// Attributes at the caret / in the selection, for toolbar toggle highlighting.
 struct FormatToolbarState: Equatable {
@@ -24,10 +34,20 @@ struct FormatToolbarState: Equatable {
 /// Observable proxy bridging SwiftUI toolbar buttons to the live NSTextView.
 @MainActor
 final class EditorProxy: ObservableObject {
-    weak var textView: NSTextView?
+    weak var textView: HVTextView?
+
+    #if os(iOS)
+    @Published var showIOSInlineImageImporter = false
+    #endif
 
     @Published var hasSelection: Bool = false
     @Published var selectionContentPoint: CGPoint? = nil
+    /// Selection anchor in NSScrollView / document-visible space (viewport-relative top-left origin) for inline UI (e.g. thread chip).
+    @Published var selectionViewPoint: CGPoint? = nil
+    /// First-line selection bounds in viewport space (aligned with `selectionViewPoint` coordinate system).
+    @Published var selectionViewportRect: CGRect? = nil
+    /// Caret-end (active end of selection) bounds in viewport space — thin vertical rect at the cursor.
+    @Published var selectionCaretViewportRect: CGRect? = nil
 
     /// The rich-text `NSTextView` is key (excludes the title `TextField`, which has no formatting).
     @Published var isBodyFirstResponder: Bool = false
@@ -59,8 +79,12 @@ final class EditorProxy: ObservableObject {
 
     @Published var activeScripturePill: ActiveScripturePill? = nil
 
-    /// HarvousEditor assigns this so `replaceActiveScripturePill` can refresh `EditorState` before the next `updateNSView` syncs stale `plainText` from SwiftUI and wipes the pill.
-    var syncPlainTextBindingFromTextView: ((NSTextView) -> Void)?
+    /// Hover preview anchor for anchored study highlights (`harvousStudyHighlightUUID` spans).
+    @Published var hoveredStudyHighlightUUID: UUID?
+    private var studyHighlightHoverTask: Task<Void, Never>?
+
+    /// HarvousEditor assigns this so `replaceActiveScripturePill` can refresh `EditorState` before the next platform update syncs stale `plainText` from SwiftUI and wipes the pill.
+    var syncPlainTextBindingFromTextView: ((HVTextView) -> Void)?
 
     var shouldShowNoteToolbar: Bool {
         isBodyFirstResponder
@@ -75,10 +99,51 @@ final class EditorProxy: ObservableObject {
         showFormatBarForActivity = false
         formatBarUnlocked = false
         selectionContentPoint = nil
+        selectionViewPoint = nil
+        selectionViewportRect = nil
+        selectionCaretViewportRect = nil
         isPointerOverFormatToolbar = false
         showAddLinkSheet = false
         activeScripturePill = nil
+        hoveredStudyHighlightUUID = nil
+        studyHighlightHoverTask?.cancel()
+        studyHighlightHoverTask = nil
         cancelFormatBarHideAction?()
+    }
+
+    /// Debounces rapid `mouseMoved` so preview doesn’t flicker — ~220ms dwell before showing, quicker clear.
+    func setStudyHighlightHoverDebounced(_ uuid: UUID?) {
+        studyHighlightHoverTask?.cancel()
+        let captured = uuid
+        studyHighlightHoverTask = Task { @MainActor in
+            let ms: UInt64 = captured == nil ? 50 : 220
+            try? await Task.sleep(for: .milliseconds(ms))
+            guard !Task.isCancelled else { return }
+            hoveredStudyHighlightUUID = captured
+        }
+    }
+
+    /// `NSTextView.textStorage` is optional on macOS; `UITextView` always exposes storage.
+    private func textViewPair() -> (HVTextView, NSTextStorage)? {
+        guard let tv = textView else { return nil }
+#if os(macOS)
+        guard let storage = tv.textStorage else { return nil }
+#else
+        let storage = tv.textStorage
+#endif
+        return (tv, storage)
+    }
+
+    /// Scrolls the first UTF-16 span of this **expanded-plain** anchor into the visible text viewport.
+    func scrollExpandedStudyHighlightIntoView(expandedUTF16Range: NSRange, expandedPlain: String) {
+        guard let (tv, storage) = textViewPair() else { return }
+        let nsPlain = expandedPlain as NSString
+        guard expandedUTF16Range.location >= 0,
+              NSMaxRange(expandedUTF16Range) <= nsPlain.length
+        else { return }
+        let storRanges = HarvousStudyHighlightMapper.storageRanges(forExpandedRange: expandedUTF16Range, in: storage)
+        guard let first = storRanges.first, first.location != NSNotFound, NSMaxRange(first) <= storage.length else { return }
+        tv.scrollRangeToVisible(first)
     }
 
     func clearActiveScripturePill() {
@@ -86,12 +151,12 @@ final class EditorProxy: ObservableObject {
     }
 
     /// Replaces the focused inline pill with a new reference + translation and keeps it selected.
-    func replaceActiveScripturePill(reference: String, translation: String) {
-        guard let tv = textView, let storage = tv.textStorage, let active = activeScripturePill else { return }
+    func replaceActiveScripturePill(reference: String, translation: String, theme: HarvousColors.ThemeVariant = .blue) {
+        guard let (tv, storage) = textViewPair(), let active = activeScripturePill else { return }
         let range = active.attachmentRange
         guard range.location != NSNotFound, NSMaxRange(range) <= storage.length else { return }
 
-        let pill = ScripturePillAttachment(reference: reference, translation: translation)
+        let pill = ScripturePillAttachment(reference: reference, translation: translation, theme: theme)
         let pillStr = NSMutableAttributedString(attachment: pill)
         let bodyFont = HarvousFonts.system(size: 16, weight: 400)
         pillStr.addAttributes([.font: bodyFont], range: NSRange(location: 0, length: pillStr.length))
@@ -99,24 +164,49 @@ final class EditorProxy: ObservableObject {
         storage.beginEditing()
         storage.replaceCharacters(in: range, with: pillStr)
         storage.endEditing()
-        tv.didChangeText()
-        removeDuplicateTranslationAfterPillAttachments(in: storage)
-
-        syncPlainTextBindingFromTextView?(tv)
+        hvNotifyBodyChanged(tv)
 
         let newRange = NSRange(location: range.location, length: pillStr.length)
         activeScripturePill = ActiveScripturePill(attachmentRange: newRange, reference: reference, translation: translation)
-        tv.setSelectedRange(newRange)
+        setCaret(for: tv, newRange)
         refreshFormatState()
     }
 
-    /// Aligns with `window?.firstResponder` so stale key state can’t make the title field look like the body is key.
-    func syncBodyFirstResponderState(textView: NSTextView) {
+    /// Aligns with `window?.firstResponder` / `UITextView.isFirstResponder` so stale key state can’t make the title field look like the body is key.
+    func syncBodyFirstResponderState(textView: HVTextView) {
+#if os(macOS)
         isBodyFirstResponder = (textView.window?.firstResponder as AnyObject?) === (textView as AnyObject)
+#else
+        isBodyFirstResponder = textView.isFirstResponder
+#endif
     }
 
     var cancelFormatBarHideAction: (() -> Void)?
     var scheduleFormatBarHideAction: (() -> Void)?
+
+    private func caretRange(for tv: HVTextView) -> NSRange {
+#if os(macOS)
+        tv.selectedRange()
+#else
+        tv.selectedRange
+#endif
+    }
+
+    private func setCaret(for tv: HVTextView, _ range: NSRange) {
+#if os(macOS)
+        tv.setSelectedRange(range)
+#else
+        tv.selectedRange = range
+#endif
+    }
+
+    private func hvNotifyBodyChanged(_ tv: HVTextView) {
+#if os(macOS)
+        tv.didChangeText()
+#else
+        NotificationCenter.default.post(name: UITextView.textDidChangeNotification, object: tv)
+#endif
+    }
 
     /// Pointer entered/left the format toolbar — cancels or restarts the idle hide timer.
     /// Defer: `onHover` can fire while SwiftUI is mid–view update; mutating here causes “Modifying state during view update”.
@@ -132,8 +222,13 @@ final class EditorProxy: ObservableObject {
     }
 
     func refocusTextView() {
-        guard let tv = textView, let win = tv.window else { return }
+        guard let tv = textView else { return }
+#if os(macOS)
+        guard let win = tv.window else { return }
         win.makeFirstResponder(tv)
+#else
+        tv.becomeFirstResponder()
+#endif
     }
 
     /// Re-reads typing attributes / selection so toolbar buttons can show active states.
@@ -157,8 +252,8 @@ final class EditorProxy: ObservableObject {
     }
 
     func strikethrough() {
-        guard let tv = textView, let storage = tv.textStorage else { return }
-        let range = tv.selectedRange()
+        guard let (tv, storage) = textViewPair() else { return }
+        let range = caretRange(for: tv)
         if range.length == 0 {
             var attrs = tv.typingAttributes
             let current = (attrs[.strikethroughStyle] as? Int) ?? 0
@@ -182,16 +277,25 @@ final class EditorProxy: ObservableObject {
 
     // MARK: - Headings
 
+    private func headingLevelActive(for tv: HVTextView, storage: NSTextStorage) -> Int? {
+        let range = caretRange(for: tv)
+#if os(macOS)
+        return headingLevelActiveMac(range: range, tv: tv, storage: storage)
+#else
+        return headingLevelActiveIOS(range: range, tv: tv, storage: storage)
+#endif
+    }
+
     func heading(_ level: Int) {
-        guard let tv = textView, let storage = tv.textStorage else { return }
+        guard let (tv, storage) = textViewPair() else { return }
         let lv = max(2, min(level, 4))
         // Tap active heading again => return to default body style.
-        if headingLevelActive(range: tv.selectedRange(), tv: tv, storage: storage) == lv {
+        if headingLevelActive(for: tv, storage: storage) == lv {
             bodyText()
             return
         }
         let font = HarvousFonts.headingFont(level: lv)
-        let paraRange = (storage.string as NSString).paragraphRange(for: tv.selectedRange())
+        let paraRange = (storage.string as NSString).paragraphRange(for: caretRange(for: tv))
         storage.beginEditing()
         if paraRange.length > 0 {
             storage.addAttribute(.font, value: font, range: paraRange)
@@ -205,9 +309,9 @@ final class EditorProxy: ObservableObject {
     }
 
     func bodyText() {
-        guard let tv = textView, let storage = tv.textStorage else { return }
+        guard let (tv, storage) = textViewPair() else { return }
         let bodyFont = HarvousFonts.system(size: 16, weight: 400)
-        let paraRange = (storage.string as NSString).paragraphRange(for: tv.selectedRange())
+        let paraRange = (storage.string as NSString).paragraphRange(for: caretRange(for: tv))
         storage.beginEditing()
         if paraRange.length > 0 {
             storage.addAttribute(.font, value: bodyFont, range: paraRange)
@@ -244,8 +348,8 @@ final class EditorProxy: ObservableObject {
     }
 
     func indent() {
-        guard let tv = textView, let storage = tv.textStorage else { return }
-        let paraRange = (storage.string as NSString).paragraphRange(for: tv.selectedRange())
+        guard let (tv, storage) = textViewPair() else { return }
+        let paraRange = (storage.string as NSString).paragraphRange(for: caretRange(for: tv))
         let existing = storage.attribute(.paragraphStyle, at: paraRange.location, effectiveRange: nil)
         let next = mergedBodyParagraphStyleForIndentChange(existingAttr: existing, firstLineDelta: 20, headDelta: 20)
         storage.beginEditing()
@@ -257,8 +361,8 @@ final class EditorProxy: ObservableObject {
 
     /// Decreases paragraph indent (paired with `indent`); does not remove list prefixes.
     func outdent() {
-        guard let tv = textView, let storage = tv.textStorage else { return }
-        let paraRange = (storage.string as NSString).paragraphRange(for: tv.selectedRange())
+        guard let (tv, storage) = textViewPair() else { return }
+        let paraRange = (storage.string as NSString).paragraphRange(for: caretRange(for: tv))
         let existing = storage.attribute(.paragraphStyle, at: paraRange.location, effectiveRange: nil)
         let next = mergedBodyParagraphStyleForIndentChange(existingAttr: existing, firstLineDelta: -20, headDelta: -20)
         storage.beginEditing()
@@ -283,10 +387,15 @@ final class EditorProxy: ObservableObject {
     }
 
     func insertCode() {
-        guard let tv = textView, let storage = tv.textStorage else { return }
-        let range = tv.selectedRange()
+        guard let (tv, storage) = textViewPair() else { return }
+        let range = caretRange(for: tv)
+#if os(macOS)
         let mono = NSFont.monospacedSystemFont(ofSize: 13, weight: .regular)
-        let bg   = NSColor.quaternaryLabelColor.withAlphaComponent(0.25)
+        let bg = NSColor.quaternaryLabelColor.withAlphaComponent(0.25)
+#else
+        let mono = UIFont.monospacedSystemFont(ofSize: 13, weight: .regular)
+        let bg = UIColor.quaternaryLabel.withAlphaComponent(0.25)
+#endif
         storage.beginEditing()
         if range.length > 0 {
             storage.addAttribute(.font, value: mono, range: range)
@@ -294,7 +403,7 @@ final class EditorProxy: ObservableObject {
         } else {
             let snippet = NSAttributedString(string: "code", attributes: [.font: mono, .backgroundColor: bg])
             storage.replaceCharacters(in: range, with: snippet)
-            tv.setSelectedRange(NSRange(location: range.location, length: 4))
+            setCaret(for: tv,NSRange(location: range.location, length: 4))
         }
         storage.endEditing()
         refocusTextView()
@@ -302,14 +411,22 @@ final class EditorProxy: ObservableObject {
     }
 
     func insertDivider() {
-        guard let tv = textView, let storage = tv.textStorage else { return }
-        let range = tv.selectedRange()
+        guard let (tv, storage) = textViewPair() else { return }
+        let range = caretRange(for: tv)
         let para = noteBodyParagraphStyleForInserts()
+#if os(macOS)
         let body: [NSAttributedString.Key: Any] = [
             .font: HarvousFonts.system(size: 16, weight: 400),
             .foregroundColor: NSColor.labelColor,
             .paragraphStyle: para
         ]
+#else
+        let body: [NSAttributedString.Key: Any] = [
+            .font: HarvousFonts.system(size: 16, weight: 400),
+            .foregroundColor: UIColor.label,
+            .paragraphStyle: para
+        ]
+#endif
         let rule = NSAttributedString(attachment: HorizontalRuleAttachment())
         let full = NSMutableAttributedString(string: "\n", attributes: body)
         full.append(rule)
@@ -317,16 +434,16 @@ final class EditorProxy: ObservableObject {
         storage.beginEditing()
         storage.replaceCharacters(in: range, with: full)
         storage.endEditing()
-        tv.setSelectedRange(NSRange(location: range.location + full.length, length: 0))
-        notifyBodyChanged(tv)
+        setCaret(for: tv,NSRange(location: range.location + full.length, length: 0))
+        hvNotifyBodyChanged(tv)
         refocusTextView()
         refreshFormatState()
     }
 
     /// Presents the compact “Add link” sheet (URL + display name). Call `applyAddLinkFromSheet` / `removeLinkFromAddLinkSheet` / `cancelAddLinkSheet` from the sheet.
     func addOrEditLink() {
-        guard let tv = textView, let storage = tv.textStorage else { return }
-        var range = tv.selectedRange()
+        guard let (tv, storage) = textViewPair() else { return }
+        var range = caretRange(for: tv)
         if storage.length == 0, range.length == 0 { return }
         if range.length == 0, range.location > 0 {
             var w = NSRange()
@@ -365,7 +482,7 @@ final class EditorProxy: ObservableObject {
 
     /// Applies URL + name from the sheet. Empty URL removes the link; name replaces the selection (or is inserted at the caret).
     func applyAddLinkFromSheet() {
-        guard let tv = textView, let storage = tv.textStorage else { cancelAddLinkSheet(); return }
+        guard let (tv, storage) = textViewPair() else { cancelAddLinkSheet(); return }
         let range = addLinkPendingRange
         guard range.location != NSNotFound else { cancelAddLinkSheet(); return }
         if addLinkIsInsertion {
@@ -397,7 +514,7 @@ final class EditorProxy: ObservableObject {
                 storage.insert(NSAttributedString(string: resolvedName, attributes: attrs), at: loc)
             }
             let newLen = (resolvedName as NSString).length
-            tv.setSelectedRange(NSRange(location: loc + newLen, length: 0))
+            setCaret(for: tv,NSRange(location: loc + newLen, length: 0))
         } else {
             let r = range
             if urlT.isEmpty {
@@ -414,18 +531,18 @@ final class EditorProxy: ObservableObject {
                 storage.replaceCharacters(in: r, with: NSAttributedString(string: resolvedName, attributes: base))
             }
             let newLen = (resolvedName as NSString).length
-            tv.setSelectedRange(NSRange(location: r.location, length: newLen))
+            setCaret(for: tv,NSRange(location: r.location, length: newLen))
         }
         storage.endEditing()
         addLinkPendingRange = .init(location: NSNotFound, length: 0)
         showAddLinkSheet = false
-        notifyBodyChanged(tv)
+        hvNotifyBodyChanged(tv)
         refocusTextView()
         refreshFormatState()
     }
 
     func removeLinkFromAddLinkSheet() {
-        guard let tv = textView, let storage = tv.textStorage else { return }
+        guard let (tv, storage) = textViewPair() else { return }
         let range = addLinkPendingRange
         guard range.location != NSNotFound, !addLinkIsInsertion, range.length > 0, NSMaxRange(range) <= storage.length else { cancelAddLinkSheet(); return }
         storage.beginEditing()
@@ -433,13 +550,14 @@ final class EditorProxy: ObservableObject {
         storage.endEditing()
         addLinkPendingRange = .init(location: NSNotFound, length: 0)
         showAddLinkSheet = false
-        notifyBodyChanged(tv)
+        hvNotifyBodyChanged(tv)
         refocusTextView()
         refreshFormatState()
     }
 
     func insertImage() {
-        guard let tv = textView, let storage = tv.textStorage else { return }
+#if os(macOS)
+        guard let (tv, storage) = textViewPair() else { return }
         let panel = NSOpenPanel()
         panel.allowsMultipleSelection = false
         panel.canChooseDirectories = false
@@ -447,16 +565,49 @@ final class EditorProxy: ObservableObject {
         panel.allowedContentTypes = [.image, .png, .jpeg, .tiff, .gif, .heic, .webP]
         guard panel.runModal() == .OK, let url = panel.url,
               let data = try? Data(contentsOf: url), let image = NSImage(data: data) else { return }
-        let att = NSAttributedString(attachment: NoteInlineImageAttachment(image: image))
-        let range = tv.selectedRange()
+        insertInlineNSImageAttachment(image: image, tv: tv, storage: storage)
+#elseif os(iOS)
+        guard textView != nil else { return }
+        showIOSInlineImageImporter = true
+#endif
+    }
+
+#if os(iOS)
+    /// Called after the user selects a photo in `IOSInlineImagePickSheet`.
+    func insertPhotoLibraryImage(_ picked: UIImage) {
+        guard let (tv, storage) = textViewPair() else { return }
+        showIOSInlineImageImporter = false
+        insertInlineUIImageAttachment(image: picked, tv: tv, storage: storage)
+    }
+
+    private func insertInlineUIImageAttachment(image picked: UIImage, tv: UITextView, storage: NSTextStorage) {
+        let att = NSAttributedString(attachment: NoteInlineImageAttachment(image: picked))
+        let range = caretRange(for: tv)
         storage.beginEditing()
         storage.replaceCharacters(in: range, with: att)
         storage.endEditing()
-        tv.setSelectedRange(NSRange(location: range.location + att.length, length: 0))
-        notifyBodyChanged(tv)
+        setCaret(for: tv, NSRange(location: range.location + att.length, length: 0))
+        hvNotifyBodyChanged(tv)
         refocusTextView()
         refreshFormatState()
+        syncPlainTextBindingFromTextView?(tv)
     }
+#endif
+
+#if os(macOS)
+    private func insertInlineNSImageAttachment(image picked: NSImage, tv: NSTextView, storage: NSTextStorage) {
+        let att = NSAttributedString(attachment: NoteInlineImageAttachment(image: picked))
+        let range = caretRange(for: tv)
+        storage.beginEditing()
+        storage.replaceCharacters(in: range, with: att)
+        storage.endEditing()
+        setCaret(for: tv, NSRange(location: range.location + att.length, length: 0))
+        hvNotifyBodyChanged(tv)
+        refocusTextView()
+        refreshFormatState()
+        syncPlainTextBindingFromTextView?(tv)
+    }
+#endif
 
     // MARK: - Private helpers
 
@@ -480,10 +631,15 @@ final class EditorProxy: ObservableObject {
 
     private func defaultBodyTypingAttributes(in storage: NSTextStorage, at loc: Int) -> [NSAttributedString.Key: Any] {
         let para = noteBodyParagraphStyleForInserts()
+#if os(macOS)
+        let labelColorAttr: Any = NSColor.labelColor
+#elseif os(iOS)
+        let labelColorAttr: Any = UIColor.label
+#endif
         if storage.length == 0 {
             return [
                 .font: HarvousFonts.system(size: 16, weight: 400),
-                .foregroundColor: NSColor.labelColor,
+                .foregroundColor: labelColorAttr,
                 .paragraphStyle: para
             ]
         }
@@ -491,14 +647,26 @@ final class EditorProxy: ObservableObject {
         return storage.attributes(at: i, effectiveRange: nil)
     }
 
-    private func notifyBodyChanged(_ tv: NSTextView) {
-        tv.didChangeText()
+    private func listPrefixAttributes() -> [NSAttributedString.Key: Any] {
+#if os(macOS)
+        [
+            .font: HarvousFonts.system(size: 16, weight: 400),
+            .foregroundColor: NSColor.labelColor
+        ]
+#elseif os(iOS)
+        [
+            .font: HarvousFonts.system(size: 16, weight: 400),
+            .foregroundColor: UIColor.label
+        ]
+#endif
     }
 
     /// Font trait toggling: avoid `enumerateAttribute` (its closure is `@Sendable` and trips Swift 6 actor checks).
     private func toggleTrait(rawValue: UInt) {
-        guard let tv = textView, let storage = tv.textStorage else { return }
-        let range = tv.selectedRange()
+        guard let (tv, storage) = textViewPair() else { return }
+        defer { syncPlainTextBindingFromTextView?(tv) }
+#if os(macOS)
+        let range = caretRange(for: tv)
         let mask = NSFontTraitMask(rawValue: rawValue)
         let manager = NSFontManager.shared
         if range.length == 0 {
@@ -516,11 +684,11 @@ final class EditorProxy: ObservableObject {
         while idx < rangeEnd {
             var eff = NSRange()
             let value = storage.attribute(.font, at: idx, effectiveRange: &eff)
-            let font  = (value as? NSFont) ?? HarvousFonts.system(size: 15, weight: 400)
-            let sub   = NSIntersectionRange(eff, range)
+            let font = (value as? NSFont) ?? HarvousFonts.system(size: 15, weight: 400)
+            let sub = NSIntersectionRange(eff, range)
             if sub.length > 0 {
                 let hasTrait = manager.traits(of: font).contains(mask)
-                let newFont  = hasTrait
+                let newFont = hasTrait
                     ? manager.convert(font, toNotHaveTrait: mask)
                     : manager.convert(font, toHaveTrait: mask)
                 storage.addAttribute(.font, value: newFont, range: sub)
@@ -530,15 +698,51 @@ final class EditorProxy: ObservableObject {
             idx = next
         }
         storage.endEditing()
+#elseif os(iOS)
+        let symbolic: UIFontDescriptor.SymbolicTraits
+        switch rawValue {
+        case 2: symbolic = .traitBold
+        case 1: symbolic = .traitItalic
+        default: return
+        }
+        let range = caretRange(for: tv)
+        if range.length == 0 {
+            let base = (tv.typingAttributes[.font] as? UIFont) ?? HarvousFonts.system(size: 16, weight: 400)
+            let has = base.fontDescriptor.symbolicTraits.contains(symbolic)
+            let updated = iosFontApplyingSymbolicTrait(symbolic, to: base, add: !has)
+            var attrs = tv.typingAttributes
+            attrs[.font] = updated
+            tv.typingAttributes = attrs
+        } else {
+            storage.beginEditing()
+            let rangeEnd = NSMaxRange(range)
+            var idx = range.location
+            while idx < rangeEnd {
+                var eff = NSRange()
+                let existing = (storage.attribute(.font, at: idx, effectiveRange: &eff) as? UIFont)
+                    ?? HarvousFonts.system(size: 16, weight: 400)
+                let sub = NSIntersectionRange(eff, range)
+                if sub.length > 0 {
+                    let hasTrait = existing.fontDescriptor.symbolicTraits.contains(symbolic)
+                    storage.addAttribute(.font, value: iosFontApplyingSymbolicTrait(symbolic, to: existing, add: !hasTrait), range: sub)
+                }
+                let next = NSMaxRange(eff)
+                if next <= idx { break }
+                idx = next
+            }
+            storage.endEditing()
+        }
+#endif
     }
 
-    /// Match body size (16pt) so list markers are not mistaken for H4 (15pt rounded heading).
-    private func listPrefixAttributes() -> [NSAttributedString.Key: Any] {
-        [
-            .font: HarvousFonts.system(size: 16, weight: 400),
-            .foregroundColor: NSColor.labelColor,
-        ]
+#if os(iOS)
+    private func iosFontApplyingSymbolicTrait(_ trait: UIFontDescriptor.SymbolicTraits, to font: UIFont, add: Bool) -> UIFont {
+        var traits = font.fontDescriptor.symbolicTraits
+        if add { traits.insert(trait) } else { traits.remove(trait) }
+        guard let desc = font.fontDescriptor.withSymbolicTraits(traits) else { return font }
+        return UIFont(descriptor: desc, size: font.pointSize)
     }
+#endif
 
     /// Paragraph ranges from the paragraph containing the caret through every paragraph intersecting the selection.
     private func paragraphRangesCovering(selection: NSRange, ns: NSString) -> [NSRange] {
@@ -594,9 +798,9 @@ final class EditorProxy: ObservableObject {
     }
 
     private func toggleBulletList() {
-        guard let tv = textView, let storage = tv.textStorage else { return }
+        guard let (tv, storage) = textViewPair() else { return }
         let ns = storage.string as NSString
-        let paras = paragraphRangesCovering(selection: tv.selectedRange(), ns: ns)
+        let paras = paragraphRangesCovering(selection: caretRange(for: tv), ns: ns)
         guard !paras.isEmpty else { return }
 
         let allBulleted = paras.allSatisfy { bulletPrefixLength(ns: ns, para: $0) != nil }
@@ -624,9 +828,9 @@ final class EditorProxy: ObservableObject {
     }
 
     private func toggleNumberedList() {
-        guard let tv = textView, let storage = tv.textStorage else { return }
+        guard let (tv, storage) = textViewPair() else { return }
         let ns = storage.string as NSString
-        let paras = paragraphRangesCovering(selection: tv.selectedRange(), ns: ns)
+        let paras = paragraphRangesCovering(selection: caretRange(for: tv), ns: ns)
         guard !paras.isEmpty else { return }
 
         let allNumbered = paras.allSatisfy { numberedPrefixLength(ns: ns, para: $0) != nil }
@@ -661,21 +865,27 @@ final class EditorProxy: ObservableObject {
     // MARK: - Toolbar state (active formatting)
 
     private func computeFormatToolbarState() -> FormatToolbarState {
-        guard let tv = textView, let storage = tv.textStorage else { return FormatToolbarState() }
+        guard let (tv, storage) = textViewPair() else { return FormatToolbarState() }
+        let range = caretRange(for: tv)
+#if os(macOS)
         let mgr = NSFontManager.shared
-        let range = tv.selectedRange()
-        let bold = traitActive(mask: .boldFontMask, range: range, tv: tv, storage: storage, mgr: mgr)
-        let italic = traitActive(mask: .italicFontMask, range: range, tv: tv, storage: storage, mgr: mgr)
-        let strike = strikethroughActive(range: range, tv: tv, storage: storage)
+        let bold = traitActiveMac(mask: .boldFontMask, range: range, tv: tv, storage: storage, mgr: mgr)
+        let italic = traitActiveMac(mask: .italicFontMask, range: range, tv: tv, storage: storage, mgr: mgr)
+        let headingLevel = headingLevelActiveMac(range: range, tv: tv, storage: storage)
+#elseif os(iOS)
+        let bold = iosBoldToolbarActive(range: range, tv: tv, storage: storage)
+        let italic = iosItalicToolbarActive(range: range, tv: tv, storage: storage)
+        let headingLevel = headingLevelActiveIOS(range: range, tv: tv, storage: storage)
+#endif
+        let strike = strikethroughActiveHV(range: range, tv: tv, storage: storage)
         let lists = listToolbarFlags(selection: range, storage: storage)
-        let heading = headingLevelActive(range: range, tv: tv, storage: storage)
-        let indent = indentActive(tv: tv, storage: storage)
+        let indent = indentActiveHV(tv: tv, storage: storage)
         let undo = tv.undoManager
         return FormatToolbarState(
             isBold: bold,
             isItalic: italic,
             isStrikethrough: strike,
-            headingLevel: heading,
+            headingLevel: headingLevel,
             isIndented: indent,
             isBulletList: lists.bullet,
             isNumberedList: lists.numbered,
@@ -696,14 +906,14 @@ final class EditorProxy: ObservableObject {
         return (allBullet, allNumbered)
     }
 
-    private func traitActive(
+#if os(macOS)
+    private func traitActiveMac(
         mask: NSFontTraitMask,
         range: NSRange,
         tv: NSTextView,
         storage: NSTextStorage,
         mgr: NSFontManager
     ) -> Bool {
-        // Heading styles use semibold weights; NSFontManager still reports `.boldFontMask` — do not treat that as the Bold toggle.
         if mask == .boldFontMask {
             if range.length == 0 {
                 let font = (tv.typingAttributes[.font] as? NSFont) ?? HarvousFonts.system(size: 16, weight: 400)
@@ -752,7 +962,94 @@ final class EditorProxy: ObservableObject {
         return true
     }
 
-    private func strikethroughActive(range: NSRange, tv: NSTextView, storage: NSTextStorage) -> Bool {
+    private func headingLevelActiveMac(range: NSRange, tv: NSTextView, storage: NSTextStorage) -> Int? {
+        let ns = storage.string as NSString
+        guard storage.length > 0 else { return nil }
+        let paras = paragraphRangesCovering(selection: range, ns: ns)
+        let live = storage.string as NSString
+        for pr in paras {
+            if bulletPrefixLength(ns: live, para: pr) != nil || numberedPrefixLength(ns: live, para: pr) != nil {
+                return nil
+            }
+        }
+        if range.length == 0 {
+            let font = (tv.typingAttributes[.font] as? NSFont) ?? HarvousFonts.system(size: 16, weight: 400)
+            return HarvousFonts.bodyHeadingLevel(matching: font)
+        }
+        let loc = min(max(range.location, 0), storage.length - 1)
+        let font = (storage.attribute(.font, at: loc, effectiveRange: nil) as? NSFont) ?? HarvousFonts.system(size: 16, weight: 400)
+        return HarvousFonts.bodyHeadingLevel(matching: font)
+    }
+#elseif os(iOS)
+    private func iosBoldToolbarActive(range: NSRange, tv: UITextView, storage: NSTextStorage) -> Bool {
+        if range.length == 0 {
+            let font = (tv.typingAttributes[.font] as? UIFont) ?? HarvousFonts.system(size: 16, weight: 400)
+            if HarvousFonts.bodyHeadingLevel(matching: font) != nil { return false }
+            return font.fontDescriptor.symbolicTraits.contains(.traitBold)
+        }
+        let end = NSMaxRange(range)
+        var idx = range.location
+        var foundNonHeading = false
+        while idx < end {
+            var eff = NSRange()
+            let font = (storage.attribute(.font, at: idx, effectiveRange: &eff) as? UIFont) ?? HarvousFonts.system(size: 16, weight: 400)
+            let sub = NSIntersectionRange(eff, range)
+            if sub.length > 0 {
+                if HarvousFonts.bodyHeadingLevel(matching: font) != nil {
+                    let next = NSMaxRange(eff)
+                    if next <= idx { return false }
+                    idx = next
+                    continue
+                }
+                foundNonHeading = true
+                if !font.fontDescriptor.symbolicTraits.contains(.traitBold) { return false }
+            }
+            let next = NSMaxRange(eff)
+            if next <= idx { return false }
+            idx = next
+        }
+        return foundNonHeading
+    }
+
+    private func iosItalicToolbarActive(range: NSRange, tv: UITextView, storage: NSTextStorage) -> Bool {
+        if range.length == 0 {
+            let font = (tv.typingAttributes[.font] as? UIFont) ?? HarvousFonts.system(size: 16, weight: 400)
+            return font.fontDescriptor.symbolicTraits.contains(.traitItalic)
+        }
+        let end = NSMaxRange(range)
+        var idx = range.location
+        while idx < end {
+            var eff = NSRange()
+            let font = (storage.attribute(.font, at: idx, effectiveRange: &eff) as? UIFont) ?? HarvousFonts.system(size: 16, weight: 400)
+            let sub = NSIntersectionRange(eff, range)
+            if sub.length > 0, !font.fontDescriptor.symbolicTraits.contains(.traitItalic) { return false }
+            let next = NSMaxRange(eff)
+            if next <= idx { return false }
+            idx = next
+        }
+        return true
+    }
+
+    private func headingLevelActiveIOS(range: NSRange, tv: UITextView, storage: NSTextStorage) -> Int? {
+        guard storage.length > 0 else { return nil }
+        let paras = paragraphRangesCovering(selection: range, ns: storage.string as NSString)
+        let live = storage.string as NSString
+        for pr in paras {
+            if bulletPrefixLength(ns: live, para: pr) != nil || numberedPrefixLength(ns: live, para: pr) != nil {
+                return nil
+            }
+        }
+        if range.length == 0 {
+            let font = (tv.typingAttributes[.font] as? UIFont) ?? HarvousFonts.system(size: 16, weight: 400)
+            return HarvousFonts.bodyHeadingLevel(matching: font)
+        }
+        let loc = min(max(range.location, 0), storage.length - 1)
+        let font = (storage.attribute(.font, at: loc, effectiveRange: nil) as? UIFont) ?? HarvousFonts.system(size: 16, weight: 400)
+        return HarvousFonts.bodyHeadingLevel(matching: font)
+    }
+#endif
+
+    private func strikethroughActiveHV(range: NSRange, tv: HVTextView, storage: NSTextStorage) -> Bool {
         if range.length == 0 {
             let v = (tv.typingAttributes[.strikethroughStyle] as? Int) ?? 0
             return v != 0
@@ -771,113 +1068,13 @@ final class EditorProxy: ObservableObject {
         return true
     }
 
-    /// Uses the font at the insertion point / selection start (same idea as the rest of the bar).
-    /// Any covered paragraph that is a list line hides heading highlights so list + 15pt markers do not read as H4.
-    private func headingLevelActive(range: NSRange, tv: NSTextView, storage: NSTextStorage) -> Int? {
-        let ns = storage.string as NSString
-        guard storage.length > 0 else { return nil }
-        let paras = paragraphRangesCovering(selection: range, ns: ns)
-        let live = storage.string as NSString
-        for pr in paras {
-            if bulletPrefixLength(ns: live, para: pr) != nil || numberedPrefixLength(ns: live, para: pr) != nil {
-                return nil
-            }
-        }
-        if range.length == 0 {
-            let font = (tv.typingAttributes[.font] as? NSFont) ?? HarvousFonts.system(size: 16, weight: 400)
-            return HarvousFonts.bodyHeadingLevel(matching: font)
-        }
-        let loc = min(max(range.location, 0), storage.length - 1)
-        let font = (storage.attribute(.font, at: loc, effectiveRange: nil) as? NSFont) ?? HarvousFonts.system(size: 16, weight: 400)
-        return HarvousFonts.bodyHeadingLevel(matching: font)
-    }
-
-    private func indentActive(tv: NSTextView, storage: NSTextStorage) -> Bool {
-        let sel = tv.selectedRange()
+    private func indentActiveHV(tv: HVTextView, storage: NSTextStorage) -> Bool {
+        let sel = caretRange(for: tv)
         let para = (storage.string as NSString).paragraphRange(for: sel)
         guard para.length > 0 else { return false }
         let style = storage.attribute(.paragraphStyle, at: para.location, effectiveRange: nil) as? NSParagraphStyle
         return (style?.firstLineHeadIndent ?? 0) > 0.5 || (style?.headIndent ?? 0) > 0.5
     }
+
 }
 
-// MARK: - Block / inline attachments
-
-/// Shared color and rule weight for `HorizontalRuleAttachment` and `NoteInlineImageAttachment` borders.
-private enum NoteBodyBlockChrome {
-    static let separator = NSColor.separatorColor
-    /// Horizontal rule bar height — image stroke uses the same for a matching look.
-    static let lineThickness: CGFloat = 1
-}
-
-/// Renders a horizontal rule the width of the line fragment.
-final class HorizontalRuleAttachment: NSTextAttachment {
-    init() {
-        super.init(data: nil, ofType: nil)
-        let w: CGFloat = 8
-        let h: CGFloat = 8
-        self.image = NSImage(size: NSSize(width: w, height: h), flipped: false) { rect in
-            NoteBodyBlockChrome.separator.setFill()
-            let t = NoteBodyBlockChrome.lineThickness
-            let y = (rect.height - t) * 0.5
-            NSRect(x: 0, y: y, width: rect.width, height: t).fill()
-            return true
-        }
-    }
-
-    required init?(coder: NSCoder) { fatalError() }
-
-    override func attachmentBounds(
-        for textContainer: NSTextContainer?,
-        proposedLineFragment lineFrag: CGRect,
-        glyphPosition position: CGPoint,
-        characterIndex charIndex: Int
-    ) -> CGRect {
-        let w = max(lineFrag.width, 1)
-        let f = HarvousFonts.system(size: 16, weight: 400)
-        let h: CGFloat = 22
-        return CGRect(x: 0, y: f.descender, width: w, height: h)
-    }
-}
-
-/// Inline image with max content width, rounded corners, and a solid border.
-final class NoteInlineImageAttachment: NSTextAttachment {
-    private static let maxInnerWidth: CGFloat = 400
-    private static let maxCornerRadius: CGFloat = 8
-
-    init(image: NSImage) {
-        super.init(data: nil, ofType: nil)
-        let s = image.size
-        guard s.width > 0, s.height > 0 else { return }
-        let scale = min(1, Self.maxInnerWidth / s.width)
-        let tw = s.width * scale
-        let th = s.height * scale
-        let b = NoteBodyBlockChrome.lineThickness
-        let r = min(Self.maxCornerRadius, max(2, min(tw, th) * 0.04))
-        let outW = tw + 2 * b
-        let outH = th + 2 * b
-
-        self.image = NSImage(size: NSSize(width: outW, height: outH), flipped: false) { _ in
-            let content = NSRect(x: b, y: b, width: tw, height: th)
-            let clip = NSBezierPath(roundedRect: content, xRadius: r, yRadius: r)
-            NSGraphicsContext.saveGraphicsState()
-            clip.addClip()
-            let src = NSRect(origin: .zero, size: s)
-            image.draw(in: content, from: src, operation: .sourceOver, fraction: 1, respectFlipped: true, hints: [.interpolation: NSImageInterpolation.high])
-            NSGraphicsContext.restoreGraphicsState()
-
-            let border = NSBezierPath(roundedRect: content, xRadius: r, yRadius: r)
-            border.lineWidth = b
-            border.lineJoinStyle = .round
-            NoteBodyBlockChrome.separator.setStroke()
-            border.stroke()
-            return true
-        }
-
-        let f = HarvousFonts.system(size: 16, weight: 400)
-        self.bounds = CGRect(x: 0, y: f.descender, width: outW, height: outH)
-    }
-
-    required init?(coder: NSCoder) { fatalError() }
-}
-#endif

@@ -6,6 +6,99 @@ enum BibleStudyTagSuggester {
     // MARK: - Public API
 
     static func result(title: String, body: String) -> (primaryCollection: String?, tags: [String]) {
+        let analysis = analyze(title: title, body: body)
+        return (analysis.primaryCandidate, analysis.tags)
+    }
+
+    /// Recomputes `primaryCollection` and `tags` from the note’s title and body.
+    /// - parameter allowPrimaryUpdate: When false, only tags refresh while keeping collection stable.
+    static func applyToNote(_ note: Note, allowPrimaryUpdate: Bool = true) {
+        let analysis = analyze(title: note.title, body: note.body)
+        note.tags = analysis.tags
+
+        // User-defined and pinned collections are authoritative.
+        if note.isCollectionUserOverride || note.isCollectionPinned { return }
+        if !allowPrimaryUpdate { return }
+
+        let current = normalizedCollectionName(note.primaryCollection)
+        let candidate = normalizedCollectionName(analysis.primaryCandidate)
+        let now = Date()
+
+        // Avoid assigning a volatile collection too early in short drafts unless title signal is strong.
+        if !meetsMinimumContextForAutoCollection(note: note, candidate: candidate, analysis: analysis) {
+            return
+        }
+
+        guard let current else {
+            note.primaryCollection = candidate
+            if let candidate {
+                note.collectionAutoConfidence = primaryScoreForName(candidate, in: analysis)
+                note.collectionLastAutoUpdatedAt = now
+            }
+            return
+        }
+        guard let candidate else {
+            note.primaryCollection = current
+            return
+        }
+        guard current.caseInsensitiveCompare(candidate) != .orderedSame else {
+            note.primaryCollection = candidate
+            return
+        }
+
+        // Keep note-level context stable: a single new keyword line should not immediately
+        // replace an existing collection unless the new signal is materially stronger.
+        if !isPastAutoCollectionCooldown(note: note, now: now) {
+            note.primaryCollection = current
+            return
+        }
+        guard shouldReplacePrimaryCollection(current: current, candidate: candidate, analysis: analysis) else {
+            note.primaryCollection = current
+            return
+        }
+        note.primaryCollection = candidate
+        note.collectionAutoConfidence = primaryScoreForName(candidate, in: analysis)
+        note.collectionLastAutoUpdatedAt = now
+    }
+
+    // MARK: - Scoring
+
+    private struct Scored {
+        var name: String
+        var category: TagCategory
+        var confidence: Double
+        var occurrences: Int
+        var inTitle: Bool
+    }
+
+    private struct Analysis {
+        var picked: [Scored]
+        var tags: [String]
+        var primaryCandidate: String?
+    }
+
+    private enum TagCategory: String, CaseIterable {
+        case spiritual, biblical, book, life, place, character
+    }
+
+    /// Lower rank = better primary collection when confidence ties.
+    private static func collectionRank(_ c: TagCategory) -> Int {
+        switch c {
+        case .spiritual: return 0
+        case .biblical: return 1
+        case .book: return 2
+        case .life: return 3
+        case .character: return 4
+        case .place: return 5
+        }
+    }
+
+    private static let bibleStudyBoostCategories: Set<TagCategory> = [.spiritual, .biblical, .character, .book]
+    private static let minimumBodyWordsForAutoCollection = 25
+    private static let shortDraftStrongTitleThreshold = 1.02
+    private static let autoCollectionCooldown: TimeInterval = 25
+
+    private static func analyze(title: String, body: String) -> Analysis {
         let fullText = "\(title) \(body)"
         let titleLower = title.lowercased()
         let contentLower = body.lowercased()
@@ -13,15 +106,25 @@ enum BibleStudyTagSuggester {
 
         var raw: [Scored] = []
         for row in Self.keywordRows {
-            if let s = match(row, titleLower: titleLower, contentLower: contentLower, textLower: textLower) {
+            if let s = match(row, titleLower: titleLower, contentLower: contentLower) {
                 if s.name.lowercased() == "god" { continue }
                 raw.append(s)
             }
         }
         for book in Self.bookNames {
             if matchBookWord(book, in: textLower) {
-                let occurrences = countOccurrences(of: book.lowercased(), in: textLower)
-                raw.append(Scored(name: book, category: .book, confidence: 0.9, occurrences: max(1, occurrences)))
+                let bookLower = book.lowercased()
+                let occurrences = countOccurrences(of: bookLower, in: textLower)
+                let inTitle = titleLower.contains(bookLower)
+                raw.append(
+                    Scored(
+                        name: book,
+                        category: .book,
+                        confidence: 0.9,
+                        occurrences: max(1, occurrences),
+                        inTitle: inTitle
+                    )
+                )
             }
         }
 
@@ -42,9 +145,6 @@ enum BibleStudyTagSuggester {
         let top = Array(picked.prefix(12))
         let tags = top.map(\.name)
 
-        // Best primary:
-        // - Prefer theme categories for casual character/place mentions.
-        // - Let character/place win when repeated enough to indicate note-level focus.
         let primary = top.max(by: { a, b in
             let aScore = primaryScore(a)
             let bScore = primaryScore(b)
@@ -52,42 +152,45 @@ enum BibleStudyTagSuggester {
             return collectionRank(a.category) > collectionRank(b.category)
         })?.name
 
-        return (primary, tags)
+        return Analysis(picked: picked, tags: tags, primaryCandidate: primary)
     }
 
-    /// Recomputes `primaryCollection` and `tags` from the note’s title and body.
-    static func applyToNote(_ note: Note) {
-        let r = result(title: note.title, body: note.body)
-        note.primaryCollection = r.primaryCollection
-        note.tags = r.tags
+    private static func shouldReplacePrimaryCollection(current: String, candidate: String, analysis: Analysis) -> Bool {
+        let currentScore = primaryScoreForName(current, in: analysis)
+        guard let candidateScored = scoredForName(candidate, in: analysis) else { return false }
+        let candidateScore = primaryScore(candidateScored)
+        let materiallyStronger = candidateScore >= currentScore + 0.18
+        let strongSignal = candidateScored.occurrences >= 3 || candidateScored.inTitle
+        return materiallyStronger && strongSignal
     }
 
-    // MARK: - Scoring
-
-    private struct Scored {
-        var name: String
-        var category: TagCategory
-        var confidence: Double
-        var occurrences: Int
+    private static func meetsMinimumContextForAutoCollection(note: Note, candidate: String?, analysis: Analysis) -> Bool {
+        guard let candidate else { return false }
+        let wordCount = note.body.split(whereSeparator: { $0.isWhitespace || $0.isNewline }).count
+        if wordCount >= minimumBodyWordsForAutoCollection { return true }
+        let candidateScore = primaryScoreForName(candidate, in: analysis)
+        return candidateScore >= shortDraftStrongTitleThreshold
     }
 
-    private enum TagCategory: String, CaseIterable {
-        case spiritual, biblical, book, life, place, character
+    private static func isPastAutoCollectionCooldown(note: Note, now: Date) -> Bool {
+        guard let last = note.collectionLastAutoUpdatedAt else { return true }
+        return now.timeIntervalSince(last) >= autoCollectionCooldown
     }
 
-    /// Lower rank = better primary collection when confidence ties.
-    private static func collectionRank(_ c: TagCategory) -> Int {
-        switch c {
-        case .spiritual: return 0
-        case .biblical: return 1
-        case .book: return 2
-        case .life: return 3
-        case .character: return 4
-        case .place: return 5
-        }
+    private static func primaryScoreForName(_ name: String, in analysis: Analysis) -> Double {
+        guard let scored = scoredForName(name, in: analysis) else { return 0 }
+        return primaryScore(scored)
     }
 
-    private static let bibleStudyBoostCategories: Set<TagCategory> = [.spiritual, .biblical, .character, .book]
+    private static func scoredForName(_ name: String, in analysis: Analysis) -> Scored? {
+        analysis.picked.first { $0.name.caseInsensitiveCompare(name).rawValue == 0 }
+    }
+
+    private static func normalizedCollectionName(_ value: String?) -> String? {
+        guard let value else { return nil }
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
 
     private static func primaryScore(_ s: Scored) -> Double {
         var score = s.confidence
@@ -324,29 +427,30 @@ enum BibleStudyTagSuggester {
         "James", "1 Peter", "2 Peter", "1 John", "2 John", "3 John", "Jude", "Revelation"
     ]
 
-    private static func match(_ row: Row, titleLower: String, contentLower: String, textLower: String) -> Scored? {
+    private static func match(_ row: Row, titleLower: String, contentLower: String) -> Scored? {
         let nameLower = row.name.lowercased()
         var found = false
         let conf = row.base
         var inTitle = false
         var frequency = 0
+
         for piece in [nameLower] + row.synonyms.map({ $0.lowercased() }) {
-            if titleLower.contains(piece) {
+            let trimmedPiece = piece.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmedPiece.isEmpty else { continue }
+
+            let titleHits = countBoundedNeedleMatches(trimmedPiece, in: titleLower)
+            if titleHits > 0 {
                 inTitle = true
                 found = true
-                frequency += countOccurrences(of: piece, in: titleLower)
+                frequency += titleHits
             }
-            if contentLower.contains(piece) {
+            let contentHits = countBoundedNeedleMatches(trimmedPiece, in: contentLower)
+            if contentHits > 0 {
                 found = true
-                frequency += countOccurrences(of: piece, in: contentLower)
+                frequency += contentHits
             }
         }
-        if !found, row.name.split(separator: " ").count == 1, row.synonyms.isEmpty {
-            if matchWholeWord(nameLower, in: textLower) {
-                inTitle = titleLower.split(separator: " ").contains { $0.lowercased() == nameLower }
-                found = true
-            }
-        }
+
         guard found else { return nil }
         let titleBoost: Double = inTitle ? 0.2 : 0
         let frequencyBoost: Double = frequency > 1 ? min(0.5, Double(frequency - 1) * 0.1) : 0
@@ -354,10 +458,40 @@ enum BibleStudyTagSuggester {
             name: row.name,
             category: row.category,
             confidence: min(1.0, conf + titleBoost + frequencyBoost),
-            occurrences: max(1, frequency)
+            occurrences: max(1, frequency),
+            inTitle: inTitle
         )
     }
 
+    /// Whole-word for a single token; phrase-boundary regex for multi-word needles (aligned with `bible-study-keywords.ts`).
+    private static func countBoundedNeedleMatches(_ needleLower: String, in textLower: String) -> Int {
+        let words = needleLower.split(separator: " ").filter { !$0.isEmpty }.map(String.init)
+        guard !words.isEmpty else { return 0 }
+        if words.count == 1 {
+            return countWholeWordOccurrences(of: words[0], in: textLower)
+        }
+        let escaped = words.map { NSRegularExpression.escapedPattern(for: $0) }.joined(separator: "\\s+")
+        guard let re = try? NSRegularExpression(pattern: "\\b(?:\(escaped))\\b", options: .caseInsensitive) else { return 0 }
+        var count = 0
+        let n = (textLower as NSString).length
+        re.enumerateMatches(in: textLower, options: [], range: NSRange(location: 0, length: n)) { _, _, _ in
+            count += 1
+        }
+        return count
+    }
+
+    private static func countWholeWordOccurrences(of word: String, in textLower: String) -> Int {
+        let escaped = NSRegularExpression.escapedPattern(for: word)
+        guard let re = try? NSRegularExpression(pattern: "\\b\(escaped)\\b", options: .caseInsensitive) else { return 0 }
+        var count = 0
+        let n = (textLower as NSString).length
+        re.enumerateMatches(in: textLower, options: [], range: NSRange(location: 0, length: n)) { _, _, _ in
+            count += 1
+        }
+        return count
+    }
+
+    /** Substring frequency (used only for multi-word bible book phrases in analyze). */
     private static func countOccurrences(of sub: String, in text: String) -> Int {
         guard !sub.isEmpty else { return 0 }
         return text.components(separatedBy: sub).count - 1
@@ -372,12 +506,7 @@ enum BibleStudyTagSuggester {
     }
 
     private static func matchWholeWord(_ word: String, in textLower: String) -> Bool {
-        let escaped = NSRegularExpression.escapedPattern(for: word)
-        guard let re = try? NSRegularExpression(pattern: "\\b\(escaped)\\b", options: .caseInsensitive) else {
-            return false
-        }
-        let n = (textLower as NSString).length
-        return re.firstMatch(in: textLower, range: NSRange(location: 0, length: n)) != nil
+        countWholeWordOccurrences(of: word, in: textLower) > 0
     }
 
     // MARK: - Overlap (subset of server `isTagOverlapping`)

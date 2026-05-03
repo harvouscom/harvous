@@ -1,0 +1,44 @@
+{
+  "/Users/heyderekj/harvous/native/Harvous/Recall/RecallSharedModels.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/RecallSharedModels.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/RecallSharedModels.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/RecallSharedModels.dia",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/RecallSharedModels.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/RecallSharedModels.swiftdeps"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/Services/HarvousCalendarStudyNotifier.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/HarvousCalendarStudyNotifier.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/HarvousCalendarStudyNotifier.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/HarvousCalendarStudyNotifier.dia",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/HarvousCalendarStudyNotifier.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/HarvousCalendarStudyNotifier.swiftdeps"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/Services/HarvousNoteSpotlightIndexer.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/HarvousNoteSpotlightIndexer.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/HarvousNoteSpotlightIndexer.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/HarvousNoteSpotlightIndexer.dia",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/HarvousNoteSpotlightIndexer.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/HarvousNoteSpotlightIndexer.swiftdeps"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/Services/HarvousRecallNotifications.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/HarvousRecallNotifications.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/HarvousRecallNotifications.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/HarvousRecallNotifications.dia",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/HarvousRecallNotifications.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/HarvousRecallNotifications.swiftdeps"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/Services/HarvousRecallOSIntegration.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/HarvousRecallOSIntegration.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/HarvousRecallOSIntegration.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/HarvousRecallOSIntegration.dia",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/HarvousRecallOSIntegration.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/HarvousRecallOSIntegration.swiftdeps"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/Services/HarvousRecallSnapshotWriter.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/HarvousRecallSnapshotWriter.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/HarvousRecallSnapshotWriter.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/HarvousRecallSnapshotWriter.dia",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/HarvousRecallSnapshotWriter.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/HarvousRecallSnapshotWriter.swiftdeps"
+  }
+}

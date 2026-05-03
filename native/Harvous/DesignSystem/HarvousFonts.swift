@@ -113,6 +113,52 @@ enum HarvousFonts {
         guard let roundedDesc = base.fontDescriptor.withDesign(.rounded) else { return base }
         return UIFont(descriptor: roundedDesc, size: size)
     }
+
+    /// Same levels/sizes as macOS headings so cross-platform detection matches persisted notes.
+    static func headingFont(level: Int) -> UIFont {
+        let lv = max(2, min(level, 4))
+        let spec: (CGFloat, CGFloat) = switch lv {
+        case 2: (19, 600)
+        case 3: (17, 560)
+        case 4: (15, 520)
+        default: (15, 500)
+        }
+        return system(size: spec.0, weight: spec.1, design: .rounded)
+    }
+
+    /// In-body heading level (2…4) — mirrors `bodyHeadingLevel(matching: NSFont)` for UIKit fonts.
+    static func bodyHeadingLevel(matching font: UIFont) -> Int? {
+        for level in 2...4 {
+            let ref = headingFont(level: level)
+            if headingFontsMatchForDetectionUIFont(font, ref) { return level }
+        }
+        let ps = font.pointSize
+        let w = uiFontTraitWeightApprox(font)
+        if abs(ps - 28) < 1.2 { return 2 }
+        if abs(ps - 22) < 1.0 && w >= 600 { return 2 }
+        if abs(ps - 18) < 1.0 { return 3 }
+        if abs(ps - 15) < 0.85 && w >= 700 { return 4 }
+        return nil
+    }
+
+    private static func headingFontsMatchForDetectionUIFont(_ a: UIFont, _ b: UIFont) -> Bool {
+        abs(a.pointSize - b.pointSize) < 0.9
+            && symbolicTraitsRoughlyMatch(a.fontDescriptor.symbolicTraits, b.fontDescriptor.symbolicTraits)
+    }
+
+    private static func symbolicTraitsRoughlyMatch(
+        _ x: UIFontDescriptor.SymbolicTraits,
+        _ y: UIFontDescriptor.SymbolicTraits
+    ) -> Bool {
+        let mask: UIFontDescriptor.SymbolicTraits = [.traitBold, .traitItalic]
+        return x.intersection(mask) == y.intersection(mask)
+    }
+
+    /// Heuristic numeric weight (~100–900) for legacy saved headings; bold flag bumps toward semibold detection.
+    private static func uiFontTraitWeightApprox(_ font: UIFont) -> CGFloat {
+        if font.fontDescriptor.symbolicTraits.contains(.traitBold) { return 650 }
+        return 400
+    }
     #endif
 
     // MARK: - SwiftUI

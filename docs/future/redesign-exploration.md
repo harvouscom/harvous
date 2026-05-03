@@ -78,9 +78,9 @@ Compose is never buried. The sidebar is gone.
 
 ---
 
-## Concept 2 — Spaces: Modes, Not Folders
+## Concept 2 — Spaces: Modes, Not Folder-Style Stacks
 
-Spaces are currently organizational containers — many, folder-like, switchable. The UX should instead treat them as distinct *study environments*:
+Spaces are currently organizational containers — many, collection-like, switchable. The UX should instead treat them as distinct *study environments*:
 
 | Mode | Visual feel | Primary use |
 |---|---|---|
@@ -678,7 +678,7 @@ Your study data belongs to you. Export and open formats aren't just a nice-to-ha
 | Format | Content | Use case |
 |---|---|---|
 | JSON | All notes, threads, spaces, scripture refs, tags | Full backup, migration, developer use |
-| Markdown | One `.md` per note, thread folders | Obsidian, Notion, any text tool |
+| Markdown | One `.md` per note, grouped in per-thread directories | Obsidian, Notion, any text tool |
 | CSV | Notes flat list with metadata | Spreadsheet analysis, mail merge |
 
 **Harvous as an MCP server:**

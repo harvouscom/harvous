@@ -1,0 +1,539 @@
+{
+  "" : {
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/Harvous_macOS-primary.dia",
+    "emit-module-dependencies" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/Harvous_macOS-primary-emit-module.d",
+    "emit-module-diagnostics" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/Harvous_macOS-primary-emit-module.dia",
+    "pch" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/Harvous_macOS-primary-Bridging-header.pch",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/Harvous_macOS-primary.swiftdeps"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/App/HarvousAppRouter.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/HarvousAppRouter.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/HarvousAppRouter.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/HarvousAppRouter.dia",
+    "index-unit-output-path" : "/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/HarvousAppRouter.o",
+    "llvm-bc" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/HarvousAppRouter.bc",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/HarvousAppRouter.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/HarvousAppRouter.swiftdeps",
+    "swiftmodule" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/HarvousAppRouter~partial.swiftmodule"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/BibleStudyTagSuggester.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/BibleStudyTagSuggester.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/BibleStudyTagSuggester.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/BibleStudyTagSuggester.dia",
+    "index-unit-output-path" : "/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/BibleStudyTagSuggester.o",
+    "llvm-bc" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/BibleStudyTagSuggester.bc",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/BibleStudyTagSuggester.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/BibleStudyTagSuggester.swiftdeps",
+    "swiftmodule" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/BibleStudyTagSuggester~partial.swiftmodule"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/ContentView.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/ContentView.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/ContentView.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/ContentView.dia",
+    "index-unit-output-path" : "/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/ContentView.o",
+    "llvm-bc" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/ContentView.bc",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/ContentView.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/ContentView.swiftdeps",
+    "swiftmodule" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/ContentView~partial.swiftmodule"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/DesignSystem/HarvousColors.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/HarvousColors.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/HarvousColors.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/HarvousColors.dia",
+    "index-unit-output-path" : "/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/HarvousColors.o",
+    "llvm-bc" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/HarvousColors.bc",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/HarvousColors.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/HarvousColors.swiftdeps",
+    "swiftmodule" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/HarvousColors~partial.swiftmodule"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/DesignSystem/HarvousFonts.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/HarvousFonts.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/HarvousFonts.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/HarvousFonts.dia",
+    "index-unit-output-path" : "/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/HarvousFonts.o",
+    "llvm-bc" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/HarvousFonts.bc",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/HarvousFonts.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/HarvousFonts.swiftdeps",
+    "swiftmodule" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/HarvousFonts~partial.swiftmodule"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/DesignSystem/HarvousShape.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/HarvousShape.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/HarvousShape.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/HarvousShape.dia",
+    "index-unit-output-path" : "/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/HarvousShape.o",
+    "llvm-bc" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/HarvousShape.bc",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/HarvousShape.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/HarvousShape.swiftdeps",
+    "swiftmodule" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/HarvousShape~partial.swiftmodule"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/DesignSystem/HarvousTypography.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/HarvousTypography.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/HarvousTypography.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/HarvousTypography.dia",
+    "index-unit-output-path" : "/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/HarvousTypography.o",
+    "llvm-bc" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/HarvousTypography.bc",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/HarvousTypography.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/HarvousTypography.swiftdeps",
+    "swiftmodule" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/HarvousTypography~partial.swiftmodule"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/Editor/EditorProxy.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/EditorProxy.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/EditorProxy.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/EditorProxy.dia",
+    "index-unit-output-path" : "/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/EditorProxy.o",
+    "llvm-bc" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/EditorProxy.bc",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/EditorProxy.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/EditorProxy.swiftdeps",
+    "swiftmodule" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/EditorProxy~partial.swiftmodule"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/Editor/HarvousEditor.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/HarvousEditor.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/HarvousEditor.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/HarvousEditor.dia",
+    "index-unit-output-path" : "/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/HarvousEditor.o",
+    "llvm-bc" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/HarvousEditor.bc",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/HarvousEditor.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/HarvousEditor.swiftdeps",
+    "swiftmodule" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/HarvousEditor~partial.swiftmodule"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/Editor/IOSNoteBodyProxy.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/IOSNoteBodyProxy.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/IOSNoteBodyProxy.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/IOSNoteBodyProxy.dia",
+    "index-unit-output-path" : "/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/IOSNoteBodyProxy.o",
+    "llvm-bc" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/IOSNoteBodyProxy.bc",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/IOSNoteBodyProxy.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/IOSNoteBodyProxy.swiftdeps",
+    "swiftmodule" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/IOSNoteBodyProxy~partial.swiftmodule"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/Editor/ScriptureApplyFeedback.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/ScriptureApplyFeedback.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/ScriptureApplyFeedback.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/ScriptureApplyFeedback.dia",
+    "index-unit-output-path" : "/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/ScriptureApplyFeedback.o",
+    "llvm-bc" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/ScriptureApplyFeedback.bc",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/ScriptureApplyFeedback.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/ScriptureApplyFeedback.swiftdeps",
+    "swiftmodule" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/ScriptureApplyFeedback~partial.swiftmodule"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/Editor/ScriptureCanon.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/ScriptureCanon.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/ScriptureCanon.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/ScriptureCanon.dia",
+    "index-unit-output-path" : "/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/ScriptureCanon.o",
+    "llvm-bc" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/ScriptureCanon.bc",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/ScriptureCanon.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/ScriptureCanon.swiftdeps",
+    "swiftmodule" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/ScriptureCanon~partial.swiftmodule"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/Editor/ScriptureDetector.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/ScriptureDetector.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/ScriptureDetector.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/ScriptureDetector.dia",
+    "index-unit-output-path" : "/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/ScriptureDetector.o",
+    "llvm-bc" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/ScriptureDetector.bc",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/ScriptureDetector.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/ScriptureDetector.swiftdeps",
+    "swiftmodule" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/ScriptureDetector~partial.swiftmodule"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/Editor/ScripturePillAttachment.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/ScripturePillAttachment.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/ScripturePillAttachment.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/ScripturePillAttachment.dia",
+    "index-unit-output-path" : "/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/ScripturePillAttachment.o",
+    "llvm-bc" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/ScripturePillAttachment.bc",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/ScripturePillAttachment.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/ScripturePillAttachment.swiftdeps",
+    "swiftmodule" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/ScripturePillAttachment~partial.swiftmodule"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/Editor/ScriptureReferenceParser.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/ScriptureReferenceParser.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/ScriptureReferenceParser.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/ScriptureReferenceParser.dia",
+    "index-unit-output-path" : "/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/ScriptureReferenceParser.o",
+    "llvm-bc" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/ScriptureReferenceParser.bc",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/ScriptureReferenceParser.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/ScriptureReferenceParser.swiftdeps",
+    "swiftmodule" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/ScriptureReferenceParser~partial.swiftmodule"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/HarvousApp.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/HarvousApp.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/HarvousApp.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/HarvousApp.dia",
+    "index-unit-output-path" : "/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/HarvousApp.o",
+    "llvm-bc" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/HarvousApp.bc",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/HarvousApp.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/HarvousApp.swiftdeps",
+    "swiftmodule" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/HarvousApp~partial.swiftmodule"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/HarvousCommands.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/HarvousCommands.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/HarvousCommands.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/HarvousCommands.dia",
+    "index-unit-output-path" : "/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/HarvousCommands.o",
+    "llvm-bc" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/HarvousCommands.bc",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/HarvousCommands.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/HarvousCommands.swiftdeps",
+    "swiftmodule" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/HarvousCommands~partial.swiftmodule"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/Intents/HarvousAppIntents.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/HarvousAppIntents.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/HarvousAppIntents.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/HarvousAppIntents.dia",
+    "index-unit-output-path" : "/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/HarvousAppIntents.o",
+    "llvm-bc" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/HarvousAppIntents.bc",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/HarvousAppIntents.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/HarvousAppIntents.swiftdeps",
+    "swiftmodule" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/HarvousAppIntents~partial.swiftmodule"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/Intents/HarvousAppShortcuts.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/HarvousAppShortcuts.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/HarvousAppShortcuts.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/HarvousAppShortcuts.dia",
+    "index-unit-output-path" : "/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/HarvousAppShortcuts.o",
+    "llvm-bc" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/HarvousAppShortcuts.bc",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/HarvousAppShortcuts.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/HarvousAppShortcuts.swiftdeps",
+    "swiftmodule" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/HarvousAppShortcuts~partial.swiftmodule"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/Models/Note.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/Note.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/Note.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/Note.dia",
+    "index-unit-output-path" : "/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/Note.o",
+    "llvm-bc" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/Note.bc",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/Note.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/Note.swiftdeps",
+    "swiftmodule" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/Note~partial.swiftmodule"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/Models/ScriptureReference.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/ScriptureReference.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/ScriptureReference.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/ScriptureReference.dia",
+    "index-unit-output-path" : "/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/ScriptureReference.o",
+    "llvm-bc" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/ScriptureReference.bc",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/ScriptureReference.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/ScriptureReference.swiftdeps",
+    "swiftmodule" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/ScriptureReference~partial.swiftmodule"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/NoteRelativeTime.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/NoteRelativeTime.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/NoteRelativeTime.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/NoteRelativeTime.dia",
+    "index-unit-output-path" : "/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/NoteRelativeTime.o",
+    "llvm-bc" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/NoteRelativeTime.bc",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/NoteRelativeTime.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/NoteRelativeTime.swiftdeps",
+    "swiftmodule" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/NoteRelativeTime~partial.swiftmodule"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/Recall/HarvousAppGroup.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/HarvousAppGroup.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/HarvousAppGroup.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/HarvousAppGroup.dia",
+    "index-unit-output-path" : "/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/HarvousAppGroup.o",
+    "llvm-bc" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/HarvousAppGroup.bc",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/HarvousAppGroup.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/HarvousAppGroup.swiftdeps",
+    "swiftmodule" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/HarvousAppGroup~partial.swiftmodule"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/Recall/RecallSharedModels.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/RecallSharedModels.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/RecallSharedModels.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/RecallSharedModels.dia",
+    "index-unit-output-path" : "/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/RecallSharedModels.o",
+    "llvm-bc" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/RecallSharedModels.bc",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/RecallSharedModels.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/RecallSharedModels.swiftdeps",
+    "swiftmodule" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/RecallSharedModels~partial.swiftmodule"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/Services/HarvousCalendarStudyNotifier.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/HarvousCalendarStudyNotifier.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/HarvousCalendarStudyNotifier.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/HarvousCalendarStudyNotifier.dia",
+    "index-unit-output-path" : "/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/HarvousCalendarStudyNotifier.o",
+    "llvm-bc" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/HarvousCalendarStudyNotifier.bc",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/HarvousCalendarStudyNotifier.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/HarvousCalendarStudyNotifier.swiftdeps",
+    "swiftmodule" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/HarvousCalendarStudyNotifier~partial.swiftmodule"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/Services/HarvousNoteSpotlightIndexer.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/HarvousNoteSpotlightIndexer.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/HarvousNoteSpotlightIndexer.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/HarvousNoteSpotlightIndexer.dia",
+    "index-unit-output-path" : "/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/HarvousNoteSpotlightIndexer.o",
+    "llvm-bc" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/HarvousNoteSpotlightIndexer.bc",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/HarvousNoteSpotlightIndexer.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/HarvousNoteSpotlightIndexer.swiftdeps",
+    "swiftmodule" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/HarvousNoteSpotlightIndexer~partial.swiftmodule"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/Services/HarvousRecallNotifications.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/HarvousRecallNotifications.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/HarvousRecallNotifications.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/HarvousRecallNotifications.dia",
+    "index-unit-output-path" : "/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/HarvousRecallNotifications.o",
+    "llvm-bc" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/HarvousRecallNotifications.bc",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/HarvousRecallNotifications.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/HarvousRecallNotifications.swiftdeps",
+    "swiftmodule" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/HarvousRecallNotifications~partial.swiftmodule"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/Services/HarvousRecallOSIntegration.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/HarvousRecallOSIntegration.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/HarvousRecallOSIntegration.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/HarvousRecallOSIntegration.dia",
+    "index-unit-output-path" : "/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/HarvousRecallOSIntegration.o",
+    "llvm-bc" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/HarvousRecallOSIntegration.bc",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/HarvousRecallOSIntegration.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/HarvousRecallOSIntegration.swiftdeps",
+    "swiftmodule" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/HarvousRecallOSIntegration~partial.swiftmodule"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/Services/HarvousRecallSnapshotWriter.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/HarvousRecallSnapshotWriter.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/HarvousRecallSnapshotWriter.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/HarvousRecallSnapshotWriter.dia",
+    "index-unit-output-path" : "/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/HarvousRecallSnapshotWriter.o",
+    "llvm-bc" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/HarvousRecallSnapshotWriter.bc",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/HarvousRecallSnapshotWriter.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/HarvousRecallSnapshotWriter.swiftdeps",
+    "swiftmodule" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/HarvousRecallSnapshotWriter~partial.swiftmodule"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/Services/ScripturePassageCache.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/ScripturePassageCache.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/ScripturePassageCache.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/ScripturePassageCache.dia",
+    "index-unit-output-path" : "/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/ScripturePassageCache.o",
+    "llvm-bc" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/ScripturePassageCache.bc",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/ScripturePassageCache.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/ScripturePassageCache.swiftdeps",
+    "swiftmodule" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/ScripturePassageCache~partial.swiftmodule"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/Services/ScriptureVerseFetch.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/ScriptureVerseFetch.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/ScriptureVerseFetch.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/ScriptureVerseFetch.dia",
+    "index-unit-output-path" : "/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/ScriptureVerseFetch.o",
+    "llvm-bc" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/ScriptureVerseFetch.bc",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/ScriptureVerseFetch.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/ScriptureVerseFetch.swiftdeps",
+    "swiftmodule" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/ScriptureVerseFetch~partial.swiftmodule"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/Views/AddLinkSheetView.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/AddLinkSheetView.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/AddLinkSheetView.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/AddLinkSheetView.dia",
+    "index-unit-output-path" : "/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/AddLinkSheetView.o",
+    "llvm-bc" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/AddLinkSheetView.bc",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/AddLinkSheetView.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/AddLinkSheetView.swiftdeps",
+    "swiftmodule" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/AddLinkSheetView~partial.swiftmodule"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/Views/ComposeView.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/ComposeView.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/ComposeView.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/ComposeView.dia",
+    "index-unit-output-path" : "/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/ComposeView.o",
+    "llvm-bc" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/ComposeView.bc",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/ComposeView.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/ComposeView.swiftdeps",
+    "swiftmodule" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/ComposeView~partial.swiftmodule"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/Views/LibraryPanelView.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/LibraryPanelView.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/LibraryPanelView.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/LibraryPanelView.dia",
+    "index-unit-output-path" : "/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/LibraryPanelView.o",
+    "llvm-bc" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/LibraryPanelView.bc",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/LibraryPanelView.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/LibraryPanelView.swiftdeps",
+    "swiftmodule" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/LibraryPanelView~partial.swiftmodule"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/Views/LibraryView.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/LibraryView.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/LibraryView.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/LibraryView.dia",
+    "index-unit-output-path" : "/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/LibraryView.o",
+    "llvm-bc" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/LibraryView.bc",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/LibraryView.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/LibraryView.swiftdeps",
+    "swiftmodule" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/LibraryView~partial.swiftmodule"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/Views/NoteActionBar.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/NoteActionBar.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/NoteActionBar.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/NoteActionBar.dia",
+    "index-unit-output-path" : "/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/NoteActionBar.o",
+    "llvm-bc" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/NoteActionBar.bc",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/NoteActionBar.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/NoteActionBar.swiftdeps",
+    "swiftmodule" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/NoteActionBar~partial.swiftmodule"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/Views/NoteCardView.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/NoteCardView.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/NoteCardView.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/NoteCardView.dia",
+    "index-unit-output-path" : "/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/NoteCardView.o",
+    "llvm-bc" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/NoteCardView.bc",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/NoteCardView.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/NoteCardView.swiftdeps",
+    "swiftmodule" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/NoteCardView~partial.swiftmodule"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/Views/NoteEditorView.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/NoteEditorView.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/NoteEditorView.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/NoteEditorView.dia",
+    "index-unit-output-path" : "/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/NoteEditorView.o",
+    "llvm-bc" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/NoteEditorView.bc",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/NoteEditorView.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/NoteEditorView.swiftdeps",
+    "swiftmodule" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/NoteEditorView~partial.swiftmodule"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/Views/NoteInspectorView.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/NoteInspectorView.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/NoteInspectorView.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/NoteInspectorView.dia",
+    "index-unit-output-path" : "/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/NoteInspectorView.o",
+    "llvm-bc" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/NoteInspectorView.bc",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/NoteInspectorView.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/NoteInspectorView.swiftdeps",
+    "swiftmodule" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/NoteInspectorView~partial.swiftmodule"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/Views/NoteListColumn.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/NoteListColumn.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/NoteListColumn.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/NoteListColumn.dia",
+    "index-unit-output-path" : "/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/NoteListColumn.o",
+    "llvm-bc" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/NoteListColumn.bc",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/NoteListColumn.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/NoteListColumn.swiftdeps",
+    "swiftmodule" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/NoteListColumn~partial.swiftmodule"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/Views/NoteToolbar.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/NoteToolbar.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/NoteToolbar.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/NoteToolbar.dia",
+    "index-unit-output-path" : "/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/NoteToolbar.o",
+    "llvm-bc" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/NoteToolbar.bc",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/NoteToolbar.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/NoteToolbar.swiftdeps",
+    "swiftmodule" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/NoteToolbar~partial.swiftmodule"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/Views/RailView.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/RailView.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/RailView.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/RailView.dia",
+    "index-unit-output-path" : "/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/RailView.o",
+    "llvm-bc" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/RailView.bc",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/RailView.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/RailView.swiftdeps",
+    "swiftmodule" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/RailView~partial.swiftmodule"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/Views/ScripturePassageView.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/ScripturePassageView.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/ScripturePassageView.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/ScripturePassageView.dia",
+    "index-unit-output-path" : "/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/ScripturePassageView.o",
+    "llvm-bc" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/ScripturePassageView.bc",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/ScripturePassageView.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/ScripturePassageView.swiftdeps",
+    "swiftmodule" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/ScripturePassageView~partial.swiftmodule"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/Views/ScripturePillActionBar.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/ScripturePillActionBar.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/ScripturePillActionBar.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/ScripturePillActionBar.dia",
+    "index-unit-output-path" : "/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/ScripturePillActionBar.o",
+    "llvm-bc" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/ScripturePillActionBar.bc",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/ScripturePillActionBar.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/ScripturePillActionBar.swiftdeps",
+    "swiftmodule" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/ScripturePillActionBar~partial.swiftmodule"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/Views/SearchPanelView.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/SearchPanelView.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/SearchPanelView.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/SearchPanelView.dia",
+    "index-unit-output-path" : "/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/SearchPanelView.o",
+    "llvm-bc" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/SearchPanelView.bc",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/SearchPanelView.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/SearchPanelView.swiftdeps",
+    "swiftmodule" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/SearchPanelView~partial.swiftmodule"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/Views/SearchView.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/SearchView.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/SearchView.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/SearchView.dia",
+    "index-unit-output-path" : "/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/SearchView.o",
+    "llvm-bc" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/SearchView.bc",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/SearchView.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/SearchView.swiftdeps",
+    "swiftmodule" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/SearchView~partial.swiftmodule"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/Views/SelectionFormatBar.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/SelectionFormatBar.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/SelectionFormatBar.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/SelectionFormatBar.dia",
+    "index-unit-output-path" : "/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/SelectionFormatBar.o",
+    "llvm-bc" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/SelectionFormatBar.bc",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/SelectionFormatBar.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/SelectionFormatBar.swiftdeps",
+    "swiftmodule" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/SelectionFormatBar~partial.swiftmodule"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/Views/SidebarPanelView.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/SidebarPanelView.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/SidebarPanelView.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/SidebarPanelView.dia",
+    "index-unit-output-path" : "/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/SidebarPanelView.o",
+    "llvm-bc" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/SidebarPanelView.bc",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/SidebarPanelView.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/SidebarPanelView.swiftdeps",
+    "swiftmodule" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/SidebarPanelView~partial.swiftmodule"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/Views/SidebarView.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/SidebarView.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/SidebarView.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/SidebarView.dia",
+    "index-unit-output-path" : "/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/SidebarView.o",
+    "llvm-bc" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/SidebarView.bc",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/SidebarView.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/SidebarView.swiftdeps",
+    "swiftmodule" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/SidebarView~partial.swiftmodule"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/Views/SpaceSwitcherView.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/SpaceSwitcherView.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/SpaceSwitcherView.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/SpaceSwitcherView.dia",
+    "index-unit-output-path" : "/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/SpaceSwitcherView.o",
+    "llvm-bc" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/SpaceSwitcherView.bc",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/SpaceSwitcherView.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/SpaceSwitcherView.swiftdeps",
+    "swiftmodule" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/SpaceSwitcherView~partial.swiftmodule"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/Views/SpotlightSearchView.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/SpotlightSearchView.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/SpotlightSearchView.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/SpotlightSearchView.dia",
+    "index-unit-output-path" : "/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/SpotlightSearchView.o",
+    "llvm-bc" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/SpotlightSearchView.bc",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/SpotlightSearchView.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/SpotlightSearchView.swiftdeps",
+    "swiftmodule" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/SpotlightSearchView~partial.swiftmodule"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/Views/StatefulNoteEditorView.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/StatefulNoteEditorView.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/StatefulNoteEditorView.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/StatefulNoteEditorView.dia",
+    "index-unit-output-path" : "/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/StatefulNoteEditorView.o",
+    "llvm-bc" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/StatefulNoteEditorView.bc",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/StatefulNoteEditorView.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/StatefulNoteEditorView.swiftdeps",
+    "swiftmodule" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/StatefulNoteEditorView~partial.swiftmodule"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/Views/TagChipViews.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/TagChipViews.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/TagChipViews.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/TagChipViews.dia",
+    "index-unit-output-path" : "/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/TagChipViews.o",
+    "llvm-bc" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/TagChipViews.bc",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/TagChipViews.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/TagChipViews.swiftdeps",
+    "swiftmodule" : "/Users/heyderekj/harvous/native/Harvous/build/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/x86_64/TagChipViews~partial.swiftmodule"
+  }
+}

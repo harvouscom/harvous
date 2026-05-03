@@ -39,8 +39,8 @@ The suggester combines title + body into a lowercase corpus:
 
 For each keyword row (name/category/base/synonyms):
 
-- Match by direct contains for row name and synonyms
-- For single-word rows with no synonyms, use whole-word regex
+- Match row name and each synonym using **whole-word regex** when the needle is one token (so e.g. `hello` never matches keyword `Hell`)
+- Match multi-word synonyms (and multi-word rows) using a **bounded phrase regex** (`\b…\b` around the normalized phrase); still use substring containment for multi-word Bible book names in the separate book pass
 - Track:
   - whether match appears in title
   - frequency count of matches

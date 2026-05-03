@@ -72,6 +72,7 @@
     "@hono/node-server": "^1.19.9",
     "@mozilla/readability": "^0.6.0",
     "@netlify/blobs": "^10.7.0",
+    "@phosphor-icons/react": "^2.1.10",
     "@radix-ui/react-dialog": "^1.1.15",
     "@radix-ui/react-popover": "^1.1.15",
     "@radix-ui/react-slot": "^1.2.3",

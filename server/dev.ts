@@ -20,6 +20,7 @@ config({ path: resolve(import.meta.dirname || __dirname, '..', '.env') });
 
 import { serve } from '@hono/node-server';
 import app from './app';
+import { warmPostgresConnection } from './db/client';
 import { resetUserToNew } from './utils/reset-user-to-new';
 
 const port = parseInt(process.env.API_PORT || '3001', 10);
@@ -33,6 +34,8 @@ async function main() {
       console.error('Dev reset on startup failed (server will still start):', err);
     }
   }
+
+  await warmPostgresConnection();
 
   serve({ fetch: app.fetch, port }, () => {
     console.log(`Hono API running on http://localhost:${port}`);

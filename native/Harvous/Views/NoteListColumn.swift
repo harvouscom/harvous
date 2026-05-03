@@ -1,27 +1,136 @@
 import SwiftUI
 import SwiftData
 
-/// The note list column — Apple Notes-style rows.
+enum NoteListColumnStyle {
+    case macOSSidebar
+    /// iOS home hub: push navigation into editor + conversation-style rows.
+    case iOSHomeFeed
+    /// Same rows as home feed; used from the Notes tab with a visible navigation title.
+    case iOSTabNoteList
+}
+
+/// The note list column — Apple Notes-style rows (mac sidebar) or iOS home feed.
 struct NoteListColumn: View {
     var filter: NoteFilter = .all
     @Binding var selectedNote: Note?
+    var externalSearchText: Binding<String>? = nil
+    var columnStyle: NoteListColumnStyle
     /// Called when the user taps the compose button.
     /// On macOS: immediately creates a note in-place (Apple Notes style).
-    /// On iOS: typically triggers a sheet.
+    /// On iOS: typically triggers a sheet (hidden when embedded in `HomeHubView`).
     var onNewNote: () -> Void = {}
+    /// When set on iOS, overrides `NoteFilter.displayName` for the navigation title (Notes tab).
+    var navigationTitleOverride: String? = nil
+    #if os(iOS)
+    /// When set, ties `.searchable` presentation to external controls (bottom search pill).
+    var searchPresentationBinding: Binding<Bool>? = nil
+    #endif
+
+    #if os(macOS)
+    init(
+        filter: NoteFilter = .all,
+        selectedNote: Binding<Note?>,
+        externalSearchText: Binding<String>? = nil,
+        columnStyle: NoteListColumnStyle = .macOSSidebar,
+        navigationTitleOverride: String? = nil,
+        onNewNote: @escaping () -> Void = {}
+    ) {
+        self.filter = filter
+        _selectedNote = selectedNote
+        self.externalSearchText = externalSearchText
+        self.columnStyle = columnStyle
+        self.navigationTitleOverride = navigationTitleOverride
+        self.onNewNote = onNewNote
+    }
+    #else
+    init(
+        filter: NoteFilter = .all,
+        selectedNote: Binding<Note?>,
+        externalSearchText: Binding<String>? = nil,
+        columnStyle: NoteListColumnStyle = .iOSHomeFeed,
+        navigationTitleOverride: String? = nil,
+        searchPresentationBinding: Binding<Bool>? = nil,
+        onNewNote: @escaping () -> Void = {}
+    ) {
+        self.filter = filter
+        _selectedNote = selectedNote
+        self.externalSearchText = externalSearchText
+        self.columnStyle = columnStyle
+        self.navigationTitleOverride = navigationTitleOverride
+        self.searchPresentationBinding = searchPresentationBinding
+        self.onNewNote = onNewNote
+    }
+    #endif
 
     @Query(sort: \Note.updatedAt, order: .reverse) private var notes: [Note]
     @Environment(\.modelContext) private var context
     @Environment(\.colorScheme) private var colorScheme
+    @EnvironmentObject private var spaceStore: SpaceStore
 
-    @State private var searchText = ""
+    private var notesInActiveSpace: [Note] {
+        let sid = spaceStore.activeSpaceUUID()
+        let scoped = notes.filter { $0.resolvedSpaceId() == sid }
+        // Recovery fallback: if active-space scope is empty but local notes exist,
+        // surface all notes instead of presenting a false "No Notes" state.
+        if scoped.isEmpty, !notes.isEmpty {
+            return notes
+        }
+        return scoped
+    }
+
+    @State private var localSearchText = ""
+
+    private var searchText: String {
+        externalSearchText?.wrappedValue ?? localSearchText
+    }
+
+    private var searchBinding: Binding<String> {
+        externalSearchText ?? $localSearchText
+    }
+
+    private var shouldAttachSearchable: Bool {
+        #if os(iOS)
+        switch columnStyle {
+        case .iOSHomeFeed, .iOSTabNoteList:
+            return false
+        case .macOSSidebar:
+            return true
+        }
+        #else
+        externalSearchText == nil
+        #endif
+    }
+
+    #if os(iOS)
+    private var iosNavigationTitle: String {
+        switch columnStyle {
+        case .iOSHomeFeed, .iOSTabNoteList:
+            return ""
+        case .macOSSidebar:
+            return navigationTitleOverride ?? filter.displayName
+        }
+    }
+
+    private var iosNavigationBarTitleDisplayMode: NavigationBarItem.TitleDisplayMode {
+        switch columnStyle {
+        case .iOSHomeFeed, .iOSTabNoteList, .macOSSidebar:
+            return .inline
+        }
+    }
+    #endif
 
     // MARK: - Filtered notes
 
     private var baseNotes: [Note] {
         switch filter {
         case .all:
-            return notes
+            return notesInActiveSpace
+        case .collection(let selectedCollection):
+            return notesInActiveSpace.filter { note in
+                let normalized = note.primaryCollection?.trimmingCharacters(in: .whitespacesAndNewlines)
+                let collection = (normalized?.isEmpty == false) ? normalized : nil
+                return collection == selectedCollection
+            }
         }
     }
 
@@ -77,23 +186,30 @@ struct NoteListColumn: View {
         .modifier(HarvousSidebarTransparentWindowToolbar())
         .navigationTitle("")
         #else
-        .navigationTitle(filter.displayName)
+        .navigationTitle(iosNavigationTitle)
+        .navigationBarTitleDisplayMode(iosNavigationBarTitleDisplayMode)
         #endif
         #if os(iOS)
-        .searchable(text: $searchText, prompt: "Search")
-        .autocorrectionDisabled(true)
-        .textInputAutocapitalization(.never)
+        .modifier(
+            NoteListSearchableModifier(
+                enabled: shouldAttachSearchable,
+                text: searchBinding,
+                isPresented: searchPresentationBinding
+            )
+        )
         #endif
         #if os(macOS)
-        .searchable(text: $searchText, placement: .sidebar, prompt: "Search")
+        .modifier(NoteListMacSearchableModifier(enabled: shouldAttachSearchable, text: searchBinding))
         #endif
         #if os(iOS)
         .toolbar {
-            ToolbarItem(placement: .primaryAction) {
-                Button(action: onNewNote) {
-                    Image(systemName: "square.and.pencil")
+            if columnStyle == .macOSSidebar {
+                ToolbarItem(placement: .primaryAction) {
+                    Button(action: onNewNote) {
+                        Image(systemName: "square.and.pencil")
+                    }
+                    .help("New Note")
                 }
-                .help("New Note")
             }
         }
         #endif
@@ -193,41 +309,126 @@ struct NoteListColumn: View {
     private var noteList: some View {
         List {
             ForEach(filtered) { note in
-                let isSelected = selectedNote?.id == note.id
-                NoteRow(note: note)
-                    .listRowInsets(EdgeInsets(top: 5, leading: 10, bottom: 5, trailing: 10))
-                    .listRowBackground(noteSelectionBackground(isSelected: isSelected))
-                    .listRowSeparator(.hidden)
-                    .onTapGesture { selectedNote = note }
-                    .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                        Button(role: .destructive) {
-                            withAnimation {
-                                if selectedNote?.id == note.id { selectedNote = nil }
-                                let nid = note.id
-                                context.delete(note)
-                                try? context.save()
-                                HarvousRecallOSIntegration.afterNoteDeleted(id: nid, modelContext: context)
-                            }
-                        } label: {
-                            Label("Delete", systemImage: "trash")
-                        }
-                    }
+                noteRowContent(for: note)
             }
         }
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
     }
 
+    @ViewBuilder
+    private func noteRowContent(for note: Note) -> some View {
+        #if os(iOS)
+        if columnStyle == .iOSHomeFeed || columnStyle == .iOSTabNoteList {
+            NavigationLink {
+                StatefulNoteEditorView(note: note)
+            } label: {
+                NoteFeedRow(note: note, variant: .conversation)
+            }
+            .buttonStyle(.plain)
+            .listRowInsets(EdgeInsets(top: 4, leading: 14, bottom: 4, trailing: 14))
+            .listRowBackground(Color.clear)
+            .listRowSeparator(.hidden)
+            .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                noteRowDeleteSwipe(note: note)
+            }
+        } else {
+            sidebarSelectableRow(for: note)
+        }
+        #else
+        sidebarSelectableRow(for: note)
+        #endif
+    }
+
+    private func sidebarSelectableRow(for note: Note) -> some View {
+        let isSelected = selectedNote?.id == note.id
+        return NoteFeedRow(note: note, variant: .sidebarCompact)
+            .listRowInsets(EdgeInsets(top: 5, leading: 10, bottom: 5, trailing: 10))
+            .listRowBackground(noteSelectionBackground(isSelected: isSelected))
+            .listRowSeparator(.hidden)
+            .onTapGesture { selectedNote = note }
+            .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                noteRowDeleteSwipe(note: note)
+            }
+    }
+
+    @ViewBuilder
+    private func noteRowDeleteSwipe(note: Note) -> some View {
+        Button(role: .destructive) {
+            withAnimation {
+                if selectedNote?.id == note.id { selectedNote = nil }
+                let nid = note.id
+                context.delete(note)
+                try? context.save()
+                HarvousRecallOSIntegration.afterNoteDeleted(id: nid, modelContext: context)
+            }
+        } label: {
+            Label("Delete", systemImage: "trash")
+        }
+    }
+
     // MARK: - Empty state
 
     private var emptyState: some View {
-        ContentUnavailableView {
-            Label("No Notes", systemImage: "note.text")
-        } description: {
-            Text("Tap the compose button to write your first note.")
+        VStack(spacing: 8) {
+            Image(systemName: "note.text")
+                .font(.system(size: 20, weight: .semibold))
+                .foregroundStyle(.tertiary)
+            Text("No Notes")
+                .font(HarvousTypography.body)
+                .fontWeight(.semibold)
+                .foregroundStyle(.secondary)
+            Text("Create your first note to get started.")
+                .font(HarvousTypography.caption)
+                .foregroundStyle(.tertiary)
+                .multilineTextAlignment(.center)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+    }
+}
+
+#if os(iOS)
+private struct NoteListSearchableModifier: ViewModifier {
+    let enabled: Bool
+    @Binding var text: String
+    var isPresented: Binding<Bool>?
+
+    func body(content: Content) -> some View {
+        if enabled {
+            Group {
+                if let isPresented {
+                    content
+                        .searchable(text: $text, isPresented: isPresented, prompt: "Search")
+                        .autocorrectionDisabled(true)
+                        .textInputAutocapitalization(.never)
+                } else {
+                    content
+                        .searchable(text: $text, prompt: "Search")
+                        .autocorrectionDisabled(true)
+                        .textInputAutocapitalization(.never)
+                }
+            }
+        } else {
+            content
         }
     }
 }
+#endif
+
+#if os(macOS)
+private struct NoteListMacSearchableModifier: ViewModifier {
+    let enabled: Bool
+    @Binding var text: String
+
+    func body(content: Content) -> some View {
+        if enabled {
+            content.searchable(text: $text, placement: .sidebar, prompt: "Search")
+        } else {
+            content
+        }
+    }
+}
+#endif
 
 #if os(macOS)
 /// Hides the default window toolbar backdrop so sidebar glass reads continuously under the traffic lights (macOS 15+).
@@ -242,48 +443,18 @@ struct HarvousSidebarTransparentWindowToolbar: ViewModifier {
 }
 #endif
 
-// MARK: - Note row (Apple Notes style)
-
-struct NoteRow: View {
-    let note: Note
-
-    /// Refresh periodically so “just now” / “N minutes ago” stays accurate without polling timers elsewhere.
-    private static let timelineInterval: TimeInterval = 30
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 3) {
-            // Title
-            Text(note.title.isEmpty ? "New Note" : note.title)
-                .font(HarvousTypography.noteListTitle)
-                .lineLimit(1)
-                .foregroundStyle(.primary)
-
-            // Relative time + excerpt
-            TimelineView(.periodic(from: .now, by: Self.timelineInterval)) { context in
-                HStack(spacing: 0) {
-                    Text(NoteRelativeTime.formatted(note.updatedAt, relativeTo: context.date))
-                        .font(HarvousTypography.noteListPreview)
-                        .foregroundStyle(.secondary)
-
-                    if !note.excerpt.isEmpty {
-                        Text("  ")
-                        Text(note.excerpt)
-                            .font(HarvousTypography.noteListPreview)
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
-                    }
-                }
-            }
-
-        }
-        .padding(.vertical, 8)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .contentShape(Rectangle())
-    }
-}
-
 #Preview {
+    #if os(iOS)
+    NavigationStack {
+        NoteListColumn(selectedNote: .constant(nil))
+            .environmentObject(SpaceStore())
+            .modelContainer(for: [Note.self, Space.self, SpaceMember.self, SpaceInvite.self, SpaceJoinLink.self], inMemory: true)
+    }
+    .frame(width: 400, height: 700)
+    #else
     NoteListColumn(selectedNote: .constant(nil))
-        .modelContainer(for: [Note.self], inMemory: true)
+        .environmentObject(SpaceStore())
+        .modelContainer(for: [Note.self, Space.self, SpaceMember.self, SpaceInvite.self, SpaceJoinLink.self], inMemory: true)
         .frame(width: 300, height: 600)
+    #endif
 }

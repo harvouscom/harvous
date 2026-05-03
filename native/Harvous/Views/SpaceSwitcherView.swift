@@ -1,69 +1,82 @@
+import SwiftData
 import SwiftUI
 
-struct SpaceOption: Identifiable, Hashable {
-    let id: String
-    let name: String
-    let systemImage: String
-
-    /// Outline “three cards” (two stacked + one) — the spaces / areas metaphor from the system pickers.
-    static let myHome = SpaceOption(id: "my-home", name: "My Home", systemImage: "rectangle.on.rectangle")
-
-    /// Catalog for the title-bar space switcher; add entries when spaces are backed by data or sync.
-    static let all: [SpaceOption] = [.myHome]
-}
-
 struct SpaceSwitcherView: View {
-    @AppStorage("selectedSpaceId") private var selectedSpaceId: String = SpaceOption.myHome.id
+    @Environment(\.modelContext) private var modelContext
+    @EnvironmentObject private var spaceStore: SpaceStore
+    @Query(sort: \Space.name) private var allSpaces: [Space]
 
-    private var selected: SpaceOption {
-        SpaceOption.all.first { $0.id == selectedSpaceId } ?? .myHome
+    @State private var spaceToManage: Space?
+
+    private var visibleSpaces: [Space] {
+        allSpaces.filter { !$0.isArchived }
+    }
+
+    private var selectedId: UUID {
+        spaceStore.activeSpaceUUID()
     }
 
     var body: some View {
         Menu {
             Section {
-                ForEach(SpaceOption.all) { option in
+                ForEach(visibleSpaces, id: \.id) { space in
                     Button {
-                        selectedSpaceId = option.id
+                        spaceStore.setActiveSpace(id: space.id, modelContext: modelContext)
                     } label: {
                         HStack {
-                            Label(option.name, systemImage: option.systemImage)
+                            Label(space.name, systemImage: space.visibility.systemImage)
                             Spacer(minLength: 8)
-                            if option.id == selectedSpaceId {
+                            if space.id == selectedId {
                                 Image(systemName: "checkmark")
                             }
                         }
                     }
                 }
             }
+            Section {
+                Button {
+                    spaceStore.createSpaceInitialVisibility = .privateShared
+                    spaceStore.showCreateSpaceSheet = true
+                } label: {
+                    Label("New private shared…", systemImage: "lock.fill")
+                }
+                Button {
+                    spaceStore.createSpaceInitialVisibility = .publicShared
+                    spaceStore.showCreateSpaceSheet = true
+                } label: {
+                    Label("New public shared…", systemImage: "link")
+                }
+                Button {
+                    spaceStore.showJoinSpaceSheet = true
+                } label: {
+                    Label("Join with token…", systemImage: "person.badge.key")
+                }
+            }
+            if let current = visibleSpaces.first(where: { $0.id == selectedId }) {
+                Section {
+                    Button {
+                        spaceToManage = current
+                    } label: {
+                        Label("Manage current space…", systemImage: "gearshape")
+                    }
+                }
+            }
         } label: {
             #if os(macOS)
-            // Match `MacRootView`’s “New Note” control: same bordered square toolbar look; space list icon.
-            Image(systemName: "rectangle.on.rectangle")
+            Image(systemName: currentSpaceSymbol)
                 .font(.system(size: 15, weight: .regular))
                 .symbolRenderingMode(.hierarchical)
                 .imageScale(.medium)
                 .offset(y: -1)
             #else
-            HStack(spacing: 6) {
-                Image(systemName: selected.systemImage)
-                    .symbolRenderingMode(.hierarchical)
-                Text(selected.name)
+            Label {
+                Text(currentSpaceName)
                     .lineLimit(1)
-                Spacer(minLength: 0)
-                Image(systemName: "chevron.up.chevron.down")
-                    .imageScale(.small)
-                    .font(.system(size: 9, weight: .semibold))
-                    .foregroundStyle(.tertiary)
+            } icon: {
+                Image(systemName: currentSpaceSymbol)
+                    .symbolRenderingMode(.hierarchical)
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 7)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .frame(minWidth: 168)
-            .background {
-                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                    .fill(.quinary)
-            }
+            .labelStyle(.titleAndIcon)
             #endif
         }
         #if os(macOS)
@@ -72,20 +85,36 @@ struct SpaceSwitcherView: View {
         .menuIndicator(.hidden)
         #else
         .menuStyle(.borderlessButton)
-        .menuIndicator(.hidden)
         #endif
         .accessibilityLabel("Space")
-        .accessibilityValue(selected.name)
+        .accessibilityValue(currentSpaceName)
         .help("Switch the active study space.")
         .onAppear {
-            if !SpaceOption.all.map(\.id).contains(selectedSpaceId) {
-                selectedSpaceId = SpaceOption.myHome.id
-            }
+            spaceStore.bootstrapIfNeeded(modelContext: modelContext)
+            spaceStore.repairSelection(modelContext: modelContext)
+        }
+        .onChange(of: allSpaces.count) { _, _ in
+            spaceStore.repairSelection(modelContext: modelContext)
+        }
+        .sheet(isPresented: $spaceStore.showCreateSpaceSheet) {
+            CreateSpaceSheet()
+                .environmentObject(spaceStore)
+        }
+        .sheet(isPresented: $spaceStore.showJoinSpaceSheet) {
+            JoinSpaceSheet()
+                .environmentObject(spaceStore)
+        }
+        .sheet(item: $spaceToManage) { space in
+            ManageSpaceSheet(space: space)
+                .environmentObject(spaceStore)
         }
     }
-}
 
-#Preview {
-    SpaceSwitcherView()
-        .padding()
+    private var currentSpaceName: String {
+        visibleSpaces.first { $0.id == selectedId }?.name ?? "My Home"
+    }
+
+    private var currentSpaceSymbol: String {
+        visibleSpaces.first { $0.id == selectedId }?.visibility.systemImage ?? "rectangle.on.rectangle"
+    }
 }

@@ -120,9 +120,17 @@ struct SelectionFormatBar: View {
     }
 }
 
+private struct SelectionFormatBar_PreviewsHost: View {
+    @StateObject private var proxy = EditorProxy()
+
+    var body: some View {
+        SelectionFormatBar(proxy: proxy)
+            .padding(40)
+    }
+}
+
 #Preview {
-    SelectionFormatBar(proxy: EditorProxy())
-        .padding(40)
+    SelectionFormatBar_PreviewsHost()
 }
 
 #endif

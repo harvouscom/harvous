@@ -18566,12 +18566,25 @@ function getDb() {
   }
   return _db;
 }
-var _db, db;
+function warmPostgresConnection() {
+  if (!warmPostgresPromise) {
+    warmPostgresPromise = (async () => {
+      try {
+        await getDb().execute(sql`select 1`);
+      } catch (e) {
+        console.warn("[db] warmPostgresConnection:", e instanceof Error ? e.message : e);
+      }
+    })();
+  }
+  return warmPostgresPromise;
+}
+var _db, db, warmPostgresPromise;
 var init_client = __esm({
   "server/db/client.ts"() {
     "use strict";
     init_src();
     init_postgres_js();
+    init_drizzle_orm();
     init_schema2();
     _db = null;
     db = new Proxy({}, {
@@ -18579,6 +18592,7 @@ var init_client = __esm({
         return getDb()[prop2];
       }
     });
+    warmPostgresPromise = null;
   }
 });
 
@@ -30483,6 +30497,7 @@ var init_auto_tag_generator = __esm({
 
 // server/utils/fetch-verse-text.ts
 async function fetchVerseText(reference, translation = "NET") {
+  await warmPostgresConnection();
   const cleanReference = reference.replace(/,\s+/g, ",");
   const parsed = parseScriptureReference(cleanReference);
   if (!parsed) {
@@ -70438,8 +70453,12 @@ function requireParam(c, name) {
 }
 
 // server/routes/health.ts
+init_client();
 var route = new Hono2();
-route.get("/api/health", (c) => {
+route.get("/api/health", async (c) => {
+  if (c.req.query("warm") === "db") {
+    await warmPostgresConnection();
+  }
   return c.json(
     { status: "ok", timestamp: Date.now() },
     200,
@@ -97276,6 +97295,8 @@ app15.route("/", test_default);
 var app_default = app15;
 
 // server/netlify.ts
+init_client();
+void warmPostgresConnection();
 var honoHandler = handle(app_default);
 function isLegacyEvent(arg) {
   if (!arg || typeof arg !== "object") return false;

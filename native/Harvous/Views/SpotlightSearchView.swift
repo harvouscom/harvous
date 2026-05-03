@@ -10,14 +10,20 @@ struct SpotlightSearchView: View {
     @Binding var selectedNote: Note?
 
     @Query private var notes: [Note]
+    @EnvironmentObject private var spaceStore: SpaceStore
     @State private var query = ""
     @State private var highlightedIndex = 0
     @FocusState private var fieldFocused: Bool
 
+    private var notesInActiveSpace: [Note] {
+        let sid = spaceStore.activeSpaceUUID()
+        return notes.filter { $0.resolvedSpaceId() == sid }
+    }
+
     private var results: [Note] {
         guard !query.isEmpty else { return [] }
         let q = query.lowercased()
-        return notes.filter {
+        return notesInActiveSpace.filter {
             $0.title.lowercased().contains(q) ||
             $0.body.lowercased().contains(q) ||
             $0.detectedRefs.contains(where: { $0.lowercased().contains(q) }) ||
@@ -113,7 +119,7 @@ struct SpotlightSearchView: View {
     private func resultRow(note: Note, highlighted: Bool) -> some View {
         HStack(spacing: 12) {
             if let collection = note.primaryCollection, !collection.isEmpty {
-                Image(systemName: "folder.fill")
+                Image(systemName: "rectangle.stack.fill")
                     .font(.system(size: 9))
                     .foregroundStyle(.secondary)
             } else {
@@ -172,7 +178,8 @@ struct SpotlightSearchView: View {
 
 #Preview {
     SpotlightSearchView(isPresented: .constant(true), selectedNote: .constant(nil))
-        .modelContainer(for: [Note.self], inMemory: true)
+        .environmentObject(SpaceStore())
+        .modelContainer(for: [Note.self, Space.self, SpaceMember.self, SpaceInvite.self, SpaceJoinLink.self], inMemory: true)
         .frame(width: 800, height: 600)
 }
 

@@ -19,7 +19,7 @@ When you erase a space, your notes and threads stay safe—you're just removing 
 
 ## Threads
 
-Threads are where notes belong (instead of “folders”) For example this note is inside the “Welcome to Harvous” thread. Right now they are only private, but in the future you could make them shared for friends, group study, or the general public. Threads are called threads because they are meant to be worked on over time where a folder’s job is to collect.
+Threads are where notes belong—groupings for a study or topic, meant to revisit and extend over time (not just a static collection you file and forget). For example this note is inside the “Welcome to Harvous” thread. Right now they are only private, but in the future you could make them shared for friends, group study, or the general public.
 
 You create threads from the big blue plus button at the bottom.
 

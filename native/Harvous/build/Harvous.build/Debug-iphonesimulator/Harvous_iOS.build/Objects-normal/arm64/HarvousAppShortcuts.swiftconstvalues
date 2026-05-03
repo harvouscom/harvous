@@ -1,0 +1,64 @@
+[
+  {
+    "typeName": "Harvous.HarvousAppShortcuts",
+    "mangledTypeName": "7Harvous0A12AppShortcutsV",
+    "kind": "struct",
+    "file": "/Users/heyderekj/harvous/native/Harvous/Intents/HarvousAppShortcuts.swift",
+    "line": 4,
+    "conformances": [
+      "AppIntents.AppShortcutsProvider",
+      "Swift.Sendable",
+      "Swift.SendableMetatype",
+      "Swift.BitwiseCopyable"
+    ],
+    "allConformances": [
+      {
+        "protocolName": "AppIntents.AppShortcutsProvider",
+        "conformanceDefiningModule": "Harvous"
+      },
+      {
+        "protocolName": "Swift.Sendable",
+        "conformanceDefiningModule": "Harvous"
+      },
+      {
+        "protocolName": "Swift.SendableMetatype",
+        "conformanceDefiningModule": "Harvous"
+      },
+      {
+        "protocolName": "Swift.BitwiseCopyable",
+        "conformanceDefiningModule": "Harvous"
+      }
+    ],
+    "associatedTypeAliases": [],
+    "properties": [
+      {
+        "label": "appShortcuts",
+        "type": "Swift.Array<AppIntents.AppShortcut>",
+        "mangledTypeName": "n/a - deprecated",
+        "isStatic": "true",
+        "isComputed": "false",
+        "file": "/Users/heyderekj/harvous/native/Harvous/Intents/HarvousAppShortcuts.swift",
+        "line": 5,
+        "valueKind": "Builder",
+        "value": {
+          "type": "AppIntents.AppShortcutsBuilder",
+          "members": []
+        }
+      }
+    ],
+    "availabilityAttributes": [
+      {
+        "platform": "macOS",
+        "introducedVersion": "13.0",
+        "isUnavailable": false,
+        "isDeprecated": false
+      },
+      {
+        "platform": "iOS",
+        "introducedVersion": "16.0",
+        "isUnavailable": false,
+        "isDeprecated": false
+      }
+    ]
+  }
+]

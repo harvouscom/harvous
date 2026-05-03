@@ -1,0 +1,668 @@
+[
+  {
+    "typeName": "Harvous.AddHarvousNoteIntent",
+    "mangledTypeName": "7Harvous03AddA10NoteIntentV",
+    "kind": "struct",
+    "file": "/Users/heyderekj/harvous/native/Harvous/Intents/HarvousAppIntents.swift",
+    "line": 5,
+    "conformances": [
+      "AppIntents.AppIntent",
+      "AppIntents.PersistentlyIdentifiable",
+      "AppIntents._SupportsAppDependencies",
+      "Swift.Sendable",
+      "Swift.SendableMetatype",
+      "Swift.BitwiseCopyable"
+    ],
+    "allConformances": [
+      {
+        "protocolName": "AppIntents.AppIntent",
+        "conformanceDefiningModule": "Harvous"
+      },
+      {
+        "protocolName": "AppIntents.PersistentlyIdentifiable",
+        "conformanceDefiningModule": "Harvous"
+      },
+      {
+        "protocolName": "AppIntents._SupportsAppDependencies",
+        "conformanceDefiningModule": "Harvous"
+      },
+      {
+        "protocolName": "Swift.Sendable",
+        "conformanceDefiningModule": "Harvous"
+      },
+      {
+        "protocolName": "Swift.SendableMetatype",
+        "conformanceDefiningModule": "Harvous"
+      },
+      {
+        "protocolName": "Swift.BitwiseCopyable",
+        "conformanceDefiningModule": "Harvous"
+      }
+    ],
+    "associatedTypeAliases": [
+      {
+        "typeAliasName": "PerformResult",
+        "substitutedTypeName": "some AppIntents.IntentResult",
+        "substitutedMangledTypeName": "7Harvous03AddA10NoteIntentV7performQryYaKFQOy_Qo_",
+        "opaqueTypeProtocolRequirements": [
+          "AppIntents.IntentResult"
+        ],
+        "opaqueTypeSameTypeRequirements": []
+      },
+      {
+        "typeAliasName": "SummaryContent",
+        "substitutedTypeName": "some AppIntents.ParameterSummary",
+        "substitutedMangledTypeName": "10AppIntents0A6IntentPAAE16parameterSummaryQrvpZQOy7Harvous03Addf4NoteC0V_Qo_",
+        "opaqueTypeProtocolRequirements": [
+          "AppIntents.ParameterSummary"
+        ],
+        "opaqueTypeSameTypeRequirements": []
+      }
+    ],
+    "properties": [
+      {
+        "label": "title",
+        "type": "Foundation.LocalizedStringResource",
+        "mangledTypeName": "n/a - deprecated",
+        "isStatic": "true",
+        "isComputed": "false",
+        "file": "/Users/heyderekj/harvous/native/Harvous/Intents/HarvousAppIntents.swift",
+        "line": 6,
+        "valueKind": "RawLiteral",
+        "value": "Add Harvous Note"
+      },
+      {
+        "label": "description",
+        "type": "AppIntents.IntentDescription",
+        "mangledTypeName": "n/a - deprecated",
+        "isStatic": "true",
+        "isComputed": "false",
+        "file": "/Users/heyderekj/harvous/native/Harvous/Intents/HarvousAppIntents.swift",
+        "line": 7,
+        "valueKind": "RawLiteral",
+        "value": "Opens the compose sheet in Harvous."
+      },
+      {
+        "label": "openAppWhenRun",
+        "type": "Swift.Bool",
+        "mangledTypeName": "n/a - deprecated",
+        "isStatic": "true",
+        "isComputed": "false",
+        "file": "/Users/heyderekj/harvous/native/Harvous/Intents/HarvousAppIntents.swift",
+        "line": 8,
+        "valueKind": "RawLiteral",
+        "value": "true"
+      }
+    ],
+    "availabilityAttributes": [
+      {
+        "platform": "macOS",
+        "introducedVersion": "13.0",
+        "isUnavailable": false,
+        "isDeprecated": false
+      },
+      {
+        "platform": "iOS",
+        "introducedVersion": "16.0",
+        "isUnavailable": false,
+        "isDeprecated": false
+      }
+    ]
+  },
+  {
+    "typeName": "Harvous.StartRecallSessionIntent",
+    "mangledTypeName": "7Harvous24StartRecallSessionIntentV",
+    "kind": "struct",
+    "file": "/Users/heyderekj/harvous/native/Harvous/Intents/HarvousAppIntents.swift",
+    "line": 18,
+    "conformances": [
+      "AppIntents.AppIntent",
+      "AppIntents.PersistentlyIdentifiable",
+      "AppIntents._SupportsAppDependencies",
+      "Swift.Sendable",
+      "Swift.SendableMetatype",
+      "Swift.BitwiseCopyable"
+    ],
+    "allConformances": [
+      {
+        "protocolName": "AppIntents.AppIntent",
+        "conformanceDefiningModule": "Harvous"
+      },
+      {
+        "protocolName": "AppIntents.PersistentlyIdentifiable",
+        "conformanceDefiningModule": "Harvous"
+      },
+      {
+        "protocolName": "AppIntents._SupportsAppDependencies",
+        "conformanceDefiningModule": "Harvous"
+      },
+      {
+        "protocolName": "Swift.Sendable",
+        "conformanceDefiningModule": "Harvous"
+      },
+      {
+        "protocolName": "Swift.SendableMetatype",
+        "conformanceDefiningModule": "Harvous"
+      },
+      {
+        "protocolName": "Swift.BitwiseCopyable",
+        "conformanceDefiningModule": "Harvous"
+      }
+    ],
+    "associatedTypeAliases": [
+      {
+        "typeAliasName": "PerformResult",
+        "substitutedTypeName": "some AppIntents.IntentResult",
+        "substitutedMangledTypeName": "7Harvous24StartRecallSessionIntentV7performQryYaKFQOy_Qo_",
+        "opaqueTypeProtocolRequirements": [
+          "AppIntents.IntentResult"
+        ],
+        "opaqueTypeSameTypeRequirements": []
+      },
+      {
+        "typeAliasName": "SummaryContent",
+        "substitutedTypeName": "some AppIntents.ParameterSummary",
+        "substitutedMangledTypeName": "10AppIntents0A6IntentPAAE16parameterSummaryQrvpZQOy7Harvous018StartRecallSessionC0V_Qo_",
+        "opaqueTypeProtocolRequirements": [
+          "AppIntents.ParameterSummary"
+        ],
+        "opaqueTypeSameTypeRequirements": []
+      }
+    ],
+    "properties": [
+      {
+        "label": "title",
+        "type": "Foundation.LocalizedStringResource",
+        "mangledTypeName": "n/a - deprecated",
+        "isStatic": "true",
+        "isComputed": "false",
+        "file": "/Users/heyderekj/harvous/native/Harvous/Intents/HarvousAppIntents.swift",
+        "line": 19,
+        "valueKind": "RawLiteral",
+        "value": "Start Harvous Recall"
+      },
+      {
+        "label": "description",
+        "type": "AppIntents.IntentDescription",
+        "mangledTypeName": "n/a - deprecated",
+        "isStatic": "true",
+        "isComputed": "false",
+        "file": "/Users/heyderekj/harvous/native/Harvous/Intents/HarvousAppIntents.swift",
+        "line": 20,
+        "valueKind": "RawLiteral",
+        "value": "Opens Harvous and starts a recall session."
+      },
+      {
+        "label": "openAppWhenRun",
+        "type": "Swift.Bool",
+        "mangledTypeName": "n/a - deprecated",
+        "isStatic": "true",
+        "isComputed": "false",
+        "file": "/Users/heyderekj/harvous/native/Harvous/Intents/HarvousAppIntents.swift",
+        "line": 21,
+        "valueKind": "RawLiteral",
+        "value": "true"
+      }
+    ],
+    "availabilityAttributes": [
+      {
+        "platform": "macOS",
+        "introducedVersion": "13.0",
+        "isUnavailable": false,
+        "isDeprecated": false
+      },
+      {
+        "platform": "iOS",
+        "introducedVersion": "16.0",
+        "isUnavailable": false,
+        "isDeprecated": false
+      }
+    ]
+  },
+  {
+    "typeName": "Harvous.GetTodaysRecallCardIntent",
+    "mangledTypeName": "7Harvous25GetTodaysRecallCardIntentV",
+    "kind": "struct",
+    "file": "/Users/heyderekj/harvous/native/Harvous/Intents/HarvousAppIntents.swift",
+    "line": 34,
+    "conformances": [
+      "AppIntents.AppIntent",
+      "AppIntents.PersistentlyIdentifiable",
+      "AppIntents._SupportsAppDependencies",
+      "Swift.Sendable",
+      "Swift.SendableMetatype",
+      "Swift.BitwiseCopyable"
+    ],
+    "allConformances": [
+      {
+        "protocolName": "AppIntents.AppIntent",
+        "conformanceDefiningModule": "Harvous"
+      },
+      {
+        "protocolName": "AppIntents.PersistentlyIdentifiable",
+        "conformanceDefiningModule": "Harvous"
+      },
+      {
+        "protocolName": "AppIntents._SupportsAppDependencies",
+        "conformanceDefiningModule": "Harvous"
+      },
+      {
+        "protocolName": "Swift.Sendable",
+        "conformanceDefiningModule": "Harvous"
+      },
+      {
+        "protocolName": "Swift.SendableMetatype",
+        "conformanceDefiningModule": "Harvous"
+      },
+      {
+        "protocolName": "Swift.BitwiseCopyable",
+        "conformanceDefiningModule": "Harvous"
+      }
+    ],
+    "associatedTypeAliases": [
+      {
+        "typeAliasName": "PerformResult",
+        "substitutedTypeName": "some AppIntents.ReturnsValue<Swift.String>",
+        "substitutedMangledTypeName": "7Harvous25GetTodaysRecallCardIntentV7performQryYaKFQOy_Qo_",
+        "opaqueTypeProtocolRequirements": [
+          "AppIntents.ReturnsValue"
+        ],
+        "opaqueTypeSameTypeRequirements": [
+          {
+            "typeAliasName": "AppIntents.IntentResult.Value",
+            "substitutedTypeName": "Swift.String",
+            "substitutedMangledTypeName": "SS"
+          }
+        ]
+      },
+      {
+        "typeAliasName": "SummaryContent",
+        "substitutedTypeName": "some AppIntents.ParameterSummary",
+        "substitutedMangledTypeName": "10AppIntents0A6IntentPAAE16parameterSummaryQrvpZQOy7Harvous019GetTodaysRecallCardC0V_Qo_",
+        "opaqueTypeProtocolRequirements": [
+          "AppIntents.ParameterSummary"
+        ],
+        "opaqueTypeSameTypeRequirements": []
+      }
+    ],
+    "properties": [
+      {
+        "label": "title",
+        "type": "Foundation.LocalizedStringResource",
+        "mangledTypeName": "n/a - deprecated",
+        "isStatic": "true",
+        "isComputed": "false",
+        "file": "/Users/heyderekj/harvous/native/Harvous/Intents/HarvousAppIntents.swift",
+        "line": 35,
+        "valueKind": "RawLiteral",
+        "value": "Today’s Harvous Recall Card"
+      },
+      {
+        "label": "description",
+        "type": "AppIntents.IntentDescription",
+        "mangledTypeName": "n/a - deprecated",
+        "isStatic": "true",
+        "isComputed": "false",
+        "file": "/Users/heyderekj/harvous/native/Harvous/Intents/HarvousAppIntents.swift",
+        "line": 36,
+        "valueKind": "RawLiteral",
+        "value": "Reads the current recall card from your on-device notes."
+      }
+    ],
+    "availabilityAttributes": [
+      {
+        "platform": "macOS",
+        "introducedVersion": "13.0",
+        "isUnavailable": false,
+        "isDeprecated": false
+      },
+      {
+        "platform": "iOS",
+        "introducedVersion": "16.0",
+        "isUnavailable": false,
+        "isDeprecated": false
+      }
+    ]
+  },
+  {
+    "typeName": "Harvous.ShowRelatedNotesIntent",
+    "mangledTypeName": "7Harvous22ShowRelatedNotesIntentV",
+    "kind": "struct",
+    "file": "/Users/heyderekj/harvous/native/Harvous/Intents/HarvousAppIntents.swift",
+    "line": 50,
+    "conformances": [
+      "AppIntents.AppIntent",
+      "AppIntents.PersistentlyIdentifiable",
+      "AppIntents._SupportsAppDependencies",
+      "Swift.Sendable",
+      "Swift.SendableMetatype"
+    ],
+    "allConformances": [
+      {
+        "protocolName": "AppIntents.AppIntent",
+        "conformanceDefiningModule": "Harvous"
+      },
+      {
+        "protocolName": "AppIntents.PersistentlyIdentifiable",
+        "conformanceDefiningModule": "Harvous"
+      },
+      {
+        "protocolName": "AppIntents._SupportsAppDependencies",
+        "conformanceDefiningModule": "Harvous"
+      },
+      {
+        "protocolName": "Swift.Sendable",
+        "conformanceDefiningModule": "Harvous"
+      },
+      {
+        "protocolName": "Swift.SendableMetatype",
+        "conformanceDefiningModule": "Harvous"
+      }
+    ],
+    "associatedTypeAliases": [
+      {
+        "typeAliasName": "PerformResult",
+        "substitutedTypeName": "some AppIntents.ReturnsValue<Swift.String>",
+        "substitutedMangledTypeName": "7Harvous22ShowRelatedNotesIntentV7performQryYaKFQOy_Qo_",
+        "opaqueTypeProtocolRequirements": [
+          "AppIntents.ReturnsValue"
+        ],
+        "opaqueTypeSameTypeRequirements": [
+          {
+            "typeAliasName": "AppIntents.IntentResult.Value",
+            "substitutedTypeName": "Swift.String",
+            "substitutedMangledTypeName": "SS"
+          }
+        ]
+      },
+      {
+        "typeAliasName": "SummaryContent",
+        "substitutedTypeName": "some AppIntents.ParameterSummary",
+        "substitutedMangledTypeName": "10AppIntents0A6IntentPAAE16parameterSummaryQrvpZQOy7Harvous016ShowRelatedNotesC0V_Qo_",
+        "opaqueTypeProtocolRequirements": [
+          "AppIntents.ParameterSummary"
+        ],
+        "opaqueTypeSameTypeRequirements": []
+      }
+    ],
+    "properties": [
+      {
+        "label": "_topic",
+        "type": "AppIntents.IntentParameter<Swift.String>",
+        "mangledTypeName": "n/a - deprecated",
+        "isStatic": "false",
+        "isComputed": "false",
+        "file": "/Users/heyderekj/harvous/native/Harvous/Intents/HarvousAppIntents.swift",
+        "line": 56,
+        "valueKind": "InitCall",
+        "value": {
+          "type": "AppIntents.IntentParameter<Swift.String>",
+          "arguments": [
+            {
+              "label": "title",
+              "type": "Foundation.LocalizedStringResource",
+              "valueKind": "RawLiteral",
+              "value": "Topic"
+            },
+            {
+              "label": "description",
+              "type": "Swift.Optional<Foundation.LocalizedStringResource>",
+              "valueKind": "NilLiteral"
+            },
+            {
+              "label": "default",
+              "type": "Swift.Optional<Swift.String>",
+              "valueKind": "RawLiteral",
+              "value": ""
+            },
+            {
+              "label": "inputOptions",
+              "type": "Swift.Optional<Swift.String.IntentInputOptions>",
+              "valueKind": "NilLiteral"
+            },
+            {
+              "label": "requestValueDialog",
+              "type": "Swift.Optional<AppIntents.IntentDialog>",
+              "valueKind": "NilLiteral"
+            },
+            {
+              "label": "inputConnectionBehavior",
+              "type": "AppIntents.InputConnectionBehavior",
+              "valueKind": "Runtime"
+            }
+          ]
+        }
+      },
+      {
+        "label": "title",
+        "type": "Foundation.LocalizedStringResource",
+        "mangledTypeName": "n/a - deprecated",
+        "isStatic": "true",
+        "isComputed": "false",
+        "file": "/Users/heyderekj/harvous/native/Harvous/Intents/HarvousAppIntents.swift",
+        "line": 51,
+        "valueKind": "RawLiteral",
+        "value": "Find Notes in Harvous"
+      },
+      {
+        "label": "description",
+        "type": "AppIntents.IntentDescription",
+        "mangledTypeName": "n/a - deprecated",
+        "isStatic": "true",
+        "isComputed": "false",
+        "file": "/Users/heyderekj/harvous/native/Harvous/Intents/HarvousAppIntents.swift",
+        "line": 52,
+        "valueKind": "RawLiteral",
+        "value": "Opens Harvous search for a topic."
+      },
+      {
+        "label": "openAppWhenRun",
+        "type": "Swift.Bool",
+        "mangledTypeName": "n/a - deprecated",
+        "isStatic": "true",
+        "isComputed": "false",
+        "file": "/Users/heyderekj/harvous/native/Harvous/Intents/HarvousAppIntents.swift",
+        "line": 53,
+        "valueKind": "RawLiteral",
+        "value": "true"
+      },
+      {
+        "label": "topic",
+        "type": "Swift.String",
+        "mangledTypeName": "n/a - deprecated",
+        "isStatic": "false",
+        "isComputed": "true",
+        "file": "/Users/heyderekj/harvous/native/Harvous/Intents/HarvousAppIntents.swift",
+        "line": 56,
+        "valueKind": "InitCall",
+        "value": {
+          "type": "AppIntents.IntentParameter<Swift.String>",
+          "arguments": [
+            {
+              "label": "title",
+              "type": "Foundation.LocalizedStringResource",
+              "valueKind": "RawLiteral",
+              "value": "Topic"
+            },
+            {
+              "label": "description",
+              "type": "Swift.Optional<Foundation.LocalizedStringResource>",
+              "valueKind": "NilLiteral"
+            },
+            {
+              "label": "default",
+              "type": "Swift.Optional<Swift.String>",
+              "valueKind": "RawLiteral",
+              "value": ""
+            },
+            {
+              "label": "inputOptions",
+              "type": "Swift.Optional<Swift.String.IntentInputOptions>",
+              "valueKind": "NilLiteral"
+            },
+            {
+              "label": "requestValueDialog",
+              "type": "Swift.Optional<AppIntents.IntentDialog>",
+              "valueKind": "NilLiteral"
+            },
+            {
+              "label": "inputConnectionBehavior",
+              "type": "AppIntents.InputConnectionBehavior",
+              "valueKind": "Runtime"
+            }
+          ]
+        },
+        "propertyWrappers": [
+          {
+            "type": "AppIntents.IntentParameter",
+            "file": "/Users/heyderekj/harvous/native/Harvous/Intents/HarvousAppIntents.swift",
+            "line": 55,
+            "arguments": [
+              {
+                "label": "title",
+                "type": "Foundation.LocalizedStringResource",
+                "valueKind": "RawLiteral",
+                "value": "Topic"
+              },
+              {
+                "label": "default",
+                "type": "Swift.Optional<Swift.String>",
+                "valueKind": "RawLiteral",
+                "value": ""
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "label": "$topic",
+        "type": "AppIntents.IntentParameter<Swift.String>",
+        "mangledTypeName": "n/a - deprecated",
+        "isStatic": "false",
+        "isComputed": "true",
+        "file": "/Users/heyderekj/harvous/native/Harvous/Intents/HarvousAppIntents.swift",
+        "line": 56,
+        "valueKind": "Runtime"
+      }
+    ],
+    "availabilityAttributes": [
+      {
+        "platform": "macOS",
+        "introducedVersion": "13.0",
+        "isUnavailable": false,
+        "isDeprecated": false
+      },
+      {
+        "platform": "iOS",
+        "introducedVersion": "16.0",
+        "isUnavailable": false,
+        "isDeprecated": false
+      }
+    ]
+  },
+  {
+    "typeName": "Harvous.GetStudyStreakIntent",
+    "mangledTypeName": "7Harvous20GetStudyStreakIntentV",
+    "kind": "struct",
+    "file": "/Users/heyderekj/harvous/native/Harvous/Intents/HarvousAppIntents.swift",
+    "line": 67,
+    "conformances": [
+      "AppIntents.AppIntent",
+      "AppIntents.PersistentlyIdentifiable",
+      "AppIntents._SupportsAppDependencies",
+      "Swift.Sendable",
+      "Swift.SendableMetatype",
+      "Swift.BitwiseCopyable"
+    ],
+    "allConformances": [
+      {
+        "protocolName": "AppIntents.AppIntent",
+        "conformanceDefiningModule": "Harvous"
+      },
+      {
+        "protocolName": "AppIntents.PersistentlyIdentifiable",
+        "conformanceDefiningModule": "Harvous"
+      },
+      {
+        "protocolName": "AppIntents._SupportsAppDependencies",
+        "conformanceDefiningModule": "Harvous"
+      },
+      {
+        "protocolName": "Swift.Sendable",
+        "conformanceDefiningModule": "Harvous"
+      },
+      {
+        "protocolName": "Swift.SendableMetatype",
+        "conformanceDefiningModule": "Harvous"
+      },
+      {
+        "protocolName": "Swift.BitwiseCopyable",
+        "conformanceDefiningModule": "Harvous"
+      }
+    ],
+    "associatedTypeAliases": [
+      {
+        "typeAliasName": "PerformResult",
+        "substitutedTypeName": "some AppIntents.ReturnsValue<Swift.Int>",
+        "substitutedMangledTypeName": "7Harvous20GetStudyStreakIntentV7performQryYaKFQOy_Qo_",
+        "opaqueTypeProtocolRequirements": [
+          "AppIntents.ReturnsValue"
+        ],
+        "opaqueTypeSameTypeRequirements": [
+          {
+            "typeAliasName": "AppIntents.IntentResult.Value",
+            "substitutedTypeName": "Swift.Int",
+            "substitutedMangledTypeName": "Si"
+          }
+        ]
+      },
+      {
+        "typeAliasName": "SummaryContent",
+        "substitutedTypeName": "some AppIntents.ParameterSummary",
+        "substitutedMangledTypeName": "10AppIntents0A6IntentPAAE16parameterSummaryQrvpZQOy7Harvous014GetStudyStreakC0V_Qo_",
+        "opaqueTypeProtocolRequirements": [
+          "AppIntents.ParameterSummary"
+        ],
+        "opaqueTypeSameTypeRequirements": []
+      }
+    ],
+    "properties": [
+      {
+        "label": "title",
+        "type": "Foundation.LocalizedStringResource",
+        "mangledTypeName": "n/a - deprecated",
+        "isStatic": "true",
+        "isComputed": "false",
+        "file": "/Users/heyderekj/harvous/native/Harvous/Intents/HarvousAppIntents.swift",
+        "line": 68,
+        "valueKind": "RawLiteral",
+        "value": "Harvous Study Streak"
+      },
+      {
+        "label": "description",
+        "type": "AppIntents.IntentDescription",
+        "mangledTypeName": "n/a - deprecated",
+        "isStatic": "true",
+        "isComputed": "false",
+        "file": "/Users/heyderekj/harvous/native/Harvous/Intents/HarvousAppIntents.swift",
+        "line": 69,
+        "valueKind": "RawLiteral",
+        "value": "Returns your on-device study streak from note activity."
+      }
+    ],
+    "availabilityAttributes": [
+      {
+        "platform": "macOS",
+        "introducedVersion": "13.0",
+        "isUnavailable": false,
+        "isDeprecated": false
+      },
+      {
+        "platform": "iOS",
+        "introducedVersion": "16.0",
+        "isUnavailable": false,
+        "isDeprecated": false
+      }
+    ]
+  }
+]

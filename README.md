@@ -29,8 +29,8 @@ Harvous is a Bible study notes application designed specifically for people who 
 
 Think of Harvous like a digital filing cabinet specifically designed for Bible study, where:
 - **Spaces** are like the main drawers (Bible Study, Prayer Journal, Sermon Notes)
-- **Threads** are like folders within those drawers (Gospel of John, Romans Study, Daily Prayers)
-- **Notes** are like individual documents in those folders (your thoughts, insights, and reflections)
+- **Threads** are like collections within those drawers (Gospel of John, Romans Study, Daily Prayers)
+- **Notes** are like individual documents in those collections (your thoughts, insights, and reflections)
 
 ---
 

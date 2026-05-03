@@ -382,7 +382,17 @@ route.put('/api/notes/update', requireAuth, rateLimit('write'), async (c) => {
     const auth = getAuthenticatedAuth(c);
 
     const body = await c.req.json();
-    const { noteId, title, content, resourceImage, contentEncrypted, scriptureVersion } = body;
+    const {
+      noteId,
+      title,
+      content,
+      resourceImage,
+      contentEncrypted,
+      scriptureVersion,
+      primaryCollection: primaryCollectionRaw,
+      collectionPinned: collectionPinnedRaw,
+      collectionUserOverride: collectionUserOverrideRaw,
+    } = body;
     if (!noteId) return c.json({ error: 'Note ID is required' }, 400);
 
     const contentValidation = validateContent(content, true);
@@ -399,6 +409,18 @@ route.put('/api/notes/update', requireAuth, rateLimit('write'), async (c) => {
     const capitalizedTitle = title ? (title.charAt(0).toUpperCase() + title.slice(1)) : title;
 
     const updateData: any = { title: capitalizedTitle, content: capitalizedContent, updatedAt: nowISO() };
+    if (primaryCollectionRaw !== undefined) {
+      updateData.primaryCollection =
+        typeof primaryCollectionRaw === 'string' && primaryCollectionRaw.trim().length > 0
+          ? primaryCollectionRaw.trim()
+          : null;
+    }
+    if (collectionPinnedRaw !== undefined) {
+      updateData.collectionPinned = Boolean(collectionPinnedRaw);
+    }
+    if (collectionUserOverrideRaw !== undefined) {
+      updateData.collectionUserOverride = Boolean(collectionUserOverrideRaw);
+    }
     if (typeof contentEncrypted === 'boolean') {
       updateData.contentEncrypted = contentEncrypted;
       if (contentEncrypted === true) {

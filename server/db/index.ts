@@ -6,7 +6,7 @@
  */
 
 // Database client
-export { db, getDb } from './client';
+export { db, getDb, warmPostgresConnection } from './client';
 
 // All schema tables
 export {

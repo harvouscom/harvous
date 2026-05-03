@@ -11,6 +11,9 @@
 
 import { handle } from 'hono/netlify';
 import app from './app';
+import { warmPostgresConnection } from './db/client';
+
+void warmPostgresConnection();
 
 const honoHandler = handle(app);
 

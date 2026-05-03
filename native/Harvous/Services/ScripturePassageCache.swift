@@ -53,55 +53,56 @@ enum ScripturePassageHTMLParser {
     /// Baseline lift scales slightly with body size (positive = superscript).
     private static let baselineToBodyScale: CGFloat = 0.185
     // Verse numbers can merge with the next word (e.g. "1Afterward") with no superscript attribute; match digit runs before a letter.
+    /// Lookahead includes ASCII `"` / `'` as well as typographic quotes — some verse rows use straight quotes (e.g. ESV) so `16"For…` must match.
     /// `^` must match after each newline (`anchorsMatchLines`); allow leading spaces (HTML often strips &lt;sup&gt; merge).
     private static let leadingVerseDigitRegex: NSRegularExpression? = {
         try? NSRegularExpression(
-            pattern: #"^\s*(\d{1,3})(?=\s*[A-Za-z\u{2018}\u{2019}\u{201C}\u{201D}])"#,
+            pattern: #"^\s*(\d{1,3})(?=\s*[A-Za-z\u{2018}\u{2019}\u{201C}\u{201D}\u{0022}\u{0027}])"#,
             options: [.anchorsMatchLines]
         )
     }()
     private static let spacedVerseDigitRegex: NSRegularExpression? = {
         try? NSRegularExpression(
-            pattern: #"(\s)(\d{1,3})(?=\s*[A-Za-z\u{2018}\u{2019}\u{201C}\u{201D}])"#,
+            pattern: #"(\s)(\d{1,3})(?=\s*[A-Za-z\u{2018}\u{2019}\u{201C}\u{201D}\u{0022}\u{0027}])"#,
             options: []
         )
     }()
     /// Catch verse numbers after punctuation/quotes, e.g. `”2But`.
     private static let punctuatedVerseDigitRegex: NSRegularExpression? = {
         try? NSRegularExpression(
-            pattern: #"([”"'’\)\]\}\-–—,:;.!?\s])(\d{1,3})(?=\s*[A-Za-z\u{2018}\u{2019}\u{201C}\u{201D}])"#,
+            pattern: #"([”"'’\)\]\}\-–—,:;.!?\s])(\d{1,3})(?=\s*[A-Za-z\u{2018}\u{2019}\u{201C}\u{201D}\u{0022}\u{0027}])"#,
             options: []
         )
     }()
     /// WebKit sometimes emits Unicode superscript ¹²³ (not ASCII) in &lt;sup&gt;.
     private static let leadingUnicodeSupRegex: NSRegularExpression? = {
         try? NSRegularExpression(
-            pattern: #"^\s*([\u{00B9}\u{00B2}\u{00B3}\u{2070}\u{2074}\u{2075}\u{2076}\u{2077}\u{2078}\u{2079}]+)(?=\s*[A-Za-z\u{2018}\u{2019}\u{201C}\u{201D}])"#,
+            pattern: #"^\s*([\u{00B9}\u{00B2}\u{00B3}\u{2070}\u{2074}\u{2075}\u{2076}\u{2077}\u{2078}\u{2079}]+)(?=\s*[A-Za-z\u{2018}\u{2019}\u{201C}\u{201D}\u{0022}\u{0027}])"#,
             options: [.anchorsMatchLines]
         )
     }()
     private static let spacedUnicodeSupRegex: NSRegularExpression? = {
         try? NSRegularExpression(
-            pattern: #"(\s)([\u{00B9}\u{00B2}\u{00B3}\u{2070}\u{2074}\u{2075}\u{2076}\u{2077}\u{2078}\u{2079}]+)(?=\s*[A-Za-z\u{2018}\u{2019}\u{201C}\u{201D}])"#,
+            pattern: #"(\s)([\u{00B9}\u{00B2}\u{00B3}\u{2070}\u{2074}\u{2075}\u{2076}\u{2077}\u{2078}\u{2079}]+)(?=\s*[A-Za-z\u{2018}\u{2019}\u{201C}\u{201D}\u{0022}\u{0027}])"#,
             options: []
         )
     }()
     private static let punctuatedUnicodeSupRegex: NSRegularExpression? = {
         try? NSRegularExpression(
-            pattern: #"([”"'’\)\]\}\-–—,:;.!?\s])([\u{00B9}\u{00B2}\u{00B3}\u{2070}\u{2074}\u{2075}\u{2076}\u{2077}\u{2078}\u{2079}]+)(?=\s*[A-Za-z\u{2018}\u{2019}\u{201C}\u{201D}])"#,
+            pattern: #"([”"'’\)\]\}\-–—,:;.!?\s])([\u{00B9}\u{00B2}\u{00B3}\u{2070}\u{2074}\u{2075}\u{2076}\u{2077}\u{2078}\u{2079}]+)(?=\s*[A-Za-z\u{2018}\u{2019}\u{201C}\u{201D}\u{0022}\u{0027}])"#,
             options: []
         )
     }()
     /// Broad fallback: verse numeral after any whitespace/punctuation boundary, including NBSP before body text.
     private static let broadVerseDigitRegex: NSRegularExpression? = {
         try? NSRegularExpression(
-            pattern: #"(^|[\s\p{P}])(\d{1,3})(?=[\s\u{00A0}]*\p{L})"#,
+            pattern: #"(^|[\s\p{P}])(\d{1,3})(?=[\s\u{00A0}]*(?:[\u{2018}\u{2019}\u{201C}\u{201D}\u{0022}\u{0027}])*\p{L})"#,
             options: [.anchorsMatchLines]
         )
     }()
     private static let broadUnicodeSupRegex: NSRegularExpression? = {
         try? NSRegularExpression(
-            pattern: #"(^|[\s\p{P}])([\u{00B9}\u{00B2}\u{00B3}\u{2070}\u{2074}\u{2075}\u{2076}\u{2077}\u{2078}\u{2079}]+)(?=[\s\u{00A0}]*\p{L})"#,
+            pattern: #"(^|[\s\p{P}])([\u{00B9}\u{00B2}\u{00B3}\u{2070}\u{2074}\u{2075}\u{2076}\u{2077}\u{2078}\u{2079}]+)(?=[\s\u{00A0}]*(?:[\u{2018}\u{2019}\u{201C}\u{201D}\u{0022}\u{0027}])*\p{L})"#,
             options: [.anchorsMatchLines]
         )
     }()
@@ -170,8 +171,8 @@ enum ScripturePassageHTMLParser {
         return ranges.sorted { $0.location > $1.location }
     }
 
-    /// Deterministic fallback for native rendering: boundary + 1-3 digits + optional spaces + ASCII letter.
-    /// Handles strings like `1 Afterward`, `”2But`, and ` 3Then` even when HTML import metadata is inconsistent.
+    /// Deterministic fallback for native rendering: boundary + 1-3 digits + optional spaces/quotes + letter.
+    /// Handles strings like `1 Afterward`, `”2But`, `16“For…`, and `16"For…` even when HTML import metadata is inconsistent.
     private static func collectVerseDigitSubrangesByScan(_ s: String) -> [NSRange] {
         let ns = s as NSString
         let len = ns.length
@@ -181,6 +182,7 @@ enum ScripturePassageHTMLParser {
         let whitespaces = CharacterSet.whitespacesAndNewlines
         let digits = CharacterSet.decimalDigits
         let punctuation = CharacterSet(charactersIn: "\"'”’)]}-–—,:;.!?")
+        let openingQuotationMarks = CharacterSet(charactersIn: "\u{2018}\u{2019}\u{201C}\u{201D}\u{0022}\u{0027}\u{00AB}\u{00BB}\u{201A}\u{201E}")
 
         func scalar(at i: Int) -> UnicodeScalar? {
             guard i >= 0, i < len else { return nil }
@@ -210,7 +212,7 @@ enum ScripturePassageHTMLParser {
             }
             if digitCount == 0 || digitCount > 3 { i += 1; continue }
 
-            // Skip optional spaces/NBSP before first letter.
+            // Skip optional spaces/NBSP, then opening quotation marks, before the first letter.
             var k = j
             while k < len {
                 guard let u = scalar(at: k) else { break }
@@ -219,6 +221,9 @@ enum ScripturePassageHTMLParser {
                 } else {
                     break
                 }
+            }
+            while k < len, let u = scalar(at: k), openingQuotationMarks.contains(u) {
+                k += 1
             }
 
             guard k < len, let next = scalar(at: k), letters.contains(next) else {

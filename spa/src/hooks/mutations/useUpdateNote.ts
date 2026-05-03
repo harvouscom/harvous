@@ -5,6 +5,9 @@ interface UpdateNoteInput {
   noteId: string;
   title: string;
   content: string;
+  primaryCollection?: string | null;
+  collectionPinned?: boolean;
+  collectionUserOverride?: boolean;
 }
 
 interface UpdateNoteResponse {
@@ -31,8 +34,14 @@ export function useUpdateNote() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ noteId, title, content }: UpdateNoteInput) =>
-      api.put<UpdateNoteResponse>('/api/notes/update', { noteId, title, content }),
+    mutationFn: (input: UpdateNoteInput) => {
+      const { noteId, title, content, primaryCollection, collectionPinned, collectionUserOverride } = input;
+      const body: Record<string, unknown> = { noteId, title, content };
+      if (primaryCollection !== undefined) body.primaryCollection = primaryCollection;
+      if (collectionPinned !== undefined) body.collectionPinned = collectionPinned;
+      if (collectionUserOverride !== undefined) body.collectionUserOverride = collectionUserOverride;
+      return api.put<UpdateNoteResponse>('/api/notes/update', body as any);
+    },
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ['note', variables.noteId] });
       window.dispatchEvent(new CustomEvent('noteUpdated', { detail: { noteId: variables.noteId } }));

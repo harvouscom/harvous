@@ -1,16 +1,40 @@
 import SwiftUI
 
 #if os(macOS)
+import AppKit
+#elseif os(iOS)
+import UIKit
+#endif
 
-/// Horizontal formatting toolbar — appears only when text is selected.
-/// Groups: inline | headings | lists | blocks | insert
+private extension Color {
+    /// Toolbar hairline separators (warm gray on Mac,UIKit separator on iOS).
+    static var hvHairlineSeparator: Color {
+#if os(macOS)
+        Color(nsColor: .separatorColor)
+#else
+        Color(uiColor: .separator)
+#endif
+    }
+
+    static var hvToolbarQuaternaryBacking: Color {
+#if os(macOS)
+        Color(nsColor: .quaternaryLabelColor)
+#else
+        Color(uiColor: .quaternaryLabel)
+#endif
+    }
+}
+
+/// Horizontal formatting toolbar — unified with macOS styling.
+/// Groups: undo | inline | headings | lists | blocks | insert
 struct NoteToolbar: View {
     @ObservedObject var proxy: EditorProxy
+    @Environment(\.harvousScriptureTheme) private var toolbarTheme
 
     var body: some View {
         VStack(spacing: 0) {
             // Top border — span full width of the bar (independent of scroll content width)
-            Color(nsColor: .separatorColor)
+            Color.hvHairlineSeparator
                 .frame(maxWidth: .infinity)
                 .frame(height: 0.5)
 
@@ -63,10 +87,12 @@ struct NoteToolbar: View {
             }
             .frame(height: 44)
         }
-        .background(.regularMaterial)
+        .background(.thinMaterial)
+#if os(macOS)
         .onHover { isHovering in
             proxy.setFormatToolbarHover(isHovering)
         }
+#endif
     }
 
     // MARK: - Button builders
@@ -88,7 +114,7 @@ struct NoteToolbar: View {
                 .frame(width: 36, height: 36)
                 .contentShape(Rectangle())
         }
-        .buttonStyle(NoteToolbarButtonStyle(isActive: isActive))
+        .buttonStyle(NoteToolbarButtonStyle(isActive: isActive, theme: toolbarTheme))
     }
 
     private func iconButton(
@@ -103,7 +129,7 @@ struct NoteToolbar: View {
                 .frame(width: 36, height: 36)
                 .contentShape(Rectangle())
         }
-        .buttonStyle(NoteToolbarButtonStyle(isActive: isActive))
+        .buttonStyle(NoteToolbarButtonStyle(isActive: isActive, theme: toolbarTheme))
         .disabled(!isEnabled)
         .opacity(isEnabled ? 1 : 0.35)
     }
@@ -114,7 +140,7 @@ struct NoteToolbar: View {
     }
 
     private var warmDivider: some View {
-        Color(nsColor: .separatorColor)
+        Color.hvHairlineSeparator
             .frame(width: 0.5, height: 22)
             .padding(.horizontal, 6)
     }
@@ -124,11 +150,13 @@ struct NoteToolbar: View {
 
 struct NoteToolbarButtonStyle: ButtonStyle {
     var isActive = false
+    var theme: HarvousColors.ThemeVariant? = nil
 
     func makeBody(configuration: Configuration) -> some View {
         let pressed = configuration.isPressed
+        let activeForeground = theme.map(HarvousColors.themeAccent) ?? Color.primary
         configuration.label
-            .foregroundStyle(pressed || isActive ? Color.primary : Color.secondary)
+            .foregroundStyle(pressed || isActive ? activeForeground : Color.secondary)
             .background(
                 RoundedRectangle(cornerRadius: HarvousRadius.formatButton)
                     .fill(backgroundFill(isPressed: pressed))
@@ -138,16 +166,28 @@ struct NoteToolbarButtonStyle: ButtonStyle {
     }
 
     private func backgroundFill(isPressed: Bool) -> Color {
-        if isPressed { return Color(nsColor: .quaternaryLabelColor) }
-        if isActive { return Color(nsColor: .quaternaryLabelColor).opacity(0.5) }
+        if let theme {
+            if isPressed { return HarvousColors.themePressedBackground(theme) }
+            if isActive { return HarvousColors.themeActiveBackground(theme) }
+            return .clear
+        }
+        if isPressed { return Color.hvToolbarQuaternaryBacking }
+        if isActive { return Color.hvToolbarQuaternaryBacking.opacity(0.5) }
         return .clear
     }
 }
 
-#Preview {
-    let proxy = EditorProxy()
-    NoteToolbar(proxy: proxy)
-        .frame(width: 600)
+#if DEBUG
+private struct NoteToolbar_PreviewsHost: View {
+    @StateObject private var proxy = EditorProxy()
+
+    var body: some View {
+        NoteToolbar(proxy: proxy)
+            .frame(width: 600)
+    }
 }
 
+#Preview {
+    NoteToolbar_PreviewsHost()
+}
 #endif

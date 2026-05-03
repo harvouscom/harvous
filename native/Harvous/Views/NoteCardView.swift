@@ -11,7 +11,7 @@ struct NoteCardView: View {
                 VStack(alignment: .leading, spacing: 0) {
                     if let collection = note.primaryCollection, !collection.isEmpty {
                         HStack(spacing: 6) {
-                            Image(systemName: "folder.fill")
+                            Image(systemName: "rectangle.stack.fill")
                                 .font(.system(size: 10))
                             Text(collection)
                                 .font(HarvousTypography.caption)

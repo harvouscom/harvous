@@ -409,7 +409,7 @@ Derek"
 - Include relevant hashtags naturally
 
 **Example (X/Twitter):**
-"Been thinking about how we organize Bible study thoughts. Folders feel wrong—like forcing connections into boxes. Threads feel right—like letting connections grow naturally.
+"Been thinking about how we organize Bible study thoughts. Collection-only filing feels wrong—like forcing connections into boxes. Threads feel right—like letting connections grow naturally.
 
 Anyone else feel this way? What's your system?"
 

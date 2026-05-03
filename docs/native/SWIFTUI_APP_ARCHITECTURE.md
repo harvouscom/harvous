@@ -149,7 +149,7 @@ Feature work that surfaces outside the main window (widget, Siri, notification) 
 ## 11. Directory map (high level)
 
 
-| Folder / area                           | Typical contents                                           |
+| Area / module                           | Typical contents                                           |
 | --------------------------------------- | ---------------------------------------------------------- |
 | `HarvousApp.swift`                      | Scenes, model container, recall registration               |
 | `ContentView.swift`                     | `MacRootView` / `iOSRootView`, deep link wiring            |

@@ -13,7 +13,7 @@ struct HarvousAppShortcuts: AppShortcutsProvider {
             intent: StartRecallSessionIntent(),
             phrases: ["Start recall in Harvous", "Review in Harvous"],
             shortTitle: "Start recall",
-            systemImageName: "rectangle.stack"
+            systemImageName: "rectangle.stack.fill"
         )
         let card = AppShortcut(
             intent: GetTodaysRecallCardIntent(),

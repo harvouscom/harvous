@@ -36,11 +36,11 @@ struct RecallLiveActivityWidget: Widget {
                         .lineLimit(2)
                 }
             } compactLeading: {
-                Image(systemName: "rectangle.stack")
+                Image(systemName: "rectangle.stack.fill")
             } compactTrailing: {
                 Text("\(context.state.currentIndex)")
             } minimal: {
-                Image(systemName: "rectangle.stack")
+                Image(systemName: "rectangle.stack.fill")
             }
         }
     }

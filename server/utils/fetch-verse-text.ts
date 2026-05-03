@@ -12,7 +12,7 @@ import {
   validateVerseRange,
   normalizeScriptureReference,
 } from '@/utils/scripture-detector';
-import { db, first, VerseTextCache, BibleVerses, eq, and, gte, lte } from '../db';
+import { db, first, VerseTextCache, BibleVerses, eq, and, gte, lte, warmPostgresConnection } from '../db';
 import { nowISO } from '../db/dates';
 
 interface DbVerse {
@@ -26,6 +26,8 @@ interface DbVerse {
  * If a verse in the requested range is missing from the translation, returns a notice.
  */
 export async function fetchVerseText(reference: string, translation: string = 'NET'): Promise<string> {
+  await warmPostgresConnection();
+
   const cleanReference = reference.replace(/,\s+/g, ',');
   const parsed = parseScriptureReference(cleanReference);
   if (!parsed) {

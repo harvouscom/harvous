@@ -23,10 +23,25 @@ import { pushNavStack } from '@/utils/nav-stack';
 import { shouldProcessDocument, getTextToProcess, resetTracker, cleanupTracker } from '@/utils/incremental-scripture-detection';
 import { debug } from '@/utils/logger';
 import { getOrCreateScriptureNote } from '@/utils/scripture-note-utils';
+import ScripturePillChromeWeb from './ScripturePillChromeWeb';
 import '@/styles/tiptap-editor.css';
 
 // Icon component for inline SVGs (allows CSS styling)
 import Icon from './Icon';
+import {
+  ArrowUUpLeft as ProtoUndoIcon,
+  ArrowUUpRight as ProtoRedoIcon,
+  Eraser as ProtoClearFormattingIcon,
+  LinkSimple as ProtoLinkIcon,
+  ListBullets as ProtoListBulletsIcon,
+  ListNumbers as ProtoListNumbersIcon,
+  Minus as ProtoHorizontalRuleIcon,
+  TextB as ProtoBoldIcon,
+  TextIndent as ProtoIndentIcon,
+  TextItalic as ProtoItalicIcon,
+  TextOutdent as ProtoOutdentIcon,
+  TextStrikethrough as ProtoStrikethroughIcon,
+} from '@phosphor-icons/react';
 
 // Track pending pill creation to prevent duplicates from concurrent calls
 // This is a module-level Set to track references currently being processed
@@ -62,10 +77,46 @@ interface TiptapEditorProps {
   onEditorInstanceReady?: (editor: any) => void; // Callback when editor instance is ready for direct access
   /** Legacy hint for layouts that host the editor in a bottom sheet; caret scroll uses `[data-keyboard-open]` + `toolbarAtBottom`. */
   inBottomSheet?: boolean;
+  /**
+   * When `prototypeNative`, bottom chrome follows native-like rules: format bar while the body
+   * is focused (unless scripture picker/confirm is open), and the parent can show a note action bar when not.
+   */
+  editorChromeMode?: 'default' | 'prototypeNative';
+  onPrototypeChromeModeChange?: (mode: 'format' | 'scripture' | 'noteActions') => void;
+  /**
+   * Prototype-only: when provided, the prototype-native format toolbar is rendered
+   * via `createPortal` into this element instead of inline. This lets the parent
+   * pin the bar to the bottom of the editor column (sibling of the scroll
+   * container) so it stays glued to the viewport bottom regardless of content.
+   */
+  formatToolbarPortalTarget?: HTMLElement | null;
+  /**
+   * Bottom host for macOS-style scripture pill chrome (`ScripturePillChromeWeb`).
+   */
+  scriptureChromePortalTarget?: HTMLElement | null;
+}
+
+const PROTOTYPE_FORMAT_BAR_HIDE_MS = 2000;
+
+/** Resolve scripture pill boundaries from clicked DOM span (captures-phase handler). */
+function resolveScripturePillDOMRange(editor: any, pillEl: HTMLElement): { from: number; to: number } | null {
+  try {
+    if (!editor?.view?.posAtDOM) return null;
+    const pos = editor.view.posAtDOM(pillEl, 0);
+    const $pos = editor.state.doc.resolve(pos);
+    const markType = editor.state.schema.marks.scripturePill;
+    if (!markType) return null;
+    const range = getMarkRange($pos, markType);
+    if (range && typeof range.from === 'number' && typeof range.to === 'number') {
+      return { from: range.from, to: range.to };
+    }
+  } catch {
+    /* ignore */
+  }
+  return null;
 }
 
 // Helper function to find text positions in ProseMirror document
-// Returns the first occurrence that doesn't already have a scripture pill mark
 function findTextPositions(doc: any, searchText: string, skipMarked: boolean = true): { from: number; to: number } | null {
   const allPositions = findAllTextPositions(doc, searchText, skipMarked);
   return allPositions.length > 0 ? allPositions[0] : null;
@@ -2742,7 +2793,11 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
   sourceNoteId,
   onEditorReady,
   onEditorInstanceReady,
-  inBottomSheet = false
+  inBottomSheet = false,
+  editorChromeMode = 'default',
+  onPrototypeChromeModeChange,
+  formatToolbarPortalTarget = null,
+  scriptureChromePortalTarget = null,
 }) => {
   const [isLoaded, setIsLoaded] = useState(false);
   const [isEditorFocused, setIsEditorFocused] = useState(false);
@@ -2755,9 +2810,10 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     bold: false,
     italic: false,
     underline: false,
+    strike: false,
     orderedList: false,
     bulletList: false,
-    headingLevel: 0 // 0 = normal/paragraph, 2 = H2, 3 = H3
+    headingLevel: 0, // 0 = normal/paragraph, 2 = H2, 3 = H3, 4 = H4
   });
   const [showCreateNoteButton, setShowCreateNoteButton] = useState(false);
 
@@ -2791,9 +2847,29 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
   const editorRef = useRef<any>(null);
   const tiptapContentRef = useRef<HTMLDivElement>(null);
   const createNoteBubbleRef = useRef<HTMLDivElement>(null);
-  const mobileScriptureDetectionTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [scripturePillSession, setScripturePillSession] = useState<{
+    boundaries: { from: number; to: number };
+    reference: string;
+    translation: string | null;
+    noteId: string | null;
+  } | null>(null);
 
-  // Helper function to check if editor/view is valid before accessing docView
+  const [selectionExpanded, setSelectionExpanded] = useState(false);
+  const [showFormatBarForActivity, setShowFormatBarForActivity] = useState(false);
+  const [isPointerOverFormatToolbar, setIsPointerOverFormatToolbar] = useState(false);
+  const formatBarHideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const bumpFormatToolbarActivity = useCallback(() => {
+    if (editorChromeMode !== 'prototypeNative') return;
+    setShowFormatBarForActivity(true);
+    if (formatBarHideTimerRef.current) {
+      clearTimeout(formatBarHideTimerRef.current);
+    }
+    formatBarHideTimerRef.current = setTimeout(() => {
+      setShowFormatBarForActivity(false);
+      formatBarHideTimerRef.current = null;
+    }, PROTOTYPE_FORMAT_BAR_HIDE_MS);
+  }, [editorChromeMode]);
   // This prevents errors when editor is destroyed but handlers still fire
   const isEditorValid = (editorInstance: any): boolean => {
     if (!editorInstance) return false;
@@ -2859,7 +2935,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
         bold: false,
       }),
       Heading.configure({
-        levels: [2, 3], // Only allow H2, H3 (H1 is reserved for note titles)
+        levels: [2, 3, 4], // H1 reserved for note titles; H4 matches native body toolbar
       }),
       Underline,
       Superscript,
@@ -3047,9 +3123,9 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
             } else if (level === 2) {
               newLevel = 3; // H2 → H3
             } else {
-              newLevel = 3; // H3, H4, H5, H6 → H3 (clamp to max)
+              newLevel = 3; // H3, H4, H5, H6 → H3 (clamp to max for classic paste behavior)
             }
-            
+
             // Only transform if newLevel is in allowed range [2, 3]
             if (newLevel >= 2 && newLevel <= 3) {
               const newHeading = document.createElement(`h${newLevel}`);
@@ -3824,14 +3900,27 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       e.stopImmediatePropagation();
 
       if (editor.isEditable) {
-        // Edit mode: show translation picker
-        const rect = pillSpan.getBoundingClientRect();
-        setTranslationPicker({
-          rect: { top: rect.top, left: rect.left, bottom: rect.bottom, right: rect.right, width: rect.width },
-          translation,
-          noteId,
-          reference,
-        });
+        if (editorChromeMode === 'prototypeNative') {
+          setTranslationPicker(null);
+          const boundaries = resolveScripturePillDOMRange(editor, pillSpan);
+          if (boundaries) {
+            setScripturePillSession({
+              boundaries,
+              reference,
+              translation,
+              noteId,
+            });
+          }
+        } else {
+          setScripturePillSession(null);
+          const rect = pillSpan.getBoundingClientRect();
+          setTranslationPicker({
+            rect: { top: rect.top, left: rect.left, bottom: rect.bottom, right: rect.right, width: rect.width },
+            translation,
+            noteId,
+            reference,
+          });
+        }
       } else {
         // Read-only mode: navigate to the scripture note
         if (!noteId || noteId === 'pending' || noteId === 'null') return;
@@ -3907,8 +3996,15 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
 
     const handleDismiss = (e: MouseEvent) => {
       const target = e.target as HTMLElement;
-      if (!target.closest('.scripture-translation-picker') && !target.closest('.scripture-pill')) {
+      if (
+        target.closest('.scripture-translation-picker') ||
+        target.closest('.scripture-pill-chrome') ||
+        target.closest('.scripture-pill')
+      ) {
+        // Keep open
+      } else {
         setTranslationPicker(null);
+        setScripturePillSession(null);
       }
       if (!target.closest('.scripture-delete-confirm') && !target.closest('.scripture-pill')) {
         setDeleteConfirmPill(null);
@@ -3923,7 +4019,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       wrapperDiv.removeEventListener('click', handlePillClick, true);
       document.removeEventListener('mousedown', handleDismiss);
     };
-  }, [editor]);
+  }, [editor, editorChromeMode]);
 
   // Handle create note from selection
   const handleCreateNoteFromSelection = async () => {
@@ -4242,6 +4338,10 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       }
       editorWasFocusedForToolbarRef.current = true;
       setIsEditorFocused(true);
+
+      if (editorChromeMode === 'prototypeNative') {
+        bumpFormatToolbarActivity();
+      }
     };
 
     const handleBlur = (event: any) => {
@@ -4250,19 +4350,31 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       
       // Don't hide toolbar if blur is caused by clicking toolbar button
       // Check if the related target (what's being focused) is within the toolbar
-      const relatedTarget = event.event?.relatedTarget;
-      if (relatedTarget) {
-        const toolbar = document.querySelector('.tiptap-toolbar');
-        if (toolbar && toolbar.contains(relatedTarget)) {
-          // Blur is from clicking toolbar button, keep toolbar visible
-          return;
-        }
+      const relatedTarget = event.event?.relatedTarget as HTMLElement | null | undefined;
+      if (relatedTarget?.closest?.('.tiptap-toolbar')) {
+        return;
+      }
+      if (relatedTarget?.closest?.('.scripture-pill-chrome')) {
+        return;
+      }
+      if (relatedTarget?.closest?.('.scripture-translation-picker')) {
+        return;
+      }
+      if (relatedTarget?.closest?.('.selection-action-bar')) {
+        return;
       }
       // Small delay to allow focus to return to editor if needed
       setTimeout(() => {
         if (isEditorValid(editor) && !editor.isFocused) {
           editorWasFocusedForToolbarRef.current = false;
           setIsEditorFocused(false);
+          if (editorChromeMode === 'prototypeNative') {
+            setShowFormatBarForActivity(false);
+            if (formatBarHideTimerRef.current) {
+              clearTimeout(formatBarHideTimerRef.current);
+              formatBarHideTimerRef.current = null;
+            }
+          }
         }
       }, 100);
     };
@@ -4291,7 +4403,49 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
         editor.off('selectionUpdate', handleSelectionUpdate);
       }
     };
-  }, [editor, toolbarAtBottom]);
+  }, [editor, toolbarAtBottom, editorChromeMode, bumpFormatToolbarActivity]);
+
+  /** macOS-parity format bar: idle-hide + selection-visible + typing activity. */
+  useEffect(() => {
+    if (!editor || editorChromeMode !== 'prototypeNative') {
+      setSelectionExpanded(false);
+      return;
+    }
+
+    const syncSel = () => {
+      try {
+        if (!isEditorValid(editor)) return;
+        const { from, to } = editor.state.selection;
+        const expanded = from !== to;
+        setSelectionExpanded(expanded);
+        if (expanded) bumpFormatToolbarActivity();
+      } catch {
+        /* ignore */
+      }
+    };
+
+    const onDocUpdate = ({ transaction }: { transaction: { docChanged: boolean } }) => {
+      if (!transaction.docChanged) return;
+      bumpFormatToolbarActivity();
+    };
+
+    syncSel();
+    editor.on('selectionUpdate', syncSel);
+    editor.on('update', onDocUpdate);
+
+    return () => {
+      if (editor && !editor.isDestroyed) {
+        editor.off('selectionUpdate', syncSel);
+        editor.off('update', onDocUpdate);
+      }
+    };
+  }, [editor, editorChromeMode, bumpFormatToolbarActivity]);
+
+  useEffect(() => () => {
+    if (formatBarHideTimerRef.current) {
+      clearTimeout(formatBarHideTimerRef.current);
+    }
+  }, []);
 
   // Update active states when editor changes
   useEffect(() => {
@@ -4303,20 +4457,23 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       // Check if editor is still valid before accessing it
       if (!isEditorValid(editor)) return;
       
-      // Detect current heading level (0 = paragraph, 2 = H2, 3 = H3)
+      // Detect current heading level (0 = paragraph, 2–4 = headings)
       let headingLevel = 0;
       if (editor.isActive('heading', { level: 2 })) {
         headingLevel = 2;
       } else if (editor.isActive('heading', { level: 3 })) {
         headingLevel = 3;
+      } else if (editor.isActive('heading', { level: 4 })) {
+        headingLevel = 4;
       }
-      
+
       const newStates = {
         canUndo: editor.can().undo(),
         canRedo: editor.can().redo(),
         bold: editor.isActive('bold'),
         italic: editor.isActive('italic'),
         underline: editor.isActive('underline'),
+        strike: editor.isActive('strike'),
         orderedList: editor.isActive('orderedList'),
         bulletList: editor.isActive('bulletList'),
         headingLevel: headingLevel
@@ -4338,6 +4495,41 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       }
     };
   }, [editor]);
+
+  const scriptureChromeActive =
+    editorChromeMode === 'prototypeNative' &&
+    (scripturePillSession != null || deleteConfirmPill != null);
+
+  const shouldShowPrototypeFormatToolbar =
+    editorChromeMode === 'prototypeNative' &&
+    isEditorFocused &&
+    !scriptureChromeActive &&
+    (selectionExpanded || showFormatBarForActivity || isPointerOverFormatToolbar);
+
+  useEffect(() => {
+    if (editorChromeMode !== 'prototypeNative' || !onPrototypeChromeModeChange) return;
+    if (scriptureChromeActive) {
+      onPrototypeChromeModeChange('scripture');
+      return;
+    }
+    if (!isEditorFocused) {
+      onPrototypeChromeModeChange('noteActions');
+      return;
+    }
+    if (shouldShowPrototypeFormatToolbar) {
+      onPrototypeChromeModeChange('format');
+    } else {
+      onPrototypeChromeModeChange('noteActions');
+    }
+  }, [
+    editorChromeMode,
+    onPrototypeChromeModeChange,
+    scriptureChromeActive,
+    deleteConfirmPill,
+    scripturePillSession,
+    isEditorFocused,
+    shouldShowPrototypeFormatToolbar,
+  ]);
 
   const syncTiptapContentScrollMask = useCallback(() => {
     const el = tiptapContentRef.current;
@@ -4403,20 +4595,20 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     );
   }
 
-  // Handle heading cycle: H2 → H3 → Normal → H2
+  // Handle heading cycle: H2 → H3 → Normal → H2 (single control on classic toolbar; H4 via paste or prototype bar)
   const handleHeadingCycle = () => {
     if (!editor) return;
-    
+
     const currentLevel = activeStates.headingLevel;
-    
+
     if (currentLevel === 0) {
-      // Currently paragraph, set to H2
       editor.chain().focus().setHeading({ level: 2 }).run();
     } else if (currentLevel === 2) {
-      // Currently H2, set to H3
       editor.chain().focus().setHeading({ level: 3 }).run();
     } else if (currentLevel === 3) {
-      // Currently H3, set to paragraph (normal)
+      editor.chain().focus().setParagraph().run();
+    } else {
+      // H4 or other: drop to paragraph from the cycle control
       editor.chain().focus().setParagraph().run();
     }
   };
@@ -4545,6 +4737,185 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     );
   };
 
+  const toggleHeadingLevel = (level: 2 | 3 | 4) => {
+    if (!editor) return;
+    if (editor.isActive('heading', { level })) {
+      editor.chain().focus().setParagraph().run();
+    } else {
+      editor.chain().focus().setHeading({ level }).run();
+    }
+  };
+
+  const renderPrototypeNativeFormatToolbar = (placement: 'top' | 'bottom' | 'portal') => {
+    if (!editor) return null;
+    const canSink = editor.can().sinkListItem('listItem');
+    const canLift = editor.can().liftListItem('listItem');
+    const { from, to } = editor.state.selection;
+    const hasTextSelection = from !== to;
+
+    const isPortal = placement === 'portal';
+    const positionalStyle: React.CSSProperties = isPortal
+      ? {}
+      : {
+          position: 'sticky',
+          ...(placement === 'bottom'
+            ? { bottom: 0, marginBottom: `${toolbarBottomMargin}px` }
+            : { top: 0, marginBottom: '12px' }),
+          zIndex: 20,
+        };
+
+    return (
+      <div
+        data-prototype-format-toolbar=""
+        className={`tiptap-toolbar tiptap-toolbar--prototype-native p-1 shrink-0 ${
+          placement === 'bottom' ? 'tiptap-toolbar--bottom' : ''
+        } ${isPortal ? 'tiptap-toolbar--portal' : ''}`}
+        style={positionalStyle}
+        onMouseEnter={() => {
+          setIsPointerOverFormatToolbar(true);
+          if (editorChromeMode === 'prototypeNative') bumpFormatToolbarActivity();
+        }}
+        onMouseLeave={() => setIsPointerOverFormatToolbar(false)}
+      >
+        <div className="tiptap-toolbar__hscroll">
+          <TiptapToolbarTrack key={toolbarEnterEpoch} placement={placement}>
+            <ToolbarButton
+              onClick={() => editor.chain().focus().undo().run()}
+              isActive={false}
+              disabled={!activeStates.canUndo}
+              title="Undo"
+              ariaLabel="Undo"
+            >
+              <ProtoUndoIcon className="proto-toolbar-icon" aria-hidden />
+            </ToolbarButton>
+            <ToolbarButton
+              onClick={() => editor.chain().focus().redo().run()}
+              isActive={false}
+              disabled={!activeStates.canRedo}
+              title="Redo"
+              ariaLabel="Redo"
+            >
+              <ProtoRedoIcon className="proto-toolbar-icon" aria-hidden />
+            </ToolbarButton>
+            <span className="tiptap-toolbar__group-divider tiptap-toolbar__group-divider--prototype" aria-hidden />
+            <ToolbarButton
+              onClick={() => editor.chain().focus().toggleBold().run()}
+              isActive={activeStates.bold}
+              title="Bold"
+              ariaLabel="Toggle bold"
+            >
+              <ProtoBoldIcon className="proto-toolbar-icon" aria-hidden />
+            </ToolbarButton>
+            <ToolbarButton
+              onClick={() => editor.chain().focus().toggleItalic().run()}
+              isActive={activeStates.italic}
+              title="Italic"
+              ariaLabel="Toggle italic"
+            >
+              <ProtoItalicIcon className="proto-toolbar-icon" aria-hidden />
+            </ToolbarButton>
+            <ToolbarButton
+              onClick={() => editor.chain().focus().toggleStrike().run()}
+              isActive={activeStates.strike}
+              title="Strikethrough"
+              ariaLabel="Toggle strikethrough"
+            >
+              <ProtoStrikethroughIcon className="proto-toolbar-icon" aria-hidden />
+            </ToolbarButton>
+            <span className="tiptap-toolbar__group-divider tiptap-toolbar__group-divider--prototype" aria-hidden />
+            <ToolbarButton
+              onClick={() => toggleHeadingLevel(2)}
+              isActive={activeStates.headingLevel === 2}
+              title="Heading 2"
+              ariaLabel="Toggle heading 2"
+            >
+              <span style={{ fontSize: '13px', fontWeight: 700 }}>H2</span>
+            </ToolbarButton>
+            <ToolbarButton
+              onClick={() => toggleHeadingLevel(3)}
+              isActive={activeStates.headingLevel === 3}
+              title="Heading 3"
+              ariaLabel="Toggle heading 3"
+            >
+              <span style={{ fontSize: '13px', fontWeight: 700 }}>H3</span>
+            </ToolbarButton>
+            <ToolbarButton
+              onClick={() => toggleHeadingLevel(4)}
+              isActive={activeStates.headingLevel === 4}
+              title="Heading 4"
+              ariaLabel="Toggle heading 4"
+            >
+              <span style={{ fontSize: '13px', fontWeight: 700 }}>H4</span>
+            </ToolbarButton>
+            <span className="tiptap-toolbar__group-divider tiptap-toolbar__group-divider--prototype" aria-hidden />
+            <ToolbarButton
+              onClick={() => editor.chain().focus().toggleBulletList().run()}
+              isActive={activeStates.bulletList}
+              title="Bullet list"
+              ariaLabel="Toggle bullet list"
+            >
+              <ProtoListBulletsIcon className="proto-toolbar-icon" aria-hidden />
+            </ToolbarButton>
+            <ToolbarButton
+              onClick={() => editor.chain().focus().toggleOrderedList().run()}
+              isActive={activeStates.orderedList}
+              title="Numbered list"
+              ariaLabel="Toggle numbered list"
+            >
+              <ProtoListNumbersIcon className="proto-toolbar-icon" aria-hidden />
+            </ToolbarButton>
+            <ToolbarButton
+              onClick={() => editor.chain().focus().liftListItem('listItem').run()}
+              isActive={false}
+              disabled={!canLift}
+              title="Outdent list"
+              ariaLabel="Outdent list"
+            >
+              <ProtoOutdentIcon className="proto-toolbar-icon" aria-hidden />
+            </ToolbarButton>
+            <ToolbarButton
+              onClick={() => editor.chain().focus().sinkListItem('listItem').run()}
+              isActive={false}
+              disabled={!canSink}
+              title="Indent list"
+              ariaLabel="Indent list"
+            >
+              <ProtoIndentIcon className="proto-toolbar-icon" aria-hidden />
+            </ToolbarButton>
+            <span className="tiptap-toolbar__group-divider tiptap-toolbar__group-divider--prototype" aria-hidden />
+            <ToolbarButton
+              onClick={() => editor.chain().focus().setHorizontalRule().run()}
+              isActive={false}
+              title="Horizontal rule"
+              ariaLabel="Insert horizontal rule"
+            >
+              <ProtoHorizontalRuleIcon className="proto-toolbar-icon" aria-hidden />
+            </ToolbarButton>
+            <ToolbarButton
+              onClick={() => {
+                void handleCreateNoteFromSelection();
+              }}
+              isActive={false}
+              disabled={!hasTextSelection}
+              title="Link selection to a note"
+              ariaLabel="Link selection to a note"
+            >
+              <ProtoLinkIcon className="proto-toolbar-icon" aria-hidden />
+            </ToolbarButton>
+            <ToolbarButton
+              onClick={() => editor.chain().focus().clearNodes().unsetAllMarks().run()}
+              isActive={false}
+              title="Clear formatting"
+              ariaLabel="Clear formatting"
+            >
+              <ProtoClearFormattingIcon className="proto-toolbar-icon" aria-hidden />
+            </ToolbarButton>
+          </TiptapToolbarTrack>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="tiptap-editor-container flex flex-col flex-1 min-h-0 w-full" style={{ minHeight: 0, height: '100%' }}>
       {/* Hidden input for form submission */}
@@ -4557,7 +4928,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       />
       
       {/* Toolbar above or below scroll area; below keeps it visible above keyboard on mobile */}
-      {!minimalToolbar && isEditorFocused && !toolbarAtBottom && (
+      {!minimalToolbar && isEditorFocused && !toolbarAtBottom && editorChromeMode !== 'prototypeNative' && (
         <div
           className="tiptap-toolbar p-1 border border-[var(--color-fog-white)] rounded-xl bg-[var(--color-snow-white)] shrink-0"
           style={{
@@ -4699,6 +5070,12 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
           </div>
         </div>
       )}
+      {!minimalToolbar &&
+        editorChromeMode === 'prototypeNative' &&
+        !formatToolbarPortalTarget &&
+        shouldShowPrototypeFormatToolbar &&
+        !toolbarAtBottom &&
+        renderPrototypeNativeFormatToolbar('top')}
       {/* Scroll area with optional top fade when scrolled; toolbar is outside so not faded */}
       <div
         ref={tiptapContentRef}
@@ -4832,7 +5209,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
         )}
         {/* Custom floating translation picker — positioned via pill click event, not BubbleMenu */}
         {/* BubbleMenu can't detect non-inclusive marks at cursor boundary positions */}
-        {translationPicker && createPortal(
+        {translationPicker && editorChromeMode !== 'prototypeNative' && createPortal(
           <div
             data-harvous-bottom-sheet-floating=""
             className="scripture-translation-picker floating-picker-enter"
@@ -4953,8 +5330,92 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
           </div>,
           document.body
         )}
+        {scripturePillSession && editorChromeMode === 'prototypeNative' && createPortal(
+          <ScripturePillChromeWeb
+            reference={scripturePillSession.reference}
+            translation={scripturePillSession.translation}
+            onDone={() => {
+              setScripturePillSession(null);
+              queueMicrotask(() => {
+                try {
+                  if (editor && isEditorValid(editor)) {
+                    editor.commands.focus();
+                  }
+                } catch {
+                  /* ignore */
+                }
+              });
+            }}
+            onApply={async (nextRef, nextTranslation) => {
+              if (!editor) return;
+              const sess = scripturePillSession;
+              if (!sess) return;
+              const { from, to } = sess.boundaries;
+              try {
+                const markType = editor.state.schema.marks.scripturePill;
+                if (!markType) return;
+                let existingMark: any = null;
+                editor.state.doc.nodesBetween(from, to, (node: any) => {
+                  if (!existingMark && node.isText) {
+                    const m = node.marks.find((x: any) => x.type?.name === 'scripturePill');
+                    if (m) existingMark = m;
+                  }
+                });
+                if (!existingMark) return;
+
+                const normRef = normalizeScriptureReference(nextRef);
+                const tr = editor.state.tr;
+                tr.replaceWith(from, to, editor.state.schema.text(normRef, [
+                  markType.create({
+                    ...existingMark.attrs,
+                    reference: normRef,
+                    translation: nextTranslation,
+                  }),
+                ]));
+                editor.view.dispatch(tr);
+
+                if (hiddenInputRef.current) {
+                  hiddenInputRef.current.value = editor.getHTML();
+                }
+                onContentChange?.(editor.getHTML());
+
+                const noteIdForApi = existingMark.attrs.noteId;
+                const refUnchanged = normalizeScriptureReference(sess.reference) === normRef;
+                if (
+                  refUnchanged &&
+                  noteIdForApi &&
+                  noteIdForApi !== 'pending' &&
+                  noteIdForApi !== 'null' &&
+                  sess.translation !== nextTranslation
+                ) {
+                  await fetch('/api/scripture/update-translation', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ noteId: noteIdForApi, newTranslation: nextTranslation }),
+                    credentials: 'include',
+                  });
+                  window.dispatchEvent(new CustomEvent('noteUpdated', { detail: { noteId: noteIdForApi } }));
+                }
+
+                setScripturePillSession((prev) =>
+                  prev
+                    ? {
+                        ...prev,
+                        reference: normRef,
+                        translation: nextTranslation,
+                        boundaries: { from, to: from + normRef.length },
+                      }
+                    : null,
+                );
+              } catch (err) {
+                console.error('[ScripturePillChrome] apply failed:', err);
+              }
+            }}
+          />,
+          scriptureChromePortalTarget || document.body,
+        )}
       </div>
-      {!minimalToolbar && isEditorFocused && toolbarAtBottom && (
+      {!minimalToolbar && isEditorFocused && toolbarAtBottom && editorChromeMode !== 'prototypeNative' && (
         <div
           className="tiptap-toolbar tiptap-toolbar--bottom p-1 border border-[var(--color-fog-white)] rounded-xl bg-[var(--color-snow-white)] shrink-0"
           style={{
@@ -5072,6 +5533,17 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
           </div>
         </div>
       )}
+      {!minimalToolbar &&
+        editorChromeMode === 'prototypeNative' &&
+        !formatToolbarPortalTarget &&
+        shouldShowPrototypeFormatToolbar &&
+        toolbarAtBottom &&
+        renderPrototypeNativeFormatToolbar('bottom')}
+      {!minimalToolbar &&
+        editorChromeMode === 'prototypeNative' &&
+        formatToolbarPortalTarget &&
+        shouldShowPrototypeFormatToolbar &&
+        createPortal(renderPrototypeNativeFormatToolbar('portal'), formatToolbarPortalTarget)}
     </div>
   );
 };
