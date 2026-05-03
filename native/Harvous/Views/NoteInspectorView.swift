@@ -8,6 +8,7 @@ struct NoteInspectorView: View {
     var onJumpToAnchoredHighlight: ((StudyThread.EntryKind) -> Void)? = nil
     @Environment(\.modelContext) private var modelContext
     @State private var draftCollection = ""
+    @State private var draftTag = ""
 
     var body: some View {
         ScrollView {
@@ -285,18 +286,77 @@ struct NoteInspectorView: View {
 
     @ViewBuilder
     private var tagsSection: some View {
-        if note.tags.isEmpty {
-            Text("No tags")
-                .font(HarvousTypography.inspectorBody)
-                .foregroundStyle(.secondary)
-                .padding(.top, 4)
-        } else {
-            FlowLayout(spacing: 6) {
-                ForEach(note.tags, id: \.self) { tag in
-                    ThemeTagChip(text: tag)
+        VStack(alignment: .leading, spacing: 12) {
+            if note.tags.isEmpty {
+                Text("No tags")
+                    .font(HarvousTypography.inspectorBody)
+                    .foregroundStyle(.secondary)
+                    .padding(.top, 4)
+            } else {
+                FlowLayout(spacing: 6) {
+                    ForEach(note.tags, id: \.self) { tag in
+                        tagChip(tag)
+                    }
                 }
+                .padding(.top, 4)
             }
-            .padding(.top, 4)
+
+            addTagRow
+        }
+    }
+
+    private func tagChip(_ tag: String) -> some View {
+        HStack(spacing: 0) {
+            ThemeTagChip(text: tag)
+
+            Button {
+                removeTag(tag)
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.system(size: 10, weight: .bold))
+                    .frame(width: 22, height: 22)
+                    .foregroundStyle(.secondary)
+            }
+            .buttonStyle(.plain)
+            .help("Remove tag")
+            .accessibilityLabel("Remove tag \(tag)")
+            .padding(.leading, 2)
+        }
+    }
+
+    private var addTagRow: some View {
+        HStack(spacing: 8) {
+            TextField("Add tag", text: $draftTag)
+                .textFieldStyle(.plain)
+                .font(HarvousTypography.inspectorBody)
+                .padding(.horizontal, 10)
+                .frame(height: 34)
+                .background(
+                    RoundedRectangle(cornerRadius: 9, style: .continuous)
+                        .fill(Color.secondary.opacity(0.08))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 9, style: .continuous)
+                        .strokeBorder(Color.primary.opacity(0.08), lineWidth: 1)
+                )
+                .onSubmit { addDraftTag() }
+
+            Button {
+                addDraftTag()
+            } label: {
+                Text("Add")
+                    .font(HarvousTypography.inspectorCompactMedium)
+                    .padding(.horizontal, 10)
+                    .frame(height: 34)
+                    .background(
+                        RoundedRectangle(cornerRadius: 9, style: .continuous)
+                            .fill(Color.harvousAccent)
+                    )
+                    .foregroundStyle(.white)
+            }
+            .buttonStyle(.plain)
+            .help("Add tag")
+            .accessibilityLabel("Add tag")
         }
     }
 
@@ -360,6 +420,26 @@ struct NoteInspectorView: View {
             note.collectionAutoConfidence = nil
             note.collectionLastAutoUpdatedAt = nil
         }
+        try? modelContext.save()
+    }
+
+    private func addDraftTag() {
+        let trimmed = draftTag.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        guard !note.tags.contains(where: { $0.caseInsensitiveCompare(trimmed) == .orderedSame }) else {
+            draftTag = ""
+            return
+        }
+
+        note.tags.append(trimmed)
+        note.updatedAt = Date()
+        draftTag = ""
+        try? modelContext.save()
+    }
+
+    private func removeTag(_ tag: String) {
+        note.tags.removeAll { $0 == tag }
+        note.updatedAt = Date()
         try? modelContext.save()
     }
 
