@@ -46,7 +46,8 @@ private final class EditorAutosaveDebouncer {
             note.updatedAt = Date()
             BibleStudyTagSuggester.applyToNote(note, allowPrimaryUpdate: allowPrimaryCollectionUpdate)
             try? context.save()
-            HarvousRecallOSIntegration.afterNotePersisted(note: note, modelContext: context)
+            HarvousNoteSpotlightIndexer.reindex(note: note)
+            HarvousVaultExporter.scheduleWrite(note: note, modelContext: context)
         }
         return token
     }
@@ -60,8 +61,10 @@ struct NoteEditorView: View {
     @Environment(\.harvousScriptureTheme) private var scriptureTheme
     @Environment(\.colorScheme) private var colorScheme
 
-    /// When set, pushes `ThreadWorkspaceView` for this thread id (macOS split column + iOS nested stack).
-    var onNavigateToStudyThread: ((UUID) -> Void)? = nil
+    /// When set, pushes `LinkedNotesView` for this linked-notes entry id (macOS split column + iOS nested stack).
+    var onNavigateToLinkedNotes: ((UUID) -> Void)? = nil
+    /// iOS stacked editor: pop after delete.
+    var onRequestDismissEditor: (() -> Void)? = nil
     @State private var editorState = EditorState()
     @State private var title = ""
     /// Reference-type debounce — must not use `@State` timestamps keyed to each keypress (that remounts the editor).
@@ -75,14 +78,8 @@ struct NoteEditorView: View {
     @State private var threadsForNote: [StudyThread] = []
     /// Conditional trail snapshot (incoming + outgoing linked-note markers).
     @State private var trailSnapshot = ThreadStore.TrailSnapshot(incoming: [], outgoing: [])
-    /// Marker id that just got created — used to scroll to and momentarily flash the new row.
-    @State private var recentlyCreatedThreadID: UUID? = nil
-    /// Highlights painted in the editor plain-body coordinate space.
+    /// Transient notice for inspector jump / tooling.
     @State private var studyHighlightPaints: [StudyHighlightPaint] = []
-    /// Captured body selection when the floating chip appears (UTF-16 indices in `NSTextStorage`/`UITextStorage`).
-    @State private var pendingHighlightStorageRange: NSRange?
-    /// Bump so the floating capsule snaps back whenever a new non-empty selection anchors the menu.
-    @State private var selectionMenuGeneration: UInt64 = 0
     /// Hover-only highlight preview for the bottom dock (when nothing is pinned).
     @State private var previewHighlightThreadId: UUID?
     /// Pinned dock thread (inspector jump, tap, compose confirm).
@@ -92,6 +89,24 @@ struct NoteEditorView: View {
     /// Transient notice when the user tries to stack a highlight on anchored prose.
     @State private var overlapNotice: String?
     @State private var scripturePassageSheet: ScripturePassageSheetItem?
+    /// When set, a modal bottom sheet opens showing the selected highlight's note (mirrors scripture-pill UX).
+    @State private var highlightDetailThreadId: HighlightDetailSheetItem?
+    @State private var showLinkPicker = false
+    @State private var showWikiLinkPicker = false
+    @State private var showRelatedNotes = false
+    /// Inline highlight authoring (popover + floating bar triggers).
+    @State private var highlightCaptureSession: HighlightCaptureSession?
+    @State private var highlightAnnotationDraft = ""
+    @State private var highlightAnnotationAccent: StudyHighlightAccentToken = .warmAmber
+    @Namespace private var selectionAccessoryNamespace
+
+    /// Inline expanded chrome for a tapped scripture pill (passage + accent + translation).
+    /// Replaces the former bottom action bar as the primary click affordance; the old bar still
+    /// drives selection-near-pill editing of book/chapter/verse.
+    @State private var activePillDock: ActiveScripturePillDockItem?
+    @State private var activePillDockExpanded: Bool = true
+    /// Prefetch scripture HTML for pills in this note — cancelled when switching notes or on editor disappear.
+    @State private var scripturePillPrefetchTask: Task<Void, Never>?
 
     #if os(macOS)
     @StateObject private var proxy = EditorProxy()
@@ -100,7 +115,6 @@ struct NoteEditorView: View {
     @EnvironmentObject private var appRouter: HarvousAppRouter
     @State private var showInspectorIOS = false
     @StateObject private var proxy = EditorProxy()
-    @State private var showScriptureEditorSheet = false
     #endif
 
     // MARK: - Body
@@ -114,30 +128,27 @@ struct NoteEditorView: View {
             }
         }
         .onChange(of: note?.id) { oldId, _ in
+            scripturePillPrefetchTask?.cancel()
+            scripturePillPrefetchTask = nil
             previewHighlightThreadId = nil
             dockPinnedHighlightThreadId = nil
             activeHighlightDockExpanded = false
-            pendingHighlightStorageRange = nil
+            activePillDock = nil
+            activePillDockExpanded = false
             overlapNotice = nil
-            recentlyCreatedThreadID = nil
-            selectionMenuGeneration = 0
             studyHighlightPaints = []
 #if os(macOS)
             proxy.hoveredStudyHighlightUUID = nil
 #endif
             scripturePassageSheet = nil
+            highlightDetailThreadId = nil
+            dismissHighlightCapture()
             if let n = note {
                 refreshThreads(note: n)
             } else {
                 threadsForNote = []
                 trailSnapshot = .init(incoming: [], outgoing: [])
             }
-            #if os(iOS)
-            showScriptureEditorSheet = false
-            DispatchQueue.main.async {
-                proxy.resetFormatBarStateForNewNote()
-            }
-            #endif
             autosave.cancel()
             // Capture UI before any child representable runs; avoids persisting wrong note after a switch.
             let snapshotTitle = title
@@ -159,6 +170,7 @@ struct NoteEditorView: View {
             guard let n = note else { return }
             autosave.cancel()
             persistEditorIntoNote(n)
+            HarvousVaultExportCoordinator.shared.flush(modelContext: context)
         }
         .onAppear {
             syncFromNote()
@@ -189,6 +201,230 @@ struct NoteEditorView: View {
             guard let note else { return }
             reconcileStudyHighlightsPainting(for: note)
         }
+        .onReceive(NotificationCenter.default.publisher(for: .harvousNewStandaloneNoteFromSelection)) { notification in
+            // Only the currently-active editor should respond — multiple `NoteEditorView` instances can be
+            // mounted (nested nav stacks on iOS, split view on macOS). Fanning the save out to all of them
+            // caused duplicate inserts and, when the stale one had been destroyed mid-notification, a
+            // SwiftData `try!` crash on its retained context.
+            guard isCurrentForStandaloneSelection else { return }
+            Task { @MainActor in
+                receiveStandaloneNoteFromSelection(notification)
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .harvousHighlightCapturePrompt)) { payload in
+            Task { @MainActor in consumeHighlightPrompt(payload) }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .harvousRequestInsertWikiLink)) { _ in
+            guard note != nil else { return }
+            #if os(iOS)
+            guard appRouter.iosActiveNoteEditorChromeProxy === proxy else { return }
+            #else
+            proxy.refocusTextView()
+            #endif
+            showWikiLinkPicker = true
+        }
+    }
+
+    /// True only for the editor the user is actively writing in — used to gate notification fan-out.
+    private var isCurrentForStandaloneSelection: Bool {
+        guard note != nil else { return false }
+        #if os(iOS)
+        return appRouter.iosActiveNoteEditorChromeProxy === proxy
+        #else
+        return true
+        #endif
+    }
+
+    // MARK: - Highlight capture (selection menu + floating bar)
+
+    private func dismissHighlightCapture() {
+        highlightCaptureSession = nil
+        highlightAnnotationDraft = ""
+        highlightAnnotationAccent = .warmAmber
+    }
+
+    private func consumeHighlightPrompt(_ notification: Notification) {
+        guard isCurrentForStandaloneSelection else { return }
+        guard let ui = notification.userInfo,
+              let idStr = ui[HarvousHighlightCapturePromptUserInfo.parentNoteIdKey] as? String,
+              let nid = UUID(uuidString: idStr),
+              let current = note, current.id == nid,
+              let excerpt = ui[HarvousHighlightCapturePromptUserInfo.excerptKey] as? String else { return }
+        let loc = (ui[HarvousHighlightCapturePromptUserInfo.expandedLocationKey] as? NSNumber)?.intValue
+        let len = (ui[HarvousHighlightCapturePromptUserInfo.expandedLengthKey] as? NSNumber)?.intValue
+        guard let loc, let len, len > 0 else { return }
+        var anchor: CGRect?
+        if let v = ui[HarvousHighlightCapturePromptUserInfo.anchorRectKey] as? NSValue {
+            #if os(macOS)
+            anchor = v.rectValue
+            #else
+            anchor = v.cgRectValue
+            #endif
+        }
+        highlightCaptureSession = HighlightCaptureSession(
+            parentNoteId: nid,
+            excerpt: excerpt,
+            expandedUTF16Location: loc,
+            expandedUTF16Length: len,
+            anchorRect: anchor
+        )
+        highlightAnnotationDraft = ""
+        highlightAnnotationAccent = .warmAmber
+    }
+
+    private func saveHighlightFromPanel(for note: Note) {
+        guard let session = highlightCaptureSession, session.parentNoteId == note.id else { return }
+        let trimmed = highlightAnnotationDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        autosave.cancel()
+        persistEditorIntoNote(note)
+        let exp = NSRange(location: session.expandedUTF16Location, length: session.expandedUTF16Length)
+        SelectionHighlightCreator.create(
+            parent: note,
+            excerpt: session.excerpt,
+            annotation: trimmed,
+            expandedUTF16Range: exp,
+            expandedPlain: editorState.plainText,
+            highlightAccent: highlightAnnotationAccent,
+            modelContext: context
+        )
+        dismissHighlightCapture()
+        refreshThreads(note: note)
+    }
+
+    /// Shared morph id — the bar and popover share their capsule chrome for a seamless grow animation.
+    private static let selectionAccessoryCapsuleMorphID = "harvous-selection-accessory-capsule"
+
+    @ViewBuilder
+    private func selectionAccessoryLayer(note: Note, horizontalClampWidth: CGFloat) -> some View {
+        let anchorRect = proxy.selectionViewportRect
+        ZStack(alignment: .topLeading) {
+            if highlightCaptureSession == nil, proxy.hasSelection, let rect = anchorRect {
+                let width: CGFloat = 92
+                let x = selectionAccessoryX(rect: rect, containerWidth: horizontalClampWidth, width: width)
+                let y = selectionAccessoryY(rect: rect)
+                SelectionActionBar(
+                    morphNamespace: selectionAccessoryNamespace,
+                    morphID: Self.selectionAccessoryCapsuleMorphID,
+                    onHighlight: {
+                        withAnimation(.spring(response: 0.36, dampingFraction: 0.82)) {
+                            proxy.triggerHighlightCapturePrompt?()
+                        }
+                    },
+                    onNewStandaloneNote: { proxy.triggerStandaloneNoteFromSelection?() }
+                )
+                .offset(x: x, y: y)
+                .transition(.asymmetric(
+                    insertion: .opacity.combined(with: .scale(scale: 0.9, anchor: .top)),
+                    removal: .opacity
+                ))
+            }
+            if let session = highlightCaptureSession, session.parentNoteId == note.id {
+                let baseRect = session.anchorRect ?? anchorRect ?? CGRect(x: horizontalClampWidth / 2, y: 80, width: 0, height: 0)
+                let panelW: CGFloat = 360
+                let x = selectionAccessoryX(rect: baseRect, containerWidth: horizontalClampWidth, width: panelW)
+                let y = selectionAccessoryY(rect: baseRect)
+                HighlightAnnotationPopover(
+                    excerptPreview: session.excerpt,
+                    annotationText: $highlightAnnotationDraft,
+                    selectedAccent: $highlightAnnotationAccent,
+                    morphNamespace: selectionAccessoryNamespace,
+                    morphID: Self.selectionAccessoryCapsuleMorphID,
+                    onCancel: {
+                        withAnimation(.spring(response: 0.32, dampingFraction: 0.82)) {
+                            dismissHighlightCapture()
+                        }
+                    },
+                    onSave: { saveHighlightFromPanel(for: note) }
+                )
+                .offset(x: x, y: y)
+                .transition(.asymmetric(
+                    insertion: .opacity,
+                    removal: .opacity.combined(with: .scale(scale: 0.95, anchor: .top))
+                ))
+            }
+        }
+        .animation(.spring(response: 0.36, dampingFraction: 0.82), value: highlightCaptureSession != nil)
+    }
+
+    /// Clamps a floating accessory horizontally inside the editor paper, centered on the selection.
+    private func selectionAccessoryX(rect: CGRect, containerWidth: CGFloat, width: CGFloat) -> CGFloat {
+        let inset: CGFloat = 8
+        let raw = rect.midX - width / 2
+        return min(max(raw, inset), max(inset, containerWidth - width - inset))
+    }
+
+    /// Positions the accessory **below** the selection (8pt gap) so the selected prose stays visible.
+    private func selectionAccessoryY(rect: CGRect) -> CGFloat {
+        rect.maxY + 8
+    }
+
+    /// Persists parent note edits, inserts the quoted child note, then navigates (iOS pushes path; mac swaps selection).
+    private func receiveStandaloneNoteFromSelection(_ notification: Notification) {
+        guard let ui = notification.userInfo,
+              let title = ui[HarvousStandaloneNoteSelectionUserInfo.titleKey] as? String,
+              let body = ui[HarvousStandaloneNoteSelectionUserInfo.bodyKey] as? String else { return }
+
+        let refs: [String] = {
+            if let arr = ui[HarvousStandaloneNoteSelectionUserInfo.refsKey] as? [String] { return arr }
+            if let arr = ui[HarvousStandaloneNoteSelectionUserInfo.refsKey] as? NSArray {
+                return arr.compactMap { $0 as? String }
+            }
+            return []
+        }()
+
+        guard let parentNote = note else { return }
+        autosave.cancel()
+        persistEditorIntoNote(parentNote)
+
+        let sid = parentNote.resolvedSpaceId()
+        let created = Note(title: title, body: body, detectedRefs: refs, spaceId: sid)
+        context.insert(created)
+        NoteSimpleIDAssigner.assignIfMissing(created, in: context)
+        do {
+            try context.save()
+        } catch {
+            print("[NoteEditorView] save failed after standalone-note insert: \(error)")
+            return
+        }
+        HarvousNoteSpotlightIndexer.reindex(note: created)
+        HarvousVaultExporter.scheduleWrite(note: created, modelContext: context)
+
+        // Auto-connect: anchor the new note back to the source selection on the parent (so the parent
+        // shows the connection, both ends surface in the linked-notes sheet, and the anchored highlight paints).
+        let sourceExcerpt = (ui[HarvousStandaloneNoteSelectionUserInfo.sourceExcerptKey] as? String) ?? ""
+        let expandedLoc = (ui[HarvousStandaloneNoteSelectionUserInfo.expandedLocationKey] as? NSNumber)?.intValue
+        let expandedLen = (ui[HarvousStandaloneNoteSelectionUserInfo.expandedLengthKey] as? NSNumber)?.intValue
+        let connection: StudyThread = {
+            if !sourceExcerpt.isEmpty, let loc = expandedLoc, let len = expandedLen, len > 0 {
+                return ThreadStore.createConnectionMarker(
+                    parent: parentNote,
+                    spaceId: sid,
+                    sourceSnippet: sourceExcerpt,
+                    linked: created,
+                    expandedAnchorUTF16Range: NSRange(location: loc, length: len),
+                    expandedPlainForAnchor: editorState.plainText,
+                    modelContext: context
+                )
+            }
+            return ThreadStore.createUnanchoredConnection(
+                parent: parentNote,
+                linked: created,
+                modelContext: context
+            )
+        }()
+        ThreadStore.touchParentNoteIfNeeded(connection, modelContext: context)
+        refreshThreads(note: parentNote)
+
+#if os(macOS)
+        note = created
+#else
+        NotificationCenter.default.post(
+            name: .harvousStandaloneNoteNavigateIOS,
+            object: nil,
+            userInfo: [HarvousStandaloneNoteNavigateUserInfo.noteIdKey: created.id.uuidString]
+        )
+#endif
     }
 
     // MARK: - Empty state
@@ -210,7 +446,7 @@ struct NoteEditorView: View {
             // Scrollable writing surface — `minHeight` matches viewport so paper runs flush to the footer (no dead band).
             GeometryReader { geo in
                 let viewportH = max(geo.size.height, 1)
-                ScrollViewReader { scrollProxy in
+                let paperClampW = max(geo.size.width - 64, 200)
                 ScrollView {
                     VStack(alignment: .leading, spacing: 0) {
                         // Title — Apple Notes style: large, bold, full-width
@@ -229,7 +465,7 @@ struct NoteEditorView: View {
                                     proxy.clearActiveScripturePill()
                                 }
                             }
-                            .padding(.horizontal, 32)
+                            .padding(.horizontal, 20)
                             .padding(.top, 24)
                             .padding(.bottom, 12)
                             .onChange(of: title) { _, newValue in
@@ -247,9 +483,9 @@ struct NoteEditorView: View {
                             snapshot: trailSnapshot,
                             currentNoteTitle: title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "Current note" : title,
                             onOpenLinkedNote: { openNoteInPlace(id: $0) },
-                            onConnectionsChanged: { refreshThreads(note: note) }
+                            onConnectionsChanged: { refreshThreads(note: note) },
+                            horizontalEdgePadding: 20
                         )
-                        .padding(.horizontal, 32)
                         .padding(.bottom, 8)
                         #endif
 
@@ -266,39 +502,22 @@ struct NoteEditorView: View {
                             studyHighlightPaints: studyHighlightPaints,
                             studyHighlightsAssumeDarkAppearance: colorScheme == .dark,
                             onScripturePillTap: { scripturePillTapped(reference: $0, translation: $1, range: $2) },
+                            onResolvedScripturePillPairs: { scheduleScripturePassagePrefetch(pairs: $0) },
+                            pillAccentResolver: { [note] reference in
+                                guard let raw = note.scripturePillAccentRaw(forReference: reference) else { return nil }
+                                guard let token = StudyHighlightAccentToken(rawValue: raw), token != .auto else { return nil }
+                                return token
+                            },
                             onStudyHighlightClick: { userActivatedStudyHighlight(threadId: $0) }
                         )
                         .frame(minHeight: 400)
                         .overlay(alignment: .topLeading) {
-                            if let caretRect = proxy.selectionCaretViewportRect ?? proxy.selectionViewportRect,
-                               proxy.hasSelection,
-                               proxy.activeScripturePill == nil {
-                                let menuWidth: CGFloat = 340
-                                let menuHeight: CGFloat = 108
-                                let editorWidth = max(geo.size.width - 64, 1)
-                                let offset = ThreadChipLayout.overlayOffset(
-                                    caretRect: caretRect,
-                                    bodyWidth: editorWidth,
-                                    overlayWidth: menuWidth,
-                                    overlayHeight: menuHeight
-                                )
-                                StudySelectionFloatingMenu(
-                                    selectionGeneration: selectionMenuGeneration,
-                                    onConfirm: { handleStudySelectionConfirmed($0, note: note) },
-                                    onDismiss: { dismissStudyFloatingMenu() }
-                                )
-                                .fixedSize()
-                                .offset(x: offset.x, y: offset.y)
-                                .scaleEffect(proxy.hasSelection ? 1 : 0.9, anchor: .center)
-                                .opacity(proxy.hasSelection ? 1 : 0)
-                                .animation(.easeOut(duration: 0.12), value: proxy.hasSelection)
-                                .allowsHitTesting(proxy.hasSelection)
-                            }
+                            selectionAccessoryLayer(note: note, horizontalClampWidth: paperClampW)
                         }
                         .overlay(alignment: .topTrailing) {
                             overlapNoticeBadge
                         }
-                        .padding(.horizontal, 32)
+                        .padding(.horizontal, 20)
                         .onChange(of: editorState.plainText) { _, _ in scheduleAutosave(note) }
                         #else
                         HarvousEditor(
@@ -309,49 +528,26 @@ struct NoteEditorView: View {
                             scriptureTheme: scriptureTheme,
                             proxy: proxy,
                             onScripturePillTap: { scripturePillTapped(reference: $0, translation: $1, range: $2) },
+                            onResolvedScripturePillPairs: { scheduleScripturePassagePrefetch(pairs: $0) },
                             onStudyHighlightTap: { userActivatedStudyHighlight(threadId: $0) },
                             studyHighlightPaints: studyHighlightPaints,
-                            studyHighlightsAssumeDarkAppearance: colorScheme == .dark
+                            studyHighlightsAssumeDarkAppearance: colorScheme == .dark,
+                            pillAccentResolver: { [note] reference in
+                                guard let raw = note.scripturePillAccentRaw(forReference: reference) else { return nil }
+                                guard let token = StudyHighlightAccentToken(rawValue: raw), token != .auto else { return nil }
+                                return token
+                            }
                         )
                         .frame(minHeight: 400)
                         .overlay(alignment: .topLeading) {
-                            if let rect = proxy.selectionCaretViewportRect ?? proxy.selectionViewportRect,
-                               proxy.hasSelection,
-                               proxy.activeScripturePill == nil {
-                                let menuWidth: CGFloat = 340
-                                let menuHeight: CGFloat = 112
-                                let editorWidth = max(geo.size.width - 64, 1)
-                                let offset = ThreadChipLayout.overlayOffset(
-                                    caretRect: rect,
-                                    bodyWidth: editorWidth,
-                                    overlayWidth: menuWidth,
-                                    overlayHeight: menuHeight
-                                )
-                                StudySelectionFloatingMenu(
-                                    selectionGeneration: selectionMenuGeneration,
-                                    onConfirm: { handleStudySelectionConfirmed($0, note: note) },
-                                    onDismiss: { dismissStudyFloatingMenu() }
-                                )
-                                .fixedSize()
-                                .offset(x: offset.x, y: offset.y)
-                                .scaleEffect(proxy.hasSelection ? 1 : 0.9, anchor: .center)
-                                .opacity(proxy.hasSelection ? 1 : 0)
-                                .animation(.easeOut(duration: 0.12), value: proxy.hasSelection)
-                                .allowsHitTesting(proxy.hasSelection)
-                            }
+                            selectionAccessoryLayer(note: note, horizontalClampWidth: paperClampW)
                         }
                         .overlay(alignment: .topTrailing) {
                             overlapNoticeBadge
                         }
-                        .padding(.horizontal, 32)
+                        .padding(.horizontal, 20)
                         .onChange(of: editorState.plainText) { _, _ in scheduleAutosave(note) }
                         #endif
-
-                        if let recentHighlightScrollId = recentlyCreatedThreadID {
-                            Color.clear.frame(height: 8).opacity(0.001).id(recentHighlightScrollId)
-                        }
-
-                        activeStudyHighlightDock(note: note)
 
                         #if os(iOS)
                         Spacer().frame(height: 80)
@@ -361,36 +557,42 @@ struct NoteEditorView: View {
                     }
                     .frame(maxWidth: .infinity, minHeight: viewportH, alignment: .top)
                 }
-                .onChange(of: recentlyCreatedThreadID) { _, newID in
-                    guard let newID else { return }
-                    withAnimation(.easeOut(duration: 0.35)) {
-                        scrollProxy.scrollTo(newID, anchor: .center)
-                    }
-                }
-                }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+            // Dock layer pinned above the bottom action bar so a newly created/opened dock is always
+            // visible without requiring the user to scroll down. Lives outside the `ScrollView`
+            // intentionally — these are focus-mode overlays, not inline note content.
+            activeStudyHighlightDock(note: note)
+            activeScripturePillDock(note: note)
 
             #if os(macOS)
             // Bottom bar: format toolbar when selected, while typing, or when pointer is on the bar
             if proxy.shouldShowNoteToolbar {
                 NoteToolbar(proxy: proxy)
                     .transition(.move(edge: .bottom).combined(with: .opacity))
-            } else if proxy.activeScripturePill != nil {
+            } else if proxy.activeScripturePill != nil && activePillDock == nil {
                 ScripturePillActionBar(proxy: proxy)
                     .transition(.move(edge: .bottom).combined(with: .opacity))
             } else {
-                NoteActionBar(
-                    note: note,
-                    trailSnapshot: trailSnapshot,
-                    currentNoteTitle: title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "Current note" : title,
-                    onOpenLinkedNote: { id in openNoteInPlace(id: id) },
-                    onConnectionsChanged: { refreshThreads(note: note) },
-                    isCollectionContextUpdating: isCollectionContextUpdating
-                )
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                VStack(spacing: 0) {
+                    Color(nsColor: .separatorColor).frame(height: 0.5)
+                    NoteConnectionsBar(
+                        note: note,
+                        snapshot: trailSnapshot,
+                        currentNoteTitle: title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "Current note" : title,
+                        onOpenLinkedNote: { id in openNoteInPlace(id: id) },
+                        onConnectionsChanged: { refreshThreads(note: note) }
+                    )
+                }
+                .background(.thinMaterial)
+                .transition(.move(edge: .bottom).combined(with: .opacity))
             }
             #endif
+        }
+        .onDisappear {
+            scripturePillPrefetchTask?.cancel()
+            scripturePillPrefetchTask = nil
         }
         #if os(macOS)
         .sheet(isPresented: $proxy.showAddLinkSheet) {
@@ -405,9 +607,11 @@ struct NoteEditorView: View {
         }
         .animation(HarvousAnimation.spring, value: proxy.shouldShowNoteToolbar)
         .animation(HarvousAnimation.spring, value: proxy.activeScripturePill != nil)
+        .animation(HarvousAnimation.spring, value: activePillDock != nil)
         .inspector(isPresented: showInspector) {
             inspectorContent(note: note)
         }
+        .toolbar {}
         #else
         // Sheet (not `.inspector`) so `NavigationStack` shows title + Cancel like `ComposeView`.
         .sheet(isPresented: $showInspectorIOS) {
@@ -436,68 +640,28 @@ struct NoteEditorView: View {
                 }
             }
         }
-        .sheet(isPresented: $showScriptureEditorSheet) {
-            ScripturePillEditorSheet(proxy: proxy) { ref, trans in
-                scripturePassageSheet = ScripturePassageSheetItem(reference: ref, translation: trans)
-            }
-        }
-        .onChange(of: showScriptureEditorSheet) { _, open in
-            if !open {
-                DispatchQueue.main.async {
-                    proxy.clearActiveScripturePill()
-                }
-            }
-        }
         .toolbar {
-            ToolbarItem(placement: .navigationBarLeading) {
-                Button {
-                    withAnimation(HarvousAnimation.spring) { showInspectorIOS = true }
-                } label: {
-                    HStack(spacing: 6) {
-                        CollectionSymbol(
-                            isContextUpdating: isCollectionContextUpdating,
-                            font: .system(size: 14)
-                        )
-                        if let label = currentCollectionLabel {
-                            Text(label)
-                                .font(HarvousFonts.font(size: 16, weight: 500, design: .default))
-                                .lineLimit(1)
-                                .minimumScaleFactor(1)
-                                .fixedSize(horizontal: true, vertical: false)
-                                .opacity(showCollectionToolbarText ? 1 : 0)
-                                .offset(x: showCollectionToolbarText ? 0 : -8)
-                                .animation(.easeOut(duration: 0.18), value: showCollectionToolbarText)
-                        }
+            ToolbarItemGroup(placement: .topBarTrailing) {
+                NoteTopBar(
+                    note: note,
+                    isCollectionContextUpdating: isCollectionContextUpdating,
+                    showCollectionToolbarText: showCollectionToolbarText,
+                    scriptureTheme: scriptureTheme
+                )
+                NoteShareDeleteBar(
+                    note: note,
+                    scriptureTheme: scriptureTheme,
+                    onDeleteConfirmed: { deleteCurrentNoteIfPossible() },
+                    onOpenNoteDetails: {
+                        withAnimation(HarvousAnimation.spring) { showInspectorIOS = true }
                     }
-                }
-                .tint(
-                    currentCollectionLabel != nil
-                        ? HarvousColors.themeAccent(scriptureTheme)
-                        : Color.secondary
                 )
-                .accessibilityLabel(
-                    currentCollectionLabel.map { "Collection: \($0)" } ?? "No collection"
-                )
-                .accessibilityHint(
-                    currentCollectionLabel != nil
-                        ? "Opens note details to edit collection"
-                        : "Opens note details to add a collection"
-                )
-            }
-            ToolbarItemGroup(placement: .primaryAction) {
-                Button {
-                    withAnimation(HarvousAnimation.spring) { showInspectorIOS.toggle() }
-                } label: {
-                    if showInspectorIOS {
-                        Label("Hide note details", systemImage: "sidebar.left")
-                    } else {
-                        Label("Note details", systemImage: "sidebar.right")
-                    }
-                }
-                .accessibilityHint(showInspectorIOS ? "Closes the note details panel" : "Opens tags, collection, and info")
             }
         }
         #endif
+        .sheet(item: $highlightDetailThreadId) { item in
+            highlightDetailSheet(for: item.threadId)
+        }
         .sheet(item: $scripturePassageSheet) { item in
             NavigationStack {
                 ScrollView {
@@ -513,6 +677,111 @@ struct NoteEditorView: View {
             }
             .frame(minWidth: 420, minHeight: 460)
         }
+        .sheet(isPresented: $showLinkPicker) {
+            linkPickerSheetContent
+        }
+        .sheet(isPresented: $showWikiLinkPicker) {
+            wikiLinkPickerSheetContent
+        }
+        .sheet(isPresented: $showRelatedNotes) {
+            relatedNotesSheetContent
+        }
+    }
+
+    @ViewBuilder
+    private var linkPickerSheetContent: some View {
+        if let n = note {
+            NavigationStack {
+                ConnectNotePicker(
+                    spaceId: n.resolvedSpaceId(),
+                    parentNoteId: n.id,
+                    onPick: { picked in
+                        _ = ThreadStore.createUnanchoredConnection(parent: n, linked: picked, modelContext: context)
+                        refreshThreads(note: n)
+                        showLinkPicker = false
+                    },
+                    onCancel: {
+                        showLinkPicker = false
+                    }
+                )
+                .navigationTitle("Link to note")
+                #if os(iOS)
+                .navigationBarTitleDisplayMode(.inline)
+                #endif
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Done") {
+                            showLinkPicker = false
+                        }
+                    }
+                }
+            }
+        } else {
+            Color.clear.onAppear { showLinkPicker = false }
+        }
+    }
+
+    @ViewBuilder
+    private var wikiLinkPickerSheetContent: some View {
+        if let n = note {
+            NavigationStack {
+                ConnectNotePicker(
+                    spaceId: n.resolvedSpaceId(),
+                    parentNoteId: n.id,
+                    onPick: { picked in
+                        let t = picked.title.trimmingCharacters(in: .whitespacesAndNewlines)
+                        proxy.insertNoteWikilink(title: t.isEmpty ? "Untitled note" : t)
+                        HarvousVaultExporter.scheduleWrite(note: n, modelContext: context)
+                        showWikiLinkPicker = false
+                    },
+                    onCancel: {
+                        showWikiLinkPicker = false
+                    }
+                )
+                .navigationTitle("Insert note wikilink")
+                #if os(iOS)
+                .navigationBarTitleDisplayMode(.inline)
+                #endif
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Done") {
+                            showWikiLinkPicker = false
+                        }
+                    }
+                }
+            }
+        } else {
+            Color.clear.onAppear { showWikiLinkPicker = false }
+        }
+    }
+
+    @ViewBuilder
+    private var relatedNotesSheetContent: some View {
+        if let n = note {
+            RelatedNotesSheet(targetNoteId: n.id, spaceId: n.resolvedSpaceId()) { parentId in
+                openNoteInPlace(id: parentId)
+            }
+        } else {
+            Color.clear.onAppear { showRelatedNotes = false }
+        }
+    }
+
+    private func deleteCurrentNoteIfPossible() {
+        guard let n = note else { return }
+        autosave.cancel()
+        persistEditorIntoNote(n)
+        let nid = n.id
+        HarvousVaultExporter.removeMirrorFiles(for: n, modelContext: context)
+        HarvousNoteSpotlightIndexer.removeNote(id: nid)
+        context.delete(n)
+        do {
+            try context.save()
+        } catch {
+            print("[NoteEditorView] delete save failed: \(error)")
+            return
+        }
+        note = nil
+        onRequestDismissEditor?()
     }
 
     // MARK: - Study threads
@@ -559,6 +828,10 @@ struct NoteEditorView: View {
                 onJumpToLinkedNote: { openNoteInPlace(id: $0) },
                 onReadPassage: { ref, trans in
                     scripturePassageSheet = ScripturePassageSheetItem(reference: ref, translation: trans)
+                },
+                onRemoveHighlight: {
+                    removeHighlightThread(dockThread, parent: note)
+                    dismissStudyHighlightDock()
                 }
             )
         }
@@ -570,17 +843,47 @@ struct NoteEditorView: View {
         previewHighlightThreadId = nil
     }
 
+    /// Permanently delete the highlight's backing `StudyThread`, then refresh paint state
+    /// so the underline immediately disappears from the editor.
+    private func removeHighlightThread(_ thread: StudyThread, parent: Note) {
+        context.delete(thread)
+        try? context.save()
+        refreshThreads(note: parent)
+        #if os(iOS)
+        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        #endif
+    }
+
     private func userActivatedStudyHighlight(threadId: UUID) {
-        guard let thread = ThreadStore.fetch(id: threadId, modelContext: context) else { return }
-        guard StudyThread.anchoredHighlightKinds.contains(thread.entryKind),
-              thread.hasPersistedHighlightAnchor else { return }
-        if dockPinnedHighlightThreadId == threadId {
-            activeHighlightDockExpanded.toggle()
-        } else {
-            dockPinnedHighlightThreadId = threadId
-            activeHighlightDockExpanded = true
-            previewHighlightThreadId = nil
+        #if DEBUG
+        print("[Harvous.highlight.activate] threadId=\(threadId) note=\(note?.id.uuidString.prefix(8) ?? "nil")")
+        #endif
+        guard let thread = ThreadStore.fetch(id: threadId, modelContext: context) else {
+            #if DEBUG
+            print("[Harvous.highlight.activate] FAIL — thread not found in modelContext")
+            #endif
+            return
         }
+        guard StudyThread.anchoredHighlightKinds.contains(thread.entryKind),
+              thread.hasPersistedHighlightAnchor else {
+            #if DEBUG
+            print("[Harvous.highlight.activate] FAIL — kind=\(thread.entryKind) hasAnchor=\(thread.hasPersistedHighlightAnchor)")
+            #endif
+            return
+        }
+        // Pin the inline `ActiveHighlightDock` — this is the same view the hover-preview path uses
+        // successfully, so it sidesteps all of SwiftUI's sheet-presentation timing issues and is
+        // guaranteed to appear right below the editor regardless of UITextView first-responder state.
+        dockPinnedHighlightThreadId = threadId
+        activeHighlightDockExpanded = true
+        previewHighlightThreadId = nil
+        highlightDetailThreadId = nil
+        #if DEBUG
+        print("[Harvous.highlight.activate] OK — pinned dock for threadId=\(threadId)")
+        #endif
+        #if os(iOS)
+        UIImpactFeedbackGenerator(style: .soft).impactOccurred()
+        #endif
     }
 
     private func reconcileStudyHighlightsPainting(for note: Note) {
@@ -604,36 +907,13 @@ struct NoteEditorView: View {
 #if os(macOS)
 
     private func bodySelectionAnchoringChanged(macHasSelection: Bool) {
-        guard macHasSelection else {
-            pendingHighlightStorageRange = nil
+        if !macHasSelection {
+            dismissHighlightCapture()
             previewHighlightThreadId = nil
             return
         }
         dockPinnedHighlightThreadId = nil
         activeHighlightDockExpanded = false
-        snapshotPendingMacSelection()
-    }
-
-    private func snapshotPendingMacSelection() {
-        guard let tv = proxy.textView, let storage = tv.textStorage else {
-            pendingHighlightStorageRange = nil
-            return
-        }
-        let r = tv.selectedRange()
-        guard r.length > 0 else {
-            pendingHighlightStorageRange = nil
-            return
-        }
-        if HarvousStudyHighlightMapper.selectionIntersectsUnresolvedAttachment(r, in: storage) {
-            pendingHighlightStorageRange = nil
-            return
-        }
-        guard case .success = HarvousStudyHighlightMapper.expandedRange(forStorageSelection: r, in: storage) else {
-            pendingHighlightStorageRange = nil
-            return
-        }
-        pendingHighlightStorageRange = r
-        selectionMenuGeneration &+= 1
     }
 
     private func macUpdatePreviewForHoveredHighlight(_ hoveredId: UUID?) {
@@ -649,57 +929,16 @@ struct NoteEditorView: View {
 #else
 
     private func bodySelectionAnchoringChanged(iosHasSelection: Bool) {
-        guard iosHasSelection else {
-            pendingHighlightStorageRange = nil
+        if !iosHasSelection {
+            dismissHighlightCapture()
             previewHighlightThreadId = nil
             return
         }
         dockPinnedHighlightThreadId = nil
         activeHighlightDockExpanded = false
-        snapshotPendingIOSSelection()
-    }
-
-    private func snapshotPendingIOSSelection() {
-        guard let tv = proxy.textView else {
-            pendingHighlightStorageRange = nil
-            return
-        }
-        if tv.textColor == .tertiaryLabel {
-            pendingHighlightStorageRange = nil
-            return
-        }
-        let storage = tv.textStorage
-        let r = tv.selectedRange
-        guard r.length > 0 else {
-            pendingHighlightStorageRange = nil
-            return
-        }
-        if HarvousStudyHighlightMapper.selectionIntersectsUnresolvedAttachment(r, in: storage) {
-            pendingHighlightStorageRange = nil
-            return
-        }
-        guard case .success = HarvousStudyHighlightMapper.expandedRange(forStorageSelection: r, in: storage) else {
-            pendingHighlightStorageRange = nil
-            return
-        }
-        pendingHighlightStorageRange = r
-        selectionMenuGeneration &+= 1
     }
 
 #endif
-
-    private func overlapsExistingAnchoredHighlights(note: Note, expandedSelection: NSRange, expandedPlain: String) -> Bool {
-        let anchored = ThreadStore.fetchAnchoredHighlights(parentNoteId: note.id, modelContext: context)
-        let nsExpanded = expandedPlain as NSString
-        guard expandedSelection.location >= 0, NSMaxRange(expandedSelection) <= nsExpanded.length else { return false }
-
-        for marker in anchored where StudyThread.anchoredHighlightKinds.contains(marker.entryKind) {
-            guard marker.hasPersistedHighlightAnchor else { continue }
-            guard let markerRange = marker.resolveHighlightRangeAgainstExpandedBody(expandedPlain) else { continue }
-            if NSIntersectionRange(expandedSelection, markerRange).length > 0 { return true }
-        }
-        return false
-    }
 
     private func bumpOverlapNotice(_ message: String) {
         overlapNotice = message
@@ -707,98 +946,6 @@ struct NoteEditorView: View {
             try? await Task.sleep(for: .seconds(2.8))
             if overlapNotice == message {
                 overlapNotice = nil
-            }
-        }
-    }
-
-    private func dismissStudyFloatingMenu() {
-        pendingHighlightStorageRange = nil
-        selectionMenuGeneration &+= 1
-        clearEditorSelectionAfterAction()
-    }
-
-    private func handleStudySelectionConfirmed(_ payload: StudySelectionInput, note: Note) {
-        persistEditorIntoNote(note)
-        defer {
-            pendingHighlightStorageRange = nil
-            clearEditorSelectionAfterAction()
-        }
-
-#if os(macOS)
-        guard let storage = proxy.textView?.textStorage else {
-            bumpOverlapNotice("Editor isn't ready.")
-            return
-        }
-#else
-        guard let tv = proxy.textView, tv.textColor != .tertiaryLabel else {
-            bumpOverlapNotice("Editor isn't ready.")
-            return
-        }
-        let storage = tv.textStorage
-#endif
-
-        guard let storSel = pendingHighlightStorageRange, storSel.length > 0 else {
-            bumpOverlapNotice("Lost the highlight selection.")
-            return
-        }
-
-        guard !HarvousStudyHighlightMapper.selectionIntersectsUnresolvedAttachment(storSel, in: storage),
-              case let .success(expandedSel) = HarvousStudyHighlightMapper.expandedRange(forStorageSelection: storSel, in: storage)
-        else {
-            bumpOverlapNotice("Can't split scripture pills.")
-            return
-        }
-
-        let expandedPlain = harvousExpandedPlainText(in: storage)
-        guard expandedPlain == editorState.plainText else {
-            bumpOverlapNotice("Body changed — retry.")
-            return
-        }
-
-        if overlapsExistingAnchoredHighlights(note: note, expandedSelection: expandedSel, expandedPlain: expandedPlain) {
-            bumpOverlapNotice("Overlaps another highlight.")
-            return
-        }
-
-        let nsExpandedPlain = expandedPlain as NSString
-        guard expandedSel.location >= 0, NSMaxRange(expandedSel) <= nsExpandedPlain.length else {
-            bumpOverlapNotice("Mapping failed.")
-            return
-        }
-
-        let sourceSnippet = ThreadEditorSnippet.clampSource(nsExpandedPlain.substring(with: expandedSel))
-
-        let createdThread = ThreadStore.createMiniNote(
-            parent: note,
-            spaceId: note.resolvedSpaceId(),
-            sourceSnippet: sourceSnippet,
-            body: payload.body,
-            highlightAccent: payload.accent,
-            expandedAnchorUTF16Range: expandedSel,
-            expandedPlainForAnchor: expandedPlain,
-            modelContext: context
-        )
-
-        bumpRecentlyCreatedScroller(threadId: createdThread.id)
-
-        dockPinnedHighlightThreadId = createdThread.id
-        activeHighlightDockExpanded = true
-        previewHighlightThreadId = nil
-
-#if os(macOS)
-        proxy.hoveredStudyHighlightUUID = nil
-#endif
-
-        reconcileStudyHighlightsPainting(for: note)
-        refreshThreads(note: note)
-    }
-
-    private func bumpRecentlyCreatedScroller(threadId: UUID) {
-        recentlyCreatedThreadID = threadId
-        Task { @MainActor in
-            try? await Task.sleep(for: .milliseconds(1750))
-            if recentlyCreatedThreadID == threadId {
-                recentlyCreatedThreadID = nil
             }
         }
     }
@@ -832,30 +979,13 @@ struct NoteEditorView: View {
 #endif
     }
 
-    private func clearEditorSelectionAfterAction() {
-        #if os(macOS)
-        if let tv = proxy.textView {
-            let end = tv.selectedRange().location + tv.selectedRange().length
-            tv.setSelectedRange(NSRange(location: end, length: 0))
-        }
-        proxy.hasSelection = false
-        #else
-        if let tv = proxy.textView {
-            let end = tv.selectedRange.location + tv.selectedRange.length
-            tv.selectedRange = NSRange(location: end, length: 0)
-        }
-        proxy.hasSelection = false
-        proxy.selectionViewportRect = nil
-        #endif
-    }
-
     @ViewBuilder
     private func inspectorContent(note: Note) -> some View {
         #if os(macOS)
         NoteInspectorView(
             note: note,
-            onJumpToAnchoredHighlight: { entryKind in
-                jumpInspectorToHighlight(kind: entryKind, inspectedNote: note)
+            onJumpToHighlightedCaptures: {
+                jumpInspectorToHighlight(kind: .miniNote, inspectedNote: note)
             }
         )
         .inspectorColumnWidth(min: 240, ideal: 280, max: 320)
@@ -863,8 +993,8 @@ struct NoteEditorView: View {
         NavigationStack {
             NoteInspectorView(
                 note: note,
-                onJumpToAnchoredHighlight: { entryKind in
-                    jumpInspectorToHighlight(kind: entryKind, inspectedNote: note)
+                onJumpToHighlightedCaptures: {
+                    jumpInspectorToHighlight(kind: .miniNote, inspectedNote: note)
                 }
             )
             .navigationTitle("Note Details")
@@ -882,14 +1012,129 @@ struct NoteEditorView: View {
 
     private func scripturePillTapped(reference: String, translation: String, range: NSRange) {
         Task { @MainActor in
-            let pill = ActiveScripturePill(attachmentRange: range, reference: reference, translation: translation)
-            #if os(macOS)
-            proxy.activeScripturePill = pill
-            #else
-            proxy.activeScripturePill = pill
-            showScriptureEditorSheet = true
+            // Close any open highlight dock so the two never overlap visually.
+            dockPinnedHighlightThreadId = nil
+            activeHighlightDockExpanded = false
+            previewHighlightThreadId = nil
+
+            activePillDock = ActiveScripturePillDockItem(reference: reference, translation: translation, range: range)
+            activePillDockExpanded = true
+            #if os(iOS)
+            UIImpactFeedbackGenerator(style: .soft).impactOccurred()
             #endif
         }
+    }
+
+    /// Parallel scripture passage prefetch once pills exist in storage (bounded concurrency; cancelled when the note/editor goes away).
+    private func scheduleScripturePassagePrefetch(pairs: [(reference: String, translation: String)]) {
+        scripturePillPrefetchTask?.cancel()
+        scripturePillPrefetchTask = Task(priority: .utility) {
+            await ScripturePassageCache.shared.prefetchDistinctPairs(pairs, maxConcurrency: 3)
+        }
+    }
+
+    @ViewBuilder
+    private func activeScripturePillDock(note: Note) -> some View {
+        if let item = activePillDock {
+            ActiveScripturePillDock(
+                reference: item.reference,
+                translation: Binding(
+                    get: { activePillDock?.translation ?? item.translation },
+                    set: { newTrans in
+                        guard var current = activePillDock else { return }
+                        guard current.translation != newTrans else { return }
+                        current.translation = newTrans
+                        activePillDock = current
+                        applyScripturePillTranslationChange(from: current, newTranslation: newTrans, note: note)
+                    }
+                ),
+                accent: Binding(
+                    get: {
+                        let ref = activePillDock?.reference ?? item.reference
+                        guard let raw = note.scripturePillAccentRaw(forReference: ref) else { return nil }
+                        guard let token = StudyHighlightAccentToken(rawValue: raw), token != .auto else { return nil }
+                        return token
+                    },
+                    set: { newValue in
+                        let ref = activePillDock?.reference ?? item.reference
+                        note.setScripturePillAccent(newValue?.rawValue, forReference: ref)
+                        try? context.save()
+                        requestScripturePillRedetect()
+                    }
+                ),
+                isExpanded: $activePillDockExpanded,
+                onReferenceChanged: { newReference in
+                    applyScripturePillReferenceChange(newReference: newReference, note: note)
+                },
+                onDismiss: dismissActiveScripturePillDock
+            )
+        }
+    }
+
+    private func dismissActiveScripturePillDock() {
+        activePillDock = nil
+        activePillDockExpanded = false
+        // Also clear the selection-driven pill state so the old bottom action bar doesn't pop up
+        // right after dismiss while the caret is still inside the pill attachment range.
+        proxy.activeScripturePill = nil
+    }
+
+    /// Update the inline pill attachment's translation in-place by routing through the existing
+    /// `EditorProxy.replaceActiveScripturePill` path (it already preserves the accent attribute).
+    private func applyScripturePillTranslationChange(from item: ActiveScripturePillDockItem,
+                                                      newTranslation: String,
+                                                      note: Note) {
+        // `EditorProxy.replaceActiveScripturePill` wants an `activeScripturePill` set first.
+        proxy.activeScripturePill = ActiveScripturePill(
+            attachmentRange: item.range,
+            reference: item.reference,
+            translation: item.translation
+        )
+        proxy.replaceActiveScripturePill(reference: item.reference, translation: newTranslation, theme: scriptureTheme)
+        // After replacement the caret sits on the pill — clear `activeScripturePill` so the selection-
+        // driven bottom bar doesn't appear on top of the inline dock.
+        proxy.activeScripturePill = nil
+        requestScripturePillRedetect()
+    }
+
+    /// Rewrite the inline pill attachment with a new reference (user picked different Book/Chapter/Verse
+    /// in the dock). Keeps the current translation, carries over any per-reference accent the user had
+    /// picked, and keeps the dock pinned on the new reference.
+    private func applyScripturePillReferenceChange(newReference: String, note: Note) {
+        guard let current = activePillDock else { return }
+        guard newReference != current.reference else { return }
+
+        // Migrate the accent map key so the color follows the edit.
+        if let accentRaw = note.scripturePillAccentRaw(forReference: current.reference) {
+            note.setScripturePillAccent(nil, forReference: current.reference)
+            note.setScripturePillAccent(accentRaw, forReference: newReference)
+            try? context.save()
+        }
+
+        proxy.activeScripturePill = ActiveScripturePill(
+            attachmentRange: current.range,
+            reference: current.reference,
+            translation: current.translation
+        )
+        proxy.replaceActiveScripturePill(reference: newReference, translation: current.translation, theme: scriptureTheme)
+        proxy.activeScripturePill = nil
+
+        // Pin the dock to the new reference. Range may shift slightly because the pill's character
+        // is still 1 `NSAttachment` wide, but we keep the old location as the best available anchor.
+        activePillDock = ActiveScripturePillDockItem(
+            reference: newReference,
+            translation: current.translation,
+            range: current.range
+        )
+        ScriptureApplyFeedback.notifyScripturePillApplied()
+        requestScripturePillRedetect()
+    }
+
+    /// Nudge `HarvousEditor` to re-insert pills so accent/translation changes repaint.
+    /// SwiftUI diffing on `documentBody` already triggers `detectAndInsertPills` when body content
+    /// changes; for accent-only changes we bump via a lightweight body-identity refresh.
+    private func requestScripturePillRedetect() {
+        NotificationCenter.default.post(name: .harvousForceScripturePillRedetect, object: note?.id)
     }
 
     private func openNoteInPlace(id: UUID) {
@@ -955,7 +1200,8 @@ struct NoteEditorView: View {
             )
         )
         try? context.save()
-        HarvousRecallOSIntegration.afterNotePersisted(note: n, modelContext: context)
+        HarvousNoteSpotlightIndexer.reindex(note: n)
+        HarvousVaultExporter.scheduleWrite(note: n, modelContext: context)
         autosave.updateSnapshot(title: title, body: body, refs: refs)
         withAnimation(HarvousAnimation.spring) {
             isCollectionContextUpdating = false
@@ -991,7 +1237,8 @@ struct NoteEditorView: View {
             )
         )
         try? context.save()
-        HarvousRecallOSIntegration.afterNotePersisted(note: previous, modelContext: context)
+        HarvousNoteSpotlightIndexer.reindex(note: previous)
+        HarvousVaultExporter.scheduleWrite(note: previous, modelContext: context)
         autosave.updateSnapshot(title: title, body: body, refs: refs)
         withAnimation(HarvousAnimation.spring) {
             isCollectionContextUpdating = false
@@ -1065,26 +1312,90 @@ struct NoteEditorView: View {
     }
 }
 
-private enum ThreadChipLayout {
-    /// Places the floating context menu near the active selection/caret.
-    /// Prefers positioning above the selected line, but falls back to below
-    /// when there isn't enough room above (e.g. selection near top of editor)
-    /// so the menu never covers the selected text.
-    static func overlayOffset(
-        caretRect rect: CGRect,
-        bodyWidth: CGFloat,
-        overlayWidth: CGFloat,
-        overlayHeight: CGFloat = 40
-    ) -> CGPoint {
-        let gap: CGFloat = 8
-        let inset: CGFloat = 6
-        let centeredX = rect.midX - (overlayWidth / 2)
-        let overlayX = min(max(centeredX, inset), bodyWidth - overlayWidth - inset)
-        let aboveY = rect.minY - overlayHeight - gap
-        let belowY = rect.maxY + gap
-        let overlayY = aboveY >= inset ? aboveY : belowY
-        return CGPoint(x: overlayX, y: overlayY)
+/// Identifiable wrapper so `.sheet(item:)` can re-present the highlight sheet for a different thread.
+struct HighlightDetailSheetItem: Identifiable, Hashable {
+    let threadId: UUID
+    var id: UUID { threadId }
+}
+
+extension NoteEditorView {
+    /// Bottom sheet shown when the user clicks/taps a painted highlight. Mirrors the scripture passage sheet
+    /// shape (NavigationStack + Done button) and reuses `ActiveHighlightDock` for the accent-themed chrome.
+    @ViewBuilder
+    fileprivate func highlightDetailSheet(for threadId: UUID) -> some View {
+        if let thread = ThreadStore.fetch(id: threadId, modelContext: context), let parent = note {
+            NavigationStack {
+                ScrollView {
+                    ActiveHighlightDock(
+                        thread: thread,
+                        isExpanded: .constant(true),
+                        scriptureTheme: scriptureTheme,
+                        onDismiss: { highlightDetailThreadId = nil },
+                        onAccentPersisted: { reconcileStudyHighlightsPainting(for: parent) },
+                        onJumpToLinkedNote: { nid in
+                            highlightDetailThreadId = nil
+                            openNoteInPlace(id: nid)
+                        },
+                        onReadPassage: { ref, trans in
+                            highlightDetailThreadId = nil
+                            scripturePassageSheet = ScripturePassageSheetItem(reference: ref, translation: trans)
+                        },
+                        onRemoveHighlight: {
+                            removeHighlightThread(thread, parent: parent)
+                            highlightDetailThreadId = nil
+                        }
+                    )
+                    .padding(.horizontal, 4)
+                    .padding(.vertical, 20)
+                }
+                .navigationTitle("Highlight")
+                #if os(iOS)
+                .navigationBarTitleDisplayMode(.inline)
+                #endif
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Done") { highlightDetailThreadId = nil }
+                    }
+                }
+            }
+            #if os(iOS)
+            .presentationDetents([.medium, .large])
+            .presentationDragIndicator(.visible)
+            #else
+            .frame(minWidth: 420, minHeight: 280)
+            #endif
+        } else {
+            Color.clear.onAppear { highlightDetailThreadId = nil }
+        }
     }
+}
+
+private struct HighlightCaptureSession: Identifiable {
+    let id = UUID()
+    let parentNoteId: UUID
+    let excerpt: String
+    let expandedUTF16Location: Int
+    let expandedUTF16Length: Int
+    /// Viewport-relative rect hint for popover/analytics (same space as selectionViewportRect).
+    let anchorRect: CGRect?
+}
+
+/// Inline scripture-pill dock context: identifies the tapped pill and the translation currently shown.
+struct ActiveScripturePillDockItem: Identifiable, Equatable {
+    let reference: String
+    var translation: String
+    let range: NSRange
+
+    var id: String { "\(reference)|\(range.location)|\(range.length)" }
+
+    static func == (lhs: ActiveScripturePillDockItem, rhs: ActiveScripturePillDockItem) -> Bool {
+        lhs.reference == rhs.reference && lhs.translation == rhs.translation && lhs.range == rhs.range
+    }
+}
+
+extension Notification.Name {
+    /// Prompts `HarvousEditor` to re-run scripture pill detection so accent changes repaint in place.
+    static let harvousForceScripturePillRedetect = Notification.Name("harvousForceScripturePillRedetect")
 }
 
 #Preview {

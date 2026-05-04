@@ -129,9 +129,7 @@ struct LibraryView: View {
             ForEach(groupedFiltered, id: \.key) { group in
                 Section {
                     ForEach(group.notes) { note in
-                        NavigationLink {
-                            StatefulNoteEditorView(note: note)
-                        } label: {
+                        NavigationLink(value: note.id) {
                             NoteFeedRow(note: note, variant: .conversation)
                         }
                         .listRowInsets(EdgeInsets(top: 4, leading: 14, bottom: 4, trailing: 14))

@@ -86,6 +86,10 @@ final class EditorProxy: ObservableObject {
     /// HarvousEditor assigns this so `replaceActiveScripturePill` can refresh `EditorState` before the next platform update syncs stale `plainText` from SwiftUI and wipes the pill.
     var syncPlainTextBindingFromTextView: ((HVTextView) -> Void)?
 
+    /// Floating selection pill + SwiftUI invokes these; coordinators forward to contextual-menu handlers.
+    var triggerHighlightCapturePrompt: (() -> Void)?
+    var triggerStandaloneNoteFromSelection: (() -> Void)?
+
     var shouldShowNoteToolbar: Bool {
         isBodyFirstResponder
             && activeScripturePill == nil
@@ -108,10 +112,11 @@ final class EditorProxy: ObservableObject {
         hoveredStudyHighlightUUID = nil
         studyHighlightHoverTask?.cancel()
         studyHighlightHoverTask = nil
+        triggerHighlightCapturePrompt = nil
+        triggerStandaloneNoteFromSelection = nil
         cancelFormatBarHideAction?()
     }
 
-    /// Debounces rapid `mouseMoved` so preview doesn’t flicker — ~220ms dwell before showing, quicker clear.
     func setStudyHighlightHoverDebounced(_ uuid: UUID?) {
         studyHighlightHoverTask?.cancel()
         let captured = uuid
@@ -151,12 +156,19 @@ final class EditorProxy: ObservableObject {
     }
 
     /// Replaces the focused inline pill with a new reference + translation and keeps it selected.
+    ///
+    /// Accent is preserved across the replacement: if the original pill had a per-reference accent set
+    /// we carry it over to the new reference so changing translation doesn't silently reset color.
     func replaceActiveScripturePill(reference: String, translation: String, theme: HarvousColors.ThemeVariant = .blue) {
         guard let (tv, storage) = textViewPair(), let active = activeScripturePill else { return }
         let range = active.attachmentRange
         guard range.location != NSNotFound, NSMaxRange(range) <= storage.length else { return }
 
-        let pill = ScripturePillAttachment(reference: reference, translation: translation, theme: theme)
+        var carriedAccent: StudyHighlightAccentToken? = nil
+        if let existing = storage.attribute(.attachment, at: range.location, effectiveRange: nil) as? ScripturePillAttachment {
+            carriedAccent = existing.accent
+        }
+        let pill = ScripturePillAttachment(reference: reference, translation: translation, theme: theme, accent: carriedAccent)
         let pillStr = NSMutableAttributedString(attachment: pill)
         let bodyFont = HarvousFonts.system(size: 16, weight: 400)
         pillStr.addAttributes([.font: bodyFont], range: NSRange(location: 0, length: pillStr.length))
@@ -406,6 +418,33 @@ final class EditorProxy: ObservableObject {
             setCaret(for: tv,NSRange(location: range.location, length: 4))
         }
         storage.endEditing()
+        refocusTextView()
+        refreshFormatState()
+    }
+
+    /// Inserts an Obsidian-style `[[Note title]]` at the caret (plain body styling).
+    func insertNoteWikilink(title rawTitle: String) {
+        let title = rawTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !title.isEmpty else { return }
+        guard let (tv, storage) = textViewPair() else { return }
+        let range = caretRange(for: tv)
+        let snippet = "[[\(title)]]"
+#if os(macOS)
+        let body: [NSAttributedString.Key: Any] = [
+            .font: HarvousFonts.system(size: 16, weight: 400),
+            .foregroundColor: NSColor.labelColor
+        ]
+#else
+        let body: [NSAttributedString.Key: Any] = [
+            .font: HarvousFonts.system(size: 16, weight: 400),
+            .foregroundColor: UIColor.label
+        ]
+#endif
+        storage.beginEditing()
+        storage.replaceCharacters(in: range, with: NSAttributedString(string: snippet, attributes: body))
+        storage.endEditing()
+        setCaret(for: tv, NSRange(location: range.location + snippet.count, length: 0))
+        hvNotifyBodyChanged(tv)
         refocusTextView()
         refreshFormatState()
     }

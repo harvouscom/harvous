@@ -25,6 +25,13 @@ struct ScripturePassageView: View {
 
     @State private var passageAttributed: NSAttributedString?
     @State private var loadError: String?
+    /// Hashable animation key — changes when the rendered text body changes so SwiftUI animates the
+    /// resulting height growth smoothly instead of snapping when async passage HTML lands.
+    private var passageBodyAnimationKey: Int {
+        if let s = passageAttributed?.string { return s.hashValue ^ 0x1 }
+        if let err = loadError { return err.hashValue ^ 0x2 }
+        return 0
+    }
 
     private var translationAttribution: ScriptureReference.TranslationAttribution? {
         ScriptureReference.attribution(for: translation)
@@ -51,33 +58,32 @@ struct ScripturePassageView: View {
                     Text(loadError)
                         .font(verseFont)
                         .foregroundStyle(.secondary)
+                        .transition(.opacity.combined(with: .move(edge: .top)))
                 } else if let passageAttributed {
                     ScripturePassageFittingTextView(attributed: passageAttributed)
                         .frame(maxWidth: .infinity, alignment: .leading)
+                        .transition(.asymmetric(
+                            insertion: .opacity.combined(with: .move(edge: .top)),
+                            removal: .opacity
+                        ))
                 }
             }
+            .animation(.spring(response: 0.42, dampingFraction: 0.86), value: passageBodyAnimationKey)
 
             if let attribution = translationAttribution {
-                Divider()
+                attributionFooter(attribution)
                     .padding(.top, 2)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(attribution.copyright)
-                        .font(.system(size: 10))
-                        .foregroundStyle(.secondary)
-                    if let websiteURL = URL(string: attribution.website) {
-                        Link(ScriptureReference.displayTranslationLabel(translation), destination: websiteURL)
-                            .font(.system(size: 10))
-                            .foregroundStyle(.secondary)
-                            .underline()
-                    }
-                }
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+        .animation(.spring(response: 0.42, dampingFraction: 0.86), value: passageBodyAnimationKey)
         .task(id: "\(reference)|\(translation)") {
             await loadPassage()
         }
     }
+
+    /// Matches `.animation(value: passageBodyAnimationKey)` on the VStack so the dock's height growth eases in as the passage text lands.
+    private static let passageLoadAnimation: Animation = .spring(response: 0.42, dampingFraction: 0.86)
 
     @MainActor
     private func loadPassage() async {
@@ -87,10 +93,33 @@ struct ScripturePassageView: View {
         loadError = nil
 
         if let cached = ScripturePassageCache.shared.value(reference: ref, translation: trans) {
-            passageAttributed = Self.displayedPassage(from: cached, useReadingTypography: useReadingTypography)
-        } else {
-            // Avoid showing stale text from a previous reference while this one loads.
+            withAnimation(Self.passageLoadAnimation) {
+                passageAttributed = Self.displayedPassage(from: cached, useReadingTypography: useReadingTypography)
+            }
+            return
+        }
+
+        // Avoid showing stale text from a previous reference while this one loads.
+        withAnimation(Self.passageLoadAnimation) {
             passageAttributed = nil
+        }
+
+        if let diskHTML = await ScripturePassageCache.shared.loadHTMLFromDisk(reference: ref, translation: trans) {
+            do {
+                let parsed = try await ScripturePassageCache.parsePassageHTMLToAttributed(diskHTML)
+                try Task.checkCancellation()
+                guard ref == reference, trans == translation else { return }
+                ScripturePassageCache.shared.insert(parsed, reference: ref, translation: trans, persistHTML: nil)
+                withAnimation(Self.passageLoadAnimation) {
+                    passageAttributed = Self.displayedPassage(from: parsed, useReadingTypography: useReadingTypography)
+                    loadError = nil
+                }
+                return
+            } catch is CancellationError {
+                return
+            } catch {
+                // Corrupt disk cache — fetch fresh below.
+            }
         }
 
         do {
@@ -98,13 +127,15 @@ struct ScripturePassageView: View {
             try Task.checkCancellation()
             guard ref == reference, trans == translation else { return }
 
-            let parsed = try ScripturePassageHTMLParser.nsAttributedString(fromHTML: html)
+            let parsed = try await ScripturePassageCache.parsePassageHTMLToAttributed(html)
             try Task.checkCancellation()
             guard ref == reference, trans == translation else { return }
 
-            ScripturePassageCache.shared.insert(parsed, reference: ref, translation: trans)
-            passageAttributed = Self.displayedPassage(from: parsed, useReadingTypography: useReadingTypography)
-            loadError = nil
+            ScripturePassageCache.shared.insert(parsed, reference: ref, translation: trans, persistHTML: html)
+            withAnimation(Self.passageLoadAnimation) {
+                passageAttributed = Self.displayedPassage(from: parsed, useReadingTypography: useReadingTypography)
+                loadError = nil
+            }
         } catch is CancellationError {
             return
         } catch let urlError as URLError where urlError.code == .cancelled {
@@ -112,12 +143,16 @@ struct ScripturePassageView: View {
         } catch let e as ScriptureFetchError {
             guard ref == reference, trans == translation else { return }
             if passageAttributed == nil {
-                loadError = e.localizedDescription
+                withAnimation(Self.passageLoadAnimation) {
+                    loadError = e.localizedDescription
+                }
             }
         } catch {
             guard ref == reference, trans == translation else { return }
             if passageAttributed == nil, !Self.isBenignFetchCancellation(error) {
-                loadError = error.localizedDescription
+                withAnimation(Self.passageLoadAnimation) {
+                    loadError = error.localizedDescription
+                }
             }
         }
     }
@@ -134,6 +169,47 @@ struct ScripturePassageView: View {
     private static func displayedPassage(from base: NSAttributedString, useReadingTypography: Bool) -> NSAttributedString {
         let sized = ScripturePassageHTMLParser.enforceVerseNumeralDisplaySizing(base)
         return useReadingTypography ? sized.withLineSpacingExtra(4) : sized
+    }
+
+    @ViewBuilder
+    private func attributionFooter(_ attribution: ScriptureReference.TranslationAttribution) -> some View {
+        HStack(alignment: .center, spacing: 10) {
+            Image(systemName: "info.circle")
+                .font(.system(size: 9, weight: .semibold))
+                .foregroundStyle(.secondary)
+                .accessibilityLabel("Translation attribution")
+
+            Text(attribution.copyright)
+                .font(.system(size: 10, weight: .medium))
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .truncationMode(.tail)
+
+            Spacer(minLength: 0)
+
+            if let websiteURL = URL(string: attribution.website) {
+                Link(destination: websiteURL) {
+                    HStack(spacing: 3) {
+                        Text(ScriptureReference.displayTranslationLabel(translation))
+                            .font(.system(size: 9, weight: .semibold))
+                        Image(systemName: "arrow.up.right")
+                            .font(.system(size: 7, weight: .bold))
+                    }
+                    .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 6)
+        .background(
+            RoundedRectangle(cornerRadius: 9, style: .continuous)
+                .fill(Color.primary.opacity(0.03))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 9, style: .continuous)
+                .strokeBorder(Color.primary.opacity(0.08), lineWidth: 0.65)
+        )
     }
 }
 

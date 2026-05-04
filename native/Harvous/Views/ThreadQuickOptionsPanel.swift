@@ -19,7 +19,7 @@ enum StudyThreadQuickOption: String, CaseIterable, Identifiable {
 
     var detail: String {
         switch self {
-        case .focus: return "Set the thread framing line"
+        case .focus: return "Set the focus line for linked notes"
         case .question: return "Add a guiding question"
         case .resource: return "Attach a URL or citation"
         }
@@ -41,7 +41,7 @@ struct ThreadQuickOptionsPanel: View {
     @Bindable var thread: StudyThread
     let option: StudyThreadQuickOption
     var onDismiss: () -> Void
-    /// Optional push to dedicated thread workspace while keeping pills as alternate entry too.
+    /// Optional push to full linked-notes surface while keeping pills as alternate entry too.
     var onOpenWorkspace: ((UUID) -> Void)?
 
     @State private var questionDraft = ""
@@ -65,7 +65,7 @@ struct ThreadQuickOptionsPanel: View {
                 Spacer(minLength: 0)
 
                 if let onOpenWorkspace {
-                    Button("Open workspace…") {
+                    Button("Open linked notes…") {
                         onOpenWorkspace(thread.id)
                         onDismiss()
                     }
@@ -144,8 +144,8 @@ struct ThreadQuickOptionsPanel: View {
         }
         .padding(14)
         .background(Color.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: HarvousRadius.rowHighlight + 4, style: .continuous))
-        .accessibilityLabel("Study thread \(option.title)")
-        .accessibilityHint("Edit thread details")
+        .accessibilityLabel("Linked notes, \(option.title)")
+        .accessibilityHint("Edit linked note details")
     }
 
     @ViewBuilder

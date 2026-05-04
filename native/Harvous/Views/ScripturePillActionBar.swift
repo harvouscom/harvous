@@ -1,10 +1,8 @@
 import SwiftUI
 
-#if os(macOS)
-
-/// Bottom chrome for the focused scripture pill: toolbar (pickers, Apply, Done) and an always-visible passage preview row.
+/// Bottom chrome for the focused scripture pill: toolbar (pickers, Apply, Done) and an always-visible passage preview row (iOS + macOS).
 struct ScripturePillActionBar: View {
-    /// Matches `NoteToolbar` (36×36) and `NoteActionBar` typography (`HarvousTypography.actionBar*` at 15pt).
+    /// Matches `NoteToolbar` typography (`HarvousTypography.actionBar*` at 15pt).
     private static let toolbarControlHeight: CGFloat = 36
     /// Caps chapter / verse menu pickers so the row stays compact (still fits three-digit values e.g. Ps 150).
     private static let scriptureNumberPickerMaxWidth: CGFloat = 58
@@ -125,7 +123,9 @@ struct ScripturePillActionBar: View {
                         }
                         .buttonStyle(NoteToolbarButtonStyle(isActive: useVerseRange))
                         .accessibilityLabel(useVerseRange ? "Single verse" : "Verse range")
+#if os(macOS)
                         .help(useVerseRange ? "Single verse" : "Verse range")
+#endif
 
                     }
                 }
@@ -135,7 +135,9 @@ struct ScripturePillActionBar: View {
                     Button("Apply") {
                         applyReference()
                     }
+#if os(macOS)
                     .keyboardShortcut(.return, modifiers: [.command])
+#endif
                     .buttonStyle(.borderedProminent)
                     .controlSize(.regular)
                     .font(HarvousTypography.actionBarChip)
@@ -175,7 +177,11 @@ struct ScripturePillActionBar: View {
                 .padding(.vertical, 16)
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
+            #if os(iOS)
+            .frame(maxHeight: 280)
+            #else
             .frame(maxHeight: 400)
+            #endif
         }
         .background(.bar)
         .overlay {
@@ -253,147 +259,3 @@ struct ScripturePillActionBar: View {
         }
     }
 }
-
-#else
-
-/// iOS: full-screen sheet for editing the active scripture pill (same fields as macOS action bar).
-struct ScripturePillEditorSheet: View {
-    @ObservedObject var proxy: EditorProxy
-    @Environment(\.dismiss) private var dismiss
-    @Environment(\.harvousScriptureTheme) private var scriptureTheme
-    var onShowPassage: (_ reference: String, _ translation: String) -> Void
-
-    @State private var bookIndex: Int = 0
-    @State private var chapter: Int = 1
-    @State private var verseStart: Int = 1
-    @State private var verseEnd: Int = 1
-    @State private var useVerseRange: Bool = false
-    @State private var translation: String = ScriptureReference.defaultTranslation
-
-    private var maxChapter: Int { ScriptureCanon.chapterCount(bookIndex: bookIndex) }
-    private var maxVerse: Int { ScriptureCanon.verseCount(bookIndex: bookIndex, chapter: chapter) }
-
-    var body: some View {
-        NavigationStack {
-            Form {
-                Section {
-                    Picker("Translation", selection: $translation) {
-                        ForEach(ScriptureReference.availableTranslations, id: \.self) { t in
-                            Text(ScriptureReference.displayTranslationLabel(t)).tag(t)
-                        }
-                    }
-                    Picker("Book", selection: $bookIndex) {
-                        ForEach(Array(ScriptureCanonicalBooks.titles.enumerated()), id: \.offset) { pair in
-                            Text(pair.element).tag(pair.offset)
-                        }
-                    }
-                    Picker("Chapter", selection: $chapter) {
-                        ForEach(1...maxChapter, id: \.self) { c in
-                            Text(String(c)).tag(c)
-                        }
-                    }
-                    Picker("Verse", selection: $verseStart) {
-                        ForEach(1...maxVerse, id: \.self) { v in
-                            Text(String(v)).tag(v)
-                        }
-                    }
-                    Toggle("Verse range", isOn: $useVerseRange)
-                    if useVerseRange {
-                        Picker("Through", selection: $verseEnd) {
-                            ForEach(verseStart...maxVerse, id: \.self) { v in
-                                Text(String(v)).tag(v)
-                            }
-                        }
-                    }
-                }
-                Section {
-                    Button("View full passage") {
-                        let end: Int? = useVerseRange && verseEnd != verseStart ? verseEnd : nil
-                        let ref = ScriptureReferenceParser.format(
-                            bookIndex: bookIndex,
-                            chapter: chapter,
-                            verseStart: verseStart,
-                            verseEnd: end
-                        )
-                        onShowPassage(ref, translation)
-                    }
-                    Button("Apply to note") {
-                        applyToNote()
-                    }
-                    .fontWeight(.semibold)
-                    .accessibilityHint(String(localized: "Updates the scripture pill in your note", comment: "VoiceOver hint for Apply to note"))
-                }
-            }
-            .navigationTitle("Scripture")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Done") {
-                        proxy.clearActiveScripturePill()
-                        dismiss()
-                    }
-                }
-            }
-            .onAppear { syncFromProxy() }
-            .onChange(of: proxy.activeScripturePill) { _, _ in syncFromProxy() }
-            .onChange(of: bookIndex) { _, _ in clampSelectionToCanonIOS() }
-            .onChange(of: chapter) { _, _ in clampVersesToCanonIOS() }
-            .onChange(of: verseStart) { _, _ in
-                if useVerseRange, verseEnd < verseStart { verseEnd = verseStart }
-            }
-            .onChange(of: useVerseRange) { _, on in
-                if !on {
-                    verseEnd = verseStart
-                } else {
-                    clampVersesToCanonIOS()
-                }
-            }
-        }
-    }
-
-    private func clampSelectionToCanonIOS() {
-        chapter = ScriptureCanon.clampChapter(chapter, bookIndex: bookIndex)
-        clampVersesToCanonIOS()
-    }
-
-    private func clampVersesToCanonIOS() {
-        let cap = ScriptureCanon.verseCount(bookIndex: bookIndex, chapter: chapter)
-        verseStart = ScriptureCanon.clampVerse(verseStart, bookIndex: bookIndex, chapter: chapter)
-        verseEnd = ScriptureCanon.clampVerse(verseEnd, bookIndex: bookIndex, chapter: chapter)
-        if verseEnd < verseStart { verseEnd = verseStart }
-        if verseEnd > cap { verseEnd = cap }
-        if verseStart > cap { verseStart = cap }
-    }
-
-    private func syncFromProxy() {
-        guard let pill = proxy.activeScripturePill else { return }
-        translation = pill.translation
-        if let p = ScriptureReferenceParser.parse(pill.reference) {
-            bookIndex = p.bookIndex
-            chapter = p.chapter
-            verseStart = p.verseStart
-            if let end = p.verseEnd, end != p.verseStart {
-                useVerseRange = true
-                verseEnd = end
-            } else {
-                useVerseRange = false
-                verseEnd = p.verseStart
-            }
-            clampSelectionToCanonIOS()
-        }
-    }
-
-    private func applyToNote() {
-        let end: Int? = useVerseRange && verseEnd != verseStart ? verseEnd : nil
-        let ref = ScriptureReferenceParser.format(
-            bookIndex: bookIndex,
-            chapter: chapter,
-            verseStart: verseStart,
-            verseEnd: end
-        )
-        proxy.replaceActiveScripturePill(reference: ref, translation: translation, theme: scriptureTheme)
-        ScriptureApplyFeedback.notifyScripturePillApplied()
-    }
-}
-
-#endif

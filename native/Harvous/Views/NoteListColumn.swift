@@ -17,8 +17,12 @@ struct NoteListColumn: View {
     var columnStyle: NoteListColumnStyle
     /// Called when the user taps the compose button.
     /// On macOS: immediately creates a note in-place (Apple Notes style).
-    /// On iOS: typically triggers a sheet (hidden when embedded in `HomeHubView`).
+    /// On iOS: typically forwarded to `HarvousAppRouter.requestComposeNewNote()` from the FAB.
     var onNewNote: () -> Void = {}
+    #if os(iOS)
+    /// When set on iPhone home / Notes tab, drives `NavigationLink(value: UUID)` destinations from the ancestor stack.
+    var iosNoteNavPath: Binding<[UUID]>?
+    #endif
     /// When set on iOS, overrides `NoteFilter.displayName` for the navigation title (Notes tab).
     var navigationTitleOverride: String? = nil
     #if os(iOS)
@@ -50,6 +54,7 @@ struct NoteListColumn: View {
         columnStyle: NoteListColumnStyle = .iOSHomeFeed,
         navigationTitleOverride: String? = nil,
         searchPresentationBinding: Binding<Bool>? = nil,
+        iosNoteNavPath: Binding<[UUID]>? = nil,
         onNewNote: @escaping () -> Void = {}
     ) {
         self.filter = filter
@@ -58,6 +63,7 @@ struct NoteListColumn: View {
         self.columnStyle = columnStyle
         self.navigationTitleOverride = navigationTitleOverride
         self.searchPresentationBinding = searchPresentationBinding
+        self.iosNoteNavPath = iosNoteNavPath
         self.onNewNote = onNewNote
     }
     #endif
@@ -135,15 +141,14 @@ struct NoteListColumn: View {
     }
 
     private var filtered: [Note] {
-        guard !searchText.isEmpty else { return baseNotes }
-        let q = searchText.lowercased()
-        return baseNotes.filter {
-            $0.title.lowercased().contains(q) ||
-            $0.body.lowercased().contains(q) ||
-            $0.detectedRefs.contains(where: { $0.lowercased().contains(q) }) ||
-            $0.tags.contains(where: { $0.lowercased().contains(q) }) ||
-            ($0.primaryCollection?.lowercased().contains(q) ?? false)
-        }
+        NoteSearchIndex.filter(baseNotes, query: searchText)
+    }
+
+    /// Pinned notes float to the top; within each group the existing updatedAt order is preserved.
+    private var sortedFiltered: [Note] {
+        let pinned = filtered.filter { $0.isPinned }
+        let unpinned = filtered.filter { !$0.isPinned }
+        return pinned + unpinned
     }
 
     private enum Metrics {
@@ -217,9 +222,9 @@ struct NoteListColumn: View {
 
     private var mainContent: some View {
         Group {
-            if filtered.isEmpty && baseNotes.isEmpty {
+            if sortedFiltered.isEmpty && baseNotes.isEmpty {
                 emptyState
-            } else if filtered.isEmpty {
+            } else if sortedFiltered.isEmpty {
                 ContentUnavailableView.search(text: searchText)
             } else {
                 noteList
@@ -308,7 +313,7 @@ struct NoteListColumn: View {
 
     private var noteList: some View {
         List {
-            ForEach(filtered) { note in
+            ForEach(sortedFiltered) { note in
                 noteRowContent(for: note)
             }
         }
@@ -320,17 +325,30 @@ struct NoteListColumn: View {
     private func noteRowContent(for note: Note) -> some View {
         #if os(iOS)
         if columnStyle == .iOSHomeFeed || columnStyle == .iOSTabNoteList {
-            NavigationLink {
-                StatefulNoteEditorView(note: note)
-            } label: {
-                NoteFeedRow(note: note, variant: .conversation)
-            }
-            .buttonStyle(.plain)
-            .listRowInsets(EdgeInsets(top: 4, leading: 14, bottom: 4, trailing: 14))
-            .listRowBackground(Color.clear)
-            .listRowSeparator(.hidden)
-            .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                noteRowDeleteSwipe(note: note)
+            if let iosNoteNavPath {
+                NavigationLink(value: note.id) {
+                    NoteFeedRow(note: note, variant: .conversation)
+                }
+                .buttonStyle(.plain)
+                .listRowInsets(EdgeInsets(top: 4, leading: 14, bottom: 4, trailing: 14))
+                .listRowBackground(Color.clear)
+                .listRowSeparator(.hidden)
+                .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                    noteRowDeleteSwipe(note: note, iosNavPath: iosNoteNavPath)
+                }
+            } else {
+                NavigationLink {
+                    StatefulNoteEditorView(note: note)
+                } label: {
+                    NoteFeedRow(note: note, variant: .conversation)
+                }
+                .buttonStyle(.plain)
+                .listRowInsets(EdgeInsets(top: 4, leading: 14, bottom: 4, trailing: 14))
+                .listRowBackground(Color.clear)
+                .listRowSeparator(.hidden)
+                .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                    noteRowDeleteSwipe(note: note, iosNavPath: nil)
+                }
             }
         } else {
             sidebarSelectableRow(for: note)
@@ -348,19 +366,24 @@ struct NoteListColumn: View {
             .listRowSeparator(.hidden)
             .onTapGesture { selectedNote = note }
             .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                noteRowDeleteSwipe(note: note)
+                noteRowDeleteSwipe(note: note, iosNavPath: nil)
             }
     }
 
     @ViewBuilder
-    private func noteRowDeleteSwipe(note: Note) -> some View {
+    private func noteRowDeleteSwipe(note: Note, iosNavPath: Binding<[UUID]>?) -> some View {
         Button(role: .destructive) {
+            let doomedId = note.id
             withAnimation {
-                if selectedNote?.id == note.id { selectedNote = nil }
-                let nid = note.id
+                if selectedNote?.id == doomedId { selectedNote = nil }
+                HarvousVaultExporter.removeMirrorFiles(for: note, modelContext: context)
+                HarvousNoteSpotlightIndexer.removeNote(id: doomedId)
                 context.delete(note)
                 try? context.save()
-                HarvousRecallOSIntegration.afterNoteDeleted(id: nid, modelContext: context)
+            }
+            guard let iosNavPath else { return }
+            Task { @MainActor in
+                iosNavPath.wrappedValue.removeAll { $0 == doomedId }
             }
         } label: {
             Label("Delete", systemImage: "trash")

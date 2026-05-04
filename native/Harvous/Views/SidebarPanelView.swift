@@ -34,6 +34,7 @@ struct SidebarPanelView: View {
     }
 
     @Binding var selectedNote: Note?
+    var onCreateNewNote: (() -> Void)?
     @Query(sort: \Note.updatedAt, order: .reverse) private var notes: [Note]
     @EnvironmentObject private var spaceStore: SpaceStore
     @State private var mode: SidebarMode = .notes
@@ -125,7 +126,7 @@ struct SidebarPanelView: View {
             .searchable(text: $collectionSearchText, placement: .sidebar, prompt: "Search")
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             .toolbar {
-                ToolbarItemGroup(placement: .navigation) {
+                ToolbarItemGroup(placement: .automatic) {
                     SpaceSwitcherView()
                     if mode == .collections, activeCollection != nil {
                         Button {
@@ -218,7 +219,7 @@ struct SidebarPanelView: View {
 
 #Preview {
     NavigationSplitView {
-        SidebarPanelView(selectedNote: .constant(nil))
+        SidebarPanelView(selectedNote: .constant(nil), onCreateNewNote: nil)
     } detail: {
         Text("Editor")
     }

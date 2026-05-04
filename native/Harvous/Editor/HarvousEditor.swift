@@ -207,8 +207,15 @@ private final class HarvousNoteTextView: NSTextView {
     /// Single-click on highlighted prose opens the anchored thread target (pill hits take precedence).
     var onStudyHighlightClick: ((UUID) -> Void)?
 
+    /// Canonical paint list (mirrored from the coordinator) — used as the source of truth for hit testing
+    /// instead of reading `.harvousStudyHighlightUUID` off storage, since custom attributes can be flaky
+    /// under TextKit 2 and miss at boundary character offsets. Set from `wireStudyHighlightInteractions`.
+    var studyHighlightPaints: [StudyHighlightPaint] = []
+
     /// Ensures `mouseMoved` / `cursorUpdate` fire for this view while hovering, not only when it is first responder.
     private var pillHoverTracking: NSTrackingArea?
+    /// Avoids spawning duplicate prefetch tasks on every mouse-moved pixel over a pill.
+    private var lastScriptureHoverPrefetchKey: String?
 
     /// Matches `EditorProxy` list marker font (body size) so toolbar list detection stays consistent.
     private static func noteListMarkerPrefixAttributes() -> [NSAttributedString.Key: Any] {
@@ -503,12 +510,27 @@ private final class HarvousNoteTextView: NSTextView {
         pasteAsPlainText(sender)
     }
 
+    /// Hit-test a view-local click point against painted highlight ranges. Uses `firstRect(forCharacterRange:)`
+    /// + screen-to-view conversion (same pattern as `scripturePillAtPoint`) because
+    /// `NSTextView.characterIndex(for:)` actually expects SCREEN coordinates — passing a view point makes it
+    /// return `NSNotFound` and silently drops every click. The rect-based approach works across TextKit 1/2.
     private func studyHighlightUUID(atViewPoint point: NSPoint) -> UUID? {
-        guard let storage = textStorage, storage.length > 0 else { return nil }
+        guard let storage = textStorage, storage.length > 0, let win = window else { return nil }
         if isPointOverScripturePill(point) { return nil }
-        let charIdx = characterIndex(for: point)
-        guard charIdx != NSNotFound, charIdx < storage.length else { return nil }
-        return HarvousStudyHighlightMapper.uuidAt(storageUTF16Index: charIdx, in: storage)
+        for paint in studyHighlightPaints {
+            let storRanges = HarvousStudyHighlightMapper.storageRanges(forExpandedRange: paint.expandedUTF16Range, in: storage)
+            for r in storRanges {
+                guard r.location != NSNotFound, NSMaxRange(r) <= storage.length else { continue }
+                var actual = NSRange()
+                let screenRect = firstRect(forCharacterRange: r, actualRange: &actual)
+                guard screenRect != .zero else { continue }
+                let viewRect = convert(win.convertFromScreen(screenRect), from: nil)
+                // Pad by a few points vertically so clicks on descenders / the underline itself still hit.
+                let padded = viewRect.insetBy(dx: -2, dy: -3)
+                if padded.contains(point) { return paint.threadId }
+            }
+        }
+        return nil
     }
 
     override func mouseDown(with event: NSEvent) {
@@ -529,15 +551,23 @@ private final class HarvousNoteTextView: NSTextView {
             return
         }
 
-        // Fallback: nearest character ± 1 (handles clicks at the pill's text baseline)
+        // Study highlights first — they use a rect-based hit test (see `studyHighlightUUID(atViewPoint:)`)
+        // so a click anywhere over the rendered run matches, regardless of `characterIndex(for:)`'s
+        // screen-vs-view-coordinate quirk.
+        if let uuid = studyHighlightUUID(atViewPoint: point) {
+            super.mouseDown(with: event)
+            onStudyHighlightClick?(uuid)
+            return
+        }
+
+        // Fallback: character-based pill probe for clicks that land at a pill's text baseline but
+        // outside the rect-based `scripturePillAtPoint` check. `characterIndex(for:)` expects screen
+        // coordinates and will return `NSNotFound` for view-local points — that's fine here since the
+        // guard treats `NSNotFound` as "no character hit" and falls through to normal caret placement.
         let charIdx = characterIndex(for: point)
         guard charIdx != NSNotFound,
               let (pill, eff) = scripturePillNearCharacterIndexWithRange(charIdx, in: storage)
         else {
-            if let uuid = studyHighlightUUID(atViewPoint: point) {
-                onStudyHighlightClick?(uuid)
-                return
-            }
             super.mouseDown(with: event)
             return
         }
@@ -595,6 +625,30 @@ private final class HarvousNoteTextView: NSTextView {
         return false
     }
 
+    private func scripturePillUnderHoverPointer(_ viewPoint: NSPoint, storage: NSTextStorage) -> ScripturePillAttachment? {
+        if let (pill, _) = scripturePillAtPoint(viewPoint, in: storage) { return pill }
+        let charIdx = characterIndex(for: viewPoint)
+        guard charIdx != NSNotFound,
+              let (pill, _) = scripturePillNearCharacterIndexWithRange(charIdx, in: storage) else {
+            return nil
+        }
+        return pill
+    }
+
+    private func prefetchPassageHoverIfNeeded(viewPoint: NSPoint) {
+        guard let storage = textStorage, storage.length > 0 else { return }
+        guard let pill = scripturePillUnderHoverPointer(viewPoint, storage: storage) else {
+            lastScriptureHoverPrefetchKey = nil
+            return
+        }
+        let token = pill.reference + "|" + pill.translation
+        guard token != lastScriptureHoverPrefetchKey else { return }
+        lastScriptureHoverPrefetchKey = token
+        let ref = pill.reference
+        let trans = pill.translation
+        Task { await ScripturePassageCache.shared.prefetch(reference: ref, translation: trans) }
+    }
+
     /// NSTextView’s I-beam cursor rects win unless we re-apply the pointing hand *after* `super`
     /// (and on `mouseMoved` / `scrollWheel`, since `cursorUpdate` often does not fire over text).
     private func applyPillCursorAfterSuper(for event: NSEvent) {
@@ -614,11 +668,13 @@ private final class HarvousNoteTextView: NSTextView {
         applyPillCursorAfterSuper(for: event)
         let point = convert(event.locationInWindow, from: nil)
         onStudyHighlightHoverUUID?(studyHighlightUUID(atViewPoint: point))
+        prefetchPassageHoverIfNeeded(viewPoint: point)
     }
 
     override func mouseExited(with event: NSEvent) {
         super.mouseExited(with: event)
         onStudyHighlightHoverUUID?(nil)
+        lastScriptureHoverPrefetchKey = nil
     }
 
     override func scrollWheel(with event: NSEvent) {
@@ -769,6 +825,11 @@ struct HarvousEditor: NSViewRepresentable {
     /// When true, pastel highlight paints use the dark-appearance palette (`NSColor`/UIColor alpha tuned).
     var studyHighlightsAssumeDarkAppearance: Bool = false
     var onScripturePillTap: ((String, String, NSRange) -> Void)? = nil
+    /// Fires after scripture pills are (re-)materialized from plain text (`detectAndInsertPills`), for prefetch/network warm.
+    var onResolvedScripturePillPairs: (([(reference: String, translation: String)]) -> Void)? = nil
+    /// Resolves the user-picked scripture pill accent for a given reference (persisted on the owning Note).
+    /// `nil` return → pill renders with the neutral default palette. Called during pill insertion.
+    var pillAccentResolver: ((String) -> StudyHighlightAccentToken?)? = nil
     /// macOS single-click opens the anchored highlight target (`HarvousStudyHighlightMapper` spans).
     var onStudyHighlightClick: ((UUID) -> Void)? = nil
 
@@ -778,8 +839,10 @@ struct HarvousEditor: NSViewRepresentable {
     func makeNSView(context: Context) -> NSScrollView {
         let scrollView = NSTextView.scrollableTextView()
         let template = scrollView.documentView as! NSTextView
-        let textView = HarvousNoteTextView()
-        textView.frame = template.frame
+        // Reuse the default TextKit stack NSTextView already set up (layout manager, text storage,
+        // width-tracking container) — just swap the view class to HarvousNoteTextView so we keep
+        // scripture-pill hit testing, study-highlight click routing, and selection menu overrides.
+        let textView = HarvousNoteTextView(frame: template.frame, textContainer: template.textContainer)
         textView.minSize = template.minSize
         textView.maxSize = template.maxSize
         textView.autoresizingMask = template.autoresizingMask
@@ -850,6 +913,8 @@ struct HarvousEditor: NSViewRepresentable {
         let themeChanged = previousTheme != scriptureTheme
         context.coordinator.studyHighlightPaints = studyHighlightPaints
         context.coordinator.studyHighlightsAssumeDarkAppearance = studyHighlightsAssumeDarkAppearance
+        context.coordinator.pillAccentResolver = pillAccentResolver
+        context.coordinator.onResolvedScripturePillPairs = onResolvedScripturePillPairs
 
         textView.pillTapHandler = onScripturePillTap
         wireStudyHighlightInteractions(textView: textView, proxy: proxy)
@@ -927,6 +992,7 @@ struct HarvousEditor: NSViewRepresentable {
     @MainActor
     private func wireStudyHighlightInteractions(textView: HarvousNoteTextView, proxy: EditorProxy?) {
         let clickHandler = onStudyHighlightClick
+        textView.studyHighlightPaints = studyHighlightPaints
         textView.onStudyHighlightHoverUUID = { uuid in
             Task { @MainActor in
                 proxy?.setStudyHighlightHoverDebounced(uuid)
@@ -977,6 +1043,10 @@ struct HarvousEditor: NSViewRepresentable {
         var isEditing = false
         var scriptureTheme: HarvousColors.ThemeVariant = .blue
         var studyHighlightPaints: [StudyHighlightPaint] = []
+        /// Resolver for per-note pill accents (see `HarvousEditor.pillAccentResolver`). Updated on every `updateNSView`.
+        var pillAccentResolver: ((String) -> StudyHighlightAccentToken?)?
+        /// After pill detection settles — parent may prefetch scripture HTML.
+        var onResolvedScripturePillPairs: (([(reference: String, translation: String)]) -> Void)?
         /// Passed from SwiftUI to pick highlight palette.
         var studyHighlightsAssumeDarkAppearance: Bool = false
         var placeholderText = "What are you studying?"
@@ -991,7 +1061,31 @@ struct HarvousEditor: NSViewRepresentable {
         private var programmaticBodyMutationDepth: Int = 0
         private var isProgrammaticBodyMutation: Bool { programmaticBodyMutationDepth > 0 }
 
-        init(state: Binding<EditorState>) { _state = state }
+        init(state: Binding<EditorState>) {
+            _state = state
+            super.init()
+            // When the user changes a pill's accent via `ActiveScripturePillDock` we must re-run pill
+            // detection so the new accent is picked up by the resolver and the rendered attachments refresh.
+            NotificationCenter.default.addObserver(
+                self,
+                selector: #selector(handleForceScripturePillRedetect(_:)),
+                name: .harvousForceScripturePillRedetect,
+                object: nil
+            )
+        }
+
+        deinit {
+            NotificationCenter.default.removeObserver(self)
+        }
+
+        @objc private func handleForceScripturePillRedetect(_ note: Notification) {
+            MainActor.assumeIsolated {
+                // Scope to the bound note (notification carries the note's UUID as `object`).
+                if let uuid = note.object as? UUID, let mine = boundNoteID, uuid != mine { return }
+                guard let tv = textView else { return }
+                detectAndInsertPills(in: tv, text: state.plainText)
+            }
+        }
 
         fileprivate func withProgrammaticBodyMutation(_ work: () -> Void) {
             programmaticBodyMutationDepth += 1
@@ -1019,6 +1113,12 @@ struct HarvousEditor: NSViewRepresentable {
             guard let p else { return }
             p.cancelFormatBarHideAction = { [weak self] in self?.cancelFormatBarHide() }
             p.scheduleFormatBarHideAction = { [weak self] in self?.scheduleFormatBarHide() }
+            p.triggerHighlightCapturePrompt = { [weak self] in
+                self?.invokeHighlightCapturePromptFromEditMenuIfPossible()
+            }
+            p.triggerStandaloneNoteFromSelection = { [weak self] in
+                self?.invokeNewStandaloneNoteFromEditMenuIfPossible()
+            }
         }
 
         private func cancelFormatBarHide() {
@@ -1283,6 +1383,58 @@ struct HarvousEditor: NSViewRepresentable {
             }
         }
 
+        func textView(_ view: NSTextView, menu: NSMenu, for _: NSEvent, at _: Int) -> NSMenu? {
+            guard view === textView else { return menu }
+            let sel = view.selectedRange()
+            guard sel.length > 0 else { return menu }
+            let hl = NSMenuItem(title: "Highlight…", action: #selector(macHighlightPromptFromMenu(_:)), keyEquivalent: "")
+            hl.target = self
+            menu.insertItem(hl, at: 0)
+            let item = NSMenuItem(title: "New Harvous note", action: #selector(macNewStandaloneNoteFromMenu(_:)), keyEquivalent: "")
+            item.target = self
+            menu.insertItem(item, at: 1)
+            return menu
+        }
+
+        @objc private func macHighlightPromptFromMenu(_: Any?) {
+            invokeHighlightCapturePromptFromEditMenuIfPossible()
+        }
+
+        func invokeHighlightCapturePromptFromEditMenuIfPossible() {
+            guard let tv = textView, let storage = tv.textStorage, !isDisplayingPlaceholder else { return }
+            let sel = tv.selectedRange()
+            HarvousStandaloneSelectionNote.postHighlightCapturePromptIfEligible(
+                storage: storage,
+                utf16Selection: sel,
+                parentNoteId: boundNoteID,
+                anchorRectForPopover: proxy?.selectionViewportRect
+            )
+        }
+
+        @objc private func macNewStandaloneNoteFromMenu(_: Any?) {
+            invokeNewStandaloneNoteFromEditMenuIfPossible()
+        }
+
+        func invokeNewStandaloneNoteFromEditMenuIfPossible() {
+            guard let tv = textView, let storage = tv.textStorage else { return }
+            let sel = tv.selectedRange()
+            HarvousStandaloneSelectionNote.postIfEligibleCollapseSelection(
+                storage: storage,
+                utf16Selection: sel,
+                collapseToEndUtf16: { end in
+                    let safeEnd = max(0, min(end, storage.length))
+                    tv.setSelectedRange(NSRange(location: safeEnd, length: 0))
+                },
+                collapseProxySelectionState: { [weak self] in
+                    guard let proxy = self?.proxy else { return }
+                    proxy.hasSelection = false
+                    proxy.selectionViewportRect = nil
+                    proxy.selectionCaretViewportRect = nil
+                    proxy.refreshFormatState()
+                }
+            )
+        }
+
         /// Re-draws pastel study highlights once scripture pills settle (runs on main actor).
         @MainActor
         func paintStudyHighlights(on textView: NSTextView) {
@@ -1353,7 +1505,8 @@ struct HarvousEditor: NSViewRepresentable {
                 let pill = ScripturePillAttachment(
                     reference: item.displayRef,
                     translation: item.translation,
-                    theme: scriptureTheme
+                    theme: scriptureTheme,
+                    accent: pillAccentResolver?(item.displayRef)
                 )
                 let pillStr = NSMutableAttributedString(attachment: pill)
                 let bodyFont: NSFont = HarvousFonts.system(size: 16, weight: 400)
@@ -1378,12 +1531,45 @@ struct HarvousEditor: NSViewRepresentable {
                 self.state.plainText = plainOut
                 self.state.detectedRefs = refsOut
             }
+            let pairs = scripturePillRefTransPairs(in: storage)
+            onResolvedScripturePillPairs?(pairs)
         }
     }
 }
 
 #else
 import UIKit
+
+/// Custom `UITextView` hook for the native selection edit menu.
+private final class HarvousBodyTextView: UITextView {
+    var onHighlightCaptureAction: (() -> Void)?
+    var onNewStandaloneNoteAction: (() -> Void)?
+
+
+    override func editMenu(for textRange: UITextRange, suggestedActions: [UIMenuElement]) -> UIMenu? {
+        let start = offset(from: beginningOfDocument, to: textRange.start)
+        let end = offset(from: beginningOfDocument, to: textRange.end)
+        guard end > start else {
+            return super.editMenu(for: textRange, suggestedActions: suggestedActions)
+        }
+        var front: [UIMenuElement] = []
+        if let hl = onHighlightCaptureAction {
+            front.append(UIAction(title: "Highlight…", image: UIImage(systemName: "highlighter")) { _ in
+                hl()
+            })
+        }
+        if let handler = onNewStandaloneNoteAction {
+            front.append(UIAction(title: "New Harvous note", image: UIImage(systemName: "square.and.pencil")) { _ in
+                handler()
+            })
+        }
+        guard !front.isEmpty else {
+            return super.editMenu(for: textRange, suggestedActions: suggestedActions)
+        }
+        let children = front + suggestedActions
+        return UIMenu(children: children)
+    }
+}
 
 @MainActor
 private func activeScripturePillFromUITextViewSelection(_ tv: UITextView) -> ActiveScripturePill? {
@@ -1422,9 +1608,13 @@ struct HarvousEditor: UIViewRepresentable {
     /// Body formatting + scripture focus state (mirror macOS `proxy`).
     var proxy: EditorProxy? = nil
     var onScripturePillTap: ((String, String, NSRange) -> Void)? = nil
+    /// Fires after scripture pills are materialized — used to prefetch passages off the tap path (iOS).
+    var onResolvedScripturePillPairs: (([(reference: String, translation: String)]) -> Void)? = nil
     var onStudyHighlightTap: ((UUID) -> Void)? = nil
     var studyHighlightPaints: [StudyHighlightPaint] = []
     var studyHighlightsAssumeDarkAppearance: Bool = false
+    /// Resolves the user-picked scripture pill accent for a given reference (persisted on the owning Note).
+    var pillAccentResolver: ((String) -> StudyHighlightAccentToken?)? = nil
 
     func makeCoordinator() -> Coordinator {
         let c = Coordinator(state: $state)
@@ -1434,7 +1624,7 @@ struct HarvousEditor: UIViewRepresentable {
     }
 
     func makeUIView(context: Context) -> UITextView {
-        let tv = UITextView()
+        let tv = HarvousBodyTextView()
         let para = noteBodyParagraphStyle()
         let bodyFont = HarvousFonts.system(size: 16, weight: 400)
         tv.font = bodyFont
@@ -1453,6 +1643,13 @@ struct HarvousEditor: UIViewRepresentable {
         ]
         tv.delegate = context.coordinator
         context.coordinator.textView = tv
+        let coordinator = context.coordinator
+        tv.onHighlightCaptureAction = { [weak coordinator] in
+            coordinator?.invokeHighlightCapturePromptFromEditMenuIfPossible()
+        }
+        tv.onNewStandaloneNoteAction = { [weak coordinator] in
+            coordinator?.invokeNewStandaloneNoteFromEditMenuIfPossible()
+        }
         context.coordinator.placeholderText = placeholder
         context.coordinator.proxy = proxy
         context.coordinator.wireFormatBarToProxy(proxy)
@@ -1483,6 +1680,8 @@ struct HarvousEditor: UIViewRepresentable {
         context.coordinator.placeholderText = placeholder
         context.coordinator.onScripturePillTap = onScripturePillTap
         context.coordinator.onStudyHighlightTap = onStudyHighlightTap
+        context.coordinator.pillAccentResolver = pillAccentResolver
+        context.coordinator.onResolvedScripturePillPairs = onResolvedScripturePillPairs
         context.coordinator.proxy = proxy
         context.coordinator.wireFormatBarToProxy(proxy)
         proxy?.textView = textView
@@ -1548,6 +1747,15 @@ struct HarvousEditor: UIViewRepresentable {
             }
         }
         context.coordinator.paintStudyHighlights(on: textView)
+        if let body = textView as? HarvousBodyTextView {
+            let coordinator = context.coordinator
+            body.onHighlightCaptureAction = { [weak coordinator] in
+                coordinator?.invokeHighlightCapturePromptFromEditMenuIfPossible()
+            }
+            body.onNewStandaloneNoteAction = { [weak coordinator] in
+                coordinator?.invokeNewStandaloneNoteFromEditMenuIfPossible()
+            }
+        }
     }
 
     @MainActor
@@ -1563,18 +1771,48 @@ struct HarvousEditor: UIViewRepresentable {
         var placeholderText: String = "What are you studying?"
         var onScripturePillTap: ((String, String, NSRange) -> Void)?
         var onStudyHighlightTap: ((UUID) -> Void)?
+        /// Resolver for per-note pill accents (see `HarvousEditor.pillAccentResolver`). Updated on every `updateUIView`.
+        var pillAccentResolver: ((String) -> StudyHighlightAccentToken?)?
+        var onResolvedScripturePillPairs: (([(reference: String, translation: String)]) -> Void)?
         private var debounceTask: Task<Void, Never>?
         private var formatBarHideTask: Task<Void, Never>?
         /// Pauses scripture pill detection while Apple Writing Tools mutates the document (iOS 18+).
         private var isWritingToolsActive = false
 
-        init(state: Binding<EditorState>) { _state = state }
+        init(state: Binding<EditorState>) {
+            _state = state
+            super.init()
+            NotificationCenter.default.addObserver(
+                self,
+                selector: #selector(handleForceScripturePillRedetect(_:)),
+                name: .harvousForceScripturePillRedetect,
+                object: nil
+            )
+        }
+
+        deinit {
+            NotificationCenter.default.removeObserver(self)
+        }
+
+        @objc private func handleForceScripturePillRedetect(_ note: Notification) {
+            MainActor.assumeIsolated {
+                if let uuid = note.object as? UUID, let mine = boundNoteID, uuid != mine { return }
+                guard let tv = textView else { return }
+                detectAndInsertPills(in: tv, text: state.plainText)
+            }
+        }
 
         /// Hooks idle hide timer (`EditorProxy` Mac parity).
         func wireFormatBarToProxy(_ p: EditorProxy?) {
             guard let p else { return }
             p.cancelFormatBarHideAction = { [weak self] in self?.cancelFormatBarHide() }
             p.scheduleFormatBarHideAction = { [weak self] in self?.scheduleFormatBarHide() }
+            p.triggerHighlightCapturePrompt = { [weak self] in
+                self?.invokeHighlightCapturePromptFromEditMenuIfPossible()
+            }
+            p.triggerStandaloneNoteFromSelection = { [weak self] in
+                self?.invokeNewStandaloneNoteFromEditMenuIfPossible()
+            }
         }
 
         @MainActor
@@ -1605,6 +1843,37 @@ struct HarvousEditor: UIViewRepresentable {
             bodyProxy.showFormatBarForActivity = false
         }
 
+        func invokeHighlightCapturePromptFromEditMenuIfPossible() {
+            guard let tv = textView, tv.textColor != .tertiaryLabel else { return }
+            HarvousStandaloneSelectionNote.postHighlightCapturePromptIfEligible(
+                storage: tv.textStorage,
+                utf16Selection: tv.selectedRange,
+                parentNoteId: boundNoteID,
+                anchorRectForPopover: proxy?.selectionViewportRect
+            )
+        }
+
+        func invokeNewStandaloneNoteFromEditMenuIfPossible() {
+            guard let tv = textView, tv.textColor != .tertiaryLabel else { return }
+            let storage = tv.textStorage
+            let sel = tv.selectedRange
+            HarvousStandaloneSelectionNote.postIfEligibleCollapseSelection(
+                storage: storage,
+                utf16Selection: sel,
+                collapseToEndUtf16: { end in
+                    let safeEnd = max(0, min(end, storage.length))
+                    tv.selectedRange = NSRange(location: safeEnd, length: 0)
+                },
+                collapseProxySelectionState: { [weak self] in
+                    guard let proxy = self?.proxy else { return }
+                    proxy.hasSelection = false
+                    proxy.selectionViewportRect = nil
+                    proxy.selectionCaretViewportRect = nil
+                    proxy.refreshFormatState()
+                }
+            )
+        }
+
         /// `UITextViewDelegate` attachment callbacks are unreliable for custom `NSTextAttachment`; use a tap gesture instead.
         @objc func handlePillTap(_ gesture: UITapGestureRecognizer) {
             guard gesture.state == .ended, let tv = textView, tv.textColor != .tertiaryLabel else { return }
@@ -1613,13 +1882,47 @@ struct HarvousEditor: UIViewRepresentable {
             let offset = tv.offset(from: tv.beginningOfDocument, to: pos)
             let storage = tv.textStorage
             guard storage.length > 0 else { return }
+            #if DEBUG
+            print("[Harvous.highlight.tap.ios] offset=\(offset) paintsOnCoordinator=\(studyHighlightPaints.count) storageLen=\(storage.length)")
+            #endif
             if let (pill, eff) = Self.pillAttachmentRange(containingUTF16: offset, in: storage) {
                 onScripturePillTap?(pill.reference, pill.translation, eff)
                 return
             }
-            if let uuid = HarvousStudyHighlightMapper.uuidAt(storageUTF16Index: offset, in: storage) {
+            // Hit-test against the in-memory paint list rather than querying the storage attribute:
+            // under iOS 17+ TextKit 2, custom NSAttributedString keys applied to `textStorage` don't
+            // always round-trip through `storage.attribute(at:)` even though the rendering (underline,
+            // colour) does show. `studyHighlightPaints` is the source of truth for *which* thread owns
+            // which expanded range; converting that range back to storage coordinates gives a reliable
+            // tap target that tolerates ±1 slop for boundary taps.
+            if let uuid = studyHighlightUUID(forStorageOffset: offset, in: storage) {
+                #if DEBUG
+                print("[Harvous.highlight.tap.ios] MATCH uuid=\(uuid) onStudyHighlightTap_set=\(onStudyHighlightTap != nil)")
+                #endif
+                tv.resignFirstResponder()
                 onStudyHighlightTap?(uuid)
+            } else {
+                #if DEBUG
+                print("[Harvous.highlight.tap.ios] NO MATCH at offset=\(offset) — paints=\(studyHighlightPaints.map { ($0.threadId, $0.expandedUTF16Range) })")
+                #endif
             }
+        }
+
+        /// Returns the thread UUID whose painted range (from `studyHighlightPaints`) contains
+        /// `storageOffset`, or `nil`. Boundary taps within ±1 UTF‑16 of a painted range still match
+        /// so trailing-edge taps on short runs don't miss.
+        private func studyHighlightUUID(forStorageOffset storageOffset: Int, in storage: NSTextStorage) -> UUID? {
+            for paint in studyHighlightPaints {
+                let storRanges = HarvousStudyHighlightMapper.storageRanges(forExpandedRange: paint.expandedUTF16Range, in: storage)
+                for r in storRanges {
+                    let lo = max(0, r.location - 1)
+                    let hi = NSMaxRange(r) + 1
+                    if storageOffset >= lo && storageOffset <= hi {
+                        return paint.threadId
+                    }
+                }
+            }
+            return nil
         }
 
         private static func pillAttachmentRange(containingUTF16 utf16: Int, in storage: NSTextStorage) -> (ScripturePillAttachment, NSRange)? {
@@ -1641,18 +1944,12 @@ struct HarvousEditor: UIViewRepresentable {
             return true
         }
 
-        /// Only activate when the tap lands on a scripture pill; normal text taps pass through to UITextView.
+        /// Always allow the recognizer to begin. `handlePillTap` itself decides whether the tap lands on
+        /// a scripture pill or a painted study highlight; normal taps fall through to UITextView's caret
+        /// placement because `cancelsTouchesInView = false` and we run alongside via simultaneous recognition.
         func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
-            guard let tv = textView,
-                  tv.textColor != .tertiaryLabel,
-                  let tap = gestureRecognizer as? UITapGestureRecognizer else { return false }
-            let point = tap.location(in: tv)
-            guard let pos = tv.closestPosition(to: point) else { return false }
-            let offset = tv.offset(from: tv.beginningOfDocument, to: pos)
-            let storage = tv.textStorage
-            guard storage.length > 0 else { return false }
-            if Self.pillAttachmentRange(containingUTF16: offset, in: storage) != nil { return true }
-            return HarvousStudyHighlightMapper.uuidAt(storageUTF16Index: offset, in: storage) != nil
+            guard let tv = textView, tv.textColor != .tertiaryLabel else { return false }
+            return true
         }
 
         @MainActor
@@ -1830,7 +2127,8 @@ struct HarvousEditor: UIViewRepresentable {
                 let pill = ScripturePillAttachment(
                     reference: item.displayRef,
                     translation: item.translation,
-                    theme: scriptureTheme
+                    theme: scriptureTheme,
+                    accent: pillAccentResolver?(item.displayRef)
                 )
                 let pillStr = NSMutableAttributedString(attachment: pill)
                 pillStr.addAttributes([.font: HarvousFonts.system(size: 16, weight: 400)], range: NSRange(location: 0, length: pillStr.length))
@@ -1849,6 +2147,8 @@ struct HarvousEditor: UIViewRepresentable {
                 self.state.plainText = plainOut
                 self.state.detectedRefs = refsOut
             }
+            let pairs = scripturePillRefTransPairs(in: storage)
+            onResolvedScripturePillPairs?(pairs)
         }
     }
 }

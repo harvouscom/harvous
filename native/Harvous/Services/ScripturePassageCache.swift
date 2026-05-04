@@ -530,13 +530,28 @@ enum ScripturePassageHTMLParser {
 final class ScripturePassageCache {
     static let shared = ScripturePassageCache()
 
-    private let capacity = 20
+    /// HTML import + regex styling — runs off MainActor (`NSAttributedString` is not `Sendable`).
+    nonisolated static func parsePassageHTMLToAttributed(_ html: String) async throws -> NSAttributedString {
+        try await withCheckedThrowingContinuation { continuation in
+            DispatchQueue.global(qos: .userInitiated).async {
+                do {
+                    let parsed = try ScripturePassageHTMLParser.nsAttributedString(fromHTML: html)
+                    continuation.resume(returning: parsed)
+                } catch {
+                    continuation.resume(throwing: error)
+                }
+            }
+        }
+    }
+
+    /// In-memory LRU; disk tier lives in [`ScripturePassageDiskStore`].
+    private let capacity = 100
     private var order: [String] = []
     private var storage: [String: NSAttributedString] = [:]
 
     private init() {}
 
-    private static func cacheKey(reference: String, translation: String) -> String {
+    private nonisolated static func cacheKey(reference: String, translation: String) -> String {
         let r = reference.trimmingCharacters(in: .whitespacesAndNewlines)
         let t = translation.trimmingCharacters(in: .whitespacesAndNewlines)
         return "v18|\(r)|\(t)"
@@ -546,7 +561,12 @@ final class ScripturePassageCache {
         storage[Self.cacheKey(reference: reference, translation: translation)]
     }
 
-    func insert(_ attributed: NSAttributedString, reference: String, translation: String) {
+    /// Persisted verse HTML keyed like memory entries (used before network).
+    func loadHTMLFromDisk(reference: String, translation: String) async -> String? {
+        await ScripturePassageDiskStore.shared.readHTML(memoryCacheKey: Self.cacheKey(reference: reference, translation: translation))
+    }
+
+    func insert(_ attributed: NSAttributedString, reference: String, translation: String, persistHTML: String? = nil) {
         let key = Self.cacheKey(reference: reference, translation: translation)
         if let idx = order.firstIndex(of: key) {
             order.remove(at: idx)
@@ -557,18 +577,75 @@ final class ScripturePassageCache {
             order.removeFirst()
             storage.removeValue(forKey: first)
         }
+        if let persistHTML, !persistHTML.isEmpty {
+            Task {
+                await ScripturePassageDiskStore.shared.writeHTML(persistHTML, memoryCacheKey: key)
+            }
+        }
     }
 
-    /// Best-effort background fetch for snappier passage popover / revisits.
-    func prefetch(reference: String, translation: String) async {
+    /// Best-effort background fetch — checks memory, disk, then network. `nonisolated` so parallel prefetches can await I/O off the main actor.
+    nonisolated func prefetch(reference: String, translation: String) async {
         let trimmedRef = reference.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedTrans = translation.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedRef.isEmpty else { return }
+
+        let key = Self.cacheKey(reference: trimmedRef, translation: trimmedTrans)
+
+        let inMemory = await MainActor.run {
+            ScripturePassageCache.shared.value(reference: trimmedRef, translation: trimmedTrans) != nil
+        }
+        if inMemory { return }
+
+        if let html = await ScripturePassageDiskStore.shared.readHTML(memoryCacheKey: key) {
+            if let parsed = try? await Self.parsePassageHTMLToAttributed(html) {
+                await MainActor.run {
+                    ScripturePassageCache.shared.insert(parsed, reference: trimmedRef, translation: trimmedTrans, persistHTML: nil)
+                }
+                return
+            }
+            // Corrupt cached HTML — fall through and refetch below.
+        }
+
         do {
-            let html = try await ScriptureVerseFetch.fetchVerseHTML(reference: reference, translation: translation)
-            let parsed = try ScripturePassageHTMLParser.nsAttributedString(fromHTML: html)
-            insert(parsed, reference: reference, translation: translation)
+            let html = try await ScriptureVerseFetch.fetchVerseHTML(reference: trimmedRef, translation: trimmedTrans)
+            let parsed = try await Self.parsePassageHTMLToAttributed(html)
+            await MainActor.run {
+                ScripturePassageCache.shared.insert(parsed, reference: trimmedRef, translation: trimmedTrans, persistHTML: html)
+            }
         } catch {
             // Prefetch is optional; failures are ignored.
+        }
+    }
+
+    /// Dedupes `(reference, translation)` pairs and batches network/disk hops with bounded parallelism.
+    nonisolated func prefetchDistinctPairs(_ pairs: [(reference: String, translation: String)], maxConcurrency: Int = 3) async {
+        var seen = Set<String>()
+        var unique: [(String, String)] = []
+        for p in pairs {
+            let r = p.reference.trimmingCharacters(in: .whitespacesAndNewlines)
+            let t = p.translation.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !r.isEmpty else { continue }
+            let key = Self.cacheKey(reference: r, translation: t)
+            guard !seen.contains(key) else { continue }
+            seen.insert(key)
+            unique.append((r, t))
+        }
+        guard !unique.isEmpty else { return }
+
+        var i = 0
+        while i < unique.count {
+            if Task.isCancelled { return }
+            let end = min(i + maxConcurrency, unique.count)
+            await withTaskGroup(of: Void.self) { group in
+                for j in i ..< end {
+                    let pair = unique[j]
+                    group.addTask {
+                        await ScripturePassageCache.shared.prefetch(reference: pair.0, translation: pair.1)
+                    }
+                }
+            }
+            i = end
         }
     }
 }

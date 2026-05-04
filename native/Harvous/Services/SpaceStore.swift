@@ -264,6 +264,8 @@ final class SpaceStore: ObservableObject {
         let noteDescriptor = FetchDescriptor<Note>()
         if let notes = try? modelContext.fetch(noteDescriptor) {
             for n in notes where n.resolvedSpaceId() == sid {
+                HarvousVaultExporter.removeMirrorFiles(for: n, modelContext: modelContext)
+                HarvousNoteSpotlightIndexer.removeNote(id: n.id)
                 modelContext.delete(n)
             }
         }

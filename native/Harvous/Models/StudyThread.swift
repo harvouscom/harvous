@@ -1,7 +1,7 @@
 import Foundation
 import SwiftData
 
-/// A native deep-study branch anchored to a parent note (product: “Thread”).
+/// A native deep-study branch anchored to a parent note (shown in the UI as linked notes).
 /// Named `StudyThread` to avoid colliding with Foundation’s `Thread` type.
 @Model
 final class StudyThread {
@@ -23,13 +23,13 @@ final class StudyThread {
     /// Stable parent link for predicates; kept in sync with `parentNote`.
     var parentNoteId: UUID
 
-    /// Excerpt from the note that this thread extends.
+    /// Excerpt from the note that this linked entry extends.
     var sourceSnippet: String
 
     /// Title or framing question for the line of study.
     var focusTitle: String
 
-    /// Deeper notes for this thread (plain text for MVP).
+    /// Deeper notes for this linked entry (plain text for MVP).
     var notesBody: String = ""
 
     var isArchived: Bool = false
@@ -58,8 +58,8 @@ final class StudyThread {
     /// Scripture reference backing `.scriptureLink` highlights.
     var scriptureReference: String?
 
-    /// Inline highlight pastel override (`StudyHighlightAccentToken.rawValue`). Empty resolves to `.auto` (entry-kind hues).
-    var highlightAccentRaw: String = StudyHighlightAccentToken.auto.rawValue
+    /// Inline highlight pastel override (`StudyHighlightAccentToken.rawValue`). Uses `StudyHighlightAccentToken.decoding` at read time.
+    var highlightAccentRaw: String = StudyHighlightAccentToken.warmAmber.rawValue
 
     var parentNote: Note?
 
@@ -83,7 +83,7 @@ final class StudyThread {
         anchorLength: Int? = nil,
         anchorTextSnapshot: String? = nil,
         scriptureReference: String? = nil,
-        highlightAccentRaw: String = StudyHighlightAccentToken.auto.rawValue,
+        highlightAccentRaw: String = StudyHighlightAccentToken.warmAmber.rawValue,
         parentNote: Note? = nil
     ) {
         self.id = id
@@ -131,7 +131,10 @@ final class StudyThread {
         return loc >= 0
     }
 
-    /// Repairs UTF-16 anchor offsets relative to expanded plain body (`harvousExpandedPlainText`). Mutates persisted anchor fields when drift repairs succeed.
+    /// Pure lookup — returns the best range for this highlight against `expandedPlain`, or `nil` if not found right now.
+    /// May repair the stored UTF-16 offsets when drift is detected but the snippet is still locatable
+    /// (e.g. text was inserted before the anchor). Never clears anchors — transient empty/mismatched
+    /// haystacks (view re-mounts, note load races) must not destroy persisted data.
     func resolveHighlightRangeAgainstExpandedBody(_ expandedPlain: String, searchRadius: Int = 112) -> NSRange? {
         guard StudyThread.anchoredHighlightKinds.contains(entryKind),
               let snap = anchorTextSnapshot,
@@ -139,10 +142,10 @@ final class StudyThread {
 
         let whole = expandedPlain as NSString
         let len = whole.length
-        guard len > 0 else { clearAnchors(); return nil }
+        guard len > 0 else { return nil }
 
         let needleLen = (snap as NSString).length
-        guard needleLen > 0, needleLen <= len else { clearAnchors(); return nil }
+        guard needleLen > 0, needleLen <= len else { return nil }
 
         if anchorLocation == nil || anchorLength == nil || (anchorLength ?? 0) == 0 {
             let r = whole.range(of: snap)
@@ -155,18 +158,18 @@ final class StudyThread {
               anchoredLen > 0,
               loc >= 0,
               loc + anchoredLen <= len else {
-            return repairOrForget(expandedPlain: expandedPlain, haystack: whole, searchRadius: searchRadius)
+            return repairOrKeep(expandedPlain: expandedPlain, haystack: whole, searchRadius: searchRadius)
         }
 
         let current = whole.substring(with: NSRange(location: loc, length: anchoredLen))
         guard current == snap else {
-            return repairOrForget(expandedPlain: expandedPlain, haystack: whole, searchRadius: searchRadius)
+            return repairOrKeep(expandedPlain: expandedPlain, haystack: whole, searchRadius: searchRadius)
         }
         return NSRange(location: loc, length: anchoredLen)
     }
 
-    private func repairOrForget(expandedPlain: String, haystack whole: NSString, searchRadius: Int) -> NSRange? {
-        guard let snap = anchorTextSnapshot, !snap.isEmpty else { clearAnchors(); return nil }
+    private func repairOrKeep(expandedPlain: String, haystack whole: NSString, searchRadius: Int) -> NSRange? {
+        guard let snap = anchorTextSnapshot, !snap.isEmpty else { return nil }
         let needleLen = (snap as NSString).length
         let hayLen = whole.length
 
@@ -176,7 +179,7 @@ final class StudyThread {
             return found
         }
         let brute = whole.range(of: snap)
-        guard brute.location != NSNotFound else { clearAnchors(); return nil }
+        guard brute.location != NSNotFound else { return nil }
         persistAnchors(brute, expandedPlain)
         return brute
     }

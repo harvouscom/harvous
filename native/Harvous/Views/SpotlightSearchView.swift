@@ -21,14 +21,102 @@ struct SpotlightSearchView: View {
     }
 
     private var results: [Note] {
-        guard !query.isEmpty else { return [] }
-        let q = query.lowercased()
-        return notesInActiveSpace.filter {
-            $0.title.lowercased().contains(q) ||
-            $0.body.lowercased().contains(q) ||
-            $0.detectedRefs.contains(where: { $0.lowercased().contains(q) }) ||
-            $0.tags.contains(where: { $0.lowercased().contains(q) })
+        let parsed = Self.parseSpotlightQuery(query)
+        if !parsed.hasAnyFilter && parsed.freeText.isEmpty { return [] }
+        let q = parsed.freeText.lowercased()
+        let needFree = !q.isEmpty
+        return notesInActiveSpace.filter { note in
+            if let t = parsed.tagFilter {
+                if !note.tags.contains(where: { $0.lowercased().contains(t.lowercased()) }) { return false }
+            }
+            if let c = parsed.collectionFilter {
+                let pc = note.primaryCollection?.lowercased() ?? ""
+                if !pc.contains(c.lowercased()) { return false }
+            }
+            if let r = parsed.refFilter {
+                if !note.detectedRefs.contains(where: { $0.lowercased().contains(r.lowercased()) }) { return false }
+            }
+            if let fd = parsed.fromDateFilter {
+                if note.createdAt < fd { return false }
+            }
+            if !needFree { return true }
+            return note.title.lowercased().contains(q) ||
+                note.body.lowercased().contains(q) ||
+                note.detectedRefs.contains(where: { $0.lowercased().contains(q) }) ||
+                note.tags.contains(where: { $0.lowercased().contains(q) })
         }
+    }
+
+    /// Parses `tag:x collection:y ref:Romans 8 from:2024-01-01` plus free-text tokens.
+    private struct ParsedSpotlightQuery {
+        var freeText: String
+        var tagFilter: String?
+        var collectionFilter: String?
+        var refFilter: String?
+        var fromDateFilter: Date?
+
+        var hasAnyFilter: Bool {
+            tagFilter != nil || collectionFilter != nil || refFilter != nil || fromDateFilter != nil
+        }
+    }
+
+    private static func parseSpotlightQuery(_ raw: String) -> ParsedSpotlightQuery {
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            return ParsedSpotlightQuery(freeText: "", tagFilter: nil, collectionFilter: nil, refFilter: nil, fromDateFilter: nil)
+        }
+        let parts = trimmed.split(whereSeparator: { $0 == " " || $0 == "\t" }).map(String.init)
+        var tag: String?
+        var collection: String?
+        var ref: String?
+        var from: Date?
+        var free: [String] = []
+        var i = 0
+        let df = DateFormatter()
+        df.locale = Locale(identifier: "en_US_POSIX")
+        df.timeZone = TimeZone.current
+        df.dateFormat = "yyyy-MM-dd"
+        while i < parts.count {
+            let p = parts[i]
+            let lower = p.lowercased()
+            if lower.hasPrefix("tag:") {
+                let v = String(p.dropFirst(4)).trimmingCharacters(in: .whitespacesAndNewlines)
+                if !v.isEmpty { tag = v }
+                i += 1
+                continue
+            }
+            if lower.hasPrefix("collection:") {
+                let v = String(p.dropFirst(11)).trimmingCharacters(in: .whitespacesAndNewlines)
+                if !v.isEmpty { collection = v }
+                i += 1
+                continue
+            }
+            if lower.hasPrefix("from:") {
+                let v = String(p.dropFirst(5)).trimmingCharacters(in: .whitespacesAndNewlines)
+                from = df.date(from: v)
+                i += 1
+                continue
+            }
+            if lower.hasPrefix("ref:") {
+                var r = String(p.dropFirst(4)).trimmingCharacters(in: .whitespacesAndNewlines)
+                i += 1
+                while i < parts.count {
+                    let n = parts[i]
+                    let nl = n.lowercased()
+                    if nl.hasPrefix("tag:") || nl.hasPrefix("collection:") || nl.hasPrefix("from:") || nl.hasPrefix("ref:") {
+                        break
+                    }
+                    r += (r.isEmpty ? "" : " ") + n
+                    i += 1
+                }
+                if !r.isEmpty { ref = r }
+                continue
+            }
+            free.append(p)
+            i += 1
+        }
+        let freeText = free.joined(separator: " ").trimmingCharacters(in: .whitespacesAndNewlines)
+        return ParsedSpotlightQuery(freeText: freeText, tagFilter: tag, collectionFilter: collection, refFilter: ref, fromDateFilter: from)
     }
 
     var body: some View {
@@ -70,7 +158,7 @@ struct SpotlightSearchView: View {
                     .foregroundStyle(.secondary)
                     .font(.system(size: 15))
 
-                TextField("Search notes, verses, tags…", text: $query)
+                TextField("Search notes, verses, tags… Use tag:, collection:, ref:, from:YYYY-MM-DD", text: $query)
                     .textFieldStyle(.plain)
                     .font(HarvousTypography.searchField)
                     .focused($fieldFocused)
@@ -119,7 +207,7 @@ struct SpotlightSearchView: View {
     private func resultRow(note: Note, highlighted: Bool) -> some View {
         HStack(spacing: 12) {
             if let collection = note.primaryCollection, !collection.isEmpty {
-                Image(systemName: "rectangle.stack.fill")
+                Image(systemName: "folder.fill")
                     .font(.system(size: 9))
                     .foregroundStyle(.secondary)
             } else {

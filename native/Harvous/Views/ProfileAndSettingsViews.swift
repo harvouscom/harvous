@@ -1,4 +1,5 @@
 import SwiftUI
+import UniformTypeIdentifiers
 #if os(iOS)
 import UIKit
 #endif
@@ -122,7 +123,7 @@ private struct SettingsEditProfileView: View {
                     .textContentType(.familyName)
             }
             Section("Avatar color") {
-                Text("Same palette as spaces and threads on the web.")
+                Text("Same palette as spaces and linked notes on the web.")
                     .font(HarvousTypography.caption)
                     .foregroundStyle(.secondary)
                 LazyVGrid(columns: [GridItem(.adaptive(minimum: 72), spacing: 10)], spacing: 10) {
@@ -311,25 +312,167 @@ private struct SettingsReferralView: View {
 // MARK: - My data
 
 private struct SettingsMyDataView: View {
+    @Environment(\.modelContext) private var modelContext
+    @EnvironmentObject private var spaceStore: SpaceStore
+
+    @State private var mirrorEnabled = HarvousVaultPreferences.isMirrorEnabled
+    @State private var showVaultFolderImporter = false
+    @State private var showFileImporter = false
+    @State private var showRebuildConfirm = false
+    @State private var rebuildResultMessage: String?
+    @State private var showRebuildResult = false
+
+    private var lastWriteLabel: String {
+        guard let d = HarvousVaultPreferences.lastVaultWriteAt else { return "—" }
+        return d.formatted(date: .abbreviated, time: .shortened)
+    }
+
     var body: some View {
         Form {
             Section {
-                Text("Export your notes and account data, import backups, or delete your account. Destructive actions require confirmation on the web.")
-                    .font(HarvousTypography.subheadline)
-                    .foregroundStyle(.secondary)
+                Text(
+                    "Harvous can mirror every note to Markdown files you own — plain text in a vault folder (iCloud Drive by default, or a folder you choose). SwiftData stays the source of truth."
+                )
+                .font(HarvousTypography.subheadline)
+                .foregroundStyle(.secondary)
             }
+
+            Section("Markdown vault") {
+                Toggle("Mirror notes to vault", isOn: $mirrorEnabled)
+                    .onChange(of: mirrorEnabled) { _, on in
+                        HarvousVaultPreferences.isMirrorEnabled = on
+                        if on {
+                            HarvousVaultExporter.rewriteAllNotes(modelContext: modelContext)
+                        }
+                    }
+
+                LabeledContent("Location") {
+                    Text(HarvousVaultLocation.vaultKindDescription())
+                        .foregroundStyle(.secondary)
+                }
+                LabeledContent("Cached export count") {
+                    Text("\(HarvousVaultPreferences.cachedExportedNoteCount)")
+                        .foregroundStyle(.secondary)
+                }
+                LabeledContent("Last vault write") {
+                    Text(lastWriteLabel)
+                        .foregroundStyle(.secondary)
+                }
+
+                #if os(macOS)
+                Button("Open vault in Finder") {
+                    HarvousVaultLocation.revealVaultRootInSystem()
+                }
+                #else
+                Button("Copy vault folder path") {
+                    HarvousVaultLocation.revealVaultRootInSystem()
+                }
+                #endif
+
+                Button("Choose external vault folder…") {
+                    showVaultFolderImporter = true
+                }
+
+                Button("Stop using external folder (use iCloud / default)") {
+                    HarvousVaultPreferences.clearExternalVaultBookmark()
+                    if HarvousVaultPreferences.isMirrorEnabled {
+                        HarvousVaultExporter.rewriteAllNotes(modelContext: modelContext)
+                    }
+                }
+                .foregroundStyle(.secondary)
+
+                Button("Import from files or folders…") {
+                    showFileImporter = true
+                }
+
+                Button("Rebuild library from vault…", role: .destructive) {
+                    showRebuildConfirm = true
+                }
+            }
+
+            Section("Import sources (help)") {
+                Text(
+                    "Apple Notes: share a note as HTML or Markdown (or use an exporter app). Notion: export as Markdown & CSV zip. Evernote: export .enex. Google Docs: export .docx or HTML. Obsidian / plain Markdown: drop .md files or a vault folder."
+                )
+                .font(HarvousTypography.footnote)
+                .foregroundStyle(.secondary)
+            }
+
             Section("Open on the web") {
                 Link(destination: URL(string: "https://harvous.com/profile")!) {
                     Label("My Data (export / import / delete)", systemImage: "externaldrive")
                 }
             }
-            Section("On this device") {
-                Text("SwiftData notes live in this app’s container. Use the note list to manage individual notes; full account export follows the same tools as the web app once linked.")
-                    .font(HarvousTypography.footnote)
-                    .foregroundStyle(.secondary)
-            }
         }
         .harvousGroupedSettingsForm()
+        .onAppear { mirrorEnabled = HarvousVaultPreferences.isMirrorEnabled }
+        .fileImporter(
+            isPresented: $showVaultFolderImporter,
+            allowedContentTypes: [.folder],
+            allowsMultipleSelection: false
+        ) { result in
+            switch result {
+            case .success(let urls):
+                guard let url = urls.first else { return }
+                let ok = url.startAccessingSecurityScopedResource()
+                defer { if ok { url.stopAccessingSecurityScopedResource() } }
+                do {
+                    try HarvousVaultLocation.setExternalVaultFolder(url)
+                    if HarvousVaultPreferences.isMirrorEnabled {
+                        HarvousVaultExporter.rewriteAllNotes(modelContext: modelContext)
+                    }
+                } catch {
+                    print("[Settings] vault folder bookmark failed: \(error)")
+                }
+            case .failure(let err):
+                print("[Settings] vault folder pick failed: \(err)")
+            }
+        }
+        .fileImporter(
+            isPresented: $showFileImporter,
+            allowedContentTypes: [.item],
+            allowsMultipleSelection: true
+        ) { result in
+            switch result {
+            case .success(let urls):
+                var accesses: [URL] = []
+                for u in urls {
+                    if u.startAccessingSecurityScopedResource() {
+                        accesses.append(u)
+                    }
+                }
+                defer {
+                    for u in accesses {
+                        u.stopAccessingSecurityScopedResource()
+                    }
+                }
+                _ = HarvousVaultImporter.importItems(
+                    urls: urls,
+                    targetSpaceId: spaceStore.activeSpaceUUID(),
+                    modelContext: modelContext,
+                    surfaceImportSummary: true
+                )
+            case .failure(let err):
+                print("[Settings] import pick failed: \(err)")
+            }
+        }
+        .confirmationDialog(
+            "Rebuild merges vault Markdown and highlight sidecars into this device library. Notes on disk update or add rows; nothing is deleted if a file is missing.",
+            isPresented: $showRebuildConfirm,
+            titleVisibility: .visible
+        ) {
+            Button("Rebuild", role: .destructive) {
+                let report = HarvousVaultImporter.rebuildLibraryFromVault(modelContext: modelContext)
+                rebuildResultMessage = report.summaryLine
+                showRebuildResult = true
+            }
+            Button("Cancel", role: .cancel) {}
+        }
+        .alert("Rebuild finished", isPresented: $showRebuildResult) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(rebuildResultMessage ?? "")
+        }
     }
 }
 
@@ -395,11 +538,14 @@ private struct SettingsKeyboardShortcutsView: View {
     private let nativeRows: [Row] = [
         Row(action: "New note", keys: "⌘N"),
         Row(action: "Search", keys: "⌘K"),
+        Row(action: "Daily note", keys: "⌘T"),
+        Row(action: "Random revisit", keys: "⌃⌘R"),
+        Row(action: "Insert note wikilink", keys: "⇧⌘L"),
     ]
 
     private let webStudyRows: [Row] = [
         Row(action: "New note (web)", keys: "⌘‘"),
-        Row(action: "New thread (web)", keys: "⌘;"),
+        Row(action: "New linked note (web)", keys: "⌘;"),
         Row(action: "Spotlight search (web)", keys: "⌘K"),
         Row(action: "Find page (web)", keys: "⌘F"),
         Row(action: "Close panel (web)", keys: "Esc"),

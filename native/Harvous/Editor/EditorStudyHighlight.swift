@@ -9,14 +9,22 @@ import UIKit
 /// Per-highlight pastel override; persisted on `StudyThread.highlightAccentRaw`. `.auto` uses entry-kind hues.
 enum StudyHighlightAccentToken: String, CaseIterable {
     case auto
+    /// Stone gray (low saturation) — default for scripture-link highlights.
+    case neutral
     case warmAmber
     case skyBlue
     case violet
     case mintGreen
     case coralRose
 
+    /// Highlights (selection popover + study dock): amber default, no neutral swatch.
     static var pickerChoices: [StudyHighlightAccentToken] {
         [.warmAmber, .skyBlue, .violet, .mintGreen, .coralRose]
+    }
+
+    /// Scripture pill / scripture chrome pickers — neutral stays available as explicit default tint.
+    static var pickerChoicesWithNeutral: [StudyHighlightAccentToken] {
+        [.neutral, .warmAmber, .skyBlue, .violet, .mintGreen, .coralRose]
     }
 
     static func decoding(_ raw: String) -> StudyHighlightAccentToken {
@@ -26,6 +34,7 @@ enum StudyHighlightAccentToken: String, CaseIterable {
     nonisolated var label: String {
         switch self {
         case .auto: return "Default"
+        case .neutral: return "Neutral"
         case .warmAmber: return "Amber"
         case .skyBlue: return "Sky"
         case .violet: return "Violet"
@@ -37,6 +46,7 @@ enum StudyHighlightAccentToken: String, CaseIterable {
     nonisolated var symbolName: String {
         switch self {
         case .auto: return "circle.lefthalf.filled.righthalf.striped.horizontal"
+        case .neutral: return "circle.fill"
         case .warmAmber: return "circle.fill"
         case .skyBlue: return "circle.fill"
         case .violet: return "circle.fill"
@@ -45,41 +55,117 @@ enum StudyHighlightAccentToken: String, CaseIterable {
         }
     }
 
-#if os(macOS)
-    func resolvedNSColor(kind: StudyThread.EntryKind, isDark: Bool) -> NSColor {
+    /// Hue + saturation tuple used to derive both the background pastel and foreground pill color for a given accent.
+    /// `.auto` returns `nil` so callers fall back to per-kind hues in `HarvousColors`.
+    fileprivate var hueSat: (hue: CGFloat, sat: CGFloat)? {
         switch self {
-        case .auto:
-            HarvousColors.nsStudyHighlight(kind: kind, isDark: isDark)
-        case .warmAmber:
-            NSColor(calibratedHue: 0.09, saturation: 0.48, brightness: isDark ? 0.93 : 0.98, alpha: isDark ? 0.42 : 0.35)
-        case .skyBlue:
-            NSColor(calibratedHue: 0.54, saturation: 0.44, brightness: isDark ? 0.93 : 0.98, alpha: isDark ? 0.42 : 0.35)
-        case .violet:
-            NSColor(calibratedHue: 0.75, saturation: 0.42, brightness: isDark ? 0.93 : 0.98, alpha: isDark ? 0.42 : 0.35)
-        case .mintGreen:
-            NSColor(calibratedHue: 0.32, saturation: 0.40, brightness: isDark ? 0.93 : 0.98, alpha: isDark ? 0.42 : 0.35)
-        case .coralRose:
-            NSColor(calibratedHue: 0.97, saturation: 0.38, brightness: isDark ? 0.93 : 0.98, alpha: isDark ? 0.42 : 0.35)
+        case .auto: return nil
+        case .neutral: return (0.0, 0.0)
+        // Tuned to feel like physical Bible-study highlighters (vibrant primaries) while
+        // keeping enough saturation to read as a highlight underline against light/dark prose.
+        case .warmAmber:   return (0.14, 0.92) // bright yellow (default)
+        case .skyBlue:     return (0.55, 0.78) // sky / cyan-blue
+        case .violet:      return (0.77, 0.55) // vivid purple
+        case .mintGreen:   return (0.32, 0.85) // lime green
+        case .coralRose:   return (0.94, 0.62) // hot pink / magenta
         }
+    }
+
+    /// Resolve legacy `.auto` storage to the **new per-kind default** so existing rows
+    /// pick up the updated highlighter palette without a migration. Mini-notes default to
+    /// amber-yellow, scripture links to neutral, linked notes to violet (matches old hue).
+    func resolvedFromAuto(forKind kind: StudyThread.EntryKind) -> StudyHighlightAccentToken {
+        guard self == .auto else { return self }
+        switch kind {
+        case .miniNote, .workspace: return .warmAmber
+        case .scriptureLink: return .neutral
+        case .linkedNote: return .violet
+        }
+    }
+
+    /// Per-token accent brightness for the **underline / swatch tint** color (`resolvedAccent…Color`).
+    /// Tuned per hue so yellow stays yellow (never olive/brown) and darker hues stay legible.
+    fileprivate var accentBrightness: (light: CGFloat, dark: CGFloat) {
+        switch self {
+        case .warmAmber:  return (0.95, 1.00) // yellow needs high brightness or it goes brown
+        case .skyBlue:    return (0.86, 0.95)
+        case .violet:     return (0.78, 0.92)
+        case .mintGreen:  return (0.78, 0.95)
+        case .coralRose:  return (0.92, 1.00)
+        case .neutral:    return (0.62, 0.72)
+        case .auto:       return (0.82, 0.82)
+        }
+    }
+
+#if os(macOS)
+    /// Pastel background fill (low-alpha) — same look as before.
+    func resolvedNSColor(kind: StudyThread.EntryKind, isDark: Bool) -> NSColor {
+        let resolved = self.resolvedFromAuto(forKind: kind)
+        guard let hs = resolved.hueSat else {
+            return HarvousColors.nsStudyHighlight(kind: kind, isDark: isDark)
+        }
+        return NSColor(calibratedHue: hs.hue, saturation: hs.sat, brightness: isDark ? 0.93 : 0.98, alpha: isDark ? 0.42 : 0.35)
+    }
+
+    /// Saturated foreground color for painted highlight text — gives the run a "pill" feel matching scripture chips.
+    func resolvedNSForegroundColor(kind: StudyThread.EntryKind, isDark: Bool) -> NSColor {
+        let resolved = self.resolvedFromAuto(forKind: kind)
+        if resolved == .neutral {
+            return NSColor(calibratedWhite: isDark ? 0.78 : 0.44, alpha: 1.0)
+        }
+        guard let hs = resolved.hueSat else {
+            return HarvousColors.nsStudyHighlightForeground(kind: kind, isDark: isDark)
+        }
+        // Per-token accent brightness so saturated text stays in-hue (e.g. yellow doesn't darken to brown).
+        let b = resolved.accentBrightness
+        return NSColor(calibratedHue: hs.hue, saturation: min(hs.sat, 0.95), brightness: isDark ? b.dark : b.light, alpha: 1.0)
+    }
+
+    /// SwiftUI-side accent tint for themed chrome (dock border, theme badge) — opaque enough for subtle strokes.
+    func resolvedAccentNSColor(kind: StudyThread.EntryKind, isDark: Bool) -> NSColor {
+        let resolved = self.resolvedFromAuto(forKind: kind)
+        if resolved == .neutral {
+            return NSColor(calibratedWhite: isDark ? 0.72 : 0.62, alpha: 1.0)
+        }
+        guard let hs = resolved.hueSat else {
+            return HarvousColors.nsStudyHighlightForeground(kind: kind, isDark: isDark)
+        }
+        let b = resolved.accentBrightness
+        return NSColor(calibratedHue: hs.hue, saturation: hs.sat, brightness: isDark ? b.dark : b.light, alpha: 1.0)
     }
 #endif
 
 #if os(iOS)
     func resolvedUIColor(kind: StudyThread.EntryKind, isDark: Bool) -> UIColor {
-        switch self {
-        case .auto:
-            HarvousColors.uiStudyHighlight(kind: kind, isDark: isDark)
-        case .warmAmber:
-            UIColor(hue: 0.09, saturation: 0.48, brightness: isDark ? 0.93 : 0.98, alpha: isDark ? 0.42 : 0.35)
-        case .skyBlue:
-            UIColor(hue: 0.54, saturation: 0.44, brightness: isDark ? 0.93 : 0.98, alpha: isDark ? 0.42 : 0.35)
-        case .violet:
-            UIColor(hue: 0.75, saturation: 0.42, brightness: isDark ? 0.93 : 0.98, alpha: isDark ? 0.42 : 0.35)
-        case .mintGreen:
-            UIColor(hue: 0.32, saturation: 0.40, brightness: isDark ? 0.93 : 0.98, alpha: isDark ? 0.42 : 0.35)
-        case .coralRose:
-            UIColor(hue: 0.97, saturation: 0.38, brightness: isDark ? 0.93 : 0.98, alpha: isDark ? 0.42 : 0.35)
+        let resolved = self.resolvedFromAuto(forKind: kind)
+        guard let hs = resolved.hueSat else {
+            return HarvousColors.uiStudyHighlight(kind: kind, isDark: isDark)
         }
+        return UIColor(hue: hs.hue, saturation: hs.sat, brightness: isDark ? 0.93 : 0.98, alpha: isDark ? 0.42 : 0.35)
+    }
+
+    func resolvedUIForegroundColor(kind: StudyThread.EntryKind, isDark: Bool) -> UIColor {
+        let resolved = self.resolvedFromAuto(forKind: kind)
+        if resolved == .neutral {
+            return UIColor(white: isDark ? 0.78 : 0.44, alpha: 1.0)
+        }
+        guard let hs = resolved.hueSat else {
+            return HarvousColors.uiStudyHighlightForeground(kind: kind, isDark: isDark)
+        }
+        let b = resolved.accentBrightness
+        return UIColor(hue: hs.hue, saturation: min(hs.sat, 0.95), brightness: isDark ? b.dark : b.light, alpha: 1.0)
+    }
+
+    func resolvedAccentUIColor(kind: StudyThread.EntryKind, isDark: Bool) -> UIColor {
+        let resolved = self.resolvedFromAuto(forKind: kind)
+        if resolved == .neutral {
+            return UIColor(white: isDark ? 0.72 : 0.62, alpha: 1.0)
+        }
+        guard let hs = resolved.hueSat else {
+            return HarvousColors.uiStudyHighlightForeground(kind: kind, isDark: isDark)
+        }
+        let b = resolved.accentBrightness
+        return UIColor(hue: hs.hue, saturation: hs.sat, brightness: isDark ? b.dark : b.light, alpha: 1.0)
     }
 #endif
 }
@@ -89,34 +175,43 @@ extension NSAttributedString.Key {
     static let harvousStudyHighlightUUID = NSAttributedString.Key("harvous.study.highlight.uuid")
 }
 
+private struct StudyHighlightKindHues {
+    let hue: CGFloat
+    let saturation: CGFloat
+
+    static func forKind(_ kind: StudyThread.EntryKind) -> StudyHighlightKindHues {
+        switch kind {
+        case .miniNote: return .init(hue: 0.12, saturation: 0.45)
+        case .linkedNote: return .init(hue: 0.75, saturation: 0.40)
+        case .scriptureLink: return .init(hue: 0.55, saturation: 0.42)
+        case .workspace: return .init(hue: 0.12, saturation: 0.45)
+        }
+    }
+}
+
 #if os(macOS)
 extension HarvousColors {
     static func nsStudyHighlight(kind: StudyThread.EntryKind, isDark: Bool) -> NSColor {
-        let hue: CGFloat
-        let saturation: CGFloat
-        let brightness: CGFloat
-        switch kind {
-        case .miniNote: hue = 0.12; saturation = 0.45; brightness = isDark ? 0.94 : 0.98
-        case .linkedNote: hue = 0.75; saturation = 0.40; brightness = isDark ? 0.93 : 0.98
-        case .scriptureLink: hue = 0.55; saturation = 0.42; brightness = isDark ? 0.91 : 0.96
-        case .workspace: hue = 0.12; saturation = 0.45; brightness = isDark ? 0.94 : 0.98
-        }
-        return NSColor(calibratedHue: hue, saturation: saturation, brightness: brightness, alpha: isDark ? 0.42 : 0.35)
+        let h = StudyHighlightKindHues.forKind(kind)
+        return NSColor(calibratedHue: h.hue, saturation: h.saturation, brightness: isDark ? 0.94 : 0.98, alpha: isDark ? 0.42 : 0.35)
+    }
+
+    static func nsStudyHighlightForeground(kind: StudyThread.EntryKind, isDark: Bool) -> NSColor {
+        let h = StudyHighlightKindHues.forKind(kind)
+        // Theme-invariant underline tint so light mode doesn't appear overly dark.
+        return NSColor(calibratedHue: h.hue, saturation: min(h.saturation + 0.35, 0.95), brightness: 0.82, alpha: 1.0)
     }
 }
 #elseif os(iOS)
 extension HarvousColors {
     static func uiStudyHighlight(kind: StudyThread.EntryKind, isDark: Bool) -> UIColor {
-        let hue: CGFloat
-        let saturation: CGFloat
-        let brightness: CGFloat
-        switch kind {
-        case .miniNote: hue = 0.12; saturation = 0.45; brightness = isDark ? 0.94 : 0.98
-        case .linkedNote: hue = 0.75; saturation = 0.40; brightness = isDark ? 0.93 : 0.98
-        case .scriptureLink: hue = 0.55; saturation = 0.42; brightness = isDark ? 0.91 : 0.96
-        case .workspace: hue = 0.12; saturation = 0.45; brightness = isDark ? 0.94 : 0.98
-        }
-        return UIColor(hue: hue, saturation: saturation, brightness: brightness, alpha: isDark ? 0.42 : 0.35)
+        let h = StudyHighlightKindHues.forKind(kind)
+        return UIColor(hue: h.hue, saturation: h.saturation, brightness: isDark ? 0.94 : 0.98, alpha: isDark ? 0.42 : 0.35)
+    }
+
+    static func uiStudyHighlightForeground(kind: StudyThread.EntryKind, isDark: Bool) -> UIColor {
+        let h = StudyHighlightKindHues.forKind(kind)
+        return UIColor(hue: h.hue, saturation: min(h.saturation + 0.35, 0.95), brightness: 0.82, alpha: 1.0)
     }
 }
 #endif
@@ -308,9 +403,14 @@ enum HarvousStudyHighlightMapper {
             guard value != nil else { return }
             storage.removeAttribute(.harvousStudyHighlightUUID, range: range)
             storage.removeAttribute(.backgroundColor, range: range)
+            storage.removeAttribute(.underlineStyle, range: range)
+            storage.removeAttribute(.underlineColor, range: range)
         }
     }
 
+    /// Paints anchored highlights as an accent-colored underline (not a pill chrome).
+    /// The `.harvousStudyHighlightUUID` attribute is still stamped on the run so `mouseDown` / `handlePillTap`
+    /// hit testing can resolve the thread and open the bottom sheet on click/tap.
     static func applyHighlights(
         storage: NSTextStorage,
         anchors: [(id: UUID, kind: StudyThread.EntryKind, accent: StudyHighlightAccentToken, expandedRange: NSRange)],
@@ -327,15 +427,17 @@ enum HarvousStudyHighlightMapper {
             let storRanges = storageRanges(forExpandedRange: item.expandedRange, in: storage)
             guard !storRanges.isEmpty else { continue }
 #if os(macOS)
-            let bgAny = item.accent.resolvedNSColor(kind: item.kind, isDark: isDark)
+            let underlineColor = item.accent.resolvedAccentNSColor(kind: item.kind, isDark: isDark)
 #elseif os(iOS)
-            let bgAny = item.accent.resolvedUIColor(kind: item.kind, isDark: isDark)
+            let underlineColor = item.accent.resolvedAccentUIColor(kind: item.kind, isDark: isDark)
 #endif
             let tag = item.id.uuidString
+            let underlineStyle = NSUnderlineStyle.thick.rawValue
             for r in storRanges {
                 guard r.location != NSNotFound, NSMaxRange(r) <= storage.length else { continue }
                 storage.addAttribute(.harvousStudyHighlightUUID, value: tag, range: r)
-                storage.addAttribute(.backgroundColor, value: bgAny, range: r)
+                storage.addAttribute(.underlineStyle, value: underlineStyle, range: r)
+                storage.addAttribute(.underlineColor, value: underlineColor, range: r)
             }
         }
 #endif

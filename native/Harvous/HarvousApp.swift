@@ -7,6 +7,11 @@ import UIKit
 
 @main
 struct HarvousApp: App {
+    /// Wake Netlify function + Postgres before the user taps a scripture pill (non-blocking).
+    init() {
+        ScriptureVerseFetch.warmBackendForVerseFetch()
+    }
+
     @StateObject private var appRouter = HarvousAppRouter()
     @StateObject private var spaceStore = SpaceStore()
 
@@ -15,23 +20,6 @@ struct HarvousApp: App {
     /// when auto-migration can't reconcile a schema change).
     private let modelContainer: ModelContainer = HarvousApp.makeModelContainer()
 
-    init() {
-        HarvousRecallNotifications.registerCategories()
-        #if os(iOS)
-        let navTitle = HarvousFonts.system(size: 17, weight: 600, design: .default)
-        let navLarge = HarvousFonts.system(size: 28, weight: 600, design: .rounded)
-        let appearance = UINavigationBarAppearance()
-        appearance.configureWithDefaultBackground()
-        appearance.titleTextAttributes = [.font: navTitle]
-        appearance.largeTitleTextAttributes = [.font: navLarge]
-        UINavigationBar.appearance().standardAppearance = appearance
-        UINavigationBar.appearance().scrollEdgeAppearance = appearance
-        UINavigationBar.appearance().compactAppearance = appearance
-        HarvousRecallNotifications.registerBackgroundTasks()
-        #endif
-
-        ScriptureVerseFetch.warmBackendForVerseFetch()
-    }
 
     private static func makeModelContainer() -> ModelContainer {
         let schema = Schema([
@@ -130,12 +118,6 @@ struct HarvousApp: App {
             ContentView()
                 .environmentObject(appRouter)
                 .environmentObject(spaceStore)
-                .task {
-                    HarvousRecallNotifications.requestAuthorizationIfNeeded()
-                    #if os(iOS)
-                    HarvousRecallNotifications.scheduleBackgroundRefresh()
-                    #endif
-                }
         }
         #if os(macOS)
         // Unified title bar + traffic lights: same as document window (glass reads under the toolbar).

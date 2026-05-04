@@ -28,10 +28,18 @@ struct NoteFeedRow: View {
 
     private var sidebarCompactBody: some View {
         VStack(alignment: .leading, spacing: 3) {
-            Text(note.title.isEmpty ? "New Note" : note.title)
-                .font(HarvousTypography.noteListTitle)
-                .lineLimit(1)
-                .foregroundStyle(.primary)
+            HStack(spacing: 4) {
+                if note.isPinned {
+                    Image(systemName: "pin.fill")
+                        .font(.system(size: 9, weight: .semibold))
+                        .foregroundStyle(.tertiary)
+                        .rotationEffect(.degrees(45))
+                }
+                Text(note.title.isEmpty ? "New Note" : note.title)
+                    .font(HarvousTypography.noteListTitle)
+                    .lineLimit(1)
+                    .foregroundStyle(.primary)
+            }
 
             TimelineView(.periodic(from: .now, by: Self.timelineInterval)) { context in
                 HStack(spacing: 0) {
@@ -59,6 +67,13 @@ struct NoteFeedRow: View {
     private var conversationBody: some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
+                if note.isPinned {
+                    Image(systemName: "pin.fill")
+                        .font(.system(size: 9, weight: .semibold))
+                        .foregroundStyle(.tertiary)
+                        .rotationEffect(.degrees(45))
+                }
+
                 Text(note.title.isEmpty ? "New Note" : note.title)
                     .font(HarvousTypography.noteListTitle)
                     .foregroundStyle(.primary)

@@ -21,10 +21,29 @@ final class Note {
     /// Timestamp of the last auto-assignment of primary collection.
     var collectionLastAutoUpdatedAt: Date? = nil
     var tags: [String]
+    /// User pin (note-level); surface in list/chrome and keep stable under auto-tag churn.
+    var isPinned: Bool = false
     /// Scoped to a `Space.id`; `nil` is treated as the default personal home during migration.
     var spaceId: UUID?
+    /// Server UUID when syncing (v2). Always `nil` in v1.
+    var cloudId: UUID?
+    /// Tracks rows pending upload in v2. Unused locally in v1.
+    var needsSync: Bool = false
+    /// Cached filename (no path) last written under the space folder in the Markdown vault mirror.
+    var vaultFilename: String?
+    /// Optional 1–7 “stickiness” score (Steph-style rating); `nil` means unset.
+    var rating: Int?
+    /// Local per-device sequential ID for human-readable labels (`N001`), assigned on create/backfill.
+    /// TODO: When native cloud sync lands, reconcile with server `simpleNoteId` on conflict.
+    var simpleNoteId: Int?
     var createdAt: Date
     var updatedAt: Date
+
+    /// Per-note + per-reference scripture pill accent overrides.
+    /// Encoded JSON: `{ "John 3:16": "amber", "Phil 4:13": "teal" }` — keys are the pill reference
+    /// string (translation-agnostic), values are `StudyHighlightAccentToken.rawValue`. Pills with
+    /// no entry here render with the neutral default palette (space theme intentionally ignored).
+    var scripturePillAccentsJSON: String = "{}"
 
     @Relationship(deleteRule: .cascade, inverse: \StudyThread.parentNote)
     var studyThreads: [StudyThread] = []
@@ -41,7 +60,13 @@ final class Note {
         collectionAutoConfidence: Double? = nil,
         collectionLastAutoUpdatedAt: Date? = nil,
         tags: [String] = [],
-        spaceId: UUID? = nil
+        spaceId: UUID? = nil,
+        cloudId: UUID? = nil,
+        needsSync: Bool = false,
+        isPinned: Bool = false,
+        vaultFilename: String? = nil,
+        rating: Int? = nil,
+        simpleNoteId: Int? = nil
     ) {
         self.id = UUID()
         self.title = title
@@ -54,8 +79,14 @@ final class Note {
         self.isCollectionPinned = isCollectionPinned
         self.collectionAutoConfidence = collectionAutoConfidence
         self.collectionLastAutoUpdatedAt = collectionLastAutoUpdatedAt
+        self.isPinned = isPinned
         self.tags = tags
         self.spaceId = spaceId
+        self.cloudId = cloudId
+        self.needsSync = needsSync
+        self.vaultFilename = vaultFilename
+        self.rating = rating
+        self.simpleNoteId = simpleNoteId
         self.createdAt = Date()
         self.updatedAt = Date()
     }
@@ -69,4 +100,34 @@ final class Note {
 
     /// Primary scripture reference for card badge
     var primaryRef: String? { detectedRefs.first }
+
+    // MARK: - Scripture pill accent map
+
+    private var decodedScripturePillAccents: [String: String] {
+        guard let data = scripturePillAccentsJSON.data(using: .utf8) else { return [:] }
+        return (try? JSONDecoder().decode([String: String].self, from: data)) ?? [:]
+    }
+
+    private func encodeScripturePillAccents(_ map: [String: String]) {
+        guard let data = try? JSONEncoder().encode(map),
+              let str = String(data: data, encoding: .utf8) else { return }
+        scripturePillAccentsJSON = str
+    }
+
+    /// Raw accent token value for a given reference, or `nil` if none set (use neutral default).
+    func scripturePillAccentRaw(forReference reference: String) -> String? {
+        decodedScripturePillAccents[reference]
+    }
+
+    /// Persist or clear a reference's accent. Pass `nil` to fall back to the neutral default.
+    func setScripturePillAccent(_ accentRaw: String?, forReference reference: String) {
+        var map = decodedScripturePillAccents
+        if let accentRaw {
+            map[reference] = accentRaw
+        } else {
+            map.removeValue(forKey: reference)
+        }
+        encodeScripturePillAccents(map)
+        updatedAt = Date()
+    }
 }

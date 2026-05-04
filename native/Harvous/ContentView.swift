@@ -2,12 +2,17 @@ import SwiftUI
 import SwiftData
 #if os(iOS)
 import UIKit
+import UniformTypeIdentifiers
+#elseif os(macOS)
+import AppKit
+import UniformTypeIdentifiers
 #endif
 
 struct ContentView: View {
     @EnvironmentObject private var appRouter: HarvousAppRouter
     @EnvironmentObject private var spaceStore: SpaceStore
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.scenePhase) private var scenePhase
     #if os(macOS)
     @Environment(\.openWindow) private var openWindow
     #endif
@@ -24,6 +29,12 @@ struct ContentView: View {
         .task {
             spaceStore.bootstrapIfNeeded(modelContext: modelContext)
             _ = spaceStore.consumePendingJoinToken(modelContext: modelContext)
+            NoteSimpleIDAssigner.backfillAllIfNeeded(in: modelContext)
+        }
+        .onChange(of: scenePhase) { _, phase in
+            guard phase == .inactive || phase == .background else { return }
+            HarvousVaultExportCoordinator.shared.flush(modelContext: modelContext)
+            HarvousVaultInboxScanner.scanIfNeeded(modelContext: modelContext, activeSpaceId: spaceStore.activeSpaceUUID())
         }
         .onOpenURL { url in
             SpaceStore.queueJoinTokenFromURL(url)
@@ -51,6 +62,7 @@ struct MacRootView: View {
     @State private var showSearch = false
     @State private var showInspector = false
     @State private var threadNavPath = NavigationPath()
+    @State private var importSummaryPayload: HarvousVaultImportSummaryPayload?
     @Environment(\.modelContext) private var context
     @EnvironmentObject private var appRouter: HarvousAppRouter
     @EnvironmentObject private var spaceStore: SpaceStore
@@ -58,17 +70,16 @@ struct MacRootView: View {
 
     var body: some View {
         NavigationSplitView {
-            SidebarPanelView(selectedNote: $selectedNote)
+            SidebarPanelView(selectedNote: $selectedNote, onCreateNewNote: createNewNote)
                 .navigationSplitViewColumnWidth(min: 220, ideal: 260, max: 340)
         } detail: {
             NavigationStack(path: $threadNavPath) {
                 NoteEditorView(
                     note: $selectedNote,
-                    onNavigateToStudyThread: { threadNavPath.append($0) },
+                    onNavigateToLinkedNotes: { threadNavPath.append($0) },
                     showInspector: $showInspector as Binding<Bool>
                 )
                     .toolbar {
-                        // `.navigation` is its own slot (like the space switcher). `.primaryAction` groups trailing controls.
                         ToolbarItem(placement: .navigation) {
                             Button(action: createNewNote) {
                                 Image(systemName: "square.and.pencil")
@@ -76,12 +87,41 @@ struct MacRootView: View {
                             .buttonStyle(.bordered)
                             .help("New Note (⌘N)")
                         }
-                        if #available(macOS 26.0, *) {
-                            ToolbarSpacer(.flexible)
+
+                        if #available(macOS 26, *) { ToolbarSpacer(.fixed) }
+
+                        ToolbarItem(placement: .cancellationAction) {
+                            if let note = selectedNote {
+                                NoteCollectionChip(
+                                    note: note,
+                                    isCollectionContextUpdating: false,
+                                    showCollectionToolbarText: true,
+                                    scriptureTheme: spaceStore.scriptureTheme
+                                )
+                            }
                         }
-                        // Note details: direct toggle (no ellipsis menu). Profile stays in the trailing cluster.
-                        // `.confirmationAction` maps to the trailing toolbar cluster on macOS (vs `.primaryAction`
-                        // grouping with `.navigation` on the leading side). macOS 26+ can use `ToolbarSpacer` too.
+
+                        if #available(macOS 26, *) { ToolbarSpacer(.flexible) }
+
+                        ToolbarItem(placement: .primaryAction) {
+                            if let note = selectedNote {
+                                NoteShareMoreBar(
+                                    note: note,
+                                    scriptureTheme: spaceStore.scriptureTheme,
+                                    onDeleteConfirmed: {
+                                        let nid = note.id
+                                        HarvousVaultExporter.removeMirrorFiles(for: note, modelContext: context)
+                                        HarvousNoteSpotlightIndexer.removeNote(id: nid)
+                                        selectedNote = nil
+                                        context.delete(note)
+                                        try? context.save()
+                                    }
+                                )
+                            }
+                        }
+
+                        if #available(macOS 26, *) { ToolbarSpacer(.fixed) }
+
                         ToolbarItemGroup(placement: .confirmationAction) {
                             Button {
                                 withAnimation(HarvousAnimation.spring) { showInspector.toggle() }
@@ -100,13 +140,18 @@ struct MacRootView: View {
                         }
                     }
                     .navigationDestination(for: UUID.self) { threadID in
-                        ThreadWorkspaceView(threadID: threadID)
+                        LinkedNotesView(linkedNoteMarkerId: threadID)
                     }
             }
         }
         .navigationSplitViewStyle(.balanced)
         .focusedSceneValue(\.newNoteAction, createNewNote)
         .focusedSceneValue(\.showSearchAction, { showSearch = true })
+        .focusedSceneValue(\.dailyNoteAction, openDailyNote)
+        .focusedSceneValue(\.randomRevisitAction, openRandomNote)
+        .focusedSceneValue(\.insertWikiLinkAction, {
+            NotificationCenter.default.post(name: .harvousRequestInsertWikiLink, object: nil)
+        })
         .onChange(of: selectedNote?.id) { _, _ in
             threadNavPath = NavigationPath()
             let newNote = selectedNote
@@ -117,9 +162,10 @@ struct MacRootView: View {
                    prev.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
                    prev.body.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                     let pid = prev.id
+                    HarvousVaultExporter.removeMirrorFiles(for: prev, modelContext: context)
+                    HarvousNoteSpotlightIndexer.removeNote(id: pid)
                     context.delete(prev)
                     try? context.save()
-                    HarvousRecallOSIntegration.afterNoteDeleted(id: pid, modelContext: context)
                 }
                 lastSelectedNote = newNote
             }
@@ -137,12 +183,47 @@ struct MacRootView: View {
             _ = spaceStore.consumePendingJoinToken(modelContext: context)
             applyMacDeepLink()
         }
-        .onAppear {
-            spaceStore.bootstrapIfNeeded(modelContext: context)
-            HarvousRecallOSIntegration.onAppLaunch(modelContext: context)
-            HarvousCalendarStudyNotifier.requestAccessAndPrewarm(modelContext: context)
-            applyMacDeepLink()
+        .onReceive(NotificationCenter.default.publisher(for: .harvousRequestOpenNoteId)) { n in
+            guard let raw = n.userInfo?[HarvousOpenNoteIdPayload.idKey] as? String,
+                  let id = UUID(uuidString: raw) else { return }
+            let target = id
+            let fd = FetchDescriptor<Note>(predicate: #Predicate { $0.id == target })
+            if let found = try? context.fetch(fd).first {
+                selectedNote = found
+            }
         }
+        .onDrop(of: [.fileURL], isTargeted: .constant(false)) { providers in
+            HarvousVaultDropImport.handle(providers: providers, spaceId: spaceStore.activeSpaceUUID(), modelContext: context)
+            return true
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .harvousVaultImportSummary)) { note in
+            importSummaryPayload = note.object as? HarvousVaultImportSummaryPayload
+        }
+        .alert(
+            "Import finished",
+            isPresented: Binding(
+                get: { importSummaryPayload != nil },
+                set: { if !$0 { importSummaryPayload = nil } }
+            )
+        ) {
+            Button("OK", role: .cancel) { importSummaryPayload = nil }
+        } message: {
+            if let p = importSummaryPayload {
+                Text(macImportSummaryMessage(p))
+            }
+        }
+    }
+
+    private func macImportSummaryMessage(_ p: HarvousVaultImportSummaryPayload) -> String {
+        var s = p.report.summaryLine
+        if let u = p.logFileURL {
+            s += "\n\nLog file:\n\(u.path)"
+        }
+        if !p.report.skipped.isEmpty {
+            let lines = p.report.skipped.prefix(8).map { "\($0.url.lastPathComponent): \($0.reason)" }
+            s += "\n\nSkipped (\(p.report.skipped.count)):\n" + lines.joined(separator: "\n")
+        }
+        return s
     }
 
     private func applyMacDeepLink() {
@@ -165,9 +246,40 @@ struct MacRootView: View {
     private func createNewNote() {
         let note = Note(spaceId: spaceStore.activeSpaceUUID())
         context.insert(note)
+        NoteSimpleIDAssigner.assignIfMissing(note, in: context)
         try? context.save()
-        HarvousRecallOSIntegration.afterNotePersisted(note: note, modelContext: context)
+        HarvousNoteSpotlightIndexer.reindex(note: note)
+        HarvousVaultExporter.scheduleWrite(note: note, modelContext: context)
         selectedNote = note
+    }
+
+    private func openDailyNote() {
+        let df = DateFormatter()
+        df.locale = Locale(identifier: "en_US_POSIX")
+        df.timeZone = TimeZone.current
+        df.dateFormat = "yyyy-MM-dd"
+        let key = df.string(from: Date())
+        let sid = spaceStore.activeSpaceUUID()
+        let all = (try? context.fetch(FetchDescriptor<Note>())) ?? []
+        if let hit = all.first(where: { $0.resolvedSpaceId() == sid && $0.title == key }) {
+            selectedNote = hit
+            return
+        }
+        let note = Note(title: key, body: "", spaceId: sid)
+        context.insert(note)
+        NoteSimpleIDAssigner.assignIfMissing(note, in: context)
+        try? context.save()
+        HarvousNoteSpotlightIndexer.reindex(note: note)
+        HarvousVaultExporter.scheduleWrite(note: note, modelContext: context)
+        selectedNote = note
+    }
+
+    private func openRandomNote() {
+        let sid = spaceStore.activeSpaceUUID()
+        let all = (try? context.fetch(FetchDescriptor<Note>())) ?? []
+        let pool = all.filter { $0.resolvedSpaceId() == sid }
+        guard let pick = pool.randomElement() else { return }
+        selectedNote = pick
     }
 }
 
@@ -278,13 +390,16 @@ struct iOSRootView: View {
     @EnvironmentObject private var appRouter: HarvousAppRouter
     @EnvironmentObject private var spaceStore: SpaceStore
     @Environment(\.modelContext) private var modelContext
+    @StateObject private var iosChromeCoordinator = ChromeCoordinator()
+    @State private var iosNoteNavigationPath: [UUID] = []
+    @State private var importSummaryPayload: HarvousVaultImportSummaryPayload?
 
     var body: some View {
-        NavigationStack {
+        NavigationStack(path: $iosNoteNavigationPath) {
             Group {
                 switch appRouter.iosListSurface {
                 case .notes:
-                    HomeHubView(onNewNote: { appRouter.iosShowCompose = true })
+                    HomeHubView(iosNoteNavigationPath: $iosNoteNavigationPath)
                 case .collections:
                     LibraryView(
                         externalSearchText: $appRouter.iosInlineSearchText,
@@ -297,28 +412,29 @@ struct iOSRootView: View {
                     }
                 case .more:
                     // .more is now presented as a sheet; this branch is a fallback only.
-                    HomeHubView(onNewNote: { appRouter.iosShowCompose = true })
+                    HomeHubView(iosNoteNavigationPath: $iosNoteNavigationPath)
                 }
+            }
+            .navigationDestination(for: UUID.self) { noteId in
+                NoteEditorById(noteId: noteId)
             }
         }
         .tint(.harvousAccent)
         .safeAreaInset(edge: .bottom, spacing: 0) {
-            Group {
-                if let p = appRouter.iosActiveNoteEditorChromeProxy,
-                   p.isBodyFirstResponder,
-                   p.activeScripturePill == nil {
-                    NoteToolbar(proxy: p)
-                } else {
-                    HarvousIOSInlineBottomChromeRow()
-                        .environmentObject(appRouter)
-                }
+            MorphingChromeBar(coordinator: iosChromeCoordinator)
+                .environmentObject(appRouter)
+        }
+        .onReceive(appRouter.objectWillChange) { _ in
+            if let proxy = appRouter.iosActiveNoteEditorChromeProxy {
+                iosChromeCoordinator.attach(proxy: proxy)
+            } else {
+                iosChromeCoordinator.detach()
             }
         }
-        .sheet(isPresented: $appRouter.iosShowCompose) {
-            ComposeView()
-                .environmentObject(spaceStore)
-                .presentationDetents([.large])
-                .presentationDragIndicator(.visible)
+        .task {
+            if let proxy = appRouter.iosActiveNoteEditorChromeProxy {
+                iosChromeCoordinator.attach(proxy: proxy)
+            }
         }
         .sheet(isPresented: $appRouter.iosNotesFilterSearchPresented) {
             IOSNotesFilterSearchSheet()
@@ -356,13 +472,65 @@ struct iOSRootView: View {
             // Notes uses the bottom search pill + Notes sheet only (no inline `.searchable` presentation).
             if newSurface == .notes {
                 appRouter.iosInlineSearchPresented = false
+            } else {
+                // Clearing the path synchronously alongside tab chrome updates can collide with NavigationStack
+                // transactions (especially when switching surfaces after a List tap animation).
+                Task { @MainActor in
+                    iosNoteNavigationPath.removeAll()
+                }
+            }
+        }
+        .focusedSceneValue(\.newNoteAction) {
+            NotificationCenter.default.post(name: HarvousAppRouter.requestComposeNewNotification, object: nil)
+        }
+        .focusedSceneValue(\.showSearchAction) {
+            appRouter.iosNotesFilterSearchPresented = true
+        }
+        .focusedSceneValue(\.dailyNoteAction) {
+            NotificationCenter.default.post(name: .requestDailyNote, object: nil)
+        }
+        .focusedSceneValue(\.randomRevisitAction) {
+            NotificationCenter.default.post(name: .requestRandomRevisit, object: nil)
+        }
+        .focusedSceneValue(\.insertWikiLinkAction) {
+            NotificationCenter.default.post(name: .harvousRequestInsertWikiLink, object: nil)
+        }
+        .onDrop(of: [.fileURL], isTargeted: .constant(false)) { providers in
+            HarvousVaultDropImport.handle(providers: providers, spaceId: spaceStore.activeSpaceUUID(), modelContext: modelContext)
+            return true
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .harvousVaultImportSummary)) { note in
+            importSummaryPayload = note.object as? HarvousVaultImportSummaryPayload
+        }
+        .alert(
+            "Import finished",
+            isPresented: Binding(
+                get: { importSummaryPayload != nil },
+                set: { if !$0 { importSummaryPayload = nil } }
+            )
+        ) {
+            Button("OK", role: .cancel) { importSummaryPayload = nil }
+        } message: {
+            if let p = importSummaryPayload {
+                Text(iosImportSummaryMessage(p))
             }
         }
         .onAppear {
-            HarvousRecallOSIntegration.onAppLaunch(modelContext: modelContext)
             HarvousCalendarStudyNotifier.requestAccessAndPrewarm(modelContext: modelContext)
             appRouter.applyPendingDeepLink()
         }
+    }
+
+    private func iosImportSummaryMessage(_ p: HarvousVaultImportSummaryPayload) -> String {
+        var s = p.report.summaryLine
+        if let u = p.logFileURL {
+            s += "\n\nLog file:\n\(u.path)"
+        }
+        if !p.report.skipped.isEmpty {
+            let lines = p.report.skipped.prefix(8).map { "\($0.url.lastPathComponent): \($0.reason)" }
+            s += "\n\nSkipped (\(p.report.skipped.count)):\n" + lines.joined(separator: "\n")
+        }
+        return s
     }
 }
 
@@ -401,7 +569,7 @@ private struct IOSNotesFilterSearchSheet: View {
 
 // MARK: - Bottom row (list picker, search pill, compose)
 
-private struct HarvousIOSInlineBottomChromeRow: View {
+struct HarvousIOSInlineBottomChromeRow: View {
     @EnvironmentObject private var appRouter: HarvousAppRouter
     @Environment(\.colorScheme) private var colorScheme
     @FocusState private var searchFocused: Bool
@@ -531,7 +699,7 @@ private struct HarvousIOSInlineBottomChromeRow: View {
     private var composeOrb: some View {
         Button {
             UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-            appRouter.iosShowCompose = true
+            appRouter.requestComposeNewNote()
         } label: {
             Image(systemName: "square.and.pencil")
                 .font(.system(size: 20, weight: .regular))

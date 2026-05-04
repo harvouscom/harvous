@@ -123,6 +123,22 @@ enum ScriptureReferenceParser {
         return ParsedScriptureFields(bookIndex: bookIndex, chapter: raw.chapter, verseStart: raw.verseStart, verseEnd: raw.verseEnd)
     }
 
+    /// True when any persisted reference string overlaps `query`'s passage (same book/chapter + verse range intersection).
+    static func anyDetectedReference(_ refs: [String], overlapsStructured query: ParsedScriptureFields) -> Bool {
+        for r in refs {
+            guard let p = parse(r) else { continue }
+            guard p.bookIndex == query.bookIndex, p.chapter == query.chapter else { continue }
+            let nLo = p.verseStart
+            let nHi = p.verseEnd ?? p.verseStart
+            let qLo = query.verseStart
+            let qHi = query.verseEnd ?? query.verseStart
+            if nLo <= qHi && qLo <= nHi {
+                return true
+            }
+        }
+        return false
+    }
+
     static func format(bookIndex: Int, chapter: Int, verseStart: Int, verseEnd: Int?) -> String {
         ScriptureCanonicalBooks.displayString(bookIndex: bookIndex, chapter: chapter, verseStart: verseStart, verseEnd: verseEnd)
     }

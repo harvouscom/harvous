@@ -110,11 +110,18 @@ enum HarvousColors {
         let (r, g, b) = themeBaseRGB(theme)
         return NSColor(calibratedRed: r, green: g, blue: b, alpha: 1)
     }
+
+    /// Neutral default for scripture pills when the user hasn't picked a per-pill accent. Deliberately
+    /// independent of the space theme so pills don't automatically tint.
+    static let nsScripturePillNeutralAccent: NSColor = NSColor(calibratedHue: 0.62, saturation: 0.22, brightness: 0.52, alpha: 1)
     #elseif os(iOS) || os(tvOS) || os(visionOS)
     static func uiScriptureAccent(_ theme: ThemeVariant) -> UIColor {
         let (r, g, b) = themeBaseRGB(theme)
         return UIColor(red: r, green: g, blue: b, alpha: 1)
     }
+
+    /// Neutral default for scripture pills when no per-pill accent is set. Dark-mode agnostic hue.
+    static let uiScripturePillNeutralAccent: UIColor = UIColor(hue: 0.62, saturation: 0.22, brightness: 0.52, alpha: 1)
     #endif
 
     // MARK: - Scripture chip (SwiftUI)

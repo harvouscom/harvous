@@ -16,26 +16,45 @@ private func scriptureGradientProgress(now: Date = Date()) -> CGFloat {
 #if os(macOS)
 import AppKit
 
+/// Resolve the concrete draw-time accent for a scripture pill. Per-pill accent wins; falls back to the
+/// neutral default (space theme deliberately ignored so pills don't auto-tint per the product decision).
+private func resolvedPillAccent(accent: StudyHighlightAccentToken?) -> NSColor {
+    guard let accent, accent != .auto else {
+        return HarvousColors.nsScripturePillNeutralAccent
+    }
+    return accent.resolvedAccentNSColor(kind: .scriptureLink, isDark: false)
+}
+
+/// Neutral pills should read like normal prose: use content text color for labels.
+private func resolvedPillLabelColor(accent: StudyHighlightAccentToken?) -> NSColor {
+    _ = accent
+    return .labelColor
+}
+
 /// NSTextAttachment that renders a scripture reference as an inline rounded-rect pill.
 final class ScripturePillAttachment: NSTextAttachment {
     let reference: String
     var translation: String
+    /// Preserved for backwards compatibility with existing call sites. Not used at render time.
     var theme: HarvousColors.ThemeVariant
+    /// Per-pill accent (persisted on the owning Note). `nil` → neutral default.
+    var accent: StudyHighlightAccentToken?
 
-    init(reference: String, translation: String = ScriptureReference.defaultTranslation, theme: HarvousColors.ThemeVariant = .blue) {
+    init(reference: String,
+         translation: String = ScriptureReference.defaultTranslation,
+         theme: HarvousColors.ThemeVariant = .blue,
+         accent: StudyHighlightAccentToken? = nil) {
         self.reference = reference
         self.translation = translation
         self.theme = theme
+        self.accent = accent
         super.init(data: nil, ofType: nil)
 
-        let img = Self.renderPill(reference: reference, translation: translation, theme: theme)
+        let img = Self.renderPill(reference: reference, translation: translation, accent: accent)
         self.image = img
 
-        // Correct baseline formula:
-        // In flipped:false NSImage, draw(at:) places the BOTTOM of the bounding box at y.
-        // So the text baseline sits |descender| above y.
-        // We want pill-baseline == surrounding-baseline, so:
-        //   bounds.origin.y = -(y_in_image + |descender|) = refFont.descender - kVPad
+        // Baseline formula (NSImage flipped:false): draw(at:) places bottom-left of the bbox at y,
+        // so attachment.bounds.origin.y = refFont.descender - kVPad to center the pill on the baseline.
         let refFont = HarvousFonts.system(size: kRefSize, weight: 500)
         self.bounds = CGRect(
             origin: CGPoint(x: 0, y: refFont.descender - kVPad),
@@ -45,16 +64,17 @@ final class ScripturePillAttachment: NSTextAttachment {
 
     required init?(coder: NSCoder) { fatalError() }
 
-    static func renderPill(reference: String, translation: String, theme: HarvousColors.ThemeVariant) -> NSImage {
+    static func renderPill(reference: String, translation: String, accent: StudyHighlightAccentToken?) -> NSImage {
         let refFont   = HarvousFonts.system(size: kRefSize, weight: 500)
         let transFont = HarvousFonts.system(size: kTransSize, weight: 400)
         let displayTranslation = ScriptureReference.displayTranslationLabel(translation)
-        let accent = HarvousColors.nsScriptureAccent(theme)
+        let tint = resolvedPillAccent(accent: accent)
+        let label = resolvedPillLabelColor(accent: accent)
 
         let refAttrs: [NSAttributedString.Key: Any]   = [.font: refFont,
-                                                          .foregroundColor: accent]
+                                                          .foregroundColor: label]
         let transAttrs: [NSAttributedString.Key: Any] = [.font: transFont,
-                                                          .foregroundColor: accent.withAlphaComponent(0.55)]
+                                                          .foregroundColor: label]
         let refStr   = NSAttributedString(string: reference,   attributes: refAttrs)
         let transStr = NSAttributedString(string: displayTranslation, attributes: transAttrs)
         let refSize   = refStr.size()
@@ -65,32 +85,24 @@ final class ScripturePillAttachment: NSTextAttachment {
         let size = NSSize(width: ceil(w), height: ceil(h))
 
         return NSImage(size: size, flipped: false) { bounds in
-            // Rounded rect (not oval)
             let pill = NSBezierPath(roundedRect: bounds.insetBy(dx: 0.25, dy: 0.25),
                                     xRadius: kRadius, yRadius: kRadius)
-            accent.withAlphaComponent(0.075).setFill()
+            tint.withAlphaComponent(0.075).setFill()
             pill.fill()
             pill.addClip()
             let progress = scriptureGradientProgress()
             let xPosition = 0.35 + (0.30 * progress)
-            let startPoint = CGPoint(
-                x: bounds.minX + bounds.width * xPosition,
-                y: bounds.minY
-            )
-            let endPoint = CGPoint(
-                x: bounds.minX + bounds.width * xPosition,
-                y: bounds.maxY
-            )
+            let startPoint = CGPoint(x: bounds.minX + bounds.width * xPosition, y: bounds.minY)
+            let endPoint   = CGPoint(x: bounds.minX + bounds.width * xPosition, y: bounds.maxY)
             let gradient = NSGradient(
                 colors: [
-                    accent.withAlphaComponent(0.10),
-                    accent.withAlphaComponent(0.065)
+                    tint.withAlphaComponent(0.10),
+                    tint.withAlphaComponent(0.065)
                 ]
             )
             gradient?.draw(from: startPoint, to: endPoint, options: [])
-            accent.withAlphaComponent(0.20).setStroke(); pill.lineWidth = 0.5; pill.stroke()
+            tint.withAlphaComponent(0.20).setStroke(); pill.lineWidth = 0.5; pill.stroke()
 
-            // draw(at:) in flipped:false places bottom of bbox at y — so centre by offsetting half the remaining height
             let refY   = (size.height - refSize.height)   / 2
             let transY = (size.height - transSize.height) / 2
             refStr.draw(at:   NSPoint(x: kHPad,                       y: refY))
@@ -103,26 +115,38 @@ final class ScripturePillAttachment: NSTextAttachment {
 #else
 import UIKit
 
+private func resolvedPillAccent(accent: StudyHighlightAccentToken?) -> UIColor {
+    guard let accent, accent != .auto else {
+        return HarvousColors.uiScripturePillNeutralAccent
+    }
+    return accent.resolvedAccentUIColor(kind: .scriptureLink, isDark: false)
+}
+
+private func resolvedPillLabelColor(accent: StudyHighlightAccentToken?) -> UIColor {
+    _ = accent
+    return .label
+}
+
 /// NSTextAttachment that renders a scripture reference as an inline rounded-rect pill on iOS.
 final class ScripturePillAttachment: NSTextAttachment {
     let reference: String
     var translation: String
     var theme: HarvousColors.ThemeVariant
+    var accent: StudyHighlightAccentToken?
 
-    init(reference: String, translation: String = ScriptureReference.defaultTranslation, theme: HarvousColors.ThemeVariant = .blue) {
+    init(reference: String,
+         translation: String = ScriptureReference.defaultTranslation,
+         theme: HarvousColors.ThemeVariant = .blue,
+         accent: StudyHighlightAccentToken? = nil) {
         self.reference = reference
         self.translation = translation
         self.theme = theme
+        self.accent = accent
         super.init(data: nil, ofType: nil)
 
-        let img = Self.renderPill(reference: reference, translation: translation, theme: theme)
+        let img = Self.renderPill(reference: reference, translation: translation, accent: accent)
         self.image = img
 
-        // iOS UIGraphicsImageRenderer uses Y-down. draw(at:) places the TOP of the bbox at y.
-        // Baseline from image top = kVPad + refFont.ascender.
-        // In attachment Y-up coords: bounds.origin.y = -(size.height - baseline_from_top)
-        //   = -(size.height - kVPad - ascender)
-        //   = descender - kVPad   (same formula as macOS — verified algebraically)
         let refFont = HarvousFonts.system(size: kRefSize, weight: 500)
         self.bounds = CGRect(
             origin: CGPoint(x: 0, y: CGFloat(refFont.descender) - kVPad),
@@ -132,16 +156,17 @@ final class ScripturePillAttachment: NSTextAttachment {
 
     required init?(coder: NSCoder) { fatalError() }
 
-    static func renderPill(reference: String, translation: String, theme: HarvousColors.ThemeVariant) -> UIImage {
+    static func renderPill(reference: String, translation: String, accent: StudyHighlightAccentToken?) -> UIImage {
         let refFont   = HarvousFonts.system(size: kRefSize, weight: 500)
         let transFont = HarvousFonts.system(size: kTransSize, weight: 400)
         let displayTranslation = ScriptureReference.displayTranslationLabel(translation)
-        let accent = HarvousColors.uiScriptureAccent(theme)
+        let tint = resolvedPillAccent(accent: accent)
+        let label = resolvedPillLabelColor(accent: accent)
 
         let refAttrs: [NSAttributedString.Key: Any]   = [.font: refFont,
-                                                          .foregroundColor: accent]
+                                                          .foregroundColor: label]
         let transAttrs: [NSAttributedString.Key: Any] = [.font: transFont,
-                                                          .foregroundColor: accent.withAlphaComponent(0.55)]
+                                                          .foregroundColor: label]
         let refStr   = NSAttributedString(string: reference,   attributes: refAttrs)
         let transStr = NSAttributedString(string: displayTranslation, attributes: transAttrs)
         let refSize   = refStr.size()
@@ -155,39 +180,32 @@ final class ScripturePillAttachment: NSTextAttachment {
             let bounds = CGRect(origin: .zero, size: size)
             let pill = UIBezierPath(roundedRect: bounds.insetBy(dx: 0.25, dy: 0.25),
                                     cornerRadius: kRadius)
-            accent.withAlphaComponent(0.075).setFill()
+            tint.withAlphaComponent(0.075).setFill()
             pill.fill()
             pill.addClip()
             let progress = scriptureGradientProgress()
             let xPosition = 0.35 + (0.30 * progress)
-            let startPoint = CGPoint(
-                x: bounds.minX + bounds.width * xPosition,
-                y: bounds.minY
-            )
-            let endPoint = CGPoint(
-                x: bounds.minX + bounds.width * xPosition,
-                y: bounds.maxY
-            )
+            let startPoint = CGPoint(x: bounds.minX + bounds.width * xPosition, y: bounds.minY)
+            let endPoint   = CGPoint(x: bounds.minX + bounds.width * xPosition, y: bounds.maxY)
             guard let context = UIGraphicsGetCurrentContext(),
                   let gradient = CGGradient(
                       colorsSpace: CGColorSpaceCreateDeviceRGB(),
                       colors: [
-                          accent.withAlphaComponent(0.10).cgColor,
-                          accent.withAlphaComponent(0.065).cgColor
+                          tint.withAlphaComponent(0.10).cgColor,
+                          tint.withAlphaComponent(0.065).cgColor
                       ] as CFArray,
                       locations: [0.0, 1.0]
                   ) else {
-                accent.withAlphaComponent(0.075).setFill()
+                tint.withAlphaComponent(0.075).setFill()
                 pill.fill()
-                accent.withAlphaComponent(0.20).setStroke()
+                tint.withAlphaComponent(0.20).setStroke()
                 pill.lineWidth = 0.5
                 pill.stroke()
                 return
             }
             context.drawLinearGradient(gradient, start: startPoint, end: endPoint, options: [])
-            accent.withAlphaComponent(0.20).setStroke(); pill.lineWidth = 0.5; pill.stroke()
+            tint.withAlphaComponent(0.20).setStroke(); pill.lineWidth = 0.5; pill.stroke()
 
-            // draw(at:) in UIKit places top-left of bbox at the point (Y-down)
             let refY   = (size.height - refSize.height)   / 2
             let transY = (size.height - transSize.height) / 2
             refStr.draw(at:   CGPoint(x: kHPad,                       y: refY))

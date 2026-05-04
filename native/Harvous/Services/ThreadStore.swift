@@ -1,11 +1,11 @@
 import Foundation
 import SwiftData
 
-/// Shared helpers for “Start thread” source + title from editor selection (used by macOS / iOS proxies).
+/// Selection → snippet + title helpers (linked-note storage uses `StudyThread`).
 enum ThreadEditorSnippet {
     static func fallback(fromPlainBody body: String) -> (source: String, focusTitle: String) {
         let t = body.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !t.isEmpty else { return ("(From note)", "New thread") }
+        guard !t.isEmpty else { return ("(From note)", "Linked note") }
         let source = clampSource(t)
         return (source, deriveFocus(from: source))
     }
@@ -14,10 +14,10 @@ enum ThreadEditorSnippet {
 
     static func deriveFocus(from source: String) -> String {
         let t = source.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !t.isEmpty else { return "New thread" }
+        guard !t.isEmpty else { return "Linked note" }
         let firstLine = t.split(separator: "\n", omittingEmptySubsequences: true).first.map(String.init) ?? t
         let capped = String(firstLine.prefix(120))
-        return capped.isEmpty ? "New thread" : capped
+        return capped.isEmpty ? "Linked note" : capped
     }
 }
 
@@ -83,7 +83,7 @@ enum ThreadStore {
         spaceId: UUID,
         sourceSnippet: String,
         body: String,
-        highlightAccent: StudyHighlightAccentToken = .auto,
+        highlightAccent: StudyHighlightAccentToken = .warmAmber,
         expandedAnchorUTF16Range: NSRange? = nil,
         expandedPlainForAnchor: String? = nil,
         modelContext: ModelContext
@@ -127,6 +127,7 @@ enum ThreadStore {
             spaceId: spaceId
         )
         modelContext.insert(linked)
+        NoteSimpleIDAssigner.assignIfMissing(linked, in: modelContext)
 
         let marker = StudyThread(
             spaceId: spaceId,
@@ -224,7 +225,7 @@ enum ThreadStore {
         spaceId: UUID,
         sourceSnippet: String,
         referenceRaw: String,
-        highlightAccent: StudyHighlightAccentToken = .auto,
+        highlightAccent: StudyHighlightAccentToken = .neutral,
         expandedAnchorUTF16Range: NSRange? = nil,
         expandedPlainForAnchor: String? = nil,
         modelContext: ModelContext
@@ -317,6 +318,28 @@ enum ThreadStore {
         let incoming = (try? modelContext.fetch(incomingDescriptor)) ?? []
         let outgoing = (try? modelContext.fetch(outgoingDescriptor)) ?? []
         return TrailSnapshot(incoming: incoming, outgoing: outgoing)
+    }
+
+    /// Inbound `linkedNote` markers pointing at `targetNoteId` (same filter as `trailSnapshot` incoming).
+    @MainActor
+    static func incomingLinkedNoteMarkers(
+        targetNoteId: UUID,
+        spaceId: UUID,
+        modelContext: ModelContext
+    ) -> [StudyThread] {
+        let linkedKindRaw = "linkedNote"
+        let nid = targetNoteId
+        let sid = spaceId
+        let descriptor = FetchDescriptor<StudyThread>(
+            predicate: #Predicate { t in
+                t.spaceId == sid
+                    && t.entryKindRaw == linkedKindRaw
+                    && t.linkedNoteId == nid
+                    && !t.isArchived
+            },
+            sortBy: [SortDescriptor(\StudyThread.updatedAt, order: .reverse)]
+        )
+        return (try? modelContext.fetch(descriptor)) ?? []
     }
 
     @MainActor

@@ -45,7 +45,6 @@ enum HarvousPendingRoute {
 
 @MainActor
 final class HarvousAppRouter: ObservableObject {
-    @Published var iosShowCompose = false
     #if os(iOS)
     @Published private(set) var iosListSurface: HarvousIOSListSurface
     /// Drives the You/More sheet (not an inline surface — always a modal).
@@ -116,6 +115,16 @@ final class HarvousAppRouter: ObservableObject {
         iosNotesFilterSearchPresented = false
     }
 
+    /// FAB / deep-link `harvous://compose` — Notes hub creates an empty note and pushes it onto its stack.
+    static let requestComposeNewNotification = Notification.Name("Harvous.requestComposeNewNote")
+
+    func requestComposeNewNote() {
+        selectIOSListSurface(.notes)
+        DispatchQueue.main.async {
+            NotificationCenter.default.post(name: Self.requestComposeNewNotification, object: nil)
+        }
+    }
+
     func applyPendingDeepLink() {
         guard let p = HarvousPendingRoute.take() else { return }
         if p == "you" {
@@ -130,7 +139,7 @@ final class HarvousAppRouter: ObservableObject {
         }
         switch p {
         case "compose":
-            iosShowCompose = true
+            requestComposeNewNote()
         case "search":
             iosShowMore = false
             switch iosListSurface {
@@ -141,9 +150,6 @@ final class HarvousAppRouter: ObservableObject {
             case .more:
                 break
             }
-        case "recall":
-            selectIOSListSurface(.notes)
-            HarvousLiveActivityController.startIfPossible()
         default:
             break
         }
@@ -170,4 +176,14 @@ enum HarvousMacPreferencesWindow {
 extension Notification.Name {
     /// macOS: posted from `HarvousCommands` so `ContentView` can `openWindow(id:)`.
     static let harvousOpenMacPreferences = Notification.Name("HarvousOpenMacPreferences")
+    /// Insert `[[wikilink]]` at caret in the active note editor (see `NoteEditorView`).
+    static let harvousRequestInsertWikiLink = Notification.Name("Harvous.requestInsertWikiLink")
+    /// Open a note by id (macOS: detail column; iOS: push onto notes stack).
+    static let harvousRequestOpenNoteId = Notification.Name("Harvous.requestOpenNoteId")
+    static let requestDailyNote = Notification.Name("Harvous.requestDailyNote")
+    static let requestRandomRevisit = Notification.Name("Harvous.requestRandomRevisit")
+}
+
+enum HarvousOpenNoteIdPayload {
+    static let idKey = "id"
 }

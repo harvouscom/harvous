@@ -49,6 +49,10 @@ final class Space {
     var isArchived: Bool
     /// `HarvousColors.ThemeVariant.rawValue` — accent for scripture pills and related chrome in this space.
     var scriptureThemeRaw: String = "blue"
+    /// Server UUID when syncing (v2). Always `nil` in v1.
+    var cloudId: UUID?
+    /// Tracks rows pending upload in v2. Unused locally in v1.
+    var needsSync: Bool = false
 
     @Relationship(deleteRule: .cascade, inverse: \SpaceMember.space)
     var members: [SpaceMember] = []
@@ -67,7 +71,9 @@ final class Space {
         createdAt: Date = Date(),
         updatedAt: Date = Date(),
         isArchived: Bool = false,
-        scriptureThemeRaw: String = "blue"
+        scriptureThemeRaw: String = "blue",
+        cloudId: UUID? = nil,
+        needsSync: Bool = false
     ) {
         self.id = id
         self.name = name
@@ -77,6 +83,8 @@ final class Space {
         self.updatedAt = updatedAt
         self.isArchived = isArchived
         self.scriptureThemeRaw = scriptureThemeRaw
+        self.cloudId = cloudId
+        self.needsSync = needsSync
     }
 
     var visibility: SpaceVisibility {
