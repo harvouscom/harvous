@@ -347,7 +347,7 @@ private struct HarvousMacProfileToolbarMenu: View {
         }
     }
 
-    /// Foreground for the toolbar person glyph (follows Name & color; readable on pastel disk).
+    /// Foreground for the toolbar person glyph (follows profile avatar color; readable on pastel disk).
     private var iconTint: Color {
         let token = HarvousAvatarColorToken(rawValue: avatarColorRaw) ?? .blue
         switch token {
@@ -379,13 +379,13 @@ private struct HarvousMacProfileToolbarMenu: View {
                 appRouter.macSettingsDeepLink = .editProfile
                 openWindow(id: HarvousMacPreferencesWindow.sceneID)
             } label: {
-                Label("Name & color…", systemImage: "person.crop.circle")
+                Label("Name…", systemImage: "person.crop.circle")
             }
 
             Divider()
 
             Button {
-                openURL(URL(string: "https://harvous.com/profile")!)
+                openURL(URL(string: "https://app.harvous.com/profile")!)
             } label: {
                 Label("Manage account on the web…", systemImage: "safari")
             }

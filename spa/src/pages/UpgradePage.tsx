@@ -41,7 +41,7 @@ export default function UpgradePage() {
         {/* Left Column: Animated Mesh Gradient Background */}
         <div className="auth-page__video-section thread-colors-mesh-gradient">
           <div className="auth-page__video-overlay" style={{ padding: '24px' }}>
-            <a href="https://harvous.com" className="auth-page__logo-container">
+            <a href="https://app.harvous.com" className="auth-page__logo-container">
               <HarvousLogo />
             </a>
           </div>

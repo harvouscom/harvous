@@ -301,7 +301,7 @@ route.post('/api/notes/create', requireAuth, rateLimitNoteCreate(), async (c) =>
         if (!isPDF) {
           try {
             const htmlResponse = await fetch(validatedResourceUrl, {
-              headers: { 'User-Agent': 'Mozilla/5.0 (compatible; HarvousBot/1.0; +https://harvous.com)', Accept: 'text/html,application/xhtml+xml' },
+              headers: { 'User-Agent': 'Mozilla/5.0 (compatible; HarvousBot/1.0; +https://app.harvous.com)', Accept: 'text/html,application/xhtml+xml' },
               signal: AbortSignal.timeout(15000),
             });
             if (htmlResponse.ok) {

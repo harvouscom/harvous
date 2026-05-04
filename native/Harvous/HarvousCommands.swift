@@ -302,7 +302,9 @@ struct HarvousCommands: Commands {
         }
 
         CommandGroup(replacing: .help) {
-            Link("Harvous Website", destination: URL(string: "https://harvous.com")!)
+            Link("Harvous Website", destination: URL(string: "https://app.harvous.com")!)
+            Link("Mac app releases (preview)", destination: URL(string: "https://github.com/harvouscom/harvous/releases")!)
+            Link("Install Mac app (help)", destination: URL(string: "https://github.com/harvouscom/harvous/blob/main/help/mac-native-app.md")!)
         }
 
         CommandGroup(replacing: .toolbar) { }

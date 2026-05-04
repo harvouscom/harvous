@@ -144,7 +144,7 @@ export default function JoinSpacePage() {
         {/* Left Column: Animated Mesh Gradient Background */}
         <div className="auth-page__video-section thread-colors-mesh-gradient">
           <div className="auth-page__video-overlay" style={{ padding: '24px' }}>
-            <a href="https://harvous.com" className="auth-page__logo-container">
+            <a href="https://app.harvous.com" className="auth-page__logo-container">
               <HarvousLogo />
             </a>
           </div>
@@ -164,7 +164,7 @@ export default function JoinSpacePage() {
                 <p className="shared-page__error-message">
                   Hmm, we can't find this space. The link might have expired or the owner made it private.
                 </p>
-                <a href="https://harvous.com" className="shared-page__error-link">
+                <a href="https://app.harvous.com" className="shared-page__error-link">
                   Learn more about Harvous
                 </a>
               </div>
@@ -307,7 +307,7 @@ export default function JoinSpacePage() {
                 {/* Footer text (below CardStack) */}
                 <div className="shared-page__footer">
                   <p>Harvous is a notes app designed for Bible study.</p>
-                  <a href="https://harvous.com" target="_blank" rel="noopener noreferrer">Learn more on harvous.com</a>
+                  <a href="https://app.harvous.com" target="_blank" rel="noopener noreferrer">Learn more at app.harvous.com</a>
                 </div>
               </>
               </SubtleContentMount>

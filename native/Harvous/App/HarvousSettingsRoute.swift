@@ -67,7 +67,7 @@ enum HarvousSettingsSidebarItem: String, CaseIterable, Hashable, Identifiable {
 
     var title: String {
         switch self {
-        case .editProfile: return "Name & color"
+        case .editProfile: return "Name"
         case .emailPassword: return "Email & password"
         case .subscription: return "Subscription"
         case .defaultBible: return "Default Bible translation"
@@ -124,17 +124,32 @@ enum HarvousSettingsSidebarItem: String, CaseIterable, Hashable, Identifiable {
         }
     }
 
-    /// Items shown in each settings group (iOS + macOS detail navigation).
+    /// Account row(s). Subscription is temporarily hidden from the sidebar.
     static var accountItems: [HarvousSettingsSidebarItem] {
-        [.editProfile, .emailPassword, .subscription]
+        [.editProfile, .emailPassword]
     }
 
+    /// My church and lock PIN are temporarily hidden from the sidebar.
     static var studyItems: [HarvousSettingsSidebarItem] {
-        [.defaultBible, .myChurch, .lockPin]
+        [.defaultBible]
     }
 
+    /// Support row(s). “Letter from the founder” is temporarily hidden from the sidebar.
     static var supportItems: [HarvousSettingsSidebarItem] {
-        [.support, .aboutFounder]
+        [.support]
+    }
+
+    /// Single flat ordering for settings sidebars (no section headers). Omits temporarily hidden items.
+    static func allSettingsRows(includeKeyboardShortcuts: Bool) -> [HarvousSettingsSidebarItem] {
+        var rows: [HarvousSettingsSidebarItem] = []
+        rows.append(contentsOf: accountItems)
+        rows.append(contentsOf: studyItems)
+        rows.append(.myData)
+        rows.append(contentsOf: supportItems)
+        if includeKeyboardShortcuts {
+            rows.append(.keyboardShortcuts)
+        }
+        return rows
     }
 
     #if os(iOS)

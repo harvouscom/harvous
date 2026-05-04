@@ -1150,7 +1150,6 @@ final class EditorProxy: ObservableObject {
 
     private func focusAdjacentScripturePill(next: Bool) {
         guard let (tv, storage) = textViewPair() else { return }
-        guard let nstv = tv as? NSTextView else { return }
         let ranges = Self.rangesOfScripturePillAttachments(in: storage)
         guard !ranges.isEmpty else { return }
         let sel = caretRange(for: tv)
@@ -1170,8 +1169,8 @@ final class EditorProxy: ObservableObject {
             }
             target = ranges.last { NSMaxRange($0) <= startSearch } ?? ranges[ranges.count - 1]
         }
-        nstv.setSelectedRange(target)
-        nstv.scrollRangeToVisible(target)
+        tv.setSelectedRange(target)
+        tv.scrollRangeToVisible(target)
         refocusTextView()
         refreshFormatState()
         if let pill = storage.attribute(.attachment, at: target.location, effectiveRange: nil) as? ScripturePillAttachment {

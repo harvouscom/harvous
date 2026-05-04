@@ -180,7 +180,7 @@ app.post('/api/resource/metadata', async (c) => {
     }
 
     const response = await fetch(normalizedUrl, {
-      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; HarvousBot/1.0; +https://harvous.com)', 'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8' },
+      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; HarvousBot/1.0; +https://app.harvous.com)', 'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8' },
       signal: AbortSignal.timeout(10000),
     });
 

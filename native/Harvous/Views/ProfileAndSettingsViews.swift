@@ -4,31 +4,6 @@ import UniformTypeIdentifiers
 import UIKit
 #endif
 
-// MARK: - Avatar swatches (SwiftUI)
-
-extension HarvousAvatarColorToken {
-    @ViewBuilder
-    func swatchFill(colorScheme: ColorScheme) -> some View {
-        switch self {
-        case .paper:
-            RoundedRectangle(cornerRadius: HarvousRadius.rowHighlight, style: .continuous)
-                .fill(colorScheme == .dark ? Color.white.opacity(0.10) : Color.black.opacity(0.06))
-                .overlay {
-                    RoundedRectangle(cornerRadius: HarvousRadius.rowHighlight, style: .continuous)
-                        .strokeBorder(Color.primary.opacity(0.12), lineWidth: 0.5)
-                }
-        case .blue, .yellow, .orange, .pink, .purple, .green:
-            if let c = Color.thread(rawValue) {
-                RoundedRectangle(cornerRadius: HarvousRadius.rowHighlight, style: .continuous)
-                    .fill(c)
-            } else {
-                RoundedRectangle(cornerRadius: HarvousRadius.rowHighlight, style: .continuous)
-                    .fill(Color.gray.opacity(0.3))
-            }
-        }
-    }
-}
-
 // MARK: - Settings detail background
 
 private extension Color {
@@ -100,14 +75,11 @@ struct HarvousSettingsFormView: View {
     }
 }
 
-// MARK: - Name & color
+// MARK: - Name
 
 private struct SettingsEditProfileView: View {
     @AppStorage(HarvousSettingsStorageKeys.firstName) private var firstName = ""
     @AppStorage(HarvousSettingsStorageKeys.lastName) private var lastName = ""
-    @AppStorage(HarvousSettingsStorageKeys.avatarColor) private var avatarColorRaw = HarvousAvatarColorToken.blue.rawValue
-
-    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         Form {
@@ -122,40 +94,8 @@ private struct SettingsEditProfileView: View {
                 TextField("Last name", text: $lastName)
                     .textContentType(.familyName)
             }
-            Section("Avatar color") {
-                Text("Same palette as spaces and linked notes on the web.")
-                    .font(HarvousTypography.caption)
-                    .foregroundStyle(.secondary)
-                LazyVGrid(columns: [GridItem(.adaptive(minimum: 72), spacing: 10)], spacing: 10) {
-                    ForEach(HarvousAvatarColorToken.allCases) { token in
-                        Button {
-                            avatarColorRaw = token.rawValue
-                        } label: {
-                            VStack(spacing: 6) {
-                                ZStack {
-                                    token.swatchFill(colorScheme: colorScheme)
-                                        .frame(width: 44, height: 44)
-                                    if token.rawValue == avatarColorRaw {
-                                        Image(systemName: "checkmark.circle.fill")
-                                            .font(.system(size: 18, weight: .semibold))
-                                            .foregroundStyle(Color.accentColor)
-                                            .shadow(color: .black.opacity(0.2), radius: 1, y: 1)
-                                    }
-                                }
-                                Text(token.displayName)
-                                    .font(HarvousTypography.footnote)
-                                    .multilineTextAlignment(.center)
-                                    .foregroundStyle(.primary)
-                            }
-                            .frame(maxWidth: .infinity)
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
-                .padding(.vertical, 4)
-            }
             Section {
-                Text("Changes here are stored on this device. Open harvous.com and use Edit Name & Color to sync to the cloud.")
+                Text("Changes here are stored on this device. Open app.harvous.com and use Profile to sync to the cloud.")
                     .font(HarvousTypography.footnote)
                     .foregroundStyle(.secondary)
             }
@@ -175,10 +115,10 @@ private struct SettingsEmailPasswordView: View {
                     .foregroundStyle(.secondary)
             }
             Section("Manage on the web") {
-                Link(destination: URL(string: "https://harvous.com/sign-in")!) {
+                Link(destination: URL(string: "https://app.harvous.com/sign-in")!) {
                     Label("Open Harvous sign-in", systemImage: "safari")
                 }
-                Link(destination: URL(string: "https://harvous.com/profile")!) {
+                Link(destination: URL(string: "https://app.harvous.com/profile")!) {
                     Label("Open profile on the web", systemImage: "person.crop.circle")
                 }
             }
@@ -198,7 +138,7 @@ private struct SettingsSubscriptionView: View {
                     .foregroundStyle(.secondary)
             }
             Section {
-                Link(destination: URL(string: "https://harvous.com/profile")!) {
+                Link(destination: URL(string: "https://app.harvous.com/profile")!) {
                     Label("Manage subscription on the web", systemImage: "creditcard")
                 }
             }
@@ -300,7 +240,7 @@ private struct SettingsReferralView: View {
                     .foregroundStyle(.secondary)
             }
             Section {
-                Link(destination: URL(string: "https://harvous.com/profile")!) {
+                Link(destination: URL(string: "https://app.harvous.com/profile")!) {
                     Label("Open Refer My Friends on the web", systemImage: "person.2.badge.gearshape")
                 }
             }
@@ -310,6 +250,48 @@ private struct SettingsReferralView: View {
 }
 
 // MARK: - My data
+
+private struct VaultStatusCard: View {
+    let mirrorEnabled: Bool
+    let exportedNoteCount: Int
+    let lastWrite: Date?
+
+    private var lastSyncLabel: String {
+        guard let d = lastWrite else { return "—" }
+        return "Last synced \(d.formatted(date: .abbreviated, time: .shortened))"
+    }
+
+    private var statusTitle: String {
+        if mirrorEnabled {
+            if exportedNoteCount == 1 { return "Mirroring active — 1 note" }
+            return "Mirroring active — \(exportedNoteCount) notes"
+        }
+        return "Mirroring off"
+    }
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            Circle()
+                .fill(mirrorEnabled ? Color.green : Color.secondary.opacity(0.45))
+                .frame(width: 10, height: 10)
+                .padding(.top, 4)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(statusTitle)
+                    .font(HarvousTypography.body)
+                Text(lastSyncLabel)
+                    .font(HarvousTypography.footnote)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background {
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(Color.secondary.opacity(0.12))
+        }
+    }
+}
 
 private struct SettingsMyDataView: View {
     @Environment(\.modelContext) private var modelContext
@@ -322,89 +304,96 @@ private struct SettingsMyDataView: View {
     @State private var rebuildResultMessage: String?
     @State private var showRebuildResult = false
 
-    private var lastWriteLabel: String {
-        guard let d = HarvousVaultPreferences.lastVaultWriteAt else { return "—" }
-        return d.formatted(date: .abbreviated, time: .shortened)
-    }
-
     var body: some View {
-        Form {
-            Section {
-                Text(
-                    "Harvous can mirror every note to Markdown files you own — plain text in a vault folder (iCloud Drive by default, or a folder you choose). SwiftData stays the source of truth."
-                )
-                .font(HarvousTypography.subheadline)
-                .foregroundStyle(.secondary)
-            }
+        VStack(alignment: .leading, spacing: 0) {
+            VaultStatusCard(
+                mirrorEnabled: mirrorEnabled,
+                exportedNoteCount: HarvousVaultPreferences.cachedExportedNoteCount,
+                lastWrite: HarvousVaultPreferences.lastVaultWriteAt
+            )
+            .padding(.horizontal, 16)
+            .padding(.top, 12)
+            .padding(.bottom, 8)
 
-            Section("Markdown vault") {
-                Toggle("Mirror notes to vault", isOn: $mirrorEnabled)
-                    .onChange(of: mirrorEnabled) { _, on in
-                        HarvousVaultPreferences.isMirrorEnabled = on
-                        if on {
-                            HarvousVaultExporter.rewriteAllNotes(modelContext: modelContext)
+            Form {
+                Section("Vault mirror") {
+                    Toggle("Mirror notes to Markdown", isOn: $mirrorEnabled)
+                        .onChange(of: mirrorEnabled) { _, on in
+                            HarvousVaultPreferences.isMirrorEnabled = on
+                            if on {
+                                HarvousVaultExporter.rewriteAllNotes(modelContext: modelContext)
+                            }
                         }
-                    }
 
-                LabeledContent("Location") {
-                    Text(HarvousVaultLocation.vaultKindDescription())
-                        .foregroundStyle(.secondary)
-                }
-                LabeledContent("Cached export count") {
-                    Text("\(HarvousVaultPreferences.cachedExportedNoteCount)")
-                        .foregroundStyle(.secondary)
-                }
-                LabeledContent("Last vault write") {
-                    Text(lastWriteLabel)
-                        .foregroundStyle(.secondary)
-                }
+                    if mirrorEnabled {
+                        LabeledContent("Location") {
+                            Text(HarvousVaultLocation.vaultKindDescription())
+                                .foregroundStyle(.secondary)
+                        }
 
-                #if os(macOS)
-                Button("Open vault in Finder") {
-                    HarvousVaultLocation.revealVaultRootInSystem()
-                }
-                #else
-                Button("Copy vault folder path") {
-                    HarvousVaultLocation.revealVaultRootInSystem()
-                }
-                #endif
-
-                Button("Choose external vault folder…") {
-                    showVaultFolderImporter = true
-                }
-
-                Button("Stop using external folder (use iCloud / default)") {
-                    HarvousVaultPreferences.clearExternalVaultBookmark()
-                    if HarvousVaultPreferences.isMirrorEnabled {
-                        HarvousVaultExporter.rewriteAllNotes(modelContext: modelContext)
+                        #if os(macOS)
+                        Button("Open vault in Finder") {
+                            HarvousVaultLocation.revealVaultRootInSystem()
+                        }
+                        #else
+                        Button("Copy vault path") {
+                            HarvousVaultLocation.revealVaultRootInSystem()
+                        }
+                        #endif
                     }
                 }
-                .foregroundStyle(.secondary)
 
-                Button("Import from files or folders…") {
-                    showFileImporter = true
+                Section("Import") {
+                    Button("Import files or folders…") {
+                        showFileImporter = true
+                    }
+
+                    Text(
+                        "Accepts Markdown, HTML, ENEX, DOCX, RTF (ZIP on Mac). Obsidian vaults, Notion Markdown zips, Evernote ENEX, and Apple Notes (via HTML/Markdown export) work too."
+                    )
+                    .font(HarvousTypography.footnote)
+                    .foregroundStyle(.secondary)
                 }
 
-                Button("Rebuild library from vault…", role: .destructive) {
-                    showRebuildConfirm = true
+                Section {
+                    DisclosureGroup("Advanced") {
+                        Button("Choose external vault folder…") {
+                            showVaultFolderImporter = true
+                        }
+
+                        if HarvousVaultLocation.isUsingExternalBookmark {
+                            Button("Stop using external folder") {
+                                HarvousVaultPreferences.clearExternalVaultBookmark()
+                                if HarvousVaultPreferences.isMirrorEnabled {
+                                    HarvousVaultExporter.rewriteAllNotes(modelContext: modelContext)
+                                }
+                            }
+                            .foregroundStyle(.secondary)
+                        }
+
+                        VStack(alignment: .leading, spacing: 6) {
+                            Button("Rebuild library from vault…", role: .destructive) {
+                                showRebuildConfirm = true
+                            }
+                            Text(
+                                "Re-reads vault Markdown into this library. Missing files on disk do not remove notes from this library."
+                            )
+                            .font(HarvousTypography.footnote)
+                            .foregroundStyle(.secondary)
+                        }
+                        .padding(.top, 4)
+                    }
+                }
+
+                Section("On the web") {
+                    Link(destination: URL(string: "https://app.harvous.com/profile")!) {
+                        Label("My Data (export / import / delete)", systemImage: "externaldrive")
+                    }
                 }
             }
-
-            Section("Import sources (help)") {
-                Text(
-                    "Apple Notes: share a note as HTML or Markdown (or use an exporter app). Notion: export as Markdown & CSV zip. Evernote: export .enex. Google Docs: export .docx or HTML. Obsidian / plain Markdown: drop .md files or a vault folder."
-                )
-                .font(HarvousTypography.footnote)
-                .foregroundStyle(.secondary)
-            }
-
-            Section("Open on the web") {
-                Link(destination: URL(string: "https://harvous.com/profile")!) {
-                    Label("My Data (export / import / delete)", systemImage: "externaldrive")
-                }
-            }
+            .harvousGroupedSettingsForm()
         }
-        .harvousGroupedSettingsForm()
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .onAppear { mirrorEnabled = HarvousVaultPreferences.isMirrorEnabled }
         .fileImporter(
             isPresented: $showVaultFolderImporter,
@@ -491,7 +480,7 @@ private struct SettingsSupportView: View {
                 LabeledContent("Version", value: appVersion)
             }
             Section("Help") {
-                Link(destination: URL(string: "https://harvous.com")!) {
+                Link(destination: URL(string: "https://app.harvous.com")!) {
                     Label("Harvous website", systemImage: "safari")
                 }
                 Link(destination: URL(string: "mailto:support@harvous.com")!) {
@@ -517,7 +506,7 @@ private struct SettingsAboutFounderView: View {
                 .foregroundStyle(.primary)
             }
             Section {
-                Link(destination: URL(string: "https://harvous.com/profile")!) {
+                Link(destination: URL(string: "https://app.harvous.com/profile")!) {
                     Label("Read the full letter on the web", systemImage: "heart.text.square")
                 }
             }
@@ -527,6 +516,56 @@ private struct SettingsAboutFounderView: View {
 }
 
 // MARK: - Keyboard shortcuts
+
+/// Per-key “keycap” styling for settings shortcut rows (matches compact macOS key legend affordance).
+private struct SettingsShortcutKeycapsRow: View {
+    let keys: String
+
+    var body: some View {
+        HStack(spacing: 4) {
+            ForEach(Array(keys.enumerated()), id: \.offset) { _, ch in
+                keyCap(String(ch))
+            }
+        }
+        .fixedSize(horizontal: true, vertical: false)
+    }
+
+    @ViewBuilder
+    private func keyCap(_ symbol: String) -> some View {
+        Text(symbol)
+            .font(.system(size: 12.5, weight: .medium, design: .rounded))
+            .foregroundStyle(.primary.opacity(0.88))
+            .multilineTextAlignment(.center)
+            .frame(minWidth: 24, minHeight: 22)
+            .padding(.horizontal, 5)
+            .padding(.vertical, 3)
+            .background {
+                RoundedRectangle(cornerRadius: 5, style: .continuous)
+                    .fill(keyCapFill)
+            }
+            .overlay {
+                RoundedRectangle(cornerRadius: 5, style: .continuous)
+                    .strokeBorder(keyCapBorder, lineWidth: 1)
+            }
+            .shadow(color: Color.black.opacity(0.07), radius: 0, x: 0, y: 1)
+    }
+
+    private var keyCapFill: Color {
+        #if os(macOS)
+        Color(nsColor: .controlBackgroundColor)
+        #else
+        Color(uiColor: .secondarySystemGroupedBackground)
+        #endif
+    }
+
+    private var keyCapBorder: Color {
+        #if os(macOS)
+        Color(nsColor: .separatorColor).opacity(0.9)
+        #else
+        Color(uiColor: .separator).opacity(0.85)
+        #endif
+    }
+}
 
 private struct SettingsKeyboardShortcutsView: View {
     private struct Row: Identifiable {
@@ -574,43 +613,17 @@ private struct SettingsKeyboardShortcutsView: View {
     ]
     #endif
 
-    private let webStudyRows: [Row] = [
-        Row(action: "New note (web)", keys: "⌘‘"),
-        Row(action: "New linked note (web)", keys: "⌘;"),
-        Row(action: "Spotlight search (web)", keys: "⌘K"),
-        Row(action: "Find page (web)", keys: "⌘F"),
-        Row(action: "Close panel (web)", keys: "Esc"),
-        Row(action: "Home / dashboard (web)", keys: "⇧⌘H"),
-        Row(action: "Back / dismiss (web)", keys: "⌘←"),
-        Row(action: "Space switcher (web)", keys: "⌥⌘S"),
-        Row(action: "Details panel (web)", keys: "⇧⌘D"),
-        Row(action: "Edit (web)", keys: "⇧⌘E"),
-        Row(action: "Save (web)", keys: "⌘S"),
-    ]
-
     var body: some View {
         Form {
-            Section("Native Harvous (this app)") {
-                Text("Shortcuts follow macOS conventions where they match the main window.")
-                    .font(HarvousTypography.caption)
-                    .foregroundStyle(.secondary)
+            Section {
                 ForEach(nativeRows) { row in
-                    LabeledContent(row.action) {
-                        Text(row.keys)
-                            .font(.system(.body, design: .monospaced))
-                            .foregroundStyle(.secondary)
-                    }
-                }
-            }
-            Section("Harvous web (harvous.com)") {
-                Text("When you study in the browser, these shortcuts match the web app’s keyboard layer (Cmd on Mac, Ctrl on Windows).")
-                    .font(HarvousTypography.caption)
-                    .foregroundStyle(.secondary)
-                ForEach(webStudyRows) { row in
-                    LabeledContent(row.action) {
-                        Text(row.keys)
-                            .font(.system(.body, design: .monospaced))
-                            .foregroundStyle(.secondary)
+                    HStack(alignment: .center, spacing: 12) {
+                        Text(row.action)
+                            .font(HarvousTypography.body)
+                            .foregroundStyle(.primary)
+                            .multilineTextAlignment(.leading)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        SettingsShortcutKeycapsRow(keys: row.keys)
                     }
                 }
             }
@@ -688,42 +701,13 @@ struct IOSSettingsGroupedListView: View {
 
     var body: some View {
         List {
-            Section("Account") {
-                ForEach(HarvousSettingsSidebarItem.accountItems) { item in
-                    NavigationLink(value: HarvousYouNavigation.settingsDetail(item)) {
-                        Label(item.title, systemImage: item.systemImage)
-                    }
-                }
-            }
-            Section("Study") {
-                ForEach(HarvousSettingsSidebarItem.studyItems) { item in
-                    NavigationLink(value: HarvousYouNavigation.settingsDetail(item)) {
-                        Label(item.title, systemImage: item.systemImage)
-                    }
-                }
-            }
-            Section {
-                NavigationLink(value: HarvousYouNavigation.settingsDetail(.referral)) {
-                    Label(HarvousSettingsSidebarItem.referral.title, systemImage: HarvousSettingsSidebarItem.referral.systemImage)
-                }
-            }
-            Section("Data & privacy") {
-                NavigationLink(value: HarvousYouNavigation.settingsDetail(.myData)) {
-                    Label(HarvousSettingsSidebarItem.myData.title, systemImage: HarvousSettingsSidebarItem.myData.systemImage)
-                }
-            }
-            Section("Support & about") {
-                ForEach(HarvousSettingsSidebarItem.supportItems) { item in
-                    NavigationLink(value: HarvousYouNavigation.settingsDetail(item)) {
-                        Label(item.title, systemImage: item.systemImage)
-                    }
-                }
-            }
-            if HarvousSettingsSidebarItem.keyboardShortcutsVisible(isPhone: isPhone) {
-                Section("Advanced") {
-                    NavigationLink(value: HarvousYouNavigation.settingsDetail(.keyboardShortcuts)) {
-                        Label(HarvousSettingsSidebarItem.keyboardShortcuts.title, systemImage: HarvousSettingsSidebarItem.keyboardShortcuts.systemImage)
-                    }
+            ForEach(
+                HarvousSettingsSidebarItem.allSettingsRows(
+                    includeKeyboardShortcuts: HarvousSettingsSidebarItem.keyboardShortcutsVisible(isPhone: isPhone)
+                )
+            ) { item in
+                NavigationLink(value: HarvousYouNavigation.settingsDetail(item)) {
+                    Label(item.title, systemImage: item.systemImage)
                 }
             }
         }
@@ -814,35 +798,11 @@ struct MacPreferencesRootView: View {
 
     @ViewBuilder
     private var settingsSections: some View {
-        Section("Account") {
-            ForEach(HarvousSettingsSidebarItem.accountItems) { item in
+        Section {
+            ForEach(HarvousSettingsSidebarItem.allSettingsRows(includeKeyboardShortcuts: true)) { item in
                 Label(item.title, systemImage: item.systemImage)
                     .tag(item)
             }
-        }
-        Section("Study") {
-            ForEach(HarvousSettingsSidebarItem.studyItems) { item in
-                Label(item.title, systemImage: item.systemImage)
-                    .tag(item)
-            }
-        }
-        Section("Referral") {
-            Label(HarvousSettingsSidebarItem.referral.title, systemImage: HarvousSettingsSidebarItem.referral.systemImage)
-                .tag(HarvousSettingsSidebarItem.referral)
-        }
-        Section("Data & privacy") {
-            Label(HarvousSettingsSidebarItem.myData.title, systemImage: HarvousSettingsSidebarItem.myData.systemImage)
-                .tag(HarvousSettingsSidebarItem.myData)
-        }
-        Section("Support & about") {
-            ForEach(HarvousSettingsSidebarItem.supportItems) { item in
-                Label(item.title, systemImage: item.systemImage)
-                    .tag(item)
-            }
-        }
-        Section("Advanced") {
-            Label(HarvousSettingsSidebarItem.keyboardShortcuts.title, systemImage: HarvousSettingsSidebarItem.keyboardShortcuts.systemImage)
-                .tag(HarvousSettingsSidebarItem.keyboardShortcuts)
         }
     }
 
