@@ -50,17 +50,19 @@ From **`native/Harvous/`**:
 
 ```bash
 xcodegen generate
+DERIVED="../.harvous_mac_derived_data"
+mkdir -p "$DERIVED"
 xcodebuild -project Harvous.xcodeproj \
   -scheme Harvous_macOS \
   -configuration Release \
   -destination 'platform=macOS' \
-  -derivedDataPath build \
+  -derivedDataPath "$DERIVED" \
   clean build
 ```
 
 The app bundle:
 
-`build/Build/Products/Release/Harvous.app`
+`$DERIVED/Build/Products/Release/Harvous.app` where **`$DERIVED`** defaults to **`native/.harvous_mac_derived_data`** (next to `native/Harvous/`, **not** inside it). Putting DerivedData under `native/Harvous/` makes XcodeGen’s **`sources: path: .`** pick up build artifacts and breaks the build with **“Unexpected duplicate tasks”**. Override with **`HARVOUS_DERIVED_DATA`** if needed.
 
 There is **no** dedicated macOS unit-test target in this repo at the time of writing; the bundled **`release.sh`** does not run `xcodebuild test` (unlike dinky’s full preflight).
 
@@ -75,7 +77,7 @@ cd native/Harvous
 create-dmg \
   --volname "Harvous" \
   "Harvous-0.1.0.dmg" \
-  "build/Build/Products/Release/Harvous.app"
+  "../.harvous_mac_derived_data/Build/Products/Release/Harvous.app"
 ```
 
 Optional: add **`dmg-background.tiff`** in `native/Harvous/` and pass **`--background`**, **`--window-size`**, **`--icon`**, and **`--app-drop-link`** for a richer layout (see dinky’s **`release.sh`**).
@@ -83,11 +85,13 @@ Optional: add **`dmg-background.tiff`** in `native/Harvous/` and pass **`--backg
 ### Option B: `hdiutil` (no extra tools)
 
 ```bash
-hdiutil create -volname "Harvous" -srcfolder "build/Build/Products/Release/Harvous.app" \
+hdiutil create -volname "Harvous" -srcfolder "../.harvous_mac_derived_data/Build/Products/Release/Harvous.app" \
   -ov -format UDZO "Harvous-0.1.0.dmg"
 ```
 
-Note: a folder-only DMG behaves differently from a **`create-dmg`** “drag to Applications” layout; **`create-dmg`** is preferable for testers. End-user steps are in **[`help/mac-native-app.md`](../../help/mac-native-app.md)**.
+**Limitation:** **`hdiutil`** only wraps the `.app`; the mounted volume will **not** show an **Applications** alias. **`package-dmg.sh`** uses **`create-dmg`** when it is installed so testers get the usual drag target. Install **`create-dmg`** for preview DMGs you share with others.
+
+End-user steps (including “no Applications shortcut”) are in **[`help/mac-native-app.md`](../../help/mac-native-app.md)**.
 
 ## GitHub Release
 

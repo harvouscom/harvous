@@ -1,4 +1,0 @@
-Target dependency graph (2 targets)
-Target 'Harvous_iOS' in project 'Harvous'
-➜ Explicit dependency on target 'HarvousWidgetExtension' in project 'Harvous'
-Target 'HarvousWidgetExtension' in project 'Harvous' (no dependencies)

@@ -10,7 +10,10 @@ These preview builds are **not** from the Mac App Store and are **not notarized*
 ## Install
 
 1. Open the downloaded **`.dmg`** file.
-2. Drag **Harvous** into your **Applications** folder (or run it directly from the disk image for a quick test).
+2. When the disk image window opens, **drag Harvous onto the Applications folder** shown there (or open **Applications** in Finder and drag **Harvous** in). If your DMG only shows the app with no **Applications** shortcut, drag **Harvous** into **Applications** manually from Finder.
+3. Eject the disk image when you are done.
+
+You can also **double-click Harvous** on the mounted volume for a quick test without copying to **Applications** (some macOS versions still recommend copying for day-to-day use).
 
 ## First launch and Gatekeeper
 

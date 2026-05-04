@@ -90,15 +90,19 @@ fi
 
 PREV_GIT_TAG=$(git -C "$REPO_ROOT" tag -l 'v*' --sort=-version:refname | head -1 || true)
 
-echo "→ Building Release (Harvous_macOS)…"
+# Keep DerivedData outside native/Harvous/ so XcodeGen's "." source tree does not ingest build/.
+DERIVED_DATA="${HARVOUS_DERIVED_DATA:-$SCRIPT_DIR/../.harvous_mac_derived_data}"
+mkdir -p "$DERIVED_DATA"
+
+echo "→ Building Release (Harvous_macOS, derived data: ${DERIVED_DATA})…"
 xcodebuild -project Harvous.xcodeproj \
   -scheme Harvous_macOS \
   -configuration Release \
   -destination 'platform=macOS' \
-  -derivedDataPath build \
+  -derivedDataPath "$DERIVED_DATA" \
   clean build
 
-APP_PATH="build/Build/Products/Release/Harvous.app"
+APP_PATH="$DERIVED_DATA/Build/Products/Release/Harvous.app"
 if [ ! -d "$APP_PATH" ]; then
   echo "✗ Expected ${APP_PATH} not found."
   exit 1
@@ -126,8 +130,19 @@ if [ -f "$SCRIPT_DIR/dmg-background.tiff" ]; then
     "$DMG_NAME" \
     "$APP_PATH"
 else
+  VOLICON_ARGS=()
+  if [ -f "$APP_PATH/Contents/Resources/AppIcon.icns" ]; then
+    VOLICON_ARGS=(--volicon "$APP_PATH/Contents/Resources/AppIcon.icns")
+  fi
   create-dmg \
     --volname "Harvous" \
+    "${VOLICON_ARGS[@]}" \
+    --window-pos 200 120 \
+    --window-size 660 400 \
+    --icon-size 100 \
+    --icon "Harvous.app" 180 185 \
+    --hide-extension "Harvous.app" \
+    --app-drop-link 480 185 \
     "$DMG_NAME" \
     "$APP_PATH"
 fi

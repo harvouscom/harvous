@@ -1,6 +1,9 @@
 import SwiftData
 import SwiftUI
 
+/// Preview / DMG builds: set to `false` to hide sharing, join, and manage-space entries in the space menu.
+private let showSpaceSharingAndManageMenu = false
+
 struct SpaceSwitcherView: View {
     @Environment(\.modelContext) private var modelContext
     @EnvironmentObject private var spaceStore: SpaceStore
@@ -33,31 +36,33 @@ struct SpaceSwitcherView: View {
                     }
                 }
             }
-            Section {
-                Button {
-                    spaceStore.createSpaceInitialVisibility = .privateShared
-                    spaceStore.showCreateSpaceSheet = true
-                } label: {
-                    Label("New private shared…", systemImage: "lock.fill")
-                }
-                Button {
-                    spaceStore.createSpaceInitialVisibility = .publicShared
-                    spaceStore.showCreateSpaceSheet = true
-                } label: {
-                    Label("New public shared…", systemImage: "link")
-                }
-                Button {
-                    spaceStore.showJoinSpaceSheet = true
-                } label: {
-                    Label("Join with token…", systemImage: "person.badge.key")
-                }
-            }
-            if let current = visibleSpaces.first(where: { $0.id == selectedId }) {
+            if showSpaceSharingAndManageMenu {
                 Section {
                     Button {
-                        spaceToManage = current
+                        spaceStore.createSpaceInitialVisibility = .privateShared
+                        spaceStore.showCreateSpaceSheet = true
                     } label: {
-                        Label("Manage current space…", systemImage: "gearshape")
+                        Label("New private shared…", systemImage: "lock.fill")
+                    }
+                    Button {
+                        spaceStore.createSpaceInitialVisibility = .publicShared
+                        spaceStore.showCreateSpaceSheet = true
+                    } label: {
+                        Label("New public shared…", systemImage: "link")
+                    }
+                    Button {
+                        spaceStore.showJoinSpaceSheet = true
+                    } label: {
+                        Label("Join with token…", systemImage: "person.badge.key")
+                    }
+                }
+                if let current = visibleSpaces.first(where: { $0.id == selectedId }) {
+                    Section {
+                        Button {
+                            spaceToManage = current
+                        } label: {
+                            Label("Manage current space…", systemImage: "gearshape")
+                        }
                     }
                 }
             }

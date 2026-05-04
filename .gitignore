@@ -22,6 +22,11 @@ pnpm-debug.log*
 # macOS-specific files
 .DS_Store
 
+# Harvous native: local Xcode DerivedData for package-dmg / release.sh (must stay outside Harvous sources)
+native/.harvous_mac_derived_data/
+native/Harvous/build/
+native/Harvous/*.dmg
+
 # jetbrains setting folder
 .idea/
 

@@ -203,38 +203,29 @@ private struct RemovableConnectionsTrailPill: View {
     let onNavigate: () -> Void
     let onRemove: () -> Void
 
+    /// Pointer hover (Mac / iPad mouse): reveals inline remove. Touch devices rely on context menu + accessibility.
     @State private var hoverRemoval = false
-    @State private var tapRevealRemoval = false
-
-    private var showRemoval: Bool { hoverRemoval || tapRevealRemoval }
 
     var body: some View {
         HStack(spacing: 5) {
             Button(action: onNavigate) {
-                Image(systemName: icon)
-                    .font(.system(size: 10, weight: .semibold))
+                HStack(spacing: 5) {
+                    Image(systemName: icon)
+                        .font(.system(size: 10, weight: .semibold))
+                    Text(label)
+                        .font(HarvousTypography.caption)
+                        .lineLimit(1)
+                        .foregroundStyle(.primary)
+                }
+                .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             #if os(macOS)
             .help("Open linked note")
             #endif
-            .accessibilityLabel("Open connected note")
-
-            Text(label)
-                .font(HarvousTypography.caption)
-                .lineLimit(1)
-                .foregroundStyle(.primary)
-                .contentShape(Rectangle())
-                .onTapGesture {
-                    guard !hoverRemoval else { return }
-                    withAnimation(.easeInOut(duration: 0.18)) {
-                        tapRevealRemoval.toggle()
-                    }
-                }
 
             Button {
                 onRemove()
-                tapRevealRemoval = false
             } label: {
                 Image(systemName: "xmark")
                     .font(.system(size: 9, weight: .bold))
@@ -246,30 +237,34 @@ private struct RemovableConnectionsTrailPill: View {
             .help("Remove connection")
             #endif
             .accessibilityLabel("Remove connection to \(label)")
-            .opacity(showRemoval ? 1 : 0)
-            .frame(width: showRemoval ? 22 : 0)
+            .opacity(hoverRemoval ? 1 : 0)
+            .frame(width: hoverRemoval ? 22 : 0)
             .clipped()
-            .allowsHitTesting(showRemoval)
+            .allowsHitTesting(hoverRemoval)
         }
         .padding(.horizontal, 9)
         .padding(.vertical, 6)
         .background(Capsule(style: .continuous).fill(Color.primary.opacity(0.05)))
-        .animation(.easeInOut(duration: 0.18), value: showRemoval)
+        .animation(.easeInOut(duration: 0.18), value: hoverRemoval)
         .onHover { hovering in
             withAnimation(.easeInOut(duration: 0.18)) {
                 hoverRemoval = hovering
-                if hovering {
-                    tapRevealRemoval = false
-                }
+            }
+        }
+        .contextMenu {
+            Button("Remove connection", role: .destructive) {
+                onRemove()
             }
         }
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("Connected note \(label)")
-        .accessibilityHint(showRemoval ? "Close icon is visible; activate it to remove this connection" : "Arrow opens the note; tap title to show remove on iPhone")
+        .accessibilityLabel("Connected note, \(label)")
+        .accessibilityHint(hoverRemoval ? "Close icon visible; activate to remove this connection" : "Opens the linked note. Use the context menu or accessibility actions to remove the connection.")
         .accessibilityActions {
+            Button("Open note") {
+                onNavigate()
+            }
             Button("Remove connection", role: .destructive) {
                 onRemove()
-                tapRevealRemoval = false
             }
         }
     }
