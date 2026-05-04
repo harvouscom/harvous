@@ -69,6 +69,10 @@ struct MacRootView: View {
     @Environment(\.openWindow) private var openWindow
 
     var body: some View {
+        macRootChrome
+    }
+
+    private var macNavigationSplit: some View {
         NavigationSplitView {
             SidebarPanelView(selectedNote: $selectedNote, onCreateNewNote: createNewNote)
                 .navigationSplitViewColumnWidth(min: 220, ideal: 260, max: 340)
@@ -144,74 +148,98 @@ struct MacRootView: View {
                     }
             }
         }
-        .navigationSplitViewStyle(.balanced)
-        .focusedSceneValue(\.newNoteAction, createNewNote)
-        .focusedSceneValue(\.showSearchAction, { showSearch = true })
-        .focusedSceneValue(\.dailyNoteAction, openDailyNote)
-        .focusedSceneValue(\.randomRevisitAction, openRandomNote)
-        .focusedSceneValue(\.insertWikiLinkAction, {
-            NotificationCenter.default.post(name: .harvousRequestInsertWikiLink, object: nil)
-        })
-        .onChange(of: selectedNote?.id) { _, _ in
-            threadNavPath = NavigationPath()
-            let newNote = selectedNote
-            let previous = lastSelectedNote
-            Task { @MainActor in
-                if let prev = previous,
-                   prev.id != newNote?.id,
-                   prev.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-                   prev.body.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                    let pid = prev.id
-                    HarvousVaultExporter.removeMirrorFiles(for: prev, modelContext: context)
-                    HarvousNoteSpotlightIndexer.removeNote(id: pid)
-                    context.delete(prev)
-                    try? context.save()
-                }
-                lastSelectedNote = newNote
-            }
-        }
-        .overlay {
-            if showSearch {
-                SpotlightSearchView(isPresented: $showSearch, selectedNote: $selectedNote)
-                    .ignoresSafeArea()
-            }
-        }
-        .onOpenURL { url in
-            SpaceStore.queueJoinTokenFromURL(url)
-            HarvousPendingRoute.applyURL(url)
-            spaceStore.bootstrapIfNeeded(modelContext: context)
-            _ = spaceStore.consumePendingJoinToken(modelContext: context)
-            applyMacDeepLink()
-        }
-        .onReceive(NotificationCenter.default.publisher(for: .harvousRequestOpenNoteId)) { n in
-            guard let raw = n.userInfo?[HarvousOpenNoteIdPayload.idKey] as? String,
-                  let id = UUID(uuidString: raw) else { return }
-            let target = id
-            let fd = FetchDescriptor<Note>(predicate: #Predicate { $0.id == target })
-            if let found = try? context.fetch(fd).first {
-                selectedNote = found
-            }
-        }
-        .onDrop(of: [.fileURL], isTargeted: .constant(false)) { providers in
-            HarvousVaultDropImport.handle(providers: providers, spaceId: spaceStore.activeSpaceUUID(), modelContext: context)
-            return true
-        }
-        .onReceive(NotificationCenter.default.publisher(for: .harvousVaultImportSummary)) { note in
-            importSummaryPayload = note.object as? HarvousVaultImportSummaryPayload
-        }
-        .alert(
-            "Import finished",
-            isPresented: Binding(
-                get: { importSummaryPayload != nil },
-                set: { if !$0 { importSummaryPayload = nil } }
+    }
+
+    private var macSplitStyled: some View {
+        macNavigationSplit.navigationSplitViewStyle(.balanced)
+    }
+
+    private var macWithBaseFocusedValues: some View {
+        macSplitStyled
+            .focusedSceneValue(\.newNoteAction, createNewNote)
+            .focusedSceneValue(\.showSearchAction, { showSearch = true })
+            .focusedSceneValue(\.dailyNoteAction, openDailyNote)
+            .focusedSceneValue(\.randomRevisitAction, openRandomNote)
+            .focusedSceneValue(\.insertWikiLinkAction, {
+                NotificationCenter.default.post(name: .harvousRequestInsertWikiLink, object: nil)
+            })
+    }
+
+    private var macWithInspectorAndListFocus: some View {
+        macWithBaseFocusedValues
+            .focusedSceneValue(
+                \.toggleInspectorAction,
+                selectedNote == nil
+                    ? nil
+                    : {
+                        withAnimation(HarvousAnimation.spring) { showInspector.toggle() }
+                    }
             )
-        ) {
-            Button("OK", role: .cancel) { importSummaryPayload = nil }
-        } message: {
-            if let p = importSummaryPayload {
-                Text(macImportSummaryMessage(p))
+            .focusedSceneValue(\.focusNoteListAction, { selectedNote = nil })
+    }
+
+    private var macRootChrome: some View {
+        macWithInspectorAndListFocus
+            .onChange(of: selectedNote?.id) { _, _ in
+                threadNavPath = NavigationPath()
+                let newNote = selectedNote
+                let previous = lastSelectedNote
+                Task { @MainActor in
+                    if let prev = previous,
+                       prev.id != newNote?.id,
+                       prev.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+                       prev.body.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        let pid = prev.id
+                        HarvousVaultExporter.removeMirrorFiles(for: prev, modelContext: context)
+                        HarvousNoteSpotlightIndexer.removeNote(id: pid)
+                        context.delete(prev)
+                        try? context.save()
+                    }
+                    lastSelectedNote = newNote
+                }
             }
-        }
+            .overlay {
+                if showSearch {
+                    SpotlightSearchView(isPresented: $showSearch, selectedNote: $selectedNote)
+                        .ignoresSafeArea()
+                }
+            }
+            .onOpenURL { url in
+                SpaceStore.queueJoinTokenFromURL(url)
+                HarvousPendingRoute.applyURL(url)
+                spaceStore.bootstrapIfNeeded(modelContext: context)
+                _ = spaceStore.consumePendingJoinToken(modelContext: context)
+                applyMacDeepLink()
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .harvousRequestOpenNoteId)) { n in
+                guard let raw = n.userInfo?[HarvousOpenNoteIdPayload.idKey] as? String,
+                      let id = UUID(uuidString: raw) else { return }
+                let target = id
+                let fd = FetchDescriptor<Note>(predicate: #Predicate { $0.id == target })
+                if let found = try? context.fetch(fd).first {
+                    selectedNote = found
+                }
+            }
+            .onDrop(of: [.fileURL], isTargeted: .constant(false)) { providers in
+                HarvousVaultDropImport.handle(providers: providers, spaceId: spaceStore.activeSpaceUUID(), modelContext: context)
+                return true
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .harvousVaultImportSummary)) { note in
+                importSummaryPayload = note.object as? HarvousVaultImportSummaryPayload
+            }
+            .alert(
+                "Import finished",
+                isPresented: Binding(
+                    get: { importSummaryPayload != nil },
+                    set: { if !$0 { importSummaryPayload = nil } }
+                )
+            ) {
+                Button("OK", role: .cancel) { importSummaryPayload = nil }
+            } message: {
+                if let p = importSummaryPayload {
+                    Text(macImportSummaryMessage(p))
+                }
+            }
     }
 
     private func macImportSummaryMessage(_ p: HarvousVaultImportSummaryPayload) -> String {

@@ -120,6 +120,34 @@ struct NoteEditorView: View {
     // MARK: - Body
 
     var body: some View {
+#if os(macOS)
+        noteEditorLifecycleStack
+            .focusedObject(proxy)
+            .focusedSceneValue(\.deleteNoteAction, note == nil ? nil : { deleteCurrentNoteIfPossible() })
+            .focusedSceneValue(\.newConnectedNoteAction, note == nil ? nil : { createConnectedNoteFromKeyboard() })
+            .focusedSceneValue(\.nextStudyHighlightAction, note == nil ? nil : { focusNextStudyHighlight() })
+            .focusedSceneValue(\.previousStudyHighlightAction, note == nil ? nil : { focusPreviousStudyHighlight() })
+            .focusedSceneValue(
+                \.toggleStudyHighlightDockExpandedAction,
+                note == nil ? nil : { toggleStudyHighlightDockExpandedFromKeyboard() }
+            )
+            .focusedSceneValue(\.removeActiveStudyHighlightAction, note == nil ? nil : { removeActiveHighlightFromKeyboard() })
+            .onAppear {
+                proxy.onScripturePillKeyboardFocus = { ref, trans, range in
+                    scripturePillTapped(reference: ref, translation: trans, range: range)
+                }
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .harvousToggleActivePillDockExpanded)) { _ in
+                guard activePillDock != nil else { return }
+                activePillDockExpanded.toggle()
+            }
+#else
+        noteEditorLifecycleStack
+#endif
+    }
+
+    /// Split from `body` so the type checker can finish within a reasonable time.
+    private var noteEditorLifecycleStack: some View {
         Group {
             if let note {
                 editorCanvas(note: note)
@@ -979,6 +1007,76 @@ struct NoteEditorView: View {
 #endif
     }
 
+#if os(macOS)
+    private func createConnectedNoteFromKeyboard() {
+        guard let parent = note else { return }
+        persistEditorIntoNote(parent)
+        autosave.cancel()
+        let created = Note(spaceId: parent.resolvedSpaceId())
+        context.insert(created)
+        NoteSimpleIDAssigner.assignIfMissing(created, in: context)
+        let connection = ThreadStore.createUnanchoredConnection(parent: parent, linked: created, modelContext: context)
+        ThreadStore.touchParentNoteIfNeeded(connection, modelContext: context)
+        do {
+            try context.save()
+        } catch {
+            print("[NoteEditorView] connected note save failed: \(error)")
+            return
+        }
+        HarvousNoteSpotlightIndexer.reindex(note: created)
+        HarvousVaultExporter.scheduleWrite(note: created, modelContext: context)
+        refreshThreads(note: parent)
+        note = created
+    }
+
+    private func focusNextStudyHighlight() {
+        guard let n = note else { return }
+        let paints = studyHighlightPaints
+        guard !paints.isEmpty else { return }
+        let body = editorState.plainText
+        let currentId = dockPinnedHighlightThreadId ?? previewHighlightThreadId
+        if let currentId, let idx = paints.firstIndex(where: { $0.threadId == currentId }) {
+            let next = paints[(idx + 1) % paints.count]
+            activateHighlightPaint(next, note: n, expandedPlain: body)
+        } else if let first = paints.first {
+            activateHighlightPaint(first, note: n, expandedPlain: body)
+        }
+    }
+
+    private func focusPreviousStudyHighlight() {
+        guard let n = note else { return }
+        let paints = studyHighlightPaints
+        guard !paints.isEmpty else { return }
+        let body = editorState.plainText
+        let currentId = dockPinnedHighlightThreadId ?? previewHighlightThreadId
+        if let currentId, let idx = paints.firstIndex(where: { $0.threadId == currentId }) {
+            let prev = paints[(idx - 1 + paints.count) % paints.count]
+            activateHighlightPaint(prev, note: n, expandedPlain: body)
+        } else if let last = paints.last {
+            activateHighlightPaint(last, note: n, expandedPlain: body)
+        }
+    }
+
+    private func activateHighlightPaint(_ paint: StudyHighlightPaint, note: Note, expandedPlain: String) {
+        userActivatedStudyHighlight(threadId: paint.threadId)
+        proxy.scrollExpandedStudyHighlightIntoView(expandedUTF16Range: paint.expandedUTF16Range, expandedPlain: expandedPlain)
+    }
+
+    private func toggleStudyHighlightDockExpandedFromKeyboard() {
+        guard dockPinnedHighlightThreadId != nil || previewHighlightThreadId != nil else { return }
+        activeHighlightDockExpanded.toggle()
+    }
+
+    private func removeActiveHighlightFromKeyboard() {
+        guard let tid = dockPinnedHighlightThreadId,
+              let n = note,
+              let thread = ThreadStore.fetch(id: tid, modelContext: context),
+              StudyThread.anchoredHighlightKinds.contains(thread.entryKind) else { return }
+        removeHighlightThread(thread, parent: n)
+        dismissStudyHighlightDock()
+    }
+#endif
+
     @ViewBuilder
     private func inspectorContent(note: Note) -> some View {
         #if os(macOS)
@@ -1077,6 +1175,8 @@ struct NoteEditorView: View {
         // Also clear the selection-driven pill state so the old bottom action bar doesn't pop up
         // right after dismiss while the caret is still inside the pill attachment range.
         proxy.activeScripturePill = nil
+        // Avoid flashing bottom format chrome while `showFormatBarForActivity` stays true from caret focus (iOS + macOS).
+        proxy.preferOrbChromeUntilNextFormatSignal = true
     }
 
     /// Update the inline pill attachment's translation in-place by routing through the existing

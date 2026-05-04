@@ -54,6 +54,8 @@ final class EditorProxy: ObservableObject {
 
     /// Shown for recent typing, cursor in rich text, or when the pointer is over the bar (not selection).
     @Published var showFormatBarForActivity: Bool = false
+    /// After closing the inline scripture dock, suppresses bottom format chrome until the user edits body text or selects a range (caret-only updates still flip `showFormatBarForActivity`).
+    @Published var preferOrbChromeUntilNextFormatSignal: Bool = false
     @Published var isPointerOverFormatToolbar: Bool = false
     /// After loading/switching a note, stay false until the user types in the body or the body actually begins editing.
     /// Prevents the toolbar from appearing on layout-only `NSTextView` / selection updates.
@@ -91,10 +93,13 @@ final class EditorProxy: ObservableObject {
     var triggerStandaloneNoteFromSelection: (() -> Void)?
 
     var shouldShowNoteToolbar: Bool {
-        isBodyFirstResponder
+        let base =
+            isBodyFirstResponder
             && activeScripturePill == nil
             && formatBarUnlocked
             && (hasSelection || isPointerOverFormatToolbar || showFormatBarForActivity)
+        if preferOrbChromeUntilNextFormatSignal { return false }
+        return base
     }
 
     /// Clears bar-driving state when switching to another note (the same `NSTextView` can keep first responder).
@@ -109,6 +114,7 @@ final class EditorProxy: ObservableObject {
         isPointerOverFormatToolbar = false
         showAddLinkSheet = false
         activeScripturePill = nil
+        preferOrbChromeUntilNextFormatSignal = false
         hoveredStudyHighlightUUID = nil
         studyHighlightHoverTask?.cancel()
         studyHighlightHoverTask = nil
@@ -1114,6 +1120,69 @@ final class EditorProxy: ObservableObject {
         let style = storage.attribute(.paragraphStyle, at: para.location, effectiveRange: nil) as? NSParagraphStyle
         return (style?.firstLineHeadIndent ?? 0) > 0.5 || (style?.headIndent ?? 0) > 0.5
     }
+
+#if os(macOS)
+    /// Invoked after keyboard cycling selects a pill (mirrors tap → opens dock).
+    var onScripturePillKeyboardFocus: ((String, String, NSRange) -> Void)?
+
+    private static func rangesOfScripturePillAttachments(in storage: NSTextStorage) -> [NSRange] {
+        var ranges: [NSRange] = []
+        let end = storage.length
+        var idx = 0
+        while idx < end {
+            var eff = NSRange()
+            let value = storage.attribute(.attachment, at: idx, effectiveRange: &eff)
+            if value is ScripturePillAttachment { ranges.append(eff) }
+            let next = NSMaxRange(eff)
+            if next <= idx { break }
+            idx = next
+        }
+        return ranges
+    }
+
+    func focusNextScripturePill() {
+        focusAdjacentScripturePill(next: true)
+    }
+
+    func focusPreviousScripturePill() {
+        focusAdjacentScripturePill(next: false)
+    }
+
+    private func focusAdjacentScripturePill(next: Bool) {
+        guard let (tv, storage) = textViewPair() else { return }
+        guard let nstv = tv as? NSTextView else { return }
+        let ranges = Self.rangesOfScripturePillAttachments(in: storage)
+        guard !ranges.isEmpty else { return }
+        let sel = caretRange(for: tv)
+        let target: NSRange
+        if next {
+            var startSearch: Int
+            if sel.length == 0, let idx = ranges.firstIndex(where: { NSLocationInRange(sel.location, $0) }) {
+                startSearch = NSMaxRange(ranges[idx])
+            } else {
+                startSearch = sel.length > 0 ? NSMaxRange(sel) : sel.location
+            }
+            target = ranges.first { $0.location >= startSearch } ?? ranges[0]
+        } else {
+            var startSearch = sel.location
+            if sel.length == 0, let idx = ranges.firstIndex(where: { NSLocationInRange(sel.location, $0) }) {
+                startSearch = ranges[idx].location
+            }
+            target = ranges.last { NSMaxRange($0) <= startSearch } ?? ranges[ranges.count - 1]
+        }
+        nstv.setSelectedRange(target)
+        nstv.scrollRangeToVisible(target)
+        refocusTextView()
+        refreshFormatState()
+        if let pill = storage.attribute(.attachment, at: target.location, effectiveRange: nil) as? ScripturePillAttachment {
+            onScripturePillKeyboardFocus?(pill.reference, pill.translation, target)
+        }
+    }
+
+    func postToggleActivePillDockExpanded() {
+        NotificationCenter.default.post(name: .harvousToggleActivePillDockExpanded, object: nil)
+    }
+#endif
 
 }
 

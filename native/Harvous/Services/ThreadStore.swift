@@ -342,6 +342,15 @@ enum ThreadStore {
         return (try? modelContext.fetch(descriptor)) ?? []
     }
 
+    /// Deletes a note-to-note link marker only (both notes remain). Parent note `updatedAt` is bumped for vault/index consistency.
+    @MainActor
+    static func deleteLinkedNoteMarker(_ thread: StudyThread, modelContext: ModelContext) {
+        guard StudyThread.EntryKind(rawValue: thread.entryKindRaw) == .linkedNote else { return }
+        touchParentNoteIfNeeded(thread, modelContext: modelContext)
+        modelContext.delete(thread)
+        try? modelContext.save()
+    }
+
     @MainActor
     static func save(_ thread: StudyThread, modelContext: ModelContext) {
         thread.updatedAt = Date()

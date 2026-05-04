@@ -182,6 +182,8 @@ extension Notification.Name {
     static let harvousRequestOpenNoteId = Notification.Name("Harvous.requestOpenNoteId")
     static let requestDailyNote = Notification.Name("Harvous.requestDailyNote")
     static let requestRandomRevisit = Notification.Name("Harvous.requestRandomRevisit")
+    /// macOS: toggle expand/collapse on `ActiveScripturePillDock` when a pill dock is visible.
+    static let harvousToggleActivePillDockExpanded = Notification.Name("Harvous.toggleActivePillDockExpanded")
 }
 
 enum HarvousOpenNoteIdPayload {

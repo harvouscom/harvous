@@ -1300,6 +1300,7 @@ struct HarvousEditor: NSViewRepresentable {
                 if hasSelection {
                     // `resetFormatBarStateForNewNote` clears `formatBarUnlocked`; if the body stayed first responder
                     // across a note switch, `textDidBeginEditing` may not fire again — selection alone must unlock.
+                    p.preferOrbChromeUntilNextFormatSignal = false
                     p.formatBarUnlocked = true
                     self.cancelFormatBarHide()
                 } else {
@@ -1375,6 +1376,7 @@ struct HarvousEditor: NSViewRepresentable {
             Task { @MainActor in
                 self.state.plainText = plain
                 if !isProgrammatic {
+                    self.proxy?.preferOrbChromeUntilNextFormatSignal = false
                     self.proxy?.formatBarUnlocked = true
                     self.proxy?.showFormatBarForActivity = true
                     self.scheduleFormatBarHide()
@@ -1999,6 +2001,7 @@ struct HarvousEditor: UIViewRepresentable {
                 editorProxy?.selectionViewportRect = viewportRect
                 editorProxy?.refreshFormatState()
                 if hasSelection {
+                    editorProxy?.preferOrbChromeUntilNextFormatSignal = false
                     editorProxy?.formatBarUnlocked = true
                     self.cancelFormatBarHide()
                 } else if editorProxy?.isBodyFirstResponder == true {
@@ -2033,6 +2036,7 @@ struct HarvousEditor: UIViewRepresentable {
             let plain = harvousExpandedPlainText(in: textView.textStorage)
             Task { @MainActor in
                 self.state.plainText = plain
+                self.proxy?.preferOrbChromeUntilNextFormatSignal = false
                 self.proxy?.formatBarUnlocked = true
                 self.proxy?.showFormatBarForActivity = true
                 self.proxy?.refreshFormatState()

@@ -68,12 +68,18 @@ struct NoteConnectionsBar: View {
                     connectPlaceholderPill
                 } else {
                     ForEach(snapshot.incoming, id: \.id) { item in
-                        ConnectionsTrailPill(
+                        RemovableConnectionsTrailPill(
                             label: Self.truncated(resolvedIncomingTitle(for: item)),
-                            icon: "arrow.left"
-                        ) {
-                            onOpenLinkedNote(item.parentNoteId)
-                        }
+                            icon: "arrow.left",
+                            onNavigate: { onOpenLinkedNote(item.parentNoteId) },
+                            onRemove: {
+                                ThreadStore.deleteLinkedNoteMarker(item, modelContext: modelContext)
+                                if let parent = ThreadStore.fetchNote(id: item.parentNoteId, modelContext: modelContext) {
+                                    HarvousVaultExporter.scheduleWrite(note: parent, modelContext: modelContext)
+                                }
+                                onConnectionsChanged?()
+                            }
+                        )
                         Image(systemName: "chevron.right")
                             .font(.system(size: 10, weight: .semibold))
                             .foregroundStyle(.tertiary)
@@ -89,12 +95,16 @@ struct NoteConnectionsBar: View {
                             Image(systemName: "chevron.right")
                                 .font(.system(size: 10, weight: .semibold))
                                 .foregroundStyle(.tertiary)
-                            ConnectionsTrailPill(
+                            RemovableConnectionsTrailPill(
                                 label: Self.truncated(resolvedLinkedTitle(for: item)),
-                                icon: "arrow.right"
-                            ) {
-                                onOpenLinkedNote(linkedId)
-                            }
+                                icon: "arrow.right",
+                                onNavigate: { onOpenLinkedNote(linkedId) },
+                                onRemove: {
+                                    ThreadStore.deleteLinkedNoteMarker(item, modelContext: modelContext)
+                                    HarvousVaultExporter.scheduleWrite(note: note, modelContext: modelContext)
+                                    onConnectionsChanged?()
+                                }
+                            )
                         }
                     }
                     addConnectionPill
@@ -187,24 +197,80 @@ struct NoteConnectionsBar: View {
     }
 }
 
-private struct ConnectionsTrailPill: View {
+private struct RemovableConnectionsTrailPill: View {
     let label: String
     let icon: String
-    let onTap: () -> Void
+    let onNavigate: () -> Void
+    let onRemove: () -> Void
+
+    @State private var hoverRemoval = false
+    @State private var tapRevealRemoval = false
+
+    private var showRemoval: Bool { hoverRemoval || tapRevealRemoval }
 
     var body: some View {
-        Button(action: onTap) {
-            HStack(spacing: 5) {
+        HStack(spacing: 5) {
+            Button(action: onNavigate) {
                 Image(systemName: icon)
                     .font(.system(size: 10, weight: .semibold))
-                Text(label)
-                    .lineLimit(1)
             }
-            .font(HarvousTypography.caption)
-            .padding(.horizontal, 9)
-            .padding(.vertical, 6)
-            .background(Capsule(style: .continuous).fill(Color.primary.opacity(0.05)))
+            .buttonStyle(.plain)
+            #if os(macOS)
+            .help("Open linked note")
+            #endif
+            .accessibilityLabel("Open connected note")
+
+            Text(label)
+                .font(HarvousTypography.caption)
+                .lineLimit(1)
+                .foregroundStyle(.primary)
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    guard !hoverRemoval else { return }
+                    withAnimation(.easeInOut(duration: 0.18)) {
+                        tapRevealRemoval.toggle()
+                    }
+                }
+
+            Button {
+                onRemove()
+                tapRevealRemoval = false
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundStyle(Color.secondary.opacity(0.9))
+                    .frame(width: 16, height: 16)
+            }
+            .buttonStyle(.plain)
+            #if os(macOS)
+            .help("Remove connection")
+            #endif
+            .accessibilityLabel("Remove connection to \(label)")
+            .opacity(showRemoval ? 1 : 0)
+            .frame(width: showRemoval ? 22 : 0)
+            .clipped()
+            .allowsHitTesting(showRemoval)
         }
-        .buttonStyle(.plain)
+        .padding(.horizontal, 9)
+        .padding(.vertical, 6)
+        .background(Capsule(style: .continuous).fill(Color.primary.opacity(0.05)))
+        .animation(.easeInOut(duration: 0.18), value: showRemoval)
+        .onHover { hovering in
+            withAnimation(.easeInOut(duration: 0.18)) {
+                hoverRemoval = hovering
+                if hovering {
+                    tapRevealRemoval = false
+                }
+            }
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Connected note \(label)")
+        .accessibilityHint(showRemoval ? "Close icon is visible; activate it to remove this connection" : "Arrow opens the note; tap title to show remove on iPhone")
+        .accessibilityActions {
+            Button("Remove connection", role: .destructive) {
+                onRemove()
+                tapRevealRemoval = false
+            }
+        }
     }
 }

@@ -535,6 +535,36 @@ private struct SettingsKeyboardShortcutsView: View {
         var id: String { action }
     }
 
+    #if os(macOS)
+    private let nativeRows: [Row] = [
+        Row(action: "New note", keys: "⌘N"),
+        Row(action: "Search", keys: "⌘K"),
+        Row(action: "Settings", keys: "⌘,"),
+        Row(action: "Focus note list", keys: "⌘0"),
+        Row(action: "Daily note", keys: "⌘T"),
+        Row(action: "Random revisit", keys: "⌃⌘R"),
+        Row(action: "Insert note wikilink", keys: "⇧⌘L"),
+        Row(action: "New connected note", keys: "⌘⌥N"),
+        Row(action: "Delete note", keys: "⌃⌘⌫"),
+        Row(action: "Toggle note details", keys: "⌘⌥I"),
+        Row(action: "Strikethrough", keys: "⌘⇧X"),
+        Row(action: "Heading 2", keys: "⌘⌥2"),
+        Row(action: "Heading 3", keys: "⌘⌥3"),
+        Row(action: "Heading 4", keys: "⌘⌥4"),
+        Row(action: "Body text", keys: "⌘⌥0"),
+        Row(action: "Bulleted list", keys: "⌘⇧8"),
+        Row(action: "Numbered list", keys: "⌘⇧7"),
+        Row(action: "Add link", keys: "⌘L"),
+        Row(action: "Inline code", keys: "⌘⌥C"),
+        Row(action: "Next scripture pill", keys: "⌃⌘]"),
+        Row(action: "Previous scripture pill", keys: "⌃⌘["),
+        Row(action: "Toggle scripture pill dock", keys: "⌘⌥P"),
+        Row(action: "Next study highlight", keys: "⌃⌘⇧]"),
+        Row(action: "Previous study highlight", keys: "⌃⌘⇧["),
+        Row(action: "Toggle highlight dock", keys: "⌘⌥H"),
+        Row(action: "Remove highlight", keys: "⌘⌥⌫"),
+    ]
+    #else
     private let nativeRows: [Row] = [
         Row(action: "New note", keys: "⌘N"),
         Row(action: "Search", keys: "⌘K"),
@@ -542,6 +572,7 @@ private struct SettingsKeyboardShortcutsView: View {
         Row(action: "Random revisit", keys: "⌃⌘R"),
         Row(action: "Insert note wikilink", keys: "⇧⌘L"),
     ]
+    #endif
 
     private let webStudyRows: [Row] = [
         Row(action: "New note (web)", keys: "⌘‘"),
