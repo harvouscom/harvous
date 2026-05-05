@@ -59,6 +59,7 @@ struct ContentView: View {
 struct MacRootView: View {
     @State private var selectedNote: Note?
     @State private var lastSelectedNote: Note?
+    @State private var splitColumnVisibility: NavigationSplitViewVisibility = .all
     @State private var showSearch = false
     @State private var showInspector = false
     @State private var threadNavPath = NavigationPath()
@@ -72,10 +73,32 @@ struct MacRootView: View {
         macRootChrome
     }
 
+    /// Suppresses the slide animation when expanding the sidebar (.detailOnly → anything else).
+    ///
+    /// With `.windowToolbarStyle(.unified)`, AppKit re-checks overflow on every animation tick; during expand interpolation it can flash the "more" chevron even when final widths fit. Committing the expand in one transaction gives a single layout pass at final widths. Collapse (→ .detailOnly) keeps default animation.
+    private var animatedSplitVisibility: Binding<NavigationSplitViewVisibility> {
+        Binding(
+            get: { splitColumnVisibility },
+            set: { newValue in
+                if splitColumnVisibility == .detailOnly && newValue != .detailOnly {
+                    var tx = Transaction()
+                    tx.disablesAnimations = true
+                    withTransaction(tx) { splitColumnVisibility = newValue }
+                } else {
+                    splitColumnVisibility = newValue
+                }
+            }
+        )
+    }
+
     private var macNavigationSplit: some View {
-        NavigationSplitView {
-            SidebarPanelView(selectedNote: $selectedNote, onCreateNewNote: createNewNote)
-                .navigationSplitViewColumnWidth(min: 220, ideal: 260, max: 340)
+        NavigationSplitView(columnVisibility: animatedSplitVisibility) {
+            SidebarPanelView(
+                selectedNote: $selectedNote,
+                splitColumnVisibility: animatedSplitVisibility,
+                onCreateNewNote: createNewNote
+            )
+                .navigationSplitViewColumnWidth(min: 230, ideal: 260, max: 300)
         } detail: {
             NavigationStack(path: $threadNavPath) {
                 NoteEditorView(

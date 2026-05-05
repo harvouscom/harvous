@@ -84,6 +84,7 @@ public/                      # Static assets, sw.js, manifest.json
 - `docs/MOBILE_KEYBOARD_NOTE_SHEET.md` - Mobile keyboard + new-note bottom sheet (Vaul drawer shell; toolbar 12px above keyboard, editor scroll, layout-root scroll lock)
 - `src/components/ui/drawer.tsx` - Vaul wrapper for mobile drawers; `src/components/ui/sheet.tsx` - Radix sheet primitives (retained for shadcn-style patterns)
 - `docs/MAIN_COLUMN_LAYOUT.md` - Main-column and CTA layout rules (scroll fill, CardStack chain, button positioning)
+- `docs/MACOS_UNIFIED_TOOLBAR_OVERFLOW.md` - macOS unified toolbar overflow (“more”) during split transitions: attempts, constraints, and facts for future work
 - `release-notes/` - User-facing release notes (`/marketing-agent`). Plain text only: no emoji in titles, headings, or body (`release-notes/README.md`).
 
 ## Faith and AI (agent reference)

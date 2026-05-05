@@ -10,6 +10,7 @@ import SwiftUI
 /// theme is intentionally *not* used as a fallback here so pills don't auto-tint: a pill with no picked
 /// accent renders in `HarvousColors.{ns|ui}ScripturePillNeutralAccent`.
 struct ActiveScripturePillDock: View {
+    @Environment(\.harvousDockExpandedContentMaxHeight) private var expandedContentMaxHeight
     /// The pill's current reference (e.g. "John 3:16" or "John 3:16-18"). Parent owns this so the dock
     /// and the inline pill stay in sync; we edit it via the Book/Chapter/Verse controls below.
     let reference: String
@@ -206,14 +207,19 @@ struct ActiveScripturePillDock: View {
         VStack(alignment: .leading, spacing: 12) {
             referenceEditorRow
 
-            // Inline passage text — follows committed `reference`/`translation` (updates when pickers commit).
-            ScripturePassageView(
-                reference: reference,
-                translation: translation,
-                showHeader: false,
-                useReadingTypography: true
-            )
-            .frame(maxWidth: .infinity, alignment: .leading)
+            ScrollView {
+                // Inline passage text — follows committed `reference`/`translation` (updates when pickers commit).
+                ScripturePassageView(
+                    reference: reference,
+                    translation: translation,
+                    showHeader: false,
+                    useReadingTypography: true
+                )
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(maxHeight: expandedContentMaxHeight)
+            .clipped()
         }
     }
 

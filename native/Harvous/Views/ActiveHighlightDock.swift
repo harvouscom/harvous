@@ -5,6 +5,8 @@ import SwiftUI
 
 /// Bottom capsule — shows exactly one anchored highlight when hovered or pinned.
 struct ActiveHighlightDock: View {
+    @Environment(\.harvousDockExpandedContentMaxHeight) private var expandedContentMaxHeight
+
     @Bindable var thread: StudyThread
     @Binding var isExpanded: Bool
 
@@ -178,26 +180,32 @@ struct ActiveHighlightDock: View {
 
     @ViewBuilder
     private var expandedBody: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            if thread.entryKind == .miniNote {
-                TextField("Add a note…", text: $thread.miniNoteBody, axis: .vertical)
-                    .font(.system(size: 14, weight: .regular))
-                    .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .textFieldStyle(.plain)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .onChange(of: thread.miniNoteBody) { _, _ in
-                        thread.updatedAt = Date()
-                        try? modelContext.save()
-                    }
-            } else {
-                Text(DockHighlightCopy.detail(thread, modelContext: modelContext))
-                    .font(.system(size: 14, weight: .regular))
-                    .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .fixedSize(horizontal: false, vertical: true)
+        ScrollView {
+            VStack(alignment: .leading, spacing: 10) {
+                if thread.entryKind == .miniNote {
+                    TextField("Add a note…", text: $thread.miniNoteBody, axis: .vertical)
+                        .font(.system(size: 14, weight: .regular))
+                        .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .textFieldStyle(.plain)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .onChange(of: thread.miniNoteBody) { _, _ in
+                            thread.updatedAt = Date()
+                            try? modelContext.save()
+                        }
+                } else {
+                    Text(DockHighlightCopy.detail(thread, modelContext: modelContext))
+                        .font(.system(size: 14, weight: .regular))
+                        .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
+        .fixedSize(horizontal: false, vertical: true)
+        .frame(maxHeight: expandedContentMaxHeight)
+        .clipped()
     }
 
     /// Primary action for linked-note / scripture entries — shown below the body when expanded.

@@ -3,6 +3,18 @@ import SwiftData
 
 #if os(macOS)
 
+private enum SidebarToolbarLayout {
+    /// Omit SwiftUI sidebar `toolbar` while measured width is in `(0 ..< this)` during split resize. When width is still `0`, chrome stays visible so expanding from `detailOnly` never blanks the space switcher.
+    static let narrowColumnToolbarSuppressBelow: CGFloat = 210
+}
+
+private struct SidebarColumnWidthPreferenceKey: PreferenceKey {
+    nonisolated static let defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = nextValue()
+    }
+}
+
 /// Sidebar — note list with a notes/collections toggle. Collapsible via ⌘\.
 struct SidebarPanelView: View {
     private enum SidebarMode: String, CaseIterable, Identifiable {
@@ -34,12 +46,14 @@ struct SidebarPanelView: View {
     }
 
     @Binding var selectedNote: Note?
+    @Binding var splitColumnVisibility: NavigationSplitViewVisibility
     var onCreateNewNote: (() -> Void)?
     @Query(sort: \Note.updatedAt, order: .reverse) private var notes: [Note]
     @EnvironmentObject private var spaceStore: SpaceStore
     @State private var mode: SidebarMode = .notes
     @State private var activeCollection: String? = nil
     @State private var collectionSearchText = ""
+    @State private var sidebarColumnMeasuredWidth: CGFloat = 0
 
     private var unifiedSearchText: Binding<String> {
         Binding(
@@ -110,6 +124,16 @@ struct SidebarPanelView: View {
             .map(\.0)
     }
 
+    private var showSidebarToolbarChrome: Bool {
+        guard splitColumnVisibility != .detailOnly else { return false }
+        let w = sidebarColumnMeasuredWidth
+        let threshold = SidebarToolbarLayout.narrowColumnToolbarSuppressBelow
+        if w > 0, w < threshold {
+            return false
+        }
+        return true
+    }
+
     var body: some View {
         NavigationStack {
             Group {
@@ -125,19 +149,32 @@ struct SidebarPanelView: View {
             }
             .searchable(text: $collectionSearchText, placement: .sidebar, prompt: "Search")
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+            .background(
+                GeometryReader { proxy in
+                    Color.clear.preference(key: SidebarColumnWidthPreferenceKey.self, value: proxy.size.width)
+                }
+            )
             .toolbar {
-                ToolbarItemGroup(placement: .automatic) {
-                    SpaceSwitcherView()
-                    if mode == .collections, activeCollection != nil {
-                        Button {
-                            activeCollection = nil
-                        } label: {
-                            Image(systemName: "chevron.left")
+                if showSidebarToolbarChrome {
+                    ToolbarItemGroup(placement: .automatic) {
+                        SpaceSwitcherView()
+                        if mode == .collections, activeCollection != nil {
+                            Button {
+                                activeCollection = nil
+                            } label: {
+                                Image(systemName: "chevron.left")
+                            }
+                            .buttonStyle(.bordered)
+                            .help("Back to collections")
                         }
-                        .buttonStyle(.bordered)
-                        .help("Back to collections")
+                        modeMenu
                     }
-                    modeMenu
+                }
+            }
+            .onPreferenceChange(SidebarColumnWidthPreferenceKey.self) { sidebarColumnMeasuredWidth = $0 }
+            .onChange(of: splitColumnVisibility) { _, newVisibility in
+                if newVisibility == .detailOnly {
+                    sidebarColumnMeasuredWidth = 0
                 }
             }
             .onChange(of: mode) { _, newMode in
@@ -219,7 +256,7 @@ struct SidebarPanelView: View {
 
 #Preview {
     NavigationSplitView {
-        SidebarPanelView(selectedNote: .constant(nil), onCreateNewNote: nil)
+        SidebarPanelView(selectedNote: .constant(nil), splitColumnVisibility: .constant(.all), onCreateNewNote: nil)
     } detail: {
         Text("Editor")
     }

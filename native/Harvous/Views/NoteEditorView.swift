@@ -470,7 +470,11 @@ struct NoteEditorView: View {
 
     @ViewBuilder
     private func editorCanvas(note: Note) -> some View {
-        VStack(spacing: 0) {
+        GeometryReader { outerGeo in
+            let viewportCol = max(outerGeo.size.height, 1)
+            let dockExpandedContentMaxHeight = HarvousDockExpandedContentLayout.expandedScrollMaxHeight(viewportHeight: viewportCol)
+
+            VStack(spacing: 0) {
             // Scrollable writing surface — `minHeight` matches viewport so paper runs flush to the footer (no dead band).
             GeometryReader { geo in
                 let viewportH = max(geo.size.height, 1)
@@ -591,8 +595,11 @@ struct NoteEditorView: View {
             // Dock layer pinned above the bottom action bar so a newly created/opened dock is always
             // visible without requiring the user to scroll down. Lives outside the `ScrollView`
             // intentionally — these are focus-mode overlays, not inline note content.
-            activeStudyHighlightDock(note: note)
-            activeScripturePillDock(note: note)
+            Group {
+                activeStudyHighlightDock(note: note)
+                activeScripturePillDock(note: note)
+            }
+            .environment(\.harvousDockExpandedContentMaxHeight, dockExpandedContentMaxHeight)
 
             #if os(macOS)
             // Bottom bar: format toolbar when selected, while typing, or when pointer is on the bar
@@ -617,6 +624,7 @@ struct NoteEditorView: View {
                 .transition(.move(edge: .bottom).combined(with: .opacity))
             }
             #endif
+            }
         }
         .onDisappear {
             scripturePillPrefetchTask?.cancel()
@@ -1425,7 +1433,10 @@ extension NoteEditorView {
     fileprivate func highlightDetailSheet(for threadId: UUID) -> some View {
         if let thread = ThreadStore.fetch(id: threadId, modelContext: context), let parent = note {
             NavigationStack {
-                ScrollView {
+                GeometryReader { sheetGeo in
+                    let sheetCap = HarvousDockExpandedContentLayout.expandedScrollMaxHeight(
+                        viewportHeight: max(sheetGeo.size.height, 220)
+                    )
                     ActiveHighlightDock(
                         thread: thread,
                         isExpanded: .constant(true),
@@ -1445,6 +1456,8 @@ extension NoteEditorView {
                             highlightDetailThreadId = nil
                         }
                     )
+                    .environment(\.harvousDockExpandedContentMaxHeight, sheetCap)
+                    .frame(maxWidth: .infinity, alignment: .top)
                     .padding(.horizontal, 4)
                     .padding(.vertical, 20)
                 }

@@ -118,6 +118,9 @@ struct HarvousApp: App {
             ContentView()
                 .environmentObject(appRouter)
                 .environmentObject(spaceStore)
+                #if os(macOS)
+                .frame(minWidth: 980)
+                #endif
         }
         #if os(macOS)
         // Unified title bar + traffic lights: same as document window (glass reads under the toolbar).
