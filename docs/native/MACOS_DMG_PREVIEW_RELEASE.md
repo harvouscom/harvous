@@ -39,10 +39,13 @@ Preview builds use **signing disabled** in Xcode project settings (`CODE_SIGN_ID
 
 1. Open **`native/Harvous/Harvous.xcodeproj`**
 2. Select scheme **`Harvous_macOS`**, configuration **Release**
-3. **Product → Build** (or **Archive** if you prefer Organizer)
-4. Take **`Harvous.app`** from the build products folder (**Release**)
+3. Set the run destination to **Any Mac (Apple Silicon, Intel)** when Xcode offers it, so Release is not arm64-only on Apple Silicon hosts.
+4. **Product → Build** (or **Archive** if you prefer Organizer)
+5. Take **`Harvous.app`** from the build products folder (**Release**). Confirm with Terminal: `lipo -archs path/to/Harvous.app/Contents/MacOS/Harvous` should list **arm64** and **x86_64**.
 
 Goal: a **Release** build of **`Harvous.app`** for packaging.
+
+**Universal binary (Intel + Apple Silicon):** Use **`-destination 'generic/platform=macOS'`** for CLI Release builds. `-destination 'platform=macOS'` on an Apple Silicon Mac often produces **arm64-only**, which does not run on Intel Macs. Release `project.yml` sets `ARCHS[sdk=macosx*]` to `arm64 x86_64`; the generic destination ensures Xcode actually builds and `lipo`-merges both slices. `release.sh` / `package-dmg.sh` follow this and assert `lipo -archs` contains both architectures.
 
 ### CLI (same as `release.sh` / `package-dmg.sh`)
 
@@ -55,7 +58,7 @@ mkdir -p "$DERIVED"
 xcodebuild -project Harvous.xcodeproj \
   -scheme Harvous_macOS \
   -configuration Release \
-  -destination 'platform=macOS' \
+  -destination 'generic/platform=macOS' \
   -derivedDataPath "$DERIVED" \
   clean build
 ```

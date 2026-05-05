@@ -2,7 +2,11 @@
 
 Harvous has a **native macOS app** built with SwiftUI. Preview builds are distributed as a **DMG** attached to **GitHub Releases** for testing and feedback.
 
-- **Requirements:** macOS 14 (Sonoma) or later.
+- **Requirements:** macOS 14 (Sonoma) or later, on **Apple Silicon or Intel** Macs. Preview DMGs ship as a **universal** app (same download includes both architectures).
+
+## Intel Macs
+
+The preview build is a **universal binary**. If you use an **Intel** Mac and the app will not open, or macOS says it is not supported, report that through your usual feedback channel so we can verify the shipped `Harvous.app` still contains an **x86_64** slice (`lipo -archs` on the main executable should list **arm64** and **x86_64**). Occasional smoke testing on real Intel hardware is the most reliable check; automated builds use `generic/platform=macOS` so both slices are compiled.
 - **Source:** Download only from the official repository: **[github.com/harvouscom/harvous/releases](https://github.com/harvouscom/harvous/releases)**.
 
 These preview builds are **not** from the Mac App Store and are **not notarized**. macOS may block the app the first time you open it. That is expected for unsigned preview builds.

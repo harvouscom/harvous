@@ -2,6 +2,8 @@
 
 This document describes how the Harvous **multiplatform** SwiftUI app is organized in `native/Harvous/`. It assumes you are comfortable with React-style “UI as a function of state” and want SwiftUI vocabulary mapped to that mental model.
 
+For a **macOS-only, tutorial-style** walkthrough (React/web framing, glossary with web tie-ins, named Harvous functions, and how the editor bridges to AppKit), see [MACOS_SWIFTUI_NATIVE_APP_GUIDE.md](MACOS_SWIFTUI_NATIVE_APP_GUIDE.md).
+
 ---
 
 ## 1. SwiftUI fundamentals (in one paragraph)
