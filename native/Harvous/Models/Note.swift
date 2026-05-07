@@ -48,6 +48,10 @@ final class Note {
     @Relationship(deleteRule: .cascade, inverse: \StudyThread.parentNote)
     var studyThreads: [StudyThread] = []
 
+    /// Time-Machine-style version history. Cascaded so deleting a note disposes of its snapshots.
+    @Relationship(deleteRule: .cascade)
+    var snapshots: [NoteSnapshot] = []
+
     init(
         title: String = "",
         body: String = "",

@@ -1,5 +1,8 @@
 import SwiftUI
 import SwiftData
+#if os(iOS)
+import UIKit
+#endif
 
 /// Debounces SwiftData writes without touching `@State`, so typing does not rebuild `HarvousEditor` every keystroke.
 @MainActor
@@ -46,6 +49,13 @@ private final class EditorAutosaveDebouncer {
             note.updatedAt = Date()
             BibleStudyTagSuggester.applyToNote(note, allowPrimaryUpdate: allowPrimaryCollectionUpdate)
             try? context.save()
+            NoteSnapshotter.shared.noteDidAutosave(
+                noteID: note.id,
+                body: note.body,
+                title: note.title,
+                refs: note.detectedRefs,
+                in: context
+            )
             HarvousNoteSpotlightIndexer.reindex(note: note)
             HarvousVaultExporter.scheduleWrite(note: note, modelContext: context)
         }
@@ -71,6 +81,7 @@ struct NoteEditorView: View {
     @State private var autosave = EditorAutosaveDebouncer()
     @State private var latestAutosaveToken: UInt64 = 0
     @State private var isCollectionContextUpdating = false
+    @State private var newNoteTiltTrigger = false
     @State private var showCollectionToolbarText = true
     @FocusState private var titleFocused: Bool
 
@@ -132,6 +143,8 @@ struct NoteEditorView: View {
                 note == nil ? nil : { toggleStudyHighlightDockExpandedFromKeyboard() }
             )
             .focusedSceneValue(\.removeActiveStudyHighlightAction, note == nil ? nil : { removeActiveHighlightFromKeyboard() })
+            .focusedSceneValue(\.collectionContextUpdating, isCollectionContextUpdating)
+            .focusedSceneValue(\.showCollectionToolbarText, showCollectionToolbarText)
             .onAppear {
                 proxy.onScripturePillKeyboardFocus = { ref, trans, range in
                     scripturePillTapped(reference: ref, translation: trans, range: range)
@@ -211,6 +224,7 @@ struct NoteEditorView: View {
             guard let n = note, n.title.isEmpty, n.body.isEmpty else { return }
             try? await Task.sleep(for: .milliseconds(80))
             titleFocused = true
+            newNoteTiltTrigger.toggle()
         }
         .onChange(of: currentCollectionLabel) { _, newValue in
             animateCollectionTextReveal(for: newValue)
@@ -220,10 +234,10 @@ struct NoteEditorView: View {
             animateCollectionTextReveal(for: currentCollectionLabel)
         }
 #if os(macOS)
-        .onChange(of: proxy.hasSelection) { _, sel in bodySelectionAnchoringChanged(macHasSelection: sel) }
+        .onChange(of: bodySelectionChangeToken) { _, _ in onBodySelectionHostChanged() }
         .onChange(of: proxy.hoveredStudyHighlightUUID) { _, hovered in macUpdatePreviewForHoveredHighlight(hovered) }
 #else
-        .onChange(of: proxy.hasSelection) { _, sel in bodySelectionAnchoringChanged(iosHasSelection: sel) }
+        .onChange(of: bodySelectionChangeToken) { _, _ in onBodySelectionHostChanged() }
 #endif
         .onChange(of: editorState.plainText) { _, _ in
             guard let note else { return }
@@ -261,6 +275,12 @@ struct NoteEditorView: View {
         #else
         return true
         #endif
+    }
+
+    /// Single token so one `onChange` can react to selection length or caret moves without overloading the type checker.
+    private var bodySelectionChangeToken: String {
+        let r = proxy.bodySelectedUTF16Range
+        return "\(proxy.hasSelection)|\(r.location)|\(r.length)"
     }
 
     // MARK: - Highlight capture (selection menu + floating bar)
@@ -327,6 +347,8 @@ struct NoteEditorView: View {
     private func selectionAccessoryLayer(note: Note, horizontalClampWidth: CGFloat) -> some View {
         let anchorRect = proxy.selectionViewportRect
         ZStack(alignment: .topLeading) {
+            #if os(macOS)
+            // iOS: highlight + new note live in UITextView’s system edit menu (`HarvousBodyTextView.editMenu`).
             if highlightCaptureSession == nil, proxy.hasSelection, let rect = anchorRect {
                 let width: CGFloat = 92
                 let x = selectionAccessoryX(rect: rect, containerWidth: horizontalClampWidth, width: width)
@@ -347,15 +369,18 @@ struct NoteEditorView: View {
                     removal: .opacity
                 ))
             }
+            #endif
             if let session = highlightCaptureSession, session.parentNoteId == note.id {
                 let baseRect = session.anchorRect ?? anchorRect ?? CGRect(x: horizontalClampWidth / 2, y: 80, width: 0, height: 0)
-                let panelW: CGFloat = 360
+                // Match `selectionAccessoryX` side inset (8pt) so the 360pt design cap never exceeds the paper column.
+                let panelW = min(360, max(horizontalClampWidth - 16, 160))
                 let x = selectionAccessoryX(rect: baseRect, containerWidth: horizontalClampWidth, width: panelW)
                 let y = selectionAccessoryY(rect: baseRect)
                 HighlightAnnotationPopover(
                     excerptPreview: session.excerpt,
                     annotationText: $highlightAnnotationDraft,
                     selectedAccent: $highlightAnnotationAccent,
+                    panelWidth: panelW,
                     morphNamespace: selectionAccessoryNamespace,
                     morphID: Self.selectionAccessoryCapsuleMorphID,
                     onCancel: {
@@ -468,6 +493,19 @@ struct NoteEditorView: View {
 
     // MARK: - Editor canvas
 
+    /// Capped width of the scrollable title + body column (centered in the window via leading/trailing `Spacer`s).
+    private static let editorScrollSurfaceMaxWidthPoints: CGFloat = 794
+
+    /// Hairline above bottom chrome (`NoteConnectionsBar` stack) — platform-appropriate system separator.
+    @ViewBuilder
+    private func editorBottomChromeSeparatorLine() -> some View {
+        #if os(macOS)
+        Color(nsColor: .separatorColor).frame(height: 0.5)
+        #else
+        Color(uiColor: .separator).frame(height: 0.5)
+        #endif
+    }
+
     @ViewBuilder
     private func editorCanvas(note: Note) -> some View {
         GeometryReader { outerGeo in
@@ -476,9 +514,11 @@ struct NoteEditorView: View {
 
             VStack(spacing: 0) {
             // Scrollable writing surface — `minHeight` matches viewport so paper runs flush to the footer (no dead band).
-            GeometryReader { geo in
+            HStack(spacing: 0) {
+                Spacer(minLength: 0)
+                GeometryReader { geo in
                 let viewportH = max(geo.size.height, 1)
-                let paperClampW = max(geo.size.width - 64, 200)
+                let paperClampW = max(geo.size.width - 40, 200)
                 ScrollView {
                     VStack(alignment: .leading, spacing: 0) {
                         // Title — Apple Notes style: large, bold, full-width
@@ -508,18 +548,6 @@ struct NoteEditorView: View {
                                 }
                                 scheduleAutosave(note)
                             }
-
-                        #if os(iOS)
-                        NoteConnectionsBar(
-                            note: note,
-                            snapshot: trailSnapshot,
-                            currentNoteTitle: title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "Current note" : title,
-                            onOpenLinkedNote: { openNoteInPlace(id: $0) },
-                            onConnectionsChanged: { refreshThreads(note: note) },
-                            horizontalEdgePadding: 20
-                        )
-                        .padding(.bottom, 8)
-                        #endif
 
                         // Body — same horizontal inset as title (TextKit defaults add extra leading; zeroed in HarvousEditor)
                         #if os(macOS)
@@ -581,37 +609,45 @@ struct NoteEditorView: View {
                         .onChange(of: editorState.plainText) { _, _ in scheduleAutosave(note) }
                         #endif
 
-                        #if os(iOS)
-                        Spacer().frame(height: 80)
-                        #else
+                        #if os(macOS)
                         Spacer(minLength: 0)
                         #endif
                     }
+                    #if os(macOS)
                     .frame(maxWidth: .infinity, minHeight: viewportH, alignment: .top)
+                    #else
+                    .frame(maxWidth: .infinity, alignment: .top)
+                    .padding(.bottom, 24)
+                    #endif
                 }
+                #if os(iOS)
+                .scrollDismissesKeyboard(.interactively)
+                #endif
+            }
+            .overlay(alignment: .bottom) {
+                VStack(alignment: .leading, spacing: 8) {
+                    activeStudyHighlightDock(note: note)
+                    activeScripturePillDock(note: note)
+                }
+                .environment(\.harvousDockExpandedContentMaxHeight, dockExpandedContentMaxHeight)
+            }
+            .frame(maxWidth: Self.editorScrollSurfaceMaxWidthPoints, maxHeight: .infinity)
+                Spacer(minLength: 0)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-            // Dock layer pinned above the bottom action bar so a newly created/opened dock is always
-            // visible without requiring the user to scroll down. Lives outside the `ScrollView`
-            // intentionally — these are focus-mode overlays, not inline note content.
-            Group {
-                activeStudyHighlightDock(note: note)
-                activeScripturePillDock(note: note)
-            }
-            .environment(\.harvousDockExpandedContentMaxHeight, dockExpandedContentMaxHeight)
-
-            #if os(macOS)
-            // Bottom bar: format toolbar when selected, while typing, or when pointer is on the bar
+            // Bottom bar: format toolbar, scripture pill editor, or connections — same structure on macOS + iOS.
             if proxy.shouldShowNoteToolbar {
                 NoteToolbar(proxy: proxy)
+                    .id("noteToolbar")
                     .transition(.move(edge: .bottom).combined(with: .opacity))
             } else if proxy.activeScripturePill != nil && activePillDock == nil {
                 ScripturePillActionBar(proxy: proxy)
+                    .id("scripturePillBar")
                     .transition(.move(edge: .bottom).combined(with: .opacity))
             } else {
                 VStack(spacing: 0) {
-                    Color(nsColor: .separatorColor).frame(height: 0.5)
+                    editorBottomChromeSeparatorLine()
                     NoteConnectionsBar(
                         note: note,
                         snapshot: trailSnapshot,
@@ -620,10 +656,10 @@ struct NoteEditorView: View {
                         onConnectionsChanged: { refreshThreads(note: note) }
                     )
                 }
+                .id("connectionsBar")
                 .background(.thinMaterial)
                 .transition(.move(edge: .bottom).combined(with: .opacity))
             }
-            #endif
             }
         }
         .onDisappear {
@@ -644,6 +680,8 @@ struct NoteEditorView: View {
         .animation(HarvousAnimation.spring, value: proxy.shouldShowNoteToolbar)
         .animation(HarvousAnimation.spring, value: proxy.activeScripturePill != nil)
         .animation(HarvousAnimation.spring, value: activePillDock != nil)
+        .animation(HarvousAnimation.spring, value: dockPinnedHighlightThreadId != nil)
+        .animation(HarvousAnimation.spring, value: previewHighlightThreadId != nil)
         .inspector(isPresented: showInspector) {
             inspectorContent(note: note)
         }
@@ -676,14 +714,22 @@ struct NoteEditorView: View {
                 }
             }
         }
+        .animation(HarvousAnimation.spring, value: proxy.shouldShowNoteToolbar)
+        .animation(HarvousAnimation.spring, value: proxy.activeScripturePill != nil)
+        .animation(HarvousAnimation.spring, value: activePillDock != nil)
+        .animation(HarvousAnimation.spring, value: dockPinnedHighlightThreadId != nil)
+        .animation(HarvousAnimation.spring, value: previewHighlightThreadId != nil)
         .toolbar {
-            ToolbarItemGroup(placement: .topBarTrailing) {
+            ToolbarItem(placement: .topBarLeading) {
                 NoteTopBar(
                     note: note,
                     isCollectionContextUpdating: isCollectionContextUpdating,
+                    newNoteTiltTrigger: newNoteTiltTrigger,
                     showCollectionToolbarText: showCollectionToolbarText,
                     scriptureTheme: scriptureTheme
                 )
+            }
+            ToolbarItemGroup(placement: .topBarTrailing) {
                 NoteShareDeleteBar(
                     note: note,
                     scriptureTheme: scriptureTheme,
@@ -870,6 +916,7 @@ struct NoteEditorView: View {
                     dismissStudyHighlightDock()
                 }
             )
+            .transition(.move(edge: .bottom).combined(with: .opacity))
         }
     }
 
@@ -910,6 +957,7 @@ struct NoteEditorView: View {
         // Pin the inline `ActiveHighlightDock` — this is the same view the hover-preview path uses
         // successfully, so it sidesteps all of SwiftUI's sheet-presentation timing issues and is
         // guaranteed to appear right below the editor regardless of UITextView first-responder state.
+        dismissActiveScripturePillDock()
         dockPinnedHighlightThreadId = threadId
         activeHighlightDockExpanded = true
         previewHighlightThreadId = nil
@@ -940,17 +988,33 @@ struct NoteEditorView: View {
         try? context.save()
     }
 
-#if os(macOS)
-
-    private func bodySelectionAnchoringChanged(macHasSelection: Bool) {
-        if !macHasSelection {
-            dismissHighlightCapture()
+    private func onBodySelectionHostChanged() {
+        if !proxy.hasSelection {
+            // iOS: choosing **Highlight** from the system edit menu clears the selection when the menu
+            // closes; the capture session already frozen expanded range + excerpt in `consumeHighlightPrompt`.
+            if highlightCaptureSession == nil {
+                dismissHighlightCapture()
+            }
             previewHighlightThreadId = nil
+        }
+        reconcilePinnedHighlightDockWithBodySelection()
+    }
+
+    /// Clears the pinned highlight dock when the body selection / caret moves outside that highlight’s storage spans.
+    private func reconcilePinnedHighlightDockWithBodySelection() {
+        guard let pinned = dockPinnedHighlightThreadId else { return }
+        guard let paint = studyHighlightPaints.first(where: { $0.threadId == pinned }) else {
+            dockPinnedHighlightThreadId = nil
+            activeHighlightDockExpanded = false
             return
         }
-        dockPinnedHighlightThreadId = nil
-        activeHighlightDockExpanded = false
+        if !proxy.bodySelectionIsContainedInStudyHighlightStorageSpans(expandedPlainHighlightRange: paint.expandedUTF16Range) {
+            dockPinnedHighlightThreadId = nil
+            activeHighlightDockExpanded = false
+        }
     }
+
+#if os(macOS)
 
     private func macUpdatePreviewForHoveredHighlight(_ hoveredId: UUID?) {
         guard dockPinnedHighlightThreadId == nil else {
@@ -960,18 +1024,6 @@ struct NoteEditorView: View {
             return
         }
         previewHighlightThreadId = hoveredId
-    }
-
-#else
-
-    private func bodySelectionAnchoringChanged(iosHasSelection: Bool) {
-        if !iosHasSelection {
-            dismissHighlightCapture()
-            previewHighlightThreadId = nil
-            return
-        }
-        dockPinnedHighlightThreadId = nil
-        activeHighlightDockExpanded = false
     }
 
 #endif
@@ -1174,6 +1226,7 @@ struct NoteEditorView: View {
                 },
                 onDismiss: dismissActiveScripturePillDock
             )
+            .transition(.move(edge: .bottom).combined(with: .opacity))
         }
     }
 
@@ -1262,7 +1315,7 @@ struct NoteEditorView: View {
             nextBody: nextBody
         )
         autosave.updateSnapshot(title: nextTitle, body: nextBody, refs: editorState.detectedRefs)
-        withAnimation(HarvousAnimation.spring) {
+        withAnimation(.easeOut(duration: 0.18)) {
             isCollectionContextUpdating = shouldAnimateCollectionContextFeedback && allowPrimaryUpdate
         }
         // Prevent a cancelled previous autosave task from clearing the fresh "updating" state
@@ -1274,7 +1327,7 @@ struct NoteEditorView: View {
             allowPrimaryCollectionUpdate: allowPrimaryUpdate
         ) { settledToken in
             guard settledToken == latestAutosaveToken else { return }
-            withAnimation(HarvousAnimation.spring) {
+            withAnimation(.easeOut(duration: 0.18)) {
                 isCollectionContextUpdating = false
             }
         }
@@ -1287,7 +1340,7 @@ struct NoteEditorView: View {
         let refs = editorState.detectedRefs
         guard n.title != title || n.body != body || n.detectedRefs != refs else {
             autosave.updateSnapshot(title: title, body: body, refs: refs)
-            withAnimation(HarvousAnimation.spring) {
+            withAnimation(.easeOut(duration: 0.18)) {
                 isCollectionContextUpdating = false
             }
             return
@@ -1311,7 +1364,7 @@ struct NoteEditorView: View {
         HarvousNoteSpotlightIndexer.reindex(note: n)
         HarvousVaultExporter.scheduleWrite(note: n, modelContext: context)
         autosave.updateSnapshot(title: title, body: body, refs: refs)
-        withAnimation(HarvousAnimation.spring) {
+        withAnimation(.easeOut(duration: 0.18)) {
             isCollectionContextUpdating = false
         }
     }
@@ -1324,7 +1377,7 @@ struct NoteEditorView: View {
         guard let previous = try? context.fetch(descriptor).first else { return }
         guard previous.title != title || previous.body != body || previous.detectedRefs != refs else {
             autosave.updateSnapshot(title: title, body: body, refs: refs)
-            withAnimation(HarvousAnimation.spring) {
+            withAnimation(.easeOut(duration: 0.18)) {
                 isCollectionContextUpdating = false
             }
             return
@@ -1348,7 +1401,7 @@ struct NoteEditorView: View {
         HarvousNoteSpotlightIndexer.reindex(note: previous)
         HarvousVaultExporter.scheduleWrite(note: previous, modelContext: context)
         autosave.updateSnapshot(title: title, body: body, refs: refs)
-        withAnimation(HarvousAnimation.spring) {
+        withAnimation(.easeOut(duration: 0.18)) {
             isCollectionContextUpdating = false
         }
     }
@@ -1391,11 +1444,9 @@ struct NoteEditorView: View {
     }
 
     private var shouldAnimateCollectionContextFeedback: Bool {
-        #if os(macOS)
-        return !proxy.shouldShowNoteToolbar
-        #else
-        return true
-        #endif
+        // macOS: collection lives only in the window toolbar (`ContentView`); the in-note bar is format-only,
+        // so suppressing feedback while `shouldShowNoteToolbar` hid the bounce entirely.
+        true
     }
 
     private func shouldAllowPrimaryCollectionUpdate(

@@ -17,6 +17,7 @@ struct NoteInspectorView: View {
     @Environment(\.modelContext) private var modelContext
     @State private var draftTag = ""
     @State private var simpleNoteIdCopied = false
+    @State private var historyExpanded = false
 
     var body: some View {
         ScrollView {
@@ -28,6 +29,11 @@ struct NoteInspectorView: View {
 
                 sectionHeader("Highlights")
                 highlightsSection
+
+                Divider().padding(.vertical, 12)
+
+                sectionHeader("History")
+                NoteHistorySection(note: note, isExpanded: $historyExpanded)
 
                 Divider().padding(.vertical, 12)
 

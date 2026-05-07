@@ -1,9 +1,20 @@
 import SwiftData
 import SwiftUI
+import os
 
 #if os(iOS)
 import UIKit
 #endif
+
+extension Logger {
+    private static let subsystem = Bundle.main.bundleIdentifier ?? "com.harvous.app"
+
+    static let app       = Logger(subsystem: subsystem, category: "app")
+    static let editor    = Logger(subsystem: subsystem, category: "editor")
+    static let highlight = Logger(subsystem: subsystem, category: "highlight")
+    static let vault     = Logger(subsystem: subsystem, category: "vault")
+    static let settings  = Logger(subsystem: subsystem, category: "settings")
+}
 
 @main
 struct HarvousApp: App {
@@ -24,6 +35,7 @@ struct HarvousApp: App {
     private static func makeModelContainer() -> ModelContainer {
         let schema = Schema([
             Note.self,
+            NoteSnapshot.self,
             StudyThread.self,
             Space.self,
             SpaceMember.self,
@@ -55,29 +67,29 @@ struct HarvousApp: App {
 
         do {
             let container = try ModelContainer(for: schema, configurations: [config])
-            print("[HarvousApp] SwiftData store ready at \(storeURL?.path ?? "<default>")")
+            Logger.app.info("SwiftData store ready at \(storeURL?.path ?? "<default>", privacy: .public)")
             return container
         } catch {
             // If we let this fall through to an in-memory container, every launch
             // would silently start empty. Log loudly so we can see the real reason
             // (typically: an unsupported lightweight migration). Then crash so we
             // never silently destroy the user's persisted notes.
-            print("[HarvousApp] FATAL: failed to open SwiftData store: \(error)")
-            print("[HarvousApp] store url: \(storeURL?.path ?? "<default>")")
+            Logger.app.fault("Failed to open SwiftData store: \(error.localizedDescription, privacy: .public)")
+            Logger.app.fault("Store url: \(storeURL?.path ?? "<default>", privacy: .public)")
             #if DEBUG
             if let storeURL {
-                print("[HarvousApp] DEBUG: Attempting one-time relocation of persisted store artifacts, then retrying…")
+                Logger.app.debug("Attempting one-time relocation of persisted store artifacts, then retrying…")
                 if relocateCorruptedStoreBundle(primarySQLiteURL: storeURL) {
                     do {
                         let container = try ModelContainer(for: schema, configurations: [config])
-                        print("[HarvousApp] SwiftData store recovered after relocating prior files; opened at \(storeURL.path)")
+                        Logger.app.info("SwiftData store recovered after relocating prior files; opened at \(storeURL.path, privacy: .public)")
                         return container
                     } catch let retryErr {
-                        print("[HarvousApp] DEBUG: Retry after relocation also failed: \(retryErr)")
+                        Logger.app.error("Retry after relocation also failed: \(retryErr.localizedDescription, privacy: .public)")
                     }
                 }
             }
-            print("[HarvousApp] To reset local data: quit the app and remove ~/Library/Application Support/Harvous/")
+            Logger.app.error("To reset local data: quit the app and remove ~/Library/Application Support/Harvous/")
             #endif
             fatalError("SwiftData store failed to open; see console for details: \(error)")
         }
@@ -104,11 +116,11 @@ struct HarvousApp: App {
             for url in related {
                 let dest = backupDir.appendingPathComponent(url.lastPathComponent)
                 try fm.moveItem(at: url, to: dest)
-                print("[HarvousApp] Relocated corrupt store file: \(url.lastPathComponent) → \(backupDir.lastPathComponent)/")
+                Logger.app.info("Relocated corrupt store file: \(url.lastPathComponent, privacy: .public) → \(backupDir.lastPathComponent, privacy: .public)/")
             }
             return true
         } catch {
-            print("[HarvousApp] Could not relocate store bundle: \(error)")
+            Logger.app.error("Could not relocate store bundle: \(error.localizedDescription, privacy: .public)")
             return false
         }
     }
