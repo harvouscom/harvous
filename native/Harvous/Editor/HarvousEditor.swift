@@ -59,109 +59,35 @@ func harvousExpandedPlainText(in storage: NSTextStorage) -> String {
     return out
 }
 
-/// Ranges of `ScripturePillAttachment` in document order (mirrors `Coordinator.collectPillAttachmentRanges` scan).
-fileprivate func rangesOfScripturePillAttachments(in storage: NSTextStorage) -> [NSRange] {
-    var ranges: [NSRange] = []
-    let end = storage.length
-    var idx = 0
-    while idx < end {
-        var eff = NSRange()
-        let value = storage.attribute(.attachment, at: idx, effectiveRange: &eff)
-        if value is ScripturePillAttachment { ranges.append(eff) }
-        let next = NSMaxRange(eff)
-        if next <= idx { break }
-        idx = next
-    }
-    return ranges
-}
-
-/// After saving `reference` + " " + `translation` as plain text, reload matches only the ref; remove the
-/// following duplicate translation span so the chip isn’t immediately followed by plain “ ESV”.
-/// Document-ordered `(reference, translation)` for each `ScripturePillAttachment` (used when re-detecting so translations aren’t reset to default).
-fileprivate func scripturePillRefTransPairs(in storage: NSTextStorage) -> [(reference: String, translation: String)] {
-    rangesOfScripturePillAttachments(in: storage).compactMap { range -> (String, String)? in
-        guard let pill = storage.attribute(.attachment, at: range.location, effectiveRange: nil) as? ScripturePillAttachment else { return nil }
-        return (pill.reference, pill.translation)
-    }
-}
-
-func removeDuplicateTranslationAfterPillAttachments(in storage: NSTextStorage) {
-    for range in rangesOfScripturePillAttachments(in: storage).reversed() {
-        guard let pill = storage.attribute(.attachment, at: range.location, effectiveRange: nil) as? ScripturePillAttachment
-        else { continue }
-        let after = NSMaxRange(range)
-        guard after < storage.length, !pill.translation.isEmpty else { continue }
-        let toStrip = " " + pill.translation
-        let ns = storage.string as NSString
-        if ns.length >= after + toStrip.utf16.count,
-           ns.substring(with: NSRange(location: after, length: toStrip.utf16.count)) == toStrip {
-            storage.replaceCharacters(in: NSRange(location: after, length: toStrip.utf16.count), with: "")
-        }
-    }
-}
-
-/// Same reference for queue matching when `pill.reference` and regex `displayText` differ by abbreviation or casing.
-fileprivate func scriptureReferencesMatchForTranslationQueue(_ stored: String, _ detected: String) -> Bool {
-    if stored == detected { return true }
-    guard let a = ScriptureReferenceParser.parse(stored), let b = ScriptureReferenceParser.parse(detected) else {
-        return stored.caseInsensitiveCompare(detected) == .orderedSame
-    }
-    return a.bookIndex == b.bookIndex
-        && a.chapter == b.chapter
-        && a.verseStart == b.verseStart
-        && a.verseEnd == b.verseEnd
-}
-
-/// `note.body` stores `reference + " " + translation` per pill; on load there are no attachments yet, so recover the code after each detector match.
-fileprivate func scriptureTrailingTranslationAfterReference(
-    match: ScriptureDetector.Match,
-    in plain: String
-) -> (translation: String, suffixUTF16Length: Int)? {
-    let ns = plain as NSString
-    let matchEnd = NSMaxRange(match.range)
-    let len = ns.length
-    guard matchEnd < len else { return nil }
-    var pos = matchEnd
-    var foundWhitespace = false
-    while pos < len {
-        let u = ns.character(at: pos)
-        guard let scalar = UnicodeScalar(u) else { return nil }
-        if CharacterSet.whitespacesAndNewlines.contains(scalar) {
-            foundWhitespace = true
-            pos += 1
-        } else {
-            break
-        }
-    }
-    guard foundWhitespace, pos < len else { return nil }
-    let tail = ns.substring(from: pos)
-    for code in ScriptureReference.availableTranslations.sorted(by: { $0.utf16.count > $1.utf16.count }) {
-        let opts: NSString.CompareOptions = [.anchored, .caseInsensitive]
-        let r = (tail as NSString).range(of: code, options: opts)
-        guard r.location == 0, r.length == (code as NSString).length else { continue }
-        let codeUTF16 = code.utf16.count
-        let idxAfter = pos + codeUTF16
-        if idxAfter < len {
-            let nextU = ns.character(at: idxAfter)
-            if let s = UnicodeScalar(nextU), CharacterSet.letters.contains(s) { continue }
-        }
-        let suffixLen = idxAfter - matchEnd
-        return (code, suffixLen)
-    }
-    return nil
-}
-
-/// Body copy line height for `NSTextView` / `UITextView` — use explicit min/max line height instead of
-/// `lineHeightMultiple` alone, which can desync the line fragment from the insertion point and clip the caret.
+/// Returns the body paragraph style.  Line spacing is NOT set here — it is provided by
+/// `HarvousLayoutManager` via the `NSLayoutManagerDelegate` method `lineSpacingAfterGlyphAt`,
+/// which adds 0.6x natural-height space BETWEEN stored line fragment rects rather than inside
+/// them.  Keeping `lineSpacing = 0` in the paragraph style means every stored fragment rect
+/// stays at natural glyph height, so the caret, selection highlight, and spell-check /
+/// autocorrect indicators all position themselves correctly.
 private func noteBodyParagraphStyle() -> NSParagraphStyle {
-    let p = NSMutableParagraphStyle()
-    let f = HarvousFonts.system(size: 16, weight: 400)
-    let natural = f.ascender - f.descender + f.leading
-    let target = max(ceil(natural * 1.2), f.pointSize * 1.2)
-    p.minimumLineHeight = target
-    p.maximumLineHeight = target
-    return p
+    NSMutableParagraphStyle()
 }
+
+/// Stamps `noteBodyParagraphStyle()` on the entire storage so notes written before the 1.6
+/// spacing change pick up the updated line height when loaded.  Called after `textView.string = body`
+/// sets plain text (which strips all paragraph-style attributes) and before `rehydrateNativeInlineBlocks`.
+#if os(macOS)
+@MainActor
+private func applyBodyParagraphStyleToFullStorage(_ textView: NSTextView) {
+    guard let storage = textView.textStorage, storage.length > 0 else { return }
+    storage.addAttribute(.paragraphStyle, value: noteBodyParagraphStyle(),
+                         range: NSRange(location: 0, length: storage.length))
+}
+#else
+@MainActor
+private func applyBodyParagraphStyleToFullStorage(_ textView: UITextView) {
+    let storage = textView.textStorage
+    guard storage.length > 0 else { return }
+    storage.addAttribute(.paragraphStyle, value: noteBodyParagraphStyle(),
+                         range: NSRange(location: 0, length: storage.length))
+}
+#endif
 
 #if os(macOS)
 @MainActor
@@ -188,12 +114,11 @@ private func applyDefaultBodyTypingAttributes(to textView: UITextView) {
 #if os(macOS)
 import AppKit
 
-/// Keeps indents/layout from the saved paragraph but reapplies canonical body min/max line height (list hard-newline continuation).
+/// Keeps indents/layout from the saved paragraph but reapplies canonical body line spacing (list hard-newline continuation).
 private func mergedParagraphStyleWithCanonicalLineMetrics(_ saved: NSParagraphStyle) -> NSParagraphStyle {
     let m = saved.mutableCopy() as! NSMutableParagraphStyle
     let canonical = noteBodyParagraphStyle()
-    m.minimumLineHeight = canonical.minimumLineHeight
-    m.maximumLineHeight = canonical.maximumLineHeight
+    m.lineSpacing = canonical.lineSpacing
     return m
 }
 
@@ -510,13 +435,11 @@ private final class HarvousNoteTextView: NSTextView {
         pasteAsPlainText(sender)
     }
 
-    /// Hit-test a view-local click point against painted highlight ranges. Uses `firstRect(forCharacterRange:)`
-    /// + screen-to-view conversion (same pattern as `scripturePillAtPoint`) because
-    /// `NSTextView.characterIndex(for:)` actually expects SCREEN coordinates — passing a view point makes it
-    /// return `NSNotFound` and silently drops every click. The rect-based approach works across TextKit 1/2.
-    private func studyHighlightUUID(atViewPoint point: NSPoint) -> UUID? {
+    /// Hit-test a view-local point against painted highlight rects only (no scripture-pill suppression).
+    /// Used for mouse clicks after strict pill-rect hit-testing, so highlighted text beside a pill is not
+    /// lost to the ±1 “near pill” heuristic in `isPointOverScripturePill`.
+    private func studyHighlightUUIDFromPaints(atViewPoint point: NSPoint) -> UUID? {
         guard let storage = textStorage, storage.length > 0, let win = window else { return nil }
-        if isPointOverScripturePill(point) { return nil }
         for paint in studyHighlightPaints {
             let storRanges = HarvousStudyHighlightMapper.storageRanges(forExpandedRange: paint.expandedUTF16Range, in: storage)
             for r in storRanges {
@@ -531,6 +454,14 @@ private final class HarvousNoteTextView: NSTextView {
             }
         }
         return nil
+    }
+
+    /// Highlight hover: suppress when the pointer is over (or near) a scripture pill so previews don’t
+    /// fight the pill chrome.
+    private func studyHighlightUUID(atViewPoint point: NSPoint) -> UUID? {
+        guard let storage = textStorage, storage.length > 0 else { return nil }
+        if isPointOverScripturePill(point) { return nil }
+        return studyHighlightUUIDFromPaints(atViewPoint: point)
     }
 
     override func mouseDown(with event: NSEvent) {
@@ -551,10 +482,8 @@ private final class HarvousNoteTextView: NSTextView {
             return
         }
 
-        // Study highlights first — they use a rect-based hit test (see `studyHighlightUUID(atViewPoint:)`)
-        // so a click anywhere over the rendered run matches, regardless of `characterIndex(for:)`'s
-        // screen-vs-view-coordinate quirk.
-        if let uuid = studyHighlightUUID(atViewPoint: point) {
+        // Study highlights — rect hit test only (`studyHighlightUUIDFromPaints`); pill rects were handled above.
+        if let uuid = studyHighlightUUIDFromPaints(atViewPoint: point) {
             super.mouseDown(with: event)
             onStudyHighlightClick?(uuid)
             return
@@ -692,6 +621,22 @@ private final class HarvousNoteTextView: NSTextView {
         addTrackingArea(area)
         pillHoverTracking = area
     }
+
+    /// Clips the insertion-point caret to natural glyph height so the inter-line gap
+    /// added by `HarvousLayoutManager` doesn't produce an oversized cursor bar.
+    override func drawInsertionPoint(in rect: NSRect, color: NSColor, turnedOn flag: Bool) {
+        guard let storage = textStorage, storage.length > 0 else {
+            super.drawInsertionPoint(in: rect, color: color, turnedOn: flag)
+            return
+        }
+        let loc = min(selectedRange().location, storage.length - 1)
+        let font = storage.attribute(.font, at: max(0, loc), effectiveRange: nil) as? NSFont
+            ?? HarvousFonts.system(size: 16, weight: 400)
+        let natural = ceil(font.ascender - font.descender + font.leading)
+        var r = rect
+        r.size.height = min(rect.size.height, natural)
+        super.drawInsertionPoint(in: r, color: color, turnedOn: flag)
+    }
 }
 
 /// Caret on/beside a `ScripturePillAttachment`, or a single-glyph selection of that attachment. Larger selections return nil.
@@ -809,6 +754,51 @@ fileprivate func rehydrateNativeInlineBlocks(in textView: NSTextView) {
     }
 }
 
+final class HarvousEditorScrollView: NSScrollView {
+    /// Coalesces rapid invalidations into one deferred measurement pass.
+    private var bodyHeightPublishCoalesced = false
+
+    override func scrollWheel(with event: NSEvent) {
+        nextResponder?.scrollWheel(with: event)
+    }
+
+    /// Height is driven by SwiftUI via `EditorProxy.macBodyLayoutHeight`. Returning no intrinsic metrics
+    /// avoids `layoutManager.ensureLayout` during AppKit intrinsic sizing (nested SwiftUI `ScrollView` +
+    /// `NSScrollView` caused `_NSDetectedLayoutRecursion` when switching notes).
+    override var intrinsicContentSize: NSSize {
+        NSSize(width: NSView.noIntrinsicMetric, height: NSView.noIntrinsicMetric)
+    }
+
+    /// Measures TextKit after layout and updates `EditorProxy` for `.frame(height:)` in SwiftUI.
+    /// Instruments note-switch hangs: Time Profiler → main thread → `NSLayoutManager`, `NSTextView`, `layoutSubtreeIfNeeded`.
+    func publishBodyLayoutHeight(to proxy: EditorProxy?) {
+        guard let tv = documentView as? NSTextView,
+              let lm = tv.layoutManager,
+              let tc = tv.textContainer else {
+            proxy?.updateMacBodyLayoutHeightIfNeeded(400)
+            return
+        }
+        lm.ensureLayout(for: tc)
+        let used = lm.usedRect(for: tc)
+        let inset = tv.textContainerInset.height
+        let h = ceil(used.height + inset * 2 + 16)
+        proxy?.updateMacBodyLayoutHeightIfNeeded(h)
+    }
+
+    /// Coalesces rapid invalidations; uses an extra main-queue yield before `ensureLayout` so pills/highlights/SwiftUI layout finish first (reduces stalls when switching notes).
+    func scheduleBodyLayoutHeightPublish(to proxy: EditorProxy?) {
+        guard !bodyHeightPublishCoalesced else { return }
+        bodyHeightPublishCoalesced = true
+        DispatchQueue.main.async { [weak self] in
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
+                self.bodyHeightPublishCoalesced = false
+                self.publishBodyLayoutHeight(to: proxy)
+            }
+        }
+    }
+}
+
 struct HarvousEditor: NSViewRepresentable {
     @Binding var state: EditorState
     var proxy: EditorProxy? = nil
@@ -836,16 +826,18 @@ struct HarvousEditor: NSViewRepresentable {
     func makeCoordinator() -> Coordinator { Coordinator(state: $state) }
 
     @MainActor
-    func makeNSView(context: Context) -> NSScrollView {
-        let scrollView = NSTextView.scrollableTextView()
-        let template = scrollView.documentView as! NSTextView
-        // Reuse the default TextKit stack NSTextView already set up (layout manager, text storage,
-        // width-tracking container) — just swap the view class to HarvousNoteTextView so we keep
-        // scripture-pill hit testing, study-highlight click routing, and selection menu overrides.
-        let textView = HarvousNoteTextView(frame: template.frame, textContainer: template.textContainer)
-        textView.minSize = template.minSize
-        textView.maxSize = template.maxSize
-        textView.autoresizingMask = template.autoresizingMask
+    func makeNSView(context: Context) -> HarvousEditorScrollView {
+        let scrollView = HarvousEditorScrollView()
+        // Build an explicit TextKit 1 stack so HarvousLayoutManager owns drawing (selection,
+        // underlines).  The default NSTextView.scrollableTextView() stack uses a plain
+        // NSLayoutManager that cannot be replaced after the view is created.
+        let storage = NSTextStorage()
+        let lm = HarvousLayoutManager()
+        storage.addLayoutManager(lm)
+        let container = NSTextContainer(containerSize: NSSize(width: CGFloat.greatestFiniteMagnitude,
+                                                              height: CGFloat.greatestFiniteMagnitude))
+        lm.addTextContainer(container)
+        let textView = HarvousNoteTextView(frame: .zero, textContainer: container)
         scrollView.documentView = textView
         textView.pillTapHandler = onScripturePillTap
         wireStudyHighlightInteractions(textView: textView, proxy: proxy)
@@ -876,11 +868,19 @@ struct HarvousEditor: NSViewRepresentable {
         textView.isEditable = true
         textView.isSelectable = true
         textView.allowsUndo = true
-        textView.isContinuousSpellCheckingEnabled = true
+        textView.isContinuousSpellCheckingEnabled = false
+        textView.isGrammarCheckingEnabled = false
         textView.isAutomaticSpellingCorrectionEnabled = true
         // Inline predictions (gray ghost words) race with our debounced `NSTextStorage` pill rewrites and can
         // crash or hang TextKit (`EXC_BAD_ACCESS` in `swift_getObjectType` while prediction UI is visible).
         textView.inlinePredictionType = .no
+        // Writing Tools coordinates extra TextKit containers; with a custom `NSLayoutManager` stack
+        // it can spam "containerToPush is nil…" and stall when the first responder / document changes
+        // rapidly (e.g. switching notes). Inline spell/grammar underlines are off above; correction as
+        // you type stays on via `isAutomaticSpellingCorrectionEnabled`.
+        if #available(macOS 15.0, *) {
+            textView.writingToolsBehavior = .none
+        }
         // Horizontal inset comes from SwiftUI padding; keep TextKit leading flush with title TextField.
         textView.textContainerInset = NSSize(width: 0, height: 8)
         if let tc = textView.textContainer {
@@ -902,11 +902,12 @@ struct HarvousEditor: NSViewRepresentable {
             context.coordinator.showPlaceholder(in: textView, text: placeholder)
         }
 
+        scrollView.scheduleBodyLayoutHeightPublish(to: proxy)
         return scrollView
     }
 
     @MainActor
-    func updateNSView(_ scrollView: NSScrollView, context: Context) {
+    func updateNSView(_ scrollView: HarvousEditorScrollView, context: Context) {
         let textView = scrollView.documentView as! HarvousNoteTextView
         let previousTheme = context.coordinator.scriptureTheme
         context.coordinator.scriptureTheme = scriptureTheme
@@ -933,21 +934,39 @@ struct HarvousEditor: NSViewRepresentable {
             context.coordinator.boundNoteID = noteID
             context.coordinator.isEditing = false
             context.coordinator.suppressFormatBarOnNextBodyCaretUpdate = true
-            let textViewToSync = textView
-            // Load from the model, not from `state` (binding can still hold the previous note for one pass).
+            // Load plain/serialized body synchronously so the view has correct text immediately.
             syncTextViewToDocumentBody(textView, body: documentBody, context: context)
-            if !documentBody.isEmpty {
-                context.coordinator.reapplyScripturePillsToBody(in: textView)
-            }
-            // `resetFormatBarStateForNewNote` mutates many @Published properties; it must not run inside
-            // `updateNSView` or SwiftUI warns ("Publishing changes from within view updates").
-            if let p = proxy {
-                DispatchQueue.main.async {
+            let capturedNoteID = noteID
+            let bodyForDeferredPills = documentBody
+            let coordinator = context.coordinator
+            let proxyForAsync = proxy
+            // Scripture pill reapply + highlight painting + intrinsic height can run a lot of TextKit layout.
+            // Doing that inside `updateNSView` kept re-entering AppKit layout and blocked note switching.
+            // Split across main-queue hops so work does not stack in one turn with SwiftUI layout.
+            DispatchQueue.main.async { [weak scrollView] in
+                guard let scrollView else { return }
+                guard let tv = scrollView.documentView as? HarvousNoteTextView else { return }
+                guard coordinator.boundNoteID == capturedNoteID else { return }
+                if let p = proxyForAsync {
                     p.resetFormatBarStateForNewNote()
-                    p.syncBodyFirstResponderState(textView: textViewToSync)
+                    p.syncBodyFirstResponderState(textView: tv)
+                }
+                if !bodyForDeferredPills.isEmpty {
+                    // Hop 2 owns paintStudyHighlights — skip the redundant pass here.
+                    coordinator.reapplyScripturePillsToBody(in: tv, paintHighlights: false)
+                }
+                DispatchQueue.main.async { [weak scrollView] in
+                    guard let scrollView else { return }
+                    guard let tv2 = scrollView.documentView as? HarvousNoteTextView else { return }
+                    guard coordinator.boundNoteID == capturedNoteID else { return }
+                    coordinator.paintStudyHighlights(on: tv2)
+                    DispatchQueue.main.async { [weak scrollView] in
+                        guard let scrollView else { return }
+                        guard coordinator.boundNoteID == capturedNoteID else { return }
+                        scrollView.scheduleBodyLayoutHeightPublish(to: proxyForAsync)
+                    }
                 }
             }
-            context.coordinator.paintStudyHighlights(on: textView)
             // Do not set `isEditing` from “body still first responder” here: it made `textViewDidChangeSelection`
             // think the user was already editing and showed the format bar on layout.
             return
@@ -987,6 +1006,7 @@ struct HarvousEditor: NSViewRepresentable {
             }
         }
         context.coordinator.paintStudyHighlights(on: textView)
+        scrollView.scheduleBodyLayoutHeightPublish(to: proxy)
     }
 
     @MainActor
@@ -1014,6 +1034,7 @@ struct HarvousEditor: NSViewRepresentable {
                 textView.string = state.plainText
                 textView.textColor = NSColor.labelColor
                 textView.font = HarvousFonts.system(size: 16, weight: 400)
+                applyBodyParagraphStyleToFullStorage(textView)
                 rehydrateNativeInlineBlocks(in: textView)
             }
         }
@@ -1029,6 +1050,7 @@ struct HarvousEditor: NSViewRepresentable {
                 textView.string = body
                 textView.textColor = NSColor.labelColor
                 textView.font = HarvousFonts.system(size: 16, weight: 400)
+                applyBodyParagraphStyleToFullStorage(textView)
                 rehydrateNativeInlineBlocks(in: textView)
             }
         }
@@ -1099,13 +1121,13 @@ struct HarvousEditor: NSViewRepresentable {
             guard let storage = tv.textStorage else { return }
             let plain = harvousExpandedPlainText(in: storage)
             state.plainText = plain
-            state.detectedRefs = ScriptureDetector.detect(in: plain).map(\.displayText)
+            state.detectedRefs = ScriptureDetector.uniqueDisplayRefs(in: plain)
         }
 
         /// Re-run pill detection (e.g. after `syncTextViewDocument` loads saved plain text with no `NSTextAttachment`s).
         @MainActor
-        func reapplyScripturePillsToBody(in textView: NSTextView) {
-            detectAndInsertPills(in: textView, text: state.plainText)
+        func reapplyScripturePillsToBody(in textView: NSTextView, paintHighlights: Bool = true) {
+            detectAndInsertPills(in: textView, text: state.plainText, paintHighlights: paintHighlights)
         }
 
         /// Hooks so `EditorProxy` can cancel/restart the idle dismiss timer when the pointer enters/leaves the toolbar.
@@ -1382,6 +1404,7 @@ struct HarvousEditor: NSViewRepresentable {
                     self.scheduleFormatBarHide()
                 }
                 self.proxy?.refreshFormatState()
+                (tv.enclosingScrollView as? HarvousEditorScrollView)?.scheduleBodyLayoutHeightPublish(to: self.proxy)
             }
         }
 
@@ -1456,27 +1479,28 @@ struct HarvousEditor: NSViewRepresentable {
         }
 
         @MainActor
-        private func detectAndInsertPills(in textView: NSTextView, text: String) {
+        private func detectAndInsertPills(in textView: NSTextView, text: String, paintHighlights: Bool = true) {
             withProgrammaticBodyMutation {
-                self.detectAndInsertPillsImpl(in: textView, text: text)
+                self.detectAndInsertPillsImpl(in: textView, text: text, paintHighlights: paintHighlights)
             }
         }
 
         @MainActor
-        private func detectAndInsertPillsImpl(in textView: NSTextView, text: String) {
+        private func detectAndInsertPillsImpl(in textView: NSTextView, text: String, paintHighlights: Bool = true) {
             _ = text
 
             guard let storage = textView.textStorage else { return }
             var translationQueue = scripturePillRefTransPairs(in: storage)
-            // Remove existing pill attachments first
+            // Batch removal into one layout pass: beginEditing/endEditing coalesces N replaceCharacters
+            // notifications into a single layout-manager update instead of N separate invalidations.
             let pillRanges = collectPillAttachmentRanges(in: storage)
-            // Replace in reverse order to preserve offsets
+            storage.beginEditing()
             for range in pillRanges.reversed() {
-                // Recover the plain reference text before removing
                 if let pill = storage.attribute(.attachment, at: range.location, effectiveRange: nil) as? ScripturePillAttachment {
                     storage.replaceCharacters(in: range, with: pill.reference)
                 }
             }
+            storage.endEditing()
 
             // Re-detect on the now-plain text and insert pills
             let plainNow = storage.string
@@ -1503,6 +1527,8 @@ struct HarvousEditor: NSViewRepresentable {
                 pillInserts.append((replaceRange, trans, match.displayText))
             }
 
+            // Batch insertion + duplicate-translation cleanup into one layout pass.
+            storage.beginEditing()
             for item in pillInserts.sorted(by: { $0.range.location > $1.range.location }) {
                 let pill = ScripturePillAttachment(
                     reference: item.displayRef,
@@ -1512,15 +1538,25 @@ struct HarvousEditor: NSViewRepresentable {
                 )
                 let pillStr = NSMutableAttributedString(attachment: pill)
                 let bodyFont: NSFont = HarvousFonts.system(size: 16, weight: 400)
-                pillStr.addAttributes([.font: bodyFont], range: NSRange(location: 0, length: pillStr.length))
+                var pillAttrs: [NSAttributedString.Key: Any] = [.font: bodyFont]
+                let pillLoc = item.range.location
+                if pillLoc < storage.length,
+                   let ps = storage.attribute(.paragraphStyle, at: pillLoc, effectiveRange: nil) as? NSParagraphStyle {
+                    pillAttrs[.paragraphStyle] = ps
+                }
+                pillStr.addAttributes(pillAttrs, range: NSRange(location: 0, length: pillStr.length))
                 storage.replaceCharacters(in: item.range, with: pillStr)
             }
-
             // Do not reset fonts on the full document here — that stripped headings/bold after scripture detection.
             // Pills already get body font when inserted above.
             removeDuplicateTranslationAfterPillAttachments(in: storage)
+            storage.endEditing()
             applyDefaultBodyTypingAttributes(to: textView)
-            paintStudyHighlights(on: textView)
+            // Callers that own a dedicated highlight-paint step (note-switch Hop 2) pass paintHighlights: false
+            // to avoid a redundant full-document attribute pass.
+            if paintHighlights {
+                paintStudyHighlights(on: textView)
+            }
 
             // `textDidChange` is not always sent when `textStorage` is edited programmatically. Sync
             // the binding with real reference text, not U+FFFC per attachment, or `updateNSView` will
@@ -1528,7 +1564,10 @@ struct HarvousEditor: NSViewRepresentable {
             // Never assign `state` synchronously from here: `reapplyScripturePillsToBody` runs inside
             // `updateNSView` and would trigger "Modifying state during view update".
             let plainOut = harvousExpandedPlainText(in: storage)
-            let refsOut = freshMatches.map(\.displayText)
+            // Dedupe before propagating to `Note.detectedRefs` — see ScriptureDetector.uniqueDisplayRefs comment.
+            // `freshMatches` itself stays as-is so per-pill placement above retains every occurrence.
+            var seenRefs = Set<String>()
+            let refsOut = freshMatches.map(\.displayText).filter { seenRefs.insert($0).inserted }
             Task { @MainActor in
                 self.state.plainText = plainOut
                 self.state.detectedRefs = refsOut
@@ -1547,6 +1586,24 @@ private final class HarvousBodyTextView: UITextView {
     var onHighlightCaptureAction: (() -> Void)?
     var onNewStandaloneNoteAction: (() -> Void)?
 
+
+    /// Clips the caret rect to natural glyph height so the inter-line gap added by
+    /// `HarvousLayoutManager` doesn't produce an oversized cursor bar.
+    override func caretRect(for position: UITextPosition) -> CGRect {
+        var r = super.caretRect(for: position)
+        let offset = self.offset(from: beginningOfDocument, to: position)
+        let loc = max(0, min(offset, textStorage.length > 0 ? textStorage.length - 1 : 0))
+        let font: UIFont
+        if textStorage.length > 0, loc < textStorage.length,
+           let f = textStorage.attribute(.font, at: loc, effectiveRange: nil) as? UIFont {
+            font = f
+        } else {
+            font = HarvousFonts.system(size: 16, weight: 400)
+        }
+        let natural = ceil(font.ascender - font.descender + font.leading)
+        r.size.height = min(r.size.height, natural)
+        return r
+    }
 
     override func editMenu(for textRange: UITextRange, suggestedActions: [UIMenuElement]) -> UIMenu? {
         let start = offset(from: beginningOfDocument, to: textRange.start)
@@ -1626,7 +1683,16 @@ struct HarvousEditor: UIViewRepresentable {
     }
 
     func makeUIView(context: Context) -> UITextView {
-        let tv = HarvousBodyTextView()
+        // Build an explicit TextKit 1 stack so HarvousLayoutManager owns underline drawing.
+        // Providing a custom NSTextContainer forces UITextView into TextKit 1 mode on iOS 16+.
+        let storage = NSTextStorage()
+        let lm = HarvousLayoutManager()
+        storage.addLayoutManager(lm)
+        let container = NSTextContainer(size: .zero)
+        container.widthTracksTextView = true
+        container.lineFragmentPadding = 0
+        lm.addTextContainer(container)
+        let tv = HarvousBodyTextView(frame: .zero, textContainer: container)
         let para = noteBodyParagraphStyle()
         let bodyFont = HarvousFonts.system(size: 16, weight: 400)
         tv.font = bodyFont
@@ -1636,13 +1702,21 @@ struct HarvousEditor: UIViewRepresentable {
         tv.isSelectable = true
         tv.allowsEditingTextAttributes = true
         tv.autocorrectionType = .yes
-        tv.spellCheckingType = .yes
+        // Red/blue underlines off; autocorrection while typing stays on (`autocorrectionType`).
+        tv.spellCheckingType = .no
+        if #available(iOS 18.0, *) {
+            // Parity with macOS note body: custom TextKit stack + pill rewrites interact badly with
+            // Writing Tools container coordination (see `HarvousNoteTextView` on macOS).
+            tv.writingToolsBehavior = .none
+        }
         tv.autocapitalizationType = .sentences
         tv.typingAttributes = [
             .font: bodyFont,
             .foregroundColor: UIColor.label,
             .paragraphStyle: para
         ]
+        // Disable internal scroll so title and body scroll together in the outer SwiftUI ScrollView.
+        tv.isScrollEnabled = false
         tv.delegate = context.coordinator
         context.coordinator.textView = tv
         let coordinator = context.coordinator
@@ -1669,6 +1743,12 @@ struct HarvousEditor: UIViewRepresentable {
             tv.selectedTextRange = tv.textRange(from: tv.beginningOfDocument, to: tv.beginningOfDocument)
         }
         return tv
+    }
+
+    func sizeThatFits(_ proposal: ProposedViewSize, uiView: UITextView, context: Context) -> CGSize? {
+        let width = proposal.width ?? 300
+        let size = uiView.sizeThatFits(CGSize(width: width, height: UIView.layoutFittingExpandedSize.height))
+        return CGSize(width: width, height: max(400, ceil(size.height)))
     }
 
     func updateUIView(_ textView: UITextView, context: Context) {
@@ -1704,6 +1784,7 @@ struct HarvousEditor: UIViewRepresentable {
             } else {
                 textView.text = documentBody
                 textView.textColor = .label
+                applyBodyParagraphStyleToFullStorage(textView)
             }
             if !documentBody.isEmpty {
                 context.coordinator.reapplyScripturePillsToBody(in: textView)
@@ -1822,7 +1903,7 @@ struct HarvousEditor: UIViewRepresentable {
             let storage = tv.textStorage
             let plain = harvousExpandedPlainText(in: storage)
             state.plainText = plain
-            state.detectedRefs = ScriptureDetector.detect(in: plain).map(\.displayText)
+            state.detectedRefs = ScriptureDetector.uniqueDisplayRefs(in: plain)
         }
 
         private func cancelFormatBarHide() {
@@ -1880,34 +1961,96 @@ struct HarvousEditor: UIViewRepresentable {
         @objc func handlePillTap(_ gesture: UITapGestureRecognizer) {
             guard gesture.state == .ended, let tv = textView, tv.textColor != .tertiaryLabel else { return }
             let point = gesture.location(in: tv)
-            guard let pos = tv.closestPosition(to: point) else { return }
-            let offset = tv.offset(from: tv.beginningOfDocument, to: pos)
             let storage = tv.textStorage
             guard storage.length > 0 else { return }
-            #if DEBUG
-            print("[Harvous.highlight.tap.ios] offset=\(offset) paintsOnCoordinator=\(studyHighlightPaints.count) storageLen=\(storage.length)")
-            #endif
-            if let (pill, eff) = Self.pillAttachmentRange(containingUTF16: offset, in: storage) {
+
+            // 1. Strict pill rect — avoids `utf16 ± 1` stealing taps on the first glyphs of a highlight after a pill.
+            if let (pill, eff) = Self.scripturePillAtViewPoint(point, textView: tv, storage: storage) {
                 onScripturePillTap?(pill.reference, pill.translation, eff)
                 return
             }
-            // Hit-test against the in-memory paint list rather than querying the storage attribute:
-            // under iOS 17+ TextKit 2, custom NSAttributedString keys applied to `textStorage` don't
-            // always round-trip through `storage.attribute(at:)` even though the rendering (underline,
-            // colour) does show. `studyHighlightPaints` is the source of truth for *which* thread owns
-            // which expanded range; converting that range back to storage coordinates gives a reliable
-            // tap target that tolerates ±1 slop for boundary taps.
+
+            // 2. Rect-based study highlights (parity with macOS `studyHighlightUUIDFromPaints`).
+            if let uuid = studyHighlightUUIDAtViewPoint(point, textView: tv, storage: storage) {
+                #if DEBUG
+                print("[Harvous.highlight.tap.ios] RECT uuid=\(uuid) onStudyHighlightTap_set=\(onStudyHighlightTap != nil)")
+                #endif
+                tv.resignFirstResponder()
+                onStudyHighlightTap?(uuid)
+                return
+            }
+
+            guard let pos = tv.closestPosition(to: point) else { return }
+            let offset = tv.offset(from: tv.beginningOfDocument, to: pos)
+            #if DEBUG
+            print("[Harvous.highlight.tap.ios] offset=\(offset) paintsOnCoordinator=\(studyHighlightPaints.count) storageLen=\(storage.length)")
+            #endif
+
+            // 3. Offset + slop — boundary taps on short runs; storage attrs may not round-trip TextKit 2.
             if let uuid = studyHighlightUUID(forStorageOffset: offset, in: storage) {
                 #if DEBUG
                 print("[Harvous.highlight.tap.ios] MATCH uuid=\(uuid) onStudyHighlightTap_set=\(onStudyHighlightTap != nil)")
                 #endif
                 tv.resignFirstResponder()
                 onStudyHighlightTap?(uuid)
-            } else {
-                #if DEBUG
-                print("[Harvous.highlight.tap.ios] NO MATCH at offset=\(offset) — paints=\(studyHighlightPaints.map { ($0.threadId, $0.expandedUTF16Range) })")
-                #endif
+                return
             }
+
+            // 4. Last-resort pill probe (rect miss e.g. edge of attachment image).
+            if let (pill, eff) = Self.pillAttachmentRange(containingUTF16: offset, in: storage) {
+                onScripturePillTap?(pill.reference, pill.translation, eff)
+                return
+            }
+
+            #if DEBUG
+            print("[Harvous.highlight.tap.ios] NO MATCH at offset=\(offset) — paints=\(studyHighlightPaints.map { ($0.threadId, $0.expandedUTF16Range) })")
+            #endif
+        }
+
+        /// View-local tap point vs rendered pill bounds (`firstRect` is in screen coords; convert like other editor rects).
+        private static func scripturePillAtViewPoint(_ point: CGPoint, textView tv: UITextView, storage: NSTextStorage) -> (ScripturePillAttachment, NSRange)? {
+            guard let win = tv.window else { return nil }
+            let end = storage.length
+            var idx = 0
+            while idx < end {
+                var eff = NSRange()
+                let val = storage.attribute(.attachment, at: idx, effectiveRange: &eff)
+                if let pill = val as? ScripturePillAttachment {
+                    var actual = NSRange()
+                    let screenRect = tv.firstRect(forCharacterRange: eff, actualRange: &actual)
+                    guard !screenRect.isEmpty, !screenRect.isNull else {
+                        let next = NSMaxRange(eff)
+                        if next <= idx { break }
+                        idx = next
+                        continue
+                    }
+                    let windowRect = win.convertFromScreen(screenRect)
+                    let viewRect = tv.convert(windowRect, from: nil)
+                    if viewRect.contains(point) { return (pill, eff) }
+                }
+                let next = NSMaxRange(eff)
+                if next <= idx { break }
+                idx = next
+            }
+            return nil
+        }
+
+        private func studyHighlightUUIDAtViewPoint(_ point: CGPoint, textView tv: UITextView, storage: NSTextStorage) -> UUID? {
+            guard let win = tv.window, storage.length > 0 else { return nil }
+            for paint in studyHighlightPaints {
+                let storRanges = HarvousStudyHighlightMapper.storageRanges(forExpandedRange: paint.expandedUTF16Range, in: storage)
+                for r in storRanges {
+                    guard r.location != NSNotFound, NSMaxRange(r) <= storage.length else { continue }
+                    var actual = NSRange()
+                    let screenRect = tv.firstRect(forCharacterRange: r, actualRange: &actual)
+                    guard !screenRect.isEmpty, !screenRect.isNull else { continue }
+                    let windowRect = win.convertFromScreen(screenRect)
+                    let viewRect = tv.convert(windowRect, from: nil)
+                    let padded = viewRect.insetBy(dx: -2, dy: -3)
+                    if padded.contains(point) { return paint.threadId }
+                }
+            }
+            return nil
         }
 
         /// Returns the thread UUID whose painted range (from `studyHighlightPaints`) contains
@@ -2034,6 +2177,8 @@ struct HarvousEditor: UIViewRepresentable {
         func textViewDidChange(_ textView: UITextView) {
             guard textView.textColor != .tertiaryLabel else { return }
             let plain = harvousExpandedPlainText(in: textView.textStorage)
+            // Tell SwiftUI the text view height may have changed so the outer ScrollView resizes.
+            textView.invalidateIntrinsicContentSize()
             Task { @MainActor in
                 self.state.plainText = plain
                 self.proxy?.preferOrbChromeUntilNextFormatSignal = false
@@ -2097,11 +2242,13 @@ struct HarvousEditor: UIViewRepresentable {
             storage.enumerateAttribute(.attachment, in: fullRange) { value, range, _ in
                 if value is ScripturePillAttachment { pillRanges.append(range) }
             }
+            storage.beginEditing()
             for range in pillRanges.reversed() {
                 if let pill = storage.attribute(.attachment, at: range.location, effectiveRange: nil) as? ScripturePillAttachment {
                     storage.replaceCharacters(in: range, with: pill.reference)
                 }
             }
+            storage.endEditing()
 
             let plainNow = storage.string
             let freshMatches = ScriptureDetector.detect(in: plainNow)
@@ -2127,6 +2274,7 @@ struct HarvousEditor: UIViewRepresentable {
                 pillInserts.append((replaceRange, trans, match.displayText))
             }
 
+            storage.beginEditing()
             for item in pillInserts.sorted(by: { $0.range.location > $1.range.location }) {
                 let pill = ScripturePillAttachment(
                     reference: item.displayRef,
@@ -2135,10 +2283,18 @@ struct HarvousEditor: UIViewRepresentable {
                     accent: pillAccentResolver?(item.displayRef)
                 )
                 let pillStr = NSMutableAttributedString(attachment: pill)
-                pillStr.addAttributes([.font: HarvousFonts.system(size: 16, weight: 400)], range: NSRange(location: 0, length: pillStr.length))
+                let pillBodyFont = HarvousFonts.system(size: 16, weight: 400)
+                var pillAttrs: [NSAttributedString.Key: Any] = [.font: pillBodyFont]
+                let pillLoc = item.range.location
+                if pillLoc < storage.length,
+                   let ps = storage.attribute(.paragraphStyle, at: pillLoc, effectiveRange: nil) as? NSParagraphStyle {
+                    pillAttrs[.paragraphStyle] = ps
+                }
+                pillStr.addAttributes(pillAttrs, range: NSRange(location: 0, length: pillStr.length))
                 storage.replaceCharacters(in: item.range, with: pillStr)
             }
             removeDuplicateTranslationAfterPillAttachments(in: storage)
+            storage.endEditing()
             applyDefaultBodyTypingAttributes(to: textView)
             paintStudyHighlights(on: textView)
 
@@ -2146,7 +2302,10 @@ struct HarvousEditor: UIViewRepresentable {
             // (expand pills to real text) or `updateUIView` can reset the text view and remove pills.
             // Defer `state` writes so `updateUIView` never mutates SwiftUI bindings synchronously.
             let plainOut = harvousExpandedPlainText(in: storage)
-            let refsOut = freshMatches.map(\.displayText)
+            // Dedupe before propagating to `Note.detectedRefs` — see ScriptureDetector.uniqueDisplayRefs comment.
+            // `freshMatches` itself stays as-is so per-pill placement above retains every occurrence.
+            var seenRefs = Set<String>()
+            let refsOut = freshMatches.map(\.displayText).filter { seenRefs.insert($0).inserted }
             Task { @MainActor in
                 self.state.plainText = plainOut
                 self.state.detectedRefs = refsOut

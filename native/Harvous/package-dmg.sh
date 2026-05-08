@@ -95,3 +95,9 @@ fi
 
 echo ""
 echo "✓ ${SCRIPT_DIR}/${DMG_NAME}"
+echo ""
+echo "Gatekeeper / quarantine (unsigned preview): after installing to Applications, testers can run:"
+echo "  xattr -dr com.apple.quarantine /Applications/Harvous.app"
+echo "  # or, to clear all extended attributes on the app bundle:"
+echo "  xattr -cr /Applications/Harvous.app"
+echo "Prefer Control-click → Open or Privacy & Security → Open Anyway first; see help/mac-native-app.md."

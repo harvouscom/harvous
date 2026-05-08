@@ -103,7 +103,7 @@ final class SpaceStore: ObservableObject {
             modelContext.insert(link)
         }
 
-        try? modelContext.save()
+        try? modelContext.saveWithLogging()
         setActiveSpace(id: space.id, modelContext: modelContext)
         return space
     }
@@ -115,7 +115,7 @@ final class SpaceStore: ObservableObject {
         guard canManageSettings(space: space) else { return nil }
         let invite = SpaceInvite(createdByUserId: HarvousLocalIdentity.userId, space: space)
         modelContext.insert(invite)
-        try? modelContext.save()
+        try? modelContext.saveWithLogging()
         return invite.token
     }
 
@@ -134,7 +134,7 @@ final class SpaceStore: ObservableObject {
         }
         let link = SpaceJoinLink(space: space)
         modelContext.insert(link)
-        try? modelContext.save()
+        try? modelContext.saveWithLogging()
         return link.token
     }
 
@@ -181,7 +181,7 @@ final class SpaceStore: ObservableObject {
             invite.consumedByUserId = uid
             let member = SpaceMember(userId: uid, role: .member, space: space)
             modelContext.insert(member)
-            try? modelContext.save()
+            try? modelContext.saveWithLogging()
             setActiveSpace(id: space.id, modelContext: modelContext)
             return true
         }
@@ -196,7 +196,7 @@ final class SpaceStore: ObservableObject {
                 let member = SpaceMember(userId: uid, role: .member, space: space)
                 modelContext.insert(member)
             }
-            try? modelContext.save()
+            try? modelContext.saveWithLogging()
             setActiveSpace(id: space.id, modelContext: modelContext)
             return true
         }
@@ -216,7 +216,7 @@ final class SpaceStore: ObservableObject {
         }
         member.role = role
         space.updatedAt = Date()
-        try? modelContext.save()
+        try? modelContext.saveWithLogging()
         return true
     }
 
@@ -228,7 +228,7 @@ final class SpaceStore: ObservableObject {
         if member.role == .admin, current != .owner { return false }
         modelContext.delete(member)
         space.updatedAt = Date()
-        try? modelContext.save()
+        try? modelContext.saveWithLogging()
         return true
     }
 
@@ -241,7 +241,7 @@ final class SpaceStore: ObservableObject {
         guard !t.isEmpty else { return false }
         space.name = t
         space.updatedAt = Date()
-        try? modelContext.save()
+        try? modelContext.saveWithLogging()
         return true
     }
 
@@ -250,7 +250,7 @@ final class SpaceStore: ObservableObject {
         guard space.id != HarvousSpaceBootstrap.personalHomeSpaceId else { return false }
         space.isArchived = true
         space.updatedAt = Date()
-        try? modelContext.save()
+        try? modelContext.saveWithLogging()
         if activeSpaceUUID() == space.id {
             setActiveSpace(id: HarvousSpaceBootstrap.personalHomeSpaceId, modelContext: modelContext)
         }
@@ -270,7 +270,7 @@ final class SpaceStore: ObservableObject {
             }
         }
         modelContext.delete(space)
-        try? modelContext.save()
+        try? modelContext.saveWithLogging()
         if activeSpaceUUID() == sid {
             setActiveSpace(id: HarvousSpaceBootstrap.personalHomeSpaceId, modelContext: modelContext)
         }
@@ -281,7 +281,7 @@ final class SpaceStore: ObservableObject {
         guard canManageSettings(space: space) else { return false }
         space.scriptureTheme = theme
         space.updatedAt = Date()
-        try? modelContext.save()
+        try? modelContext.saveWithLogging()
         if space.id == activeSpaceUUID() {
             scriptureTheme = theme
         }

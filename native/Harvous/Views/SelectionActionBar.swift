@@ -8,7 +8,9 @@ struct SelectionActionBar: View {
     var morphID: String
 
     var onHighlight: () -> Void
-    var onNewStandaloneNote: () -> Void
+    /// When `nil`, the second button (and divider) are hidden. Used by the scripture dock,
+    /// where the selection action is just "highlight" — no standalone-note action.
+    var onNewStandaloneNote: (() -> Void)?
 
     var body: some View {
         HStack(spacing: 2) {
@@ -17,14 +19,16 @@ struct SelectionActionBar: View {
                 help: "Highlight selected text…"
             ) { onHighlight() }
 
-            Rectangle()
-                .fill(Color.primary.opacity(0.14))
-                .frame(width: 0.5, height: 22)
+            if let onNewStandaloneNote {
+                Rectangle()
+                    .fill(Color.primary.opacity(0.14))
+                    .frame(width: 0.5, height: 22)
 
-            pillButton(
-                symbol: "square.and.pencil",
-                help: "New Harvous note from selection"
-            ) { onNewStandaloneNote() }
+                pillButton(
+                    symbol: "square.and.pencil",
+                    help: "New Harvous note from selection"
+                ) { onNewStandaloneNote() }
+            }
         }
         .frame(height: 36)
         .padding(.horizontal, 6)

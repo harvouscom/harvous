@@ -30,13 +30,42 @@ private extension Color {
 struct NoteToolbar: View {
     @ObservedObject var proxy: EditorProxy
     @Environment(\.harvousScriptureTheme) private var toolbarTheme
+#if os(iOS)
+    @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.harvousIOSNoteToolbarEmbeddedInUnifiedShell) private var embeddedInIOSUnifiedShell
+#endif
 
     var body: some View {
+        let stack = formattingToolbarScrollStack
+#if os(iOS)
+        Group {
+            if embeddedInIOSUnifiedShell {
+                stack
+            } else {
+                stack
+                    .background {
+                        HarvousIOSFloatingChromeBackdrop.material(Capsule(style: .continuous), colorScheme: colorScheme)
+                    }
+                    .clipShape(Capsule(style: .continuous))
+            }
+        }
+#else
+        stack
+            .background(.thinMaterial)
+            .onHover { isHovering in
+                proxy.setFormatToolbarHover(isHovering)
+            }
+#endif
+    }
+
+    private var formattingToolbarScrollStack: some View {
         VStack(spacing: 0) {
+            #if os(macOS)
             // Top border — span full width of the bar (independent of scroll content width)
             Color.hvHairlineSeparator
                 .frame(maxWidth: .infinity)
                 .frame(height: 0.5)
+            #endif
 
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 0) {
@@ -83,16 +112,10 @@ struct NoteToolbar: View {
                         iconButton("photo") { proxy.insertImage() }
                     }
                 }
-                .padding(.horizontal, 20)
+                .padding(.horizontal, 14)
             }
             .frame(height: 44)
         }
-        .background(.thinMaterial)
-#if os(macOS)
-        .onHover { isHovering in
-            proxy.setFormatToolbarHover(isHovering)
-        }
-#endif
     }
 
     // MARK: - Button builders
@@ -176,6 +199,20 @@ struct NoteToolbarButtonStyle: ButtonStyle {
         return .clear
     }
 }
+
+#if os(iOS)
+private struct HarvousIOSNoteToolbarUnifiedShellEmbeddingKey: EnvironmentKey {
+    static let defaultValue = false
+}
+
+extension EnvironmentValues {
+    /// Parent supplies one glass capsule; skip `NoteToolbar`'s standalone iOS glass + clip when true.
+    var harvousIOSNoteToolbarEmbeddedInUnifiedShell: Bool {
+        get { self[HarvousIOSNoteToolbarUnifiedShellEmbeddingKey.self] }
+        set { self[HarvousIOSNoteToolbarUnifiedShellEmbeddingKey.self] = newValue }
+    }
+}
+#endif
 
 #if DEBUG
 private struct NoteToolbar_PreviewsHost: View {

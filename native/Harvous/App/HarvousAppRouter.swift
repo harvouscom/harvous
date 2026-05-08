@@ -1,6 +1,7 @@
 import Combine
 import Foundation
 import SwiftUI
+import SwiftData
 
 #if os(iOS)
 /// Primary content surface on iPhone — single-column shell with bottom controls.
@@ -10,6 +11,16 @@ enum HarvousIOSListSurface: String, CaseIterable {
     case more
 
     static let persistenceKey = "harvous_ios_list_surface_v1"
+}
+
+/// Data for `NoteConnectionsBar` + scripture-bar gating while the note editor owns the bottom safe-area chrome.
+struct HarvousIOSNoteFooterSupplement {
+    let note: Note
+    var trailSnapshot: ThreadStore.TrailSnapshot
+    var connectionsTitleLine: String
+    var suppressScripturePillActionBar: Bool
+    var onRefreshConnections: () -> Void
+    var onOpenLinkedNote: (UUID) -> Void
 }
 #endif
 
@@ -49,13 +60,13 @@ final class HarvousAppRouter: ObservableObject {
     @Published private(set) var iosListSurface: HarvousIOSListSurface
     /// Drives the You/More sheet (not an inline surface — always a modal).
     @Published var iosShowMore = false
-    /// Inline `.searchable` presentation driven by the bottom search pill (Collections tab).
-    @Published var iosInlineSearchPresented = false
     @Published var iosInlineSearchText = ""
     /// Notes tab: filter sheet (list has no `.searchable` chrome).
     @Published var iosNotesFilterSearchPresented = false
-    /// When set (and note body focused with no scripture editor), `ContentView` shows `NoteToolbar` instead of the tab bottom chrome.
+    /// When set, the root bottom inset shows the note editor chrome (formatting / scripture / connections) instead of list + search.
     @Published private(set) var iosActiveNoteEditorChromeProxy: EditorProxy?
+    /// Linked-note trail + callbacks for `NoteConnectionsBar` in the bottom inset (cleared with proxy).
+    @Published var iosNoteFooterSupplement: HarvousIOSNoteFooterSupplement?
     private var iosNoteChromeCancellable: AnyCancellable?
 
     func iosRegisterNoteEditorChrome(proxy: EditorProxy) {
@@ -71,6 +82,7 @@ final class HarvousAppRouter: ObservableObject {
         iosNoteChromeCancellable?.cancel()
         iosNoteChromeCancellable = nil
         iosActiveNoteEditorChromeProxy = nil
+        iosNoteFooterSupplement = nil
     }
 
     #endif
@@ -101,7 +113,6 @@ final class HarvousAppRouter: ObservableObject {
         if surface == .more {
             iosShowMore = true
             iosInlineSearchText = ""
-            iosInlineSearchPresented = false
             iosNotesFilterSearchPresented = false
             return
         }
@@ -111,7 +122,6 @@ final class HarvousAppRouter: ObservableObject {
         iosListSurface = surface
         UserDefaults.standard.set(surface.rawValue, forKey: HarvousIOSListSurface.persistenceKey)
         iosInlineSearchText = ""
-        iosInlineSearchPresented = false
         iosNotesFilterSearchPresented = false
     }
 
@@ -146,12 +156,21 @@ final class HarvousAppRouter: ObservableObject {
             case .notes:
                 iosNotesFilterSearchPresented = true
             case .collections:
-                iosInlineSearchPresented = true
+                NotificationCenter.default.post(name: .harvousFocusIOSInlineSearch, object: nil)
             case .more:
                 break
             }
         default:
-            break
+            if p.hasPrefix("note/"),
+               let uuidStr = p.split(separator: "/").dropFirst().first,
+               let id = UUID(uuidString: String(uuidStr)) {
+                selectIOSListSurface(.notes)
+                NotificationCenter.default.post(
+                    name: .harvousRequestOpenNoteId,
+                    object: nil,
+                    userInfo: [HarvousOpenNoteIdPayload.idKey: id.uuidString]
+                )
+            }
         }
     }
 
@@ -174,6 +193,8 @@ enum HarvousMacPreferencesWindow {
 #endif
 
 extension Notification.Name {
+    /// iOS: focus the bottom inline search field (Notes + Collections).
+    static let harvousFocusIOSInlineSearch = Notification.Name("Harvous.focusIOSInlineSearch")
     /// macOS: posted from `HarvousCommands` so `ContentView` can `openWindow(id:)`.
     static let harvousOpenMacPreferences = Notification.Name("HarvousOpenMacPreferences")
     /// Insert `[[wikilink]]` at caret in the active note editor (see `NoteEditorView`).

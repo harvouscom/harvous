@@ -7,6 +7,11 @@ import SwiftUI
 struct ActiveHighlightDock: View {
     @Environment(\.harvousDockExpandedContentMaxHeight) private var expandedContentMaxHeight
 
+    /// Measured natural height of the expanded scroll content — drives exact frame sizing so the dock
+    /// is content-fit (not always the full max-height cap) while still allowing real scrolling.
+    @State private var expandedScrollContentHeight: CGFloat = 0
+    @State private var responsePromptsCollapsed: Bool = false
+
     @Bindable var thread: StudyThread
     @Binding var isExpanded: Bool
 
@@ -23,6 +28,19 @@ struct ActiveHighlightDock: View {
     /// Remove the underlying `StudyThread` so the painted highlight (and its miniNote / connection) is gone.
     /// When nil, the remove button is hidden — used in surfaces where removal belongs to a different UI.
     var onRemoveHighlight: (() -> Void)?
+
+    /// 1-based index among this note’s anchored highlights in document order (top to bottom).
+    /// When nil, the collapsed header reads “Highlight” only.
+    var highlightOrdinal: Int? = nil
+
+    /// Override the header glyph to `”highlighter”` regardless of `entryKind`.
+    /// Used when the dock is embedded inside the scripture dock, where the passage context
+    /// is already visible and the book icon would be confusing.
+    var forceHighlighterIcon: Bool = false
+
+    /// When `true`, suppress the excerpt text block in the expanded body for `.scriptureLink` threads.
+    /// Use when the passage is already visible above (e.g. inside `ActiveScripturePillDock`).
+    var hideExcerptDisplay: Bool = false
 
     @Environment(\.modelContext) private var modelContext
     @Environment(\.colorScheme) private var dockColorScheme
@@ -49,8 +67,9 @@ struct ActiveHighlightDock: View {
 
             if isExpanded {
                 expandedBody
-                    .transition(.opacity.combined(with: .scale(scale: 0.985, anchor: .topLeading)))
+                    .transition(.opacity)
                 primaryActionIfNeeded
+                    .transition(.opacity)
             }
         }
         .animation(.spring(response: 0.32, dampingFraction: 0.82), value: isExpanded)
@@ -72,23 +91,53 @@ struct ActiveHighlightDock: View {
             let ref = thread.scriptureReference ?? thread.miniNoteBody
             let trimmed = ref.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !trimmed.isEmpty else { return }
-            await ScripturePassageCache.shared.prefetch(reference: trimmed, translation: ScriptureReference.defaultTranslation)
+            let transRaw = thread.scripturePassageTranslation?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            let trans = transRaw.isEmpty ? ScriptureReference.defaultTranslation : transRaw
+            await ScripturePassageCache.shared.prefetch(reference: trimmed, translation: trans)
+
+            // Already upgraded by Apple Intelligence — nothing to do.
+            guard !thread.aiSuggestedQuestionsGenerated else { return }
+
+            let excerpt = thread.scripturePassageExcerpt?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            let snippet = excerpt.isEmpty ? trimmed : excerpt
+
+            if #available(macOS 26.0, iOS 26.0, *) {
+                do {
+                    let generated = try await ScriptureReflectionGenerator.generate(
+                        excerpt: snippet, reference: trimmed
+                    )
+                    // Append heuristic defaults as a catch-all tail so they're always present.
+                    // Heuristics are already shown while AI generates; this grows the list rather than replacing it.
+                    let defaults = StudyPromptSuggester.questions(forScriptureExcerpt: snippet, reference: trimmed)
+                    thread.suggestedQuestions = generated + defaults
+                    thread.aiSuggestedQuestionsGenerated = true
+                    try? modelContext.saveWithLogging()
+                    return
+                } catch {
+                    // Model unavailable or generation failed — fall through to heuristic.
+                }
+            }
+
+            // Heuristic fallback: older OS, Apple Intelligence off, or generation error.
+            // aiSuggestedQuestionsGenerated stays false so the next open can upgrade when AI becomes available.
+            if thread.suggestedQuestions.isEmpty {
+                thread.suggestedQuestions = StudyPromptSuggester.questions(
+                    forScriptureExcerpt: snippet, reference: trimmed
+                )
+                try? modelContext.saveWithLogging()
+            }
         }
     }
 
     private var headerRow: some View {
+        // Title is always lineLimit(1) so left and right sides are the same height — .center keeps
+        // the icon/text row visually aligned with the color swatch, chevron, and close controls.
         HStack(alignment: .center, spacing: 8) {
-            // Glyph + title (tappable to toggle expand)
+            // Glyph (tap to expand/collapse) + editable title with default “Highlight #” placeholder.
             Image(systemName: headerGlyph)
                 .symbolRenderingMode(.monochrome)
                 .font(.system(size: 13, weight: .medium))
                 .foregroundStyle(.primary)
-
-            Text(collapsedPreviewLine)
-                .font(.system(size: 14, weight: .semibold))
-                .foregroundStyle(.primary)
-                .lineLimit(isExpanded ? 4 : 1)
-                .frame(maxWidth: .infinity, alignment: .leading)
                 .contentShape(Rectangle())
                 .onTapGesture {
                     withAnimation(.spring(response: 0.32, dampingFraction: 0.82)) {
@@ -96,7 +145,24 @@ struct ActiveHighlightDock: View {
                     }
                 }
 
-            // Utility toolbar
+            // Custom title when set; otherwise placeholder-style “Highlight #” (or “Highlight” before an ordinal exists).
+            TextField("", text: $thread.focusTitle, prompt: Text(defaultHighlightTitle).foregroundStyle(.secondary))
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(.primary)
+                .textFieldStyle(.plain)
+                .lineLimit(1)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .onChange(of: thread.focusTitle) { _, _ in
+                    thread.updatedAt = Date()
+                    try? modelContext.saveWithLogging()
+                }
+                #if os(iOS)
+                .submitLabel(.done)
+                #endif
+                .accessibilityLabel("Highlight title")
+
+            // Utility toolbar — `.animation(.none)` prevents the spring on `isExpanded` from
+            // sliding the chevron symbol or the whole toolbar during expand/collapse.
             HStack(spacing: 2) {
                 // Secondary controls: color swatch + trash
                 DockAccentSwatchButton(
@@ -109,7 +175,7 @@ struct ActiveHighlightDock: View {
                         set: { newValue in
                             thread.highlightAccentRaw = newValue.rawValue
                             thread.updatedAt = Date()
-                            try? modelContext.save()
+                            try? modelContext.saveWithLogging()
                             onAccentPersisted()
                         }
                     ),
@@ -141,6 +207,7 @@ struct ActiveHighlightDock: View {
                     onDismiss()
                 }
             }
+            .animation(.none, value: isExpanded) // snap toolbar; body below still springs
         }
     }
 
@@ -155,6 +222,7 @@ struct ActiveHighlightDock: View {
         Button(action: action) {
             Image(systemName: symbol)
                 .font(.system(size: prominent ? 13 : 12, weight: prominent ? .medium : .regular))
+                .contentTransition(.identity) // no symbol morph animation
                 .frame(width: 28, height: 28)
                 .contentShape(Rectangle())
         }
@@ -172,14 +240,23 @@ struct ActiveHighlightDock: View {
             .padding(.horizontal, 2)
     }
 
-    private var collapsedPreviewLine: String {
-        let primary = DockHighlightCopy.primaryLine(thread)
-        guard !primary.isEmpty else { return "Highlight" }
-        return primary
+    /// Shown as the TextField prompt when `focusTitle` is empty — stable numbering from document order.
+    private var defaultHighlightTitle: String {
+        if let n = highlightOrdinal, n >= 1 {
+            return "Highlight \(n)"
+        }
+        return "Highlight"
     }
 
     @ViewBuilder
     private var expandedBody: some View {
+        // Measure natural content height so the dock is content-fit up to the cap.
+        // - fixedSize on a ScrollView disables scrolling (it uses ideal/content height and believes
+        //   it already fits everything), so we measure instead and drive an exact frame(height:).
+        // - Until the first measurement fires, start at the max-height cap so there's no zero-height flash.
+        let computedHeight = expandedScrollContentHeight > 0
+            ? min(expandedScrollContentHeight, expandedContentMaxHeight)
+            : expandedContentMaxHeight
         ScrollView {
             VStack(alignment: .leading, spacing: 10) {
                 if thread.entryKind == .miniNote {
@@ -191,8 +268,37 @@ struct ActiveHighlightDock: View {
                         .fixedSize(horizontal: false, vertical: true)
                         .onChange(of: thread.miniNoteBody) { _, _ in
                             thread.updatedAt = Date()
-                            try? modelContext.save()
+                            try? modelContext.saveWithLogging()
                         }
+
+                    if !thread.suggestedQuestions.isEmpty {
+                        responsePromptsRow
+                    }
+                } else if thread.entryKind == .scriptureLink,
+                          let ex = thread.scripturePassageExcerpt?.trimmingCharacters(in: .whitespacesAndNewlines),
+                          !ex.isEmpty {
+                    if !hideExcerptDisplay {
+                        Text(ex)
+                            .font(.system(size: 14, weight: .regular))
+                            .foregroundStyle(.primary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+
+                    TextField("Add a note…", text: $thread.miniNoteBody, axis: .vertical)
+                        .font(.system(size: 14, weight: .regular))
+                        .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .textFieldStyle(.plain)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .onChange(of: thread.miniNoteBody) { _, _ in
+                            thread.updatedAt = Date()
+                            try? modelContext.saveWithLogging()
+                        }
+
+                    if !thread.suggestedQuestions.isEmpty {
+                        responsePromptsRow
+                    }
                 } else {
                     Text(DockHighlightCopy.detail(thread, modelContext: modelContext))
                         .font(.system(size: 14, weight: .regular))
@@ -201,11 +307,80 @@ struct ActiveHighlightDock: View {
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .frame(maxWidth: .infinity, alignment: .topLeading)
+            .background(
+                GeometryReader { geo in
+                    Color.clear.preference(key: DockScrollContentHeightKey.self, value: geo.size.height)
+                }
+            )
         }
-        .fixedSize(horizontal: false, vertical: true)
-        .frame(maxHeight: expandedContentMaxHeight)
-        .clipped()
+        .frame(height: computedHeight)
+        .onPreferenceChange(DockScrollContentHeightKey.self) { h in
+            // Snap height after layout — animating here resizes the ScrollView viewport and can
+            // flicker scroll indicators when content fits without scrolling.
+            expandedScrollContentHeight = h
+        }
+    }
+
+    /// Soft response prompts seeded at creation — tapping one appends the question to the note body.
+    private var responsePromptsRow: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Button {
+                withAnimation(.spring(response: 0.28, dampingFraction: 0.82)) {
+                    responsePromptsCollapsed.toggle()
+                }
+            } label: {
+                HStack(spacing: 4) {
+                    Image(systemName: "arrow.turn.down.right")
+                        .font(.system(size: 10, weight: .regular))
+                        .foregroundStyle(.tertiary)
+                    Text("Respond")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(.tertiary)
+                    Spacer()
+                    Image(systemName: "chevron.down")
+                        .font(.system(size: 9, weight: .medium))
+                        .foregroundStyle(.tertiary)
+                        .rotationEffect(.degrees(responsePromptsCollapsed ? -90 : 0))
+                }
+            }
+            .buttonStyle(.plain)
+            .padding(.top, 4)
+
+            if !responsePromptsCollapsed {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 6) {
+                        ForEach(thread.suggestedQuestions, id: \.self) { prompt in
+                            Button {
+                                let prefix = thread.miniNoteBody.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "" : "\n\n"
+                                thread.miniNoteBody += "\(prefix)\(prompt)\n"
+                                thread.updatedAt = Date()
+                                try? modelContext.saveWithLogging()
+                            } label: {
+                                Text(prompt)
+                                    .font(.system(size: 12))
+                                    .foregroundStyle(.secondary)
+                                    .fixedSize()
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 4)
+                                    .background(
+                                        Capsule(style: .continuous)
+                                            .fill(Color.primary.opacity(0.06))
+                                    )
+                                    .overlay(
+                                        Capsule(style: .continuous)
+                                            .strokeBorder(Color.primary.opacity(0.10), lineWidth: 0.5)
+                                    )
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .padding(.vertical, 2)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .transition(.opacity.combined(with: .move(edge: .bottom)))
+            }
+        }
     }
 
     /// Primary action for linked-note / scripture entries — shown below the body when expanded.
@@ -228,9 +403,11 @@ struct ActiveHighlightDock: View {
             }
         case .scriptureLink:
             let trimmed = (thread.scriptureReference ?? thread.miniNoteBody).trimmingCharacters(in: .whitespacesAndNewlines)
-            if !trimmed.isEmpty {
+            if !trimmed.isEmpty, onReadPassage != nil {
+                let transRaw = thread.scripturePassageTranslation?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+                let trans = transRaw.isEmpty ? ScriptureReference.defaultTranslation : transRaw
                 Button {
-                    onReadPassage?(trimmed, ScriptureReference.defaultTranslation)
+                    onReadPassage?(trimmed, trans)
                 } label: {
                     Label("Read passage", systemImage: "book")
                         .font(.system(size: 13, weight: .medium))
@@ -247,6 +424,7 @@ struct ActiveHighlightDock: View {
     }
 
     private var headerGlyph: String {
+        if forceHighlighterIcon { return "highlighter" }
         switch thread.entryKind {
         case .miniNote: return "highlighter"
         case .linkedNote: return "arrow.triangle.branch"
@@ -457,23 +635,6 @@ struct StudyDockAccentPickerRow: View {
 // MARK: - Copy helpers (shared wording with inspector list rows)
 
 private enum DockHighlightCopy {
-    static func primaryLine(_ thread: StudyThread) -> String {
-        switch thread.entryKind {
-        case .miniNote:
-            return thread.sourceExcerptForList
-
-        case .linkedNote:
-            let t = thread.linkedNoteTitle.trimmingCharacters(in: .whitespacesAndNewlines)
-            return t.isEmpty ? thread.sourceExcerptForList : t
-
-        case .scriptureLink:
-            return (thread.scriptureReference ?? thread.miniNoteBody).trimmingCharacters(in: .whitespacesAndNewlines)
-
-        default:
-            return thread.sourceExcerptForList
-        }
-    }
-
     @MainActor
     static func detail(_ thread: StudyThread, modelContext: ModelContext) -> String {
         switch thread.entryKind {
@@ -492,11 +653,15 @@ private enum DockHighlightCopy {
             return "\(title)\n\(line)"
 
         case .scriptureLink:
+            let ex = thread.scripturePassageExcerpt?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            if !ex.isEmpty { return ex }
             let ref = (thread.scriptureReference ?? thread.miniNoteBody).trimmingCharacters(in: .whitespacesAndNewlines)
-            if let attributed = ScripturePassageCache.shared.value(reference: ref, translation: ScriptureReference.defaultTranslation) {
+            let transRaw = thread.scripturePassageTranslation?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            let trans = transRaw.isEmpty ? ScriptureReference.defaultTranslation : transRaw
+            if let attributed = ScripturePassageCache.shared.value(reference: ref, translation: trans) {
                 return attributed.string.trimmingCharacters(in: .whitespacesAndNewlines)
             }
-            return ref
+            return ref.isEmpty ? thread.sourceExcerptForList : ref
 
         default:
             return thread.sourceExcerptForList

@@ -77,9 +77,11 @@ struct SpaceSwitcherView: View {
             Label {
                 Text(currentSpaceName)
                     .lineLimit(1)
+                    .foregroundStyle(.primary)
             } icon: {
                 Image(systemName: currentSpaceSymbol)
                     .symbolRenderingMode(.hierarchical)
+                    .foregroundStyle(.primary)
             }
             .labelStyle(.titleAndIcon)
             #endif
@@ -90,6 +92,8 @@ struct SpaceSwitcherView: View {
         .menuIndicator(.hidden)
         #else
         .menuStyle(.borderlessButton)
+        // Home / collections toolbars sit under `NavigationStack.tint(.harvousAccent)`; keep space control neutral like `NoteCollectionChip`.
+        .tint(.primary)
         #endif
         .accessibilityLabel("Space")
         .accessibilityValue(currentSpaceName)

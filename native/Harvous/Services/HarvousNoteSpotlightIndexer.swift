@@ -24,6 +24,7 @@ enum HarvousNoteSpotlightIndexer {
             keywords.append(pc)
         }
         attr.keywords = keywords
+        attr.contentURL = URL(string: "harvous://note/\(id.uuidString)")
 
         let item = CSSearchableItem(uniqueIdentifier: id.uuidString, domainIdentifier: domainIdentifier, attributeSet: attr)
         CSSearchableIndex.default().indexSearchableItems([item]) { _ in }

@@ -19,13 +19,35 @@ enum ThreadEditorSnippet {
         let capped = String(firstLine.prefix(120))
         return capped.isEmpty ? "Linked note" : capped
     }
+
+    /// First six words of `text` joined by spaces — used as the pre-filled Label in the annotation popover.
+    static func shortLabelPreview(from text: String) -> String {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        let words = trimmed.split(separator: " ").prefix(6).map(String.init)
+        return words.joined(separator: " ")
+    }
 }
 
-/// CRUD and scoped fetches for native study threads.
+    /// CRUD and scoped fetches for native study threads.
 enum ThreadStore {
     struct TrailSnapshot {
         var incoming: [StudyThread]
         var outgoing: [StudyThread]
+    }
+
+    /// Canonical display reference string (matches `createScriptureLink` / passage dock queries).
+    @MainActor
+    static func canonicalScriptureDisplay(fromReferenceRaw raw: String) -> String {
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let p = ScriptureReferenceParser.parse(trimmed) {
+            return ScriptureReferenceParser.format(
+                bookIndex: p.bookIndex,
+                chapter: p.chapter,
+                verseStart: p.verseStart,
+                verseEnd: p.verseEnd
+            )
+        }
+        return trimmed
     }
 
     @MainActor
@@ -72,7 +94,7 @@ enum ThreadStore {
             parentNote: parent
         )
         modelContext.insert(thread)
-        try? modelContext.save()
+        try? modelContext.saveWithLogging()
         return thread
     }
 
@@ -83,19 +105,28 @@ enum ThreadStore {
         spaceId: UUID,
         sourceSnippet: String,
         body: String,
+        focusTitle: String? = nil,
         highlightAccent: StudyHighlightAccentToken = .warmAmber,
         expandedAnchorUTF16Range: NSRange? = nil,
         expandedPlainForAnchor: String? = nil,
         modelContext: ModelContext
     ) -> StudyThread {
         let trimmedBody = body.trimmingCharacters(in: .whitespacesAndNewlines)
-        let title = ThreadEditorSnippet.deriveFocus(from: sourceSnippet)
+        let trimmedCustomTitle = (focusTitle ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        let title = trimmedCustomTitle.isEmpty
+            ? ThreadEditorSnippet.deriveFocus(from: sourceSnippet)
+            : trimmedCustomTitle
+        let seededPrompts = StudyPromptSuggester.questions(
+            forSnippet: sourceSnippet,
+            detectedRefs: parent.detectedRefs
+        )
         let thread = StudyThread(
             spaceId: spaceId,
             parentNoteId: parent.id,
             sourceSnippet: sourceSnippet,
             focusTitle: title,
             notesBody: "",
+            suggestedQuestions: seededPrompts,
             entryKindRaw: StudyThread.EntryKind.miniNote.rawValue,
             miniNoteBody: trimmedBody,
             highlightAccentRaw: highlightAccent.rawValue,
@@ -105,7 +136,7 @@ enum ThreadStore {
             applyAnchoredExpandedRange(rr, expandedPlain: plain, to: thread)
         }
         modelContext.insert(thread)
-        try? modelContext.save()
+        try? modelContext.saveWithLogging()
         return thread
     }
 
@@ -145,7 +176,7 @@ enum ThreadStore {
             applyAnchoredExpandedRange(rr, expandedPlain: plain, to: marker)
         }
         modelContext.insert(marker)
-        try? modelContext.save()
+        try? modelContext.saveWithLogging()
         return marker
     }
 
@@ -177,7 +208,7 @@ enum ThreadStore {
             parentNote: parent
         )
         modelContext.insert(marker)
-        try? modelContext.save()
+        try? modelContext.saveWithLogging()
         touchParentNoteIfNeeded(marker, modelContext: modelContext)
         return marker
     }
@@ -213,7 +244,7 @@ enum ThreadStore {
             applyAnchoredExpandedRange(rr, expandedPlain: plain, to: marker)
         }
         modelContext.insert(marker)
-        try? modelContext.save()
+        try? modelContext.saveWithLogging()
         return marker
     }
 
@@ -255,8 +286,77 @@ enum ThreadStore {
             applyAnchoredExpandedRange(rr, expandedPlain: plain, to: thread)
         }
         modelContext.insert(thread)
-        try? modelContext.save()
+        try? modelContext.saveWithLogging()
         return thread
+    }
+
+    /// Passage highlight from the scripture pill dock: keyed by reference + translation + excerpt (no note-body anchor).
+    @MainActor
+    @discardableResult
+    static func createScripturePassageHighlight(
+        parent: Note,
+        spaceId: UUID,
+        referenceRaw: String,
+        translation: String,
+        excerptRaw: String,
+        annotation: String = "",
+        focusTitle: String? = nil,
+        highlightAccent: StudyHighlightAccentToken = .neutral,
+        modelContext: ModelContext
+    ) -> StudyThread {
+        let normalized = StudyThread.normalizedPassageExcerpt(excerptRaw)
+        let display = canonicalScriptureDisplay(fromReferenceRaw: referenceRaw)
+        let trimmedRef = referenceRaw.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedAnnotation = annotation.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedCustomTitle = (focusTitle ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        let derivedFocus = ThreadEditorSnippet.deriveFocus(from: normalized.isEmpty ? trimmedRef : normalized)
+        let focus = trimmedCustomTitle.isEmpty ? derivedFocus : trimmedCustomTitle
+        let seededPrompts = StudyPromptSuggester.questions(
+            forScriptureExcerpt: normalized.isEmpty ? trimmedRef : normalized,
+            reference: display
+        )
+        let thread = StudyThread(
+            spaceId: spaceId,
+            parentNoteId: parent.id,
+            sourceSnippet: normalized.isEmpty ? trimmedRef : normalized,
+            focusTitle: focus,
+            notesBody: "",
+            suggestedQuestions: seededPrompts,
+            entryKindRaw: StudyThread.EntryKind.scriptureLink.rawValue,
+            miniNoteBody: trimmedAnnotation,
+            scriptureReference: display,
+            scripturePassageTranslation: translation,
+            scripturePassageExcerpt: normalized.isEmpty ? nil : normalized,
+            highlightAccentRaw: highlightAccent.rawValue,
+            parentNote: parent
+        )
+        modelContext.insert(thread)
+        try? modelContext.saveWithLogging()
+        touchParentNoteIfNeeded(thread, modelContext: modelContext)
+        return thread
+    }
+
+    /// All dock passage highlights for this reference + translation across the local library (any space).
+    @MainActor
+    static func fetchScripturePassageHighlights(
+        canonicalReference: String,
+        translation: String,
+        modelContext: ModelContext
+    ) -> [StudyThread] {
+        let kind = StudyThread.EntryKind.scriptureLink.rawValue
+        let ref = canonicalReference
+        let descriptor = FetchDescriptor<StudyThread>(
+            predicate: #Predicate { t in
+                t.entryKindRaw == kind && !t.isArchived && t.scriptureReference == ref
+            },
+            sortBy: [SortDescriptor(\StudyThread.createdAt, order: .forward)]
+        )
+        let rows = (try? modelContext.fetch(descriptor)) ?? []
+        return rows.filter { row in
+            let trans = row.scripturePassageTranslation?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            let ex = row.scripturePassageExcerpt?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            return trans == translation && !ex.isEmpty
+        }
     }
 
     @MainActor
@@ -348,20 +448,20 @@ enum ThreadStore {
         guard StudyThread.EntryKind(rawValue: thread.entryKindRaw) == .linkedNote else { return }
         touchParentNoteIfNeeded(thread, modelContext: modelContext)
         modelContext.delete(thread)
-        try? modelContext.save()
+        try? modelContext.saveWithLogging()
     }
 
     @MainActor
     static func save(_ thread: StudyThread, modelContext: ModelContext) {
         thread.updatedAt = Date()
-        try? modelContext.save()
+        try? modelContext.saveWithLogging()
     }
 
     @MainActor
     static func touchParentNoteIfNeeded(_ thread: StudyThread, modelContext: ModelContext) {
         guard let note = thread.parentNote ?? fetchParentNote(id: thread.parentNoteId, modelContext: modelContext) else { return }
         note.updatedAt = Date()
-        try? modelContext.save()
+        try? modelContext.saveWithLogging()
     }
 
     @MainActor

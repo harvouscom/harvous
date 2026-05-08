@@ -214,6 +214,6 @@ struct ThreadQuickOptionsPanel: View {
     private func persistThreadFields() {
         thread.updatedAt = Date()
         ThreadStore.touchParentNoteIfNeeded(thread, modelContext: modelContext)
-        try? modelContext.save()
+        try? modelContext.saveWithLogging()
     }
 }

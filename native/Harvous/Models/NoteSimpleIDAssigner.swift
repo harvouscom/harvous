@@ -27,6 +27,6 @@ enum NoteSimpleIDAssigner {
             note.simpleNoteId = n
             n += 1
         }
-        try? context.save()
+        try? context.saveWithLogging()
     }
 }

@@ -9,9 +9,6 @@ struct HomeHubView: View {
     @EnvironmentObject private var appRouter: HarvousAppRouter
     @EnvironmentObject private var spaceStore: SpaceStore
     @Environment(\.modelContext) private var modelContext
-    @Environment(\.colorScheme) private var colorScheme
-    @AppStorage(HarvousSettingsStorageKeys.avatarColor) private var avatarColorRaw = HarvousAvatarColorToken.blue.rawValue
-
     var body: some View {
         NoteListColumn(
             filter: .all,
@@ -33,6 +30,7 @@ struct HomeHubView: View {
                     homeToolbarProfileButton
                 }
                 .buttonStyle(.plain)
+                .tint(.primary)
                 .accessibilityLabel("More")
             }
         }
@@ -71,7 +69,7 @@ struct HomeHubView: View {
         let note = Note(spaceId: spaceStore.activeSpaceUUID())
         modelContext.insert(note)
         NoteSimpleIDAssigner.assignIfMissing(note, in: modelContext)
-        try? modelContext.save()
+        try? modelContext.saveWithLogging()
         HarvousNoteSpotlightIndexer.reindex(note: note)
         HarvousVaultExporter.scheduleWrite(note: note, modelContext: modelContext)
         pushNoteOntoIOSStack(note.id)
@@ -92,7 +90,7 @@ struct HomeHubView: View {
         let note = Note(title: key, body: "", spaceId: sid)
         modelContext.insert(note)
         NoteSimpleIDAssigner.assignIfMissing(note, in: modelContext)
-        try? modelContext.save()
+        try? modelContext.saveWithLogging()
         HarvousNoteSpotlightIndexer.reindex(note: note)
         HarvousVaultExporter.scheduleWrite(note: note, modelContext: modelContext)
         pushNoteOntoIOSStack(note.id)
@@ -107,19 +105,9 @@ struct HomeHubView: View {
     }
 
     private var homeToolbarProfileButton: some View {
-        let token = HarvousAvatarColorToken(rawValue: avatarColorRaw) ?? .blue
-        let glyph: Color = {
-            switch token {
-            case .paper:
-                return colorScheme == .dark ? Color.white.opacity(0.55) : Color.primary.opacity(0.55)
-            default:
-                return Color.threadGlyph(avatarColorRaw) ?? Color.harvousAccent
-            }
-        }()
-
-        return Image(systemName: "person.fill")
+        Image(systemName: "person.fill")
             .font(.system(size: 17, weight: .medium))
-            .foregroundStyle(glyph)
+            .foregroundStyle(.primary)
             .frame(width: 32, height: 32)
             .contentShape(Rectangle())
     }

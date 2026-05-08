@@ -67,6 +67,7 @@ struct MacRootView: View {
     @Environment(\.modelContext) private var context
     @EnvironmentObject private var appRouter: HarvousAppRouter
     @EnvironmentObject private var spaceStore: SpaceStore
+    @EnvironmentObject private var macNoteListSelectionCoordinator: MacNoteListSelectionCoordinator
     @Environment(\.openWindow) private var openWindow
 
     var body: some View {
@@ -141,7 +142,7 @@ struct MacRootView: View {
                                         HarvousNoteSpotlightIndexer.removeNote(id: nid)
                                         selectedNote = nil
                                         context.delete(note)
-                                        try? context.save()
+                                        try? context.saveWithLogging()
                                     }
                                 )
                             }
@@ -151,7 +152,7 @@ struct MacRootView: View {
 
                         ToolbarItemGroup(placement: .confirmationAction) {
                             Button {
-                                withAnimation(HarvousAnimation.spring) { showInspector.toggle() }
+                                showInspector.toggle()
                             } label: {
                                 if showInspector {
                                     Label("Hide note details", systemImage: "sidebar.left")
@@ -174,7 +175,16 @@ struct MacRootView: View {
     }
 
     private var macSplitStyled: some View {
-        macNavigationSplit.navigationSplitViewStyle(.balanced)
+        macNavigationSplit
+            .navigationSplitViewStyle(.balanced)
+            // The .inspector modifier's built-in animation propagates up into the NSSplitView
+            // backing NavigationSplitView, causing the sidebar divider to slide when the
+            // inspector opens. Committing the layout in a single pass (same pattern as
+            // animatedSplitVisibility) stops the brief leftward drift.
+            .transaction(value: showInspector) { $0.disablesAnimations = true }
+            // Note switches: suppress implicit animations so unified toolbar/split/layout don’t
+            // interpolate every frame against a new TextKit document (hang + overflow flicker risk).
+            .transaction(value: selectedNote?.id) { $0.disablesAnimations = true }
     }
 
     private var macWithBaseFocusedValues: some View {
@@ -195,10 +205,12 @@ struct MacRootView: View {
                 selectedNote == nil
                     ? nil
                     : {
-                        withAnimation(HarvousAnimation.spring) { showInspector.toggle() }
+                        showInspector.toggle()
                     }
             )
             .focusedSceneValue(\.focusNoteListAction, { selectedNote = nil })
+            .focusedSceneValue(\.nextNoteAction) { macNoteListSelectionCoordinator.nextNote() }
+            .focusedSceneValue(\.previousNoteAction) { macNoteListSelectionCoordinator.previousNote() }
     }
 
     private var macRootChrome: some View {
@@ -216,7 +228,7 @@ struct MacRootView: View {
                         HarvousVaultExporter.removeMirrorFiles(for: prev, modelContext: context)
                         HarvousNoteSpotlightIndexer.removeNote(id: pid)
                         context.delete(prev)
-                        try? context.save()
+                        try? context.saveWithLogging()
                     }
                     lastSelectedNote = newNote
                 }
@@ -290,7 +302,15 @@ struct MacRootView: View {
         case "search":
             showSearch = true
         default:
-            break
+            if route.hasPrefix("note/"),
+               let uuidStr = route.split(separator: "/").dropFirst().first,
+               let id = UUID(uuidString: String(uuidStr)) {
+                NotificationCenter.default.post(
+                    name: .harvousRequestOpenNoteId,
+                    object: nil,
+                    userInfo: [HarvousOpenNoteIdPayload.idKey: id.uuidString]
+                )
+            }
         }
     }
 
@@ -298,7 +318,7 @@ struct MacRootView: View {
         let note = Note(spaceId: spaceStore.activeSpaceUUID())
         context.insert(note)
         NoteSimpleIDAssigner.assignIfMissing(note, in: context)
-        try? context.save()
+        try? context.saveWithLogging()
         HarvousNoteSpotlightIndexer.reindex(note: note)
         HarvousVaultExporter.scheduleWrite(note: note, modelContext: context)
         selectedNote = note
@@ -319,7 +339,7 @@ struct MacRootView: View {
         let note = Note(title: key, body: "", spaceId: sid)
         context.insert(note)
         NoteSimpleIDAssigner.assignIfMissing(note, in: context)
-        try? context.save()
+        try? context.saveWithLogging()
         HarvousNoteSpotlightIndexer.reindex(note: note)
         HarvousVaultExporter.scheduleWrite(note: note, modelContext: context)
         selectedNote = note
@@ -441,7 +461,6 @@ struct iOSRootView: View {
     @EnvironmentObject private var appRouter: HarvousAppRouter
     @EnvironmentObject private var spaceStore: SpaceStore
     @Environment(\.modelContext) private var modelContext
-    @StateObject private var iosChromeCoordinator = ChromeCoordinator()
     @State private var iosNoteNavigationPath: [UUID] = []
     @State private var importSummaryPayload: HarvousVaultImportSummaryPayload?
 
@@ -453,14 +472,9 @@ struct iOSRootView: View {
                     HomeHubView(iosNoteNavigationPath: $iosNoteNavigationPath)
                 case .collections:
                     LibraryView(
-                        externalSearchText: $appRouter.iosInlineSearchText,
-                        externalSearchPresented: $appRouter.iosInlineSearchPresented
+                        iosNoteNavigationPath: $iosNoteNavigationPath,
+                        externalSearchText: $appRouter.iosInlineSearchText
                     )
-                    .toolbar {
-                        ToolbarItem(placement: .topBarLeading) {
-                            SpaceSwitcherView()
-                        }
-                    }
                 case .more:
                     // .more is now presented as a sheet; this branch is a fallback only.
                     HomeHubView(iosNoteNavigationPath: $iosNoteNavigationPath)
@@ -472,20 +486,10 @@ struct iOSRootView: View {
         }
         .tint(.harvousAccent)
         .safeAreaInset(edge: .bottom, spacing: 0) {
-            MorphingChromeBar(coordinator: iosChromeCoordinator)
+            MorphingChromeBar()
                 .environmentObject(appRouter)
-        }
-        .onReceive(appRouter.objectWillChange) { _ in
-            if let proxy = appRouter.iosActiveNoteEditorChromeProxy {
-                iosChromeCoordinator.attach(proxy: proxy)
-            } else {
-                iosChromeCoordinator.detach()
-            }
-        }
-        .task {
-            if let proxy = appRouter.iosActiveNoteEditorChromeProxy {
-                iosChromeCoordinator.attach(proxy: proxy)
-            }
+                // Sit slightly nearer the physical bottom; keeps touch targets usable on notched phones.
+                .padding(.bottom, -4)
         }
         .sheet(isPresented: $appRouter.iosNotesFilterSearchPresented) {
             IOSNotesFilterSearchSheet()
@@ -520,22 +524,27 @@ struct iOSRootView: View {
             .presentationDragIndicator(.visible)
         }
         .onChange(of: appRouter.iosListSurface) { _, newSurface in
-            // Notes uses the bottom search pill + Notes sheet only (no inline `.searchable` presentation).
             if newSurface == .notes {
-                appRouter.iosInlineSearchPresented = false
-            } else {
-                // Clearing the path synchronously alongside tab chrome updates can collide with NavigationStack
-                // transactions (especially when switching surfaces after a List tap animation).
-                Task { @MainActor in
-                    iosNoteNavigationPath.removeAll()
-                }
+                return
+            }
+            // Clearing the path synchronously alongside tab chrome updates can collide with NavigationStack
+            // transactions (especially when switching surfaces after a List tap animation).
+            Task { @MainActor in
+                iosNoteNavigationPath.removeAll()
             }
         }
         .focusedSceneValue(\.newNoteAction) {
             NotificationCenter.default.post(name: HarvousAppRouter.requestComposeNewNotification, object: nil)
         }
         .focusedSceneValue(\.showSearchAction) {
-            appRouter.iosNotesFilterSearchPresented = true
+            switch appRouter.iosListSurface {
+            case .notes:
+                appRouter.iosNotesFilterSearchPresented = true
+            case .collections:
+                NotificationCenter.default.post(name: .harvousFocusIOSInlineSearch, object: nil)
+            case .more:
+                break
+            }
         }
         .focusedSceneValue(\.dailyNoteAction) {
             NotificationCenter.default.post(name: .requestDailyNote, object: nil)
@@ -625,18 +634,23 @@ struct HarvousIOSInlineBottomChromeRow: View {
     @Environment(\.colorScheme) private var colorScheme
     @FocusState private var searchFocused: Bool
 
+    /// Keeps list / search / compose as a compact floating cluster on wide phones (not edge-to-edge).
+    private static let hubClusterMaxWidth: CGFloat = 420
+
     private var hasSearchText: Bool {
         !appRouter.iosInlineSearchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     var body: some View {
-        HStack(alignment: .center, spacing: 10) {
+        HStack(alignment: .center, spacing: HarvousIOSMorphingChromeLayout.interChromeSpacing) {
             listPickerOrb
             searchPill
             composeOrb
         }
-        .padding(.horizontal, 12)
-        .padding(.bottom, 6)
+        .padding(.horizontal, 14)
+        .padding(.bottom, 4)
+        .frame(maxWidth: Self.hubClusterMaxWidth)
+        .frame(maxWidth: .infinity)
     }
 
     private var listPickerOrb: some View {
@@ -653,12 +667,6 @@ struct HarvousIOSInlineBottomChromeRow: View {
             } label: {
                 Label("Collections", systemImage: "rectangle.stack")
             }
-            Button {
-                UIImpactFeedbackGenerator(style: .light).impactOccurred()
-                appRouter.selectIOSListSurface(.more)
-            } label: {
-                Label("More", systemImage: "ellipsis.circle")
-            }
         } label: {
             Image(systemName: "line.3.horizontal.decrease")
                 .font(.system(size: 20, weight: .regular))
@@ -670,13 +678,8 @@ struct HarvousIOSInlineBottomChromeRow: View {
         .accessibilityLabel("List and filters")
     }
 
-    @ViewBuilder
     private var searchPill: some View {
-        if appRouter.iosListSurface == .notes {
-            inlineSearchPill
-        } else {
-            collectionsSearchPillButton
-        }
+        inlineSearchPill
     }
 
     private var inlineSearchPill: some View {
@@ -716,35 +719,9 @@ struct HarvousIOSInlineBottomChromeRow: View {
         }
         .animation(.easeInOut(duration: 0.15), value: hasSearchText)
         .animation(.easeInOut(duration: 0.15), value: searchFocused)
-    }
-
-    private var collectionsSearchPillButton: some View {
-        Button {
-            UIImpactFeedbackGenerator(style: .light).impactOccurred()
-            if appRouter.iosListSurface == .more {
-                appRouter.selectIOSListSurface(.notes)
-                searchFocused = true
-                return
-            }
-            appRouter.iosInlineSearchPresented = true
-        } label: {
-            HStack(spacing: 8) {
-                Image(systemName: "magnifyingglass")
-                    .font(.system(size: 16, weight: .regular))
-                    .foregroundStyle(Color.primary.opacity(0.6))
-                Text(hasSearchText ? appRouter.iosInlineSearchText : "Search")
-                    .font(.system(size: 17, weight: .regular))
-                    .foregroundStyle(hasSearchText ? Color.primary.opacity(0.9) : Color.primary.opacity(0.55))
-                    .lineLimit(1)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            }
-            .padding(.horizontal, 14)
-            .frame(height: 44)
-            .frame(maxWidth: .infinity)
-            .background { floatingChromeBackground(shape: Capsule(style: .continuous)) }
+        .onReceive(NotificationCenter.default.publisher(for: .harvousFocusIOSInlineSearch)) { _ in
+            searchFocused = true
         }
-        .buttonStyle(.plain)
-        .accessibilityLabel("Search")
     }
 
     private var composeOrb: some View {
@@ -764,18 +741,7 @@ struct HarvousIOSInlineBottomChromeRow: View {
 
     @ViewBuilder
     private func floatingChromeBackground<S: InsettableShape>(shape: S) -> some View {
-        if #available(iOS 26.0, *) {
-            shape
-                .fill(Color.clear)
-                .glassEffect(in: shape)
-        } else {
-            shape
-                .fill(.ultraThinMaterial)
-                .overlay {
-                    shape.strokeBorder(Color.primary.opacity(colorScheme == .dark ? 0.08 : 0.06), lineWidth: 0.5)
-                }
-                .shadow(color: Color.black.opacity(colorScheme == .dark ? 0.35 : 0.08), radius: 6, x: 0, y: 2)
-        }
+        HarvousIOSFloatingChromeBackdrop.material(shape, colorScheme: colorScheme)
     }
 }
 #endif

@@ -14,7 +14,7 @@ struct NoteCollectionChip: View {
         #if os(macOS)
         .system(size: 13, weight: .regular)
         #else
-        .system(size: 14)
+        .system(size: 16)
         #endif
     }
 
@@ -22,7 +22,7 @@ struct NoteCollectionChip: View {
         #if os(macOS)
         .system(size: 13, weight: .medium)
         #else
-        HarvousFonts.font(size: 16, weight: 500, design: .default)
+        HarvousFonts.font(size: 18, weight: 500, design: .default)
         #endif
     }
 
@@ -58,14 +58,15 @@ struct NoteCollectionChip: View {
         }
         #if os(macOS)
         .buttonStyle(.bordered)
-        #else
-        .buttonStyle(.bordered)
-        #endif
         .tint(
             trimmedCollection != nil
                 ? HarvousColors.themeAccent(scriptureTheme)
                 : Color.secondary
         )
+        #else
+        .buttonStyle(.plain)
+        .padding(.horizontal, 4)
+        #endif
         .accessibilityLabel(trimmedCollection.map { "Collection: \($0)" } ?? "No collection")
         .accessibilityHint(
             trimmedCollection != nil
@@ -159,7 +160,7 @@ struct NoteShareMoreBar: View {
             Button {
                 note.isPinned.toggle()
                 note.updatedAt = Date()
-                try? modelContext.save()
+                try? modelContext.saveWithLogging()
                 HarvousNoteSpotlightIndexer.reindex(note: note)
                 HarvousVaultExporter.scheduleWrite(note: note, modelContext: modelContext)
             } label: {

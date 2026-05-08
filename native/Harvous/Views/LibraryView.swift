@@ -1,115 +1,202 @@
 import SwiftUI
 import SwiftData
-#if os(macOS)
-import AppKit
-#elseif os(iOS)
-import UIKit
-#endif
 
+#if os(iOS)
+import UIKit
+
+/// iPhone collections: flat Mac-style list, drill-in to `NoteListColumn`, search from bottom chrome only.
 struct LibraryView: View {
+    @Binding var iosNoteNavigationPath: [UUID]
+    var externalSearchText: Binding<String>? = nil
+    @State private var fallbackSearchText = ""
+    @State private var collectionsDrill: CollectionsDrill = .root
+
     @Query(sort: \Note.updatedAt, order: .reverse) private var notes: [Note]
     @EnvironmentObject private var spaceStore: SpaceStore
-    #if os(iOS)
-    var externalSearchText: Binding<String>? = nil
-    var externalSearchPresented: Binding<Bool>? = nil
-    @State private var fallbackSearchText = ""
-    #endif
+    @EnvironmentObject private var appRouter: HarvousAppRouter
+
+    @AppStorage(VotdService.passageCardDismissedDayUserDefaultsKey) private var votdPassageCardDismissedDay: String = ""
+
+    private enum CollectionsDrill: Equatable {
+        case root
+        /// `nil` means notes with no primary collection (same as macOS bucket key).
+        case bucket(String?)
+    }
 
     private var notesInActiveSpace: [Note] {
         let sid = spaceStore.activeSpaceUUID()
-        return notes.filter { $0.resolvedSpaceId() == sid }
-    }
-
-    private var grouped: [(key: String, notes: [Note])] {
-        var dict: [String: [Note]] = [:]
-        for note in notesInActiveSpace {
-            let k = (note.primaryCollection?.trimmingCharacters(in: .whitespacesAndNewlines)).flatMap { $0.isEmpty ? nil : $0 } ?? "Ungrouped"
-            dict[k, default: []].append(note)
+        let scoped = notes.filter { $0.resolvedSpaceId() == sid }
+        if scoped.isEmpty, !notes.isEmpty {
+            return notes
         }
-        return dict
-            .map { (key: $0.key, notes: $0.value) }
-            .sorted { a, b in
-                if a.key == "Ungrouped" { return false }
-                if b.key == "Ungrouped" { return true }
-                let aDate = a.notes.map(\.updatedAt).max() ?? .distantPast
-                let bDate = b.notes.map(\.updatedAt).max() ?? .distantPast
-                return aDate > bDate
-            }
+        return scoped
     }
 
     private var activeSearchQuery: String {
-        #if os(iOS)
-        if let externalSearchText {
-            return externalSearchText.wrappedValue
-        }
-        return fallbackSearchText
-        #else
-        return ""
-        #endif
+        externalSearchText?.wrappedValue ?? fallbackSearchText
     }
 
-    private var groupedFiltered: [(key: String, notes: [Note])] {
-        let base = grouped
-        #if os(iOS)
-        let trimmed = activeSearchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return base }
-        let ql = trimmed.lowercased()
-        return base.compactMap { pair in
-            let notesFiltered: [Note]
-            if pair.key.lowercased().contains(ql) {
-                notesFiltered = pair.notes
-            } else {
-                notesFiltered = pair.notes.filter { libraryNoteMatches($0, ql) }
-            }
-            guard !notesFiltered.isEmpty else { return nil }
-            return (pair.key, notesFiltered)
-        }
-        #else
-        return base
-        #endif
+    private var collectionRows: [HarvousCollectionRow] {
+        HarvousCollectionListIndex.rows(from: notesInActiveSpace)
     }
 
-    private func libraryNoteMatches(_ note: Note, _ ql: String) -> Bool {
-        note.title.lowercased().contains(ql) ||
-            note.body.lowercased().contains(ql) ||
-            note.detectedRefs.contains(where: { $0.lowercased().contains(ql) }) ||
-            note.tags.contains(where: { $0.lowercased().contains(ql) }) ||
-            (note.primaryCollection?.lowercased().contains(ql) ?? false)
+    private var filteredCollectionRows: [HarvousCollectionRow] {
+        HarvousCollectionListIndex.filtered(
+            rows: collectionRows,
+            query: activeSearchQuery,
+            notesForBucketMatching: notesInActiveSpace
+        )
+    }
+
+    private var navigationTitleText: String {
+        switch collectionsDrill {
+        case .root:
+            return ""
+        case .bucket(let name):
+            return NoteFilter.collection(name).displayName
+        }
+    }
+
+    private var searchBinding: Binding<String> {
+        externalSearchText ?? $fallbackSearchText
     }
 
     var body: some View {
         Group {
-            if notesInActiveSpace.isEmpty {
-                emptyState
-            } else if !activeSearchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && groupedFiltered.isEmpty {
-                ContentUnavailableView.search(text: activeSearchQuery)
-            } else {
-                groupedList
+            switch collectionsDrill {
+            case .root:
+                // Match `NoteListColumn` iOS: grouped chrome behind plain `List` + `.scrollContentBackground(.hidden)`.
+                Group { collectionsRootContent }
+                    .background(Color(.systemGroupedBackground))
+            case .bucket(let collectionName):
+                NoteListColumn(
+                    filter: .collection(collectionName),
+                    selectedNote: .constant(nil),
+                    externalSearchText: searchBinding,
+                    columnStyle: .iOSTabNoteList,
+                    navigationTitleOverride: nil,
+                    searchPresentationBinding: nil,
+                    iosNoteNavPath: $iosNoteNavigationPath,
+                    onNewNote: {}
+                )
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(harvousListChromeBackground)
-        .navigationTitle("Collections")
-        #if os(iOS)
+        .navigationTitle(navigationTitleText)
         .navigationBarTitleDisplayMode(.inline)
-        .modifier(
-            LibraryIOSInlineSearchModifier(
-                externalText: externalSearchText,
-                externalPresented: externalSearchPresented,
-                fallbackText: $fallbackSearchText
-            )
-        )
-        #endif
+        .toolbar {
+            ToolbarItem(placement: .topBarLeading) {
+                SpaceSwitcherView()
+            }
+            if collectionsDrill != .root {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button {
+                        collectionsDrill = .root
+                    } label: {
+                        Image(systemName: "chevron.left")
+                            .font(.system(size: 17, weight: .medium))
+                            .foregroundStyle(.primary)
+                    }
+                    .buttonStyle(.plain)
+                    .tint(.primary)
+                    .accessibilityLabel("Back to collections")
+                }
+            }
+            ToolbarItem(placement: .topBarTrailing) {
+                Button {
+                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                    appRouter.selectIOSListSurface(.more)
+                } label: {
+                    Image(systemName: "person.fill")
+                        .font(.system(size: 17, weight: .medium))
+                        .foregroundStyle(.primary)
+                        .frame(width: 32, height: 32)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .tint(.primary)
+                .accessibilityLabel("More")
+            }
+        }
+        .onChange(of: appRouter.iosListSurface) { _, newSurface in
+            if newSurface != .collections {
+                collectionsDrill = .root
+            }
+        }
     }
 
-    private var harvousListChromeBackground: Color {
-        #if os(iOS)
-        Color(uiColor: .systemGroupedBackground)
-        #elseif os(macOS)
-        Color(nsColor: .windowBackgroundColor)
-        #else
-        Color.clear
-        #endif
+    @ViewBuilder
+    private var collectionsRootContent: some View {
+        if notesInActiveSpace.isEmpty {
+            emptyState
+        } else if collectionRows.isEmpty {
+            ContentUnavailableView {
+                Label("No Collections", systemImage: "rectangle.stack.fill")
+            } description: {
+                Text("Collections created from your notes will appear here.")
+            }
+        } else if !activeSearchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && filteredCollectionRows.isEmpty {
+            ContentUnavailableView.search(text: activeSearchQuery)
+        } else {
+            collectionsFlatList
+        }
+    }
+
+    private var collectionsFlatList: some View {
+        List {
+            if votdPassageCardDismissedDay != VotdService.todayCalendarDayKey() {
+                DailyPassageCard { note in
+                    iosNoteNavigationPath.wrappedValue.append(note.id)
+                }
+                .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 4, trailing: 16))
+                .listRowBackground(Color.clear)
+                .listRowSeparator(.hidden)
+                .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                    Button {
+                        votdPassageCardDismissedDay = VotdService.todayCalendarDayKey()
+                    } label: {
+                        Label("Dismiss", systemImage: "xmark.circle.fill")
+                    }
+                    .tint(.secondary)
+                    .accessibilityLabel("Dismiss today's passage")
+                }
+            }
+            ForEach(filteredCollectionRows) { row in
+                Button {
+                    collectionsDrill = .bucket(row.collection)
+                } label: {
+                    HStack(spacing: 10) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(row.title)
+                                .font(HarvousTypography.noteListTitle)
+                                .lineLimit(1)
+                                .foregroundStyle(.primary)
+                            Text("\(row.count) note\(row.count == 1 ? "" : "s")")
+                                .font(HarvousTypography.noteListPreview)
+                                .foregroundStyle(.secondary)
+                        }
+                        Spacer(minLength: 0)
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(.tertiary)
+                    }
+                    .padding(.vertical, 8)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .listRowInsets(IOSCollectionsListLayout.rowInsets)
+                .listRowBackground(Color.clear)
+                .listRowSeparator(.hidden)
+            }
+        }
+        .listStyle(.plain)
+        .scrollContentBackground(.hidden)
+    }
+
+    /// Match `IOSHubConversationNoteListLayout.rowInsets` in `NoteListColumn` so hubs align visually.
+    private enum IOSCollectionsListLayout {
+        static let rowInsets = EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16)
     }
 
     private var emptyState: some View {
@@ -123,77 +210,26 @@ struct LibraryView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
+}
 
-    private var groupedList: some View {
-        List {
-            ForEach(groupedFiltered, id: \.key) { group in
-                Section {
-                    ForEach(group.notes) { note in
-                        NavigationLink(value: note.id) {
-                            NoteFeedRow(note: note, variant: .conversation)
-                        }
-                        .listRowInsets(EdgeInsets(top: 4, leading: 14, bottom: 4, trailing: 14))
-                        .listRowSeparator(.hidden)
-                        .listRowBackground(Color.clear)
-                    }
-                } header: {
-                    librarySectionHeader(title: group.key, count: group.notes.count)
-                }
-            }
-        }
-        .scrollContentBackground(.hidden)
-        #if os(macOS)
-        .listStyle(.sidebar)
-        #else
-        .listStyle(.plain)
-        #endif
-    }
+#else
 
-    private func librarySectionHeader(title: String, count: Int) -> some View {
-        HStack(spacing: 8) {
-            Image(systemName: "chevron.right")
-                .font(.system(size: 10, weight: .bold))
-                .foregroundStyle(.tertiary)
-            Text(title)
-                .font(HarvousTypography.noteListTitle)
-                .foregroundStyle(.primary)
-                .lineLimit(1)
-            Spacer()
-            Text("\(count) note\(count == 1 ? "" : "s")")
-                .font(HarvousTypography.noteListPreview)
-                .foregroundStyle(.secondary)
-        }
-        .textCase(nil)
-        .listRowInsets(EdgeInsets(top: 0, leading: 4, bottom: 0, trailing: 4))
+/// Built for iOS only; macOS sidebar uses `SidebarPanelView`.
+struct LibraryView: View {
+    var body: some View {
+        EmptyView()
     }
 }
 
-#if os(iOS)
-private struct LibraryIOSInlineSearchModifier: ViewModifier {
-    var externalText: Binding<String>?
-    var externalPresented: Binding<Bool>?
-    @Binding var fallbackText: String
-
-    func body(content: Content) -> some View {
-        if let externalText, let externalPresented {
-            content
-                .searchable(text: externalText, isPresented: externalPresented, prompt: "Search")
-                .autocorrectionDisabled(true)
-                .textInputAutocapitalization(.never)
-        } else {
-            content
-                .searchable(text: $fallbackText, prompt: "Search")
-                .autocorrectionDisabled(true)
-                .textInputAutocapitalization(.never)
-        }
-    }
-}
 #endif
 
+#if os(iOS)
 #Preview {
     NavigationStack {
-        LibraryView()
+        LibraryView(iosNoteNavigationPath: .constant([]))
+            .environmentObject(HarvousAppRouter())
             .environmentObject(SpaceStore())
             .modelContainer(for: [Note.self, Space.self, SpaceMember.self, SpaceInvite.self, SpaceJoinLink.self], inMemory: true)
     }
 }
+#endif

@@ -586,6 +586,8 @@ private struct SettingsKeyboardShortcutsView: View {
         Row(action: "New connected note", keys: "⌘⌥N"),
         Row(action: "Delete note", keys: "⌃⌘⌫"),
         Row(action: "Toggle note details", keys: "⌘⌥I"),
+        Row(action: "Next note", keys: "⌃⌘↓"),
+        Row(action: "Previous note", keys: "⌃⌘↑"),
         Row(action: "Strikethrough", keys: "⌘⇧X"),
         Row(action: "Heading 2", keys: "⌘⌥2"),
         Row(action: "Heading 3", keys: "⌘⌥3"),

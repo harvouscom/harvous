@@ -84,4 +84,12 @@ struct ScriptureDetector {
             return Match(displayText: matchText, range: result.range)
         }
     }
+
+    /// Display refs in order of first occurrence, with duplicates removed.
+    /// `Note.detectedRefs` is consumed by SwiftUI ForEach using `id: \.self` — duplicates would
+    /// trigger SwiftUI's "the ID X occurs multiple times within the collection" failure mode.
+    static func uniqueDisplayRefs(in text: String) -> [String] {
+        var seen = Set<String>()
+        return detect(in: text).map(\.displayText).filter { seen.insert($0).inserted }
+    }
 }

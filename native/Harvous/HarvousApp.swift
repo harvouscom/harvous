@@ -25,6 +25,9 @@ struct HarvousApp: App {
 
     @StateObject private var appRouter = HarvousAppRouter()
     @StateObject private var spaceStore = SpaceStore()
+    #if os(macOS)
+    @StateObject private var macNoteListSelectionCoordinator = MacNoteListSelectionCoordinator()
+    #endif
 
     /// Built once, explicitly, so we can log migration failures instead of silently
     /// falling back to an in-memory store (which is what `.modelContainer(for:)` does
@@ -131,6 +134,7 @@ struct HarvousApp: App {
                 .environmentObject(appRouter)
                 .environmentObject(spaceStore)
                 #if os(macOS)
+                .environmentObject(macNoteListSelectionCoordinator)
                 .frame(minWidth: 980)
                 #endif
         }
@@ -141,9 +145,15 @@ struct HarvousApp: App {
         .windowResizability(.contentMinSize)
         #endif
         .modelContainer(modelContainer)
+        #if os(macOS)
+        .commands {
+            HarvousCommands(macNoteListCoordinator: macNoteListSelectionCoordinator)
+        }
+        #else
         .commands {
             HarvousCommands()
         }
+        #endif
         #if os(macOS)
         // Use `Window`, not `Settings`, so this window matches the document `WindowGroup` chrome (corner radius,
         // title bar). `Settings` is a separate window class and never quite matches. ⌘, is wired in `HarvousCommands`.

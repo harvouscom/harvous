@@ -26,7 +26,7 @@ enum HarvousSpaceBootstrap {
 
         migrateLegacyNotes(modelContext: modelContext, homeId: homeId)
         migrateSelectedSpaceIdIfNeeded(homeId: homeId)
-        try? modelContext.save()
+        try? modelContext.saveWithLogging()
     }
 
     private static func migrateLegacyNotes(modelContext: ModelContext, homeId: UUID) {

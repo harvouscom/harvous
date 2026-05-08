@@ -36,6 +36,9 @@ final class StudyThread {
 
     /// Suggested prompts; can grow into structured questions later.
     var suggestedQuestions: [String] = []
+    /// True once Apple Intelligence has generated passage-specific questions.
+    /// Stays false on heuristic fallback so the next open can upgrade when AI becomes available.
+    var aiSuggestedQuestionsGenerated: Bool = false
 
     /// One entry per resource line (URL or free text) for MVP.
     var resourceLines: [String] = []
@@ -57,6 +60,11 @@ final class StudyThread {
 
     /// Scripture reference backing `.scriptureLink` highlights.
     var scriptureReference: String?
+
+    /// Translation code for passage text when the highlight was created in the scripture dock (`ScripturePassageCache` key).
+    var scripturePassageTranslation: String?
+    /// Normalized plain-text excerpt selected inside the fetched passage (not note-body coordinates).
+    var scripturePassageExcerpt: String?
 
     /// Inline highlight pastel override (`StudyHighlightAccentToken.rawValue`). Uses `StudyHighlightAccentToken.decoding` at read time.
     var highlightAccentRaw: String = StudyHighlightAccentToken.warmAmber.rawValue
@@ -83,6 +91,8 @@ final class StudyThread {
         anchorLength: Int? = nil,
         anchorTextSnapshot: String? = nil,
         scriptureReference: String? = nil,
+        scripturePassageTranslation: String? = nil,
+        scripturePassageExcerpt: String? = nil,
         highlightAccentRaw: String = StudyHighlightAccentToken.warmAmber.rawValue,
         parentNote: Note? = nil
     ) {
@@ -105,8 +115,17 @@ final class StudyThread {
         self.anchorLength = anchorLength
         self.anchorTextSnapshot = anchorTextSnapshot
         self.scriptureReference = scriptureReference
+        self.scripturePassageTranslation = scripturePassageTranslation
+        self.scripturePassageExcerpt = scripturePassageExcerpt
         self.highlightAccentRaw = highlightAccentRaw
         self.parentNote = parentNote
+    }
+
+    /// Normalize selected passage plain text for stable storage and matching across notes.
+    static func normalizedPassageExcerpt(_ raw: String) -> String {
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return "" }
+        return trimmed.replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
     }
 
     var sourceExcerptForList: String {

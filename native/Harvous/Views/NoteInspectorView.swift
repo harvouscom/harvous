@@ -12,12 +12,11 @@ import UIKit
 /// Collection edits use the toolbar collection chip popover.
 struct NoteInspectorView: View {
     let note: Note
-    /// Scrolls the editor to the first anchored mini capture (highlight) on this note.
-    var onJumpToHighlightedCaptures: (() -> Void)? = nil
     @Environment(\.modelContext) private var modelContext
     @State private var draftTag = ""
     @State private var simpleNoteIdCopied = false
-    @State private var historyExpanded = false
+    @State private var openedScriptureRef: InspectorScriptureRefItem?
+    @State private var allResourceLines: [String] = []
 
     var body: some View {
         ScrollView {
@@ -25,15 +24,17 @@ struct NoteInspectorView: View {
                 sectionHeader("Tags")
                 tagsSection
 
-                Divider().padding(.vertical, 12)
+                if !note.detectedRefs.isEmpty {
+                    Divider().padding(.vertical, 12)
+                    sectionHeader("Scripture")
+                    scriptureRefSection
+                }
 
-                sectionHeader("Highlights")
-                highlightsSection
-
-                Divider().padding(.vertical, 12)
-
-                sectionHeader("History")
-                NoteHistorySection(note: note, isExpanded: $historyExpanded)
+                if !allResourceLines.isEmpty {
+                    Divider().padding(.vertical, 12)
+                    sectionHeader("Sources")
+                    sourcesSection
+                }
 
                 Divider().padding(.vertical, 12)
 
@@ -43,70 +44,19 @@ struct NoteInspectorView: View {
             .padding(.horizontal, 16)
             .padding(.vertical, 20)
         }
-    }
-
-    // MARK: - Highlights (mini notes anchored in prose)
-
-    @ViewBuilder
-    private var highlightsSection: some View {
-        let count = anchoredHighlightCount()
-        if count == 0 {
-            Text("Highlights you add from selected text appear here. None are anchored in this note yet.")
-                .font(HarvousTypography.inspectorBody)
-                .foregroundStyle(.secondary)
-                .padding(.top, 4)
-                .fixedSize(horizontal: false, vertical: true)
-        } else {
-            Button {
-                onJumpToHighlightedCaptures?()
-            } label: {
-                HStack(alignment: .center, spacing: 10) {
-                    Image(systemName: "note.text.badge.plus")
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundStyle(Color.harvousAccent)
-                        .frame(width: 20, alignment: .center)
-
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(highlightCountTitle(count))
-                            .font(HarvousTypography.inspectorCompactMedium)
-                            .foregroundStyle(.primary)
-                        Text("Show in editor")
-                            .font(HarvousTypography.footnote)
-                            .foregroundStyle(.secondary)
-                    }
-                    .multilineTextAlignment(.leading)
-
-                    Spacer(minLength: 0)
-
-                    Image(systemName: "chevron.down")
-                        .font(.system(size: 10, weight: .bold))
-                        .rotationEffect(.degrees(-90))
-                        .foregroundStyle(.tertiary)
-                }
-                .padding(.vertical, 10)
-                .padding(.horizontal, 12)
-                .background(Color.secondary.opacity(0.06), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-            }
-            .buttonStyle(.plain)
-            .padding(.top, 4)
-            .accessibilityHint("Scrolls to the first highlight in the note body")
-        }
-    }
-
-    private func highlightCountTitle(_ count: Int) -> String {
-        count == 1 ? "1 highlight" : "\(count) highlights"
-    }
-
-    private func anchoredHighlightCount() -> Int {
-        let noteId = note.id
-        let descriptor = FetchDescriptor<StudyThread>(predicate: #Predicate {
-            thread in thread.parentNoteId == noteId && !thread.isArchived
-        })
-
-        guard let rows = try? modelContext.fetch(descriptor) else { return 0 }
-
-        return rows.count {
-            $0.entryKind == .miniNote && $0.hasPersistedHighlightAnchor
+        .task(id: note.id) { loadResourceLines() }
+        .popover(item: $openedScriptureRef) { item in
+            ScripturePassageView(
+                reference: item.id,
+                translation: ScriptureReference.defaultTranslation,
+                showHeader: true,
+                useReadingTypography: true
+            )
+            .padding(16)
+            .frame(minWidth: 280, idealWidth: 320, maxWidth: 380, minHeight: 220, idealHeight: 340)
+            #if os(iOS)
+            .presentationDetents([.medium])
+            #endif
         }
     }
 
@@ -122,7 +72,7 @@ struct NoteInspectorView: View {
                     .padding(.top, 4)
             } else {
                 FlowLayout(spacing: 6) {
-                    ForEach(note.tags, id: \.self) { tag in
+                    ForEach(note.tags.uniquedPreservingOrder(), id: \.self) { tag in
                         tagChip(tag)
                     }
                 }
@@ -175,6 +125,75 @@ struct NoteInspectorView: View {
         }
     }
 
+    // MARK: - Scripture references
+
+    @ViewBuilder
+    private var scriptureRefSection: some View {
+        FlowLayout(spacing: 6) {
+            ForEach(note.detectedRefs.uniquedPreservingOrder(), id: \.self) { ref in
+                Button {
+                    openedScriptureRef = InspectorScriptureRefItem(id: ref)
+                } label: {
+                    Text(ref)
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(.primary)
+                        .padding(.horizontal, 9)
+                        .padding(.vertical, 5)
+                        .background(
+                            Capsule(style: .continuous)
+                                .fill(Color.primary.opacity(0.07))
+                        )
+                        .overlay(
+                            Capsule(style: .continuous)
+                                .strokeBorder(Color.primary.opacity(0.12), lineWidth: 0.5)
+                        )
+                }
+                .buttonStyle(.plain)
+                #if os(macOS)
+                .help("Read \(ref)")
+                #endif
+            }
+        }
+        .padding(.top, 4)
+    }
+
+    // MARK: - Sources (resource lines from study threads)
+
+    @ViewBuilder
+    private var sourcesSection: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            ForEach(allResourceLines, id: \.self) { line in
+                if let url = URL(string: line), url.scheme?.hasPrefix("http") == true {
+                    Link(destination: url) {
+                        Text(line)
+                            .font(HarvousTypography.inspectorCompact)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(2)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .buttonStyle(.plain)
+                } else {
+                    Text(line)
+                        .font(HarvousTypography.inspectorCompact)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(2)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+            }
+        }
+        .padding(.top, 4)
+    }
+
+    @MainActor
+    private func loadResourceLines() {
+        let nid = note.id
+        let descriptor = FetchDescriptor<StudyThread>(
+            predicate: #Predicate { t in t.parentNoteId == nid && !t.isArchived }
+        )
+        let threads = (try? modelContext.fetch(descriptor)) ?? []
+        allResourceLines = threads.flatMap(\.resourceLines).filter { !$0.isEmpty }
+    }
+
     // MARK: - Info
 
     private var infoSection: some View {
@@ -186,9 +205,6 @@ struct NoteInspectorView: View {
             infoRow("Modified", value: note.updatedAt.formatted(date: .abbreviated, time: .shortened))
             infoRow("Reading", value: readingTimeLabel)
             infoRow("Words", value: wordCount)
-            if let summary = scriptureSummary {
-                infoRow("Scripture", value: summary)
-            }
         }
         .padding(.top, 4)
     }
@@ -240,12 +256,6 @@ struct NoteInspectorView: View {
         return "\(minutes) min read"
     }
 
-    private var scriptureSummary: String? {
-        let refs = note.detectedRefs
-        guard let first = refs.first else { return nil }
-        return refs.count == 1 ? first : "\(first) +\(refs.count - 1) more"
-    }
-
     private var wordCountInt: Int {
         note.body.split(whereSeparator: { $0.isWhitespace }).count
     }
@@ -268,7 +278,7 @@ struct NoteInspectorView: View {
     }
 
     private func persistInspectorMutation() {
-        try? modelContext.save()
+        try? modelContext.saveWithLogging()
         HarvousNoteSpotlightIndexer.reindex(note: note)
         HarvousVaultExporter.scheduleWrite(note: note, modelContext: modelContext)
     }
@@ -302,6 +312,12 @@ struct NoteInspectorView: View {
             .tracking(0.8)
             .padding(.bottom, 6)
     }
+}
+
+// MARK: - Identifiable wrapper for scripture reference popover
+
+struct InspectorScriptureRefItem: Identifiable {
+    let id: String  // the scripture reference string (e.g. "John 3:16")
 }
 
 // MARK: - Simple flow layout for pills/tags
@@ -358,4 +374,15 @@ struct FlowLayout: Layout {
     return NoteInspectorView(note: note)
         .frame(width: 280)
         .modelContainer(for: [Note.self], inMemory: true)
+}
+
+private extension Array where Element: Hashable {
+    /// Removes duplicates while preserving the order of first occurrence. Defensive guard for SwiftUI
+    /// `ForEach(_, id: \.self)` over `Note.detectedRefs` / `Note.tags`: legacy notes can hold duplicates
+    /// (e.g. a VOTD note where the same reference appears in body more than once). Duplicate IDs put
+    /// SwiftUI's diff into "undefined results" mode and have manifested as note-switch hangs.
+    func uniquedPreservingOrder() -> [Element] {
+        var seen = Set<Element>()
+        return filter { seen.insert($0).inserted }
+    }
 }

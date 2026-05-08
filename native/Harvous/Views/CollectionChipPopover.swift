@@ -182,7 +182,7 @@ struct CollectionChipPopover: View {
     // MARK: - Mutations
 
     private func persist() {
-        try? modelContext.save()
+        try? modelContext.saveWithLogging()
         HarvousNoteSpotlightIndexer.reindex(note: note)
         HarvousVaultExporter.scheduleWrite(note: note, modelContext: modelContext)
     }

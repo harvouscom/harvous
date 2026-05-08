@@ -68,10 +68,18 @@ struct NoteListColumn: View {
     }
     #endif
 
-    @Query(sort: \Note.updatedAt, order: .reverse) private var notes: [Note]
+    @Query(sort: [
+        SortDescriptor(\Note.updatedAt, order: .reverse),
+        SortDescriptor(\Note.createdAt, order: .reverse),
+    ]) private var notes: [Note]
     @Environment(\.modelContext) private var context
     @Environment(\.colorScheme) private var colorScheme
     @EnvironmentObject private var spaceStore: SpaceStore
+    #if os(macOS)
+    @EnvironmentObject private var macNoteListSelectionCoordinator: MacNoteListSelectionCoordinator
+    #endif
+
+    @AppStorage(VotdService.passageCardDismissedDayUserDefaultsKey) private var votdPassageCardDismissedDay: String = ""
 
     private var notesInActiveSpace: [Note] {
         let sid = spaceStore.activeSpaceUUID()
@@ -151,13 +159,57 @@ struct NoteListColumn: View {
         return pinned + unpinned
     }
 
+    #if os(macOS)
+    private func registerMacListNavigationHandlerIfNeeded() {
+        guard columnStyle == .macOSSidebar else { return }
+        macNoteListSelectionCoordinator.registerAdvanceHandler { delta in
+            macAdvanceNoteSelection(delta: delta)
+        }
+    }
+
+    private func macAdvanceNoteSelection(delta: Int) {
+        let rows = sortedFiltered
+        guard !rows.isEmpty else { return }
+        var txn = Transaction()
+        txn.disablesAnimations = true
+        withTransaction(txn) {
+            if let current = selectedNote,
+               let idx = rows.firstIndex(where: { $0.id == current.id }) {
+                let next = idx + delta
+                guard rows.indices.contains(next) else { return }
+                selectedNote = rows[next]
+            } else {
+                if delta > 0 {
+                    selectedNote = rows.first
+                } else if delta < 0 {
+                    selectedNote = rows.last
+                }
+            }
+        }
+    }
+    #endif
+
     private enum Metrics {
         /// Insets the selection pill from the sidebar edges (glass column).
-        static let selectionHPadding: CGFloat = 8
-        static let selectionVPadding: CGFloat = 2
+        static let selectionHPadding: CGFloat = 0
+        static let selectionVPadding: CGFloat = 0
+        /// Horizontal content padding applied directly to the row (not via listRowInsets, so the
+        /// .background modifier sees the full row width and can position the pill correctly).
+        static let sidebarRowHInset: CGFloat = 10
+        /// Vertical content padding that extends the pill height beyond NoteFeedRow's internal padding.
+        static let sidebarRowVInset: CGFloat = 2
         /// Inset from window **leading** only so the darker vertical bezel shows; **top is 0** so glass runs flush under the unified title bar / traffic lights.
         static let sidebarWindowBezelInsetLeading: CGFloat = 1
         static let sidebarWindowBezelInsetTop: CGFloat = 0
+    }
+
+    /// macOS: passage card applies `sidebarRowHInset` internally; keep list insets aligned with note rows.
+    private var dailyPassageListRowInsets: EdgeInsets {
+        #if os(macOS)
+        EdgeInsets(top: 8, leading: Metrics.selectionHPadding, bottom: 4, trailing: Metrics.selectionHPadding)
+        #else
+        EdgeInsets(top: 8, leading: 14, bottom: 4, trailing: 14)
+        #endif
     }
 
     // MARK: - Body
@@ -218,6 +270,16 @@ struct NoteListColumn: View {
             }
         }
         #endif
+        #if os(macOS)
+        .onAppear {
+            registerMacListNavigationHandlerIfNeeded()
+        }
+        .onDisappear {
+            if columnStyle == .macOSSidebar {
+                macNoteListSelectionCoordinator.unregisterAdvanceHandler()
+            }
+        }
+        #endif
     }
 
     private var mainContent: some View {
@@ -267,7 +329,6 @@ struct NoteListColumn: View {
     private func noteSelectionBackground(isSelected: Bool) -> some View {
         if isSelected {
             selectionHighlightPill
-                .padding(.horizontal, Metrics.selectionHPadding)
                 .padding(.vertical, Metrics.selectionVPadding)
         } else {
             Color.clear
@@ -313,6 +374,27 @@ struct NoteListColumn: View {
 
     private var noteList: some View {
         List {
+            if filter == .all, votdPassageCardDismissedDay != VotdService.todayCalendarDayKey() {
+                DailyPassageCard { note in
+                    #if os(iOS)
+                    iosNoteNavPath?.wrappedValue.append(note.id)
+                    #else
+                    macSelectNoteWithoutListAnimation(note)
+                    #endif
+                }
+                .listRowInsets(dailyPassageListRowInsets)
+                .listRowBackground(Color.clear)
+                .listRowSeparator(.hidden)
+                .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                    Button {
+                        votdPassageCardDismissedDay = VotdService.todayCalendarDayKey()
+                    } label: {
+                        Label("Dismiss", systemImage: "xmark.circle.fill")
+                    }
+                    .tint(.secondary)
+                    .accessibilityLabel("Dismiss today's passage")
+                }
+            }
             ForEach(sortedFiltered) { note in
                 noteRowContent(for: note)
             }
@@ -320,6 +402,17 @@ struct NoteListColumn: View {
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
     }
+
+    #if os(macOS)
+    /// Avoids SwiftUI list row accent painting (blue system selection) while keeping animations off for split/toolbar layout.
+    private func macSelectNoteWithoutListAnimation(_ note: Note) {
+        var txn = Transaction()
+        txn.disablesAnimations = true
+        withTransaction(txn) {
+            selectedNote = note
+        }
+    }
+    #endif
 
     @ViewBuilder
     private func noteRowContent(for note: Note) -> some View {
@@ -330,12 +423,15 @@ struct NoteListColumn: View {
                     NoteFeedRow(note: note, variant: .conversation)
                 }
                 .buttonStyle(.plain)
-                .listRowInsets(EdgeInsets(top: 4, leading: 14, bottom: 4, trailing: 14))
-                .listRowBackground(Color.clear)
-                .listRowSeparator(.hidden)
+                .swipeActions(edge: .leading, allowsFullSwipe: true) {
+                    noteRowTogglePinSwipe(note: note)
+                }
                 .swipeActions(edge: .trailing, allowsFullSwipe: true) {
                     noteRowDeleteSwipe(note: note, iosNavPath: iosNoteNavPath)
                 }
+                .listRowInsets(EdgeInsets(top: 4, leading: 14, bottom: 4, trailing: 14))
+                .listRowBackground(Color.clear)
+                .listRowSeparator(.hidden)
             } else {
                 NavigationLink {
                     StatefulNoteEditorView(note: note)
@@ -343,12 +439,15 @@ struct NoteListColumn: View {
                     NoteFeedRow(note: note, variant: .conversation)
                 }
                 .buttonStyle(.plain)
-                .listRowInsets(EdgeInsets(top: 4, leading: 14, bottom: 4, trailing: 14))
-                .listRowBackground(Color.clear)
-                .listRowSeparator(.hidden)
+                .swipeActions(edge: .leading, allowsFullSwipe: true) {
+                    noteRowTogglePinSwipe(note: note)
+                }
                 .swipeActions(edge: .trailing, allowsFullSwipe: true) {
                     noteRowDeleteSwipe(note: note, iosNavPath: nil)
                 }
+                .listRowInsets(EdgeInsets(top: 4, leading: 14, bottom: 4, trailing: 14))
+                .listRowBackground(Color.clear)
+                .listRowSeparator(.hidden)
             }
         } else {
             sidebarSelectableRow(for: note)
@@ -361,10 +460,30 @@ struct NoteListColumn: View {
     private func sidebarSelectableRow(for note: Note) -> some View {
         let isSelected = selectedNote?.id == note.id
         return NoteFeedRow(note: note, variant: .sidebarCompact)
-            .listRowInsets(EdgeInsets(top: 5, leading: 10, bottom: 5, trailing: 10))
-            .listRowBackground(noteSelectionBackground(isSelected: isSelected))
+            .padding(.horizontal, Metrics.sidebarRowHInset)
+            .padding(.vertical, Metrics.sidebarRowVInset)
+            .background {
+                if isSelected {
+                    selectionHighlightPill
+                        .padding(.vertical, Metrics.selectionVPadding)
+                }
+            }
+            .listRowInsets(EdgeInsets(top: 4, leading: Metrics.selectionHPadding, bottom: 4, trailing: Metrics.selectionHPadding))
+            .listRowBackground(Color.clear)
             .listRowSeparator(.hidden)
-            .onTapGesture { selectedNote = note }
+            #if os(macOS)
+            .contentShape(Rectangle())
+            #endif
+            .onTapGesture {
+                #if os(macOS)
+                macSelectNoteWithoutListAnimation(note)
+                #else
+                selectedNote = note
+                #endif
+            }
+            .swipeActions(edge: .leading, allowsFullSwipe: true) {
+                noteRowTogglePinSwipe(note: note)
+            }
             .swipeActions(edge: .trailing, allowsFullSwipe: true) {
                 noteRowDeleteSwipe(note: note, iosNavPath: nil)
             }
@@ -388,6 +507,23 @@ struct NoteListColumn: View {
         } label: {
             Label("Delete", systemImage: "trash")
         }
+    }
+
+    /// Leading swipe — same persistence as `NoteShareMoreBar` pin in `NoteTopBar`.
+    @ViewBuilder
+    private func noteRowTogglePinSwipe(note: Note) -> some View {
+        Button {
+            withAnimation {
+                note.isPinned.toggle()
+                note.updatedAt = Date()
+                try? context.saveWithLogging()
+            }
+            HarvousNoteSpotlightIndexer.reindex(note: note)
+            HarvousVaultExporter.scheduleWrite(note: note, modelContext: context)
+        } label: {
+            Label(note.isPinned ? "Unpin" : "Pin", systemImage: note.isPinned ? "pin.slash.fill" : "pin.fill")
+        }
+        .tint(.orange)
     }
 
     // MARK: - Empty state
@@ -477,6 +613,7 @@ struct HarvousSidebarTransparentWindowToolbar: ViewModifier {
     #else
     NoteListColumn(selectedNote: .constant(nil))
         .environmentObject(SpaceStore())
+        .environmentObject(MacNoteListSelectionCoordinator())
         .modelContainer(for: [Note.self, Space.self, SpaceMember.self, SpaceInvite.self, SpaceJoinLink.self], inMemory: true)
         .frame(width: 300, height: 600)
     #endif

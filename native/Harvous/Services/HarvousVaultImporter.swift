@@ -60,7 +60,7 @@ enum HarvousVaultImporter {
         for url in urls {
             importOne(url: url, targetSpaceId: targetSpaceId, modelContext: modelContext, report: &report)
         }
-        try? modelContext.save()
+        try? modelContext.saveWithLogging()
         if !skipVaultRewrite {
             HarvousVaultExporter.rewriteAllNotes(modelContext: modelContext)
         }
@@ -109,7 +109,7 @@ enum HarvousVaultImporter {
                         }
                     }
                 }
-                try? modelContext.save()
+                try? modelContext.saveWithLogging()
                 HarvousVaultExporter.rewriteAllNotes(modelContext: modelContext)
             }
         } catch {
@@ -359,10 +359,18 @@ enum HarvousVaultImporter {
                 note = n
             }
         } else {
-            let n = Note(title: title, body: body, spaceId: targetSpaceId)
-            modelContext.insert(n)
-            NoteSimpleIDAssigner.assignIfMissing(n, in: modelContext)
-            note = n
+            // No embedded ID — match by title+space to avoid creating duplicates when
+            // rebuildLibraryFromVault re-scans files that were already imported.
+            let fd2 = FetchDescriptor<Note>(predicate: #Predicate { $0.title == title && $0.spaceId == targetSpaceId })
+            if let existing = try? modelContext.fetch(fd2).first {
+                note = existing
+                isUpdate = true
+            } else {
+                let n = Note(title: title, body: body, spaceId: targetSpaceId)
+                modelContext.insert(n)
+                NoteSimpleIDAssigner.assignIfMissing(n, in: modelContext)
+                note = n
+            }
         }
 
         note.title = title
@@ -379,9 +387,12 @@ enum HarvousVaultImporter {
         if let ca = doc.createdAt { note.createdAt = ca }
         if let ua = doc.updatedAt { note.updatedAt = ua }
         if !doc.refs.isEmpty {
-            note.detectedRefs = doc.refs
+            // Dedupe imported refs — older vault exports may contain duplicates that would trip
+            // the SwiftUI ForEach `id: \.self` diff in `NoteInspectorView`.
+            var seen = Set<String>()
+            note.detectedRefs = doc.refs.filter { seen.insert($0).inserted }
         } else {
-            note.detectedRefs = ScriptureDetector.detect(in: body).map(\.displayText)
+            note.detectedRefs = ScriptureDetector.uniqueDisplayRefs(in: body)
         }
         BibleStudyTagSuggester.applyToNote(note, allowPrimaryUpdate: !note.isCollectionUserOverride)
 

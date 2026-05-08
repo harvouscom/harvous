@@ -14,7 +14,9 @@ enum BibleStudyTagSuggester {
     /// - parameter allowPrimaryUpdate: When false, only tags refresh while keeping collection stable.
     static func applyToNote(_ note: Note, allowPrimaryUpdate: Bool = true) {
         let analysis = analyze(title: note.title, body: note.body)
-        note.tags = analysis.tags
+        if note.tags != analysis.tags {
+            note.tags = analysis.tags
+        }
 
         // User-defined and pinned collections are authoritative.
         if note.isCollectionUserOverride || note.isCollectionPinned { return }

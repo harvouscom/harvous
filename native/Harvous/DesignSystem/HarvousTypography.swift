@@ -15,10 +15,22 @@ enum HarvousTypography {
     static let title = HarvousFonts.font(size: 20, weight: 580, design: .rounded)
 
     /// Sidebar list — note title
-    static let noteListTitle = HarvousFonts.font(size: 15, weight: 500, design: .default)
+    static let noteListTitle = HarvousFonts.font(size: {
+        #if os(iOS)
+        return 17
+        #else
+        return 15
+        #endif
+    }(), weight: 500, design: .default)
 
     /// Sidebar list — time + excerpt preview
-    static let noteListPreview = HarvousFonts.font(size: 12, weight: 400, design: .default)
+    static let noteListPreview = HarvousFonts.font(size: {
+        #if os(iOS)
+        return 14
+        #else
+        return 12
+        #endif
+    }(), weight: 400, design: .default)
 
     /// Card stack — note title
     static let noteCardTitle = HarvousFonts.font(size: 16, weight: 600, design: .default)

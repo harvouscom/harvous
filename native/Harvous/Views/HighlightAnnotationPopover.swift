@@ -7,6 +7,7 @@ import SwiftUI
 struct HighlightAnnotationPopover: View {
     let excerptPreview: String
     @Binding var annotationText: String
+    @Binding var titleText: String
     @Binding var selectedAccent: StudyHighlightAccentToken
     var morphNamespace: Namespace.ID
     var morphID: String
@@ -23,6 +24,7 @@ struct HighlightAnnotationPopover: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             inlineNoteRow
+            labelRow
             accentSwatchRow
         }
         .padding(.vertical, 8)
@@ -38,7 +40,11 @@ struct HighlightAnnotationPopover: View {
                 .strokeBorder(Color.primary.opacity(0.08), lineWidth: 0.75)
         )
         .shadow(color: .black.opacity(0.15), radius: 10, y: 4)
-        .onAppear { inputFocused = true }
+        .onAppear {
+            // Defer one run-loop tick so SwiftUI commits the insertion before we set focus,
+            // avoiding "FocusedValue update tried to update multiple times per frame" warnings.
+            DispatchQueue.main.async { inputFocused = true }
+        }
     }
 
     private var inlineNoteRow: some View {
@@ -68,6 +74,24 @@ struct HighlightAnnotationPopover: View {
             #else
             .keyboardShortcut(.defaultAction)
             #endif
+        }
+    }
+
+    private var labelRow: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "tag")
+                .font(.system(size: 11, weight: .regular))
+                .foregroundStyle(Color.secondary.opacity(0.7))
+                .frame(width: 26, alignment: .center)
+
+            TextField("Label (optional)…", text: $titleText)
+                .textFieldStyle(.plain)
+                .font(.system(size: 12))
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity)
+                #if os(iOS)
+                .textInputAutocapitalization(.sentences)
+                #endif
         }
     }
 

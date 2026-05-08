@@ -37,14 +37,6 @@ struct SidebarPanelView: View {
         }
     }
 
-    private struct CollectionRow: Identifiable, Hashable {
-        let collection: String?
-        let count: Int
-        let mostRecent: Date
-        var id: String { collection ?? "__ungrouped__" }
-        var title: String { collection ?? "No collection" }
-    }
-
     @Binding var selectedNote: Note?
     @Binding var splitColumnVisibility: NavigationSplitViewVisibility
     var onCreateNewNote: (() -> Void)?
@@ -71,57 +63,16 @@ struct SidebarPanelView: View {
         return scoped
     }
 
-    private var collectionRows: [CollectionRow] {
-        var buckets: [String?: [Note]] = [:]
-        for note in notesInActiveSpace {
-            let normalized = note.primaryCollection?.trimmingCharacters(in: .whitespacesAndNewlines)
-            let collection = (normalized?.isEmpty == false) ? normalized : nil
-            buckets[collection, default: []].append(note)
-        }
-
-        return buckets.map { key, values in
-            CollectionRow(
-                collection: key,
-                count: values.count,
-                mostRecent: values.map(\.updatedAt).max() ?? .distantPast
-            )
-        }
-        .sorted { lhs, rhs in
-            if lhs.collection == nil { return false }
-            if rhs.collection == nil { return true }
-            return lhs.mostRecent > rhs.mostRecent
-        }
+    private var collectionRows: [HarvousCollectionRow] {
+        HarvousCollectionListIndex.rows(from: notesInActiveSpace)
     }
 
-    private var filteredCollectionRows: [CollectionRow] {
-        let query = collectionSearchText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !query.isEmpty else { return collectionRows }
-        return collectionRows
-            .compactMap { row -> (CollectionRow, Int)? in
-                let normalized = row.collection?.trimmingCharacters(in: .whitespacesAndNewlines)
-                let bucketNotes = notes.filter { note in
-                    let candidate = note.primaryCollection?.trimmingCharacters(in: .whitespacesAndNewlines)
-                    let normalizedCandidate = (candidate?.isEmpty == false) ? candidate : nil
-                    return normalizedCandidate == normalized
-                }
-
-                var score = 0
-                if row.title.localizedCaseInsensitiveContains(query) { score += 6 }
-                if row.title.lowercased().hasPrefix(query.lowercased()) { score += 3 }
-
-                if bucketNotes.contains(where: { $0.title.localizedCaseInsensitiveContains(query) }) { score += 2 }
-                if bucketNotes.contains(where: { $0.body.localizedCaseInsensitiveContains(query) }) { score += 1 }
-                if bucketNotes.contains(where: { $0.tags.contains(where: { $0.localizedCaseInsensitiveContains(query) }) }) { score += 1 }
-                if bucketNotes.contains(where: { $0.detectedRefs.contains(where: { $0.localizedCaseInsensitiveContains(query) }) }) { score += 1 }
-
-                guard score > 0 else { return nil }
-                return (row, score)
-            }
-            .sorted { lhs, rhs in
-                if lhs.1 != rhs.1 { return lhs.1 > rhs.1 }
-                return lhs.0.mostRecent > rhs.0.mostRecent
-            }
-            .map(\.0)
+    private var filteredCollectionRows: [HarvousCollectionRow] {
+        HarvousCollectionListIndex.filtered(
+            rows: collectionRows,
+            query: collectionSearchText,
+            notesForBucketMatching: notes
+        )
     }
 
     private var showSidebarToolbarChrome: Bool {
@@ -261,6 +212,7 @@ struct SidebarPanelView: View {
         Text("Editor")
     }
     .environmentObject(SpaceStore())
+    .environmentObject(MacNoteListSelectionCoordinator())
     .modelContainer(for: [Note.self, Space.self, SpaceMember.self, SpaceInvite.self, SpaceJoinLink.self], inMemory: true)
     .frame(width: 700, height: 500)
 }

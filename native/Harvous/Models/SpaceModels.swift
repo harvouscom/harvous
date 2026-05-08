@@ -49,6 +49,8 @@ final class Space {
     var isArchived: Bool
     /// `HarvousColors.ThemeVariant.rawValue` — accent for scripture pills and related chrome in this space.
     var scriptureThemeRaw: String = "blue"
+    /// Per-space daily study passage (e.g. "John 3:16"). `nil` means not set.
+    var dailyPassageRef: String? = nil
     /// Server UUID when syncing (v2). Always `nil` in v1.
     var cloudId: UUID?
     /// Tracks rows pending upload in v2. Unused locally in v1.

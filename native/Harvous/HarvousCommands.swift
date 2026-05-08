@@ -55,6 +55,31 @@ struct RemoveActiveStudyHighlightActionKey: FocusedValueKey {
     typealias Value = () -> Void
 }
 
+struct NextNoteActionKey: FocusedValueKey {
+    typealias Value = () -> Void
+}
+
+struct PreviousNoteActionKey: FocusedValueKey {
+    typealias Value = () -> Void
+}
+
+struct TogglePinSelectedNoteActionKey: FocusedValueKey {
+    typealias Value = () -> Void
+}
+
+struct PinSelectedNoteStateKey: FocusedValueKey {
+    typealias Value = Bool
+}
+
+struct CollectionContextUpdatingKey: FocusedValueKey {
+    typealias Value = Bool
+}
+
+/// Toolbar collection label visibility animation — mirrored from `NoteEditorView` to the window toolbar chip on macOS.
+struct ShowCollectionToolbarTextKey: FocusedValueKey {
+    typealias Value = Bool
+}
+
 extension FocusedValues {
     var newNoteAction: (() -> Void)? {
         get { self[NewNoteActionKey.self] }
@@ -120,11 +145,51 @@ extension FocusedValues {
         get { self[RemoveActiveStudyHighlightActionKey.self] }
         set { self[RemoveActiveStudyHighlightActionKey.self] = newValue }
     }
+
+    var nextNoteAction: (() -> Void)? {
+        get { self[NextNoteActionKey.self] }
+        set { self[NextNoteActionKey.self] = newValue }
+    }
+
+    var previousNoteAction: (() -> Void)? {
+        get { self[PreviousNoteActionKey.self] }
+        set { self[PreviousNoteActionKey.self] = newValue }
+    }
+
+    var togglePinSelectedNoteAction: (() -> Void)? {
+        get { self[TogglePinSelectedNoteActionKey.self] }
+        set { self[TogglePinSelectedNoteActionKey.self] = newValue }
+    }
+
+    var pinSelectedNoteState: Bool? {
+        get { self[PinSelectedNoteStateKey.self] }
+        set { self[PinSelectedNoteStateKey.self] = newValue }
+    }
+
+    var collectionContextUpdating: Bool? {
+        get { self[CollectionContextUpdatingKey.self] }
+        set { self[CollectionContextUpdatingKey.self] = newValue }
+    }
+
+    var showCollectionToolbarText: Bool? {
+        get { self[ShowCollectionToolbarTextKey.self] }
+        set { self[ShowCollectionToolbarTextKey.self] = newValue }
+    }
 }
 
 // MARK: - App-level menu commands
 
 struct HarvousCommands: Commands {
+#if os(macOS)
+    @ObservedObject private var macNoteListCoordinator: MacNoteListSelectionCoordinator
+
+    init(macNoteListCoordinator: MacNoteListSelectionCoordinator) {
+        _macNoteListCoordinator = ObservedObject(wrappedValue: macNoteListCoordinator)
+    }
+#else
+    init() {}
+#endif
+
     @FocusedValue(\.newNoteAction) private var newNoteAction
     @FocusedValue(\.showSearchAction) private var showSearchAction
     @FocusedValue(\.dailyNoteAction) private var dailyNoteAction
@@ -141,6 +206,8 @@ struct HarvousCommands: Commands {
     @FocusedValue(\.previousStudyHighlightAction) private var previousStudyHighlightAction
     @FocusedValue(\.toggleStudyHighlightDockExpandedAction) private var toggleStudyHighlightDockExpandedAction
     @FocusedValue(\.removeActiveStudyHighlightAction) private var removeActiveStudyHighlightAction
+    @FocusedValue(\.nextNoteAction) private var nextNoteAction
+    @FocusedValue(\.previousNoteAction) private var previousNoteAction
 
     var body: some Commands {
         // macOS: `WindowGroup` registers "New Window" with ⌘N under `.newItem`. Adding our items *after*
@@ -266,6 +333,14 @@ struct HarvousCommands: Commands {
             Button("Toggle Note Details") { toggleInspectorAction?() }
                 .keyboardShortcut("i", modifiers: [.command, .option])
                 .disabled(toggleInspectorAction == nil)
+
+            Button("Next Note") { nextNoteAction?() }
+                .keyboardShortcut(.downArrow, modifiers: [.control, .command])
+                .disabled(!macNoteListCoordinator.isListNavigationHandlerRegistered || nextNoteAction == nil)
+
+            Button("Previous Note") { previousNoteAction?() }
+                .keyboardShortcut(.upArrow, modifiers: [.control, .command])
+                .disabled(!macNoteListCoordinator.isListNavigationHandlerRegistered || previousNoteAction == nil)
 
             Divider()
 

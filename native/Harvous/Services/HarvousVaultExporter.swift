@@ -29,6 +29,8 @@ struct HarvousVaultStudyThreadDTO: Codable {
     var anchorLength: Int?
     var anchorTextSnapshot: String?
     var scriptureReference: String?
+    var scripturePassageTranslation: String?
+    var scripturePassageExcerpt: String?
     var highlightAccentRaw: String
 
     init(from thread: StudyThread) {
@@ -51,6 +53,8 @@ struct HarvousVaultStudyThreadDTO: Codable {
         self.anchorLength = thread.anchorLength
         self.anchorTextSnapshot = thread.anchorTextSnapshot
         self.scriptureReference = thread.scriptureReference
+        self.scripturePassageTranslation = thread.scripturePassageTranslation
+        self.scripturePassageExcerpt = thread.scripturePassageExcerpt
         self.highlightAccentRaw = thread.highlightAccentRaw
     }
 
@@ -75,6 +79,8 @@ struct HarvousVaultStudyThreadDTO: Codable {
             anchorLength: anchorLength,
             anchorTextSnapshot: anchorTextSnapshot,
             scriptureReference: scriptureReference,
+            scripturePassageTranslation: scripturePassageTranslation,
+            scripturePassageExcerpt: scripturePassageExcerpt,
             highlightAccentRaw: highlightAccentRaw,
             parentNote: parent
         )
