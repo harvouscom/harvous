@@ -273,24 +273,14 @@ struct SidebarPanelView: View {
         let openBucket = Button {
             collectionsDrill = .bucket(row.collection)
         } label: {
-            HStack(spacing: 10) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(row.title)
-                        .font(HarvousTypography.noteListTitle)
-                        .lineLimit(1)
-                        .foregroundStyle(.primary)
-                    Text("\(row.count) note\(row.count == 1 ? "" : "s")")
-                        .font(HarvousTypography.noteListPreview)
-                        .foregroundStyle(.secondary)
-                }
-                Spacer(minLength: 0)
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(.tertiary)
-            }
-            .padding(.vertical, 8)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .contentShape(Rectangle())
+            CollectionFeedRow(
+                title: row.title,
+                noteCount: row.count,
+                isPinned: pinned,
+                variant: .sidebarCompact
+            )
+            .padding(.horizontal, 10)
+            .padding(.vertical, 2)
         }
         .buttonStyle(.plain)
 
@@ -369,6 +359,9 @@ struct SidebarPanelView: View {
                 List {
                     ForEach(orderedFilteredCollectionRows) { row in
                         collectionRootListRow(row)
+                            .listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 4, trailing: 0))
+                            .listRowBackground(Color.clear)
+                            .listRowSeparator(.hidden)
                     }
                 }
                 .listStyle(.plain)

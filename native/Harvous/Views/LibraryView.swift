@@ -254,24 +254,12 @@ struct LibraryView: View {
         let openBucket = Button {
             collectionsDrill = .bucket(row.collection)
         } label: {
-            HStack(spacing: 10) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(row.title)
-                        .font(HarvousTypography.noteListTitle)
-                        .lineLimit(1)
-                        .foregroundStyle(.primary)
-                    Text("\(row.count) note\(row.count == 1 ? "" : "s")")
-                        .font(HarvousTypography.noteListPreview)
-                        .foregroundStyle(.secondary)
-                }
-                Spacer(minLength: 0)
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(.tertiary)
-            }
-            .padding(.vertical, 8)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .contentShape(Rectangle())
+            CollectionFeedRow(
+                title: row.title,
+                noteCount: row.count,
+                isPinned: pinned,
+                variant: .conversation
+            )
         }
         .buttonStyle(.plain)
 
@@ -362,9 +350,9 @@ struct LibraryView: View {
         .scrollContentBackground(.hidden)
     }
 
-    /// Match `IOSHubConversationNoteListLayout.rowInsets` in `NoteListColumn` so hubs align visually.
+    /// Match hub note row insets in `NoteListColumn` (conversation rows use leading/trailing 14).
     private enum IOSCollectionsListLayout {
-        static let rowInsets = EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16)
+        static let rowInsets = EdgeInsets(top: 4, leading: 14, bottom: 4, trailing: 14)
     }
 
     private var emptyState: some View {
