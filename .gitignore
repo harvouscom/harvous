@@ -26,6 +26,7 @@ pnpm-debug.log*
 native/.harvous_mac_derived_data/
 native/Harvous/build/
 native/Harvous/*.dmg
+native/Harvous/null.o
 
 # jetbrains setting folder
 .idea/

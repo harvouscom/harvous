@@ -2,6 +2,8 @@ import SwiftUI
 import SwiftData
 #if os(iOS)
 import UIKit
+#elseif os(macOS)
+import AppKit
 #endif
 
 /// Debounces SwiftData writes without touching `@State`, so typing does not rebuild `HarvousEditor` every keystroke.
@@ -30,6 +32,7 @@ private final class EditorAutosaveDebouncer {
         note: Note,
         context: ModelContext,
         allowPrimaryCollectionUpdate: Bool = true,
+        existingCollections: [String] = [],
         onSettled: @escaping @MainActor (_ token: UInt64) -> Void = { _ in }
     ) -> UInt64 {
         task?.cancel()
@@ -47,7 +50,7 @@ private final class EditorAutosaveDebouncer {
             note.body = self.latestBody
             note.detectedRefs = self.latestRefs
             note.updatedAt = Date()
-            BibleStudyTagSuggester.applyToNote(note, allowPrimaryUpdate: allowPrimaryCollectionUpdate)
+            BibleStudyTagSuggester.applyToNote(note, allowPrimaryUpdate: allowPrimaryCollectionUpdate, existingCollections: existingCollections)
             try? context.saveWithLogging()
             NoteSnapshotter.shared.noteDidAutosave(
                 noteID: note.id,
@@ -258,7 +261,8 @@ struct NoteEditorView: View {
             proxy.resetMacBodyLayoutHeightForNoteTransition(noteID: newId)
 #endif
             if let oldId {
-                flushPendingEdits(forNoteId: oldId, title: snapshotTitle, body: snapshotBody, refs: snapshotRefs)
+                let mergedRefs = ScriptureDetector.mergedDetectedRefs(title: snapshotTitle, bodyRefs: snapshotRefs)
+                flushPendingEdits(forNoteId: oldId, title: snapshotTitle, body: snapshotBody, refs: mergedRefs)
             }
             syncFromNote()
             #if os(iOS)
@@ -650,6 +654,8 @@ struct NoteEditorView: View {
                                 scheduleAutosave(note)
                             }
 
+                        titleScripturePillsRow(note: note)
+
                         // Body — same horizontal inset as title (TextKit defaults add extra leading; zeroed in HarvousEditor)
                         #if os(macOS)
                         HarvousEditor(
@@ -661,6 +667,7 @@ struct NoteEditorView: View {
                             font: HarvousFonts.system(size: 16, weight: 400, design: .default),
                             scriptureTheme: scriptureTheme,
                             studyHighlightPaints: studyHighlightPaints,
+                            studyHighlightFocusedThreadId: dockPinnedHighlightThreadId ?? previewHighlightThreadId,
                             studyHighlightsAssumeDarkAppearance: colorScheme == .dark,
                             onScripturePillTap: { scripturePillTapped(reference: $0, translation: $1, range: $2) },
                             onResolvedScripturePillPairs: { scheduleScripturePassagePrefetch(pairs: $0) },
@@ -692,6 +699,7 @@ struct NoteEditorView: View {
                             onResolvedScripturePillPairs: { scheduleScripturePassagePrefetch(pairs: $0) },
                             onStudyHighlightTap: { userActivatedStudyHighlight(threadId: $0) },
                             studyHighlightPaints: studyHighlightPaints,
+                            studyHighlightFocusedThreadId: dockPinnedHighlightThreadId ?? previewHighlightThreadId,
                             studyHighlightsAssumeDarkAppearance: colorScheme == .dark,
                             pillAccentResolver: { [note] reference in
                                 guard let raw = note.scripturePillAccentRaw(forReference: reference) else { return nil }
@@ -1241,6 +1249,50 @@ struct NoteEditorView: View {
 #endif
 
     @ViewBuilder
+    private func titleScripturePillsRow(note: Note) -> some View {
+        let matches = ScriptureDetector.detect(in: title)
+        if matches.isEmpty {
+            EmptyView()
+        } else {
+            FlowLayout(spacing: 8) {
+                ForEach(Array(matches.enumerated()), id: \.offset) { _, match in
+                    let accent = titleScripturePillAccent(forReference: match.displayText, note: note)
+                    Button {
+                        titleScripturePillTapped(note: note, match: match)
+                    } label: {
+                        Group {
+                            #if os(macOS)
+                            Image(nsImage: ScripturePillAttachment.renderPill(
+                                reference: match.displayText,
+                                translation: ScriptureReference.defaultTranslation,
+                                accent: accent
+                            ))
+                            #else
+                            Image(uiImage: ScripturePillAttachment.renderPill(
+                                reference: match.displayText,
+                                translation: ScriptureReference.defaultTranslation,
+                                accent: accent
+                            ))
+                            #endif
+                        }
+                        .fixedSize()
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(match.displayText)
+                }
+            }
+            .padding(.horizontal, 20)
+            .padding(.bottom, 10)
+        }
+    }
+
+    private func titleScripturePillAccent(forReference reference: String, note: Note) -> StudyHighlightAccentToken? {
+        guard let raw = note.scripturePillAccentRaw(forReference: reference) else { return nil }
+        guard let token = StudyHighlightAccentToken(rawValue: raw), token != .auto else { return nil }
+        return token
+    }
+
+    @ViewBuilder
     private func inspectorContent(note: Note) -> some View {
         #if os(macOS)
         NoteInspectorView(note: note)
@@ -1268,9 +1320,35 @@ struct NoteEditorView: View {
         activeHighlightDockExpanded = false
         previewHighlightThreadId = nil
 
-        activePillDock = ActiveScripturePillDockItem(reference: reference, translation: translation, range: range)
+        activePillDock = ActiveScripturePillDockItem(
+            reference: reference,
+            translation: translation,
+            anchor: .body(range)
+        )
         activePillDockExpanded = true
         refreshScripturePassageHighlights(item: activePillDock)
+        #if os(iOS)
+        UIImpactFeedbackGenerator(style: .soft).impactOccurred()
+        #endif
+    }
+
+    private func titleScripturePillTapped(note: Note, match: ScriptureDetector.Match) {
+        dockPinnedHighlightThreadId = nil
+        activeHighlightDockExpanded = false
+        previewHighlightThreadId = nil
+        titleFocused = false
+        DispatchQueue.main.async {
+            self.proxy.clearActiveScripturePill()
+        }
+        let translation = ScriptureReference.defaultTranslation
+        activePillDock = ActiveScripturePillDockItem(
+            reference: match.displayText,
+            translation: translation,
+            anchor: .title(refUTF16Range: match.range)
+        )
+        activePillDockExpanded = true
+        refreshScripturePassageHighlights(item: activePillDock)
+        scheduleScripturePassagePrefetch(pairs: [(match.displayText, translation)])
         #if os(iOS)
         UIImpactFeedbackGenerator(style: .soft).impactOccurred()
         #endif
@@ -1280,12 +1358,16 @@ struct NoteEditorView: View {
     /// open or retarget the inline dock — otherwise `activeScripturePill != nil` with a stale/missing dock shows the legacy bottom bar.
     private func syncInlineScriptureDockFromProxyPill(_ pill: ActiveScripturePill?) {
         guard let pill else { return }
+        if let dock = activePillDock {
+            if case .title = dock.anchor { return }
+        }
         guard let (_, storage) = proxy.textViewPair() else { return }
         guard pill.attachmentRange.location != NSNotFound,
               NSMaxRange(pill.attachmentRange) <= storage.length
         else { return }
         if let dock = activePillDock,
-           dock.range == pill.attachmentRange,
+           case .body(let bodyRange) = dock.anchor,
+           bodyRange == pill.attachmentRange,
            dock.reference == pill.reference,
            dock.translation == pill.translation {
             return
@@ -1296,7 +1378,7 @@ struct NoteEditorView: View {
         activePillDock = ActiveScripturePillDockItem(
             reference: pill.reference,
             translation: pill.translation,
-            range: pill.attachmentRange
+            anchor: .body(pill.attachmentRange)
         )
         activePillDockExpanded = true
         refreshScripturePassageHighlights(item: activePillDock)
@@ -1454,17 +1536,19 @@ struct NoteEditorView: View {
     private func applyScripturePillTranslationChange(from item: ActiveScripturePillDockItem,
                                                       newTranslation: String,
                                                       note: Note) {
-        // `EditorProxy.replaceActiveScripturePill` wants an `activeScripturePill` set first.
-        proxy.activeScripturePill = ActiveScripturePill(
-            attachmentRange: item.range,
-            reference: item.reference,
-            translation: item.translation
-        )
-        proxy.replaceActiveScripturePill(reference: item.reference, translation: newTranslation, theme: scriptureTheme)
-        // After replacement the caret sits on the pill — clear `activeScripturePill` so the selection-
-        // driven bottom bar doesn't appear on top of the inline dock.
-        proxy.activeScripturePill = nil
-        requestScripturePillRedetect()
+        switch item.anchor {
+        case .body(let range):
+            proxy.activeScripturePill = ActiveScripturePill(
+                attachmentRange: range,
+                reference: item.reference,
+                translation: item.translation
+            )
+            proxy.replaceActiveScripturePill(reference: item.reference, translation: newTranslation, theme: scriptureTheme)
+            proxy.activeScripturePill = nil
+            requestScripturePillRedetect()
+        case .title:
+            break
+        }
     }
 
     /// Rewrite the inline pill attachment with a new reference (user picked different Book/Chapter/Verse
@@ -1481,23 +1565,62 @@ struct NoteEditorView: View {
             try? context.saveWithLogging()
         }
 
-        proxy.activeScripturePill = ActiveScripturePill(
-            attachmentRange: current.range,
-            reference: current.reference,
-            translation: current.translation
-        )
-        proxy.replaceActiveScripturePill(reference: newReference, translation: current.translation, theme: scriptureTheme)
-        proxy.activeScripturePill = nil
+        switch current.anchor {
+        case .title(let refRange):
+            let nsTitle = title as NSString
+            guard NSMaxRange(refRange) <= nsTitle.length else { return }
+            title = nsTitle.replacingCharacters(in: refRange, with: newReference)
+            let newLen = (newReference as NSString).length
+            activePillDock = ActiveScripturePillDockItem(
+                reference: newReference,
+                translation: current.translation,
+                anchor: .title(refUTF16Range: NSRange(location: refRange.location, length: newLen))
+            )
+            ScriptureApplyFeedback.notifyScripturePillApplied()
+            scheduleAutosave(note)
+        case .body(let range):
+            proxy.activeScripturePill = ActiveScripturePill(
+                attachmentRange: range,
+                reference: current.reference,
+                translation: current.translation
+            )
+            proxy.replaceActiveScripturePill(reference: newReference, translation: current.translation, theme: scriptureTheme)
+            proxy.activeScripturePill = nil
+            let titleBefore = title
+            replaceTitlePassagesMatchingReference(current.reference, with: newReference)
+            activePillDock = ActiveScripturePillDockItem(
+                reference: newReference,
+                translation: current.translation,
+                anchor: .body(range)
+            )
+            ScriptureApplyFeedback.notifyScripturePillApplied()
+            requestScripturePillRedetect()
+            if title != titleBefore {
+                scheduleAutosave(note)
+            }
+        }
+    }
 
-        // Pin the dock to the new reference. Range may shift slightly because the pill's character
-        // is still 1 `NSAttachment` wide, but we keep the old location as the best available anchor.
-        activePillDock = ActiveScripturePillDockItem(
-            reference: newReference,
-            translation: current.translation,
-            range: current.range
-        )
-        ScriptureApplyFeedback.notifyScripturePillApplied()
-        requestScripturePillRedetect()
+    /// When Book/Chapter/Verse changes on a **body** pill, mirror the same passage edit into the title if it matched.
+    private func replaceTitlePassagesMatchingReference(_ oldReference: String, with newReference: String) {
+        guard oldReference != newReference else { return }
+        let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmedTitle.caseInsensitiveCompare(oldReference) == .orderedSame {
+            title = newReference
+            return
+        }
+        guard let oldParsed = ScriptureReferenceParser.parse(oldReference) else { return }
+        var working = title
+        while true {
+            let matches = ScriptureDetector.detect(in: working)
+            guard let m = matches.first(where: {
+                guard let p = ScriptureReferenceParser.parse($0.displayText) else { return false }
+                return p == oldParsed
+            }) else { break }
+            let ns = working as NSString
+            working = ns.replacingCharacters(in: m.range, with: newReference)
+        }
+        title = working
     }
 
     /// Nudge `HarvousEditor` to re-insert pills so accent/translation changes repaint.
@@ -1523,7 +1646,8 @@ struct NoteEditorView: View {
             previousBody: note.body,
             nextBody: nextBody
         )
-        autosave.updateSnapshot(title: nextTitle, body: nextBody, refs: editorState.detectedRefs)
+        let mergedRefs = ScriptureDetector.mergedDetectedRefs(title: nextTitle, bodyRefs: editorState.detectedRefs)
+        autosave.updateSnapshot(title: nextTitle, body: nextBody, refs: mergedRefs)
         withAnimation(.easeOut(duration: 0.18)) {
             isCollectionContextUpdating = shouldAnimateCollectionContextFeedback && allowPrimaryUpdate
         }
@@ -1533,7 +1657,8 @@ struct NoteEditorView: View {
         let token = autosave.schedule(
             note: note,
             context: context,
-            allowPrimaryCollectionUpdate: allowPrimaryUpdate
+            allowPrimaryCollectionUpdate: allowPrimaryUpdate,
+            existingCollections: existingCollectionNames(excluding: note)
         ) { settledToken in
             guard settledToken == latestAutosaveToken else { return }
             withAnimation(.easeOut(duration: 0.18)) {
@@ -1546,7 +1671,7 @@ struct NoteEditorView: View {
     /// Writes the in-memory title/editor fields into a note row and commits the store.
     private func persistEditorIntoNote(_ n: Note) {
         let body = editorState.plainText
-        let refs = editorState.detectedRefs
+        let refs = ScriptureDetector.mergedDetectedRefs(title: title, bodyRefs: editorState.detectedRefs)
         guard n.title != title || n.body != body || n.detectedRefs != refs else {
             autosave.updateSnapshot(title: title, body: body, refs: refs)
             withAnimation(.easeOut(duration: 0.18)) {
@@ -1567,7 +1692,8 @@ struct NoteEditorView: View {
                 nextTitle: title,
                 previousBody: previousBody,
                 nextBody: body
-            )
+            ),
+            existingCollections: existingCollectionNames(excluding: n)
         )
         try? context.saveWithLogging()
         HarvousNoteSpotlightIndexer.reindex(note: n)
@@ -1604,7 +1730,8 @@ struct NoteEditorView: View {
                 nextTitle: title,
                 previousBody: previousBody,
                 nextBody: body
-            )
+            ),
+            existingCollections: existingCollectionNames(excluding: previous)
         )
         try? context.saveWithLogging()
         HarvousNoteSpotlightIndexer.reindex(note: previous)
@@ -1615,14 +1742,34 @@ struct NoteEditorView: View {
         }
     }
 
+    /// Returns all distinct primaryCollection values in the current model context, excluding the given note's
+    /// own collection. Used to ground auto-collection suggestions in collections the user has already established.
+    private func existingCollectionNames(excluding note: Note) -> [String] {
+        let descriptor = FetchDescriptor<Note>(predicate: #Predicate { $0.primaryCollection != nil })
+        guard let notes = try? context.fetch(descriptor) else { return [] }
+        let ownCollection = note.primaryCollection?.trimmingCharacters(in: .whitespacesAndNewlines)
+        var seen = Set<String>()
+        for n in notes {
+            guard let col = n.primaryCollection?.trimmingCharacters(in: .whitespacesAndNewlines), !col.isEmpty else { continue }
+            if col == ownCollection { continue }
+            seen.insert(col)
+        }
+        return Array(seen)
+    }
+
     // MARK: - Sync
 
     private func syncFromNote() {
         if let note {
             title = note.title
-            editorState = EditorState(plainText: note.body, detectedRefs: note.detectedRefs)
+            let bodyRefs = ScriptureDetector.uniqueDisplayRefs(in: note.body)
+            editorState = EditorState(plainText: note.body, detectedRefs: bodyRefs)
             // Tag refresh moved to `refreshThreads` (deferred 50 ms via `scheduleRefreshThreads`) — see note there.
-            autosave.updateSnapshot(title: title, body: editorState.plainText, refs: editorState.detectedRefs)
+            autosave.updateSnapshot(
+                title: title,
+                body: editorState.plainText,
+                refs: ScriptureDetector.mergedDetectedRefs(title: title, bodyRefs: bodyRefs)
+            )
             isCollectionContextUpdating = false
             showCollectionToolbarText = currentCollectionLabel != nil
         } else {
@@ -1788,14 +1935,26 @@ private struct HighlightCaptureSession: Identifiable {
 
 /// Inline scripture-pill dock context: identifies the tapped pill and the translation currently shown.
 struct ActiveScripturePillDockItem: Identifiable, Equatable {
+    enum Anchor: Equatable {
+        case body(NSRange)
+        case title(refUTF16Range: NSRange)
+    }
+
     let reference: String
     var translation: String
-    let range: NSRange
+    let anchor: Anchor
 
-    var id: String { "\(reference)|\(range.location)|\(range.length)" }
+    var id: String {
+        switch anchor {
+        case .body(let r):
+            return "b|\(reference)|\(r.location)|\(r.length)|\(translation)"
+        case .title(let r):
+            return "t|\(reference)|\(r.location)|\(r.length)|\(translation)"
+        }
+    }
 
     static func == (lhs: ActiveScripturePillDockItem, rhs: ActiveScripturePillDockItem) -> Bool {
-        lhs.reference == rhs.reference && lhs.translation == rhs.translation && lhs.range == rhs.range
+        lhs.reference == rhs.reference && lhs.translation == rhs.translation && lhs.anchor == rhs.anchor
     }
 }
 

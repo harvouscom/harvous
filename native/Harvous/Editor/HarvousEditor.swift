@@ -812,6 +812,8 @@ struct HarvousEditor: NSViewRepresentable {
     var scriptureTheme: HarvousColors.ThemeVariant = .blue
     /// Inline study highlights keyed to expanded-plain UTF‑16 anchors (applied after scripture pills hydrate).
     var studyHighlightPaints: [StudyHighlightPaint] = []
+    /// When non-nil, only this thread keeps full accent underlines; others paint grayscale (highlight dock focus).
+    var studyHighlightFocusedThreadId: UUID? = nil
     /// When true, pastel highlight paints use the dark-appearance palette (`NSColor`/UIColor alpha tuned).
     var studyHighlightsAssumeDarkAppearance: Bool = false
     var onScripturePillTap: ((String, String, NSRange) -> Void)? = nil
@@ -913,6 +915,7 @@ struct HarvousEditor: NSViewRepresentable {
         context.coordinator.scriptureTheme = scriptureTheme
         let themeChanged = previousTheme != scriptureTheme
         context.coordinator.studyHighlightPaints = studyHighlightPaints
+        context.coordinator.studyHighlightFocusedThreadId = studyHighlightFocusedThreadId
         context.coordinator.studyHighlightsAssumeDarkAppearance = studyHighlightsAssumeDarkAppearance
         context.coordinator.pillAccentResolver = pillAccentResolver
         context.coordinator.onResolvedScripturePillPairs = onResolvedScripturePillPairs
@@ -1065,6 +1068,7 @@ struct HarvousEditor: NSViewRepresentable {
         var isEditing = false
         var scriptureTheme: HarvousColors.ThemeVariant = .blue
         var studyHighlightPaints: [StudyHighlightPaint] = []
+        var studyHighlightFocusedThreadId: UUID?
         /// Resolver for per-note pill accents (see `HarvousEditor.pillAccentResolver`). Updated on every `updateNSView`.
         var pillAccentResolver: ((String) -> StudyHighlightAccentToken?)?
         /// After pill detection settles — parent may prefetch scripture HTML.
@@ -1474,7 +1478,8 @@ struct HarvousEditor: NSViewRepresentable {
             HarvousStudyHighlightMapper.applyHighlights(
                 storage: storage,
                 anchors: anchors,
-                isDark: studyHighlightsAssumeDarkAppearance
+                isDark: studyHighlightsAssumeDarkAppearance,
+                focusedThreadId: studyHighlightFocusedThreadId
             )
         }
 
@@ -1671,6 +1676,7 @@ struct HarvousEditor: UIViewRepresentable {
     var onResolvedScripturePillPairs: (([(reference: String, translation: String)]) -> Void)? = nil
     var onStudyHighlightTap: ((UUID) -> Void)? = nil
     var studyHighlightPaints: [StudyHighlightPaint] = []
+    var studyHighlightFocusedThreadId: UUID? = nil
     var studyHighlightsAssumeDarkAppearance: Bool = false
     /// Resolves the user-picked scripture pill accent for a given reference (persisted on the owning Note).
     var pillAccentResolver: ((String) -> StudyHighlightAccentToken?)? = nil
@@ -1757,6 +1763,7 @@ struct HarvousEditor: UIViewRepresentable {
         context.coordinator.scriptureTheme = scriptureTheme
         let themeChanged = previousTheme != scriptureTheme
         context.coordinator.studyHighlightPaints = studyHighlightPaints
+        context.coordinator.studyHighlightFocusedThreadId = studyHighlightFocusedThreadId
         context.coordinator.studyHighlightsAssumeDarkAppearance = studyHighlightsAssumeDarkAppearance
 
         context.coordinator.placeholderText = placeholder
@@ -1850,6 +1857,7 @@ struct HarvousEditor: UIViewRepresentable {
         var isEditing = false
         var scriptureTheme: HarvousColors.ThemeVariant = .blue
         var studyHighlightPaints: [StudyHighlightPaint] = []
+        var studyHighlightFocusedThreadId: UUID?
         var studyHighlightsAssumeDarkAppearance: Bool = false
         var placeholderText: String = "What are you studying?"
         var onScripturePillTap: ((String, String, NSRange) -> Void)?
@@ -2007,26 +2015,32 @@ struct HarvousEditor: UIViewRepresentable {
             #endif
         }
 
-        /// View-local tap point vs rendered pill bounds (`firstRect` is in screen coords; convert like other editor rects).
+        private static func firstRectInTextView(forUTF16Range range: NSRange, textView tv: UITextView) -> CGRect {
+            guard range.location != NSNotFound,
+                  NSMaxRange(range) <= tv.textStorage.length,
+                  let dStart = tv.position(from: tv.beginningOfDocument, offset: range.location),
+                  let dEnd = tv.position(from: tv.beginningOfDocument, offset: NSMaxRange(range)),
+                  let tr = tv.textRange(from: dStart, to: dEnd)
+            else { return .null }
+            return tv.firstRect(for: tr)
+        }
+
+        /// View-local tap point vs rendered pill bounds (`UITextView.firstRect` is expressed in the text view).
         private static func scripturePillAtViewPoint(_ point: CGPoint, textView tv: UITextView, storage: NSTextStorage) -> (ScripturePillAttachment, NSRange)? {
-            guard let win = tv.window else { return nil }
             let end = storage.length
             var idx = 0
             while idx < end {
                 var eff = NSRange()
                 let val = storage.attribute(.attachment, at: idx, effectiveRange: &eff)
                 if let pill = val as? ScripturePillAttachment {
-                    var actual = NSRange()
-                    let screenRect = tv.firstRect(forCharacterRange: eff, actualRange: &actual)
-                    guard !screenRect.isEmpty, !screenRect.isNull else {
+                    let rectInView = Self.firstRectInTextView(forUTF16Range: eff, textView: tv)
+                    guard !rectInView.isEmpty, !rectInView.isNull else {
                         let next = NSMaxRange(eff)
                         if next <= idx { break }
                         idx = next
                         continue
                     }
-                    let windowRect = win.convertFromScreen(screenRect)
-                    let viewRect = tv.convert(windowRect, from: nil)
-                    if viewRect.contains(point) { return (pill, eff) }
+                    if rectInView.contains(point) { return (pill, eff) }
                 }
                 let next = NSMaxRange(eff)
                 if next <= idx { break }
@@ -2036,17 +2050,14 @@ struct HarvousEditor: UIViewRepresentable {
         }
 
         private func studyHighlightUUIDAtViewPoint(_ point: CGPoint, textView tv: UITextView, storage: NSTextStorage) -> UUID? {
-            guard let win = tv.window, storage.length > 0 else { return nil }
+            guard storage.length > 0 else { return nil }
             for paint in studyHighlightPaints {
                 let storRanges = HarvousStudyHighlightMapper.storageRanges(forExpandedRange: paint.expandedUTF16Range, in: storage)
                 for r in storRanges {
                     guard r.location != NSNotFound, NSMaxRange(r) <= storage.length else { continue }
-                    var actual = NSRange()
-                    let screenRect = tv.firstRect(forCharacterRange: r, actualRange: &actual)
-                    guard !screenRect.isEmpty, !screenRect.isNull else { continue }
-                    let windowRect = win.convertFromScreen(screenRect)
-                    let viewRect = tv.convert(windowRect, from: nil)
-                    let padded = viewRect.insetBy(dx: -2, dy: -3)
+                    let rectInView = Self.firstRectInTextView(forUTF16Range: r, textView: tv)
+                    guard !rectInView.isEmpty, !rectInView.isNull else { continue }
+                    let padded = rectInView.insetBy(dx: -2, dy: -3)
                     if padded.contains(point) { return paint.threadId }
                 }
             }
@@ -2227,7 +2238,12 @@ struct HarvousEditor: UIViewRepresentable {
             let anchors = studyHighlightPaints.map {
                 (id: $0.threadId, kind: $0.entryKind, accent: $0.accent, expandedRange: $0.expandedUTF16Range)
             }
-            HarvousStudyHighlightMapper.applyHighlights(storage: storage, anchors: anchors, isDark: studyHighlightsAssumeDarkAppearance)
+            HarvousStudyHighlightMapper.applyHighlights(
+                storage: storage,
+                anchors: anchors,
+                isDark: studyHighlightsAssumeDarkAppearance,
+                focusedThreadId: studyHighlightFocusedThreadId
+            )
         }
 
         @MainActor

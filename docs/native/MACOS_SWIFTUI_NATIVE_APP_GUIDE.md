@@ -4,6 +4,7 @@ This guide explains how the **Harvous macOS** app is built with **SwiftUI**, whe
 
 **Related docs**
 
+- Swift language and SwiftUI taught through Harvous (reading paths, editing playbook): [HARVOUS_SWIFT_AND_SWIFTUI_LEARNING_GUIDE.md](HARVOUS_SWIFT_AND_SWIFTUI_LEARNING_GUIDE.md)
 - Cross-platform SwiftUI map (macOS + iOS): [SWIFTUI_APP_ARCHITECTURE.md](SWIFTUI_APP_ARCHITECTURE.md)
 - Preferences window chrome (why `Window` vs `Settings`, title bar, toolbars): [MACOS_PREFERENCES_WINDOW_AND_TITLEBAR.md](MACOS_PREFERENCES_WINDOW_AND_TITLEBAR.md)
 - Settings information architecture: [PROFILE_PREFERENCES_IA.md](PROFILE_PREFERENCES_IA.md)

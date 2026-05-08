@@ -5,14 +5,17 @@ import Foundation
 enum BibleStudyTagSuggester {
     // MARK: - Public API
 
-    static func result(title: String, body: String) -> (primaryCollection: String?, tags: [String]) {
+    static func result(title: String, body: String, existingCollections: [String] = []) -> (primaryCollection: String?, tags: [String]) {
         let analysis = analyze(title: title, body: body)
-        return (analysis.primaryCandidate, analysis.tags)
+        let primary = resolveToExistingCollection(analysis.primaryCandidate, from: existingCollections)
+        return (primary, analysis.tags)
     }
 
     /// Recomputes `primaryCollection` and `tags` from the note’s title and body.
     /// - parameter allowPrimaryUpdate: When false, only tags refresh while keeping collection stable.
-    static func applyToNote(_ note: Note, allowPrimaryUpdate: Bool = true) {
+    /// - parameter existingCollections: Names of collections already in the user’s library. When provided,
+    ///   the resolved candidate prefers an established name over a bare keyword (e.g. "Prayer" → "Prayer Life").
+    static func applyToNote(_ note: Note, allowPrimaryUpdate: Bool = true, existingCollections: [String] = []) {
         let analysis = analyze(title: note.title, body: note.body)
         if note.tags != analysis.tags {
             note.tags = analysis.tags
@@ -23,18 +26,25 @@ enum BibleStudyTagSuggester {
         if !allowPrimaryUpdate { return }
 
         let current = normalizedCollectionName(note.primaryCollection)
-        let candidate = normalizedCollectionName(analysis.primaryCandidate)
+        // rawCandidate is the keyword the scoring engine produced (e.g. "Prayer").
+        // candidate is what we'll actually assign — either the raw keyword or a matched
+        // existing collection name (e.g. "Prayer Life"). Score lookups always use rawCandidate
+        // because only it appears in analysis.picked.
+        let rawCandidate = normalizedCollectionName(analysis.primaryCandidate)
+        let resolved = resolveToExistingCollection(analysis.primaryCandidate, from: existingCollections)
+        let candidate = normalizedCollectionName(resolved)
+        let scoringName = rawCandidate ?? candidate
         let now = Date()
 
         // Avoid assigning a volatile collection too early in short drafts unless title signal is strong.
-        if !meetsMinimumContextForAutoCollection(note: note, candidate: candidate, analysis: analysis) {
+        if !meetsMinimumContextForAutoCollection(note: note, candidate: rawCandidate, analysis: analysis) {
             return
         }
 
         guard let current else {
             note.primaryCollection = candidate
-            if let candidate {
-                note.collectionAutoConfidence = primaryScoreForName(candidate, in: analysis)
+            if let scoringName {
+                note.collectionAutoConfidence = primaryScoreForName(scoringName, in: analysis)
                 note.collectionLastAutoUpdatedAt = now
             }
             return
@@ -54,12 +64,12 @@ enum BibleStudyTagSuggester {
             note.primaryCollection = current
             return
         }
-        guard shouldReplacePrimaryCollection(current: current, candidate: candidate, analysis: analysis) else {
+        guard shouldReplacePrimaryCollection(current: current, candidate: scoringName ?? candidate, analysis: analysis) else {
             note.primaryCollection = current
             return
         }
         note.primaryCollection = candidate
-        note.collectionAutoConfidence = primaryScoreForName(candidate, in: analysis)
+        note.collectionAutoConfidence = primaryScoreForName(scoringName ?? candidate, in: analysis)
         note.collectionLastAutoUpdatedAt = now
     }
 
@@ -155,6 +165,42 @@ enum BibleStudyTagSuggester {
         })?.name
 
         return Analysis(picked: picked, tags: tags, primaryCandidate: primary)
+    }
+
+    /// Maps a keyword candidate to an existing collection name when there is a clear, unambiguous match.
+    ///
+    /// Resolution priority (all word-boundary, case-insensitive):
+    ///  1. Exact match → return existing name (normalizes case)
+    ///  2. Existing name starts with candidate words (single match only) → prefer existing ("Prayer" → "Prayer Life")
+    ///  3. Candidate words start with existing name (single match only) → prefer existing ("Kingdom of God" → "Kingdom")
+    ///  4. Multiple matches or no match → return candidate unchanged
+    private static func resolveToExistingCollection(_ candidate: String?, from existing: [String]) -> String? {
+        guard let candidate, !existing.isEmpty else { return candidate }
+
+        // 1. Exact match — normalizes case to the established name.
+        if let exact = existing.first(where: { $0.caseInsensitiveCompare(candidate) == .orderedSame }) {
+            return exact
+        }
+
+        let candidateWords = candidate.lowercased().split(separator: " ").filter { !$0.isEmpty }.map(String.init)
+        guard !candidateWords.isEmpty else { return candidate }
+
+        var forwardMatches: [String] = [] // existing name starts with candidate (existing extends candidate)
+        var reverseMatches: [String] = [] // candidate starts with existing name (existing abbreviates candidate)
+
+        for name in existing {
+            let nameWords = name.lowercased().split(separator: " ").filter { !$0.isEmpty }.map(String.init)
+            guard !nameWords.isEmpty else { continue }
+            if nameWords.count > candidateWords.count, nameWords.starts(with: candidateWords) {
+                forwardMatches.append(name)
+            } else if nameWords.count < candidateWords.count, candidateWords.starts(with: nameWords) {
+                reverseMatches.append(name)
+            }
+        }
+
+        if forwardMatches.count == 1 { return forwardMatches[0] }
+        if reverseMatches.count == 1 { return reverseMatches[0] }
+        return candidate
     }
 
     private static func shouldReplacePrimaryCollection(current: String, candidate: String, analysis: Analysis) -> Bool {

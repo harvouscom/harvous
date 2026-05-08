@@ -771,5 +771,31 @@ app.get('/api/featured/space', async (c) => {
   }
 });
 
+// ─── GET /api/votd/today ─────────────────────────────────────────────────────
+// Public, unauthenticated. Returns today's published VOTD reference and
+// translation keyed to the caller's local calendar date.
+// Response: { reference: string, translation: string } | { reference: null }
+app.get('/api/votd/today', async (c) => {
+  try {
+    const tzHeader = (c.req.query('tz') ?? c.req.header('X-Votd-Timezone') ?? '').trim();
+    const timeZone = isValidIanaTimeZone(tzHeader) ? tzHeader : 'UTC';
+    const localCalendarDate = getLocalCalendarDateString(timeZone, now());
+
+    const row = first(
+      await db
+        .select({ reference: VotdPublishHistory.reference, translation: VotdPublishHistory.translation })
+        .from(VotdPublishHistory)
+        .where(eq(VotdPublishHistory.publishedDate, localCalendarDate))
+        .limit(1),
+    );
+
+    c.res.headers.set('Cache-Control', 'public, max-age=3600, stale-while-revalidate=300');
+    return c.json(row ? { reference: row.reference, translation: row.translation ?? 'NET' } : { reference: null });
+  } catch {
+    c.res.headers.set('Cache-Control', 'public, max-age=60');
+    return c.json({ reference: null });
+  }
+});
+
 export default app;
 

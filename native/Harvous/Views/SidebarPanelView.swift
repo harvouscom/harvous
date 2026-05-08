@@ -37,15 +37,26 @@ struct SidebarPanelView: View {
         }
     }
 
+    private enum CollectionsDrill: Equatable {
+        case root
+        /// `nil` means notes with no primary collection (matches `HarvousCollectionRow.collection`).
+        case bucket(String?)
+    }
+
     @Binding var selectedNote: Note?
     @Binding var splitColumnVisibility: NavigationSplitViewVisibility
     var onCreateNewNote: (() -> Void)?
     @Query(sort: \Note.updatedAt, order: .reverse) private var notes: [Note]
+    @Environment(\.modelContext) private var modelContext
     @EnvironmentObject private var spaceStore: SpaceStore
     @State private var mode: SidebarMode = .notes
-    @State private var activeCollection: String? = nil
+    @State private var collectionsDrill: CollectionsDrill = .root
     @State private var collectionSearchText = ""
     @State private var sidebarColumnMeasuredWidth: CGFloat = 0
+    @State private var pinnedCollectionRowIds: [String] = []
+    @State private var renameTarget: HarvousCollectionRow?
+    @State private var renameDraft: String = ""
+    @State private var removeConfirmRow: HarvousCollectionRow?
 
     private var unifiedSearchText: Binding<String> {
         Binding(
@@ -71,7 +82,14 @@ struct SidebarPanelView: View {
         HarvousCollectionListIndex.filtered(
             rows: collectionRows,
             query: collectionSearchText,
-            notesForBucketMatching: notes
+            notesForBucketMatching: notesInActiveSpace
+        )
+    }
+
+    private var orderedFilteredCollectionRows: [HarvousCollectionRow] {
+        HarvousCollectionListIndex.applyPinOrdering(
+            filteredCollectionRows,
+            pinnedIdsInOrder: pinnedCollectionRowIds
         )
     }
 
@@ -91,10 +109,11 @@ struct SidebarPanelView: View {
                 if mode == .notes {
                     NoteListColumn(filter: .all, selectedNote: $selectedNote, externalSearchText: unifiedSearchText)
                 } else {
-                    if let activeCollection {
-                        NoteListColumn(filter: .collection(activeCollection), selectedNote: $selectedNote, externalSearchText: unifiedSearchText)
-                    } else {
+                    switch collectionsDrill {
+                    case .root:
                         collectionsList
+                    case .bucket(let collectionName):
+                        NoteListColumn(filter: .collection(collectionName), selectedNote: $selectedNote, externalSearchText: unifiedSearchText)
                     }
                 }
             }
@@ -109,9 +128,9 @@ struct SidebarPanelView: View {
                 if showSidebarToolbarChrome {
                     ToolbarItemGroup(placement: .automatic) {
                         SpaceSwitcherView()
-                        if mode == .collections, activeCollection != nil {
+                        if mode == .collections, collectionsDrill != .root {
                             Button {
-                                activeCollection = nil
+                                collectionsDrill = .root
                             } label: {
                                 Image(systemName: "chevron.left")
                             }
@@ -130,13 +149,189 @@ struct SidebarPanelView: View {
             }
             .onChange(of: mode) { _, newMode in
                 if newMode == .notes {
-                    activeCollection = nil
+                    collectionsDrill = .root
                     collectionSearchText = ""
                 }
+            }
+            .onAppear { reloadPinnedCollectionOrder() }
+            .onChange(of: spaceStore.selectedSpaceId) { _, _ in reloadPinnedCollectionOrder() }
+            .sheet(item: $renameTarget) { row in
+                renameCollectionSheet(for: row)
+            }
+            .confirmationDialog(
+                "Remove collection?",
+                isPresented: Binding(
+                    get: { removeConfirmRow != nil },
+                    set: { if !$0 { removeConfirmRow = nil } }
+                ),
+                titleVisibility: .visible
+            ) {
+                if let row = removeConfirmRow {
+                    Button(
+                        "Remove from \(row.count) note\(row.count == 1 ? "" : "s")",
+                        role: .destructive
+                    ) {
+                        confirmRemoveCollection(row)
+                    }
+                    Button("Cancel", role: .cancel) {}
+                }
+            } message: {
+                Text("Notes are kept; only the collection label is removed from them.")
             }
         }
         .toolbarBackground(.clear, for: .automatic)
         .modifier(HarvousSidebarTransparentWindowToolbar())
+    }
+
+    private func reloadPinnedCollectionOrder() {
+        let sid = spaceStore.activeSpaceUUID()
+        var ids = HarvousPinnedCollectionsStore.loadOrderedIds(spaceId: sid)
+        let beforeCount = ids.count
+        ids.removeAll { $0 == HarvousCollectionRow.ungroupedRowId }
+        if ids.count != beforeCount {
+            HarvousPinnedCollectionsStore.saveOrderedIds(ids, spaceId: sid)
+        }
+        pinnedCollectionRowIds = ids
+    }
+
+    private func toggleCollectionListPin(rowId: String) {
+        withAnimation {
+            pinnedCollectionRowIds = HarvousPinnedCollectionsStore.togglePin(
+                rowId: rowId,
+                spaceId: spaceStore.activeSpaceUUID()
+            )
+        }
+    }
+
+    private func commitRename(from row: HarvousCollectionRow) {
+        guard let oldName = row.collection else {
+            renameTarget = nil
+            return
+        }
+        let trimmed = renameDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, trimmed != oldName else {
+            renameTarget = nil
+            return
+        }
+        let sid = spaceStore.activeSpaceUUID()
+        HarvousCollectionBulkActions.renameCollection(
+            from: oldName,
+            to: trimmed,
+            notesInActiveSpace: notesInActiveSpace,
+            modelContext: modelContext
+        )
+        HarvousPinnedCollectionsStore.replacePinId(oldId: row.id, newId: trimmed, spaceId: sid)
+        reloadPinnedCollectionOrder()
+        renameTarget = nil
+    }
+
+    private func confirmRemoveCollection(_ row: HarvousCollectionRow) {
+        guard let name = row.collection else {
+            removeConfirmRow = nil
+            return
+        }
+        let sid = spaceStore.activeSpaceUUID()
+        HarvousCollectionBulkActions.removeCollection(
+            named: name,
+            notesInActiveSpace: notesInActiveSpace,
+            modelContext: modelContext
+        )
+        HarvousPinnedCollectionsStore.removePinId(row.id, spaceId: sid)
+        reloadPinnedCollectionOrder()
+        removeConfirmRow = nil
+    }
+
+    @ViewBuilder
+    private func renameCollectionSheet(for row: HarvousCollectionRow) -> some View {
+        NavigationStack {
+            Form {
+                TextField("Collection name", text: $renameDraft)
+            }
+            .formStyle(.grouped)
+            .navigationTitle("Rename")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { renameTarget = nil }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save") {
+                        commitRename(from: row)
+                    }
+                    .disabled(renameDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                }
+            }
+            .onAppear {
+                renameDraft = row.collection ?? ""
+            }
+        }
+        .frame(minWidth: 360, minHeight: 200)
+    }
+
+    @ViewBuilder
+    private func collectionRootListRow(_ row: HarvousCollectionRow) -> some View {
+        let pinned = pinnedCollectionRowIds.contains(row.id)
+        let openBucket = Button {
+            collectionsDrill = .bucket(row.collection)
+        } label: {
+            HStack(spacing: 10) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(row.title)
+                        .font(HarvousTypography.noteListTitle)
+                        .lineLimit(1)
+                        .foregroundStyle(.primary)
+                    Text("\(row.count) note\(row.count == 1 ? "" : "s")")
+                        .font(HarvousTypography.noteListPreview)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer(minLength: 0)
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(.tertiary)
+            }
+            .padding(.vertical, 8)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+
+        if row.collection != nil {
+            openBucket
+                .contextMenu {
+                    Button {
+                        toggleCollectionListPin(rowId: row.id)
+                    } label: {
+                        Label(pinned ? "Unpin" : "Pin", systemImage: pinned ? "pin.slash" : "pin")
+                    }
+                    Button {
+                        renameDraft = row.collection ?? ""
+                        renameTarget = row
+                    } label: {
+                        Label("Rename…", systemImage: "pencil")
+                    }
+                    Button(role: .destructive) {
+                        removeConfirmRow = row
+                    } label: {
+                        Label("Remove collection", systemImage: "trash")
+                    }
+                }
+                .swipeActions(edge: .leading, allowsFullSwipe: true) {
+                    Button {
+                        toggleCollectionListPin(rowId: row.id)
+                    } label: {
+                        Label(pinned ? "Unpin" : "Pin", systemImage: pinned ? "pin.slash.fill" : "pin.fill")
+                    }
+                    .tint(.orange)
+                }
+                .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                    Button(role: .destructive) {
+                        removeConfirmRow = row
+                    } label: {
+                        Label("Remove", systemImage: "trash")
+                    }
+                }
+        } else {
+            openBucket
+        }
     }
 
     private var modeMenu: some View {
@@ -172,30 +367,8 @@ struct SidebarPanelView: View {
                 }
             } else {
                 List {
-                    ForEach(filteredCollectionRows) { row in
-                        Button {
-                            activeCollection = row.collection
-                        } label: {
-                            HStack(spacing: 10) {
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text(row.title)
-                                        .font(HarvousTypography.noteListTitle)
-                                        .lineLimit(1)
-                                        .foregroundStyle(.primary)
-                                    Text("\(row.count) note\(row.count == 1 ? "" : "s")")
-                                        .font(HarvousTypography.noteListPreview)
-                                        .foregroundStyle(.secondary)
-                                }
-                                Spacer(minLength: 0)
-                                Image(systemName: "chevron.right")
-                                    .font(.system(size: 11, weight: .semibold))
-                                    .foregroundStyle(.tertiary)
-                            }
-                            .padding(.vertical, 8)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .contentShape(Rectangle())
-                        }
-                        .buttonStyle(.plain)
+                    ForEach(orderedFilteredCollectionRows) { row in
+                        collectionRootListRow(row)
                     }
                 }
                 .listStyle(.plain)

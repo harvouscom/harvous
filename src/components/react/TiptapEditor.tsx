@@ -1035,7 +1035,7 @@ function schedulePendingTranslationAfterPillCreation(
   editor: any,
   references: (ScriptureReference | ScriptureReferenceWithTranslation)[],
 ) {
-  if (!references.length) return;
+  if (!references?.length) return;
   const editorId = String(editor.view?.dom?.id || 'default');
 
   // Register every reference in the map so each gets its own detection window
@@ -1830,7 +1830,7 @@ async function detectAndCreateScriptureNotes(editor: any, parentThreadId?: strin
 
     const detection = await detectResponse.json();
     
-    if (!detection.isScripture || !detection.references || detection.references.length === 0) {
+    if (!detection.isScripture || !detection.references?.length) {
       return;
     }
 
@@ -3341,7 +3341,8 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                   
                   // Convert results to format expected by convertScriptureReferencesToPills
                   // Only include results where scripture notes were created or added (not skipped)
-                  const scriptureResults = processResult.results
+                  const rawResults = Array.isArray(processResult?.results) ? processResult.results : [];
+                  const scriptureResults = rawResults
                     .filter((r: any) => r.action === 'created' || r.action === 'added')
                     .map((r: any) => ({
                       reference: r.reference,
@@ -3530,7 +3531,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
           try {
             if (textBeforeCursor.trim().length > 0) {
               const references = detectScriptureReferences(textBeforeCursor);
-              if (references.length > 0) {
+              if (references && references.length > 0) {
                 if (isSyncTrigger) {
                   // On desktop: Synchronously handle the trigger char and the pill creation
                   event.preventDefault();

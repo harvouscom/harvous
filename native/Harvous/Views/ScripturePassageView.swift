@@ -41,6 +41,8 @@ struct ScripturePassageView: View {
     /// Dock: invoked when the user taps inside a painted highlight range (carries the paint's id, which
     /// equals the owning `StudyThread.id`). Lets the caller open the highlight dock for that thread.
     var onPassageHighlightTap: ((UUID) -> Void)? = nil
+    /// When non-nil, only this passage highlight keeps full accent underlines (inline dock focus).
+    var passageHighlightFocusedThreadId: UUID? = nil
 
     @Environment(\.colorScheme) private var colorScheme
     @State private var passageAttributed: NSAttributedString?
@@ -55,7 +57,7 @@ struct ScripturePassageView: View {
 
     /// Stable enough for representable updates — when paints change, re-merge backgrounds into the attributed string.
     private var passagePaintsDigest: Int {
-        var h = 0
+        var h = passageHighlightFocusedThreadId?.hashValue ?? 0
         for p in passageHighlightPaints {
             h ^= p.id.hashValue ^ p.excerpt.hashValue ^ p.accentRaw.hashValue
         }
@@ -93,7 +95,8 @@ struct ScripturePassageView: View {
                         from: passageAttributed,
                         useReadingTypography: useReadingTypography,
                         paints: passageHighlightPaints,
-                        isDark: colorScheme == .dark
+                        isDark: colorScheme == .dark,
+                        focusedThreadId: passageHighlightFocusedThreadId
                     )
                     let paintRanges = Self.passageHighlightPaintRanges(
                         in: painted.string,
@@ -221,10 +224,11 @@ struct ScripturePassageView: View {
         from base: NSAttributedString,
         useReadingTypography: Bool,
         paints: [ScripturePassageHighlightPaint],
-        isDark: Bool
+        isDark: Bool,
+        focusedThreadId: UUID?
     ) -> NSAttributedString {
         let displayed = displayedPassage(from: base, useReadingTypography: useReadingTypography)
-        return applyPassageHighlightPainting(to: displayed, paints: paints, isDark: isDark)
+        return applyPassageHighlightPainting(to: displayed, paints: paints, isDark: isDark, focusedThreadId: focusedThreadId)
     }
 
     /// Resolve each paint's actual text range in `raw`. Sorts paints by first-occurrence position
@@ -272,7 +276,8 @@ struct ScripturePassageView: View {
     private static func applyPassageHighlightPainting(
         to displayed: NSAttributedString,
         paints: [ScripturePassageHighlightPaint],
-        isDark: Bool
+        isDark: Bool,
+        focusedThreadId: UUID? = nil
     ) -> NSAttributedString {
         guard !paints.isEmpty else { return displayed }
         let m = NSMutableAttributedString(attributedString: displayed)
@@ -285,9 +290,15 @@ struct ScripturePassageView: View {
             // Paint as a thick colored underline so passage highlights match note-body highlights
             // (see `EditorStudyHighlight.applyHighlights`). The accent color drives the underline tint.
             #if os(macOS)
-            let underline = token.resolvedAccentNSColor(kind: .scriptureLink, isDark: isDark)
+            var underline = token.resolvedAccentNSColor(kind: .scriptureLink, isDark: isDark)
+            if let focusedThreadId, entry.id != focusedThreadId {
+                underline = StudyHighlightUnderlineGrayscale.fromAccentColor(underline)
+            }
             #else
-            let underline = token.resolvedAccentUIColor(kind: .scriptureLink, isDark: isDark)
+            var underline = token.resolvedAccentUIColor(kind: .scriptureLink, isDark: isDark)
+            if let focusedThreadId, entry.id != focusedThreadId {
+                underline = StudyHighlightUnderlineGrayscale.fromAccentColor(underline)
+            }
             #endif
             m.addAttribute(.underlineStyle, value: NSUnderlineStyle.thick.rawValue, range: entry.range)
             m.addAttribute(.underlineColor, value: underline, range: entry.range)
@@ -366,6 +377,12 @@ private extension NSAttributedString {
 fileprivate final class ScripturePassageNSTextView: NSTextView {
     var paintRanges: [(id: UUID, range: NSRange)] = []
     var onPaintTap: ((UUID) -> Void)?
+    /// Stored during mouseDown so becomeFirstResponder can re-anchor at the click position.
+    /// AppKit calls becomeFirstResponder *inside* the mouseDown tracking-loop setup and may
+    /// reset selectedRange (to 0 or to textLength) as part of focus acquisition. By overriding
+    /// becomeFirstResponder to re-anchor AFTER super, we ensure the tracking loop starts with
+    /// the correct anchor regardless of what AppKit stored before the first click.
+    private var pendingAnchorCharIndex: Int? = nil
 
     override func mouseDown(with event: NSEvent) {
         let downPoint = convert(event.locationInWindow, from: nil)
@@ -382,12 +399,32 @@ fileprivate final class ScripturePassageNSTextView: NSTextView {
             matchedId = paintRanges.first(where: { NSLocationInRange(charIndex, $0.range) })?.id
         }
 
+        // Store click position for use in becomeFirstResponder (see override below).
+        if let lm = layoutManager, let tc = textContainer {
+            let local = CGPoint(x: downPoint.x - textContainerOrigin.x,
+                                y: downPoint.y - textContainerOrigin.y)
+            let gi = lm.glyphIndex(for: local, in: tc)
+            pendingAnchorCharIndex = lm.characterIndexForGlyph(at: gi)
+        }
+
         super.mouseDown(with: event)
+
+        pendingAnchorCharIndex = nil
 
         // If the click landed on a paint range AND the user didn't drag-select, fire the callback.
         if let id = matchedId, selectedRange().length == 0 {
             onPaintTap?(id)
         }
+    }
+
+    override func becomeFirstResponder() -> Bool {
+        let result = super.becomeFirstResponder()
+        // After AppKit's focus acquisition (which may reset selectedRange to 0 or textLength),
+        // snap the anchor to the pending click position so the tracking loop starts correctly.
+        if result, let ci = pendingAnchorCharIndex {
+            setSelectedRange(NSRange(location: ci, length: 0))
+        }
+        return result
     }
 }
 
@@ -442,9 +479,11 @@ private struct ScripturePassageFittingTextView: NSViewRepresentable {
             let savedDelegate = textView.delegate
             textView.delegate = nil
             textView.textStorage?.setAttributedString(attributed)
-            // Reset selection to a known empty state so any leftover range from before the
-            // re-apply doesn't confuse future selection comparisons.
-            textView.setSelectedRange(NSRange(location: 0, length: 0))
+            // Only reset when not first responder — resetting while focused plants a
+            // position-0 anchor that causes first-click selection extension on non-editable text views.
+            if textView.window?.firstResponder !== textView {
+                textView.setSelectedRange(NSRange(location: 0, length: 0))
+            }
             textView.delegate = savedDelegate
         }
     }

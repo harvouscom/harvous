@@ -15,7 +15,6 @@ struct NoteInspectorView: View {
     @Environment(\.modelContext) private var modelContext
     @State private var draftTag = ""
     @State private var simpleNoteIdCopied = false
-    @State private var openedScriptureRef: InspectorScriptureRefItem?
     @State private var allResourceLines: [String] = []
 
     var body: some View {
@@ -45,19 +44,6 @@ struct NoteInspectorView: View {
             .padding(.vertical, 20)
         }
         .task(id: note.id) { loadResourceLines() }
-        .popover(item: $openedScriptureRef) { item in
-            ScripturePassageView(
-                reference: item.id,
-                translation: ScriptureReference.defaultTranslation,
-                showHeader: true,
-                useReadingTypography: true
-            )
-            .padding(16)
-            .frame(minWidth: 280, idealWidth: 320, maxWidth: 380, minHeight: 220, idealHeight: 340)
-            #if os(iOS)
-            .presentationDetents([.medium])
-            #endif
-        }
     }
 
     // MARK: - Tags (theme / keyword; not scripture)
@@ -131,27 +117,19 @@ struct NoteInspectorView: View {
     private var scriptureRefSection: some View {
         FlowLayout(spacing: 6) {
             ForEach(note.detectedRefs.uniquedPreservingOrder(), id: \.self) { ref in
-                Button {
-                    openedScriptureRef = InspectorScriptureRefItem(id: ref)
-                } label: {
-                    Text(ref)
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundStyle(.primary)
-                        .padding(.horizontal, 9)
-                        .padding(.vertical, 5)
-                        .background(
-                            Capsule(style: .continuous)
-                                .fill(Color.primary.opacity(0.07))
-                        )
-                        .overlay(
-                            Capsule(style: .continuous)
-                                .strokeBorder(Color.primary.opacity(0.12), lineWidth: 0.5)
-                        )
-                }
-                .buttonStyle(.plain)
-                #if os(macOS)
-                .help("Read \(ref)")
-                #endif
+                Text(ref)
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(.primary)
+                    .padding(.horizontal, 9)
+                    .padding(.vertical, 5)
+                    .background(
+                        Capsule(style: .continuous)
+                            .fill(Color.primary.opacity(0.07))
+                    )
+                    .overlay(
+                        Capsule(style: .continuous)
+                            .strokeBorder(Color.primary.opacity(0.12), lineWidth: 0.5)
+                    )
             }
         }
         .padding(.top, 4)
@@ -312,12 +290,6 @@ struct NoteInspectorView: View {
             .tracking(0.8)
             .padding(.bottom, 6)
     }
-}
-
-// MARK: - Identifiable wrapper for scripture reference popover
-
-struct InspectorScriptureRefItem: Identifiable {
-    let id: String  // the scripture reference string (e.g. "John 3:16")
 }
 
 // MARK: - Simple flow layout for pills/tags

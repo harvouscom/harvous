@@ -270,12 +270,14 @@ enum ThreadStore {
         }
 
         let focus = ThreadEditorSnippet.deriveFocus(from: sourceSnippet)
+        let seededPrompts = StudyPromptSuggester.questions(forScriptureExcerpt: trimmedRef, reference: display)
         let thread = StudyThread(
             spaceId: spaceId,
             parentNoteId: parent.id,
             sourceSnippet: sourceSnippet,
             focusTitle: focus,
             notesBody: "",
+            suggestedQuestions: seededPrompts,
             entryKindRaw: StudyThread.EntryKind.scriptureLink.rawValue,
             miniNoteBody: trimmedRef,
             scriptureReference: display,
@@ -287,6 +289,8 @@ enum ThreadStore {
         }
         modelContext.insert(thread)
         try? modelContext.saveWithLogging()
+        let threadId = thread.id
+        Task { await warmScriptureReflectionQuestions(threadId: threadId, modelContext: modelContext) }
         return thread
     }
 
@@ -333,6 +337,8 @@ enum ThreadStore {
         modelContext.insert(thread)
         try? modelContext.saveWithLogging()
         touchParentNoteIfNeeded(thread, modelContext: modelContext)
+        let threadId = thread.id
+        Task { await warmScriptureReflectionQuestions(threadId: threadId, modelContext: modelContext) }
         return thread
     }
 
@@ -468,5 +474,36 @@ enum ThreadStore {
     private static func fetchParentNote(id: UUID, modelContext: ModelContext) -> Note? {
         let fd = FetchDescriptor<Note>(predicate: #Predicate { $0.id == id })
         return try? modelContext.fetch(fd).first
+    }
+
+    /// Pre-warm Apple Intelligence reflection questions for a scripture thread.
+    /// Safe to fire-and-forget; idempotent via `aiSuggestedQuestionsGenerated`.
+    /// No-ops gracefully on older OS or when Apple Intelligence is unavailable.
+    @MainActor
+    static func warmScriptureReflectionQuestions(threadId: UUID, modelContext: ModelContext) async {
+        guard #available(macOS 26.0, iOS 26.0, *) else { return }
+        guard let thread = fetch(id: threadId, modelContext: modelContext),
+              thread.entryKind == .scriptureLink,
+              !thread.aiSuggestedQuestionsGenerated else { return }
+
+        let ref = thread.scriptureReference ?? thread.miniNoteBody
+        let trimmed = ref.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+
+        let excerpt = thread.scripturePassageExcerpt?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let snippet = excerpt.isEmpty ? trimmed : excerpt
+
+        do {
+            let generated = try await ScriptureReflectionGenerator.generate(excerpt: snippet, reference: trimmed)
+            // Re-fetch after async gap — dock's .task may have raced us to completion.
+            guard let t = fetch(id: threadId, modelContext: modelContext),
+                  !t.aiSuggestedQuestionsGenerated else { return }
+            let defaults = StudyPromptSuggester.questions(forScriptureExcerpt: snippet, reference: trimmed)
+            t.suggestedQuestions = generated + defaults
+            t.aiSuggestedQuestionsGenerated = true
+            try? modelContext.saveWithLogging()
+        } catch {
+            // Model unavailable or generation failed — heuristic seeds remain; dock will retry on next open.
+        }
     }
 }

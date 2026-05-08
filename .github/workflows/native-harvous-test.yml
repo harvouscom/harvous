@@ -1,0 +1,74 @@
+name: Native Harvous Xcode tests
+
+on:
+  pull_request:
+    paths:
+      - "native/Harvous/**"
+      - ".github/workflows/native-harvous-test.yml"
+  push:
+    branches: [main]
+    paths:
+      - "native/Harvous/**"
+      - ".github/workflows/native-harvous-test.yml"
+
+concurrency:
+  group: native-harvous-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  macos-unit:
+    name: macOS unit tests
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify Copy Bundle Resources (no DMGs or stray artifacts)
+        working-directory: native/Harvous
+        run: |
+          set -euo pipefail
+          pbproj="Harvous.xcodeproj/project.pbxproj"
+          if grep -qE '\.dmg in Resources|null\.o in Resources|package-dmg\.sh in Resources|release\.sh in Resources' "$pbproj"; then
+            echo "ERROR: Disallowed files referenced in Copy Bundle Resources."
+            grep -nE '\.dmg in Resources|null\.o in Resources|package-dmg\.sh in Resources|release\.sh in Resources' "$pbproj" || true
+            exit 1
+          fi
+
+      # GitHub-hosted runners vary by Xcode version; macOS UI tests need an interactive session and are flaky in CI.
+      # Run HarvousTests_macOS here; run UI smoke tests locally or via the iOS Simulator job below.
+      - name: HarvousTests_macOS
+        working-directory: native/Harvous
+        run: |
+          xcodebuild test \
+            -project Harvous.xcodeproj \
+            -scheme Harvous_macOS \
+            -destination 'platform=macOS,arch=arm64' \
+            -only-testing:HarvousTests_macOS
+
+  ios-tests:
+    name: iOS Simulator (unit + UI smoke)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify Copy Bundle Resources (no DMGs or stray artifacts)
+        working-directory: native/Harvous
+        run: |
+          set -euo pipefail
+          pbproj="Harvous.xcodeproj/project.pbxproj"
+          if grep -qE '\.dmg in Resources|null\.o in Resources|package-dmg\.sh in Resources|release\.sh in Resources' "$pbproj"; then
+            echo "ERROR: Disallowed files referenced in Copy Bundle Resources."
+            grep -nE '\.dmg in Resources|null\.o in Resources|package-dmg\.sh in Resources|release\.sh in Resources' "$pbproj" || true
+            exit 1
+          fi
+
+      - name: Harvous_iOS test plan
+        working-directory: native/Harvous
+        run: |
+          xcodebuild test \
+            -project Harvous.xcodeproj \
+            -scheme Harvous_iOS \
+            -destination 'platform=iOS Simulator,name=iPhone 16' \
+            -testPlan Harvous_iOS

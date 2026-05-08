@@ -2,10 +2,13 @@ import Foundation
 
 /// One row in the collections root list (shared by macOS sidebar and iOS Library).
 struct HarvousCollectionRow: Identifiable, Hashable, Sendable {
+    /// Row id for the ungrouped bucket; not pin/rename/remove-from-list as a collection.
+    static let ungroupedRowId = "__ungrouped__"
+
     let collection: String?
     let count: Int
     let mostRecent: Date
-    var id: String { collection ?? "__ungrouped__" }
+    var id: String { collection ?? Self.ungroupedRowId }
     var title: String { collection ?? "No collection" }
 }
 
@@ -67,5 +70,14 @@ enum HarvousCollectionListIndex {
                 return lhs.0.mostRecent > rhs.0.mostRecent
             }
             .map(\.0)
+    }
+
+    /// Pinned buckets first (`pinnedIdsInOrder` preserves manual order), then remaining rows in `rows` order.
+    static func applyPinOrdering(_ rows: [HarvousCollectionRow], pinnedIdsInOrder: [String]) -> [HarvousCollectionRow] {
+        let pinnedSet = Set(pinnedIdsInOrder)
+        let rowById = Dictionary(uniqueKeysWithValues: rows.map { ($0.id, $0) })
+        let pinned = pinnedIdsInOrder.compactMap { rowById[$0] }
+        let unpinned = rows.filter { !pinnedSet.contains($0.id) }
+        return pinned + unpinned
     }
 }

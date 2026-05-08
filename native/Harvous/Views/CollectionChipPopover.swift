@@ -167,7 +167,16 @@ struct CollectionChipPopover: View {
     }
 
     private var autoSuggestedCollection: String? {
-        let candidate = BibleStudyTagSuggester.result(title: note.title, body: note.body).primaryCollection
+        let descriptor = FetchDescriptor<Note>(predicate: #Predicate { $0.primaryCollection != nil })
+        let allNotes = (try? modelContext.fetch(descriptor)) ?? []
+        let ownCollection = note.primaryCollection?.trimmingCharacters(in: .whitespacesAndNewlines)
+        var seen = Set<String>()
+        for n in allNotes {
+            guard let col = n.primaryCollection?.trimmingCharacters(in: .whitespacesAndNewlines), !col.isEmpty else { continue }
+            if col == ownCollection { continue }
+            seen.insert(col)
+        }
+        let candidate = BibleStudyTagSuggester.result(title: note.title, body: note.body, existingCollections: Array(seen)).primaryCollection
         let trimmed = candidate?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         return trimmed.isEmpty ? nil : trimmed
     }

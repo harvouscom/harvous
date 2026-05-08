@@ -394,7 +394,17 @@ enum HarvousVaultImporter {
         } else {
             note.detectedRefs = ScriptureDetector.uniqueDisplayRefs(in: body)
         }
-        BibleStudyTagSuggester.applyToNote(note, allowPrimaryUpdate: !note.isCollectionUserOverride)
+        let existingCollections: [String] = {
+            let fd = FetchDescriptor<Note>(predicate: #Predicate { $0.primaryCollection != nil })
+            let notes = (try? modelContext.fetch(fd)) ?? []
+            var seen = Set<String>()
+            for n in notes {
+                guard let col = n.primaryCollection?.trimmingCharacters(in: .whitespacesAndNewlines), !col.isEmpty else { continue }
+                seen.insert(col)
+            }
+            return Array(seen)
+        }()
+        BibleStudyTagSuggester.applyToNote(note, allowPrimaryUpdate: !note.isCollectionUserOverride, existingCollections: existingCollections)
 
         HarvousNoteSpotlightIndexer.reindex(note: note)
 

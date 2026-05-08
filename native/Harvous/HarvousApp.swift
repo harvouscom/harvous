@@ -20,7 +20,9 @@ extension Logger {
 struct HarvousApp: App {
     /// Wake Netlify function + Postgres before the user taps a scripture pill (non-blocking).
     init() {
-        ScriptureVerseFetch.warmBackendForVerseFetch()
+        if !HarvousLaunchArguments.isUITesting {
+            ScriptureVerseFetch.warmBackendForVerseFetch()
+        }
     }
 
     @StateObject private var appRouter = HarvousAppRouter()

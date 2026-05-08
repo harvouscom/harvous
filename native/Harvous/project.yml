@@ -9,8 +9,8 @@ options:
 settings:
   base:
     SWIFT_VERSION: "6.0"
-    MARKETING_VERSION: "0.1.2"
-    CURRENT_PROJECT_VERSION: "2"
+    MARKETING_VERSION: "0.1.4"
+    CURRENT_PROJECT_VERSION: "4"
     CODE_SIGN_STYLE: Manual
     CODE_SIGN_IDENTITY: "-"
     CODE_SIGNING_REQUIRED: "NO"
@@ -27,6 +27,13 @@ targets:
           - "project.yml"
           - "*.xcodeproj"
           - "build/**"
+          - "Tests/**"
+          - "*.xctestplan"
+          - "*.md"
+          - "*.dmg"
+          - "package-dmg.sh"
+          - "release.sh"
+          - "null.o"
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.harvous.app
@@ -41,3 +48,87 @@ targets:
           DEBUG_INFORMATION_FORMAT: dwarf-with-dsym
     entitlements:
       path: Harvous.entitlements
+
+  HarvousTests_macOS:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - path: Tests/HarvousTests
+    dependencies:
+      - target: Harvous_macOS
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+
+  HarvousTests_iOS:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: Tests/HarvousTests
+    dependencies:
+      - target: Harvous_iOS
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+
+  HarvousUITests_macOS:
+    type: bundle.ui-testing
+    platform: macOS
+    sources:
+      - path: Tests/HarvousUITests
+    dependencies:
+      - target: Harvous_macOS
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+
+  HarvousUITests_iOS:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - path: Tests/HarvousUITests
+    dependencies:
+      - target: Harvous_iOS
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+
+schemes:
+  Harvous_macOS:
+    build:
+      targets:
+        Harvous_macOS: all
+        HarvousTests_macOS: [test]
+        HarvousUITests_macOS: [test]
+    run:
+      executable: Harvous_macOS
+    test:
+      gatherCoverageData: true
+      targets:
+        - name: HarvousTests_macOS
+          parallelizable: true
+          randomExecutionOrder: true
+        - name: HarvousUITests_macOS
+          parallelizable: false
+          randomExecutionOrder: false
+      testPlans:
+        - path: Harvous_macOS.xctestplan
+  Harvous_iOS:
+    build:
+      targets:
+        Harvous_iOS: all
+        HarvousTests_iOS: [test]
+        HarvousUITests_iOS: [test]
+    run:
+      executable: Harvous_iOS
+    test:
+      gatherCoverageData: true
+      targets:
+        - name: HarvousTests_iOS
+          parallelizable: true
+          randomExecutionOrder: true
+        - name: HarvousUITests_iOS
+          parallelizable: false
+          randomExecutionOrder: false
+      testPlans:
+        - path: Harvous_iOS.xctestplan

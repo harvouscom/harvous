@@ -257,6 +257,8 @@ struct ActiveHighlightDock: View {
         let computedHeight = expandedScrollContentHeight > 0
             ? min(expandedScrollContentHeight, expandedContentMaxHeight)
             : expandedContentMaxHeight
+
+        // Note text — scrollable, clipped to the measured height.
         ScrollView {
             VStack(alignment: .leading, spacing: 10) {
                 if thread.entryKind == .miniNote {
@@ -270,10 +272,6 @@ struct ActiveHighlightDock: View {
                             thread.updatedAt = Date()
                             try? modelContext.saveWithLogging()
                         }
-
-                    if !thread.suggestedQuestions.isEmpty {
-                        responsePromptsRow
-                    }
                 } else if thread.entryKind == .scriptureLink,
                           let ex = thread.scripturePassageExcerpt?.trimmingCharacters(in: .whitespacesAndNewlines),
                           !ex.isEmpty {
@@ -295,10 +293,6 @@ struct ActiveHighlightDock: View {
                             thread.updatedAt = Date()
                             try? modelContext.saveWithLogging()
                         }
-
-                    if !thread.suggestedQuestions.isEmpty {
-                        responsePromptsRow
-                    }
                 } else {
                     Text(DockHighlightCopy.detail(thread, modelContext: modelContext))
                         .font(.system(size: 14, weight: .regular))
@@ -319,6 +313,13 @@ struct ActiveHighlightDock: View {
             // Snap height after layout — animating here resizes the ScrollView viewport and can
             // flicker scroll indicators when content fits without scrolling.
             expandedScrollContentHeight = h
+        }
+
+        // Respond chips — outside the vertical ScrollView so the horizontal scroll row can bleed
+        // past the dock's .padding(.horizontal, 12) via the negative offset below.
+        if !thread.suggestedQuestions.isEmpty {
+            responsePromptsRow
+                .padding(.horizontal, -12)
         }
     }
 
@@ -346,6 +347,7 @@ struct ActiveHighlightDock: View {
             }
             .buttonStyle(.plain)
             .padding(.top, 4)
+            .padding(.horizontal, 12)
 
             if !responsePromptsCollapsed {
                 ScrollView(.horizontal, showsIndicators: false) {
@@ -376,11 +378,13 @@ struct ActiveHighlightDock: View {
                         }
                     }
                     .padding(.vertical, 2)
+                    .padding(.horizontal, 12)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .transition(.opacity.combined(with: .move(edge: .bottom)))
             }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     /// Primary action for linked-note / scripture entries — shown below the body when expanded.

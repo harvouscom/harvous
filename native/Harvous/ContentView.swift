@@ -25,6 +25,7 @@ struct ContentView: View {
             iOSRootView()
             #endif
         }
+        .accessibilityIdentifier(HarvousAccessibilityID.rootContent)
         .environment(\.harvousScriptureTheme, spaceStore.scriptureTheme)
         .task {
             spaceStore.bootstrapIfNeeded(modelContext: modelContext)

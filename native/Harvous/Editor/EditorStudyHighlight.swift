@@ -216,6 +216,46 @@ extension HarvousColors {
 }
 #endif
 
+// MARK: - Dimmed underline (focused dock)
+
+#if os(macOS)
+enum StudyHighlightUnderlineGrayscale {
+    /// Perceived-luminance grayscale for an underline accent; keeps light yellows light and deep hues mid.
+    static func fromAccentColor(_ color: NSColor) -> NSColor {
+        let cg = color.cgColor
+        guard let comps = cg.components, !comps.isEmpty else {
+            return NSColor(calibratedWhite: 0.55, alpha: 1.0)
+        }
+        let r: CGFloat
+        let g: CGFloat
+        let b: CGFloat
+        if comps.count >= 3 {
+            r = comps[0]
+            g = comps[1]
+            b = comps[2]
+        } else {
+            r = comps[0]
+            g = comps[0]
+            b = comps[0]
+        }
+        let a = comps.count >= 4 ? comps[3] : CGFloat(cg.alpha)
+        let lum = 0.299 * r + 0.587 * g + 0.114 * b
+        return NSColor(srgbRed: lum, green: lum, blue: lum, alpha: a)
+    }
+}
+#elseif os(iOS) || os(tvOS) || os(visionOS)
+enum StudyHighlightUnderlineGrayscale {
+    static func fromAccentColor(_ color: UIColor) -> UIColor {
+        var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
+        guard color.getRed(&r, green: &g, blue: &b, alpha: &a) else {
+            return UIColor(white: 0.55, alpha: 1.0)
+        }
+        let lum = 0.299 * r + 0.587 * g + 0.114 * b
+        return UIColor(red: lum, green: lum, blue: lum, alpha: a)
+    }
+}
+#endif
+
 // MARK: - Mapping storage ↔ expanded plain coordinates (matches `harvousExpandedPlainText`).
 
 enum HarvousStudyHighlightMapper {
@@ -414,7 +454,8 @@ enum HarvousStudyHighlightMapper {
     static func applyHighlights(
         storage: NSTextStorage,
         anchors: [(id: UUID, kind: StudyThread.EntryKind, accent: StudyHighlightAccentToken, expandedRange: NSRange)],
-        isDark: Bool
+        isDark: Bool,
+        focusedThreadId: UUID? = nil
     ) {
 #if os(macOS) || os(iOS)
         let fullRange = NSRange(location: 0, length: storage.length)
@@ -427,9 +468,15 @@ enum HarvousStudyHighlightMapper {
             let storRanges = storageRanges(forExpandedRange: item.expandedRange, in: storage)
             guard !storRanges.isEmpty else { continue }
 #if os(macOS)
-            let underlineColor = item.accent.resolvedAccentNSColor(kind: item.kind, isDark: isDark)
+            var underlineColor = item.accent.resolvedAccentNSColor(kind: item.kind, isDark: isDark)
+            if let focusedThreadId, item.id != focusedThreadId {
+                underlineColor = StudyHighlightUnderlineGrayscale.fromAccentColor(underlineColor)
+            }
 #elseif os(iOS)
-            let underlineColor = item.accent.resolvedAccentUIColor(kind: item.kind, isDark: isDark)
+            var underlineColor = item.accent.resolvedAccentUIColor(kind: item.kind, isDark: isDark)
+            if let focusedThreadId, item.id != focusedThreadId {
+                underlineColor = StudyHighlightUnderlineGrayscale.fromAccentColor(underlineColor)
+            }
 #endif
             let tag = item.id.uuidString
             let underlineStyle = NSUnderlineStyle.thick.rawValue

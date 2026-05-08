@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 // @ts-ignore — JSON resolveJsonModule
 import bibleChaptersData from '@/data/bible-chapters.json';
 import {
@@ -97,6 +97,9 @@ export default function ScripturePillChromeWeb({ reference, translation, onDone,
   const [passageHtml, setPassageHtml] = useState<string>('');
   const [loadingPassage, setLoadingPassage] = useState(false);
 
+  const onApplyRef = useRef(onApply);
+  useLayoutEffect(() => { onApplyRef.current = onApply; });
+
   useEffect(() => {
     const p = parseScriptureReference(normalizeScriptureReference(reference.trim()) || reference.trim());
     if (p) {
@@ -119,6 +122,14 @@ export default function ScripturePillChromeWeb({ reference, translation, onDone,
     () => buildReferenceString(selectedBook, chapter, verseStart, verseEnd, useVerseRange),
     [selectedBook, chapter, verseStart, verseEnd, useVerseRange],
   );
+
+  const lastApplied = useRef({ ref: displayRefString, trans });
+
+  useEffect(() => {
+    if (displayRefString === lastApplied.current.ref && trans === lastApplied.current.trans) return;
+    lastApplied.current = { ref: displayRefString, trans };
+    void onApplyRef.current(normalizeScriptureReference(displayRefString) ?? displayRefString, trans);
+  }, [displayRefString, trans]);
 
   useEffect(() => {
     let cancelled = false;
@@ -170,11 +181,6 @@ export default function ScripturePillChromeWeb({ reference, translation, onDone,
     const from = verseStart;
     return Array.from({ length: Math.max(0, vEndCanon - from + 1) }, (_, i) => from + i);
   }, [vEndCanon, verseStart]);
-
-  const handleApply = async () => {
-    const built = buildReferenceString(selectedBook, chapter, verseStart, verseEnd, useVerseRange);
-    await onApply(normalizeScriptureReference(built) ?? built, trans);
-  };
 
   return (
     <div className="scripture-pill-chrome" role="region" aria-label="Scripture reference editor">
@@ -288,9 +294,6 @@ export default function ScripturePillChromeWeb({ reference, translation, onDone,
           </div>
         </div>
         <div className="scripture-pill-chrome__actions">
-          <button type="button" className="btn btn--sm btn--primary scripture-pill-chrome__apply" onClick={() => void handleApply()}>
-            Apply
-          </button>
           <button type="button" className="btn btn--sm btn--ghost scripture-pill-chrome__done" onClick={onDone}>
             Done
           </button>

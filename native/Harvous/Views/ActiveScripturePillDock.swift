@@ -72,6 +72,10 @@ struct ActiveScripturePillDock: View {
     /// In-flight highlight draft: set when the user taps the floating menu's highlighter; the popover binds
     /// to its mutable fields. `nil` means the floating menu (not the popover) is on screen.
     @State private var passageHighlightDraft: PassageHighlightDraft?
+    /// In-flight speculative AI question generation, started when the user first selects passage text
+    /// so the result is ready by the time they save the highlight and the dock opens.
+    @State private var speculativeGenTask: Task<Void, Never>? = nil
+    @State private var speculativeGenResult: [String]? = nil
     /// Thread tapped by clicking an underlined excerpt. Shows an inline `ActiveHighlightDock`
     /// within the scripture dock so the user can edit / change accent / remove the highlight
     /// without dismissing the scripture dock or jumping to another note.
@@ -198,6 +202,24 @@ struct ActiveScripturePillDock: View {
             seedPickerStateFromReference(newValue)
         }
         .onChange(of: translation) { _, _ in passageSelectionNormalized = "" }
+        .onChange(of: passageSelectionNormalized) { _, new in
+            // Start speculative generation as soon as text is selected so the result is ready
+            // when the user finishes filling the annotation popover and taps Save.
+            speculativeGenTask?.cancel()
+            speculativeGenResult = nil
+            let snippet = new.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !snippet.isEmpty else { return }
+            let ref = reference
+            speculativeGenTask = Task {
+                if #available(macOS 26.0, iOS 26.0, *) {
+                    do {
+                        let questions = try await ScriptureReflectionGenerator.generate(excerpt: snippet, reference: ref)
+                        guard !Task.isCancelled else { return }
+                        speculativeGenResult = questions
+                    } catch {}
+                }
+            }
+        }
     }
 
     private var headerRow: some View {
@@ -323,7 +345,8 @@ struct ActiveScripturePillDock: View {
                         onPassageHighlightTap: { paintId in
                             guard let thread = scripturePassageHighlights.first(where: { $0.id == paintId }) else { return }
                             tappedPassageHighlight = thread
-                        }
+                        },
+                        passageHighlightFocusedThreadId: tappedPassageHighlight?.id
                     )
                     .background(GeometryReader { geo in
                         // Read the passage view's frame in the named body space so the overlay (placed
@@ -397,6 +420,19 @@ struct ActiveScripturePillDock: View {
                     onSave: {
                         guard let snapshot = passageHighlightDraft, !snapshot.excerpt.isEmpty else { return }
                         let newThread = onSavePassageHighlight?(snapshot.excerpt, snapshot.annotation, snapshot.title, snapshot.accent)
+                        // Apply speculative AI questions immediately if generation finished during annotation.
+                        // Setting aiSuggestedQuestionsGenerated = true before the dock renders prevents
+                        // the inline ActiveHighlightDock's .task from double-generating.
+                        if let thread = newThread,
+                           let generated = speculativeGenResult,
+                           !thread.aiSuggestedQuestionsGenerated {
+                            let defaults = StudyPromptSuggester.questions(forScriptureExcerpt: snapshot.excerpt, reference: reference)
+                            thread.suggestedQuestions = generated + defaults
+                            thread.aiSuggestedQuestionsGenerated = true
+                            try? modelContext.saveWithLogging()
+                        }
+                        speculativeGenTask = nil
+                        speculativeGenResult = nil
                         passageHighlightDraft = nil
                         // Clear selection state so the next drag-select starts fresh — the
                         // underlying text view will re-emit `onPassageSelectionChange` for any new selection.
@@ -583,7 +619,13 @@ struct ActiveScripturePillDock: View {
             let shape = RoundedRectangle(cornerRadius: 18, style: .continuous)
             // Stable base so the system material doesn't go dark gray when the window loses focus.
             shape.fill(.background)
-            shape.fill(.regularMaterial)
+            if #available(macOS 26.0, iOS 26.0, *) {
+                shape
+                    .fill(.clear)
+                    .glassEffect(in: shape)
+            } else {
+                shape.fill(.ultraThinMaterial)
+            }
         }
         .allowsHitTesting(false)
     }

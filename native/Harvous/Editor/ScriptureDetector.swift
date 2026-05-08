@@ -92,4 +92,18 @@ struct ScriptureDetector {
         var seen = Set<String>()
         return detect(in: text).map(\.displayText).filter { seen.insert($0).inserted }
     }
+
+    /// Persists note-level scripture references from both title and body: title matches first (document order),
+    /// then body refs not already present (case-insensitive dedupe).
+    static func mergedDetectedRefs(title: String, bodyRefs: [String]) -> [String] {
+        let titleRefs = uniqueDisplayRefs(in: title)
+        var seenLC = Set(titleRefs.map { $0.lowercased() })
+        var out = titleRefs
+        for r in bodyRefs {
+            if seenLC.insert(r.lowercased()).inserted {
+                out.append(r)
+            }
+        }
+        return out
+    }
 }

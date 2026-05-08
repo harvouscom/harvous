@@ -100,7 +100,7 @@ struct DailyPassageCard: View {
         }) {
             note = match
         } else {
-            note = Note(title: ref, body: ref, detectedRefs: [], spaceId: spaceId)
+            note = Note(title: ref, body: "", detectedRefs: [ref], spaceId: spaceId)
             modelContext.insert(note)
             NoteSimpleIDAssigner.assignIfMissing(note, in: modelContext)
             try? modelContext.saveWithLogging()
