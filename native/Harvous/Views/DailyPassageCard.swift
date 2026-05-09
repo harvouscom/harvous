@@ -121,9 +121,11 @@ struct DailyPassageCard: View {
 
 private struct VotdPassageSheet: View {
     private enum Metrics {
-        static let fabSide: CGFloat = 56
-        static let fabTrailingPadding: CGFloat = 20
-        static let fabBottomPadding: CGFloat = 16
+        /// Compact FAB — matches morphing compose orb (44) so the sheet does not feel dominated on medium detent.
+        static let fabSide: CGFloat = 44
+        static let fabIconSize: CGFloat = 17
+        static let fabTrailingPadding: CGFloat = 16
+        static let fabBottomPadding: CGFloat = 12
         /// Keeps last verse lines clear of the floating FAB.
         static var scrollBottomInset: CGFloat {
             fabSide + fabBottomPadding + 8
@@ -184,11 +186,11 @@ private struct VotdPassageSheet: View {
 
                 Button(action: onAdd) {
                     Image(systemName: "note.text.badge.plus")
-                        .font(.system(size: 20, weight: .medium))
+                        .font(.system(size: Metrics.fabIconSize, weight: .medium))
                         .foregroundStyle(.white)
                         .frame(width: Metrics.fabSide, height: Metrics.fabSide)
                         .background(Circle().fill(Color.harvousAccent))
-                        .shadow(color: Color.black.opacity(0.15), radius: 6, x: 0, y: 3)
+                        .shadow(color: Color.black.opacity(0.12), radius: 4, x: 0, y: 2)
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("Add to Notes")
