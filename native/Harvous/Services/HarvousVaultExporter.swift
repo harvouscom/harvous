@@ -32,6 +32,8 @@ struct HarvousVaultStudyThreadDTO: Codable {
     var scripturePassageTranslation: String?
     var scripturePassageExcerpt: String?
     var highlightAccentRaw: String
+    /// Optional; omit in older vault exports (`nil` after import → list uses `createdAt` sort key).
+    var highlightListEditedAt: Date?
 
     init(from thread: StudyThread) {
         self.id = thread.id
@@ -56,6 +58,7 @@ struct HarvousVaultStudyThreadDTO: Codable {
         self.scripturePassageTranslation = thread.scripturePassageTranslation
         self.scripturePassageExcerpt = thread.scripturePassageExcerpt
         self.highlightAccentRaw = thread.highlightAccentRaw
+        self.highlightListEditedAt = thread.highlightListEditedAt
     }
 
     func makeStudyThread(parent: Note) -> StudyThread {
@@ -82,6 +85,7 @@ struct HarvousVaultStudyThreadDTO: Codable {
             scripturePassageTranslation: scripturePassageTranslation,
             scripturePassageExcerpt: scripturePassageExcerpt,
             highlightAccentRaw: highlightAccentRaw,
+            highlightListEditedAt: highlightListEditedAt,
             parentNote: parent
         )
     }

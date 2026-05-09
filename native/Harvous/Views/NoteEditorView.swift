@@ -128,6 +128,7 @@ struct NoteEditorView: View {
 
     #if os(macOS)
     @StateObject private var proxy = EditorProxy()
+    @EnvironmentObject private var appRouter: HarvousAppRouter
     var showInspector: Binding<Bool> = .constant(false)
     #else
     @EnvironmentObject private var appRouter: HarvousAppRouter
@@ -229,8 +230,7 @@ struct NoteEditorView: View {
         }
         .onChange(of: note?.id) { oldId, newId in
             // Synchronous: `HarvousEditor` also resets async on `boundNoteID` change; without this, proxy
-            // pill / format state can lag one turn and `syncInlineScriptureDockFromProxyPill` may briefly
-            // pair a stale pill attachment with the new note (`refreshScripturePassageHighlights` + SwiftData).
+            // pill / format state can lag one turn and briefly pair stale UI with the new note.
             proxy.resetFormatBarStateForNewNote()
             scripturePillPrefetchTask?.cancel()
             scripturePillPrefetchTask = nil
@@ -268,6 +268,7 @@ struct NoteEditorView: View {
             #if os(iOS)
             syncIOSNoteFooterSupplement()
             #endif
+            scheduleConsumePendingStudyHighlightListActivation()
         }
         .onChange(of: scenePhase) { _, phase in
             if phase == .active {
@@ -295,12 +296,12 @@ struct NoteEditorView: View {
             titleFocused = true
             newNoteTiltTrigger.toggle()
         }
-        .onChange(of: currentCollectionLabel) { _, newValue in
+        .onChange(of: chipPrimaryLabel) { _, newValue in
             animateCollectionTextReveal(for: newValue)
         }
         .onChange(of: isCollectionContextUpdating) { _, updating in
             guard updating else { return }
-            animateCollectionTextReveal(for: currentCollectionLabel)
+            animateCollectionTextReveal(for: chipPrimaryLabel)
         }
     }
 
@@ -313,14 +314,16 @@ struct NoteEditorView: View {
             .onChange(of: bodySelectionChangeToken) { _, _ in onBodySelectionHostChanged() }
             .onChange(of: title) { _, _ in syncIOSNoteFooterSupplement() }
 #endif
-            .onChange(of: proxy.activeScripturePill) { _, new in
-                #if os(iOS)
-                guard appRouter.iosActiveNoteEditorChromeProxy === proxy else { return }
-                #endif
-                syncInlineScriptureDockFromProxyPill(new)
-            }
             .onChange(of: activePillDock) { _, new in
+                if new != nil {
+                    previewHighlightThreadId = nil
+                }
                 refreshScripturePassageHighlights(item: new)
+                #if os(iOS)
+                syncIOSNoteFooterSupplement()
+                #endif
+            }
+            .onChange(of: dockPinnedHighlightThreadId) { _, _ in
                 #if os(iOS)
                 syncIOSNoteFooterSupplement()
                 #endif
@@ -328,6 +331,10 @@ struct NoteEditorView: View {
             .onChange(of: editorState.plainText) { _, _ in
                 guard let note else { return }
                 reconcileStudyHighlightsPainting(for: note)
+                scheduleConsumePendingStudyHighlightListActivation()
+            }
+            .onChange(of: appRouter.pendingStudyHighlightActivation?.requestId) { _, _ in
+                scheduleConsumePendingStudyHighlightListActivation()
             }
             .onReceive(NotificationCenter.default.publisher(for: .harvousNewStandaloneNoteFromSelection)) { notification in
                 // Only the currently-active editor should respond — multiple `NoteEditorView` instances can be
@@ -350,6 +357,15 @@ struct NoteEditorView: View {
                 proxy.refocusTextView()
                 #endif
                 showWikiLinkPicker = true
+            }
+            .onAppear {
+                proxy.onScripturePillAttachmentRemoved = { ranges in
+                    if let dock = activePillDock, case .body(let bodyRange) = dock.anchor,
+                       ranges.contains(where: { NSIntersectionRange($0, bodyRange).length > 0 }) {
+                        activePillDock = nil
+                        activePillDockExpanded = false
+                    }
+                }
             }
     }
 
@@ -420,7 +436,6 @@ struct NoteEditorView: View {
     private func saveHighlightFromPanel(for note: Note) {
         guard let session = highlightCaptureSession, session.parentNoteId == note.id else { return }
         let trimmed = highlightAnnotationDraft.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return }
         autosave.cancel()
         persistEditorIntoNote(note)
         let exp = NSRange(location: session.expandedUTF16Location, length: session.expandedUTF16Length)
@@ -448,7 +463,8 @@ struct NoteEditorView: View {
             #if os(macOS)
             // iOS: highlight + new note live in UITextView’s system edit menu (`HarvousBodyTextView.editMenu`).
             if highlightCaptureSession == nil, proxy.hasSelection, let rect = anchorRect {
-                let width: CGFloat = 92
+                let intersectRemovals = threadIdsIntersectingCurrentBodySelection()
+                let width: CGFloat = intersectRemovals.isEmpty ? 92 : 134
                 let x = selectionAccessoryX(rect: rect, containerWidth: horizontalClampWidth, width: width)
                 let y = selectionAccessoryY(rect: rect)
                 SelectionActionBar(
@@ -459,7 +475,12 @@ struct NoteEditorView: View {
                             proxy.triggerHighlightCapturePrompt?()
                         }
                     },
-                    onNewStandaloneNote: { proxy.triggerStandaloneNoteFromSelection?() }
+                    onNewStandaloneNote: { proxy.triggerStandaloneNoteFromSelection?() },
+                    onRemoveStudyHighlight: intersectRemovals.isEmpty
+                        ? nil
+                        : {
+                            proxy.triggerRemoveIntersectingStudyHighlightsFromSelection?()
+                        }
                 )
                 .offset(x: x, y: y)
                 .transition(.asymmetric(
@@ -494,8 +515,23 @@ struct NoteEditorView: View {
                     removal: .opacity.combined(with: .scale(scale: 0.95, anchor: .top))
                 ))
             }
+            if let prompt = proxy.scripturePillDeletionPrompt {
+                let panelW: CGFloat = min(240, max(horizontalClampWidth - 16, 200))
+                let rect = prompt.anchorViewportRect
+                let hasRealAnchor = rect.width > 0.5 && rect.height > 0.5
+                let layoutRect = hasRealAnchor ? rect : CGRect(x: horizontalClampWidth / 2, y: 56, width: 1, height: 20)
+                let x = selectionAccessoryX(rect: layoutRect, containerWidth: horizontalClampWidth, width: panelW)
+                let y = selectionAccessoryY(rect: layoutRect)
+                scripturePillDeletionConfirmContent(prompt: prompt, panelWidth: panelW)
+                    .offset(x: x, y: y)
+                    .transition(.asymmetric(
+                        insertion: .opacity.combined(with: .scale(scale: 0.92, anchor: .top)),
+                        removal: .opacity
+                    ))
+            }
         }
         .animation(.spring(response: 0.36, dampingFraction: 0.82), value: highlightCaptureSession != nil)
+        .animation(.spring(response: 0.32, dampingFraction: 0.84), value: proxy.scripturePillDeletionPrompt != nil)
     }
 
     /// Clamps a floating accessory horizontally inside the editor paper, centered on the selection.
@@ -508,6 +544,41 @@ struct NoteEditorView: View {
     /// Positions the accessory **below** the selection (8pt gap) so the selected prose stays visible.
     private func selectionAccessoryY(rect: CGRect) -> CGFloat {
         rect.maxY + 8
+    }
+
+    @ViewBuilder
+    private func scripturePillDeletionConfirmContent(prompt: ScripturePillDeletionPrompt, panelWidth: CGFloat) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Remove this scripture pill?")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(.primary)
+                .fixedSize(horizontal: false, vertical: true)
+            Text(prompt.reference)
+                .font(.system(size: 12, weight: .regular))
+                .foregroundStyle(.secondary)
+                .lineLimit(2)
+            HStack(spacing: 8) {
+                Button(role: .destructive) {
+                    withAnimation(.spring(response: 0.28, dampingFraction: 0.85)) {
+                        proxy.confirmScripturePillDeletion()
+                    }
+                } label: {
+                    Text("Remove")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+
+                Button("Keep") {
+                    withAnimation(.spring(response: 0.28, dampingFraction: 0.85)) {
+                        proxy.dismissScripturePillDeletionPrompt()
+                    }
+                }
+                .buttonStyle(.bordered)
+            }
+        }
+        .padding(12)
+        .frame(width: panelWidth)
+        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 
     /// Persists parent note edits, inserts the quoted child note, then navigates (iOS pushes path; mac swaps selection).
@@ -667,7 +738,7 @@ struct NoteEditorView: View {
                             font: HarvousFonts.system(size: 16, weight: 400, design: .default),
                             scriptureTheme: scriptureTheme,
                             studyHighlightPaints: studyHighlightPaints,
-                            studyHighlightFocusedThreadId: dockPinnedHighlightThreadId ?? previewHighlightThreadId,
+                            studyHighlightFocusedThreadId: studyHighlightBodyPaintFocusThreadId,
                             studyHighlightsAssumeDarkAppearance: colorScheme == .dark,
                             onScripturePillTap: { scripturePillTapped(reference: $0, translation: $1, range: $2) },
                             onResolvedScripturePillPairs: { scheduleScripturePassagePrefetch(pairs: $0) },
@@ -676,7 +747,8 @@ struct NoteEditorView: View {
                                 guard let token = StudyHighlightAccentToken(rawValue: raw), token != .auto else { return nil }
                                 return token
                             },
-                            onStudyHighlightClick: { userActivatedStudyHighlight(threadId: $0) }
+                            onStudyHighlightClick: { userActivatedStudyHighlight(threadId: $0) },
+                            onRemoveStudyHighlightThreadIds: { removeStudyHighlightThreads(ids: $0, parent: note) }
                         )
                         // Fresh `NSViewRepresentable` + TextKit stack per note avoids pathological incremental
                         // `updateNSView` when reusing one `NSTextView` across scripture-heavy bodies.
@@ -699,13 +771,14 @@ struct NoteEditorView: View {
                             onResolvedScripturePillPairs: { scheduleScripturePassagePrefetch(pairs: $0) },
                             onStudyHighlightTap: { userActivatedStudyHighlight(threadId: $0) },
                             studyHighlightPaints: studyHighlightPaints,
-                            studyHighlightFocusedThreadId: dockPinnedHighlightThreadId ?? previewHighlightThreadId,
+                            studyHighlightFocusedThreadId: studyHighlightBodyPaintFocusThreadId,
                             studyHighlightsAssumeDarkAppearance: colorScheme == .dark,
                             pillAccentResolver: { [note] reference in
                                 guard let raw = note.scripturePillAccentRaw(forReference: reference) else { return nil }
                                 guard let token = StudyHighlightAccentToken(rawValue: raw), token != .auto else { return nil }
                                 return token
-                            }
+                            },
+                            onRemoveStudyHighlightThreadIds: { removeStudyHighlightThreads(ids: $0, parent: note) }
                         )
                         .frame(minHeight: 400)
                         .overlay(alignment: .topLeading) {
@@ -745,14 +818,11 @@ struct NoteEditorView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
 
             #if os(macOS)
-            // Bottom bar: format toolbar, scripture pill editor, or connections — iPhone uses root `safeAreaInset` instead.
+            // Bottom bar: format toolbar or connections — scripture pickers/passage live only in the inline dock
+            // after an explicit pill tap (not when the caret sits next to a pill).
             if proxy.shouldShowNoteToolbar {
                 NoteToolbar(proxy: proxy)
                     .id("noteToolbar")
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
-            } else if proxy.activeScripturePill != nil && activePillDock == nil {
-                ScripturePillActionBar(proxy: proxy)
-                    .id("scripturePillBar")
                     .transition(.move(edge: .bottom).combined(with: .opacity))
             } else {
                 VStack(spacing: 0) {
@@ -991,7 +1061,7 @@ struct NoteEditorView: View {
             note: n,
             trailSnapshot: trailSnapshot,
             connectionsTitleLine: titleLine,
-            suppressScripturePillActionBar: activePillDock != nil,
+            suppressScripturePillActionBar: activePillDock != nil || dockPinnedHighlightThreadId != nil,
             onRefreshConnections: { iosFooterRefreshConnectionsFromSupplement() },
             onOpenLinkedNote: { iosFooterOpenLinkedNoteFromSupplement($0) }
         )
@@ -1042,9 +1112,22 @@ struct NoteEditorView: View {
         return idx + 1
     }
 
+    /// Matches the scripture pill dock: while the highlight dock is **pinned**, body paint does not grayscale
+    /// non-active highlights. Hover-only preview still dims non-hovered spans (`previewHighlightThreadId`)
+    /// only when the scripture pill dock is not consuming the study surface.
+    private var studyHighlightBodyPaintFocusThreadId: UUID? {
+        if dockPinnedHighlightThreadId != nil { return nil }
+        if activePillDock != nil { return nil }
+        return previewHighlightThreadId
+    }
+
     @ViewBuilder
     private func activeStudyHighlightDock(note: Note) -> some View {
-        let dockThreadId = dockPinnedHighlightThreadId ?? previewHighlightThreadId
+        let dockThreadId: UUID? = {
+            if let pinned = dockPinnedHighlightThreadId { return pinned }
+            guard activePillDock == nil else { return nil }
+            return previewHighlightThreadId
+        }()
         if let dockThreadId,
            let dockThread = ThreadStore.fetch(id: dockThreadId, modelContext: context),
            StudyThread.anchoredHighlightKinds.contains(dockThread.entryKind),
@@ -1073,6 +1156,12 @@ struct NoteEditorView: View {
         dockPinnedHighlightThreadId = nil
         activeHighlightDockExpanded = false
         previewHighlightThreadId = nil
+        // Mirrors `dismissActiveScripturePillDock` — avoids the scripture capsule / orb fighting the old caret-adjacent pill.
+        proxy.activeScripturePill = nil
+        proxy.preferOrbChromeUntilNextFormatSignal = true
+        #if os(iOS)
+        syncIOSNoteFooterSupplement()
+        #endif
     }
 
     /// Permanently delete the highlight's backing `StudyThread`, then refresh paint state
@@ -1084,6 +1173,38 @@ struct NoteEditorView: View {
         #if os(iOS)
         UIImpactFeedbackGenerator(style: .light).impactOccurred()
         #endif
+    }
+
+    /// Deletes every anchored prose highlight in `ids` intersecting removal (bulk path for selection/menu).
+    private func removeStudyHighlightThreads(ids: [UUID], parent note: Note) {
+        let unique = Array(Set(ids))
+        guard !unique.isEmpty else { return }
+        let pinnedBefore = dockPinnedHighlightThreadId
+        let previewBefore = previewHighlightThreadId
+        autosave.cancel()
+        persistEditorIntoNote(note)
+        for id in unique {
+            guard let t = ThreadStore.fetch(id: id, modelContext: context),
+                  StudyThread.anchoredHighlightKinds.contains(t.entryKind) else { continue }
+            removeHighlightThread(t, parent: note)
+        }
+        if let prv = previewBefore, unique.contains(prv) {
+            previewHighlightThreadId = nil
+        }
+        if let pinned = pinnedBefore, unique.contains(pinned) {
+            dismissStudyHighlightDock()
+        }
+    }
+
+    /// Intersects current body caret/selection against painted highlights (`NSTextStorage`).
+    private func threadIdsIntersectingCurrentBodySelection() -> [UUID] {
+        guard let (_, storage) = proxy.textViewPair() else { return [] }
+        let sel = proxy.bodySelectedUTF16Range
+        return HarvousStudyHighlightMapper.threadIdsIntersectingBodySelection(
+            sel,
+            paints: studyHighlightPaints,
+            storage: storage
+        )
     }
 
     private func userActivatedStudyHighlight(threadId: UUID) {
@@ -1106,10 +1227,10 @@ struct NoteEditorView: View {
         // Pin the inline `ActiveHighlightDock` — this is the same view the hover-preview path uses
         // successfully, so it sidesteps all of SwiftUI's sheet-presentation timing issues and is
         // guaranteed to appear right below the editor regardless of UITextView first-responder state.
+        previewHighlightThreadId = nil
         dismissActiveScripturePillDock()
         dockPinnedHighlightThreadId = threadId
         activeHighlightDockExpanded = true
-        previewHighlightThreadId = nil
         highlightDetailThreadId = nil
         #if DEBUG
         print("[Harvous.highlight.activate] OK — pinned dock for threadId=\(threadId)")
@@ -1150,24 +1271,35 @@ struct NoteEditorView: View {
         reconcilePinnedHighlightDockWithBodySelection()
     }
 
-    /// Clears the pinned highlight dock when the body selection / caret moves outside that highlight’s storage spans.
+    /// Clears the pinned highlight dock when its anchor no longer appears in the document (e.g. deleted range).
+    /// Caret movement alone does not dismiss; the user closes the dock explicitly.
     private func reconcilePinnedHighlightDockWithBodySelection() {
         guard let pinned = dockPinnedHighlightThreadId else { return }
-        guard let paint = studyHighlightPaints.first(where: { $0.threadId == pinned }) else {
+        guard !studyHighlightPaints.contains(where: { $0.threadId == pinned }) else { return }
+
+        guard let n = note,
+              let thread = ThreadStore.fetch(id: pinned, modelContext: context),
+              StudyThread.anchoredHighlightKinds.contains(thread.entryKind),
+              thread.hasPersistedHighlightAnchor,
+              thread.resolveHighlightRangeAgainstExpandedBody(editorState.plainText) != nil else {
             dockPinnedHighlightThreadId = nil
             activeHighlightDockExpanded = false
             return
         }
-        if !proxy.bodySelectionIsContainedInStudyHighlightStorageSpans(expandedPlainHighlightRange: paint.expandedUTF16Range) {
-            dockPinnedHighlightThreadId = nil
-            activeHighlightDockExpanded = false
-        }
+
+        reconcileStudyHighlightsPainting(for: n)
     }
 
 #if os(macOS)
 
     private func macUpdatePreviewForHoveredHighlight(_ hoveredId: UUID?) {
         guard dockPinnedHighlightThreadId == nil else {
+            if hoveredId == nil {
+                previewHighlightThreadId = nil
+            }
+            return
+        }
+        guard activePillDock == nil else {
             if hoveredId == nil {
                 previewHighlightThreadId = nil
             }
@@ -1239,8 +1371,13 @@ struct NoteEditorView: View {
     }
 
     private func removeActiveHighlightFromKeyboard() {
+        guard let n = note else { return }
+        let intersecting = threadIdsIntersectingCurrentBodySelection()
+        if !intersecting.isEmpty {
+            removeStudyHighlightThreads(ids: intersecting, parent: n)
+            return
+        }
         guard let tid = dockPinnedHighlightThreadId,
-              let n = note,
               let thread = ThreadStore.fetch(id: tid, modelContext: context),
               StudyThread.anchoredHighlightKinds.contains(thread.entryKind) else { return }
         removeHighlightThread(thread, parent: n)
@@ -1314,8 +1451,6 @@ struct NoteEditorView: View {
     }
 
     private func scripturePillTapped(reference: String, translation: String, range: NSRange) {
-        // Sync: selection already applies `activeScripturePill` via a deferred `Task`; deferring here too
-        // lets that task run first with `activePillDock == nil`, flashing the legacy action bar.
         dockPinnedHighlightThreadId = nil
         activeHighlightDockExpanded = false
         previewHighlightThreadId = nil
@@ -1352,36 +1487,6 @@ struct NoteEditorView: View {
         #if os(iOS)
         UIImpactFeedbackGenerator(style: .soft).impactOccurred()
         #endif
-    }
-
-    /// When the editor reports a focused pill (e.g. right after detection replaces plain text with an attachment),
-    /// open or retarget the inline dock — otherwise `activeScripturePill != nil` with a stale/missing dock shows the legacy bottom bar.
-    private func syncInlineScriptureDockFromProxyPill(_ pill: ActiveScripturePill?) {
-        guard let pill else { return }
-        if let dock = activePillDock {
-            if case .title = dock.anchor { return }
-        }
-        guard let (_, storage) = proxy.textViewPair() else { return }
-        guard pill.attachmentRange.location != NSNotFound,
-              NSMaxRange(pill.attachmentRange) <= storage.length
-        else { return }
-        if let dock = activePillDock,
-           case .body(let bodyRange) = dock.anchor,
-           bodyRange == pill.attachmentRange,
-           dock.reference == pill.reference,
-           dock.translation == pill.translation {
-            return
-        }
-        dockPinnedHighlightThreadId = nil
-        activeHighlightDockExpanded = false
-        previewHighlightThreadId = nil
-        activePillDock = ActiveScripturePillDockItem(
-            reference: pill.reference,
-            translation: pill.translation,
-            anchor: .body(pill.attachmentRange)
-        )
-        activePillDockExpanded = true
-        refreshScripturePassageHighlights(item: activePillDock)
     }
 
     /// Parallel scripture passage prefetch once pills exist in storage (bounded concurrency; cancelled when the note/editor goes away).
@@ -1521,14 +1626,50 @@ struct NoteEditorView: View {
         return token
     }
 
-    private func openPassageHighlightFromDock(_ thread: StudyThread) {
-        if thread.parentNoteId != note?.id {
-            openNoteInPlace(id: thread.parentNoteId)
-        }
+    /// Passage-highlight path when the editor is already showing the correct parent note (Highlights list, dock).
+    private func activatePassageStudyHighlightForCurrentNote(_ thread: StudyThread) {
         dismissActiveScripturePillDock()
         dockPinnedHighlightThreadId = thread.id
         activeHighlightDockExpanded = true
         previewHighlightThreadId = nil
+        highlightDetailThreadId = nil
+    }
+
+    /// Retries briefly after Highlights list pushes a note — needs correct `note?.id`, body sync, then activation.
+    private func scheduleConsumePendingStudyHighlightListActivation() {
+        guard appRouter.pendingStudyHighlightActivation != nil else { return }
+        let captured = appRouter.pendingStudyHighlightActivation
+        DispatchQueue.main.async {
+            guard let pending = captured, appRouter.pendingStudyHighlightActivation?.requestId == pending.requestId else {
+                return
+            }
+            applyPendingStudyHighlightListActivation(pending)
+        }
+    }
+
+    private func applyPendingStudyHighlightListActivation(_ pending: PendingStudyHighlightActivation) {
+        guard appRouter.pendingStudyHighlightActivation?.requestId == pending.requestId else { return }
+        guard let n = note, n.id == pending.noteId else { return }
+        guard let thread = ThreadStore.fetch(id: pending.threadId, modelContext: context) else {
+            appRouter.clearPendingStudyHighlightActivation()
+            return
+        }
+        if StudyHighlightListIndex.isScripturePassageHighlight(thread) {
+            activatePassageStudyHighlightForCurrentNote(thread)
+        } else if thread.hasPersistedHighlightAnchor {
+            userActivatedStudyHighlight(threadId: thread.id)
+        } else {
+            appRouter.clearPendingStudyHighlightActivation()
+            return
+        }
+        appRouter.clearPendingStudyHighlightActivation()
+    }
+
+    private func openPassageHighlightFromDock(_ thread: StudyThread) {
+        if thread.parentNoteId != note?.id {
+            openNoteInPlace(id: thread.parentNoteId)
+        }
+        activatePassageStudyHighlightForCurrentNote(thread)
     }
 
     /// Update the inline pill attachment's translation in-place by routing through the existing
@@ -1742,19 +1883,36 @@ struct NoteEditorView: View {
         }
     }
 
-    /// Returns all distinct primaryCollection values in the current model context, excluding the given note's
-    /// own collection. Used to ground auto-collection suggestions in collections the user has already established.
-    private func existingCollectionNames(excluding note: Note) -> [String] {
-        let descriptor = FetchDescriptor<Note>(predicate: #Predicate { $0.primaryCollection != nil })
-        guard let notes = try? context.fetch(descriptor) else { return [] }
-        let ownCollection = note.primaryCollection?.trimmingCharacters(in: .whitespacesAndNewlines)
-        var seen = Set<String>()
-        for n in notes {
-            guard let col = n.primaryCollection?.trimmingCharacters(in: .whitespacesAndNewlines), !col.isEmpty else { continue }
-            if col == ownCollection { continue }
-            seen.insert(col)
+    private var chipPrimaryLabel: String? {
+        note?.collectionChipPrimaryLabelText()
+    }
+
+    private func animateCollectionTextReveal(for value: String?) {
+        guard value != nil else {
+            showCollectionToolbarText = true
+            return
         }
-        return Array(seen)
+        showCollectionToolbarText = false
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) {
+            withAnimation(.easeOut(duration: 0.18)) {
+                showCollectionToolbarText = true
+            }
+        }
+    }
+
+    private func existingCollectionNames(excluding note: Note) -> [String] {
+        let descriptor = FetchDescriptor<Note>()
+        guard let notes = try? context.fetch(descriptor) else { return [] }
+        let ownLower = Set(note.allCollectionMembershipLabels().map { $0.lowercased() })
+        var labels = Set<String>()
+        for n in notes where n.id != note.id {
+            for label in n.allCollectionMembershipLabels() {
+                let low = label.lowercased()
+                if ownLower.contains(low) { continue }
+                labels.insert(label)
+            }
+        }
+        return Array(labels)
     }
 
     // MARK: - Sync
@@ -1771,31 +1929,13 @@ struct NoteEditorView: View {
                 refs: ScriptureDetector.mergedDetectedRefs(title: title, bodyRefs: bodyRefs)
             )
             isCollectionContextUpdating = false
-            showCollectionToolbarText = currentCollectionLabel != nil
+            showCollectionToolbarText = chipPrimaryLabel != nil
         } else {
             title = ""
             editorState = EditorState()
             autosave.updateSnapshot(title: "", body: "", refs: [])
             isCollectionContextUpdating = false
             showCollectionToolbarText = true
-        }
-    }
-
-    private var currentCollectionLabel: String? {
-        let trimmed = note?.primaryCollection?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        return trimmed.isEmpty ? nil : trimmed
-    }
-
-    private func animateCollectionTextReveal(for value: String?) {
-        guard value != nil else {
-            showCollectionToolbarText = true
-            return
-        }
-        showCollectionToolbarText = false
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) {
-            withAnimation(.easeOut(duration: 0.18)) {
-                showCollectionToolbarText = true
-            }
         }
     }
 
@@ -1966,5 +2106,6 @@ extension Notification.Name {
 #Preview {
     NoteEditorView(note: .constant(nil))
         .modelContainer(for: [Note.self, StudyThread.self], inMemory: true)
+        .environmentObject(HarvousAppRouter())
         .frame(minWidth: 600, minHeight: 500)
 }

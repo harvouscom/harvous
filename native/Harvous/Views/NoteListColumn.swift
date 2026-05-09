@@ -75,6 +75,7 @@ struct NoteListColumn: View {
     @Environment(\.modelContext) private var context
     @Environment(\.colorScheme) private var colorScheme
     @EnvironmentObject private var spaceStore: SpaceStore
+    @EnvironmentObject private var appRouter: HarvousAppRouter
     #if os(macOS)
     @EnvironmentObject private var macNoteListSelectionCoordinator: MacNoteListSelectionCoordinator
     #endif
@@ -140,11 +141,11 @@ struct NoteListColumn: View {
         case .all:
             return notesInActiveSpace
         case .collection(let selectedCollection):
-            return notesInActiveSpace.filter { note in
-                let normalized = note.primaryCollection?.trimmingCharacters(in: .whitespacesAndNewlines)
-                let collection = (normalized?.isEmpty == false) ? normalized : nil
-                return collection == selectedCollection
-            }
+            return notesInActiveSpace.filter { $0.noteBelongsToCollectionBucket(selectedCollection) }
+        case .scriptureBook(let bookIndex):
+            return notesInActiveSpace.filter { $0.noteBelongsToScriptureBook(bookIndex) }
+        case .scripturePassage(let passage):
+            return notesInActiveSpace.filter { $0.noteBelongsToScripturePassage(passage) }
         }
     }
 
@@ -419,7 +420,9 @@ struct NoteListColumn: View {
         #if os(iOS)
         if columnStyle == .iOSHomeFeed || columnStyle == .iOSTabNoteList {
             if let iosNoteNavPath {
-                NavigationLink(value: note.id) {
+                Button {
+                    iosNoteNavPath.wrappedValue.append(note.id)
+                } label: {
                     NoteFeedRow(note: note, variant: .conversation)
                 }
                 .buttonStyle(.plain)

@@ -53,8 +53,18 @@ import { getEffectiveHighestSimpleNoteId } from '../utils/highest-simple-note-id
 import { extractArticleContent } from '@/utils/content-extractor';
 import { sortByLastVisited } from '@/utils/sorting';
 import { stripHtml } from '@/utils/html-stripper';
+import {
+  normalizeSecondaryLabels,
+  parseNoteSecondaryCollections,
+  serializeNoteSecondaryCollections,
+} from '../utils/note-secondary-collections';
 
 const route = new Hono();
+
+function noteJsonWithParsedSecondaries<T extends { secondaryCollections?: string | null }>(note: T) {
+  const raw = note.secondaryCollections;
+  return { ...note, secondaryCollections: parseNoteSecondaryCollections(raw ?? null) };
+}
 
 function isOnboardingSystemNote(note: { threadId: string; addedBy: string | null }): boolean {
   return note.threadId.startsWith('thread_onboarding_') && note.addedBy === 'system';
@@ -366,7 +376,7 @@ route.post('/api/notes/create', requireAuth, rateLimitNoteCreate(), async (c) =>
 
     return c.json({
       success: 'Note created!',
-      note: newNote,
+      note: noteJsonWithParsedSecondaries(newNote as { secondaryCollections?: string | null }),
       scriptureResults: [],
       scriptureDeferred: true,
     });
@@ -390,6 +400,7 @@ route.put('/api/notes/update', requireAuth, rateLimit('write'), async (c) => {
       contentEncrypted,
       scriptureVersion,
       primaryCollection: primaryCollectionRaw,
+      secondaryCollections: secondaryCollectionsRaw,
       collectionPinned: collectionPinnedRaw,
       collectionUserOverride: collectionUserOverrideRaw,
     } = body;
@@ -409,11 +420,26 @@ route.put('/api/notes/update', requireAuth, rateLimit('write'), async (c) => {
     const capitalizedTitle = title ? (title.charAt(0).toUpperCase() + title.slice(1)) : title;
 
     const updateData: any = { title: capitalizedTitle, content: capitalizedContent, updatedAt: nowISO() };
+    let nextPrimaryForSecondaries: string | null = existingNote.primaryCollection ?? null;
     if (primaryCollectionRaw !== undefined) {
       updateData.primaryCollection =
         typeof primaryCollectionRaw === 'string' && primaryCollectionRaw.trim().length > 0
           ? primaryCollectionRaw.trim()
           : null;
+      nextPrimaryForSecondaries = updateData.primaryCollection;
+    }
+    if (secondaryCollectionsRaw !== undefined) {
+      const arr = Array.isArray(secondaryCollectionsRaw)
+        ? secondaryCollectionsRaw.filter((x: unknown): x is string => typeof x === 'string')
+        : [];
+      updateData.secondaryCollections = serializeNoteSecondaryCollections(
+        normalizeSecondaryLabels(arr, nextPrimaryForSecondaries),
+      );
+    } else if (primaryCollectionRaw !== undefined) {
+      const parsed = parseNoteSecondaryCollections(existingNote.secondaryCollections);
+      updateData.secondaryCollections = serializeNoteSecondaryCollections(
+        normalizeSecondaryLabels(parsed, nextPrimaryForSecondaries),
+      );
     }
     if (collectionPinnedRaw !== undefined) {
       updateData.collectionPinned = Boolean(collectionPinnedRaw);
@@ -479,7 +505,13 @@ route.put('/api/notes/update', requireAuth, rateLimit('write'), async (c) => {
       }
     }
 
-    return c.json({ success: 'Note updated!', note: updatedNote, scriptureResults, processedContent, scriptureProcessingError });
+    return c.json({
+      success: 'Note updated!',
+      note: noteJsonWithParsedSecondaries(updatedNote),
+      scriptureResults,
+      processedContent,
+      scriptureProcessingError,
+    });
   } catch (error: any) {
     return c.json({ error: error.message || 'Failed to update note' }, 500);
   }
@@ -1107,7 +1139,17 @@ route.get('/api/notes/:id/details', requireAuth, async (c) => {
 
     return c.json({
       success: true,
-      note: { ...note, simpleNoteId: note.simpleNoteId ?? null, contentEncrypted: note.contentEncrypted || false, noteType: note.noteType || 'default', addedBy: note.addedBy || 'user', version, resourceTitle, resourceDescription, resourceImage },
+      note: {
+        ...noteJsonWithParsedSecondaries(note),
+        simpleNoteId: note.simpleNoteId ?? null,
+        contentEncrypted: note.contentEncrypted || false,
+        noteType: note.noteType || 'default',
+        addedBy: note.addedBy || 'user',
+        version,
+        resourceTitle,
+        resourceDescription,
+        resourceImage,
+      },
       threads: formattedThreads,
       allUserThreads: selectableUserThreads.map(t => ({ id: t.id, title: t.title, color: t.color, isPublic: t.isPublic, createdAt: t.createdAt, updatedAt: t.updatedAt })),
       comments: comments.map(c => ({ id: c.id, content: c.content, createdAt: c.createdAt, updatedAt: c.updatedAt })),

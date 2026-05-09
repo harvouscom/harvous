@@ -108,7 +108,7 @@ enum ScriptureCanonicalBooks {
 }
 
 /// Fields parsed from a reference string such as `John 3:16` or `1 Cor 4:2-5`.
-struct ParsedScriptureFields: Equatable {
+struct ParsedScriptureFields: Equatable, Hashable {
     var bookIndex: Int
     var chapter: Int
     var verseStart: Int

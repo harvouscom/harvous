@@ -16,6 +16,9 @@ final class StudyThread {
     var createdAt: Date
     var updatedAt: Date
 
+    /// Bumped only for user-visible highlight edits (`ActiveHighlightDock`, linked-notes save, …). Highlights list sorts by this, then `createdAt`, so visits / AI phrase seeding do not reshuffle rows.
+    var highlightListEditedAt: Date?
+
     /// Resolved space for scoped queries (matches `Note.resolvedSpaceId()`).
     /// Default matches personal home so SwiftData lightweight migration can populate older rows.
     var spaceId: UUID = HarvousSpaceBootstrap.personalHomeSpaceId
@@ -94,11 +97,13 @@ final class StudyThread {
         scripturePassageTranslation: String? = nil,
         scripturePassageExcerpt: String? = nil,
         highlightAccentRaw: String = StudyHighlightAccentToken.warmAmber.rawValue,
+        highlightListEditedAt: Date? = nil,
         parentNote: Note? = nil
     ) {
         self.id = id
         self.createdAt = createdAt
         self.updatedAt = updatedAt
+        self.highlightListEditedAt = highlightListEditedAt
         self.spaceId = spaceId
         self.parentNoteId = parentNoteId
         self.sourceSnippet = sourceSnippet

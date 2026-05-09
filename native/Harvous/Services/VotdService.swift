@@ -38,11 +38,14 @@ enum VotdService {
         #endif
     }
 
-    #if DEBUG
-    private static let baseURL = "http://localhost:3001"
-    #else
-    private static let baseURL = "https://app.harvous.com"
-    #endif
+    /// DEBUG tries localhost first (matches typical `npm run dev`), then production — same as scripture (`HarvousAPI`) when local API is off.
+    private static func fetchOrigins() -> [String] {
+        #if DEBUG
+        ["http://localhost:3001", HarvousAPI.baseURL]
+        #else
+        [HarvousAPI.baseURL]
+        #endif
+    }
 
     private static let urlSession: URLSession = {
         let config = URLSessionConfiguration.ephemeral
@@ -85,12 +88,24 @@ enum VotdService {
     }
 
     private static func fetchFromNetwork() async -> VotdToday? {
-        let tz = TimeZone.current.identifier
-            .addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? "UTC"
-        guard let url = URL(string: "\(baseURL)/api/votd/today?tz=\(tz)") else { return nil }
+        for origin in fetchOrigins() {
+            if let v = await fetchVotd(origin: origin) { return v }
+        }
+        return nil
+    }
+
+    private static func fetchVotd(origin: String) async -> VotdToday? {
+        let ianaTz = TimeZone.current.identifier
+        var components = URLComponents(string: "\(origin)/api/votd/today")
+        components?.queryItems = [URLQueryItem(name: "tz", value: ianaTz)]
+        guard let url = components?.url else { return nil }
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
-        request.setValue(TimeZone.current.identifier, forHTTPHeaderField: "X-Votd-Timezone")
+        // Fail fast when local API is not running so production fallback loads quickly.
+        if origin.contains("localhost") || origin.contains("127.0.0.1") {
+            request.timeoutInterval = 2.5
+        }
+        request.setValue(ianaTz, forHTTPHeaderField: "X-Votd-Timezone")
         do {
             let (data, response) = try await urlSession.data(for: request)
             if let http = response as? HTTPURLResponse, !(200 ..< 300).contains(http.statusCode) {

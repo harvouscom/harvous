@@ -1,0 +1,37 @@
+{
+  "configurations" : [
+    {
+      "id" : "B2C3D4E5-F6A7-8901-BCDE-F12345678901",
+      "name" : "Default",
+      "options" : { }
+    }
+  ],
+  "defaultOptions" : {
+    "codeCoverage" : true,
+    "targetForVariableExpansion" : {
+      "containerPath" : "container:Harvous.xcodeproj",
+      "identifier" : "D4AAC31C4026BAF3DD0A2E6E",
+      "name" : "Harvous_iOS"
+    },
+    "testExecutionOrdering" : "random"
+  },
+  "testTargets" : [
+    {
+      "parallelizable" : true,
+      "target" : {
+        "containerPath" : "container:Harvous.xcodeproj",
+        "identifier" : "826E7DF3728411937E41BD0E",
+        "name" : "HarvousTests_iOS"
+      }
+    },
+    {
+      "parallelizable" : false,
+      "target" : {
+        "containerPath" : "container:Harvous.xcodeproj",
+        "identifier" : "6AC061C1BCAF6321CC830168",
+        "name" : "HarvousUITests_iOS"
+      }
+    }
+  ],
+  "version" : 1
+}

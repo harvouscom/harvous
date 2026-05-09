@@ -5,38 +5,59 @@ import Foundation
 enum BibleStudyTagSuggester {
     // MARK: - Public API
 
-    static func result(title: String, body: String, existingCollections: [String] = []) -> (primaryCollection: String?, tags: [String]) {
+    static func result(title: String, body: String, existingCollections: [String] = []) -> (
+        primaryCollection: String?,
+        secondaryCollections: [String],
+        tags: [String]
+    ) {
         let analysis = analyze(title: title, body: body)
         let primary = resolveToExistingCollection(analysis.primaryCandidate, from: existingCollections)
-        return (primary, analysis.tags)
+        let secondaries: [String]
+        if let primaryTrimmed = normalizedCollectionName(primary) {
+            secondaries = autoSecondaryLabels(
+                analysis: analysis,
+                primaryLabel: primaryTrimmed,
+                existingCollections: existingCollections
+            )
+        } else {
+            secondaries = []
+        }
+        return (primary, secondaries, analysis.tags)
     }
 
-    /// Recomputes `primaryCollection` and `tags` from the note’s title and body.
-    /// - parameter allowPrimaryUpdate: When false, only tags refresh while keeping collection stable.
+    /// Recomputes `primaryCollection`, `secondaryCollections`, and `tags` from the note’s title and body.
+    /// - parameter allowPrimaryUpdate: When false, primary stays stable regardless of lock flags; secondaries can still refresh.
     /// - parameter existingCollections: Names of collections already in the user’s library. When provided,
-    ///   the resolved candidate prefers an established name over a bare keyword (e.g. "Prayer" → "Prayer Life").
+    ///   resolved candidates prefer an established name over a bare keyword (e.g. "Prayer" → "Prayer Life").
+    ///
+    /// **Lock (`isCollectionPinned`)** freezes automatic **primary** changes only; secondaries still refresh from content.
+    /// **Manual membership** (`isCollectionUserOverride` without pin) freezes both until the user uses auto suggestion again.
     static func applyToNote(_ note: Note, allowPrimaryUpdate: Bool = true, existingCollections: [String] = []) {
         let analysis = analyze(title: note.title, body: note.body)
         if note.tags != analysis.tags {
             note.tags = analysis.tags
         }
 
-        // User-defined and pinned collections are authoritative.
-        if note.isCollectionUserOverride || note.isCollectionPinned { return }
-        if !allowPrimaryUpdate { return }
+        // Manual tweaks without lock: preserve primary + secondaries from automation.
+        if note.isCollectionUserOverride && !note.isCollectionPinned {
+            return
+        }
 
+        let skipAutoPrimary = note.isCollectionPinned || note.isCollectionUserOverride
+        if allowPrimaryUpdate && !skipAutoPrimary {
+            applyPrimaryMutation(note: note, analysis: analysis, existingCollections: existingCollections)
+        }
+        refreshAutoSecondaries(note: note, analysis: analysis, existingCollections: existingCollections)
+    }
+
+    private static func applyPrimaryMutation(note: Note, analysis: Analysis, existingCollections: [String]) {
         let current = normalizedCollectionName(note.primaryCollection)
-        // rawCandidate is the keyword the scoring engine produced (e.g. "Prayer").
-        // candidate is what we'll actually assign — either the raw keyword or a matched
-        // existing collection name (e.g. "Prayer Life"). Score lookups always use rawCandidate
-        // because only it appears in analysis.picked.
         let rawCandidate = normalizedCollectionName(analysis.primaryCandidate)
         let resolved = resolveToExistingCollection(analysis.primaryCandidate, from: existingCollections)
         let candidate = normalizedCollectionName(resolved)
         let scoringName = rawCandidate ?? candidate
         let now = Date()
 
-        // Avoid assigning a volatile collection too early in short drafts unless title signal is strong.
         if !meetsMinimumContextForAutoCollection(note: note, candidate: rawCandidate, analysis: analysis) {
             return
         }
@@ -58,8 +79,6 @@ enum BibleStudyTagSuggester {
             return
         }
 
-        // Keep note-level context stable: a single new keyword line should not immediately
-        // replace an existing collection unless the new signal is materially stronger.
         if !isPastAutoCollectionCooldown(note: note, now: now) {
             note.primaryCollection = current
             return
@@ -71,6 +90,45 @@ enum BibleStudyTagSuggester {
         note.primaryCollection = candidate
         note.collectionAutoConfidence = primaryScoreForName(scoringName ?? candidate, in: analysis)
         note.collectionLastAutoUpdatedAt = now
+    }
+
+    private static let maxAutoSecondaries = 5
+    private static let secondaryMinPrimaryScore: Double = 0.78
+
+    private static func refreshAutoSecondaries(note: Note, analysis: Analysis, existingCollections: [String]) {
+        guard let primaryTrimmed = normalizedCollectionName(note.primaryCollection) else {
+            note.secondaryCollections = []
+            return
+        }
+        let gate = normalizedCollectionName(analysis.primaryCandidate) ?? primaryTrimmed
+        if !meetsMinimumContextForAutoCollection(note: note, candidate: gate, analysis: analysis) {
+            note.secondaryCollections = []
+            return
+        }
+        note.secondaryCollections = autoSecondaryLabels(
+            analysis: analysis,
+            primaryLabel: primaryTrimmed,
+            existingCollections: existingCollections
+        )
+    }
+
+    private static func autoSecondaryLabels(
+        analysis: Analysis,
+        primaryLabel: String,
+        existingCollections: [String]
+    ) -> [String] {
+        var out: [String] = []
+        let ranked = analysis.picked.sorted { primaryScore($0) > primaryScore($1) }
+        for s in ranked {
+            guard out.count < maxAutoSecondaries else { break }
+            let resolved = resolveToExistingCollection(s.name, from: existingCollections)
+            guard let label = normalizedCollectionName(resolved) else { continue }
+            if label.caseInsensitiveCompare(primaryLabel) == .orderedSame { continue }
+            if out.contains(where: { $0.caseInsensitiveCompare(label) == .orderedSame }) { continue }
+            if primaryScore(s) < secondaryMinPrimaryScore { continue }
+            out.append(label)
+        }
+        return out
     }
 
     // MARK: - Scoring

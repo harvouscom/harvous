@@ -9,8 +9,12 @@
 
 import { Hono } from 'hono';
 import { warmPostgresConnection } from '../db/client';
+import { votdTodayPublicHandler } from '../utils/votd-today-public';
 
 const route = new Hono();
+
+// Public VOTD metadata for native apps (same logic as featured carousel timezone rules).
+route.get('/api/votd/today', votdTodayPublicHandler);
 
 route.get('/api/health', async (c) => {
   if (c.req.query('warm') === 'db') {

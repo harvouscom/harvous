@@ -1,18 +1,27 @@
 import SwiftData
 import SwiftUI
 
-/// Popover content for renaming, locking, and clearing `note.primaryCollection`.
+/// Popover for primary collection edit, secondary membership list, pin, and clear-all.
 struct CollectionChipPopover: View {
     @Bindable var note: Note
 
     @Environment(\.modelContext) private var modelContext
     @State private var draftCollection = ""
+    @State private var draftNewSecondary = ""
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             collectionSourceBadge
 
+            Text("Primary")
+                .font(HarvousTypography.inspectorCompactMedium)
+                .foregroundStyle(.secondary)
+
             collectionEditorRow
+
+            membershipList
+
+            newSecondaryRow
 
             if canUseAutoSuggestion {
                 Button {
@@ -23,8 +32,8 @@ struct CollectionChipPopover: View {
                 }
                 .buttonStyle(.plain)
                 .foregroundStyle(.secondary)
-                .help("Restore the current auto-suggested collection")
-                .accessibilityLabel("Use auto suggested collection")
+                .help("Restore the current auto-suggested collections")
+                .accessibilityLabel("Use auto suggested collections")
             }
 
             Divider()
@@ -38,20 +47,20 @@ struct CollectionChipPopover: View {
                         persist()
                     }
                 )) {
-                    Text("Lock this name")
+                    Text("Lock primary collection")
                         .font(HarvousTypography.inspectorCompactMedium)
                 }
                 .toggleStyle(.switch)
                 .controlSize(.regular)
 
-                Text("When on, Harvous won't change this name automatically.")
+                Text("When on, Harvous won't change the primary collection automatically; secondary suggestions still update from your note.")
                     .font(HarvousTypography.inspectorCompact)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
 
             if note.isCollectionUserOverride {
-                Text("Manual name is set. Tap “Use auto suggestion” to follow Harvous again.")
+                Text("Manual membership is set. Tap “Use auto suggestion” to follow Harvous again.")
                     .font(HarvousTypography.inspectorCompact)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -61,9 +70,9 @@ struct CollectionChipPopover: View {
                 .opacity(0.45)
 
             Button(role: .destructive) {
-                clearCollection()
+                clearAllCollections()
             } label: {
-                Label("Remove collection", systemImage: "trash")
+                Label("Remove all collections", systemImage: "trash")
                     .font(HarvousTypography.inspectorCompactMedium)
             }
             .buttonStyle(.plain)
@@ -86,6 +95,67 @@ struct CollectionChipPopover: View {
     }
 
     // MARK: - Subviews
+
+    private var membershipList: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Also in")
+                .font(HarvousTypography.inspectorCompactMedium)
+                .foregroundStyle(.secondary)
+            let primaryTrimmed = note.primaryCollection?.trimmingCharacters(in: .whitespacesAndNewlines)
+            ForEach(membershipRows(primaryTrimmed: primaryTrimmed), id: \.self) { label in
+                HStack {
+                    Label {
+                        Text(label)
+                            .font(HarvousTypography.inspectorCompactMedium)
+                            .lineLimit(2)
+                    } icon: {
+                        Image(systemName: label.caseInsensitiveCompare(primaryTrimmed ?? "") == .orderedSame ? "folder.fill" : "folder")
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer(minLength: 0)
+                    if label.caseInsensitiveCompare(primaryTrimmed ?? "") != .orderedSame {
+                        Button {
+                            removeSecondary(label)
+                        } label: {
+                            Image(systemName: "minus.circle.fill")
+                                .foregroundStyle(.tertiary)
+                        }
+                        .buttonStyle(.plain)
+                        .help("Remove from this note")
+                        .accessibilityLabel("Remove \(label)")
+                    }
+                }
+            }
+        }
+    }
+
+    private func membershipRows(primaryTrimmed: String?) -> [String] {
+        var rows: [String] = []
+        if let p = primaryTrimmed, !p.isEmpty { rows.append(p) }
+        for s in note.normalizedSecondaryCollectionLabels() {
+            if let p = primaryTrimmed, !p.isEmpty, s.caseInsensitiveCompare(p) == .orderedSame { continue }
+            rows.append(s)
+        }
+        return rows
+    }
+
+    private var newSecondaryRow: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Add collection")
+                .font(HarvousTypography.inspectorCompactMedium)
+                .foregroundStyle(.secondary)
+            HStack(spacing: 8) {
+                TextField("Name", text: $draftNewSecondary)
+                    .textFieldStyle(.roundedBorder)
+                    .font(HarvousTypography.inspectorCompactMedium)
+                    .onSubmit { addDraftSecondary() }
+                Button("Add") { addDraftSecondary() }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.small)
+                    .disabled(draftNewSecondary.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            }
+        }
+    }
 
     private var collectionEditorRow: some View {
         HStack(spacing: 0) {
@@ -122,10 +192,10 @@ struct CollectionChipPopover: View {
                         .fill(Color.harvousAccent)
                 )
                 .help("Apply collection")
-                .accessibilityLabel("Apply collection")
+                .accessibilityLabel("Apply primary collection")
 
                 Button {
-                    clearCollection()
+                    clearPrimaryOnly()
                 } label: {
                     Image(systemName: "xmark")
                         .font(.system(size: 12, weight: .semibold))
@@ -137,8 +207,8 @@ struct CollectionChipPopover: View {
                     RoundedRectangle(cornerRadius: 7, style: .continuous)
                         .fill(Color.secondary.opacity(0.16))
                 )
-                .help("Clear collection")
-                .accessibilityLabel("Clear collection")
+                .help("Clear primary only")
+                .accessibilityLabel("Clear primary collection")
             }
             .padding(.trailing, 6)
         }
@@ -166,26 +236,38 @@ struct CollectionChipPopover: View {
         return trimmed.isEmpty ? nil : trimmed
     }
 
-    private var autoSuggestedCollection: String? {
-        let descriptor = FetchDescriptor<Note>(predicate: #Predicate { $0.primaryCollection != nil })
+    private func existingLibraryLabels(excludingNote: Note) -> [String] {
+        let descriptor = FetchDescriptor<Note>()
         let allNotes = (try? modelContext.fetch(descriptor)) ?? []
-        let ownCollection = note.primaryCollection?.trimmingCharacters(in: .whitespacesAndNewlines)
         var seen = Set<String>()
-        for n in allNotes {
-            guard let col = n.primaryCollection?.trimmingCharacters(in: .whitespacesAndNewlines), !col.isEmpty else { continue }
-            if col == ownCollection { continue }
-            seen.insert(col)
+        for n in allNotes where n.id != excludingNote.id {
+            for label in n.allCollectionMembershipLabels() {
+                seen.insert(label)
+            }
         }
-        let candidate = BibleStudyTagSuggester.result(title: note.title, body: note.body, existingCollections: Array(seen)).primaryCollection
-        let trimmed = candidate?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        return trimmed.isEmpty ? nil : trimmed
+        return Array(seen)
     }
 
     private var canUseAutoSuggestion: Bool {
-        guard let autoSuggestedCollection else { return false }
-        if note.isCollectionUserOverride || note.isCollectionPinned { return true }
-        guard let current = normalizedCurrentCollection else { return true }
-        return current.caseInsensitiveCompare(autoSuggestedCollection) != .orderedSame
+        let existing = existingLibraryLabels(excludingNote: note)
+        let r = BibleStudyTagSuggester.result(title: note.title, body: note.body, existingCollections: existing)
+        let sugPrimaryRaw = r.primaryCollection?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let sugSec = normalizeSecondaries(r.secondaryCollections, primary: sugPrimaryRaw)
+        if note.isCollectionUserOverride || note.isCollectionPinned {
+            return (sugPrimaryRaw != nil && !sugPrimaryRaw!.isEmpty) || !sugSec.isEmpty
+        }
+        let curP = normalizedCurrentCollection
+        let primDiff: Bool = {
+            switch (curP, sugPrimaryRaw) {
+            case (nil, nil): return false
+            case (nil, .some(let s)): return !s.isEmpty
+            case (.some(let c), nil): return !c.isEmpty
+            case (.some(let c), .some(let s)): return c.caseInsensitiveCompare(s) != .orderedSame
+            }
+        }()
+        let curSec = note.normalizedSecondaryCollectionLabels()
+        let secDiff = curSec.map { $0.lowercased() }.sorted() != sugSec.map { $0.lowercased() }.sorted()
+        return primDiff || secDiff
     }
 
     // MARK: - Mutations
@@ -196,9 +278,11 @@ struct CollectionChipPopover: View {
         HarvousVaultExporter.scheduleWrite(note: note, modelContext: modelContext)
     }
 
-    private func clearCollection() {
+    private func clearAllCollections() {
         draftCollection = ""
+        draftNewSecondary = ""
         note.primaryCollection = nil
+        note.secondaryCollections = []
         note.isCollectionUserOverride = false
         note.isCollectionPinned = false
         note.collectionAutoConfidence = nil
@@ -206,10 +290,32 @@ struct CollectionChipPopover: View {
         persist()
     }
 
+    private func clearPrimaryOnly() {
+        let secs = note.normalizedSecondaryCollectionLabels()
+        draftCollection = ""
+        if let first = secs.first {
+            note.primaryCollection = first
+            note.secondaryCollections = Array(secs.dropFirst())
+        } else {
+            note.primaryCollection = nil
+            note.secondaryCollections = []
+        }
+        note.isCollectionUserOverride = true
+        note.isCollectionPinned = true
+        persist()
+    }
+
     private func applyAutoSuggestedCollection() {
-        guard let autoSuggestedCollection else { return }
-        draftCollection = autoSuggestedCollection
-        note.primaryCollection = autoSuggestedCollection
+        let existing = existingLibraryLabels(excludingNote: note)
+        let r = BibleStudyTagSuggester.result(title: note.title, body: note.body, existingCollections: existing)
+        if let p = r.primaryCollection?.trimmingCharacters(in: .whitespacesAndNewlines), !p.isEmpty {
+            draftCollection = p
+            note.primaryCollection = p
+        } else {
+            note.primaryCollection = nil
+            draftCollection = ""
+        }
+        note.secondaryCollections = normalizeSecondaries(r.secondaryCollections, primary: note.primaryCollection)
         note.isCollectionUserOverride = false
         note.isCollectionPinned = false
         note.collectionLastAutoUpdatedAt = Date()
@@ -219,15 +325,57 @@ struct CollectionChipPopover: View {
     private func applyCollectionDraft() {
         let trimmed = draftCollection.trimmingCharacters(in: .whitespacesAndNewlines)
         if trimmed.isEmpty {
-            clearCollection()
+            clearPrimaryOnly()
             return
         } else {
             note.primaryCollection = trimmed
+            note.secondaryCollections = normalizeSecondaries(note.secondaryCollections, primary: trimmed)
             note.isCollectionUserOverride = true
             note.isCollectionPinned = true
             note.collectionAutoConfidence = nil
             note.collectionLastAutoUpdatedAt = nil
         }
         persist()
+    }
+
+    private func removeSecondary(_ label: String) {
+        let next = note.normalizedSecondaryCollectionLabels().filter { $0.caseInsensitiveCompare(label) != .orderedSame }
+        note.secondaryCollections = next
+        note.isCollectionUserOverride = true
+        persist()
+    }
+
+    private func addDraftSecondary() {
+        let t = draftNewSecondary.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !t.isEmpty else { return }
+        if let p = note.primaryCollection?.trimmingCharacters(in: .whitespacesAndNewlines), !p.isEmpty,
+           t.caseInsensitiveCompare(p) == .orderedSame {
+            draftNewSecondary = ""
+            return
+        }
+        var next = note.normalizedSecondaryCollectionLabels()
+        if !next.contains(where: { $0.caseInsensitiveCompare(t) == .orderedSame }) {
+            next.append(t)
+        }
+        note.secondaryCollections = next
+        note.isCollectionUserOverride = true
+        draftNewSecondary = ""
+        persist()
+    }
+
+    private func normalizeSecondaries(_ raw: [String], primary: String?) -> [String] {
+        let p = primary?.trimmingCharacters(in: .whitespacesAndNewlines)
+        var seen = Set<String>()
+        var out: [String] = []
+        for s in raw {
+            let t = s.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !t.isEmpty else { continue }
+            if let p, !p.isEmpty, t.caseInsensitiveCompare(p) == .orderedSame { continue }
+            let low = t.lowercased()
+            if seen.contains(low) { continue }
+            seen.insert(low)
+            out.append(t)
+        }
+        return out
     }
 }

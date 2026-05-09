@@ -1,10 +1,9 @@
 import SwiftUI
 
-/// Inline pill for annotating a fresh selection highlight.
-///
-/// Row 1 — compact note capsule: `✕` / TextField / `✓` (Save enabled once trimmed non-empty).
-/// Row 2 — accent swatches (matches `StudyDockAccentPickerRow` shape language).
+/// Inline capsule for confirming a fresh highlight: accent + save/dismiss row, then optional note + label.
+/// `excerptPreview` is kept for VoiceOver context; it is no longer shown above the color row.
 struct HighlightAnnotationPopover: View {
+    /// Source selection shown in accessibility only (not headline UI).
     let excerptPreview: String
     @Binding var annotationText: String
     @Binding var titleText: String
@@ -13,23 +12,62 @@ struct HighlightAnnotationPopover: View {
     var morphID: String
     var onCancel: () -> Void
     var onSave: () -> Void
+    /// When `true`, Save is allowed without annotation text (excerpt/context is enforced by callers).
+    var allowsEmptyAnnotation: Bool = true
 
-    @FocusState private var inputFocused: Bool
     @Environment(\.colorScheme) private var colorScheme
+
+    private enum Metrics {
+        static let capsuleWidth: CGFloat = 360
+        static let iconColumn: CGFloat = 30
+        static let rowMinHeight: CGFloat = 34
+        static let primaryToolbarHeight: CGFloat = 32
+        static let accentOuter: CGFloat = 24
+        static let accentInner: CGFloat = 16
+        /// Matches `HarvousTypography.searchField` (15pt) so glyphs read at the same scale as the fields.
+        static let rowGlyphFont: Font = HarvousFonts.font(size: 15, weight: .medium, design: .default)
+    }
 
     private var trimmedAnnotation: String {
         annotationText.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            inlineNoteRow
-            labelRow
-            accentSwatchRow
+    private var saveEnabled: Bool {
+        allowsEmptyAnnotation || !trimmedAnnotation.isEmpty
+    }
+
+    /// Truncated excerpt for accessibility hint (avoids huge strings).
+    private var accessibilityExcerptSummary: String {
+        let t = excerptPreview.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !t.isEmpty else { return "" }
+        if t.count > 120 { return String(t.prefix(120)) + "…" }
+        return t
+    }
+
+    private var popoverAccessibilityHint: String {
+        let summary = accessibilityExcerptSummary
+        if summary.isEmpty {
+            return "Choose a color, optionally add a note and label, then save."
         }
-        .padding(.vertical, 8)
-        .padding(.horizontal, 10)
-        .frame(width: 360, alignment: .leading)
+        return "Selected text: \(summary). Choose a color, then save."
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            accentPrimaryRow
+                .frame(minHeight: Metrics.primaryToolbarHeight, alignment: .center)
+
+            Divider()
+                .opacity(colorScheme == .dark ? 0.18 : 0.12)
+
+            VStack(alignment: .leading, spacing: 8) {
+                optionalNoteRow
+                labelRow
+            }
+        }
+        .padding(.vertical, 10)
+        .padding(.horizontal, 12)
+        .frame(width: Metrics.capsuleWidth, alignment: .leading)
         .background(
             RoundedRectangle(cornerRadius: 22, style: .continuous)
                 .fill(.regularMaterial)
@@ -40,69 +78,79 @@ struct HighlightAnnotationPopover: View {
                 .strokeBorder(Color.primary.opacity(0.08), lineWidth: 0.75)
         )
         .shadow(color: .black.opacity(0.15), radius: 10, y: 4)
-        .onAppear {
-            // Defer one run-loop tick so SwiftUI commits the insertion before we set focus,
-            // avoiding "FocusedValue update tried to update multiple times per frame" warnings.
-            DispatchQueue.main.async { inputFocused = true }
-        }
+        .accessibilityElement(children: .contain)
+        .accessibilityHint(popoverAccessibilityHint)
     }
 
-    private var inlineNoteRow: some View {
-        HStack(spacing: 6) {
+    private var accentPrimaryRow: some View {
+        HStack(spacing: 8) {
             iconButton(symbol: "xmark", help: "Discard highlight", role: .cancel, action: onCancel)
                 .keyboardShortcut(.escape, modifiers: [])
 
-            TextField("Add a note…", text: $annotationText)
-                .textFieldStyle(.plain)
-                .font(.system(size: 13))
-                .frame(maxWidth: .infinity)
-                .focused($inputFocused)
-                .onSubmit { if !trimmedAnnotation.isEmpty { onSave() } }
-                #if os(iOS)
-                .textInputAutocapitalization(.sentences)
-                .submitLabel(.done)
-                #endif
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ForEach(StudyHighlightAccentToken.pickerChoices, id: \.rawValue) { token in
+                        accentDot(token)
+                    }
+                }
+            }
+            .frame(maxHeight: Metrics.primaryToolbarHeight)
 
             iconButton(symbol: "checkmark", help: "Save highlight", role: nil, action: {
-                guard !trimmedAnnotation.isEmpty else { return }
+                guard saveEnabled else { return }
                 onSave()
             })
-            .disabled(trimmedAnnotation.isEmpty)
-            .opacity(trimmedAnnotation.isEmpty ? 0.45 : 1)
+            .disabled(!saveEnabled)
+            .opacity(saveEnabled ? 1 : 0.45)
             #if os(macOS)
             .keyboardShortcut(.return, modifiers: [])
             #else
             .keyboardShortcut(.defaultAction)
             #endif
         }
+        .fixedSize(horizontal: false, vertical: true)
+    }
+
+    private var optionalNoteRow: some View {
+        HStack(alignment: .center, spacing: 10) {
+            Image(systemName: "square.and.pencil")
+                .font(Metrics.rowGlyphFont)
+                .foregroundStyle(Color.secondary.opacity(0.9))
+                .frame(width: Metrics.iconColumn, alignment: .center)
+
+            TextField("Note (optional)…", text: $annotationText)
+                .textFieldStyle(.plain)
+                .font(HarvousTypography.searchField)
+                .foregroundStyle(.primary)
+                .frame(maxWidth: .infinity, minHeight: Metrics.rowMinHeight, alignment: .leading)
+                .padding(.vertical, 4)
+                #if os(iOS)
+                    .textInputAutocapitalization(.sentences)
+                    .submitLabel(.done)
+                #endif
+                .onSubmit { onSave() }
+        }
+        .frame(minHeight: Metrics.rowMinHeight, alignment: .center)
     }
 
     private var labelRow: some View {
-        HStack(spacing: 6) {
-            Image(systemName: "tag")
-                .font(.system(size: 11, weight: .regular))
-                .foregroundStyle(Color.secondary.opacity(0.7))
-                .frame(width: 26, alignment: .center)
+        HStack(alignment: .center, spacing: 10) {
+            Image(systemName: "textformat")
+                .font(Metrics.rowGlyphFont)
+                .foregroundStyle(Color.secondary.opacity(0.9))
+                .frame(width: Metrics.iconColumn, alignment: .center)
 
-            TextField("Label (optional)…", text: $titleText)
+            TextField("Title (optional)…", text: $titleText)
                 .textFieldStyle(.plain)
-                .font(.system(size: 12))
-                .foregroundStyle(.secondary)
-                .frame(maxWidth: .infinity)
+                .font(HarvousTypography.searchField)
+                .foregroundStyle(.primary)
+                .frame(maxWidth: .infinity, minHeight: Metrics.rowMinHeight, alignment: .leading)
+                .padding(.vertical, 4)
                 #if os(iOS)
-                .textInputAutocapitalization(.sentences)
+                    .textInputAutocapitalization(.sentences)
                 #endif
         }
-    }
-
-    private var accentSwatchRow: some View {
-        HStack(spacing: 6) {
-            ForEach(StudyHighlightAccentToken.pickerChoices, id: \.rawValue) { token in
-                accentDot(token)
-            }
-            Spacer(minLength: 0)
-        }
-        .padding(.leading, 2)
+        .frame(minHeight: Metrics.rowMinHeight, alignment: .center)
     }
 
     private func accentDot(_ token: StudyHighlightAccentToken) -> some View {
@@ -113,11 +161,12 @@ struct HighlightAnnotationPopover: View {
             ZStack {
                 Circle()
                     .strokeBorder(Color.primary.opacity(picked ? 0.65 : 0.18), lineWidth: picked ? 2 : 1)
-                    .frame(width: 22, height: 22)
+                    .frame(width: Metrics.accentOuter, height: Metrics.accentOuter)
                 swatch(token)
-                    .frame(width: 15, height: 15)
+                    .frame(width: Metrics.accentInner, height: Metrics.accentInner)
                     .clipShape(Circle())
             }
+            .frame(minWidth: Metrics.accentOuter, minHeight: Metrics.accentOuter)
         }
         .buttonStyle(.plain)
         #if os(macOS)
@@ -145,12 +194,12 @@ struct HighlightAnnotationPopover: View {
     ) -> some View {
         Button(role: role, action: action) {
             Image(systemName: symbol)
-                .font(.system(size: 12, weight: .semibold))
-                .frame(width: 26, height: 26)
+                .font(.system(size: 13, weight: .semibold))
+                .frame(width: Metrics.iconColumn, height: Metrics.iconColumn)
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .foregroundStyle(Color.primary.opacity(0.8))
+        .foregroundStyle(Color.primary.opacity(0.82))
         #if os(macOS)
         .help(help)
         #endif

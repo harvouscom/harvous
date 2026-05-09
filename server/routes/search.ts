@@ -18,6 +18,7 @@ import { db, Notes, Threads, ScriptureMetadata, eq, and, or, like, desc, not, sq
 import { handleAPIError } from '@/utils/error-handling';
 import { MIN_SEARCH_QUERY_LENGTH } from '@/utils/search-query';
 import { getThreadColorsForNotesBatch } from '../utils/dashboard-data';
+import { parseNoteSecondaryCollections } from '../utils/note-secondary-collections';
 
 const route = new Hono();
 
@@ -68,6 +69,8 @@ route.get('/api/search', requireAuth, async (c) => {
       spaceId: string | null;
       createdAt: Date;
       updatedAt: Date | null;
+      primaryCollection: string | null;
+      secondaryCollections: string | null;
     }[] = [];
 
     let threadsRows: {
@@ -102,6 +105,8 @@ route.get('/api/search', requireAuth, async (c) => {
             spaceId: Notes.spaceId,
             createdAt: Notes.createdAt,
             updatedAt: Notes.updatedAt,
+            primaryCollection: Notes.primaryCollection,
+            secondaryCollections: Notes.secondaryCollections,
           })
           .from(Notes)
           .where(
@@ -136,6 +141,8 @@ route.get('/api/search', requireAuth, async (c) => {
             spaceId: Notes.spaceId,
             createdAt: Notes.createdAt,
             updatedAt: Notes.updatedAt,
+            primaryCollection: Notes.primaryCollection,
+            secondaryCollections: Notes.secondaryCollections,
           })
           .from(Notes)
           .where(
@@ -239,6 +246,8 @@ route.get('/api/search', requireAuth, async (c) => {
         createdAt: note.createdAt,
         updatedAt: note.updatedAt,
         threadColors: threadColors && threadColors.length > 0 ? threadColors : undefined,
+        primaryCollection: note.primaryCollection ?? null,
+        secondaryCollections: parseNoteSecondaryCollections(note.secondaryCollections),
       };
     });
 

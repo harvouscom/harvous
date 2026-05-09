@@ -6,7 +6,7 @@ struct LinkedNoteDestination: Hashable, Identifiable {
     let id: UUID
 }
 
-/// Thin wrapper for iOS push navigation — owns the @State binding
+/// Thin wrapper for iOS push navigation — owns the `@State` binding
 /// so NoteEditorView's @Binding var note works correctly.
 struct StatefulNoteEditorView: View {
     #if os(iOS)

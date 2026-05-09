@@ -459,7 +459,9 @@ enum ThreadStore {
 
     @MainActor
     static func save(_ thread: StudyThread, modelContext: ModelContext) {
-        thread.updatedAt = Date()
+        let now = Date()
+        thread.updatedAt = now
+        thread.highlightListEditedAt = now
         try? modelContext.saveWithLogging()
     }
 

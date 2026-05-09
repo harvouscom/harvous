@@ -1,9 +1,9 @@
 /**
  * `VotdPublishHistory.publishedDate` is stored as the editorial calendar day used when publishing
  * (UTC `YYYY-MM-DD` from `publish-daily`). The client sends `X-Votd-Timezone`; the API first matches
- * that string to the user's local calendar date, and if no row exists yet (`/api/featured/items`),
- * falls back to the latest published verse with `publishedDate <=` that local date so the card does
- * not vanish before the next publish lands.
+ * that string to the user's local calendar date, and if no row exists for that exact date,
+ * `/api/featured/items` and `/api/votd/today` (handler in `server/routes/health.ts`) fall back to the latest published verse with
+ * `publishedDate <=` that local date so the card does not vanish before the next publish lands.
  */
 
 const TZ_SAFE = /^[A-Za-z0-9_+/\-]+$/;

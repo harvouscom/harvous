@@ -106,6 +106,10 @@ export default function DashboardPage() {
         resourceImage: noteItem.resourceImage,
         version: noteItem.version,
         userId: noteItem.userId,
+        primaryCollection: noteItem.primaryCollection ?? null,
+        secondaryCollections: Array.isArray(noteItem.secondaryCollections) ? noteItem.secondaryCollections : [],
+        collectionPinned: noteItem.collectionPinned ?? false,
+        collectionUserOverride: noteItem.collectionUserOverride ?? false,
       };
       seedNoteFromList(queryClient, listNote, {
         id: noteItem.threadId ?? noteItem.noteId,

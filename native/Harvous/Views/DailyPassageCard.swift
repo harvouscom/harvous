@@ -61,6 +61,12 @@ struct DailyPassageCard: View {
         .task(id: VotdService.todayCalendarDayKey()) {
             votd = await VotdService.fetchToday()
             isLoading = false
+            guard let v = votd else { return }
+            let ref = v.reference
+            let trans = v.translation
+            Task.detached(priority: .utility) {
+                await ScripturePassageCache.shared.prefetch(reference: ref, translation: trans)
+            }
         }
         .sheet(isPresented: $showingPassage) {
             if let votd {
@@ -114,6 +120,16 @@ struct DailyPassageCard: View {
 // MARK: - Passage sheet
 
 private struct VotdPassageSheet: View {
+    private enum Metrics {
+        static let fabSide: CGFloat = 56
+        static let fabTrailingPadding: CGFloat = 20
+        static let fabBottomPadding: CGFloat = 16
+        /// Keeps last verse lines clear of the floating FAB.
+        static var scrollBottomInset: CGFloat {
+            fabSide + fabBottomPadding + 8
+        }
+    }
+
     let votd: VotdToday
     var onAdd: () -> Void
 
@@ -151,21 +167,36 @@ private struct VotdPassageSheet: View {
 
             Divider()
 
-            // Passage text — no attribution inside scroll
-            ScrollView {
-                ScripturePassageView(
-                    reference: votd.reference,
-                    translation: votd.translation,
-                    showHeader: false,
-                    useReadingTypography: true,
-                    showAttribution: false
-                )
-                .padding(.horizontal, 20)
-                .padding(.top, 16)
-                .padding(.bottom, 12)
-            }
+            ZStack(alignment: .bottomTrailing) {
+                ScrollView {
+                    ScripturePassageView(
+                        reference: votd.reference,
+                        translation: votd.translation,
+                        showHeader: false,
+                        useReadingTypography: true,
+                        showAttribution: false
+                    )
+                    .padding(.horizontal, 20)
+                    .padding(.top, 16)
+                    .padding(.bottom, Metrics.scrollBottomInset)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-            // Sticky attribution footer
+                Button(action: onAdd) {
+                    Image(systemName: "note.text.badge.plus")
+                        .font(.system(size: 20, weight: .medium))
+                        .foregroundStyle(.white)
+                        .frame(width: Metrics.fabSide, height: Metrics.fabSide)
+                        .background(Circle().fill(Color.harvousAccent))
+                        .shadow(color: Color.black.opacity(0.15), radius: 6, x: 0, y: 3)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Add to Notes")
+                .padding(.trailing, Metrics.fabTrailingPadding)
+                .padding(.bottom, Metrics.fabBottomPadding)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+
             if let attribution {
                 Divider()
                 HStack(alignment: .center, spacing: 10) {
@@ -195,24 +226,6 @@ private struct VotdPassageSheet: View {
                 .padding(.vertical, 8)
                 .background(Color.primary.opacity(0.03))
             }
-
-            Divider()
-
-            // Add button
-            HStack {
-                Spacer(minLength: 0)
-                Button(action: onAdd) {
-                    Label("Add to Notes", systemImage: "note.text.badge.plus")
-                        .font(.system(size: 14, weight: .medium))
-                        .padding(.horizontal, 20)
-                        .padding(.vertical, 10)
-                        .background(Capsule(style: .continuous).fill(Color.harvousAccent))
-                        .foregroundStyle(.white)
-                }
-                .buttonStyle(.plain)
-                Spacer(minLength: 0)
-            }
-            .padding(.vertical, 16)
         }
         .frame(minWidth: 300, idealWidth: 360, maxWidth: 460)
         #if os(iOS)

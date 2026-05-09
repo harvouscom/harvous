@@ -119,8 +119,8 @@ private struct IOSNoteEditorFooterSlot: View {
     private let spring = HarvousAnimation.spring
 
     private var showsUnifiedFormattingScriptureCapsule: Bool {
+        // Scripture toolbar + passage preview only belong in the tapped-pill dock, not the footer capsule.
         proxy.shouldShowNoteToolbar
-            || (proxy.activeScripturePill != nil && !supplement.suppressScripturePillActionBar)
     }
 
     private enum IOSInsetUnifiedLane: Equatable {
@@ -160,7 +160,7 @@ private struct IOSNoteEditorFooterSlot: View {
     }
 
     private var scripturePassageInShellTransition: AnyTransition {
-        reduceMotion ? .opacity : .opacity.combined(with: .move(edge: .top))
+        reduceMotion ? .opacity : .opacity.combined(with: .offset(y: -6))
     }
 
     /// Top 44pt band swaps views with asymmetric transitions inside the clipped shell; passage fades in underneath.

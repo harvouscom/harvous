@@ -21,6 +21,7 @@ function normalizeCollectionLabel(value: string | null | undefined): string | nu
 
 export interface CollectionChromeState {
   primaryCollection: string | null;
+  secondaryCollections: string[];
   collectionPinned: boolean;
   collectionUserOverride: boolean;
   collectionLastAutoUpdatedAtIso: string | null;
@@ -70,6 +71,102 @@ function boostedPrimaryScore(row: ScRow): number {
   return score;
 }
 
+function normalizeSecondaryList(primary: string | null, raw: string[]): string[] {
+  const p = primary?.trim().toLowerCase() ?? '';
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const s of raw) {
+    const t = (s || '').trim();
+    if (!t.length) continue;
+    const low = t.toLowerCase();
+    if (p && low === p) continue;
+    if (seen.has(low)) continue;
+    seen.add(low);
+    out.push(t);
+  }
+  return out;
+}
+
+const SECONDARY_MIN_SCORE = 0.78;
+const MAX_AUTO_SECONDARIES = 5;
+
+export function suggestSecondaryCollectionsFromNote(
+  title: string,
+  bodyHtml: string,
+  primary: string | null,
+): string[] {
+  const plainTitle = (title || '').trim();
+  const plainBody = stripHtml(bodyHtml || '', { preserveSpacing: true }).trim();
+  const full = `${plainTitle}\n${plainBody}`.trim();
+  if (!full) return [];
+  const primaryNorm = normalizeCollectionLabel(primary);
+  if (!primaryNorm) return [];
+
+  const rows: ScRow[] = findKeywordsInTextWithPriority(full, plainTitle, plainBody).map((r) => ({
+    keyword: r.keyword,
+    confidence: Math.min(1, r.confidence),
+  }));
+
+  if (
+    !meetsMinimumContext(plainTitle, plainBody, pickPrimaryKeyword(rows)?.name ?? null, rows)
+  ) {
+    return [];
+  }
+
+  const dedup: ScRow[] = [];
+  for (const r of rows) {
+    if (r.keyword.name.toLowerCase() === 'god') continue;
+    if (dedup.some((d) => d.keyword.name.toLowerCase() === r.keyword.name.toLowerCase())) continue;
+    if (dedup.some((d) => overlapsConcept(d.keyword.name, r.keyword.name))) continue;
+    dedup.push(r);
+    if (dedup.length >= 16) break;
+  }
+
+  const scored = dedup
+    .map((r) => ({ row: r, score: boostedPrimaryScore(r) }))
+    .filter((x) => x.score >= SECONDARY_MIN_SCORE)
+    .sort((a, b) => b.score - a.score);
+
+  const names: string[] = [];
+  for (const { row } of scored) {
+    if (names.length >= MAX_AUTO_SECONDARIES) break;
+    const name = row.keyword.name;
+    if (name.toLowerCase() === primaryNorm.toLowerCase()) continue;
+    if (names.some((n) => n.toLowerCase() === name.toLowerCase())) continue;
+    names.push(name);
+  }
+  return normalizeSecondaryList(primary, names);
+}
+
+export type WebCollectionNavSource = { type: 'home' } | { type: 'collection'; name: string | null };
+
+export function collectionContextBannerText(
+  primary: string | null,
+  secondaries: string[],
+  source: WebCollectionNavSource,
+): string | null {
+  const p = normalizeCollectionLabel(primary);
+  const secs = normalizeSecondaryList(p, secondaries);
+  const labels: string[] = [];
+  if (p) labels.push(p);
+  for (const s of secs) {
+    if (labels.some((x) => x.toLowerCase() === s.toLowerCase())) continue;
+    labels.push(s);
+  }
+  if (labels.length === 0) return null;
+
+  let contextLabel: string;
+  if (source.type === 'home') {
+    contextLabel = labels[0];
+  } else {
+    const b = source.name?.trim();
+    contextLabel = b && b.length > 0 ? b : labels[0];
+  }
+  const otherCount = labels.filter((x) => x.toLowerCase() !== contextLabel.toLowerCase()).length;
+  if (otherCount <= 0) return null;
+  return `${contextLabel} +${otherCount}`;
+}
+
 function pickPrimaryKeyword(rows: ScRow[]): BibleStudyKeyword | null {
   const dedup: ScRow[] = [];
   for (const r of rows) {
@@ -116,7 +213,8 @@ function meetsMinimumContext(title: string, plainBody: string, candidate: string
 }
 
 /**
- * After local title/body edit, refresh auto collection when allowed (not pinned / not user override).
+ * After local title/body edit, refresh auto collection. Pinned freezes primary only; secondaries still suggest.
+ * Manual (`collectionUserOverride` without pin) skips auto updates until restored.
  */
 export function applyAutoCollectionAfterEdit(
   prev: CollectionChromeState,
@@ -124,12 +222,14 @@ export function applyAutoCollectionAfterEdit(
   bodyHtml: string,
   now: Date,
 ): CollectionChromeState {
-  if (prev.collectionPinned || prev.collectionUserOverride) return prev;
+  if (prev.collectionUserOverride && !prev.collectionPinned) return prev;
 
   const plainTitle = (title || '').trim();
   const plainBody = stripHtml(bodyHtml || '', { preserveSpacing: true }).trim();
   const full = `${plainTitle}\n${plainBody}`.trim();
   if (!full) return prev;
+
+  const freezePrimary = prev.collectionPinned || prev.collectionUserOverride;
 
   const rows: ScRow[] = findKeywordsInTextWithPriority(full, plainTitle, plainBody).map((r) => ({
     keyword: r.keyword,
@@ -137,8 +237,15 @@ export function applyAutoCollectionAfterEdit(
   }));
 
   const candidate = pickPrimaryKeyword(rows)?.name ?? null;
-  if (!candidate) return prev;
-  if (!meetsMinimumContext(plainTitle, plainBody, candidate, rows)) return prev;
+  if (!candidate || !meetsMinimumContext(plainTitle, plainBody, candidate, rows)) {
+    const secsEmpty = suggestSecondaryCollectionsFromNote(title, bodyHtml, prev.primaryCollection);
+    return { ...prev, secondaryCollections: secsEmpty };
+  }
+
+  if (freezePrimary) {
+    const secondaryCollections = suggestSecondaryCollectionsFromNote(title, bodyHtml, prev.primaryCollection);
+    return { ...prev, secondaryCollections };
+  }
 
   const current = normalizeCollectionLabel(prev.primaryCollection);
   const nowIso = now.toISOString();
@@ -146,24 +253,42 @@ export function applyAutoCollectionAfterEdit(
   const pastCooldown =
     !Number.isFinite(lastMs) || Number.isNaN(now.getTime()) ? true : now.getTime() - lastMs >= AUTO_REPLACE_COOLDOWN_MS;
 
+  let nextPrimary: string | null = prev.primaryCollection;
+  let nextLastAuto = prev.collectionLastAutoUpdatedAtIso;
+
   if (!current) {
-    return { ...prev, primaryCollection: candidate, collectionLastAutoUpdatedAtIso: nowIso };
+    nextPrimary = candidate;
+    nextLastAuto = nowIso;
+  } else if (current.toLowerCase() === candidate.toLowerCase()) {
+    nextPrimary = candidate;
+  } else {
+    if (!pastCooldown) {
+      const secs = suggestSecondaryCollectionsFromNote(title, bodyHtml, prev.primaryCollection);
+      return { ...prev, secondaryCollections: secs };
+    }
+
+    const currentScore = scoreForName(current, rows);
+    const candidateScore = scoreForName(candidate, rows);
+    const materiallyStronger = candidateScore >= currentScore + 0.18;
+    const candRow = rows.find((r) => r.keyword.name.toLowerCase() === candidate.toLowerCase());
+    const strongSignal =
+      !!candRow &&
+      (candRow.confidence >= candRow.keyword.confidence + 0.2 || candRow.confidence >= candidateScore - 0.05);
+
+    if (!(materiallyStronger && strongSignal)) {
+      const secs = suggestSecondaryCollectionsFromNote(title, bodyHtml, prev.primaryCollection);
+      return { ...prev, secondaryCollections: secs };
+    }
+
+    nextPrimary = candidate;
+    nextLastAuto = nowIso;
   }
-  if (current.toLowerCase() === candidate.toLowerCase()) {
-    return { ...prev, primaryCollection: candidate };
-  }
 
-  if (!pastCooldown) return prev;
-
-  const currentScore = scoreForName(current, rows);
-  const candidateScore = scoreForName(candidate, rows);
-  const materiallyStronger = candidateScore >= currentScore + 0.18;
-  const candRow = rows.find((r) => r.keyword.name.toLowerCase() === candidate.toLowerCase());
-  const strongSignal =
-    !!candRow &&
-    (candRow.confidence >= candRow.keyword.confidence + 0.2 || candRow.confidence >= candidateScore - 0.05);
-
-  if (!(materiallyStronger && strongSignal)) return prev;
-
-  return { ...prev, primaryCollection: candidate, collectionLastAutoUpdatedAtIso: nowIso };
+  const secondaryCollections = suggestSecondaryCollectionsFromNote(title, bodyHtml, nextPrimary);
+  return {
+    ...prev,
+    primaryCollection: nextPrimary,
+    secondaryCollections,
+    collectionLastAutoUpdatedAtIso: nextLastAuto,
+  };
 }

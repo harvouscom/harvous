@@ -79,6 +79,8 @@ export const Notes = pgTable(
     contentEncrypted: boolean('contentEncrypted').notNull().default(false),
     /** Primary study collection label — native parity (`note.primaryCollection`). */
     primaryCollection: text('primaryCollection'),
+    /** JSON array of additional collection labels (string[]), excluding primary. */
+    secondaryCollections: text('secondaryCollections'),
     collectionPinned: boolean('collectionPinned').notNull().default(false),
     collectionUserOverride: boolean('collectionUserOverride').notNull().default(false),
     collectionLastAutoUpdatedAt: ts('collectionLastAutoUpdatedAt'),

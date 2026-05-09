@@ -34,8 +34,8 @@ struct ActiveScripturePillDock: View {
     var onSavePassageHighlight: ((_ excerpt: String,
                                   _ annotation: String,
                                   _ title: String,
-                                  _ accent: StudyHighlightAccentToken) -> StudyThread?)?
-    var onOpenPassageHighlight: ((StudyThread) -> Void)?
+                                  _ accent: StudyHighlightAccentToken) -> StudyThread?)? = nil
+    var onOpenPassageHighlight: ((StudyThread) -> Void)? = nil
     /// Repaint trigger after the inline highlight dock's accent swatch persists a new color.
     /// Parent owns the refresh path that re-fetches passage highlights so the underline tint updates.
     var onAccentPersistedForHighlight: (() -> Void)?
@@ -51,6 +51,19 @@ struct ActiveScripturePillDock: View {
     /// Space accent theme — passed through to `ActiveHighlightDock` when an inline highlight is shown.
     var scriptureTheme: HarvousColors.ThemeVariant = .blue
     let onDismiss: () -> Void
+
+    /// When `false`, hide book/chapter/verse pickers — used from the Highlights list standalone dock where there is no note pill to rewrite.
+    var allowsStructuralReferenceEdit: Bool = true
+    /// When `false`, hide the header accent swatch (no per-note accent map in standalone mode).
+    var showsPillAccentControls: Bool = true
+    /// One-shot focus: selects this passage underline thread inside the dock when `scripturePassageHighlights` first contains it.
+    var initialFocusedPassageHighlightThreadId: UUID?
+    /// When `true`, stretch the dock and passage `ScrollView` to use all height offered by the parent (standalone Highlights dock).
+    var fillsAvailableHeight: Bool = false
+    /// When `false`, omit collapse/expand (chevron + title tap); passage stays expanded — standalone scripture-from-highlight chrome.
+    var allowsCollapseExpand: Bool = true
+    /// Standalone Highlights dock only: notifies when the tapped passage-underline (`StudyThread`) changes so the list selection can mirror it.
+    var onStandaloneFocusedPassageHighlightChanged: ((UUID?) -> Void)? = nil
 
     @Environment(\.modelContext) private var modelContext
     @Environment(\.colorScheme) private var dockColorScheme
@@ -92,6 +105,7 @@ struct ActiveScripturePillDock: View {
     /// Width of the expandedBody VStack — measured on first layout and on any resize.
     /// Used to clamp the floating action bar / popover so they never clip outside the dock.
     @State private var expandedBodyWidth: CGFloat = 0
+    @State private var appliedInitialFocusedPassageHighlightId: UUID?
 
     private var maxChapter: Int { ScriptureCanon.chapterCount(bookIndex: bookIndex) }
     private var maxVerse: Int { ScriptureCanon.verseCount(bookIndex: bookIndex, chapter: chapter) }
@@ -143,19 +157,29 @@ struct ActiveScripturePillDock: View {
         #endif
     }
 
+    /// When collapse is disabled, passage chrome is always shown expanded (standalone host).
+    private var passageChromeExpanded: Bool {
+        allowsCollapseExpand ? isExpanded : true
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             headerRow
 
-            if isExpanded {
+            if passageChromeExpanded {
                 expandedBody
                     .transition(.opacity)
             }
         }
-        .animation(.spring(response: 0.32, dampingFraction: 0.82), value: isExpanded)
+        .frame(
+            maxWidth: fillsAvailableHeight && passageChromeExpanded ? .infinity : nil,
+            maxHeight: fillsAvailableHeight && passageChromeExpanded ? .infinity : nil,
+            alignment: .topLeading
+        )
+        .animation(.spring(response: 0.32, dampingFraction: 0.82), value: passageChromeExpanded)
         .padding(.horizontal, 12)
         .padding(.top, 10)
-        .padding(.bottom, isExpanded ? 0 : 10)
+        .padding(.bottom, passageChromeExpanded ? 0 : 10)
         .background(dockChrome)
         .overlay(
             RoundedRectangle(cornerRadius: 18, style: .continuous)
@@ -196,12 +220,27 @@ struct ActiveScripturePillDock: View {
         .task(id: "\(reference)|\(translation)") {
             await ScripturePassageCache.shared.prefetch(reference: reference, translation: translation)
         }
-        .onAppear { seedPickerStateFromReference(reference) }
+        .onAppear {
+            seedPickerStateFromReference(reference)
+            syncInitialFocusedPassageHighlightIfNeeded(force: false)
+        }
+        .onChange(of: scripturePassageHighlights.map(\.id)) { _, _ in
+            syncInitialFocusedPassageHighlightIfNeeded(force: false)
+        }
+        .onChange(of: initialFocusedPassageHighlightThreadId) { _, _ in
+            appliedInitialFocusedPassageHighlightId = nil
+            syncInitialFocusedPassageHighlightIfNeeded(force: false)
+        }
         .onChange(of: reference) { _, newValue in
             passageSelectionNormalized = ""
+            appliedInitialFocusedPassageHighlightId = nil
             seedPickerStateFromReference(newValue)
+            syncInitialFocusedPassageHighlightIfNeeded(force: false)
         }
-        .onChange(of: translation) { _, _ in passageSelectionNormalized = "" }
+        .onChange(of: translation) { _, _ in
+            passageSelectionNormalized = ""
+            syncInitialFocusedPassageHighlightIfNeeded(force: false)
+        }
         .onChange(of: passageSelectionNormalized) { _, new in
             // Start speculative generation as soon as text is selected so the result is ready
             // when the user finishes filling the annotation popover and taps Save.
@@ -220,11 +259,14 @@ struct ActiveScripturePillDock: View {
                 }
             }
         }
+        .onChange(of: tappedPassageHighlight?.id) { _, newId in
+            onStandaloneFocusedPassageHighlightChanged?(newId)
+        }
     }
 
     private var headerRow: some View {
         // Title is lineLimit(1) so both sides are the same height — .center aligns icon/text with
-        // the color swatch, chevron, and close controls on the right.
+        // optional accent controls, collapse chevron (when enabled), and close on the right.
         HStack(alignment: .center, spacing: 8) {
             Image(systemName: "book.fill")
                 .symbolRenderingMode(.monochrome)
@@ -244,32 +286,37 @@ struct ActiveScripturePillDock: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .contentShape(Rectangle())
             .onTapGesture {
+                guard allowsCollapseExpand else { return }
                 withAnimation(.spring(response: 0.32, dampingFraction: 0.82)) {
                     isExpanded.toggle()
                 }
             }
 
             HStack(spacing: 2) {
-                DockAccentSwatchButton(
-                    selection: Binding(
-                        get: { accent ?? .neutral },
-                        set: { newValue in
-                            accent = (newValue == .neutral) ? nil : newValue
+                if showsPillAccentControls {
+                    DockAccentSwatchButton(
+                        selection: Binding(
+                            get: { accent ?? .neutral },
+                            set: { newValue in
+                                accent = (newValue == .neutral) ? nil : newValue
+                            }
+                        ),
+                        paletteTokens: StudyHighlightAccentToken.pickerChoicesWithNeutral,
+                        entryKind: .scriptureLink
+                    )
+
+                    toolbarDivider
+                }
+
+                if allowsCollapseExpand {
+                    toolbarButton(
+                        symbol: isExpanded ? "chevron.up" : "chevron.down",
+                        help: isExpanded ? "Collapse" : "Expand",
+                        prominent: true
+                    ) {
+                        withAnimation(.spring(response: 0.32, dampingFraction: 0.82)) {
+                            isExpanded.toggle()
                         }
-                    ),
-                    paletteTokens: StudyHighlightAccentToken.pickerChoicesWithNeutral,
-                    entryKind: .scriptureLink
-                )
-
-                toolbarDivider
-
-                toolbarButton(
-                    symbol: isExpanded ? "chevron.up" : "chevron.down",
-                    help: isExpanded ? "Collapse" : "Expand",
-                    prominent: true
-                ) {
-                    withAnimation(.spring(response: 0.32, dampingFraction: 0.82)) {
-                        isExpanded.toggle()
                     }
                 }
 
@@ -309,10 +356,67 @@ struct ActiveScripturePillDock: View {
             .padding(.horizontal, 2)
     }
 
+    /// Inner stack inside the passage `ScrollView` — shared by content-fit and full-height layouts.
+    private var scripturePassageScrollContent: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            ScripturePassageView(
+                reference: reference,
+                translation: translation,
+                showHeader: false,
+                useReadingTypography: true,
+                // Surface the translation copyright + website link inside the dock body —
+                // the only place the user can confirm the source now that the bottom
+                // "Save highlight" button is gone.
+                showAttribution: true,
+                passageHighlightPaints: passageHighlightPaints,
+                onPassageSelectionChange: { newValue in
+                    passageSelectionNormalized = newValue
+                    if newValue.isEmpty {
+                        passageSelectionRect = nil
+                    }
+                },
+                onPassageSelectionRectChange: { rect in
+                    passageSelectionRect = rect
+                },
+                onPassageHighlightTap: { paintId in
+                    guard let thread = scripturePassageHighlights.first(where: { $0.id == paintId }) else { return }
+                    tappedPassageHighlight = thread
+                },
+                passageHighlightFocusedThreadId: tappedPassageHighlight?.id
+            )
+            .background(GeometryReader { geo in
+                // Read the passage view's frame in the named body space so the overlay (placed
+                // outside the ScrollView) can translate passage-local selection rects correctly.
+                Color.clear.preference(
+                    key: PassageFrameInBodyKey.self,
+                    value: geo.frame(in: .named("scripture-dock-expanded-body"))
+                )
+            })
+            .frame(maxWidth: .infinity, alignment: .topLeading)
+        }
+        .frame(maxWidth: .infinity, alignment: .topLeading)
+        .padding(.bottom, 10)
+        .background(
+            GeometryReader { geo in
+                Color.clear.preference(key: DockScrollContentHeightKey.self, value: geo.size.height)
+            }
+        )
+    }
+
     @ViewBuilder
     private var expandedBody: some View {
+        if fillsAvailableHeight {
+            expandedBodyPassageFillsOfferedHeight
+        } else {
+            expandedBodyContentFitHeight
+        }
+    }
+
+    private var expandedBodyContentFitHeight: some View {
         VStack(alignment: .leading, spacing: 12) {
-            referenceEditorRow
+            if allowsStructuralReferenceEdit {
+                referenceEditorRow
+            }
 
             // Measure passage content height so the dock is content-fit up to the cap.
             // fixedSize on a ScrollView disables scrolling (it uses ideal/content height), so we
@@ -322,49 +426,7 @@ struct ActiveScripturePillDock: View {
                 ? min(scriptureScrollContentHeight, expandedContentMaxHeight)
                 : expandedContentMaxHeight
             ScrollView {
-                VStack(alignment: .leading, spacing: 10) {
-                    ScripturePassageView(
-                        reference: reference,
-                        translation: translation,
-                        showHeader: false,
-                        useReadingTypography: true,
-                        // Surface the translation copyright + website link inside the dock body —
-                        // the only place the user can confirm the source now that the bottom
-                        // "Save highlight" button is gone.
-                        showAttribution: true,
-                        passageHighlightPaints: passageHighlightPaints,
-                        onPassageSelectionChange: { newValue in
-                            passageSelectionNormalized = newValue
-                            if newValue.isEmpty {
-                                passageSelectionRect = nil
-                            }
-                        },
-                        onPassageSelectionRectChange: { rect in
-                            passageSelectionRect = rect
-                        },
-                        onPassageHighlightTap: { paintId in
-                            guard let thread = scripturePassageHighlights.first(where: { $0.id == paintId }) else { return }
-                            tappedPassageHighlight = thread
-                        },
-                        passageHighlightFocusedThreadId: tappedPassageHighlight?.id
-                    )
-                    .background(GeometryReader { geo in
-                        // Read the passage view's frame in the named body space so the overlay (placed
-                        // outside the ScrollView) can translate passage-local selection rects correctly.
-                        Color.clear.preference(
-                            key: PassageFrameInBodyKey.self,
-                            value: geo.frame(in: .named("scripture-dock-expanded-body"))
-                        )
-                    })
-                    .frame(maxWidth: .infinity, alignment: .topLeading)
-                }
-                .frame(maxWidth: .infinity, alignment: .topLeading)
-                .padding(.bottom, 10)
-                .background(
-                    GeometryReader { geo in
-                        Color.clear.preference(key: DockScrollContentHeightKey.self, value: geo.size.height)
-                    }
-                )
+                scripturePassageScrollContent
             }
             .frame(height: computedHeight)
             .onPreferenceChange(DockScrollContentHeightKey.self) { h in
@@ -374,12 +436,35 @@ struct ActiveScripturePillDock: View {
             }
 
         }
-        // Named space anchors passage frame reads inside the ScrollView to this VStack's local coords.
         .coordinateSpace(name: "scripture-dock-expanded-body")
         .onPreferenceChange(PassageFrameInBodyKey.self) { passageFrameInBodySpace = $0 }
-        // Track body width so the floating overlay can clamp to dock edges.
         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { expandedBodyWidth = $0 }
-        // Overlays live OUTSIDE the ScrollView so they are never clipped by its bounds.
+        .overlay(alignment: .topLeading) { passageSelectionOverlay }
+        .animation(.spring(response: 0.36, dampingFraction: 0.82), value: passageHighlightDraft != nil)
+    }
+
+    /// Offered mainly from standalone Highlights-column host: passage scroll consumes all vertical space below the header row(s).
+    private var expandedBodyPassageFillsOfferedHeight: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            if allowsStructuralReferenceEdit {
+                referenceEditorRow
+            }
+
+            GeometryReader { scrollViewport in
+                let h = max(scrollViewport.size.height, 120)
+                ScrollView {
+                    scripturePassageScrollContent
+                }
+                .frame(height: h)
+                .onPreferenceChange(DockScrollContentHeightKey.self) { scriptureScrollContentHeight = $0 }
+            }
+            .frame(maxHeight: .infinity)
+
+        }
+        .frame(maxHeight: .infinity)
+        .coordinateSpace(name: "scripture-dock-expanded-body")
+        .onPreferenceChange(PassageFrameInBodyKey.self) { passageFrameInBodySpace = $0 }
+        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { expandedBodyWidth = $0 }
         .overlay(alignment: .topLeading) { passageSelectionOverlay }
         .animation(.spring(response: 0.36, dampingFraction: 0.82), value: passageHighlightDraft != nil)
     }
@@ -661,6 +746,15 @@ struct ActiveScripturePillDock: View {
         if verseEnd < verseStart { verseEnd = verseStart }
         if verseEnd > cap { verseEnd = cap }
         if verseStart > cap { verseStart = cap }
+    }
+
+    private func syncInitialFocusedPassageHighlightIfNeeded(force: Bool) {
+        guard let want = initialFocusedPassageHighlightThreadId else { return }
+        if appliedInitialFocusedPassageHighlightId == want, !force { return }
+        guard let hit = scripturePassageHighlights.first(where: { $0.id == want }) else { return }
+        tappedPassageHighlight = hit
+        tappedPassageHighlightExpanded = true
+        appliedInitialFocusedPassageHighlightId = want
     }
 }
 

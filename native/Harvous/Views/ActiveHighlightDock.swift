@@ -72,6 +72,10 @@ struct ActiveHighlightDock: View {
                     .transition(.opacity)
             }
         }
+        // When the dock swaps to another `StudyThread` in-place, `.onChange(of: thread.focusTitle)`
+        // (and mini-note) would otherwise see previous-thread vs next-thread as one edit and bump
+        // `highlightListEditedAt`. New identity per thread prevents that phantom “change”.
+        .id(thread.id)
         .animation(.spring(response: 0.32, dampingFraction: 0.82), value: isExpanded)
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
@@ -152,8 +156,12 @@ struct ActiveHighlightDock: View {
                 .textFieldStyle(.plain)
                 .lineLimit(1)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .onChange(of: thread.focusTitle) { _, _ in
-                    thread.updatedAt = Date()
+                .onChange(of: thread.focusTitle) { old, new in
+                    // Avoid bumping list sort / vault timestamps on spurious binding parity or no-op edits.
+                    guard old != new else { return }
+                    let now = Date()
+                    thread.updatedAt = now
+                    thread.highlightListEditedAt = now
                     try? modelContext.saveWithLogging()
                 }
                 #if os(iOS)
@@ -174,7 +182,9 @@ struct ActiveHighlightDock: View {
                         },
                         set: { newValue in
                             thread.highlightAccentRaw = newValue.rawValue
-                            thread.updatedAt = Date()
+                            let now = Date()
+                            thread.updatedAt = now
+                            thread.highlightListEditedAt = now
                             try? modelContext.saveWithLogging()
                             onAccentPersisted()
                         }
@@ -262,14 +272,17 @@ struct ActiveHighlightDock: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 10) {
                 if thread.entryKind == .miniNote {
-                    TextField("Add a note…", text: $thread.miniNoteBody, axis: .vertical)
+                    TextField("Note (optional)…", text: $thread.miniNoteBody, axis: .vertical)
                         .font(.system(size: 14, weight: .regular))
                         .foregroundStyle(.secondary)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .textFieldStyle(.plain)
                         .fixedSize(horizontal: false, vertical: true)
-                        .onChange(of: thread.miniNoteBody) { _, _ in
-                            thread.updatedAt = Date()
+                        .onChange(of: thread.miniNoteBody) { old, new in
+                            guard old != new else { return }
+                            let now = Date()
+                            thread.updatedAt = now
+                            thread.highlightListEditedAt = now
                             try? modelContext.saveWithLogging()
                         }
                 } else if thread.entryKind == .scriptureLink,
@@ -283,14 +296,17 @@ struct ActiveHighlightDock: View {
                             .fixedSize(horizontal: false, vertical: true)
                     }
 
-                    TextField("Add a note…", text: $thread.miniNoteBody, axis: .vertical)
+                    TextField("Note (optional)…", text: $thread.miniNoteBody, axis: .vertical)
                         .font(.system(size: 14, weight: .regular))
                         .foregroundStyle(.secondary)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .textFieldStyle(.plain)
                         .fixedSize(horizontal: false, vertical: true)
-                        .onChange(of: thread.miniNoteBody) { _, _ in
-                            thread.updatedAt = Date()
+                        .onChange(of: thread.miniNoteBody) { old, new in
+                            guard old != new else { return }
+                            let now = Date()
+                            thread.updatedAt = now
+                            thread.highlightListEditedAt = now
                             try? modelContext.saveWithLogging()
                         }
                 } else {
@@ -356,7 +372,9 @@ struct ActiveHighlightDock: View {
                             Button {
                                 let prefix = thread.miniNoteBody.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "" : "\n\n"
                                 thread.miniNoteBody += "\(prefix)\(prompt)\n"
-                                thread.updatedAt = Date()
+                                let now = Date()
+                                thread.updatedAt = now
+                                thread.highlightListEditedAt = now
                                 try? modelContext.saveWithLogging()
                             } label: {
                                 Text(prompt)

@@ -1,0 +1,20 @@
+---
+description: After a Harvous Mac preview DMG release, include Gatekeeper quarantine commands for testers
+globs: native/Harvous/package-dmg.sh,native/Harvous/release.sh,docs/native/MACOS_DMG_PREVIEW_RELEASE.md
+alwaysApply: false
+---
+
+# Mac preview DMG: Gatekeeper copy-paste for testers
+
+When you finish or document a **new unsigned Mac preview** (DMG from `package-dmg.sh` / `release.sh`, GitHub Release, or edits to `MACOS_DMG_PREVIEW_RELEASE.md`), **always** give testers the quarantine removal commands (same as [help/mac-native-app.md](help/mac-native-app.md)).
+
+Paste this block in release notes, chat, or PR description when relevant:
+
+```bash
+# After dragging Harvous.app to Applications — unsigned preview / quarantine
+xattr -dr com.apple.quarantine /Applications/Harvous.app
+# or, to clear all extended attributes on the app bundle:
+xattr -cr /Applications/Harvous.app
+```
+
+Remind testers to try **Control-click → Open** and **Privacy & Security → Open Anyway** first; do **not** suggest disabling Gatekeeper globally. Link `help/mac-native-app.md` for full steps.

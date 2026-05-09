@@ -12,7 +12,7 @@ struct NoteCollectionChip: View {
 
     private var chipFont: Font {
         #if os(macOS)
-        .system(size: 13, weight: .regular)
+        .system(size: 15, weight: .regular)
         #else
         .system(size: 16)
         #endif
@@ -20,15 +20,24 @@ struct NoteCollectionChip: View {
 
     private var collectionLabelFont: Font {
         #if os(macOS)
-        .system(size: 13, weight: .medium)
+        .system(size: 14, weight: .medium)
         #else
         HarvousFonts.font(size: 18, weight: 500, design: .default)
         #endif
     }
 
-    private var trimmedCollection: String? {
-        let raw = note.primaryCollection?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        return raw.isEmpty ? nil : raw
+    private var chipMainLabel: String? {
+        note.collectionChipPrimaryLabelText()
+    }
+
+    private var extraCount: Int {
+        note.collectionChipAdditionalCount()
+    }
+
+    private var accessibilitySummary: String {
+        let labels = note.allCollectionMembershipLabels()
+        if labels.isEmpty { return "No collection" }
+        return "Collections: \(labels.joined(separator: ", "))"
     }
 
     var body: some View {
@@ -40,26 +49,34 @@ struct NoteCollectionChip: View {
                     isContextUpdating: isCollectionContextUpdating,
                     font: chipFont
                 )
-                if let label = trimmedCollection {
-                    Text(label)
-                        .font(collectionLabelFont)
-                        .lineLimit(1)
-                        #if os(iOS)
+                if let label = chipMainLabel {
+                    HStack(spacing: 4) {
+                        Text(label)
+                            .font(collectionLabelFont)
+                            .lineLimit(1)
+                        if extraCount > 0 {
+                            Text("+\(extraCount)")
+                                .font(collectionLabelFont)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    #if os(iOS)
                         .minimumScaleFactor(1)
-                        #endif
-                        .fixedSize(horizontal: true, vertical: false)
-                        .padding(.trailing, 8)
-                        .opacity(showCollectionToolbarText ? 1 : 0)
-                        .offset(x: showCollectionToolbarText ? 0 : -8)
-                        .animation(.easeOut(duration: 0.18), value: showCollectionToolbarText)
+                    #endif
+                    .fixedSize(horizontal: true, vertical: false)
+                    .padding(.trailing, 8)
+                    .opacity(showCollectionToolbarText ? 1 : 0)
+                    .offset(x: showCollectionToolbarText ? 0 : -8)
+                    .animation(.easeOut(duration: 0.18), value: showCollectionToolbarText)
                 }
             }
             .frame(minHeight: 24)
         }
         #if os(macOS)
         .buttonStyle(.bordered)
+        .controlSize(.regular)
         .tint(
-            trimmedCollection != nil
+            chipMainLabel != nil
                 ? HarvousColors.themeAccent(scriptureTheme)
                 : Color.secondary
         )
@@ -67,10 +84,10 @@ struct NoteCollectionChip: View {
         .buttonStyle(.plain)
         .padding(.horizontal, 4)
         #endif
-        .accessibilityLabel(trimmedCollection.map { "Collection: \($0)" } ?? "No collection")
+        .accessibilityLabel(accessibilitySummary)
         .accessibilityHint(
-            trimmedCollection != nil
-                ? "Opens a popover to edit collection"
+            chipMainLabel != nil
+                ? "Opens a popover to edit collections"
                 : "Opens a popover to add a collection"
         )
         #if os(macOS)

@@ -103,11 +103,21 @@ struct MacRootView: View {
                 .navigationSplitViewColumnWidth(min: 230, ideal: 260, max: 300)
         } detail: {
             NavigationStack(path: $threadNavPath) {
-                NoteEditorView(
-                    note: $selectedNote,
-                    onNavigateToLinkedNotes: { threadNavPath.append($0) },
-                    showInspector: $showInspector as Binding<Bool>
-                )
+                ZStack {
+                    NoteEditorView(
+                        note: $selectedNote,
+                        onNavigateToLinkedNotes: { threadNavPath.append($0) },
+                        showInspector: $showInspector as Binding<Bool>
+                    )
+                    if selectedNote == nil, let dock = appRouter.standaloneScripturePassageDock {
+                        StandaloneScripturePassageDockHost(
+                            presentation: dock,
+                            scriptureTheme: spaceStore.scriptureTheme,
+                            onDismiss: { appRouter.dismissStandaloneScripturePassageDock() }
+                        )
+                        .transition(.opacity)
+                    }
+                }
                     .toolbar {
                         ToolbarItem(placement: .navigation) {
                             Button(action: createNewNote) {
@@ -186,6 +196,11 @@ struct MacRootView: View {
             // Note switches: suppress implicit animations so unified toolbar/split/layout don’t
             // interpolate every frame against a new TextKit document (hang + overflow flicker risk).
             .transaction(value: selectedNote?.id) { $0.disablesAnimations = true }
+            .onChange(of: selectedNote?.id) { _, _ in
+                if selectedNote != nil {
+                    appRouter.dismissStandaloneScripturePassageDock()
+                }
+            }
     }
 
     private var macWithBaseFocusedValues: some View {
@@ -476,8 +491,15 @@ struct iOSRootView: View {
                         iosNoteNavigationPath: $iosNoteNavigationPath,
                         externalSearchText: $appRouter.iosInlineSearchText
                     )
+                case .highlights:
+                    HighlightsHubView(iosNoteNavigationPath: $iosNoteNavigationPath)
+                case .scripture:
+                    ScriptureHubView(
+                        iosNoteNavigationPath: $iosNoteNavigationPath,
+                        externalSearchText: $appRouter.iosInlineSearchText
+                    )
                 case .more:
-                    // .more is now presented as a sheet; this branch is a fallback only.
+                    // `.more` is now presented as a sheet; this branch is a fallback only.
                     HomeHubView(iosNoteNavigationPath: $iosNoteNavigationPath)
                 }
             }
@@ -528,6 +550,7 @@ struct iOSRootView: View {
             if newSurface == .notes {
                 return
             }
+            appRouter.dismissStandaloneScripturePassageDock()
             // Clearing the path synchronously alongside tab chrome updates can collide with NavigationStack
             // transactions (especially when switching surfaces after a List tap animation).
             Task { @MainActor in
@@ -541,7 +564,7 @@ struct iOSRootView: View {
             switch appRouter.iosListSurface {
             case .notes:
                 appRouter.iosNotesFilterSearchPresented = true
-            case .collections:
+            case .collections, .highlights, .scripture:
                 NotificationCenter.default.post(name: .harvousFocusIOSInlineSearch, object: nil)
             case .more:
                 break
@@ -574,6 +597,28 @@ struct iOSRootView: View {
         } message: {
             if let p = importSummaryPayload {
                 Text(iosImportSummaryMessage(p))
+            }
+        }
+        .sheet(isPresented: Binding(
+            get: { appRouter.standaloneScripturePassageDock != nil },
+            set: { isPresented in if !isPresented { appRouter.dismissStandaloneScripturePassageDock() } }
+        )) {
+            if let dock = appRouter.standaloneScripturePassageDock {
+                NavigationStack {
+                    StandaloneScripturePassageDockHost(
+                        presentation: dock,
+                        scriptureTheme: spaceStore.scriptureTheme,
+                        onDismiss: { appRouter.dismissStandaloneScripturePassageDock() }
+                    )
+                    .toolbar {
+                        ToolbarItem(placement: .cancellationAction) {
+                            Button("Done") {
+                                appRouter.dismissStandaloneScripturePassageDock()
+                            }
+                        }
+                    }
+                }
+                .presentationDragIndicator(.visible)
             }
         }
         .onAppear {
@@ -667,6 +712,18 @@ struct HarvousIOSInlineBottomChromeRow: View {
                 appRouter.selectIOSListSurface(.collections)
             } label: {
                 Label("Collections", systemImage: "rectangle.stack")
+            }
+            Button {
+                UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                appRouter.selectIOSListSurface(.highlights)
+            } label: {
+                Label("Highlights", systemImage: "highlighter")
+            }
+            Button {
+                UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                appRouter.selectIOSListSurface(.scripture)
+            } label: {
+                Label("Scripture", systemImage: "book.closed.fill")
             }
         } label: {
             Image(systemName: "line.3.horizontal.decrease")

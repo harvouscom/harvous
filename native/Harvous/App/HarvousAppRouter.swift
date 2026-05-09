@@ -1,16 +1,19 @@
 import Combine
 import Foundation
 import SwiftUI
-import SwiftData
 
 #if os(iOS)
 /// Primary content surface on iPhone — single-column shell with bottom controls.
 enum HarvousIOSListSurface: String, CaseIterable {
     case notes
     case collections
+    case highlights
+    case scripture
     case more
 
-    static let persistenceKey = "harvous_ios_list_surface_v1"
+    static let persistenceKey = "harvous_ios_list_surface_v3"
+    static let legacyPersistenceKeyV2 = "harvous_ios_list_surface_v2"
+    static let legacyPersistenceKeyV1 = "harvous_ios_list_surface_v1"
 }
 
 /// Data for `NoteConnectionsBar` + scripture-bar gating while the note editor owns the bottom safe-area chrome.
@@ -23,6 +26,31 @@ struct HarvousIOSNoteFooterSupplement {
     var onOpenLinkedNote: (UUID) -> Void
 }
 #endif
+
+/// One-shot handoff from Highlights list → `NoteEditorView` (consumes when the destination note is active).
+struct PendingStudyHighlightActivation: Equatable {
+    let noteId: UUID
+    let threadId: UUID
+    /// Unique per request so repeated taps re-trigger `onChange`.
+    let requestId: UUID
+}
+
+/// Highlights list → standalone scripture dock (passage-underline highlights shared across notes).
+struct StandaloneScripturePassageDockPresentation: Identifiable, Equatable {
+    let id: UUID
+    let canonicalReference: String
+    let translationCode: String
+    let focusedHighlightThreadId: UUID
+
+    init(canonicalReference: String, translationCode: String, focusedHighlightThreadId: UUID) {
+        self.id = UUID()
+        let trimmedCanon = canonicalReference.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedTrans = translationCode.trimmingCharacters(in: .whitespacesAndNewlines)
+        self.canonicalReference = trimmedCanon
+        self.translationCode = trimmedTrans
+        self.focusedHighlightThreadId = focusedHighlightThreadId
+    }
+}
 
 enum HarvousPendingRoute {
     private static let key = "harvous_pending_route"
@@ -92,16 +120,73 @@ final class HarvousAppRouter: ObservableObject {
     @Published var macSettingsDeepLink: HarvousSettingsSidebarItem?
     #endif
 
+    @Published private(set) var pendingStudyHighlightActivation: PendingStudyHighlightActivation?
+    /// When set from the Highlights list, `NoteEditorView` stays empty and the scripture passage dock floats in the detail column (macOS) or sheet (iOS).
+    @Published private(set) var standaloneScripturePassageDock: StandaloneScripturePassageDockPresentation?
+    /// Passage-underline highlight that reads as selected in the Highlights list while standalone dock is open (follows taps in the scripture dock body).
+    @Published private(set) var standaloneScriptureFocusedPassageHighlightId: UUID?
+
+    /// Highlight list row → open parent note and focus the highlight dock.
+    func enqueueStudyHighlightListActivation(noteId: UUID, threadId: UUID) {
+        standaloneScripturePassageDock = nil
+        standaloneScriptureFocusedPassageHighlightId = nil
+        pendingStudyHighlightActivation = PendingStudyHighlightActivation(
+            noteId: noteId,
+            threadId: threadId,
+            requestId: UUID()
+        )
+    }
+
+    func clearPendingStudyHighlightActivation() {
+        pendingStudyHighlightActivation = nil
+    }
+
+    /// Highlights list scripture-passage underline row — opens scripture dock focused on `threadId`; does not navigate to any note.
+    func presentStandaloneScripturePassageDock(
+        canonicalReference: String,
+        translationCode: String,
+        focusedHighlightThreadId: UUID
+    ) {
+        clearPendingStudyHighlightActivation()
+        standaloneScripturePassageDock = StandaloneScripturePassageDockPresentation(
+            canonicalReference: canonicalReference,
+            translationCode: translationCode,
+            focusedHighlightThreadId: focusedHighlightThreadId
+        )
+        standaloneScriptureFocusedPassageHighlightId = focusedHighlightThreadId
+    }
+
+    func dismissStandaloneScripturePassageDock() {
+        standaloneScripturePassageDock = nil
+        standaloneScriptureFocusedPassageHighlightId = nil
+    }
+
+    /// Called when user taps another passage underline inside the standalone dock so the Highlights list mirrors it.
+    func setStandaloneScriptureFocusedPassageHighlight(threadId: UUID?) {
+        guard standaloneScripturePassageDock != nil else { return }
+        standaloneScriptureFocusedPassageHighlightId = threadId
+    }
+
     init() {
         #if os(iOS)
-        let raw = UserDefaults.standard.string(forKey: HarvousIOSListSurface.persistenceKey)
-        let persisted = HarvousIOSListSurface(rawValue: raw ?? "") ?? .notes
-        // .more is now a sheet, not an inline surface — fall back to .notes and open the sheet.
-        if persisted == .more {
+        let v3 = HarvousIOSListSurface.persistenceKey
+        let v2 = HarvousIOSListSurface.legacyPersistenceKeyV2
+        let v1 = HarvousIOSListSurface.legacyPersistenceKeyV1
+        let rawV3 = UserDefaults.standard.string(forKey: v3)
+        let rawLegacy = UserDefaults.standard.string(forKey: v2) ?? UserDefaults.standard.string(forKey: v1)
+        let rawStored = rawV3 ?? rawLegacy
+        let surface = HarvousIOSListSurface(rawValue: rawStored ?? "") ?? .notes
+        // `.more` is a sheet — never restore it as the inline shell surface.
+        if surface == .more {
             iosListSurface = .notes
             iosShowMore = true
         } else {
-            iosListSurface = persisted
+            iosListSurface = surface
+            iosShowMore = false
+        }
+        // Migrate legacy v1/v2 into v3 once so new enum cases deserialize reliably.
+        if rawV3 == nil, rawStored != nil {
+            UserDefaults.standard.set(iosListSurface.rawValue, forKey: v3)
         }
         #endif
     }
@@ -155,7 +240,7 @@ final class HarvousAppRouter: ObservableObject {
             switch iosListSurface {
             case .notes:
                 iosNotesFilterSearchPresented = true
-            case .collections:
+            case .collections, .highlights, .scripture:
                 NotificationCenter.default.post(name: .harvousFocusIOSInlineSearch, object: nil)
             case .more:
                 break

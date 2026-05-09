@@ -18209,6 +18209,13 @@ var init_schema2 = __esm({
         shareToken: text("shareToken"),
         shareTokenCreatedAt: ts("shareTokenCreatedAt"),
         contentEncrypted: boolean("contentEncrypted").notNull().default(false),
+        /** Primary study collection label — native parity (`note.primaryCollection`). */
+        primaryCollection: text("primaryCollection"),
+        /** JSON array of additional collection labels (string[]), excluding primary. */
+        secondaryCollections: text("secondaryCollections"),
+        collectionPinned: boolean("collectionPinned").notNull().default(false),
+        collectionUserOverride: boolean("collectionUserOverride").notNull().default(false),
+        collectionLastAutoUpdatedAt: ts("collectionLastAutoUpdatedAt"),
         /** Note created from highlighted text in this source note (same user only). */
         linkedFromNoteId: text("linkedFromNoteId")
       },
@@ -18762,6 +18769,18 @@ function getKeywordTrie() {
   if (!keywordTrie) keywordTrie = buildKeywordTrie(BIBLE_STUDY_KEYWORDS);
   return keywordTrie;
 }
+function escapeRegexToken(s2) {
+  return s2.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+function keywordNeedleOccursInLowerText(textLower, needleRaw) {
+  const needle = needleRaw.toLowerCase().trim();
+  if (!needle || !textLower) return 0;
+  const tokens = needle.split(/\s+/).filter(Boolean);
+  const pattern = tokens.length === 1 ? `\\b${escapeRegexToken(tokens[0])}\\b` : `\\b(?:${tokens.map(escapeRegexToken).join("\\s+")})\\b`;
+  const re2 = new RegExp(pattern, "giu");
+  const matches3 = textLower.matchAll(re2);
+  return Array.from(matches3).length;
+}
 function findKeywordsInTextWithPriority(fullText, title, content) {
   const foundKeywords = [];
   const titleLower = title.toLowerCase();
@@ -18783,32 +18802,34 @@ function findKeywordsInTextWithPriority(fullText, title, content) {
     let foundInTitle = false;
     let foundInContent = false;
     let frequency = 0;
-    const keywordLower = keyword.name.toLowerCase();
-    if (titleLower?.includes(keywordLower)) {
+    const tn = keywordNeedleOccursInLowerText(titleLower ?? "", keyword.name);
+    if (tn > 0) {
       foundInTitle = true;
       found = true;
       confidence = keyword.confidence;
-      frequency += titleLower.split(keywordLower).length - 1;
+      frequency += tn;
     }
-    if (contentLower?.includes(keywordLower)) {
+    const cn = keywordNeedleOccursInLowerText(contentLower ?? "", keyword.name);
+    if (cn > 0) {
       foundInContent = true;
       found = true;
       confidence = keyword.confidence;
-      frequency += contentLower.split(keywordLower).length - 1;
+      frequency += cn;
     }
     for (const synonym of keyword.synonyms) {
-      const synonymLower = synonym.toLowerCase();
-      if (titleLower?.includes(synonymLower)) {
+      const st = keywordNeedleOccursInLowerText(titleLower ?? "", synonym);
+      if (st > 0) {
         foundInTitle = true;
         found = true;
         confidence = Math.max(confidence, keyword.confidence * 0.8);
-        frequency += titleLower.split(synonymLower).length - 1;
+        frequency += st;
       }
-      if (contentLower?.includes(synonymLower)) {
+      const sc = keywordNeedleOccursInLowerText(contentLower ?? "", synonym);
+      if (sc > 0) {
         foundInContent = true;
         found = true;
         confidence = Math.max(confidence, keyword.confidence * 0.8);
-        frequency += contentLower.split(synonymLower).length - 1;
+        frequency += sc;
       }
     }
     if (found) {
@@ -31553,7 +31574,7 @@ var init_onboarding_notes_generated = __esm({
       },
       {
         "title": "Notes, threads, and spaces oh my!",
-        "content": "<p>First and foremost this is a notes app. But because it\u2019s designed for Bible study there are some unique things worth mentioning. </p>\n<h2>Spaces</h2>\n<p>Spaces are where threads and notes are placed. \u201CMy Home\u201D is the permanent space for all your threads and notes by default. You&#39;ll find this at the top with a up and down arrow icon next to it (similar to the buttons you press to call for an elevator). This is where you started from before you selected the \u201CWelcome to Harvous\u201D thread. Only way to delete the \u201CMy Home\u201D space would be to delete your account (which you can easily do by the way).</p>\n<p>There are two places to find spaces:</p>\n<ol>\n<li>At the top by selecting &quot;My Home&quot; and this will expand to see any existing spaces to visit</li>\n<li>In Profile (your initials) within &quot;My Spaces.&quot;</li>\n</ol>\n<p>You create spaces by finding the \u201CNew Space\u201D button within where you can find your spaces (mentioned above).</p>\n<p>Spaces can be <strong>private</strong> (just you) or <strong>shared</strong>. With a shared space you get a link to invite others\u2014great for small groups, family devotions, or a study with friends. Everyone in the space can add any existing threads and notes or create new threads and notes there. Shared spaces are available on all plans.</p>\n<p>When you erase a space, your notes and threads stay safe\u2014you&#39;re just removing the grouping.</p>\n<h2>Threads</h2>\n<p>Threads are where notes belong (instead of \u201Cfolders\u201D) For example this note is inside the \u201CWelcome to Harvous\u201D thread. Right now they are only private, but in the future you could make them shared for friends, group study, or the general public. Threads are called threads because they are meant to be worked on over time where a folder\u2019s job is to collect.</p>\n<p>You create threads from the big blue plus button at the bottom.</p>\n<p>When you erase a thread, your notes stay in Harvous unless you choose <strong>Erase thread and notes</strong>: <strong>Erase thread</strong> moves any note that only lived in that thread into <strong>My Pile</strong>; <strong>Erase thread and notes</strong> removes the thread and deletes notes that only belonged there (notes that also appear in other threads stay). That works the same for the Welcome thread as for your other threads. Notes in this Welcome thread are <strong>view-only</strong> in the app\u2014you can read them here, not edit them in the editor.</p>\n<h2>Notes</h2>\n<p>Notes are notes. What you expect from a notes app is here, but here are some things that make notes in Harvous unique. Open the <strong>...</strong> (more) menu on a note\u2014the action strip along the <strong>bottom</strong> of the screen\u2014to see threads, tags, and other options for that note.</p>\n<ol>\n<li>Each note gets its own # (e.g. N316). Numbered note IDs are unlimited for everyone\u2014the idea is you can refer to a note quickly by its number.</li>\n<li>To get scripture create a new note and just type the scripture reference in the title field. Wait a second and you will see the text.</li>\n<li>If and when you type a scripture reference like John 3:16-17 you will see an auto-generated pill with said scripture text as another note. Harvous includes many translations, including <strong>KJV, NKJV, ESV, NIV, NLT, NET, BSB, NASB, CSB, AMP, and MSG</strong>. You can select your default Bible translation in <strong>My Profile \u2192 My Preferences</strong>. Harvous keeps track of where your scripture was captured with what notes and threads.</li>\n<li>Speaking of threads again... notes can belong to more than one thread. Harvous treats notes as gold.</li>\n<li>Of course there are tags! Every notes app has tags. But, there is a library of available tags Harvous picks from and auto-generates based on the content of your note.</li>\n<li>Select text to create a new note. Sometimes you want to go deeper in a brand new note. Well you can! Oh and Harvous highlights this selected text on the note it was highlighted on to create a link between the two. (This one is my favorite)</li>\n</ol>",
+        "content": "<p>First and foremost this is a notes app. But because it\u2019s designed for Bible study there are some unique things worth mentioning. </p>\n<h2>Spaces</h2>\n<p>Spaces are where threads and notes are placed. \u201CMy Home\u201D is the permanent space for all your threads and notes by default. You&#39;ll find this at the top with a up and down arrow icon next to it (similar to the buttons you press to call for an elevator). This is where you started from before you selected the \u201CWelcome to Harvous\u201D thread. Only way to delete the \u201CMy Home\u201D space would be to delete your account (which you can easily do by the way).</p>\n<p>There are two places to find spaces:</p>\n<ol>\n<li>At the top by selecting &quot;My Home&quot; and this will expand to see any existing spaces to visit</li>\n<li>In Profile (your initials) within &quot;My Spaces.&quot;</li>\n</ol>\n<p>You create spaces by finding the \u201CNew Space\u201D button within where you can find your spaces (mentioned above).</p>\n<p>Spaces can be <strong>private</strong> (just you) or <strong>shared</strong>. With a shared space you get a link to invite others\u2014great for small groups, family devotions, or a study with friends. Everyone in the space can add any existing threads and notes or create new threads and notes there. Shared spaces are available on all plans.</p>\n<p>When you erase a space, your notes and threads stay safe\u2014you&#39;re just removing the grouping.</p>\n<h2>Threads</h2>\n<p>Threads are where notes belong\u2014groupings for a study or topic, meant to revisit and extend over time (not just a static collection you file and forget). For example this note is inside the \u201CWelcome to Harvous\u201D thread. Right now they are only private, but in the future you could make them shared for friends, group study, or the general public.</p>\n<p>You create threads from the big blue plus button at the bottom.</p>\n<p>When you erase a thread, your notes stay in Harvous unless you choose <strong>Erase thread and notes</strong>: <strong>Erase thread</strong> moves any note that only lived in that thread into <strong>My Pile</strong>; <strong>Erase thread and notes</strong> removes the thread and deletes notes that only belonged there (notes that also appear in other threads stay). That works the same for the Welcome thread as for your other threads. Notes in this Welcome thread are <strong>view-only</strong> in the app\u2014you can read them here, not edit them in the editor.</p>\n<h2>Notes</h2>\n<p>Notes are notes. What you expect from a notes app is here, but here are some things that make notes in Harvous unique. Open the <strong>...</strong> (more) menu on a note\u2014the action strip along the <strong>bottom</strong> of the screen\u2014to see threads, tags, and other options for that note.</p>\n<ol>\n<li>Each note gets its own # (e.g. N316). Numbered note IDs are unlimited for everyone\u2014the idea is you can refer to a note quickly by its number.</li>\n<li>To get scripture create a new note and just type the scripture reference in the title field. Wait a second and you will see the text.</li>\n<li>If and when you type a scripture reference like John 3:16-17 you will see an auto-generated pill with said scripture text as another note. Harvous includes many translations, including <strong>KJV, NKJV, ESV, NIV, NLT, NET, BSB, NASB, CSB, AMP, and MSG</strong>. You can select your default Bible translation in <strong>My Profile \u2192 My Preferences</strong>. Harvous keeps track of where your scripture was captured with what notes and threads.</li>\n<li>Speaking of threads again... notes can belong to more than one thread. Harvous treats notes as gold.</li>\n<li>Of course there are tags! Every notes app has tags. But, there is a library of available tags Harvous picks from and auto-generates based on the content of your note.</li>\n<li>Select text to create a new note. Sometimes you want to go deeper in a brand new note. Well you can! Oh and Harvous highlights this selected text on the note it was highlighted on to create a link between the two. (This one is my favorite)</li>\n</ol>",
         "order": 2
       },
       {
@@ -70454,7 +70475,78 @@ function requireParam(c, name) {
 
 // server/routes/health.ts
 init_client();
+
+// server/utils/votd-today-public.ts
+init_db2();
+init_dates();
+init_schema2();
+
+// server/utils/votd-local-date.ts
+var TZ_SAFE = /^[A-Za-z0-9_+/\-]+$/;
+function isValidIanaTimeZone(tz) {
+  if (!TZ_SAFE.test(tz) || tz.length > 120) return false;
+  try {
+    Intl.DateTimeFormat(void 0, { timeZone: tz });
+    return true;
+  } catch {
+    return false;
+  }
+}
+function getLocalCalendarDateString(timeZone, date2) {
+  const zone = isValidIanaTimeZone(timeZone) ? timeZone : "UTC";
+  try {
+    return new Intl.DateTimeFormat("en-CA", {
+      timeZone: zone,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit"
+    }).format(date2);
+  } catch {
+    return new Intl.DateTimeFormat("en-CA", {
+      timeZone: "UTC",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit"
+    }).format(date2);
+  }
+}
+
+// server/utils/votd-today-public.ts
+async function votdTodayPublicHandler(c) {
+  try {
+    const tzHeader = (c.req.query("tz") ?? c.req.header("X-Votd-Timezone") ?? "").trim();
+    const timeZone = isValidIanaTimeZone(tzHeader) ? tzHeader : "UTC";
+    const localCalendarDate = getLocalCalendarDateString(timeZone, now());
+    const exactRow = first(
+      await db.select({ reference: VotdPublishHistory.reference, translation: VotdPublishHistory.translation }).from(VotdPublishHistory).where(eq(VotdPublishHistory.publishedDate, localCalendarDate)).limit(1)
+    );
+    let row = exactRow;
+    if (!row) {
+      const fallbackRow = first(
+        await db.select({
+          reference: VotdPublishHistory.reference,
+          translation: VotdPublishHistory.translation,
+          publishedDate: VotdPublishHistory.publishedDate
+        }).from(VotdPublishHistory).where(lte(VotdPublishHistory.publishedDate, localCalendarDate)).orderBy(desc(VotdPublishHistory.publishedDate)).limit(1)
+      );
+      if (fallbackRow) {
+        console.log(
+          `[api/votd/today] fallback used: timezone=${timeZone} localDate=${localCalendarDate} publishedDate=${fallbackRow.publishedDate}`
+        );
+        row = { reference: fallbackRow.reference, translation: fallbackRow.translation };
+      }
+    }
+    c.res.headers.set("Cache-Control", "public, max-age=3600, stale-while-revalidate=300");
+    return c.json(row ? { reference: row.reference, translation: row.translation ?? "NET" } : { reference: null });
+  } catch {
+    c.res.headers.set("Cache-Control", "public, max-age=60");
+    return c.json({ reference: null });
+  }
+}
+
+// server/routes/health.ts
 var route = new Hono2();
+route.get("/api/votd/today", votdTodayPublicHandler);
 route.get("/api/health", async (c) => {
   if (c.req.query("warm") === "db") {
     await warmPostgresConnection();
@@ -71036,6 +71128,45 @@ function isOnboardingThread(threadId) {
 // server/utils/dashboard-data.ts
 init_html_stripper();
 init_my_pile_thread();
+
+// server/utils/note-secondary-collections.ts
+function parseNoteSecondaryCollections(raw2) {
+  if (raw2 == null || typeof raw2 !== "string" || !raw2.trim()) return [];
+  try {
+    const parsed = JSON.parse(raw2);
+    if (!Array.isArray(parsed)) return [];
+    return normalizeSecondaryLabels(
+      parsed.filter((x2) => typeof x2 === "string"),
+      null
+    );
+  } catch {
+    return [];
+  }
+}
+function serializeNoteSecondaryCollections(arr) {
+  if (arr == null || arr.length === 0) return null;
+  const normalized = normalizeSecondaryLabels(arr, null);
+  if (normalized.length === 0) return null;
+  return JSON.stringify(normalized);
+}
+function normalizeSecondaryLabels(candidates, primary) {
+  const primaryNorm = typeof primary === "string" && primary.trim().length > 0 ? primary.trim() : null;
+  const seen = /* @__PURE__ */ new Set();
+  const out = [];
+  for (const c of candidates) {
+    if (typeof c !== "string") continue;
+    const t = c.trim();
+    if (!t.length) continue;
+    const low = t.toLowerCase();
+    if (primaryNorm && primaryNorm.toLowerCase() === low) continue;
+    if (seen.has(low)) continue;
+    seen.add(low);
+    out.push(t);
+  }
+  return out;
+}
+
+// server/utils/dashboard-data.ts
 async function spaceUsesChronologicalOrdering(spaceId) {
   const row = first(
     await db.select({ isPublic: Spaces.isPublic }).from(Spaces).where(eq(Spaces.id, spaceId)).limit(1)
@@ -71478,7 +71609,11 @@ var NOTE_SELECT_COLUMNS = {
   createdAt: Notes.createdAt,
   updatedAt: Notes.updatedAt,
   lastVisited: Notes.lastVisited,
-  userId: Notes.userId
+  userId: Notes.userId,
+  primaryCollection: Notes.primaryCollection,
+  secondaryCollections: Notes.secondaryCollections,
+  collectionPinned: Notes.collectionPinned,
+  collectionUserOverride: Notes.collectionUserOverride
 };
 async function getNotesForThread(threadId, userId, limit = 20, offset = 0) {
   try {
@@ -71591,6 +71726,7 @@ async function getNotesForThread(threadId, userId, limit = 20, offset = 0) {
       const version2 = note.noteType === "scripture" ? scriptureVersionMap[note.id] ?? extractScriptureTranslationFromNoteContent(note.content) ?? "NET" : void 0;
       return {
         ...note,
+        secondaryCollections: parseNoteSecondaryCollections(note.secondaryCollections),
         lastUpdated: note.lastVisited || note.updatedAt || note.createdAt,
         lastVisited: note.lastVisited,
         resourceTitle: resourceMeta?.sourceTitle || null,
@@ -71664,6 +71800,7 @@ async function getNotesForThreadForMember(threadId, ownerUserId, limit = 100, of
       const version2 = note.noteType === "scripture" ? scriptureVersionMap[note.id] ?? extractScriptureTranslationFromNoteContent(note.content) ?? "NET" : void 0;
       return {
         ...note,
+        secondaryCollections: parseNoteSecondaryCollections(note.secondaryCollections),
         lastUpdated: note.lastVisited || note.updatedAt || note.createdAt,
         lastVisited: note.lastVisited,
         resourceTitle: resourceMeta?.sourceTitle || null,
@@ -71885,7 +72022,11 @@ async function getContentItems(userId, limit = 20, offset = 0, filterExcludeRefe
         userId: note.userId,
         threadTitle: note.threadId === "thread_unorganized" ? MY_PILE_THREAD_TITLE : noteThread?.title ?? null,
         threadColor: noteThread?.color ?? null,
-        threadBackgroundGradient: noteThread?.backgroundGradient || (noteThread?.color ? getThreadGradientCSS(noteThread.color) : null)
+        threadBackgroundGradient: noteThread?.backgroundGradient || (noteThread?.color ? getThreadGradientCSS(noteThread.color) : null),
+        primaryCollection: note.primaryCollection ?? null,
+        secondaryCollections: parseNoteSecondaryCollections(note.secondaryCollections),
+        collectionPinned: note.collectionPinned ?? false,
+        collectionUserOverride: note.collectionUserOverride ?? false
       };
     };
     const allItemsMap = /* @__PURE__ */ new Map();
@@ -71944,7 +72085,11 @@ async function getReferencedScriptureNotesWithoutLastVisited(userId) {
         lastVisited: null,
         createdAt: note.createdAt,
         threadColors: threadColorsMap[note.id] || void 0,
-        version: scriptureVersionMap[note.id] ?? extractScriptureTranslationFromNoteContent(note.content) ?? "NET"
+        version: scriptureVersionMap[note.id] ?? extractScriptureTranslationFromNoteContent(note.content) ?? "NET",
+        primaryCollection: note.primaryCollection ?? null,
+        secondaryCollections: parseNoteSecondaryCollections(note.secondaryCollections),
+        collectionPinned: note.collectionPinned ?? false,
+        collectionUserOverride: note.collectionUserOverride ?? false
       };
     });
   } catch (error) {
@@ -72193,6 +72338,7 @@ async function getNotesForSpace(spaceId, userId, limit = 20, offset = 0) {
       const version2 = note.noteType === "scripture" ? scriptureVersionMap[note.id] ?? extractScriptureTranslationFromNoteContent(note.content) ?? "NET" : void 0;
       return {
         ...note,
+        secondaryCollections: parseNoteSecondaryCollections(note.secondaryCollections),
         lastUpdated: note.lastVisited || note.updatedAt || note.createdAt,
         lastVisited: note.lastVisited,
         resourceTitle: resourceMeta?.sourceTitle || null,
@@ -72262,6 +72408,7 @@ async function getNotesForSpaceForMember(spaceId, ownerUserId, limit = 100, offs
       const threadColors = threadColorsMap.get(note.id);
       return {
         ...note,
+        secondaryCollections: parseNoteSecondaryCollections(note.secondaryCollections),
         lastUpdated: note.lastVisited || note.updatedAt || note.createdAt,
         lastVisited: note.lastVisited,
         resourceTitle: resourceMeta?.sourceTitle || null,
@@ -73691,7 +73838,7 @@ function markdownToHtml(markdown) {
 }
 
 // server/routes/founder-letter.inline.generated.ts
-var founder_letter_inline_generated_default = "It means a lot that you're here.\n\nI started making Harvous first and foremost for me. I needed a notes app for my Bible study that was designed in a way where the more you used it the more you'd remember. \n\nHarvous 1.0 is the start of this goal to be the home for your Bible study. For right now it's a simple notes app with features to make it more designed for Bible study like threads instead of folders, auto-generated scripture, and selecting text to create a new note.\n\nThere's a lot more to come. Until then, my prayer and hope is that Harvous helps your Bible study journey.\n\nIf you ever have feedback, questions, or just want to say hey, I'd love to hear from you at derek@harvous.com.\n\nGodspeed,";
+var founder_letter_inline_generated_default = "It means a lot that you're here.\n\nI started making Harvous first and foremost for me. I needed a notes app for my Bible study that was designed in a way where the more you used it the more you'd remember. \n\nHarvous 1.0 is the start of this goal to be the home for your Bible study. For right now it's a simple notes app with features to make it more designed for Bible study\u2014organization around threads, auto-generated scripture, and selecting text to create a new note.\n\nThere's a lot more to come. Until then, my prayer and hope is that Harvous helps your Bible study journey.\n\nIf you ever have feedback, questions, or just want to say hey, I'd love to hear from you at derek@harvous.com.\n\nGodspeed,";
 
 // server/routes/founder-letter.inline.ts
 var founder_letter_inline_default = founder_letter_inline_generated_default;
@@ -73805,7 +73952,9 @@ route7.get("/api/search", requireAuth, async (c) => {
           threadId: Notes.threadId,
           spaceId: Notes.spaceId,
           createdAt: Notes.createdAt,
-          updatedAt: Notes.updatedAt
+          updatedAt: Notes.updatedAt,
+          primaryCollection: Notes.primaryCollection,
+          secondaryCollections: Notes.secondaryCollections
         }).from(Notes).where(
           and(
             eq(Notes.userId, userId),
@@ -73833,7 +73982,9 @@ route7.get("/api/search", requireAuth, async (c) => {
           threadId: Notes.threadId,
           spaceId: Notes.spaceId,
           createdAt: Notes.createdAt,
-          updatedAt: Notes.updatedAt
+          updatedAt: Notes.updatedAt,
+          primaryCollection: Notes.primaryCollection,
+          secondaryCollections: Notes.secondaryCollections
         }).from(Notes).where(
           and(
             eq(Notes.userId, userId),
@@ -73915,7 +74066,9 @@ route7.get("/api/search", requireAuth, async (c) => {
         lastUpdated: note.updatedAt || note.createdAt,
         createdAt: note.createdAt,
         updatedAt: note.updatedAt,
-        threadColors: threadColors && threadColors.length > 0 ? threadColors : void 0
+        threadColors: threadColors && threadColors.length > 0 ? threadColors : void 0,
+        primaryCollection: note.primaryCollection ?? null,
+        secondaryCollections: parseNoteSecondaryCollections(note.secondaryCollections)
       };
     });
     const threadResults = threadsRows.map((thread) => ({
@@ -85993,6 +86146,10 @@ ${callout.content}
 
 // server/routes/notes.ts
 var route10 = new Hono2();
+function noteJsonWithParsedSecondaries(note) {
+  const raw2 = note.secondaryCollections;
+  return { ...note, secondaryCollections: parseNoteSecondaryCollections(raw2 ?? null) };
+}
 function isOnboardingSystemNote(note) {
   return note.threadId.startsWith("thread_onboarding_") && note.addedBy === "system";
 }
@@ -86197,7 +86354,7 @@ route10.post("/api/notes/create", requireAuth, rateLimitNoteCreate(), async (c) 
         if (!isPDF) {
           try {
             const htmlResponse = await fetch(validatedResourceUrl, {
-              headers: { "User-Agent": "Mozilla/5.0 (compatible; HarvousBot/1.0; +https://harvous.com)", Accept: "text/html,application/xhtml+xml" },
+              headers: { "User-Agent": "Mozilla/5.0 (compatible; HarvousBot/1.0; +https://app.harvous.com)", Accept: "text/html,application/xhtml+xml" },
               signal: AbortSignal.timeout(15e3)
             });
             if (htmlResponse.ok) {
@@ -86259,7 +86416,7 @@ route10.post("/api/notes/create", requireAuth, rateLimitNoteCreate(), async (c) 
     }
     return c.json({
       success: "Note created!",
-      note: newNote,
+      note: noteJsonWithParsedSecondaries(newNote),
       scriptureResults: [],
       scriptureDeferred: true
     });
@@ -86272,7 +86429,18 @@ route10.put("/api/notes/update", requireAuth, rateLimit("write"), async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const body = await c.req.json();
-    const { noteId, title, content, resourceImage, contentEncrypted, scriptureVersion } = body;
+    const {
+      noteId,
+      title,
+      content,
+      resourceImage,
+      contentEncrypted,
+      scriptureVersion,
+      primaryCollection: primaryCollectionRaw,
+      secondaryCollections: secondaryCollectionsRaw,
+      collectionPinned: collectionPinnedRaw,
+      collectionUserOverride: collectionUserOverrideRaw
+    } = body;
     if (!noteId) return c.json({ error: "Note ID is required" }, 400);
     const contentValidation = validateContent(content, true);
     if (!contentValidation.isValid) return c.json({ error: contentValidation.error, code: contentValidation.code }, 400);
@@ -86285,6 +86453,28 @@ route10.put("/api/notes/update", requireAuth, rateLimit("write"), async (c) => {
     const capitalizedContent = isEncrypted ? content : content.charAt(0).toUpperCase() + content.slice(1);
     const capitalizedTitle = title ? title.charAt(0).toUpperCase() + title.slice(1) : title;
     const updateData = { title: capitalizedTitle, content: capitalizedContent, updatedAt: nowISO() };
+    let nextPrimaryForSecondaries = existingNote.primaryCollection ?? null;
+    if (primaryCollectionRaw !== void 0) {
+      updateData.primaryCollection = typeof primaryCollectionRaw === "string" && primaryCollectionRaw.trim().length > 0 ? primaryCollectionRaw.trim() : null;
+      nextPrimaryForSecondaries = updateData.primaryCollection;
+    }
+    if (secondaryCollectionsRaw !== void 0) {
+      const arr = Array.isArray(secondaryCollectionsRaw) ? secondaryCollectionsRaw.filter((x2) => typeof x2 === "string") : [];
+      updateData.secondaryCollections = serializeNoteSecondaryCollections(
+        normalizeSecondaryLabels(arr, nextPrimaryForSecondaries)
+      );
+    } else if (primaryCollectionRaw !== void 0) {
+      const parsed = parseNoteSecondaryCollections(existingNote.secondaryCollections);
+      updateData.secondaryCollections = serializeNoteSecondaryCollections(
+        normalizeSecondaryLabels(parsed, nextPrimaryForSecondaries)
+      );
+    }
+    if (collectionPinnedRaw !== void 0) {
+      updateData.collectionPinned = Boolean(collectionPinnedRaw);
+    }
+    if (collectionUserOverrideRaw !== void 0) {
+      updateData.collectionUserOverride = Boolean(collectionUserOverrideRaw);
+    }
     if (typeof contentEncrypted === "boolean") {
       updateData.contentEncrypted = contentEncrypted;
       if (contentEncrypted === true) {
@@ -86332,7 +86522,13 @@ route10.put("/api/notes/update", requireAuth, rateLimit("write"), async (c) => {
         console.error("[api/notes/update] Scripture processing failed:", error?.message);
       }
     }
-    return c.json({ success: "Note updated!", note: updatedNote, scriptureResults, processedContent, scriptureProcessingError });
+    return c.json({
+      success: "Note updated!",
+      note: noteJsonWithParsedSecondaries(updatedNote),
+      scriptureResults,
+      processedContent,
+      scriptureProcessingError
+    });
   } catch (error) {
     return c.json({ error: error.message || "Failed to update note" }, 500);
   }
@@ -86852,7 +87048,17 @@ route10.get("/api/notes/:id/details", requireAuth, async (c) => {
     }
     return c.json({
       success: true,
-      note: { ...note, simpleNoteId: note.simpleNoteId ?? null, contentEncrypted: note.contentEncrypted || false, noteType: note.noteType || "default", addedBy: note.addedBy || "user", version: version2, resourceTitle, resourceDescription, resourceImage },
+      note: {
+        ...noteJsonWithParsedSecondaries(note),
+        simpleNoteId: note.simpleNoteId ?? null,
+        contentEncrypted: note.contentEncrypted || false,
+        noteType: note.noteType || "default",
+        addedBy: note.addedBy || "user",
+        version: version2,
+        resourceTitle,
+        resourceDescription,
+        resourceImage
+      },
       threads: formattedThreads,
       allUserThreads: selectableUserThreads.map((t) => ({ id: t.id, title: t.title, color: t.color, isPublic: t.isPublic, createdAt: t.createdAt, updatedAt: t.updatedAt })),
       comments: comments.map((c2) => ({ id: c2.id, content: c2.content, createdAt: c2.createdAt, updatedAt: c2.updatedAt })),
@@ -87151,7 +87357,8 @@ init_db2();
 var MEMBERS_PER_SPACE_CAP = 150;
 var TIER_LIMITS = {
   free: {
-    ownedSharedSpaces: Infinity,
+    /** Spaces you own that have sharing/members; see SPACE_MODES_PRODUCT.md */
+    ownedSharedSpaces: 3,
     membersPerSpace: MEMBERS_PER_SPACE_CAP,
     joinableSpaces: Infinity
   },
@@ -87436,7 +87643,11 @@ route11.get("/api/spaces/items", requireAuth, async (c) => {
       updatedAt: Notes.updatedAt,
       lastVisited: Notes.lastVisited,
       contentEncrypted: Notes.contentEncrypted,
-      addedBy: Notes.addedBy
+      addedBy: Notes.addedBy,
+      primaryCollection: Notes.primaryCollection,
+      secondaryCollections: Notes.secondaryCollections,
+      collectionPinned: Notes.collectionPinned,
+      collectionUserOverride: Notes.collectionUserOverride
     }).from(Notes).where(eq(Notes.userId, auth.userId));
     const allNotes = allNotesRaw.filter((n) => n.addedBy !== "system");
     const resourceNoteIds = allNotes.filter((n) => n.noteType === "resource").map((n) => n.id);
@@ -87475,6 +87686,7 @@ route11.get("/api/spaces/items", requireAuth, async (c) => {
       return {
         ...note,
         lastUpdated: note.lastVisited || note.updatedAt || note.createdAt,
+        secondaryCollections: parseNoteSecondaryCollections(note.secondaryCollections),
         resourceTitle: rm?.sourceTitle || null,
         resourceDescription: rm?.sourceDescription || null,
         resourceImage: rm?.sourceImage || null,
@@ -90899,7 +91111,7 @@ app5.post("/api/resource/metadata", async (c) => {
       return c.json({ success: true, metadata: { title: filename, description: "PDF Document", image: "", url: normalizedUrl, siteName: parsedUrl.hostname.replace("www.", ""), contentType: "pdf" } });
     }
     const response = await fetch(normalizedUrl, {
-      headers: { "User-Agent": "Mozilla/5.0 (compatible; HarvousBot/1.0; +https://harvous.com)", "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8" },
+      headers: { "User-Agent": "Mozilla/5.0 (compatible; HarvousBot/1.0; +https://app.harvous.com)", "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8" },
       signal: AbortSignal.timeout(1e4)
     });
     if (!response.ok) return c.json({ error: `Failed to fetch URL: ${response.statusText}`, code: "FETCH_ERROR", status: response.status }, response.status >= 500 ? 502 : 400);
@@ -92685,6 +92897,22 @@ setInterval(() => {
     }
   }
 }, 6e4);
+function secondaryCollectionsFromSyncPayload(raw2, primary) {
+  if (Array.isArray(raw2)) {
+    return serializeNoteSecondaryCollections(
+      normalizeSecondaryLabels(
+        raw2.filter((x2) => typeof x2 === "string"),
+        primary
+      )
+    );
+  }
+  if (typeof raw2 === "string") {
+    return serializeNoteSecondaryCollections(
+      normalizeSecondaryLabels(parseNoteSecondaryCollections(raw2), primary)
+    );
+  }
+  return null;
+}
 async function processSpaceMutation(userId, operation, entityId, data) {
   if (operation === "create") {
     const newSpace = first(await db.insert(Spaces).values({
@@ -92818,6 +93046,13 @@ async function processNoteMutation(userId, operation, entityId, data, clientMuta
       resolvedLinkedFromNoteId = rawLinkedFrom;
     }
     const now2 = nowISO();
+    const createPrimary = typeof data.primaryCollection === "string" && data.primaryCollection.trim() ? data.primaryCollection.trim() : null;
+    const createSecondaryStored = secondaryCollectionsFromSyncPayload(data.secondaryCollections, createPrimary);
+    let collectionLastAutoCreate = null;
+    if (data.collectionLastAutoUpdatedAt) {
+      const d = new Date(data.collectionLastAutoUpdatedAt);
+      if (!Number.isNaN(d.getTime())) collectionLastAutoCreate = d;
+    }
     const newNote = first(await db.insert(Notes).values({
       id: entityId.startsWith("local_") ? generateNoteId() : entityId,
       title: noteTitle || null,
@@ -92835,7 +93070,12 @@ async function processNoteMutation(userId, operation, entityId, data, clientMuta
       updatedAt: now2,
       lastVisited: data.lastVisited ? new Date(data.lastVisited) : now2,
       contentEncrypted: data.contentEncrypted || false,
-      linkedFromNoteId: resolvedLinkedFromNoteId
+      linkedFromNoteId: resolvedLinkedFromNoteId,
+      primaryCollection: createPrimary,
+      secondaryCollections: createSecondaryStored,
+      collectionPinned: typeof data.collectionPinned === "boolean" ? data.collectionPinned : false,
+      collectionUserOverride: typeof data.collectionUserOverride === "boolean" ? data.collectionUserOverride : false,
+      collectionLastAutoUpdatedAt: collectionLastAutoCreate
     }).returning());
     const newHighest = Math.max(assignedSimpleNoteId, effectiveHighest);
     await db.update(UserMetadata).set({ highestSimpleNoteId: newHighest, updatedAt: nowISO() }).where(eq(UserMetadata.userId, userId));
@@ -92849,18 +93089,50 @@ async function processNoteMutation(userId, operation, entityId, data, clientMuta
   } else if (operation === "update") {
     const existing = first(await db.select().from(Notes).where(and(eq(Notes.id, entityId), eq(Notes.userId, userId))).limit(1));
     if (!existing) return { success: false, error: "Note not found" };
-    await db.update(Notes).set({
+    let nextPrimary = existing.primaryCollection ?? null;
+    if (data.primaryCollection !== void 0) {
+      nextPrimary = typeof data.primaryCollection === "string" && data.primaryCollection.trim() ? data.primaryCollection.trim() : null;
+    }
+    const updatePayload = {
       title: data.title,
       content: data.content,
       spaceId: data.spaceId,
       isPublic: data.isPublic,
       isFeatured: data.isFeatured,
       order: data.order,
-      updatedAt: nowISO(),
-      ...data.lastVisited && { lastVisited: new Date(data.lastVisited) },
-      ...typeof data.contentEncrypted === "boolean" && { contentEncrypted: data.contentEncrypted },
-      ...data.contentEncrypted === true && { isPublic: false, shareToken: null, shareTokenCreatedAt: null }
-    }).where(eq(Notes.id, entityId));
+      updatedAt: nowISO()
+    };
+    if (data.lastVisited) {
+      updatePayload.lastVisited = new Date(data.lastVisited);
+    }
+    if (typeof data.contentEncrypted === "boolean") {
+      updatePayload.contentEncrypted = data.contentEncrypted;
+      if (data.contentEncrypted === true) {
+        updatePayload.isPublic = false;
+        updatePayload.shareToken = null;
+        updatePayload.shareTokenCreatedAt = null;
+      }
+    }
+    if (data.primaryCollection !== void 0) {
+      updatePayload.primaryCollection = nextPrimary;
+    }
+    if (data.secondaryCollections !== void 0) {
+      updatePayload.secondaryCollections = secondaryCollectionsFromSyncPayload(data.secondaryCollections, nextPrimary);
+    } else if (data.primaryCollection !== void 0) {
+      updatePayload.secondaryCollections = serializeNoteSecondaryCollections(
+        normalizeSecondaryLabels(parseNoteSecondaryCollections(existing.secondaryCollections), nextPrimary)
+      );
+    }
+    if (data.collectionPinned !== void 0) {
+      updatePayload.collectionPinned = Boolean(data.collectionPinned);
+    }
+    if (data.collectionUserOverride !== void 0) {
+      updatePayload.collectionUserOverride = Boolean(data.collectionUserOverride);
+    }
+    if (data.collectionLastAutoUpdatedAt !== void 0) {
+      updatePayload.collectionLastAutoUpdatedAt = data.collectionLastAutoUpdatedAt == null || data.collectionLastAutoUpdatedAt === "" ? null : new Date(data.collectionLastAutoUpdatedAt);
+    }
+    await db.update(Notes).set(updatePayload).where(eq(Notes.id, entityId));
     return { success: true, entityId, serverId: entityId };
   } else if (operation === "delete") {
     return { success: true, entityId, serverId: entityId };
@@ -93052,7 +93324,12 @@ app9.get("/api/sync/bootstrap", requireAuth, async (c) => {
         createdAt: Notes.createdAt,
         updatedAt: Notes.updatedAt,
         contentEncrypted: Notes.contentEncrypted,
-        linkedFromNoteId: Notes.linkedFromNoteId
+        linkedFromNoteId: Notes.linkedFromNoteId,
+        primaryCollection: Notes.primaryCollection,
+        secondaryCollections: Notes.secondaryCollections,
+        collectionPinned: Notes.collectionPinned,
+        collectionUserOverride: Notes.collectionUserOverride,
+        collectionLastAutoUpdatedAt: Notes.collectionLastAutoUpdatedAt
       }).from(Notes).where(eq(Notes.userId, auth.userId)).limit(1e3),
       db.select({
         id: NoteThreads.id,
@@ -93121,7 +93398,7 @@ app9.get("/api/sync/bootstrap", requireAuth, async (c) => {
       cursor: `bootstrap_${Date.now()}`,
       spaces,
       threads,
-      notes,
+      notes: notes.map((n) => ({ ...n, secondaryCollections: parseNoteSecondaryCollections(n.secondaryCollections) })),
       noteThreads,
       tags,
       noteTags,
@@ -93196,7 +93473,12 @@ app9.get("/api/sync/changes", requireAuth, async (c) => {
         createdAt: Notes.createdAt,
         updatedAt: Notes.updatedAt,
         contentEncrypted: Notes.contentEncrypted,
-        linkedFromNoteId: Notes.linkedFromNoteId
+        linkedFromNoteId: Notes.linkedFromNoteId,
+        primaryCollection: Notes.primaryCollection,
+        secondaryCollections: Notes.secondaryCollections,
+        collectionPinned: Notes.collectionPinned,
+        collectionUserOverride: Notes.collectionUserOverride,
+        collectionLastAutoUpdatedAt: Notes.collectionLastAutoUpdatedAt
       }).from(Notes).where(and(eq(Notes.userId, auth.userId), or(gt(Notes.updatedAt, sinceDate), gt(Notes.createdAt, sinceDate), gt(Notes.lastVisited, sinceDate)))),
       db.select({
         id: NoteThreads.id,
@@ -93264,7 +93546,7 @@ app9.get("/api/sync/changes", requireAuth, async (c) => {
       hasChanges: changedSpaces.length > 0 || changedThreads.length > 0 || changedNotes.length > 0 || changedNoteThreads.length > 0 || changedTags.length > 0 || changedNoteTags.length > 0 || changedUserMetadata !== null && changedUserMetadata !== void 0,
       spaces: changedSpaces,
       threads: changedThreads,
-      notes: changedNotes,
+      notes: changedNotes.map((n) => ({ ...n, secondaryCollections: parseNoteSecondaryCollections(n.secondaryCollections) })),
       noteThreads: changedNoteThreads,
       tags: changedTags,
       noteTags: changedNoteTags,
@@ -95086,36 +95368,6 @@ function isTestRoutesForbidden() {
     return true;
   }
   return false;
-}
-
-// server/utils/votd-local-date.ts
-var TZ_SAFE = /^[A-Za-z0-9_+/\-]+$/;
-function isValidIanaTimeZone(tz) {
-  if (!TZ_SAFE.test(tz) || tz.length > 120) return false;
-  try {
-    Intl.DateTimeFormat(void 0, { timeZone: tz });
-    return true;
-  } catch {
-    return false;
-  }
-}
-function getLocalCalendarDateString(timeZone, date2) {
-  const zone = isValidIanaTimeZone(timeZone) ? timeZone : "UTC";
-  try {
-    return new Intl.DateTimeFormat("en-CA", {
-      timeZone: zone,
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit"
-    }).format(date2);
-  } catch {
-    return new Intl.DateTimeFormat("en-CA", {
-      timeZone: "UTC",
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit"
-    }).format(date2);
-  }
 }
 
 // server/routes/featured.ts

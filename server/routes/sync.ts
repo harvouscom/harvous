@@ -28,6 +28,11 @@ import { nowISO } from '../db/dates';
 import { getCurrentSeason } from '@/utils/season-helpers';
 import { awardNewSeasonBonus } from '../utils/xp-system';
 import { getEffectiveHighestSimpleNoteId } from '../utils/highest-simple-note-id';
+import {
+  normalizeSecondaryLabels,
+  parseNoteSecondaryCollections,
+  serializeNoteSecondaryCollections,
+} from '../utils/note-secondary-collections';
 import { handleAPIError } from '@/utils/error-handling';
 import { tryConsumeNoteCreates, MAX_NOTE_CREATES_PER_SYNC_PUSH, getClientIP } from '@/utils/rate-limit';
 import { generateNoteId, generateThreadId, generateSpaceId } from '@/utils/ids';
@@ -50,6 +55,24 @@ setInterval(() => {
     }
   }
 }, 60_000);
+
+/** Persist secondaryCollections JSON text from sync clients (array or JSON string). */
+function secondaryCollectionsFromSyncPayload(raw: unknown, primary: string | null): string | null {
+  if (Array.isArray(raw)) {
+    return serializeNoteSecondaryCollections(
+      normalizeSecondaryLabels(
+        raw.filter((x): x is string => typeof x === 'string'),
+        primary,
+      ),
+    );
+  }
+  if (typeof raw === 'string') {
+    return serializeNoteSecondaryCollections(
+      normalizeSecondaryLabels(parseNoteSecondaryCollections(raw), primary),
+    );
+  }
+  return null;
+}
 
 // ─── Mutation helpers for push endpoint ───────────────────────────────
 
@@ -202,6 +225,17 @@ async function processNoteMutation(userId: string, operation: string, entityId: 
     }
 
     const now = nowISO();
+    const createPrimary =
+      typeof data.primaryCollection === 'string' && data.primaryCollection.trim()
+        ? data.primaryCollection.trim()
+        : null;
+    const createSecondaryStored = secondaryCollectionsFromSyncPayload(data.secondaryCollections, createPrimary);
+    let collectionLastAutoCreate: Date | null = null;
+    if (data.collectionLastAutoUpdatedAt) {
+      const d = new Date(data.collectionLastAutoUpdatedAt);
+      if (!Number.isNaN(d.getTime())) collectionLastAutoCreate = d;
+    }
+
     const newNote = first(await db.insert(Notes).values({
       id: entityId.startsWith('local_') ? generateNoteId() : entityId,
       title: noteTitle || null,
@@ -220,6 +254,11 @@ async function processNoteMutation(userId: string, operation: string, entityId: 
       lastVisited: data.lastVisited ? new Date(data.lastVisited) : now,
       contentEncrypted: data.contentEncrypted || false,
       linkedFromNoteId: resolvedLinkedFromNoteId,
+      primaryCollection: createPrimary,
+      secondaryCollections: createSecondaryStored,
+      collectionPinned: typeof data.collectionPinned === 'boolean' ? data.collectionPinned : false,
+      collectionUserOverride: typeof data.collectionUserOverride === 'boolean' ? data.collectionUserOverride : false,
+      collectionLastAutoUpdatedAt: collectionLastAutoCreate,
     }).returning())!;
 
     const newHighest = Math.max(assignedSimpleNoteId, effectiveHighest);
@@ -238,7 +277,16 @@ async function processNoteMutation(userId: string, operation: string, entityId: 
   } else if (operation === 'update') {
     const existing = first(await db.select().from(Notes).where(and(eq(Notes.id, entityId), eq(Notes.userId, userId))).limit(1));
     if (!existing) return { success: false, error: 'Note not found' };
-    await db.update(Notes).set({
+
+    let nextPrimary: string | null = existing.primaryCollection ?? null;
+    if (data.primaryCollection !== undefined) {
+      nextPrimary =
+        typeof data.primaryCollection === 'string' && data.primaryCollection.trim()
+          ? data.primaryCollection.trim()
+          : null;
+    }
+
+    const updatePayload: Record<string, unknown> = {
       title: data.title,
       content: data.content,
       spaceId: data.spaceId,
@@ -246,10 +294,42 @@ async function processNoteMutation(userId: string, operation: string, entityId: 
       isFeatured: data.isFeatured,
       order: data.order,
       updatedAt: nowISO(),
-      ...(data.lastVisited && { lastVisited: new Date(data.lastVisited) }),
-      ...(typeof data.contentEncrypted === 'boolean' && { contentEncrypted: data.contentEncrypted }),
-      ...(data.contentEncrypted === true && { isPublic: false, shareToken: null, shareTokenCreatedAt: null }),
-    }).where(eq(Notes.id, entityId));
+    };
+    if (data.lastVisited) {
+      updatePayload.lastVisited = new Date(data.lastVisited);
+    }
+    if (typeof data.contentEncrypted === 'boolean') {
+      updatePayload.contentEncrypted = data.contentEncrypted;
+      if (data.contentEncrypted === true) {
+        updatePayload.isPublic = false;
+        updatePayload.shareToken = null;
+        updatePayload.shareTokenCreatedAt = null;
+      }
+    }
+    if (data.primaryCollection !== undefined) {
+      updatePayload.primaryCollection = nextPrimary;
+    }
+    if (data.secondaryCollections !== undefined) {
+      updatePayload.secondaryCollections = secondaryCollectionsFromSyncPayload(data.secondaryCollections, nextPrimary);
+    } else if (data.primaryCollection !== undefined) {
+      updatePayload.secondaryCollections = serializeNoteSecondaryCollections(
+        normalizeSecondaryLabels(parseNoteSecondaryCollections(existing.secondaryCollections), nextPrimary),
+      );
+    }
+    if (data.collectionPinned !== undefined) {
+      updatePayload.collectionPinned = Boolean(data.collectionPinned);
+    }
+    if (data.collectionUserOverride !== undefined) {
+      updatePayload.collectionUserOverride = Boolean(data.collectionUserOverride);
+    }
+    if (data.collectionLastAutoUpdatedAt !== undefined) {
+      updatePayload.collectionLastAutoUpdatedAt =
+        data.collectionLastAutoUpdatedAt == null || data.collectionLastAutoUpdatedAt === ''
+          ? null
+          : new Date(data.collectionLastAutoUpdatedAt);
+    }
+
+    await db.update(Notes).set(updatePayload as any).where(eq(Notes.id, entityId));
     return { success: true, entityId, serverId: entityId };
   } else if (operation === 'delete') {
     return { success: true, entityId, serverId: entityId };
@@ -424,6 +504,11 @@ app.get('/api/sync/bootstrap', requireAuth, async (c) => {
         order: Notes.order, lastVisited: Notes.lastVisited, createdAt: Notes.createdAt,
         updatedAt: Notes.updatedAt, contentEncrypted: Notes.contentEncrypted,
         linkedFromNoteId: Notes.linkedFromNoteId,
+        primaryCollection: Notes.primaryCollection,
+        secondaryCollections: Notes.secondaryCollections,
+        collectionPinned: Notes.collectionPinned,
+        collectionUserOverride: Notes.collectionUserOverride,
+        collectionLastAutoUpdatedAt: Notes.collectionLastAutoUpdatedAt,
       }).from(Notes).where(eq(Notes.userId, auth.userId)).limit(1000),
 
       db.select({
@@ -484,7 +569,7 @@ app.get('/api/sync/bootstrap', requireAuth, async (c) => {
       cursor: `bootstrap_${Date.now()}`,
       spaces,
       threads,
-      notes,
+      notes: notes.map((n) => ({ ...n, secondaryCollections: parseNoteSecondaryCollections(n.secondaryCollections) })),
       noteThreads,
       tags,
       noteTags,
@@ -545,6 +630,11 @@ app.get('/api/sync/changes', requireAuth, async (c) => {
         order: Notes.order, lastVisited: Notes.lastVisited, createdAt: Notes.createdAt,
         updatedAt: Notes.updatedAt, contentEncrypted: Notes.contentEncrypted,
         linkedFromNoteId: Notes.linkedFromNoteId,
+        primaryCollection: Notes.primaryCollection,
+        secondaryCollections: Notes.secondaryCollections,
+        collectionPinned: Notes.collectionPinned,
+        collectionUserOverride: Notes.collectionUserOverride,
+        collectionLastAutoUpdatedAt: Notes.collectionLastAutoUpdatedAt,
       }).from(Notes).where(and(eq(Notes.userId, auth.userId), or(gt(Notes.updatedAt, sinceDate), gt(Notes.createdAt, sinceDate), gt(Notes.lastVisited, sinceDate)))),
 
       db.select({
@@ -606,7 +696,7 @@ app.get('/api/sync/changes', requireAuth, async (c) => {
                   changedUserMetadata !== null && changedUserMetadata !== undefined,
       spaces: changedSpaces,
       threads: changedThreads,
-      notes: changedNotes,
+      notes: changedNotes.map((n) => ({ ...n, secondaryCollections: parseNoteSecondaryCollections(n.secondaryCollections) })),
       noteThreads: changedNoteThreads,
       tags: changedTags,
       noteTags: changedNoteTags,

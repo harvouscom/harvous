@@ -61,6 +61,12 @@ struct LibraryView: View {
         )
     }
 
+    /// Hide passage while searching; respect dismiss for the day (same key as Notes/Highlights).
+    private var showDailyPassageRow: Bool {
+        activeSearchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            && votdPassageCardDismissedDay != VotdService.todayCalendarDayKey()
+    }
+
     private var navigationTitleText: String {
         switch collectionsDrill {
         case .root:
@@ -305,15 +311,15 @@ struct LibraryView: View {
 
     @ViewBuilder
     private var collectionsRootContent: some View {
-        if notesInActiveSpace.isEmpty {
+        if !showDailyPassageRow && notesInActiveSpace.isEmpty {
             emptyState
-        } else if collectionRows.isEmpty {
+        } else if !showDailyPassageRow && collectionRows.isEmpty {
             ContentUnavailableView {
                 Label("No Collections", systemImage: "rectangle.stack.fill")
             } description: {
                 Text("Collections created from your notes will appear here.")
             }
-        } else if !activeSearchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && filteredCollectionRows.isEmpty {
+        } else if !showDailyPassageRow && !activeSearchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && filteredCollectionRows.isEmpty {
             ContentUnavailableView.search(text: activeSearchQuery)
         } else {
             collectionsFlatList
@@ -322,7 +328,7 @@ struct LibraryView: View {
 
     private var collectionsFlatList: some View {
         List {
-            if votdPassageCardDismissedDay != VotdService.todayCalendarDayKey() {
+            if showDailyPassageRow {
                 DailyPassageCard { note in
                     iosNoteNavigationPath.append(note.id)
                 }

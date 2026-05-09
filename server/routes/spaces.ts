@@ -31,6 +31,7 @@ import {
   first,
 } from '../db';
 import { nowISO } from '../db/dates';
+import { parseNoteSecondaryCollections } from '../utils/note-secondary-collections';
 import {
   getSpacesWithCounts,
   getNotesForSpace,
@@ -193,6 +194,10 @@ route.get('/api/spaces/items', requireAuth, async (c) => {
       createdAt: Notes.createdAt, updatedAt: Notes.updatedAt,
       lastVisited: Notes.lastVisited, contentEncrypted: Notes.contentEncrypted,
       addedBy: Notes.addedBy,
+      primaryCollection: Notes.primaryCollection,
+      secondaryCollections: Notes.secondaryCollections,
+      collectionPinned: Notes.collectionPinned,
+      collectionUserOverride: Notes.collectionUserOverride,
     }).from(Notes).where(eq(Notes.userId, auth.userId));
     // Exclude onboarding notes so they don't appear in the "Add to Space" panel
     const allNotes = allNotesRaw.filter(n => n.addedBy !== 'system');
@@ -238,6 +243,7 @@ route.get('/api/spaces/items', requireAuth, async (c) => {
       const threadColors = threadColorsMap.get(note.id);
       return {
         ...note, lastUpdated: note.lastVisited || note.updatedAt || note.createdAt,
+        secondaryCollections: parseNoteSecondaryCollections(note.secondaryCollections),
         resourceTitle: rm?.sourceTitle || null, resourceDescription: rm?.sourceDescription || null, resourceImage: rm?.sourceImage || null,
         version: scriptureVersion,
         scriptureTranslation: scriptureVersion,

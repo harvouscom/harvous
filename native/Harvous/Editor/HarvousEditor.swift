@@ -122,7 +122,11 @@ private func mergedParagraphStyleWithCanonicalLineMetrics(_ saved: NSParagraphSt
     return m
 }
 
-/// Single-clicks on `ScripturePillAttachment` activate scripture editing after normal `NSTextView` handling so the I-beam/caret still appears.
+/// Study highlights finalize on `mouseUp` (or a narrow salvage path) so click-drag selections that start on an
+/// underline do not open the dock mid-gesture. **Scripture pills fire on `mouseDown`** (after `super`): deferring
+/// pills to `mouseUp` broke single clicks when the editor lives in a SwiftUI `ScrollView` — the first `mouseUp`
+/// often never reaches this `NSTextView`, so highlights also register a delayed check + `mouseMoved` release
+/// detection to recover the open action when `mouseUp` is swallowed.
 private final class HarvousNoteTextView: NSTextView {
     /// UTF-16 attachment range in storage.
     var pillTapHandler: ((String, String, NSRange) -> Void)?
@@ -136,6 +140,18 @@ private final class HarvousNoteTextView: NSTextView {
     /// instead of reading `.harvousStudyHighlightUUID` off storage, since custom attributes can be flaky
     /// under TextKit 2 and miss at boundary character offsets. Set from `wireStudyHighlightInteractions`.
     var studyHighlightPaints: [StudyHighlightPaint] = []
+
+    /// Coordinator wires this so `activeScripturePill` republishes after a deferred primary-button gesture finishes.
+    var onPrimaryMouseGestureEndedForSelectionSync: (() -> Void)?
+
+    /// When non-nil, a study-highlight click is pending until `mouseUp` (see class comment).
+    private var pendingStudyHighlightActivation: UUID?
+    private var primaryMouseGestureStartPoint: NSPoint = .zero
+    private var primaryMouseGestureExceededDragThreshold = false
+    /// When `mouseUp` never reaches this view (SwiftUI `ScrollView`), a short delayed + `mouseMoved` path may finalize.
+    private var studyHighlightClickSalvageWorkItem: DispatchWorkItem?
+
+    var isDeferringActiveScripturePillFromMouseGesture: Bool { pendingStudyHighlightActivation != nil }
 
     /// Ensures `mouseMoved` / `cursorUpdate` fire for this view while hovering, not only when it is first responder.
     private var pillHoverTracking: NSTrackingArea?
@@ -456,6 +472,72 @@ private final class HarvousNoteTextView: NSTextView {
         return nil
     }
 
+    /// True when the caret or selection plausibly reflects a click on `pendingUUID`’s painted ranges — avoids
+    /// vetoing activation on multi-scalar boundaries while still blocking e.g. triple-click paragraph selects that spill past the highlight.
+    private func selectionQualifiesForStudyHighlightActivation(pendingUUID: UUID) -> Bool {
+        let sel = selectedRange()
+        guard let storage = textStorage else { return sel.length <= 1 }
+        guard let paint = studyHighlightPaints.first(where: { $0.threadId == pendingUUID }) else {
+            return sel.length <= 0 || sel.length == 1
+        }
+        let storRanges = HarvousStudyHighlightMapper.storageRanges(forExpandedRange: paint.expandedUTF16Range, in: storage)
+        guard !storRanges.isEmpty else { return sel.length <= 0 || sel.length == 1 }
+        var lo = Int.max
+        var hi = 0
+        for r in storRanges {
+            guard r.location != NSNotFound, NSMaxRange(r) <= storage.length else { continue }
+            lo = min(lo, r.location)
+            hi = max(hi, NSMaxRange(r))
+        }
+        guard lo != Int.max, hi > lo else { return sel.length <= 0 || sel.length == 1 }
+        let union = NSRange(location: lo, length: hi - lo)
+        if sel.length == 0 {
+            return sel.location >= union.location && sel.location <= NSMaxRange(union)
+        }
+        return NSMaxRange(sel) <= NSMaxRange(union) && sel.location >= union.location
+    }
+
+    private func scheduleStudyHighlightClickSalvageIfNeeded() {
+        studyHighlightClickSalvageWorkItem?.cancel()
+        let work = DispatchWorkItem { [weak self] in
+            self?.trySalvagePendingStudyHighlightClickAfterLostMouseUp()
+        }
+        studyHighlightClickSalvageWorkItem = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.045, execute: work)
+    }
+
+    /// Finalize a pending highlight click when `mouseUp` is missing but the button is up and the gesture was not a drag.
+    private func trySalvagePendingStudyHighlightClickAfterLostMouseUp() {
+        guard pendingStudyHighlightActivation != nil else { return }
+        guard !primaryMouseGestureExceededDragThreshold else { return }
+        guard NSEvent.pressedMouseButtons & 1 == 0 else { return }
+        if finalizePendingStudyHighlightClickIfEligible() {
+            onPrimaryMouseGestureEndedForSelectionSync?()
+        }
+    }
+
+    @discardableResult
+    private func finalizePendingStudyHighlightClickIfEligible() -> Bool {
+        guard let uuid = pendingStudyHighlightActivation else { return false }
+        if primaryMouseGestureExceededDragThreshold {
+            studyHighlightClickSalvageWorkItem?.cancel()
+            pendingStudyHighlightActivation = nil
+            primaryMouseGestureExceededDragThreshold = false
+            return false
+        }
+        guard selectionQualifiesForStudyHighlightActivation(pendingUUID: uuid) else {
+            studyHighlightClickSalvageWorkItem?.cancel()
+            pendingStudyHighlightActivation = nil
+            primaryMouseGestureExceededDragThreshold = false
+            return false
+        }
+        studyHighlightClickSalvageWorkItem?.cancel()
+        pendingStudyHighlightActivation = nil
+        primaryMouseGestureExceededDragThreshold = false
+        onStudyHighlightClick?(uuid)
+        return true
+    }
+
     /// Highlight hover: suppress when the pointer is over (or near) a scripture pill so previews don’t
     /// fight the pill chrome.
     private func studyHighlightUUID(atViewPoint point: NSPoint) -> UUID? {
@@ -465,6 +547,11 @@ private final class HarvousNoteTextView: NSTextView {
     }
 
     override func mouseDown(with event: NSEvent) {
+        studyHighlightClickSalvageWorkItem?.cancel()
+        studyHighlightClickSalvageWorkItem = nil
+        pendingStudyHighlightActivation = nil
+        primaryMouseGestureExceededDragThreshold = false
+
         guard event.clickCount == 1,
               let storage = textStorage,
               storage.length > 0
@@ -473,6 +560,7 @@ private final class HarvousNoteTextView: NSTextView {
             return
         }
         let point = convert(event.locationInWindow, from: nil)
+        primaryMouseGestureStartPoint = point
 
         // Direct rect hit-test against rendered pill bounds — more reliable than
         // characterIndex for clicks that land in the pill image below the baseline.
@@ -484,8 +572,9 @@ private final class HarvousNoteTextView: NSTextView {
 
         // Study highlights — rect hit test only (`studyHighlightUUIDFromPaints`); pill rects were handled above.
         if let uuid = studyHighlightUUIDFromPaints(atViewPoint: point) {
+            pendingStudyHighlightActivation = uuid
+            scheduleStudyHighlightClickSalvageIfNeeded()
             super.mouseDown(with: event)
-            onStudyHighlightClick?(uuid)
             return
         }
 
@@ -502,6 +591,30 @@ private final class HarvousNoteTextView: NSTextView {
         }
         super.mouseDown(with: event)
         pillTapHandler?(pill.reference, pill.translation, eff)
+    }
+
+    override func mouseDragged(with event: NSEvent) {
+        super.mouseDragged(with: event)
+        guard pendingStudyHighlightActivation != nil else { return }
+        let p = convert(event.locationInWindow, from: nil)
+        let q = primaryMouseGestureStartPoint
+        if hypot(p.x - q.x, p.y - q.y) > 4 {
+            primaryMouseGestureExceededDragThreshold = true
+            studyHighlightClickSalvageWorkItem?.cancel()
+            studyHighlightClickSalvageWorkItem = nil
+        }
+    }
+
+    override func mouseUp(with event: NSEvent) {
+        super.mouseUp(with: event)
+        guard event.buttonNumber == 0 else { return }
+
+        _ = finalizePendingStudyHighlightClickIfEligible()
+        onPrimaryMouseGestureEndedForSelectionSync?()
+    }
+
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool {
+        true
     }
 
     private func scripturePillNearCharacterIndexWithRange(_ charIdx: Int, in storage: NSTextStorage) -> (ScripturePillAttachment, NSRange)? {
@@ -598,6 +711,9 @@ private final class HarvousNoteTextView: NSTextView {
         let point = convert(event.locationInWindow, from: nil)
         onStudyHighlightHoverUUID?(studyHighlightUUID(atViewPoint: point))
         prefetchPassageHoverIfNeeded(viewPoint: point)
+        if pendingStudyHighlightActivation != nil {
+            trySalvagePendingStudyHighlightClickAfterLostMouseUp()
+        }
     }
 
     override func mouseExited(with event: NSEvent) {
@@ -637,6 +753,29 @@ private final class HarvousNoteTextView: NSTextView {
         r.size.height = min(rect.size.height, natural)
         super.drawInsertionPoint(in: r, color: color, turnedOn: flag)
     }
+}
+
+/// UTF-16 ranges of `ScripturePillAttachment` glyphs intersecting a proposed edit range.
+private func harvousPillAttachmentRangesIntersecting(_ affected: NSRange, in storage: NSTextStorage) -> [NSRange] {
+    var result: [NSRange] = []
+    guard storage.length > 0, affected.location != NSNotFound else { return result }
+    let maxLen = storage.length
+    if affected.location > maxLen { return result }
+    let safeLen = min(affected.length, maxLen - affected.location)
+    let safeAffected = NSRange(location: affected.location, length: safeLen)
+
+    var idx = 0
+    while idx < storage.length {
+        var eff = NSRange()
+        let val = storage.attribute(.attachment, at: idx, effectiveRange: &eff)
+        if val is ScripturePillAttachment, NSIntersectionRange(eff, safeAffected).length > 0 {
+            result.append(eff)
+        }
+        let next = NSMaxRange(eff)
+        if next <= idx { break }
+        idx = next
+    }
+    return result
 }
 
 /// Caret on/beside a `ScripturePillAttachment`, or a single-glyph selection of that attachment. Larger selections return nil.
@@ -824,6 +963,8 @@ struct HarvousEditor: NSViewRepresentable {
     var pillAccentResolver: ((String) -> StudyHighlightAccentToken?)? = nil
     /// macOS single-click opens the anchored highlight target (`HarvousStudyHighlightMapper` spans).
     var onStudyHighlightClick: ((UUID) -> Void)? = nil
+    /// Deletes anchored `StudyThread` rows whose underline intersects the current body selection (see `HarvousStudyHighlightMapper.threadIdsIntersectingBodySelection`).
+    var onRemoveStudyHighlightThreadIds: (([UUID]) -> Void)? = nil
 
     func makeCoordinator() -> Coordinator { Coordinator(state: $state) }
 
@@ -895,8 +1036,18 @@ struct HarvousEditor: NSViewRepresentable {
         context.coordinator.textView = textView
         context.coordinator.proxy = proxy
         context.coordinator.placeholderText = placeholder
+        let coordinatorRef = context.coordinator
+        textView.onPrimaryMouseGestureEndedForSelectionSync = { [weak coordinatorRef] in
+            coordinatorRef?.syncActiveScripturePillFromTextViewSelection()
+        }
         proxy?.textView = textView   // wire proxy for toolbar actions
         context.coordinator.wireFormatBarToProxy(proxy)
+        if let p = proxy {
+            let coord = context.coordinator
+            p.scripturePillDeletionConfirmHandler = { [weak coord] in
+                coord?.applyConfirmedScripturePillDeletion()
+            }
+        }
 
         // Placeholder
         if state.plainText.isEmpty {
@@ -919,15 +1070,23 @@ struct HarvousEditor: NSViewRepresentable {
         context.coordinator.studyHighlightsAssumeDarkAppearance = studyHighlightsAssumeDarkAppearance
         context.coordinator.pillAccentResolver = pillAccentResolver
         context.coordinator.onResolvedScripturePillPairs = onResolvedScripturePillPairs
+        context.coordinator.onRemoveStudyHighlightThreadIds = onRemoveStudyHighlightThreadIds
 
         textView.pillTapHandler = onScripturePillTap
         wireStudyHighlightInteractions(textView: textView, proxy: proxy)
         context.coordinator.proxy = proxy
         context.coordinator.wireFormatBarToProxy(proxy)
+        let coordinatorRef = context.coordinator
+        textView.onPrimaryMouseGestureEndedForSelectionSync = { [weak coordinatorRef] in
+            coordinatorRef?.syncActiveScripturePillFromTextViewSelection()
+        }
         let coord = context.coordinator
         if let p = proxy {
             p.syncPlainTextBindingFromTextView = { tv in
                 coord.pushPlainTextAndRefsFromTextView(tv)
+            }
+            p.scripturePillDeletionConfirmHandler = { [weak coord] in
+                coord?.applyConfirmedScripturePillDeletion()
             }
         }
 
@@ -1022,7 +1181,7 @@ struct HarvousEditor: NSViewRepresentable {
             }
         }
         textView.onStudyHighlightClick = { uuid in
-            Task { @MainActor in clickHandler?(uuid) }
+            clickHandler?(uuid)
         }
     }
 
@@ -1073,6 +1232,7 @@ struct HarvousEditor: NSViewRepresentable {
         var pillAccentResolver: ((String) -> StudyHighlightAccentToken?)?
         /// After pill detection settles — parent may prefetch scripture HTML.
         var onResolvedScripturePillPairs: (([(reference: String, translation: String)]) -> Void)?
+        var onRemoveStudyHighlightThreadIds: (([UUID]) -> Void)?
         /// Passed from SwiftUI to pick highlight palette.
         var studyHighlightsAssumeDarkAppearance: Bool = false
         var placeholderText = "What are you studying?"
@@ -1145,6 +1305,24 @@ struct HarvousEditor: NSViewRepresentable {
             p.triggerStandaloneNoteFromSelection = { [weak self] in
                 self?.invokeNewStandaloneNoteFromEditMenuIfPossible()
             }
+            p.triggerRemoveIntersectingStudyHighlightsFromSelection = { [weak self] in
+                self?.invokeRemoveIntersectingStudyHighlightFromSelectionIfPossible()
+            }
+        }
+
+        func invokeRemoveIntersectingStudyHighlightFromSelectionIfPossible() {
+            guard let tv = textView,
+                  let storage = tv.textStorage,
+                  !isDisplayingPlaceholder
+            else { return }
+            let sel = tv.selectedRange()
+            let ids = HarvousStudyHighlightMapper.threadIdsIntersectingBodySelection(
+                sel,
+                paints: studyHighlightPaints,
+                storage: storage
+            )
+            guard !ids.isEmpty else { return }
+            onRemoveStudyHighlightThreadIds?(ids)
         }
 
         private func cancelFormatBarHide() {
@@ -1312,6 +1490,7 @@ struct HarvousEditor: NSViewRepresentable {
 
             // Defer @Published-equivalent writes to the next run-loop pass so they
             // don't fire while SwiftUI is mid-update ("Publishing from view update" warning).
+            let deferPillFocusSync = (tv as? HarvousNoteTextView)?.isDeferringActiveScripturePillFromMouseGesture == true
             let capturedProxy = proxy
             Task { @MainActor in
                 capturedProxy?.syncBodyFirstResponderState(textView: tv)
@@ -1321,7 +1500,12 @@ struct HarvousEditor: NSViewRepresentable {
                 capturedProxy?.selectionViewportRect = selectionViewportRectLocal
                 capturedProxy?.selectionCaretViewportRect = selectionCaretViewportRectLocal
                 capturedProxy?.refreshFormatState()
-                capturedProxy?.activeScripturePill = activeScripturePillFromNSTextViewSelection(tv)
+                if !deferPillFocusSync {
+                    let adjacent = activeScripturePillFromNSTextViewSelection(tv)
+                    if adjacent == nil {
+                        capturedProxy?.activeScripturePill = nil
+                    }
+                }
                 guard let p = capturedProxy else { return }
                 if hasSelection {
                     // `resetFormatBarStateForNewNote` clears `formatBarUnlocked`; if the body stayed first responder
@@ -1345,6 +1529,88 @@ struct HarvousEditor: NSViewRepresentable {
                     }
                 }
             }
+        }
+
+        /// Clears `activeScripturePill` when the caret is no longer beside a pill (after deferred highlight gestures).
+        func syncActiveScripturePillFromTextViewSelection() {
+            guard let tv = textView else { return }
+            let capturedProxy = proxy
+            Task { @MainActor in
+                let adjacent = activeScripturePillFromNSTextViewSelection(tv)
+                if adjacent == nil {
+                    capturedProxy?.activeScripturePill = nil
+                }
+            }
+        }
+
+        private func macViewportRectForPillRanges(_ ranges: [NSRange], in tv: NSTextView) -> CGRect? {
+            guard let window = tv.window, let sv = tv.enclosingScrollView else { return nil }
+            var unionRect = CGRect.null
+            for r in ranges {
+                guard r.length > 0, r.location != NSNotFound, let stor = tv.textStorage, NSMaxRange(r) <= stor.length else { continue }
+                let screenRect = tv.firstRect(forCharacterRange: r, actualRange: nil)
+                guard !screenRect.isEmpty else { continue }
+                let windowRect = window.convertFromScreen(screenRect)
+                let viewRectInTV = tv.convert(windowRect, from: nil)
+                let docVisible = sv.documentVisibleRect
+                let viewportRect = viewRectInTV.offsetBy(dx: -docVisible.origin.x, dy: -docVisible.origin.y)
+                unionRect = unionRect.isNull ? viewportRect : unionRect.union(viewportRect)
+            }
+            return unionRect.isNull ? nil : unionRect
+        }
+
+        func applyConfirmedScripturePillDeletion() {
+            guard let proxy else { return }
+            guard let prompt = proxy.scripturePillDeletionPrompt, let tv = textView, let storage = tv.textStorage else {
+                proxy.scripturePillDeletionPrompt = nil
+                return
+            }
+            proxy.scripturePillDeletionPrompt = nil
+            let sortedRanges = prompt.pillUTF16Ranges.sorted { $0.location > $1.location }
+            withProgrammaticBodyMutation {
+                for r in sortedRanges {
+                    guard r.location != NSNotFound, r.length > 0, NSMaxRange(r) <= storage.length else { continue }
+                    guard storage.attribute(.attachment, at: r.location, effectiveRange: nil) is ScripturePillAttachment else { continue }
+                    storage.replaceCharacters(in: r, with: "")
+                }
+                pushPlainTextAndRefsFromTextView(tv)
+                paintStudyHighlights(on: tv)
+            }
+            proxy.hvNotifyBodyChanged(tv)
+            proxy.syncPlainTextBindingFromTextView?(tv)
+            (tv.enclosingScrollView as? HarvousEditorScrollView)?.scheduleBodyLayoutHeightPublish(to: proxy)
+            if let active = proxy.activeScripturePill,
+               sortedRanges.contains(where: { NSIntersectionRange($0, active.attachmentRange).length > 0 }) {
+                proxy.clearActiveScripturePill()
+            }
+            proxy.onScripturePillAttachmentRemoved?(sortedRanges)
+            proxy.refreshFormatState()
+        }
+
+        func textView(_ textView: NSTextView, shouldChangeTextIn affectedCharRange: NSRange, replacementString: String?) -> Bool {
+            guard !isProgrammaticBodyMutation else { return true }
+            guard !isDisplayingPlaceholder else { return true }
+            guard let storage = textView.textStorage, storage.length > 0 else { return true }
+            let hitRanges = harvousPillAttachmentRangesIntersecting(affectedCharRange, in: storage)
+            guard !hitRanges.isEmpty else { return true }
+            guard let proxy else { return false }
+            let sortedHit = hitRanges.sorted { $0.location < $1.location }
+            let refs = sortedHit.compactMap { r -> String? in
+                (storage.attribute(.attachment, at: r.location, effectiveRange: nil) as? ScripturePillAttachment)?.reference
+            }
+            let refLabel = refs.first ?? "Scripture"
+            let anchor = macViewportRectForPillRanges(sortedHit, in: textView)
+                ?? proxy.selectionViewportRect
+                ?? CGRect(x: 0, y: 24, width: 120, height: 22)
+            let prompt = ScripturePillDeletionPrompt(
+                reference: refLabel,
+                pillUTF16Ranges: sortedHit,
+                anchorViewportRect: anchor
+            )
+            Task { @MainActor in
+                proxy.scripturePillDeletionPrompt = prompt
+            }
+            return false
         }
 
         func textDidBeginEditing(_ notification: Notification) {
@@ -1413,16 +1679,41 @@ struct HarvousEditor: NSViewRepresentable {
         }
 
         func textView(_ view: NSTextView, menu: NSMenu, for _: NSEvent, at _: Int) -> NSMenu? {
-            guard view === textView else { return menu }
+            guard view === textView, let storage = view.textStorage else { return menu }
             let sel = view.selectedRange()
-            guard sel.length > 0 else { return menu }
-            let hl = NSMenuItem(title: "Highlight…", action: #selector(macHighlightPromptFromMenu(_:)), keyEquivalent: "")
-            hl.target = self
-            menu.insertItem(hl, at: 0)
-            let item = NSMenuItem(title: "New Harvous note", action: #selector(macNewStandaloneNoteFromMenu(_:)), keyEquivalent: "")
-            item.target = self
-            menu.insertItem(item, at: 1)
+
+            let removableIDs = HarvousStudyHighlightMapper.threadIdsIntersectingBodySelection(
+                sel,
+                paints: studyHighlightPaints,
+                storage: storage
+            )
+
+            guard sel.length > 0 || !removableIDs.isEmpty else { return menu }
+
+            var insertIndex = 0
+            if sel.length > 0 {
+                let hl = NSMenuItem(title: "Highlight…", action: #selector(macHighlightPromptFromMenu(_:)), keyEquivalent: "")
+                hl.target = self
+                menu.insertItem(hl, at: insertIndex)
+                insertIndex += 1
+
+                let item = NSMenuItem(title: "New Harvous note", action: #selector(macNewStandaloneNoteFromMenu(_:)), keyEquivalent: "")
+                item.target = self
+                menu.insertItem(item, at: insertIndex)
+                insertIndex += 1
+            }
+
+            if !removableIDs.isEmpty {
+                let rm = NSMenuItem(title: "Remove Highlight", action: #selector(macRemoveIntersectingStudyHighlightsFromMenu(_:)), keyEquivalent: "")
+                rm.target = self
+                menu.insertItem(rm, at: insertIndex)
+            }
+
             return menu
+        }
+
+        @objc private func macRemoveIntersectingStudyHighlightsFromMenu(_: Any?) {
+            invokeRemoveIntersectingStudyHighlightFromSelectionIfPossible()
         }
 
         @objc private func macHighlightPromptFromMenu(_: Any?) {
@@ -1590,7 +1881,8 @@ import UIKit
 private final class HarvousBodyTextView: UITextView {
     var onHighlightCaptureAction: (() -> Void)?
     var onNewStandaloneNoteAction: (() -> Void)?
-
+    var studyHighlightPaintsSnapshot: [StudyHighlightPaint] = []
+    var onRemoveIntersectingStudyHighlightsAction: (() -> Void)?
 
     /// Clips the caret rect to natural glyph height so the inter-line gap added by
     /// `HarvousLayoutManager` doesn't produce an oversized cursor bar.
@@ -1613,26 +1905,73 @@ private final class HarvousBodyTextView: UITextView {
     override func editMenu(for textRange: UITextRange, suggestedActions: [UIMenuElement]) -> UIMenu? {
         let start = offset(from: beginningOfDocument, to: textRange.start)
         let end = offset(from: beginningOfDocument, to: textRange.end)
-        guard end > start else {
+        guard start <= end else {
             return super.editMenu(for: textRange, suggestedActions: suggestedActions)
         }
+
+        let utf16Sel = NSRange(location: start, length: max(0, end - start))
+
+        let removableIDs = HarvousStudyHighlightMapper.threadIdsIntersectingBodySelection(
+            utf16Sel,
+            paints: studyHighlightPaintsSnapshot,
+            storage: textStorage
+        )
+
+        guard utf16Sel.length > 0 || !removableIDs.isEmpty else {
+            return super.editMenu(for: textRange, suggestedActions: suggestedActions)
+        }
+
         var front: [UIMenuElement] = []
-        if let hl = onHighlightCaptureAction {
-            front.append(UIAction(title: "Highlight…", image: UIImage(systemName: "highlighter")) { _ in
-                hl()
+        if utf16Sel.length > 0 {
+            if let hl = onHighlightCaptureAction {
+                front.append(UIAction(title: "Highlight…", image: UIImage(systemName: "highlighter")) { _ in
+                    hl()
+                })
+            }
+            if let handler = onNewStandaloneNoteAction {
+                front.append(UIAction(title: "New Harvous note", image: UIImage(systemName: "square.and.pencil")) { _ in
+                    handler()
+                })
+            }
+        }
+
+        if !removableIDs.isEmpty,
+           textColor != .tertiaryLabel,
+           let rmHandler = onRemoveIntersectingStudyHighlightsAction {
+            front.append(UIAction(title: "Remove Highlight", image: UIImage(systemName: "eraser")) { _ in
+                rmHandler()
             })
         }
-        if let handler = onNewStandaloneNoteAction {
-            front.append(UIAction(title: "New Harvous note", image: UIImage(systemName: "square.and.pencil")) { _ in
-                handler()
-            })
-        }
+
         guard !front.isEmpty else {
             return super.editMenu(for: textRange, suggestedActions: suggestedActions)
         }
         let children = front + suggestedActions
         return UIMenu(children: children)
     }
+}
+
+/// UTF-16 ranges of `ScripturePillAttachment` glyphs intersecting a proposed edit range (iOS body editor).
+private func harvousPillAttachmentRangesIntersectingIOS(_ affected: NSRange, in storage: NSTextStorage) -> [NSRange] {
+    var result: [NSRange] = []
+    guard storage.length > 0, affected.location != NSNotFound else { return result }
+    let maxLen = storage.length
+    if affected.location > maxLen { return result }
+    let safeLen = min(affected.length, maxLen - affected.location)
+    let safeAffected = NSRange(location: affected.location, length: safeLen)
+
+    var idx = 0
+    while idx < storage.length {
+        var eff = NSRange()
+        let val = storage.attribute(.attachment, at: idx, effectiveRange: &eff)
+        if val is ScripturePillAttachment, NSIntersectionRange(eff, safeAffected).length > 0 {
+            result.append(eff)
+        }
+        let next = NSMaxRange(eff)
+        if next <= idx { break }
+        idx = next
+    }
+    return result
 }
 
 @MainActor
@@ -1680,6 +2019,7 @@ struct HarvousEditor: UIViewRepresentable {
     var studyHighlightsAssumeDarkAppearance: Bool = false
     /// Resolves the user-picked scripture pill accent for a given reference (persisted on the owning Note).
     var pillAccentResolver: ((String) -> StudyHighlightAccentToken?)? = nil
+    var onRemoveStudyHighlightThreadIds: (([UUID]) -> Void)? = nil
 
     func makeCoordinator() -> Coordinator {
         let c = Coordinator(state: $state)
@@ -1732,10 +2072,19 @@ struct HarvousEditor: UIViewRepresentable {
         tv.onNewStandaloneNoteAction = { [weak coordinator] in
             coordinator?.invokeNewStandaloneNoteFromEditMenuIfPossible()
         }
+        tv.onRemoveIntersectingStudyHighlightsAction = { [weak coordinator] in
+            coordinator?.invokeRemoveIntersectingStudyHighlightFromSelectionIfPossible()
+        }
         context.coordinator.placeholderText = placeholder
         context.coordinator.proxy = proxy
         context.coordinator.wireFormatBarToProxy(proxy)
         proxy?.textView = tv
+        if let p = proxy {
+            let coord = context.coordinator
+            p.scripturePillDeletionConfirmHandler = { [weak coord] in
+                coord?.applyConfirmedScripturePillDeletion()
+            }
+        }
         // Keep body text start exactly aligned with the title field.
         tv.textContainer.lineFragmentPadding = 0
         tv.textContainerInset = UIEdgeInsets(top: 0, left: 0, bottom: 0, right: 0)
@@ -1771,6 +2120,7 @@ struct HarvousEditor: UIViewRepresentable {
         context.coordinator.onStudyHighlightTap = onStudyHighlightTap
         context.coordinator.pillAccentResolver = pillAccentResolver
         context.coordinator.onResolvedScripturePillPairs = onResolvedScripturePillPairs
+        context.coordinator.onRemoveStudyHighlightThreadIds = onRemoveStudyHighlightThreadIds
         context.coordinator.proxy = proxy
         context.coordinator.wireFormatBarToProxy(proxy)
         proxy?.textView = textView
@@ -1778,6 +2128,9 @@ struct HarvousEditor: UIViewRepresentable {
         if let p = proxy {
             p.syncPlainTextBindingFromTextView = { tv in
                 coord.pushPlainTextAndRefsFromTextView(tv)
+            }
+            p.scripturePillDeletionConfirmHandler = { [weak coord] in
+                coord?.applyConfirmedScripturePillDeletion()
             }
         }
 
@@ -1839,11 +2192,15 @@ struct HarvousEditor: UIViewRepresentable {
         context.coordinator.paintStudyHighlights(on: textView)
         if let body = textView as? HarvousBodyTextView {
             let coordinator = context.coordinator
+            body.studyHighlightPaintsSnapshot = studyHighlightPaints
             body.onHighlightCaptureAction = { [weak coordinator] in
                 coordinator?.invokeHighlightCapturePromptFromEditMenuIfPossible()
             }
             body.onNewStandaloneNoteAction = { [weak coordinator] in
                 coordinator?.invokeNewStandaloneNoteFromEditMenuIfPossible()
+            }
+            body.onRemoveIntersectingStudyHighlightsAction = { [weak coordinator] in
+                coordinator?.invokeRemoveIntersectingStudyHighlightFromSelectionIfPossible()
             }
         }
     }
@@ -1865,10 +2222,19 @@ struct HarvousEditor: UIViewRepresentable {
         /// Resolver for per-note pill accents (see `HarvousEditor.pillAccentResolver`). Updated on every `updateUIView`.
         var pillAccentResolver: ((String) -> StudyHighlightAccentToken?)?
         var onResolvedScripturePillPairs: (([(reference: String, translation: String)]) -> Void)?
+        var onRemoveStudyHighlightThreadIds: (([UUID]) -> Void)?
         private var debounceTask: Task<Void, Never>?
         private var formatBarHideTask: Task<Void, Never>?
         /// Pauses scripture pill detection while Apple Writing Tools mutates the document (iOS 18+).
         private var isWritingToolsActive = false
+        private var programmaticBodyMutationDepth: Int = 0
+        private var isProgrammaticBodyMutation: Bool { programmaticBodyMutationDepth > 0 }
+
+        private func withProgrammaticBodyMutation(_ work: () -> Void) {
+            programmaticBodyMutationDepth += 1
+            work()
+            programmaticBodyMutationDepth -= 1
+        }
 
         init(state: Binding<EditorState>) {
             _state = state
@@ -1904,6 +2270,23 @@ struct HarvousEditor: UIViewRepresentable {
             p.triggerStandaloneNoteFromSelection = { [weak self] in
                 self?.invokeNewStandaloneNoteFromEditMenuIfPossible()
             }
+            p.triggerRemoveIntersectingStudyHighlightsFromSelection = { [weak self] in
+                self?.invokeRemoveIntersectingStudyHighlightFromSelectionIfPossible()
+            }
+        }
+
+        @MainActor
+        func invokeRemoveIntersectingStudyHighlightFromSelectionIfPossible() {
+            guard let tv = textView, tv.textColor != .tertiaryLabel else { return }
+            let storage = tv.textStorage
+            let sel = tv.selectedRange
+            let ids = HarvousStudyHighlightMapper.threadIdsIntersectingBodySelection(
+                sel,
+                paints: studyHighlightPaints,
+                storage: storage
+            )
+            guard !ids.isEmpty else { return }
+            onRemoveStudyHighlightThreadIds?(ids)
         }
 
         @MainActor
@@ -2113,6 +2496,76 @@ struct HarvousEditor: UIViewRepresentable {
             detectAndInsertPills(in: textView, text: state.plainText)
         }
 
+        private func iosViewportRectForPillRanges(_ ranges: [NSRange], in tv: UITextView) -> CGRect? {
+            var unionRect = CGRect.null
+            for r in ranges {
+                guard r.length > 0, r.location != NSNotFound, NSMaxRange(r) <= tv.textStorage.length else { continue }
+                guard let dStart = tv.position(from: tv.beginningOfDocument, offset: r.location),
+                      let dEnd = tv.position(from: dStart, offset: r.length),
+                      let tr = tv.textRange(from: dStart, to: dEnd) else { continue }
+                let rect = tv.firstRect(for: tr)
+                guard !rect.isNull, !rect.isEmpty else { continue }
+                unionRect = unionRect.isNull ? rect : unionRect.union(rect)
+            }
+            return unionRect.isNull ? nil : unionRect
+        }
+
+        func applyConfirmedScripturePillDeletion() {
+            guard let proxy else { return }
+            guard let prompt = proxy.scripturePillDeletionPrompt, let tv = textView else {
+                proxy.scripturePillDeletionPrompt = nil
+                return
+            }
+            let storage = tv.textStorage
+            proxy.scripturePillDeletionPrompt = nil
+            let sortedRanges = prompt.pillUTF16Ranges.sorted { $0.location > $1.location }
+            withProgrammaticBodyMutation {
+                for r in sortedRanges {
+                    guard r.location != NSNotFound, r.length > 0, NSMaxRange(r) <= storage.length else { continue }
+                    guard storage.attribute(.attachment, at: r.location, effectiveRange: nil) is ScripturePillAttachment else { continue }
+                    storage.replaceCharacters(in: r, with: "")
+                }
+                pushPlainTextAndRefsFromTextView(tv)
+                paintStudyHighlights(on: tv)
+            }
+            tv.invalidateIntrinsicContentSize()
+            proxy.hvNotifyBodyChanged(tv)
+            proxy.syncPlainTextBindingFromTextView?(tv)
+            if let active = proxy.activeScripturePill,
+               sortedRanges.contains(where: { NSIntersectionRange($0, active.attachmentRange).length > 0 }) {
+                proxy.clearActiveScripturePill()
+            }
+            proxy.onScripturePillAttachmentRemoved?(sortedRanges)
+            proxy.refreshFormatState()
+        }
+
+        func textView(_ textView: UITextView, shouldChangeTextIn range: NSRange, replacementText text: String) -> Bool {
+            guard !isProgrammaticBodyMutation else { return true }
+            if textView.textColor == .tertiaryLabel { return true }
+            let storage = textView.textStorage
+            guard storage.length > 0 else { return true }
+            let hitRanges = harvousPillAttachmentRangesIntersectingIOS(range, in: storage)
+            guard !hitRanges.isEmpty else { return true }
+            guard let proxy else { return false }
+            let sortedHit = hitRanges.sorted { $0.location < $1.location }
+            let refs = sortedHit.compactMap { r -> String? in
+                (storage.attribute(.attachment, at: r.location, effectiveRange: nil) as? ScripturePillAttachment)?.reference
+            }
+            let refLabel = refs.first ?? "Scripture"
+            let anchor = iosViewportRectForPillRanges(sortedHit, in: textView)
+                ?? proxy.selectionViewportRect
+                ?? CGRect(x: 0, y: 24, width: 120, height: 22)
+            let prompt = ScripturePillDeletionPrompt(
+                reference: refLabel,
+                pillUTF16Ranges: sortedHit,
+                anchorViewportRect: anchor
+            )
+            Task { @MainActor in
+                proxy.scripturePillDeletionPrompt = prompt
+            }
+            return false
+        }
+
         func textViewDidBeginEditing(_ textView: UITextView) {
             isEditing = true
             if textView.textColor == .tertiaryLabel {
@@ -2150,7 +2603,10 @@ struct HarvousEditor: UIViewRepresentable {
             }
             let editorProxy = self.proxy
             Task { @MainActor in
-                editorProxy?.activeScripturePill = activeScripturePillFromUITextViewSelection(textView)
+                let adjacent = activeScripturePillFromUITextViewSelection(textView)
+                if adjacent == nil {
+                    editorProxy?.activeScripturePill = nil
+                }
                 editorProxy?.hasSelection = hasSelection
                 editorProxy?.selectionViewportRect = viewportRect
                 editorProxy?.refreshFormatState()
@@ -2248,6 +2704,7 @@ struct HarvousEditor: UIViewRepresentable {
 
         @MainActor
         private func detectAndInsertPills(in textView: UITextView, text: String) {
+            withProgrammaticBodyMutation {
             _ = text
 
             let storage = textView.textStorage
@@ -2328,6 +2785,7 @@ struct HarvousEditor: UIViewRepresentable {
             }
             let pairs = scripturePillRefTransPairs(in: storage)
             onResolvedScripturePillPairs?(pairs)
+            }
         }
     }
 }

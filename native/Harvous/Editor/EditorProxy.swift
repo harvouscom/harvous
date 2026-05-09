@@ -81,6 +81,23 @@ final class EditorProxy: ObservableObject {
 
     @Published var activeScripturePill: ActiveScripturePill? = nil
 
+    // MARK: - Scripture pill deletion guard
+
+    /// Shown when the user attempts to delete or replace inline `ScripturePillAttachment` characters.
+    @Published var scripturePillDeletionPrompt: ScripturePillDeletionPrompt?
+    /// Coordinator implements removal inside `withProgrammaticBodyMutation` so `shouldChangeTextIn` does not recurse.
+    var scripturePillDeletionConfirmHandler: (() -> Void)?
+    /// After UTF-16 pill attachment ranges are removed — e.g. dismiss body dock when it matched the pill.
+    var onScripturePillAttachmentRemoved: (([NSRange]) -> Void)?
+
+    func dismissScripturePillDeletionPrompt() {
+        scripturePillDeletionPrompt = nil
+    }
+
+    func confirmScripturePillDeletion() {
+        scripturePillDeletionConfirmHandler?()
+    }
+
     /// Hover preview anchor for anchored study highlights (`harvousStudyHighlightUUID` spans).
     @Published var hoveredStudyHighlightUUID: UUID?
     private var studyHighlightHoverTask: Task<Void, Never>?
@@ -91,6 +108,8 @@ final class EditorProxy: ObservableObject {
     /// Floating selection pill + SwiftUI invokes these; coordinators forward to contextual-menu handlers.
     var triggerHighlightCapturePrompt: (() -> Void)?
     var triggerStandaloneNoteFromSelection: (() -> Void)?
+    /// Deletes anchored study highlights that intersect the current body selection/caret (`NSTextStorage`).
+    var triggerRemoveIntersectingStudyHighlightsFromSelection: (() -> Void)?
 
     #if os(macOS)
     /// Invoked after keyboard cycling selects a pill (mirrors tap → opens dock).
@@ -125,7 +144,6 @@ final class EditorProxy: ObservableObject {
     var shouldShowNoteToolbar: Bool {
         let base =
             isBodyFirstResponder
-            && activeScripturePill == nil
             && formatBarUnlocked
             && (hasSelection || isPointerOverFormatToolbar || showFormatBarForActivity)
         if preferOrbChromeUntilNextFormatSignal { return false }
@@ -150,6 +168,9 @@ final class EditorProxy: ObservableObject {
         studyHighlightHoverTask = nil
         triggerHighlightCapturePrompt = nil
         triggerStandaloneNoteFromSelection = nil
+        triggerRemoveIntersectingStudyHighlightsFromSelection = nil
+        scripturePillDeletionPrompt = nil
+        scripturePillDeletionConfirmHandler = nil
         cancelFormatBarHideAction?()
     }
 
@@ -179,19 +200,6 @@ final class EditorProxy: ObservableObject {
     var bodySelectedUTF16Range: NSRange {
         guard let tv = textView else { return NSRange(location: NSNotFound, length: 0) }
         return caretRange(for: tv)
-    }
-
-    /// Returns true if the current body selection overlaps any storage span of the given expanded-range highlight.
-    /// Used to auto-unpin the highlight dock when the cursor moves outside a pinned highlight.
-    func bodySelectionIsContainedInStudyHighlightStorageSpans(expandedPlainHighlightRange: NSRange) -> Bool {
-        guard let (tv, storage) = textViewPair() else { return false }
-        let sel = caretRange(for: tv)
-        let storRanges = HarvousStudyHighlightMapper.storageRanges(forExpandedRange: expandedPlainHighlightRange, in: storage)
-        return storRanges.contains {
-            sel.length > 0
-                ? NSIntersectionRange(sel, $0).length > 0
-                : NSLocationInRange(sel.location, $0)
-        }
     }
 
     /// Scrolls the first UTF-16 span of this **expanded-plain** anchor into the visible text viewport.
@@ -304,5 +312,15 @@ final class EditorProxy: ObservableObject {
         tv.becomeFirstResponder()
 #endif
     }
+}
 
+/// Identifies an in-flight “remove scripture pill?” confirmation (native body editor).
+struct ScripturePillDeletionPrompt: Identifiable {
+    let id = UUID()
+    /// Reference label for the first intersected pill (multiple pills share one prompt).
+    let reference: String
+    /// UTF-16 ranges of `ScripturePillAttachment` glyphs to delete on confirm (reversed sort handled by applier).
+    let pillUTF16Ranges: [NSRange]
+    /// Same space as `EditorProxy.selectionViewportRect` — viewport-relative under the scrollable paper (iOS: text view coords).
+    let anchorViewportRect: CGRect
 }

@@ -13,13 +13,24 @@ struct HarvousCollectionRow: Identifiable, Hashable, Sendable {
 }
 
 enum HarvousCollectionListIndex {
-    /// Buckets notes by primary collection (nil / empty → ungrouped bucket).
+    /// Buckets notes by every collection membership (primary + secondaries); nil / empty → ungrouped bucket.
     static func rows(from notesInActiveSpace: [Note]) -> [HarvousCollectionRow] {
         var buckets: [String?: [Note]] = [:]
         for note in notesInActiveSpace {
-            let normalized = note.primaryCollection?.trimmingCharacters(in: .whitespacesAndNewlines)
-            let collection = (normalized?.isEmpty == false) ? normalized : nil
-            buckets[collection, default: []].append(note)
+            let labels = note.allCollectionMembershipLabels()
+            if labels.isEmpty {
+                buckets[nil, default: []].append(note)
+                continue
+            }
+            var seenInNote = Set<String>()
+            for raw in labels {
+                let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !trimmed.isEmpty else { continue }
+                let low = trimmed.lowercased()
+                if seenInNote.contains(low) { continue }
+                seenInNote.insert(low)
+                buckets[trimmed, default: []].append(note)
+            }
         }
 
         return buckets.map { key, values in
@@ -30,9 +41,13 @@ enum HarvousCollectionListIndex {
             )
         }
         .sorted { lhs, rhs in
-            if lhs.collection == nil { return false }
-            if rhs.collection == nil { return true }
-            return lhs.mostRecent > rhs.mostRecent
+            // Ungrouped bucket last; then recency (matches note list: substantive edits bump updatedAt).
+            if lhs.collection == nil, rhs.collection != nil { return false }
+            if rhs.collection == nil, lhs.collection != nil { return true }
+            if lhs.mostRecent != rhs.mostRecent {
+                return lhs.mostRecent > rhs.mostRecent
+            }
+            return lhs.title.localizedCaseInsensitiveCompare(rhs.title) == .orderedAscending
         }
     }
 
@@ -47,11 +62,7 @@ enum HarvousCollectionListIndex {
         return rows
             .compactMap { row -> (HarvousCollectionRow, Int)? in
                 let normalized = row.collection?.trimmingCharacters(in: .whitespacesAndNewlines)
-                let bucketNotes = notesForBucketMatching.filter { note in
-                    let candidate = note.primaryCollection?.trimmingCharacters(in: .whitespacesAndNewlines)
-                    let normalizedCandidate = (candidate?.isEmpty == false) ? candidate : nil
-                    return normalizedCandidate == normalized
-                }
+                let bucketNotes = notesForBucketMatching.filter { $0.noteBelongsToCollectionBucket(normalized) }
 
                 var score = 0
                 if row.title.localizedCaseInsensitiveContains(trimmed) { score += 6 }
@@ -67,7 +78,10 @@ enum HarvousCollectionListIndex {
             }
             .sorted { lhs, rhs in
                 if lhs.1 != rhs.1 { return lhs.1 > rhs.1 }
-                return lhs.0.mostRecent > rhs.0.mostRecent
+                if lhs.0.mostRecent != rhs.0.mostRecent {
+                    return lhs.0.mostRecent > rhs.0.mostRecent
+                }
+                return lhs.0.title.localizedCaseInsensitiveCompare(rhs.0.title) == .orderedAscending
             }
             .map(\.0)
     }

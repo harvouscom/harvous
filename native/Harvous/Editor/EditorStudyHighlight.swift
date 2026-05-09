@@ -496,6 +496,48 @@ enum HarvousStudyHighlightMapper {
         let tag = storage.attribute(.harvousStudyHighlightUUID, at: location, effectiveRange: nil) as? String
         return tag.flatMap(UUID.init(uuidString:))
     }
+
+    /// Anchored highlights whose painted body spans intersect the selection (`utf16` in **`NSTextStorage`**).
+    /// For a zero-length range (caret), probes the caret index and index−1 against stored highlight UUID attrs.
+    /// Only returns IDs that appear in `paints` so stale attributes cannot target missing threads.
+    static func threadIdsIntersectingBodySelection(
+        _ utf16Selection: NSRange,
+        paints: [StudyHighlightPaint],
+        storage: NSTextStorage
+    ) -> [UUID] {
+        guard !paints.isEmpty, storage.length > 0 else { return [] }
+        let paintIds = Set(paints.map(\.threadId))
+        guard utf16Selection.location != NSNotFound else { return [] }
+
+        var matched = Set<UUID>()
+
+        if utf16Selection.length > 0 {
+            guard NSMaxRange(utf16Selection) <= storage.length else { return [] }
+            for paint in paints {
+                let storRanges = storageRanges(forExpandedRange: paint.expandedUTF16Range, in: storage)
+                for sr in storRanges where NSIntersectionRange(sr, utf16Selection).length > 0 {
+                    matched.insert(paint.threadId)
+                    break
+                }
+            }
+        } else {
+            let caret = utf16Selection.location
+            guard caret >= 0, caret <= storage.length else { return [] }
+            var cand = Set<UUID>()
+            if caret < storage.length, let u = uuidAt(storageUTF16Index: caret, in: storage) {
+                cand.insert(u)
+            }
+            if caret > 0, let u = uuidAt(storageUTF16Index: caret - 1, in: storage) {
+                cand.insert(u)
+            }
+            for u in cand where paintIds.contains(u) {
+                matched.insert(u)
+            }
+        }
+
+        guard !matched.isEmpty else { return [] }
+        return paints.map(\.threadId).filter { matched.contains($0) }
+    }
 }
 
 struct StudyHighlightPaint: Equatable {

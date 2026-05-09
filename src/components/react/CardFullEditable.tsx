@@ -24,8 +24,11 @@ import InlinePinUnlock from './InlinePinUnlock';
 import NoteProductionActionBar from './NoteProductionActionBar';
 import {
   applyAutoCollectionAfterEdit,
+  collectionContextBannerText,
   type CollectionChromeState,
+  type WebCollectionNavSource,
   suggestPrimaryCollectionFromNote,
+  suggestSecondaryCollectionsFromNote,
 } from '@/utils/bible-study-collection-web';
 
 // Lazy load TiptapEditor to reduce initial bundle size - only loads when user enters edit mode
@@ -63,6 +66,7 @@ interface CardFullEditableProps {
     content: string,
     collectionExtras?: {
       primaryCollection?: string | null;
+      secondaryCollections?: string[];
       collectionPinned?: boolean;
       collectionUserOverride?: boolean;
     },
@@ -91,10 +95,13 @@ interface CardFullEditableProps {
   noteActionsPortalTarget?: HTMLElement | null;
   /** Server-stored Bible study collection (native parity). */
   initialPrimaryCollection?: string | null;
+  initialSecondaryCollections?: string[];
   initialCollectionPinned?: boolean;
   initialCollectionUserOverride?: boolean;
   initialCollectionLastAutoUpdatedAtIso?: string | null;
   scriptureChromePortalTarget?: HTMLElement | null;
+  /** Optional: URL/search-driven collection context for the multi-collection banner. */
+  collectionNavContext?: WebCollectionNavSource;
 }
 
 export default function CardFullEditable({ 
@@ -123,10 +130,12 @@ export default function CardFullEditable({
   onPrototypeChromeModeChange,
   noteActionsPortalTarget = null,
   initialPrimaryCollection = null,
+  initialSecondaryCollections = [] as string[],
   initialCollectionPinned = false,
   initialCollectionUserOverride = false,
   initialCollectionLastAutoUpdatedAtIso = null,
   scriptureChromePortalTarget = null,
+  collectionNavContext = { type: 'home' } as WebCollectionNavSource,
 }: CardFullEditableProps) {
   // Override isEditable for scripture notes, onboarding pack notes, and offline (create-only mode)
   const isCurrentlyOffline = useIsOffline();
@@ -180,14 +189,17 @@ export default function CardFullEditable({
 
   const [collectionChrome, setCollectionChrome] = useState<CollectionChromeState>({
     primaryCollection: initialPrimaryCollection ?? null,
+    secondaryCollections: initialSecondaryCollections?.length ? [...initialSecondaryCollections] : [],
     collectionPinned: !!initialCollectionPinned,
     collectionUserOverride: !!initialCollectionUserOverride,
     collectionLastAutoUpdatedAtIso: initialCollectionLastAutoUpdatedAtIso ?? null,
   });
+  const [addSecondaryDraft, setAddSecondaryDraft] = useState('');
 
   useEffect(() => {
     setCollectionChrome({
       primaryCollection: initialPrimaryCollection ?? null,
+      secondaryCollections: initialSecondaryCollections?.length ? [...initialSecondaryCollections] : [],
       collectionPinned: !!initialCollectionPinned,
       collectionUserOverride: !!initialCollectionUserOverride,
       collectionLastAutoUpdatedAtIso: initialCollectionLastAutoUpdatedAtIso ?? null,
@@ -195,6 +207,7 @@ export default function CardFullEditable({
   }, [
     noteId,
     initialPrimaryCollection,
+    initialSecondaryCollections,
     initialCollectionPinned,
     initialCollectionUserOverride,
     initialCollectionLastAutoUpdatedAtIso,
@@ -205,7 +218,7 @@ export default function CardFullEditable({
     if (!isTitleEditing && !isContentEditing) return;
     const timer = window.setTimeout(() => {
       setCollectionChrome(prev => {
-        if (prev.collectionPinned || prev.collectionUserOverride) return prev;
+        if (prev.collectionUserOverride && !prev.collectionPinned) return prev;
         let body = editContent;
         if (editorInstanceRef.current && !editorInstanceRef.current.isDestroyed) {
           try {
@@ -1122,6 +1135,7 @@ export default function CardFullEditable({
         editorChromeMode === 'prototypeNative' && effectiveIsEditable
           ? {
               primaryCollection: collectionChrome.primaryCollection,
+              secondaryCollections: collectionChrome.secondaryCollections,
               collectionPinned: collectionChrome.collectionPinned,
               collectionUserOverride: collectionChrome.collectionUserOverride,
             }
@@ -1787,11 +1801,47 @@ export default function CardFullEditable({
             collectionDraft={collectionChrome.primaryCollection ?? ''}
             onDraftChange={(v) => {
               const t = v.trim();
+              const nextPrimary = t.length ? t : null;
+              const pLow = nextPrimary?.toLowerCase() ?? '';
               setCollectionChrome(c => ({
                 ...c,
-                primaryCollection: t.length ? t : null,
+                primaryCollection: nextPrimary,
+                secondaryCollections: c.secondaryCollections.filter(
+                  (s) => s.trim().length > 0 && s.trim().toLowerCase() !== pLow,
+                ),
                 collectionUserOverride: true,
               }));
+            }}
+            secondaryCollections={collectionChrome.secondaryCollections}
+            onRemoveSecondary={(name) => {
+              const low = name.toLowerCase();
+              setCollectionChrome(c => ({
+                ...c,
+                secondaryCollections: c.secondaryCollections.filter((s) => s.toLowerCase() !== low),
+                collectionUserOverride: true,
+              }));
+            }}
+            addSecondaryDraft={addSecondaryDraft}
+            onAddSecondaryDraftChange={setAddSecondaryDraft}
+            onCommitAddSecondary={() => {
+              const t = addSecondaryDraft.trim();
+              if (!t.length) return;
+              const pLow = (collectionChrome.primaryCollection ?? '').trim().toLowerCase();
+              if (pLow && t.toLowerCase() === pLow) {
+                setAddSecondaryDraft('');
+                return;
+              }
+              setCollectionChrome(c => {
+                if (c.secondaryCollections.some((s) => s.toLowerCase() === t.toLowerCase())) {
+                  return c;
+                }
+                return {
+                  ...c,
+                  secondaryCollections: [...c.secondaryCollections, t],
+                  collectionUserOverride: true,
+                };
+              });
+              setAddSecondaryDraft('');
             }}
             collectionPinned={collectionChrome.collectionPinned}
             collectionUserOverride={collectionChrome.collectionUserOverride}
@@ -1808,9 +1858,11 @@ export default function CardFullEditable({
                 }
               }
               const sug = suggestPrimaryCollectionFromNote(editTitle, body);
+              const secs = suggestSecondaryCollectionsFromNote(editTitle, body, sug);
               setCollectionChrome(c => ({
                 ...c,
                 primaryCollection: sug,
+                secondaryCollections: secs,
                 collectionUserOverride: false,
                 collectionPinned: false,
                 collectionLastAutoUpdatedAtIso: new Date().toISOString(),
@@ -1859,6 +1911,21 @@ export default function CardFullEditable({
         autoComplete="off"
         className="card-full-editable__keyboard-proxy"
       />
+      {editorChromeMode === 'prototypeNative' && noteType === 'default' ? (() => {
+        const b = collectionContextBannerText(
+          collectionChrome.primaryCollection,
+          collectionChrome.secondaryCollections,
+          collectionNavContext,
+        );
+        return b ? (
+          <div
+            className="px-3 pt-2"
+            style={{ fontSize: 14, color: 'var(--color-pebble-grey)', fontWeight: 500 }}
+          >
+            {b}
+          </div>
+        ) : null;
+      })() : null}
       {/* Header with title, version (scripture only), and bookmark icon */}
       <div className="flex gap-3 items-center justify-center relative shrink-0 w-full px-3">
         <div className="basis-0 font-sans font-semibold grow leading-[0] min-h-px min-w-px not-italic relative shrink-0 text-[var(--color-deep-grey)] text-[24px]">
@@ -2099,11 +2166,47 @@ export default function CardFullEditable({
             collectionDraft={collectionChrome.primaryCollection ?? ''}
             onDraftChange={(v) => {
               const t = v.trim();
+              const nextPrimary = t.length ? t : null;
+              const pLow = nextPrimary?.toLowerCase() ?? '';
               setCollectionChrome(c => ({
                 ...c,
-                primaryCollection: t.length ? t : null,
+                primaryCollection: nextPrimary,
+                secondaryCollections: c.secondaryCollections.filter(
+                  (s) => s.trim().length > 0 && s.trim().toLowerCase() !== pLow,
+                ),
                 collectionUserOverride: true,
               }));
+            }}
+            secondaryCollections={collectionChrome.secondaryCollections}
+            onRemoveSecondary={(name) => {
+              const low = name.toLowerCase();
+              setCollectionChrome(c => ({
+                ...c,
+                secondaryCollections: c.secondaryCollections.filter((s) => s.toLowerCase() !== low),
+                collectionUserOverride: true,
+              }));
+            }}
+            addSecondaryDraft={addSecondaryDraft}
+            onAddSecondaryDraftChange={setAddSecondaryDraft}
+            onCommitAddSecondary={() => {
+              const t = addSecondaryDraft.trim();
+              if (!t.length) return;
+              const pLow = (collectionChrome.primaryCollection ?? '').trim().toLowerCase();
+              if (pLow && t.toLowerCase() === pLow) {
+                setAddSecondaryDraft('');
+                return;
+              }
+              setCollectionChrome(c => {
+                if (c.secondaryCollections.some((s) => s.toLowerCase() === t.toLowerCase())) {
+                  return c;
+                }
+                return {
+                  ...c,
+                  secondaryCollections: [...c.secondaryCollections, t],
+                  collectionUserOverride: true,
+                };
+              });
+              setAddSecondaryDraft('');
             }}
             collectionPinned={collectionChrome.collectionPinned}
             collectionUserOverride={collectionChrome.collectionUserOverride}
@@ -2120,9 +2223,11 @@ export default function CardFullEditable({
                 }
               }
               const sug = suggestPrimaryCollectionFromNote(editTitle, body);
+              const secs = suggestSecondaryCollectionsFromNote(editTitle, body, sug);
               setCollectionChrome(c => ({
                 ...c,
                 primaryCollection: sug,
+                secondaryCollections: secs,
                 collectionUserOverride: false,
                 collectionPinned: false,
                 collectionLastAutoUpdatedAtIso: new Date().toISOString(),

@@ -26,6 +26,10 @@ export interface ListNoteForSeed {
   resourceImage?: string | null;
   userId?: string;
   version?: string;
+  primaryCollection?: string | null;
+  secondaryCollections?: string[];
+  collectionPinned?: boolean;
+  collectionUserOverride?: boolean;
 }
 
 export interface NoteDetail {
@@ -60,6 +64,7 @@ export interface NoteDetail {
   spaces?: { id: string; title: string }[];
   linkedFromNoteId?: string | null;
   primaryCollection?: string | null;
+  secondaryCollections?: string[];
   collectionPinned?: boolean;
   collectionUserOverride?: boolean;
   collectionLastAutoUpdatedAt?: string | null;
@@ -209,6 +214,11 @@ export function listNoteToNoteDetail(
     updatedAt: listNote.updatedAt ?? listNote.createdAt ?? new Date().toISOString(),
     threads: [thread],
     tags: [],
+    primaryCollection: listNote.primaryCollection ?? null,
+    secondaryCollections:
+      listNote.secondaryCollections?.length ? [...listNote.secondaryCollections] : [],
+    collectionPinned: listNote.collectionPinned ?? false,
+    collectionUserOverride: listNote.collectionUserOverride ?? false,
     resourceTitle: listNote.resourceTitle ?? null,
     resourceDescription: listNote.resourceDescription ?? null,
     resourceImage: listNote.resourceImage ?? null,

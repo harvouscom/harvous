@@ -118,6 +118,7 @@ const noteRoute = createRoute({
     space: typeof search.space === 'string' ? search.space : undefined,
     thread: typeof search.thread === 'string' ? search.thread : undefined,
     from: typeof search.from === 'string' ? search.from : undefined,
+    collection: typeof search.collection === 'string' ? search.collection : undefined,
   }),
 });
 

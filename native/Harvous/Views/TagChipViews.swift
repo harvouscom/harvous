@@ -5,12 +5,15 @@ import SwiftUI
 struct CollectionSymbol: View {
     let isContextUpdating: Bool
     var font: Font = .system(size: 12, weight: .regular)
+    /// Align with toolbar SF Symbols when `.body` would render the glyph too small.
+    var imageScale: Image.Scale = .medium
     var idleSystemName: String = "folder.fill"
     var updatingSystemName: String = "folder.fill"
 
     var body: some View {
         Image(systemName: isContextUpdating ? updatingSystemName : idleSystemName)
             .font(font)
+            .imageScale(imageScale)
             .rotationEffect(.degrees(isContextUpdating ? 4 : 0))
             .animation(
                 isContextUpdating

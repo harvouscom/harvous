@@ -12,6 +12,9 @@ struct SelectionActionBar: View {
     /// where the selection action is just "highlight" — no standalone-note action.
     var onNewStandaloneNote: (() -> Void)?
 
+    /// When non-nil, a third affordance clears highlights whose paint intersects the current prose selection (macOS selection bar).
+    var onRemoveStudyHighlight: (() -> Void)? = nil
+
     var body: some View {
         HStack(spacing: 2) {
             pillButton(
@@ -28,6 +31,18 @@ struct SelectionActionBar: View {
                     symbol: "square.and.pencil",
                     help: "New Harvous note from selection"
                 ) { onNewStandaloneNote() }
+            }
+
+            if let onRemoveStudyHighlight {
+                Rectangle()
+                    .fill(Color.primary.opacity(0.14))
+                    .frame(width: 0.5, height: 22)
+
+                pillButton(
+                    // `highlighter.slash` is absent on SF Symbols catalogs before macOS 15 / iOS 18 — renders as an empty slot on macOS 14.
+                    symbol: "eraser",
+                    help: "Remove highlight from text"
+                ) { onRemoveStudyHighlight() }
             }
         }
         .frame(height: 36)

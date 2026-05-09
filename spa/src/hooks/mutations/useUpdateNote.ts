@@ -6,6 +6,7 @@ interface UpdateNoteInput {
   title: string;
   content: string;
   primaryCollection?: string | null;
+  secondaryCollections?: string[];
   collectionPinned?: boolean;
   collectionUserOverride?: boolean;
 }
@@ -35,9 +36,10 @@ export function useUpdateNote() {
 
   return useMutation({
     mutationFn: (input: UpdateNoteInput) => {
-      const { noteId, title, content, primaryCollection, collectionPinned, collectionUserOverride } = input;
+      const { noteId, title, content, primaryCollection, secondaryCollections, collectionPinned, collectionUserOverride } = input;
       const body: Record<string, unknown> = { noteId, title, content };
       if (primaryCollection !== undefined) body.primaryCollection = primaryCollection;
+      if (secondaryCollections !== undefined) body.secondaryCollections = secondaryCollections;
       if (collectionPinned !== undefined) body.collectionPinned = collectionPinned;
       if (collectionUserOverride !== undefined) body.collectionUserOverride = collectionUserOverride;
       return api.put<UpdateNoteResponse>('/api/notes/update', body as any);

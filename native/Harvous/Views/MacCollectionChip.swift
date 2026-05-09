@@ -20,11 +20,11 @@ struct MacCollectionChip: View {
             HStack(spacing: 6) {
                 CollectionSymbol(
                     isContextUpdating: false,
-                    font: .system(size: 13, weight: .regular)
+                    font: .system(size: 14, weight: .regular)
                 )
                 if let trimmedLabel {
                     Text(trimmedLabel)
-                        .font(HarvousFonts.font(size: 13, weight: 500, design: .default))
+                        .font(HarvousFonts.font(size: 14, weight: 500, design: .default))
                         .lineLimit(1)
                         .fixedSize(horizontal: true, vertical: false)
                         .padding(.trailing, 8)

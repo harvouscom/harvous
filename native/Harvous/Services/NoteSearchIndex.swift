@@ -19,6 +19,9 @@ enum NoteSearchIndex {
         if note.detectedRefs.contains(where: { $0.lowercased().contains(lc) }) { return true }
         if note.tags.contains(where: { $0.lowercased().contains(lc) }) { return true }
         if let col = note.primaryCollection?.lowercased(), col.contains(lc) { return true }
+        if note.normalizedSecondaryCollectionLabels().contains(where: { $0.lowercased().contains(lc) }) {
+            return true
+        }
         return false
     }
 }

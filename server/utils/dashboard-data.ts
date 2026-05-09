@@ -22,6 +22,7 @@ import { sortByLastVisited, sortByCreatedAtAsc, sortOnboardingThreadNotes } from
 import { isOnboardingThread } from "@/utils/last-visited-sections";
 import { stripHtmlForCard } from "@/utils/html-stripper";
 import { MY_PILE_THREAD_TITLE } from "@/utils/my-pile-thread";
+import { parseNoteSecondaryCollections } from './note-secondary-collections';
 
 // ─── Private helpers ────────────────────────────────────────────────────────────
 
@@ -607,6 +608,10 @@ const NOTE_SELECT_COLUMNS = {
   isPinned: Notes.isPinned,
   createdAt: Notes.createdAt, updatedAt: Notes.updatedAt, lastVisited: Notes.lastVisited,
   userId: Notes.userId,
+  primaryCollection: Notes.primaryCollection,
+  secondaryCollections: Notes.secondaryCollections,
+  collectionPinned: Notes.collectionPinned,
+  collectionUserOverride: Notes.collectionUserOverride,
 } as const;
 
 export async function getNotesForThread(threadId: string, userId: string, limit = 20, offset = 0) {
@@ -740,6 +745,7 @@ export async function getNotesForThread(threadId: string, userId: string, limit 
         : undefined;
       return {
         ...note,
+        secondaryCollections: parseNoteSecondaryCollections(note.secondaryCollections),
         lastUpdated: note.lastVisited || note.updatedAt || note.createdAt,
         lastVisited: note.lastVisited,
         resourceTitle: resourceMeta?.sourceTitle || null,
@@ -826,6 +832,7 @@ export async function getNotesForThreadForMember(
         : undefined;
       return {
         ...note,
+        secondaryCollections: parseNoteSecondaryCollections(note.secondaryCollections),
         lastUpdated: note.lastVisited || note.updatedAt || note.createdAt,
         lastVisited: note.lastVisited,
         resourceTitle: resourceMeta?.sourceTitle || null,
@@ -1068,6 +1075,10 @@ export async function getContentItems(userId: string, limit = 20, offset = 0, fi
         threadTitle: note.threadId === 'thread_unorganized' ? MY_PILE_THREAD_TITLE : (noteThread?.title ?? null),
         threadColor: noteThread?.color ?? null,
         threadBackgroundGradient: noteThread?.backgroundGradient || (noteThread?.color ? getThreadGradientCSS(noteThread.color) : null),
+        primaryCollection: note.primaryCollection ?? null,
+        secondaryCollections: parseNoteSecondaryCollections(note.secondaryCollections),
+        collectionPinned: note.collectionPinned ?? false,
+        collectionUserOverride: note.collectionUserOverride ?? false,
       };
     };
 
@@ -1132,6 +1143,10 @@ export async function getReferencedScriptureNotesWithoutLastVisited(userId: stri
         lastVisited: null, createdAt: note.createdAt,
         threadColors: threadColorsMap[note.id] || undefined,
         version: scriptureVersionMap[note.id] ?? extractScriptureTranslationFromNoteContent(note.content) ?? 'NET',
+        primaryCollection: note.primaryCollection ?? null,
+        secondaryCollections: parseNoteSecondaryCollections(note.secondaryCollections),
+        collectionPinned: note.collectionPinned ?? false,
+        collectionUserOverride: note.collectionUserOverride ?? false,
       };
     });
   } catch (error) {
@@ -1373,6 +1388,7 @@ export async function getNotesForSpace(spaceId: string, userId: string, limit = 
         : undefined;
       return {
         ...note,
+        secondaryCollections: parseNoteSecondaryCollections(note.secondaryCollections),
         lastUpdated: note.lastVisited || note.updatedAt || note.createdAt,
         lastVisited: note.lastVisited,
         resourceTitle: resourceMeta?.sourceTitle || null,
@@ -1464,6 +1480,7 @@ export async function getNotesForSpaceForMember(
       const threadColors = threadColorsMap.get(note.id);
       return {
         ...note,
+        secondaryCollections: parseNoteSecondaryCollections(note.secondaryCollections),
         lastUpdated: note.lastVisited || note.updatedAt || note.createdAt,
         lastVisited: note.lastVisited,
         resourceTitle: resourceMeta?.sourceTitle || null,

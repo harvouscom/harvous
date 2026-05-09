@@ -97,7 +97,10 @@ struct ThreadQuickOptionsPanel: View {
                     .padding(.horizontal, 12)
                     .padding(.vertical, 10)
                     .background(Color.primary.opacity(0.05), in: RoundedRectangle(cornerRadius: HarvousRadius.rowHighlight, style: .continuous))
-                    .onChange(of: thread.focusTitle) { _, _ in persistThreadFields() }
+                    .onChange(of: thread.focusTitle) { old, new in
+                        guard old != new else { return }
+                        persistThreadFields()
+                    }
 
             case .question:
                 TextField("Write a guiding question…", text: $questionDraft, axis: .vertical)
@@ -212,7 +215,9 @@ struct ThreadQuickOptionsPanel: View {
     }
 
     private func persistThreadFields() {
-        thread.updatedAt = Date()
+        let now = Date()
+        thread.updatedAt = now
+        thread.highlightListEditedAt = now
         ThreadStore.touchParentNoteIfNeeded(thread, modelContext: modelContext)
         try? modelContext.saveWithLogging()
     }

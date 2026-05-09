@@ -45,6 +45,7 @@ struct ScripturePassageView: View {
     var passageHighlightFocusedThreadId: UUID? = nil
 
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var passageAttributed: NSAttributedString?
     @State private var loadError: String?
     /// Hashable animation key — changes when the rendered text body changes so SwiftUI animates the
@@ -72,6 +73,30 @@ struct ScripturePassageView: View {
         useReadingTypography ? HarvousTypography.body : HarvousTypography.inspectorBody
     }
 
+    /// Subtle nudge from slightly above — avoids full `.move(edge: .top)` dock load-in.
+    private var passageOrErrorTransition: AnyTransition {
+        if reduceMotion {
+            .opacity
+        } else {
+            .opacity.combined(with: .offset(y: -6))
+        }
+    }
+
+    private var passageTextTransition: AnyTransition {
+        if reduceMotion {
+            .asymmetric(insertion: .opacity, removal: .opacity)
+        } else {
+            .asymmetric(
+                insertion: .opacity.combined(with: .offset(y: -6)),
+                removal: .opacity
+            )
+        }
+    }
+
+    private var passageBodyMotionAnimation: Animation {
+        reduceMotion ? .easeInOut(duration: 0.22) : Self.passageLoadSpring
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             if showHeader {
@@ -89,7 +114,7 @@ struct ScripturePassageView: View {
                     Text(loadError)
                         .font(verseFont)
                         .foregroundStyle(.secondary)
-                        .transition(.opacity.combined(with: .move(edge: .top)))
+                        .transition(passageOrErrorTransition)
                 } else if let passageAttributed {
                     let painted = Self.mergedDisplayAttributed(
                         from: passageAttributed,
@@ -111,13 +136,10 @@ struct ScripturePassageView: View {
                         onPaintTap: onPassageHighlightTap
                     )
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .transition(.asymmetric(
-                        insertion: .opacity.combined(with: .move(edge: .top)),
-                        removal: .opacity
-                    ))
+                    .transition(passageTextTransition)
                 }
             }
-            .animation(.spring(response: 0.42, dampingFraction: 0.86), value: passageBodyAnimationKey)
+            .animation(passageBodyMotionAnimation, value: passageBodyAnimationKey)
 
             if showAttribution, let attribution = translationAttribution {
                 attributionFooter(attribution)
@@ -125,14 +147,18 @@ struct ScripturePassageView: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .animation(.spring(response: 0.42, dampingFraction: 0.86), value: passageBodyAnimationKey)
+        .animation(passageBodyMotionAnimation, value: passageBodyAnimationKey)
         .task(id: "\(reference)|\(translation)") {
             await loadPassage()
         }
     }
 
-    /// Matches `.animation(value: passageBodyAnimationKey)` on the VStack so the dock's height growth eases in as the passage text lands.
-    private static let passageLoadAnimation: Animation = .spring(response: 0.42, dampingFraction: 0.86)
+    /// Matches `.animation(value: passageBodyAnimationKey)` on `Group` / outer `VStack` so height growth eases as passage text lands.
+    private static let passageLoadSpring: Animation = .spring(response: 0.52, dampingFraction: 0.92)
+
+    private var passageLoadAnimation: Animation {
+        reduceMotion ? .easeInOut(duration: 0.22) : Self.passageLoadSpring
+    }
 
     @MainActor
     private func loadPassage() async {
@@ -142,14 +168,14 @@ struct ScripturePassageView: View {
         loadError = nil
 
         if let cached = ScripturePassageCache.shared.value(reference: ref, translation: trans) {
-            withAnimation(Self.passageLoadAnimation) {
+            withAnimation(passageLoadAnimation) {
                 passageAttributed = Self.displayedPassage(from: cached, useReadingTypography: useReadingTypography)
             }
             return
         }
 
         // Avoid showing stale text from a previous reference while this one loads.
-        withAnimation(Self.passageLoadAnimation) {
+        withAnimation(passageLoadAnimation) {
             passageAttributed = nil
         }
 
@@ -159,7 +185,7 @@ struct ScripturePassageView: View {
                 try Task.checkCancellation()
                 guard ref == reference, trans == translation else { return }
                 ScripturePassageCache.shared.insert(parsed, reference: ref, translation: trans, persistHTML: nil)
-                withAnimation(Self.passageLoadAnimation) {
+                withAnimation(passageLoadAnimation) {
                     passageAttributed = Self.displayedPassage(from: parsed, useReadingTypography: useReadingTypography)
                     loadError = nil
                 }
@@ -181,7 +207,7 @@ struct ScripturePassageView: View {
             guard ref == reference, trans == translation else { return }
 
             ScripturePassageCache.shared.insert(parsed, reference: ref, translation: trans, persistHTML: html)
-            withAnimation(Self.passageLoadAnimation) {
+            withAnimation(passageLoadAnimation) {
                 passageAttributed = Self.displayedPassage(from: parsed, useReadingTypography: useReadingTypography)
                 loadError = nil
             }
@@ -192,14 +218,14 @@ struct ScripturePassageView: View {
         } catch let e as ScriptureFetchError {
             guard ref == reference, trans == translation else { return }
             if passageAttributed == nil {
-                withAnimation(Self.passageLoadAnimation) {
+                withAnimation(passageLoadAnimation) {
                     loadError = e.localizedDescription
                 }
             }
         } catch {
             guard ref == reference, trans == translation else { return }
             if passageAttributed == nil, !Self.isBenignFetchCancellation(error) {
-                withAnimation(Self.passageLoadAnimation) {
+                withAnimation(passageLoadAnimation) {
                     loadError = error.localizedDescription
                 }
             }

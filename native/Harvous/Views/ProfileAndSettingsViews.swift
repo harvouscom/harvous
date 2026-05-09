@@ -683,6 +683,16 @@ struct YouRootView: View {
                 } label: {
                     Label("Collections", systemImage: "rectangle.stack")
                 }
+                Button {
+                    appRouter.selectIOSListSurface(.highlights)
+                } label: {
+                    Label("Highlights", systemImage: "highlighter")
+                }
+                Button {
+                    appRouter.selectIOSListSurface(.scripture)
+                } label: {
+                    Label("Scripture", systemImage: "book.closed.fill")
+                }
             }
 
             Section {

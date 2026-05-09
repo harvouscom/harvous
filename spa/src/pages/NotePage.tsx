@@ -26,6 +26,17 @@ function getThreadIdFromSearch(search: string | Record<string, unknown> | undefi
   return thread && thread.startsWith('thread_') ? thread : null;
 }
 
+function getCollectionFromSearch(search: string | Record<string, unknown> | undefined): string | undefined {
+  if (search == null) return undefined;
+  if (typeof search === 'object') {
+    const c = (search as Record<string, unknown>).collection;
+    return typeof c === 'string' ? c : undefined;
+  }
+  const raw = typeof search === 'string' ? search : '';
+  const params = new URLSearchParams(raw.startsWith('?') ? raw : `?${raw}`);
+  return params.get('collection') ?? undefined;
+}
+
 function getSpaceIdFromSearch(search: string | Record<string, unknown> | undefined): string | null {
   if (search == null) return null;
   if (typeof search === 'object') {
@@ -67,6 +78,19 @@ export default function NotePage() {
       } catch { /* ignore */ }
     }
     return id;
+  }, [search]);
+  const collectionNavContext = useMemo(() => {
+    let raw = getCollectionFromSearch(search);
+    if (raw === undefined && typeof window !== 'undefined') {
+      try {
+        raw = new URLSearchParams(window.location.search).get('collection') ?? undefined;
+      } catch {
+        /* ignore */
+      }
+    }
+    if (raw === undefined) return { type: 'home' as const };
+    if (raw === '' || raw === '__ungrouped__') return { type: 'collection' as const, name: null };
+    return { type: 'collection' as const, name: raw };
   }, [search]);
   const updateNoteMutation = useUpdateNote();
   const processScriptureMutation = useProcessScriptureRefs();
@@ -317,6 +341,7 @@ export default function NotePage() {
           newContent: string,
           collectionExtras?: {
             primaryCollection?: string | null;
+            secondaryCollections?: string[];
             collectionPinned?: boolean;
             collectionUserOverride?: boolean;
           },
@@ -400,9 +425,11 @@ export default function NotePage() {
               noteActionsPortalTarget={isEditable ? noteActionsHostEl : null}
               onPrototypeChromeModeChange={isEditable ? setChromeMode : undefined}
               initialPrimaryCollection={note.primaryCollection ?? null}
+              initialSecondaryCollections={note.secondaryCollections ?? []}
               initialCollectionPinned={note.collectionPinned ?? false}
               initialCollectionUserOverride={note.collectionUserOverride ?? false}
               initialCollectionLastAutoUpdatedAtIso={note.collectionLastAutoUpdatedAt ?? null}
+              collectionNavContext={collectionNavContext}
               className="h-full flex-1 min-h-0"
             />
           </SubtleContentMount>

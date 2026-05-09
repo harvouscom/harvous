@@ -12,6 +12,8 @@ final class Note {
     var threadName: String?
     /// Smart collection label (theme / subject) from on-device keyword tagging.
     var primaryCollection: String?
+    /// Additional auto- or user-managed collection buckets beyond `primaryCollection`.
+    var secondaryCollections: [String] = []
     /// User-set collection should not be replaced by auto-tagging.
     var isCollectionUserOverride: Bool = false
     /// Optional user pin to keep current collection fixed.
@@ -59,6 +61,7 @@ final class Note {
         threadColor: String? = nil,
         threadName: String? = nil,
         primaryCollection: String? = nil,
+        secondaryCollections: [String] = [],
         isCollectionUserOverride: Bool = false,
         isCollectionPinned: Bool = false,
         collectionAutoConfidence: Double? = nil,
@@ -79,6 +82,7 @@ final class Note {
         self.threadColor = threadColor
         self.threadName = threadName
         self.primaryCollection = primaryCollection
+        self.secondaryCollections = secondaryCollections
         self.isCollectionUserOverride = isCollectionUserOverride
         self.isCollectionPinned = isCollectionPinned
         self.collectionAutoConfidence = collectionAutoConfidence
@@ -133,5 +137,70 @@ final class Note {
         }
         encodeScripturePillAccents(map)
         updatedAt = Date()
+    }
+}
+
+extension Note {
+    func normalizedSecondaryCollectionLabels() -> [String] {
+        secondaryCollections.compactMap { s in
+            let t = s.trimmingCharacters(in: .whitespacesAndNewlines)
+            return t.isEmpty ? nil : t
+        }
+    }
+
+    /// Primary first, then secondaries; case-insensitive dedupe.
+    func allCollectionMembershipLabels() -> [String] {
+        var out: [String] = []
+        if let p = primaryCollection?.trimmingCharacters(in: .whitespacesAndNewlines), !p.isEmpty {
+            out.append(p)
+        }
+        for s in normalizedSecondaryCollectionLabels() {
+            if out.contains(where: { $0.caseInsensitiveCompare(s) == .orderedSame }) { continue }
+            out.append(s)
+        }
+        return out
+    }
+
+    func collectionChipPrimaryLabelText() -> String? {
+        if let p = primaryCollection?.trimmingCharacters(in: .whitespacesAndNewlines), !p.isEmpty { return p }
+        return normalizedSecondaryCollectionLabels().first
+    }
+
+    func collectionChipAdditionalCount() -> Int {
+        let secs = normalizedSecondaryCollectionLabels()
+        if let p = primaryCollection?.trimmingCharacters(in: .whitespacesAndNewlines), !p.isEmpty {
+            return secs.filter { $0.caseInsensitiveCompare(p) != .orderedSame }.count
+        }
+        return max(0, secs.count - 1)
+    }
+
+    func noteBelongsToCollectionBucket(_ bucket: String?) -> Bool {
+        let labels = allCollectionMembershipLabels()
+        if let b = bucket?.trimmingCharacters(in: .whitespacesAndNewlines), !b.isEmpty {
+            return labels.contains { $0.caseInsensitiveCompare(b) == .orderedSame }
+        }
+        return labels.isEmpty
+    }
+
+    /// Canonical book indices from persisted `detectedRefs` (parsed references only).
+    func scriptureBookIndicesFromDetectedRefs() -> Set<Int> {
+        var s = Set<Int>()
+        for r in detectedRefs {
+            guard let p = ScriptureReferenceParser.parse(r) else { continue }
+            s.insert(p.bookIndex)
+        }
+        return s
+    }
+
+    func noteBelongsToScriptureBook(_ bookIndex: Int) -> Bool {
+        scriptureBookIndicesFromDetectedRefs().contains(bookIndex)
+    }
+
+    /// True when any parsed `detectedRefs` entry matches this canonical passage (including verse range).
+    func noteBelongsToScripturePassage(_ passage: ParsedScriptureFields) -> Bool {
+        detectedRefs.contains { ref in
+            guard let p = ScriptureReferenceParser.parse(ref) else { return false }
+            return p == passage
+        }
     }
 }
