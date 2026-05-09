@@ -18204,6 +18204,7 @@ var init_schema2 = __esm({
         userId: text("userId").notNull(),
         isPublic: boolean("isPublic").notNull().default(false),
         isFeatured: boolean("isFeatured").notNull().default(false),
+        isPinned: boolean("isPinned").notNull().default(false),
         order: integer("order").notNull().default(0),
         shareToken: text("shareToken"),
         shareTokenCreatedAt: ts("shareTokenCreatedAt"),
@@ -70430,8 +70431,77 @@ function requireParam(c, name) {
   return value;
 }
 
+// server/utils/votd-today-public.ts
+init_db2();
+init_dates();
+init_schema2();
+
+// server/utils/votd-local-date.ts
+var TZ_SAFE = /^[A-Za-z0-9_+/\-]+$/;
+function isValidIanaTimeZone(tz) {
+  if (!TZ_SAFE.test(tz) || tz.length > 120) return false;
+  try {
+    Intl.DateTimeFormat(void 0, { timeZone: tz });
+    return true;
+  } catch {
+    return false;
+  }
+}
+function getLocalCalendarDateString(timeZone, date2) {
+  const zone = isValidIanaTimeZone(timeZone) ? timeZone : "UTC";
+  try {
+    return new Intl.DateTimeFormat("en-CA", {
+      timeZone: zone,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit"
+    }).format(date2);
+  } catch {
+    return new Intl.DateTimeFormat("en-CA", {
+      timeZone: "UTC",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit"
+    }).format(date2);
+  }
+}
+
+// server/utils/votd-today-public.ts
+async function votdTodayPublicHandler(c) {
+  try {
+    const tzHeader = (c.req.query("tz") ?? c.req.header("X-Votd-Timezone") ?? "").trim();
+    const timeZone = isValidIanaTimeZone(tzHeader) ? tzHeader : "UTC";
+    const localCalendarDate = getLocalCalendarDateString(timeZone, now());
+    const exactRow = first(
+      await db.select({ reference: VotdPublishHistory.reference, translation: VotdPublishHistory.translation }).from(VotdPublishHistory).where(eq(VotdPublishHistory.publishedDate, localCalendarDate)).limit(1)
+    );
+    let row = exactRow;
+    if (!row) {
+      const fallbackRow = first(
+        await db.select({
+          reference: VotdPublishHistory.reference,
+          translation: VotdPublishHistory.translation,
+          publishedDate: VotdPublishHistory.publishedDate
+        }).from(VotdPublishHistory).where(lte(VotdPublishHistory.publishedDate, localCalendarDate)).orderBy(desc(VotdPublishHistory.publishedDate)).limit(1)
+      );
+      if (fallbackRow) {
+        console.log(
+          `[api/votd/today] fallback used: timezone=${timeZone} localDate=${localCalendarDate} publishedDate=${fallbackRow.publishedDate}`
+        );
+        row = { reference: fallbackRow.reference, translation: fallbackRow.translation };
+      }
+    }
+    c.res.headers.set("Cache-Control", "public, max-age=3600, stale-while-revalidate=300");
+    return c.json(row ? { reference: row.reference, translation: row.translation ?? "NET" } : { reference: null });
+  } catch {
+    c.res.headers.set("Cache-Control", "public, max-age=60");
+    return c.json({ reference: null });
+  }
+}
+
 // server/routes/health.ts
 var route = new Hono2();
+route.get("/api/votd/today", votdTodayPublicHandler);
 route.get("/api/health", (c) => {
   return c.json(
     { status: "ok", timestamp: Date.now() },
@@ -71448,6 +71518,7 @@ var NOTE_SELECT_COLUMNS = {
   noteType: Notes.noteType,
   isPublic: Notes.isPublic,
   isFeatured: Notes.isFeatured,
+  isPinned: Notes.isPinned,
   createdAt: Notes.createdAt,
   updatedAt: Notes.updatedAt,
   lastVisited: Notes.lastVisited,
@@ -72111,7 +72182,8 @@ async function getNotesForSpace(spaceId, userId, limit = 20, offset = 0) {
   try {
     const fetchLimit = limit + offset + 1;
     const chronological = await spaceUsesChronologicalOrdering(spaceId);
-    const allNotes = chronological ? await db.select(NOTE_SELECT_COLUMNS).from(Notes).where(and(eq(Notes.spaceId, spaceId), eq(Notes.userId, userId))).orderBy(asc(Notes.createdAt), asc(Notes.id)).limit(fetchLimit) : await db.select(NOTE_SELECT_COLUMNS).from(Notes).where(and(eq(Notes.spaceId, spaceId), eq(Notes.userId, userId))).orderBy(
+    const allNotes = chronological ? await db.select(NOTE_SELECT_COLUMNS).from(Notes).where(and(eq(Notes.spaceId, spaceId), eq(Notes.userId, userId))).orderBy(desc(Notes.isPinned), asc(Notes.createdAt), asc(Notes.id)).limit(fetchLimit) : await db.select(NOTE_SELECT_COLUMNS).from(Notes).where(and(eq(Notes.spaceId, spaceId), eq(Notes.userId, userId))).orderBy(
+      desc(Notes.isPinned),
       asc(sql`CASE WHEN ${Notes.lastVisited} IS NOT NULL THEN 0 ELSE 1 END`),
       desc(Notes.lastVisited),
       desc(Notes.updatedAt),
@@ -72184,7 +72256,8 @@ async function getNotesForSpaceForMember(spaceId, ownerUserId, limit = 100, offs
   try {
     const fetchLimit = limit + offset + 1;
     const chronological = await spaceUsesChronologicalOrdering(spaceId);
-    const allNotes = chronological ? await db.select({ ...NOTE_SELECT_COLUMNS, userId: Notes.userId }).from(Notes).where(and(eq(Notes.spaceId, spaceId), eq(Notes.contentEncrypted, false))).orderBy(asc(Notes.createdAt), asc(Notes.id)).limit(fetchLimit) : await db.select({ ...NOTE_SELECT_COLUMNS, userId: Notes.userId }).from(Notes).where(and(eq(Notes.spaceId, spaceId), eq(Notes.contentEncrypted, false))).orderBy(
+    const allNotes = chronological ? await db.select({ ...NOTE_SELECT_COLUMNS, userId: Notes.userId }).from(Notes).where(and(eq(Notes.spaceId, spaceId), eq(Notes.contentEncrypted, false))).orderBy(desc(Notes.isPinned), asc(Notes.createdAt), asc(Notes.id)).limit(fetchLimit) : await db.select({ ...NOTE_SELECT_COLUMNS, userId: Notes.userId }).from(Notes).where(and(eq(Notes.spaceId, spaceId), eq(Notes.contentEncrypted, false))).orderBy(
+      desc(Notes.isPinned),
       asc(sql`CASE WHEN ${Notes.lastVisited} IS NOT NULL THEN 0 ELSE 1 END`),
       desc(Notes.lastVisited),
       desc(Notes.updatedAt),
@@ -87804,6 +87877,41 @@ route11.post("/api/spaces/:spaceId/remove-items", requireAuth, async (c) => {
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
+route11.post("/api/spaces/:spaceId/pin-item", requireAuth, async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const spaceId = requireParam(c, "spaceId");
+    let accessInfo;
+    try {
+      accessInfo = await requireSpaceAccess(spaceId, auth.userId);
+    } catch (err) {
+      if (err instanceof SpaceAccessError) return c.json({ error: err.message, code: err.code }, err.status);
+      throw err;
+    }
+    if (accessInfo.role !== "owner") {
+      return c.json({ error: "Only the space owner can pin items", code: "FORBIDDEN" }, 403);
+    }
+    const { itemId, itemType, isPinned } = await c.req.json();
+    if (!itemId || !itemType || typeof isPinned !== "boolean") {
+      return c.json({ error: "itemId, itemType, and isPinned are required", code: "BAD_REQUEST" }, 400);
+    }
+    if (itemType === "note") {
+      const note = first(await db.select({ id: Notes.id }).from(Notes).where(and(eq(Notes.id, itemId), eq(Notes.spaceId, spaceId))).limit(1));
+      if (!note) return c.json({ error: "Note not found in space", code: "NOT_FOUND" }, 404);
+      await db.update(Notes).set({ isPinned }).where(eq(Notes.id, itemId));
+    } else if (itemType === "thread") {
+      const thread = first(await db.select({ id: Threads.id }).from(Threads).where(and(eq(Threads.id, itemId), eq(Threads.spaceId, spaceId))).limit(1));
+      if (!thread) return c.json({ error: "Thread not found in space", code: "NOT_FOUND" }, 404);
+      await db.update(Threads).set({ isPinned }).where(eq(Threads.id, itemId));
+    } else {
+      return c.json({ error: 'itemType must be "note" or "thread"', code: "BAD_REQUEST" }, 400);
+    }
+    return c.json({ success: true });
+  } catch (error) {
+    const standardError = handleAPIError(error, { endpoint: "/api/spaces/[spaceId]/pin-item", action: "pin_space_item" });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
 route11.get("/api/spaces/:spaceId/share-link", requireAuth, async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
@@ -95022,36 +95130,6 @@ function isTestRoutesForbidden() {
     return true;
   }
   return false;
-}
-
-// server/utils/votd-local-date.ts
-var TZ_SAFE = /^[A-Za-z0-9_+/\-]+$/;
-function isValidIanaTimeZone(tz) {
-  if (!TZ_SAFE.test(tz) || tz.length > 120) return false;
-  try {
-    Intl.DateTimeFormat(void 0, { timeZone: tz });
-    return true;
-  } catch {
-    return false;
-  }
-}
-function getLocalCalendarDateString(timeZone, date2) {
-  const zone = isValidIanaTimeZone(timeZone) ? timeZone : "UTC";
-  try {
-    return new Intl.DateTimeFormat("en-CA", {
-      timeZone: zone,
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit"
-    }).format(date2);
-  } catch {
-    return new Intl.DateTimeFormat("en-CA", {
-      timeZone: "UTC",
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit"
-    }).format(date2);
-  }
 }
 
 // server/routes/featured.ts
