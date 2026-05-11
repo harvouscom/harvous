@@ -1,21 +1,14 @@
 import { useCallback, useMemo, useState } from 'react';
 import { useNavigate, useParams, useRouterState } from '@tanstack/react-router';
 import { useQueryClient } from '@tanstack/react-query';
-import {
-  CaretLeft,
-  CaretRight,
-  MagnifyingGlass,
-  Stack,
-} from '@phosphor-icons/react';
+import Icon from '@/components/react/Icon';
 import { useSpaceNotes, type SpaceNoteRow } from '../../hooks/queries/useSpace';
 import { getNoteQueryOptions, seedNoteFromList, type ListNoteForSeed } from '../../hooks/queries/useNote';
-import { MY_PILE_THREAD_TITLE } from '@/utils/my-pile-thread';
-import { protoRelativeCaption } from './proto-time';
+import { effectiveNoteFolderLabel } from '@/utils/note-folder-display';
 import { useProtoShell } from '../../layouts/proto-shell-context';
+import { protoRelativeCaption } from './proto-time';
 
-type SidebarMode = 'notes' | 'collections';
-
-interface CollectionBucket {
+interface FolderBucket {
   name: string | null;
   count: number;
   mostRecentIso: string | null;
@@ -35,11 +28,15 @@ function stripHtmlPreview(html: string | null | undefined, max = 80) {
   return t.length > max ? `${t.slice(0, max)}…` : t;
 }
 
-function buildCollections(notes: SpaceNoteRow[]): CollectionBucket[] {
+function buildFolders(notes: SpaceNoteRow[]): FolderBucket[] {
   const buckets = new Map<string, { count: number; mostRecentIso: string | null }>();
   for (const note of notes) {
-    const raw = (note as { primaryCollection?: string | null }).primaryCollection;
-    const key = raw?.trim() || '__none__';
+    const n = note as SpaceNoteRow & { primaryCollection?: string | null; secondaryCollections?: string[] };
+    const label = effectiveNoteFolderLabel({
+      primaryCollection: n.primaryCollection ?? null,
+      secondaryCollections: n.secondaryCollections ?? [],
+    });
+    const key = label ?? '__none__';
     const existing = buckets.get(key) ?? { count: 0, mostRecentIso: null };
     existing.count += 1;
     const iso = note.updatedAt ?? note.createdAt ?? null;
@@ -48,11 +45,11 @@ function buildCollections(notes: SpaceNoteRow[]): CollectionBucket[] {
     }
     buckets.set(key, existing);
   }
-  const result: CollectionBucket[] = [];
+  const result: FolderBucket[] = [];
   buckets.forEach((v, k) => {
     result.push({ name: k === '__none__' ? null : k, count: v.count, mostRecentIso: v.mostRecentIso });
   });
-  // Named collections first, sorted by most recent; uncollected at end
+  // Named folders first, sorted by most recent; ungrouped at end
   return result.sort((a, b) => {
     if (a.name === null) return 1;
     if (b.name === null) return -1;
@@ -63,7 +60,14 @@ function buildCollections(notes: SpaceNoteRow[]): CollectionBucket[] {
 
 export default function PrototypeSidebar() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
-  const { closeDrawer, isMobileSidebar } = useProtoShell();
+  const {
+    closeDrawer,
+    isMobileSidebar,
+    sidebarListMode: mode,
+    setSidebarListMode,
+    sidebarFolderDrilldown: activeFolderKey,
+    setSidebarFolderDrilldown: setActiveFolderKey,
+  } = useProtoShell();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
@@ -79,8 +83,6 @@ export default function PrototypeSidebar() {
   } = useSpaceNotes(spaceId ?? '');
 
   const [q, setQ] = useState('');
-  const [mode, setMode] = useState<SidebarMode>('notes');
-  const [activeCollection, setActiveCollection] = useState<string | null | undefined>(undefined);
 
   const notes = useMemo(() => {
     if (!pages?.pages) return [];
@@ -95,14 +97,18 @@ export default function PrototypeSidebar() {
       : `note_${activeNoteSlug}`
     : undefined;
 
-  /* Notes to show in notes mode (or when drilling into a collection) */
+  /* Notes to show in notes mode (or when drilling into a folder) */
   const notesForMode = useMemo(() => {
     const base =
-      activeCollection !== undefined
+      activeFolderKey !== undefined
         ? notes.filter((n) => {
-            const raw = (n as { primaryCollection?: string | null }).primaryCollection;
-            const normalized = raw?.trim() || null;
-            return normalized === activeCollection;
+            const enriched = n as SpaceNoteRow & { primaryCollection?: string | null; secondaryCollections?: string[] };
+            const key =
+              effectiveNoteFolderLabel({
+                primaryCollection: enriched.primaryCollection ?? null,
+                secondaryCollections: enriched.secondaryCollections ?? [],
+              }) ?? null;
+            return key === activeFolderKey;
           })
         : notes;
     const t = q.trim().toLowerCase();
@@ -112,15 +118,15 @@ export default function PrototypeSidebar() {
       const body = stripHtmlPreview(n.content, 800).toLowerCase();
       return title.includes(t) || body.includes(t);
     });
-  }, [notes, q, activeCollection]);
+  }, [notes, q, activeFolderKey]);
 
-  /* Collections for collections mode */
-  const collections = useMemo(() => buildCollections(notes), [notes]);
-  const filteredCollections = useMemo(() => {
+  /* Folder buckets for folders mode */
+  const folders = useMemo(() => buildFolders(notes), [notes]);
+  const filteredFolders = useMemo(() => {
     const t = q.trim().toLowerCase();
-    if (!t) return collections;
-    return collections.filter((c) => (c.name ?? 'No collection').toLowerCase().includes(t));
-  }, [collections, q]);
+    if (!t) return folders;
+    return folders.filter((c) => (c.name ?? 'No folder').toLowerCase().includes(t));
+  }, [folders, q]);
 
   const prefetchNote = useCallback(
     (row: SpaceNoteRow) => {
@@ -140,7 +146,7 @@ export default function PrototypeSidebar() {
       };
       seedNoteFromList(queryClient, listSeed, {
         id: 'thread_unorganized',
-        title: MY_PILE_THREAD_TITLE,
+        title: '',
         color: null,
         backgroundGradient: '',
       });
@@ -162,10 +168,27 @@ export default function PrototypeSidebar() {
     afterNav();
   };
 
-  const switchMode = (m: SidebarMode) => {
-    setMode(m);
-    if (m === 'notes') setActiveCollection(undefined);
-    setQ('');
+  const renderSidebarNoteRow = (row: SpaceNoteRow) => {
+    const active = !!(activeNoteFullId && row.id === activeNoteFullId);
+    const iso = row.updatedAt ?? row.createdAt ?? null;
+    const rel = protoRelativeCaption(iso);
+    const preview = stripHtmlPreview(row.content, 80);
+    const line = rel && preview ? `${rel}  ${preview}` : rel || preview;
+    return (
+      <li key={row.id}>
+        <button
+          type="button"
+          className="proto-note-row"
+          data-active={active ? 'true' : 'false'}
+          onClick={() => onNoteRow(row)}
+          onMouseEnter={() => prefetchNote(row)}
+          onFocus={() => prefetchNote(row)}
+        >
+          <div className="pds-list-title">{row.title?.trim() || 'Untitled Note'}</div>
+          {line ? <div className="pds-list-preview">{line}</div> : null}
+        </button>
+      </li>
+    );
   };
 
   // ──────────────────────────────────────────────────────────────────────────
@@ -176,7 +199,7 @@ export default function PrototypeSidebar() {
       {/* Search input */}
       <div className="proto-sidebar-search">
         <span className="proto-sidebar-search__icon" aria-hidden>
-          <MagnifyingGlass size={14} />
+          <Icon name="magnifying-glass" size={14} />
         </span>
         <input
           type="search"
@@ -187,33 +210,6 @@ export default function PrototypeSidebar() {
           aria-label="Search"
         />
       </div>
-
-      {/* Mode toggle — only shown when inside a space */}
-      {spaceId ? (
-        <div style={{ padding: '0 12px 8px' }}>
-          <label className="proto-caption" style={{ display: 'block', marginBottom: 4 }}>
-            View
-          </label>
-          <select
-            value={mode}
-            onChange={(e) => switchMode(e.target.value as SidebarMode)}
-            style={{
-              width: '100%',
-              borderRadius: 8,
-              border: '0.5px solid var(--pds-border)',
-              background: 'rgba(255,255,255,0.7)',
-              fontFamily: 'var(--pds-font-body)',
-              fontSize: 13,
-              color: 'var(--pds-text-primary)',
-              padding: '6px 8px',
-            }}
-            aria-label="View mode"
-          >
-            <option value="notes">Notes</option>
-            <option value="collections">Collections</option>
-          </select>
-        </div>
-      ) : null}
 
       <div className="proto-sidebar-scroll">
         {spaceId ? (
@@ -229,34 +225,7 @@ export default function PrototypeSidebar() {
                     {q.trim() ? 'No notes match.' : 'No notes yet.'}
                   </p>
                 ) : (
-                  <ul style={{ listStyle: 'none', margin: 0, padding: '4px 0 12px' }}>
-                    {notesForMode.map((row) => {
-                      const active = !!(activeNoteFullId && row.id === activeNoteFullId);
-                      const iso = row.updatedAt ?? row.createdAt ?? null;
-                      const rel = protoRelativeCaption(iso);
-                      const preview = stripHtmlPreview(row.content);
-                      const line = [rel, preview].filter(Boolean).join(' · ');
-                      return (
-                        <li key={row.id}>
-                          <button
-                            type="button"
-                            className="proto-note-row"
-                            data-active={active ? 'true' : 'false'}
-                            onClick={() => onNoteRow(row)}
-                            onMouseEnter={() => prefetchNote(row)}
-                            onFocus={() => prefetchNote(row)}
-                          >
-                            <div className="pds-list-title">{row.title?.trim() || 'Untitled Note'}</div>
-                            {line ? (
-                              <div className="pds-list-preview" style={{ marginTop: 2 }}>
-                                {line}
-                              </div>
-                            ) : null}
-                          </button>
-                        </li>
-                      );
-                    })}
-                  </ul>
+                  <ul className="proto-note-list">{notesForMode.map((row) => renderSidebarNoteRow(row))}</ul>
                 )}
                 {hasNextPage ? (
                   <div style={{ padding: '0 18px 16px', textAlign: 'center' }}>
@@ -280,86 +249,55 @@ export default function PrototypeSidebar() {
                 ) : null}
               </>
             ) : (
-              /* ── Collections mode ──────────────────────────────────── */
+              /* ── Folders mode ──────────────────────────────────────── */
               <>
-                {activeCollection !== undefined ? (
-                  /* Drill-down into a collection */
+                {activeFolderKey !== undefined ? (
+                  /* Drill-down into a folder */
                   <>
                     <div style={{ padding: '0 18px 8px' }}>
                       <button
                         type="button"
                         className="proto-sidebar-back-btn"
-                        onClick={() => { setActiveCollection(undefined); setQ(''); }}
+                        onClick={() => { setActiveFolderKey(undefined); setQ(''); }}
                       >
-                        <CaretLeft size={10} />
-                        Collections
+                        <Icon name="chevron-left" size={10} />
+                        Folders
                       </button>
                       <div className="pds-list-title" style={{ fontWeight: 600 }}>
-                        {activeCollection ?? 'No collection'}
+                        {activeFolderKey ?? 'No folder'}
                       </div>
                     </div>
                     {notesForMode.length === 0 ? (
-                      <p className="proto-caption" style={{ padding: '12px 18px', textAlign: 'center' }}>No notes in this collection.</p>
+                      <p className="proto-caption" style={{ padding: '12px 18px', textAlign: 'center' }}>No notes in this folder.</p>
                     ) : (
-                      <ul style={{ listStyle: 'none', margin: 0, padding: '4px 0 12px' }}>
-                        {notesForMode.map((row) => {
-                          const active = !!(activeNoteFullId && row.id === activeNoteFullId);
-                          const iso = row.updatedAt ?? row.createdAt ?? null;
-                          const rel = protoRelativeCaption(iso);
-                          const preview = stripHtmlPreview(row.content);
-                          const line = [rel, preview].filter(Boolean).join(' · ');
-                          return (
-                            <li key={row.id}>
-                              <button
-                                type="button"
-                                className="proto-note-row"
-                                data-active={active ? 'true' : 'false'}
-                                onClick={() => onNoteRow(row)}
-                                onMouseEnter={() => prefetchNote(row)}
-                                onFocus={() => prefetchNote(row)}
-                              >
-                                <div className="pds-list-title">{row.title?.trim() || 'Untitled Note'}</div>
-                                {line ? (
-                                  <div className="pds-list-preview" style={{ marginTop: 2 }}>{line}</div>
-                                ) : null}
-                              </button>
-                            </li>
-                          );
-                        })}
-                      </ul>
+                      <ul className="proto-note-list">{notesForMode.map((row) => renderSidebarNoteRow(row))}</ul>
                     )}
                   </>
                 ) : (
-                  /* Collection list */
-                  notesLoading && filteredCollections.length === 0 ? (
+                  /* Folder list */
+                  notesLoading && filteredFolders.length === 0 ? (
                     <p className="proto-caption" style={{ padding: '12px 18px' }}>Loading…</p>
-                  ) : filteredCollections.length === 0 ? (
+                  ) : filteredFolders.length === 0 ? (
                     <div className="proto-main-empty" style={{ minHeight: 120 }}>
                       <svg width="28" height="28" viewBox="0 0 16 16" fill="none" style={{ opacity: 0.28 }}>
                         <rect x="1" y="4" width="14" height="9" rx="2" stroke="currentColor" strokeWidth="1.4" />
                         <rect x="3.5" y="2" width="9" height="4" rx="1" stroke="currentColor" strokeWidth="1.2" />
                       </svg>
-                      <span>No collections yet.</span>
+                      <span>No folders yet.</span>
                     </div>
                   ) : (
-                    <ul style={{ listStyle: 'none', margin: 0, padding: '4px 0 12px' }}>
-                      {filteredCollections.map((col) => (
+                    <ul className="proto-note-list">
+                      {filteredFolders.map((col) => (
                         <li key={col.name ?? '__none__'}>
                           <button
                             type="button"
-                            className="proto-collection-row"
-                            onClick={() => setActiveCollection(col.name)}
+                            className="proto-note-row"
+                            onClick={() => setActiveFolderKey(col.name)}
                           >
-                            <span className="proto-collection-row__icon" aria-hidden>
-                              <Stack size={14} />
-                            </span>
-                            <span style={{ flex: 1, minWidth: 0 }}>
-                              <div className="pds-list-title">{col.name ?? 'No collection'}</div>
-                              <div className="pds-list-preview" style={{ marginTop: 1 }}>
-                                {col.count} note{col.count !== 1 ? 's' : ''}
-                              </div>
-                            </span>
-                            <CaretRight className="proto-collection-row__chevron" size={10} />
+                            <div className="pds-list-title">{col.name ?? 'No folder'}</div>
+                            <div className="pds-list-preview">
+                              {col.count} note{col.count !== 1 ? 's' : ''}
+                            </div>
                           </button>
                         </li>
                       ))}

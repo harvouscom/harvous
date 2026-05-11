@@ -105,9 +105,8 @@ struct HomeHubView: View {
     }
 
     private var homeToolbarProfileButton: some View {
-        Image(systemName: "person.fill")
-            .font(.system(size: 17, weight: .medium))
-            .foregroundStyle(.primary)
+            HarvousFAGlyph(assetName: "Harvous.UserFilled", edgePt: 17)
+                .foregroundStyle(.primary)
             .frame(width: 32, height: 32)
             .contentShape(Rectangle())
     }

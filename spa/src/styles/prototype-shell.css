@@ -230,6 +230,40 @@
     opacity: 1;
     width: min(300px, 88vw);
   }
+
+  /* Note inspector — slide-over below toolbar (toolbar stays interactive). */
+  .proto-inspector-mobile-backdrop {
+    position: fixed;
+    inset: var(--pds-toolbar-h) 0 0 0;
+    z-index: 155;
+    background: rgba(0, 0, 0, 0.18);
+    pointer-events: auto;
+  }
+
+  .proto-inspector-mobile-panel {
+    position: fixed;
+    top: var(--pds-toolbar-h);
+    right: 0;
+    bottom: 0;
+    width: min(340px, 92vw);
+    z-index: 160;
+    border-left: 1px solid var(--pds-border);
+    background: var(--pds-bg-sidebar);
+    box-shadow: -6px 0 24px rgba(0, 0, 0, 0.08);
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    animation: proto-inspector-mobile-in 0.26s cubic-bezier(0.32, 0.72, 0.24, 1) forwards;
+  }
+
+  @keyframes proto-inspector-mobile-in {
+    from {
+      transform: translateX(100%);
+    }
+    to {
+      transform: translateX(0);
+    }
+  }
 }
 
 @media (min-width: 900px) {

@@ -955,6 +955,8 @@ button[disabled] {
    ========================================================================== */
 .scripture-pill {
   position: relative;
+  display: inline-flex;
+  align-items: center;
   -webkit-user-select: none;
   -moz-user-select: none;
   -ms-user-select: none;
@@ -983,20 +985,22 @@ button[disabled] {
 /* Translation label after the reference (canonical id in data-scripture-translation; display in -label) */
 .scripture-pill[data-scripture-translation-label]::after {
   content: attr(data-scripture-translation-label);
-  font-size: 11px;
-  font-weight: 600;
-  margin-left: 4px;
+  font-size: 0.68em;
+  font-weight: 500;
+  margin-left: 0.28em;
   letter-spacing: 0.02em;
-  color: inherit;
+  color: var(--color-pebble-grey);
+  line-height: 1;
 }
 
 .scripture-pill[data-scripture-translation]:not([data-scripture-translation-label])::after {
   content: attr(data-scripture-translation);
-  font-size: 11px;
-  font-weight: 600;
-  margin-left: 4px;
+  font-size: 0.68em;
+  font-weight: 500;
+  margin-left: 0.28em;
   letter-spacing: 0.02em;
-  color: inherit;
+  color: var(--color-pebble-grey);
+  line-height: 1;
 }
 
 /* Scripture translation picker tooltip (BubbleMenu) */

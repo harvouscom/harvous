@@ -71,8 +71,8 @@ struct NoteToolbar: View {
                 HStack(spacing: 0) {
                     // Undo / redo
                     group {
-                        iconButton("arrow.uturn.backward", isEnabled: proxy.formatToolbar.canUndo) { proxy.undoEdit() }
-                        iconButton("arrow.uturn.forward", isEnabled: proxy.formatToolbar.canRedo) { proxy.redoEdit() }
+                        iconButton("Harvous.ArrowRotateLeft", isEnabled: proxy.formatToolbar.canUndo) { proxy.undoEdit() }
+                        iconButton("Harvous.ArrowRotateRight", isEnabled: proxy.formatToolbar.canRedo) { proxy.redoEdit() }
                     }
 
                     warmDivider
@@ -97,19 +97,19 @@ struct NoteToolbar: View {
 
                     // Lists + indent
                     group {
-                        iconButton("list.bullet", isActive: proxy.formatToolbar.isBulletList) { proxy.insertBullet() }
-                        iconButton("list.number", isActive: proxy.formatToolbar.isNumberedList) { proxy.insertNumbered() }
-                        iconButton("decrease.indent", isEnabled: proxy.formatToolbar.isIndented) { proxy.outdent() }
-                        iconButton("increase.indent", isActive: proxy.formatToolbar.isIndented) { proxy.indent() }
+                        iconButton("Harvous.ListUl", isActive: proxy.formatToolbar.isBulletList) { proxy.insertBullet() }
+                        iconButton("Harvous.ListOl", isActive: proxy.formatToolbar.isNumberedList) { proxy.insertNumbered() }
+                        iconButton("Harvous.Outdent", isEnabled: proxy.formatToolbar.isIndented) { proxy.outdent() }
+                        iconButton("Harvous.Indent", isActive: proxy.formatToolbar.isIndented) { proxy.indent() }
                     }
 
                     warmDivider
 
                     // Insert
                     group {
-                        iconButton("minus") { proxy.insertDivider() }
-                        iconButton("link") { proxy.addOrEditLink() }
-                        iconButton("photo") { proxy.insertImage() }
+                        iconButton("Harvous.Minus") { proxy.insertDivider() }
+                        iconButton("Harvous.Link") { proxy.addOrEditLink() }
+                        iconButton("Harvous.Image") { proxy.insertImage() }
                     }
                 }
                 .padding(.horizontal, 14)
@@ -141,14 +141,13 @@ struct NoteToolbar: View {
     }
 
     private func iconButton(
-        _ symbol: String,
+        _ catalogAssetName: String,
         isActive: Bool = false,
         isEnabled: Bool = true,
         action: @escaping () -> Void
     ) -> some View {
         Button(action: action) {
-            Image(systemName: symbol)
-                .font(.system(size: 14, weight: .medium))
+            HarvousFAGlyph(assetName: catalogAssetName, edgePt: 14)
                 .frame(width: 36, height: 36)
                 .contentShape(Rectangle())
         }

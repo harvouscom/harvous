@@ -30,6 +30,15 @@ export default function SimplifiedPrototypeLayout() {
   }, [isLoaded, isSignedIn, pathname, searchRaw]);
 
   useEffect(() => {
+    const el = document.documentElement;
+    const cls = 'harvous-prototype-route';
+    el.classList.add(cls);
+    return () => {
+      el.classList.remove(cls);
+    };
+  }, []);
+
+  useEffect(() => {
     if (!isLoaded || isSignedIn) return;
     const path = typeof window !== 'undefined' ? `${window.location.pathname}${window.location.search || ''}` : '/prototype';
     router.navigate({

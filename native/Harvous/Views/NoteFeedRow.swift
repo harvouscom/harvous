@@ -30,8 +30,7 @@ struct NoteFeedRow: View {
         VStack(alignment: .leading, spacing: 3) {
             HStack(spacing: 4) {
                 if note.isPinned {
-                    Image(systemName: "pin.fill")
-                        .font(.system(size: 9, weight: .semibold))
+                    HarvousFAGlyph(assetName: "Harvous.Thumbtack", edgePt: 9)
                         .foregroundStyle(.tertiary)
                         .rotationEffect(.degrees(45))
                 }
@@ -68,8 +67,7 @@ struct NoteFeedRow: View {
         VStack(alignment: .leading, spacing: 4) {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
                 if note.isPinned {
-                    Image(systemName: "pin.fill")
-                        .font(.system(size: 9, weight: .semibold))
+                    HarvousFAGlyph(assetName: "Harvous.Thumbtack", edgePt: 9)
                         .foregroundStyle(.tertiary)
                         .rotationEffect(.degrees(45))
                 }
@@ -108,7 +106,7 @@ struct NoteFeedRow: View {
         if let ref = note.primaryRef {
             return ref
         }
-        if let c = note.primaryCollection, !c.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+        if let c = note.folderChipPrimaryLabelText(), !c.isEmpty {
             return c
         }
         return "No preview yet"

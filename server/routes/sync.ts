@@ -16,6 +16,7 @@ import {
   Threads,
   Notes,
   NoteThreads,
+  StudyThreadEntries,
   Tags,
   NoteTags,
   UserMetadata,
@@ -35,9 +36,9 @@ import {
 } from '../utils/note-secondary-collections';
 import { handleAPIError } from '@/utils/error-handling';
 import { tryConsumeNoteCreates, MAX_NOTE_CREATES_PER_SYNC_PUSH, getClientIP } from '@/utils/rate-limit';
-import { generateNoteId, generateThreadId, generateSpaceId } from '@/utils/ids';
+import { generateNoteId, generateThreadId, generateSpaceId, generateStudyThreadEntryId } from '@/utils/ids';
 import { ensureUnorganizedThread } from '../utils/unorganized-thread';
-import { detectScripture, getPrimaryReference } from '@/utils/scripture-detector';
+import { detectScripture, getPrimaryReference, normalizeScriptureReference } from '@/utils/scripture-detector';
 import { fetchVerseText } from '../utils/fetch-verse-text';
 
 const app = new Hono();
@@ -412,6 +413,87 @@ async function processNoteTagMutation(userId: string, operation: string, entityI
   return { success: false, error: `Unknown operation: ${operation}` };
 }
 
+async function processStudyThreadEntryMutation(userId: string, operation: string, entityId: string, data: any) {
+  const ENTRY_KINDS = new Set(['workspace', 'miniNote', 'linkedNote', 'scriptureLink']);
+  if (operation === 'create') {
+    const parentNoteId = data?.parentNoteId as string | undefined;
+    if (!parentNoteId) return { success: false, error: 'parentNoteId required' };
+    const note = first(await db.select().from(Notes).where(and(eq(Notes.id, parentNoteId), eq(Notes.userId, userId))).limit(1));
+    if (!note) return { success: false, error: 'Note not found' };
+    const id = entityId.startsWith('local_') ? generateStudyThreadEntryId() : entityId;
+    const entryKind =
+      typeof data.entryKind === 'string' && ENTRY_KINDS.has(data.entryKind) ? data.entryKind : 'miniNote';
+    const now = nowISO();
+    const spaceId = typeof note.spaceId === 'string' && note.spaceId ? note.spaceId : null;
+    await db.insert(StudyThreadEntries).values({
+      id,
+      userId,
+      parentNoteId,
+      spaceId,
+      entryKindRaw: entryKind,
+      highlightAccentRaw: typeof data.highlightAccentRaw === 'string' ? data.highlightAccentRaw : 'warmAmber',
+      sourceSnippet: typeof data.sourceSnippet === 'string' ? data.sourceSnippet : '',
+      focusTitle: typeof data.focusTitle === 'string' ? data.focusTitle : '',
+      notesBody: typeof data.notesBody === 'string' ? data.notesBody : '',
+      miniNoteBody: typeof data.miniNoteBody === 'string' ? data.miniNoteBody : '',
+      linkedNoteId: typeof data.linkedNoteId === 'string' ? data.linkedNoteId : null,
+      linkedNoteTitle: typeof data.linkedNoteTitle === 'string' ? data.linkedNoteTitle : null,
+      anchorLocation: typeof data.anchorLocation === 'number' ? data.anchorLocation : null,
+      anchorLength: typeof data.anchorLength === 'number' ? data.anchorLength : null,
+      anchorTextSnapshot: typeof data.anchorTextSnapshot === 'string' ? data.anchorTextSnapshot : null,
+      scriptureReference:
+        typeof data.scriptureReference === 'string'
+          ? normalizeScriptureReference(data.scriptureReference.trim()) ?? data.scriptureReference
+          : null,
+      scripturePassageTranslation: typeof data.scripturePassageTranslation === 'string' ? data.scripturePassageTranslation : null,
+      scripturePassageExcerpt: typeof data.scripturePassageExcerpt === 'string' ? data.scripturePassageExcerpt : null,
+      isArchived: false,
+      highlightListEditedAt: now,
+      createdAt: now,
+      updatedAt: now,
+    });
+    return { success: true, entityId, serverId: id };
+  }
+  if (operation === 'update') {
+    const existing = first(
+      await db.select().from(StudyThreadEntries).where(and(eq(StudyThreadEntries.id, entityId), eq(StudyThreadEntries.userId, userId))).limit(1),
+    );
+    if (!existing) return { success: false, error: 'Study thread entry not found' };
+    const patch: Record<string, unknown> = { updatedAt: nowISO() };
+    if (typeof data.highlightAccentRaw === 'string') {
+      patch.highlightAccentRaw = data.highlightAccentRaw;
+      patch.highlightListEditedAt = nowISO();
+    }
+    if (typeof data.sourceSnippet === 'string') patch.sourceSnippet = data.sourceSnippet;
+    if (typeof data.focusTitle === 'string') patch.focusTitle = data.focusTitle;
+    if (typeof data.notesBody === 'string') patch.notesBody = data.notesBody;
+    if (typeof data.miniNoteBody === 'string') patch.miniNoteBody = data.miniNoteBody;
+    if (typeof data.linkedNoteId === 'string' || data.linkedNoteId === null) patch.linkedNoteId = data.linkedNoteId;
+    if (typeof data.linkedNoteTitle === 'string') patch.linkedNoteTitle = data.linkedNoteTitle;
+    if (typeof data.anchorLocation === 'number' || data.anchorLocation === null) patch.anchorLocation = data.anchorLocation;
+    if (typeof data.anchorLength === 'number' || data.anchorLength === null) patch.anchorLength = data.anchorLength;
+    if (typeof data.anchorTextSnapshot === 'string' || data.anchorTextSnapshot === null) patch.anchorTextSnapshot = data.anchorTextSnapshot;
+    if (typeof data.scriptureReference === 'string') {
+      patch.scriptureReference = normalizeScriptureReference(data.scriptureReference.trim()) ?? data.scriptureReference;
+    }
+    if (typeof data.scripturePassageTranslation === 'string') patch.scripturePassageTranslation = data.scripturePassageTranslation;
+    if (typeof data.scripturePassageExcerpt === 'string') patch.scripturePassageExcerpt = data.scripturePassageExcerpt;
+    if (typeof data.isArchived === 'boolean') patch.isArchived = data.isArchived;
+    if (typeof data.entryKind === 'string' && ENTRY_KINDS.has(data.entryKind)) patch.entryKindRaw = data.entryKind;
+    await db.update(StudyThreadEntries).set(patch as any).where(and(eq(StudyThreadEntries.id, entityId), eq(StudyThreadEntries.userId, userId)));
+    return { success: true, entityId, serverId: entityId };
+  }
+  if (operation === 'delete') {
+    const existing = first(
+      await db.select().from(StudyThreadEntries).where(and(eq(StudyThreadEntries.id, entityId), eq(StudyThreadEntries.userId, userId))).limit(1),
+    );
+    if (!existing) return { success: false, error: 'Study thread entry not found' };
+    await db.delete(StudyThreadEntries).where(and(eq(StudyThreadEntries.id, entityId), eq(StudyThreadEntries.userId, userId)));
+    return { success: true, entityId, serverId: entityId };
+  }
+  return { success: false, error: `Unknown operation: ${operation}` };
+}
+
 // ─── POST /api/sync/push ─────────────────────────────────────────────
 
 app.post('/api/sync/push', requireAuth, async (c) => {
@@ -463,6 +545,7 @@ app.post('/api/sync/push', requireAuth, async (c) => {
           case 'noteThread': result = await processNoteThreadMutation(auth.userId, operation, entityId, data); break;
           case 'tag': result = await processTagMutation(auth.userId, operation, entityId, data); break;
           case 'noteTag': result = await processNoteTagMutation(auth.userId, operation, entityId, data); break;
+          case 'studyThreadEntry': result = await processStudyThreadEntryMutation(auth.userId, operation, entityId, data); break;
           default: result = { success: false, error: `Unknown entity type: ${entityType}` };
         }
         results.push({ ...result, operationId });
@@ -484,7 +567,7 @@ app.get('/api/sync/bootstrap', requireAuth, async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
 
-    const [spaces, threads, notes, noteThreads, tags, noteTags, userMetadataRows] = await Promise.all([
+    const [spaces, threads, notes, noteThreads, tags, noteTags, studyThreadEntries, userMetadataRows] = await Promise.all([
       db.select({
         id: Spaces.id, title: Spaces.title, description: Spaces.description, color: Spaces.color,
         backgroundGradient: Spaces.backgroundGradient, isPublic: Spaces.isPublic, isActive: Spaces.isActive,
@@ -528,6 +611,8 @@ app.get('/api/sync/bootstrap', requireAuth, async (c) => {
         createdAt: NoteTags.createdAt,
       }).from(NoteTags).innerJoin(Notes, eq(Notes.id, NoteTags.noteId))
         .where(eq(Notes.userId, auth.userId)),
+
+      db.select().from(StudyThreadEntries).where(eq(StudyThreadEntries.userId, auth.userId)),
 
       db.select({
         id: UserMetadata.id, userId: UserMetadata.userId, highestSimpleNoteId: UserMetadata.highestSimpleNoteId,
@@ -573,6 +658,7 @@ app.get('/api/sync/bootstrap', requireAuth, async (c) => {
       noteThreads,
       tags,
       noteTags,
+      studyThreadEntries,
       userMetadata: userMetaForResponse ? (() => {
         const { lockPinHash, ...rest } = userMetaForResponse;
         return {
@@ -610,7 +696,7 @@ app.get('/api/sync/changes', requireAuth, async (c) => {
 
     const sinceDate = new Date(sinceTimestamp);
 
-    const [changedSpaces, changedThreads, changedNotes, changedNoteThreads, changedTags, changedNoteTags, changedUserMetadataRows] = await Promise.all([
+    const [changedSpaces, changedThreads, changedNotes, changedNoteThreads, changedTags, changedNoteTags, changedStudyThreadEntries, changedUserMetadataRows] = await Promise.all([
       db.select({
         id: Spaces.id, title: Spaces.title, description: Spaces.description, color: Spaces.color,
         backgroundGradient: Spaces.backgroundGradient, isPublic: Spaces.isPublic, isActive: Spaces.isActive,
@@ -653,6 +739,11 @@ app.get('/api/sync/changes', requireAuth, async (c) => {
       }).from(NoteTags).innerJoin(Notes, eq(Notes.id, NoteTags.noteId))
         .where(and(eq(Notes.userId, auth.userId), gt(NoteTags.createdAt, sinceDate))),
 
+      db
+        .select()
+        .from(StudyThreadEntries)
+        .where(and(eq(StudyThreadEntries.userId, auth.userId), or(gt(StudyThreadEntries.updatedAt, sinceDate), gt(StudyThreadEntries.createdAt, sinceDate)))),
+
       db.select({
         id: UserMetadata.id, userId: UserMetadata.userId, highestSimpleNoteId: UserMetadata.highestSimpleNoteId,
         userColor: UserMetadata.userColor, firstName: UserMetadata.firstName, lastName: UserMetadata.lastName,
@@ -693,6 +784,7 @@ app.get('/api/sync/changes', requireAuth, async (c) => {
       cursor: `timestamp_${Date.now()}`,
       hasChanges: changedSpaces.length > 0 || changedThreads.length > 0 || changedNotes.length > 0 ||
                   changedNoteThreads.length > 0 || changedTags.length > 0 || changedNoteTags.length > 0 ||
+                  changedStudyThreadEntries.length > 0 ||
                   changedUserMetadata !== null && changedUserMetadata !== undefined,
       spaces: changedSpaces,
       threads: changedThreads,
@@ -700,6 +792,7 @@ app.get('/api/sync/changes', requireAuth, async (c) => {
       noteThreads: changedNoteThreads,
       tags: changedTags,
       noteTags: changedNoteTags,
+      studyThreadEntries: changedStudyThreadEntries,
       userMetadata: userMetaForResponse ? (() => {
         const { lockPinHash, ...rest } = userMetaForResponse;
         return { ...rest, highestSimpleNoteId: effectiveHighestForChanges, hasLockPinSet: !!lockPinHash };

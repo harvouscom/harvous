@@ -3,7 +3,7 @@ import SwiftUI
 
 // MARK: - Active highlight capsule (bottom morph surface)
 
-/// Bottom capsule — shows exactly one anchored highlight when hovered or pinned.
+/// Bottom capsule — shows exactly one anchored highlight when pinned or explicitly activated (e.g. keyboard).
 struct ActiveHighlightDock: View {
     @Environment(\.harvousDockExpandedContentMaxHeight) private var expandedContentMaxHeight
 
@@ -91,45 +91,42 @@ struct ActiveHighlightDock: View {
         .padding(.top, 6)
         .padding(.bottom, 10)
         .task(id: thread.id) {
+            StudyPromptSuggester.seedScriptureRespondQuestionsIfNeeded(thread: thread, modelContext: modelContext)
+
             guard thread.entryKind == .scriptureLink else { return }
             let ref = thread.scriptureReference ?? thread.miniNoteBody
             let trimmed = ref.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !trimmed.isEmpty else { return }
             let transRaw = thread.scripturePassageTranslation?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
             let trans = transRaw.isEmpty ? ScriptureReference.defaultTranslation : transRaw
-            await ScripturePassageCache.shared.prefetch(reference: trimmed, translation: trans)
-
-            // Already upgraded by Apple Intelligence — nothing to do.
-            guard !thread.aiSuggestedQuestionsGenerated else { return }
-
             let excerpt = thread.scripturePassageExcerpt?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
             let snippet = excerpt.isEmpty ? trimmed : excerpt
+
+            async let prefetchDone: Void = ScripturePassageCache.shared.prefetch(reference: trimmed, translation: trans)
+
+            guard !thread.aiSuggestedQuestionsGenerated else {
+                await prefetchDone
+                return
+            }
 
             if #available(macOS 26.0, iOS 26.0, *) {
                 do {
                     let generated = try await ScriptureReflectionGenerator.generate(
                         excerpt: snippet, reference: trimmed
                     )
-                    // Append heuristic defaults as a catch-all tail so they're always present.
-                    // Heuristics are already shown while AI generates; this grows the list rather than replacing it.
+                    await prefetchDone
                     let defaults = StudyPromptSuggester.questions(forScriptureExcerpt: snippet, reference: trimmed)
                     thread.suggestedQuestions = generated + defaults
                     thread.aiSuggestedQuestionsGenerated = true
                     try? modelContext.saveWithLogging()
                     return
                 } catch {
-                    // Model unavailable or generation failed — fall through to heuristic.
+                    await prefetchDone
+                    return
                 }
             }
 
-            // Heuristic fallback: older OS, Apple Intelligence off, or generation error.
-            // aiSuggestedQuestionsGenerated stays false so the next open can upgrade when AI becomes available.
-            if thread.suggestedQuestions.isEmpty {
-                thread.suggestedQuestions = StudyPromptSuggester.questions(
-                    forScriptureExcerpt: snippet, reference: trimmed
-                )
-                try? modelContext.saveWithLogging()
-            }
+            await prefetchDone
         }
     }
 
@@ -137,19 +134,9 @@ struct ActiveHighlightDock: View {
         // Title is always lineLimit(1) so left and right sides are the same height — .center keeps
         // the icon/text row visually aligned with the color swatch, chevron, and close controls.
         HStack(alignment: .center, spacing: 8) {
-            // Glyph (tap to expand/collapse) + editable title with default “Highlight #” placeholder.
-            Image(systemName: headerGlyph)
-                .symbolRenderingMode(.monochrome)
-                .font(.system(size: 13, weight: .medium))
-                .foregroundStyle(.primary)
-                .contentShape(Rectangle())
-                .onTapGesture {
-                    withAnimation(.spring(response: 0.32, dampingFraction: 0.82)) {
-                        isExpanded.toggle()
-                    }
-                }
+            // Glyph (tap to expand/collapse) + editable title (placeholder from `defaultHighlightTitle`).
+            headerGlyphImage
 
-            // Custom title when set; otherwise placeholder-style “Highlight #” (or “Highlight” before an ordinal exists).
             TextField("", text: $thread.focusTitle, prompt: Text(defaultHighlightTitle).foregroundStyle(.secondary))
                 .font(.system(size: 14, weight: .semibold))
                 .foregroundStyle(.primary)
@@ -196,7 +183,7 @@ struct ActiveHighlightDock: View {
                 )
 
                 if onRemoveHighlight != nil {
-                    toolbarButton(symbol: "trash", help: "Remove highlight") {
+                    toolbarButton(assetName: "Harvous.Trash", help: "Remove highlight") {
                         onRemoveHighlight?()
                     }
                 }
@@ -204,7 +191,7 @@ struct ActiveHighlightDock: View {
                 toolbarDivider
 
                 toolbarButton(
-                    symbol: isExpanded ? "chevron.up" : "chevron.down",
+                    assetName: isExpanded ? "Harvous.ChevronUp" : "Harvous.ChevronDown",
                     help: isExpanded ? "Collapse" : "Expand",
                     prominent: true
                 ) {
@@ -213,7 +200,7 @@ struct ActiveHighlightDock: View {
                     }
                 }
 
-                toolbarButton(symbol: "xmark", help: "Dismiss", prominent: true) {
+                toolbarButton(assetName: "Harvous.Xmark", help: "Dismiss", prominent: true) {
                     onDismiss()
                 }
             }
@@ -224,15 +211,14 @@ struct ActiveHighlightDock: View {
     /// Lightweight icon button used in the utility toolbar.
     /// `prominent: true` for navigation controls (collapse/close); false for utility (trash).
     private func toolbarButton(
-        symbol: String,
+        assetName: String,
         help: String,
         prominent: Bool = false,
         action: @escaping () -> Void
     ) -> some View {
         Button(action: action) {
-            Image(systemName: symbol)
-                .font(.system(size: prominent ? 13 : 12, weight: prominent ? .medium : .regular))
-                .contentTransition(.identity) // no symbol morph animation
+            HarvousFAGlyph(assetName: assetName, edgePt: prominent ? 13 : 12)
+                .contentTransition(.identity) // avoid symbol morph flicker between assets
                 .frame(width: 28, height: 28)
                 .contentShape(Rectangle())
         }
@@ -348,15 +334,13 @@ struct ActiveHighlightDock: View {
                 }
             } label: {
                 HStack(spacing: 4) {
-                    Image(systemName: "arrow.turn.down.right")
-                        .font(.system(size: 10, weight: .regular))
+                    HarvousFAGlyph(assetName: "Harvous.Reply", edgePt: 10)
                         .foregroundStyle(.tertiary)
                     Text("Respond")
                         .font(.system(size: 11, weight: .medium))
                         .foregroundStyle(.tertiary)
                     Spacer()
-                    Image(systemName: "chevron.down")
-                        .font(.system(size: 9, weight: .medium))
+                    HarvousFAGlyph(assetName: "Harvous.ChevronDown", edgePt: 9)
                         .foregroundStyle(.tertiary)
                         .rotationEffect(.degrees(responsePromptsCollapsed ? -90 : 0))
                 }
@@ -414,7 +398,7 @@ struct ActiveHighlightDock: View {
                 Button {
                     onJumpToLinkedNote?(nid)
                 } label: {
-                    Label("View connected note", systemImage: "arrow.triangle.branch")
+                    Label("View connected note", image: "Harvous.ArrowRightArrowLeft")
                         .font(.system(size: 13, weight: .medium))
                 }
                 .buttonStyle(.plain)
@@ -431,7 +415,7 @@ struct ActiveHighlightDock: View {
                 Button {
                     onReadPassage?(trimmed, trans)
                 } label: {
-                    Label("Read passage", systemImage: "book")
+                    Label("Read passage", image: "Harvous.BookOpen")
                         .font(.system(size: 13, weight: .medium))
                 }
                 .buttonStyle(.plain)
@@ -445,14 +429,26 @@ struct ActiveHighlightDock: View {
         }
     }
 
-    private var headerGlyph: String {
-        if forceHighlighterIcon { return "highlighter" }
+    private var headerGlyphAssetName: String {
+        if forceHighlighterIcon { return "Harvous.Highlight" }
         switch thread.entryKind {
-        case .miniNote: return "highlighter"
-        case .linkedNote: return "arrow.triangle.branch"
-        case .scriptureLink: return "book.fill"
-        case .workspace: return "sparkles"
+        case .miniNote: return "Harvous.Highlight"
+        case .linkedNote: return "Harvous.ArrowRightArrowLeft"
+        case .scriptureLink: return "Harvous.BookOpen"
+        case .workspace: return "Harvous.WandMagicSparkles"
         }
+    }
+
+    @ViewBuilder
+    private var headerGlyphImage: some View {
+        HarvousFAGlyph(assetName: headerGlyphAssetName, edgePt: 13)
+            .foregroundStyle(.primary)
+            .contentShape(Rectangle())
+            .onTapGesture {
+                withAnimation(.spring(response: 0.32, dampingFraction: 0.82)) {
+                    isExpanded.toggle()
+                }
+            }
     }
 
     private var dockChrome: some View {

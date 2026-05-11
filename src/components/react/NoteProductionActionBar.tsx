@@ -1,7 +1,7 @@
 'use client';
 
-import React from 'react';
-import { ArrowCounterClockwise, CardsThree, PushPin } from '@phosphor-icons/react';
+import React, { useEffect, useRef, useState } from 'react';
+import { IconCards, IconPin, IconPinFilled, IconRotate } from '@tabler/icons-react';
 
 export interface NoteProductionActionBarProps {
   collectionDraft: string;
@@ -37,31 +37,56 @@ export default function NoteProductionActionBar({
   disabled,
 }: NoteProductionActionBarProps) {
   const extra = secondaryCollections.length;
+  const barRef = useRef<HTMLDivElement>(null);
+  const [addSecondaryOpen, setAddSecondaryOpen] = useState(false);
+
+  useEffect(() => {
+    if (!addSecondaryOpen) return;
+    const onDocPointerDown = (e: PointerEvent) => {
+      const el = barRef.current;
+      if (el && !el.contains(e.target as Node)) {
+        setAddSecondaryOpen(false);
+      }
+    };
+    document.addEventListener('pointerdown', onDocPointerDown, true);
+    return () => document.removeEventListener('pointerdown', onDocPointerDown, true);
+  }, [addSecondaryOpen]);
+
+  const openAddSecondaryRow = () => {
+    if (!disabled) setAddSecondaryOpen(true);
+  };
+
   return (
-    <div className="note-production-action-bar" role="toolbar" aria-label="Note actions">
+    <div ref={barRef} className="note-production-action-bar" role="toolbar" aria-label="Note actions">
       <div className="note-production-action-bar__inner">
-        <CardsThree size={15} aria-hidden style={{ opacity: 0.45, flexShrink: 0 }} />
-        <div className="note-production-action-bar__chip-wrap">
-          {!collectionUserOverride ? (
-            <span className="note-production-action-bar__badge">Auto</span>
-          ) : (
-            <span className="note-production-action-bar__badge">You</span>
-          )}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1, minWidth: 0 }}>
-            <input
-              type="text"
-              disabled={disabled}
-              className="note-production-action-bar__collection-input"
-              aria-label="Collection"
-              placeholder="No collection"
-              value={collectionDraft}
-              onChange={(e) => onDraftChange(e.target.value)}
-            />
-            {extra > 0 ? (
-              <span className="note-production-action-bar__plus-n" aria-label={`${extra} additional collections`}>
-                +{extra}
-              </span>
-            ) : null}
+        <div
+          className="note-production-action-bar__chip-cluster"
+          onPointerDown={() => openAddSecondaryRow()}
+        >
+          <IconCards size={15} aria-hidden style={{ opacity: 0.45, flexShrink: 0 }} />
+          <div className="note-production-action-bar__chip-wrap" role="group" aria-label="Folder">
+            {!collectionUserOverride ? (
+              <span className="note-production-action-bar__badge">Auto</span>
+            ) : (
+              <span className="note-production-action-bar__badge">You</span>
+            )}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1, minWidth: 0 }}>
+              <input
+                type="text"
+                disabled={disabled}
+                className="note-production-action-bar__collection-input"
+                aria-label="Collection"
+                placeholder="No collection"
+                value={collectionDraft}
+                onChange={(e) => onDraftChange(e.target.value)}
+                onFocus={() => openAddSecondaryRow()}
+              />
+              {extra > 0 ? (
+                <span className="note-production-action-bar__plus-n" aria-label={`${extra} additional collections`}>
+                  +{extra}
+                </span>
+              ) : null}
+            </div>
           </div>
         </div>
         <div className="note-production-action-bar__chip-actions">
@@ -74,7 +99,7 @@ export default function NoteProductionActionBar({
             onMouseDown={(e) => e.preventDefault()}
             onClick={onTogglePinned}
           >
-            <PushPin size={16} weight={collectionPinned ? 'fill' : 'regular'} />
+            {collectionPinned ? <IconPinFilled size={16} /> : <IconPin size={16} />}
           </button>
           <button
             type="button"
@@ -84,7 +109,7 @@ export default function NoteProductionActionBar({
             onMouseDown={(e) => e.preventDefault()}
             onClick={onRestoreAuto}
           >
-            <ArrowCounterClockwise size={16} />
+            <IconRotate size={16} />
           </button>
         </div>
       </div>
@@ -106,22 +131,24 @@ export default function NoteProductionActionBar({
           ))}
         </ul>
       ) : null}
-      <div className="note-production-action-bar__add-secondary">
-        <input
-          type="text"
-          disabled={disabled}
-          placeholder="Add collection…"
-          value={addSecondaryDraft}
-          onChange={(e) => onAddSecondaryDraftChange(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') {
-              e.preventDefault();
-              onCommitAddSecondary();
-            }
-          }}
-          aria-label="Add secondary collection"
-        />
-      </div>
+      {addSecondaryOpen ? (
+        <div className="note-production-action-bar__add-secondary">
+          <input
+            type="text"
+            disabled={disabled}
+            placeholder="Add collection…"
+            value={addSecondaryDraft}
+            onChange={(e) => onAddSecondaryDraftChange(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                onCommitAddSecondary();
+              }
+            }}
+            aria-label="Add secondary collection"
+          />
+        </div>
+      ) : null}
     </div>
   );
 }

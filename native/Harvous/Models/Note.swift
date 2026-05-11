@@ -10,18 +10,18 @@ final class Note {
     /// Legacy — unused in UI; kept for SwiftData compatibility.
     var threadColor: String?
     var threadName: String?
-    /// Smart collection label (theme / subject) from on-device keyword tagging.
-    var primaryCollection: String?
-    /// Additional auto- or user-managed collection buckets beyond `primaryCollection`.
-    var secondaryCollections: [String] = []
-    /// User-set collection should not be replaced by auto-tagging.
-    var isCollectionUserOverride: Bool = false
-    /// Optional user pin to keep current collection fixed.
-    var isCollectionPinned: Bool = false
-    /// Confidence of the last auto-assigned primary collection.
-    var collectionAutoConfidence: Double? = nil
-    /// Timestamp of the last auto-assignment of primary collection.
-    var collectionLastAutoUpdatedAt: Date? = nil
+    /// Smart folder label (theme / subject) from on-device keyword tagging.
+    @Attribute(originalName: "primaryCollection") var primaryFolder: String?
+    /// Additional auto- or user-managed folder buckets beyond `primaryFolder`.
+    @Attribute(originalName: "secondaryCollections") var secondaryFolders: [String] = []
+    /// User-set folder should not be replaced by auto-tagging.
+    @Attribute(originalName: "isCollectionUserOverride") var isFolderUserOverride: Bool = false
+    /// Optional user pin to keep current folder fixed.
+    @Attribute(originalName: "isCollectionPinned") var isFolderPinned: Bool = false
+    /// Confidence of the last auto-assigned primary folder.
+    @Attribute(originalName: "collectionAutoConfidence") var folderAutoConfidence: Double? = nil
+    /// Timestamp of the last auto-assignment of primary folder.
+    @Attribute(originalName: "collectionLastAutoUpdatedAt") var folderLastAutoUpdatedAt: Date? = nil
     var tags: [String]
     /// User pin (note-level); surface in list/chrome and keep stable under auto-tag churn.
     var isPinned: Bool = false
@@ -60,12 +60,12 @@ final class Note {
         detectedRefs: [String] = [],
         threadColor: String? = nil,
         threadName: String? = nil,
-        primaryCollection: String? = nil,
-        secondaryCollections: [String] = [],
-        isCollectionUserOverride: Bool = false,
-        isCollectionPinned: Bool = false,
-        collectionAutoConfidence: Double? = nil,
-        collectionLastAutoUpdatedAt: Date? = nil,
+        primaryFolder: String? = nil,
+        secondaryFolders: [String] = [],
+        isFolderUserOverride: Bool = false,
+        isFolderPinned: Bool = false,
+        folderAutoConfidence: Double? = nil,
+        folderLastAutoUpdatedAt: Date? = nil,
         tags: [String] = [],
         spaceId: UUID? = nil,
         cloudId: UUID? = nil,
@@ -81,12 +81,12 @@ final class Note {
         self.detectedRefs = detectedRefs
         self.threadColor = threadColor
         self.threadName = threadName
-        self.primaryCollection = primaryCollection
-        self.secondaryCollections = secondaryCollections
-        self.isCollectionUserOverride = isCollectionUserOverride
-        self.isCollectionPinned = isCollectionPinned
-        self.collectionAutoConfidence = collectionAutoConfidence
-        self.collectionLastAutoUpdatedAt = collectionLastAutoUpdatedAt
+        self.primaryFolder = primaryFolder
+        self.secondaryFolders = secondaryFolders
+        self.isFolderUserOverride = isFolderUserOverride
+        self.isFolderPinned = isFolderPinned
+        self.folderAutoConfidence = folderAutoConfidence
+        self.folderLastAutoUpdatedAt = folderLastAutoUpdatedAt
         self.isPinned = isPinned
         self.tags = tags
         self.spaceId = spaceId
@@ -141,41 +141,47 @@ final class Note {
 }
 
 extension Note {
-    func normalizedSecondaryCollectionLabels() -> [String] {
-        secondaryCollections.compactMap { s in
+    func normalizedSecondaryFolderLabels() -> [String] {
+        secondaryFolders.compactMap { s in
             let t = s.trimmingCharacters(in: .whitespacesAndNewlines)
             return t.isEmpty ? nil : t
         }
     }
 
-    /// Primary first, then secondaries; case-insensitive dedupe.
-    func allCollectionMembershipLabels() -> [String] {
+    /// Primary first, then secondaries; case-insensitive dedupe. Omits legacy “My Pile” thread title used as folder.
+    func allFolderMembershipLabels() -> [String] {
         var out: [String] = []
-        if let p = primaryCollection?.trimmingCharacters(in: .whitespacesAndNewlines), !p.isEmpty {
+        if let p = primaryFolder?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !p.isEmpty,
+           !Self.isMyPileFolderTitle(p) {
             out.append(p)
         }
-        for s in normalizedSecondaryCollectionLabels() {
+        for s in normalizedSecondaryFolderLabels() {
+            guard !Self.isMyPileFolderTitle(s) else { continue }
             if out.contains(where: { $0.caseInsensitiveCompare(s) == .orderedSame }) { continue }
             out.append(s)
         }
         return out
     }
 
-    func collectionChipPrimaryLabelText() -> String? {
-        if let p = primaryCollection?.trimmingCharacters(in: .whitespacesAndNewlines), !p.isEmpty { return p }
-        return normalizedSecondaryCollectionLabels().first
+    func folderChipPrimaryLabelText() -> String? {
+        allFolderMembershipLabels().first
     }
 
-    func collectionChipAdditionalCount() -> Int {
-        let secs = normalizedSecondaryCollectionLabels()
-        if let p = primaryCollection?.trimmingCharacters(in: .whitespacesAndNewlines), !p.isEmpty {
-            return secs.filter { $0.caseInsensitiveCompare(p) != .orderedSame }.count
-        }
-        return max(0, secs.count - 1)
+    func folderChipAdditionalCount() -> Int {
+        let labels = allFolderMembershipLabels()
+        guard !labels.isEmpty else { return 0 }
+        return max(0, labels.count - 1)
     }
 
-    func noteBelongsToCollectionBucket(_ bucket: String?) -> Bool {
-        let labels = allCollectionMembershipLabels()
+    /// Same rules as web `isMyPileDisplayTitle` (`src/utils/my-pile-thread.ts`).
+    private static func isMyPileFolderTitle(_ title: String) -> Bool {
+        let n = title.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        return n == "my pile" || n == "unorganized" || n == "sort later"
+    }
+
+    func noteBelongsToFolderBucket(_ bucket: String?) -> Bool {
+        let labels = allFolderMembershipLabels()
         if let b = bucket?.trimmingCharacters(in: .whitespacesAndNewlines), !b.isEmpty {
             return labels.contains { $0.caseInsensitiveCompare(b) == .orderedSame }
         }

@@ -1306,8 +1306,14 @@ struct HarvousEditor: NSViewRepresentable {
                 self?.invokeNewStandaloneNoteFromEditMenuIfPossible()
             }
             p.triggerRemoveIntersectingStudyHighlightsFromSelection = { [weak self] in
-                self?.invokeRemoveIntersectingStudyHighlightFromSelectionIfPossible()
+                self?.invokeEraseInlineFormattingFromSelectionIfPossible()
             }
+        }
+
+        func invokeEraseInlineFormattingFromSelectionIfPossible() {
+            guard let tv = textView, tv.textStorage != nil, !isDisplayingPlaceholder else { return }
+            invokeRemoveIntersectingStudyHighlightFromSelectionIfPossible()
+            proxy?.clearRichFormattingInSelection()
         }
 
         func invokeRemoveIntersectingStudyHighlightFromSelectionIfPossible() {
@@ -1362,27 +1368,7 @@ struct HarvousEditor: NSViewRepresentable {
         }
 
         private func isRichAttributeDictionary(_ attributes: [NSAttributedString.Key: Any], emptyStorage: Bool) -> Bool {
-            if attributes[.link] != nil { return true }
-            if (attributes[.strikethroughStyle] as? Int ?? 0) != 0 { return true }
-            // Study highlights intentionally use pastel backgrounds — they should read as “still body prose”.
-            if (attributes[.backgroundColor] as? NSColor) != nil && attributes[.harvousStudyHighlightUUID] == nil {
-                return true
-            }
-            if let p = attributes[.paragraphStyle] as? NSParagraphStyle {
-                if p.firstLineHeadIndent > 0.5 || p.headIndent > 0.5 { return true }
-            }
-
-            let font = (attributes[.font] as? NSFont) ?? HarvousFonts.system(size: 16, weight: 400)
-            let manager = NSFontManager.shared
-            if HarvousFonts.bodyHeadingLevel(matching: font) != nil { return true }
-            if manager.traits(of: font).contains(.boldFontMask) { return true }
-            if manager.traits(of: font).contains(.italicFontMask) { return true }
-            if font.pointSize >= 19 { return true }
-            if emptyStorage { return false }
-            let diff16 = abs(font.pointSize - 16.0)
-            let diff15 = abs(font.pointSize - 15.0)
-            if diff16 > 0.4 && diff15 > 0.4 { return true }
-            return false
+            HarvousBodyRichTextDiagnostics.attributesContainClearableFormatting(attributes, emptyStorage: emptyStorage)
         }
 
         /// Collect ranges with `ScripturePillAttachment` without `enumerateAttribute` (avoids Swift 6 `@Sendable` closure / MainActor warnings).
@@ -1687,6 +1673,9 @@ struct HarvousEditor: NSViewRepresentable {
                 paints: studyHighlightPaints,
                 storage: storage
             )
+            let clearFormatting =
+                sel.length > 0
+                && HarvousBodyRichTextDiagnostics.selectionIntersectsClearableFormatting(storage: storage, utf16Range: sel)
 
             guard sel.length > 0 || !removableIDs.isEmpty else { return menu }
 
@@ -1703,8 +1692,13 @@ struct HarvousEditor: NSViewRepresentable {
                 insertIndex += 1
             }
 
-            if !removableIDs.isEmpty {
-                let rm = NSMenuItem(title: "Remove Highlight", action: #selector(macRemoveIntersectingStudyHighlightsFromMenu(_:)), keyEquivalent: "")
+            if !removableIDs.isEmpty || clearFormatting {
+                let title: String = {
+                    if !removableIDs.isEmpty, clearFormatting { return "Erase highlight & formatting" }
+                    if !removableIDs.isEmpty { return "Remove highlight" }
+                    return "Clear formatting"
+                }()
+                let rm = NSMenuItem(title: title, action: #selector(macRemoveIntersectingStudyHighlightsFromMenu(_:)), keyEquivalent: "")
                 rm.target = self
                 menu.insertItem(rm, at: insertIndex)
             }
@@ -1713,7 +1707,7 @@ struct HarvousEditor: NSViewRepresentable {
         }
 
         @objc private func macRemoveIntersectingStudyHighlightsFromMenu(_: Any?) {
-            invokeRemoveIntersectingStudyHighlightFromSelectionIfPossible()
+            invokeEraseInlineFormattingFromSelectionIfPossible()
         }
 
         @objc private func macHighlightPromptFromMenu(_: Any?) {
@@ -1916,6 +1910,9 @@ private final class HarvousBodyTextView: UITextView {
             paints: studyHighlightPaintsSnapshot,
             storage: textStorage
         )
+        let clearFormatting =
+            utf16Sel.length > 0
+            && HarvousBodyRichTextDiagnostics.selectionIntersectsClearableFormatting(storage: textStorage, utf16Range: utf16Sel)
 
         guard utf16Sel.length > 0 || !removableIDs.isEmpty else {
             return super.editMenu(for: textRange, suggestedActions: suggestedActions)
@@ -1935,10 +1932,15 @@ private final class HarvousBodyTextView: UITextView {
             }
         }
 
-        if !removableIDs.isEmpty,
+        if (!removableIDs.isEmpty || clearFormatting),
            textColor != .tertiaryLabel,
            let rmHandler = onRemoveIntersectingStudyHighlightsAction {
-            front.append(UIAction(title: "Remove Highlight", image: UIImage(systemName: "eraser")) { _ in
+            let title: String = {
+                if !removableIDs.isEmpty, clearFormatting { return "Erase highlight & formatting" }
+                if !removableIDs.isEmpty { return "Remove highlight" }
+                return "Clear formatting"
+            }()
+            front.append(UIAction(title: title, image: UIImage(systemName: "eraser")) { _ in
                 rmHandler()
             })
         }
@@ -2073,7 +2075,7 @@ struct HarvousEditor: UIViewRepresentable {
             coordinator?.invokeNewStandaloneNoteFromEditMenuIfPossible()
         }
         tv.onRemoveIntersectingStudyHighlightsAction = { [weak coordinator] in
-            coordinator?.invokeRemoveIntersectingStudyHighlightFromSelectionIfPossible()
+            coordinator?.invokeEraseInlineFormattingFromSelectionIfPossible()
         }
         context.coordinator.placeholderText = placeholder
         context.coordinator.proxy = proxy
@@ -2200,7 +2202,7 @@ struct HarvousEditor: UIViewRepresentable {
                 coordinator?.invokeNewStandaloneNoteFromEditMenuIfPossible()
             }
             body.onRemoveIntersectingStudyHighlightsAction = { [weak coordinator] in
-                coordinator?.invokeRemoveIntersectingStudyHighlightFromSelectionIfPossible()
+                coordinator?.invokeEraseInlineFormattingFromSelectionIfPossible()
             }
         }
     }
@@ -2271,8 +2273,15 @@ struct HarvousEditor: UIViewRepresentable {
                 self?.invokeNewStandaloneNoteFromEditMenuIfPossible()
             }
             p.triggerRemoveIntersectingStudyHighlightsFromSelection = { [weak self] in
-                self?.invokeRemoveIntersectingStudyHighlightFromSelectionIfPossible()
+                self?.invokeEraseInlineFormattingFromSelectionIfPossible()
             }
+        }
+
+        @MainActor
+        func invokeEraseInlineFormattingFromSelectionIfPossible() {
+            guard let tv = textView, tv.textColor != .tertiaryLabel else { return }
+            invokeRemoveIntersectingStudyHighlightFromSelectionIfPossible()
+            proxy?.clearRichFormattingInSelection()
         }
 
         @MainActor
@@ -2498,12 +2507,26 @@ struct HarvousEditor: UIViewRepresentable {
 
         private func iosViewportRectForPillRanges(_ ranges: [NSRange], in tv: UITextView) -> CGRect? {
             var unionRect = CGRect.null
+            let inset = tv.textContainerInset
+            let origin = CGPoint(x: inset.left, y: inset.top)
             for r in ranges {
                 guard r.length > 0, r.location != NSNotFound, NSMaxRange(r) <= tv.textStorage.length else { continue }
-                guard let dStart = tv.position(from: tv.beginningOfDocument, offset: r.location),
-                      let dEnd = tv.position(from: dStart, offset: r.length),
-                      let tr = tv.textRange(from: dStart, to: dEnd) else { continue }
-                let rect = tv.firstRect(for: tr)
+                var rect = CGRect.null
+                if let dStart = tv.position(from: tv.beginningOfDocument, offset: r.location),
+                   let dEnd = tv.position(from: dStart, offset: r.length),
+                   let tr = tv.textRange(from: dStart, to: dEnd) {
+                    let fr = tv.firstRect(for: tr)
+                    if !fr.isNull, !fr.isEmpty { rect = fr }
+                }
+                if rect.isNull || rect.isEmpty {
+                    let lm = tv.layoutManager
+                    let tc = tv.textContainer
+                    let glyphRange = lm.glyphRange(forCharacterRange: r, actualCharacterRange: nil)
+                    let br = lm.boundingRect(forGlyphRange: glyphRange, in: tc)
+                    if !br.isNull, !br.isEmpty {
+                        rect = br.offsetBy(dx: origin.x, dy: origin.y)
+                    }
+                }
                 guard !rect.isNull, !rect.isEmpty else { continue }
                 unionRect = unionRect.isNull ? rect : unionRect.union(rect)
             }

@@ -6,6 +6,7 @@
  *   PUT  /api/notes/update
  *   DELETE /api/notes/delete
  *   GET  /api/notes/next-id
+ *   POST /api/notes/connect-link
  *   GET  /api/notes/recent
  *   POST /api/notes/auto-tags
  *   POST /api/notes/cleanup-upgrade-note
@@ -23,7 +24,7 @@
 import { Hono } from 'hono';
 import { getAuthenticatedAuth, requireAuth, requireParam } from '../middleware/auth';
 import {
-  db, Notes, Threads, NoteThreads, Comments, Tags, NoteTags,
+  db, Notes, Threads, NoteThreads, StudyThreadEntries, Comments, Tags, NoteTags,
   UserMetadata, ScriptureMetadata, NoteScriptureReferences, ResourceMetadata,
   eq, and, or, ne, desc, asc, count, like, not, isNull, isNotNull, inArray, sql,
   first,
@@ -68,6 +69,12 @@ function noteJsonWithParsedSecondaries<T extends { secondaryCollections?: string
 
 function isOnboardingSystemNote(note: { threadId: string; addedBy: string | null }): boolean {
   return note.threadId.startsWith('thread_onboarding_') && note.addedBy === 'system';
+}
+
+function normalizeOwnedNoteSpaceId(spaceId: string | null): string | null {
+  if (!spaceId || !spaceId.trim()) return null;
+  const t = spaceId.trim();
+  return t.startsWith('space_') ? t : `space_${t}`;
 }
 
 // ─── Title helpers ────────────────────────────────────────────────────────────
@@ -466,19 +473,17 @@ route.put('/api/notes/update', requireAuth, rateLimit('write'), async (c) => {
       await db.update(Threads).set({ updatedAt: nowISO() }).where(and(eq(Threads.id, nt.threadId), eq(Threads.userId, auth.userId)));
     }
 
-    // Re-tag (fire-and-forget) — generate first, only remove+apply if successful
+    // Re-tag — await so clients that refetch immediately after PUT see tags (native parity).
     if (!isEncrypted) {
-      (async () => {
-        try {
-          const r = await generateAutoTags(capitalizedTitle || '', capitalizedContent, auth.userId);
-          if (r.suggestions.length > 0) {
-            await removeAutoTags(noteId);
-            await applyAutoTags(noteId, r.suggestions, auth.userId);
-          }
-        } catch (err) {
-          console.error('[auto-tag] Failed to re-tag note:', noteId, err);
+      try {
+        const r = await generateAutoTags(capitalizedTitle || '', capitalizedContent, auth.userId);
+        if (r.suggestions.length > 0) {
+          await removeAutoTags(noteId);
+          await applyAutoTags(noteId, r.suggestions, auth.userId);
         }
-      })().catch((err) => console.error('[auto-tag] Unhandled re-tag:', noteId, err));
+      } catch (err) {
+        console.error('[auto-tag] Failed to re-tag note:', noteId, err);
+      }
     }
 
     // Update resource image
@@ -514,6 +519,77 @@ route.put('/api/notes/update', requireAuth, rateLimit('write'), async (c) => {
     });
   } catch (error: any) {
     return c.json({ error: error.message || 'Failed to update note' }, 500);
+  }
+});
+
+// ─── POST /api/notes/connect-link ─────────────────────────────────────────────
+route.post('/api/notes/connect-link', requireAuth, rateLimit('write'), async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+
+    const body = (await c.req.json().catch(() => ({}))) as Record<string, unknown>;
+    const parentNoteId = typeof body.parentNoteId === 'string' ? body.parentNoteId.trim() : '';
+    const linkedNoteId = typeof body.linkedNoteId === 'string' ? body.linkedNoteId.trim() : '';
+    if (!parentNoteId || !linkedNoteId) {
+      return c.json({ success: false, error: 'parentNoteId and linkedNoteId are required', code: 'INVALID_BODY' }, 400);
+    }
+    if (parentNoteId === linkedNoteId) {
+      return c.json({ success: false, error: 'Cannot connect a note to itself', code: 'SELF_LINK' }, 400);
+    }
+
+    const parent = first(
+      await db.select().from(Notes).where(and(eq(Notes.id, parentNoteId), eq(Notes.userId, auth.userId))).limit(1),
+    );
+    const linked = first(
+      await db.select().from(Notes).where(and(eq(Notes.id, linkedNoteId), eq(Notes.userId, auth.userId))).limit(1),
+    );
+    if (!parent || !linked) {
+      return c.json({ success: false, error: 'Note not found', code: 'NOT_FOUND' }, 404);
+    }
+    if (isOnboardingSystemNote(parent) || isOnboardingSystemNote(linked)) {
+      return c.json({ success: false, error: 'This note is read-only.', code: 'ONBOARDING_NOTE_READ_ONLY' }, 400);
+    }
+    if ((parent.noteType || 'default') !== 'default' || (linked.noteType || 'default') !== 'default') {
+      return c.json({ success: false, error: 'Only default notes can be linked.', code: 'INVALID_NOTE_TYPE' }, 400);
+    }
+
+    const parentSpace = normalizeOwnedNoteSpaceId(parent.spaceId ?? null);
+    const linkedSpace = normalizeOwnedNoteSpaceId(linked.spaceId ?? null);
+    if (!parentSpace || !linkedSpace || parentSpace !== linkedSpace) {
+      return c.json({ success: false, error: 'Both notes must be in the same space.', code: 'SPACE_MISMATCH' }, 400);
+    }
+
+    if (linked.linkedFromNoteId === parentNoteId) {
+      return c.json({ success: true, alreadyLinked: true, linkedNoteId });
+    }
+
+    let walk: string | null = parentNoteId;
+    const seen = new Set<string>();
+    while (walk && !seen.has(walk)) {
+      seen.add(walk);
+      if (walk === linkedNoteId) {
+        return c.json({ success: false, error: 'That link would create a cycle.', code: 'LINK_CYCLE' }, 400);
+      }
+      const row = first(
+        await db
+          .select({ linkedFromNoteId: Notes.linkedFromNoteId })
+          .from(Notes)
+          .where(and(eq(Notes.id, walk), eq(Notes.userId, auth.userId)))
+          .limit(1),
+      );
+      walk = row?.linkedFromNoteId ?? null;
+    }
+
+    await db.update(Notes).set({ linkedFromNoteId: parentNoteId, updatedAt: nowISO() })
+      .where(and(eq(Notes.id, linkedNoteId), eq(Notes.userId, auth.userId)));
+
+    await db.update(Notes).set({ updatedAt: nowISO() })
+      .where(and(eq(Notes.id, parentNoteId), eq(Notes.userId, auth.userId)));
+
+    return c.json({ success: true });
+  } catch (error: any) {
+    const standardError = handleAPIError(error, { endpoint: '/api/notes/connect-link', action: 'connect_link' });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
 
@@ -1137,6 +1213,94 @@ route.get('/api/notes/:id/details', requireAuth, async (c) => {
       } catch { linkedFromNotes = []; }
     }
 
+    let linkedToNotes: any[] = [];
+    if (!isMemberView && note.userId === auth.userId) {
+      try {
+        const outgoingRows = await db.select({
+          id: Notes.id,
+          title: Notes.title,
+          content: Notes.content,
+          simpleNoteId: Notes.simpleNoteId,
+          noteType: Notes.noteType,
+          createdAt: Notes.createdAt,
+          updatedAt: Notes.updatedAt,
+        })
+          .from(Notes)
+          .where(
+            and(
+              eq(Notes.linkedFromNoteId, noteId),
+              eq(Notes.userId, auth.userId),
+              eq(Notes.noteType, 'default'),
+            ),
+          )
+          .orderBy(desc(Notes.updatedAt))
+          .limit(50);
+        const ltResourceIds = outgoingRows.filter((r) => r.noteType === 'resource').map((r) => r.id);
+        let ltResourceMap: Record<string, { sourceTitle: string | null; sourceDescription: string | null; sourceImage: string | null }> = {};
+        if (ltResourceIds.length > 0) {
+          try {
+            const rmList = await db.select({
+              noteId: ResourceMetadata.noteId,
+              sourceTitle: ResourceMetadata.sourceTitle,
+              sourceDescription: ResourceMetadata.sourceDescription,
+              sourceImage: ResourceMetadata.sourceImage,
+            })
+              .from(ResourceMetadata)
+              .where(inArray(ResourceMetadata.noteId, ltResourceIds));
+            ltResourceMap = Object.fromEntries(rmList.map((m) => [m.noteId, m]));
+          } catch { ltResourceMap = {}; }
+        }
+        linkedToNotes = outgoingRows.map((row) => {
+          const rm = row.noteType === 'resource' ? ltResourceMap[row.id] : null;
+          return {
+            ...row,
+            noteType: row.noteType || 'default',
+            resourceTitle: rm?.sourceTitle ?? null,
+            resourceDescription: rm?.sourceDescription ?? null,
+            resourceImage: rm?.sourceImage ?? null,
+          };
+        });
+      } catch {
+        linkedToNotes = [];
+      }
+    }
+
+    let studyThreads: any[] = [];
+    if (!isMemberView && note.userId === auth.userId) {
+      try {
+        const stRows = await db
+          .select()
+          .from(StudyThreadEntries)
+          .where(and(eq(StudyThreadEntries.parentNoteId, noteId), eq(StudyThreadEntries.userId, auth.userId)))
+          .orderBy(desc(StudyThreadEntries.highlightListEditedAt), desc(StudyThreadEntries.createdAt));
+        studyThreads = stRows.map((row) => ({
+          id: row.id,
+          parentNoteId: row.parentNoteId,
+          spaceId: row.spaceId,
+          entryKind: row.entryKindRaw,
+          highlightAccentRaw: row.highlightAccentRaw,
+          sourceSnippet: row.sourceSnippet,
+          focusTitle: row.focusTitle,
+          notesBody: row.notesBody,
+          miniNoteBody: row.miniNoteBody,
+          linkedNoteId: row.linkedNoteId,
+          linkedNoteTitle: row.linkedNoteTitle,
+          anchorLocation: row.anchorLocation,
+          anchorLength: row.anchorLength,
+          anchorTextSnapshot: row.anchorTextSnapshot,
+          scriptureReference: row.scriptureReference,
+          scripturePassageTranslation: row.scripturePassageTranslation,
+          scripturePassageExcerpt: row.scripturePassageExcerpt,
+          isArchived: row.isArchived,
+          highlightListEditedAt: row.highlightListEditedAt,
+          createdAt: row.createdAt,
+          updatedAt: row.updatedAt,
+        }));
+      } catch {
+        studyThreads = [];
+      }
+    }
+
     return c.json({
       success: true,
       note: {
@@ -1156,6 +1320,8 @@ route.get('/api/notes/:id/details', requireAuth, async (c) => {
       tags: noteTags.map(t => ({ id: t.id, name: t.name, color: t.color, category: t.category, isSystem: t.isSystem, isAutoGenerated: t.isAutoGenerated, confidence: t.confidence })),
       referencingNotes,
       linkedFromNotes,
+      linkedToNotes,
+      studyThreads,
     });
   } catch (error: any) {
     const standardError = handleAPIError(error, { endpoint: '/api/notes/[id]/details', action: 'get_note_details' });

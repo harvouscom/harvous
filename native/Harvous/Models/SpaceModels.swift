@@ -22,6 +22,15 @@ enum SpaceVisibility: String, Codable, CaseIterable {
         case .publicShared: return "link"
         }
     }
+
+    /// `Assets.xcassets` Font Awesome solid template (`Harvous.*`) for native chrome (space switcher, menus).
+    var harvousCatalogAssetName: String {
+        switch self {
+        case .personal: return "Harvous.Home"
+        case .privateShared: return "Harvous.Lock"
+        case .publicShared: return "Harvous.Link"
+        }
+    }
 }
 
 enum SpaceMemberRole: String, Codable, CaseIterable {

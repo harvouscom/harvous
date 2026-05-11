@@ -347,7 +347,7 @@
   border-radius: 10px;
   padding: 1px 6px;
   display: inline-flex;
-  align-items: baseline;
+  align-items: center;
   gap: 0;
   box-shadow: 0px -3px 0px 0px inset rgba(176, 176, 176, 0.25);
   font-weight: 600;
@@ -381,20 +381,22 @@
 
 .featured-card--votd .featured-card__verse-text .scripture-pill[data-scripture-translation-label]::after {
   content: attr(data-scripture-translation-label);
-  font-size: 9px;
-  font-weight: 600;
-  margin-left: 3px;
+  font-size: 0.68em;
+  font-weight: 500;
+  margin-left: 0.28em;
   letter-spacing: 0.02em;
-  color: inherit;
+  color: var(--color-pebble-grey);
+  line-height: 1;
 }
 
 .featured-card--votd .featured-card__verse-text .scripture-pill[data-scripture-translation]:not([data-scripture-translation-label])::after {
   content: attr(data-scripture-translation);
-  font-size: 9px;
-  font-weight: 600;
-  margin-left: 3px;
+  font-size: 0.68em;
+  font-weight: 500;
+  margin-left: 0.28em;
   letter-spacing: 0.02em;
-  color: inherit;
+  color: var(--color-pebble-grey);
+  line-height: 1;
 }
 
 .featured-card__description {

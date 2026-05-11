@@ -3,6 +3,14 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState, t
 /** Breakpoint sync with prototype-shell.css (899px drawer). */
 const MOBILE_MQ = '(max-width: 899px)';
 
+export type SidebarListMode = 'notes' | 'folders';
+
+/** `undefined` = top-level list; `null` = “No folder” drill-down; `string` = named folder. */
+export type SidebarFolderDrilldown = string | null | undefined;
+
+/** Toolbar folder chip on prototype note routes — driven by note page + editor collection state. */
+export type PrototypeFolderChip = { noteId: string; label: string | null };
+
 type ProtoShellContextValue = {
   /** Desktop: pinned open. Mobile drawer: overlay open flag. */
   drawerOpen: boolean;
@@ -13,11 +21,20 @@ type ProtoShellContextValue = {
   /** Desktop only: hides the pinned sidebar column (toolbar toggle ⌘\ equivalent). */
   desktopSidebarCollapsed: boolean;
   toggleDesktopSidebar: () => void;
-  /** Inspector pane — desktop only; collapsed on mobile. */
+  /** Notes vs folders in prototype sidebar list. */
+  sidebarListMode: SidebarListMode;
+  setSidebarListMode: (mode: SidebarListMode) => void;
+  sidebarFolderDrilldown: SidebarFolderDrilldown;
+  setSidebarFolderDrilldown: (value: SidebarFolderDrilldown) => void;
+  /** Open mobile drawer or expand desktop sidebar so the list is visible. */
+  ensureSidebarExpanded: () => void;
+  /** Inspector pane — desktop: inline column; mobile: slide-over on note page. */
   inspectorOpen: boolean;
   toggleInspector: () => void;
   openInspector: () => void;
   closeInspector: () => void;
+  prototypeFolderChip: PrototypeFolderChip | null;
+  setPrototypeFolderChip: (value: PrototypeFolderChip | null) => void;
 };
 
 const ProtoShellContext = createContext<ProtoShellContextValue | null>(null);
@@ -34,6 +51,9 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
   });
   const [desktopSidebarCollapsed, setDesktopSidebarCollapsed] = useState(false);
   const [inspectorOpen, setInspectorOpen] = useState(false);
+  const [sidebarListMode, setSidebarListModeState] = useState<SidebarListMode>('notes');
+  const [sidebarFolderDrilldown, setSidebarFolderDrilldown] = useState<SidebarFolderDrilldown>(undefined);
+  const [prototypeFolderChip, setPrototypeFolderChipState] = useState<PrototypeFolderChip | null>(null);
 
   useEffect(() => {
     if (typeof window === 'undefined') return undefined;
@@ -43,7 +63,6 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
       setIsMobileSidebar(mobile);
       setDrawerOpen(!mobile ? true : false);
       if (!mobile) setDesktopSidebarCollapsed(false);
-      if (mobile) setInspectorOpen(false);
     };
     sync();
     mq.addEventListener('change', sync);
@@ -54,9 +73,20 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
   const openDrawer = useCallback(() => setDrawerOpen(true), []);
   const closeDrawer = useCallback(() => setDrawerOpen(false), []);
   const toggleDesktopSidebar = useCallback(() => setDesktopSidebarCollapsed((x) => !x), []);
+  const setSidebarListMode = useCallback((mode: SidebarListMode) => {
+    setSidebarListModeState(mode);
+    if (mode === 'notes') setSidebarFolderDrilldown(undefined);
+  }, []);
+  const ensureSidebarExpanded = useCallback(() => {
+    if (isMobileSidebar) openDrawer();
+    else setDesktopSidebarCollapsed(false);
+  }, [isMobileSidebar, openDrawer]);
   const toggleInspector = useCallback(() => setInspectorOpen((x) => !x), []);
   const openInspector = useCallback(() => setInspectorOpen(true), []);
   const closeInspector = useCallback(() => setInspectorOpen(false), []);
+  const setPrototypeFolderChip = useCallback((value: PrototypeFolderChip | null) => {
+    setPrototypeFolderChipState(value);
+  }, []);
 
   const value = useMemo(
     () => ({
@@ -67,10 +97,17 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
       isMobileSidebar,
       desktopSidebarCollapsed,
       toggleDesktopSidebar,
+      sidebarListMode,
+      setSidebarListMode,
+      sidebarFolderDrilldown,
+      setSidebarFolderDrilldown,
+      ensureSidebarExpanded,
       inspectorOpen,
       toggleInspector,
       openInspector,
       closeInspector,
+      prototypeFolderChip,
+      setPrototypeFolderChip,
     }),
     [
       drawerOpen,
@@ -80,10 +117,17 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
       isMobileSidebar,
       desktopSidebarCollapsed,
       toggleDesktopSidebar,
+      sidebarListMode,
+      setSidebarListMode,
+      sidebarFolderDrilldown,
+      setSidebarFolderDrilldown,
+      ensureSidebarExpanded,
       inspectorOpen,
       toggleInspector,
       openInspector,
       closeInspector,
+      prototypeFolderChip,
+      setPrototypeFolderChip,
     ],
   );
 

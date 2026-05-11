@@ -2,7 +2,7 @@
  * Standalone search result row for the prototype shell.
  * Renders note title, meta, and excerpt using PDS classes only — no SPA CSS vars.
  */
-import { BookOpen, FileText } from '@phosphor-icons/react';
+import Icon from '@/components/react/Icon';
 import type { SearchResult } from '@/hooks/useSearch';
 
 interface PrototypeSearchResultRowProps {
@@ -14,9 +14,9 @@ export default function PrototypeSearchResultRow({ result }: PrototypeSearchResu
   const primaryRef = (result as { primaryRef?: string | null }).primaryRef ?? null;
 
   const leadingIcon = isScripture ? (
-    <BookOpen size={15} />
+    <Icon name="book" size={15} />
   ) : (
-    <FileText size={15} style={{ opacity: 0.45 }} />
+    <Icon name="note-sticky" size={15} style={{ opacity: 0.45 }} />
   );
 
   const excerptText = (result as { excerpt?: string | null }).excerpt ?? null;

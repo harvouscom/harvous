@@ -1,19 +1,22 @@
 /**
  * Prototype inspector pane — mirrors native NoteInspectorView.
- * Sections: Collection · Tags · Info
+ * Sections: Folder · Tags · Info
  * Standalone — no SPA CSS variables or shared styles.
  */
-import { Stack } from '@phosphor-icons/react';
 import type { NoteDetail } from '../../hooks/queries/useNote';
+import { effectiveNoteFolderLabel } from '@/utils/note-folder-display';
+import Icon from '@/components/react/Icon';
 
 interface PrototypeInspectorPaneProps {
   note: NoteDetail;
 }
 
 export default function PrototypeInspectorPane({ note }: PrototypeInspectorPaneProps) {
-  const collection = extractCollection(note);
+  const folderLabel = effectiveNoteFolderLabel({
+    primaryCollection: note.primaryCollection ?? null,
+    secondaryCollections: note.secondaryCollections ?? [],
+  });
   const tags = note.tags ?? [];
-  const primaryThread = note.threads?.[0];
 
   const createdStr = note.createdAt ? formatDate(new Date(note.createdAt)) : '—';
   const updatedStr = note.updatedAt ? formatDate(new Date(note.updatedAt)) : '—';
@@ -22,16 +25,16 @@ export default function PrototypeInspectorPane({ note }: PrototypeInspectorPaneP
 
   return (
     <div className="proto-inspector">
-      {/* Collection section */}
+      {/* Folder section */}
       <section className="proto-inspector-section">
-        <p className="proto-inspector-section-title">Collection</p>
-        {collection ? (
+        <p className="proto-inspector-section-title">Folder</p>
+        {folderLabel ? (
           <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-            <Stack size={13} style={{ opacity: 0.45, flexShrink: 0 }} />
-            <span className="proto-inspector-body">{collection}</span>
+            <Icon name="folder" size={13} style={{ opacity: 0.45, flexShrink: 0 }} />
+            <span className="proto-inspector-body">{folderLabel}</span>
           </div>
         ) : (
-          <p className="proto-inspector-muted">No collection — auto-generated from note content.</p>
+          <p className="proto-inspector-muted">No folder — auto-generated from note content.</p>
         )}
       </section>
 
@@ -61,9 +64,6 @@ export default function PrototypeInspectorPane({ note }: PrototypeInspectorPaneP
           {note.noteType && note.noteType !== 'default' ? (
             <InspectorRow label="Type" value={capitalize(note.noteType)} />
           ) : null}
-          {primaryThread ? (
-            <InspectorRow label="Thread" value={primaryThread.title || 'Untitled'} />
-          ) : null}
           {note.isPublic ? (
             <InspectorRow label="Visibility" value="Public" />
           ) : null}
@@ -80,13 +80,6 @@ function InspectorRow({ label, value }: { label: string; value: string }) {
       <span className="proto-inspector-row-value">{value}</span>
     </div>
   );
-}
-
-function extractCollection(note: NoteDetail): string | null {
-  const raw = (note as { primaryCollection?: string | null }).primaryCollection;
-  if (!raw) return null;
-  const t = raw.trim();
-  return t.length > 0 ? t : null;
 }
 
 function estimateWords(html: string): number {

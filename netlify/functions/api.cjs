@@ -18131,6 +18131,7 @@ __export(schema_exports, {
   ScriptureMetadata: () => ScriptureMetadata,
   SpaceInvitations: () => SpaceInvitations,
   Spaces: () => Spaces,
+  StudyThreadEntries: () => StudyThreadEntries,
   Tags: () => Tags,
   Threads: () => Threads,
   UserFeaturedItems: () => UserFeaturedItems,
@@ -18144,7 +18145,7 @@ __export(schema_exports, {
   VotdSchedule: () => VotdSchedule,
   WeeklyStreaks: () => WeeklyStreaks
 });
-var ts, Spaces, Threads, Notes, NoteThreads, Comments, Members, SpaceInvitations, UserMetadata, ClerkUserMapping, UserXP, UserSeasonalXP, UserLifetimeXP, WeeklyStreaks, Tags, NoteTags, ScriptureMetadata, NoteScriptureReferences, VerseTextCache, BibleTranslations, BibleVerses, ResourceMetadata, InboxItems, InboxItemNotes, UserInboxItems, FeaturedItems, VotdSchedule, VotdPublishHistory, UserFeaturedItems, MonthlyAnalytics;
+var ts, Spaces, Threads, Notes, NoteThreads, StudyThreadEntries, Comments, Members, SpaceInvitations, UserMetadata, ClerkUserMapping, UserXP, UserSeasonalXP, UserLifetimeXP, WeeklyStreaks, Tags, NoteTags, ScriptureMetadata, NoteScriptureReferences, VerseTextCache, BibleTranslations, BibleVerses, ResourceMetadata, InboxItems, InboxItemNotes, UserInboxItems, FeaturedItems, VotdSchedule, VotdPublishHistory, UserFeaturedItems, MonthlyAnalytics;
 var init_schema2 = __esm({
   "server/db/schema.ts"() {
     "use strict";
@@ -18232,6 +18233,37 @@ var init_schema2 = __esm({
     }, (table) => [
       uniqueIndex("NoteThreads_uniqueNoteThread").on(table.noteId, table.threadId)
     ]);
+    StudyThreadEntries = pgTable(
+      "StudyThreadEntries",
+      {
+        id: text("id").primaryKey(),
+        userId: text("userId").notNull(),
+        parentNoteId: text("parentNoteId").notNull(),
+        spaceId: text("spaceId"),
+        entryKindRaw: text("entryKindRaw").notNull().default("miniNote"),
+        highlightAccentRaw: text("highlightAccentRaw").notNull().default("warmAmber"),
+        sourceSnippet: text("sourceSnippet").notNull().default(""),
+        focusTitle: text("focusTitle").notNull().default(""),
+        notesBody: text("notesBody").notNull().default(""),
+        miniNoteBody: text("miniNoteBody").notNull().default(""),
+        linkedNoteId: text("linkedNoteId"),
+        linkedNoteTitle: text("linkedNoteTitle"),
+        anchorLocation: integer("anchorLocation"),
+        anchorLength: integer("anchorLength"),
+        anchorTextSnapshot: text("anchorTextSnapshot"),
+        scriptureReference: text("scriptureReference"),
+        scripturePassageTranslation: text("scripturePassageTranslation"),
+        scripturePassageExcerpt: text("scripturePassageExcerpt"),
+        isArchived: boolean("isArchived").notNull().default(false),
+        highlightListEditedAt: ts("highlightListEditedAt"),
+        createdAt: ts("createdAt").notNull(),
+        updatedAt: ts("updatedAt")
+      },
+      (table) => [
+        index("StudyThreadEntries_parentNoteIdIndex").on(table.parentNoteId),
+        index("StudyThreadEntries_userIdIndex").on(table.userId)
+      ]
+    );
     Comments = pgTable("Comments", {
       id: text("id").primaryKey(),
       content: text("content").notNull(),
@@ -29347,7 +29379,7 @@ function highlightScriptureReferences(content, references) {
       const leadingSpaces = cleanMatchText.match(/^\s*/)?.[0] || "";
       const trailingSpaces = cleanMatchText.match(/\s*$/)?.[0] || "";
       const translationAttr = translation ? ` data-scripture-translation="${escapeHtmlAttr(translation)}" data-scripture-translation-label="${escapeHtmlAttr(getTranslationAbbreviationDisplay(translation))}"` : "";
-      const wrapped = `<span data-scripture-reference="${cleanText}" data-note-id="${noteId}"${translationAttr} class="scripture-pill scripture-pill-clickable" style="background-color: var(--color-paper); border-radius: 12px; padding: 0px 8px; display: inline-flex; align-items: baseline; height: auto; min-height: 28px; gap: 4px; box-shadow: 0px -3px 0px 0px inset rgba(176,176,176,0.25); font-weight: 600; font-style: normal; font-size: 16px; color: var(--color-deep-grey); vertical-align: baseline; line-height: 1.6; user-select: none; white-space: normal; cursor: pointer;">${cleanText}</span>`;
+      const wrapped = `<span data-scripture-reference="${cleanText}" data-note-id="${noteId}"${translationAttr} class="scripture-pill scripture-pill-clickable" style="background-color: var(--color-paper); border-radius: 12px; padding: 0px 8px; display: inline-flex; align-items: center; height: auto; gap: 4px; box-shadow: 0px -3px 0px 0px inset rgba(176,176,176,0.25); font-weight: 600; font-style: normal; font-size: 16px; color: var(--color-deep-grey); vertical-align: baseline; line-height: 1.6; user-select: none; white-space: normal; cursor: pointer;">${cleanText}</span>`;
       updatedContent = updatedContent.substring(0, index2) + leadingSpaces + wrapped + trailingSpaces + updatedContent.substring(index2 + matchText.length);
     }
   }
@@ -29370,6 +29402,7 @@ __export(ids_exports, {
   generateNoteId: () => generateNoteId,
   generateShareToken: () => generateShareToken,
   generateSpaceId: () => generateSpaceId,
+  generateStudyThreadEntryId: () => generateStudyThreadEntryId,
   generateThreadId: () => generateThreadId,
   generateTimestampId: () => generateTimestampId,
   getNextSimpleNoteId: () => getNextSimpleNoteId,
@@ -29396,6 +29429,9 @@ function generateNoteId() {
 }
 function generateCommentId() {
   return generateTimestampId("comment");
+}
+function generateStudyThreadEntryId() {
+  return generateTimestampId("study");
 }
 function getNextSimpleNoteId(existingNotes) {
   const existingNoteIds = existingNotes.filter((note) => note.noteId !== void 0).map((note) => note.noteId).sort((a, b3) => a - b3);
@@ -68678,7 +68714,7 @@ var HonoRequest = class {
    * ```
    */
   get matchedRoutes() {
-    return this.#matchResult[0].map(([[, route12]]) => route12);
+    return this.#matchResult[0].map(([[, route13]]) => route13);
   }
   /**
    * `routePath()` can retrieve the path registered within the handler
@@ -68697,7 +68733,7 @@ var HonoRequest = class {
    * ```
    */
   get routePath() {
-    return this.#matchResult[0].map(([[, route12]]) => route12)[this.routeIndex].path;
+    return this.#matchResult[0].map(([[, route13]]) => route13)[this.routeIndex].path;
   }
 };
 
@@ -69738,7 +69774,7 @@ function buildMatcherFromPreprocessedRoutes(routes) {
     return nullMatcher;
   }
   const routesWithStaticPathFlag = routes.map(
-    (route12) => [!/\*|\/:/.test(route12[0]), ...route12]
+    (route13) => [!/\*|\/:/.test(route13[0]), ...route13]
   ).sort(
     ([isStaticA, pathA], [isStaticB, pathB]) => isStaticA ? 1 : isStaticB ? -1 : pathA.length - pathB.length
   );
@@ -86153,6 +86189,11 @@ function noteJsonWithParsedSecondaries(note) {
 function isOnboardingSystemNote(note) {
   return note.threadId.startsWith("thread_onboarding_") && note.addedBy === "system";
 }
+function normalizeOwnedNoteSpaceId(spaceId) {
+  if (!spaceId || !spaceId.trim()) return null;
+  const t = spaceId.trim();
+  return t.startsWith("space_") ? t : `space_${t}`;
+}
 var TITLE_HARD_LIMIT = 50;
 var truncateAndCapitalizeTitle = (title) => {
   const truncated = title.slice(0, TITLE_HARD_LIMIT);
@@ -86490,17 +86531,15 @@ route10.put("/api/notes/update", requireAuth, rateLimit("write"), async (c) => {
       await db.update(Threads).set({ updatedAt: nowISO() }).where(and(eq(Threads.id, nt2.threadId), eq(Threads.userId, auth.userId)));
     }
     if (!isEncrypted) {
-      (async () => {
-        try {
-          const r = await generateAutoTags(capitalizedTitle || "", capitalizedContent, auth.userId);
-          if (r.suggestions.length > 0) {
-            await removeAutoTags(noteId);
-            await applyAutoTags(noteId, r.suggestions, auth.userId);
-          }
-        } catch (err) {
-          console.error("[auto-tag] Failed to re-tag note:", noteId, err);
+      try {
+        const r = await generateAutoTags(capitalizedTitle || "", capitalizedContent, auth.userId);
+        if (r.suggestions.length > 0) {
+          await removeAutoTags(noteId);
+          await applyAutoTags(noteId, r.suggestions, auth.userId);
         }
-      })().catch((err) => console.error("[auto-tag] Unhandled re-tag:", noteId, err));
+      } catch (err) {
+        console.error("[auto-tag] Failed to re-tag note:", noteId, err);
+      }
     }
     if (existingNote.noteType === "resource" && resourceImage !== void 0) {
       try {
@@ -86531,6 +86570,61 @@ route10.put("/api/notes/update", requireAuth, rateLimit("write"), async (c) => {
     });
   } catch (error) {
     return c.json({ error: error.message || "Failed to update note" }, 500);
+  }
+});
+route10.post("/api/notes/connect-link", requireAuth, rateLimit("write"), async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const body = await c.req.json().catch(() => ({}));
+    const parentNoteId = typeof body.parentNoteId === "string" ? body.parentNoteId.trim() : "";
+    const linkedNoteId = typeof body.linkedNoteId === "string" ? body.linkedNoteId.trim() : "";
+    if (!parentNoteId || !linkedNoteId) {
+      return c.json({ success: false, error: "parentNoteId and linkedNoteId are required", code: "INVALID_BODY" }, 400);
+    }
+    if (parentNoteId === linkedNoteId) {
+      return c.json({ success: false, error: "Cannot connect a note to itself", code: "SELF_LINK" }, 400);
+    }
+    const parent = first(
+      await db.select().from(Notes).where(and(eq(Notes.id, parentNoteId), eq(Notes.userId, auth.userId))).limit(1)
+    );
+    const linked = first(
+      await db.select().from(Notes).where(and(eq(Notes.id, linkedNoteId), eq(Notes.userId, auth.userId))).limit(1)
+    );
+    if (!parent || !linked) {
+      return c.json({ success: false, error: "Note not found", code: "NOT_FOUND" }, 404);
+    }
+    if (isOnboardingSystemNote(parent) || isOnboardingSystemNote(linked)) {
+      return c.json({ success: false, error: "This note is read-only.", code: "ONBOARDING_NOTE_READ_ONLY" }, 400);
+    }
+    if ((parent.noteType || "default") !== "default" || (linked.noteType || "default") !== "default") {
+      return c.json({ success: false, error: "Only default notes can be linked.", code: "INVALID_NOTE_TYPE" }, 400);
+    }
+    const parentSpace = normalizeOwnedNoteSpaceId(parent.spaceId ?? null);
+    const linkedSpace = normalizeOwnedNoteSpaceId(linked.spaceId ?? null);
+    if (!parentSpace || !linkedSpace || parentSpace !== linkedSpace) {
+      return c.json({ success: false, error: "Both notes must be in the same space.", code: "SPACE_MISMATCH" }, 400);
+    }
+    if (linked.linkedFromNoteId === parentNoteId) {
+      return c.json({ success: true, alreadyLinked: true, linkedNoteId });
+    }
+    let walk = parentNoteId;
+    const seen = /* @__PURE__ */ new Set();
+    while (walk && !seen.has(walk)) {
+      seen.add(walk);
+      if (walk === linkedNoteId) {
+        return c.json({ success: false, error: "That link would create a cycle.", code: "LINK_CYCLE" }, 400);
+      }
+      const row = first(
+        await db.select({ linkedFromNoteId: Notes.linkedFromNoteId }).from(Notes).where(and(eq(Notes.id, walk), eq(Notes.userId, auth.userId))).limit(1)
+      );
+      walk = row?.linkedFromNoteId ?? null;
+    }
+    await db.update(Notes).set({ linkedFromNoteId: parentNoteId, updatedAt: nowISO() }).where(and(eq(Notes.id, linkedNoteId), eq(Notes.userId, auth.userId)));
+    await db.update(Notes).set({ updatedAt: nowISO() }).where(and(eq(Notes.id, parentNoteId), eq(Notes.userId, auth.userId)));
+    return c.json({ success: true });
+  } catch (error) {
+    const standardError = handleAPIError(error, { endpoint: "/api/notes/connect-link", action: "connect_link" });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
 route10.delete("/api/notes/delete", requireAuth, rateLimit("write"), async (c) => {
@@ -87046,6 +87140,84 @@ route10.get("/api/notes/:id/details", requireAuth, async (c) => {
         linkedFromNotes = [];
       }
     }
+    let linkedToNotes = [];
+    if (!isMemberView && note.userId === auth.userId) {
+      try {
+        const outgoingRows = await db.select({
+          id: Notes.id,
+          title: Notes.title,
+          content: Notes.content,
+          simpleNoteId: Notes.simpleNoteId,
+          noteType: Notes.noteType,
+          createdAt: Notes.createdAt,
+          updatedAt: Notes.updatedAt
+        }).from(Notes).where(
+          and(
+            eq(Notes.linkedFromNoteId, noteId),
+            eq(Notes.userId, auth.userId),
+            eq(Notes.noteType, "default")
+          )
+        ).orderBy(desc(Notes.updatedAt)).limit(50);
+        const ltResourceIds = outgoingRows.filter((r) => r.noteType === "resource").map((r) => r.id);
+        let ltResourceMap = {};
+        if (ltResourceIds.length > 0) {
+          try {
+            const rmList = await db.select({
+              noteId: ResourceMetadata.noteId,
+              sourceTitle: ResourceMetadata.sourceTitle,
+              sourceDescription: ResourceMetadata.sourceDescription,
+              sourceImage: ResourceMetadata.sourceImage
+            }).from(ResourceMetadata).where(inArray(ResourceMetadata.noteId, ltResourceIds));
+            ltResourceMap = Object.fromEntries(rmList.map((m2) => [m2.noteId, m2]));
+          } catch {
+            ltResourceMap = {};
+          }
+        }
+        linkedToNotes = outgoingRows.map((row) => {
+          const rm = row.noteType === "resource" ? ltResourceMap[row.id] : null;
+          return {
+            ...row,
+            noteType: row.noteType || "default",
+            resourceTitle: rm?.sourceTitle ?? null,
+            resourceDescription: rm?.sourceDescription ?? null,
+            resourceImage: rm?.sourceImage ?? null
+          };
+        });
+      } catch {
+        linkedToNotes = [];
+      }
+    }
+    let studyThreads = [];
+    if (!isMemberView && note.userId === auth.userId) {
+      try {
+        const stRows = await db.select().from(StudyThreadEntries).where(and(eq(StudyThreadEntries.parentNoteId, noteId), eq(StudyThreadEntries.userId, auth.userId))).orderBy(desc(StudyThreadEntries.highlightListEditedAt), desc(StudyThreadEntries.createdAt));
+        studyThreads = stRows.map((row) => ({
+          id: row.id,
+          parentNoteId: row.parentNoteId,
+          spaceId: row.spaceId,
+          entryKind: row.entryKindRaw,
+          highlightAccentRaw: row.highlightAccentRaw,
+          sourceSnippet: row.sourceSnippet,
+          focusTitle: row.focusTitle,
+          notesBody: row.notesBody,
+          miniNoteBody: row.miniNoteBody,
+          linkedNoteId: row.linkedNoteId,
+          linkedNoteTitle: row.linkedNoteTitle,
+          anchorLocation: row.anchorLocation,
+          anchorLength: row.anchorLength,
+          anchorTextSnapshot: row.anchorTextSnapshot,
+          scriptureReference: row.scriptureReference,
+          scripturePassageTranslation: row.scripturePassageTranslation,
+          scripturePassageExcerpt: row.scripturePassageExcerpt,
+          isArchived: row.isArchived,
+          highlightListEditedAt: row.highlightListEditedAt,
+          createdAt: row.createdAt,
+          updatedAt: row.updatedAt
+        }));
+      } catch {
+        studyThreads = [];
+      }
+    }
     return c.json({
       success: true,
       note: {
@@ -87064,7 +87236,9 @@ route10.get("/api/notes/:id/details", requireAuth, async (c) => {
       comments: comments.map((c2) => ({ id: c2.id, content: c2.content, createdAt: c2.createdAt, updatedAt: c2.updatedAt })),
       tags: noteTags.map((t) => ({ id: t.id, name: t.name, color: t.color, category: t.category, isSystem: t.isSystem, isAutoGenerated: t.isAutoGenerated, confidence: t.confidence })),
       referencingNotes,
-      linkedFromNotes
+      linkedFromNotes,
+      linkedToNotes,
+      studyThreads
     });
   } catch (error) {
     const standardError = handleAPIError(error, { endpoint: "/api/notes/[id]/details", action: "get_note_details" });
@@ -87347,6 +87521,195 @@ route10.post("/api/notes/:noteId/share", requireAuth, rateLimit("write"), async 
 });
 var notes_default = route10;
 
+// server/routes/study-threads.ts
+init_db2();
+init_dates();
+init_ids();
+init_scripture_detector();
+var route11 = new Hono2();
+var ENTRY_KINDS = /* @__PURE__ */ new Set(["workspace", "miniNote", "linkedNote", "scriptureLink"]);
+function mapStudyRow(row) {
+  return {
+    id: row.id,
+    userId: row.userId,
+    parentNoteId: row.parentNoteId,
+    spaceId: row.spaceId,
+    entryKind: row.entryKindRaw,
+    highlightAccentRaw: row.highlightAccentRaw,
+    sourceSnippet: row.sourceSnippet,
+    focusTitle: row.focusTitle,
+    notesBody: row.notesBody,
+    miniNoteBody: row.miniNoteBody,
+    linkedNoteId: row.linkedNoteId,
+    linkedNoteTitle: row.linkedNoteTitle,
+    anchorLocation: row.anchorLocation,
+    anchorLength: row.anchorLength,
+    anchorTextSnapshot: row.anchorTextSnapshot,
+    scriptureReference: row.scriptureReference,
+    scripturePassageTranslation: row.scripturePassageTranslation,
+    scripturePassageExcerpt: row.scripturePassageExcerpt,
+    isArchived: row.isArchived,
+    highlightListEditedAt: row.highlightListEditedAt,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt
+  };
+}
+route11.get("/api/notes/:parentNoteId/study-threads", requireAuth, async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const parentNoteId = c.req.param("parentNoteId");
+    const parent = first(
+      await db.select().from(Notes).where(and(eq(Notes.id, parentNoteId), eq(Notes.userId, auth.userId))).limit(1)
+    );
+    if (!parent) return c.json({ error: "Note not found" }, 404);
+    const rows = await db.select().from(StudyThreadEntries).where(and(eq(StudyThreadEntries.parentNoteId, parentNoteId), eq(StudyThreadEntries.userId, auth.userId))).orderBy(desc(StudyThreadEntries.highlightListEditedAt), desc(StudyThreadEntries.createdAt));
+    return c.json({
+      success: true,
+      studyThreads: rows.map(mapStudyRow)
+    });
+  } catch (error) {
+    const e = handleAPIError(error, { endpoint: "/api/notes/[parentNoteId]/study-threads", action: "list_study_threads" });
+    return c.json({ error: e.message, code: e.code }, 500);
+  }
+});
+route11.get("/api/notes/:parentNoteId/study-threads/by-scripture", requireAuth, async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const parentNoteId = c.req.param("parentNoteId");
+    const refRaw = c.req.query("reference") ?? "";
+    const translation = (c.req.query("translation") ?? "").trim() || "NET";
+    const norm = normalizeScriptureReference(refRaw.trim()) ?? refRaw.trim();
+    if (!norm) return c.json({ error: "reference query required" }, 400);
+    const parent = first(
+      await db.select().from(Notes).where(and(eq(Notes.id, parentNoteId), eq(Notes.userId, auth.userId))).limit(1)
+    );
+    if (!parent) return c.json({ error: "Note not found" }, 404);
+    const rows = await db.select().from(StudyThreadEntries).where(
+      and(
+        eq(StudyThreadEntries.parentNoteId, parentNoteId),
+        eq(StudyThreadEntries.userId, auth.userId),
+        eq(StudyThreadEntries.scriptureReference, norm),
+        eq(StudyThreadEntries.scripturePassageTranslation, translation)
+      )
+    ).orderBy(desc(StudyThreadEntries.createdAt));
+    return c.json({
+      success: true,
+      studyThreads: rows.map(mapStudyRow)
+    });
+  } catch (error) {
+    const e = handleAPIError(error, { endpoint: "/api/notes/[parentNoteId]/study-threads/by-scripture", action: "by_scripture" });
+    return c.json({ error: e.message, code: e.code }, 500);
+  }
+});
+route11.post("/api/notes/:parentNoteId/study-threads", requireAuth, rateLimit("write"), async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const parentNoteId = c.req.param("parentNoteId");
+    const parent = first(
+      await db.select().from(Notes).where(and(eq(Notes.id, parentNoteId), eq(Notes.userId, auth.userId))).limit(1)
+    );
+    if (!parent) return c.json({ error: "Note not found" }, 404);
+    const body = await c.req.json();
+    const entryKind = typeof body.entryKind === "string" ? body.entryKind : "miniNote";
+    if (!ENTRY_KINDS.has(entryKind)) {
+      return c.json({ error: "Invalid entryKind", code: "INVALID_ENTRY_KIND" }, 400);
+    }
+    const highlightAccentRaw = typeof body.highlightAccentRaw === "string" && body.highlightAccentRaw.trim() ? body.highlightAccentRaw.trim() : "warmAmber";
+    const sourceSnippet = typeof body.sourceSnippet === "string" ? body.sourceSnippet : "";
+    const focusTitle = typeof body.focusTitle === "string" ? body.focusTitle : "";
+    const notesBody = typeof body.notesBody === "string" ? body.notesBody : "";
+    const miniNoteBody = typeof body.miniNoteBody === "string" ? body.miniNoteBody : "";
+    const id = generateStudyThreadEntryId();
+    const now2 = nowISO();
+    const spaceId = typeof parent.spaceId === "string" && parent.spaceId ? parent.spaceId : null;
+    await db.insert(StudyThreadEntries).values({
+      id,
+      userId: auth.userId,
+      parentNoteId,
+      spaceId,
+      entryKindRaw: entryKind,
+      highlightAccentRaw,
+      sourceSnippet,
+      focusTitle,
+      notesBody,
+      miniNoteBody,
+      linkedNoteId: typeof body.linkedNoteId === "string" ? body.linkedNoteId : null,
+      linkedNoteTitle: typeof body.linkedNoteTitle === "string" ? body.linkedNoteTitle : null,
+      anchorLocation: typeof body.anchorLocation === "number" ? body.anchorLocation : null,
+      anchorLength: typeof body.anchorLength === "number" ? body.anchorLength : null,
+      anchorTextSnapshot: typeof body.anchorTextSnapshot === "string" ? body.anchorTextSnapshot : null,
+      scriptureReference: typeof body.scriptureReference === "string" ? normalizeScriptureReference(body.scriptureReference.trim()) ?? body.scriptureReference : null,
+      scripturePassageTranslation: typeof body.scripturePassageTranslation === "string" ? body.scripturePassageTranslation : null,
+      scripturePassageExcerpt: typeof body.scripturePassageExcerpt === "string" ? body.scripturePassageExcerpt : null,
+      isArchived: false,
+      highlightListEditedAt: now2,
+      createdAt: now2,
+      updatedAt: now2
+    });
+    const row = first(await db.select().from(StudyThreadEntries).where(eq(StudyThreadEntries.id, id)).limit(1));
+    return c.json({ success: true, studyThread: row ? mapStudyRow(row) : null });
+  } catch (error) {
+    const e = handleAPIError(error, { endpoint: "/api/notes/[parentNoteId]/study-threads", action: "create_study_thread" });
+    return c.json({ error: e.message, code: e.code }, 500);
+  }
+});
+route11.patch("/api/study-threads/:id", requireAuth, rateLimit("write"), async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const id = c.req.param("id");
+    const existing = first(
+      await db.select().from(StudyThreadEntries).where(and(eq(StudyThreadEntries.id, id), eq(StudyThreadEntries.userId, auth.userId))).limit(1)
+    );
+    if (!existing) return c.json({ error: "Study thread not found" }, 404);
+    const body = await c.req.json();
+    const patch = { updatedAt: nowISO() };
+    if (typeof body.highlightAccentRaw === "string") {
+      patch.highlightAccentRaw = body.highlightAccentRaw;
+      patch.highlightListEditedAt = nowISO();
+    }
+    if (typeof body.sourceSnippet === "string") patch.sourceSnippet = body.sourceSnippet;
+    if (typeof body.focusTitle === "string") patch.focusTitle = body.focusTitle;
+    if (typeof body.notesBody === "string") patch.notesBody = body.notesBody;
+    if (typeof body.miniNoteBody === "string") patch.miniNoteBody = body.miniNoteBody;
+    if (typeof body.linkedNoteId === "string" || body.linkedNoteId === null) patch.linkedNoteId = body.linkedNoteId;
+    if (typeof body.linkedNoteTitle === "string") patch.linkedNoteTitle = body.linkedNoteTitle;
+    if (typeof body.anchorLocation === "number" || body.anchorLocation === null) patch.anchorLocation = body.anchorLocation;
+    if (typeof body.anchorLength === "number" || body.anchorLength === null) patch.anchorLength = body.anchorLength;
+    if (typeof body.anchorTextSnapshot === "string" || body.anchorTextSnapshot === null) {
+      patch.anchorTextSnapshot = body.anchorTextSnapshot;
+    }
+    if (typeof body.scriptureReference === "string") {
+      patch.scriptureReference = normalizeScriptureReference(body.scriptureReference.trim()) ?? body.scriptureReference;
+    }
+    if (typeof body.scripturePassageTranslation === "string") patch.scripturePassageTranslation = body.scripturePassageTranslation;
+    if (typeof body.scripturePassageExcerpt === "string") patch.scripturePassageExcerpt = body.scripturePassageExcerpt;
+    if (typeof body.isArchived === "boolean") patch.isArchived = body.isArchived;
+    if (typeof body.entryKind === "string" && ENTRY_KINDS.has(body.entryKind)) patch.entryKindRaw = body.entryKind;
+    await db.update(StudyThreadEntries).set(patch).where(and(eq(StudyThreadEntries.id, id), eq(StudyThreadEntries.userId, auth.userId)));
+    const row = first(await db.select().from(StudyThreadEntries).where(eq(StudyThreadEntries.id, id)).limit(1));
+    return c.json({ success: true, studyThread: row ? mapStudyRow(row) : null });
+  } catch (error) {
+    const e = handleAPIError(error, { endpoint: "/api/study-threads/[id]", action: "patch_study_thread" });
+    return c.json({ error: e.message, code: e.code }, 500);
+  }
+});
+route11.delete("/api/study-threads/:id", requireAuth, rateLimit("write"), async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const id = c.req.param("id");
+    const existing = first(
+      await db.select().from(StudyThreadEntries).where(and(eq(StudyThreadEntries.id, id), eq(StudyThreadEntries.userId, auth.userId))).limit(1)
+    );
+    if (!existing) return c.json({ error: "Study thread not found" }, 404);
+    await db.delete(StudyThreadEntries).where(and(eq(StudyThreadEntries.id, id), eq(StudyThreadEntries.userId, auth.userId)));
+    return c.json({ success: true, deletedId: id });
+  } catch (error) {
+    const e = handleAPIError(error, { endpoint: "/api/study-threads/[id]", action: "delete_study_thread" });
+    return c.json({ error: e.message, code: e.code }, 500);
+  }
+});
+var study_threads_default = route11;
+
 // server/routes/spaces.ts
 init_db2();
 init_dates();
@@ -87524,7 +87887,7 @@ function idToUrl(id, threadContext, fromNoteId) {
 }
 
 // server/routes/spaces.ts
-var route11 = new Hono2();
+var route12 = new Hono2();
 function parseItemIds(raw2) {
   if (!raw2) return [];
   const trimmed = raw2.trim();
@@ -87539,7 +87902,7 @@ function parseItemIds(raw2) {
   }
   return trimmed.split(",").filter((id) => id.trim());
 }
-route11.post("/api/spaces/create", requireAuth, rateLimit("write"), async (c) => {
+route12.post("/api/spaces/create", requireAuth, rateLimit("write"), async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const formData = await c.req.formData();
@@ -87604,7 +87967,7 @@ route11.post("/api/spaces/create", requireAuth, rateLimit("write"), async (c) =>
     return c.json({ error: error.message || "Error creating space" }, 500);
   }
 });
-route11.delete("/api/spaces/delete", requireAuth, async (c) => {
+route12.delete("/api/spaces/delete", requireAuth, async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const spaceId = c.req.query("spaceId");
@@ -87628,7 +87991,7 @@ route11.delete("/api/spaces/delete", requireAuth, async (c) => {
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-route11.get("/api/spaces/items", requireAuth, async (c) => {
+route12.get("/api/spaces/items", requireAuth, async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const allNotesRaw = await db.select({
@@ -87722,7 +88085,7 @@ route11.get("/api/spaces/items", requireAuth, async (c) => {
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-route11.post("/api/spaces/:spaceId/update", requireAuth, rateLimit("write"), async (c) => {
+route12.post("/api/spaces/:spaceId/update", requireAuth, rateLimit("write"), async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const spaceId = requireParam(c, "spaceId");
@@ -87757,7 +88120,7 @@ route11.post("/api/spaces/:spaceId/update", requireAuth, rateLimit("write"), asy
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-route11.get("/api/spaces/:spaceId/notes", requireAuth, async (c) => {
+route12.get("/api/spaces/:spaceId/notes", requireAuth, async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const spaceId = requireParam(c, "spaceId");
@@ -87770,7 +88133,54 @@ route11.get("/api/spaces/:spaceId/notes", requireAuth, async (c) => {
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-route11.get("/api/spaces/:spaceId/items", requireAuth, async (c) => {
+route12.get("/api/spaces/:spaceId/connect-note-candidates", requireAuth, async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const spaceIdRaw = requireParam(c, "spaceId");
+    const spaceIdNorm = spaceIdRaw.startsWith("space_") ? spaceIdRaw : `space_${spaceIdRaw}`;
+    try {
+      await requireSpaceAccess(spaceIdNorm, auth.userId);
+    } catch (err) {
+      if (err instanceof SpaceAccessError) return c.json({ error: err.message, code: err.code }, err.status);
+      throw err;
+    }
+    const q2 = (c.req.query("q") ?? "").trim();
+    const excludeNoteIdRaw = (c.req.query("excludeNoteId") ?? "").trim();
+    if (q2.length < 1) {
+      return c.json({ notes: [] });
+    }
+    const limitParsed = parseInt(c.req.query("limit") || "15", 10);
+    const limit = Math.min(Number.isFinite(limitParsed) ? limitParsed : 15, 30);
+    const pattern = `%${q2}%`;
+    const filters2 = [
+      eq(Notes.userId, auth.userId),
+      eq(Notes.spaceId, spaceIdNorm),
+      eq(Notes.noteType, "default"),
+      sql`COALESCE(${Notes.title}, '') ILIKE ${pattern}`
+    ];
+    if (excludeNoteIdRaw) filters2.push(ne(Notes.id, excludeNoteIdRaw));
+    const rows = await db.select({
+      id: Notes.id,
+      title: Notes.title,
+      noteType: Notes.noteType,
+      updatedAt: Notes.updatedAt
+    }).from(Notes).where(and(...filters2)).orderBy(desc(Notes.updatedAt)).limit(limit);
+    return c.json({
+      notes: rows.map((r) => ({
+        id: r.id,
+        title: r.title ?? "",
+        noteType: r.noteType || "default"
+      }))
+    });
+  } catch (error) {
+    const standardError = handleAPIError(error, {
+      endpoint: "/api/spaces/[spaceId]/connect-note-candidates",
+      action: "connect_note_candidates"
+    });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+route12.get("/api/spaces/:spaceId/items", requireAuth, async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const spaceId = requireParam(c, "spaceId");
@@ -87799,7 +88209,7 @@ route11.get("/api/spaces/:spaceId/items", requireAuth, async (c) => {
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-route11.get("/api/spaces/:spaceId/bootstrap", requireAuth, async (c) => {
+route12.get("/api/spaces/:spaceId/bootstrap", requireAuth, async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const spaceId = requireParam(c, "spaceId");
@@ -87837,7 +88247,7 @@ route11.get("/api/spaces/:spaceId/bootstrap", requireAuth, async (c) => {
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-route11.get("/api/spaces/:spaceId/prefetch", requireAuth, async (c) => {
+route12.get("/api/spaces/:spaceId/prefetch", requireAuth, async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const spaceId = requireParam(c, "spaceId");
@@ -87881,7 +88291,7 @@ route11.get("/api/spaces/:spaceId/prefetch", requireAuth, async (c) => {
     return c.json({ error: "Failed to fetch space data" }, 500);
   }
 });
-route11.post("/api/spaces/:spaceId/add-note", requireAuth, rateLimit("write"), async (c) => {
+route12.post("/api/spaces/:spaceId/add-note", requireAuth, rateLimit("write"), async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const spaceId = requireParam(c, "spaceId");
@@ -87903,7 +88313,7 @@ route11.post("/api/spaces/:spaceId/add-note", requireAuth, rateLimit("write"), a
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-route11.post("/api/spaces/:spaceId/add-thread", requireAuth, rateLimit("write"), async (c) => {
+route12.post("/api/spaces/:spaceId/add-thread", requireAuth, rateLimit("write"), async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const spaceId = requireParam(c, "spaceId");
@@ -87927,7 +88337,7 @@ route11.post("/api/spaces/:spaceId/add-thread", requireAuth, rateLimit("write"),
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-route11.post("/api/spaces/:spaceId/add-items", requireAuth, async (c) => {
+route12.post("/api/spaces/:spaceId/add-items", requireAuth, async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const spaceId = requireParam(c, "spaceId");
@@ -87985,7 +88395,7 @@ route11.post("/api/spaces/:spaceId/add-items", requireAuth, async (c) => {
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-route11.post("/api/spaces/:spaceId/remove-items", requireAuth, async (c) => {
+route12.post("/api/spaces/:spaceId/remove-items", requireAuth, async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const spaceId = requireParam(c, "spaceId");
@@ -88045,7 +88455,7 @@ route11.post("/api/spaces/:spaceId/remove-items", requireAuth, async (c) => {
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-route11.post("/api/spaces/:spaceId/pin-item", requireAuth, async (c) => {
+route12.post("/api/spaces/:spaceId/pin-item", requireAuth, async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const spaceId = requireParam(c, "spaceId");
@@ -88080,7 +88490,7 @@ route11.post("/api/spaces/:spaceId/pin-item", requireAuth, async (c) => {
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-route11.get("/api/spaces/:spaceId/share-link", requireAuth, async (c) => {
+route12.get("/api/spaces/:spaceId/share-link", requireAuth, async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const spaceId = requireParam(c, "spaceId");
@@ -88108,7 +88518,7 @@ route11.get("/api/spaces/:spaceId/share-link", requireAuth, async (c) => {
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-route11.post("/api/spaces/:spaceId/share-link", requireAuth, rateLimit("write"), async (c) => {
+route12.post("/api/spaces/:spaceId/share-link", requireAuth, rateLimit("write"), async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const spaceId = requireParam(c, "spaceId");
@@ -88125,7 +88535,7 @@ route11.post("/api/spaces/:spaceId/share-link", requireAuth, rateLimit("write"),
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-route11.get("/api/spaces/:spaceId/members", requireAuth, async (c) => {
+route12.get("/api/spaces/:spaceId/members", requireAuth, async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const spaceId = requireParam(c, "spaceId");
@@ -88214,7 +88624,7 @@ route11.get("/api/spaces/:spaceId/members", requireAuth, async (c) => {
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-route11.post("/api/spaces/:spaceId/members/invite", requireAuth, rateLimit("write"), async (c) => {
+route12.post("/api/spaces/:spaceId/members/invite", requireAuth, rateLimit("write"), async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const spaceId = requireParam(c, "spaceId");
@@ -88254,7 +88664,7 @@ route11.post("/api/spaces/:spaceId/members/invite", requireAuth, rateLimit("writ
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-route11.delete("/api/spaces/:spaceId/members/:userId", requireAuth, rateLimit("write"), async (c) => {
+route12.delete("/api/spaces/:spaceId/members/:userId", requireAuth, rateLimit("write"), async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const spaceId = requireParam(c, "spaceId");
@@ -88274,7 +88684,7 @@ route11.delete("/api/spaces/:spaceId/members/:userId", requireAuth, rateLimit("w
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-route11.post("/api/spaces/join/:token", requireAuth, rateLimit("write"), async (c) => {
+route12.post("/api/spaces/join/:token", requireAuth, rateLimit("write"), async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const token = requireParam(c, "token");
@@ -88303,7 +88713,7 @@ route11.post("/api/spaces/join/:token", requireAuth, rateLimit("write"), async (
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-route11.get("/api/spaces/join-preview/:token", async (c) => {
+route12.get("/api/spaces/join-preview/:token", async (c) => {
   try {
     const token = requireParam(c, "token");
     const space = first(await db.select().from(Spaces).where(eq(Spaces.shareToken, token)).limit(1));
@@ -88408,7 +88818,7 @@ route11.get("/api/spaces/join-preview/:token", async (c) => {
     return c.json({ error: "Failed to load space preview" }, 500);
   }
 });
-var spaces_default = route11;
+var spaces_default = route12;
 
 // server/routes/user.ts
 init_db2();
@@ -93211,6 +93621,82 @@ async function processNoteTagMutation(userId, operation, entityId, data) {
   }
   return { success: false, error: `Unknown operation: ${operation}` };
 }
+async function processStudyThreadEntryMutation(userId, operation, entityId, data) {
+  const ENTRY_KINDS2 = /* @__PURE__ */ new Set(["workspace", "miniNote", "linkedNote", "scriptureLink"]);
+  if (operation === "create") {
+    const parentNoteId = data?.parentNoteId;
+    if (!parentNoteId) return { success: false, error: "parentNoteId required" };
+    const note = first(await db.select().from(Notes).where(and(eq(Notes.id, parentNoteId), eq(Notes.userId, userId))).limit(1));
+    if (!note) return { success: false, error: "Note not found" };
+    const id = entityId.startsWith("local_") ? generateStudyThreadEntryId() : entityId;
+    const entryKind = typeof data.entryKind === "string" && ENTRY_KINDS2.has(data.entryKind) ? data.entryKind : "miniNote";
+    const now2 = nowISO();
+    const spaceId = typeof note.spaceId === "string" && note.spaceId ? note.spaceId : null;
+    await db.insert(StudyThreadEntries).values({
+      id,
+      userId,
+      parentNoteId,
+      spaceId,
+      entryKindRaw: entryKind,
+      highlightAccentRaw: typeof data.highlightAccentRaw === "string" ? data.highlightAccentRaw : "warmAmber",
+      sourceSnippet: typeof data.sourceSnippet === "string" ? data.sourceSnippet : "",
+      focusTitle: typeof data.focusTitle === "string" ? data.focusTitle : "",
+      notesBody: typeof data.notesBody === "string" ? data.notesBody : "",
+      miniNoteBody: typeof data.miniNoteBody === "string" ? data.miniNoteBody : "",
+      linkedNoteId: typeof data.linkedNoteId === "string" ? data.linkedNoteId : null,
+      linkedNoteTitle: typeof data.linkedNoteTitle === "string" ? data.linkedNoteTitle : null,
+      anchorLocation: typeof data.anchorLocation === "number" ? data.anchorLocation : null,
+      anchorLength: typeof data.anchorLength === "number" ? data.anchorLength : null,
+      anchorTextSnapshot: typeof data.anchorTextSnapshot === "string" ? data.anchorTextSnapshot : null,
+      scriptureReference: typeof data.scriptureReference === "string" ? normalizeScriptureReference(data.scriptureReference.trim()) ?? data.scriptureReference : null,
+      scripturePassageTranslation: typeof data.scripturePassageTranslation === "string" ? data.scripturePassageTranslation : null,
+      scripturePassageExcerpt: typeof data.scripturePassageExcerpt === "string" ? data.scripturePassageExcerpt : null,
+      isArchived: false,
+      highlightListEditedAt: now2,
+      createdAt: now2,
+      updatedAt: now2
+    });
+    return { success: true, entityId, serverId: id };
+  }
+  if (operation === "update") {
+    const existing = first(
+      await db.select().from(StudyThreadEntries).where(and(eq(StudyThreadEntries.id, entityId), eq(StudyThreadEntries.userId, userId))).limit(1)
+    );
+    if (!existing) return { success: false, error: "Study thread entry not found" };
+    const patch = { updatedAt: nowISO() };
+    if (typeof data.highlightAccentRaw === "string") {
+      patch.highlightAccentRaw = data.highlightAccentRaw;
+      patch.highlightListEditedAt = nowISO();
+    }
+    if (typeof data.sourceSnippet === "string") patch.sourceSnippet = data.sourceSnippet;
+    if (typeof data.focusTitle === "string") patch.focusTitle = data.focusTitle;
+    if (typeof data.notesBody === "string") patch.notesBody = data.notesBody;
+    if (typeof data.miniNoteBody === "string") patch.miniNoteBody = data.miniNoteBody;
+    if (typeof data.linkedNoteId === "string" || data.linkedNoteId === null) patch.linkedNoteId = data.linkedNoteId;
+    if (typeof data.linkedNoteTitle === "string") patch.linkedNoteTitle = data.linkedNoteTitle;
+    if (typeof data.anchorLocation === "number" || data.anchorLocation === null) patch.anchorLocation = data.anchorLocation;
+    if (typeof data.anchorLength === "number" || data.anchorLength === null) patch.anchorLength = data.anchorLength;
+    if (typeof data.anchorTextSnapshot === "string" || data.anchorTextSnapshot === null) patch.anchorTextSnapshot = data.anchorTextSnapshot;
+    if (typeof data.scriptureReference === "string") {
+      patch.scriptureReference = normalizeScriptureReference(data.scriptureReference.trim()) ?? data.scriptureReference;
+    }
+    if (typeof data.scripturePassageTranslation === "string") patch.scripturePassageTranslation = data.scripturePassageTranslation;
+    if (typeof data.scripturePassageExcerpt === "string") patch.scripturePassageExcerpt = data.scripturePassageExcerpt;
+    if (typeof data.isArchived === "boolean") patch.isArchived = data.isArchived;
+    if (typeof data.entryKind === "string" && ENTRY_KINDS2.has(data.entryKind)) patch.entryKindRaw = data.entryKind;
+    await db.update(StudyThreadEntries).set(patch).where(and(eq(StudyThreadEntries.id, entityId), eq(StudyThreadEntries.userId, userId)));
+    return { success: true, entityId, serverId: entityId };
+  }
+  if (operation === "delete") {
+    const existing = first(
+      await db.select().from(StudyThreadEntries).where(and(eq(StudyThreadEntries.id, entityId), eq(StudyThreadEntries.userId, userId))).limit(1)
+    );
+    if (!existing) return { success: false, error: "Study thread entry not found" };
+    await db.delete(StudyThreadEntries).where(and(eq(StudyThreadEntries.id, entityId), eq(StudyThreadEntries.userId, userId)));
+    return { success: true, entityId, serverId: entityId };
+  }
+  return { success: false, error: `Unknown operation: ${operation}` };
+}
 app9.post("/api/sync/push", requireAuth, async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
@@ -93265,6 +93751,9 @@ app9.post("/api/sync/push", requireAuth, async (c) => {
           case "noteTag":
             result = await processNoteTagMutation(auth.userId, operation, entityId, data);
             break;
+          case "studyThreadEntry":
+            result = await processStudyThreadEntryMutation(auth.userId, operation, entityId, data);
+            break;
           default:
             result = { success: false, error: `Unknown entity type: ${entityType}` };
         }
@@ -93282,7 +93771,7 @@ app9.post("/api/sync/push", requireAuth, async (c) => {
 app9.get("/api/sync/bootstrap", requireAuth, async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
-    const [spaces, threads, notes, noteThreads, tags, noteTags, userMetadataRows] = await Promise.all([
+    const [spaces, threads, notes, noteThreads, tags, noteTags, studyThreadEntries, userMetadataRows] = await Promise.all([
       db.select({
         id: Spaces.id,
         title: Spaces.title,
@@ -93354,6 +93843,7 @@ app9.get("/api/sync/bootstrap", requireAuth, async (c) => {
         confidence: NoteTags.confidence,
         createdAt: NoteTags.createdAt
       }).from(NoteTags).innerJoin(Notes, eq(Notes.id, NoteTags.noteId)).where(eq(Notes.userId, auth.userId)),
+      db.select().from(StudyThreadEntries).where(eq(StudyThreadEntries.userId, auth.userId)),
       db.select({
         id: UserMetadata.id,
         userId: UserMetadata.userId,
@@ -93402,6 +93892,7 @@ app9.get("/api/sync/bootstrap", requireAuth, async (c) => {
       noteThreads,
       tags,
       noteTags,
+      studyThreadEntries,
       userMetadata: userMetaForResponse ? (() => {
         const { lockPinHash, ...rest } = userMetaForResponse;
         return {
@@ -93431,7 +93922,7 @@ app9.get("/api/sync/changes", requireAuth, async (c) => {
       if (isNaN(sinceTimestamp)) return c.json({ error: "Invalid since parameter format", code: "INVALID_PARAMETER" }, 400);
     }
     const sinceDate = new Date(sinceTimestamp);
-    const [changedSpaces, changedThreads, changedNotes, changedNoteThreads, changedTags, changedNoteTags, changedUserMetadataRows] = await Promise.all([
+    const [changedSpaces, changedThreads, changedNotes, changedNoteThreads, changedTags, changedNoteTags, changedStudyThreadEntries, changedUserMetadataRows] = await Promise.all([
       db.select({
         id: Spaces.id,
         title: Spaces.title,
@@ -93503,6 +93994,7 @@ app9.get("/api/sync/changes", requireAuth, async (c) => {
         confidence: NoteTags.confidence,
         createdAt: NoteTags.createdAt
       }).from(NoteTags).innerJoin(Notes, eq(Notes.id, NoteTags.noteId)).where(and(eq(Notes.userId, auth.userId), gt(NoteTags.createdAt, sinceDate))),
+      db.select().from(StudyThreadEntries).where(and(eq(StudyThreadEntries.userId, auth.userId), or(gt(StudyThreadEntries.updatedAt, sinceDate), gt(StudyThreadEntries.createdAt, sinceDate)))),
       db.select({
         id: UserMetadata.id,
         userId: UserMetadata.userId,
@@ -93543,13 +94035,14 @@ app9.get("/api/sync/changes", requireAuth, async (c) => {
     const changes = {
       timestamp: (/* @__PURE__ */ new Date()).toISOString(),
       cursor: `timestamp_${Date.now()}`,
-      hasChanges: changedSpaces.length > 0 || changedThreads.length > 0 || changedNotes.length > 0 || changedNoteThreads.length > 0 || changedTags.length > 0 || changedNoteTags.length > 0 || changedUserMetadata !== null && changedUserMetadata !== void 0,
+      hasChanges: changedSpaces.length > 0 || changedThreads.length > 0 || changedNotes.length > 0 || changedNoteThreads.length > 0 || changedTags.length > 0 || changedNoteTags.length > 0 || changedStudyThreadEntries.length > 0 || changedUserMetadata !== null && changedUserMetadata !== void 0,
       spaces: changedSpaces,
       threads: changedThreads,
       notes: changedNotes.map((n) => ({ ...n, secondaryCollections: parseNoteSecondaryCollections(n.secondaryCollections) })),
       noteThreads: changedNoteThreads,
       tags: changedTags,
       noteTags: changedNoteTags,
+      studyThreadEntries: changedStudyThreadEntries,
       userMetadata: userMetaForResponse ? (() => {
         const { lockPinHash, ...rest } = userMetaForResponse;
         return { ...rest, highestSimpleNoteId: effectiveHighestForChanges, hasLockPinSet: !!lockPinHash };
@@ -97529,6 +98022,7 @@ app15.route("/", search_default);
 app15.route("/", content_default);
 app15.route("/", threads_default);
 app15.route("/", notes_default);
+app15.route("/", study_threads_default);
 app15.route("/", spaces_default);
 app15.route("/", user_default);
 app15.route("/", tags_scripture_default);

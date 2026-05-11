@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Dense highlight row matching `NoteFeedRow` / `CollectionFeedRow` spacing and typography.
+/// Dense highlight row matching `NoteFeedRow` / `FolderFeedRow` spacing and typography.
 struct StudyHighlightFeedRow: View {
     let focusTitle: String
     let subtitle: String

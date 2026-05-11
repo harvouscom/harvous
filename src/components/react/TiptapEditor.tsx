@@ -15,6 +15,7 @@ import { ScripturePill } from './TiptapScripturePill';
 import { BoldCustom } from './TiptapBoldCustom';
 import { HighlightCustom } from './TiptapHighlightCustom';
 import { normalizeScriptureReference, detectScriptureReferences, matchTrailingTranslationAbbreviation, type ScriptureReference, type ScriptureReferenceWithTranslation } from '@/utils/scripture-detector';
+import { isStudyHighlightAccentKey, type StudyHighlightAccentKey } from '@/utils/study-highlight-accents';
 import { TRANSLATION_ORDER, TRANSLATIONS } from '@/data/translations';
 import { getCachedProfileData } from '@/utils/profile-cache';
 import { safeNavigate } from '@/utils/safe-navigate';
@@ -24,24 +25,24 @@ import { shouldProcessDocument, getTextToProcess, resetTracker, cleanupTracker }
 import { debug } from '@/utils/logger';
 import { getOrCreateScriptureNote } from '@/utils/scripture-note-utils';
 import ScripturePillChromeWeb from './ScripturePillChromeWeb';
+import HighlightDockWeb from './HighlightDockWeb';
 import '@/styles/tiptap-editor.css';
 
 // Icon component for inline SVGs (allows CSS styling)
 import Icon from './Icon';
 import {
-  ArrowUUpLeft as ProtoUndoIcon,
-  ArrowUUpRight as ProtoRedoIcon,
-  Eraser as ProtoClearFormattingIcon,
-  LinkSimple as ProtoLinkIcon,
-  ListBullets as ProtoListBulletsIcon,
-  ListNumbers as ProtoListNumbersIcon,
-  Minus as ProtoHorizontalRuleIcon,
-  TextB as ProtoBoldIcon,
-  TextIndent as ProtoIndentIcon,
-  TextItalic as ProtoItalicIcon,
-  TextOutdent as ProtoOutdentIcon,
-  TextStrikethrough as ProtoStrikethroughIcon,
-} from '@phosphor-icons/react';
+  IconArrowBackUp as ProtoUndoIcon,
+  IconArrowForwardUp as ProtoRedoIcon,
+  IconBold as ProtoBoldIcon,
+  IconIndentDecrease as ProtoOutdentIcon,
+  IconIndentIncrease as ProtoIndentIcon,
+  IconItalic as ProtoItalicIcon,
+  IconLink as ProtoLinkIcon,
+  IconList as ProtoListBulletsIcon,
+  IconListNumbers as ProtoListNumbersIcon,
+  IconMinus as ProtoHorizontalRuleIcon,
+  IconStrikethrough as ProtoStrikethroughIcon,
+} from '@tabler/icons-react';
 
 // Track pending pill creation to prevent duplicates from concurrent calls
 // This is a module-level Set to track references currently being processed
@@ -82,7 +83,11 @@ interface TiptapEditorProps {
    * is focused (unless scripture picker/confirm is open), and the parent can show a note action bar when not.
    */
   editorChromeMode?: 'default' | 'prototypeNative';
-  onPrototypeChromeModeChange?: (mode: 'format' | 'scripture' | 'noteActions') => void;
+  onPrototypeChromeModeChange?: (mode: 'format' | 'scripture' | 'noteActions' | 'highlight') => void;
+  /**
+   * Prototype-only: portal target for highlight dock (accent / remove) — sibling to format + scripture hosts.
+   */
+  highlightChromePortalTarget?: HTMLElement | null;
   /**
    * Prototype-only: when provided, the prototype-native format toolbar is rendered
    * via `createPortal` into this element instead of inline. This lets the parent
@@ -114,6 +119,27 @@ function resolveScripturePillDOMRange(editor: any, pillEl: HTMLElement): { from:
     /* ignore */
   }
   return null;
+}
+
+function findHighlightRangeByStudyThreadId(editor: any, studyId: string): { from: number; to: number } | null {
+  if (!editor?.state?.doc) return null;
+  let found: { from: number; to: number } | null = null;
+  try {
+    editor.state.doc.descendants((node: any, pos: number) => {
+      if (!node.isText) return true;
+      const hl = node.marks.find(
+        (m: any) => m.type?.name === 'highlight' && m.attrs?.studyThreadEntryId === studyId,
+      );
+      if (hl) {
+        found = { from: pos, to: pos + node.nodeSize };
+        return false;
+      }
+      return true;
+    });
+  } catch {
+    return null;
+  }
+  return found;
 }
 
 // Helper function to find text positions in ProseMirror document
@@ -2777,6 +2803,17 @@ const isMobileDevice = (): boolean => {
   return /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
 };
 
+function selectionIntersectsHighlightMark(editor: any): boolean {
+  if (!editor?.state?.selection || !editor.schema?.marks?.highlight) return false;
+  const { from, to } = editor.state.selection;
+  if (from === to) return false;
+  try {
+    return editor.state.doc.rangeHasMark(from, to, editor.schema.marks.highlight);
+  } catch {
+    return false;
+  }
+}
+
 const TiptapEditor: React.FC<TiptapEditorProps> = ({
   content,
   id = "content",
@@ -2798,6 +2835,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
   onPrototypeChromeModeChange,
   formatToolbarPortalTarget = null,
   scriptureChromePortalTarget = null,
+  highlightChromePortalTarget = null,
 }) => {
   const [isLoaded, setIsLoaded] = useState(false);
   const [isEditorFocused, setIsEditorFocused] = useState(false);
@@ -2852,6 +2890,14 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     reference: string;
     translation: string | null;
     noteId: string | null;
+    pillAccent: string | null;
+  } | null>(null);
+
+  const [highlightDockSession, setHighlightDockSession] = useState<{
+    studyThreadEntryId: string | null;
+    accent: string;
+    excerpt: string;
+    range: { from: number; to: number } | null;
   } | null>(null);
 
   const [selectionExpanded, setSelectionExpanded] = useState(false);
@@ -3828,16 +3874,28 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       }
       if (isValidSelection(editor)) {
         setShowCreateNoteButton(true);
-        // Position floating action bar below the selection (same as translation picker)
+        // Position floating action bar below the selection (prototype: 8px gap + clamp like native SelectionActionBar)
         try {
           const { view } = editor;
           const { from, to } = view.state.selection;
           const start = view.coordsAtPos(from);
           const end = view.coordsAtPos(to);
-          // Place below the selection, centered horizontally
-          const top = Math.max(start.bottom, end.bottom) + 6;
-          const left = (start.left + end.left) / 2;
-          setSelectionActionBar({ top, left });
+          const bottomEdge = Math.max(start.bottom, end.bottom);
+          const gap = editorChromeMode === 'prototypeNative' ? 8 : 6;
+          const top = bottomEdge + gap;
+          const leftEdge = Math.min(start.left, end.left);
+          const rightEdge = Math.max(start.right, end.right);
+          let centerX = (leftEdge + rightEdge) / 2;
+          if (editorChromeMode === 'prototypeNative') {
+            const hasHl = selectionIntersectsHighlightMark(editor);
+            const barW = hasHl ? 134 : 92;
+            const inset = 8;
+            const vw = typeof window !== 'undefined' ? window.innerWidth : centerX + barW;
+            const minCx = inset + barW / 2;
+            const maxCx = vw - inset - barW / 2;
+            centerX = Math.min(Math.max(centerX, minCx), maxCx);
+          }
+          setSelectionActionBar({ top, left: centerX });
         } catch (_) {
           setSelectionActionBar(null);
         }
@@ -3871,7 +3929,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       }
       document.removeEventListener('mousedown', handleMouseDown);
     };
-  }, [editor, enableCreateNoteFromSelection]);
+  }, [editor, enableCreateNoteFromSelection, editorChromeMode]);
 
   // Handle ALL scripture pill clicks via DOM click handler (both edit and read-only).
   // We use the CAPTURE phase on the wrapper div so our handler fires BEFORE
@@ -3887,6 +3945,36 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
 
     const handlePillClick = (e: MouseEvent) => {
       const target = e.target as HTMLElement;
+
+      const markInPm = target.closest('.ProseMirror mark') as HTMLElement | null;
+      if (markInPm && editorChromeMode === 'prototypeNative' && editor.isEditable) {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        setHighlightDockSession({
+          studyThreadEntryId: markInPm.getAttribute('data-study-thread-id'),
+          accent: markInPm.getAttribute('data-color') || 'warmAmber',
+          excerpt: markInPm.textContent || '',
+          range: (() => {
+            try {
+              const pos = editor.view.posAtDOM(markInPm, 0);
+              const $p = editor.state.doc.resolve(pos);
+              const markType = editor.state.schema.marks.highlight;
+              if (!markType) return null;
+              const r = getMarkRange($p, markType);
+              if (r && typeof r.from === 'number' && typeof r.to === 'number') {
+                return { from: r.from, to: r.to };
+              }
+            } catch {
+              /* ignore */
+            }
+            return null;
+          })(),
+        });
+        setScripturePillSession(null);
+        setTranslationPicker(null);
+        return;
+      }
+
       const pillSpan = target.closest('.scripture-pill') as HTMLElement;
       if (!pillSpan) return;
 
@@ -3894,6 +3982,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       const reference = pillSpan.getAttribute('data-scripture-reference');
       const translation = pillSpan.getAttribute('data-scripture-translation');
       const noteId = pillSpan.getAttribute('data-note-id');
+      const pillAccent = pillSpan.getAttribute('data-pill-accent');
       if (!reference) return;
 
       // Stop ProseMirror from processing this click
@@ -3903,6 +3992,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       if (editor.isEditable) {
         if (editorChromeMode === 'prototypeNative') {
           setTranslationPicker(null);
+          setHighlightDockSession(null);
           const boundaries = resolveScripturePillDOMRange(editor, pillSpan);
           if (boundaries) {
             setScripturePillSession({
@@ -3910,6 +4000,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
               reference,
               translation,
               noteId,
+              pillAccent,
             });
           }
         } else {
@@ -4000,12 +4091,14 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       if (
         target.closest('.scripture-translation-picker') ||
         target.closest('.scripture-pill-chrome') ||
-        target.closest('.scripture-pill')
+        target.closest('.scripture-pill') ||
+        target.closest('.highlight-dock-web')
       ) {
         // Keep open
       } else {
         setTranslationPicker(null);
         setScripturePillSession(null);
+        setHighlightDockSession(null);
       }
       if (!target.closest('.scripture-delete-confirm') && !target.closest('.scripture-pill')) {
         setDeleteConfirmPill(null);
@@ -4501,16 +4594,24 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     editorChromeMode === 'prototypeNative' &&
     (scripturePillSession != null || deleteConfirmPill != null);
 
+  const highlightChromeActive =
+    editorChromeMode === 'prototypeNative' && highlightDockSession != null;
+
   const shouldShowPrototypeFormatToolbar =
     editorChromeMode === 'prototypeNative' &&
     isEditorFocused &&
     !scriptureChromeActive &&
+    !highlightChromeActive &&
     (selectionExpanded || showFormatBarForActivity || isPointerOverFormatToolbar);
 
   useEffect(() => {
     if (editorChromeMode !== 'prototypeNative' || !onPrototypeChromeModeChange) return;
     if (scriptureChromeActive) {
       onPrototypeChromeModeChange('scripture');
+      return;
+    }
+    if (highlightChromeActive) {
+      onPrototypeChromeModeChange('highlight');
       return;
     }
     if (!isEditorFocused) {
@@ -4526,8 +4627,10 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     editorChromeMode,
     onPrototypeChromeModeChange,
     scriptureChromeActive,
+    highlightChromeActive,
     deleteConfirmPill,
     scripturePillSession,
+    highlightDockSession,
     isEditorFocused,
     shouldShowPrototypeFormatToolbar,
   ]);
@@ -4903,14 +5006,6 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
             >
               <ProtoLinkIcon className="proto-toolbar-icon" aria-hidden />
             </ToolbarButton>
-            <ToolbarButton
-              onClick={() => editor.chain().focus().clearNodes().unsetAllMarks().run()}
-              isActive={false}
-              title="Clear formatting"
-              ariaLabel="Clear formatting"
-            >
-              <ProtoClearFormattingIcon className="proto-toolbar-icon" aria-hidden />
-            </ToolbarButton>
           </TiptapToolbarTrack>
         </div>
       </div>
@@ -5094,7 +5189,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
           <div
             ref={createNoteBubbleRef}
             data-harvous-bottom-sheet-floating=""
-            className="selection-action-bar floating-picker-enter"
+            className="selection-action-bar"
             style={{
               position: 'fixed',
               top: selectionActionBar.top,
@@ -5102,49 +5197,193 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
               transform: 'translateX(-50%)',
               zIndex: 99999,
               pointerEvents: 'auto',
-              display: 'flex',
-              gap: '4px',
-              padding: '4px',
-              borderRadius: '10px',
-              backgroundColor: 'var(--color-snow-white)',
-              boxShadow: '0 1px 6px rgba(0,0,0,0.08), 0 4px 16px rgba(0,0,0,0.06)',
             }}
-            onMouseDown={(e) => e.preventDefault()}
           >
-            <button
-              className="selection-action-btn"
-              onMouseDown={(e: React.MouseEvent) => {
-                e.preventDefault();
-                e.stopPropagation();
-                handleCreateNoteFromSelection();
-                setSelectionActionBar(null);
-              }}
-              type="button"
-              title="Create note from selection"
-            >
-              <Icon name="note-sticky" size={12} />
-              Create Note
-            </button>
-            <button
-              className="selection-action-btn"
-              onMouseDown={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                if (!editor) return;
-                const { from, to } = editor.state.selection;
-                if (from === to) return;
-                const text = editor.state.doc.textBetween(from, to);
-                navigator.clipboard.writeText(text).then(() => {
-                  if (window.toast) window.toast.info('Copied to clipboard');
-                }).catch(() => {});
-                setSelectionActionBar(null);
-              }}
-              type="button"
-              title="Copy selection"
-            >
-              <Icon name="copy" size={12} />
-              Copy
-            </button>
+            {editorChromeMode === 'prototypeNative' ? (
+              <div
+                className="pds-native-selection-bar floating-picker-enter"
+                onMouseDown={(e) => e.preventDefault()}
+              >
+                <button
+                  type="button"
+                  className="pds-native-selection-bar__btn"
+                  title="Highlight selected text"
+                  aria-label="Highlight selected text"
+                  onMouseDown={(e: React.MouseEvent) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    if (!editor || !isEditorValid(editor)) return;
+                    const { from, to } = editor.state.selection;
+                    if (from === to) return;
+                    const snippet = editor.state.doc.textBetween(from, to);
+                    const defaultAccent = 'warmAmber';
+
+                    void (async () => {
+                      let studyId: string | null = null;
+                      if (editorChromeMode === 'prototypeNative' && sourceNoteId) {
+                        try {
+                          const res = await fetch(`/api/notes/${sourceNoteId}/study-threads`, {
+                            method: 'POST',
+                            credentials: 'include',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                              entryKind: 'miniNote',
+                              sourceSnippet: snippet,
+                              highlightAccentRaw: defaultAccent,
+                              anchorTextSnapshot: snippet,
+                            }),
+                          });
+                          if (res.ok) {
+                            const data = await res.json();
+                            studyId = data.studyThread?.id ?? null;
+                          }
+                        } catch {
+                          /* fall through to local mark */
+                        }
+                      }
+                      if (!editor || !isEditorValid(editor)) return;
+                      editor
+                        .chain()
+                        .focus()
+                        .setTextSelection({ from, to })
+                        .setHighlight({
+                          color: defaultAccent,
+                          studyThreadEntryId: studyId || undefined,
+                        })
+                        .run();
+                      if (hiddenInputRef.current) {
+                        hiddenInputRef.current.value = editor.getHTML();
+                      }
+                      onContentChange?.(editor.getHTML());
+                      setSelectionActionBar(null);
+                      if (editorChromeMode === 'prototypeNative') {
+                        setHighlightDockSession({
+                          studyThreadEntryId: studyId,
+                          accent: defaultAccent,
+                          excerpt: snippet,
+                          range: { from, to },
+                        });
+                      }
+                    })();
+                  }}
+                >
+                  <Icon name="highlighter" size={14} />
+                </button>
+                <span className="pds-native-selection-bar__rule" aria-hidden />
+                <button
+                  type="button"
+                  className="pds-native-selection-bar__btn"
+                  title="New Harvous note from selection"
+                  aria-label="New Harvous note from selection"
+                  onMouseDown={(e: React.MouseEvent) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    void handleCreateNoteFromSelection();
+                    setSelectionActionBar(null);
+                  }}
+                >
+                  <Icon name="pen-to-square" size={14} />
+                </button>
+                {selectionIntersectsHighlightMark(editor) ? (
+                  <>
+                    <span className="pds-native-selection-bar__rule" aria-hidden />
+                    <button
+                      type="button"
+                      className="pds-native-selection-bar__btn"
+                      title="Clear highlight from selection"
+                      aria-label="Clear highlight from selection"
+                      onMouseDown={(e: React.MouseEvent) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        if (!editor || !isEditorValid(editor)) return;
+                        const { from, to } = editor.state.selection;
+                        if (from === to) return;
+                        const markType = editor.state.schema.marks.highlight;
+                        let studyId: string | null = null;
+                        editor.state.doc.nodesBetween(from, to, (node: any) => {
+                          if (!node.isText || studyId) return;
+                          const m = node.marks.find((x: any) => x.type.name === 'highlight');
+                          if (m?.attrs?.studyThreadEntryId) {
+                            studyId = m.attrs.studyThreadEntryId;
+                          }
+                        });
+                        void (async () => {
+                          if (studyId) {
+                            try {
+                              await fetch(`/api/study-threads/${studyId}`, {
+                                method: 'DELETE',
+                                credentials: 'include',
+                              });
+                            } catch {
+                              /* still strip mark */
+                            }
+                          }
+                          if (editor && isEditorValid(editor)) {
+                            editor.chain().focus().unsetHighlight().run();
+                            if (hiddenInputRef.current) {
+                              hiddenInputRef.current.value = editor.getHTML();
+                            }
+                            onContentChange?.(editor.getHTML());
+                          }
+                          setSelectionActionBar(null);
+                          setHighlightDockSession(null);
+                        })();
+                      }}
+                    >
+                      <Icon name="eraser" size={14} />
+                    </button>
+                  </>
+                ) : null}
+              </div>
+            ) : (
+              <div
+                className="floating-picker-enter"
+                style={{
+                  display: 'flex',
+                  gap: '4px',
+                  padding: '4px',
+                  borderRadius: '10px',
+                  backgroundColor: 'var(--color-snow-white)',
+                  boxShadow: '0 1px 6px rgba(0,0,0,0.08), 0 4px 16px rgba(0,0,0,0.06)',
+                }}
+                onMouseDown={(e) => e.preventDefault()}
+              >
+                <button
+                  className="selection-action-btn"
+                  onMouseDown={(e: React.MouseEvent) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    handleCreateNoteFromSelection();
+                    setSelectionActionBar(null);
+                  }}
+                  type="button"
+                  title="Create note from selection"
+                >
+                  <Icon name="note-sticky" size={12} />
+                  Create Note
+                </button>
+                <button
+                  className="selection-action-btn"
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    if (!editor) return;
+                    const { from, to } = editor.state.selection;
+                    if (from === to) return;
+                    const text = editor.state.doc.textBetween(from, to);
+                    navigator.clipboard.writeText(text).then(() => {
+                      if (window.toast) window.toast.info('Copied to clipboard');
+                    }).catch(() => {});
+                    setSelectionActionBar(null);
+                  }}
+                  type="button"
+                  title="Copy selection"
+                >
+                  <Icon name="copy" size={12} />
+                  Copy
+                </button>
+              </div>
+            )}
           </div>,
           document.body
         )}
@@ -5335,6 +5574,38 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
           <ScripturePillChromeWeb
             reference={scripturePillSession.reference}
             translation={scripturePillSession.translation}
+            sourceNoteId={sourceNoteId ?? null}
+            initialPillAccent={scripturePillSession.pillAccent}
+            onPillAccentChange={(nextAccent) => {
+              if (!editor || !isEditorValid(editor) || !scripturePillSession) return;
+              const { from, to } = scripturePillSession.boundaries;
+              const markType = editor.state.schema.marks.scripturePill;
+              if (!markType) return;
+              let existingMark: any = null;
+              editor.state.doc.nodesBetween(from, to, (node: any) => {
+                if (!existingMark && node.isText) {
+                  const m = node.marks.find((x: any) => x.type?.name === 'scripturePill');
+                  if (m) existingMark = m;
+                }
+              });
+              if (!existingMark) return;
+              const tr = editor.state.tr;
+              tr.removeMark(from, to, markType);
+              tr.addMark(
+                from,
+                to,
+                markType.create({
+                  ...existingMark.attrs,
+                  pillAccent: nextAccent,
+                }),
+              );
+              editor.view.dispatch(tr);
+              if (hiddenInputRef.current) {
+                hiddenInputRef.current.value = editor.getHTML();
+              }
+              onContentChange?.(editor.getHTML());
+              setScripturePillSession((prev) => (prev ? { ...prev, pillAccent: nextAccent } : null));
+            }}
             onDone={() => {
               setScripturePillSession(null);
               queueMicrotask(() => {
@@ -5371,6 +5642,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                     ...existingMark.attrs,
                     reference: normRef,
                     translation: nextTranslation,
+                    pillAccent: existingMark.attrs.pillAccent ?? null,
                   }),
                 ]));
                 editor.view.dispatch(tr);
@@ -5405,6 +5677,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                         reference: normRef,
                         translation: nextTranslation,
                         boundaries: { from, to: from + normRef.length },
+                        pillAccent: existingMark.attrs.pillAccent ?? null,
                       }
                     : null,
                 );
@@ -5414,6 +5687,91 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
             }}
           />,
           scriptureChromePortalTarget || document.body,
+        )}
+        {highlightDockSession && editorChromeMode === 'prototypeNative' && createPortal(
+          <HighlightDockWeb
+            accent={highlightDockSession.accent}
+            excerpt={highlightDockSession.excerpt}
+            includeNeutral={false}
+            onAccentChange={(nextAccent) => {
+              if (!isStudyHighlightAccentKey(nextAccent)) return;
+              if (!editor || !isEditorValid(editor) || !highlightDockSession) return;
+              const sid = highlightDockSession.studyThreadEntryId;
+              const range =
+                highlightDockSession.range ??
+                (sid ? findHighlightRangeByStudyThreadId(editor, sid) : null);
+              if (!range) return;
+              void (async () => {
+                if (sid) {
+                  try {
+                    await fetch(`/api/study-threads/${sid}`, {
+                      method: 'PATCH',
+                      credentials: 'include',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ highlightAccentRaw: nextAccent }),
+                    });
+                  } catch {
+                    /* ignore */
+                  }
+                }
+                if (!editor || !isEditorValid(editor)) return;
+                const markType = editor.state.schema.marks.highlight;
+                if (!markType) return;
+                const tr = editor.state.tr;
+                tr.removeMark(range.from, range.to, markType);
+                tr.addMark(
+                  range.from,
+                  range.to,
+                  markType.create({
+                    color: nextAccent,
+                    studyThreadEntryId: sid || null,
+                  }),
+                );
+                editor.view.dispatch(tr);
+                if (hiddenInputRef.current) {
+                  hiddenInputRef.current.value = editor.getHTML();
+                }
+                onContentChange?.(editor.getHTML());
+                setHighlightDockSession((prev) =>
+                  prev ? { ...prev, accent: nextAccent, range } : prev,
+                );
+              })();
+            }}
+            onRemove={() => {
+              if (!editor || !isEditorValid(editor) || !highlightDockSession) return;
+              const sid = highlightDockSession.studyThreadEntryId;
+              const range =
+                highlightDockSession.range ??
+                (sid ? findHighlightRangeByStudyThreadId(editor, sid) : null);
+              void (async () => {
+                if (sid) {
+                  try {
+                    await fetch(`/api/study-threads/${sid}`, {
+                      method: 'DELETE',
+                      credentials: 'include',
+                    });
+                  } catch {
+                    /* ignore */
+                  }
+                }
+                if (editor && isEditorValid(editor) && range) {
+                  editor
+                    .chain()
+                    .focus()
+                    .setTextSelection({ from: range.from, to: range.to })
+                    .unsetHighlight()
+                    .run();
+                  if (hiddenInputRef.current) {
+                    hiddenInputRef.current.value = editor.getHTML();
+                  }
+                  onContentChange?.(editor.getHTML());
+                }
+                setHighlightDockSession(null);
+              })();
+            }}
+            onDone={() => setHighlightDockSession(null)}
+          />,
+          highlightChromePortalTarget || document.body,
         )}
       </div>
       {!minimalToolbar && isEditorFocused && toolbarAtBottom && editorChromeMode !== 'prototypeNative' && (

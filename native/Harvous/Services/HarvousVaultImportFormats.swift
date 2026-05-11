@@ -48,6 +48,150 @@ enum HarvousVaultImportFormats {
         attr.string
     }
 
+    // MARK: - Harvous web export CSV (`csv-threads`)
+
+    /// One row from **Thread Title, Thread Color, Note Title, Note Content, Created Date, Tags** (or legacy 5-column without thread color).
+    struct HarvousParsedCSVThreadsRow {
+        var threadTitle: String
+        var threadColor: String?
+        var noteTitle: String
+        var content: String
+        var createdDate: String
+        var tags: [String]
+    }
+
+    /// Same rules as web `isMyPileDisplayTitle` in `src/utils/my-pile-thread.ts`.
+    static func isMyPileDisplayTitle(_ title: String) -> Bool {
+        let n = title.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        return n == "my pile" || n == "unorganized" || n == "sort later"
+    }
+
+    /// Strips UTF-8 BOM if present.
+    static func stripLeadingBOM(_ text: String) -> String {
+        if text.hasPrefix("\u{FEFF}") {
+            return String(text.dropFirst())
+        }
+        return text
+    }
+
+    /// Port of [src/utils/csv-parser.ts](src/utils/csv-parser.ts).
+    static func parseHarvousCSVThreads(_ csvContent: String) -> [HarvousParsedCSVThreadsRow] {
+        let lines = splitCSVLogicalLines(csvContent)
+        guard lines.count >= 2 else { return [] }
+        var notes: [HarvousParsedCSVThreadsRow] = []
+        for i in 1..<lines.count {
+            let row = lines[i].trimmingCharacters(in: .whitespacesAndNewlines)
+            if row.isEmpty { continue }
+            let columns = parseCSVRowFields(row)
+            guard columns.count >= 4 else { continue }
+
+            let threadTitle: String
+            let threadColor: String?
+            let noteTitle: String
+            let content: String
+            let createdDate: String
+            let tagsString: String
+
+            if columns.count >= 6 {
+                threadTitle = columns[0].trimmingCharacters(in: .whitespacesAndNewlines)
+                let c1 = columns[1].trimmingCharacters(in: .whitespacesAndNewlines)
+                threadColor = c1.isEmpty ? nil : c1
+                noteTitle = columns[2].trimmingCharacters(in: .whitespacesAndNewlines)
+                content = columns[3].trimmingCharacters(in: .whitespacesAndNewlines)
+                createdDate = columns[4].trimmingCharacters(in: .whitespacesAndNewlines)
+                tagsString = columns[5].trimmingCharacters(in: .whitespacesAndNewlines)
+            } else {
+                threadTitle = columns[0].trimmingCharacters(in: .whitespacesAndNewlines)
+                threadColor = nil
+                noteTitle = columns[1].trimmingCharacters(in: .whitespacesAndNewlines)
+                content = columns[2].trimmingCharacters(in: .whitespacesAndNewlines)
+                createdDate = columns[3].trimmingCharacters(in: .whitespacesAndNewlines)
+                tagsString = columns[4].trimmingCharacters(in: .whitespacesAndNewlines)
+            }
+
+            let tags = tagsString.split(separator: ",")
+                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty }
+
+            notes.append(
+                HarvousParsedCSVThreadsRow(
+                    threadTitle: threadTitle,
+                    threadColor: threadColor,
+                    noteTitle: noteTitle,
+                    content: content,
+                    createdDate: createdDate,
+                    tags: tags
+                )
+            )
+        }
+        return notes
+    }
+
+    private static func splitCSVLogicalLines(_ csv: String) -> [String] {
+        var lines: [String] = []
+        var currentLine = ""
+        var inQuotes = false
+        let chars = Array(csv)
+        var i = 0
+        while i < chars.count {
+            let char = chars[i]
+            if char == "\"" {
+                if inQuotes, i + 1 < chars.count, chars[i + 1] == "\"" {
+                    currentLine.append("\"")
+                    i += 2
+                    continue
+                }
+                inQuotes.toggle()
+                currentLine.append(char)
+                i += 1
+                continue
+            }
+            if char == "\n", !inQuotes {
+                lines.append(currentLine)
+                currentLine = ""
+                i += 1
+                continue
+            }
+            currentLine.append(char)
+            i += 1
+        }
+        if !currentLine.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            lines.append(currentLine)
+        }
+        return lines
+    }
+
+    private static func parseCSVRowFields(_ row: String) -> [String] {
+        var columns: [String] = []
+        var currentColumn = ""
+        var inQuotes = false
+        let chars = Array(row)
+        var i = 0
+        while i < chars.count {
+            let char = chars[i]
+            if char == "\"" {
+                if inQuotes, i + 1 < chars.count, chars[i + 1] == "\"" {
+                    currentColumn.append("\"")
+                    i += 2
+                    continue
+                }
+                inQuotes.toggle()
+                i += 1
+                continue
+            }
+            if char == ",", !inQuotes {
+                columns.append(currentColumn)
+                currentColumn = ""
+                i += 1
+                continue
+            }
+            currentColumn.append(char)
+            i += 1
+        }
+        columns.append(currentColumn)
+        return columns
+    }
+
     // MARK: - Notion-style filename
 
     /// Strips trailing ` <32 hex>.md` Notion export suffix from the basename.

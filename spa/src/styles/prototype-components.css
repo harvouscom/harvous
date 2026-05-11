@@ -28,8 +28,72 @@
   letter-spacing: 0.06em;
   text-transform: uppercase;
   user-select: none;
+}
+
+.proto-toolbar-brand--muted {
+  opacity: 0.45;
+}
+
+.proto-toolbar-center {
   flex: 1;
-  text-align: center;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.proto-toolbar-folder-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: min(240px, 42vw);
+  height: 26px;
+  padding: 0 10px;
+  border-radius: var(--pds-radius-format);
+  border: 0.5px solid rgba(0, 0, 0, 0.08);
+  background: rgba(255, 255, 255, 0.65);
+  cursor: pointer;
+  /* Match `.proto-note-action-bar__pill--connect` label styling */
+  color: var(--pds-text-secondary);
+  font-family: var(--pds-font-body) !important;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.2;
+  transition: background 0.1s, color 0.1s;
+}
+
+.proto-toolbar-folder-chip:hover {
+  background: rgba(0, 0, 0, 0.05);
+  color: var(--pds-text-primary);
+}
+
+.proto-toolbar-folder-chip:active {
+  background: rgba(0, 0, 0, 0.09);
+}
+
+.proto-toolbar-folder-chip:focus-visible {
+  outline: 2px solid rgba(56, 105, 230, 0.45);
+  outline-offset: 1px;
+}
+
+.proto-toolbar-folder-chip__icon {
+  flex-shrink: 0;
+  opacity: 0.85;
+}
+
+.proto-toolbar-folder-chip__label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.2;
+}
+
+.proto-toolbar-folder-chip__label,
+.proto-toolbar-folder-chip__icon {
+  font-family: inherit !important;
 }
 
 /* Icon button — matches macOS toolbar bordered style */
@@ -44,9 +108,21 @@
   background: rgba(255, 255, 255, 0.65);
   cursor: pointer;
   color: var(--pds-text-primary);
-  font-family: var(--pds-font-body);
+  /* Beat global.css `button { font-family: var(--font-sans) !important }` (Reddit Sans). */
+  font-family: var(--pds-font-body) !important;
   transition: background 0.1s;
   text-decoration: none;
+}
+
+.proto-toolbar-icon-btn * {
+  font-family: var(--pds-font-body) !important;
+}
+
+/* Let `Icon` own width/height (span + svg attrs); forcing a larger svg than the
+   wrapper was shifting glyphs (e.g. sidebar toggle) inside the bordered slot. */
+.proto-toolbar-icon-btn svg {
+  flex-shrink: 0;
+  display: block;
 }
 
 .proto-toolbar-icon-btn:hover {
@@ -58,9 +134,12 @@
 }
 
 .proto-toolbar-icon-btn:disabled {
-  opacity: 0.30;
+  opacity: 1;
   cursor: default;
   pointer-events: none;
+  color: var(--pds-text-tertiary);
+  background: rgba(255, 255, 255, 0.45);
+  border-color: rgba(0, 0, 0, 0.05);
 }
 
 .proto-toolbar-icon-btn:focus-visible {
@@ -101,7 +180,7 @@
   width: 30px;
   height: 26px;
   border-radius: var(--pds-radius-format);
-  border: 0.5px solid rgba(0, 0, 0, 0.085);
+  border: 0.5px solid rgba(0, 0, 0, 0.08);
   background: rgba(255, 255, 255, 0.65);
   cursor: pointer;
   color: var(--pds-text-primary);
@@ -109,13 +188,31 @@
   transition: background 0.1s;
 }
 
+.proto-space-trigger svg {
+  flex-shrink: 0;
+  display: block;
+}
+
 .proto-space-trigger:hover {
   background: rgba(0, 0, 0, 0.05);
+}
+
+.proto-space-trigger:active {
+  background: rgba(0, 0, 0, 0.09);
 }
 
 .proto-space-trigger:focus-visible {
   outline: 2px solid rgba(56, 105, 230, 0.4);
   outline-offset: 1px;
+}
+
+.proto-space-trigger:disabled {
+  opacity: 1;
+  cursor: default;
+  pointer-events: none;
+  color: var(--pds-text-tertiary);
+  background: rgba(255, 255, 255, 0.45);
+  border-color: rgba(0, 0, 0, 0.05);
 }
 
 /* ─── Popover menu ───────────────────────────────────────────────────────── */
@@ -309,7 +406,13 @@
   color: var(--pds-accent);
 }
 
-/* ─── Note rows (sidebar compact — Apple Notes style) ────────────────────── */
+/* ─── Note list (sidebar) — typography from .pds-list-*; selection/hover via tokens only */
+.proto-note-list {
+  list-style: none;
+  margin: 0;
+  padding: 4px 0 12px;
+}
+
 .proto-note-row {
   display: block;
   width: 100%;
@@ -320,10 +423,34 @@
   border: none;
   background: transparent;
   cursor: pointer;
-  color: inherit;
-  font-family: var(--pds-font-body);
   border-radius: var(--pds-radius-row);
   transition: background 0.08s;
+  /* global.css: button * { font-weight: 700 !important } — undo for sidebar list */
+  font-family: var(--pds-font-body) !important;
+  font-weight: 400 !important;
+  color: var(--pds-text-primary) !important;
+}
+
+/* Match macOS NoteFeedRow: ~semibold title, 12pt/400 preview line */
+.proto-note-row .pds-list-title,
+.proto-note-row .pds-list-preview {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.proto-note-row .pds-list-title {
+  /* Mac: HarvousTypography.noteListTitle uses axis 500 → SF Medium; web 500 reads light vs SF, so semibold for parity */
+  font-weight: 600 !important;
+  color: var(--pds-text-primary) !important;
+  font-family: var(--pds-font-body) !important;
+}
+
+.proto-note-row .pds-list-preview {
+  margin-top: 2px;
+  font-weight: 400 !important;
+  color: var(--pds-text-secondary) !important;
+  font-family: var(--pds-font-body) !important;
 }
 
 .proto-note-row:hover {
@@ -332,46 +459,6 @@
 
 .proto-note-row[data-active='true'] {
   background: var(--pds-bg-row-selected);
-}
-
-/* ─── Collection rows (collections mode) ─────────────────────────────────── */
-.proto-collection-row {
-  display: flex;
-  align-items: center;
-  width: calc(100% - 16px);
-  margin: 0 8px;
-  padding: 8px 10px;
-  border: none;
-  background: transparent;
-  cursor: pointer;
-  font-family: var(--pds-font-body);
-  border-radius: var(--pds-radius-row);
-  color: inherit;
-  text-decoration: none;
-  gap: 10px;
-  transition: background 0.08s;
-}
-
-.proto-collection-row:hover {
-  background: var(--pds-bg-row-hover);
-}
-
-.proto-collection-row__icon {
-  width: 32px;
-  height: 32px;
-  border-radius: 8px;
-  background: rgba(0, 0, 0, 0.06);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  color: var(--pds-text-secondary);
-}
-
-.proto-collection-row__chevron {
-  margin-left: auto;
-  opacity: 0.30;
-  flex-shrink: 0;
 }
 
 /* ─── Space rows (home sidebar) ──────────────────────────────────────────── */
@@ -703,4 +790,114 @@
   font-weight: 500;
   border: 0.5px solid var(--pds-scripture-border);
   white-space: nowrap;
+}
+
+/* ─── Connect note sheet (prototype) ─────────────────────────────────────── */
+.proto-connect-note-sheet-overlay {
+  z-index: 9800 !important;
+}
+
+.proto-connect-note-sheet.proto-connect-note-sheet {
+  padding: 20px 20px calc(22px + env(safe-area-inset-bottom, 0));
+  max-height: min(640px, 85vh);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  overflow: hidden;
+}
+
+.proto-connect-note-sheet__header {
+  flex-shrink: 0;
+}
+
+.proto-connect-note-sheet__title {
+  margin: 0;
+  font-family: var(--pds-font-display);
+  font-size: 1.15rem;
+  font-weight: 600;
+  line-height: 1.25;
+  color: var(--pds-text-primary);
+}
+
+.proto-connect-note-sheet__subtitle {
+  margin: 8px 0 0;
+  font-family: var(--pds-font-body);
+  font-size: 13px;
+  color: var(--pds-text-secondary);
+  line-height: 1.35;
+}
+
+.proto-connect-note-sheet__scroll {
+  flex: 1;
+  min-height: 140px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0 -4px;
+  padding: 0 4px 4px;
+}
+
+.proto-connect-note-sheet__hint {
+  margin: 8px 0 0;
+  font-family: var(--pds-font-body);
+  font-size: 13px;
+  color: var(--pds-text-tertiary);
+  text-align: center;
+}
+
+.proto-connect-note-sheet__row {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: none;
+  background: rgba(0, 0, 0, 0.045);
+  font-family: var(--pds-font-body);
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--pds-text-primary);
+  cursor: pointer;
+  transition: background 0.1s ease;
+}
+
+.proto-connect-note-sheet__row:hover:not(:disabled) {
+  background: rgba(0, 0, 0, 0.08);
+}
+
+.proto-connect-note-sheet__row:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.proto-connect-note-sheet__row-title {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.proto-connect-note-sheet__footer {
+  flex-shrink: 0;
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 4px;
+}
+
+.proto-connect-note-sheet__cancel {
+  border: none;
+  border-radius: 10px;
+  padding: 10px 16px;
+  font-family: var(--pds-font-body);
+  font-size: 15px;
+  font-weight: 500;
+  cursor: pointer;
+  color: var(--pds-accent);
+  background: rgba(56, 105, 230, 0.08);
+}
+
+.proto-connect-note-sheet__cancel:hover {
+  background: rgba(56, 105, 230, 0.12);
 }

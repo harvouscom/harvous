@@ -1,3 +1,5 @@
+import Foundation
+
 #if os(macOS)
 import AppKit
 #elseif os(iOS)
@@ -28,7 +30,11 @@ import CoreGraphics
 ///     glyph height (origin unchanged, height clipped). Do **not** override `lineFragmentUsedRect`:
 ///     returning a clipped used rect while layout still stores `natural + gap` can desync macOS
 ///     TextKit / Writing Tools and cause layout churn or hangs when switching documents.
-///   - `fillBackgroundRectArray` clips selection rects to natural glyph height.
+///   - `fillBackgroundRectArray` clips fills to natural glyph height only when the **`color`** is
+///     an attributed **`backgroundColor`** on the **`charRange`** (e.g. inline code styling). UITextKit
+///     selection uses `fillBackgroundRectArray` too, but typically without a matching attributed
+///     background attribute — clipping those rects to **natural glyph height** drops the delegated
+///     inter-line whitespace from the tint, which reads as alternating painted / skipped lines.
 ///   - `drawInsertionPoint` / `caretRect(for:)` are overridden in the text-view subclasses.
 ///   - `drawUnderline` clips the lineFragmentRect before delegating. Study highlights use `.thick`
 ///     and get the intentional +2pt separation.
@@ -91,7 +97,7 @@ final class HarvousLayoutManager: NSLayoutManager, NSLayoutManagerDelegate {
         return r
     }
 
-    // MARK: - Selection / background fill (macOS; iOS selection is UIKit-managed)
+    // MARK: - Selection / attributed background fill
 
 #if os(macOS)
     override func fillBackgroundRectArray(
@@ -100,6 +106,35 @@ final class HarvousLayoutManager: NSLayoutManager, NSLayoutManagerDelegate {
         forCharacterRange charRange: NSRange,
         color: NSColor
     ) {
+        guard fillsAttributedBackgroundPaint(characterRange: charRange, color: color, storage: textStorage) else {
+            super.fillBackgroundRectArray(rectArray, count: rectCount,
+                                          forCharacterRange: charRange, color: color)
+            return
+        }
+        let natural = naturalGlyphHeight(atCharacter: charRange.location)
+        var clipped = [CGRect](repeating: .zero, count: rectCount)
+        for i in 0..<rectCount {
+            var r = rectArray[i]
+            if r.size.height > natural { r.size.height = natural }
+            clipped[i] = r
+        }
+        clipped.withUnsafeBufferPointer { buf in
+            super.fillBackgroundRectArray(buf.baseAddress!, count: rectCount,
+                                          forCharacterRange: charRange, color: color)
+        }
+    }
+#elseif os(iOS)
+    override func fillBackgroundRectArray(
+        _ rectArray: UnsafePointer<CGRect>,
+        count rectCount: Int,
+        forCharacterRange charRange: NSRange,
+        color: UIColor
+    ) {
+        guard fillsAttributedBackgroundPaint(characterRange: charRange, color: color, storage: textStorage) else {
+            super.fillBackgroundRectArray(rectArray, count: rectCount,
+                                          forCharacterRange: charRange, color: color)
+            return
+        }
         let natural = naturalGlyphHeight(atCharacter: charRange.location)
         var clipped = [CGRect](repeating: .zero, count: rectCount)
         for i in 0..<rectCount {
@@ -179,4 +214,85 @@ final class HarvousLayoutManager: NSLayoutManager, NSLayoutManagerDelegate {
 #endif
         return ceil(f.ascender - f.descender + f.leading)
     }
+
+#if os(macOS)
+    /// `true` → `color` corresponds to **`backgroundColor`** on `NSTextStorage` for part of **charRange**.
+    /// Text selection fills use unrelated colors and should not clip to natural height (fixes multi-line skips).
+    private func fillsAttributedBackgroundPaint(
+        characterRange range: NSRange,
+        color paint: NSColor,
+        storage: NSTextStorage?
+    ) -> Bool {
+        guard let ts = storage, range.length > 0, NSMaxRange(range) <= ts.length else { return false }
+        var loc = range.location
+        let endRange = NSMaxRange(range)
+        while loc < endRange {
+            var eff = NSRange()
+            guard let bg = ts.attribute(.backgroundColor, at: loc, effectiveRange: &eff) as? NSColor else {
+                let next = NSMaxRange(eff)
+                guard next > loc else { return false }
+                loc = next
+                continue
+            }
+            if colorsRoughlyEqual(bg.usingColorSpace(.deviceRGB) ?? bg, paint.usingColorSpace(.deviceRGB) ?? paint),
+               NSIntersectionRange(eff, range).length > 0 {
+                return true
+            }
+            let next = NSMaxRange(eff)
+            guard next > loc else { return false }
+            loc = next
+        }
+        return false
+    }
+
+    private func colorsRoughlyEqual(_ a: NSColor, _ b: NSColor) -> Bool {
+        guard let aa = a.usingColorSpace(.deviceRGB), let bb = b.usingColorSpace(.deviceRGB) else {
+            return a.isEqual(b)
+        }
+        let tol: CGFloat = 0.03
+        return abs(aa.redComponent - bb.redComponent) <= tol
+            && abs(aa.greenComponent - bb.greenComponent) <= tol
+            && abs(aa.blueComponent - bb.blueComponent) <= tol
+            && abs(aa.alphaComponent - bb.alphaComponent) <= tol
+    }
+#elseif os(iOS)
+    private func fillsAttributedBackgroundPaint(
+        characterRange range: NSRange,
+        color paint: UIColor,
+        storage: NSTextStorage?
+    ) -> Bool {
+        guard let ts = storage, range.length > 0, NSMaxRange(range) <= ts.length else { return false }
+        var loc = range.location
+        let endRange = NSMaxRange(range)
+        while loc < endRange {
+            var eff = NSRange()
+            guard let bg = ts.attribute(.backgroundColor, at: loc, effectiveRange: &eff) as? UIColor else {
+                let next = NSMaxRange(eff)
+                guard next > loc else { return false }
+                loc = next
+                continue
+            }
+            if colorsRoughlyEqual(bg, paint),
+               NSIntersectionRange(eff, range).length > 0 {
+                return true
+            }
+            let next = NSMaxRange(eff)
+            guard next > loc else { return false }
+            loc = next
+        }
+        return false
+    }
+
+    private func colorsRoughlyEqual(_ a: UIColor, _ b: UIColor) -> Bool {
+        var ar: CGFloat = 0, ag: CGFloat = 0, ab: CGFloat = 0, aa: CGFloat = 0
+        var br: CGFloat = 0, bg: CGFloat = 0, bb: CGFloat = 0, ba: CGFloat = 0
+        guard a.getRed(&ar, green: &ag, blue: &ab, alpha: &aa),
+              b.getRed(&br, green: &bg, blue: &bb, alpha: &ba) else {
+            return a === b || a.isEqual(b)
+        }
+        let tol: CGFloat = 0.03
+        return abs(ar - br) <= tol && abs(ag - bg) <= tol && abs(ab - bb) <= tol && abs(aa - ba) <= tol
+    }
+#endif
 }
+

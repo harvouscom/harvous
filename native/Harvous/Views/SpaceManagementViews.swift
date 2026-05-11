@@ -397,8 +397,7 @@ struct ManageSpaceSheet: View {
                         }
 
                         HStack(spacing: 8) {
-                            Image(systemName: "bookmark.fill")
-                                .font(.system(size: 9, weight: .semibold))
+                            HarvousFAGlyph(assetName: "Harvous.Bookmark", edgePt: 9)
                             Text("John 3:16 NASB")
                                 .font(HarvousTypography.inspectorCompactMedium)
                         }
@@ -447,7 +446,7 @@ struct ManageSpaceSheet: View {
                                 #endif
                             }
                         } label: {
-                            Label("Copy new invite link", systemImage: "person.badge.plus")
+                            Label("Copy new invite link", image: "Harvous.UserPlus")
                         }
                         Text("Send the link to someone so they can join this space on their device.")
                             .font(HarvousTypography.caption)
@@ -477,12 +476,12 @@ struct ManageSpaceSheet: View {
                                 #endif
                             }
                         } label: {
-                            Label("Copy link", systemImage: "link")
+                            Label("Copy link", image: "Harvous.Link")
                         }
                         Button(role: .destructive) {
                             _ = spaceStore.regeneratePublicLink(for: space, modelContext: modelContext)
                         } label: {
-                            Label("Regenerate link", systemImage: "arrow.triangle.2.circlepath")
+                            Label("Regenerate link", image: "Harvous.ArrowsRotate")
                         }
                     }
                 }
@@ -500,12 +499,12 @@ struct ManageSpaceSheet: View {
                         Button(role: .destructive) {
                             confirmArchive = true
                         } label: {
-                            Label("Archive space", systemImage: "archivebox")
+                            Label("Archive space", image: "Harvous.BoxArchive")
                         }
                         Button(role: .destructive) {
                             confirmDelete = true
                         } label: {
-                            Label("Delete space and notes", systemImage: "trash")
+                            Label("Delete space and notes", image: "Harvous.Trash")
                         }
                     }
                 }
@@ -591,7 +590,7 @@ struct ManageSpaceSheet: View {
                         }
                     }
                 } label: {
-                    Image(systemName: "ellipsis.circle")
+                    HarvousFAGlyph(assetName: "Harvous.CircleDot", edgePt: 18)
                 }
             }
         }
@@ -728,8 +727,7 @@ extension ManageSpaceSheet {
                     )
 
                     HStack(spacing: 8) {
-                        Image(systemName: "bookmark.fill")
-                            .font(.system(size: 9, weight: .semibold))
+                        HarvousFAGlyph(assetName: "Harvous.Bookmark", edgePt: 9)
                         Text("John 3:16 NASB")
                             .font(HarvousTypography.inspectorCompactMedium)
                     }
@@ -779,7 +777,7 @@ extension ManageSpaceSheet {
                         NSPasteboard.general.setString(url, forType: .string)
                     }
                 } label: {
-                    Label("Copy new invite link", systemImage: "person.badge.plus")
+                    Label("Copy new invite link", image: "Harvous.UserPlus")
                 }
                 Text("Send the link to someone so they can join this space on their device.")
                     .font(.system(size: 12))
@@ -809,12 +807,12 @@ extension ManageSpaceSheet {
                         NSPasteboard.general.setString(url.absoluteString, forType: .string)
                     }
                 } label: {
-                    Label("Copy link", systemImage: "link")
+                    Label("Copy link", image: "Harvous.Link")
                 }
                 Button(role: .destructive) {
                     _ = spaceStore.regeneratePublicLink(for: space, modelContext: modelContext)
                 } label: {
-                    Label("Regenerate link", systemImage: "arrow.triangle.2.circlepath")
+                    Label("Regenerate link", image: "Harvous.ArrowsRotate")
                 }
             }
         }
@@ -847,12 +845,12 @@ extension ManageSpaceSheet {
                 Button(role: .destructive) {
                     confirmArchive = true
                 } label: {
-                    Label("Archive space", systemImage: "archivebox")
+                    Label("Archive space", image: "Harvous.BoxArchive")
                 }
                 Button(role: .destructive) {
                     confirmDelete = true
                 } label: {
-                    Label("Delete space and notes", systemImage: "trash")
+                    Label("Delete space and notes", image: "Harvous.Trash")
                 }
             }
         }

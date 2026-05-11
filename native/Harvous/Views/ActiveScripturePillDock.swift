@@ -268,9 +268,7 @@ struct ActiveScripturePillDock: View {
         // Title is lineLimit(1) so both sides are the same height — .center aligns icon/text with
         // optional accent controls, collapse chevron (when enabled), and close on the right.
         HStack(alignment: .center, spacing: 8) {
-            Image(systemName: "book.fill")
-                .symbolRenderingMode(.monochrome)
-                .font(.system(size: 13, weight: .medium))
+            HarvousFAGlyph(assetName: "Harvous.BookOpen", edgePt: 13)
                 .foregroundStyle(.primary)
 
             HStack(alignment: .center, spacing: 8) {
@@ -310,7 +308,7 @@ struct ActiveScripturePillDock: View {
 
                 if allowsCollapseExpand {
                     toolbarButton(
-                        symbol: isExpanded ? "chevron.up" : "chevron.down",
+                        assetName: isExpanded ? "Harvous.ChevronUp" : "Harvous.ChevronDown",
                         help: isExpanded ? "Collapse" : "Expand",
                         prominent: true
                     ) {
@@ -320,7 +318,7 @@ struct ActiveScripturePillDock: View {
                     }
                 }
 
-                toolbarButton(symbol: "xmark", help: "Dismiss", prominent: true) {
+                toolbarButton(assetName: "Harvous.Xmark", help: "Dismiss", prominent: true) {
                     onDismiss()
                 }
             }
@@ -330,15 +328,14 @@ struct ActiveScripturePillDock: View {
 
     /// Matches `ActiveHighlightDock` utility controls (collapse / dismiss); no delete on scripture chrome.
     private func toolbarButton(
-        symbol: String,
+        assetName: String,
         help: String,
         prominent: Bool = false,
         action: @escaping () -> Void
     ) -> some View {
         Button(action: action) {
-            Image(systemName: symbol)
-                .font(.system(size: prominent ? 13 : 12, weight: prominent ? .medium : .regular))
-                .contentTransition(.identity) // no symbol morph animation
+            HarvousFAGlyph(assetName: assetName, edgePt: prominent ? 13 : 12)
+                .contentTransition(.identity)
                 .frame(width: 28, height: 28)
                 .contentShape(Rectangle())
         }
@@ -665,9 +662,16 @@ struct ActiveScripturePillDock: View {
                             clampVersesToCanon()
                         }
                     } label: {
-                        Image(systemName: useVerseRange ? "arrow.left.and.right.circle.fill" : "arrow.left.and.right.circle")
-                            .font(.system(size: 15, weight: .medium))
-                            .frame(width: 28, height: 28)
+                        ZStack {
+                            if useVerseRange {
+                                Circle()
+                                    .fill(Color.primary.opacity(0.09))
+                                    .frame(width: 28, height: 28)
+                            }
+                            HarvousFAGlyph(assetName: "Harvous.ArrowsLeftRight", edgePt: 15)
+                                .foregroundStyle(.primary)
+                        }
+                        .frame(width: 28, height: 28)
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel(useVerseRange ? "Single verse" : "Verse range")

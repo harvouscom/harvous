@@ -32,6 +32,41 @@ export interface ListNoteForSeed {
   collectionUserOverride?: boolean;
 }
 
+/** Slim linked-note row from GET /api/notes/:id/details (connections strip). */
+export interface LinkedNoteRef {
+  id: string;
+  title?: string | null;
+  noteType?: string;
+  resourceTitle?: string | null;
+  resourceDescription?: string | null;
+  resourceImage?: string | null;
+}
+
+/** Study thread entry row from GET /api/notes/:id/details (mirrors `StudyThreadEntries` + native StudyThread fields). */
+export interface StudyThreadEntryDetail {
+  id: string;
+  parentNoteId: string;
+  spaceId: string | null;
+  entryKind: string;
+  highlightAccentRaw: string | null;
+  sourceSnippet: string | null;
+  focusTitle: string | null;
+  notesBody: string | null;
+  miniNoteBody: string | null;
+  linkedNoteId: string | null;
+  linkedNoteTitle: string | null;
+  anchorLocation: number | null;
+  anchorLength: number | null;
+  anchorTextSnapshot: string | null;
+  scriptureReference: string | null;
+  scripturePassageTranslation: string | null;
+  scripturePassageExcerpt: string | null;
+  isArchived: boolean;
+  highlightListEditedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface NoteDetail {
   id: string;
   title: string | null;
@@ -68,13 +103,19 @@ export interface NoteDetail {
   collectionPinned?: boolean;
   collectionUserOverride?: boolean;
   collectionLastAutoUpdatedAt?: string | null;
+  linkedFromNotes?: LinkedNoteRef[];
+  linkedToNotes?: LinkedNoteRef[];
+  studyThreads?: StudyThreadEntryDetail[];
 }
 
 interface NoteDetailResponse {
   success: boolean;
-  note: Omit<NoteDetail, 'threads' | 'tags' | 'spaces'>;
+  note: Omit<NoteDetail, 'threads' | 'tags' | 'spaces' | 'linkedFromNotes' | 'linkedToNotes' | 'studyThreads'>;
   threads: NoteDetail['threads'];
   tags?: NoteDetail['tags'];
+  linkedFromNotes?: LinkedNoteRef[];
+  linkedToNotes?: LinkedNoteRef[];
+  studyThreads?: StudyThreadEntryDetail[];
 }
 
 export function getCachedNoteParentThreadId(noteId: string): string | null {
@@ -223,6 +264,9 @@ export function listNoteToNoteDetail(
     resourceDescription: listNote.resourceDescription ?? null,
     resourceImage: listNote.resourceImage ?? null,
     version: listNote.version ?? undefined,
+    linkedFromNotes: [],
+    linkedToNotes: [],
+    studyThreads: [],
   };
 }
 
@@ -241,6 +285,61 @@ export function seedNoteFromList(
   setCachedNoteDetail(listNote.id, detail);
 }
 
+/** Parse `note.id` from POST /api/notes/create JSON (handles odd types conservatively). */
+export function getNoteIdFromCreateResponse(res: unknown): string | undefined {
+  if (!res || typeof res !== 'object') return undefined;
+  const note = (res as { note?: unknown }).note;
+  if (!note || typeof note !== 'object') return undefined;
+  const raw = (note as { id?: unknown }).id;
+  if (typeof raw === 'string' && raw.length > 0) return raw;
+  if (typeof raw === 'number' && Number.isFinite(raw)) return String(raw);
+  return undefined;
+}
+
+/** `note` from POST /api/notes/create — extra keys ignored; seed cache for instant editor (prototype / native-like). */
+export function seedNoteFromCreateResponse(
+  queryClient: QueryClient,
+  created: Record<string, unknown> & { id: string },
+  requestSpaceId: string,
+): void {
+  if (!created?.id) return;
+  const spaceNorm =
+    (typeof created.spaceId === 'string' && created.spaceId.trim()) ||
+    (requestSpaceId.startsWith('space_') ? requestSpaceId : `space_${requestSpaceId}`);
+  let secondary: string[] | undefined;
+  const sc = created.secondaryCollections;
+  if (Array.isArray(sc)) {
+    secondary = sc.filter((x): x is string => typeof x === 'string');
+  }
+  const listSeed: ListNoteForSeed = {
+    id: created.id,
+    title: typeof created.title === 'string' ? created.title : '',
+    content: typeof created.content === 'string' ? created.content : '<p></p>',
+    noteType: typeof created.noteType === 'string' ? created.noteType : 'default',
+    contentEncrypted: created.contentEncrypted === true,
+    threadId: 'thread_unorganized',
+    spaceId: spaceNorm,
+    createdAt: typeof created.createdAt === 'string' ? created.createdAt : undefined,
+    updatedAt:
+      typeof created.updatedAt === 'string'
+        ? created.updatedAt
+        : typeof created.createdAt === 'string'
+          ? created.createdAt
+          : undefined,
+    simpleNoteId: typeof created.simpleNoteId === 'number' ? created.simpleNoteId : undefined,
+    primaryCollection: typeof created.primaryCollection === 'string' ? created.primaryCollection : null,
+    secondaryCollections: secondary,
+    resourceTitle: typeof created.resourceTitle === 'string' ? created.resourceTitle : null,
+    version: typeof created.version === 'string' ? created.version : undefined,
+  };
+  seedNoteFromList(queryClient, listSeed, {
+    id: 'thread_unorganized',
+    title: '',
+    color: null,
+    backgroundGradient: '',
+  });
+}
+
 export function getNoteQueryOptions(noteId: string) {
   return {
     queryKey: ['note', noteId] as const,
@@ -250,6 +349,9 @@ export function getNoteQueryOptions(noteId: string) {
         ...res.note,
         threads: res.threads ?? [],
         tags: res.tags ?? [],
+        linkedFromNotes: Array.isArray(res.linkedFromNotes) ? res.linkedFromNotes : [],
+        linkedToNotes: Array.isArray(res.linkedToNotes) ? res.linkedToNotes : [],
+        studyThreads: Array.isArray(res.studyThreads) ? res.studyThreads : [],
       } as NoteDetail;
       const parentThread = note.threads?.[0];
       if (parentThread?.id) {

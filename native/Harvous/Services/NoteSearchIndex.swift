@@ -18,8 +18,8 @@ enum NoteSearchIndex {
         if note.body.lowercased().contains(lc) { return true }
         if note.detectedRefs.contains(where: { $0.lowercased().contains(lc) }) { return true }
         if note.tags.contains(where: { $0.lowercased().contains(lc) }) { return true }
-        if let col = note.primaryCollection?.lowercased(), col.contains(lc) { return true }
-        if note.normalizedSecondaryCollectionLabels().contains(where: { $0.lowercased().contains(lc) }) {
+        if let col = note.primaryFolder?.lowercased(), col.contains(lc) { return true }
+        if note.normalizedSecondaryFolderLabels().contains(where: { $0.lowercased().contains(lc) }) {
             return true
         }
         return false

@@ -272,9 +272,15 @@ struct ScripturePillToolbarLane: View {
                             coordinator.toggleVerseRange()
                         }
                     } label: {
-                        Image(systemName: coordinator.useVerseRange ? "arrow.left.and.right.circle.fill" : "arrow.left.and.right.circle")
-                            .font(.system(size: 15, weight: .medium))
-                            .frame(width: ScripturePillActionBar.toolbarControlHeight, height: ScripturePillActionBar.toolbarControlHeight)
+                        ZStack {
+                            if coordinator.useVerseRange {
+                                Circle()
+                                    .fill(Color.primary.opacity(0.09))
+                                    .frame(width: ScripturePillActionBar.toolbarControlHeight, height: ScripturePillActionBar.toolbarControlHeight)
+                            }
+                            HarvousFAGlyph(assetName: "Harvous.ArrowsLeftRight", edgePt: 15)
+                        }
+                        .frame(width: ScripturePillActionBar.toolbarControlHeight, height: ScripturePillActionBar.toolbarControlHeight)
                     }
                     .buttonStyle(NoteToolbarButtonStyle(isActive: coordinator.useVerseRange))
                     .accessibilityLabel(coordinator.useVerseRange ? "Single verse" : "Verse range")

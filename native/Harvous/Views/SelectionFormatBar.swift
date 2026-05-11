@@ -10,16 +10,14 @@ struct SelectionFormatBar: View {
     var body: some View {
         HStack(spacing: 0) {
             pill(help: "Undo", disabled: !proxy.formatToolbar.canUndo) {
-                Image(systemName: "arrow.uturn.backward")
-                    .font(.system(size: 14))
+                HarvousFAGlyph(assetName: "Harvous.ArrowRotateLeft", edgePt: 14)
                     .frame(width: 36, height: 36)
             } action: { proxy.undoEdit() }
 
             sep
 
             pill(help: "Redo", disabled: !proxy.formatToolbar.canRedo) {
-                Image(systemName: "arrow.uturn.forward")
-                    .font(.system(size: 14))
+                HarvousFAGlyph(assetName: "Harvous.ArrowRotateRight", edgePt: 14)
                     .frame(width: 36, height: 36)
             } action: { proxy.redoEdit() }
 
@@ -50,8 +48,7 @@ struct SelectionFormatBar: View {
 
             // Unordered list
             pill(help: "Bullet List") {
-                Image(systemName: "list.bullet")
-                    .font(.system(size: 14))
+                HarvousFAGlyph(assetName: "Harvous.ListUl", edgePt: 14)
                     .frame(width: 36, height: 36)
             } action: { proxy.insertBullet() }
 
@@ -59,16 +56,14 @@ struct SelectionFormatBar: View {
 
             // Ordered list
             pill(help: "Numbered List") {
-                Image(systemName: "list.number")
-                    .font(.system(size: 14))
+                HarvousFAGlyph(assetName: "Harvous.ListOl", edgePt: 14)
                     .frame(width: 36, height: 36)
             } action: { proxy.insertNumbered() }
 
             sep
 
             pill(help: "Outdent", disabled: !proxy.formatToolbar.isIndented) {
-                Image(systemName: "decrease.indent")
-                    .font(.system(size: 14))
+                HarvousFAGlyph(assetName: "Harvous.Outdent", edgePt: 14)
                     .frame(width: 36, height: 36)
             } action: { proxy.outdent() }
 
@@ -76,8 +71,7 @@ struct SelectionFormatBar: View {
 
             // Indent
             pill(help: "Indent") {
-                Image(systemName: "increase.indent")
-                    .font(.system(size: 14))
+                HarvousFAGlyph(assetName: "Harvous.Indent", edgePt: 14)
                     .frame(width: 36, height: 36)
             } action: { proxy.indent() }
         }

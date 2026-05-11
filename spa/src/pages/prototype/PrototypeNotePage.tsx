@@ -1,9 +1,8 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams } from '@tanstack/react-router';
 import { useQueryClient } from '@tanstack/react-query';
-import { useUser } from '@clerk/clerk-react';
 import CardFullEditable from '../../../../src/components/react/CardFullEditable';
-import PrototypeNoteActionBar from '../../../../src/components/react/PrototypeNoteActionBar';
+import PrototypeNoteActionBar from './PrototypeNoteActionBar';
 import SubtleContentMount from '@/components/react/SubtleContentMount';
 import { detectScriptureReferences } from '@/utils/scripture-detector';
 import { updateNoteOffline } from '../../../../src/utils/offline-mutations';
@@ -11,6 +10,7 @@ import { useNote } from '../../hooks/queries/useNote';
 import { useProcessScriptureRefs } from '../../hooks/mutations/useProcessScriptureRefs';
 import { useUpdateNote } from '../../hooks/mutations/useUpdateNote';
 import { useProtoShell } from '../../layouts/proto-shell-context';
+import { effectiveNoteFolderLabel } from '@/utils/note-folder-display';
 import PrototypeInspectorPane from './PrototypeInspectorPane';
 
 export default function PrototypeNotePage() {
@@ -21,21 +21,48 @@ export default function PrototypeNotePage() {
   const spaceId = spaceSlugParam.startsWith('space_') ? spaceSlugParam : `space_${spaceSlugParam}`;
   const noteId = noteSlugParam.startsWith('note_') ? noteSlugParam : `note_${noteSlugParam}`;
 
-  const { user } = useUser();
   const { data: note, isLoading } = useNote(noteId);
   const queryClient = useQueryClient();
   const updateNoteMutation = useUpdateNote();
   const processScriptureMutation = useProcessScriptureRefs();
-  const { inspectorOpen, isMobileSidebar, openInspector } = useProtoShell();
+  const { inspectorOpen, isMobileSidebar, closeInspector, setPrototypeFolderChip } = useProtoShell();
 
   const isEditable = true;
+
+  const onPrototypeFolderDisplayChange = useCallback(
+    (label: string | null) => {
+      setPrototypeFolderChip({ noteId, label });
+    },
+    [noteId, setPrototypeFolderChip],
+  );
+
+  useEffect(() => {
+    if (!note) {
+      setPrototypeFolderChip(null);
+      return;
+    }
+    setPrototypeFolderChip({
+      noteId,
+      label: effectiveNoteFolderLabel({
+        primaryCollection: note.primaryCollection ?? null,
+        secondaryCollections: note.secondaryCollections ?? [],
+      }),
+    });
+  }, [noteId, note, setPrototypeFolderChip]);
+
+  useEffect(() => {
+    return () => {
+      setPrototypeFolderChip(null);
+    };
+  }, [setPrototypeFolderChip]);
 
   // Column-level bottom bar host. The format toolbar is portaled into this
   // element so it pins to the bottom of the editor column (sibling of the
   // scroll container) regardless of content height.
   const [formatToolbarHostEl, setFormatToolbarHostEl] = useState<HTMLDivElement | null>(null);
   const [scriptureChromeHostEl, setScriptureChromeHostEl] = useState<HTMLDivElement | null>(null);
-  const [chromeMode, setChromeMode] = useState<'format' | 'scripture' | 'noteActions'>(
+  const [highlightChromeHostEl, setHighlightChromeHostEl] = useState<HTMLDivElement | null>(null);
+  const [chromeMode, setChromeMode] = useState<'format' | 'scripture' | 'highlight' | 'noteActions'>(
     'noteActions',
   );
 
@@ -53,13 +80,6 @@ export default function PrototypeNotePage() {
       window.removeEventListener('noteUpdated', handler);
     };
   }, [noteId, queryClient]);
-
-  const collectionLabel = useMemo(() => {
-    const raw = (note as { primaryCollection?: string | null } | undefined)?.primaryCollection;
-    if (!raw) return null;
-    const t = raw.trim();
-    return t.length > 0 ? t : null;
-  }, [note]);
 
   const parentThread = useMemo(() => note?.threads?.[0], [note?.threads]);
   const parentThreadId = parentThread?.id ?? 'thread_unorganized';
@@ -140,9 +160,18 @@ export default function PrototypeNotePage() {
 
     (
       window as unknown as {
-        noteSaveCallback?: (newTitle: string, newContent: string) => Promise<unknown>;
+        noteSaveCallback?: (
+          newTitle: string,
+          newContent: string,
+          collectionExtras?: {
+            primaryCollection?: string | null;
+            secondaryCollections?: string[];
+            collectionPinned?: boolean;
+            collectionUserOverride?: boolean;
+          },
+        ) => Promise<unknown>;
       }
-    ).noteSaveCallback = async function (newTitle: string, newContent: string) {
+    ).noteSaveCallback = async function (newTitle, newContent, collectionExtras) {
       try {
         const uid =
           (window as unknown as { __harvous_userId?: string }).__harvous_userId ||
@@ -153,13 +182,27 @@ export default function PrototypeNotePage() {
       } catch (err) {
         console.error('[PrototypeNotePage] offline note update:', err);
       }
-      return updateNoteMutation.mutateAsync({ noteId, title: newTitle, content: newContent });
+      return updateNoteMutation.mutateAsync({
+        noteId,
+        title: newTitle,
+        content: newContent,
+        ...(collectionExtras ?? {}),
+      });
     };
 
     return () => {
       delete (window as unknown as { noteSaveCallback?: unknown }).noteSaveCallback;
     };
   }, [noteId, updateNoteMutation]);
+
+  useEffect(() => {
+    if (!inspectorOpen || !isMobileSidebar) return undefined;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') closeInspector();
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [inspectorOpen, isMobileSidebar, closeInspector]);
 
   /* Loading — use PDS shimmer, no SPA card-full class */
   if (isLoading && !note) {
@@ -196,7 +239,8 @@ export default function PrototypeNotePage() {
       })()
     : '';
 
-  const showInspector = inspectorOpen && !isMobileSidebar;
+  const showInspectorDesktop = inspectorOpen && !isMobileSidebar;
+  const showInspectorMobile = inspectorOpen && isMobileSidebar;
 
   return (
     <div
@@ -230,7 +274,14 @@ export default function PrototypeNotePage() {
                 editorChromeMode="prototypeNative"
                 formatToolbarPortalTarget={formatToolbarHostEl}
                 scriptureChromePortalTarget={scriptureChromeHostEl}
+                highlightChromePortalTarget={highlightChromeHostEl}
                 onPrototypeChromeModeChange={setChromeMode}
+                initialPrimaryCollection={note.primaryCollection ?? null}
+                initialSecondaryCollections={note.secondaryCollections ?? []}
+                initialCollectionPinned={note.collectionPinned ?? false}
+                initialCollectionUserOverride={note.collectionUserOverride ?? false}
+                initialCollectionLastAutoUpdatedAtIso={note.collectionLastAutoUpdatedAt ?? null}
+                onPrototypeFolderDisplayChange={onPrototypeFolderDisplayChange}
               />
             </div>
           </SubtleContentMount>
@@ -242,6 +293,11 @@ export default function PrototypeNotePage() {
           data-mode={chromeMode}
         >
           <div
+            ref={setHighlightChromeHostEl}
+            className="proto-editor-bottom-bar__highlight"
+            style={{ display: chromeMode === 'highlight' ? 'block' : 'none' }}
+          />
+          <div
             ref={setScriptureChromeHostEl}
             className="proto-editor-bottom-bar__scripture"
             style={{ display: chromeMode === 'scripture' ? 'block' : 'none' }}
@@ -251,17 +307,24 @@ export default function PrototypeNotePage() {
             className="proto-editor-bottom-bar__format"
             style={{ display: chromeMode === 'format' ? 'flex' : 'none' }}
           />
-          {chromeMode === 'noteActions' ? (
+          <div
+            className="proto-editor-bottom-bar__note-actions-stack"
+            style={{ display: chromeMode === 'noteActions' ? 'flex' : 'none' }}
+          >
             <PrototypeNoteActionBar
-              collectionLabel={collectionLabel}
-              onOpenInspector={!isMobileSidebar ? openInspector : undefined}
+              noteId={noteId}
+              spaceId={spaceId}
+              currentTitle={note.title || 'Untitled Note'}
+              linkedFromNotes={note.linkedFromNotes ?? []}
+              linkedToNotes={note.linkedToNotes ?? []}
+              connectDisabled={isOnboardingReadonly}
             />
-          ) : null}
+          </div>
         </div>
       </div>
 
-      {/* Inspector pane — rendered here when open on desktop */}
-      {showInspector ? (
+      {/* Inspector — desktop: flex column; mobile: fixed slide-over + backdrop */}
+      {showInspectorDesktop ? (
         <div
           style={{
             width: 'var(--pds-inspector-w)',
@@ -275,6 +338,20 @@ export default function PrototypeNotePage() {
         >
           <PrototypeInspectorPane note={note} />
         </div>
+      ) : null}
+
+      {showInspectorMobile ? (
+        <>
+          <div
+            className="proto-inspector-mobile-backdrop"
+            role="presentation"
+            tabIndex={-1}
+            onClick={closeInspector}
+          />
+          <div className="proto-inspector-mobile-panel" role="dialog" aria-label="Note details">
+            <PrototypeInspectorPane note={note} />
+          </div>
+        </>
       ) : null}
     </div>
   );

@@ -14,6 +14,7 @@ export {
   Threads,
   Notes,
   NoteThreads,
+  StudyThreadEntries,
   Comments,
   Members,
   SpaceInvitations,

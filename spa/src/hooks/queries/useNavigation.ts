@@ -23,6 +23,7 @@ export interface NavSpace {
   ownerId: string;
   memberCount: number;
   isPublic?: boolean;
+  createdAt?: string;
 }
 
 export interface NavigationData {

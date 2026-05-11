@@ -122,8 +122,7 @@ struct AddLinkSheetView: View {
                     Button {
                         proxy.addLinkDisplayName = ""
                     } label: {
-                        Image(systemName: "xmark.circle.fill")
-                            .font(.system(size: 14))
+                        HarvousFAGlyph(assetName: "Harvous.CircleXmark", edgePt: 14)
                             .foregroundStyle(.tertiary)
                     }
                     .buttonStyle(.plain)

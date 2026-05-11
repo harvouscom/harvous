@@ -1,7 +1,7 @@
 import SwiftData
 import SwiftUI
 
-/// Library-style list of study highlights (`StudyThread`) with the same row chrome as notes/collections.
+/// Library-style list of study highlights (`StudyThread`) with the same row chrome as notes/folders.
 struct StudyHighlightListColumn: View {
     @Binding var selectedNote: Note?
     var externalSearchText: Binding<String>? = nil
@@ -225,7 +225,11 @@ struct StudyHighlightListColumn: View {
                     Button {
                         votdPassageCardDismissedDay = VotdService.todayCalendarDayKey()
                     } label: {
-                        Label("Dismiss", systemImage: "xmark.circle.fill")
+                        Label {
+                            Text("Dismiss")
+                        } icon: {
+                            HarvousFAGlyph(assetName: "Harvous.CircleXmark", edgePt: 16)
+                        }
                     }
                     .tint(.secondary)
                     .accessibilityLabel("Dismiss today's passage")
@@ -435,8 +439,7 @@ struct StudyHighlightListColumn: View {
 
     private var emptyState: some View {
         VStack(spacing: 8) {
-            Image(systemName: "highlighter")
-                .font(.system(size: 20, weight: .semibold))
+            HarvousFAGlyph(assetName: "Harvous.Highlight", edgePt: 16)
                 .foregroundStyle(.tertiary)
             Text("No Highlights")
                 .font(HarvousTypography.body)
@@ -473,8 +476,7 @@ struct HighlightsHubView: View {
                     UIImpactFeedbackGenerator(style: .light).impactOccurred()
                     appRouter.selectIOSListSurface(.more)
                 } label: {
-                    Image(systemName: "person.fill")
-                        .font(.system(size: 17, weight: .medium))
+                    HarvousFAGlyph(assetName: "Harvous.UserFilled", edgePt: 17)
                         .foregroundStyle(.primary)
                         .frame(width: 32, height: 32)
                         .contentShape(Rectangle())

@@ -1,23 +1,23 @@
 import Foundation
 
 /// On-device auto-tags aligned with `server/utils/auto-tag-generator.ts` and `bible-study-keywords.ts`:
-/// title/content keyword matching, category tie-breaks, and a single primary collection label.
+/// title/content keyword matching, category tie-breaks, and a single primary folder label (persisted as `primaryFolder`).
 enum BibleStudyTagSuggester {
     // MARK: - Public API
 
-    static func result(title: String, body: String, existingCollections: [String] = []) -> (
-        primaryCollection: String?,
-        secondaryCollections: [String],
+    static func result(title: String, body: String, existingFolders: [String] = []) -> (
+        primaryFolder: String?,
+        secondaryFolders: [String],
         tags: [String]
     ) {
         let analysis = analyze(title: title, body: body)
-        let primary = resolveToExistingCollection(analysis.primaryCandidate, from: existingCollections)
+        let primary = resolveToExistingFolder(analysis.primaryCandidate, from: existingFolders)
         let secondaries: [String]
-        if let primaryTrimmed = normalizedCollectionName(primary) {
+        if let primaryTrimmed = normalizedFolderName(primary) {
             secondaries = autoSecondaryLabels(
                 analysis: analysis,
                 primaryLabel: primaryTrimmed,
-                existingCollections: existingCollections
+                existingFolders: existingFolders
             )
         } else {
             secondaries = []
@@ -25,104 +25,104 @@ enum BibleStudyTagSuggester {
         return (primary, secondaries, analysis.tags)
     }
 
-    /// Recomputes `primaryCollection`, `secondaryCollections`, and `tags` from the note’s title and body.
+    /// Recomputes `primaryFolder`, `secondaryFolders`, and `tags` from the note’s title and body.
     /// - parameter allowPrimaryUpdate: When false, primary stays stable regardless of lock flags; secondaries can still refresh.
-    /// - parameter existingCollections: Names of collections already in the user’s library. When provided,
+    /// - parameter existingFolders: Names of folders already in the user’s library. When provided,
     ///   resolved candidates prefer an established name over a bare keyword (e.g. "Prayer" → "Prayer Life").
     ///
-    /// **Lock (`isCollectionPinned`)** freezes automatic **primary** changes only; secondaries still refresh from content.
-    /// **Manual membership** (`isCollectionUserOverride` without pin) freezes both until the user uses auto suggestion again.
-    static func applyToNote(_ note: Note, allowPrimaryUpdate: Bool = true, existingCollections: [String] = []) {
+    /// **Lock (`isFolderPinned`)** freezes automatic **primary** changes only; secondaries still refresh from content.
+    /// **Manual membership** (`isFolderUserOverride` without pin) freezes both until the user uses auto suggestion again.
+    static func applyToNote(_ note: Note, allowPrimaryUpdate: Bool = true, existingFolders: [String] = []) {
         let analysis = analyze(title: note.title, body: note.body)
         if note.tags != analysis.tags {
             note.tags = analysis.tags
         }
 
         // Manual tweaks without lock: preserve primary + secondaries from automation.
-        if note.isCollectionUserOverride && !note.isCollectionPinned {
+        if note.isFolderUserOverride && !note.isFolderPinned {
             return
         }
 
-        let skipAutoPrimary = note.isCollectionPinned || note.isCollectionUserOverride
+        let skipAutoPrimary = note.isFolderPinned || note.isFolderUserOverride
         if allowPrimaryUpdate && !skipAutoPrimary {
-            applyPrimaryMutation(note: note, analysis: analysis, existingCollections: existingCollections)
+            applyPrimaryMutation(note: note, analysis: analysis, existingFolders: existingFolders)
         }
-        refreshAutoSecondaries(note: note, analysis: analysis, existingCollections: existingCollections)
+        refreshAutoSecondaries(note: note, analysis: analysis, existingFolders: existingFolders)
     }
 
-    private static func applyPrimaryMutation(note: Note, analysis: Analysis, existingCollections: [String]) {
-        let current = normalizedCollectionName(note.primaryCollection)
-        let rawCandidate = normalizedCollectionName(analysis.primaryCandidate)
-        let resolved = resolveToExistingCollection(analysis.primaryCandidate, from: existingCollections)
-        let candidate = normalizedCollectionName(resolved)
+    private static func applyPrimaryMutation(note: Note, analysis: Analysis, existingFolders: [String]) {
+        let current = normalizedFolderName(note.primaryFolder)
+        let rawCandidate = normalizedFolderName(analysis.primaryCandidate)
+        let resolved = resolveToExistingFolder(analysis.primaryCandidate, from: existingFolders)
+        let candidate = normalizedFolderName(resolved)
         let scoringName = rawCandidate ?? candidate
         let now = Date()
 
-        if !meetsMinimumContextForAutoCollection(note: note, candidate: rawCandidate, analysis: analysis) {
+        if !meetsMinimumContextForAutoFolder(note: note, candidate: rawCandidate, analysis: analysis) {
             return
         }
 
         guard let current else {
-            note.primaryCollection = candidate
+            note.primaryFolder = candidate
             if let scoringName {
-                note.collectionAutoConfidence = primaryScoreForName(scoringName, in: analysis)
-                note.collectionLastAutoUpdatedAt = now
+                note.folderAutoConfidence = primaryScoreForName(scoringName, in: analysis)
+                note.folderLastAutoUpdatedAt = now
             }
             return
         }
         guard let candidate else {
-            note.primaryCollection = current
+            note.primaryFolder = current
             return
         }
         guard current.caseInsensitiveCompare(candidate) != .orderedSame else {
-            note.primaryCollection = candidate
+            note.primaryFolder = candidate
             return
         }
 
-        if !isPastAutoCollectionCooldown(note: note, now: now) {
-            note.primaryCollection = current
+        if !isPastAutoFolderCooldown(note: note, now: now) {
+            note.primaryFolder = current
             return
         }
-        guard shouldReplacePrimaryCollection(current: current, candidate: scoringName ?? candidate, analysis: analysis) else {
-            note.primaryCollection = current
+        guard shouldReplacePrimaryFolder(current: current, candidate: scoringName ?? candidate, analysis: analysis) else {
+            note.primaryFolder = current
             return
         }
-        note.primaryCollection = candidate
-        note.collectionAutoConfidence = primaryScoreForName(scoringName ?? candidate, in: analysis)
-        note.collectionLastAutoUpdatedAt = now
+        note.primaryFolder = candidate
+        note.folderAutoConfidence = primaryScoreForName(scoringName ?? candidate, in: analysis)
+        note.folderLastAutoUpdatedAt = now
     }
 
     private static let maxAutoSecondaries = 5
     private static let secondaryMinPrimaryScore: Double = 0.78
 
-    private static func refreshAutoSecondaries(note: Note, analysis: Analysis, existingCollections: [String]) {
-        guard let primaryTrimmed = normalizedCollectionName(note.primaryCollection) else {
-            note.secondaryCollections = []
+    private static func refreshAutoSecondaries(note: Note, analysis: Analysis, existingFolders: [String]) {
+        guard let primaryTrimmed = normalizedFolderName(note.primaryFolder) else {
+            note.secondaryFolders = []
             return
         }
-        let gate = normalizedCollectionName(analysis.primaryCandidate) ?? primaryTrimmed
-        if !meetsMinimumContextForAutoCollection(note: note, candidate: gate, analysis: analysis) {
-            note.secondaryCollections = []
+        let gate = normalizedFolderName(analysis.primaryCandidate) ?? primaryTrimmed
+        if !meetsMinimumContextForAutoFolder(note: note, candidate: gate, analysis: analysis) {
+            note.secondaryFolders = []
             return
         }
-        note.secondaryCollections = autoSecondaryLabels(
+        note.secondaryFolders = autoSecondaryLabels(
             analysis: analysis,
             primaryLabel: primaryTrimmed,
-            existingCollections: existingCollections
+            existingFolders: existingFolders
         )
     }
 
     private static func autoSecondaryLabels(
         analysis: Analysis,
         primaryLabel: String,
-        existingCollections: [String]
+        existingFolders: [String]
     ) -> [String] {
         var out: [String] = []
         let ranked = analysis.picked.sorted { primaryScore($0) > primaryScore($1) }
         for s in ranked {
             guard out.count < maxAutoSecondaries else { break }
-            let resolved = resolveToExistingCollection(s.name, from: existingCollections)
-            guard let label = normalizedCollectionName(resolved) else { continue }
+            let resolved = resolveToExistingFolder(s.name, from: existingFolders)
+            guard let label = normalizedFolderName(resolved) else { continue }
             if label.caseInsensitiveCompare(primaryLabel) == .orderedSame { continue }
             if out.contains(where: { $0.caseInsensitiveCompare(label) == .orderedSame }) { continue }
             if primaryScore(s) < secondaryMinPrimaryScore { continue }
@@ -151,8 +151,8 @@ enum BibleStudyTagSuggester {
         case spiritual, biblical, book, life, place, character
     }
 
-    /// Lower rank = better primary collection when confidence ties.
-    private static func collectionRank(_ c: TagCategory) -> Int {
+    /// Lower rank = better primary folder when confidence ties.
+    private static func folderCategoryRank(_ c: TagCategory) -> Int {
         switch c {
         case .spiritual: return 0
         case .biblical: return 1
@@ -164,9 +164,9 @@ enum BibleStudyTagSuggester {
     }
 
     private static let bibleStudyBoostCategories: Set<TagCategory> = [.spiritual, .biblical, .character, .book]
-    private static let minimumBodyWordsForAutoCollection = 25
+    private static let minimumBodyWordsForAutoFolder = 25
     private static let shortDraftStrongTitleThreshold = 1.02
-    private static let autoCollectionCooldown: TimeInterval = 25
+    private static let autoFolderCooldown: TimeInterval = 25
 
     private static func analyze(title: String, body: String) -> Analysis {
         let fullText = "\(title) \(body)"
@@ -219,20 +219,20 @@ enum BibleStudyTagSuggester {
             let aScore = primaryScore(a)
             let bScore = primaryScore(b)
             if abs(aScore - bScore) > 0.001 { return aScore < bScore }
-            return collectionRank(a.category) > collectionRank(b.category)
+            return folderCategoryRank(a.category) > folderCategoryRank(b.category)
         })?.name
 
         return Analysis(picked: picked, tags: tags, primaryCandidate: primary)
     }
 
-    /// Maps a keyword candidate to an existing collection name when there is a clear, unambiguous match.
+    /// Maps a keyword candidate to an existing folder name when there is a clear, unambiguous match.
     ///
     /// Resolution priority (all word-boundary, case-insensitive):
     ///  1. Exact match → return existing name (normalizes case)
     ///  2. Existing name starts with candidate words (single match only) → prefer existing ("Prayer" → "Prayer Life")
     ///  3. Candidate words start with existing name (single match only) → prefer existing ("Kingdom of God" → "Kingdom")
     ///  4. Multiple matches or no match → return candidate unchanged
-    private static func resolveToExistingCollection(_ candidate: String?, from existing: [String]) -> String? {
+    private static func resolveToExistingFolder(_ candidate: String?, from existing: [String]) -> String? {
         guard let candidate, !existing.isEmpty else { return candidate }
 
         // 1. Exact match — normalizes case to the established name.
@@ -261,7 +261,7 @@ enum BibleStudyTagSuggester {
         return candidate
     }
 
-    private static func shouldReplacePrimaryCollection(current: String, candidate: String, analysis: Analysis) -> Bool {
+    private static func shouldReplacePrimaryFolder(current: String, candidate: String, analysis: Analysis) -> Bool {
         let currentScore = primaryScoreForName(current, in: analysis)
         guard let candidateScored = scoredForName(candidate, in: analysis) else { return false }
         let candidateScore = primaryScore(candidateScored)
@@ -270,17 +270,17 @@ enum BibleStudyTagSuggester {
         return materiallyStronger && strongSignal
     }
 
-    private static func meetsMinimumContextForAutoCollection(note: Note, candidate: String?, analysis: Analysis) -> Bool {
+    private static func meetsMinimumContextForAutoFolder(note: Note, candidate: String?, analysis: Analysis) -> Bool {
         guard let candidate else { return false }
         let wordCount = note.body.split(whereSeparator: { $0.isWhitespace || $0.isNewline }).count
-        if wordCount >= minimumBodyWordsForAutoCollection { return true }
+        if wordCount >= minimumBodyWordsForAutoFolder { return true }
         let candidateScore = primaryScoreForName(candidate, in: analysis)
         return candidateScore >= shortDraftStrongTitleThreshold
     }
 
-    private static func isPastAutoCollectionCooldown(note: Note, now: Date) -> Bool {
-        guard let last = note.collectionLastAutoUpdatedAt else { return true }
-        return now.timeIntervalSince(last) >= autoCollectionCooldown
+    private static func isPastAutoFolderCooldown(note: Note, now: Date) -> Bool {
+        guard let last = note.folderLastAutoUpdatedAt else { return true }
+        return now.timeIntervalSince(last) >= autoFolderCooldown
     }
 
     private static func primaryScoreForName(_ name: String, in analysis: Analysis) -> Double {
@@ -292,7 +292,7 @@ enum BibleStudyTagSuggester {
         analysis.picked.first { $0.name.caseInsensitiveCompare(name).rawValue == 0 }
     }
 
-    private static func normalizedCollectionName(_ value: String?) -> String? {
+    private static func normalizedFolderName(_ value: String?) -> String? {
         guard let value else { return nil }
         let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.isEmpty ? nil : trimmed

@@ -11,7 +11,7 @@ struct IOSInlineImagePickSheet: View {
     var body: some View {
         NavigationStack {
             PhotosPicker(selection: $item, matching: .images) {
-                Label("Choose Photo", systemImage: "photo.on.rectangle.angled")
+                Label("Choose Photo", image: "Harvous.ImagesMulti")
                     .font(.headline)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }

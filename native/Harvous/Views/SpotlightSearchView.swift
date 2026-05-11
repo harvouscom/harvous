@@ -29,8 +29,8 @@ struct SpotlightSearchView: View {
             if let t = parsed.tagFilter {
                 if !note.tags.contains(where: { $0.lowercased().contains(t.lowercased()) }) { return false }
             }
-            if let c = parsed.collectionFilter {
-                let pc = note.primaryCollection?.lowercased() ?? ""
+            if let c = parsed.folderFilter {
+                let pc = note.primaryFolder?.lowercased() ?? ""
                 if !pc.contains(c.lowercased()) { return false }
             }
             if let r = parsed.refFilter {
@@ -47,27 +47,35 @@ struct SpotlightSearchView: View {
         }
     }
 
-    /// Parses `tag:x collection:y ref:Romans 8 from:2024-01-01` plus free-text tokens.
+    /// Parses `tag:x folder:y` (alias `collection:y`) `ref:Romans 8 from:2024-01-01` plus free-text tokens.
     private struct ParsedSpotlightQuery {
         var freeText: String
         var tagFilter: String?
-        var collectionFilter: String?
+        var folderFilter: String?
         var refFilter: String?
         var fromDateFilter: Date?
 
         var hasAnyFilter: Bool {
-            tagFilter != nil || collectionFilter != nil || refFilter != nil || fromDateFilter != nil
+            tagFilter != nil || folderFilter != nil || refFilter != nil || fromDateFilter != nil
         }
+    }
+
+    private static func spotlightFilterPrefixBreaksRefContinuation(_ lowercasedToken: String) -> Bool {
+        lowercasedToken.hasPrefix("tag:")
+            || lowercasedToken.hasPrefix("collection:")
+            || lowercasedToken.hasPrefix("folder:")
+            || lowercasedToken.hasPrefix("from:")
+            || lowercasedToken.hasPrefix("ref:")
     }
 
     private static func parseSpotlightQuery(_ raw: String) -> ParsedSpotlightQuery {
         let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else {
-            return ParsedSpotlightQuery(freeText: "", tagFilter: nil, collectionFilter: nil, refFilter: nil, fromDateFilter: nil)
+            return ParsedSpotlightQuery(freeText: "", tagFilter: nil, folderFilter: nil, refFilter: nil, fromDateFilter: nil)
         }
         let parts = trimmed.split(whereSeparator: { $0 == " " || $0 == "\t" }).map(String.init)
         var tag: String?
-        var collection: String?
+        var folder: String?
         var ref: String?
         var from: Date?
         var free: [String] = []
@@ -85,9 +93,10 @@ struct SpotlightSearchView: View {
                 i += 1
                 continue
             }
-            if lower.hasPrefix("collection:") {
-                let v = String(p.dropFirst(11)).trimmingCharacters(in: .whitespacesAndNewlines)
-                if !v.isEmpty { collection = v }
+            if lower.hasPrefix("collection:") || lower.hasPrefix("folder:") {
+                let dropCount = lower.hasPrefix("folder:") ? 7 : 11
+                let v = String(p.dropFirst(dropCount)).trimmingCharacters(in: .whitespacesAndNewlines)
+                if !v.isEmpty { folder = v }
                 i += 1
                 continue
             }
@@ -103,7 +112,7 @@ struct SpotlightSearchView: View {
                 while i < parts.count {
                     let n = parts[i]
                     let nl = n.lowercased()
-                    if nl.hasPrefix("tag:") || nl.hasPrefix("collection:") || nl.hasPrefix("from:") || nl.hasPrefix("ref:") {
+                    if Self.spotlightFilterPrefixBreaksRefContinuation(nl) {
                         break
                     }
                     r += (r.isEmpty ? "" : " ") + n
@@ -116,7 +125,7 @@ struct SpotlightSearchView: View {
             i += 1
         }
         let freeText = free.joined(separator: " ").trimmingCharacters(in: .whitespacesAndNewlines)
-        return ParsedSpotlightQuery(freeText: freeText, tagFilter: tag, collectionFilter: collection, refFilter: ref, fromDateFilter: from)
+        return ParsedSpotlightQuery(freeText: freeText, tagFilter: tag, folderFilter: folder, refFilter: ref, fromDateFilter: from)
     }
 
     var body: some View {
@@ -154,11 +163,10 @@ struct SpotlightSearchView: View {
         VStack(spacing: 0) {
             // Search field
             HStack(spacing: 10) {
-                Image(systemName: "magnifyingglass")
+                HarvousFAGlyph(assetName: "Harvous.MagnifyingGlass", edgePt: 15)
                     .foregroundStyle(.secondary)
-                    .font(.system(size: 15))
 
-                TextField("Search notes, verses, tags… Use tag:, collection:, ref:, from:YYYY-MM-DD", text: $query)
+                TextField("Search notes, verses, tags… Use tag:, folder:, ref:, from:YYYY-MM-DD", text: $query)
                     .textFieldStyle(.plain)
                     .font(HarvousTypography.searchField)
                     .focused($fieldFocused)
@@ -166,7 +174,7 @@ struct SpotlightSearchView: View {
 
                 if !query.isEmpty {
                     Button { query = "" } label: {
-                        Image(systemName: "xmark.circle.fill")
+                        HarvousFAGlyph(assetName: "Harvous.CircleXmark", edgePt: 16)
                             .foregroundStyle(.secondary)
                     }
                     .buttonStyle(.plain)
@@ -206,9 +214,8 @@ struct SpotlightSearchView: View {
 
     private func resultRow(note: Note, highlighted: Bool) -> some View {
         HStack(spacing: 12) {
-            if let collection = note.primaryCollection, !collection.isEmpty {
-                Image(systemName: "folder.fill")
-                    .font(.system(size: 9))
+            if let folderChip = note.folderChipPrimaryLabelText(), !folderChip.isEmpty {
+                HarvousFAGlyph(assetName: "Harvous.Folder", edgePt: 9)
                     .foregroundStyle(.secondary)
             } else {
                 Circle().fill(Color.secondary.opacity(0.3)).frame(width: 7, height: 7)

@@ -15,7 +15,7 @@ struct ScriptureBookRow: Identifiable, Hashable, Sendable {
         return ScriptureCanonicalBooks.titles[bookIndex]
     }
 
-    /// Subtitle for `CollectionFeedRow` on the Scripture book list.
+    /// Subtitle for `FolderFeedRow` on the Scripture book list.
     var bookListSubtitle: String {
         "\(referenceCount) reference\(referenceCount == 1 ? "" : "s") · \(noteCount) note\(noteCount == 1 ? "" : "s")"
     }
@@ -61,7 +61,7 @@ enum ScriptureBookListIndex {
         }
     }
 
-    /// Filter rows by book title and by notes in each book (titles, body, tags, refs) — mirrors collections search.
+    /// Filter rows by book title and by notes in each book (titles, body, tags, refs) — mirrors folder search.
     static func filtered(
         rows: [ScriptureBookRow],
         query: String,

@@ -17,6 +17,7 @@ npm run lighthouse:a11y  # Build SPA, vite preview, Lighthouse accessibility (mu
 npm run bible:generate -- NASB     # Generate NASB.json (NASB 1995) via Claude (needs ANTHROPIC_API_KEY in .env); resumes from partial
 npm run bible:generate:all         # Generate NASB 1995 / CSB / AMP / MSG in sequence via Claude
 npx tsx server/scripts/seed-bible-verses.ts NASB   # Import server/data/bibles/NASB.json (NASB 1995) into Supabase BibleVerses
+npx tsx server/scripts/backfill-collections-from-threads.ts --dry-run   # Preview thread titles → Notes.primaryCollection / secondaryCollections; omit --dry-run after staging
 ```
 
 **Clean new user (manual only):** The automatic dev-reset middleware was removed so production user data is never erased. To get "new user" state locally, call `POST /api/test/reset-to-new-user` (test route) when the API is running.

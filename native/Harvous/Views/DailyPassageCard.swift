@@ -30,10 +30,10 @@ struct DailyPassageCard: View {
                     .padding(.trailing, 68)
                     .overlay(alignment: .bottomTrailing) {
                         HStack(spacing: 8) {
-                            orbButton(icon: "book.pages", tint: .secondary.opacity(0.8), fill: Color.primary.opacity(0.08)) {
+                            orbButton(assetName: "Harvous.BookOpen", tint: .secondary.opacity(0.8), fill: Color.primary.opacity(0.08)) {
                                 showingPassage = true
                             }
-                            orbButton(icon: "plus", tint: .secondary.opacity(0.8), fill: Color.primary.opacity(0.08)) {
+                            orbButton(assetName: "Harvous.Plus", tint: .secondary.opacity(0.8), fill: Color.primary.opacity(0.08)) {
                                 addNote(ref: votd.reference)
                             }
                         }
@@ -45,9 +45,7 @@ struct DailyPassageCard: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        #if os(macOS)
         .padding(.horizontal, 10)
-        #endif
         .padding(.top, 10)
         .padding(.bottom, 8)
         .background(
@@ -81,10 +79,9 @@ struct DailyPassageCard: View {
         }
     }
 
-    private func orbButton(icon: String, tint: Color, fill: Color, action: @escaping () -> Void) -> some View {
+    private func orbButton(assetName: String, tint: Color, fill: Color, action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            Image(systemName: icon)
-                .font(.system(size: 12, weight: .semibold))
+            HarvousFAGlyph(assetName: assetName, edgePt: 12)
                 .foregroundStyle(tint)
                 .frame(width: 30, height: 30)
                 .background(Circle().fill(fill))
@@ -156,10 +153,8 @@ private struct VotdPassageSheet: View {
                 Button {
                     dismiss()
                 } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .font(.system(size: 22))
+                    HarvousFAGlyph(assetName: "Harvous.CircleXmark", edgePt: 22)
                         .foregroundStyle(.secondary)
-                        .symbolRenderingMode(.hierarchical)
                 }
                 .buttonStyle(.plain)
             }
@@ -185,8 +180,7 @@ private struct VotdPassageSheet: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
 
                 Button(action: onAdd) {
-                    Image(systemName: "note.text.badge.plus")
-                        .font(.system(size: Metrics.fabIconSize, weight: .medium))
+                    HarvousFAGlyph(assetName: "Harvous.Plus", edgePt: Metrics.fabIconSize)
                         .foregroundStyle(.white)
                         .frame(width: Metrics.fabSide, height: Metrics.fabSide)
                         .background(Circle().fill(Color.harvousAccent))
@@ -202,8 +196,7 @@ private struct VotdPassageSheet: View {
             if let attribution {
                 Divider()
                 HStack(alignment: .center, spacing: 10) {
-                    Image(systemName: "info.circle")
-                        .font(.system(size: 9, weight: .semibold))
+                    HarvousFAGlyph(assetName: "Harvous.CircleInfo", edgePt: 9)
                         .foregroundStyle(.secondary)
                     Text(attribution.copyright)
                         .font(.system(size: 10, weight: .medium))
@@ -216,8 +209,7 @@ private struct VotdPassageSheet: View {
                             HStack(spacing: 3) {
                                 Text(ScriptureReference.displayTranslationLabel(votd.translation))
                                     .font(.system(size: 9, weight: .semibold))
-                                Image(systemName: "arrow.up.right")
-                                    .font(.system(size: 7, weight: .bold))
+                                HarvousFAGlyph(assetName: "Harvous.ArrowUpRight", edgePt: 7)
                             }
                             .foregroundStyle(.secondary)
                         }

@@ -98,10 +98,6 @@ final class EditorProxy: ObservableObject {
         scripturePillDeletionConfirmHandler?()
     }
 
-    /// Hover preview anchor for anchored study highlights (`harvousStudyHighlightUUID` spans).
-    @Published var hoveredStudyHighlightUUID: UUID?
-    private var studyHighlightHoverTask: Task<Void, Never>?
-
     /// HarvousEditor assigns this so `replaceActiveScripturePill` can refresh `EditorState` before the next platform update syncs stale `plainText` from SwiftUI and wipes the pill.
     var syncPlainTextBindingFromTextView: ((HVTextView) -> Void)?
 
@@ -118,6 +114,10 @@ final class EditorProxy: ObservableObject {
     /// Drives SwiftUI `.frame(height:)` for the macOS `HarvousEditor` bridge. Using explicit height avoids
     /// `NSScrollView.intrinsicContentSize` + `ensureLayout` during parent layout (nested `ScrollView` recursion).
     @Published var macBodyLayoutHeight: CGFloat = 400
+
+    /// Study highlight UUID under the pointer (debounced on hover-in); cleared immediately on hover-out / note switch.
+    @Published var hoveredStudyHighlightUUID: UUID? = nil
+    private var studyHighlightHoverDebounceTask: Task<Void, Never>?
 
     private var noteHeightCache: [UUID: CGFloat] = [:]
     private var currentNoteID: UUID?
@@ -138,6 +138,20 @@ final class EditorProxy: ObservableObject {
         }
         guard abs(macBodyLayoutHeight - clamped) > 0.5 else { return }
         macBodyLayoutHeight = clamped
+    }
+
+    func setStudyHighlightHoverDebounced(_ uuid: UUID?) {
+        studyHighlightHoverDebounceTask?.cancel()
+        if uuid == nil {
+            hoveredStudyHighlightUUID = nil
+            return
+        }
+        let captured = uuid
+        studyHighlightHoverDebounceTask = Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(50))
+            guard !Task.isCancelled else { return }
+            hoveredStudyHighlightUUID = captured
+        }
     }
     #endif
 
@@ -163,26 +177,17 @@ final class EditorProxy: ObservableObject {
         showAddLinkSheet = false
         activeScripturePill = nil
         preferOrbChromeUntilNextFormatSignal = false
-        hoveredStudyHighlightUUID = nil
-        studyHighlightHoverTask?.cancel()
-        studyHighlightHoverTask = nil
         triggerHighlightCapturePrompt = nil
         triggerStandaloneNoteFromSelection = nil
         triggerRemoveIntersectingStudyHighlightsFromSelection = nil
         scripturePillDeletionPrompt = nil
         scripturePillDeletionConfirmHandler = nil
         cancelFormatBarHideAction?()
-    }
-
-    func setStudyHighlightHoverDebounced(_ uuid: UUID?) {
-        studyHighlightHoverTask?.cancel()
-        let captured = uuid
-        studyHighlightHoverTask = Task { @MainActor in
-            let ms: UInt64 = captured == nil ? 50 : 220
-            try? await Task.sleep(for: .milliseconds(ms))
-            guard !Task.isCancelled else { return }
-            hoveredStudyHighlightUUID = captured
-        }
+#if os(macOS)
+        studyHighlightHoverDebounceTask?.cancel()
+        studyHighlightHoverDebounceTask = nil
+        hoveredStudyHighlightUUID = nil
+#endif
     }
 
     /// `NSTextView.textStorage` is optional on macOS; `UITextView` always exposes storage.

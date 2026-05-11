@@ -7,7 +7,8 @@ struct HarvousVaultParsedDocument {
     var updatedAt: Date?
     var spaceName: String?
     var tags: [String] = []
-    var collection: String?
+    /// Primary folder from YAML `folder:` or legacy `collection:`.
+    var folder: String?
     var refs: [String] = []
     var pinned: Bool = false
     var rating: Int?
@@ -90,8 +91,12 @@ enum HarvousVaultMarkdown {
                 doc.updatedAt = parseYMDOrISO(val)
             case "space":
                 doc.spaceName = stripQuotes(val)
+            case "folder":
+                doc.folder = stripQuotes(val)
             case "collection":
-                doc.collection = stripQuotes(val)
+                if doc.folder == nil {
+                    doc.folder = stripQuotes(val)
+                }
             case "tags":
                 doc.tags = parseStringArray(val)
             case "refs":
@@ -158,8 +163,8 @@ enum HarvousVaultMarkdown {
         if !note.tags.isEmpty {
             lines.append("tags: [\(tags)]")
         }
-        if let pc = note.primaryCollection?.trimmingCharacters(in: .whitespacesAndNewlines), !pc.isEmpty {
-            lines.append("collection: \(quoteYamlString(pc))")
+        if let pc = note.primaryFolder?.trimmingCharacters(in: .whitespacesAndNewlines), !pc.isEmpty {
+            lines.append("folder: \(quoteYamlString(pc))")
         }
         if !note.detectedRefs.isEmpty {
             lines.append("refs: [\(refs)]")

@@ -1,85 +1,81 @@
 import Highlight from '@tiptap/extension-highlight';
-import { Plugin, PluginKey } from '@tiptap/pm/state';
+
+function blockHighlightAfterPill(state: any, dispatch: any): boolean {
+  const { selection } = state;
+  const { from } = selection;
+  if (from > 0 && from === selection.to) {
+    try {
+      const $prev = state.doc.resolve(from - 1);
+      const hasPill = $prev.marks().some((m: { type: { name: string } }) => m.type.name === 'scripturePill');
+      if (hasPill) {
+        if (dispatch) {
+          const tr = state.tr.setStoredMarks(
+            (state.storedMarks || []).filter((m: { type: { name: string } }) => m.type.name !== 'highlight'),
+          );
+          dispatch(tr);
+        }
+        return true;
+      }
+    } catch {
+      /* allow */
+    }
+  }
+  return false;
+}
 
 /**
- * Custom Highlight extension that prevents highlight from being applied
- * to text right after a scripture pill
+ * Multicolor highlight + optional server `studyThreadEntryId` on the mark.
+ * Rendering avoids inline background fill — prototype CSS draws underline + `data-color`.
  */
 export const HighlightCustom = Highlight.extend({
+  addOptions() {
+    return {
+      ...this.parent?.(),
+      multicolor: true,
+    };
+  },
+
+  addAttributes() {
+    return {
+      color: {
+        default: null,
+        parseHTML: (element) => element.getAttribute('data-color') || element.style.backgroundColor,
+        renderHTML: (attributes) => {
+          if (!attributes.color) {
+            return {};
+          }
+          return { 'data-color': attributes.color as string };
+        },
+      },
+      studyThreadEntryId: {
+        default: null,
+        parseHTML: (element) => element.getAttribute('data-study-thread-id'),
+        renderHTML: (attributes) => {
+          if (!attributes.studyThreadEntryId) {
+            return {};
+          }
+          return { 'data-study-thread-id': String(attributes.studyThreadEntryId) };
+        },
+      },
+    };
+  },
+
   addCommands() {
     const parentCommands = this.parent?.() || {};
     return {
       ...parentCommands,
-      setHighlight: () => ({ state, dispatch, chain }) => {
-        // Check if cursor is after a pill before setting highlight
-        const { selection } = state;
-        const { from } = selection;
-        
-        if (from > 0 && from === selection.to) {
-          try {
-            const prevPos = from - 1;
-            const $prev = state.doc.resolve(prevPos);
-            const prevMarks = $prev.marks();
-            const hasPill = prevMarks.some((m: any) => m.type.name === 'scripturePill');
-            
-            if (hasPill) {
-              // Don't allow highlight to be set when cursor is after a pill
-              // Clear stored marks and return false
-              if (dispatch) {
-                const tr = state.tr.setStoredMarks(
-                  (state.storedMarks || []).filter((m: any) => m.type.name !== 'highlight')
-                );
-                dispatch(tr);
-              }
-              return false;
-            }
-          } catch (e) {
-            // If check fails, allow normal behavior
-          }
-        }
-        
-        // Use parent's setHighlight - since we extend Highlight, just toggle the mark
-        return chain().toggleMark('highlight').run();
-      },
-      toggleHighlight: () => ({ state, dispatch, chain }) => {
-        // Check if cursor is after a pill before toggling highlight
-        const { selection } = state;
-        const { from } = selection;
-        
-        if (from > 0 && from === selection.to) {
-          try {
-            const prevPos = from - 1;
-            const $prev = state.doc.resolve(prevPos);
-            const prevMarks = $prev.marks();
-            const hasPill = prevMarks.some((m: any) => m.type.name === 'scripturePill');
-            
-            if (hasPill) {
-              // Don't allow highlight to be toggled when cursor is after a pill
-              // Clear stored marks and return false
-              if (dispatch) {
-                const tr = state.tr.setStoredMarks(
-                  (state.storedMarks || []).filter((m: any) => m.type.name !== 'highlight')
-                );
-                dispatch(tr);
-              }
-              return false;
-            }
-          } catch (e) {
-            // If check fails, allow normal behavior
-          }
-        }
-        
-        // Use parent's toggleHighlight
-        return chain().toggleMark('highlight').run();
-      },
+      setHighlight:
+        (attributes) =>
+        ({ state, dispatch, commands }) => {
+          if (blockHighlightAfterPill(state, dispatch)) return false;
+          return commands.setMark(this.name, attributes || {});
+        },
+      toggleHighlight:
+        (attributes) =>
+        ({ state, dispatch, commands }) => {
+          if (blockHighlightAfterPill(state, dispatch)) return false;
+          return commands.toggleMark(this.name, attributes || {});
+        },
     };
   },
-  addProseMirrorPlugins() {
-    // Simplified - main mark removal is handled by ScripturePill plugin
-    // This just prevents highlight from being toggled/applied when cursor is after a pill
-    return [
-      ...(this.parent?.() || []),
-    ];
-  },
 });
-

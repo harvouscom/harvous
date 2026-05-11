@@ -1,19 +1,20 @@
 import SwiftUI
 
-// MARK: - Collection symbol (stack icon + optional SF animation)
+// MARK: - Folder symbol (filled catalog glyph + optional jitter while suggestions update)
 
-struct CollectionSymbol: View {
+struct FolderSymbol: View {
     let isContextUpdating: Bool
-    var font: Font = .system(size: 12, weight: .regular)
-    /// Align with toolbar SF Symbols when `.body` would render the glyph too small.
-    var imageScale: Image.Scale = .medium
-    var idleSystemName: String = "folder.fill"
-    var updatingSystemName: String = "folder.fill"
+    /// Point size for `Harvous.Folder` in the toolbar chip.
+    var folderIconPt: CGFloat = {
+        #if os(macOS)
+        14
+        #else
+        16
+        #endif
+    }()
 
     var body: some View {
-        Image(systemName: isContextUpdating ? updatingSystemName : idleSystemName)
-            .font(font)
-            .imageScale(imageScale)
+        HarvousFAGlyph(assetName: "Harvous.Folder", edgePt: folderIconPt)
             .rotationEffect(.degrees(isContextUpdating ? 4 : 0))
             .animation(
                 isContextUpdating
@@ -33,8 +34,7 @@ struct ThemeTagChip: View {
 
     var body: some View {
         HStack(spacing: 4) {
-            Image(systemName: "tag.fill")
-                .font(.system(size: 9, weight: .semibold))
+            HarvousFAGlyph(assetName: "Harvous.Tag", edgePt: 9)
             Text(text)
                 .font(HarvousTypography.inspectorCompactMedium)
         }
@@ -81,8 +81,7 @@ struct RemovableThemeTagChip: View {
         HStack(spacing: 4) {
             HStack(spacing: 4) {
                 ZStack(alignment: .leading) {
-                    Image(systemName: "tag.fill")
-                        .font(.system(size: 9, weight: .semibold))
+                    HarvousFAGlyph(assetName: "Harvous.Tag", edgePt: 9)
                         .opacity(showRemoval ? 0 : 1)
                         .accessibilityHidden(true)
                 }
@@ -105,8 +104,7 @@ struct RemovableThemeTagChip: View {
                 onRemove()
                 tapRevealRemoval = false
             } label: {
-                Image(systemName: "xmark")
-                    .font(.system(size: 9, weight: .bold))
+                HarvousFAGlyph(assetName: "Harvous.Xmark", edgePt: 9)
                     .foregroundStyle(HarvousColors.scriptureChipForeground(scriptureTheme).opacity(0.85))
                     .frame(width: 16, height: 16)
             }
@@ -171,8 +169,7 @@ struct ScriptureRefChip: View {
 
     var body: some View {
         let chip = HStack(spacing: 4) {
-            Image(systemName: "bookmark.fill")
-                .font(.system(size: 9, weight: .semibold))
+            HarvousFAGlyph(assetName: "Harvous.Bookmark", edgePt: 9)
             Text(reference)
                 .font(HarvousTypography.inspectorCompactMedium)
         }

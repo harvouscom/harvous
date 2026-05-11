@@ -1,11 +1,11 @@
 import SwiftData
 import SwiftUI
 
-/// Collection chip toolbar item — tapping opens a compact collection editor popover.
-struct NoteCollectionChip: View {
+/// Folder chip toolbar item — tapping opens a compact folder editor popover.
+struct NoteFolderChip: View {
     @Bindable var note: Note
-    var isCollectionContextUpdating: Bool
-    var showCollectionToolbarText: Bool
+    var isFolderContextUpdating: Bool
+    var showFolderToolbarText: Bool
     var scriptureTheme: HarvousColors.ThemeVariant
 
     @State private var showPopover = false
@@ -18,7 +18,7 @@ struct NoteCollectionChip: View {
         #endif
     }
 
-    private var collectionLabelFont: Font {
+    private var folderChipLabelFont: Font {
         #if os(macOS)
         .system(size: 14, weight: .medium)
         #else
@@ -27,17 +27,17 @@ struct NoteCollectionChip: View {
     }
 
     private var chipMainLabel: String? {
-        note.collectionChipPrimaryLabelText()
+        note.folderChipPrimaryLabelText()
     }
 
     private var extraCount: Int {
-        note.collectionChipAdditionalCount()
+        note.folderChipAdditionalCount()
     }
 
     private var accessibilitySummary: String {
-        let labels = note.allCollectionMembershipLabels()
-        if labels.isEmpty { return "No collection" }
-        return "Collections: \(labels.joined(separator: ", "))"
+        let labels = note.allFolderMembershipLabels()
+        if labels.isEmpty { return "No folder" }
+        return "Folders: \(labels.joined(separator: ", "))"
     }
 
     var body: some View {
@@ -45,18 +45,24 @@ struct NoteCollectionChip: View {
             showPopover = true
         } label: {
             HStack(spacing: 6) {
-                CollectionSymbol(
-                    isContextUpdating: isCollectionContextUpdating,
-                    font: chipFont
+                FolderSymbol(
+                    isContextUpdating: isFolderContextUpdating,
+                    folderIconPt: {
+                        #if os(macOS)
+                        15
+                        #else
+                        16
+                        #endif
+                    }()
                 )
                 if let label = chipMainLabel {
                     HStack(spacing: 4) {
                         Text(label)
-                            .font(collectionLabelFont)
+                            .font(folderChipLabelFont)
                             .lineLimit(1)
                         if extraCount > 0 {
                             Text("+\(extraCount)")
-                                .font(collectionLabelFont)
+                                .font(folderChipLabelFont)
                                 .foregroundStyle(.secondary)
                         }
                     }
@@ -64,12 +70,17 @@ struct NoteCollectionChip: View {
                         .minimumScaleFactor(1)
                     #endif
                     .fixedSize(horizontal: true, vertical: false)
+                    #if os(iOS)
                     .padding(.trailing, 8)
-                    .opacity(showCollectionToolbarText ? 1 : 0)
-                    .offset(x: showCollectionToolbarText ? 0 : -8)
-                    .animation(.easeOut(duration: 0.18), value: showCollectionToolbarText)
+                    #endif
+                    .opacity(showFolderToolbarText ? 1 : 0)
+                    .offset(x: showFolderToolbarText ? 0 : -8)
+                    .animation(.easeOut(duration: 0.18), value: showFolderToolbarText)
                 }
             }
+            #if os(macOS)
+            .padding(.horizontal, 8)
+            #endif
             .frame(minHeight: 24)
         }
         #if os(macOS)
@@ -87,23 +98,26 @@ struct NoteCollectionChip: View {
         .accessibilityLabel(accessibilitySummary)
         .accessibilityHint(
             chipMainLabel != nil
-                ? "Opens a popover to edit collections"
-                : "Opens a popover to add a collection"
+                ? "Opens a popover to edit folders"
+                : "Opens a popover to add a folder"
         )
         #if os(macOS)
         .popover(isPresented: $showPopover, arrowEdge: .bottom) {
-            CollectionChipPopover(note: note)
+            FolderChipPopover(note: note)
         }
         #else
         .popover(isPresented: $showPopover) {
-            CollectionChipPopover(note: note)
+            FolderChipPopover(note: note)
         }
         #endif
     }
 }
 
 /// Share button + ellipsis "more" menu (pin toggle, delete with confirmation).
-/// Apple Notes pattern: [share] [⋯ more]
+/// Apple Notes pattern: [share] [⋯ more].
+///
+/// macOS callers should prefer `MacNoteShareMoreToolbar` — same `ToolbarItemGroup` + `.bordered`
+/// pattern as the note-details + account cluster in `ContentView`.
 struct NoteShareMoreBar: View {
     @Bindable var note: Note
     @Environment(\.modelContext) private var modelContext
@@ -145,7 +159,17 @@ struct NoteShareMoreBar: View {
 
     private var shareButton: some View {
         Button {} label: {
-            Image(systemName: "square.and.arrow.up")
+            // `Harvous.ShareSquare` ships with a non-square viewBox (576×512). Without an explicit
+            // square frame the bordered button hugs the glyph and looks pinched next to the sidebar
+            // cluster — match `sidebarHideSidebarToolbarButton`'s `catalogGlyphBoxPt` framing.
+            HarvousFAGlyph(
+                assetName: "Harvous.ShareSquare",
+                edgePt: HarvousFAIconMetrics.catalogGlyphBoxPt
+            )
+            .frame(
+                width: HarvousFAIconMetrics.catalogGlyphBoxPt,
+                height: HarvousFAIconMetrics.catalogGlyphBoxPt
+            )
         }
         #if os(macOS)
         .buttonStyle(.bordered)
@@ -167,7 +191,11 @@ struct NoteShareMoreBar: View {
                 Button {
                     onOpenNoteDetails()
                 } label: {
-                    Label("Note details", systemImage: "sidebar.right")
+                    Label {
+                        Text("Note details")
+                    } icon: {
+                        HarvousFAGlyph(assetName: "Harvous.LayoutSidebarRight", edgePt: 14)
+                    }
                 }
 
                 Divider()
@@ -181,10 +209,14 @@ struct NoteShareMoreBar: View {
                 HarvousNoteSpotlightIndexer.reindex(note: note)
                 HarvousVaultExporter.scheduleWrite(note: note, modelContext: modelContext)
             } label: {
-                Label(
-                    note.isPinned ? "Unpin Note" : "Pin Note",
-                    systemImage: note.isPinned ? "pin.slash" : "pin"
-                )
+                Label {
+                    Text(note.isPinned ? "Unpin Note" : "Pin Note")
+                } icon: {
+                    HarvousFAGlyph(
+                        assetName: note.isPinned ? "Harvous.ThumbtackSlash" : "Harvous.Thumbtack",
+                        edgePt: 14
+                    )
+                }
             }
 
             Divider()
@@ -192,10 +224,21 @@ struct NoteShareMoreBar: View {
             Button(role: .destructive) {
                 confirmDelete = true
             } label: {
-                Label("Delete Note", systemImage: "trash")
+                Label {
+                    Text("Delete Note")
+                } icon: {
+                    HarvousFAGlyph(assetName: "Harvous.Trash", edgePt: 14)
+                }
             }
         } label: {
-            Image(systemName: "ellipsis.circle")
+            HarvousFAGlyph(
+                assetName: "Harvous.Ellipsis",
+                edgePt: HarvousFAIconMetrics.catalogGlyphBoxPt
+            )
+            .frame(
+                width: HarvousFAIconMetrics.catalogGlyphBoxPt,
+                height: HarvousFAIconMetrics.catalogGlyphBoxPt
+            )
         }
         #if os(macOS)
         .buttonStyle(.bordered)
@@ -208,20 +251,118 @@ struct NoteShareMoreBar: View {
     }
 }
 
+#if os(macOS)
+/// macOS — mirrors the trailing toolbar cluster in `ContentView` (`ToolbarItemGroup` +
+/// `.buttonStyle(.bordered)` for each control). That’s what produces the unified “pill” with the
+/// system chrome — not a hand-drawn capsule. The profile `Menu` hides the pull-down chevron with
+/// `menuIndicator(.hidden)`; we do the same for “More” so it matches.
+struct MacNoteShareMoreToolbar: ToolbarContent {
+    @Bindable var note: Note
+    @Environment(\.modelContext) private var modelContext
+    var scriptureTheme: HarvousColors.ThemeVariant
+    var onDeleteConfirmed: () -> Void
+
+    @State private var confirmDelete = false
+
+    init(
+        note: Note,
+        scriptureTheme: HarvousColors.ThemeVariant,
+        onDeleteConfirmed: @escaping () -> Void
+    ) {
+        _note = Bindable(note)
+        self.scriptureTheme = scriptureTheme
+        self.onDeleteConfirmed = onDeleteConfirmed
+    }
+
+    var body: some ToolbarContent {
+        ToolbarItemGroup(placement: .primaryAction) {
+            Button {} label: {
+                HarvousFAGlyph(
+                    assetName: "Harvous.ShareSquare",
+                    edgePt: HarvousFAIconMetrics.catalogGlyphBoxPt
+                )
+                .frame(
+                    width: HarvousFAIconMetrics.catalogGlyphBoxPt,
+                    height: HarvousFAIconMetrics.catalogGlyphBoxPt
+                )
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.regular)
+            .disabled(true)
+            .opacity(0.4)
+            .accessibilityLabel("Share")
+            .accessibilityHint("Share is not yet available")
+
+            Menu {
+                Button {
+                    note.isPinned.toggle()
+                    note.updatedAt = Date()
+                    try? modelContext.saveWithLogging()
+                    HarvousNoteSpotlightIndexer.reindex(note: note)
+                    HarvousVaultExporter.scheduleWrite(note: note, modelContext: modelContext)
+                } label: {
+                    Label {
+                        Text(note.isPinned ? "Unpin Note" : "Pin Note")
+                    } icon: {
+                        HarvousFAGlyph(
+                            assetName: note.isPinned ? "Harvous.ThumbtackSlash" : "Harvous.Thumbtack",
+                            edgePt: 14
+                        )
+                    }
+                }
+
+                Divider()
+
+                Button(role: .destructive) {
+                    confirmDelete = true
+                } label: {
+                    Label {
+                        Text("Delete Note")
+                    } icon: {
+                        HarvousFAGlyph(assetName: "Harvous.Trash", edgePt: 14)
+                    }
+                }
+            } label: {
+                HarvousFAGlyph(
+                    assetName: "Harvous.Ellipsis",
+                    edgePt: HarvousFAIconMetrics.catalogGlyphBoxPt
+                )
+                .frame(
+                    width: HarvousFAIconMetrics.catalogGlyphBoxPt,
+                    height: HarvousFAIconMetrics.catalogGlyphBoxPt
+                )
+            }
+            .menuIndicator(.hidden)
+            .buttonStyle(.bordered)
+            .controlSize(.regular)
+            .accessibilityLabel("More options")
+            .confirmationDialog(
+                "Delete this note? This cannot be undone.",
+                isPresented: $confirmDelete,
+                titleVisibility: .visible
+            ) {
+                Button("Delete", role: .destructive) { onDeleteConfirmed() }
+                Button("Cancel", role: .cancel) {}
+            }
+        }
+    }
+}
+#endif
+
 // MARK: - Legacy aliases
 
-/// Toolbar group — collection chip opens its own popover.
+/// Toolbar group — folder chip opens its own popover.
 struct NoteTopBar: View {
     @Bindable var note: Note
-    var isCollectionContextUpdating: Bool
-    var showCollectionToolbarText: Bool
+    var isFolderContextUpdating: Bool
+    var showFolderToolbarText: Bool
     var scriptureTheme: HarvousColors.ThemeVariant
 
     var body: some View {
-        NoteCollectionChip(
+        NoteFolderChip(
             note: note,
-            isCollectionContextUpdating: isCollectionContextUpdating,
-            showCollectionToolbarText: showCollectionToolbarText,
+            isFolderContextUpdating: isFolderContextUpdating,
+            showFolderToolbarText: showFolderToolbarText,
             scriptureTheme: scriptureTheme
         )
     }

@@ -7,6 +7,7 @@
  *   GET    /api/spaces/items
  *   POST   /api/spaces/:spaceId/update
  *   GET    /api/spaces/:spaceId/notes
+ *   GET    /api/spaces/:spaceId/connect-note-candidates
  *   GET    /api/spaces/:spaceId/items
  *   GET    /api/spaces/:spaceId/bootstrap
  *   GET    /api/spaces/:spaceId/prefetch
@@ -336,6 +337,67 @@ route.get('/api/spaces/:spaceId/notes', requireAuth, async (c) => {
     return c.json({ notes: result.notes, hasMore: result.hasMore, offset, limit });
   } catch (error: any) {
     const standardError = handleAPIError(error, { endpoint: '/api/spaces/[spaceId]/notes', action: 'get_space_notes' });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+
+// ─── GET /api/spaces/:spaceId/connect-note-candidates ─────────────────────────
+route.get('/api/spaces/:spaceId/connect-note-candidates', requireAuth, async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+
+    const spaceIdRaw = requireParam(c, 'spaceId');
+    const spaceIdNorm = spaceIdRaw.startsWith('space_') ? spaceIdRaw : `space_${spaceIdRaw}`;
+    try {
+      await requireSpaceAccess(spaceIdNorm, auth.userId);
+    } catch (err) {
+      if (err instanceof SpaceAccessError) return c.json({ error: err.message, code: err.code }, err.status);
+      throw err;
+    }
+
+    const q = (c.req.query('q') ?? '').trim();
+    const excludeNoteIdRaw = (c.req.query('excludeNoteId') ?? '').trim();
+
+    if (q.length < 1) {
+      return c.json({ notes: [] as { id: string; title: string; noteType: string }[] });
+    }
+
+    const limitParsed = parseInt(c.req.query('limit') || '15', 10);
+    const limit = Math.min(Number.isFinite(limitParsed) ? limitParsed : 15, 30);
+    const pattern = `%${q}%`;
+
+    const filters = [
+      eq(Notes.userId, auth.userId),
+      eq(Notes.spaceId, spaceIdNorm),
+      eq(Notes.noteType, 'default'),
+      sql`COALESCE(${Notes.title}, '') ILIKE ${pattern}`,
+    ];
+    if (excludeNoteIdRaw) filters.push(ne(Notes.id, excludeNoteIdRaw));
+
+    const rows = await db
+      .select({
+        id: Notes.id,
+        title: Notes.title,
+        noteType: Notes.noteType,
+        updatedAt: Notes.updatedAt,
+      })
+      .from(Notes)
+      .where(and(...filters))
+      .orderBy(desc(Notes.updatedAt))
+      .limit(limit);
+
+    return c.json({
+      notes: rows.map((r) => ({
+        id: r.id,
+        title: r.title ?? '',
+        noteType: r.noteType || 'default',
+      })),
+    });
+  } catch (error: any) {
+    const standardError = handleAPIError(error, {
+      endpoint: '/api/spaces/[spaceId]/connect-note-candidates',
+      action: 'connect_note_candidates',
+    });
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });

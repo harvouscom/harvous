@@ -5,7 +5,7 @@ import SwiftUI
 
 enum NoteFilter: Hashable, Sendable {
     case all
-    case collection(String?) // nil = ungrouped
+    case folder(String?) // nil = ungrouped
     case scriptureBook(bookIndex: Int)
     /// Notes that cite this exact parsed passage (canonical book/chapter/verses).
     case scripturePassage(ParsedScriptureFields)
@@ -13,7 +13,7 @@ enum NoteFilter: Hashable, Sendable {
     var displayName: String {
         switch self {
         case .all: return "Home"
-        case .collection(let name):
+        case .folder(let name):
             if let name, !name.isEmpty { return name }
             return "Ungrouped"
         case .scriptureBook(let idx):

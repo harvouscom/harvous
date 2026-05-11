@@ -1,10 +1,11 @@
 import Foundation
+import SwiftData
 
 /// Generates context-aware study prompts seeded into `StudyThread.suggestedQuestions` at creation time.
 ///
 /// Start with keyword heuristics; the calling layer can swap in richer context
 /// (passage genre, detected refs, etc.) as the system matures — similar to
-/// how `BibleStudyTagSuggester` improves its collection predictions over time.
+/// how `BibleStudyTagSuggester` improves its folder predictions over time.
 enum StudyPromptSuggester {
 
     /// Returns 2–3 prompts tailored to the highlighted snippet and the note's detected references.
@@ -60,5 +61,19 @@ enum StudyPromptSuggester {
 
         prompts.append("How can I bring this before God in prayer?")
         return prompts
+    }
+
+    /// Fills heuristic Respond chips immediately while Apple Intelligence generation is still pending.
+    @MainActor
+    static func seedScriptureRespondQuestionsIfNeeded(thread: StudyThread, modelContext: ModelContext) {
+        guard thread.entryKind == .scriptureLink else { return }
+        guard !thread.aiSuggestedQuestionsGenerated else { return }
+        guard thread.suggestedQuestions.isEmpty else { return }
+        let trimmed = (thread.scriptureReference ?? thread.miniNoteBody).trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        let excerpt = thread.scripturePassageExcerpt?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let snippet = excerpt.isEmpty ? trimmed : excerpt
+        thread.suggestedQuestions = questions(forScriptureExcerpt: snippet, reference: trimmed)
+        try? modelContext.saveWithLogging()
     }
 }

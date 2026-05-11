@@ -235,8 +235,7 @@ struct NoteVersionDiffView: View {
     private var contentSection: some View {
         if identical {
             VStack(spacing: 10) {
-                Image(systemName: "checkmark.circle")
-                    .font(.system(size: 30))
+                HarvousFAGlyph(assetName: "Harvous.CircleCheck", edgePt: 30)
                     .foregroundStyle(.secondary)
                 Text("This version is identical to the current note.")
                     .font(.subheadline)

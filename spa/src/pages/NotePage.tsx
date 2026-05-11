@@ -97,8 +97,9 @@ export default function NotePage() {
 
   const [formatToolbarHostEl, setFormatToolbarHostEl] = useState<HTMLDivElement | null>(null);
   const [scriptureChromeHostEl, setScriptureChromeHostEl] = useState<HTMLDivElement | null>(null);
+  const [highlightChromeHostEl, setHighlightChromeHostEl] = useState<HTMLDivElement | null>(null);
   const [noteActionsHostEl, setNoteActionsHostEl] = useState<HTMLDivElement | null>(null);
-  const [chromeMode, setChromeMode] = useState<'format' | 'scripture' | 'noteActions'>('noteActions');
+  const [chromeMode, setChromeMode] = useState<'format' | 'scripture' | 'highlight' | 'noteActions'>('noteActions');
 
   useEffect(() => {
     setChromeMode('noteActions');
@@ -422,6 +423,7 @@ export default function NotePage() {
               editorChromeMode={isEditable ? 'prototypeNative' : 'default'}
               formatToolbarPortalTarget={isEditable ? formatToolbarHostEl : null}
               scriptureChromePortalTarget={isEditable ? scriptureChromeHostEl : null}
+              highlightChromePortalTarget={isEditable ? highlightChromeHostEl : null}
               noteActionsPortalTarget={isEditable ? noteActionsHostEl : null}
               onPrototypeChromeModeChange={isEditable ? setChromeMode : undefined}
               initialPrimaryCollection={note.primaryCollection ?? null}
@@ -436,6 +438,11 @@ export default function NotePage() {
         </div>
         {isEditable ? (
           <div className="note-editor-bottom-bar" data-mode={chromeMode}>
+            <div
+              ref={setHighlightChromeHostEl}
+              className="note-editor-bottom-bar__highlight-host"
+              style={{ display: chromeMode === 'highlight' ? 'block' : 'none' }}
+            />
             <div
               ref={setScriptureChromeHostEl}
               className="note-editor-bottom-bar__scripture-host"

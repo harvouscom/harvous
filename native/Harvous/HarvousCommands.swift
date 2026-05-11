@@ -71,12 +71,12 @@ struct PinSelectedNoteStateKey: FocusedValueKey {
     typealias Value = Bool
 }
 
-struct CollectionContextUpdatingKey: FocusedValueKey {
+struct FolderContextUpdatingKey: FocusedValueKey {
     typealias Value = Bool
 }
 
-/// Toolbar collection label visibility animation — mirrored from `NoteEditorView` to the window toolbar chip on macOS.
-struct ShowCollectionToolbarTextKey: FocusedValueKey {
+/// Toolbar folder label visibility animation — mirrored from `NoteEditorView` to the window toolbar chip on macOS.
+struct ShowFolderToolbarTextKey: FocusedValueKey {
     typealias Value = Bool
 }
 
@@ -166,14 +166,14 @@ extension FocusedValues {
         set { self[PinSelectedNoteStateKey.self] = newValue }
     }
 
-    var collectionContextUpdating: Bool? {
-        get { self[CollectionContextUpdatingKey.self] }
-        set { self[CollectionContextUpdatingKey.self] = newValue }
+    var folderContextUpdating: Bool? {
+        get { self[FolderContextUpdatingKey.self] }
+        set { self[FolderContextUpdatingKey.self] = newValue }
     }
 
-    var showCollectionToolbarText: Bool? {
-        get { self[ShowCollectionToolbarTextKey.self] }
-        set { self[ShowCollectionToolbarTextKey.self] = newValue }
+    var showFolderToolbarText: Bool? {
+        get { self[ShowFolderToolbarTextKey.self] }
+        set { self[ShowFolderToolbarTextKey.self] = newValue }
     }
 }
 
@@ -237,6 +237,16 @@ struct HarvousCommands: Commands {
         }
 
         CommandMenu("Format") {
+            Button("Bold") { editorProxy?.bold() }
+                .keyboardShortcut("b", modifiers: .command)
+                .disabled(editorProxy == nil)
+
+            Button("Italic") { editorProxy?.italic() }
+                .keyboardShortcut("i", modifiers: .command)
+                .disabled(editorProxy == nil)
+
+            Divider()
+
             Button("Strikethrough") { editorProxy?.strikethrough() }
                 .keyboardShortcut("x", modifiers: [.command, .shift])
                 .disabled(editorProxy == nil)

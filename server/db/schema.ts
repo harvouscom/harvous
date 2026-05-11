@@ -104,6 +104,40 @@ export const NoteThreads = pgTable('NoteThreads', {
   uniqueIndex('NoteThreads_uniqueNoteThread').on(table.noteId, table.threadId),
 ]);
 
+// ─── StudyThreadEntries (native `StudyThread` — anchored study branches on a note) ─
+
+export const StudyThreadEntries = pgTable(
+  'StudyThreadEntries',
+  {
+    id: text('id').primaryKey(),
+    userId: text('userId').notNull(),
+    parentNoteId: text('parentNoteId').notNull(),
+    spaceId: text('spaceId'),
+    entryKindRaw: text('entryKindRaw').notNull().default('miniNote'),
+    highlightAccentRaw: text('highlightAccentRaw').notNull().default('warmAmber'),
+    sourceSnippet: text('sourceSnippet').notNull().default(''),
+    focusTitle: text('focusTitle').notNull().default(''),
+    notesBody: text('notesBody').notNull().default(''),
+    miniNoteBody: text('miniNoteBody').notNull().default(''),
+    linkedNoteId: text('linkedNoteId'),
+    linkedNoteTitle: text('linkedNoteTitle'),
+    anchorLocation: integer('anchorLocation'),
+    anchorLength: integer('anchorLength'),
+    anchorTextSnapshot: text('anchorTextSnapshot'),
+    scriptureReference: text('scriptureReference'),
+    scripturePassageTranslation: text('scripturePassageTranslation'),
+    scripturePassageExcerpt: text('scripturePassageExcerpt'),
+    isArchived: boolean('isArchived').notNull().default(false),
+    highlightListEditedAt: ts('highlightListEditedAt'),
+    createdAt: ts('createdAt').notNull(),
+    updatedAt: ts('updatedAt'),
+  },
+  (table) => [
+    index('StudyThreadEntries_parentNoteIdIndex').on(table.parentNoteId),
+    index('StudyThreadEntries_userIdIndex').on(table.userId),
+  ],
+);
+
 // ─── Comments ──────────────────────────────────────────────────────────────────
 
 export const Comments = pgTable('Comments', {

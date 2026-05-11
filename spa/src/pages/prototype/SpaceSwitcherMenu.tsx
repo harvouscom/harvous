@@ -8,8 +8,11 @@
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate } from '@tanstack/react-router';
-import { GearSix, Key, Link as LinkIcon, Lock, SquaresFour } from '@phosphor-icons/react';
+import Icon from '@/components/react/Icon';
+import ProtoHouseIcon from './ProtoHouseIcon';
 import type { NavSpace } from '../../hooks/queries/useNavigation';
+import { formatProtoSpaceRowTitle, resolvePersonalHomeSpaceId } from '../../utils/personal-home-space';
+import { PROTO_TOOLBAR_ICON_SIZE } from './proto-toolbar-tokens';
 
 function spaceSlug(id: string) {
   return id.startsWith('space_') ? id.slice('space_'.length) : id;
@@ -36,6 +39,11 @@ export default function SpaceSwitcherMenu({
   const navigate = useNavigate();
 
   const list = useMemo(() => mergeSpaces(spaces, memberOfSpaces), [spaces, memberOfSpaces]);
+  const homeId = useMemo(() => resolvePersonalHomeSpaceId(spaces), [spaces]);
+  const listWithoutHome = useMemo(
+    () => (homeId ? list.filter((s) => s.id !== homeId) : list),
+    [homeId, list],
+  );
 
   useEffect(() => {
     if (!open) return undefined;
@@ -70,7 +78,11 @@ export default function SpaceSwitcherMenu({
         title="Switch space"
         onClick={() => setOpen((x) => !x)}
       >
-        <SquaresFour size={15} />
+        {homeId && normalizedActive === homeId ? (
+          <ProtoHouseIcon size={PROTO_TOOLBAR_ICON_SIZE} />
+        ) : (
+          <Icon name="table-cells" size={PROTO_TOOLBAR_ICON_SIZE} />
+        )}
       </button>
 
       {open ? (
@@ -80,30 +92,53 @@ export default function SpaceSwitcherMenu({
             {list.length === 0 ? (
               <p className="proto-menu-muted">No spaces yet — create one in the classic app.</p>
             ) : (
-              list.map((s) => {
-                const selected = normalizedActive === s.id;
-                return (
+              <>
+                {homeId ? (
                   <button
-                    key={s.id}
+                    key="proto-space-my-home"
                     type="button"
                     role="menuitemradio"
-                    aria-checked={selected}
+                    aria-checked={normalizedActive === homeId}
                     className="proto-menu-item"
                     onClick={() => {
                       setOpen(false);
                       navigate({
                         to: '/prototype/space/$spaceId',
-                        params: { spaceId: spaceSlug(s.id) },
+                        params: { spaceId: spaceSlug(homeId) },
                       });
                     }}
                   >
                     <span className="proto-menu-item__check" aria-hidden>
-                      {selected ? '✓' : ''}
+                      {normalizedActive === homeId ? '✓' : ''}
                     </span>
-                    <span style={{ flex: 1, minWidth: 0 }}>{s.title || 'Untitled space'}</span>
+                    <span style={{ flex: 1, minWidth: 0 }}>My Home</span>
                   </button>
-                );
-              })
+                ) : null}
+                {listWithoutHome.map((s) => {
+                  const selected = normalizedActive === s.id;
+                  return (
+                    <button
+                      key={s.id}
+                      type="button"
+                      role="menuitemradio"
+                      aria-checked={selected}
+                      className="proto-menu-item"
+                      onClick={() => {
+                        setOpen(false);
+                        navigate({
+                          to: '/prototype/space/$spaceId',
+                          params: { spaceId: spaceSlug(s.id) },
+                        });
+                      }}
+                    >
+                      <span className="proto-menu-item__check" aria-hidden>
+                        {selected ? '✓' : ''}
+                      </span>
+                      <span style={{ flex: 1, minWidth: 0 }}>{formatProtoSpaceRowTitle(s.title)}</span>
+                    </button>
+                  );
+                })}
+              </>
             )}
           </div>
 
@@ -117,7 +152,7 @@ export default function SpaceSwitcherMenu({
               onClick={() => setOpen(false)}
               role="menuitem"
             >
-              <span className="proto-menu-item__icon"><Lock size={13} /></span>
+              <span className="proto-menu-item__icon"><Icon name="lock" size={11} /></span>
               New private shared…
             </Link>
             <Link
@@ -128,7 +163,7 @@ export default function SpaceSwitcherMenu({
               onClick={() => setOpen(false)}
               role="menuitem"
             >
-              <span className="proto-menu-item__icon"><LinkIcon size={13} /></span>
+              <span className="proto-menu-item__icon"><Icon name="link" size={11} /></span>
               New public shared…
             </Link>
             <Link
@@ -139,7 +174,7 @@ export default function SpaceSwitcherMenu({
               onClick={() => setOpen(false)}
               role="menuitem"
             >
-              <span className="proto-menu-item__icon"><Key size={13} /></span>
+              <span className="proto-menu-item__icon"><Icon name="key" size={11} /></span>
               Join with token…
             </Link>
           </div>
@@ -155,7 +190,7 @@ export default function SpaceSwitcherMenu({
                 onClick={() => setOpen(false)}
                 role="menuitem"
               >
-                <span className="proto-menu-item__icon"><GearSix size={13} /></span>
+                <span className="proto-menu-item__icon"><Icon name="gear" size={13} /></span>
                 Manage current space…
               </Link>
             </div>

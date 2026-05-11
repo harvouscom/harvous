@@ -4,12 +4,12 @@ import SwiftData
 #if os(iOS)
 import UIKit
 
-/// iPhone collections: flat Mac-style list, drill-in to `NoteListColumn`, search from bottom chrome only.
+/// iPhone folders: flat Mac-style list, drill-in to `NoteListColumn`, search from bottom chrome only.
 struct LibraryView: View {
     @Binding var iosNoteNavigationPath: [UUID]
     var externalSearchText: Binding<String>? = nil
     @State private var fallbackSearchText = ""
-    @State private var collectionsDrill: CollectionsDrill = .root
+    @State private var foldersDrill: FoldersDrill = .root
 
     @Query(sort: \Note.updatedAt, order: .reverse) private var notes: [Note]
     @Environment(\.modelContext) private var modelContext
@@ -18,14 +18,14 @@ struct LibraryView: View {
 
     @AppStorage(VotdService.passageCardDismissedDayUserDefaultsKey) private var votdPassageCardDismissedDay: String = ""
 
-    @State private var pinnedCollectionRowIds: [String] = []
-    @State private var renameTarget: HarvousCollectionRow?
+    @State private var pinnedFolderRowIds: [String] = []
+    @State private var renameTarget: HarvousFolderRow?
     @State private var renameDraft: String = ""
-    @State private var removeConfirmRow: HarvousCollectionRow?
+    @State private var removeConfirmRow: HarvousFolderRow?
 
-    private enum CollectionsDrill: Equatable {
+    private enum FoldersDrill: Equatable {
         case root
-        /// `nil` means notes with no primary collection (same as macOS bucket key).
+        /// `nil` means notes with no primary folder (same as macOS bucket key).
         case bucket(String?)
     }
 
@@ -42,22 +42,22 @@ struct LibraryView: View {
         externalSearchText?.wrappedValue ?? fallbackSearchText
     }
 
-    private var collectionRows: [HarvousCollectionRow] {
-        HarvousCollectionListIndex.rows(from: notesInActiveSpace)
+    private var folderRows: [HarvousFolderRow] {
+        HarvousFolderListIndex.rows(from: notesInActiveSpace)
     }
 
-    private var filteredCollectionRows: [HarvousCollectionRow] {
-        HarvousCollectionListIndex.filtered(
-            rows: collectionRows,
+    private var filteredFolderRows: [HarvousFolderRow] {
+        HarvousFolderListIndex.filtered(
+            rows: folderRows,
             query: activeSearchQuery,
             notesForBucketMatching: notesInActiveSpace
         )
     }
 
-    private var orderedFilteredCollectionRows: [HarvousCollectionRow] {
-        HarvousCollectionListIndex.applyPinOrdering(
-            filteredCollectionRows,
-            pinnedIdsInOrder: pinnedCollectionRowIds
+    private var orderedFilteredFolderRows: [HarvousFolderRow] {
+        HarvousFolderListIndex.applyPinOrdering(
+            filteredFolderRows,
+            pinnedIdsInOrder: pinnedFolderRowIds
         )
     }
 
@@ -68,11 +68,11 @@ struct LibraryView: View {
     }
 
     private var navigationTitleText: String {
-        switch collectionsDrill {
+        switch foldersDrill {
         case .root:
             return ""
         case .bucket(let name):
-            return NoteFilter.collection(name).displayName
+            return NoteFilter.folder(name).displayName
         }
     }
 
@@ -82,14 +82,14 @@ struct LibraryView: View {
 
     var body: some View {
         Group {
-            switch collectionsDrill {
+            switch foldersDrill {
             case .root:
                 // Match `NoteListColumn` iOS: grouped chrome behind plain `List` + `.scrollContentBackground(.hidden)`.
-                Group { collectionsRootContent }
+                Group { foldersRootContent }
                     .background(Color(.systemGroupedBackground))
-            case .bucket(let collectionName):
+            case .bucket(let folderBucketKey):
                 NoteListColumn(
-                    filter: .collection(collectionName),
+                    filter: .folder(folderBucketKey),
                     selectedNote: .constant(nil),
                     externalSearchText: searchBinding,
                     columnStyle: .iOSTabNoteList,
@@ -107,18 +107,17 @@ struct LibraryView: View {
             ToolbarItem(placement: .topBarLeading) {
                 SpaceSwitcherView()
             }
-            if collectionsDrill != .root {
+            if foldersDrill != .root {
                 ToolbarItem(placement: .topBarLeading) {
                     Button {
-                        collectionsDrill = .root
+                        foldersDrill = .root
                     } label: {
-                        Image(systemName: "chevron.left")
-                            .font(.system(size: 17, weight: .medium))
+                        HarvousFAGlyph(assetName: "Harvous.ChevronLeft", edgePt: 17)
                             .foregroundStyle(.primary)
                     }
                     .buttonStyle(.plain)
                     .tint(.primary)
-                    .accessibilityLabel("Back to collections")
+                    .accessibilityLabel("Back to folders")
                 }
             }
             ToolbarItem(placement: .topBarTrailing) {
@@ -126,8 +125,7 @@ struct LibraryView: View {
                     UIImpactFeedbackGenerator(style: .light).impactOccurred()
                     appRouter.selectIOSListSurface(.more)
                 } label: {
-                    Image(systemName: "person.fill")
-                        .font(.system(size: 17, weight: .medium))
+                    HarvousFAGlyph(assetName: "Harvous.UserFilled", edgePt: 17)
                         .foregroundStyle(.primary)
                         .frame(width: 32, height: 32)
                         .contentShape(Rectangle())
@@ -138,17 +136,17 @@ struct LibraryView: View {
             }
         }
         .onChange(of: appRouter.iosListSurface) { _, newSurface in
-            if newSurface != .collections {
-                collectionsDrill = .root
+            if newSurface != .folders {
+                foldersDrill = .root
             }
         }
-        .onAppear { reloadPinnedCollectionOrder() }
-        .onChange(of: spaceStore.selectedSpaceId) { _, _ in reloadPinnedCollectionOrder() }
+        .onAppear { reloadPinnedFolderOrder() }
+        .onChange(of: spaceStore.selectedSpaceId) { _, _ in reloadPinnedFolderOrder() }
         .sheet(item: $renameTarget) { row in
-            renameCollectionSheet(for: row)
+            renameFolderSheet(for: row)
         }
         .confirmationDialog(
-            "Remove collection?",
+            "Remove folder?",
             isPresented: Binding(
                 get: { removeConfirmRow != nil },
                 set: { if !$0 { removeConfirmRow = nil } }
@@ -160,37 +158,37 @@ struct LibraryView: View {
                     "Remove from \(row.count) note\(row.count == 1 ? "" : "s")",
                     role: .destructive
                 ) {
-                    confirmRemoveCollection(row)
+                    confirmRemoveFolder(row)
                 }
                 Button("Cancel", role: .cancel) {}
             }
         } message: {
-            Text("Notes are kept; only the collection label is removed from them.")
+            Text("Notes are kept; only the folder label is removed from them.")
         }
     }
 
-    private func reloadPinnedCollectionOrder() {
+    private func reloadPinnedFolderOrder() {
         let sid = spaceStore.activeSpaceUUID()
-        var ids = HarvousPinnedCollectionsStore.loadOrderedIds(spaceId: sid)
+        var ids = HarvousPinnedFoldersStore.loadOrderedIds(spaceId: sid)
         let beforeCount = ids.count
-        ids.removeAll { $0 == HarvousCollectionRow.ungroupedRowId }
+        ids.removeAll { $0 == HarvousFolderRow.ungroupedRowId }
         if ids.count != beforeCount {
-            HarvousPinnedCollectionsStore.saveOrderedIds(ids, spaceId: sid)
+            HarvousPinnedFoldersStore.saveOrderedIds(ids, spaceId: sid)
         }
-        pinnedCollectionRowIds = ids
+        pinnedFolderRowIds = ids
     }
 
-    private func toggleCollectionListPin(rowId: String) {
+    private func toggleFolderListPin(rowId: String) {
         withAnimation {
-            pinnedCollectionRowIds = HarvousPinnedCollectionsStore.togglePin(
+            pinnedFolderRowIds = HarvousPinnedFoldersStore.togglePin(
                 rowId: rowId,
                 spaceId: spaceStore.activeSpaceUUID()
             )
         }
     }
 
-    private func commitRename(from row: HarvousCollectionRow) {
-        guard let oldName = row.collection else {
+    private func commitRename(from row: HarvousFolderRow) {
+        guard let oldName = row.folderLabel else {
             renameTarget = nil
             return
         }
@@ -200,38 +198,38 @@ struct LibraryView: View {
             return
         }
         let sid = spaceStore.activeSpaceUUID()
-        HarvousCollectionBulkActions.renameCollection(
+        HarvousFolderBulkActions.renameFolder(
             from: oldName,
             to: trimmed,
             notesInActiveSpace: notesInActiveSpace,
             modelContext: modelContext
         )
-        HarvousPinnedCollectionsStore.replacePinId(oldId: row.id, newId: trimmed, spaceId: sid)
-        reloadPinnedCollectionOrder()
+        HarvousPinnedFoldersStore.replacePinId(oldId: row.id, newId: trimmed, spaceId: sid)
+        reloadPinnedFolderOrder()
         renameTarget = nil
     }
 
-    private func confirmRemoveCollection(_ row: HarvousCollectionRow) {
-        guard let name = row.collection else {
+    private func confirmRemoveFolder(_ row: HarvousFolderRow) {
+        guard let name = row.folderLabel else {
             removeConfirmRow = nil
             return
         }
         let sid = spaceStore.activeSpaceUUID()
-        HarvousCollectionBulkActions.removeCollection(
+        HarvousFolderBulkActions.removeFolder(
             named: name,
             notesInActiveSpace: notesInActiveSpace,
             modelContext: modelContext
         )
-        HarvousPinnedCollectionsStore.removePinId(row.id, spaceId: sid)
-        reloadPinnedCollectionOrder()
+        HarvousPinnedFoldersStore.removePinId(row.id, spaceId: sid)
+        reloadPinnedFolderOrder()
         removeConfirmRow = nil
     }
 
     @ViewBuilder
-    private func renameCollectionSheet(for row: HarvousCollectionRow) -> some View {
+    private func renameFolderSheet(for row: HarvousFolderRow) -> some View {
         NavigationStack {
             Form {
-                TextField("Collection name", text: $renameDraft)
+                TextField("Folder name", text: $renameDraft)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled(true)
             }
@@ -249,18 +247,18 @@ struct LibraryView: View {
                 }
             }
             .onAppear {
-                renameDraft = row.collection ?? ""
+                renameDraft = row.folderLabel ?? ""
             }
         }
     }
 
     @ViewBuilder
-    private func collectionRootListRow(_ row: HarvousCollectionRow) -> some View {
-        let pinned = pinnedCollectionRowIds.contains(row.id)
+    private func folderRootListRow(_ row: HarvousFolderRow) -> some View {
+        let pinned = pinnedFolderRowIds.contains(row.id)
         let openBucket = Button {
-            collectionsDrill = .bucket(row.collection)
+            foldersDrill = .bucket(row.folderLabel)
         } label: {
-            CollectionFeedRow(
+            FolderFeedRow(
                 title: row.title,
                 noteCount: row.count,
                 isPinned: pinned,
@@ -269,31 +267,53 @@ struct LibraryView: View {
         }
         .buttonStyle(.plain)
 
-        if row.collection != nil {
+        if row.folderLabel != nil {
             openBucket
                 .contextMenu {
                     Button {
-                        toggleCollectionListPin(rowId: row.id)
+                        toggleFolderListPin(rowId: row.id)
                     } label: {
-                        Label(pinned ? "Unpin" : "Pin", systemImage: pinned ? "pin.slash" : "pin")
+                        Label {
+                            Text(pinned ? "Unpin" : "Pin")
+                        } icon: {
+                            HarvousFAGlyph(
+                                assetName: pinned ? "Harvous.ThumbtackSlash" : "Harvous.Thumbtack",
+                                edgePt: 14
+                            )
+                        }
                     }
                     Button {
-                        renameDraft = row.collection ?? ""
+                        renameDraft = row.folderLabel ?? ""
                         renameTarget = row
                     } label: {
-                        Label("Rename…", systemImage: "pencil")
+                        Label {
+                            Text("Rename…")
+                        } icon: {
+                            HarvousFAGlyph(assetName: "Harvous.Pencil", edgePt: 14)
+                        }
                     }
                     Button(role: .destructive) {
                         removeConfirmRow = row
                     } label: {
-                        Label("Remove collection", systemImage: "trash")
+                        Label {
+                            Text("Remove folder")
+                        } icon: {
+                            HarvousFAGlyph(assetName: "Harvous.Trash", edgePt: 14)
+                        }
                     }
                 }
                 .swipeActions(edge: .leading, allowsFullSwipe: true) {
                     Button {
-                        toggleCollectionListPin(rowId: row.id)
+                        toggleFolderListPin(rowId: row.id)
                     } label: {
-                        Label(pinned ? "Unpin" : "Pin", systemImage: pinned ? "pin.slash.fill" : "pin.fill")
+                        Label {
+                            Text(pinned ? "Unpin" : "Pin")
+                        } icon: {
+                            HarvousFAGlyph(
+                                assetName: pinned ? "Harvous.ThumbtackSlash" : "Harvous.Thumbtack",
+                                edgePt: 14
+                            )
+                        }
                     }
                     .tint(.orange)
                 }
@@ -301,7 +321,11 @@ struct LibraryView: View {
                     Button(role: .destructive) {
                         removeConfirmRow = row
                     } label: {
-                        Label("Remove", systemImage: "trash")
+                        Label {
+                            Text("Remove")
+                        } icon: {
+                            HarvousFAGlyph(assetName: "Harvous.Trash", edgePt: 14)
+                        }
                     }
                 }
         } else {
@@ -310,23 +334,27 @@ struct LibraryView: View {
     }
 
     @ViewBuilder
-    private var collectionsRootContent: some View {
+    private var foldersRootContent: some View {
         if !showDailyPassageRow && notesInActiveSpace.isEmpty {
             emptyState
-        } else if !showDailyPassageRow && collectionRows.isEmpty {
+        } else if !showDailyPassageRow && folderRows.isEmpty {
             ContentUnavailableView {
-                Label("No Collections", systemImage: "rectangle.stack.fill")
+                Label {
+                    Text("No Folders")
+                } icon: {
+                    HarvousFAGlyph(assetName: "Harvous.Folder", edgePt: 28)
+                }
             } description: {
-                Text("Collections created from your notes will appear here.")
+                Text("Folders created from your notes will appear here.")
             }
-        } else if !showDailyPassageRow && !activeSearchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && filteredCollectionRows.isEmpty {
+        } else if !showDailyPassageRow && !activeSearchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && filteredFolderRows.isEmpty {
             ContentUnavailableView.search(text: activeSearchQuery)
         } else {
-            collectionsFlatList
+            foldersFlatList
         }
     }
 
-    private var collectionsFlatList: some View {
+    private var foldersFlatList: some View {
         List {
             if showDailyPassageRow {
                 DailyPassageCard { note in
@@ -339,15 +367,19 @@ struct LibraryView: View {
                     Button {
                         votdPassageCardDismissedDay = VotdService.todayCalendarDayKey()
                     } label: {
-                        Label("Dismiss", systemImage: "xmark.circle.fill")
+                        Label {
+                            Text("Dismiss")
+                        } icon: {
+                            HarvousFAGlyph(assetName: "Harvous.CircleXmark", edgePt: 16)
+                        }
                     }
                     .tint(.secondary)
                     .accessibilityLabel("Dismiss today's passage")
                 }
             }
-            ForEach(orderedFilteredCollectionRows) { row in
-                collectionRootListRow(row)
-                    .listRowInsets(IOSCollectionsListLayout.rowInsets)
+            ForEach(orderedFilteredFolderRows) { row in
+                folderRootListRow(row)
+                    .listRowInsets(IOSFoldersListLayout.rowInsets)
                     .listRowBackground(Color.clear)
                     .listRowSeparator(.hidden)
             }
@@ -357,14 +389,13 @@ struct LibraryView: View {
     }
 
     /// Match hub note row insets in `NoteListColumn` (conversation rows use leading/trailing 14).
-    private enum IOSCollectionsListLayout {
+    private enum IOSFoldersListLayout {
         static let rowInsets = EdgeInsets(top: 4, leading: 14, bottom: 4, trailing: 14)
     }
 
     private var emptyState: some View {
         VStack(spacing: 12) {
-            Image(systemName: "rectangle.stack")
-                .font(.system(size: 40))
+            HarvousFAGlyph(assetName: "Harvous.Folder", edgePt: 40)
                 .foregroundStyle(.quaternary)
             Text("Your notes will organize here")
                 .font(HarvousTypography.body)

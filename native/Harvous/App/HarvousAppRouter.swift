@@ -6,14 +6,36 @@ import SwiftUI
 /// Primary content surface on iPhone — single-column shell with bottom controls.
 enum HarvousIOSListSurface: String, CaseIterable {
     case notes
-    case collections
-    case highlights
+    case folders
     case scripture
+    case highlights
     case more
 
     static let persistenceKey = "harvous_ios_list_surface_v3"
     static let legacyPersistenceKeyV2 = "harvous_ios_list_surface_v2"
     static let legacyPersistenceKeyV1 = "harvous_ios_list_surface_v1"
+
+    /// FA catalog (`Harvous.*`) for the floating list-picker orb — matches `SidebarPanelView.SidebarMode.icon` on macOS.
+    var catalogGlyphAssetName: String {
+        switch self {
+        case .notes: "Harvous.Note"
+        case .folders: "Harvous.Folder"
+        case .scripture: "Harvous.BookOpen"
+        case .highlights: "Harvous.Highlight"
+        case .more: "Harvous.Note"
+        }
+    }
+
+    /// Short chrome label — matches sidebar mode titles / menu rows.
+    var listChromeMenuTitle: String {
+        switch self {
+        case .notes: "Notes"
+        case .folders: "Folders"
+        case .scripture: "Scripture"
+        case .highlights: "Highlights"
+        case .more: "More"
+        }
+    }
 }
 
 /// Data for `NoteConnectionsBar` + scripture-bar gating while the note editor owns the bottom safe-area chrome.
@@ -175,7 +197,8 @@ final class HarvousAppRouter: ObservableObject {
         let rawV3 = UserDefaults.standard.string(forKey: v3)
         let rawLegacy = UserDefaults.standard.string(forKey: v2) ?? UserDefaults.standard.string(forKey: v1)
         let rawStored = rawV3 ?? rawLegacy
-        let surface = HarvousIOSListSurface(rawValue: rawStored ?? "") ?? .notes
+        let normalizedRaw = Self.normalizeIOSListSurfaceRaw(rawStored)
+        let surface = HarvousIOSListSurface(rawValue: normalizedRaw ?? "") ?? .notes
         // `.more` is a sheet — never restore it as the inline shell surface.
         if surface == .more {
             iosListSurface = .notes
@@ -188,8 +211,21 @@ final class HarvousAppRouter: ObservableObject {
         if rawV3 == nil, rawStored != nil {
             UserDefaults.standard.set(iosListSurface.rawValue, forKey: v3)
         }
+        // Migrate stored "collections" tab id → "folders" raw value.
+        if rawStored == "collections" {
+            UserDefaults.standard.set(HarvousIOSListSurface.folders.rawValue, forKey: v3)
+        }
         #endif
     }
+
+    #if os(iOS)
+    /// Maps persisted raw strings from older builds (`collections` → `folders`).
+    private static func normalizeIOSListSurfaceRaw(_ raw: String?) -> String? {
+        guard let raw, !raw.isEmpty else { return nil }
+        if raw == "collections" { return HarvousIOSListSurface.folders.rawValue }
+        return raw
+    }
+    #endif
 
     #if os(iOS)
     /// Changes list surface and persists selection for next launch.
@@ -240,7 +276,7 @@ final class HarvousAppRouter: ObservableObject {
             switch iosListSurface {
             case .notes:
                 iosNotesFilterSearchPresented = true
-            case .collections, .highlights, .scripture:
+            case .folders, .highlights, .scripture:
                 NotificationCenter.default.post(name: .harvousFocusIOSInlineSearch, object: nil)
             case .more:
                 break
@@ -278,7 +314,7 @@ enum HarvousMacPreferencesWindow {
 #endif
 
 extension Notification.Name {
-    /// iOS: focus the bottom inline search field (Notes + Collections).
+    /// iOS: focus the bottom inline search field (Notes + Folders).
     static let harvousFocusIOSInlineSearch = Notification.Name("Harvous.focusIOSInlineSearch")
     /// macOS: posted from `HarvousCommands` so `ContentView` can `openWindow(id:)`.
     static let harvousOpenMacPreferences = Notification.Name("HarvousOpenMacPreferences")

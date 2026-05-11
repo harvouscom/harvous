@@ -172,6 +172,8 @@ enum HarvousVaultImporter {
             importAttributedTry(url: url, loader: HarvousVaultImportFormats.loadRTFAttributed, titleFallback: url.deletingPathExtension().lastPathComponent, targetSpaceId: targetSpaceId, modelContext: modelContext, report: &report)
         case "docx":
             importAttributedTry(url: url, loader: HarvousVaultImportFormats.loadOfficeDocAttributed, titleFallback: url.deletingPathExtension().lastPathComponent, targetSpaceId: targetSpaceId, modelContext: modelContext, report: &report)
+        case "csv":
+            importCSV(url: url, targetSpaceId: targetSpaceId, modelContext: modelContext, report: &report)
         case "zip":
             #if os(macOS)
             importZip(url: url, targetSpaceId: targetSpaceId, modelContext: modelContext, report: &report)
@@ -313,6 +315,119 @@ enum HarvousVaultImporter {
         }
     }
 
+    /// Harvous web **csv-threads** export: thread title → native `primaryFolder` (not legacy `threadName`).
+    private static func importCSV(
+        url: URL,
+        targetSpaceId: UUID,
+        modelContext: ModelContext,
+        report: inout HarvousImportReport
+    ) {
+        do {
+            var raw = try HarvousVaultImportFormats.loadPlainText(from: url)
+            raw = HarvousVaultImportFormats.stripLeadingBOM(raw)
+            let rows = HarvousVaultImportFormats.parseHarvousCSVThreads(raw)
+            if rows.isEmpty {
+                report.skipped.append((url, "No data rows in CSV"))
+                report.logLines.append("csv empty: \(url.lastPathComponent)")
+                return
+            }
+            for row in rows {
+                let titleRaw = row.noteTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+                let title = titleRaw.isEmpty ? "Untitled" : titleRaw
+                let body = row.content.trimmingCharacters(in: .whitespacesAndNewlines)
+                let n = Note(title: title, body: body, tags: row.tags, spaceId: targetSpaceId)
+                modelContext.insert(n)
+                NoteSimpleIDAssigner.assignIfMissing(n, in: modelContext)
+
+                let normThread = normalizeCSVThreadTitleForFolder(row.threadTitle)
+                if !normThread.isEmpty, !HarvousVaultImportFormats.isMyPileDisplayTitle(normThread) {
+                    n.primaryFolder = normThread
+                    n.isFolderUserOverride = true
+                }
+                if let tc = row.threadColor?.trimmingCharacters(in: .whitespacesAndNewlines), !tc.isEmpty {
+                    n.threadColor = tc
+                }
+                n.createdAt = parseCSVImportDateString(row.createdDate)
+                n.updatedAt = Date()
+
+                setDetectedRefsForImportedNote(n, title: title, body: body, explicitRefs: [])
+                let existingFolders = fetchDistinctPrimaryFolders(modelContext: modelContext)
+                BibleStudyTagSuggester.applyToNote(n, allowPrimaryUpdate: !n.isFolderUserOverride, existingFolders: existingFolders)
+                HarvousNoteSpotlightIndexer.reindex(note: n)
+                report.imported += 1
+                let titleSnippet = title.count > 32 ? String(title.prefix(32)) + "…" : title
+                report.logLines.append("ok import: csv:\(titleSnippet) → \(n.id.uuidString)")
+            }
+        } catch {
+            report.skipped.append((url, error.localizedDescription))
+            report.logLines.append("csv error \(url.lastPathComponent): \(error.localizedDescription)")
+        }
+    }
+
+    /// Last path segment when thread name contains `/` (matches web CSV import).
+    private static func normalizeCSVThreadTitleForFolder(_ raw: String) -> String {
+        var t = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        if t.contains("/") {
+            let parts = t.split(separator: "/").map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
+            if let last = parts.last { t = last }
+        }
+        return t
+    }
+
+    /// Mirrors `parseExportDate` in `server/routes/user.ts` (`Date` parse with fallback).
+    private static func parseCSVImportDateString(_ raw: String) -> Date {
+        let t = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !t.isEmpty else { return Date() }
+
+        let frac = ISO8601DateFormatter()
+        frac.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        if let d = frac.date(from: t) { return d }
+        let basic = ISO8601DateFormatter()
+        basic.formatOptions = [.withInternetDateTime]
+        if let d = basic.date(from: t) { return d }
+
+        let df = DateFormatter()
+        df.locale = Locale(identifier: "en_US_POSIX")
+        df.timeZone = TimeZone(secondsFromGMT: 0)
+        df.dateFormat = "yyyy-MM-dd"
+        if let d = df.date(from: t) { return d }
+        return Date()
+    }
+
+    /// Title + body detection (editor parity), union with optional explicit YAML `refs` (deduped, case-insensitive).
+    private static func setDetectedRefsForImportedNote(_ note: Note, title: String, body: String, explicitRefs: [String]) {
+        let bodyRefs = ScriptureDetector.uniqueDisplayRefs(in: body)
+        let merged = ScriptureDetector.mergedDetectedRefs(title: title, bodyRefs: bodyRefs)
+        guard !explicitRefs.isEmpty else {
+            note.detectedRefs = merged
+            return
+        }
+        var seenLC = Set<String>()
+        var out: [String] = []
+        for r in explicitRefs {
+            let tr = r.trimmingCharacters(in: .whitespacesAndNewlines)
+            if tr.isEmpty { continue }
+            let lc = tr.lowercased()
+            if seenLC.insert(lc).inserted { out.append(tr) }
+        }
+        for r in merged {
+            let lc = r.lowercased()
+            if seenLC.insert(lc).inserted { out.append(r) }
+        }
+        note.detectedRefs = out
+    }
+
+    private static func fetchDistinctPrimaryFolders(modelContext: ModelContext) -> [String] {
+        let fd = FetchDescriptor<Note>(predicate: #Predicate { $0.primaryFolder != nil })
+        let notes = (try? modelContext.fetch(fd)) ?? []
+        var seen = Set<String>()
+        for n in notes {
+            guard let col = n.primaryFolder?.trimmingCharacters(in: .whitespacesAndNewlines), !col.isEmpty else { continue }
+            seen.insert(col)
+        }
+        return Array(seen)
+    }
+
     private static func firstHeadingTitle(from body: String) -> String {
         let b = body.trimmingCharacters(in: .whitespacesAndNewlines)
         guard let r = b.range(of: "^#\\s+.+$", options: .regularExpression) else { return "" }
@@ -377,34 +492,23 @@ enum HarvousVaultImporter {
         note.body = body
         note.spaceId = targetSpaceId
         if !doc.tags.isEmpty { note.tags = doc.tags }
-        if let c = doc.collection?.trimmingCharacters(in: .whitespacesAndNewlines), !c.isEmpty {
-            note.primaryCollection = c
-            note.isCollectionUserOverride = true
+        if let c = doc.folder?.trimmingCharacters(in: .whitespacesAndNewlines), !c.isEmpty {
+            note.primaryFolder = c
+            note.isFolderUserOverride = true
         }
         if let r = doc.rating, (1...7).contains(r) { note.rating = r }
         note.isPinned = doc.pinned
         if let acc = doc.accentJSON, !acc.isEmpty { note.scripturePillAccentsJSON = acc }
         if let ca = doc.createdAt { note.createdAt = ca }
         if let ua = doc.updatedAt { note.updatedAt = ua }
+        var dedupedExplicitRefs: [String] = []
         if !doc.refs.isEmpty {
-            // Dedupe imported refs — older vault exports may contain duplicates that would trip
-            // the SwiftUI ForEach `id: \.self` diff in `NoteInspectorView`.
             var seen = Set<String>()
-            note.detectedRefs = doc.refs.filter { seen.insert($0).inserted }
-        } else {
-            note.detectedRefs = ScriptureDetector.uniqueDisplayRefs(in: body)
+            dedupedExplicitRefs = doc.refs.filter { seen.insert($0).inserted }
         }
-        let existingCollections: [String] = {
-            let fd = FetchDescriptor<Note>(predicate: #Predicate { $0.primaryCollection != nil })
-            let notes = (try? modelContext.fetch(fd)) ?? []
-            var seen = Set<String>()
-            for n in notes {
-                guard let col = n.primaryCollection?.trimmingCharacters(in: .whitespacesAndNewlines), !col.isEmpty else { continue }
-                seen.insert(col)
-            }
-            return Array(seen)
-        }()
-        BibleStudyTagSuggester.applyToNote(note, allowPrimaryUpdate: !note.isCollectionUserOverride, existingCollections: existingCollections)
+        setDetectedRefsForImportedNote(note, title: title, body: body, explicitRefs: dedupedExplicitRefs)
+        let existingFolders = fetchDistinctPrimaryFolders(modelContext: modelContext)
+        BibleStudyTagSuggester.applyToNote(note, allowPrimaryUpdate: !note.isFolderUserOverride, existingFolders: existingFolders)
 
         HarvousNoteSpotlightIndexer.reindex(note: note)
 

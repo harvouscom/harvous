@@ -84,7 +84,7 @@ struct HighlightAnnotationPopover: View {
 
     private var accentPrimaryRow: some View {
         HStack(spacing: 8) {
-            iconButton(symbol: "xmark", help: "Discard highlight", role: .cancel, action: onCancel)
+            iconButton(assetName: "Harvous.Xmark", help: "Discard highlight", role: .cancel, action: onCancel)
                 .keyboardShortcut(.escape, modifiers: [])
 
             ScrollView(.horizontal, showsIndicators: false) {
@@ -96,7 +96,7 @@ struct HighlightAnnotationPopover: View {
             }
             .frame(maxHeight: Metrics.primaryToolbarHeight)
 
-            iconButton(symbol: "checkmark", help: "Save highlight", role: nil, action: {
+            iconButton(assetName: "Harvous.Check", help: "Save highlight", role: nil, action: {
                 guard saveEnabled else { return }
                 onSave()
             })
@@ -113,8 +113,7 @@ struct HighlightAnnotationPopover: View {
 
     private var optionalNoteRow: some View {
         HStack(alignment: .center, spacing: 10) {
-            Image(systemName: "square.and.pencil")
-                .font(Metrics.rowGlyphFont)
+            HarvousFAGlyph(assetName: "Harvous.PenToSquare", edgePt: 15)
                 .foregroundStyle(Color.secondary.opacity(0.9))
                 .frame(width: Metrics.iconColumn, alignment: .center)
 
@@ -135,8 +134,7 @@ struct HighlightAnnotationPopover: View {
 
     private var labelRow: some View {
         HStack(alignment: .center, spacing: 10) {
-            Image(systemName: "textformat")
-                .font(Metrics.rowGlyphFont)
+            HarvousFAGlyph(assetName: "Harvous.Heading", edgePt: 15)
                 .foregroundStyle(Color.secondary.opacity(0.9))
                 .frame(width: Metrics.iconColumn, alignment: .center)
 
@@ -187,14 +185,13 @@ struct HighlightAnnotationPopover: View {
     }
 
     private func iconButton(
-        symbol: String,
+        assetName: String,
         help: String,
         role: ButtonRole?,
         action: @escaping () -> Void
     ) -> some View {
         Button(role: role, action: action) {
-            Image(systemName: symbol)
-                .font(.system(size: 13, weight: .semibold))
+            HarvousFAGlyph(assetName: assetName, edgePt: 13)
                 .frame(width: Metrics.iconColumn, height: Metrics.iconColumn)
                 .contentShape(Rectangle())
         }

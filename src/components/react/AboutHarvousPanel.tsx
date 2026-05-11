@@ -66,6 +66,22 @@ export default function AboutHarvousPanel({
                         className="about-harvous-signature__img"
                       />
                     </div>
+
+                    <p className="about-harvous-attribution">
+                      Interface icons include{' '}
+                      <a href="https://fontawesome.com" target="_blank" rel="noreferrer noopener">
+                        Font Awesome
+                      </a>{' '}
+                      Free icons by{' '}
+                      <a href="https://fontawesome.com/" target="_blank" rel="noreferrer noopener">
+                        Fonticons, Inc.
+                      </a>{' '}
+                      (
+                      <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noreferrer noopener">
+                        CC BY 4.0
+                      </a>
+                      ).
+                    </p>
                   </div>
                 </div>
                 </div>

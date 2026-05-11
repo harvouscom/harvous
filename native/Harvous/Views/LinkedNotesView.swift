@@ -14,7 +14,7 @@ struct LinkedNotesView: View {
                 LinkedNotesLoadedView(entry: entry)
             } else {
                 ContentUnavailableView {
-                    Label("Linked notes not found", systemImage: "link")
+                    Label("Linked notes not found", image: "Harvous.Link")
                 } description: {
                     Text("They may have been removed from this note.")
                 }

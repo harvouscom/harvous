@@ -11,8 +11,8 @@ enum HarvousNoteSpotlightIndexer {
         body: String,
         tags: [String],
         scriptureRefs: [String],
-        primaryCollection: String? = nil,
-        secondaryCollections: [String] = []
+        primaryFolder: String? = nil,
+        secondaryFolders: [String] = []
     ) {
         let attr = CSSearchableItemAttributeSet(contentType: UTType.plainText)
         let displayTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -21,10 +21,10 @@ enum HarvousNoteSpotlightIndexer {
         attr.contentDescription = trimmedBody.count > 200 ? String(trimmedBody.prefix(200)) + "…" : trimmedBody
         var keywords = tags
         keywords.append(contentsOf: scriptureRefs)
-        if let pc = primaryCollection?.trimmingCharacters(in: .whitespacesAndNewlines), !pc.isEmpty {
+        if let pc = primaryFolder?.trimmingCharacters(in: .whitespacesAndNewlines), !pc.isEmpty {
             keywords.append(pc)
         }
-        for s in secondaryCollections {
+        for s in secondaryFolders {
             let t = s.trimmingCharacters(in: .whitespacesAndNewlines)
             if !t.isEmpty { keywords.append(t) }
         }
@@ -46,8 +46,8 @@ enum HarvousNoteSpotlightIndexer {
             body: note.body,
             tags: note.tags,
             scriptureRefs: note.detectedRefs,
-            primaryCollection: note.primaryCollection,
-            secondaryCollections: note.normalizedSecondaryCollectionLabels()
+            primaryFolder: note.primaryFolder,
+            secondaryFolders: note.normalizedSecondaryFolderLabels()
         )
     }
 }

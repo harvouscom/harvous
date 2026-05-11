@@ -205,10 +205,28 @@ function scoreForName(name: string, rows: ScRow[]): number {
   return row ? boostedPrimaryScore(row) : 0;
 }
 
+function normalizeTitleToken(token: string): string {
+  return token.replace(/[^a-z0-9]/gi, '').toLowerCase();
+}
+
+/** True when the folder candidate is clearly present in the title (native `inTitle` / book-title parity). */
+function candidateAppearsInTitle(plainTitle: string, candidate: string | null): boolean {
+  if (!candidate || !plainTitle.trim()) return false;
+  const cNorm = normalizeTitleToken(candidate);
+  if (!cNorm.length) return false;
+  const titleLower = plainTitle.toLowerCase();
+  if (candidate.includes(' ')) {
+    return titleLower.includes(candidate.trim().toLowerCase());
+  }
+  const titleWords = plainTitle.split(/\s+/).filter(Boolean);
+  return titleWords.some((w) => normalizeTitleToken(w) === cNorm);
+}
+
 function meetsMinimumContext(title: string, plainBody: string, candidate: string | null, rows: ScRow[]): boolean {
   if (!candidate) return false;
   const words = plainBody.split(/\s+/).filter(Boolean);
   if (words.length >= MIN_BODY_WORDS) return true;
+  if (candidateAppearsInTitle(title, candidate)) return true;
   return scoreForName(candidate, rows) >= SHORT_NOTE_CONFIDENCE_FLOOR;
 }
 

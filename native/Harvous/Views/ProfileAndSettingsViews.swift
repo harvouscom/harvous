@@ -588,6 +588,8 @@ private struct SettingsKeyboardShortcutsView: View {
         Row(action: "Toggle note details", keys: "⌘⌥I"),
         Row(action: "Next note", keys: "⌃⌘↓"),
         Row(action: "Previous note", keys: "⌃⌘↑"),
+        Row(action: "Bold", keys: "⌘B"),
+        Row(action: "Italic", keys: "⌘I"),
         Row(action: "Strikethrough", keys: "⌘⇧X"),
         Row(action: "Heading 2", keys: "⌘⌥2"),
         Row(action: "Heading 3", keys: "⌘⌥3"),
@@ -679,9 +681,9 @@ struct YouRootView: View {
                     Label("Search", systemImage: "magnifyingglass")
                 }
                 Button {
-                    appRouter.selectIOSListSurface(.collections)
+                    appRouter.selectIOSListSurface(.folders)
                 } label: {
-                    Label("Collections", systemImage: "rectangle.stack")
+                    Label("Folders", systemImage: "rectangle.stack")
                 }
                 Button {
                     appRouter.selectIOSListSurface(.highlights)
@@ -746,7 +748,7 @@ private struct MacPreferencesWindowToolbarChrome: ViewModifier {
 }
 
 /// Preferences `Window` (see `HarvousApp`): same chrome as the document window, unified title bar with pane
-/// `navigationTitle`, back/forward in `.navigation`, sidebar list matches main-window toolbar transparency.
+/// `navigationTitle`, back/forward in `.navigation` (FA `Harvous.ChevronLeft` / `Harvous.ChevronRight`), sidebar list matches main-window toolbar transparency.
 struct MacPreferencesRootView: View {
     @EnvironmentObject private var appRouter: HarvousAppRouter
 
@@ -779,7 +781,11 @@ struct MacPreferencesRootView: View {
                     .toolbar {
                         ToolbarItem(placement: .navigation) {
                             Button(action: goBack) {
-                                Image(systemName: "chevron.backward")
+                                HarvousFAGlyph(assetName: "Harvous.ChevronLeft", edgePt: HarvousFAIconMetrics.catalogGlyphBoxPt)
+                                    .frame(
+                                        width: HarvousFAIconMetrics.catalogGlyphBoxPt,
+                                        height: HarvousFAIconMetrics.catalogGlyphBoxPt
+                                    )
                             }
                             .buttonStyle(.bordered)
                             .help("Back")
@@ -787,7 +793,11 @@ struct MacPreferencesRootView: View {
                         }
                         ToolbarItem(placement: .navigation) {
                             Button(action: goForward) {
-                                Image(systemName: "chevron.forward")
+                                HarvousFAGlyph(assetName: "Harvous.ChevronRight", edgePt: HarvousFAIconMetrics.catalogGlyphBoxPt)
+                                    .frame(
+                                        width: HarvousFAIconMetrics.catalogGlyphBoxPt,
+                                        height: HarvousFAIconMetrics.catalogGlyphBoxPt
+                                    )
                             }
                             .buttonStyle(.bordered)
                             .help("Forward")

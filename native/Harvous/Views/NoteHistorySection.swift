@@ -64,8 +64,7 @@ struct NoteHistorySection: View {
             }
         } label: {
             HStack(alignment: .center, spacing: 10) {
-                Image(systemName: "clock.arrow.circlepath")
-                    .font(.system(size: 14, weight: .semibold))
+                HarvousFAGlyph(assetName: "Harvous.ClockRotateLeft", edgePt: 14)
                     .foregroundStyle(Color.harvousAccent)
                     .frame(width: 20, alignment: .center)
 
@@ -81,8 +80,7 @@ struct NoteHistorySection: View {
 
                 Spacer(minLength: 0)
 
-                Image(systemName: "chevron.down")
-                    .font(.system(size: 10, weight: .bold))
+                HarvousFAGlyph(assetName: "Harvous.ChevronDown", edgePt: 10)
                     .rotationEffect(.degrees(isExpanded ? 0 : -90))
                     .foregroundStyle(.tertiary)
             }
@@ -132,8 +130,7 @@ struct NoteHistorySection: View {
 
                 Spacer(minLength: 0)
 
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 10, weight: .semibold))
+                HarvousFAGlyph(assetName: "Harvous.ChevronRight", edgePt: 10)
                     .foregroundStyle(.tertiary)
             }
             .padding(.vertical, 8)

@@ -4,6 +4,7 @@ import { Link, useRouterState } from '@tanstack/react-router';
 import { MIN_SEARCH_QUERY_LENGTH } from '@/utils/search-query';
 import { fetchSearchResults, searchQueryKey } from '../../../../src/hooks/useSearch';
 import { useNavigation, type NavSpace } from '../../hooks/queries/useNavigation';
+import { formatProtoSpaceRowTitle, resolvePersonalHomeSpaceId } from '../../utils/personal-home-space';
 import PrototypeSearchInput from './components/PrototypeSearchInput';
 import PrototypeSearchResultsList from './PrototypeSearchResultsList';
 
@@ -22,6 +23,15 @@ export default function PrototypeSearchPage() {
     () => mergeSpaces(nav?.spaces ?? [], nav?.memberOfSpaces ?? []),
     [nav?.spaces, nav?.memberOfSpaces],
   );
+
+  const homeId = useMemo(() => resolvePersonalHomeSpaceId(nav?.spaces ?? []), [nav?.spaces]);
+
+  const orderedSpaceList = useMemo(() => {
+    if (!homeId) return spaceList;
+    const rest = spaceList.filter((s) => s.id !== homeId);
+    const home = spaceList.find((s) => s.id === homeId);
+    return home ? [home, ...rest] : spaceList;
+  }, [homeId, spaceList]);
 
   const searchRaw = useRouterState({ select: (s) => s.location.search });
   const spaceFromRouter =
@@ -60,7 +70,7 @@ export default function PrototypeSearchPage() {
           Choose a space to search notes.
         </p>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-          {spaceList.map((s) => (
+          {orderedSpaceList.map((s) => (
             <Link
               key={s.id}
               to="/prototype/search"
@@ -68,7 +78,9 @@ export default function PrototypeSearchPage() {
               className="proto-search-result-row"
               style={{ textDecoration: 'none' }}
             >
-              <span className="proto-search-result-row__title">{s.title || 'Untitled space'}</span>
+              <span className="proto-search-result-row__title">
+                {homeId && s.id === homeId ? 'My Home' : formatProtoSpaceRowTitle(s.title)}
+              </span>
             </Link>
           ))}
         </div>

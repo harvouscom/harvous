@@ -25,11 +25,11 @@ enum StudyThreadQuickOption: String, CaseIterable, Identifiable {
         }
     }
 
-    var symbolName: String {
+    var catalogGlyphAssetName: String {
         switch self {
-        case .focus: return "scope"
-        case .question: return "questionmark.bubble"
-        case .resource: return "link"
+        case .focus: return "Harvous.Crosshairs"
+        case .question: return "Harvous.Comments"
+        case .resource: return "Harvous.Link"
         }
     }
 }
@@ -50,8 +50,7 @@ struct ThreadQuickOptionsPanel: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(alignment: .firstTextBaseline, spacing: 10) {
-                Image(systemName: option.symbolName)
-                    .font(.system(size: 14, weight: .semibold))
+                HarvousFAGlyph(assetName: option.catalogGlyphAssetName, edgePt: 14)
                     .foregroundStyle(.secondary)
 
                 VStack(alignment: .leading, spacing: 2) {
@@ -165,8 +164,7 @@ struct ThreadQuickOptionsPanel: View {
                         thread.suggestedQuestions.remove(at: idx)
                         persistThreadFields()
                     } label: {
-                        Image(systemName: "xmark.circle.fill")
-                            .font(.system(size: 12))
+                        HarvousFAGlyph(assetName: "Harvous.CircleXmark", edgePt: 12)
                     }
                     .buttonStyle(.plain)
                 }
@@ -189,8 +187,7 @@ struct ThreadQuickOptionsPanel: View {
                         thread.resourceLines.remove(at: idx)
                         persistThreadFields()
                     } label: {
-                        Image(systemName: "xmark.circle.fill")
-                            .font(.system(size: 12))
+                        HarvousFAGlyph(assetName: "Harvous.CircleXmark", edgePt: 12)
                     }
                     .buttonStyle(.plain)
                 }

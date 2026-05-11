@@ -1,7 +1,9 @@
+import { getSelectedSpaceId } from '@/components/react/navigation/selectedSpace';
 import { Link, useNavigate } from '@tanstack/react-router';
 import { useEffect, useMemo } from 'react';
 import { useNavigation, type NavSpace } from '../../hooks/queries/useNavigation';
 import { PROTO_LAST_SPACE_KEY } from '../../layouts/proto-session-keys';
+import { resolvePersonalHomeSpaceId } from '../../utils/personal-home-space';
 
 function mergeSpaces(spaces: NavSpace[], memberOf: NavSpace[]) {
   const map = new Map<string, NavSpace>();
@@ -22,12 +24,23 @@ export default function PrototypeHomePage() {
   useEffect(() => {
     if (isLoading || list.length === 0) return;
 
-    let preferred = list[0]?.id;
+    let preferred: string | undefined;
     try {
       const last = localStorage.getItem(PROTO_LAST_SPACE_KEY);
       if (last && list.some((s) => s.id === last)) preferred = last;
     } catch {
       /* ignore */
+    }
+    if (!preferred) {
+      const selected = getSelectedSpaceId();
+      if (selected && list.some((s) => s.id === selected)) preferred = selected;
+    }
+    if (!preferred) {
+      const home = resolvePersonalHomeSpaceId(nav?.spaces ?? []);
+      if (home) preferred = home;
+    }
+    if (!preferred) {
+      preferred = list[0]?.id;
     }
     if (!preferred) return;
     const slug = preferred.startsWith('space_') ? preferred.slice('space_'.length) : preferred;
@@ -36,7 +49,7 @@ export default function PrototypeHomePage() {
       params: { spaceId: slug },
       replace: true,
     });
-  }, [isLoading, list, navigate]);
+  }, [isLoading, list, navigate, nav?.spaces]);
 
   if (isLoading && list.length === 0) {
     return (

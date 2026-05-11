@@ -1,6 +1,39 @@
 import SwiftData
 import SwiftUI
 
+/// Faded blurred stroke clipped to capsule; tune together with `ScripturePillInnerStrokeLikeConnectionsCapsule` on raster pills.
+private struct HarvousConnectionsCapsuleInnerShadow: View {
+    @Environment(\.colorScheme) private var colorScheme
+
+    private var isDarkAppearance: Bool { colorScheme == .dark }
+
+    var body: some View {
+        Capsule(style: .continuous)
+            .stroke(shadowTint, lineWidth: 5.5)
+            .blur(radius: 3)
+            .blendMode(isDarkAppearance ? .softLight : .multiply)
+            .mask(Capsule(style: .continuous))
+            .allowsHitTesting(false)
+    }
+
+    private var shadowTint: Color {
+        isDarkAppearance ? Color.white.opacity(0.036) : Color.black.opacity(0.042)
+    }
+}
+
+private extension View {
+    /// Capsule backing with faded perimeter stroke (`multiply` light / `softLight` dark), matching scripture pills.
+    func harvousConnectionsPillBackdrop(fillOpacity: Double) -> some View {
+        background {
+            Capsule(style: .continuous)
+                .fill(Color.primary.opacity(fillOpacity))
+                .overlay {
+                    HarvousConnectionsCapsuleInnerShadow()
+                }
+        }
+    }
+}
+
 /// Incoming / outgoing linked-note trail plus add-connection affordance (macOS + iOS).
 struct NoteConnectionsBar: View {
     let note: Note
@@ -70,7 +103,7 @@ struct NoteConnectionsBar: View {
                     ForEach(snapshot.incoming, id: \.id) { item in
                         RemovableConnectionsTrailPill(
                             label: Self.truncated(resolvedIncomingTitle(for: item)),
-                            icon: "arrow.left",
+                            glyphAssetName: "Harvous.ArrowLeft",
                             onNavigate: { onOpenLinkedNote(item.parentNoteId) },
                             onRemove: {
                                 ThreadStore.deleteLinkedNoteMarker(item, modelContext: modelContext)
@@ -80,8 +113,7 @@ struct NoteConnectionsBar: View {
                                 onConnectionsChanged?()
                             }
                         )
-                        Image(systemName: "chevron.right")
-                            .font(.system(size: 10, weight: .semibold))
+                        HarvousFAGlyph(assetName: "Harvous.ArrowsLeftRight", edgePt: 10)
                             .foregroundStyle(.tertiary)
                     }
                     Text(Self.truncated(trimmedTitle))
@@ -89,15 +121,14 @@ struct NoteConnectionsBar: View {
                         .lineLimit(1)
                         .padding(.horizontal, 10)
                         .padding(.vertical, 6)
-                        .background(Capsule(style: .continuous).fill(Color.primary.opacity(0.09)))
+                        .harvousConnectionsPillBackdrop(fillOpacity: 0.09)
                     ForEach(snapshot.outgoing, id: \.id) { item in
                         if let linkedId = item.linkedNoteId {
-                            Image(systemName: "chevron.right")
-                                .font(.system(size: 10, weight: .semibold))
+                            HarvousFAGlyph(assetName: "Harvous.ArrowsLeftRight", edgePt: 10)
                                 .foregroundStyle(.tertiary)
                             RemovableConnectionsTrailPill(
                                 label: Self.truncated(resolvedLinkedTitle(for: item)),
-                                icon: "arrow.right",
+                                glyphAssetName: "Harvous.ArrowRight",
                                 onNavigate: { onOpenLinkedNote(linkedId) },
                                 onRemove: {
                                     ThreadStore.deleteLinkedNoteMarker(item, modelContext: modelContext)
@@ -167,8 +198,8 @@ struct NoteConnectionsBar: View {
             showConnectPicker = true
         } label: {
             HStack(spacing: 6) {
-                Image(systemName: "arrow.triangle.branch")
-                    .font(.system(size: 11, weight: .semibold))
+                HarvousFAGlyph(assetName: "Harvous.ArrowRightArrowLeft", edgePt: 11)
+                    .foregroundStyle(.secondary)
                 Text("Connect note")
                     .font(HarvousTypography.caption)
             }
@@ -176,7 +207,7 @@ struct NoteConnectionsBar: View {
             .foregroundStyle(.secondary)
             .padding(.horizontal, 12)
             .padding(.vertical, 7)
-            .background(Capsule(style: .continuous).fill(Color.primary.opacity(0.05)))
+            .harvousConnectionsPillBackdrop(fillOpacity: 0.05)
         }
         .buttonStyle(.plain)
     }
@@ -185,11 +216,10 @@ struct NoteConnectionsBar: View {
         Button {
             showConnectPicker = true
         } label: {
-            Image(systemName: "plus")
-                .font(.system(size: 12, weight: .bold))
+            HarvousFAGlyph(assetName: "Harvous.Plus", edgePt: 12)
                 .foregroundStyle(.primary.opacity(0.85))
                 .frame(width: 28, height: 28)
-                .background(Capsule(style: .continuous).fill(Color.primary.opacity(0.06)))
+                .harvousConnectionsPillBackdrop(fillOpacity: 0.06)
         }
         .buttonStyle(.plain)
         .help("Connect another note")
@@ -199,7 +229,7 @@ struct NoteConnectionsBar: View {
 
 private struct RemovableConnectionsTrailPill: View {
     let label: String
-    let icon: String
+    let glyphAssetName: String
     let onNavigate: () -> Void
     let onRemove: () -> Void
 
@@ -210,8 +240,7 @@ private struct RemovableConnectionsTrailPill: View {
         HStack(spacing: 5) {
             Button(action: onNavigate) {
                 HStack(spacing: 5) {
-                    Image(systemName: icon)
-                        .font(.system(size: 10, weight: .semibold))
+                    HarvousFAGlyph(assetName: glyphAssetName, edgePt: 10)
                     Text(label)
                         .font(HarvousTypography.caption)
                         .lineLimit(1)
@@ -229,6 +258,7 @@ private struct RemovableConnectionsTrailPill: View {
             } label: {
                 Image(systemName: "xmark")
                     .font(.system(size: 9, weight: .bold))
+                    .symbolRenderingMode(.monochrome)
                     .foregroundStyle(Color.secondary.opacity(0.9))
                     .frame(width: 16, height: 16)
             }
@@ -244,7 +274,7 @@ private struct RemovableConnectionsTrailPill: View {
         }
         .padding(.horizontal, 9)
         .padding(.vertical, 6)
-        .background(Capsule(style: .continuous).fill(Color.primary.opacity(0.05)))
+        .harvousConnectionsPillBackdrop(fillOpacity: 0.05)
         .animation(.easeInOut(duration: 0.18), value: hoverRemoval)
         .onHover { hovering in
             withAnimation(.easeInOut(duration: 0.18)) {

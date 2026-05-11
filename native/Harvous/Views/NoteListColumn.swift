@@ -140,8 +140,8 @@ struct NoteListColumn: View {
         switch filter {
         case .all:
             return notesInActiveSpace
-        case .collection(let selectedCollection):
-            return notesInActiveSpace.filter { $0.noteBelongsToCollectionBucket(selectedCollection) }
+        case .folder(let selectedFolderKey):
+            return notesInActiveSpace.filter { $0.noteBelongsToFolderBucket(selectedFolderKey) }
         case .scriptureBook(let bookIndex):
             return notesInActiveSpace.filter { $0.noteBelongsToScriptureBook(bookIndex) }
         case .scripturePassage(let passage):
@@ -264,7 +264,7 @@ struct NoteListColumn: View {
             if columnStyle == .macOSSidebar {
                 ToolbarItem(placement: .primaryAction) {
                     Button(action: onNewNote) {
-                        Image(systemName: "square.and.pencil")
+                        HarvousFAGlyph(assetName: "Harvous.Pencil", edgePt: 16)
                     }
                     .help("New Note")
                 }
@@ -390,7 +390,11 @@ struct NoteListColumn: View {
                     Button {
                         votdPassageCardDismissedDay = VotdService.todayCalendarDayKey()
                     } label: {
-                        Label("Dismiss", systemImage: "xmark.circle.fill")
+                        Label {
+                            Text("Dismiss")
+                        } icon: {
+                            HarvousFAGlyph(assetName: "Harvous.CircleXmark", edgePt: 16)
+                        }
                     }
                     .tint(.secondary)
                     .accessibilityLabel("Dismiss today's passage")
@@ -508,7 +512,11 @@ struct NoteListColumn: View {
                 iosNavPath.wrappedValue.removeAll { $0 == doomedId }
             }
         } label: {
-            Label("Delete", systemImage: "trash")
+            Label {
+                Text("Delete")
+            } icon: {
+                HarvousFAGlyph(assetName: "Harvous.Trash", edgePt: 14)
+            }
         }
     }
 
@@ -524,7 +532,14 @@ struct NoteListColumn: View {
             HarvousNoteSpotlightIndexer.reindex(note: note)
             HarvousVaultExporter.scheduleWrite(note: note, modelContext: context)
         } label: {
-            Label(note.isPinned ? "Unpin" : "Pin", systemImage: note.isPinned ? "pin.slash.fill" : "pin.fill")
+            Label {
+                Text(note.isPinned ? "Unpin" : "Pin")
+            } icon: {
+                HarvousFAGlyph(
+                    assetName: note.isPinned ? "Harvous.ThumbtackSlash" : "Harvous.Thumbtack",
+                    edgePt: 14
+                )
+            }
         }
         .tint(.orange)
     }
@@ -533,8 +548,7 @@ struct NoteListColumn: View {
 
     private var emptyState: some View {
         VStack(spacing: 8) {
-            Image(systemName: "note.text")
-                .font(.system(size: 20, weight: .semibold))
+            HarvousFAGlyph(assetName: "Harvous.Note", edgePt: 16)
                 .foregroundStyle(.tertiary)
             Text("No Notes")
                 .font(HarvousTypography.body)

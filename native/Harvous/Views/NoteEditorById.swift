@@ -17,8 +17,7 @@ struct NoteEditorById: View {
             StatefulNoteEditorView(note: note)
         } else {
             VStack(spacing: 8) {
-                Image(systemName: "note.text")
-                    .font(.largeTitle)
+                HarvousFAGlyph(assetName: "Harvous.Note", edgePt: 28)
                     .foregroundStyle(.secondary)
                 Text("Note unavailable")
                     .font(HarvousTypography.body)

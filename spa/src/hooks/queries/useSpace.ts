@@ -103,12 +103,15 @@ export interface SpaceNoteRow {
   title?: string | null;
   content?: string | null;
   noteType?: string;
+  isPinned?: boolean;
   createdAt?: string;
   updatedAt?: string | null;
   lastVisited?: string | null;
   lastUpdated?: string;
   resourceTitle?: string | null;
   contentEncrypted?: boolean;
+  primaryCollection?: string | null;
+  secondaryCollections?: string[];
 }
 
 /** Paginated notes-only list from `GET /api/spaces/:spaceId/notes` */

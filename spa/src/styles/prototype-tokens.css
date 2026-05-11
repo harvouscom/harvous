@@ -6,7 +6,8 @@
  * HarvousTypography / HarvousFonts → --pds-font-* and type classes
  * CardShadow → --pds-shadow-card / --pds-shadow-card-sm
  *
- * Nothing here references SPA CSS variables (--color-*, --font-sans, etc.).
+ * Colors stay native-only (--pds-*). The prototype shell remaps app-wide `--font-sans` /
+ * `--font-mono` to `--pds-*` stacks so embedded React surfaces never resolve Reddit Sans.
  */
 
 /* ─── Design tokens ──────────────────────────────────────────────────────── */
@@ -81,6 +82,14 @@
   --pds-footer-h:  36px;
   --pds-sidebar-w: 280px;
   --pds-inspector-w: 260px;
+
+  /* Native `StudyHighlightAccentToken` underline colors */
+  --pds-highlight-neutral: #8e8e93;
+  --pds-highlight-warm-amber: #e6a820;
+  --pds-highlight-sky-blue: #1e88c9;
+  --pds-highlight-violet: #8b5cf6;
+  --pds-highlight-mint-green: #43a047;
+  --pds-highlight-coral-rose: #e0409a;
 }
 
 /* ─── Shell reset / base ─────────────────────────────────────────────────── */
@@ -92,12 +101,86 @@
 
 /* Override SPA :root font on the shell root */
 .proto-shell {
+  /* Remap app-wide tokens so var(--font-sans) never resolves to Reddit Sans under /prototype */
+  --font-sans: var(--pds-font-body);
+  --font-mono: var(--pds-font-mono);
   font-family: var(--pds-font-body);
   font-size: 16px;
   line-height: 1.45;
   color: var(--pds-text-primary);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+/*
+ * Portaled UI (Sonner, spotlight) lives outside .proto-shell but should match prototype typography.
+ * Class is toggled from SimplifiedPrototypeLayout while /prototype/* is mounted.
+ */
+html.harvous-prototype-route {
+  --font-sans: var(--pds-font-body);
+  --font-mono: var(--pds-font-mono);
+}
+
+/*
+ * global.css ends with `button` / `button *` / `h1–h6` using var(--font-sans) !important and some
+ * rules prefix stacks with literal "Reddit Sans". Higher specificity + !important restores SF only here.
+ */
+.proto-shell button,
+.proto-shell button span,
+.proto-shell button div,
+.proto-shell button p,
+.proto-shell button * {
+  font-family: var(--pds-font-body) !important;
+}
+
+.proto-shell h1,
+.proto-shell h2,
+.proto-shell h3,
+.proto-shell h4,
+.proto-shell h5,
+.proto-shell h6 {
+  font-family: var(--pds-font-body) !important;
+}
+
+.proto-shell .text-title,
+.proto-shell .text-subtitle,
+.proto-shell .text-body {
+  font-family: var(--pds-font-body) !important;
+}
+
+.proto-shell .menu-item,
+.proto-shell .menu-item span,
+.proto-shell .menu-item div,
+.proto-shell .menu-item p,
+.proto-shell .menu-item *,
+.proto-shell .menu-item__label,
+.proto-shell .menu-item__label * {
+  font-family: var(--pds-font-body) !important;
+}
+
+.proto-shell .space-button,
+.proto-shell .space-button span,
+.proto-shell .space-button div,
+.proto-shell .space-button p,
+.proto-shell .space-button *,
+.proto-shell .space-btn,
+.proto-shell .space-btn span,
+.proto-shell .space-btn div,
+.proto-shell .space-btn p,
+.proto-shell .space-btn *,
+.proto-shell .space-btn__text {
+  font-family: var(--pds-font-body) !important;
+}
+
+.proto-shell .tab-nav__button,
+.proto-shell .tab-nav__button span,
+.proto-shell .tab-nav__button * {
+  font-family: var(--pds-font-body) !important;
+}
+
+.proto-shell .offline-indicator--chip,
+.proto-shell .offline-indicator--chip * {
+  font-family: var(--pds-font-body) !important;
 }
 
 /* Suppress link underlines and SPA-inherited button resets inside prototype */
@@ -153,7 +236,7 @@
   color: var(--pds-text-primary);
 }
 
-/* HarvousTypography.noteListTitle — 15pt / 500 */
+/* HarvousTypography.noteListTitle — macOS 15pt / 500; iOS 17pt / 500 (web uses Mac sidebar scale) */
 .pds-list-title {
   font-family: var(--pds-font-body);
   font-size: 0.9375rem;
@@ -162,7 +245,7 @@
   color: var(--pds-text-primary);
 }
 
-/* HarvousTypography.noteListPreview — 12pt / 400 */
+/* HarvousTypography.noteListPreview — macOS 12pt / 400; iOS 14pt / 400 */
 .pds-list-preview {
   font-family: var(--pds-font-body);
   font-size: 0.75rem;

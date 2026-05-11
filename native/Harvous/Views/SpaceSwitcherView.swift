@@ -27,10 +27,14 @@ struct SpaceSwitcherView: View {
                         spaceStore.setActiveSpace(id: space.id, modelContext: modelContext)
                     } label: {
                         HStack {
-                            Label(space.name, systemImage: space.visibility.systemImage)
+                            Label {
+                                Text(space.name)
+                            } icon: {
+                                HarvousFAGlyph(assetName: space.visibility.harvousCatalogAssetName, edgePt: 14)
+                            }
                             Spacer(minLength: 8)
                             if space.id == selectedId {
-                                Image(systemName: "checkmark")
+                                HarvousFAGlyph(assetName: "Harvous.Check", edgePt: 12)
                             }
                         }
                     }
@@ -42,18 +46,30 @@ struct SpaceSwitcherView: View {
                         spaceStore.createSpaceInitialVisibility = .privateShared
                         spaceStore.showCreateSpaceSheet = true
                     } label: {
-                        Label("New private shared…", systemImage: "lock.fill")
+                        Label {
+                            Text("New private shared…")
+                        } icon: {
+                            HarvousFAGlyph(assetName: "Harvous.Lock", edgePt: 14)
+                        }
                     }
                     Button {
                         spaceStore.createSpaceInitialVisibility = .publicShared
                         spaceStore.showCreateSpaceSheet = true
                     } label: {
-                        Label("New public shared…", systemImage: "link")
+                        Label {
+                            Text("New public shared…")
+                        } icon: {
+                            HarvousFAGlyph(assetName: "Harvous.Link", edgePt: 14)
+                        }
                     }
                     Button {
                         spaceStore.showJoinSpaceSheet = true
                     } label: {
-                        Label("Join with token…", systemImage: "person.badge.key")
+                        Label {
+                            Text("Join with token…")
+                        } icon: {
+                            HarvousFAGlyph(assetName: "Harvous.Key", edgePt: 14)
+                        }
                     }
                 }
                 if let current = visibleSpaces.first(where: { $0.id == selectedId }) {
@@ -61,17 +77,18 @@ struct SpaceSwitcherView: View {
                         Button {
                             spaceToManage = current
                         } label: {
-                            Label("Manage current space…", systemImage: "gearshape")
+                            Label {
+                                Text("Manage current space…")
+                            } icon: {
+                                HarvousFAGlyph(assetName: "Harvous.Gear", edgePt: 14)
+                            }
                         }
                     }
                 }
             }
         } label: {
             #if os(macOS)
-            Image(systemName: currentSpaceSymbol)
-                .font(.system(size: 15, weight: .regular))
-                .symbolRenderingMode(.hierarchical)
-                .imageScale(.medium)
+            HarvousFAGlyph(assetName: currentCatalogAssetName, edgePt: 15)
                 .offset(y: -1)
             #else
             Label {
@@ -79,8 +96,7 @@ struct SpaceSwitcherView: View {
                     .lineLimit(1)
                     .foregroundStyle(.primary)
             } icon: {
-                Image(systemName: currentSpaceSymbol)
-                    .symbolRenderingMode(.hierarchical)
+                HarvousFAGlyph(assetName: currentCatalogAssetName, edgePt: 16)
                     .foregroundStyle(.primary)
             }
             .labelStyle(.titleAndIcon)
@@ -92,7 +108,7 @@ struct SpaceSwitcherView: View {
         .menuIndicator(.hidden)
         #else
         .menuStyle(.borderlessButton)
-        // Home / collections toolbars sit under `NavigationStack.tint(.harvousAccent)`; keep space control neutral like `NoteCollectionChip`.
+        // Home / folders toolbars sit under `NavigationStack.tint(.harvousAccent)`; keep space control neutral like `NoteFolderChip`.
         .tint(.primary)
         #endif
         .accessibilityLabel("Space")
@@ -123,7 +139,7 @@ struct SpaceSwitcherView: View {
         visibleSpaces.first { $0.id == selectedId }?.name ?? "My Home"
     }
 
-    private var currentSpaceSymbol: String {
-        visibleSpaces.first { $0.id == selectedId }?.visibility.systemImage ?? "rectangle.on.rectangle"
+    private var currentCatalogAssetName: String {
+        visibleSpaces.first { $0.id == selectedId }?.visibility.harvousCatalogAssetName ?? "Harvous.Home"
     }
 }

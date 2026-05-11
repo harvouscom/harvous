@@ -9,7 +9,7 @@ import UIKit
 
 /// Right-side inspector panel — shown via `.inspector(isPresented:)`.
 /// Displays tags and note metadata. Passage text is edited via the note action bar.
-/// Collection edits use the toolbar collection chip popover.
+/// Folder edits use the toolbar folder chip popover.
 struct NoteInspectorView: View {
     let note: Note
     @Environment(\.modelContext) private var modelContext

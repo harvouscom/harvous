@@ -6,6 +6,8 @@ import SwiftData
 private enum SidebarToolbarLayout {
     /// Omit SwiftUI sidebar `toolbar` while measured width is in `(0 ..< this)` during split resize. When width is still `0`, chrome stays visible so expanding from `detailOnly` never blanks the space switcher.
     static let narrowColumnToolbarSuppressBelow: CGFloat = 210
+    /// ToolbarItemGroup allocates wide gaps between sibling views (separate placements). Cluster in one `HStack` instead.
+    static let borderedIconClusterSpacing: CGFloat = 7
 }
 
 private struct SidebarColumnWidthPreferenceKey: PreferenceKey {
@@ -15,19 +17,19 @@ private struct SidebarColumnWidthPreferenceKey: PreferenceKey {
     }
 }
 
-/// Sidebar — note list with a notes/collections toggle. Collapsible via ⌘\.
+/// Sidebar — note list with a notes/folders toggle. Collapsible via ⌘\.
 struct SidebarPanelView: View {
     private enum SidebarMode: String, CaseIterable, Identifiable {
         case notes
-        case collections
-        case highlights
+        case folders
         case scripture
+        case highlights
 
         var id: String { rawValue }
         var title: String {
             switch self {
             case .notes: return "Notes"
-            case .collections: return "Collections"
+            case .folders: return "Folders"
             case .highlights: return "Highlights"
             case .scripture: return "Scripture"
             }
@@ -35,17 +37,17 @@ struct SidebarPanelView: View {
 
         var icon: String {
             switch self {
-            case .notes: return "note.text"
-            case .collections: return "rectangle.stack.fill"
-            case .highlights: return "highlighter"
-            case .scripture: return "book.closed.fill"
+            case .notes: return "Harvous.Note"
+            case .folders: return "Harvous.Folder"
+            case .highlights: return "Harvous.Highlight"
+            case .scripture: return "Harvous.BookOpen"
             }
         }
     }
 
-    private enum CollectionsDrill: Equatable {
+    private enum FoldersDrill: Equatable {
         case root
-        /// `nil` means notes with no primary collection (matches `HarvousCollectionRow.collection`).
+        /// `nil` means notes with no primary folder bucket (matches `HarvousFolderRow.folderLabel`).
         case bucket(String?)
     }
 
@@ -62,21 +64,21 @@ struct SidebarPanelView: View {
     @Environment(\.modelContext) private var modelContext
     @EnvironmentObject private var spaceStore: SpaceStore
     @State private var mode: SidebarMode = .notes
-    @State private var collectionsDrill: CollectionsDrill = .root
+    @State private var foldersDrill: FoldersDrill = .root
     @State private var scriptureDrill: ScriptureDrill = .root
-    @State private var collectionSearchText = ""
+    @State private var folderListSearchText = ""
     @State private var sidebarColumnMeasuredWidth: CGFloat = 0
-    @State private var pinnedCollectionRowIds: [String] = []
-    @State private var renameTarget: HarvousCollectionRow?
+    @State private var pinnedFolderRowIds: [String] = []
+    @State private var renameTarget: HarvousFolderRow?
     @State private var renameDraft: String = ""
-    @State private var removeConfirmRow: HarvousCollectionRow?
+    @State private var removeConfirmRow: HarvousFolderRow?
 
     @AppStorage(VotdService.passageCardDismissedDayUserDefaultsKey) private var votdPassageCardDismissedDay: String = ""
 
     private var unifiedSearchText: Binding<String> {
         Binding(
-            get: { collectionSearchText },
-            set: { collectionSearchText = $0 }
+            get: { folderListSearchText },
+            set: { folderListSearchText = $0 }
         )
     }
 
@@ -89,22 +91,22 @@ struct SidebarPanelView: View {
         return scoped
     }
 
-    private var collectionRows: [HarvousCollectionRow] {
-        HarvousCollectionListIndex.rows(from: notesInActiveSpace)
+    private var folderRows: [HarvousFolderRow] {
+        HarvousFolderListIndex.rows(from: notesInActiveSpace)
     }
 
-    private var filteredCollectionRows: [HarvousCollectionRow] {
-        HarvousCollectionListIndex.filtered(
-            rows: collectionRows,
-            query: collectionSearchText,
+    private var filteredFolderRows: [HarvousFolderRow] {
+        HarvousFolderListIndex.filtered(
+            rows: folderRows,
+            query: folderListSearchText,
             notesForBucketMatching: notesInActiveSpace
         )
     }
 
-    private var orderedFilteredCollectionRows: [HarvousCollectionRow] {
-        HarvousCollectionListIndex.applyPinOrdering(
-            filteredCollectionRows,
-            pinnedIdsInOrder: pinnedCollectionRowIds
+    private var orderedFilteredFolderRows: [HarvousFolderRow] {
+        HarvousFolderListIndex.applyPinOrdering(
+            filteredFolderRows,
+            pinnedIdsInOrder: pinnedFolderRowIds
         )
     }
 
@@ -115,7 +117,7 @@ struct SidebarPanelView: View {
     private var filteredScriptureBookRows: [ScriptureBookRow] {
         ScriptureBookListIndex.filtered(
             rows: scriptureBookRows,
-            query: collectionSearchText,
+            query: folderListSearchText,
             notesForBucketMatching: notesInActiveSpace
         )
     }
@@ -131,7 +133,7 @@ struct SidebarPanelView: View {
         if case .book = scriptureDrill {
             return ScriptureBookListIndex.filteredReferenceRows(
                 rows: scriptureReferenceRowsForBookDrill,
-                query: collectionSearchText,
+                query: folderListSearchText,
                 notesForBucketMatching: notesInActiveSpace
             )
         }
@@ -148,7 +150,7 @@ struct SidebarPanelView: View {
 
     /// Match highlights list: hide VOTD while searching; respect dismiss for the day.
     private var showDailyPassageRow: Bool {
-        collectionSearchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        folderListSearchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             && votdPassageCardDismissedDay != VotdService.todayCalendarDayKey()
     }
 
@@ -160,6 +162,77 @@ struct SidebarPanelView: View {
             return false
         }
         return true
+    }
+
+    @ToolbarContentBuilder
+    private var sidebarMacToolbarItems: some ToolbarContent {
+        // `ToolbarSpacer` is ToolbarContent-only (not a View); sibling before the group pushes the chrome cluster toward the splitter.
+        if splitColumnVisibility != .detailOnly {
+            if #available(macOS 26.0, *) {
+                ToolbarSpacer(.flexible)
+            }
+            ToolbarItemGroup(placement: .automatic) {
+                sidebarMacToolbarClusterBar
+            }
+        }
+    }
+
+    /// One `ToolbarItemGroup` slot: SwiftUI separates siblings with wide gutters; nested `HStack` keeps bordered controls tight.
+    private var sidebarMacToolbarClusterBar: some View {
+        HStack(spacing: SidebarToolbarLayout.borderedIconClusterSpacing) {
+            if showSidebarToolbarChrome {
+                SpaceSwitcherView()
+                if mode == .folders, foldersDrill != .root {
+                    Button {
+                        foldersDrill = .root
+                    } label: {
+                        HarvousFAGlyph(assetName: "Harvous.ChevronLeft", edgePt: 13)
+                    }
+                    .buttonStyle(.bordered)
+                    .help("Back to folders")
+                }
+                if mode == .scripture, scriptureDrill != .root {
+                    Button {
+                        switch scriptureDrill {
+                        case .root: break
+                        case .book:
+                            scriptureDrill = .root
+                        case .passage(let p):
+                            scriptureDrill = .book(p.bookIndex)
+                        }
+                    } label: {
+                        HarvousFAGlyph(assetName: "Harvous.ChevronLeft", edgePt: 13)
+                    }
+                    .buttonStyle(.bordered)
+                    .help(scriptureSidebarBackButtonHelp)
+                }
+                modeMenu
+            }
+            sidebarHideSidebarToolbarButton
+        }
+    }
+
+    private var sidebarHideSidebarToolbarButton: some View {
+        Button {
+            splitColumnVisibility = .detailOnly
+        } label: {
+            Label {
+                Text("Hide sidebar")
+            } icon: {
+                HarvousFAGlyph(
+                    assetName: "Harvous.LayoutSidebarLeft",
+                    edgePt: HarvousFAIconMetrics.catalogGlyphBoxPt
+                )
+                .frame(
+                    width: HarvousFAIconMetrics.catalogGlyphBoxPt,
+                    height: HarvousFAIconMetrics.catalogGlyphBoxPt
+                )
+            }
+        }
+        .labelStyle(.iconOnly)
+        .buttonStyle(.bordered)
+        .help("Hide sidebar")
+        .accessibilityLabel("Hide sidebar")
     }
 
     var body: some View {
@@ -187,15 +260,16 @@ struct SidebarPanelView: View {
                         )
                     }
                 } else {
-                    switch collectionsDrill {
+                    switch foldersDrill {
                     case .root:
-                        collectionsList
-                    case .bucket(let collectionName):
-                        NoteListColumn(filter: .collection(collectionName), selectedNote: $selectedNote, externalSearchText: unifiedSearchText)
+                        foldersList
+                    case .bucket(let folderBucketKey):
+                        NoteListColumn(filter: .folder(folderBucketKey), selectedNote: $selectedNote, externalSearchText: unifiedSearchText)
                     }
                 }
             }
-            .searchable(text: $collectionSearchText, placement: .sidebar, prompt: "Search")
+            .toolbar(removing: .sidebarToggle)
+            .searchable(text: $folderListSearchText, placement: .sidebar, prompt: "Search")
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             .background(
                 GeometryReader { proxy in
@@ -203,64 +277,41 @@ struct SidebarPanelView: View {
                 }
             )
             .toolbar {
-                if showSidebarToolbarChrome {
-                    ToolbarItemGroup(placement: .automatic) {
-                        SpaceSwitcherView()
-                        if mode == .collections, collectionsDrill != .root {
-                            Button {
-                                collectionsDrill = .root
-                            } label: {
-                                Image(systemName: "chevron.left")
-                            }
-                            .buttonStyle(.bordered)
-                            .help("Back to collections")
-                        }
-                        if mode == .scripture, scriptureDrill != .root {
-                            Button {
-                                switch scriptureDrill {
-                                case .root: break
-                                case .book:
-                                    scriptureDrill = .root
-                                case .passage(let p):
-                                    scriptureDrill = .book(p.bookIndex)
-                                }
-                            } label: {
-                                Image(systemName: "chevron.left")
-                            }
-                            .buttonStyle(.bordered)
-                            .help(scriptureSidebarBackButtonHelp)
-                        }
-                        modeMenu
-                    }
-                }
+                sidebarMacToolbarItems
             }
             .onPreferenceChange(SidebarColumnWidthPreferenceKey.self) { sidebarColumnMeasuredWidth = $0 }
             .onChange(of: splitColumnVisibility) { _, newVisibility in
                 if newVisibility == .detailOnly {
                     sidebarColumnMeasuredWidth = 0
                 }
+                HarvousMacSidebarSearchFieldGlyph.scheduleBrandMagnifyingGlassPatch()
             }
             .onChange(of: mode) { _, newMode in
                 if newMode == .notes {
-                    collectionsDrill = .root
+                    foldersDrill = .root
                     scriptureDrill = .root
-                    collectionSearchText = ""
+                    folderListSearchText = ""
+                    HarvousMacSidebarSearchFieldGlyph.scheduleBrandMagnifyingGlassPatch()
                     return
                 }
-                if newMode != .collections {
-                    collectionsDrill = .root
+                if newMode != .folders {
+                    foldersDrill = .root
                 }
                 if newMode != .scripture {
                     scriptureDrill = .root
                 }
+                HarvousMacSidebarSearchFieldGlyph.scheduleBrandMagnifyingGlassPatch()
             }
-            .onAppear { reloadPinnedCollectionOrder() }
-            .onChange(of: spaceStore.selectedSpaceId) { _, _ in reloadPinnedCollectionOrder() }
+            .onAppear {
+                reloadPinnedFolderOrder()
+                HarvousMacSidebarSearchFieldGlyph.scheduleBrandMagnifyingGlassPatch()
+            }
+            .onChange(of: spaceStore.selectedSpaceId) { _, _ in reloadPinnedFolderOrder() }
             .sheet(item: $renameTarget) { row in
-                renameCollectionSheet(for: row)
+                renameFolderSheet(for: row)
             }
             .confirmationDialog(
-                "Remove collection?",
+                "Remove folder?",
                 isPresented: Binding(
                     get: { removeConfirmRow != nil },
                     set: { if !$0 { removeConfirmRow = nil } }
@@ -272,40 +323,40 @@ struct SidebarPanelView: View {
                         "Remove from \(row.count) note\(row.count == 1 ? "" : "s")",
                         role: .destructive
                     ) {
-                        confirmRemoveCollection(row)
+                        confirmRemoveFolder(row)
                     }
                     Button("Cancel", role: .cancel) {}
                 }
             } message: {
-                Text("Notes are kept; only the collection label is removed from them.")
+                Text("Notes are kept; only the folder label is removed from them.")
             }
         }
         .toolbarBackground(.clear, for: .automatic)
         .modifier(HarvousSidebarTransparentWindowToolbar())
     }
 
-    private func reloadPinnedCollectionOrder() {
+    private func reloadPinnedFolderOrder() {
         let sid = spaceStore.activeSpaceUUID()
-        var ids = HarvousPinnedCollectionsStore.loadOrderedIds(spaceId: sid)
+        var ids = HarvousPinnedFoldersStore.loadOrderedIds(spaceId: sid)
         let beforeCount = ids.count
-        ids.removeAll { $0 == HarvousCollectionRow.ungroupedRowId }
+        ids.removeAll { $0 == HarvousFolderRow.ungroupedRowId }
         if ids.count != beforeCount {
-            HarvousPinnedCollectionsStore.saveOrderedIds(ids, spaceId: sid)
+            HarvousPinnedFoldersStore.saveOrderedIds(ids, spaceId: sid)
         }
-        pinnedCollectionRowIds = ids
+        pinnedFolderRowIds = ids
     }
 
-    private func toggleCollectionListPin(rowId: String) {
+    private func toggleFolderListPin(rowId: String) {
         withAnimation {
-            pinnedCollectionRowIds = HarvousPinnedCollectionsStore.togglePin(
+            pinnedFolderRowIds = HarvousPinnedFoldersStore.togglePin(
                 rowId: rowId,
                 spaceId: spaceStore.activeSpaceUUID()
             )
         }
     }
 
-    private func commitRename(from row: HarvousCollectionRow) {
-        guard let oldName = row.collection else {
+    private func commitRename(from row: HarvousFolderRow) {
+        guard let oldName = row.folderLabel else {
             renameTarget = nil
             return
         }
@@ -315,38 +366,38 @@ struct SidebarPanelView: View {
             return
         }
         let sid = spaceStore.activeSpaceUUID()
-        HarvousCollectionBulkActions.renameCollection(
+        HarvousFolderBulkActions.renameFolder(
             from: oldName,
             to: trimmed,
             notesInActiveSpace: notesInActiveSpace,
             modelContext: modelContext
         )
-        HarvousPinnedCollectionsStore.replacePinId(oldId: row.id, newId: trimmed, spaceId: sid)
-        reloadPinnedCollectionOrder()
+        HarvousPinnedFoldersStore.replacePinId(oldId: row.id, newId: trimmed, spaceId: sid)
+        reloadPinnedFolderOrder()
         renameTarget = nil
     }
 
-    private func confirmRemoveCollection(_ row: HarvousCollectionRow) {
-        guard let name = row.collection else {
+    private func confirmRemoveFolder(_ row: HarvousFolderRow) {
+        guard let name = row.folderLabel else {
             removeConfirmRow = nil
             return
         }
         let sid = spaceStore.activeSpaceUUID()
-        HarvousCollectionBulkActions.removeCollection(
+        HarvousFolderBulkActions.removeFolder(
             named: name,
             notesInActiveSpace: notesInActiveSpace,
             modelContext: modelContext
         )
-        HarvousPinnedCollectionsStore.removePinId(row.id, spaceId: sid)
-        reloadPinnedCollectionOrder()
+        HarvousPinnedFoldersStore.removePinId(row.id, spaceId: sid)
+        reloadPinnedFolderOrder()
         removeConfirmRow = nil
     }
 
     @ViewBuilder
-    private func renameCollectionSheet(for row: HarvousCollectionRow) -> some View {
+    private func renameFolderSheet(for row: HarvousFolderRow) -> some View {
         NavigationStack {
             Form {
-                TextField("Collection name", text: $renameDraft)
+                TextField("Folder name", text: $renameDraft)
             }
             .formStyle(.grouped)
             .navigationTitle("Rename")
@@ -362,19 +413,19 @@ struct SidebarPanelView: View {
                 }
             }
             .onAppear {
-                renameDraft = row.collection ?? ""
+                renameDraft = row.folderLabel ?? ""
             }
         }
         .frame(minWidth: 360, minHeight: 200)
     }
 
     @ViewBuilder
-    private func collectionRootListRow(_ row: HarvousCollectionRow) -> some View {
-        let pinned = pinnedCollectionRowIds.contains(row.id)
+    private func folderRootListRow(_ row: HarvousFolderRow) -> some View {
+        let pinned = pinnedFolderRowIds.contains(row.id)
         let openBucket = Button {
-            collectionsDrill = .bucket(row.collection)
+            foldersDrill = .bucket(row.folderLabel)
         } label: {
-            CollectionFeedRow(
+            FolderFeedRow(
                 title: row.title,
                 noteCount: row.count,
                 isPinned: pinned,
@@ -385,31 +436,53 @@ struct SidebarPanelView: View {
         }
         .buttonStyle(.plain)
 
-        if row.collection != nil {
+        if row.folderLabel != nil {
             openBucket
                 .contextMenu {
                     Button {
-                        toggleCollectionListPin(rowId: row.id)
+                        toggleFolderListPin(rowId: row.id)
                     } label: {
-                        Label(pinned ? "Unpin" : "Pin", systemImage: pinned ? "pin.slash" : "pin")
+                        Label {
+                            Text(pinned ? "Unpin" : "Pin")
+                        } icon: {
+                            HarvousFAGlyph(
+                                assetName: pinned ? "Harvous.ThumbtackSlash" : "Harvous.Thumbtack",
+                                edgePt: 14
+                            )
+                        }
                     }
                     Button {
-                        renameDraft = row.collection ?? ""
+                        renameDraft = row.folderLabel ?? ""
                         renameTarget = row
                     } label: {
-                        Label("Rename…", systemImage: "pencil")
+                        Label {
+                            Text("Rename…")
+                        } icon: {
+                            HarvousFAGlyph(assetName: "Harvous.Pencil", edgePt: 14)
+                        }
                     }
                     Button(role: .destructive) {
                         removeConfirmRow = row
                     } label: {
-                        Label("Remove collection", systemImage: "trash")
+                        Label {
+                            Text("Remove folder")
+                        } icon: {
+                            HarvousFAGlyph(assetName: "Harvous.Trash", edgePt: 14)
+                        }
                     }
                 }
                 .swipeActions(edge: .leading, allowsFullSwipe: true) {
                     Button {
-                        toggleCollectionListPin(rowId: row.id)
+                        toggleFolderListPin(rowId: row.id)
                     } label: {
-                        Label(pinned ? "Unpin" : "Pin", systemImage: pinned ? "pin.slash.fill" : "pin.fill")
+                        Label {
+                            Text(pinned ? "Unpin" : "Pin")
+                        } icon: {
+                            HarvousFAGlyph(
+                                assetName: pinned ? "Harvous.ThumbtackSlash" : "Harvous.Thumbtack",
+                                edgePt: 14
+                            )
+                        }
                     }
                     .tint(.orange)
                 }
@@ -417,7 +490,11 @@ struct SidebarPanelView: View {
                     Button(role: .destructive) {
                         removeConfirmRow = row
                     } label: {
-                        Label("Remove", systemImage: "trash")
+                        Label {
+                            Text("Remove")
+                        } icon: {
+                            HarvousFAGlyph(assetName: "Harvous.Trash", edgePt: 14)
+                        }
                     }
                 }
         } else {
@@ -432,16 +509,21 @@ struct SidebarPanelView: View {
                     mode = item
                 } label: {
                     HStack {
-                        Label(item.title, systemImage: item.icon)
+                        Label {
+                            Text(item.title)
+                        } icon: {
+                            HarvousFAGlyph(assetName: item.icon, edgePt: HarvousFAIconMetrics.sidebarListModeMenuRowIconPt)
+                        }
                         Spacer(minLength: 8)
                         if mode == item {
-                            Image(systemName: "checkmark")
+                            HarvousFAGlyph(assetName: "Harvous.Check", edgePt: 12)
                         }
                     }
                 }
             }
         } label: {
-            Image(systemName: mode.icon)
+            HarvousFAGlyph(assetName: mode.icon)
+                .fixedSize(horizontal: true, vertical: true)
         }
         .buttonStyle(.bordered)
         .menuIndicator(.hidden)
@@ -452,12 +534,16 @@ struct SidebarPanelView: View {
         Group {
             if !showDailyPassageRow && scriptureBookRows.isEmpty {
                 ContentUnavailableView {
-                    Label("No Scripture References", systemImage: "book.closed")
+                    Label {
+                        Text("No Scripture References")
+                    } icon: {
+                        HarvousFAGlyph(assetName: "Harvous.BookOpen", edgePt: 18)
+                    }
                 } description: {
                     Text("Add scripture references in your notes to build your index.")
                 }
             } else if !showDailyPassageRow && filteredScriptureBookRows.isEmpty {
-                ContentUnavailableView.search(text: collectionSearchText)
+                ContentUnavailableView.search(text: folderListSearchText)
             } else {
                 List {
                     if showDailyPassageRow {
@@ -471,7 +557,11 @@ struct SidebarPanelView: View {
                             Button {
                                 votdPassageCardDismissedDay = VotdService.todayCalendarDayKey()
                             } label: {
-                                Label("Dismiss", systemImage: "xmark.circle.fill")
+                                Label {
+                                    Text("Dismiss")
+                                } icon: {
+                                    HarvousFAGlyph(assetName: "Harvous.CircleXmark", edgePt: 16)
+                                }
                             }
                             .tint(.secondary)
                             .accessibilityLabel("Dismiss today's passage")
@@ -495,7 +585,7 @@ struct SidebarPanelView: View {
         Button {
             scriptureDrill = .book(row.bookIndex)
         } label: {
-            CollectionFeedRow(
+            FolderFeedRow(
                 title: row.title,
                 noteCount: row.noteCount,
                 isPinned: false,
@@ -510,11 +600,15 @@ struct SidebarPanelView: View {
 
     private var scripturePassagesList: some View {
         Group {
-            if !collectionSearchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && filteredScriptureReferenceRows.isEmpty {
-                ContentUnavailableView.search(text: collectionSearchText)
+            if !folderListSearchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && filteredScriptureReferenceRows.isEmpty {
+                ContentUnavailableView.search(text: folderListSearchText)
             } else if scriptureReferenceRowsForBookDrill.isEmpty {
                 ContentUnavailableView {
-                    Label("No passages", systemImage: "text.book.closed")
+                    Label {
+                        Text("No passages")
+                    } icon: {
+                        HarvousFAGlyph(assetName: "Harvous.BookOpen", edgePt: 18)
+                    }
                 } description: {
                     Text("No parsed references for this book in the active space.")
                 }
@@ -524,7 +618,7 @@ struct SidebarPanelView: View {
                         Button {
                             scriptureDrill = .passage(row.passage)
                         } label: {
-                            CollectionFeedRow(
+                            FolderFeedRow(
                                 title: row.title,
                                 noteCount: row.noteCount,
                                 isPinned: false,
@@ -545,16 +639,20 @@ struct SidebarPanelView: View {
         }
     }
 
-    private var collectionsList: some View {
+    private var foldersList: some View {
         Group {
-            if !showDailyPassageRow && collectionRows.isEmpty {
+            if !showDailyPassageRow && folderRows.isEmpty {
                 ContentUnavailableView {
-                    Label("No Collections", systemImage: "rectangle.stack.fill")
+                    Label {
+                        Text("No Folders")
+                    } icon: {
+                        HarvousFAGlyph(assetName: "Harvous.Folder", edgePt: 18)
+                    }
                 } description: {
-                    Text("Collections created from your notes will appear here.")
+                    Text("Folders created from your notes will appear here.")
                 }
-            } else if !showDailyPassageRow && orderedFilteredCollectionRows.isEmpty {
-                ContentUnavailableView.search(text: collectionSearchText)
+            } else if !showDailyPassageRow && orderedFilteredFolderRows.isEmpty {
+                ContentUnavailableView.search(text: folderListSearchText)
             } else {
                 List {
                     if showDailyPassageRow {
@@ -568,14 +666,18 @@ struct SidebarPanelView: View {
                             Button {
                                 votdPassageCardDismissedDay = VotdService.todayCalendarDayKey()
                             } label: {
-                                Label("Dismiss", systemImage: "xmark.circle.fill")
+                                Label {
+                                    Text("Dismiss")
+                                } icon: {
+                                    HarvousFAGlyph(assetName: "Harvous.CircleXmark", edgePt: 16)
+                                }
                             }
                             .tint(.secondary)
                             .accessibilityLabel("Dismiss today's passage")
                         }
                     }
-                    ForEach(orderedFilteredCollectionRows) { row in
-                        collectionRootListRow(row)
+                    ForEach(orderedFilteredFolderRows) { row in
+                        folderRootListRow(row)
                             .listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 4, trailing: 0))
                             .listRowBackground(Color.clear)
                             .listRowSeparator(.hidden)

@@ -11,20 +11,29 @@
 		014AD740F0A44C4B06C5DDAA /* DockExpandedContentEnvironment.swift in Sources */ = {isa = PBXBuildFile; fileRef = 593C2F48E9B13AC1EA6FF24E /* DockExpandedContentEnvironment.swift */; };
 		01B07957E8B38CEE6933353A /* NoteFeedRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = DB9144D351ECEEB3C826E125 /* NoteFeedRow.swift */; };
 		03D2C65AB42ADC6DE8F818AC /* HarvousAccessibilityID.swift in Sources */ = {isa = PBXBuildFile; fileRef = 36A0CA608FAA9F20DBAB2A77 /* HarvousAccessibilityID.swift */; };
+		03FAE41758568900C8DE8102 /* UserFilled.svg in Resources */ = {isa = PBXBuildFile; fileRef = 65D23E76A28C5B6BFBB74B22 /* UserFilled.svg */; };
 		05A5A4F94605710C92CA410D /* HarvousCommands.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1774DF51E262C76E2037DDE /* HarvousCommands.swift */; };
 		065A3F252AA3BA72BC7B06C0 /* HarvousCalendarStudyNotifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8B7BC37E769A80FCD22B404A /* HarvousCalendarStudyNotifier.swift */; };
 		06B892893C9815DD88FD4E52 /* SpaceSwitcherView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB88D5287FB25788E2408C74 /* SpaceSwitcherView.swift */; };
 		08956192D37558BCFE31FE46 /* HomeHubView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E4C7F276B56927A295EB2CF /* HomeHubView.swift */; };
+		08E91B4D5527A636D80A9D75 /* StudyHighlightFeedRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = A7BD7C6E0B976DD4FAEA70D8 /* StudyHighlightFeedRow.swift */; };
 		0968CDF6569A773C4A66C8F8 /* ScriptureReflectionGenerator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5B30916DD064F7EE8031DF1C /* ScriptureReflectionGenerator.swift */; };
 		0A79D4D8C1D432AF5538CD23 /* ThreadQuickOptionsPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = C173EE86842CB06E6991BC32 /* ThreadQuickOptionsPanel.swift */; };
 		0D2922405975F941B6F0004B /* SelectionActionBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 31916433B937AE3BC0C2AD28 /* SelectionActionBar.swift */; };
 		0F23E90BE5CFE5B6DE5E8CC6 /* NoteToolbar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4DDA4F38E9CBF0A99695D91E /* NoteToolbar.swift */; };
+		111A163E42E94B5FFAE74633 /* FolderChipPopover.swift in Sources */ = {isa = PBXBuildFile; fileRef = DFFCD31D73BEF3FA29B1879A /* FolderChipPopover.swift */; };
 		11E4CA639E3852FB2B83ED7C /* HarvousApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D3CDB28BB9BF31E5832F658 /* HarvousApp.swift */; };
 		11E76E611295AAE9DF380859 /* StatefulNoteEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F3B8EAAC2F85848348AB8E7 /* StatefulNoteEditorView.swift */; };
 		15BC62787EA579203BE46AB3 /* NoteSimpleIDAssigner.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA8CF525B9046173CB709D3E /* NoteSimpleIDAssigner.swift */; };
+		163D98306EDE07BDD0951FEA /* HarvousPinnedFoldersStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0E092C1AAE9BA2235B5BD28 /* HarvousPinnedFoldersStore.swift */; };
+		16920F57701885BCB36AF877 /* BookFilled.svg in Resources */ = {isa = PBXBuildFile; fileRef = EE1D3F6F9CE323B2507D3844 /* BookFilled.svg */; };
 		17081138A0EBF2B2DBE0C4CC /* LinkedNotesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9903AC654E22FA0DF28B23D3 /* LinkedNotesView.swift */; };
 		1757A0C8D1091738F82F99E4 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 24CB35E22B6D8A4DAC98F84B /* ContentView.swift */; };
+		17E8B16E5740BE458DF96746 /* CardsFilled.svg in Resources */ = {isa = PBXBuildFile; fileRef = AEBDA751B69360F19DA397AB /* CardsFilled.svg */; };
+		199B275CAC1E5778239F0F96 /* HarvousFolderBulkActions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10B66EDF702C4D9DD7466B81 /* HarvousFolderBulkActions.swift */; };
 		1A8A25FAE1D9CF665A546C8F /* ThreadStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 65189A47E387EE77990E4E7B /* ThreadStore.swift */; };
+		1A8DE47C2E050950A463B790 /* FolderChipPopover.swift in Sources */ = {isa = PBXBuildFile; fileRef = DFFCD31D73BEF3FA29B1879A /* FolderChipPopover.swift */; };
+		1CF90A5B860F4A3BFD64D09A /* FolderFeedRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADE571CAD30EEA3ECC27ACCF /* FolderFeedRow.swift */; };
 		1DF186569826AF713D494471 /* LibraryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D94D3C7B640BE394DACE5E71 /* LibraryView.swift */; };
 		1EFF74DA5F23AF52F028BAB6 /* MacNoteListSelectionCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 54031E02ED9FB685410E1DF7 /* MacNoteListSelectionCoordinator.swift */; };
 		1F606A9798D7F26CDFBCCDCC /* NoteRelativeTime.swift in Sources */ = {isa = PBXBuildFile; fileRef = 613771F7E191505CBC5A994B /* NoteRelativeTime.swift */; };
@@ -38,30 +47,35 @@
 		2937D98EB91D78ABC45AF480 /* MacNoteListSelectionCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 54031E02ED9FB685410E1DF7 /* MacNoteListSelectionCoordinator.swift */; };
 		2947F149FF02A6EF97041A15 /* ScripturePillActionBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 54A34848CE71A3904DF33EEF /* ScripturePillActionBar.swift */; };
 		296CA07211236ED14E03E192 /* HarvousVaultImportFormats.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0DAFEFB963AD158BCE34CB5D /* HarvousVaultImportFormats.swift */; };
+		29C9B49D80CB784E6E0E8712 /* HarvousFolderListIndex.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5FCD6A30B02EBDF35A3645A6 /* HarvousFolderListIndex.swift */; };
 		2A3A86779A42DFBB0D6A039D /* SpotlightSearchView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 92DDE26789E878D4C7F476FA /* SpotlightSearchView.swift */; };
 		2B11C2B407227FD293EBC174 /* ConnectNotePicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = F51AA942BEC89033EB75DF1D /* ConnectNotePicker.swift */; };
+		2BB6875DFCBC535F4E25C23C /* StudyHighlightListColumn.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C960A76D8DB37A824FE3182 /* StudyHighlightListColumn.swift */; };
 		2C480230041FBA380D8FA2EB /* StatefulNoteEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F3B8EAAC2F85848348AB8E7 /* StatefulNoteEditorView.swift */; };
+		2D114A3366A3D689EA993B35 /* ScriptureBookListIndex.swift in Sources */ = {isa = PBXBuildFile; fileRef = 844F0D4C9EECA1D033F21A7B /* ScriptureBookListIndex.swift */; };
 		2D48700FB2A10B2654DDF0DE /* NoteFilter.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB17E61EEB98DBCD110C606A /* NoteFilter.swift */; };
 		2D92B0526EFF975CC97B6B7C /* HomeHubView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E4C7F276B56927A295EB2CF /* HomeHubView.swift */; };
+		2E1D59D5744F228B9045858D /* MacFolderChip.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE034913CBF5FEE16AEF52F4 /* MacFolderChip.swift */; };
 		2E37131BDD81E8DFF8407CF3 /* NoteFeedRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = DB9144D351ECEEB3C826E125 /* NoteFeedRow.swift */; };
+		2F285CE0D570113958B52B49 /* ScriptureBookListIndexTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B93890DEA8798198EF5489B /* ScriptureBookListIndexTests.swift */; };
 		2FCBC6156879C10416C7FCB1 /* EditorProxy.swift in Sources */ = {isa = PBXBuildFile; fileRef = A558DFE7A163CA6814087B53 /* EditorProxy.swift */; };
 		2FDB0E02ECE643F65CCECA6A /* ModelContextExtensions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7ABF53DABC23AD7986873398 /* ModelContextExtensions.swift */; };
 		30643B6C28BBCF90AE8C6E7E /* NoteInspectorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B01C0F956EDEE14AFA9CFCE4 /* NoteInspectorView.swift */; };
+		32211D66247CA28A65E4BEE0 /* HarvousPinnedFoldersStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0E092C1AAE9BA2235B5BD28 /* HarvousPinnedFoldersStore.swift */; };
 		3351A1BA164277C29E29001B /* HarvousTypography.swift in Sources */ = {isa = PBXBuildFile; fileRef = E71DE04A6AE210B9D54FE8A0 /* HarvousTypography.swift */; };
-		353B25C4231FF81D47337A71 /* HarvousCollectionListIndex.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2C9967B84688230F2F488DD /* HarvousCollectionListIndex.swift */; };
+		3AC6EE68D088DE977B8BD4DF /* Note.svg in Resources */ = {isa = PBXBuildFile; fileRef = 143EC09E2EA378D581534AFB /* Note.svg */; };
 		3B166089E43064C257FBD442 /* ScripturePassageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF4BFB19D1DD4E8F9C3AE8FF /* ScripturePassageView.swift */; };
 		3BF4C5FFA3065CC3F152500E /* NoteToolbar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4DDA4F38E9CBF0A99695D91E /* NoteToolbar.swift */; };
 		3D51FF494AC422B4F9E1C351 /* ScripturePillActionBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 54A34848CE71A3904DF33EEF /* ScripturePillActionBar.swift */; };
 		407DAFC725BD4AEFD7B90E28 /* DockExpandedContentEnvironment.swift in Sources */ = {isa = PBXBuildFile; fileRef = 593C2F48E9B13AC1EA6FF24E /* DockExpandedContentEnvironment.swift */; };
 		42EF207CB460ADD1BCC9A883 /* MacCollectionChip.swift in Sources */ = {isa = PBXBuildFile; fileRef = B477277FA8277C3C7A61685B /* MacCollectionChip.swift */; };
+		44814322EF75B3CFD13BC633 /* StandaloneScripturePassageDockHost.swift in Sources */ = {isa = PBXBuildFile; fileRef = 614471FAF6AEEC5B84B7153D /* StandaloneScripturePassageDockHost.swift */; };
 		44CB8BF9D8B9BDFF407CCAFB /* NoteSearchIndex.swift in Sources */ = {isa = PBXBuildFile; fileRef = 606142989F80707A96817BFB /* NoteSearchIndex.swift */; };
-		71D4829A003E4FD2AABBC101 /* StudyHighlightFeedRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 71D4829A003E4FD2AABBCC02 /* StudyHighlightFeedRow.swift */; };
-		71D4829A003E4FD2AABBC102 /* StudyHighlightListColumn.swift in Sources */ = {isa = PBXBuildFile; fileRef = 71D4829A003E4FD2AABBCC03 /* StudyHighlightListColumn.swift */; };
-		71D4829A003E4FD2AABBC103 /* StudyHighlightListIndex.swift in Sources */ = {isa = PBXBuildFile; fileRef = 71D4829A003E4FD2AABBCC01 /* StudyHighlightListIndex.swift */; };
 		4516BEEC0FEA8BDCECCD6B4E /* NoteListColumn.swift in Sources */ = {isa = PBXBuildFile; fileRef = 498127C75F54638C23269FD1 /* NoteListColumn.swift */; };
 		4815A2565DEC8E920FAC39A4 /* HarvousSmokeUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 789F53982AAA89D0DA4699DE /* HarvousSmokeUITests.swift */; };
+		493E2D37181C04CA6449D67C /* Pencil.svg in Resources */ = {isa = PBXBuildFile; fileRef = E10A6B779582F28450068588 /* Pencil.svg */; };
 		49BBC8D30A7F5F382043125E /* ScriptureApplyFeedback.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2CD4564CFE7897AC0499AEEF /* ScriptureApplyFeedback.swift */; };
-		4A3E6BF8A86590208A050F7A /* CollectionChipPopover.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1F02C3F98C7694A44F8ED90 /* CollectionChipPopover.swift */; };
+		4A8A47AE6F9346DD07A04E12 /* LayoutSidebarRight.svg in Resources */ = {isa = PBXBuildFile; fileRef = 19AA6606D13DD2000D749D2E /* LayoutSidebarRight.svg */; };
 		51C2EB7B19A304597ED23FD6 /* AddLinkSheetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C068EBF1AF29F5B152F49F3E /* AddLinkSheetView.swift */; };
 		5287851FD5AF881EF5C5FCF0 /* HarvousVaultImporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9317A05B9D1F267F5F937F9A /* HarvousVaultImporter.swift */; };
 		52FC0797E465D1D5F756A78D /* HarvousShape.swift in Sources */ = {isa = PBXBuildFile; fileRef = 93BD7793A26926D86217278C /* HarvousShape.swift */; };
@@ -69,6 +83,7 @@
 		54553F10D2B0C99E657FA641 /* SpotlightSearchView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 92DDE26789E878D4C7F476FA /* SpotlightSearchView.swift */; };
 		54E0D5AEE1B3F46D31B2CB6C /* ScripturePassageCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2FD1975E13865A50DFD080B7 /* ScripturePassageCache.swift */; };
 		54F7C8D4FB11B565F0D3E2A3 /* HarvousStandaloneSelectionNote.swift in Sources */ = {isa = PBXBuildFile; fileRef = 46079A912ECB2C6341C3358A /* HarvousStandaloneSelectionNote.swift */; };
+		550BE31B4D5136167D4276E2 /* MacFolderChip.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE034913CBF5FEE16AEF52F4 /* MacFolderChip.swift */; };
 		5568166DFC4154581BAE0965 /* HarvousEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19A8E6EB0CD972726ED60880 /* HarvousEditor.swift */; };
 		56BE852ADFC48CCECEB7B69F /* HarvousCommands.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1774DF51E262C76E2037DDE /* HarvousCommands.swift */; };
 		58ADDBD960185472798C6DCF /* NoteFilter.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB17E61EEB98DBCD110C606A /* NoteFilter.swift */; };
@@ -79,10 +94,13 @@
 		63A8A9C670A46229D66F510D /* ModelContextExtensions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7ABF53DABC23AD7986873398 /* ModelContextExtensions.swift */; };
 		63B424689471705B6811881C /* HarvousVaultInboxScanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = EFD74C95834F27EE4E142596 /* HarvousVaultInboxScanner.swift */; };
 		6477C905B1D84A2616228EC6 /* SpaceStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16577CF87FB16D4846DB52C8 /* SpaceStore.swift */; };
+		679E62B80649D190105243B0 /* README.md in Resources */ = {isa = PBXBuildFile; fileRef = D20F2D07B9A7BBBBD8639821 /* README.md */; };
 		689E145DFB9A1A4814149BF2 /* HarvousNoteSpotlightIndexer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 15D3B6F8F4060FDDF7330A0D /* HarvousNoteSpotlightIndexer.swift */; };
 		691AFE34426BBA935459B53C /* ScripturePillAttachment.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4AC0F9F8412356EDEC99471 /* ScripturePillAttachment.swift */; };
 		69828F8DF197C6AB6A621E29 /* SelectionActionBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 31916433B937AE3BC0C2AD28 /* SelectionActionBar.swift */; };
+		69E16DEF6D5323CE8C0F5287 /* FolderFeedRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADE571CAD30EEA3ECC27ACCF /* FolderFeedRow.swift */; };
 		6A79C3D0EAF96045541867A1 /* ScriptureCanon.swift in Sources */ = {isa = PBXBuildFile; fileRef = EBF400EB6A21E27121651295 /* ScriptureCanon.swift */; };
+		6C1FA7BB34D299E64862E6E2 /* BookFilled.svg in Resources */ = {isa = PBXBuildFile; fileRef = EE1D3F6F9CE323B2507D3844 /* BookFilled.svg */; };
 		6D2D9E8BB0FC72EF6B1B4C8E /* HarvousVaultMarkdownTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 595E7301ACD5DE03BE81AC12 /* HarvousVaultMarkdownTests.swift */; };
 		6E945962E66C17336CF364E7 /* HarvousAccessibilityID.swift in Sources */ = {isa = PBXBuildFile; fileRef = 36A0CA608FAA9F20DBAB2A77 /* HarvousAccessibilityID.swift */; };
 		6EA9F1BA119843B7DF4A67E6 /* ScriptureReference.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6C3FC7B7392B31B907F70520 /* ScriptureReference.swift */; };
@@ -90,14 +108,9 @@
 		7060426D57DE3A39953334F2 /* MorphingChromeBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = EDEC0452E23C3E7747DBF065 /* MorphingChromeBar.swift */; };
 		732E7AAC3D4711DEFC243ABA /* HighlightAnnotationPopover.swift in Sources */ = {isa = PBXBuildFile; fileRef = DAD02937B4E61EECDC985BEB /* HighlightAnnotationPopover.swift */; };
 		735053FADA2668323DDF63A4 /* LinkedNotesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9903AC654E22FA0DF28B23D3 /* LinkedNotesView.swift */; };
+		7399CDE76FE34C37DDDA2006 /* HarvousCatalogUIKit.swift in Sources */ = {isa = PBXBuildFile; fileRef = 723AD04C3728798F3A4F5961 /* HarvousCatalogUIKit.swift */; };
 		739B75BE264EE208988ED061 /* NoteEditorById.swift in Sources */ = {isa = PBXBuildFile; fileRef = 149584AF521C955291673FC3 /* NoteEditorById.swift */; };
 		74ABE50CBE96C4BA8F798DAE /* DailyPassageCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6FBA7EAFCDE5AA62258F35A2 /* DailyPassageCard.swift */; };
-		9C00C0DEAD9C00C0DEAD01 /* ScriptureBookListIndex.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C00C0DEAD9C00C0DEAD00 /* ScriptureBookListIndex.swift */; };
-		9C00C0DEAD9C00C0DEAD02 /* ScriptureBookListIndex.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C00C0DEAD9C00C0DEAD00 /* ScriptureBookListIndex.swift */; };
-		B5E5E5E5E5E5E5E5E5E50002 /* ScriptureHubView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B5E5E5E5E5E5E5E5E5E50001 /* ScriptureHubView.swift */; };
-		B5E5E5E5E5E5E5E5E5E50003 /* ScriptureHubView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B5E5E5E5E5E5E5E5E5E50001 /* ScriptureHubView.swift */; };
-		C6C6C6C6C6C6C6C6C6C60002 /* ScriptureBookListIndexTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C6C6C6C6C6C6C6C6C6C60001 /* ScriptureBookListIndexTests.swift */; };
-		C6C6C6C6C6C6C6C6C6C60003 /* ScriptureBookListIndexTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C6C6C6C6C6C6C6C6C6C60001 /* ScriptureBookListIndexTests.swift */; };
 		75395591C9506AB1EAB6BE08 /* SpaceStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16577CF87FB16D4846DB52C8 /* SpaceStore.swift */; };
 		7562F70145223DFE1BCFDFDE /* NoteSnapshotter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2288B734EBC28BD3BCADF95C /* NoteSnapshotter.swift */; };
 		780D87180EAAE826E2CA7C0C /* ScriptureVerseFetch.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0CBD2B89AF22A82EBC8AAE40 /* ScriptureVerseFetch.swift */; };
@@ -108,45 +121,46 @@
 		7D7104DD36FEBDB143CB29C4 /* StudyThread.swift in Sources */ = {isa = PBXBuildFile; fileRef = 469F48BD9DD163E6907657F4 /* StudyThread.swift */; };
 		7E0632F1432449BCA1210795 /* NoteCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C6480C8077C89F754042C6F /* NoteCardView.swift */; };
 		7F8EBDB6086B9727F60670BF /* HighlightAnnotationPopover.swift in Sources */ = {isa = PBXBuildFile; fileRef = DAD02937B4E61EECDC985BEB /* HighlightAnnotationPopover.swift */; };
-		80453147BC84286B13AB5DBE /* CollectionFeedRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = C372FCC7921678DEB93B8D47 /* CollectionFeedRow.swift */; };
+		8202ECBC65801E5EE9B679BC /* UserFilled.svg in Resources */ = {isa = PBXBuildFile; fileRef = 65D23E76A28C5B6BFBB74B22 /* UserFilled.svg */; };
+		820327FC0F33A063E4B365C1 /* ScriptureBookListIndex.swift in Sources */ = {isa = PBXBuildFile; fileRef = 844F0D4C9EECA1D033F21A7B /* ScriptureBookListIndex.swift */; };
 		8421AFDFACD4228D2902BD24 /* NoteEditorById.swift in Sources */ = {isa = PBXBuildFile; fileRef = 149584AF521C955291673FC3 /* NoteEditorById.swift */; };
+		84ABD003F444C427F79D1270 /* StandaloneScripturePassageDockHost.swift in Sources */ = {isa = PBXBuildFile; fileRef = 614471FAF6AEEC5B84B7153D /* StandaloneScripturePassageDockHost.swift */; };
+		84FAE90C347DF7BDC13193C8 /* CardsFilled.svg in Resources */ = {isa = PBXBuildFile; fileRef = AEBDA751B69360F19DA397AB /* CardsFilled.svg */; };
 		850C44A2D9E8CD6BF5872D7E /* EditorProxy.swift in Sources */ = {isa = PBXBuildFile; fileRef = A558DFE7A163CA6814087B53 /* EditorProxy.swift */; };
 		8539BEBC1EF22BB3930B06C4 /* ActiveHighlightDock.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0652390A38821B73086171C7 /* ActiveHighlightDock.swift */; };
 		85E55A0373BFA97A866EF651 /* SpaceModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2FE79B6F0E18F17D8BC25460 /* SpaceModels.swift */; };
 		87E1DA63F8ADAE8D481927C9 /* NoteConnectionsBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 179DC334C28DAA5AE0334115 /* NoteConnectionsBar.swift */; };
+		881D024AB8CF04E3E4755063 /* README.md in Resources */ = {isa = PBXBuildFile; fileRef = D20F2D07B9A7BBBBD8639821 /* README.md */; };
 		8874ECE05C6657C371373BA9 /* BibleStudyTagSuggester.swift in Sources */ = {isa = PBXBuildFile; fileRef = 84FBB893192309BD3022353E /* BibleStudyTagSuggester.swift */; };
-		8B91F4135C87413525394E17 /* HarvousCollectionListIndex.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2C9967B84688230F2F488DD /* HarvousCollectionListIndex.swift */; };
 		8DEBADD4FE3B4DBA1485FCD3 /* IOSInlineImagePickSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12EE68CA2F44372B7A320B69 /* IOSInlineImagePickSheet.swift */; };
 		8FE8C2D20FC96236F4DBAABD /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 24CB35E22B6D8A4DAC98F84B /* ContentView.swift */; };
 		90360DDD38E5FEFEEC236C87 /* DailyPassageCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6FBA7EAFCDE5AA62258F35A2 /* DailyPassageCard.swift */; };
+		90E546CF531E4C6525024EDD /* HarvousBodyRichTextDiagnostics.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20385FA5C1BECFD09B7A462B /* HarvousBodyRichTextDiagnostics.swift */; };
 		9375794FA1C76B869234E24A /* EditorFormatCommands.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9191A47AA9D4CF6B6E0D029F /* EditorFormatCommands.swift */; };
 		93E509D965005EFAE62E700F /* HarvousTypography.swift in Sources */ = {isa = PBXBuildFile; fileRef = E71DE04A6AE210B9D54FE8A0 /* HarvousTypography.swift */; };
 		94CEB596C94522838711640D /* MorphingChromeBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = EDEC0452E23C3E7747DBF065 /* MorphingChromeBar.swift */; };
-		94FE9BA9DAAF74B06D236461 /* CollectionFeedRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = C372FCC7921678DEB93B8D47 /* CollectionFeedRow.swift */; };
 		958E171B8530B7A3DD66FF4A /* SidebarPanelView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 326645C025CE83554007016A /* SidebarPanelView.swift */; };
+		967F0DB77049910995DD0770 /* HarvousCatalogUIKit.swift in Sources */ = {isa = PBXBuildFile; fileRef = 723AD04C3728798F3A4F5961 /* HarvousCatalogUIKit.swift */; };
+		96C3137FF2B583EA2EEBC6A0 /* Pencil.svg in Resources */ = {isa = PBXBuildFile; fileRef = E10A6B779582F28450068588 /* Pencil.svg */; };
+		9710D1DFC09B59603040FFC0 /* LayoutSidebarLeft.svg in Resources */ = {isa = PBXBuildFile; fileRef = 5DB2658D76397E8E6B3ADFB3 /* LayoutSidebarLeft.svg */; };
 		972CC50528C7F2E71ABD6723 /* StudyThread.swift in Sources */ = {isa = PBXBuildFile; fileRef = 469F48BD9DD163E6907657F4 /* StudyThread.swift */; };
 		99CFDD5E3509B6A65350F73A /* BibleStudyTagSuggester.swift in Sources */ = {isa = PBXBuildFile; fileRef = 84FBB893192309BD3022353E /* BibleStudyTagSuggester.swift */; };
+		9AB3DCF19339D79E7141B687 /* ScriptureHubView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 33EE20524A0A5E391C4EA530 /* ScriptureHubView.swift */; };
 		9ACFACC0118A0B191DA60FAD /* HarvousNoteSpotlightIndexer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 15D3B6F8F4060FDDF7330A0D /* HarvousNoteSpotlightIndexer.swift */; };
 		9C3B75B85E77452040D90A32 /* HarvousVaultLocation.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF6798156F234EF0EA8B64B1 /* HarvousVaultLocation.swift */; };
 		9D04D81DCCC75AE45F3AA2DD /* IOSInlineImagePickSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12EE68CA2F44372B7A320B69 /* IOSInlineImagePickSheet.swift */; };
 		9DA9EB58243720FD1766B292 /* NoteCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C6480C8077C89F754042C6F /* NoteCardView.swift */; };
 		9DCC6CA85218254220D6D203 /* RelatedNotesSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A05601AB4F64FCC39B74A44 /* RelatedNotesSheet.swift */; };
 		9F6585D67E4DE7A18253C021 /* ProfileAndSettingsViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 852C74F2A93BB84591859B94 /* ProfileAndSettingsViews.swift */; };
+		A010BBECFA0D4BE4655A5251 /* HarvousCSVImportTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB88BB4BD68BBB80D21FC7E8 /* HarvousCSVImportTests.swift */; };
 		A09F5BD72F12A9A7D66A5EC8 /* HarvousVaultMarkdown.swift in Sources */ = {isa = PBXBuildFile; fileRef = B81235FC206F467DF2654673 /* HarvousVaultMarkdown.swift */; };
 		A10A1D8C4BF63753771980C4 /* NoteSnapshotter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2288B734EBC28BD3BCADF95C /* NoteSnapshotter.swift */; };
-		A120ECEE3610F420D7672146 /* HarvousCollectionBulkActions.swift in Sources */ = {isa = PBXBuildFile; fileRef = B5E95C6FAAE45EFEE315983E /* HarvousCollectionBulkActions.swift */; };
 		A18283F635D9FF48F2F67A2F /* NoteTopBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9AFFB4C1255212A15C5D8F9A /* NoteTopBar.swift */; };
 		A1FC0FCD68626BEF88D7D30E /* VotdService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 684855BC3CED90C546AE7F80 /* VotdService.swift */; };
 		A38C24990C08D7CFF42A671E /* NoteSearchIndex.swift in Sources */ = {isa = PBXBuildFile; fileRef = 606142989F80707A96817BFB /* NoteSearchIndex.swift */; };
-		71D4829A003E4FD2AABBC201 /* StudyHighlightFeedRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 71D4829A003E4FD2AABBCC02 /* StudyHighlightFeedRow.swift */; };
-		71D4829A003E4FD2AABBC202 /* StudyHighlightListColumn.swift in Sources */ = {isa = PBXBuildFile; fileRef = 71D4829A003E4FD2AABBCC03 /* StudyHighlightListColumn.swift */; };
-		71D4829A003E4FD2AABBC203 /* StudyHighlightListIndex.swift in Sources */ = {isa = PBXBuildFile; fileRef = 71D4829A003E4FD2AABBCC01 /* StudyHighlightListIndex.swift */; };
-		FEEDFACEFEEDFACEFEEDA003 /* StandaloneScripturePassageDockHost.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEEDFACEFEEDFACEFEEDA001 /* StandaloneScripturePassageDockHost.swift */; };
-		FEEDFACEFEEDFACEFEEDA002 /* StandaloneScripturePassageDockHost.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEEDFACEFEEDFACEFEEDA001 /* StandaloneScripturePassageDockHost.swift */; };
 		A4FB5610436A731B82DE0DF7 /* NoteBodyAttachments.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD852741320FC91DAC26796B /* NoteBodyAttachments.swift */; };
 		A712F22DE6DF26037193951F /* NoteBodyAttachments.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD852741320FC91DAC26796B /* NoteBodyAttachments.swift */; };
 		AAF56ACFA76B643FF2349D3B /* MacCollectionChip.swift in Sources */ = {isa = PBXBuildFile; fileRef = B477277FA8277C3C7A61685B /* MacCollectionChip.swift */; };
-		AB906DACA33314DF4F1F25D2 /* HarvousCollectionBulkActions.swift in Sources */ = {isa = PBXBuildFile; fileRef = B5E95C6FAAE45EFEE315983E /* HarvousCollectionBulkActions.swift */; };
 		AC5589698327A8BE7F95C069 /* NoteConnectionsBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 179DC334C28DAA5AE0334115 /* NoteConnectionsBar.swift */; };
 		AC649CACAF97A25E7E6E8950 /* StudyPromptSuggester.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6DB7DD83F92E017190736B0 /* StudyPromptSuggester.swift */; };
 		AC8AEF8CB8058973B57C2978 /* NoteHistorySection.swift in Sources */ = {isa = PBXBuildFile; fileRef = C93484EA0BE0D455C54A35A4 /* NoteHistorySection.swift */; };
@@ -154,6 +168,7 @@
 		AD02B74721815DAE1F855C21 /* HarvousVaultMarkdownTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 595E7301ACD5DE03BE81AC12 /* HarvousVaultMarkdownTests.swift */; };
 		AD076952B3203CDEE25C2104 /* HarvousLocalIdentity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C54F21E0E0E04AD0C42D773 /* HarvousLocalIdentity.swift */; };
 		AE6E118DA9301AAB4A12C6F9 /* SelectionFormatBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A1F98DAB48131E648607CDB /* SelectionFormatBar.swift */; };
+		AEF160AF4332ADD689B839F2 /* StudyHighlightListIndex.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF24DFA0CEB544D43275EE77 /* StudyHighlightListIndex.swift */; };
 		AFF2F7B979F9722ABED57CEE /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 0DCA9F6B6587D05D924F4C57 /* Assets.xcassets */; };
 		B00EB9C463731F7DAFCEF71A /* ActiveScripturePillDock.swift in Sources */ = {isa = PBXBuildFile; fileRef = 75D9D6CD8788226D9258B9A3 /* ActiveScripturePillDock.swift */; };
 		B032F7C840551DC90B9FFD3A /* ScriptureDetectionCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5AA89EACF0D3ACDB001EBBAE /* ScriptureDetectionCoordinator.swift */; };
@@ -165,24 +180,31 @@
 		B978ADA6CEFE904C42B31B76 /* HarvousSettingsRoute.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1F6D96B3720050F5E1CDA57 /* HarvousSettingsRoute.swift */; };
 		B9EBD8CC6BC4E30AB4E516FA /* SelectionHighlightCreator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A1E81C4970EB3DA4E8B8091 /* SelectionHighlightCreator.swift */; };
 		BA9ABABCB98D969E4F6F24EB /* TagChipViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 774823E2624C017AA2D19452 /* TagChipViews.swift */; };
+		BAEE0FE9880E9AB28F7C2DAD /* Highlight.svg in Resources */ = {isa = PBXBuildFile; fileRef = A781CCDACB48ECA94521C9E3 /* Highlight.svg */; };
 		BAF351641B8C1932315EC092 /* HarvousVaultMarkdown.swift in Sources */ = {isa = PBXBuildFile; fileRef = B81235FC206F467DF2654673 /* HarvousVaultMarkdown.swift */; };
+		BF5FDAEED95D27325A02919A /* StudyHighlightListColumn.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C960A76D8DB37A824FE3182 /* StudyHighlightListColumn.swift */; };
 		C011A1EA43D2C749DC4E1D9B /* ScriptureReferenceParserTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 787E80AD5F4ADA5ED0070730 /* ScriptureReferenceParserTests.swift */; };
 		C06E43E4F5E8CFA1AD5F4487 /* ScriptureReference.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6C3FC7B7392B31B907F70520 /* ScriptureReference.swift */; };
+		C0991FCA5FCCA1501EAE253F /* HarvousFAGlyph.swift in Sources */ = {isa = PBXBuildFile; fileRef = 18EA67E0459DE9E3B8CCD822 /* HarvousFAGlyph.swift */; };
+		C2717DCD0F744E559595A490 /* HarvousFAGlyph.swift in Sources */ = {isa = PBXBuildFile; fileRef = 18EA67E0459DE9E3B8CCD822 /* HarvousFAGlyph.swift */; };
 		C40976D6744319E0A7DE6BA1 /* NoteListColumn.swift in Sources */ = {isa = PBXBuildFile; fileRef = 498127C75F54638C23269FD1 /* NoteListColumn.swift */; };
+		C58F8E722779C804A7B738C8 /* HarvousCSVImportTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB88BB4BD68BBB80D21FC7E8 /* HarvousCSVImportTests.swift */; };
 		C6AA212DAC204B440FF80E3B /* EditorStudyHighlight.swift in Sources */ = {isa = PBXBuildFile; fileRef = 375B0430F921DB2108830C97 /* EditorStudyHighlight.swift */; };
+		C6B5E57DB8FAFDA2AC4BF9CB /* LayoutSidebarRight.svg in Resources */ = {isa = PBXBuildFile; fileRef = 19AA6606D13DD2000D749D2E /* LayoutSidebarRight.svg */; };
 		C6F86D5CA3E33ADA51AF3F21 /* Note.swift in Sources */ = {isa = PBXBuildFile; fileRef = 966FCC1B45C46A41DA2BCB13 /* Note.swift */; };
 		C791674DDDA4F6D8202F45A1 /* RelatedNotesSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A05601AB4F64FCC39B74A44 /* RelatedNotesSheet.swift */; };
 		C8E94F3A020B12D476EB89AB /* SpaceSwitcherView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB88D5287FB25788E2408C74 /* SpaceSwitcherView.swift */; };
+		C97A3BB52C550589C449CD3F /* ScriptureHubView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 33EE20524A0A5E391C4EA530 /* ScriptureHubView.swift */; };
 		CAC91B6BC58F835BD72A53F4 /* HarvousShape.swift in Sources */ = {isa = PBXBuildFile; fileRef = 93BD7793A26926D86217278C /* HarvousShape.swift */; };
 		CBEA7D025C548113C7540542 /* HarvousSpaceBootstrap.swift in Sources */ = {isa = PBXBuildFile; fileRef = 98A805F4AD308414F9175D5B /* HarvousSpaceBootstrap.swift */; };
 		CC93A8F1D096C520D26DCAE2 /* HarvousVaultExporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 62E511ED42560CBA21AC42D0 /* HarvousVaultExporter.swift */; };
+		CCD5C1C370D78741BF81AE42 /* Highlight.svg in Resources */ = {isa = PBXBuildFile; fileRef = A781CCDACB48ECA94521C9E3 /* Highlight.svg */; };
 		CDD3D0840567A92EBAE35CE2 /* ThreadStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 65189A47E387EE77990E4E7B /* ThreadStore.swift */; };
 		CF9A286EF65CBFE8ADAD4A4B /* ScriptureReferenceParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 63FEFA686ED28F7639CEA2FA /* ScriptureReferenceParser.swift */; };
 		D03AC309EBE6ACD610693186 /* HarvousVaultImportFormats.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0DAFEFB963AD158BCE34CB5D /* HarvousVaultImportFormats.swift */; };
 		D06DFADF7799B624E61DE5EB /* VotdService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 684855BC3CED90C546AE7F80 /* VotdService.swift */; };
 		D0E5C9291BB8AF1A4E10383E /* HarvousLaunchArguments.swift in Sources */ = {isa = PBXBuildFile; fileRef = 14B02EE24B063714626D6E1C /* HarvousLaunchArguments.swift */; };
 		D36DE50EB05DD8F14BC87F60 /* HarvousSmokeUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 789F53982AAA89D0DA4699DE /* HarvousSmokeUITests.swift */; };
-		D3EFFE4E3D9525F6B6CFEE8B /* HarvousPinnedCollectionsStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2BA161B9D33D28AA4177501 /* HarvousPinnedCollectionsStore.swift */; };
 		D48E8B8AF6ECF0AAB0AF27B6 /* ScriptureDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DA3E0816A62181FA8CAE778 /* ScriptureDetector.swift */; };
 		D4CA351BB42D262FE36AC116 /* ScripturePassageCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2FD1975E13865A50DFD080B7 /* ScripturePassageCache.swift */; };
 		D5259B61D7B738AE304784BA /* NoteHistorySection.swift in Sources */ = {isa = PBXBuildFile; fileRef = C93484EA0BE0D455C54A35A4 /* NoteHistorySection.swift */; };
@@ -199,25 +221,30 @@
 		DF3C87D19B83F32E279C26BF /* ConnectNotePicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = F51AA942BEC89033EB75DF1D /* ConnectNotePicker.swift */; };
 		E203BD34F0C6682CF31D03D1 /* NoteTopBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9AFFB4C1255212A15C5D8F9A /* NoteTopBar.swift */; };
 		E3BB117A2492F77DAED6F19A /* SpaceManagementViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47E69BBE154E0009841CF68C /* SpaceManagementViews.swift */; };
+		E4076C230D90C14E72CFDD15 /* HarvousBodyRichTextDiagnostics.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20385FA5C1BECFD09B7A462B /* HarvousBodyRichTextDiagnostics.swift */; };
 		E426C127FD63E2EA7C70DF37 /* HarvousColors.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7CF94AEEA13DB450400AEDA6 /* HarvousColors.swift */; };
 		E4CC956D7000B4F887074163 /* SelectionHighlightCreator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A1E81C4970EB3DA4E8B8091 /* SelectionHighlightCreator.swift */; };
-		E595CB5D58B9D8A8D1EA6EA7 /* CollectionChipPopover.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1F02C3F98C7694A44F8ED90 /* CollectionChipPopover.swift */; };
+		E4F2F91B484EE2789F7EA8E3 /* HarvousFolderBulkActions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10B66EDF702C4D9DD7466B81 /* HarvousFolderBulkActions.swift */; };
+		E5BDB89295A078A9396DFDF0 /* StudyHighlightFeedRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = A7BD7C6E0B976DD4FAEA70D8 /* StudyHighlightFeedRow.swift */; };
 		E638D1DCCB1C39C3E0826134 /* ScriptureDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DA3E0816A62181FA8CAE778 /* ScriptureDetector.swift */; };
 		E6F55E751DF02DD153A1832A /* NoteSimpleIDAssigner.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA8CF525B9046173CB709D3E /* NoteSimpleIDAssigner.swift */; };
 		E85D90AC0F18FCC1F3D1F575 /* HarvousVaultExporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 62E511ED42560CBA21AC42D0 /* HarvousVaultExporter.swift */; };
 		E89CE97C2FC14EF23EA03EEC /* ScriptureDetectionCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5AA89EACF0D3ACDB001EBBAE /* ScriptureDetectionCoordinator.swift */; };
 		E8ECEEACACFBEC0A12D68BE6 /* LibraryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D94D3C7B640BE394DACE5E71 /* LibraryView.swift */; };
+		E993834C1712674C10FE8FCF /* StudyHighlightListIndex.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF24DFA0CEB544D43275EE77 /* StudyHighlightListIndex.swift */; };
 		E9CA087BE449583307239F7B /* ScripturePassageDiskStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 03EDB2961B38C9D8184268CA /* ScripturePassageDiskStore.swift */; };
 		E9FACCFEB970814F02A7D842 /* ScriptureReflectionGenerator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5B30916DD064F7EE8031DF1C /* ScriptureReflectionGenerator.swift */; };
 		EA47FB277B2A0838ED9AE852 /* ScripturePassageDiskStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 03EDB2961B38C9D8184268CA /* ScripturePassageDiskStore.swift */; };
 		EC064EF504D300EFF14CA071 /* HarvousVaultLocation.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF6798156F234EF0EA8B64B1 /* HarvousVaultLocation.swift */; };
-		ED0AD851881BB7AE61757AF3 /* HarvousPinnedCollectionsStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2BA161B9D33D28AA4177501 /* HarvousPinnedCollectionsStore.swift */; };
+		EC7E0B6C26CA8ECD9EAE53F9 /* Note.svg in Resources */ = {isa = PBXBuildFile; fileRef = 143EC09E2EA378D581534AFB /* Note.svg */; };
 		EE1F5529EB31257D838A8D81 /* NoteSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = 76EE19D07C33C5ED54DCF090 /* NoteSnapshot.swift */; };
 		EF42CF3442DF956BB0CD82AF /* HarvousLocalIdentity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C54F21E0E0E04AD0C42D773 /* HarvousLocalIdentity.swift */; };
 		F26F8E7D2DF4132262C7E383 /* ScriptureReferenceParserTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 787E80AD5F4ADA5ED0070730 /* ScriptureReferenceParserTests.swift */; };
 		F42994C4BB7A482D4B18CDBF /* AddLinkSheetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C068EBF1AF29F5B152F49F3E /* AddLinkSheetView.swift */; };
 		F44657A819035C7E2AF76E18 /* NoteEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D2F7D25DE72AA00178B669B /* NoteEditorView.swift */; };
+		F5C485B8193F70F379E3E6C0 /* HarvousFolderListIndex.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5FCD6A30B02EBDF35A3645A6 /* HarvousFolderListIndex.swift */; };
 		F60C8B807A8DBE88FCD14498 /* HarvousApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D3CDB28BB9BF31E5832F658 /* HarvousApp.swift */; };
+		F73A5A187CD378E2F7AFFF9C /* LayoutSidebarLeft.svg in Resources */ = {isa = PBXBuildFile; fileRef = 5DB2658D76397E8E6B3ADFB3 /* LayoutSidebarLeft.svg */; };
 		F95D433B3BBC3B59CDF22911 /* StudyPromptSuggester.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6DB7DD83F92E017190736B0 /* StudyPromptSuggester.swift */; };
 		F98C8D198E8FCB3484014E86 /* HarvousVaultImporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9317A05B9D1F267F5F937F9A /* HarvousVaultImporter.swift */; };
 		FB720DBD2FECF7EF37EFB827 /* ActiveScripturePillDock.swift in Sources */ = {isa = PBXBuildFile; fileRef = 75D9D6CD8788226D9258B9A3 /* ActiveScripturePillDock.swift */; };
@@ -225,6 +252,7 @@
 		FD7CF438EE5B995144C56E98 /* HarvousColors.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7CF94AEEA13DB450400AEDA6 /* HarvousColors.swift */; };
 		FE7A027034697770576F8B38 /* HarvousLayoutManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C5E84A7E8D525BEB44C7092 /* HarvousLayoutManager.swift */; };
 		FED33FD47C6FC27C86F60E52 /* ScripturePillAttachment.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4AC0F9F8412356EDEC99471 /* ScripturePillAttachment.swift */; };
+		FF928DB5169ABB320F34C2CD /* ScriptureBookListIndexTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B93890DEA8798198EF5489B /* ScriptureBookListIndexTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -266,16 +294,21 @@
 		0D2F7D25DE72AA00178B669B /* NoteEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NoteEditorView.swift; sourceTree = "<group>"; };
 		0DAFEFB963AD158BCE34CB5D /* HarvousVaultImportFormats.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HarvousVaultImportFormats.swift; sourceTree = "<group>"; };
 		0DCA9F6B6587D05D924F4C57 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		10B66EDF702C4D9DD7466B81 /* HarvousFolderBulkActions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HarvousFolderBulkActions.swift; sourceTree = "<group>"; };
 		12EE68CA2F44372B7A320B69 /* IOSInlineImagePickSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IOSInlineImagePickSheet.swift; sourceTree = "<group>"; };
+		143EC09E2EA378D581534AFB /* Note.svg */ = {isa = PBXFileReference; lastKnownFileType = text; path = Note.svg; sourceTree = "<group>"; };
 		149584AF521C955291673FC3 /* NoteEditorById.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NoteEditorById.swift; sourceTree = "<group>"; };
 		14B02EE24B063714626D6E1C /* HarvousLaunchArguments.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HarvousLaunchArguments.swift; sourceTree = "<group>"; };
 		15D3B6F8F4060FDDF7330A0D /* HarvousNoteSpotlightIndexer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HarvousNoteSpotlightIndexer.swift; sourceTree = "<group>"; };
 		16577CF87FB16D4846DB52C8 /* SpaceStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpaceStore.swift; sourceTree = "<group>"; };
 		179DC334C28DAA5AE0334115 /* NoteConnectionsBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NoteConnectionsBar.swift; sourceTree = "<group>"; };
+		18EA67E0459DE9E3B8CCD822 /* HarvousFAGlyph.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HarvousFAGlyph.swift; sourceTree = "<group>"; };
 		19A8E6EB0CD972726ED60880 /* HarvousEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HarvousEditor.swift; sourceTree = "<group>"; };
+		19AA6606D13DD2000D749D2E /* LayoutSidebarRight.svg */ = {isa = PBXFileReference; lastKnownFileType = text; path = LayoutSidebarRight.svg; sourceTree = "<group>"; };
 		1C6480C8077C89F754042C6F /* NoteCardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NoteCardView.swift; sourceTree = "<group>"; };
 		1D3CDB28BB9BF31E5832F658 /* HarvousApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HarvousApp.swift; sourceTree = "<group>"; };
 		1DA3E0816A62181FA8CAE778 /* ScriptureDetector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScriptureDetector.swift; sourceTree = "<group>"; };
+		20385FA5C1BECFD09B7A462B /* HarvousBodyRichTextDiagnostics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HarvousBodyRichTextDiagnostics.swift; sourceTree = "<group>"; };
 		2288B734EBC28BD3BCADF95C /* NoteSnapshotter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NoteSnapshotter.swift; sourceTree = "<group>"; };
 		24CB35E22B6D8A4DAC98F84B /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		2CD4564CFE7897AC0499AEEF /* ScriptureApplyFeedback.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScriptureApplyFeedback.swift; sourceTree = "<group>"; };
@@ -283,9 +316,11 @@
 		2FE79B6F0E18F17D8BC25460 /* SpaceModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpaceModels.swift; sourceTree = "<group>"; };
 		31916433B937AE3BC0C2AD28 /* SelectionActionBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SelectionActionBar.swift; sourceTree = "<group>"; };
 		326645C025CE83554007016A /* SidebarPanelView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarPanelView.swift; sourceTree = "<group>"; };
+		33EE20524A0A5E391C4EA530 /* ScriptureHubView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScriptureHubView.swift; sourceTree = "<group>"; };
 		369C425660450E4ADFE55F21 /* HarvousAppRouter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HarvousAppRouter.swift; sourceTree = "<group>"; };
 		36A0CA608FAA9F20DBAB2A77 /* HarvousAccessibilityID.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HarvousAccessibilityID.swift; sourceTree = "<group>"; };
 		375B0430F921DB2108830C97 /* EditorStudyHighlight.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditorStudyHighlight.swift; sourceTree = "<group>"; };
+		3B93890DEA8798198EF5489B /* ScriptureBookListIndexTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScriptureBookListIndexTests.swift; sourceTree = "<group>"; };
 		46079A912ECB2C6341C3358A /* HarvousStandaloneSelectionNote.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HarvousStandaloneSelectionNote.swift; sourceTree = "<group>"; };
 		469F48BD9DD163E6907657F4 /* StudyThread.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudyThread.swift; sourceTree = "<group>"; };
 		47E69BBE154E0009841CF68C /* SpaceManagementViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpaceManagementViews.swift; sourceTree = "<group>"; };
@@ -300,23 +335,21 @@
 		5AA89EACF0D3ACDB001EBBAE /* ScriptureDetectionCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScriptureDetectionCoordinator.swift; sourceTree = "<group>"; };
 		5B30916DD064F7EE8031DF1C /* ScriptureReflectionGenerator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScriptureReflectionGenerator.swift; sourceTree = "<group>"; };
 		5C5E84A7E8D525BEB44C7092 /* HarvousLayoutManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HarvousLayoutManager.swift; sourceTree = "<group>"; };
+		5DB2658D76397E8E6B3ADFB3 /* LayoutSidebarLeft.svg */ = {isa = PBXFileReference; lastKnownFileType = text; path = LayoutSidebarLeft.svg; sourceTree = "<group>"; };
+		5FCD6A30B02EBDF35A3645A6 /* HarvousFolderListIndex.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HarvousFolderListIndex.swift; sourceTree = "<group>"; };
 		606142989F80707A96817BFB /* NoteSearchIndex.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NoteSearchIndex.swift; sourceTree = "<group>"; };
-		71D4829A003E4FD2AABBCC01 /* StudyHighlightListIndex.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudyHighlightListIndex.swift; sourceTree = "<group>"; };
-		71D4829A003E4FD2AABBCC02 /* StudyHighlightFeedRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudyHighlightFeedRow.swift; sourceTree = "<group>"; };
-		71D4829A003E4FD2AABBCC03 /* StudyHighlightListColumn.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudyHighlightListColumn.swift; sourceTree = "<group>"; };
-		FEEDFACEFEEDFACEFEEDA001 /* StandaloneScripturePassageDockHost.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StandaloneScripturePassageDockHost.swift; sourceTree = "<group>"; };
 		613771F7E191505CBC5A994B /* NoteRelativeTime.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NoteRelativeTime.swift; sourceTree = "<group>"; };
+		614471FAF6AEEC5B84B7153D /* StandaloneScripturePassageDockHost.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StandaloneScripturePassageDockHost.swift; sourceTree = "<group>"; };
 		62E511ED42560CBA21AC42D0 /* HarvousVaultExporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HarvousVaultExporter.swift; sourceTree = "<group>"; };
 		63FEFA686ED28F7639CEA2FA /* ScriptureReferenceParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScriptureReferenceParser.swift; sourceTree = "<group>"; };
 		65189A47E387EE77990E4E7B /* ThreadStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThreadStore.swift; sourceTree = "<group>"; };
+		65D23E76A28C5B6BFBB74B22 /* UserFilled.svg */ = {isa = PBXFileReference; lastKnownFileType = text; path = UserFilled.svg; sourceTree = "<group>"; };
 		684855BC3CED90C546AE7F80 /* VotdService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VotdService.swift; sourceTree = "<group>"; };
 		6A05601AB4F64FCC39B74A44 /* RelatedNotesSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RelatedNotesSheet.swift; sourceTree = "<group>"; };
 		6C3FC7B7392B31B907F70520 /* ScriptureReference.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScriptureReference.swift; sourceTree = "<group>"; };
-		6C97315E869DD914EC716783 /* HarvousTests_iOS.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = HarvousTests_iOS.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		6C97315E869DD914EC716783 /* HarvousTests_iOS.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = HarvousTests_iOS.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		6FBA7EAFCDE5AA62258F35A2 /* DailyPassageCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DailyPassageCard.swift; sourceTree = "<group>"; };
-		9C00C0DEAD9C00C0DEAD00 /* ScriptureBookListIndex.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScriptureBookListIndex.swift; sourceTree = "<group>"; };
-		B5E5E5E5E5E5E5E5E5E50001 /* ScriptureHubView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScriptureHubView.swift; sourceTree = "<group>"; };
-		C6C6C6C6C6C6C6C6C6C60001 /* ScriptureBookListIndexTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScriptureBookListIndexTests.swift; sourceTree = "<group>"; };
+		723AD04C3728798F3A4F5961 /* HarvousCatalogUIKit.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HarvousCatalogUIKit.swift; sourceTree = "<group>"; };
 		75D9D6CD8788226D9258B9A3 /* ActiveScripturePillDock.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActiveScripturePillDock.swift; sourceTree = "<group>"; };
 		76EE19D07C33C5ED54DCF090 /* NoteSnapshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NoteSnapshot.swift; sourceTree = "<group>"; };
 		774823E2624C017AA2D19452 /* TagChipViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TagChipViews.swift; sourceTree = "<group>"; };
@@ -325,6 +358,7 @@
 		7ABF53DABC23AD7986873398 /* ModelContextExtensions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelContextExtensions.swift; sourceTree = "<group>"; };
 		7CF94AEEA13DB450400AEDA6 /* HarvousColors.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HarvousColors.swift; sourceTree = "<group>"; };
 		7FCFEB32B4CE7554ECF3344A /* HarvousTests_macOS.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = HarvousTests_macOS.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		844F0D4C9EECA1D033F21A7B /* ScriptureBookListIndex.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScriptureBookListIndex.swift; sourceTree = "<group>"; };
 		84FBB893192309BD3022353E /* BibleStudyTagSuggester.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BibleStudyTagSuggester.swift; sourceTree = "<group>"; };
 		852C74F2A93BB84591859B94 /* ProfileAndSettingsViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileAndSettingsViews.swift; sourceTree = "<group>"; };
 		87CA24207A7EA53DF10C2935 /* HarvousFonts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HarvousFonts.swift; sourceTree = "<group>"; };
@@ -341,40 +375,48 @@
 		9903AC654E22FA0DF28B23D3 /* LinkedNotesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LinkedNotesView.swift; sourceTree = "<group>"; };
 		9A1F98DAB48131E648607CDB /* SelectionFormatBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SelectionFormatBar.swift; sourceTree = "<group>"; };
 		9AFFB4C1255212A15C5D8F9A /* NoteTopBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NoteTopBar.swift; sourceTree = "<group>"; };
+		9C960A76D8DB37A824FE3182 /* StudyHighlightListColumn.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudyHighlightListColumn.swift; sourceTree = "<group>"; };
+		A0E092C1AAE9BA2235B5BD28 /* HarvousPinnedFoldersStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HarvousPinnedFoldersStore.swift; sourceTree = "<group>"; };
 		A1774DF51E262C76E2037DDE /* HarvousCommands.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HarvousCommands.swift; sourceTree = "<group>"; };
-		A2C9967B84688230F2F488DD /* HarvousCollectionListIndex.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HarvousCollectionListIndex.swift; sourceTree = "<group>"; };
 		A4D1A7DDDB0D93EEDA0108D7 /* HarvousUITests_iOS.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = HarvousUITests_iOS.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		A558DFE7A163CA6814087B53 /* EditorProxy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditorProxy.swift; sourceTree = "<group>"; };
 		A6DB7DD83F92E017190736B0 /* StudyPromptSuggester.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudyPromptSuggester.swift; sourceTree = "<group>"; };
-		AA9454B67B2D0A05909AD0C1 /* Harvous.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Harvous.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		A781CCDACB48ECA94521C9E3 /* Highlight.svg */ = {isa = PBXFileReference; lastKnownFileType = text; path = Highlight.svg; sourceTree = "<group>"; };
+		A7BD7C6E0B976DD4FAEA70D8 /* StudyHighlightFeedRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudyHighlightFeedRow.swift; sourceTree = "<group>"; };
+		AA9454B67B2D0A05909AD0C1 /* Harvous.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Harvous.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		ADE571CAD30EEA3ECC27ACCF /* FolderFeedRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FolderFeedRow.swift; sourceTree = "<group>"; };
+		AEBDA751B69360F19DA397AB /* CardsFilled.svg */ = {isa = PBXFileReference; lastKnownFileType = text; path = CardsFilled.svg; sourceTree = "<group>"; };
 		B01C0F956EDEE14AFA9CFCE4 /* NoteInspectorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NoteInspectorView.swift; sourceTree = "<group>"; };
-		B1F02C3F98C7694A44F8ED90 /* CollectionChipPopover.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CollectionChipPopover.swift; sourceTree = "<group>"; };
 		B477277FA8277C3C7A61685B /* MacCollectionChip.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacCollectionChip.swift; sourceTree = "<group>"; };
 		B4AC0F9F8412356EDEC99471 /* ScripturePillAttachment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScripturePillAttachment.swift; sourceTree = "<group>"; };
-		B5E95C6FAAE45EFEE315983E /* HarvousCollectionBulkActions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HarvousCollectionBulkActions.swift; sourceTree = "<group>"; };
 		B81235FC206F467DF2654673 /* HarvousVaultMarkdown.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HarvousVaultMarkdown.swift; sourceTree = "<group>"; };
 		BA8CF525B9046173CB709D3E /* NoteSimpleIDAssigner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NoteSimpleIDAssigner.swift; sourceTree = "<group>"; };
 		BB88D5287FB25788E2408C74 /* SpaceSwitcherView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpaceSwitcherView.swift; sourceTree = "<group>"; };
 		BD852741320FC91DAC26796B /* NoteBodyAttachments.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NoteBodyAttachments.swift; sourceTree = "<group>"; };
 		C068EBF1AF29F5B152F49F3E /* AddLinkSheetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddLinkSheetView.swift; sourceTree = "<group>"; };
 		C173EE86842CB06E6991BC32 /* ThreadQuickOptionsPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThreadQuickOptionsPanel.swift; sourceTree = "<group>"; };
-		C372FCC7921678DEB93B8D47 /* CollectionFeedRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CollectionFeedRow.swift; sourceTree = "<group>"; };
 		C93484EA0BE0D455C54A35A4 /* NoteHistorySection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NoteHistorySection.swift; sourceTree = "<group>"; };
 		CB17E61EEB98DBCD110C606A /* NoteFilter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NoteFilter.swift; sourceTree = "<group>"; };
+		CB88BB4BD68BBB80D21FC7E8 /* HarvousCSVImportTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HarvousCSVImportTests.swift; sourceTree = "<group>"; };
 		CD0F9C5430AFA2554D051317 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		CF4BFB19D1DD4E8F9C3AE8FF /* ScripturePassageView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScripturePassageView.swift; sourceTree = "<group>"; };
 		D1F6D96B3720050F5E1CDA57 /* HarvousSettingsRoute.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HarvousSettingsRoute.swift; sourceTree = "<group>"; };
+		D20F2D07B9A7BBBBD8639821 /* README.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = README.md; sourceTree = "<group>"; };
 		D94D3C7B640BE394DACE5E71 /* LibraryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryView.swift; sourceTree = "<group>"; };
 		DAD02937B4E61EECDC985BEB /* HighlightAnnotationPopover.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HighlightAnnotationPopover.swift; sourceTree = "<group>"; };
 		DB9144D351ECEEB3C826E125 /* NoteFeedRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NoteFeedRow.swift; sourceTree = "<group>"; };
 		DC1067124A419BAF7002F22E /* Harvous.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Harvous.entitlements; sourceTree = "<group>"; };
+		DFFCD31D73BEF3FA29B1879A /* FolderChipPopover.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FolderChipPopover.swift; sourceTree = "<group>"; };
+		E10A6B779582F28450068588 /* Pencil.svg */ = {isa = PBXFileReference; lastKnownFileType = text; path = Pencil.svg; sourceTree = "<group>"; };
 		E71DE04A6AE210B9D54FE8A0 /* HarvousTypography.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HarvousTypography.swift; sourceTree = "<group>"; };
 		EBF400EB6A21E27121651295 /* ScriptureCanon.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScriptureCanon.swift; sourceTree = "<group>"; };
 		EDEC0452E23C3E7747DBF065 /* MorphingChromeBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MorphingChromeBar.swift; sourceTree = "<group>"; };
+		EE034913CBF5FEE16AEF52F4 /* MacFolderChip.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacFolderChip.swift; sourceTree = "<group>"; };
+		EE1D3F6F9CE323B2507D3844 /* BookFilled.svg */ = {isa = PBXFileReference; lastKnownFileType = text; path = BookFilled.svg; sourceTree = "<group>"; };
 		EFD74C95834F27EE4E142596 /* HarvousVaultInboxScanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HarvousVaultInboxScanner.swift; sourceTree = "<group>"; };
-		F2BA161B9D33D28AA4177501 /* HarvousPinnedCollectionsStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HarvousPinnedCollectionsStore.swift; sourceTree = "<group>"; };
 		F2F86CEA488BE9EB0C0E060F /* NoteVersionDiffView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NoteVersionDiffView.swift; sourceTree = "<group>"; };
 		F51AA942BEC89033EB75DF1D /* ConnectNotePicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectNotePicker.swift; sourceTree = "<group>"; };
+		FF24DFA0CEB544D43275EE77 /* StudyHighlightListIndex.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudyHighlightListIndex.swift; sourceTree = "<group>"; };
 		FF6798156F234EF0EA8B64B1 /* HarvousVaultLocation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HarvousVaultLocation.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -385,21 +427,20 @@
 				0652390A38821B73086171C7 /* ActiveHighlightDock.swift */,
 				75D9D6CD8788226D9258B9A3 /* ActiveScripturePillDock.swift */,
 				C068EBF1AF29F5B152F49F3E /* AddLinkSheetView.swift */,
-				B1F02C3F98C7694A44F8ED90 /* CollectionChipPopover.swift */,
-				C372FCC7921678DEB93B8D47 /* CollectionFeedRow.swift */,
 				F51AA942BEC89033EB75DF1D /* ConnectNotePicker.swift */,
 				6FBA7EAFCDE5AA62258F35A2 /* DailyPassageCard.swift */,
 				593C2F48E9B13AC1EA6FF24E /* DockExpandedContentEnvironment.swift */,
-				B5E95C6FAAE45EFEE315983E /* HarvousCollectionBulkActions.swift */,
-				A2C9967B84688230F2F488DD /* HarvousCollectionListIndex.swift */,
-				9C00C0DEAD9C00C0DEAD00 /* ScriptureBookListIndex.swift */,
-				F2BA161B9D33D28AA4177501 /* HarvousPinnedCollectionsStore.swift */,
+				DFFCD31D73BEF3FA29B1879A /* FolderChipPopover.swift */,
+				ADE571CAD30EEA3ECC27ACCF /* FolderFeedRow.swift */,
+				10B66EDF702C4D9DD7466B81 /* HarvousFolderBulkActions.swift */,
+				5FCD6A30B02EBDF35A3645A6 /* HarvousFolderListIndex.swift */,
+				A0E092C1AAE9BA2235B5BD28 /* HarvousPinnedFoldersStore.swift */,
 				DAD02937B4E61EECDC985BEB /* HighlightAnnotationPopover.swift */,
 				8E4C7F276B56927A295EB2CF /* HomeHubView.swift */,
 				D94D3C7B640BE394DACE5E71 /* LibraryView.swift */,
-				B5E5E5E5E5E5E5E5E5E50001 /* ScriptureHubView.swift */,
 				9903AC654E22FA0DF28B23D3 /* LinkedNotesView.swift */,
 				B477277FA8277C3C7A61685B /* MacCollectionChip.swift */,
+				EE034913CBF5FEE16AEF52F4 /* MacFolderChip.swift */,
 				EDEC0452E23C3E7747DBF065 /* MorphingChromeBar.swift */,
 				1C6480C8077C89F754042C6F /* NoteCardView.swift */,
 				179DC334C28DAA5AE0334115 /* NoteConnectionsBar.swift */,
@@ -415,6 +456,8 @@
 				F2F86CEA488BE9EB0C0E060F /* NoteVersionDiffView.swift */,
 				852C74F2A93BB84591859B94 /* ProfileAndSettingsViews.swift */,
 				6A05601AB4F64FCC39B74A44 /* RelatedNotesSheet.swift */,
+				844F0D4C9EECA1D033F21A7B /* ScriptureBookListIndex.swift */,
+				33EE20524A0A5E391C4EA530 /* ScriptureHubView.swift */,
 				CF4BFB19D1DD4E8F9C3AE8FF /* ScripturePassageView.swift */,
 				54A34848CE71A3904DF33EEF /* ScripturePillActionBar.swift */,
 				31916433B937AE3BC0C2AD28 /* SelectionActionBar.swift */,
@@ -423,10 +466,10 @@
 				47E69BBE154E0009841CF68C /* SpaceManagementViews.swift */,
 				BB88D5287FB25788E2408C74 /* SpaceSwitcherView.swift */,
 				92DDE26789E878D4C7F476FA /* SpotlightSearchView.swift */,
-				FEEDFACEFEEDFACEFEEDA001 /* StandaloneScripturePassageDockHost.swift */,
-				71D4829A003E4FD2AABBCC02 /* StudyHighlightFeedRow.swift */,
-				71D4829A003E4FD2AABBCC03 /* StudyHighlightListColumn.swift */,
+				614471FAF6AEEC5B84B7153D /* StandaloneScripturePassageDockHost.swift */,
 				8F3B8EAAC2F85848348AB8E7 /* StatefulNoteEditorView.swift */,
+				A7BD7C6E0B976DD4FAEA70D8 /* StudyHighlightFeedRow.swift */,
+				9C960A76D8DB37A824FE3182 /* StudyHighlightListColumn.swift */,
 				774823E2624C017AA2D19452 /* TagChipViews.swift */,
 				C173EE86842CB06E6991BC32 /* ThreadQuickOptionsPanel.swift */,
 			);
@@ -445,9 +488,10 @@
 		23C0B5B67063349687D762B4 /* HarvousTests */ = {
 			isa = PBXGroup;
 			children = (
+				CB88BB4BD68BBB80D21FC7E8 /* HarvousCSVImportTests.swift */,
 				595E7301ACD5DE03BE81AC12 /* HarvousVaultMarkdownTests.swift */,
+				3B93890DEA8798198EF5489B /* ScriptureBookListIndexTests.swift */,
 				787E80AD5F4ADA5ED0070730 /* ScriptureReferenceParserTests.swift */,
-				C6C6C6C6C6C6C6C6C6C60001 /* ScriptureBookListIndexTests.swift */,
 			);
 			name = HarvousTests;
 			path = Tests/HarvousTests;
@@ -456,6 +500,7 @@
 		48E1C7620B22D7460924FED2 = {
 			isa = PBXGroup;
 			children = (
+				83F7258FD2178CD3A0AC67C1 /* _fa-symbol-source */,
 				804FCA929D204887C7A825BE /* App */,
 				B8FEF4F5B506D6273B39E775 /* DesignSystem */,
 				88A80108D7D42FBAF959DE12 /* Editor */,
@@ -463,7 +508,6 @@
 				23C0B5B67063349687D762B4 /* HarvousTests */,
 				16F727218C2993BF5A6CDA39 /* HarvousUITests */,
 				B3E10A8C25338538DE86ED6E /* Models */,
-				F8FA2039882200BEC36E47FA /* Resources */,
 				A7EBF05996B0E19D1C05871E /* Services */,
 				0B3488CB29D37D4E6D35DBA3 /* Views */,
 				939E397EF57A33004C4721FB /* Products */,
@@ -482,12 +526,29 @@
 			path = App;
 			sourceTree = "<group>";
 		};
+		83F7258FD2178CD3A0AC67C1 /* _fa-symbol-source */ = {
+			isa = PBXGroup;
+			children = (
+				EE1D3F6F9CE323B2507D3844 /* BookFilled.svg */,
+				AEBDA751B69360F19DA397AB /* CardsFilled.svg */,
+				A781CCDACB48ECA94521C9E3 /* Highlight.svg */,
+				5DB2658D76397E8E6B3ADFB3 /* LayoutSidebarLeft.svg */,
+				19AA6606D13DD2000D749D2E /* LayoutSidebarRight.svg */,
+				143EC09E2EA378D581534AFB /* Note.svg */,
+				E10A6B779582F28450068588 /* Pencil.svg */,
+				D20F2D07B9A7BBBBD8639821 /* README.md */,
+				65D23E76A28C5B6BFBB74B22 /* UserFilled.svg */,
+			);
+			path = "_fa-symbol-source";
+			sourceTree = "<group>";
+		};
 		88A80108D7D42FBAF959DE12 /* Editor */ = {
 			isa = PBXGroup;
 			children = (
 				9191A47AA9D4CF6B6E0D029F /* EditorFormatCommands.swift */,
 				A558DFE7A163CA6814087B53 /* EditorProxy.swift */,
 				375B0430F921DB2108830C97 /* EditorStudyHighlight.swift */,
+				20385FA5C1BECFD09B7A462B /* HarvousBodyRichTextDiagnostics.swift */,
 				19A8E6EB0CD972726ED60880 /* HarvousEditor.swift */,
 				5C5E84A7E8D525BEB44C7092 /* HarvousLayoutManager.swift */,
 				46079A912ECB2C6341C3358A /* HarvousStandaloneSelectionNote.swift */,
@@ -535,8 +596,8 @@
 				5B30916DD064F7EE8031DF1C /* ScriptureReflectionGenerator.swift */,
 				0CBD2B89AF22A82EBC8AAE40 /* ScriptureVerseFetch.swift */,
 				0A1E81C4970EB3DA4E8B8091 /* SelectionHighlightCreator.swift */,
-				71D4829A003E4FD2AABBCC01 /* StudyHighlightListIndex.swift */,
 				16577CF87FB16D4846DB52C8 /* SpaceStore.swift */,
+				FF24DFA0CEB544D43275EE77 /* StudyHighlightListIndex.swift */,
 				A6DB7DD83F92E017190736B0 /* StudyPromptSuggester.swift */,
 				65189A47E387EE77990E4E7B /* ThreadStore.swift */,
 				684855BC3CED90C546AE7F80 /* VotdService.swift */,
@@ -562,7 +623,9 @@
 		B8FEF4F5B506D6273B39E775 /* DesignSystem */ = {
 			isa = PBXGroup;
 			children = (
+				723AD04C3728798F3A4F5961 /* HarvousCatalogUIKit.swift */,
 				7CF94AEEA13DB450400AEDA6 /* HarvousColors.swift */,
+				18EA67E0459DE9E3B8CCD822 /* HarvousFAGlyph.swift */,
 				87CA24207A7EA53DF10C2935 /* HarvousFonts.swift */,
 				93BD7793A26926D86217278C /* HarvousShape.swift */,
 				E71DE04A6AE210B9D54FE8A0 /* HarvousTypography.swift */,
@@ -581,22 +644,9 @@
 				A1774DF51E262C76E2037DDE /* HarvousCommands.swift */,
 				CD0F9C5430AFA2554D051317 /* Info.plist */,
 				613771F7E191505CBC5A994B /* NoteRelativeTime.swift */,
-				804FCA929D204887C7A825BE /* App */,
-				B8FEF4F5B506D6273B39E775 /* DesignSystem */,
-				88A80108D7D42FBAF959DE12 /* Editor */,
-				B3E10A8C25338538DE86ED6E /* Models */,
-				A7EBF05996B0E19D1C05871E /* Services */,
-				0B3488CB29D37D4E6D35DBA3 /* Views */,
 			);
 			name = Harvous;
 			path = .;
-			sourceTree = "<group>";
-		};
-		F8FA2039882200BEC36E47FA /* Resources */ = {
-			isa = PBXGroup;
-			children = (
-			);
-			path = Resources;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -727,12 +777,6 @@
 						ProvisioningStyle = Manual;
 						TestTargetID = D4AAC31C4026BAF3DD0A2E6E;
 					};
-					826E7DF3728411937E41BD0E = {
-						ProvisioningStyle = Manual;
-					};
-					D4AAC31C4026BAF3DD0A2E6E = {
-						ProvisioningStyle = Manual;
-					};
 					E2D904801503875955F0FBCC = {
 						ProvisioningStyle = Manual;
 					};
@@ -771,6 +815,15 @@
 			buildActionMask = 2147483647;
 			files = (
 				27100247CAF207D0D1BDBEEF /* Assets.xcassets in Resources */,
+				6C1FA7BB34D299E64862E6E2 /* BookFilled.svg in Resources */,
+				84FAE90C347DF7BDC13193C8 /* CardsFilled.svg in Resources */,
+				CCD5C1C370D78741BF81AE42 /* Highlight.svg in Resources */,
+				F73A5A187CD378E2F7AFFF9C /* LayoutSidebarLeft.svg in Resources */,
+				C6B5E57DB8FAFDA2AC4BF9CB /* LayoutSidebarRight.svg in Resources */,
+				3AC6EE68D088DE977B8BD4DF /* Note.svg in Resources */,
+				493E2D37181C04CA6449D67C /* Pencil.svg in Resources */,
+				881D024AB8CF04E3E4755063 /* README.md in Resources */,
+				8202ECBC65801E5EE9B679BC /* UserFilled.svg in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -779,6 +832,15 @@
 			buildActionMask = 2147483647;
 			files = (
 				AFF2F7B979F9722ABED57CEE /* Assets.xcassets in Resources */,
+				16920F57701885BCB36AF877 /* BookFilled.svg in Resources */,
+				17E8B16E5740BE458DF96746 /* CardsFilled.svg in Resources */,
+				BAEE0FE9880E9AB28F7C2DAD /* Highlight.svg in Resources */,
+				9710D1DFC09B59603040FFC0 /* LayoutSidebarLeft.svg in Resources */,
+				4A8A47AE6F9346DD07A04E12 /* LayoutSidebarRight.svg in Resources */,
+				EC7E0B6C26CA8ECD9EAE53F9 /* Note.svg in Resources */,
+				96C3137FF2B583EA2EEBC6A0 /* Pencil.svg in Resources */,
+				679E62B80649D190105243B0 /* README.md in Resources */,
+				03FAE41758568900C8DE8102 /* UserFilled.svg in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -801,8 +863,6 @@
 				FB720DBD2FECF7EF37EFB827 /* ActiveScripturePillDock.swift in Sources */,
 				51C2EB7B19A304597ED23FD6 /* AddLinkSheetView.swift in Sources */,
 				99CFDD5E3509B6A65350F73A /* BibleStudyTagSuggester.swift in Sources */,
-				4A3E6BF8A86590208A050F7A /* CollectionChipPopover.swift in Sources */,
-				80453147BC84286B13AB5DBE /* CollectionFeedRow.swift in Sources */,
 				DF3C87D19B83F32E279C26BF /* ConnectNotePicker.swift in Sources */,
 				1757A0C8D1091738F82F99E4 /* ContentView.swift in Sources */,
 				90360DDD38E5FEFEEC236C87 /* DailyPassageCard.swift in Sources */,
@@ -810,22 +870,26 @@
 				9375794FA1C76B869234E24A /* EditorFormatCommands.swift in Sources */,
 				850C44A2D9E8CD6BF5872D7E /* EditorProxy.swift in Sources */,
 				C6AA212DAC204B440FF80E3B /* EditorStudyHighlight.swift in Sources */,
+				1A8DE47C2E050950A463B790 /* FolderChipPopover.swift in Sources */,
+				1CF90A5B860F4A3BFD64D09A /* FolderFeedRow.swift in Sources */,
 				6E945962E66C17336CF364E7 /* HarvousAccessibilityID.swift in Sources */,
 				11E4CA639E3852FB2B83ED7C /* HarvousApp.swift in Sources */,
 				D8F4EF30B0C44345D1CA2C0E /* HarvousAppRouter.swift in Sources */,
+				90E546CF531E4C6525024EDD /* HarvousBodyRichTextDiagnostics.swift in Sources */,
 				065A3F252AA3BA72BC7B06C0 /* HarvousCalendarStudyNotifier.swift in Sources */,
-				A120ECEE3610F420D7672146 /* HarvousCollectionBulkActions.swift in Sources */,
-				353B25C4231FF81D47337A71 /* HarvousCollectionListIndex.swift in Sources */,
-				9C00C0DEAD9C00C0DEAD01 /* ScriptureBookListIndex.swift in Sources */,
+				7399CDE76FE34C37DDDA2006 /* HarvousCatalogUIKit.swift in Sources */,
 				FD7CF438EE5B995144C56E98 /* HarvousColors.swift in Sources */,
 				05A5A4F94605710C92CA410D /* HarvousCommands.swift in Sources */,
 				5568166DFC4154581BAE0965 /* HarvousEditor.swift in Sources */,
+				C0991FCA5FCCA1501EAE253F /* HarvousFAGlyph.swift in Sources */,
+				E4F2F91B484EE2789F7EA8E3 /* HarvousFolderBulkActions.swift in Sources */,
+				29C9B49D80CB784E6E0E8712 /* HarvousFolderListIndex.swift in Sources */,
 				5BBF4DB824B33F6286B390E9 /* HarvousFonts.swift in Sources */,
 				D0E5C9291BB8AF1A4E10383E /* HarvousLaunchArguments.swift in Sources */,
 				B877ADBC94273E7725CC0974 /* HarvousLayoutManager.swift in Sources */,
 				AD076952B3203CDEE25C2104 /* HarvousLocalIdentity.swift in Sources */,
 				689E145DFB9A1A4814149BF2 /* HarvousNoteSpotlightIndexer.swift in Sources */,
-				D3EFFE4E3D9525F6B6CFEE8B /* HarvousPinnedCollectionsStore.swift in Sources */,
+				32211D66247CA28A65E4BEE0 /* HarvousPinnedFoldersStore.swift in Sources */,
 				B62A90665C9446F2A61C2CFF /* HarvousSettingsRoute.swift in Sources */,
 				52FC0797E465D1D5F756A78D /* HarvousShape.swift in Sources */,
 				CBEA7D025C548113C7540542 /* HarvousSpaceBootstrap.swift in Sources */,
@@ -841,9 +905,9 @@
 				2D92B0526EFF975CC97B6B7C /* HomeHubView.swift in Sources */,
 				8DEBADD4FE3B4DBA1485FCD3 /* IOSInlineImagePickSheet.swift in Sources */,
 				1DF186569826AF713D494471 /* LibraryView.swift in Sources */,
-				B5E5E5E5E5E5E5E5E5E50002 /* ScriptureHubView.swift in Sources */,
 				735053FADA2668323DDF63A4 /* LinkedNotesView.swift in Sources */,
 				AAF56ACFA76B643FF2349D3B /* MacCollectionChip.swift in Sources */,
+				2E1D59D5744F228B9045858D /* MacFolderChip.swift in Sources */,
 				2937D98EB91D78ABC45AF480 /* MacNoteListSelectionCoordinator.swift in Sources */,
 				2FDB0E02ECE643F65CCECA6A /* ModelContextExtensions.swift in Sources */,
 				7060426D57DE3A39953334F2 /* MorphingChromeBar.swift in Sources */,
@@ -869,9 +933,11 @@
 				9F6585D67E4DE7A18253C021 /* ProfileAndSettingsViews.swift in Sources */,
 				C791674DDDA4F6D8202F45A1 /* RelatedNotesSheet.swift in Sources */,
 				53485AA96FA3FDB6D0AD7E18 /* ScriptureApplyFeedback.swift in Sources */,
+				820327FC0F33A063E4B365C1 /* ScriptureBookListIndex.swift in Sources */,
 				782B79D85BE56136E30D5919 /* ScriptureCanon.swift in Sources */,
 				E89CE97C2FC14EF23EA03EEC /* ScriptureDetectionCoordinator.swift in Sources */,
 				D48E8B8AF6ECF0AAB0AF27B6 /* ScriptureDetector.swift in Sources */,
+				C97A3BB52C550589C449CD3F /* ScriptureHubView.swift in Sources */,
 				54E0D5AEE1B3F46D31B2CB6C /* ScripturePassageCache.swift in Sources */,
 				EA47FB277B2A0838ED9AE852 /* ScripturePassageDiskStore.swift in Sources */,
 				3B166089E43064C257FBD442 /* ScripturePassageView.swift in Sources */,
@@ -890,11 +956,11 @@
 				75395591C9506AB1EAB6BE08 /* SpaceStore.swift in Sources */,
 				06B892893C9815DD88FD4E52 /* SpaceSwitcherView.swift in Sources */,
 				54553F10D2B0C99E657FA641 /* SpotlightSearchView.swift in Sources */,
-				FEEDFACEFEEDFACEFEEDA003 /* StandaloneScripturePassageDockHost.swift in Sources */,
-				71D4829A003E4FD2AABBC101 /* StudyHighlightFeedRow.swift in Sources */,
-				71D4829A003E4FD2AABBC102 /* StudyHighlightListColumn.swift in Sources */,
-				71D4829A003E4FD2AABBC103 /* StudyHighlightListIndex.swift in Sources */,
+				44814322EF75B3CFD13BC633 /* StandaloneScripturePassageDockHost.swift in Sources */,
 				2C480230041FBA380D8FA2EB /* StatefulNoteEditorView.swift in Sources */,
+				08E91B4D5527A636D80A9D75 /* StudyHighlightFeedRow.swift in Sources */,
+				BF5FDAEED95D27325A02919A /* StudyHighlightListColumn.swift in Sources */,
+				AEF160AF4332ADD689B839F2 /* StudyHighlightListIndex.swift in Sources */,
 				AC649CACAF97A25E7E6E8950 /* StudyPromptSuggester.swift in Sources */,
 				7D7104DD36FEBDB143CB29C4 /* StudyThread.swift in Sources */,
 				BA9ABABCB98D969E4F6F24EB /* TagChipViews.swift in Sources */,
@@ -908,9 +974,10 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				C58F8E722779C804A7B738C8 /* HarvousCSVImportTests.swift in Sources */,
 				6D2D9E8BB0FC72EF6B1B4C8E /* HarvousVaultMarkdownTests.swift in Sources */,
+				2F285CE0D570113958B52B49 /* ScriptureBookListIndexTests.swift in Sources */,
 				C011A1EA43D2C749DC4E1D9B /* ScriptureReferenceParserTests.swift in Sources */,
-				C6C6C6C6C6C6C6C6C6C60002 /* ScriptureBookListIndexTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -918,9 +985,10 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A010BBECFA0D4BE4655A5251 /* HarvousCSVImportTests.swift in Sources */,
 				AD02B74721815DAE1F855C21 /* HarvousVaultMarkdownTests.swift in Sources */,
+				FF928DB5169ABB320F34C2CD /* ScriptureBookListIndexTests.swift in Sources */,
 				F26F8E7D2DF4132262C7E383 /* ScriptureReferenceParserTests.swift in Sources */,
-				C6C6C6C6C6C6C6C6C6C60003 /* ScriptureBookListIndexTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -940,8 +1008,6 @@
 				B00EB9C463731F7DAFCEF71A /* ActiveScripturePillDock.swift in Sources */,
 				F42994C4BB7A482D4B18CDBF /* AddLinkSheetView.swift in Sources */,
 				8874ECE05C6657C371373BA9 /* BibleStudyTagSuggester.swift in Sources */,
-				E595CB5D58B9D8A8D1EA6EA7 /* CollectionChipPopover.swift in Sources */,
-				94FE9BA9DAAF74B06D236461 /* CollectionFeedRow.swift in Sources */,
 				2B11C2B407227FD293EBC174 /* ConnectNotePicker.swift in Sources */,
 				8FE8C2D20FC96236F4DBAABD /* ContentView.swift in Sources */,
 				74ABE50CBE96C4BA8F798DAE /* DailyPassageCard.swift in Sources */,
@@ -949,22 +1015,26 @@
 				7B916A6EE353822AA786BECC /* EditorFormatCommands.swift in Sources */,
 				2FCBC6156879C10416C7FCB1 /* EditorProxy.swift in Sources */,
 				D5FF380FD2227811D8421BB7 /* EditorStudyHighlight.swift in Sources */,
+				111A163E42E94B5FFAE74633 /* FolderChipPopover.swift in Sources */,
+				69E16DEF6D5323CE8C0F5287 /* FolderFeedRow.swift in Sources */,
 				03D2C65AB42ADC6DE8F818AC /* HarvousAccessibilityID.swift in Sources */,
 				F60C8B807A8DBE88FCD14498 /* HarvousApp.swift in Sources */,
 				26BAAB41F9166C35B5A053E0 /* HarvousAppRouter.swift in Sources */,
+				E4076C230D90C14E72CFDD15 /* HarvousBodyRichTextDiagnostics.swift in Sources */,
 				D5CF556A8A30F717657EAF96 /* HarvousCalendarStudyNotifier.swift in Sources */,
-				AB906DACA33314DF4F1F25D2 /* HarvousCollectionBulkActions.swift in Sources */,
-				8B91F4135C87413525394E17 /* HarvousCollectionListIndex.swift in Sources */,
-				9C00C0DEAD9C00C0DEAD02 /* ScriptureBookListIndex.swift in Sources */,
+				967F0DB77049910995DD0770 /* HarvousCatalogUIKit.swift in Sources */,
 				E426C127FD63E2EA7C70DF37 /* HarvousColors.swift in Sources */,
 				56BE852ADFC48CCECEB7B69F /* HarvousCommands.swift in Sources */,
 				211E0564D2EF1C8286A1FA2C /* HarvousEditor.swift in Sources */,
+				C2717DCD0F744E559595A490 /* HarvousFAGlyph.swift in Sources */,
+				199B275CAC1E5778239F0F96 /* HarvousFolderBulkActions.swift in Sources */,
+				F5C485B8193F70F379E3E6C0 /* HarvousFolderListIndex.swift in Sources */,
 				6155AA0F5058A47B8CD36B36 /* HarvousFonts.swift in Sources */,
 				7989C0D9059EBA2CB6A00671 /* HarvousLaunchArguments.swift in Sources */,
 				FE7A027034697770576F8B38 /* HarvousLayoutManager.swift in Sources */,
 				EF42CF3442DF956BB0CD82AF /* HarvousLocalIdentity.swift in Sources */,
 				9ACFACC0118A0B191DA60FAD /* HarvousNoteSpotlightIndexer.swift in Sources */,
-				ED0AD851881BB7AE61757AF3 /* HarvousPinnedCollectionsStore.swift in Sources */,
+				163D98306EDE07BDD0951FEA /* HarvousPinnedFoldersStore.swift in Sources */,
 				B978ADA6CEFE904C42B31B76 /* HarvousSettingsRoute.swift in Sources */,
 				CAC91B6BC58F835BD72A53F4 /* HarvousShape.swift in Sources */,
 				7044980D0803D3354E89EB56 /* HarvousSpaceBootstrap.swift in Sources */,
@@ -980,9 +1050,9 @@
 				08956192D37558BCFE31FE46 /* HomeHubView.swift in Sources */,
 				9D04D81DCCC75AE45F3AA2DD /* IOSInlineImagePickSheet.swift in Sources */,
 				E8ECEEACACFBEC0A12D68BE6 /* LibraryView.swift in Sources */,
-				B5E5E5E5E5E5E5E5E5E50003 /* ScriptureHubView.swift in Sources */,
 				17081138A0EBF2B2DBE0C4CC /* LinkedNotesView.swift in Sources */,
 				42EF207CB460ADD1BCC9A883 /* MacCollectionChip.swift in Sources */,
+				550BE31B4D5136167D4276E2 /* MacFolderChip.swift in Sources */,
 				1EFF74DA5F23AF52F028BAB6 /* MacNoteListSelectionCoordinator.swift in Sources */,
 				63A8A9C670A46229D66F510D /* ModelContextExtensions.swift in Sources */,
 				94CEB596C94522838711640D /* MorphingChromeBar.swift in Sources */,
@@ -1008,9 +1078,11 @@
 				B91B6A9CC43C5FD716C981AF /* ProfileAndSettingsViews.swift in Sources */,
 				9DCC6CA85218254220D6D203 /* RelatedNotesSheet.swift in Sources */,
 				49BBC8D30A7F5F382043125E /* ScriptureApplyFeedback.swift in Sources */,
+				2D114A3366A3D689EA993B35 /* ScriptureBookListIndex.swift in Sources */,
 				6A79C3D0EAF96045541867A1 /* ScriptureCanon.swift in Sources */,
 				B032F7C840551DC90B9FFD3A /* ScriptureDetectionCoordinator.swift in Sources */,
 				E638D1DCCB1C39C3E0826134 /* ScriptureDetector.swift in Sources */,
+				9AB3DCF19339D79E7141B687 /* ScriptureHubView.swift in Sources */,
 				D4CA351BB42D262FE36AC116 /* ScripturePassageCache.swift in Sources */,
 				E9CA087BE449583307239F7B /* ScripturePassageDiskStore.swift in Sources */,
 				D698062C635684BD3578FD5B /* ScripturePassageView.swift in Sources */,
@@ -1029,11 +1101,11 @@
 				6477C905B1D84A2616228EC6 /* SpaceStore.swift in Sources */,
 				C8E94F3A020B12D476EB89AB /* SpaceSwitcherView.swift in Sources */,
 				2A3A86779A42DFBB0D6A039D /* SpotlightSearchView.swift in Sources */,
-				FEEDFACEFEEDFACEFEEDA002 /* StandaloneScripturePassageDockHost.swift in Sources */,
-				71D4829A003E4FD2AABBC201 /* StudyHighlightFeedRow.swift in Sources */,
-				71D4829A003E4FD2AABBC202 /* StudyHighlightListColumn.swift in Sources */,
-				71D4829A003E4FD2AABBC203 /* StudyHighlightListIndex.swift in Sources */,
+				84ABD003F444C427F79D1270 /* StandaloneScripturePassageDockHost.swift in Sources */,
 				11E76E611295AAE9DF380859 /* StatefulNoteEditorView.swift in Sources */,
+				E5BDB89295A078A9396DFDF0 /* StudyHighlightFeedRow.swift in Sources */,
+				2BB6875DFCBC535F4E25C23C /* StudyHighlightListColumn.swift in Sources */,
+				E993834C1712674C10FE8FCF /* StudyHighlightListIndex.swift in Sources */,
 				F95D433B3BBC3B59CDF22911 /* StudyPromptSuggester.swift in Sources */,
 				972CC50528C7F2E71ABD6723 /* StudyThread.swift in Sources */,
 				5A74E2FEE22324667B1F37B8 /* TagChipViews.swift in Sources */,
@@ -1089,12 +1161,16 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = B3U6BXA8KP;
 				GENERATE_INFOPLIST_FILE = YES;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 					"@loader_path/Frameworks",
 				);
+				PROVISIONING_PROFILE_SPECIFIER = "";
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = "1,2";
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Harvous.app/Harvous";
@@ -1105,9 +1181,13 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGNING_ALLOWED = YES;
+				CODE_SIGNING_REQUIRED = YES;
 				CODE_SIGN_ENTITLEMENTS = Harvous.entitlements;
-				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = B3U6BXA8KP;
 				ENABLE_PREVIEWS = YES;
 				INFOPLIST_FILE = Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -1116,6 +1196,7 @@
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.harvous.app;
 				PRODUCT_NAME = Harvous;
+				PROVISIONING_PROFILE_SPECIFIER = "";
 				SDKROOT = iphoneos;
 				SWIFT_STRICT_CONCURRENCY = targeted;
 				TARGETED_DEVICE_FAMILY = "1,2";
@@ -1158,9 +1239,13 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGNING_ALLOWED = YES;
+				CODE_SIGNING_REQUIRED = YES;
 				CODE_SIGN_ENTITLEMENTS = Harvous.entitlements;
-				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
 				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = B3U6BXA8KP;
 				ENABLE_PREVIEWS = YES;
 				INFOPLIST_FILE = Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -1169,6 +1254,7 @@
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.harvous.app;
 				PRODUCT_NAME = Harvous;
+				PROVISIONING_PROFILE_SPECIFIER = "";
 				SDKROOT = iphoneos;
 				SWIFT_STRICT_CONCURRENCY = targeted;
 				TARGETED_DEVICE_FAMILY = "1,2";
@@ -1195,12 +1281,16 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = B3U6BXA8KP;
 				GENERATE_INFOPLIST_FILE = YES;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 					"@loader_path/Frameworks",
 				);
+				PROVISIONING_PROFILE_SPECIFIER = "";
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = "1,2";
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Harvous.app/Harvous";
@@ -1266,7 +1356,7 @@
 				CODE_SIGN_IDENTITY = "-";
 				CODE_SIGN_STYLE = Manual;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 5;
+				CURRENT_PROJECT_VERSION = 0.2.1;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
@@ -1280,7 +1370,7 @@
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 0.1.5;
+				MARKETING_VERSION = 0.2.1;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -1381,7 +1471,7 @@
 				CODE_SIGN_IDENTITY = "-";
 				CODE_SIGN_STYLE = Manual;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 5;
+				CURRENT_PROJECT_VERSION = 0.2.1;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
@@ -1401,7 +1491,7 @@
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 0.1.5;
+				MARKETING_VERSION = 0.2.1;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;

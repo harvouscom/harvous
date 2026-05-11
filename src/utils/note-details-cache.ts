@@ -12,6 +12,7 @@ export interface CachedNoteDetailsData {
   tags: unknown[];
   referencingNotes: unknown[];
   linkedFromNotes?: unknown[];
+  linkedToNotes?: unknown[];
   note: {
     createdAt?: string | null;
     simpleNoteId?: number | null;

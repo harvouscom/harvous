@@ -93,29 +93,44 @@
   color: var(--pds-text-secondary);
 }
 
-/* ─── Scripture pill override (scoped to proto-editor) ───────────────────── */
-/*
- * CardFullEditable renders TipTap content with global .scripture-pill classes.
- * We override those here under .proto-editor-surface to apply our DS styling.
- */
+/* ─── Scripture pill (prototype editor) — neutral chip, paragraph-sized type ─ */
 .proto-editor-surface .scripture-pill {
-  display: inline-flex;
-  align-items: center;
+  display: inline-flex !important;
+  align-items: center !important;
   border-radius: var(--pds-radius-scripture) !important;
-  padding: 1px 8px !important;
-  font-family: var(--pds-font-body) !important;
-  font-size: 12px !important;
-  font-weight: 500 !important;
-  background: var(--pds-scripture-bg) !important;
-  color: var(--pds-scripture-fg) !important;
-  border: 0.5px solid var(--pds-scripture-border) !important;
+  padding: 0.08em 0.35em !important;
+  font-family: inherit !important;
+  font-size: inherit !important;
+  font-weight: inherit !important;
+  line-height: inherit !important;
+  background: var(--pds-bg-section) !important;
+  color: var(--pds-text-primary) !important;
+  border: 0.5px solid var(--pds-border) !important;
   text-decoration: none !important;
   cursor: pointer;
-  line-height: 1.6 !important;
+  box-shadow: none !important;
 }
 
 .proto-editor-surface .scripture-pill:hover {
-  background: rgba(0, 122, 255, 0.12) !important;
+  background: var(--pds-bg-row-hover) !important;
+}
+
+/* Translation suffix (e.g. NET) — smaller, vertically centered with reference via flex parent */
+.proto-editor-surface .scripture-pill[data-scripture-translation-label]::after,
+.proto-editor-surface .scripture-pill[data-scripture-translation]:not([data-scripture-translation-label])::after {
+  font-size: 0.68em !important;
+  font-weight: 500 !important;
+  margin-left: 0.28em !important;
+  letter-spacing: 0.02em !important;
+  color: var(--pds-text-secondary) !important;
+  line-height: 1 !important;
+}
+
+/* data-pill-accent preserved for native parity chrome; render neutrally in prototype */
+.proto-editor-surface .scripture-pill[data-pill-accent] {
+  border-color: var(--pds-border) !important;
+  color: var(--pds-text-primary) !important;
+  background: var(--pds-bg-section) !important;
 }
 
 /* ─── TipTap prose content resets (inside proto-editor) ──────────────────── */
@@ -224,6 +239,28 @@
   height: 0;
 }
 
+/* Study highlight marks (underline + accent — server ids optional) */
+
+.proto-editor-surface .ProseMirror mark {
+  background: transparent !important;
+  color: inherit !important;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 3px;
+  text-decoration-color: var(--pds-highlight-warm-amber);
+  border-radius: 0;
+  padding: 0;
+}
+
+.proto-editor-surface .ProseMirror mark[data-color="neutral"] { text-decoration-color: var(--pds-highlight-neutral); }
+.proto-editor-surface .ProseMirror mark[data-color="warmAmber"] { text-decoration-color: var(--pds-highlight-warm-amber); }
+.proto-editor-surface .ProseMirror mark[data-color="skyBlue"] { text-decoration-color: var(--pds-highlight-sky-blue); }
+.proto-editor-surface .ProseMirror mark[data-color="violet"] { text-decoration-color: var(--pds-highlight-violet); }
+.proto-editor-surface .ProseMirror mark[data-color="mintGreen"] { text-decoration-color: var(--pds-highlight-mint-green); }
+.proto-editor-surface .ProseMirror mark[data-color="coralRose"] { text-decoration-color: var(--pds-highlight-coral-rose); }
+
 /* Selection */
 .proto-editor-surface .ProseMirror ::selection {
   background: rgba(56, 105, 230, 0.15);
@@ -273,6 +310,21 @@
 
 .proto-editor-bottom-bar__scripture {
   width: 100%;
+}
+
+.proto-editor-bottom-bar__highlight {
+  width: 100%;
+}
+
+/* Connect / linked-note strip (note-actions mode) */
+.proto-editor-bottom-bar__note-actions-stack {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+}
+
+.proto-editor-bottom-bar__note-actions-stack > .proto-note-action-bar {
+  border-top: 0.5px solid var(--pds-border);
 }
 
 /* Portal-rendered prototype toolbar — full-bleed, no border/radius/shadow. */
@@ -339,7 +391,7 @@
   color: var(--pds-text-secondary);
 }
 
-/* Prototype toolbar icon sizing (Phosphor, 256x256 viewBox). */
+/* Prototype toolbar icon sizing (Font Awesome Solid; `Icon` injects width/height on the SVG root). */
 .proto-editor-surface .tiptap-toolbar--prototype-native .proto-toolbar-icon {
   width: 18px;
   height: 18px;
@@ -362,61 +414,160 @@
   font-family: var(--pds-font-body);
 }
 
-.proto-note-action-bar__inner {
+.proto-note-action-bar__scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  width: 100%;
+}
+
+.proto-note-action-bar__scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.proto-note-action-bar__strip {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 8px;
   min-height: 44px;
   padding: 0 20px;
-  max-width: 720px;
-  margin: 0 auto;
+  width: max-content;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
-.proto-note-action-bar__chip {
-  display: flex;
+.proto-note-action-bar__strip--solo {
+  justify-content: flex-start;
+  width: 100%;
+}
+
+.proto-note-action-bar__cluster {
+  display: inline-flex;
   align-items: center;
-  gap: 7px;
-  min-width: 0;
+  gap: 8px;
+  flex-shrink: 0;
 }
 
-.proto-note-action-bar__chip-label {
-  font-size: 15px;
+.proto-note-action-bar__sep {
+  flex-shrink: 0;
+  opacity: 0.38;
+  color: var(--pds-text-tertiary);
+}
+
+.proto-note-action-bar__current {
+  flex-shrink: 0;
+  max-width: 200px;
+  padding: 6px 10px;
+  border-radius: var(--pds-radius-pill);
+  background: rgba(0, 0, 0, 0.09);
+  font-size: 13px;
   font-weight: 500;
+  line-height: 1.2;
   color: var(--pds-text-primary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-.proto-note-action-bar__meta {
+.proto-note-action-bar__pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  padding: 7px 12px;
+  border-radius: var(--pds-radius-pill);
   font-size: 13px;
-  color: var(--pds-text-tertiary);
-  white-space: nowrap;
+  font-weight: 500;
+  line-height: 1.2;
+  text-decoration: none;
+  border: none;
+  cursor: pointer;
+  font-family: var(--pds-font-body) !important;
+  color: var(--pds-text-secondary);
+  background: rgba(0, 0, 0, 0.05);
+  transition: background 0.1s, color 0.1s;
+}
+
+.proto-note-action-bar__pill:hover {
+  background: rgba(0, 0, 0, 0.08);
+  color: var(--pds-text-primary);
+}
+
+.proto-note-action-bar__pill--link {
+  color: var(--pds-text-secondary);
+}
+
+.proto-note-action-bar__pill--connect {
+  color: var(--pds-text-secondary);
+}
+
+.proto-note-action-bar__pill-git {
+  flex-shrink: 0;
+  opacity: 0.85;
+}
+
+.proto-note-action-bar__pill-text {
+  min-width: 0;
+  max-width: 200px;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 160px;
+  white-space: nowrap;
 }
 
-.proto-note-action-bar__spacer {
-  flex: 1;
-  min-width: 0;
+.proto-note-action-bar__pill svg {
+  flex-shrink: 0;
+  display: block;
 }
 
-.proto-note-action-bar__icon-btn {
+/* Selection floating bar — mirrors macOS SelectionActionBar (capsule, icon tools, below selection) */
+.pds-native-selection-bar {
   display: flex;
+  align-items: center;
+  gap: 2px;
+  height: 36px;
+  padding: 0 6px;
+  border-radius: var(--pds-radius-pill);
+  background: var(--pds-bg-toolbar);
+  backdrop-filter: saturate(180%) blur(20px);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  border: 1px solid var(--pds-border);
+  box-shadow:
+    0 8px 24px rgba(0, 0, 0, 0.12),
+    0 1px 2px rgba(0, 0, 0, 0.05);
+  color: var(--pds-text-primary);
+  transform-origin: 50% 0;
+}
+
+.pds-native-selection-bar__btn {
+  display: inline-flex;
   align-items: center;
   justify-content: center;
   width: 36px;
   height: 36px;
-  border: none;
-  border-radius: var(--pds-radius-format);
-  background: transparent;
-  color: var(--pds-text-secondary);
-  cursor: pointer;
   padding: 0;
+  border: none;
+  border-radius: var(--pds-radius-pill);
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  opacity: 0.85;
 }
 
-.proto-note-action-bar__icon-btn:hover {
-  background: rgba(0, 0, 0, 0.05);
-  color: var(--pds-text-primary);
+.pds-native-selection-bar__btn:hover {
+  opacity: 1;
+  background: var(--pds-bg-row-hover);
+}
+
+.pds-native-selection-bar__btn:active {
+  opacity: 1;
+  background: var(--pds-bg-row-selected);
+}
+
+.pds-native-selection-bar__rule {
+  width: 0.5px;
+  height: 22px;
+  align-self: center;
+  background: var(--pds-text-primary);
+  opacity: 0.14;
+  flex-shrink: 0;
 }

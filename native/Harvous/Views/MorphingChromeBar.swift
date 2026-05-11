@@ -91,8 +91,7 @@ struct IOSNoteFooterHybridRow: View {
             UIImpactFeedbackGenerator(style: .medium).impactOccurred()
             appRouter.requestComposeNewNote()
         } label: {
-            Image(systemName: "square.and.pencil")
-                .font(.system(size: 20, weight: .regular))
+            HarvousFAGlyph(assetName: "Harvous.Pencil")
                 .foregroundStyle(Color.primary.opacity(0.9))
                 .frame(width: 44, height: 44)
                 .background { floatingChromeBackground(shape: Circle()) }

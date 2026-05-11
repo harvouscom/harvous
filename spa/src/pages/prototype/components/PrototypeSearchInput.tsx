@@ -2,7 +2,7 @@
  * Standalone search input for the prototype shell.
  * Does not import FindSearchInput or any SPA-styled component.
  */
-import { MagnifyingGlass } from '@phosphor-icons/react';
+import Icon from '@/components/react/Icon';
 
 interface PrototypeSearchInputProps {
   value: string;
@@ -19,7 +19,7 @@ export default function PrototypeSearchInput({
 }: PrototypeSearchInputProps) {
   return (
     <div className="proto-search-input-wrap">
-      <MagnifyingGlass className="proto-search-input-wrap__icon" aria-hidden="true" />
+      <Icon name="magnifying-glass" size={16} className="proto-search-input-wrap__icon" />
       <input
         className="proto-search-input"
         type="search"

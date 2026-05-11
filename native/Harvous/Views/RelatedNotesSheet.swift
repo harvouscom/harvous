@@ -17,7 +17,7 @@ struct RelatedNotesSheet: View {
             Group {
                 if markers.isEmpty {
                     ContentUnavailableView {
-                        Label("No related notes", systemImage: "link.badge.plus")
+                        Label("No related notes", image: "Harvous.Link")
                     } description: {
                         Text("Other notes that link here will appear here.")
                             .font(HarvousTypography.caption)

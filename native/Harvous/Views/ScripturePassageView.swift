@@ -335,8 +335,7 @@ struct ScripturePassageView: View {
     @ViewBuilder
     private func attributionFooter(_ attribution: ScriptureReference.TranslationAttribution) -> some View {
         HStack(alignment: .center, spacing: 10) {
-            Image(systemName: "info.circle")
-                .font(.system(size: 9, weight: .semibold))
+            HarvousFAGlyph(assetName: "Harvous.CircleInfo", edgePt: 9)
                 .foregroundStyle(.secondary)
                 .accessibilityLabel("Translation attribution")
 
@@ -353,8 +352,7 @@ struct ScripturePassageView: View {
                     HStack(spacing: 3) {
                         Text(ScriptureReference.displayTranslationLabel(translation))
                             .font(.system(size: 9, weight: .semibold))
-                        Image(systemName: "arrow.up.right")
-                            .font(.system(size: 7, weight: .bold))
+                        HarvousFAGlyph(assetName: "Harvous.ArrowUpRight", edgePt: 7)
                     }
                     .foregroundStyle(.secondary)
                 }

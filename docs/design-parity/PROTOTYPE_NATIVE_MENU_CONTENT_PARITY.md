@@ -117,6 +117,11 @@ Matches native `NoteInspectorView` sections.
 | Loading shimmer (no SPA card-full) | `proto-editor-loading` PDS shimmer | ✅ implemented |
 | Format toolbar (B/I/H/list/etc.) | Inherited from `CardFullEditable` | ↗ linked to classic |
 | Note action bar (collection / thread chips) | ↗ Inherited from CardFullEditable chrome | ↗ linked to classic |
+| Underline multicolor highlights (`StudyHighlightAccentToken`) | `mark[data-study-thread-id]` + `--pds-highlight-*` tokens; server `StudyThreadEntries` | ✅ implemented (web + API; native SwiftData not unified) |
+| Highlight bottom dock (accent / remove) | `HighlightDockWeb` portaled in prototype + classic note bottom bar when `chromeMode === 'highlight'` | ✅ implemented |
+| Scripture pill dock — accent swatches + passage-highlight list | `ScripturePillChromeWeb` + `GET /api/study-threads/by-scripture` | ✅ implemented |
+
+**Cross-client identity (web Postgres vs native SwiftData):** The macOS/iOS apps store study rows in SwiftData with UUIDs generated on device. The web app persists the same *conceptual* model in Postgres (`StudyThreadEntries`) with server-issued string IDs. Until native reads and writes the shared API, **highlight and scripture-thread rows created on web will not appear in native and vice versa**; merging both sources without a migration would duplicate or mismatch anchors. Treat Postgres as the future shared source of truth only after a deliberate native sync migration.
 
 ---
 
@@ -147,4 +152,4 @@ Matches native `NoteInspectorView` sections.
 
 ---
 
-_Last updated: April 2026_
+_Last updated: May 2026_

@@ -55,6 +55,76 @@ extension EditorProxy {
         refreshFormatState()
     }
 
+    // MARK: - Clear selection formatting
+
+    /// Strips toolbar formatting (bold, links, code background, etc.) in the current multi-character selection.
+    /// Study highlight paint (`.harvousStudyHighlightUUID`) is preserved; removing highlights remains the DB-backed path.
+    func clearRichFormattingInSelection() {
+        guard let (tv, storage) = textViewPair() else { return }
+        let range = caretRange(for: tv)
+        guard range.length > 0, NSMaxRange(range) <= storage.length else { return }
+        guard HarvousBodyRichTextDiagnostics.selectionIntersectsClearableFormatting(storage: storage, utf16Range: range) else { return }
+        storage.beginEditing()
+        stripClearableFormattingRuns(in: storage, utf16Range: range)
+        storage.endEditing()
+        hvNotifyBodyChanged(tv)
+        syncPlainTextBindingFromTextView?(tv)
+        refreshFormatState()
+    }
+
+    private func stripClearableFormattingRuns(in storage: NSTextStorage, utf16Range range: NSRange) {
+        var idx = range.location
+        let rangeEnd = NSMaxRange(range)
+        while idx < rangeEnd {
+            var eff = NSRange()
+            if storage.attribute(.attachment, at: idx, effectiveRange: &eff) != nil {
+                let next = NSMaxRange(eff)
+                idx = next > idx ? next : idx + 1
+                continue
+            }
+            storage.attributes(at: idx, effectiveRange: &eff)
+            let sub = NSIntersectionRange(eff, range)
+            guard sub.length > 0 else {
+                let next = NSMaxRange(eff)
+                idx = next > idx ? next : idx + 1
+                continue
+            }
+            let attrs = storage.attributes(at: sub.location, effectiveRange: nil)
+            storage.setAttributes(clearedBodyAttributes(from: attrs), range: sub)
+            let next = NSMaxRange(eff)
+            idx = next > idx ? next : idx + 1
+        }
+    }
+
+    private func clearedBodyAttributes(from attrs: [NSAttributedString.Key: Any]) -> [NSAttributedString.Key: Any] {
+#if os(macOS)
+        let labelColor: Any = NSColor.labelColor
+#elseif os(iOS)
+        let labelColor: Any = UIColor.label
+#endif
+        let bodyFont = HarvousFonts.system(size: 16, weight: 400)
+        let para = noteBodyParagraphStyleForInserts()
+
+        if let uuid = attrs[.harvousStudyHighlightUUID] as? String, !uuid.isEmpty {
+            var out: [NSAttributedString.Key: Any] = [
+                .font: bodyFont,
+                .paragraphStyle: para,
+                .harvousStudyHighlightUUID: uuid
+            ]
+            if let bg = attrs[.backgroundColor] { out[.backgroundColor] = bg }
+            if let us = attrs[.underlineStyle] { out[.underlineStyle] = us }
+            if let uc = attrs[.underlineColor] { out[.underlineColor] = uc }
+            if let fg = attrs[.foregroundColor] { out[.foregroundColor] = fg }
+            return out
+        }
+
+        return [
+            .font: bodyFont,
+            .foregroundColor: labelColor,
+            .paragraphStyle: para
+        ]
+    }
+
     // MARK: - Headings
 
     func heading(_ level: Int) {

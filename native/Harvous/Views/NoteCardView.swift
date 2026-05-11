@@ -9,11 +9,11 @@ struct NoteCardView: View {
             .cardShadow()
             .overlay(alignment: .topLeading) {
                 VStack(alignment: .leading, spacing: 0) {
-                    if let collection = note.primaryCollection, !collection.isEmpty {
+                    if let folderChip = note.folderChipPrimaryLabelText(), !folderChip.isEmpty {
                         HStack(spacing: 6) {
-                            Image(systemName: "folder.fill")
-                                .font(.system(size: 10))
-                            Text(collection)
+                            HarvousFAGlyph(assetName: "Harvous.Folder", edgePt: 10)
+                                .foregroundStyle(.secondary)
+                            Text(folderChip)
                                 .font(HarvousTypography.caption)
                                 .lineLimit(1)
                         }

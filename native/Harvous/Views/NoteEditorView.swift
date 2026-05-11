@@ -31,8 +31,8 @@ private final class EditorAutosaveDebouncer {
         after delay: TimeInterval = 1,
         note: Note,
         context: ModelContext,
-        allowPrimaryCollectionUpdate: Bool = true,
-        existingCollections: [String] = [],
+        allowPrimaryFolderUpdate: Bool = true,
+        existingFolders: [String] = [],
         onSettled: @escaping @MainActor (_ token: UInt64) -> Void = { _ in }
     ) -> UInt64 {
         task?.cancel()
@@ -50,7 +50,7 @@ private final class EditorAutosaveDebouncer {
             note.body = self.latestBody
             note.detectedRefs = self.latestRefs
             note.updatedAt = Date()
-            BibleStudyTagSuggester.applyToNote(note, allowPrimaryUpdate: allowPrimaryCollectionUpdate, existingCollections: existingCollections)
+            BibleStudyTagSuggester.applyToNote(note, allowPrimaryUpdate: allowPrimaryFolderUpdate, existingFolders: existingFolders)
             try? context.saveWithLogging()
             NoteSnapshotter.shared.noteDidAutosave(
                 noteID: note.id,
@@ -83,9 +83,9 @@ struct NoteEditorView: View {
     /// Reference-type debounce — must not use `@State` timestamps keyed to each keypress (that remounts the editor).
     @State private var autosave = EditorAutosaveDebouncer()
     @State private var latestAutosaveToken: UInt64 = 0
-    @State private var isCollectionContextUpdating = false
+    @State private var isFolderContextUpdating = false
     @State private var newNoteTiltTrigger = false
-    @State private var showCollectionToolbarText = true
+    @State private var showFolderToolbarText = true
     @FocusState private var titleFocused: Bool
 
     /// Study threads anchored to this note (refreshed on appear / note change / returning active).
@@ -186,8 +186,8 @@ struct NoteEditorView: View {
             toggleHighlightDockAction: toggleHighlightDockAction,
             removeHighlightAction: removeHighlightAction
         )
-        .focusedSceneValue(\.collectionContextUpdating, isCollectionContextUpdating)
-        .focusedSceneValue(\.showCollectionToolbarText, showCollectionToolbarText)
+        .focusedSceneValue(\.folderContextUpdating, isFolderContextUpdating)
+        .focusedSceneValue(\.showFolderToolbarText, showFolderToolbarText)
         .onAppear {
             proxy.onScripturePillKeyboardFocus = { ref, trans, range in
                 scripturePillTapped(reference: ref, translation: trans, range: range)
@@ -297,11 +297,11 @@ struct NoteEditorView: View {
             newNoteTiltTrigger.toggle()
         }
         .onChange(of: chipPrimaryLabel) { _, newValue in
-            animateCollectionTextReveal(for: newValue)
+            animateFolderTextReveal(for: newValue)
         }
-        .onChange(of: isCollectionContextUpdating) { _, updating in
+        .onChange(of: isFolderContextUpdating) { _, updating in
             guard updating else { return }
-            animateCollectionTextReveal(for: chipPrimaryLabel)
+            animateFolderTextReveal(for: chipPrimaryLabel)
         }
     }
 
@@ -464,9 +464,16 @@ struct NoteEditorView: View {
             // iOS: highlight + new note live in UITextView’s system edit menu (`HarvousBodyTextView.editMenu`).
             if highlightCaptureSession == nil, proxy.hasSelection, let rect = anchorRect {
                 let intersectRemovals = threadIdsIntersectingCurrentBodySelection()
-                let width: CGFloat = intersectRemovals.isEmpty ? 92 : 134
+                let clearFormatting = selectionIntersectsClearableRichFormatting()
+                let showErase = !intersectRemovals.isEmpty || clearFormatting
+                let width: CGFloat = showErase ? 134 : 92
                 let x = selectionAccessoryX(rect: rect, containerWidth: horizontalClampWidth, width: width)
                 let y = selectionAccessoryY(rect: rect)
+                let eraseHelp: String = {
+                    if !intersectRemovals.isEmpty, clearFormatting { return "Erase highlight and formatting" }
+                    if !intersectRemovals.isEmpty { return "Remove highlight from text" }
+                    return "Clear bold, links, and other formatting"
+                }()
                 SelectionActionBar(
                     morphNamespace: selectionAccessoryNamespace,
                     morphID: Self.selectionAccessoryCapsuleMorphID,
@@ -476,11 +483,12 @@ struct NoteEditorView: View {
                         }
                     },
                     onNewStandaloneNote: { proxy.triggerStandaloneNoteFromSelection?() },
-                    onRemoveStudyHighlight: intersectRemovals.isEmpty
-                        ? nil
-                        : {
+                    onEraseInlineFormatting: showErase
+                        ? {
                             proxy.triggerRemoveIntersectingStudyHighlightsFromSelection?()
                         }
+                        : nil,
+                    eraseInlineFormattingHelp: eraseHelp
                 )
                 .offset(x: x, y: y)
                 .transition(.asymmetric(
@@ -516,13 +524,17 @@ struct NoteEditorView: View {
                 ))
             }
             if let prompt = proxy.scripturePillDeletionPrompt {
-                let panelW: CGFloat = min(240, max(horizontalClampWidth - 16, 200))
+                let barW: CGFloat = min(340, max(horizontalClampWidth - 16, 260))
                 let rect = prompt.anchorViewportRect
                 let hasRealAnchor = rect.width > 0.5 && rect.height > 0.5
-                let layoutRect = hasRealAnchor ? rect : CGRect(x: horizontalClampWidth / 2, y: 56, width: 1, height: 20)
-                let x = selectionAccessoryX(rect: layoutRect, containerWidth: horizontalClampWidth, width: panelW)
+                let layoutRect =
+                    hasRealAnchor
+                    ? rect
+                    : CGRect(x: horizontalClampWidth / 2, y: 100, width: 1, height: 28)
+                let x = selectionAccessoryX(rect: layoutRect, containerWidth: horizontalClampWidth, width: barW)
                 let y = selectionAccessoryY(rect: layoutRect)
-                scripturePillDeletionConfirmContent(prompt: prompt, panelWidth: panelW)
+                scripturePillDeletionConfirmBar
+                    .frame(width: barW)
                     .offset(x: x, y: y)
                     .transition(.asymmetric(
                         insertion: .opacity.combined(with: .scale(scale: 0.92, anchor: .top)),
@@ -546,39 +558,70 @@ struct NoteEditorView: View {
         rect.maxY + 8
     }
 
-    @ViewBuilder
-    private func scripturePillDeletionConfirmContent(prompt: ScripturePillDeletionPrompt, panelWidth: CGFloat) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
+    /// Single-row capsule (trash + dismiss) — matches `SelectionActionBar` chrome; keep below the pill.
+    private var scripturePillDeletionConfirmBar: some View {
+        HStack(spacing: 0) {
             Text("Remove this scripture pill?")
                 .font(.system(size: 13, weight: .semibold))
                 .foregroundStyle(.primary)
-                .fixedSize(horizontal: false, vertical: true)
-            Text(prompt.reference)
-                .font(.system(size: 12, weight: .regular))
-                .foregroundStyle(.secondary)
-                .lineLimit(2)
-            HStack(spacing: 8) {
-                Button(role: .destructive) {
-                    withAnimation(.spring(response: 0.28, dampingFraction: 0.85)) {
-                        proxy.confirmScripturePillDeletion()
-                    }
-                } label: {
-                    Text("Remove")
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.borderedProminent)
+                .lineLimit(1)
+                .minimumScaleFactor(0.88)
+                .multilineTextAlignment(.leading)
+                .padding(.leading, 14)
+                .padding(.trailing, 10)
+                .layoutPriority(1)
 
-                Button("Keep") {
-                    withAnimation(.spring(response: 0.28, dampingFraction: 0.85)) {
-                        proxy.dismissScripturePillDeletionPrompt()
-                    }
+            Rectangle()
+                .fill(Color.primary.opacity(0.14))
+                .frame(width: 0.5, height: 22)
+
+            Button {
+                withAnimation(.spring(response: 0.28, dampingFraction: 0.85)) {
+                    proxy.confirmScripturePillDeletion()
                 }
-                .buttonStyle(.bordered)
+            } label: {
+                HarvousFAGlyph(assetName: "Harvous.Trash", edgePt: 15)
+                    .frame(width: 42, height: 42)
+                    .contentShape(Rectangle())
             }
+            .buttonStyle(.plain)
+            .foregroundStyle(Color.red)
+            #if os(macOS)
+            .help("Remove scripture pill")
+            #endif
+            .accessibilityLabel("Remove scripture pill")
+
+            Rectangle()
+                .fill(Color.primary.opacity(0.14))
+                .frame(width: 0.5, height: 22)
+
+            Button {
+                withAnimation(.spring(response: 0.28, dampingFraction: 0.85)) {
+                    proxy.dismissScripturePillDeletionPrompt()
+                }
+            } label: {
+                HarvousFAGlyph(assetName: "Harvous.Xmark", edgePt: 13)
+                    .frame(width: 42, height: 42)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(Color.primary.opacity(0.72))
+            #if os(macOS)
+            .help("Keep scripture pill")
+            #endif
+            .accessibilityLabel("Keep scripture pill")
         }
-        .padding(12)
-        .frame(width: panelWidth)
-        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .frame(height: 44)
+        .background(
+            Capsule()
+                .fill(.regularMaterial)
+        )
+        .overlay(
+            Capsule()
+                .strokeBorder(Color.primary.opacity(0.1), lineWidth: 1)
+        )
+        .shadow(color: .black.opacity(0.14), radius: 8, y: 3)
+        .shadow(color: .black.opacity(0.05), radius: 1, y: 1)
     }
 
     /// Persists parent note edits, inserts the quoted child note, then navigates (iOS pushes path; mac swaps selection).
@@ -904,8 +947,8 @@ struct NoteEditorView: View {
             ToolbarItem(placement: .topBarLeading) {
                 NoteTopBar(
                     note: note,
-                    isCollectionContextUpdating: isCollectionContextUpdating,
-                    showCollectionToolbarText: showCollectionToolbarText,
+                    isFolderContextUpdating: isFolderContextUpdating,
+                    showFolderToolbarText: showFolderToolbarText,
                     scriptureTheme: scriptureTheme
                 )
             }
@@ -1207,6 +1250,12 @@ struct NoteEditorView: View {
         )
     }
 
+    private func selectionIntersectsClearableRichFormatting() -> Bool {
+        guard let (_, storage) = proxy.textViewPair() else { return false }
+        let sel = proxy.bodySelectedUTF16Range
+        return HarvousBodyRichTextDiagnostics.selectionIntersectsClearableFormatting(storage: storage, utf16Range: sel)
+    }
+
     private func userActivatedStudyHighlight(threadId: UUID) {
         #if DEBUG
         print("[Harvous.highlight.activate] threadId=\(threadId) note=\(note?.id.uuidString.prefix(8) ?? "nil")")
@@ -1373,8 +1422,9 @@ struct NoteEditorView: View {
     private func removeActiveHighlightFromKeyboard() {
         guard let n = note else { return }
         let intersecting = threadIdsIntersectingCurrentBodySelection()
-        if !intersecting.isEmpty {
-            removeStudyHighlightThreads(ids: intersecting, parent: n)
+        let clearFmt = selectionIntersectsClearableRichFormatting()
+        if !intersecting.isEmpty || clearFmt {
+            proxy.triggerRemoveIntersectingStudyHighlightsFromSelection?()
             return
         }
         guard let tid = dockPinnedHighlightThreadId,
@@ -1781,7 +1831,7 @@ struct NoteEditorView: View {
     private func scheduleAutosave(_ note: Note) {
         let nextTitle = title
         let nextBody = editorState.plainText
-        let allowPrimaryUpdate = shouldAllowPrimaryCollectionUpdate(
+        let allowPrimaryUpdate = shouldAllowPrimaryFolderUpdate(
             previousTitle: note.title,
             nextTitle: nextTitle,
             previousBody: note.body,
@@ -1790,7 +1840,7 @@ struct NoteEditorView: View {
         let mergedRefs = ScriptureDetector.mergedDetectedRefs(title: nextTitle, bodyRefs: editorState.detectedRefs)
         autosave.updateSnapshot(title: nextTitle, body: nextBody, refs: mergedRefs)
         withAnimation(.easeOut(duration: 0.18)) {
-            isCollectionContextUpdating = shouldAnimateCollectionContextFeedback && allowPrimaryUpdate
+            isFolderContextUpdating = shouldAnimateFolderContextFeedback && allowPrimaryUpdate
         }
         // Prevent a cancelled previous autosave task from clearing the fresh "updating" state
         // before we register the new token for this cycle.
@@ -1798,12 +1848,12 @@ struct NoteEditorView: View {
         let token = autosave.schedule(
             note: note,
             context: context,
-            allowPrimaryCollectionUpdate: allowPrimaryUpdate,
-            existingCollections: existingCollectionNames(excluding: note)
+            allowPrimaryFolderUpdate: allowPrimaryUpdate,
+            existingFolders: existingFolderNames(excluding: note)
         ) { settledToken in
             guard settledToken == latestAutosaveToken else { return }
             withAnimation(.easeOut(duration: 0.18)) {
-                isCollectionContextUpdating = false
+                isFolderContextUpdating = false
             }
         }
         latestAutosaveToken = token
@@ -1816,7 +1866,7 @@ struct NoteEditorView: View {
         guard n.title != title || n.body != body || n.detectedRefs != refs else {
             autosave.updateSnapshot(title: title, body: body, refs: refs)
             withAnimation(.easeOut(duration: 0.18)) {
-                isCollectionContextUpdating = false
+                isFolderContextUpdating = false
             }
             return
         }
@@ -1828,20 +1878,20 @@ struct NoteEditorView: View {
         n.updatedAt = Date()
         BibleStudyTagSuggester.applyToNote(
             n,
-            allowPrimaryUpdate: shouldAllowPrimaryCollectionUpdate(
+            allowPrimaryUpdate: shouldAllowPrimaryFolderUpdate(
                 previousTitle: previousTitle,
                 nextTitle: title,
                 previousBody: previousBody,
                 nextBody: body
             ),
-            existingCollections: existingCollectionNames(excluding: n)
+            existingFolders: existingFolderNames(excluding: n)
         )
         try? context.saveWithLogging()
         HarvousNoteSpotlightIndexer.reindex(note: n)
         HarvousVaultExporter.scheduleWrite(note: n, modelContext: context)
         autosave.updateSnapshot(title: title, body: body, refs: refs)
         withAnimation(.easeOut(duration: 0.18)) {
-            isCollectionContextUpdating = false
+            isFolderContextUpdating = false
         }
     }
 
@@ -1854,7 +1904,7 @@ struct NoteEditorView: View {
         guard previous.title != title || previous.body != body || previous.detectedRefs != refs else {
             autosave.updateSnapshot(title: title, body: body, refs: refs)
             withAnimation(.easeOut(duration: 0.18)) {
-                isCollectionContextUpdating = false
+                isFolderContextUpdating = false
             }
             return
         }
@@ -1866,47 +1916,47 @@ struct NoteEditorView: View {
         previous.updatedAt = Date()
         BibleStudyTagSuggester.applyToNote(
             previous,
-            allowPrimaryUpdate: shouldAllowPrimaryCollectionUpdate(
+            allowPrimaryUpdate: shouldAllowPrimaryFolderUpdate(
                 previousTitle: previousTitle,
                 nextTitle: title,
                 previousBody: previousBody,
                 nextBody: body
             ),
-            existingCollections: existingCollectionNames(excluding: previous)
+            existingFolders: existingFolderNames(excluding: previous)
         )
         try? context.saveWithLogging()
         HarvousNoteSpotlightIndexer.reindex(note: previous)
         HarvousVaultExporter.scheduleWrite(note: previous, modelContext: context)
         autosave.updateSnapshot(title: title, body: body, refs: refs)
         withAnimation(.easeOut(duration: 0.18)) {
-            isCollectionContextUpdating = false
+            isFolderContextUpdating = false
         }
     }
 
     private var chipPrimaryLabel: String? {
-        note?.collectionChipPrimaryLabelText()
+        note?.folderChipPrimaryLabelText()
     }
 
-    private func animateCollectionTextReveal(for value: String?) {
+    private func animateFolderTextReveal(for value: String?) {
         guard value != nil else {
-            showCollectionToolbarText = true
+            showFolderToolbarText = true
             return
         }
-        showCollectionToolbarText = false
+        showFolderToolbarText = false
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) {
             withAnimation(.easeOut(duration: 0.18)) {
-                showCollectionToolbarText = true
+                showFolderToolbarText = true
             }
         }
     }
 
-    private func existingCollectionNames(excluding note: Note) -> [String] {
+    private func existingFolderNames(excluding note: Note) -> [String] {
         let descriptor = FetchDescriptor<Note>()
         guard let notes = try? context.fetch(descriptor) else { return [] }
-        let ownLower = Set(note.allCollectionMembershipLabels().map { $0.lowercased() })
+        let ownLower = Set(note.allFolderMembershipLabels().map { $0.lowercased() })
         var labels = Set<String>()
         for n in notes where n.id != note.id {
-            for label in n.allCollectionMembershipLabels() {
+            for label in n.allFolderMembershipLabels() {
                 let low = label.lowercased()
                 if ownLower.contains(low) { continue }
                 labels.insert(label)
@@ -1928,24 +1978,24 @@ struct NoteEditorView: View {
                 body: editorState.plainText,
                 refs: ScriptureDetector.mergedDetectedRefs(title: title, bodyRefs: bodyRefs)
             )
-            isCollectionContextUpdating = false
-            showCollectionToolbarText = chipPrimaryLabel != nil
+            isFolderContextUpdating = false
+            showFolderToolbarText = chipPrimaryLabel != nil
         } else {
             title = ""
             editorState = EditorState()
             autosave.updateSnapshot(title: "", body: "", refs: [])
-            isCollectionContextUpdating = false
-            showCollectionToolbarText = true
+            isFolderContextUpdating = false
+            showFolderToolbarText = true
         }
     }
 
-    private var shouldAnimateCollectionContextFeedback: Bool {
-        // macOS: collection lives only in the window toolbar (`ContentView`); the in-note bar is format-only,
+    private var shouldAnimateFolderContextFeedback: Bool {
+        // macOS: folder chip lives only in the window toolbar (`ContentView`); the in-note bar is format-only,
         // so suppressing feedback while `shouldShowNoteToolbar` hid the bounce entirely.
         true
     }
 
-    private func shouldAllowPrimaryCollectionUpdate(
+    private func shouldAllowPrimaryFolderUpdate(
         previousTitle: String,
         nextTitle: String,
         previousBody: String,

@@ -1,0 +1,89 @@
+.highlight-dock-web {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 10px 12px 12px;
+  background: var(--pds-bg-footer, rgba(250, 250, 248, 0.97));
+  border-top: 1px solid var(--pds-border, rgba(0, 0, 0, 0.072));
+}
+
+.highlight-dock-web__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.highlight-dock-web__swatches {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.highlight-dock-web__swatch {
+  width: 26px;
+  height: 26px;
+  border-radius: 999px;
+  border: 1.5px solid rgba(0, 0, 0, 0.12);
+  padding: 0;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.highlight-dock-web__swatch--selected {
+  box-shadow: 0 0 0 2px var(--pds-accent, rgb(56, 105, 230));
+}
+
+.highlight-dock-web__swatch--neutral {
+  background: linear-gradient(135deg, #c8c8c8 0%, #9a9a9a 100%);
+}
+
+.highlight-dock-web__swatch--warmAmber {
+  background: linear-gradient(135deg, #ffd54f 0%, #ffb300 100%);
+}
+
+.highlight-dock-web__swatch--skyBlue {
+  background: linear-gradient(135deg, #4fc3f7 0%, #0288d1 100%);
+}
+
+.highlight-dock-web__swatch--violet {
+  background: linear-gradient(135deg, #b388ff 0%, #7c4dff 100%);
+}
+
+.highlight-dock-web__swatch--mintGreen {
+  background: linear-gradient(135deg, #69f0ae 0%, #00c853 100%);
+}
+
+.highlight-dock-web__swatch--coralRose {
+  background: linear-gradient(135deg, #ff80ab 0%, #e91e63 100%);
+}
+
+.highlight-dock-web__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.highlight-dock-web__btn {
+  font-family: var(--pds-font-body, inherit);
+  font-size: 14px;
+}
+
+.highlight-dock-web__excerpt {
+  margin-top: 10px;
+  max-height: 120px;
+  overflow-y: auto;
+  padding: 8px 10px;
+  border-radius: var(--pds-radius-input, 10px);
+  background: var(--pds-bg-input, rgba(0, 0, 0, 0.055));
+}
+
+.highlight-dock-web__excerpt-text {
+  margin: 0;
+  font-family: var(--pds-font-body, inherit);
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--pds-text-secondary, rgba(29, 29, 31, 0.5));
+}

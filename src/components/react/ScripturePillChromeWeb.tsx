@@ -11,8 +11,11 @@ import {
 import { TRANSLATION_ORDER, TRANSLATIONS } from '@/data/translations';
 import { getCachedProfileData } from '@/utils/profile-cache';
 import { safeRenderHtml } from '@/utils/content-renderer';
+import type { StudyHighlightAccentKey } from '@/utils/study-highlight-accents';
+import { STUDY_HIGHLIGHT_SWATCHES_WITH_NEUTRAL } from '@/utils/study-highlight-accents';
 
 import '@/styles/scripture-pill-chrome.css';
+import '@/styles/highlight-dock-web.css';
 
 type BibleChapterRow = { book: string; chapter: number };
 
@@ -63,6 +66,12 @@ function buildReferenceString(book: string, chapter: number, verseStart: number,
 export interface ScripturePillChromeWebProps {
   reference: string;
   translation: string | null;
+  /** Parent note id — loads passage-linked study rows for this reference + translation. */
+  sourceNoteId?: string | null;
+  /** Persisted per-pill accent (`data-pill-accent`). */
+  initialPillAccent?: string | null;
+  /** User picked a new accent swatch — caller updates the `scripturePill` mark. */
+  onPillAccentChange?: (accent: StudyHighlightAccentKey) => void;
   /** Close without applying — native “Done”. */
   onDone: () => void;
   /** Persist reference + translation into the pill (caller updates ProseMirror + optional API). */
@@ -72,7 +81,15 @@ export interface ScripturePillChromeWebProps {
 /**
  * Bottom chrome for scripture pill editing — macOS-style pickers + passage preview (Web).
  */
-export default function ScripturePillChromeWeb({ reference, translation, onDone, onApply }: ScripturePillChromeWebProps) {
+export default function ScripturePillChromeWeb({
+  reference,
+  translation,
+  sourceNoteId = null,
+  initialPillAccent = null,
+  onPillAccentChange,
+  onDone,
+  onApply,
+}: ScripturePillChromeWebProps) {
   const books = useMemo(() => orderedCanonBooks(), []);
 
   const initialParsed = useMemo(() => parseScriptureReference(normalizeScriptureReference(reference.trim()) || reference.trim()), [reference]);
@@ -182,8 +199,70 @@ export default function ScripturePillChromeWeb({ reference, translation, onDone,
     return Array.from({ length: Math.max(0, vEndCanon - from + 1) }, (_, i) => from + i);
   }, [vEndCanon, verseStart]);
 
+  const [passageStudyThreads, setPassageStudyThreads] = useState<
+    { id: string; scripturePassageExcerpt: string | null; highlightAccentRaw: string; entryKind: string }[]
+  >([]);
+
+  useEffect(() => {
+    if (!sourceNoteId) {
+      setPassageStudyThreads([]);
+      return;
+    }
+    let cancelled = false;
+    const norm = normalizeScriptureReference(displayRefString.trim()) ?? displayRefString;
+    void (async () => {
+      try {
+        const res = await fetch(
+          `/api/notes/${sourceNoteId}/study-threads/by-scripture?reference=${encodeURIComponent(norm)}&translation=${encodeURIComponent(trans)}`,
+          { credentials: 'include' },
+        );
+        if (!res.ok || cancelled) return;
+        const data = await res.json();
+        const rows = Array.isArray(data.studyThreads) ? data.studyThreads : [];
+        if (cancelled) return;
+        setPassageStudyThreads(rows.filter((r: { entryKind?: string }) => r.entryKind === 'scriptureLink'));
+      } catch {
+        if (!cancelled) setPassageStudyThreads([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [sourceNoteId, displayRefString, trans]);
+
+  const removePassageStudy = useCallback(async (id: string) => {
+    try {
+      const res = await fetch(`/api/study-threads/${id}`, { method: 'DELETE', credentials: 'include' });
+      if (res.ok) {
+        setPassageStudyThreads((prev) => prev.filter((r) => r.id !== id));
+      }
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  const selectedSwatchKey = initialPillAccent || 'neutral';
+
   return (
     <div className="scripture-pill-chrome" role="region" aria-label="Scripture reference editor">
+      {onPillAccentChange ? (
+        <div className="scripture-pill-chrome__accent-row" role="group" aria-label="Pill accent color">
+          {STUDY_HIGHLIGHT_SWATCHES_WITH_NEUTRAL.map((key) => (
+            <button
+              key={key}
+              type="button"
+              className={`highlight-dock-web__swatch highlight-dock-web__swatch--${key}${
+                selectedSwatchKey === key ? ' highlight-dock-web__swatch--selected' : ''
+              }`}
+              title={key}
+              aria-label={key}
+              aria-pressed={selectedSwatchKey === key}
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => onPillAccentChange(key)}
+            />
+          ))}
+        </div>
+      ) : null}
       <div className="scripture-pill-chrome__row">
         <div className="scripture-pill-chrome__scroll">
           <div className="scripture-pill-chrome__controls">
@@ -314,6 +393,25 @@ export default function ScripturePillChromeWeb({ reference, translation, onDone,
         ) : (
           <p className="scripture-pill-chrome__passage-status">Could not load this passage.</p>
         )}
+        {sourceNoteId && passageStudyThreads.length > 0 ? (
+          <ul className="scripture-pill-chrome__study-list">
+            {passageStudyThreads.map((row) => (
+              <li key={row.id} className="scripture-pill-chrome__study-item">
+                <span className="scripture-pill-chrome__study-excerpt">
+                  {row.scripturePassageExcerpt?.trim() || '(passage highlight)'}
+                </span>
+                <button
+                  type="button"
+                  className="btn btn--sm btn--ghost"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => void removePassageStudy(row.id)}
+                >
+                  Remove
+                </button>
+              </li>
+            ))}
+          </ul>
+        ) : null}
       </div>
     </div>
   );

@@ -1,4 +1,11 @@
 import Foundation
+#if os(macOS)
+import AppKit
+import CoreImage
+#elseif os(iOS)
+import UIKit
+import CoreImage
+#endif
 
 // Shared constants so init and renderPill agree on the same values.
 private let kRefSize:  CGFloat = 15   // match body prose size
@@ -8,13 +15,285 @@ private let kVPad:  CGFloat = 2   // vertical inset for pill background; lower =
 private let kGap:   CGFloat = 4
 private let kRadius: CGFloat = 7      // squircle-leaning radius for scripture pills
 
+/// Keep aligned with `HarvousConnectionsCapsuleInnerShadow` in `NoteConnectionsBar.swift`.
+private enum ScripturePillInnerStrokeLikeConnectionsCapsule {
+    static let lineWidthPts: CGFloat = 5.5
+    static let blurRadiusPts: CGFloat = 3
+    static let lightStrokeAlpha: CGFloat = 0.042
+    static let darkStrokeAlpha: CGFloat = 0.036
+    /// Room for Gaussian spill + stroke half-width (before device scale).
+    static var bleedPadPoints: CGFloat { blurRadiusPts * 3 + lineWidthPts * 0.5 + 2 }
+}
+
+#if os(macOS) || os(iOS)
+private enum ScripturePillInnerShadowSharedCIContext {
+    static let context = CIContext(options: [CIContextOption.useSoftwareRenderer: false])
+}
+
+private func scripturePillRasterContextScale(_ cg: CGContext) -> CGFloat {
+    let sx = abs(cg.convertToDeviceSpace(CGSize(width: 1, height: 0)).width)
+    let sy = abs(cg.convertToDeviceSpace(CGSize(width: 0, height: 1)).height)
+    let s = max(sx, sy)
+    return (s.isFinite && s > 0.05) ? s : 2
+}
+
+#if os(iOS)
+
+private func scripturePillRasterBlurredStrokeUIImage(
+    bounds: CGRect,
+    pillInset: CGFloat,
+    cornerRadius: CGFloat,
+    isDarkMode: Bool,
+    scale: CGFloat
+) -> CGImage? {
+    let m = ScripturePillInnerStrokeLikeConnectionsCapsule.self
+    let bleed = m.bleedPadPoints
+    let cw = bounds.width + bleed * 2
+    let ch = bounds.height + bleed * 2
+    let pixW = Int(ceil(cw * scale))
+    let pixH = Int(ceil(ch * scale))
+    guard pixW > 0, pixH > 0 else { return nil }
+
+    let format = UIGraphicsImageRendererFormat.default()
+    format.opaque = false
+    format.scale = scale
+    let renderer = UIGraphicsImageRenderer(size: CGSize(width: cw, height: ch), format: format)
+    let strokeImage = renderer.image { _ in
+        guard let cg = UIGraphicsGetCurrentContext() else { return }
+        cg.clear(CGRect(origin: .zero, size: CGSize(width: cw, height: ch)))
+        cg.translateBy(x: bleed, y: bleed)
+        let pr = bounds.insetBy(dx: pillInset, dy: pillInset)
+        guard pr.width > 0, pr.height > 0 else { return }
+        cg.setAllowsAntialiasing(true)
+        cg.setShouldAntialias(true)
+        cg.setBlendMode(.normal)
+        cg.setLineCap(.round)
+        cg.setLineJoin(.round)
+        cg.addPath(CGPath(roundedRect: pr, cornerWidth: cornerRadius, cornerHeight: cornerRadius, transform: nil))
+        UIColor(
+            white: isDarkMode ? 1 : 0,
+            alpha: isDarkMode ? m.darkStrokeAlpha : m.lightStrokeAlpha
+        ).setStroke()
+        cg.setLineWidth(m.lineWidthPts)
+        cg.strokePath()
+    }
+    guard let ciStroke = CIImage(image: strokeImage) else { return nil }
+    let blurPx = m.blurRadiusPts * scale
+    let blurred = ciStroke.clampedToExtent().applyingFilter(
+        "CIGaussianBlur",
+        parameters: [kCIInputRadiusKey: blurPx]
+    )
+    let crop = CGRect(origin: .zero, size: CGSize(width: CGFloat(pixW), height: CGFloat(pixH)))
+    let from = blurred.extent.intersection(crop)
+    guard !from.isNull else { return nil }
+    return ScripturePillInnerShadowSharedCIContext.context.createCGImage(blurred, from: from)
+}
+
+#elseif os(macOS)
+
+private func scripturePillRasterBlurredStrokeMacOS(
+    bounds: CGRect,
+    pillInset: CGFloat,
+    cornerRadius: CGFloat,
+    isDarkMode: Bool,
+    scale: CGFloat
+) -> CGImage? {
+    let m = ScripturePillInnerStrokeLikeConnectionsCapsule.self
+    let bleed = m.bleedPadPoints
+    let cw = bounds.width + bleed * 2
+    let ch = bounds.height + bleed * 2
+    let pixW = Int(ceil(cw * scale))
+    let pixH = Int(ceil(ch * scale))
+    guard pixW > 0, pixH > 0 else { return nil }
+
+    let stride = pixW * 4
+    let bitmapInfo = CGBitmapInfo.byteOrder32Big.union(
+        CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedLast.rawValue)
+    )
+    let byteCount = stride * pixH
+    let ptr = UnsafeMutableRawPointer.allocate(byteCount: byteCount, alignment: 64)
+    defer { ptr.deallocate() }
+    ptr.initializeMemory(as: UInt8.self, repeating: 0, count: byteCount)
+    guard let cg = CGContext(
+        data: ptr,
+        width: pixW,
+        height: pixH,
+        bitsPerComponent: 8,
+        bytesPerRow: stride,
+        space: CGColorSpaceCreateDeviceRGB(),
+        bitmapInfo: bitmapInfo.rawValue
+    )
+    else { return nil }
+
+    cg.scaleBy(x: scale, y: scale)
+    cg.translateBy(x: bleed, y: bleed)
+    let pr = bounds.insetBy(dx: pillInset, dy: pillInset)
+    guard pr.width > 0, pr.height > 0 else { return nil }
+
+    cg.setAllowsAntialiasing(true)
+    cg.setBlendMode(.normal)
+    cg.setLineCap(.round)
+    cg.setLineJoin(.round)
+    cg.addPath(CGPath(roundedRect: pr, cornerWidth: cornerRadius, cornerHeight: cornerRadius, transform: nil))
+    cg.setStrokeColor(
+        gray: isDarkMode ? 1 : 0,
+        alpha: isDarkMode ? m.darkStrokeAlpha : m.lightStrokeAlpha
+    )
+    cg.setLineWidth(m.lineWidthPts)
+    cg.strokePath()
+
+    guard let cgStroke = cg.makeImage() else { return nil }
+    let ciStroke = CIImage(cgImage: cgStroke)
+    let blurPx = m.blurRadiusPts * scale
+    let blurred = ciStroke.clampedToExtent().applyingFilter(
+        "CIGaussianBlur",
+        parameters: [kCIInputRadiusKey: blurPx]
+    )
+    let crop = CGRect(origin: .zero, size: CGSize(width: CGFloat(pixW), height: CGFloat(pixH)))
+    let from = blurred.extent.intersection(crop)
+    guard !from.isNull else { return nil }
+    return ScripturePillInnerShadowSharedCIContext.context.createCGImage(blurred, from: from)
+}
+
+#endif
+
+private func scripturePillRasterBlurredStrokeForCapsuleMatch(
+    bounds: CGRect,
+    pillInset: CGFloat,
+    cornerRadius: CGFloat,
+    isDarkMode: Bool,
+    scale: CGFloat
+) -> CGImage? {
+#if os(iOS)
+    scripturePillRasterBlurredStrokeUIImage(
+        bounds: bounds,
+        pillInset: pillInset,
+        cornerRadius: cornerRadius,
+        isDarkMode: isDarkMode,
+        scale: scale
+    )
+#elseif os(macOS)
+    scripturePillRasterBlurredStrokeMacOS(
+        bounds: bounds,
+        pillInset: pillInset,
+        cornerRadius: cornerRadius,
+        isDarkMode: isDarkMode,
+        scale: scale
+    )
+#else
+    nil
+#endif
+}
+
+#endif
+
+private func scripturePillApplyCapsuleMatchedStrokeFallback(
+    context: CGContext,
+    path: CGPath,
+    isDarkMode: Bool
+) {
+    let m = ScripturePillInnerStrokeLikeConnectionsCapsule.self
+    context.saveGState()
+    defer { context.restoreGState() }
+    context.setBlendMode(isDarkMode ? .softLight : .multiply)
+    context.setLineCap(.round)
+    context.setLineJoin(.round)
+    context.addPath(path)
+    context.setStrokeColor(gray: isDarkMode ? 1 : 0, alpha: isDarkMode ? m.darkStrokeAlpha : m.lightStrokeAlpha)
+    context.setLineWidth(m.lineWidthPts)
+    context.strokePath()
+}
+
 private func scriptureGradientProgress(now: Date = Date()) -> CGFloat {
     let hour = Calendar.current.component(.hour, from: now)
     return CGFloat(hour) / 23
 }
 
+#if os(macOS) || os(iOS)
+private func scripturePillEffectiveAppearanceIsDark() -> Bool {
+    var isDark = false
+    let read = {
+        #if os(macOS)
+        guard let match = NSApp.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) else {
+            isDark = false
+            return
+        }
+        isDark = match == .darkAqua
+        #elseif os(iOS)
+        isDark = UITraitCollection.current.userInterfaceStyle == .dark
+        #endif
+    }
+    if Thread.isMainThread {
+        read()
+    } else {
+        DispatchQueue.main.sync(execute: read)
+    }
+    return isDark
+}
+#endif
+
+/// Inner edge matches connection capsules (`HarvousConnectionsCapsuleInnerShadow`): blurred perimeter stroke rasterized then composited multiply / softLight.
 #if os(macOS)
-import AppKit
+private func scripturePillApplyInnerEdgeShadowsToContext(_ context: CGContext, bounds: CGRect) {
+    scripturePillApplyInnerEdgeWash(context: context, bounds: bounds)
+}
+#elseif os(iOS)
+private func scripturePillApplyInnerEdgeShadowsToContext(_ context: CGContext, bounds: CGRect) {
+    scripturePillApplyInnerEdgeWash(context: context, bounds: bounds)
+}
+#else
+private func scripturePillApplyInnerEdgeShadowsToContext(_ context: CGContext, bounds: CGRect) {}
+#endif
+
+private func scripturePillApplyInnerEdgeWash(context: CGContext, bounds: CGRect) {
+    let strokeInset = CGFloat(0.25)
+    let pr = bounds.insetBy(dx: strokeInset, dy: strokeInset)
+    guard pr.width > 1, pr.height > 1 else { return }
+
+#if os(macOS) || os(iOS)
+    let isDarkMode = scripturePillEffectiveAppearanceIsDark()
+#else
+    let isDarkMode = false
+#endif
+
+    let path = CGPath(
+        roundedRect: pr,
+        cornerWidth: kRadius,
+        cornerHeight: kRadius,
+        transform: nil
+    )
+
+#if os(macOS) || os(iOS)
+    let bleed = ScripturePillInnerStrokeLikeConnectionsCapsule.bleedPadPoints
+    let scale = scripturePillRasterContextScale(context)
+    if let cgBlur = scripturePillRasterBlurredStrokeForCapsuleMatch(
+        bounds: bounds,
+        pillInset: strokeInset,
+        cornerRadius: kRadius,
+        isDarkMode: isDarkMode,
+        scale: scale
+    ) {
+        context.saveGState()
+        defer { context.restoreGState() }
+        context.setAllowsAntialiasing(true)
+        context.interpolationQuality = .medium
+        context.setBlendMode(isDarkMode ? .softLight : .multiply)
+        let drawRect = CGRect(
+            x: bounds.minX - bleed,
+            y: bounds.minY - bleed,
+            width: bounds.width + bleed * 2,
+            height: bounds.height + bleed * 2
+        )
+        context.draw(cgBlur, in: drawRect)
+    } else {
+        scripturePillApplyCapsuleMatchedStrokeFallback(context: context, path: path, isDarkMode: isDarkMode)
+    }
+#else
+    scripturePillApplyCapsuleMatchedStrokeFallback(context: context, path: path, isDarkMode: isDarkMode)
+#endif
+}
+
+#if os(macOS)
 
 /// Resolve the concrete draw-time accent for a scripture pill. Per-pill accent wins; falls back to the
 /// neutral default (space theme deliberately ignored so pills don't auto-tint per the product decision).
@@ -101,6 +380,9 @@ final class ScripturePillAttachment: NSTextAttachment {
                 ]
             )
             gradient?.draw(from: startPoint, to: endPoint, options: [])
+            if let cgContext = NSGraphicsContext.current?.cgContext {
+                scripturePillApplyInnerEdgeShadowsToContext(cgContext, bounds: bounds)
+            }
             tint.withAlphaComponent(0.20).setStroke(); pill.lineWidth = 0.5; pill.stroke()
 
             let refY   = (size.height - refSize.height)   / 2
@@ -113,7 +395,6 @@ final class ScripturePillAttachment: NSTextAttachment {
 }
 
 #else
-import UIKit
 
 private func resolvedPillAccent(accent: StudyHighlightAccentToken?) -> UIColor {
     guard let accent, accent != .auto else {
@@ -187,23 +468,24 @@ final class ScripturePillAttachment: NSTextAttachment {
             let xPosition = 0.35 + (0.30 * progress)
             let startPoint = CGPoint(x: bounds.minX + bounds.width * xPosition, y: bounds.minY)
             let endPoint   = CGPoint(x: bounds.minX + bounds.width * xPosition, y: bounds.maxY)
-            guard let context = UIGraphicsGetCurrentContext(),
-                  let gradient = CGGradient(
-                      colorsSpace: CGColorSpaceCreateDeviceRGB(),
-                      colors: [
-                          tint.withAlphaComponent(0.10).cgColor,
-                          tint.withAlphaComponent(0.065).cgColor
-                      ] as CFArray,
-                      locations: [0.0, 1.0]
-                  ) else {
+            if let context = UIGraphicsGetCurrentContext(),
+               let gradient = CGGradient(
+                   colorsSpace: CGColorSpaceCreateDeviceRGB(),
+                   colors: [
+                       tint.withAlphaComponent(0.10).cgColor,
+                       tint.withAlphaComponent(0.065).cgColor
+                   ] as CFArray,
+                   locations: [0.0, 1.0]
+               ) {
+                context.drawLinearGradient(gradient, start: startPoint, end: endPoint, options: [])
+            } else {
                 tint.withAlphaComponent(0.075).setFill()
                 pill.fill()
-                tint.withAlphaComponent(0.20).setStroke()
-                pill.lineWidth = 0.5
-                pill.stroke()
-                return
             }
-            context.drawLinearGradient(gradient, start: startPoint, end: endPoint, options: [])
+
+            if let cg = UIGraphicsGetCurrentContext() {
+                scripturePillApplyInnerEdgeShadowsToContext(cg, bounds: bounds)
+            }
             tint.withAlphaComponent(0.20).setStroke(); pill.lineWidth = 0.5; pill.stroke()
 
             let refY   = (size.height - refSize.height)   / 2

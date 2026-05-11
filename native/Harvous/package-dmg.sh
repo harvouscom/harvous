@@ -36,7 +36,7 @@ mkdir -p "$DERIVED_DATA"
 xcodebuild -project Harvous.xcodeproj \
   -scheme Harvous_macOS \
   -configuration Release \
-  -destination 'platform=macOS' \
+  -destination 'generic/platform=macOS' \
   -derivedDataPath "$DERIVED_DATA" \
   clean build
 

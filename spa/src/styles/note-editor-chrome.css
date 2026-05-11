@@ -37,6 +37,10 @@
   width: 100%;
 }
 
+.note-editor-bottom-bar__highlight-host {
+  width: 100%;
+}
+
 .note-editor-bottom-bar .tiptap-toolbar--prototype-native,
 .note-editor-bottom-bar .tiptap-toolbar--prototype-native.tiptap-toolbar--portal {
   position: static !important;
@@ -63,6 +67,14 @@
   max-width: 720px;
   margin: 0 auto;
   width: 100%;
+}
+
+.note-production-action-bar__chip-cluster {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+  flex: 1;
 }
 
 .note-production-action-bar__chip-wrap {

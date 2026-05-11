@@ -134,8 +134,7 @@ struct ScriptureHubView: View {
                             scriptureDrill = .book(p.bookIndex)
                         }
                     } label: {
-                        Image(systemName: "chevron.left")
-                            .font(.system(size: 17, weight: .medium))
+                        HarvousFAGlyph(assetName: "Harvous.ChevronLeft", edgePt: 17)
                             .foregroundStyle(.primary)
                     }
                     .buttonStyle(.plain)
@@ -148,8 +147,7 @@ struct ScriptureHubView: View {
                     UIImpactFeedbackGenerator(style: .light).impactOccurred()
                     appRouter.selectIOSListSurface(.more)
                 } label: {
-                    Image(systemName: "person.fill")
-                        .font(.system(size: 17, weight: .medium))
+                    HarvousFAGlyph(assetName: "Harvous.UserFilled", edgePt: 17)
                         .foregroundStyle(.primary)
                         .frame(width: 32, height: 32)
                         .contentShape(Rectangle())
@@ -172,7 +170,11 @@ struct ScriptureHubView: View {
             ContentUnavailableView.search(text: activeSearchQuery)
         } else if scriptureReferenceRowsForBookDrill.isEmpty {
             ContentUnavailableView {
-                Label("No passages", systemImage: "text.book.closed")
+                Label {
+                    Text("No passages")
+                } icon: {
+                    HarvousFAGlyph(assetName: "Harvous.BookOpen", edgePt: 28)
+                }
             } description: {
                 Text("No parsed references for this book in the active space.")
             }
@@ -182,7 +184,7 @@ struct ScriptureHubView: View {
                     Button {
                         scriptureDrill = .passage(row.passage)
                     } label: {
-                        CollectionFeedRow(
+                        FolderFeedRow(
                             title: row.title,
                             noteCount: row.noteCount,
                             isPinned: false,
@@ -206,7 +208,11 @@ struct ScriptureHubView: View {
             emptyNotesState
         } else if !showDailyPassageRow && scriptureBookRows.isEmpty {
             ContentUnavailableView {
-                Label("No Scripture References", systemImage: "book.closed")
+                Label {
+                    Text("No Scripture References")
+                } icon: {
+                    HarvousFAGlyph(assetName: "Harvous.BookOpen", edgePt: 28)
+                }
             } description: {
                 Text("Add scripture references in your notes to build your index.")
             }
@@ -219,8 +225,7 @@ struct ScriptureHubView: View {
 
     private var emptyNotesState: some View {
         VStack(spacing: 12) {
-            Image(systemName: "book.closed")
-                .font(.system(size: 40))
+            HarvousFAGlyph(assetName: "Harvous.BookOpen", edgePt: 40)
                 .foregroundStyle(.quaternary)
             Text("Your notes will organize here")
                 .font(HarvousTypography.body)
@@ -242,7 +247,11 @@ struct ScriptureHubView: View {
                     Button {
                         votdPassageCardDismissedDay = VotdService.todayCalendarDayKey()
                     } label: {
-                        Label("Dismiss", systemImage: "xmark.circle.fill")
+                        Label {
+                            Text("Dismiss")
+                        } icon: {
+                            HarvousFAGlyph(assetName: "Harvous.CircleXmark", edgePt: 16)
+                        }
                     }
                     .tint(.secondary)
                     .accessibilityLabel("Dismiss today's passage")
@@ -252,7 +261,7 @@ struct ScriptureHubView: View {
                 Button {
                     scriptureDrill = .book(row.bookIndex)
                 } label: {
-                    CollectionFeedRow(
+                    FolderFeedRow(
                         title: row.title,
                         noteCount: row.noteCount,
                         isPinned: false,
