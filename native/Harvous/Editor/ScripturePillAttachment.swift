@@ -10,7 +10,11 @@ import CoreImage
 // Shared constants so init and renderPill agree on the same values.
 private let kRefSize:  CGFloat = 15   // match body prose size
 private let kTransSize: CGFloat = 11  // translation badge — slightly smaller
-private let kHPad:  CGFloat = 9
+#if os(macOS)
+private let kHPad: CGFloat = 11 // +2 vs iOS — mac proportions
+#else
+private let kHPad: CGFloat = 9
+#endif
 private let kVPad:  CGFloat = 6   // vertical inset for pill background; pairs with kHPad for even inset
 private let kGap:   CGFloat = 4
 /// Transparent width on each side of the raster so inline prose isn’t flush against the pill edges.
@@ -306,9 +310,12 @@ private func resolvedPillAccent(accent: StudyHighlightAccentToken?) -> NSColor {
 }
 
 /// Neutral pills should read like normal prose: use content text color for labels.
-private func resolvedPillLabelColor(accent: StudyHighlightAccentToken?) -> NSColor {
+private func resolvedPillLabelColor(accent: StudyHighlightAccentToken?, pointerHovered: Bool) -> NSColor {
     _ = accent
-    return .labelColor
+    if pointerHovered {
+        return NSColor.labelColor.withAlphaComponent(HarvousScripturePillStyle.labelOpacityPointerHover)
+    }
+    return NSColor.labelColor.withAlphaComponent(HarvousScripturePillStyle.labelOpacity)
 }
 
 /// NSTextAttachment that renders a scripture reference as an inline rounded-rect pill.
@@ -319,6 +326,8 @@ final class ScripturePillAttachment: NSTextAttachment {
     var theme: HarvousColors.ThemeVariant
     /// Per-pill accent (persisted on the owning Note). `nil` → neutral default.
     var accent: StudyHighlightAccentToken?
+    /// macOS: true while the pointing device is over this pill in the body editor (full-opacity label).
+    private(set) var isPointerHovered: Bool = false
 
     init(reference: String,
          translation: String = ScriptureReference.defaultTranslation,
@@ -330,7 +339,7 @@ final class ScripturePillAttachment: NSTextAttachment {
         self.accent = accent
         super.init(data: nil, ofType: nil)
 
-        let img = Self.renderPill(reference: reference, translation: translation, accent: accent)
+        let img = Self.renderPill(reference: reference, translation: translation, accent: accent, pointerHovered: false)
         self.image = img
 
         // Baseline formula (NSImage flipped:false): draw(at:) places bottom-left of the bbox at y,
@@ -342,14 +351,37 @@ final class ScripturePillAttachment: NSTextAttachment {
         )
     }
 
+    /// Updates raster label emphasis when the pointer enters/leaves this attachment (macOS body editor).
+    func setPointerHovered(_ hovered: Bool) {
+        guard hovered != isPointerHovered else { return }
+        isPointerHovered = hovered
+        let img = Self.renderPill(
+            reference: reference,
+            translation: translation,
+            accent: accent,
+            pointerHovered: hovered
+        )
+        self.image = img
+        let refFont = HarvousFonts.system(size: kRefSize, weight: 500)
+        self.bounds = CGRect(
+            origin: CGPoint(x: 0, y: refFont.descender - kVPad),
+            size: img.size
+        )
+    }
+
     required init?(coder: NSCoder) { fatalError() }
 
-    static func renderPill(reference: String, translation: String, accent: StudyHighlightAccentToken?) -> NSImage {
+    static func renderPill(
+        reference: String,
+        translation: String,
+        accent: StudyHighlightAccentToken?,
+        pointerHovered: Bool = false
+    ) -> NSImage {
         let refFont   = HarvousFonts.system(size: kRefSize, weight: 500)
         let transFont = HarvousFonts.system(size: kTransSize, weight: 400)
         let displayTranslation = ScriptureReference.displayTranslationLabel(translation)
         let tint = resolvedPillAccent(accent: accent)
-        let label = resolvedPillLabelColor(accent: accent)
+        let label = resolvedPillLabelColor(accent: accent, pointerHovered: pointerHovered)
 
         let refAttrs: [NSAttributedString.Key: Any]   = [.font: refFont,
                                                           .foregroundColor: label]
@@ -408,9 +440,10 @@ private func resolvedPillAccent(accent: StudyHighlightAccentToken?) -> UIColor {
     return accent.resolvedAccentUIColor(kind: .scriptureLink, isDark: false)
 }
 
-private func resolvedPillLabelColor(accent: StudyHighlightAccentToken?) -> UIColor {
+private func resolvedPillLabelColor(accent: StudyHighlightAccentToken?, pointerHovered: Bool = false) -> UIColor {
     _ = accent
-    return .label
+    _ = pointerHovered
+    return UIColor.label.withAlphaComponent(HarvousScripturePillStyle.labelOpacity)
 }
 
 /// NSTextAttachment that renders a scripture reference as an inline rounded-rect pill on iOS.
@@ -430,7 +463,7 @@ final class ScripturePillAttachment: NSTextAttachment {
         self.accent = accent
         super.init(data: nil, ofType: nil)
 
-        let img = Self.renderPill(reference: reference, translation: translation, accent: accent)
+        let img = Self.renderPill(reference: reference, translation: translation, accent: accent, pointerHovered: false)
         self.image = img
 
         let refFont = HarvousFonts.system(size: kRefSize, weight: 500)
@@ -442,12 +475,17 @@ final class ScripturePillAttachment: NSTextAttachment {
 
     required init?(coder: NSCoder) { fatalError() }
 
-    static func renderPill(reference: String, translation: String, accent: StudyHighlightAccentToken?) -> UIImage {
+    static func renderPill(
+        reference: String,
+        translation: String,
+        accent: StudyHighlightAccentToken?,
+        pointerHovered: Bool = false
+    ) -> UIImage {
         let refFont   = HarvousFonts.system(size: kRefSize, weight: 500)
         let transFont = HarvousFonts.system(size: kTransSize, weight: 400)
         let displayTranslation = ScriptureReference.displayTranslationLabel(translation)
         let tint = resolvedPillAccent(accent: accent)
-        let label = resolvedPillLabelColor(accent: accent)
+        let label = resolvedPillLabelColor(accent: accent, pointerHovered: pointerHovered)
 
         let refAttrs: [NSAttributedString.Key: Any]   = [.font: refFont,
                                                           .foregroundColor: label]

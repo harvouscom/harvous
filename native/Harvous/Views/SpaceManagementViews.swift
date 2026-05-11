@@ -401,7 +401,7 @@ struct ManageSpaceSheet: View {
                             Text("John 3:16 NASB")
                                 .font(HarvousTypography.inspectorCompactMedium)
                         }
-                        .foregroundStyle(HarvousColors.scriptureChipForeground(scriptureAccent))
+                        .foregroundStyle(HarvousColors.scriptureChipForeground(scriptureAccent).opacity(HarvousScripturePillStyle.labelOpacity))
                         .padding(.horizontal, 7)
                         .padding(.vertical, 4)
                         .background(
@@ -731,7 +731,7 @@ extension ManageSpaceSheet {
                         Text("John 3:16 NASB")
                             .font(HarvousTypography.inspectorCompactMedium)
                     }
-                    .foregroundStyle(HarvousColors.scriptureChipForeground(scriptureAccent))
+                    .foregroundStyle(HarvousColors.scriptureChipForeground(scriptureAccent).opacity(HarvousScripturePillStyle.labelOpacity))
                     .padding(.horizontal, 7)
                     .padding(.vertical, 4)
                     .background(

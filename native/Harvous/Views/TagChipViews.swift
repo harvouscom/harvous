@@ -1,5 +1,11 @@
 import SwiftUI
 
+#if os(macOS)
+private let scriptureRefChipHorizontalPadding: CGFloat = 11
+#else
+private let scriptureRefChipHorizontalPadding: CGFloat = 9
+#endif
+
 // MARK: - Folder symbol (filled catalog glyph + optional jitter while suggestions update)
 
 struct FolderSymbol: View {
@@ -167,14 +173,26 @@ struct ScriptureRefChip: View {
     var onTap: (() -> Void)? = nil
     private let scriptureCornerRadius: CGFloat = HarvousRadius.scripturePill
 
+#if os(macOS)
+    @State private var scriptureRefChipPointerHover = false
+#endif
+
+    private var scriptureRefChipLabelOpacity: CGFloat {
+#if os(macOS)
+        scriptureRefChipPointerHover ? HarvousScripturePillStyle.labelOpacityPointerHover : HarvousScripturePillStyle.labelOpacity
+#else
+        HarvousScripturePillStyle.labelOpacity
+#endif
+    }
+
     var body: some View {
         let chip = HStack(spacing: 4) {
             HarvousFAGlyph(assetName: "Harvous.Bookmark", edgePt: 9)
             Text(reference)
                 .font(HarvousTypography.inspectorCompactMedium)
         }
-        .foregroundStyle(HarvousColors.scriptureChipForeground(scriptureTheme))
-        .padding(.horizontal, 9)
+        .foregroundStyle(HarvousColors.scriptureChipForeground(scriptureTheme).opacity(scriptureRefChipLabelOpacity))
+        .padding(.horizontal, scriptureRefChipHorizontalPadding)
         .padding(.vertical, 6)
         .background(
             RoundedRectangle(cornerRadius: scriptureCornerRadius, style: .continuous)
@@ -195,6 +213,9 @@ struct ScriptureRefChip: View {
             RoundedRectangle(cornerRadius: scriptureCornerRadius, style: .continuous)
                 .strokeBorder(HarvousColors.scriptureChipBorder(scriptureTheme), lineWidth: 0.5)
         )
+#if os(macOS)
+        .onHover { scriptureRefChipPointerHover = $0 }
+#endif
 
         if let onTap {
             Button(action: onTap) {

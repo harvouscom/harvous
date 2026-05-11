@@ -5,11 +5,26 @@ enum HarvousRadius {
     static let button:       CGFloat = 12
     static let input:        CGFloat = 10
     static let pill:         CGFloat = 999
+#if os(macOS)
+    /// macOS: slightly rounder than iOS for proportional balance with desktop typography.
+    static let scripturePill: CGFloat = 14
+#else
     static let scripturePill: CGFloat = 11
+#endif
     static let rowHighlight: CGFloat = 10   // warm rounded row selection
     static let formatButton: CGFloat = 8    // format toolbar button press
     /// macOS sidebar: **bottom** leading corner radius (split side stays square; top leading stays 0 for title bar). Tune vs system chrome.
     static let sidebarGlassLeading: CGFloat = 16
+}
+
+/// Typography / fill tuning for raster + SwiftUI scripture pills (keep in sync across surfaces).
+enum HarvousScripturePillStyle {
+    /// Softer than full `label` so reference + translation read as part of the tinted chip.
+    static let labelOpacity: CGFloat = 0.70
+#if os(macOS)
+    /// Pointer hover on inline editor pills (`NSTextAttachment`) and SwiftUI reference chips.
+    static let labelOpacityPointerHover: CGFloat = 1.0
+#endif
 }
 
 enum HarvousAnimation {

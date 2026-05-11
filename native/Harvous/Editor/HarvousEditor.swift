@@ -123,10 +123,14 @@ private func mergedParagraphStyleWithCanonicalLineMetrics(_ saved: NSParagraphSt
 }
 
 /// Study highlights finalize on `mouseUp` (or a narrow salvage path) so click-drag selections that start on an
-/// underline do not open the dock mid-gesture. **Scripture pills fire on `mouseDown`** (after `super`): deferring
-/// pills to `mouseUp` broke single clicks when the editor lives in a SwiftUI `ScrollView` — the first `mouseUp`
-/// often never reaches this `NSTextView`, so highlights also register a delayed check + `mouseMoved` release
-/// detection to recover the open action when `mouseUp` is swallowed.
+/// underline do not open the dock mid-gesture. **`mouseUp`** can return before NSTextView applies the caret
+/// selection for the tracking session; when the first finalize pass fails the selection veto, one main-queue
+/// retry runs before clearing the pending gesture.
+///
+/// Scripture pills fire on **`mouseDown`** (after `super`): deferring pills to `mouseUp` broke single clicks
+/// when the editor lives in a SwiftUI `ScrollView` — the first `mouseUp` often never reaches this `NSTextView`,
+/// so highlights also register a delayed check + `mouseMoved` release detection to recover the open action when
+/// `mouseUp` is swallowed.
 private final class HarvousNoteTextView: NSTextView {
     /// UTF-16 attachment range in storage.
     var pillTapHandler: ((String, String, NSRange) -> Void)?
@@ -155,6 +159,80 @@ private final class HarvousNoteTextView: NSTextView {
     private var pillHoverTracking: NSTrackingArea?
     /// Avoids spawning duplicate prefetch tasks on every mouse-moved pixel over a pill.
     private var lastScriptureHoverPrefetchKey: String?
+    /// UTF-16 range of the pill showing pointer-hover label emphasis (macOS).
+    private var scripturePillHoverRange: NSRange?
+
+    private func scripturePillHoverRangesEqual(_ a: NSRange?, _ b: NSRange?) -> Bool {
+        switch (a, b) {
+        case (nil, nil): return true
+        case (nil, _), (_, nil): return false
+        case let (x?, y?): return NSEqualRanges(x, y)
+        }
+    }
+
+    /// Attachment glyph range under the pointer (rect hit-test first, then caret-adjacent fallback).
+    private func scripturePillAttachmentRangeContainingPointer(_ viewPoint: NSPoint, storage: NSTextStorage) -> NSRange? {
+        if let (_, r) = scripturePillAtPoint(viewPoint, in: storage) { return r }
+        let charIdx = characterIndex(for: viewPoint)
+        guard charIdx != NSNotFound,
+              let (_, r) = scripturePillNearCharacterIndexWithRange(charIdx, in: storage) else {
+            return nil
+        }
+        return r
+    }
+
+    private func invalidateScripturePillGlyphDisplay(characterRange range: NSRange) {
+        guard let lm = layoutManager else { return }
+        let glyphRange = lm.glyphRange(forCharacterRange: range, actualCharacterRange: nil)
+        lm.invalidateDisplay(forGlyphRange: glyphRange)
+    }
+
+    private func clearScripturePillPointerHoverVisual() {
+        guard let storage = textStorage else {
+            scripturePillHoverRange = nil
+            return
+        }
+        if let old = scripturePillHoverRange, old.length > 0, old.location < storage.length {
+            var eff = NSRange()
+            if let pill = storage.attribute(.attachment, at: old.location, effectiveRange: &eff) as? ScripturePillAttachment {
+                pill.setPointerHovered(false)
+                invalidateScripturePillGlyphDisplay(characterRange: eff)
+            }
+        }
+        scripturePillHoverRange = nil
+    }
+
+    /// Call after pill storage is rebuilt so we never retain a stale UTF-16 range.
+    func resetScripturePillPointerHoverAfterDocumentMutation() {
+        scripturePillHoverRange = nil
+    }
+
+    private func syncScripturePillPointerHover(at viewPoint: NSPoint) {
+        guard let storage = textStorage, storage.length > 0 else {
+            clearScripturePillPointerHoverVisual()
+            return
+        }
+        let newRange = scripturePillAttachmentRangeContainingPointer(viewPoint, storage: storage)
+        if scripturePillHoverRangesEqual(scripturePillHoverRange, newRange) { return }
+
+        if let old = scripturePillHoverRange, old.length > 0, old.location < storage.length {
+            var eff = NSRange()
+            if let pill = storage.attribute(.attachment, at: old.location, effectiveRange: &eff) as? ScripturePillAttachment {
+                pill.setPointerHovered(false)
+                invalidateScripturePillGlyphDisplay(characterRange: eff)
+            }
+        }
+
+        scripturePillHoverRange = newRange
+
+        if let nr = newRange, nr.length > 0, nr.location < storage.length {
+            var eff = NSRange()
+            if let pill = storage.attribute(.attachment, at: nr.location, effectiveRange: &eff) as? ScripturePillAttachment {
+                pill.setPointerHovered(true)
+                invalidateScripturePillGlyphDisplay(characterRange: eff)
+            }
+        }
+    }
 
     /// Matches `EditorProxy` list marker font (body size) so toolbar list detection stays consistent.
     private static func noteListMarkerPrefixAttributes() -> [NSAttributedString.Key: Any] {
@@ -514,8 +592,16 @@ private final class HarvousNoteTextView: NSTextView {
         }
     }
 
+    private enum StudyHighlightFinalizeAttempt {
+        /// Standard `-mouseUp` / salvage timing (selection often not committed until end of tracking).
+        case immediate
+        /// One main-queue retry — NSTextView can apply the click’s caret/selection *after* `-mouseUp` returns.
+        case deferredRetry
+    }
+
     @discardableResult
-    private func finalizePendingStudyHighlightClickIfEligible() -> Bool {
+    private func finalizePendingStudyHighlightClickIfEligible(attempt: StudyHighlightFinalizeAttempt = .immediate)
+        -> Bool {
         guard let uuid = pendingStudyHighlightActivation else { return false }
         if primaryMouseGestureExceededDragThreshold {
             studyHighlightClickSalvageWorkItem?.cancel()
@@ -524,10 +610,19 @@ private final class HarvousNoteTextView: NSTextView {
             return false
         }
         guard selectionQualifiesForStudyHighlightActivation(pendingUUID: uuid) else {
-            studyHighlightClickSalvageWorkItem?.cancel()
-            pendingStudyHighlightActivation = nil
-            primaryMouseGestureExceededDragThreshold = false
-            return false
+            switch attempt {
+            case .immediate:
+                DispatchQueue.main.async { [weak self] in
+                    guard let self, self.pendingStudyHighlightActivation == uuid else { return }
+                    _ = self.finalizePendingStudyHighlightClickIfEligible(attempt: .deferredRetry)
+                }
+                return false
+            case .deferredRetry:
+                studyHighlightClickSalvageWorkItem?.cancel()
+                pendingStudyHighlightActivation = nil
+                primaryMouseGestureExceededDragThreshold = false
+                return false
+            }
         }
         studyHighlightClickSalvageWorkItem?.cancel()
         pendingStudyHighlightActivation = nil
@@ -693,6 +788,8 @@ private final class HarvousNoteTextView: NSTextView {
     override func cursorUpdate(with event: NSEvent) {
         super.cursorUpdate(with: event)
         applyPillCursorAfterSuper(for: event)
+        let point = convert(event.locationInWindow, from: nil)
+        syncScripturePillPointerHover(at: point)
     }
 
     override func mouseMoved(with event: NSEvent) {
@@ -700,12 +797,14 @@ private final class HarvousNoteTextView: NSTextView {
         applyPillCursorAfterSuper(for: event)
         let point = convert(event.locationInWindow, from: nil)
         prefetchPassageHoverIfNeeded(viewPoint: point)
+        syncScripturePillPointerHover(at: point)
         if pendingStudyHighlightActivation != nil {
             trySalvagePendingStudyHighlightClickAfterLostMouseUp()
         }
     }
 
     override func mouseExited(with event: NSEvent) {
+        clearScripturePillPointerHoverVisual()
         super.mouseExited(with: event)
         lastScriptureHoverPrefetchKey = nil
     }
@@ -713,6 +812,8 @@ private final class HarvousNoteTextView: NSTextView {
     override func scrollWheel(with event: NSEvent) {
         super.scrollWheel(with: event)
         applyPillCursorAfterSuper(for: event)
+        let point = convert(event.locationInWindow, from: nil)
+        syncScripturePillPointerHover(at: point)
     }
 
     override func updateTrackingAreas() {
@@ -1763,6 +1864,7 @@ struct HarvousEditor: NSViewRepresentable {
             _ = text
 
             guard let storage = textView.textStorage else { return }
+            (textView as? HarvousNoteTextView)?.resetScripturePillPointerHoverAfterDocumentMutation()
             var translationQueue = scripturePillRefTransPairs(in: storage)
             // Batch removal into one layout pass: beginEditing/endEditing coalesces N replaceCharacters
             // notifications into a single layout-manager update instead of N separate invalidations.
@@ -2358,8 +2460,8 @@ struct HarvousEditor: UIViewRepresentable {
                 #if DEBUG
                 print("[Harvous.highlight.tap.ios] RECT uuid=\(uuid) onStudyHighlightTap_set=\(onStudyHighlightTap != nil)")
                 #endif
-                tv.resignFirstResponder()
                 onStudyHighlightTap?(uuid)
+                tv.resignFirstResponder()
                 return
             }
 
@@ -2374,8 +2476,8 @@ struct HarvousEditor: UIViewRepresentable {
                 #if DEBUG
                 print("[Harvous.highlight.tap.ios] MATCH uuid=\(uuid) onStudyHighlightTap_set=\(onStudyHighlightTap != nil)")
                 #endif
-                tv.resignFirstResponder()
                 onStudyHighlightTap?(uuid)
+                tv.resignFirstResponder()
                 return
             }
 
