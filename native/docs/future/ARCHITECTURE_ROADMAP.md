@@ -8,6 +8,8 @@ This document covers deferred Tier 2–5 work. Everything here is post-v1-stabil
 
 **Goal:** Replace the current local-only SwiftData store with Supabase as the sync backend.
 
+See **[NATIVE_WEB_DATA_MODEL_GAP.md](./NATIVE_WEB_DATA_MODEL_GAP.md)** for web vs native schema decisions (threads, body format, ids) that must be resolved before implementing sync or one-way import.
+
 ### Approach
 
 - **Local-first.** SwiftData remains the source of truth on device; Supabase is the sync layer, not a remote primary.
