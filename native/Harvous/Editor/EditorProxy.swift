@@ -115,10 +115,6 @@ final class EditorProxy: ObservableObject {
     /// `NSScrollView.intrinsicContentSize` + `ensureLayout` during parent layout (nested `ScrollView` recursion).
     @Published var macBodyLayoutHeight: CGFloat = 400
 
-    /// Study highlight UUID under the pointer (debounced on hover-in); cleared immediately on hover-out / note switch.
-    @Published var hoveredStudyHighlightUUID: UUID? = nil
-    private var studyHighlightHoverDebounceTask: Task<Void, Never>?
-
     private var noteHeightCache: [UUID: CGFloat] = [:]
     private var currentNoteID: UUID?
 
@@ -140,21 +136,7 @@ final class EditorProxy: ObservableObject {
         macBodyLayoutHeight = clamped
     }
 
-    func setStudyHighlightHoverDebounced(_ uuid: UUID?) {
-        studyHighlightHoverDebounceTask?.cancel()
-        if uuid == nil {
-            hoveredStudyHighlightUUID = nil
-            return
-        }
-        let captured = uuid
-        studyHighlightHoverDebounceTask = Task { @MainActor in
-            try? await Task.sleep(for: .milliseconds(50))
-            guard !Task.isCancelled else { return }
-            hoveredStudyHighlightUUID = captured
-        }
-    }
     #endif
-
     var shouldShowNoteToolbar: Bool {
         let base =
             isBodyFirstResponder
@@ -183,11 +165,6 @@ final class EditorProxy: ObservableObject {
         scripturePillDeletionPrompt = nil
         scripturePillDeletionConfirmHandler = nil
         cancelFormatBarHideAction?()
-#if os(macOS)
-        studyHighlightHoverDebounceTask?.cancel()
-        studyHighlightHoverDebounceTask = nil
-        hoveredStudyHighlightUUID = nil
-#endif
     }
 
     /// `NSTextView.textStorage` is optional on macOS; `UITextView` always exposes storage.

@@ -131,8 +131,6 @@ private final class HarvousNoteTextView: NSTextView {
     /// UTF-16 attachment range in storage.
     var pillTapHandler: ((String, String, NSRange) -> Void)?
 
-    /// Report `UUID` for study highlight hover (canonical debounce happens in `EditorProxy`).
-    var onStudyHighlightHoverUUID: ((UUID?) -> Void)?
     /// Single-click on highlighted prose opens the anchored thread target (pill hits take precedence).
     var onStudyHighlightClick: ((UUID) -> Void)?
 
@@ -538,14 +536,6 @@ private final class HarvousNoteTextView: NSTextView {
         return true
     }
 
-    /// Highlight hover: suppress when the pointer is over (or near) a scripture pill so previews don’t
-    /// fight the pill chrome.
-    private func studyHighlightUUID(atViewPoint point: NSPoint) -> UUID? {
-        guard let storage = textStorage, storage.length > 0 else { return nil }
-        if isPointOverScripturePill(point) { return nil }
-        return studyHighlightUUIDFromPaints(atViewPoint: point)
-    }
-
     override func mouseDown(with event: NSEvent) {
         studyHighlightClickSalvageWorkItem?.cancel()
         studyHighlightClickSalvageWorkItem = nil
@@ -709,7 +699,6 @@ private final class HarvousNoteTextView: NSTextView {
         super.mouseMoved(with: event)
         applyPillCursorAfterSuper(for: event)
         let point = convert(event.locationInWindow, from: nil)
-        onStudyHighlightHoverUUID?(studyHighlightUUID(atViewPoint: point))
         prefetchPassageHoverIfNeeded(viewPoint: point)
         if pendingStudyHighlightActivation != nil {
             trySalvagePendingStudyHighlightClickAfterLostMouseUp()
@@ -718,7 +707,6 @@ private final class HarvousNoteTextView: NSTextView {
 
     override func mouseExited(with event: NSEvent) {
         super.mouseExited(with: event)
-        onStudyHighlightHoverUUID?(nil)
         lastScriptureHoverPrefetchKey = nil
     }
 
@@ -983,7 +971,7 @@ struct HarvousEditor: NSViewRepresentable {
         let textView = HarvousNoteTextView(frame: .zero, textContainer: container)
         scrollView.documentView = textView
         textView.pillTapHandler = onScripturePillTap
-        wireStudyHighlightInteractions(textView: textView, proxy: proxy)
+        wireStudyHighlightInteractions(textView: textView)
         scrollView.drawsBackground = false
         // `NoteEditorView` wraps this in a SwiftUI `ScrollView`; nested AppKit scrollers steal clicks/coordinates.
         scrollView.hasVerticalScroller = false
@@ -1073,7 +1061,7 @@ struct HarvousEditor: NSViewRepresentable {
         context.coordinator.onRemoveStudyHighlightThreadIds = onRemoveStudyHighlightThreadIds
 
         textView.pillTapHandler = onScripturePillTap
-        wireStudyHighlightInteractions(textView: textView, proxy: proxy)
+        wireStudyHighlightInteractions(textView: textView)
         context.coordinator.proxy = proxy
         context.coordinator.wireFormatBarToProxy(proxy)
         let coordinatorRef = context.coordinator
@@ -1172,14 +1160,9 @@ struct HarvousEditor: NSViewRepresentable {
     }
 
     @MainActor
-    private func wireStudyHighlightInteractions(textView: HarvousNoteTextView, proxy: EditorProxy?) {
+    private func wireStudyHighlightInteractions(textView: HarvousNoteTextView) {
         let clickHandler = onStudyHighlightClick
         textView.studyHighlightPaints = studyHighlightPaints
-        textView.onStudyHighlightHoverUUID = { uuid in
-            Task { @MainActor in
-                proxy?.setStudyHighlightHoverDebounced(uuid)
-            }
-        }
         textView.onStudyHighlightClick = { uuid in
             clickHandler?(uuid)
         }

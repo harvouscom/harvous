@@ -94,6 +94,10 @@ enum BibleStudyTagSuggester {
 
     private static let maxAutoSecondaries = 5
     private static let secondaryMinPrimaryScore: Double = 0.78
+    /// Weak `character` / `place` mentions need a stronger folder score than themes to become secondary folders (tags stay broader).
+    private static let secondaryCharacterPlaceMinScore: Double = 0.88
+    /// When two folder scores are within this band, prefer title presence and category rank (reduces noisy primary flips).
+    private static let primaryScoreAmbiguityEpsilon: Double = 0.04
 
     private static func refreshAutoSecondaries(note: Note, analysis: Analysis, existingFolders: [String]) {
         guard let primaryTrimmed = normalizedFolderName(note.primaryFolder) else {
@@ -125,7 +129,7 @@ enum BibleStudyTagSuggester {
             guard let label = normalizedFolderName(resolved) else { continue }
             if label.caseInsensitiveCompare(primaryLabel) == .orderedSame { continue }
             if out.contains(where: { $0.caseInsensitiveCompare(label) == .orderedSame }) { continue }
-            if primaryScore(s) < secondaryMinPrimaryScore { continue }
+            if !isEligibleSecondaryFolder(s) { continue }
             out.append(label)
         }
         return out
@@ -215,12 +219,13 @@ enum BibleStudyTagSuggester {
         let top = Array(picked.prefix(12))
         let tags = top.map(\.name)
 
-        let primary = top.max(by: { a, b in
-            let aScore = primaryScore(a)
-            let bScore = primaryScore(b)
-            if abs(aScore - bScore) > 0.001 { return aScore < bScore }
-            return folderCategoryRank(a.category) > folderCategoryRank(b.category)
-        })?.name
+        let primary: String?
+        if let first = picked.first {
+            let best = picked.dropFirst().reduce(first, betterPrimaryCandidate)
+            primary = best.name
+        } else {
+            primary = nil
+        }
 
         return Analysis(picked: picked, tags: tags, primaryCandidate: primary)
     }
@@ -296,6 +301,37 @@ enum BibleStudyTagSuggester {
         guard let value else { return nil }
         let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.isEmpty ? nil : trimmed
+    }
+
+    /// Picks the stronger primary folder between two scored rows (`primaryScore`, then title, then category rank when scores are close).
+    private static func betterPrimaryCandidate(_ a: Scored, _ b: Scored) -> Scored {
+        let sa = primaryScore(a)
+        let sb = primaryScore(b)
+        if abs(sa - sb) > primaryScoreAmbiguityEpsilon {
+            return sa >= sb ? a : b
+        }
+        if a.inTitle != b.inTitle {
+            return a.inTitle ? a : b
+        }
+        let ra = folderCategoryRank(a.category)
+        let rb = folderCategoryRank(b.category)
+        if ra != rb {
+            return ra < rb ? a : b
+        }
+        return sa >= sb ? a : b
+    }
+
+    /// Tags may surface incidental people/places; secondary folders require stronger proof they organize the note.
+    private static func isEligibleSecondaryFolder(_ s: Scored) -> Bool {
+        let ps = primaryScore(s)
+        switch s.category {
+        case .character, .place:
+            let strongContext = s.inTitle || s.occurrences >= 3
+            let floor = strongContext ? secondaryMinPrimaryScore : secondaryCharacterPlaceMinScore
+            return ps >= floor
+        default:
+            return ps >= secondaryMinPrimaryScore
+        }
     }
 
     private static func primaryScore(_ s: Scored) -> Double {

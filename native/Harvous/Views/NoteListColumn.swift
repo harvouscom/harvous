@@ -1,5 +1,8 @@
 import SwiftUI
 import SwiftData
+#if os(iOS)
+import UIKit
+#endif
 
 enum NoteListColumnStyle {
     case macOSSidebar
@@ -518,6 +521,10 @@ struct NoteListColumn: View {
                 HarvousFAGlyph(assetName: "Harvous.Trash", edgePt: 14)
             }
         }
+#if os(iOS)
+        // Same as trailing `NavigationStack.tint(.harvousAccent)` washing out swipe chrome — force system destructive red.
+        .tint(Color(uiColor: .systemRed))
+#endif
     }
 
     /// Leading swipe — same persistence as `NoteShareMoreBar` pin in `NoteTopBar`.

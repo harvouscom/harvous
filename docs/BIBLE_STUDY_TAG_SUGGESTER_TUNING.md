@@ -73,12 +73,23 @@ Top 12 by confidence become `note.tags`.
 
 ## 7) Choose primary collection
 
-Primary is selected from top tags using `primaryScore(...)`, then tie-broken by `collectionRank(...)`.
+**Tags** stay the top 12 keyword names by confidence (`picked.prefix(12)`).
 
-This now encodes the desired rule:
+**Primary folder** is chosen from the **full** overlap-deduped `picked` list (not only those 12): fold all rows with `betterPrimaryCandidate`, which compares `primaryScore`. When two scores are within `primaryScoreAmbiguityEpsilon` (~0.04), the tie-break prefers **title presence** (`inTitle`), then **lower** `folderCategoryRank` (better category for a shelf label).
 
-- Theme categories usually win for casual mentions
-- Character/place can win when repeated enough to indicate central focus
+This encodes:
+
+- A topic that only surfaces as an auto **secondary** folder candidate can still become **primary** if its folder score beats everything else (fixes “first high-confidence tag always wins primary”).
+- Theme categories usually win for casual mentions; character/place win when the score is genuinely stronger (repetition/title), not merely because they appeared in the tag top 12.
+
+## 8) Secondary folders vs tags
+
+Auto **secondary folders** use the same keyword pool but **stricter gates** than tags:
+
+- Default minimum folder score: `secondaryMinPrimaryScore` (0.78).
+- **`character` and `place`**: require **title hit** or **≥ 3 occurrences**, otherwise they need **`secondaryCharacterPlaceMinScore`** (0.88). Incidental people/places can still appear in `note.tags` but should not auto-fill secondary folders.
+
+Web cards mirror this in `src/utils/bible-study-collection-web.ts` (primary over all deduped keywords; secondary eligibility for character/place uses title, rough occurrence count, and the same score floors).
 
 ## Categories and Their Role
 
@@ -91,7 +102,7 @@ Categories currently include:
 - `character`
 - `place`
 
-`collectionRank(...)` is only a tie-breaker (lower rank wins) after primary score comparison.
+`folderCategoryRank(...)` is used inside `betterPrimaryCandidate` when scores are within the epsilon band (and was previously the tie-break after `primaryScore` when primary was restricted to the tag top 12).
 
 ## Primary Collection Logic (Current Behavior)
 

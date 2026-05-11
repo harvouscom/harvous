@@ -1,5 +1,20 @@
 import SwiftData
 import SwiftUI
+#if os(iOS)
+import UIKit
+#endif
+
+/// Trailing inset for the note share + ⋯ cluster so the ellipsis isn’t flush to the bar edge (matches iOS ↔ macOS).
+private enum NoteShareMoreClusterChrome {
+    static var ellipsisTrailingInset: CGFloat {
+        #if os(iOS)
+        HarvousIOSMorphingChromeLayout.interChromeSpacing
+        #else
+        // Keep numerically in sync with `HarvousIOSMorphingChromeLayout.interChromeSpacing` (12).
+        12
+        #endif
+    }
+}
 
 /// Folder chip toolbar item — tapping opens a compact folder editor popover.
 struct NoteFolderChip: View {
@@ -22,7 +37,7 @@ struct NoteFolderChip: View {
         #if os(macOS)
         .system(size: 14, weight: .medium)
         #else
-        HarvousFonts.font(size: 18, weight: 500, design: .default)
+        HarvousFonts.font(size: 16, weight: 500, design: .default)
         #endif
     }
 
@@ -47,13 +62,11 @@ struct NoteFolderChip: View {
             HStack(spacing: 6) {
                 FolderSymbol(
                     isContextUpdating: isFolderContextUpdating,
-                    folderIconPt: {
-                        #if os(macOS)
-                        15
-                        #else
-                        16
-                        #endif
-                    }()
+                    folderIconPt: HarvousFAIconMetrics.catalogGlyphBoxPt
+                )
+                .frame(
+                    width: HarvousFAIconMetrics.catalogGlyphBoxPt,
+                    height: HarvousFAIconMetrics.catalogGlyphBoxPt
                 )
                 if let label = chipMainLabel {
                     HStack(spacing: 4) {
@@ -78,9 +91,7 @@ struct NoteFolderChip: View {
                     .animation(.easeOut(duration: 0.18), value: showFolderToolbarText)
                 }
             }
-            #if os(macOS)
             .padding(.horizontal, 8)
-            #endif
             .frame(minHeight: 24)
         }
         #if os(macOS)
@@ -93,7 +104,6 @@ struct NoteFolderChip: View {
         )
         #else
         .buttonStyle(.plain)
-        .padding(.horizontal, 4)
         #endif
         .accessibilityLabel(accessibilitySummary)
         .accessibilityHint(
@@ -114,10 +124,8 @@ struct NoteFolderChip: View {
 }
 
 /// Share button + ellipsis "more" menu (pin toggle, delete with confirmation).
-/// Apple Notes pattern: [share] [⋯ more].
-///
-/// macOS callers should prefer `MacNoteShareMoreToolbar` — same `ToolbarItemGroup` + `.bordered`
-/// pattern as the note-details + account cluster in `ContentView`.
+/// iOS note editor: **only** FA `⋯` — no SwiftUI-drawn capsule/glass (`UINavigationBar` supplies the orb; same layering model as substituted back glyph).
+/// macOS: `[share]` + `[⋯]` in the toolbar (`MacNoteShareMoreToolbar`).
 struct NoteShareMoreBar: View {
     @Bindable var note: Note
     @Environment(\.modelContext) private var modelContext
@@ -141,9 +149,15 @@ struct NoteShareMoreBar: View {
     }
 
     var body: some View {
-        HStack(spacing: 8) {
-            shareButton
+        Group {
+            #if os(iOS)
             moreMenu
+            #else
+            HStack(spacing: 8) {
+                shareButton
+                moreMenu
+            }
+            #endif
         }
         .confirmationDialog(
             "Delete this note? This cannot be undone.",
@@ -194,7 +208,7 @@ struct NoteShareMoreBar: View {
                     Label {
                         Text("Note details")
                     } icon: {
-                        HarvousFAGlyph(assetName: "Harvous.LayoutSidebarRight", edgePt: 14)
+                        HarvousFAGlyph(assetName: "Harvous.CircleInfo", edgePt: HarvousFAIconMetrics.menuRowLeadingGlyphPt)
                     }
                 }
 
@@ -214,7 +228,7 @@ struct NoteShareMoreBar: View {
                 } icon: {
                     HarvousFAGlyph(
                         assetName: note.isPinned ? "Harvous.ThumbtackSlash" : "Harvous.Thumbtack",
-                        edgePt: 14
+                        edgePt: HarvousFAIconMetrics.menuRowLeadingGlyphPt
                     )
                 }
             }
@@ -227,10 +241,20 @@ struct NoteShareMoreBar: View {
                 Label {
                     Text("Delete Note")
                 } icon: {
-                    HarvousFAGlyph(assetName: "Harvous.Trash", edgePt: 14)
+                    HarvousFAGlyph(assetName: "Harvous.Trash", edgePt: HarvousFAIconMetrics.menuRowLeadingGlyphPt)
                 }
             }
+#if os(iOS)
+            .tint(Color(uiColor: .systemRed))
+#else
+            .tint(Color.red)
+#endif
+
         } label: {
+            #if os(iOS)
+            HarvousFAGlyph(assetName: "Harvous.Ellipsis", edgePt: HarvousFAIconMetrics.catalogGlyphBoxPt)
+                .foregroundStyle(.primary)
+            #else
             HarvousFAGlyph(
                 assetName: "Harvous.Ellipsis",
                 edgePt: HarvousFAIconMetrics.catalogGlyphBoxPt
@@ -239,15 +263,22 @@ struct NoteShareMoreBar: View {
                 width: HarvousFAIconMetrics.catalogGlyphBoxPt,
                 height: HarvousFAIconMetrics.catalogGlyphBoxPt
             )
+            #endif
         }
-        #if os(macOS)
+#if os(iOS)
+        .menuIndicator(.hidden)
+        // `ContentView` uses `NavigationStack.tint(.harvousAccent)`; override so this control matches neutral bar glyphs (cf. SpaceSwitcher note).
+        .tint(.primary)
+#else
         .buttonStyle(.bordered)
         .controlSize(.regular)
-        #else
-        .buttonStyle(.bordered)
-        #endif
         .tint(Color.secondary)
+        .menuIndicator(.hidden)
+#endif
         .accessibilityLabel("More options")
+#if os(macOS)
+        .padding(.trailing, NoteShareMoreClusterChrome.ellipsisTrailingInset)
+#endif
     }
 }
 
@@ -306,7 +337,7 @@ struct MacNoteShareMoreToolbar: ToolbarContent {
                     } icon: {
                         HarvousFAGlyph(
                             assetName: note.isPinned ? "Harvous.ThumbtackSlash" : "Harvous.Thumbtack",
-                            edgePt: 14
+                            edgePt: HarvousFAIconMetrics.menuRowLeadingGlyphPt
                         )
                     }
                 }
@@ -319,9 +350,10 @@ struct MacNoteShareMoreToolbar: ToolbarContent {
                     Label {
                         Text("Delete Note")
                     } icon: {
-                        HarvousFAGlyph(assetName: "Harvous.Trash", edgePt: 14)
+                        HarvousFAGlyph(assetName: "Harvous.Trash", edgePt: HarvousFAIconMetrics.menuRowLeadingGlyphPt)
                     }
                 }
+                .tint(Color.red)
             } label: {
                 HarvousFAGlyph(
                     assetName: "Harvous.Ellipsis",
@@ -336,6 +368,7 @@ struct MacNoteShareMoreToolbar: ToolbarContent {
             .buttonStyle(.bordered)
             .controlSize(.regular)
             .accessibilityLabel("More options")
+            .padding(.trailing, NoteShareMoreClusterChrome.ellipsisTrailingInset)
             .confirmationDialog(
                 "Delete this note? This cannot be undone.",
                 isPresented: $confirmDelete,

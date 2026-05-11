@@ -10,8 +10,14 @@ import UIKit
 enum HarvousFAIconMetrics {
     /// Standard raster size: macOS note toolbar, sidebar mode trigger, iOS compose, and default `HarvousFAGlyph` `edgePt`.
     static let catalogGlyphBoxPt: CGFloat = 17
-    /// Sidebar mode **popover menu** rows only (Notes / Folders / Highlights / Scripture) — smaller than the trigger.
-    static let sidebarListModeMenuRowIconPt: CGFloat = 13
+    /// Leading icon in compact picker menus (sidebar mode strip, iOS hub list orb) — slightly smaller than `menuRowLeadingGlyphPt`.
+    static let compactMenuRowLeadingGlyphPt: CGFloat = 15
+    /// Leading catalog icon in standard SwiftUI `Menu` / `contextMenu` rows (~+2 pt vs typical body text for Mac-style balance).
+    static let menuRowLeadingGlyphPt: CGFloat = 16
+    /// Trailing selection checkmark in picker-style menu rows.
+    static let menuRowCheckGlyphPt: CGFloat = 14
+    /// macOS sidebar `NSSearchField` magnifier only — do **not** change when tuning menu icons.
+    static let sidebarSearchFieldMagnifierGlyphPt: CGFloat = 13
 }
 
 /// Catalog Harvous asset vectors as fixed-size toolbar glyphs.
@@ -105,7 +111,7 @@ extension HarvousFAGlyph {
 /// Harvous `Harvous.MagnifyingGlass` (FA-style catalog) on sidebar `.searchable` `NSSearchField` toolbar chrome.
 @MainActor
 enum HarvousMacSidebarSearchFieldGlyph {
-    private static let magnifyingGlassEdgePt: CGFloat = HarvousFAIconMetrics.sidebarListModeMenuRowIconPt
+    private static let magnifyingGlassEdgePt: CGFloat = HarvousFAIconMetrics.sidebarSearchFieldMagnifierGlyphPt
     /// Debounced patch — use `Task` instead of `DispatchWorkItem { @MainActor in … }` to avoid GCD block copy
     /// crashes (`EXC_BAD_ACCESS` in `_Block_copy`) seen with MainActor-isolated captures on some OS/SDK combos.
     private static var pendingPatchTask: Task<Void, Never>?
@@ -196,6 +202,14 @@ private enum HarvousFARasterIOS {
         }.withRenderingMode(.alwaysTemplate)
         cache.setObject(img, forKey: key)
         return img
+    }
+}
+
+extension HarvousFAGlyph {
+    /// Rasterized catalog template for UIKit navigation chrome (e.g. `UINavigationBarAppearance` back indicator).
+    @MainActor
+    static func rasterTemplateUIImage(named assetName: String, edgePt: CGFloat = HarvousFAIconMetrics.catalogGlyphBoxPt) -> UIImage? {
+        HarvousFARasterIOS.templateImage(named: assetName, edgePt: edgePt)
     }
 }
 #endif

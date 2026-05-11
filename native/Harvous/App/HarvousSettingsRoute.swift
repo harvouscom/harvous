@@ -97,6 +97,23 @@ enum HarvousSettingsSidebarItem: String, CaseIterable, Hashable, Identifiable {
         }
     }
 
+    /// `Assets.xcassets` `Harvous.*` name for iOS settings lists (You → Settings). macOS preferences still use `systemImage`.
+    var settingsListFAAssetName: String {
+        switch self {
+        case .editProfile: return "Harvous.UserFilled"
+        case .emailPassword: return "Harvous.Envelope"
+        case .subscription: return "Harvous.CreditCard"
+        case .defaultBible: return "Harvous.BookFilled"
+        case .myChurch: return "Harvous.Church"
+        case .lockPin: return "Harvous.Lock"
+        case .referral: return "Harvous.Users"
+        case .myData: return "Harvous.HardDrive"
+        case .support: return "Harvous.CircleQuestion"
+        case .aboutFounder: return "Harvous.Heart"
+        case .keyboardShortcuts: return "Harvous.Keyboard"
+        }
+    }
+
     var footnote: String {
         switch self {
         case .editProfile:

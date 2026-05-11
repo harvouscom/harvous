@@ -71,6 +71,11 @@ struct ScriptureHubView: View {
             && votdPassageCardDismissedDay != VotdService.todayCalendarDayKey()
     }
 
+    /// Match scripture book rows (leading/trailing 14). Larger insets shrunk the passage card vs Notes/Highlights.
+    private enum IOSScriptureHubListLayout {
+        static let dailyPassageRowInsets = EdgeInsets(top: 8, leading: 14, bottom: 4, trailing: 14)
+    }
+
     private var navigationTitleText: String {
         switch scriptureDrill {
         case .root:
@@ -154,7 +159,7 @@ struct ScriptureHubView: View {
                 }
                 .buttonStyle(.plain)
                 .tint(.primary)
-                .accessibilityLabel("More")
+                .accessibilityLabel("Account, profile, and settings")
             }
         }
         .onChange(of: appRouter.iosListSurface) { _, newSurface in
@@ -240,7 +245,7 @@ struct ScriptureHubView: View {
                 DailyPassageCard { note in
                     iosNoteNavigationPath.append(note.id)
                 }
-                .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 4, trailing: 16))
+                .listRowInsets(IOSScriptureHubListLayout.dailyPassageRowInsets)
                 .listRowBackground(Color.clear)
                 .listRowSeparator(.hidden)
                 .swipeActions(edge: .trailing, allowsFullSwipe: true) {

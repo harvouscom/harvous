@@ -31,7 +31,7 @@ struct HomeHubView: View {
                 }
                 .buttonStyle(.plain)
                 .tint(.primary)
-                .accessibilityLabel("More")
+                .accessibilityLabel("Account, profile, and settings")
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: HarvousAppRouter.requestComposeNewNotification)) { _ in

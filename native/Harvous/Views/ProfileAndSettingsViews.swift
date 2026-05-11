@@ -32,6 +32,25 @@ private extension View {
     }
 }
 
+#if os(iOS)
+/// List / form row with Harvous catalog icon (replaces `Label` + SF Symbol in the You sheet).
+private struct HarvousIOSSettingsGlyphRow: View {
+    let title: String
+    let assetName: String
+    var iconEdgePt: CGFloat = HarvousFAIconMetrics.catalogGlyphBoxPt
+
+    var body: some View {
+        HStack(spacing: 12) {
+            HarvousFAGlyph(assetName: assetName, edgePt: iconEdgePt)
+                .foregroundStyle(Color.primary)
+                .frame(width: 28, alignment: .center)
+            Text(title)
+                .foregroundStyle(Color.primary)
+        }
+    }
+}
+#endif
+
 // MARK: - Populated settings (shared iOS + macOS)
 
 // MARK: - Detail router
@@ -116,10 +135,18 @@ private struct SettingsEmailPasswordView: View {
             }
             Section("Manage on the web") {
                 Link(destination: URL(string: "https://app.harvous.com/sign-in")!) {
+                    #if os(iOS)
+                    HarvousIOSSettingsGlyphRow(title: "Open Harvous sign-in", assetName: "Harvous.Globe")
+                    #else
                     Label("Open Harvous sign-in", systemImage: "safari")
+                    #endif
                 }
                 Link(destination: URL(string: "https://app.harvous.com/profile")!) {
+                    #if os(iOS)
+                    HarvousIOSSettingsGlyphRow(title: "Open profile on the web", assetName: "Harvous.UserFilled")
+                    #else
                     Label("Open profile on the web", systemImage: "person.crop.circle")
+                    #endif
                 }
             }
         }
@@ -139,7 +166,11 @@ private struct SettingsSubscriptionView: View {
             }
             Section {
                 Link(destination: URL(string: "https://app.harvous.com/profile")!) {
+                    #if os(iOS)
+                    HarvousIOSSettingsGlyphRow(title: "Manage subscription on the web", assetName: "Harvous.CreditCard")
+                    #else
                     Label("Manage subscription on the web", systemImage: "creditcard")
+                    #endif
                 }
             }
         }
@@ -155,23 +186,16 @@ private struct SettingsDefaultBibleView: View {
     var body: some View {
         Form {
             Section {
-                Text("Used for scripture pills, featured content, and defaults when you study on the web. Matches `UserMetadata.defaultTranslation`.")
-                    .font(HarvousTypography.subheadline)
-                    .foregroundStyle(.secondary)
-            }
-            Section("Translation") {
-                Picker("Preferred translation", selection: $translationId) {
+                Picker(selection: $translationId) {
                     ForEach(HarvousTranslationChoice.ordered) { row in
                         Text("\(row.name) (\(row.id))").tag(row.id)
                     }
+                } label: {
+                    EmptyView()
                 }
                 .pickerStyle(.inline)
-            }
-            Section {
-                Text("Stored locally until the native app connects to your Harvous API. On the web, changes save immediately from My Preferences.")
-                    .font(HarvousTypography.footnote)
-                    .foregroundStyle(.secondary)
-            }
+                .labelsHidden()
+                .accessibilityLabel("Default Bible translation")            }
         }
         .harvousGroupedSettingsForm()
     }
@@ -241,7 +265,11 @@ private struct SettingsReferralView: View {
             }
             Section {
                 Link(destination: URL(string: "https://app.harvous.com/profile")!) {
+                    #if os(iOS)
+                    HarvousIOSSettingsGlyphRow(title: "Open Refer My Friends on the web", assetName: "Harvous.Users")
+                    #else
                     Label("Open Refer My Friends on the web", systemImage: "person.2.badge.gearshape")
+                    #endif
                 }
             }
         }
@@ -387,7 +415,14 @@ private struct SettingsMyDataView: View {
 
                 Section("On the web") {
                     Link(destination: URL(string: "https://app.harvous.com/profile")!) {
+                        #if os(iOS)
+                        HarvousIOSSettingsGlyphRow(
+                            title: "My Data (export / import / delete)",
+                            assetName: "Harvous.HardDrive"
+                        )
+                        #else
                         Label("My Data (export / import / delete)", systemImage: "externaldrive")
+                        #endif
                     }
                 }
             }
@@ -481,10 +516,18 @@ private struct SettingsSupportView: View {
             }
             Section("Help") {
                 Link(destination: URL(string: "https://app.harvous.com")!) {
+                    #if os(iOS)
+                    HarvousIOSSettingsGlyphRow(title: "Harvous website", assetName: "Harvous.Globe")
+                    #else
                     Label("Harvous website", systemImage: "safari")
+                    #endif
                 }
                 Link(destination: URL(string: "mailto:support@harvous.com")!) {
+                    #if os(iOS)
+                    HarvousIOSSettingsGlyphRow(title: "Email support", assetName: "Harvous.Envelope")
+                    #else
                     Label("Email support", systemImage: "envelope")
+                    #endif
                 }
             }
         }
@@ -507,7 +550,11 @@ private struct SettingsAboutFounderView: View {
             }
             Section {
                 Link(destination: URL(string: "https://app.harvous.com/profile")!) {
+                    #if os(iOS)
+                    HarvousIOSSettingsGlyphRow(title: "Read the full letter on the web", assetName: "Harvous.Heart")
+                    #else
                     Label("Read the full letter on the web", systemImage: "heart.text.square")
+                    #endif
                 }
             }
         }
@@ -639,8 +686,27 @@ private struct SettingsKeyboardShortcutsView: View {
 // MARK: - iOS: You tab + grouped settings
 
 #if os(iOS)
+private func harvousYouSheetProfileInitials(firstName: String, lastName: String) -> String {
+    let f = firstName.trimmingCharacters(in: .whitespacesAndNewlines)
+    let l = lastName.trimmingCharacters(in: .whitespacesAndNewlines)
+    let loc = Locale.current
+    if f.isEmpty && l.isEmpty { return "HV" }
+    let fi = f.first.map { String($0).uppercased(with: loc) } ?? ""
+    let li = l.first.map { String($0).uppercased(with: loc) } ?? ""
+    if !fi.isEmpty && !li.isEmpty {
+        return fi + li
+    }
+    let single = f.isEmpty ? l : f
+    return String(single.prefix(2)).uppercased(with: loc)
+}
+
 struct YouRootView: View {
-    @EnvironmentObject private var appRouter: HarvousAppRouter
+    @AppStorage(HarvousSettingsStorageKeys.firstName) private var firstName = ""
+    @AppStorage(HarvousSettingsStorageKeys.lastName) private var lastName = ""
+
+    private var profileInitials: String {
+        harvousYouSheetProfileInitials(firstName: firstName, lastName: lastName)
+    }
 
     var body: some View {
         List {
@@ -649,10 +715,12 @@ struct YouRootView: View {
                     HStack(spacing: 14) {
                         ZStack {
                             Circle()
-                                .fill(Color.harvousAccent.opacity(0.2))
-                            Text("HV")
+                                .fill(.thinMaterial)
+                            Text(profileInitials)
                                 .font(.system(size: 20, weight: .semibold, design: .rounded))
-                                .foregroundStyle(Color.harvousAccent)
+                                .foregroundStyle(.primary)
+                                .minimumScaleFactor(0.5)
+                                .lineLimit(1)
                         }
                         .frame(width: 56, height: 56)
                         VStack(alignment: .leading, spacing: 4) {
@@ -668,42 +736,13 @@ struct YouRootView: View {
                 .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
             }
 
-            Section("Go to") {
-                Button {
-                    appRouter.selectIOSListSurface(.notes)
-                } label: {
-                    Label("Notes", systemImage: "note.text")
-                }
-                Button {
-                    appRouter.selectIOSListSurface(.notes)
-                    appRouter.iosNotesFilterSearchPresented = true
-                } label: {
-                    Label("Search", systemImage: "magnifyingglass")
-                }
-                Button {
-                    appRouter.selectIOSListSurface(.folders)
-                } label: {
-                    Label("Folders", systemImage: "rectangle.stack")
-                }
-                Button {
-                    appRouter.selectIOSListSurface(.highlights)
-                } label: {
-                    Label("Highlights", systemImage: "highlighter")
-                }
-                Button {
-                    appRouter.selectIOSListSurface(.scripture)
-                } label: {
-                    Label("Scripture", systemImage: "book.closed.fill")
-                }
-            }
-
             Section {
                 NavigationLink(value: HarvousYouNavigation.settingsList) {
-                    Label("Settings", systemImage: "gearshape")
+                    HarvousIOSSettingsGlyphRow(title: "Settings", assetName: "Harvous.Gear")
                 }
             }
         }
-        .navigationTitle("More")
+        .navigationTitle("Account")
         .navigationBarTitleDisplayMode(.inline)
     }
 }
@@ -721,7 +760,7 @@ struct IOSSettingsGroupedListView: View {
                 )
             ) { item in
                 NavigationLink(value: HarvousYouNavigation.settingsDetail(item)) {
-                    Label(item.title, systemImage: item.systemImage)
+                    HarvousIOSSettingsGlyphRow(title: item.title, assetName: item.settingsListFAAssetName)
                 }
             }
         }

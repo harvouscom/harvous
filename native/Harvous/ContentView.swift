@@ -496,7 +496,7 @@ private struct HarvousMacProfileToolbarMenu: View {
                 Label {
                     Text("Settings…")
                 } icon: {
-                    HarvousFAGlyph(assetName: "Harvous.Gear", edgePt: 14)
+                    HarvousFAGlyph(assetName: "Harvous.Gear", edgePt: HarvousFAIconMetrics.menuRowLeadingGlyphPt)
                 }
             }
 
@@ -507,7 +507,7 @@ private struct HarvousMacProfileToolbarMenu: View {
                 Label {
                     Text("Name…")
                 } icon: {
-                    HarvousFAGlyph(assetName: "Harvous.UserFilled", edgePt: 14)
+                    HarvousFAGlyph(assetName: "Harvous.UserFilled", edgePt: HarvousFAIconMetrics.menuRowLeadingGlyphPt)
                 }
             }
 
@@ -519,7 +519,7 @@ private struct HarvousMacProfileToolbarMenu: View {
                 Label {
                     Text("Manage account on the web…")
                 } icon: {
-                    HarvousFAGlyph(assetName: "Harvous.Globe", edgePt: 14)
+                    HarvousFAGlyph(assetName: "Harvous.Globe", edgePt: HarvousFAIconMetrics.menuRowLeadingGlyphPt)
                 }
             }
         } label: {
@@ -552,6 +552,7 @@ struct iOSRootView: View {
     @Environment(\.modelContext) private var modelContext
     @State private var iosNoteNavigationPath: [UUID] = []
     @State private var importSummaryPayload: HarvousVaultImportSummaryPayload?
+    @State private var iosKeyboardOccupiesBottom = false
 
     var body: some View {
         NavigationStack(path: $iosNoteNavigationPath) {
@@ -581,11 +582,21 @@ struct iOSRootView: View {
             }
         }
         .tint(.harvousAccent)
-        .safeAreaInset(edge: .bottom, spacing: 0) {
+        .safeAreaInset(edge: .bottom, spacing: HarvousIOSMorphingChromeLayout.interChromeSpacing) {
             MorphingChromeBar()
                 .environmentObject(appRouter)
-                // Sit slightly nearer the physical bottom; keeps touch targets usable on notched phones.
-                .padding(.bottom, -4)
+                // Keyboard: inset `spacing` does not gap chrome from keyboard—add explicit bottom inset above prediction strip / keys.
+                // Idle: tuck slightly toward home indicator for reachability on notched phones.
+                .padding(
+                    .bottom,
+                    iosKeyboardOccupiesBottom ? HarvousIOSMorphingChromeLayout.keyboardBreathingPadding : -4
+                )
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { _ in
+            iosKeyboardOccupiesBottom = true
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in
+            iosKeyboardOccupiesBottom = false
         }
         .sheet(isPresented: $appRouter.iosNotesFilterSearchPresented) {
             IOSNotesFilterSearchSheet()
@@ -782,11 +793,11 @@ struct HarvousIOSInlineBottomChromeRow: View {
                     Label {
                         Text("Notes")
                     } icon: {
-                        HarvousFAGlyph(assetName: "Harvous.Note", edgePt: HarvousFAIconMetrics.sidebarListModeMenuRowIconPt)
+                        HarvousFAGlyph(assetName: "Harvous.Note", edgePt: HarvousFAIconMetrics.compactMenuRowLeadingGlyphPt)
                     }
                     Spacer(minLength: 8)
                     if appRouter.iosListSurface == .notes {
-                        HarvousFAGlyph(assetName: "Harvous.Check", edgePt: 12)
+                        HarvousFAGlyph(assetName: "Harvous.Check", edgePt: HarvousFAIconMetrics.menuRowCheckGlyphPt)
                             .foregroundStyle(.secondary)
                     }
                 }
@@ -799,11 +810,11 @@ struct HarvousIOSInlineBottomChromeRow: View {
                     Label {
                         Text("Folders")
                     } icon: {
-                        HarvousFAGlyph(assetName: "Harvous.Folder", edgePt: HarvousFAIconMetrics.sidebarListModeMenuRowIconPt)
+                        HarvousFAGlyph(assetName: "Harvous.Folder", edgePt: HarvousFAIconMetrics.compactMenuRowLeadingGlyphPt)
                     }
                     Spacer(minLength: 8)
                     if appRouter.iosListSurface == .folders {
-                        HarvousFAGlyph(assetName: "Harvous.Check", edgePt: 12)
+                        HarvousFAGlyph(assetName: "Harvous.Check", edgePt: HarvousFAIconMetrics.menuRowCheckGlyphPt)
                             .foregroundStyle(.secondary)
                     }
                 }
@@ -816,11 +827,11 @@ struct HarvousIOSInlineBottomChromeRow: View {
                     Label {
                         Text("Scripture")
                     } icon: {
-                        HarvousFAGlyph(assetName: "Harvous.BookOpen", edgePt: HarvousFAIconMetrics.sidebarListModeMenuRowIconPt)
+                        HarvousFAGlyph(assetName: "Harvous.BookOpen", edgePt: HarvousFAIconMetrics.compactMenuRowLeadingGlyphPt)
                     }
                     Spacer(minLength: 8)
                     if appRouter.iosListSurface == .scripture {
-                        HarvousFAGlyph(assetName: "Harvous.Check", edgePt: 12)
+                        HarvousFAGlyph(assetName: "Harvous.Check", edgePt: HarvousFAIconMetrics.menuRowCheckGlyphPt)
                             .foregroundStyle(.secondary)
                     }
                 }
@@ -833,25 +844,32 @@ struct HarvousIOSInlineBottomChromeRow: View {
                     Label {
                         Text("Highlights")
                     } icon: {
-                        HarvousFAGlyph(assetName: "Harvous.Highlight", edgePt: HarvousFAIconMetrics.sidebarListModeMenuRowIconPt)
+                        HarvousFAGlyph(assetName: "Harvous.Highlight", edgePt: HarvousFAIconMetrics.compactMenuRowLeadingGlyphPt)
                     }
                     Spacer(minLength: 8)
                     if appRouter.iosListSurface == .highlights {
-                        HarvousFAGlyph(assetName: "Harvous.Check", edgePt: 12)
+                        HarvousFAGlyph(assetName: "Harvous.Check", edgePt: HarvousFAIconMetrics.menuRowCheckGlyphPt)
                             .foregroundStyle(.secondary)
                     }
                 }
             }
         } label: {
+            // Stable square bounds — outer `.padding` caused Menu’s dismiss animation to interpolate
+            // layout incorrectly (brief clipped “quadrant”). Center 44×44 orb in 52×52 like compose spacing.
             HarvousFAGlyph(assetName: appRouter.iosListSurface.catalogGlyphAssetName, edgePt: 20)
                 .foregroundStyle(Color.primary.opacity(0.85))
                 .frame(width: 44, height: 44)
                 .background { floatingChromeBackground(shape: Circle()) }
-                .contentTransition(.opacity)
-                .animation(.easeInOut(duration: 0.2), value: appRouter.iosListSurface)
+                .compositingGroup()
+                .frame(width: 52, height: 52)
+                .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .menuIndicator(.hidden)
+        .fixedSize(horizontal: true, vertical: true)
+        .layoutPriority(1)
+        .zIndex(2)
+        .animation(nil, value: appRouter.iosListSurface)
         .accessibilityLabel("List: \(appRouter.iosListSurface.listChromeMenuTitle)")
     }
 

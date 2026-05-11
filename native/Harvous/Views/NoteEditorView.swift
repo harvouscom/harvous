@@ -94,8 +94,6 @@ struct NoteEditorView: View {
     @State private var trailSnapshot = ThreadStore.TrailSnapshot(incoming: [], outgoing: [])
     /// Transient notice for inspector jump / tooling.
     @State private var studyHighlightPaints: [StudyHighlightPaint] = []
-    /// Hover-only highlight preview for the bottom dock (when nothing is pinned).
-    @State private var previewHighlightThreadId: UUID?
     /// Pinned dock thread (tap, compose confirm).
     @State private var dockPinnedHighlightThreadId: UUID?
     /// Expanded state for bottom highlight morph capsule.
@@ -134,7 +132,17 @@ struct NoteEditorView: View {
     @EnvironmentObject private var appRouter: HarvousAppRouter
     @State private var showInspectorIOS = false
     @StateObject private var proxy = EditorProxy()
-    #endif
+
+    /// True when scripture/highlight docks hide footer chrome — mirrors `MorphingChromeBar.collapsesMorphingChromeForStudyDock`.
+    private var iosCollapsesFooterChromeForStudyDock: Bool {
+        guard appRouter.iosActiveNoteEditorChromeProxy === proxy else { return false }
+        return appRouter.iosNoteFooterSupplement?.suppressesBottomMorphingChromeContent == true
+    }
+
+    private var iosStudyDockOverlayBottomInset: CGFloat {
+        HarvousIOSMorphingChromeLayout.studyDockOverlayBottomInset(footerChromeCollapsed: iosCollapsesFooterChromeForStudyDock)
+    }
+#endif
 
     // MARK: - Body
 
@@ -234,15 +242,11 @@ struct NoteEditorView: View {
             proxy.resetFormatBarStateForNewNote()
             scripturePillPrefetchTask?.cancel()
             scripturePillPrefetchTask = nil
-            previewHighlightThreadId = nil
             dockPinnedHighlightThreadId = nil
             activeHighlightDockExpanded = false
             activePillDock = nil
             activePillDockExpanded = false
             studyHighlightPaints = []
-#if os(macOS)
-            proxy.hoveredStudyHighlightUUID = nil
-#endif
             scripturePassageSheet = nil
             highlightDetailThreadId = nil
             dismissHighlightCapture()
@@ -309,15 +313,11 @@ struct NoteEditorView: View {
         noteEditorStateObservers
 #if os(macOS)
             .onChange(of: bodySelectionChangeToken) { _, _ in onBodySelectionHostChanged() }
-            .onChange(of: proxy.hoveredStudyHighlightUUID) { _, hovered in macUpdatePreviewForHoveredHighlight(hovered) }
 #else
             .onChange(of: bodySelectionChangeToken) { _, _ in onBodySelectionHostChanged() }
             .onChange(of: title) { _, _ in syncIOSNoteFooterSupplement() }
 #endif
             .onChange(of: activePillDock) { _, new in
-                if new != nil {
-                    previewHighlightThreadId = nil
-                }
                 refreshScripturePassageHighlights(item: new)
                 #if os(iOS)
                 syncIOSNoteFooterSupplement()
@@ -695,11 +695,25 @@ struct NoteEditorView: View {
     // MARK: - Empty state
 
     private var emptyDetail: some View {
-        ContentUnavailableView {
-            Label("No Note Selected", systemImage: "note.text")
-        } description: {
-            Text("Select a note from the list, or press ⌘N to compose a new one.")
+        VStack(spacing: 12) {
+            HarvousFAGlyph(assetName: "Harvous.Note", edgePt: 40)
+                .foregroundStyle(.quaternary)
+            Text("Pick a note to open")
+                .font(HarvousTypography.title)
+                .foregroundStyle(.secondary)
+            #if os(macOS)
+            Text("Choose a note in the sidebar, or press ⌘N to start writing.")
+                .font(HarvousTypography.body)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+            #else
+            Text("Choose a note in the list to open it.")
+                .font(HarvousTypography.body)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+            #endif
         }
+        .padding(.horizontal, 28)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
@@ -723,7 +737,7 @@ struct NoteEditorView: View {
         GeometryReader { outerGeo in
             let viewportCol = max(outerGeo.size.height, 1)
             #if os(iOS)
-            let dockViewportBudget = viewportCol - HarvousIOSMorphingChromeLayout.studyDockOverlayBottomInset
+            let dockViewportBudget = viewportCol - iosStudyDockOverlayBottomInset
             let dockExpandedContentMaxHeight = HarvousDockExpandedContentLayout.expandedScrollMaxHeight(
                 viewportHeight: max(dockViewportBudget, 1)
             )
@@ -781,7 +795,7 @@ struct NoteEditorView: View {
                             font: HarvousFonts.system(size: 16, weight: 400, design: .default),
                             scriptureTheme: scriptureTheme,
                             studyHighlightPaints: studyHighlightPaints,
-                            studyHighlightFocusedThreadId: studyHighlightBodyPaintFocusThreadId,
+                            studyHighlightFocusedThreadId: nil,
                             studyHighlightsAssumeDarkAppearance: colorScheme == .dark,
                             onScripturePillTap: { scripturePillTapped(reference: $0, translation: $1, range: $2) },
                             onResolvedScripturePillPairs: { scheduleScripturePassagePrefetch(pairs: $0) },
@@ -814,7 +828,7 @@ struct NoteEditorView: View {
                             onResolvedScripturePillPairs: { scheduleScripturePassagePrefetch(pairs: $0) },
                             onStudyHighlightTap: { userActivatedStudyHighlight(threadId: $0) },
                             studyHighlightPaints: studyHighlightPaints,
-                            studyHighlightFocusedThreadId: studyHighlightBodyPaintFocusThreadId,
+                            studyHighlightFocusedThreadId: nil,
                             studyHighlightsAssumeDarkAppearance: colorScheme == .dark,
                             pillAccentResolver: { [note] reference in
                                 guard let raw = note.scripturePillAccentRaw(forReference: reference) else { return nil }
@@ -839,10 +853,12 @@ struct NoteEditorView: View {
                     .frame(maxWidth: .infinity, minHeight: viewportH, alignment: .top)
                     #else
                     .frame(maxWidth: .infinity, alignment: .top)
+                    .padding(.bottom, HarvousIOSMorphingChromeLayout.noteEditorScrollContentBottomPadding)
                     #endif
                 }
                 #if os(iOS)
                 .scrollDismissesKeyboard(.interactively)
+                .contentMargins(.bottom, HarvousIOSMorphingChromeLayout.interChromeSpacing, for: .scrollContent)
                 #endif
             }
             .overlay(alignment: .bottom) {
@@ -852,7 +868,7 @@ struct NoteEditorView: View {
                 }
                 .environment(\.harvousDockExpandedContentMaxHeight, dockExpandedContentMaxHeight)
                 #if os(iOS)
-                .padding(.bottom, HarvousIOSMorphingChromeLayout.studyDockOverlayBottomInset)
+                .padding(.bottom, iosStudyDockOverlayBottomInset)
                 #endif
             }
             .frame(maxWidth: Self.editorScrollSurfaceMaxWidthPoints, maxHeight: .infinity)
@@ -904,7 +920,6 @@ struct NoteEditorView: View {
         .animation(HarvousAnimation.spring, value: proxy.activeScripturePill != nil)
         .animation(HarvousAnimation.spring, value: activePillDock != nil)
         .animation(HarvousAnimation.spring, value: dockPinnedHighlightThreadId != nil)
-        .animation(HarvousAnimation.spring, value: previewHighlightThreadId != nil)
         .inspector(isPresented: showInspector) {
             inspectorContent(note: note)
         }
@@ -942,7 +957,6 @@ struct NoteEditorView: View {
         .animation(HarvousAnimation.spring, value: proxy.activeScripturePill != nil)
         .animation(HarvousAnimation.spring, value: activePillDock != nil)
         .animation(HarvousAnimation.spring, value: dockPinnedHighlightThreadId != nil)
-        .animation(HarvousAnimation.spring, value: previewHighlightThreadId != nil)
         .toolbar {
             ToolbarItem(placement: .topBarLeading) {
                 NoteTopBar(
@@ -952,7 +966,7 @@ struct NoteEditorView: View {
                     scriptureTheme: scriptureTheme
                 )
             }
-            ToolbarItemGroup(placement: .topBarTrailing) {
+            ToolbarItem(placement: .topBarTrailing) {
                 NoteShareDeleteBar(
                     note: note,
                     scriptureTheme: scriptureTheme,
@@ -1105,6 +1119,7 @@ struct NoteEditorView: View {
             trailSnapshot: trailSnapshot,
             connectionsTitleLine: titleLine,
             suppressScripturePillActionBar: activePillDock != nil || dockPinnedHighlightThreadId != nil,
+            suppressesBottomMorphingChromeContent: activePillDock != nil || dockPinnedHighlightThreadId != nil,
             onRefreshConnections: { iosFooterRefreshConnectionsFromSupplement() },
             onOpenLinkedNote: { iosFooterOpenLinkedNoteFromSupplement($0) }
         )
@@ -1155,21 +1170,11 @@ struct NoteEditorView: View {
         return idx + 1
     }
 
-    /// Matches the scripture pill dock: while the highlight dock is **pinned**, body paint does not grayscale
-    /// non-active highlights. Hover-only preview still dims non-hovered spans (`previewHighlightThreadId`)
-    /// only when the scripture pill dock is not consuming the study surface.
-    private var studyHighlightBodyPaintFocusThreadId: UUID? {
-        if dockPinnedHighlightThreadId != nil { return nil }
-        if activePillDock != nil { return nil }
-        return previewHighlightThreadId
-    }
-
     @ViewBuilder
     private func activeStudyHighlightDock(note: Note) -> some View {
         let dockThreadId: UUID? = {
-            if let pinned = dockPinnedHighlightThreadId { return pinned }
             guard activePillDock == nil else { return nil }
-            return previewHighlightThreadId
+            return dockPinnedHighlightThreadId
         }()
         if let dockThreadId,
            let dockThread = ThreadStore.fetch(id: dockThreadId, modelContext: context),
@@ -1198,7 +1203,6 @@ struct NoteEditorView: View {
     private func dismissStudyHighlightDock() {
         dockPinnedHighlightThreadId = nil
         activeHighlightDockExpanded = false
-        previewHighlightThreadId = nil
         // Mirrors `dismissActiveScripturePillDock` — avoids the scripture capsule / orb fighting the old caret-adjacent pill.
         proxy.activeScripturePill = nil
         proxy.preferOrbChromeUntilNextFormatSignal = true
@@ -1223,16 +1227,12 @@ struct NoteEditorView: View {
         let unique = Array(Set(ids))
         guard !unique.isEmpty else { return }
         let pinnedBefore = dockPinnedHighlightThreadId
-        let previewBefore = previewHighlightThreadId
         autosave.cancel()
         persistEditorIntoNote(note)
         for id in unique {
             guard let t = ThreadStore.fetch(id: id, modelContext: context),
                   StudyThread.anchoredHighlightKinds.contains(t.entryKind) else { continue }
             removeHighlightThread(t, parent: note)
-        }
-        if let prv = previewBefore, unique.contains(prv) {
-            previewHighlightThreadId = nil
         }
         if let pinned = pinnedBefore, unique.contains(pinned) {
             dismissStudyHighlightDock()
@@ -1273,10 +1273,7 @@ struct NoteEditorView: View {
             #endif
             return
         }
-        // Pin the inline `ActiveHighlightDock` — this is the same view the hover-preview path uses
-        // successfully, so it sidesteps all of SwiftUI's sheet-presentation timing issues and is
-        // guaranteed to appear right below the editor regardless of UITextView first-responder state.
-        previewHighlightThreadId = nil
+        // Pin the inline `ActiveHighlightDock` — avoids SwiftUI sheet timing issues vs UITextView focus.
         dismissActiveScripturePillDock()
         dockPinnedHighlightThreadId = threadId
         activeHighlightDockExpanded = true
@@ -1315,7 +1312,6 @@ struct NoteEditorView: View {
             if highlightCaptureSession == nil {
                 dismissHighlightCapture()
             }
-            previewHighlightThreadId = nil
         }
         reconcilePinnedHighlightDockWithBodySelection()
     }
@@ -1338,26 +1334,6 @@ struct NoteEditorView: View {
 
         reconcileStudyHighlightsPainting(for: n)
     }
-
-#if os(macOS)
-
-    private func macUpdatePreviewForHoveredHighlight(_ hoveredId: UUID?) {
-        guard dockPinnedHighlightThreadId == nil else {
-            if hoveredId == nil {
-                previewHighlightThreadId = nil
-            }
-            return
-        }
-        guard activePillDock == nil else {
-            if hoveredId == nil {
-                previewHighlightThreadId = nil
-            }
-            return
-        }
-        previewHighlightThreadId = hoveredId
-    }
-
-#endif
 
 #if os(macOS)
     private func createConnectedNoteFromKeyboard() {
@@ -1386,7 +1362,7 @@ struct NoteEditorView: View {
         let paints = studyHighlightPaints
         guard !paints.isEmpty else { return }
         let body = editorState.plainText
-        let currentId = dockPinnedHighlightThreadId ?? previewHighlightThreadId
+        let currentId = dockPinnedHighlightThreadId
         if let currentId, let idx = paints.firstIndex(where: { $0.threadId == currentId }) {
             let next = paints[(idx + 1) % paints.count]
             activateHighlightPaint(next, note: n, expandedPlain: body)
@@ -1400,7 +1376,7 @@ struct NoteEditorView: View {
         let paints = studyHighlightPaints
         guard !paints.isEmpty else { return }
         let body = editorState.plainText
-        let currentId = dockPinnedHighlightThreadId ?? previewHighlightThreadId
+        let currentId = dockPinnedHighlightThreadId
         if let currentId, let idx = paints.firstIndex(where: { $0.threadId == currentId }) {
             let prev = paints[(idx - 1 + paints.count) % paints.count]
             activateHighlightPaint(prev, note: n, expandedPlain: body)
@@ -1415,7 +1391,7 @@ struct NoteEditorView: View {
     }
 
     private func toggleStudyHighlightDockExpandedFromKeyboard() {
-        guard dockPinnedHighlightThreadId != nil || previewHighlightThreadId != nil else { return }
+        guard dockPinnedHighlightThreadId != nil else { return }
         activeHighlightDockExpanded.toggle()
     }
 
@@ -1503,7 +1479,6 @@ struct NoteEditorView: View {
     private func scripturePillTapped(reference: String, translation: String, range: NSRange) {
         dockPinnedHighlightThreadId = nil
         activeHighlightDockExpanded = false
-        previewHighlightThreadId = nil
 
         activePillDock = ActiveScripturePillDockItem(
             reference: reference,
@@ -1520,7 +1495,6 @@ struct NoteEditorView: View {
     private func titleScripturePillTapped(note: Note, match: ScriptureDetector.Match) {
         dockPinnedHighlightThreadId = nil
         activeHighlightDockExpanded = false
-        previewHighlightThreadId = nil
         titleFocused = false
         DispatchQueue.main.async {
             self.proxy.clearActiveScripturePill()
@@ -1666,7 +1640,6 @@ struct NoteEditorView: View {
         // Keep the scripture dock open so the new underline appears in place.
         // Refresh the passage highlight list so the underline paints immediately.
         refreshScripturePassageHighlights(item: activePillDock)
-        previewHighlightThreadId = nil
         return thread
     }
 
@@ -1681,7 +1654,6 @@ struct NoteEditorView: View {
         dismissActiveScripturePillDock()
         dockPinnedHighlightThreadId = thread.id
         activeHighlightDockExpanded = true
-        previewHighlightThreadId = nil
         highlightDetailThreadId = nil
     }
 

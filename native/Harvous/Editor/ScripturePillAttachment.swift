@@ -10,10 +10,11 @@ import CoreImage
 // Shared constants so init and renderPill agree on the same values.
 private let kRefSize:  CGFloat = 15   // match body prose size
 private let kTransSize: CGFloat = 11  // translation badge — slightly smaller
-private let kHPad:  CGFloat = 7
-private let kVPad:  CGFloat = 2   // vertical inset for pill background; lower = shallower chip
+private let kHPad:  CGFloat = 9
+private let kVPad:  CGFloat = 6   // vertical inset for pill background; pairs with kHPad for even inset
 private let kGap:   CGFloat = 4
-private let kRadius: CGFloat = 7      // squircle-leaning radius for scripture pills
+/// Transparent width on each side of the raster so inline prose isn’t flush against the pill edges.
+private let kLineSideMargin: CGFloat = 3
 
 /// Keep aligned with `HarvousConnectionsCapsuleInnerShadow` in `NoteConnectionsBar.swift`.
 private enum ScripturePillInnerStrokeLikeConnectionsCapsule {
@@ -258,8 +259,8 @@ private func scripturePillApplyInnerEdgeWash(context: CGContext, bounds: CGRect)
 
     let path = CGPath(
         roundedRect: pr,
-        cornerWidth: kRadius,
-        cornerHeight: kRadius,
+        cornerWidth: HarvousRadius.scripturePill,
+        cornerHeight: HarvousRadius.scripturePill,
         transform: nil
     )
 
@@ -269,7 +270,7 @@ private func scripturePillApplyInnerEdgeWash(context: CGContext, bounds: CGRect)
     if let cgBlur = scripturePillRasterBlurredStrokeForCapsuleMatch(
         bounds: bounds,
         pillInset: strokeInset,
-        cornerRadius: kRadius,
+        cornerRadius: HarvousRadius.scripturePill,
         isDarkMode: isDarkMode,
         scale: scale
     ) {
@@ -359,20 +360,23 @@ final class ScripturePillAttachment: NSTextAttachment {
         let refSize   = refStr.size()
         let transSize = transStr.size()
 
-        let w = kHPad + refSize.width + kGap + transSize.width + kHPad
+        let innerW = kHPad + refSize.width + kGap + transSize.width + kHPad
+        let w = kLineSideMargin + innerW + kLineSideMargin
         let h = max(refSize.height, transSize.height) + kVPad * 2
         let size = NSSize(width: ceil(w), height: ceil(h))
 
         return NSImage(size: size, flipped: false) { bounds in
-            let pill = NSBezierPath(roundedRect: bounds.insetBy(dx: 0.25, dy: 0.25),
-                                    xRadius: kRadius, yRadius: kRadius)
+            let pillLayout = CGRect(x: kLineSideMargin, y: 0, width: innerW, height: bounds.height)
+            let pill = NSBezierPath(roundedRect: pillLayout.insetBy(dx: 0.25, dy: 0.25),
+                                    xRadius: HarvousRadius.scripturePill, yRadius: HarvousRadius.scripturePill)
             tint.withAlphaComponent(0.075).setFill()
             pill.fill()
             pill.addClip()
             let progress = scriptureGradientProgress()
             let xPosition = 0.35 + (0.30 * progress)
-            let startPoint = CGPoint(x: bounds.minX + bounds.width * xPosition, y: bounds.minY)
-            let endPoint   = CGPoint(x: bounds.minX + bounds.width * xPosition, y: bounds.maxY)
+            let gx = pillLayout.minX + pillLayout.width * xPosition
+            let startPoint = CGPoint(x: gx, y: bounds.minY)
+            let endPoint   = CGPoint(x: gx, y: bounds.maxY)
             let gradient = NSGradient(
                 colors: [
                     tint.withAlphaComponent(0.10),
@@ -381,14 +385,15 @@ final class ScripturePillAttachment: NSTextAttachment {
             )
             gradient?.draw(from: startPoint, to: endPoint, options: [])
             if let cgContext = NSGraphicsContext.current?.cgContext {
-                scripturePillApplyInnerEdgeShadowsToContext(cgContext, bounds: bounds)
+                scripturePillApplyInnerEdgeShadowsToContext(cgContext, bounds: pillLayout)
             }
             tint.withAlphaComponent(0.20).setStroke(); pill.lineWidth = 0.5; pill.stroke()
 
             let refY   = (size.height - refSize.height)   / 2
             let transY = (size.height - transSize.height) / 2
-            refStr.draw(at:   NSPoint(x: kHPad,                       y: refY))
-            transStr.draw(at: NSPoint(x: kHPad + refSize.width + kGap, y: transY))
+            let textX = kLineSideMargin + kHPad
+            refStr.draw(at:   NSPoint(x: textX,                       y: refY))
+            transStr.draw(at: NSPoint(x: textX + refSize.width + kGap, y: transY))
             return true
         }
     }
@@ -453,21 +458,24 @@ final class ScripturePillAttachment: NSTextAttachment {
         let refSize   = refStr.size()
         let transSize = transStr.size()
 
-        let w = kHPad + refSize.width + kGap + transSize.width + kHPad
+        let innerW = kHPad + refSize.width + kGap + transSize.width + kHPad
+        let w = kLineSideMargin + innerW + kLineSideMargin
         let h = max(refSize.height, transSize.height) + kVPad * 2
         let size = CGSize(width: ceil(w), height: ceil(h))
 
         return UIGraphicsImageRenderer(size: size).image { _ in
-            let bounds = CGRect(origin: .zero, size: size)
-            let pill = UIBezierPath(roundedRect: bounds.insetBy(dx: 0.25, dy: 0.25),
-                                    cornerRadius: kRadius)
+            let fullBounds = CGRect(origin: .zero, size: size)
+            let pillLayout = CGRect(x: kLineSideMargin, y: 0, width: innerW, height: size.height)
+            let pill = UIBezierPath(roundedRect: pillLayout.insetBy(dx: 0.25, dy: 0.25),
+                                    cornerRadius: HarvousRadius.scripturePill)
             tint.withAlphaComponent(0.075).setFill()
             pill.fill()
             pill.addClip()
             let progress = scriptureGradientProgress()
             let xPosition = 0.35 + (0.30 * progress)
-            let startPoint = CGPoint(x: bounds.minX + bounds.width * xPosition, y: bounds.minY)
-            let endPoint   = CGPoint(x: bounds.minX + bounds.width * xPosition, y: bounds.maxY)
+            let gx = pillLayout.minX + pillLayout.width * xPosition
+            let startPoint = CGPoint(x: gx, y: fullBounds.minY)
+            let endPoint   = CGPoint(x: gx, y: fullBounds.maxY)
             if let context = UIGraphicsGetCurrentContext(),
                let gradient = CGGradient(
                    colorsSpace: CGColorSpaceCreateDeviceRGB(),
@@ -484,14 +492,15 @@ final class ScripturePillAttachment: NSTextAttachment {
             }
 
             if let cg = UIGraphicsGetCurrentContext() {
-                scripturePillApplyInnerEdgeShadowsToContext(cg, bounds: bounds)
+                scripturePillApplyInnerEdgeShadowsToContext(cg, bounds: pillLayout)
             }
             tint.withAlphaComponent(0.20).setStroke(); pill.lineWidth = 0.5; pill.stroke()
 
             let refY   = (size.height - refSize.height)   / 2
             let transY = (size.height - transSize.height) / 2
-            refStr.draw(at:   CGPoint(x: kHPad,                       y: refY))
-            transStr.draw(at: CGPoint(x: kHPad + refSize.width + kGap, y: transY))
+            let textX = kLineSideMargin + kHPad
+            refStr.draw(at:   CGPoint(x: textX,                       y: refY))
+            transStr.draw(at: CGPoint(x: textX + refSize.width + kGap, y: transY))
         }
     }
 }

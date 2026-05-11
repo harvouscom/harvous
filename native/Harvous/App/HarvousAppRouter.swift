@@ -33,7 +33,7 @@ enum HarvousIOSListSurface: String, CaseIterable {
         case .folders: "Folders"
         case .scripture: "Scripture"
         case .highlights: "Highlights"
-        case .more: "More"
+        case .more: "Account"
         }
     }
 }
@@ -44,6 +44,10 @@ struct HarvousIOSNoteFooterSupplement {
     var trailSnapshot: ThreadStore.TrailSnapshot
     var connectionsTitleLine: String
     var suppressScripturePillActionBar: Bool
+    /// When a **pinned** highlight or scripture **overlay** dock is visible (`activePillDock` / pinned highlight),
+    /// hide the bottom morphing row’s leading slot (connections / format shell) but keep the same layout height
+    /// so inline study docks stay the usual distance above the keyboard.
+    var suppressesBottomMorphingChromeContent: Bool
     var onRefreshConnections: () -> Void
     var onOpenLinkedNote: (UUID) -> Void
 }
@@ -108,7 +112,7 @@ enum HarvousPendingRoute {
 final class HarvousAppRouter: ObservableObject {
     #if os(iOS)
     @Published private(set) var iosListSurface: HarvousIOSListSurface
-    /// Drives the You/More sheet (not an inline surface — always a modal).
+    /// Drives the Account sheet (You root + settings; not an inline surface — always a modal).
     @Published var iosShowMore = false
     @Published var iosInlineSearchText = ""
     /// Notes tab: filter sheet (list has no `.searchable` chrome).

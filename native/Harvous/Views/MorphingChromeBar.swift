@@ -24,7 +24,9 @@ enum HarvousIOSFloatingChromeBackdrop {
 /// Layout metrics for the root `MorphingChromeBar` and paired editor chrome (study docks, etc.).
 enum HarvousIOSMorphingChromeLayout {
     /// Gap between floating controls in the bottom row (list orb, search pill, compose, connections capsule…).
-    static let interChromeSpacing: CGFloat = 10
+    static let interChromeSpacing: CGFloat = 12
+    /// Padding under the morphing chrome when the keyboard is up (`safeAreaInset` `spacing:` only separates main content from chrome—not chrome from keyboard).
+    static let keyboardBreathingPadding: CGFloat = interChromeSpacing
     /// Primary row height (44pt orbs and capsules).
     static let chromeControlsHeight: CGFloat = 44
     /// Inner bottom padding on `IOSNoteFooterHybridRow` / `HarvousIOSInlineBottomChromeRow`.
@@ -35,9 +37,17 @@ enum HarvousIOSMorphingChromeLayout {
     }
     /// Pulls scripture/highlight docks toward the toolbar; keeps layout math centralized.
     static let studyDockDownwardNudge: CGFloat = 14
-    /// Study docks sit this far above the editor bottom: full chrome block + inter-chrome gap − nudge.
-    static var studyDockOverlayBottomInset: CGFloat {
-        morphingChromeLayoutHeight + interChromeSpacing - studyDockDownwardNudge
+    /// Distance from study/highlight docks to the **bottom of the editor viewport** (`safeAreaInset` top).
+    /// When `footerChromeCollapsed` is true (`suppressesBottomMorphingChromeContent`), the morphing footer row drops to
+    /// zero height; add its former height here so docks keep the **same gap to the keyboard** as when the footer shows.
+    static func studyDockOverlayBottomInset(footerChromeCollapsed: Bool) -> CGFloat {
+        let nominal = morphingChromeLayoutHeight + interChromeSpacing - studyDockDownwardNudge
+        return footerChromeCollapsed ? nominal + morphingChromeLayoutHeight : nominal
+    }
+
+    /// Bottom padding inside the note editor’s outer `ScrollView` so the last lines can scroll above the floating footer (`UITextView` has `isScrollEnabled == false`).
+    static var noteEditorScrollContentBottomPadding: CGFloat {
+        morphingChromeLayoutHeight + interChromeSpacing + 16
     }
 }
 
@@ -52,20 +62,33 @@ struct MorphingChromeBar: View {
         appRouter.iosActiveNoteEditorChromeProxy != nil
     }
 
+    private var collapsesMorphingChromeForStudyDock: Bool {
+        appRouter.iosNoteFooterSupplement?.suppressesBottomMorphingChromeContent == true
+            && appRouter.iosActiveNoteEditorChromeProxy != nil
+    }
+
     var body: some View {
         Group {
             if isNoteRoute {
-                IOSNoteFooterHybridRow()
+                if collapsesMorphingChromeForStudyDock {
+                    Color.clear.frame(height: 0)
+                } else {
+                    IOSNoteFooterHybridRow()
+                }
             } else {
                 HarvousIOSInlineBottomChromeRow()
             }
         }
         .animation(reduceMotion ? .easeInOut(duration: 0.22) : modeSpring, value: isNoteRoute)
+        .animation(
+            reduceMotion ? .easeInOut(duration: 0.22) : modeSpring,
+            value: collapsesMorphingChromeForStudyDock
+        )
         .background(Color.clear)
     }
 }
 
-/// Bottom safe-area row on note routes: editor footer (format / scripture / connections) replaces list + search; compose stays.
+/// Bottom safe-area row on note routes: editor footer (format / scripture / connections) replaces list + search; compose orb stays.
 struct IOSNoteFooterHybridRow: View {
     @EnvironmentObject private var appRouter: HarvousAppRouter
     @Environment(\.colorScheme) private var colorScheme
@@ -94,15 +117,12 @@ struct IOSNoteFooterHybridRow: View {
             HarvousFAGlyph(assetName: "Harvous.Pencil")
                 .foregroundStyle(Color.primary.opacity(0.9))
                 .frame(width: 44, height: 44)
-                .background { floatingChromeBackground(shape: Circle()) }
+                .background {
+                    HarvousIOSFloatingChromeBackdrop.material(Circle(), colorScheme: colorScheme)
+                }
         }
         .buttonStyle(.plain)
         .accessibilityLabel("New note")
-    }
-
-    @ViewBuilder
-    private func floatingChromeBackground<S: InsettableShape>(shape: S) -> some View {
-        HarvousIOSFloatingChromeBackdrop.material(shape, colorScheme: colorScheme)
     }
 }
 
@@ -199,7 +219,11 @@ private struct IOSNoteEditorFooterSlot: View {
 
     var body: some View {
         Group {
-            if showsUnifiedFormattingScriptureCapsule {
+            if supplement.suppressesBottomMorphingChromeContent {
+                Color.clear
+                    .frame(maxWidth: .infinity)
+                    .frame(height: HarvousIOSMorphingChromeLayout.chromeControlsHeight)
+            } else if showsUnifiedFormattingScriptureCapsule {
                 iosUnifiedFormatScriptureEditingChrome
                     .id("iosInsetUnifiedFormatScriptureCapsule")
                     .transition(.opacity)
@@ -221,6 +245,7 @@ private struct IOSNoteEditorFooterSlot: View {
             }
         }
         .animation(reduceMotion ? .easeInOut(duration: 0.2) : spring, value: showsUnifiedFormattingScriptureCapsule)
+        .animation(reduceMotion ? .easeInOut(duration: 0.2) : spring, value: supplement.suppressesBottomMorphingChromeContent)
         .onAppear {
             scriptureInsetCoordinator.bind(proxy: proxy)
         }

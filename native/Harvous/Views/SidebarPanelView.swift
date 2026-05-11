@@ -447,7 +447,7 @@ struct SidebarPanelView: View {
                         } icon: {
                             HarvousFAGlyph(
                                 assetName: pinned ? "Harvous.ThumbtackSlash" : "Harvous.Thumbtack",
-                                edgePt: 14
+                                edgePt: HarvousFAIconMetrics.menuRowLeadingGlyphPt
                             )
                         }
                     }
@@ -458,7 +458,7 @@ struct SidebarPanelView: View {
                         Label {
                             Text("Rename…")
                         } icon: {
-                            HarvousFAGlyph(assetName: "Harvous.Pencil", edgePt: 14)
+                            HarvousFAGlyph(assetName: "Harvous.Pencil", edgePt: HarvousFAIconMetrics.menuRowLeadingGlyphPt)
                         }
                     }
                     Button(role: .destructive) {
@@ -467,7 +467,7 @@ struct SidebarPanelView: View {
                         Label {
                             Text("Remove folder")
                         } icon: {
-                            HarvousFAGlyph(assetName: "Harvous.Trash", edgePt: 14)
+                            HarvousFAGlyph(assetName: "Harvous.Trash", edgePt: HarvousFAIconMetrics.menuRowLeadingGlyphPt)
                         }
                     }
                 }
@@ -512,11 +512,11 @@ struct SidebarPanelView: View {
                         Label {
                             Text(item.title)
                         } icon: {
-                            HarvousFAGlyph(assetName: item.icon, edgePt: HarvousFAIconMetrics.sidebarListModeMenuRowIconPt)
+                            HarvousFAGlyph(assetName: item.icon, edgePt: HarvousFAIconMetrics.compactMenuRowLeadingGlyphPt)
                         }
                         Spacer(minLength: 8)
                         if mode == item {
-                            HarvousFAGlyph(assetName: "Harvous.Check", edgePt: 12)
+                            HarvousFAGlyph(assetName: "Harvous.Check", edgePt: HarvousFAIconMetrics.menuRowCheckGlyphPt)
                         }
                     }
                 }

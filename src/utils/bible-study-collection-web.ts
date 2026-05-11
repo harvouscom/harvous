@@ -13,6 +13,9 @@ const MIN_BODY_WORDS = 25;
 const SHORT_NOTE_CONFIDENCE_FLOOR = 1.02;
 const AUTO_REPLACE_COOLDOWN_MS = 25_000;
 
+/** When two folder scores are within this band, prefer title hit and category rank. */
+const PRIMARY_SCORE_AMBIGUITY_EPS = 0.04;
+
 function normalizeCollectionLabel(value: string | null | undefined): string | null {
   if (!value) return null;
   const t = value.trim();
@@ -58,17 +61,65 @@ interface ScRow {
   confidence: number;
 }
 
-function boostedPrimaryScore(row: ScRow): number {
-  let score = row.confidence;
+function folderPrimaryScore(row: ScRow, plainTitle: string, plainBody: string): number {
+  let score = Math.min(1, row.confidence);
   const cat = row.keyword.category;
-  if (cat === 'spiritual' || cat === 'biblical' || cat === 'theme' || cat === 'life') score += 0.08;
-  if (cat === 'character' || cat === 'place') {
-    score += 0.06;
-  }
   if (['spiritual', 'biblical', 'character', 'book', 'theme'].includes(cat)) {
     score = Math.min(1, score + 0.05);
   }
+  switch (cat) {
+    case 'spiritual':
+    case 'biblical':
+    case 'life':
+    case 'theme':
+      score += 0.08;
+      break;
+    case 'character':
+    case 'place': {
+      const occ = countKeywordOccurrences(plainTitle, plainBody, row.keyword);
+      if (occ <= 1) {
+        score -= 0.12;
+      } else if (occ >= 5) {
+        score += 0.28;
+      } else if (occ >= 3) {
+        score += 0.18;
+      } else {
+        score += 0.06;
+      }
+      break;
+    }
+    default:
+      break;
+  }
   return score;
+}
+
+function escapeRegExp(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/** Rough occurrence count for folder eligibility (name + synonyms; word-bound for single tokens). */
+function countKeywordOccurrences(plainTitle: string, plainBody: string, keyword: BibleStudyKeyword): number {
+  const corpus = `${plainTitle} ${plainBody}`.toLowerCase();
+  let total = 0;
+  const needles = [keyword.name, ...keyword.synonyms];
+  const seen = new Set<string>();
+  for (const raw of needles) {
+    const n = raw.trim().toLowerCase();
+    if (!n || seen.has(n)) continue;
+    seen.add(n);
+    if (n.includes(' ') || n.includes('-')) {
+      let i = 0;
+      while ((i = corpus.indexOf(n, i)) !== -1) {
+        total++;
+        i += Math.max(1, n.length);
+      }
+    } else {
+      const re = new RegExp(`\\b${escapeRegExp(n)}\\b`, 'g');
+      total += (corpus.match(re) || []).length;
+    }
+  }
+  return total;
 }
 
 function normalizeSecondaryList(primary: string | null, raw: string[]): string[] {
@@ -88,54 +139,115 @@ function normalizeSecondaryList(primary: string | null, raw: string[]): string[]
 }
 
 const SECONDARY_MIN_SCORE = 0.78;
+const SECONDARY_CHARACTER_PLACE_MIN_SCORE = 0.88;
 const MAX_AUTO_SECONDARIES = 5;
+
+function dedupeRowsByKeywordName(rows: ScRow[]): ScRow[] {
+  const by = new Map<string, ScRow>();
+  for (const r of rows) {
+    if (r.keyword.name.toLowerCase() === 'god') continue;
+    const k = r.keyword.name.toLowerCase();
+    const prev = by.get(k);
+    if (!prev || r.confidence > prev.confidence) by.set(k, r);
+  }
+  return [...by.values()];
+}
+
+function betterPrimaryRow(a: ScRow, b: ScRow, plainTitle: string, plainBody: string): ScRow {
+  const sa = folderPrimaryScore(a, plainTitle, plainBody);
+  const sb = folderPrimaryScore(b, plainTitle, plainBody);
+  if (Math.abs(sa - sb) > PRIMARY_SCORE_AMBIGUITY_EPS) {
+    return sa >= sb ? a : b;
+  }
+  const aTitle = candidateAppearsInTitle(plainTitle, a.keyword.name);
+  const bTitle = candidateAppearsInTitle(plainTitle, b.keyword.name);
+  if (aTitle !== bTitle) {
+    return aTitle ? a : b;
+  }
+  const ra = collectionRank(a.keyword.category);
+  const rb = collectionRank(b.keyword.category);
+  if (ra !== rb) {
+    return ra < rb ? a : b;
+  }
+  return sa >= sb ? a : b;
+}
+
+/** Stronger of two rows for primary folder (used to fold full keyword set). */
+function pickPrimaryRowFromDeduped(deduped: ScRow[], plainTitle: string, plainBody: string): ScRow | null {
+  if (!deduped.length) return null;
+  return deduped.reduce((best, cur) => betterPrimaryRow(best, cur, plainTitle, plainBody));
+}
+
+function isEligibleSecondaryFolder(row: ScRow, plainTitle: string, plainBody: string): boolean {
+  const ps = folderPrimaryScore(row, plainTitle, plainBody);
+  const cat = row.keyword.category;
+  if (cat === 'character' || cat === 'place') {
+    const inTitle = candidateAppearsInTitle(plainTitle, row.keyword.name);
+    const occ = countKeywordOccurrences(plainTitle, plainBody, row.keyword);
+    const strongContext = inTitle || occ >= 3;
+    const floor = strongContext ? SECONDARY_MIN_SCORE : SECONDARY_CHARACTER_PLACE_MIN_SCORE;
+    return ps >= floor;
+  }
+  return ps >= SECONDARY_MIN_SCORE;
+}
+
+function suggestSecondaryNamesForPrimary(
+  rows: ScRow[],
+  primaryName: string,
+  plainTitle: string,
+  plainBody: string,
+): string[] {
+  const deduped = dedupeRowsByKeywordName(rows);
+  const pLow = primaryName.trim().toLowerCase();
+  let candidates = deduped.filter(
+    (r) =>
+      r.keyword.name.toLowerCase() !== pLow && !overlapsConcept(r.keyword.name, primaryName),
+  );
+  candidates.sort((a, b) => folderPrimaryScore(b, plainTitle, plainBody) - folderPrimaryScore(a, plainTitle, plainBody));
+
+  const names: string[] = [];
+  for (const r of candidates) {
+    if (names.length >= MAX_AUTO_SECONDARIES) break;
+    if (names.some((n) => overlapsConcept(n, r.keyword.name))) continue;
+    if (!isEligibleSecondaryFolder(r, plainTitle, plainBody)) continue;
+    names.push(r.keyword.name);
+  }
+  return normalizeSecondaryList(primaryName, names);
+}
+
+function buildRowsForCollectionSuggest(
+  title: string,
+  bodyHtml: string,
+): { rows: ScRow[]; plainTitle: string; plainBody: string } {
+  const plainTitle = (title || '').trim();
+  const plainBody = stripHtml(bodyHtml || '', { preserveSpacing: true }).trim();
+  const full = `${plainTitle}\n${plainBody}`.trim();
+  if (!full) return { rows: [], plainTitle, plainBody };
+
+  const rows: ScRow[] = findKeywordsInTextWithPriority(full, plainTitle, plainBody).map((r) => ({
+    keyword: r.keyword,
+    confidence: Math.min(1, r.confidence),
+  }));
+  return { rows, plainTitle, plainBody };
+}
 
 export function suggestSecondaryCollectionsFromNote(
   title: string,
   bodyHtml: string,
   primary: string | null,
 ): string[] {
-  const plainTitle = (title || '').trim();
-  const plainBody = stripHtml(bodyHtml || '', { preserveSpacing: true }).trim();
-  const full = `${plainTitle}\n${plainBody}`.trim();
-  if (!full) return [];
+  const { rows, plainTitle, plainBody } = buildRowsForCollectionSuggest(title, bodyHtml);
+  if (!rows.length) return [];
   const primaryNorm = normalizeCollectionLabel(primary);
   if (!primaryNorm) return [];
 
-  const rows: ScRow[] = findKeywordsInTextWithPriority(full, plainTitle, plainBody).map((r) => ({
-    keyword: r.keyword,
-    confidence: Math.min(1, r.confidence),
-  }));
-
-  if (
-    !meetsMinimumContext(plainTitle, plainBody, pickPrimaryKeyword(rows)?.name ?? null, rows)
-  ) {
+  const deduped = dedupeRowsByKeywordName(rows);
+  const primaryWinner = pickPrimaryRowFromDeduped(deduped, plainTitle, plainBody);
+  if (!meetsMinimumContext(plainTitle, plainBody, primaryWinner?.keyword.name ?? null, rows)) {
     return [];
   }
 
-  const dedup: ScRow[] = [];
-  for (const r of rows) {
-    if (r.keyword.name.toLowerCase() === 'god') continue;
-    if (dedup.some((d) => d.keyword.name.toLowerCase() === r.keyword.name.toLowerCase())) continue;
-    if (dedup.some((d) => overlapsConcept(d.keyword.name, r.keyword.name))) continue;
-    dedup.push(r);
-    if (dedup.length >= 16) break;
-  }
-
-  const scored = dedup
-    .map((r) => ({ row: r, score: boostedPrimaryScore(r) }))
-    .filter((x) => x.score >= SECONDARY_MIN_SCORE)
-    .sort((a, b) => b.score - a.score);
-
-  const names: string[] = [];
-  for (const { row } of scored) {
-    if (names.length >= MAX_AUTO_SECONDARIES) break;
-    const name = row.keyword.name;
-    if (name.toLowerCase() === primaryNorm.toLowerCase()) continue;
-    if (names.some((n) => n.toLowerCase() === name.toLowerCase())) continue;
-    names.push(name);
-  }
-  return normalizeSecondaryList(primary, names);
+  return suggestSecondaryNamesForPrimary(rows, primaryNorm, plainTitle, plainBody);
 }
 
 export type WebCollectionNavSource = { type: 'home' } | { type: 'collection'; name: string | null };
@@ -167,42 +279,24 @@ export function collectionContextBannerText(
   return `${contextLabel} +${otherCount}`;
 }
 
-function pickPrimaryKeyword(rows: ScRow[]): BibleStudyKeyword | null {
-  const dedup: ScRow[] = [];
-  for (const r of rows) {
-    if (r.keyword.name.toLowerCase() === 'god') continue;
-    if (dedup.some((d) => d.keyword.name.toLowerCase() === r.keyword.name.toLowerCase())) continue;
-    if (dedup.some((d) => overlapsConcept(d.keyword.name, r.keyword.name))) continue;
-    dedup.push(r);
-    if (dedup.length >= 16) break;
-  }
-  if (!dedup.length) return null;
-  const sorted = [...dedup].sort((a, b) => {
-    const sa = boostedPrimaryScore(a);
-    const sb = boostedPrimaryScore(b);
-    if (Math.abs(sa - sb) > 0.001) return sb - sa;
-    return collectionRank(a.keyword.category) - collectionRank(b.keyword.category);
-  });
-  return sorted[0]?.keyword ?? null;
+function pickPrimaryKeyword(rows: ScRow[], plainTitle: string, plainBody: string): BibleStudyKeyword | null {
+  const deduped = dedupeRowsByKeywordName(rows);
+  return pickPrimaryRowFromDeduped(deduped, plainTitle, plainBody)?.keyword ?? null;
 }
 
 /** Top collection label from title + HTML body. */
 export function suggestPrimaryCollectionFromNote(title: string, bodyHtml: string): string | null {
-  const plainTitle = (title || '').trim();
-  const plainBody = stripHtml(bodyHtml || '', { preserveSpacing: true }).trim();
-  const full = `${plainTitle}\n${plainBody}`.trim();
-  if (!full) return null;
-  const rows: ScRow[] = findKeywordsInTextWithPriority(full, plainTitle, plainBody).map((r) => ({
-    keyword: r.keyword,
-    confidence: Math.min(1, r.confidence),
-  }));
-  const primary = pickPrimaryKeyword(rows);
-  return primary?.name ?? null;
+  const { rows, plainTitle, plainBody } = buildRowsForCollectionSuggest(title, bodyHtml);
+  if (!rows.length) return null;
+  const primary = pickPrimaryKeyword(rows, plainTitle, plainBody);
+  if (!primary?.name) return null;
+  if (!meetsMinimumContext(plainTitle, plainBody, primary.name, rows)) return null;
+  return primary.name;
 }
 
-function scoreForName(name: string, rows: ScRow[]): number {
+function scoreForName(name: string, rows: ScRow[], plainTitle: string, plainBody: string): number {
   const row = rows.find((r) => r.keyword.name.toLowerCase() === name.toLowerCase());
-  return row ? boostedPrimaryScore(row) : 0;
+  return row ? folderPrimaryScore(row, plainTitle, plainBody) : 0;
 }
 
 function normalizeTitleToken(token: string): string {
@@ -227,7 +321,7 @@ function meetsMinimumContext(title: string, plainBody: string, candidate: string
   const words = plainBody.split(/\s+/).filter(Boolean);
   if (words.length >= MIN_BODY_WORDS) return true;
   if (candidateAppearsInTitle(title, candidate)) return true;
-  return scoreForName(candidate, rows) >= SHORT_NOTE_CONFIDENCE_FLOOR;
+  return scoreForName(candidate, rows, title, plainBody) >= SHORT_NOTE_CONFIDENCE_FLOOR;
 }
 
 /**
@@ -242,19 +336,12 @@ export function applyAutoCollectionAfterEdit(
 ): CollectionChromeState {
   if (prev.collectionUserOverride && !prev.collectionPinned) return prev;
 
-  const plainTitle = (title || '').trim();
-  const plainBody = stripHtml(bodyHtml || '', { preserveSpacing: true }).trim();
-  const full = `${plainTitle}\n${plainBody}`.trim();
-  if (!full) return prev;
+  const { rows, plainTitle, plainBody } = buildRowsForCollectionSuggest(title, bodyHtml);
+  if (!rows.length) return prev;
 
   const freezePrimary = prev.collectionPinned || prev.collectionUserOverride;
 
-  const rows: ScRow[] = findKeywordsInTextWithPriority(full, plainTitle, plainBody).map((r) => ({
-    keyword: r.keyword,
-    confidence: Math.min(1, r.confidence),
-  }));
-
-  const candidate = pickPrimaryKeyword(rows)?.name ?? null;
+  const candidate = pickPrimaryKeyword(rows, plainTitle, plainBody)?.name ?? null;
   if (!candidate || !meetsMinimumContext(plainTitle, plainBody, candidate, rows)) {
     const secsEmpty = suggestSecondaryCollectionsFromNote(title, bodyHtml, prev.primaryCollection);
     return { ...prev, secondaryCollections: secsEmpty };
@@ -285,8 +372,8 @@ export function applyAutoCollectionAfterEdit(
       return { ...prev, secondaryCollections: secs };
     }
 
-    const currentScore = scoreForName(current, rows);
-    const candidateScore = scoreForName(candidate, rows);
+    const currentScore = scoreForName(current, rows, plainTitle, plainBody);
+    const candidateScore = scoreForName(candidate, rows, plainTitle, plainBody);
     const materiallyStronger = candidateScore >= currentScore + 0.18;
     const candRow = rows.find((r) => r.keyword.name.toLowerCase() === candidate.toLowerCase());
     const strongSignal =

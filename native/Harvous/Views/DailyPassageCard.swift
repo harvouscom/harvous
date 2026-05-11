@@ -118,6 +118,10 @@ struct DailyPassageCard: View {
 
 private struct VotdPassageSheet: View {
     private enum Metrics {
+        /// Header and reading body use the same lateral and top rhythm (was 16 below the divider; felt tight vs reference block).
+        static let sheetHorizontalPadding: CGFloat = 20
+        static let sectionTopPadding: CGFloat = 20
+        static let headerBottomPadding: CGFloat = 16
         /// Compact FAB — matches morphing compose orb (44) so the sheet does not feel dominated on medium detent.
         static let fabSide: CGFloat = 44
         static let fabIconSize: CGFloat = 17
@@ -158,9 +162,9 @@ private struct VotdPassageSheet: View {
                 }
                 .buttonStyle(.plain)
             }
-            .padding(.horizontal, 20)
-            .padding(.top, 20)
-            .padding(.bottom, 16)
+            .padding(.horizontal, Metrics.sheetHorizontalPadding)
+            .padding(.top, Metrics.sectionTopPadding)
+            .padding(.bottom, Metrics.headerBottomPadding)
 
             Divider()
 
@@ -173,8 +177,8 @@ private struct VotdPassageSheet: View {
                         useReadingTypography: true,
                         showAttribution: false
                     )
-                    .padding(.horizontal, 20)
-                    .padding(.top, 16)
+                    .padding(.horizontal, Metrics.sheetHorizontalPadding)
+                    .padding(.top, Metrics.sectionTopPadding)
                     .padding(.bottom, Metrics.scrollBottomInset)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)

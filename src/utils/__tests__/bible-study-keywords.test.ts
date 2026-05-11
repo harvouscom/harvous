@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
 import { findKeywordsInText, findKeywordsInTextWithPriority } from '@/utils/bible-study-keywords';
-import { suggestPrimaryCollectionFromNote } from '@/utils/bible-study-collection-web';
+import {
+  suggestPrimaryCollectionFromNote,
+  suggestSecondaryCollectionsFromNote,
+} from '@/utils/bible-study-collection-web';
 
 describe('bible study keyword boundaries (Hell vs Hello)', () => {
   it('findKeywordsInTextWithPriority does not match Hell inside Hello world', () => {
@@ -38,5 +41,23 @@ describe('bible study keyword boundaries (Hell vs Hello)', () => {
   it('suggestPrimaryCollectionFromNote does not surface Hell from Hello-only title', () => {
     const suggested = suggestPrimaryCollectionFromNote('Hello world', '');
     expect(suggested).not.toBe('Hell');
+  });
+
+  it('suggestPrimaryCollectionFromNote prefers title theme over incidental character in body', () => {
+    const title = 'Prayer in the morning';
+    const body =
+      'We gather for prayer today. We ask for strength and guidance. '.repeat(8) +
+      'We read briefly about David and return to petition.';
+    const primary = suggestPrimaryCollectionFromNote(title, body);
+    expect(primary).toBe('Prayer');
+  });
+
+  it('suggestSecondaryCollectionsFromNote omits weak single-mention character folders', () => {
+    const title = 'Notes on forgiveness';
+    const body =
+      'Forgiveness is central to the gospel message. Mercy flows from the cross. '.repeat(6) +
+      'Someone mentioned David once in passing.';
+    const secs = suggestSecondaryCollectionsFromNote(title, body, 'Forgiveness');
+    expect(secs.some((s) => s.toLowerCase() === 'david')).toBe(false);
   });
 });

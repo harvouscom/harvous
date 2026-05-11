@@ -3,6 +3,12 @@ import SwiftUI
 
 /// Search and pick a note to connect from the current note (note-level link, not highlight-anchored).
 struct ConnectNotePicker: View {
+    private enum Metrics {
+        /// More than search so opening the picker surfaces useful choices without typing.
+        static let recentRowLimit = 15
+        static let searchRowLimit = 6
+    }
+
     let spaceId: UUID
     let parentNoteId: UUID
     let onPick: (Note) -> Void
@@ -14,11 +20,19 @@ struct ConnectNotePicker: View {
     @State private var query = ""
     @State private var matches: [Note] = []
 
+    private var trimmedQuery: String {
+        query.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private var isShowingRecents: Bool {
+        trimmedQuery.isEmpty
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             TextField("Search notes…", text: $query)
                 .textFieldStyle(.plain)
-                .font(.system(size: 15, weight: .regular))
+                .font(HarvousTypography.searchField)
                 .padding(12)
                 .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Color.primary.opacity(0.06)))
                 .onChange(of: query) { _, _ in
@@ -29,15 +43,23 @@ struct ConnectNotePicker: View {
                 .autocorrectionDisabled(true)
                 #endif
 
+            if isShowingRecents {
+                Text("Recent".uppercased())
+                    .font(HarvousTypography.inspectorSectionLabel)
+                    .foregroundStyle(.secondary)
+                    .tracking(0.8)
+                    .padding(.leading, 4)
+            }
+
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 0) {
-                    ForEach(Array(matches.prefix(6).enumerated()), id: \.element.id) { _, match in
+                    ForEach(matches, id: \.id) { match in
                         Button {
                             onPick(match)
                             dismiss()
                         } label: {
                             Text(match.title.isEmpty ? "Untitled note" : match.title)
-                                .font(.system(size: 15, weight: .medium))
+                                .font(HarvousTypography.actionBarChip)
                                 .foregroundStyle(.primary)
                                 .frame(maxWidth: .infinity, alignment: .leading)
                                 .padding(.vertical, 10)
@@ -46,12 +68,18 @@ struct ConnectNotePicker: View {
                         .buttonStyle(.plain)
                     }
                 }
-                .opacity(matches.isEmpty && !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? 0.45 : 1)
+                .opacity(isShowingSearchingNoHits ? 0.45 : 1)
             }
             .overlay(alignment: .top) {
-                if query.trimmingCharacters(in: .whitespacesAndNewlines).count >= 1, matches.isEmpty {
+                if isShowingRecents && matches.isEmpty {
+                    Text("No other notes here yet")
+                        .font(HarvousTypography.searchEmptyState)
+                        .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity)
+                        .padding(.top, 4)
+                } else if !isShowingRecents && !trimmedQuery.isEmpty && matches.isEmpty {
                     Text("No notes match")
-                        .font(.caption)
+                        .font(HarvousTypography.searchEmptyState)
                         .foregroundStyle(.secondary)
                         .frame(maxWidth: .infinity)
                         .padding(.top, 4)
@@ -76,21 +104,33 @@ struct ConnectNotePicker: View {
         }
     }
 
+    /// User has typed something but filtered list is empty (list is dimmed, overlay explains).
+    private var isShowingSearchingNoHits: Bool {
+        !trimmedQuery.isEmpty && matches.isEmpty
+    }
+
     private func reloadMatches() {
-        let qRaw = query.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !qRaw.isEmpty else {
-            matches = []
-            return
-        }
         guard let fetched = try? modelContext.fetch(FetchDescriptor<Note>()) else {
             matches = []
             return
         }
+        let scoped = fetched.filter { $0.resolvedSpaceId() == spaceId && $0.id != parentNoteId }
+        let qRaw = trimmedQuery
+
+        if qRaw.isEmpty {
+            matches =
+                scoped
+                    .sorted { $0.updatedAt > $1.updatedAt }
+                    .prefix(Metrics.recentRowLimit)
+                    .map { $0 }
+            return
+        }
+
         matches =
-            fetched
-                .filter { $0.resolvedSpaceId() == spaceId && $0.id != parentNoteId && $0.title.localizedStandardContains(qRaw) }
+            scoped
+                .filter { $0.title.localizedStandardContains(qRaw) }
                 .sorted { $0.updatedAt > $1.updatedAt }
-                .prefix(6)
+                .prefix(Metrics.searchRowLimit)
                 .map { $0 }
     }
 }

@@ -30,11 +30,11 @@ struct SpaceSwitcherView: View {
                             Label {
                                 Text(space.name)
                             } icon: {
-                                HarvousFAGlyph(assetName: space.visibility.harvousCatalogAssetName, edgePt: 14)
+                                HarvousFAGlyph(assetName: space.visibility.harvousCatalogAssetName, edgePt: HarvousFAIconMetrics.menuRowLeadingGlyphPt)
                             }
                             Spacer(minLength: 8)
                             if space.id == selectedId {
-                                HarvousFAGlyph(assetName: "Harvous.Check", edgePt: 12)
+                                HarvousFAGlyph(assetName: "Harvous.Check", edgePt: HarvousFAIconMetrics.menuRowCheckGlyphPt)
                             }
                         }
                     }
@@ -49,7 +49,7 @@ struct SpaceSwitcherView: View {
                         Label {
                             Text("New private shared…")
                         } icon: {
-                            HarvousFAGlyph(assetName: "Harvous.Lock", edgePt: 14)
+                            HarvousFAGlyph(assetName: "Harvous.Lock", edgePt: HarvousFAIconMetrics.menuRowLeadingGlyphPt)
                         }
                     }
                     Button {
@@ -59,7 +59,7 @@ struct SpaceSwitcherView: View {
                         Label {
                             Text("New public shared…")
                         } icon: {
-                            HarvousFAGlyph(assetName: "Harvous.Link", edgePt: 14)
+                            HarvousFAGlyph(assetName: "Harvous.Link", edgePt: HarvousFAIconMetrics.menuRowLeadingGlyphPt)
                         }
                     }
                     Button {
@@ -68,7 +68,7 @@ struct SpaceSwitcherView: View {
                         Label {
                             Text("Join with token…")
                         } icon: {
-                            HarvousFAGlyph(assetName: "Harvous.Key", edgePt: 14)
+                            HarvousFAGlyph(assetName: "Harvous.Key", edgePt: HarvousFAIconMetrics.menuRowLeadingGlyphPt)
                         }
                     }
                 }
@@ -80,7 +80,7 @@ struct SpaceSwitcherView: View {
                             Label {
                                 Text("Manage current space…")
                             } icon: {
-                                HarvousFAGlyph(assetName: "Harvous.Gear", edgePt: 14)
+                                HarvousFAGlyph(assetName: "Harvous.Gear", edgePt: HarvousFAIconMetrics.menuRowLeadingGlyphPt)
                             }
                         }
                     }

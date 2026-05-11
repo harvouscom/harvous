@@ -132,7 +132,7 @@ struct LibraryView: View {
                 }
                 .buttonStyle(.plain)
                 .tint(.primary)
-                .accessibilityLabel("More")
+                .accessibilityLabel("Account, profile, and settings")
             }
         }
         .onChange(of: appRouter.iosListSurface) { _, newSurface in
@@ -278,7 +278,7 @@ struct LibraryView: View {
                         } icon: {
                             HarvousFAGlyph(
                                 assetName: pinned ? "Harvous.ThumbtackSlash" : "Harvous.Thumbtack",
-                                edgePt: 14
+                                edgePt: HarvousFAIconMetrics.menuRowLeadingGlyphPt
                             )
                         }
                     }
@@ -289,7 +289,7 @@ struct LibraryView: View {
                         Label {
                             Text("Rename…")
                         } icon: {
-                            HarvousFAGlyph(assetName: "Harvous.Pencil", edgePt: 14)
+                            HarvousFAGlyph(assetName: "Harvous.Pencil", edgePt: HarvousFAIconMetrics.menuRowLeadingGlyphPt)
                         }
                     }
                     Button(role: .destructive) {
@@ -298,7 +298,7 @@ struct LibraryView: View {
                         Label {
                             Text("Remove folder")
                         } icon: {
-                            HarvousFAGlyph(assetName: "Harvous.Trash", edgePt: 14)
+                            HarvousFAGlyph(assetName: "Harvous.Trash", edgePt: HarvousFAIconMetrics.menuRowLeadingGlyphPt)
                         }
                     }
                 }
@@ -360,7 +360,7 @@ struct LibraryView: View {
                 DailyPassageCard { note in
                     iosNoteNavigationPath.append(note.id)
                 }
-                .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 4, trailing: 16))
+                .listRowInsets(IOSFoldersListLayout.dailyPassageRowInsets)
                 .listRowBackground(Color.clear)
                 .listRowSeparator(.hidden)
                 .swipeActions(edge: .trailing, allowsFullSwipe: true) {
@@ -391,6 +391,8 @@ struct LibraryView: View {
     /// Match hub note row insets in `NoteListColumn` (conversation rows use leading/trailing 14).
     private enum IOSFoldersListLayout {
         static let rowInsets = EdgeInsets(top: 4, leading: 14, bottom: 4, trailing: 14)
+        /// Same horizontal inset as sibling folder rows (was 16pt wider, noticeably narrower card than Notes/Highlights).
+        static let dailyPassageRowInsets = EdgeInsets(top: 8, leading: 14, bottom: 4, trailing: 14)
     }
 
     private var emptyState: some View {

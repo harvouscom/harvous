@@ -4,12 +4,12 @@ import SwiftUI
 
 struct FolderSymbol: View {
     let isContextUpdating: Bool
-    /// Point size for `Harvous.Folder` in the toolbar chip.
+    /// Point size for `Harvous.Folder` — default matches toolbar catalog icons (`Harvous.ChevronLeft`, share …).
     var folderIconPt: CGFloat = {
         #if os(macOS)
         14
         #else
-        16
+        HarvousFAIconMetrics.catalogGlyphBoxPt
         #endif
     }()
 
@@ -174,8 +174,8 @@ struct ScriptureRefChip: View {
                 .font(HarvousTypography.inspectorCompactMedium)
         }
         .foregroundStyle(HarvousColors.scriptureChipForeground(scriptureTheme))
-        .padding(.horizontal, 7)
-        .padding(.vertical, 4)
+        .padding(.horizontal, 9)
+        .padding(.vertical, 6)
         .background(
             RoundedRectangle(cornerRadius: scriptureCornerRadius, style: .continuous)
                 .fill(HarvousColors.scriptureChipBackground(scriptureTheme))

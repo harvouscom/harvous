@@ -483,7 +483,7 @@ struct HighlightsHubView: View {
                 }
                 .buttonStyle(.plain)
                 .tint(.primary)
-                .accessibilityLabel("More")
+                .accessibilityLabel("Account, profile, and settings")
             }
         }
     }
