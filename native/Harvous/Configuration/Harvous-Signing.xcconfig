@@ -1,0 +1,10 @@
+// Forces code signing for app targets. PBXFileReference path is
+// Harvous-Signing.xcconfig inside the Configuration group (disk:
+// native/Harvous/Configuration/Harvous-Signing.xcconfig). Do not prefix the
+// file ref with "Configuration/" or Xcode resolves Configuration/Configuration/.
+// Debug/Release must set “Based on Configuration File” to this file — Xcode
+// sometimes drops baseConfigurationReference when editing signing; if that
+// happens, re-link it in Build Settings. Also set Code Signing Allowed on the
+// Harvous_iOS / Harvous_macOS targets (target settings override the project).
+CODE_SIGNING_ALLOWED = YES
+CODE_SIGNING_REQUIRED = YES

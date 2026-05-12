@@ -394,6 +394,7 @@
 		B01C0F956EDEE14AFA9CFCE4 /* NoteInspectorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NoteInspectorView.swift; sourceTree = "<group>"; };
 		B477277FA8277C3C7A61685B /* MacCollectionChip.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacCollectionChip.swift; sourceTree = "<group>"; };
 		B4AC0F9F8412356EDEC99471 /* ScripturePillAttachment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScripturePillAttachment.swift; sourceTree = "<group>"; };
+		B636DF72DEDDAA367AA79EDB /* Harvous-Signing.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Harvous-Signing.xcconfig; sourceTree = "<group>"; };
 		B81235FC206F467DF2654673 /* HarvousVaultMarkdown.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HarvousVaultMarkdown.swift; sourceTree = "<group>"; };
 		BA8CF525B9046173CB709D3E /* NoteSimpleIDAssigner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NoteSimpleIDAssigner.swift; sourceTree = "<group>"; };
 		BB88D5287FB25788E2408C74 /* SpaceSwitcherView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpaceSwitcherView.swift; sourceTree = "<group>"; };
@@ -509,6 +510,7 @@
 			children = (
 				83F7258FD2178CD3A0AC67C1 /* _fa-symbol-source */,
 				804FCA929D204887C7A825BE /* App */,
+				E4897A31401CB3C18DEFC5EA /* Configuration */,
 				B8FEF4F5B506D6273B39E775 /* DesignSystem */,
 				88A80108D7D42FBAF959DE12 /* Editor */,
 				DDE35B3AEF88A091A6883303 /* Harvous */,
@@ -657,6 +659,14 @@
 			path = .;
 			sourceTree = "<group>";
 		};
+		E4897A31401CB3C18DEFC5EA /* Configuration */ = {
+			isa = PBXGroup;
+			children = (
+				B636DF72DEDDAA367AA79EDB /* Harvous-Signing.xcconfig */,
+			);
+			path = Configuration;
+			sourceTree = "<group>";
+		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
@@ -784,6 +794,9 @@
 					6AC061C1BCAF6321CC830168 = {
 						ProvisioningStyle = Manual;
 						TestTargetID = D4AAC31C4026BAF3DD0A2E6E;
+					};
+					D4AAC31C4026BAF3DD0A2E6E = {
+						ProvisioningStyle = Automatic;
 					};
 					826E7DF3728411937E41BD0E = {
 						ProvisioningStyle = Manual;
@@ -1191,6 +1204,7 @@
 		};
 		3E476EA1EC760243D9BF5B67 /* Release */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = B636DF72DEDDAA367AA79EDB /* Harvous-Signing.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = Harvous.entitlements;
@@ -1250,6 +1264,7 @@
 		};
 		55272EEDE4D8B403BE336A07 /* Debug */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = B636DF72DEDDAA367AA79EDB /* Harvous-Signing.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = Harvous.entitlements;
@@ -1309,6 +1324,7 @@
 		};
 		84D20695F4B076A732336AE6 /* Release */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = B636DF72DEDDAA367AA79EDB /* Harvous-Signing.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = Harvous.entitlements;
@@ -1364,11 +1380,6 @@
 				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
-				CODE_SIGNING_ALLOWED = NO;
-				CODE_SIGNING_REQUIRED = NO;
-				CODE_SIGN_ENTITLEMENTS = "";
-				CODE_SIGN_IDENTITY = "-";
-				CODE_SIGN_STYLE = Manual;
 				COPY_PHASE_STRIP = NO;
 				CURRENT_PROJECT_VERSION = 0.2.3;
 				DEAD_CODE_STRIPPING = YES;
@@ -1399,6 +1410,7 @@
 		};
 		954613EBA9EB8CF891607A31 /* Debug */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = B636DF72DEDDAA367AA79EDB /* Harvous-Signing.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = Harvous.entitlements;
@@ -1487,11 +1499,6 @@
 				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
-				CODE_SIGNING_ALLOWED = NO;
-				CODE_SIGNING_REQUIRED = NO;
-				CODE_SIGN_ENTITLEMENTS = "";
-				CODE_SIGN_IDENTITY = "-";
-				CODE_SIGN_STYLE = Manual;
 				COPY_PHASE_STRIP = NO;
 				CURRENT_PROJECT_VERSION = 0.2.3;
 				DEAD_CODE_STRIPPING = YES;
