@@ -1493,6 +1493,13 @@ struct NoteEditorView: View {
             }
             .padding(.horizontal, 20)
             .padding(.bottom, 10)
+            // `renderPill` bakes `NSColor.labelColor` / `UIColor.label` into a static raster at
+            // call time, so a light↔dark toggle leaves stale label colors on screen even though
+            // SwiftUI re-evaluates this body. Keying the row on the active color scheme forces
+            // SwiftUI to discard the previous-mode `Image` and re-rasterize against the new
+            // appearance. Editor-embedded pills are refreshed by the host text view's
+            // `viewDidChangeEffectiveAppearance` / `traitCollectionDidChange` overrides.
+            .id(colorScheme)
         }
     }
 

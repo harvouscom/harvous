@@ -369,6 +369,25 @@ final class ScripturePillAttachment: NSTextAttachment {
         )
     }
 
+    /// Re-rasterizes the pill image so label color and inner-edge wash track the current
+    /// `NSApp.effectiveAppearance`. Call from the host text view's
+    /// `viewDidChangeEffectiveAppearance` so light/dark toggles repaint baked-in label colors
+    /// (`NSColor.labelColor` resolves to a concrete color when drawn into an `NSImage`).
+    func refreshRasterForCurrentAppearance() {
+        let img = Self.renderPill(
+            reference: reference,
+            translation: translation,
+            accent: accent,
+            pointerHovered: isPointerHovered
+        )
+        self.image = img
+        let refFont = HarvousFonts.system(size: kRefSize, weight: 500)
+        self.bounds = CGRect(
+            origin: CGPoint(x: 0, y: refFont.descender - kVPad),
+            size: img.size
+        )
+    }
+
     required init?(coder: NSCoder) { fatalError() }
 
     static func renderPill(
@@ -466,6 +485,25 @@ final class ScripturePillAttachment: NSTextAttachment {
         let img = Self.renderPill(reference: reference, translation: translation, accent: accent, pointerHovered: false)
         self.image = img
 
+        let refFont = HarvousFonts.system(size: kRefSize, weight: 500)
+        self.bounds = CGRect(
+            origin: CGPoint(x: 0, y: CGFloat(refFont.descender) - kVPad),
+            size: img.size
+        )
+    }
+
+    /// Re-rasterizes the pill image so label color and inner-edge wash track the current
+    /// `UITraitCollection.userInterfaceStyle`. `UIGraphicsImageRenderer` rasterizes eagerly
+    /// against the active trait collection, so light/dark toggles must rebuild this `UIImage`
+    /// or the pill text stays baked in the previous mode.
+    func refreshRasterForCurrentAppearance() {
+        let img = Self.renderPill(
+            reference: reference,
+            translation: translation,
+            accent: accent,
+            pointerHovered: false
+        )
+        self.image = img
         let refFont = HarvousFonts.system(size: kRefSize, weight: 500)
         self.bounds = CGRect(
             origin: CGPoint(x: 0, y: CGFloat(refFont.descender) - kVPad),

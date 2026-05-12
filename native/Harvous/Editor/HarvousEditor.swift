@@ -842,6 +842,32 @@ private final class HarvousNoteTextView: NSTextView {
         r.size.height = min(rect.size.height, natural)
         super.drawInsertionPoint(in: r, color: color, turnedOn: flag)
     }
+
+    /// `ScripturePillAttachment.image` is a pre-rasterized `NSImage` with `NSColor.labelColor`
+    /// (and the inner-edge wash) baked in at attachment-creation time, so a light↔dark toggle
+    /// leaves the previous-mode label color stuck on screen until storage is rebuilt. Re-render
+    /// every pill against the new effective appearance and invalidate their glyph rects.
+    override func viewDidChangeEffectiveAppearance() {
+        super.viewDidChangeEffectiveAppearance()
+        refreshScripturePillRastersForCurrentAppearance()
+    }
+
+    private func refreshScripturePillRastersForCurrentAppearance() {
+        guard let storage = textStorage, storage.length > 0 else { return }
+        var idx = 0
+        let end = storage.length
+        while idx < end {
+            var eff = NSRange()
+            let value = storage.attribute(.attachment, at: idx, effectiveRange: &eff)
+            if let pill = value as? ScripturePillAttachment {
+                pill.refreshRasterForCurrentAppearance()
+                invalidateScripturePillGlyphDisplay(characterRange: eff)
+            }
+            let next = NSMaxRange(eff)
+            if next <= idx { break }
+            idx = next
+        }
+    }
 }
 
 /// UTF-16 ranges of `ScripturePillAttachment` glyphs intersecting a proposed edit range.
@@ -1962,6 +1988,40 @@ private final class HarvousBodyTextView: UITextView {
     var onNewStandaloneNoteAction: (() -> Void)?
     var studyHighlightPaintsSnapshot: [StudyHighlightPaint] = []
     var onRemoveIntersectingStudyHighlightsAction: (() -> Void)?
+
+    /// `ScripturePillAttachment.image` is a `UIImage` rasterized eagerly via
+    /// `UIGraphicsImageRenderer` against the trait collection at attachment-creation time, so
+    /// label color and inner-edge wash freeze until storage is rebuilt. On a light↔dark toggle
+    /// re-render every pill under the new trait and invalidate their glyph rects.
+    override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
+        super.traitCollectionDidChange(previousTraitCollection)
+        if traitCollection.hasDifferentColorAppearance(comparedTo: previousTraitCollection) {
+            refreshScripturePillRastersForCurrentAppearance()
+        }
+    }
+
+    private func refreshScripturePillRastersForCurrentAppearance() {
+        let storage = textStorage
+        guard storage.length > 0 else { return }
+        let lm = layoutManager
+        traitCollection.performAsCurrent {
+            var idx = 0
+            let end = storage.length
+            while idx < end {
+                var eff = NSRange()
+                let value = storage.attribute(.attachment, at: idx, effectiveRange: &eff)
+                if let pill = value as? ScripturePillAttachment {
+                    pill.refreshRasterForCurrentAppearance()
+                    let glyphRange = lm.glyphRange(forCharacterRange: eff, actualCharacterRange: nil)
+                    lm.invalidateDisplay(forGlyphRange: glyphRange)
+                }
+                let next = NSMaxRange(eff)
+                if next <= idx { break }
+                idx = next
+            }
+            setNeedsDisplay()
+        }
+    }
 
     /// Clips the caret rect to natural glyph height so the inter-line gap added by
     /// `HarvousLayoutManager` doesn't produce an oversized cursor bar.
