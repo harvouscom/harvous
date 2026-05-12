@@ -58,6 +58,8 @@
 	<string>Harvous can remind you with note context before Bible study events on your calendar.</string>
 	<key>NSCalendarsFullAccessUsageDescription</key>
 	<string>Harvous can remind you with note context before Bible study events on your calendar.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Harvous uses the camera to scan text from books and handouts into a new note.</string>
 	<key>NSUbiquitousContainers</key>
 	<dict>
 		<key>iCloud.com.harvous.app</key>

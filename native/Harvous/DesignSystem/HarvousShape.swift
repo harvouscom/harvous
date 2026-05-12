@@ -17,10 +17,18 @@ enum HarvousRadius {
     static let sidebarGlassLeading: CGFloat = 16
 }
 
+/// iOS home / library / scripture / highlight feeds: `listRowInsets` horizontal edge plus interior padding on row content matches `DailyPassageCard` so titles align with the card copy.
+enum HarvousFeedListLayout {
+    static let listRowHorizontalInset: CGFloat = 14
+    static let interiorContentHPadding: CGFloat = 10
+}
+
 /// Typography / fill tuning for raster + SwiftUI scripture pills (keep in sync across surfaces).
 enum HarvousScripturePillStyle {
     /// Softer than full `label` so reference + translation read as part of the tinted chip.
     static let labelOpacity: CGFloat = 0.70
+    /// Vertical inset inside raster pills; `ScriptureRefChip` matches (mac + iOS).
+    static let rasterVerticalInset: CGFloat = 4
 #if os(macOS)
     /// Pointer hover on inline editor pills (`NSTextAttachment`) and SwiftUI reference chips.
     static let labelOpacityPointerHover: CGFloat = 1.0

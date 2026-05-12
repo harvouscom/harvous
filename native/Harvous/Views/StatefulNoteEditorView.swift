@@ -89,6 +89,7 @@ final class HarvousIOSNavBarBackChevronSubstitution {
     }
 }
 
+@MainActor
 private struct HarvousNavBarAppearanceSnapshot {
     let standard: UINavigationBarAppearance
     let compact: UINavigationBarAppearance?
@@ -97,10 +98,10 @@ private struct HarvousNavBarAppearanceSnapshot {
 
     static func capture(from bar: UINavigationBar) -> HarvousNavBarAppearanceSnapshot {
         HarvousNavBarAppearanceSnapshot(
-            standard: bar.standardAppearance.copy() as! UINavigationBarAppearance,
-            compact: bar.compactAppearance.map { $0.copy() as! UINavigationBarAppearance },
-            scrollEdge: bar.scrollEdgeAppearance.map { $0.copy() as! UINavigationBarAppearance },
-            compactScrollEdge: bar.compactScrollEdgeAppearance.map { $0.copy() as! UINavigationBarAppearance }
+            standard: bar.standardAppearance.copy(),
+            compact: bar.compactAppearance.map { $0.copy() },
+            scrollEdge: bar.scrollEdgeAppearance.map { $0.copy() },
+            compactScrollEdge: bar.compactScrollEdgeAppearance.map { $0.copy() }
         )
     }
 
@@ -113,7 +114,7 @@ private struct HarvousNavBarAppearanceSnapshot {
 
     func patched(with image: UIImage) -> HarvousNavBarAppearanceSnapshot {
         func patch(_ a: UINavigationBarAppearance) -> UINavigationBarAppearance {
-            let copy = a.copy() as! UINavigationBarAppearance
+            let copy = a.copy()
             copy.setBackIndicatorImage(image, transitionMaskImage: image)
             return copy
         }
@@ -174,7 +175,7 @@ private final class HarvousIOSNavBarBackChevronHostController: UIViewController 
 
     private func dispatchApplyIfEmbedded() {
         guard !substitution.isBackSubstitutionInstalled else { return }
-        DispatchQueue.main.async { [weak self] in
+        Task { @MainActor [weak self] in
             guard let self, let nav = self.navigationController else { return }
             self.substitution.applyIfNeeded(from: nav.navigationBar)
         }

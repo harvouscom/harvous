@@ -19,6 +19,19 @@ enum HarvousIOSFloatingChromeBackdrop {
                 .shadow(color: Color.black.opacity(colorScheme == .dark ? 0.35 : 0.08), radius: 6, x: 0, y: 2)
         }
     }
+
+    /// Fills the keyboard “breathing” band under floating chrome so list background does not show through.
+    @ViewBuilder
+    static func keyboardGapFill(colorScheme: ColorScheme) -> some View {
+        let shape = Rectangle()
+        if #available(iOS 26.0, *) {
+            shape
+                .fill(Color.clear)
+                .glassEffect(in: shape)
+        } else {
+            shape.fill(.ultraThinMaterial)
+        }
+    }
 }
 
 /// Layout metrics for the root `MorphingChromeBar` and paired editor chrome (study docks, etc.).
@@ -48,6 +61,133 @@ enum HarvousIOSMorphingChromeLayout {
     /// Bottom padding inside the note editor’s outer `ScrollView` so the last lines can scroll above the floating footer (`UITextView` has `isScrollEnabled == false`).
     static var noteEditorScrollContentBottomPadding: CGFloat {
         morphingChromeLayoutHeight + interChromeSpacing + 16
+    }
+
+    /// Region left untapped by the camera-orb dismiss layer so morphing chrome (stacked orbs + row) stays interactive.
+    static var composeCameraOrbDismissTapCatcherBottomReserve: CGFloat {
+        chromeControlsHeight * 2 + 10 + chromeRowBottomPadding + interChromeSpacing + 12
+    }
+}
+
+// MARK: - Compose orb + long-press camera (scan text)
+
+/// Reliable tap vs long-press: SwiftUI `Button` + `onLongPressGesture` often fails because gesture edges compete.
+private struct HarvousIOSPencilOrbHitSurface: UIViewRepresentable {
+    var longPressMinimumDuration: TimeInterval
+    var onShortTap: () -> Void
+    var onLongPress: () -> Void
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(onShortTap: onShortTap, onLongPress: onLongPress)
+    }
+
+    func makeUIView(context: Context) -> UIView {
+        let v = UIView()
+        v.backgroundColor = .clear
+        v.isAccessibilityElement = false
+
+        let long = UILongPressGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.longPress(_:)))
+        long.minimumPressDuration = longPressMinimumDuration
+        long.allowableMovement = 28
+        long.cancelsTouchesInView = false
+
+        let tap = UITapGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.shortTap))
+        tap.cancelsTouchesInView = false
+        tap.require(toFail: long)
+
+        v.addGestureRecognizer(long)
+        v.addGestureRecognizer(tap)
+        context.coordinator.longPressRecognizer = long
+        return v
+    }
+
+    func updateUIView(_ uiView: UIView, context: Context) {
+        context.coordinator.onShortTap = onShortTap
+        context.coordinator.onLongPress = onLongPress
+        context.coordinator.longPressRecognizer?.minimumPressDuration = longPressMinimumDuration
+    }
+
+    @MainActor
+    final class Coordinator: NSObject {
+        var onShortTap: () -> Void
+        var onLongPress: () -> Void
+        weak var longPressRecognizer: UILongPressGestureRecognizer?
+
+        init(onShortTap: @escaping () -> Void, onLongPress: @escaping () -> Void) {
+            self.onShortTap = onShortTap
+            self.onLongPress = onLongPress
+        }
+
+        @objc func shortTap() {
+            onShortTap()
+        }
+
+        @objc func longPress(_ g: UILongPressGestureRecognizer) {
+            guard g.state == .began else { return }
+            onLongPress()
+        }
+    }
+}
+
+/// Pencil compose orb; long-press reveals a circular **camera** orb above (Font Awesome `Harvous.Camera`).
+struct HarvousIOSComposeOrbCluster<Chrome: View>: View {
+    @EnvironmentObject private var appRouter: HarvousAppRouter
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @ViewBuilder var circleChrome: () -> Chrome
+
+    private let orbSize = HarvousIOSMorphingChromeLayout.chromeControlsHeight
+    private let orbGap: CGFloat = 10
+    private let longPressDuration: TimeInterval = 0.4
+
+    private var revealAnimation: Animation {
+        reduceMotion ? .easeInOut(duration: 0.18) : .spring(response: 0.34, dampingFraction: 0.82)
+    }
+
+    var body: some View {
+        VStack(spacing: orbGap) {
+            if appRouter.iosComposeCameraOrbPresented {
+                Button {
+                    appRouter.requestPresentTextCaptureForCompose()
+                } label: {
+                    HarvousFAGlyph(assetName: "Harvous.Camera", edgePt: 20)
+                        .foregroundStyle(Color.primary.opacity(0.9))
+                        .frame(width: orbSize, height: orbSize)
+                        .background { circleChrome() }
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Scan text from camera")
+                .transition(.scale(scale: 0.88).combined(with: .opacity))
+            }
+            ZStack {
+                HarvousFAGlyph(assetName: "Harvous.Pencil")
+                    .foregroundStyle(Color.primary.opacity(0.9))
+                    .frame(width: orbSize, height: orbSize)
+                    .background { circleChrome() }
+                HarvousIOSPencilOrbHitSurface(
+                    longPressMinimumDuration: longPressDuration,
+                    onShortTap: {
+                        if appRouter.iosComposeCameraOrbPresented {
+                            appRouter.dismissIOSComposeCameraOrbIfPresented()
+                        } else {
+                            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                            appRouter.requestComposeNewNote()
+                        }
+                    },
+                    onLongPress: {
+                        UIImpactFeedbackGenerator(style: .heavy).impactOccurred()
+                        withAnimation(revealAnimation) {
+                            appRouter.iosComposeCameraOrbPresented = true
+                        }
+                    }
+                )
+                .frame(width: orbSize, height: orbSize)
+            }
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("New note")
+            .accessibilityHint("Long-press to show camera text scanning.")
+            .accessibilityAddTraits(.isButton)
+        }
+        .animation(revealAnimation, value: appRouter.iosComposeCameraOrbPresented)
     }
 }
 
@@ -85,6 +225,17 @@ struct MorphingChromeBar: View {
             value: collapsesMorphingChromeForStudyDock
         )
         .background(Color.clear)
+        .fullScreenCover(isPresented: $appRouter.iosTextCaptureFlowPresented) {
+            IOSTextCaptureComposeFlow(
+                onCapture: { text in
+                    appRouter.iosTextCaptureFlowPresented = false
+                    appRouter.requestComposeNewNote(initialBody: text)
+                },
+                onCancel: {
+                    appRouter.iosTextCaptureFlowPresented = false
+                }
+            )
+        }
     }
 }
 
@@ -94,15 +245,23 @@ struct IOSNoteFooterHybridRow: View {
     @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
-        HStack(alignment: .center, spacing: HarvousIOSMorphingChromeLayout.interChromeSpacing) {
-            if let proxy = appRouter.iosActiveNoteEditorChromeProxy, let supplement = appRouter.iosNoteFooterSupplement {
-                IOSNoteEditorFooterSlot(proxy: proxy, supplement: supplement)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            } else {
-                Color.clear
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 44)
+        // Match hub row: bottom-align so the pencil compose orb stays on one baseline when the camera orb stacks above.
+        HStack(alignment: .bottom, spacing: HarvousIOSMorphingChromeLayout.interChromeSpacing) {
+            Group {
+                if let proxy = appRouter.iosActiveNoteEditorChromeProxy, let supplement = appRouter.iosNoteFooterSupplement {
+                    IOSNoteEditorFooterSlot(proxy: proxy, supplement: supplement)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                } else {
+                    Color.clear
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 44)
+                }
             }
+            .simultaneousGesture(
+                TapGesture().onEnded {
+                    appRouter.dismissIOSComposeCameraOrbIfPresented()
+                }
+            )
             composeOrb
         }
         .padding(.horizontal, 12)
@@ -110,19 +269,10 @@ struct IOSNoteFooterHybridRow: View {
     }
 
     private var composeOrb: some View {
-        Button {
-            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-            appRouter.requestComposeNewNote()
-        } label: {
-            HarvousFAGlyph(assetName: "Harvous.Pencil")
-                .foregroundStyle(Color.primary.opacity(0.9))
-                .frame(width: 44, height: 44)
-                .background {
-                    HarvousIOSFloatingChromeBackdrop.material(Circle(), colorScheme: colorScheme)
-                }
+        HarvousIOSComposeOrbCluster {
+            HarvousIOSFloatingChromeBackdrop.material(Circle(), colorScheme: colorScheme)
         }
-        .buttonStyle(.plain)
-        .accessibilityLabel("New note")
+        .fixedSize(horizontal: true, vertical: true)
     }
 }
 

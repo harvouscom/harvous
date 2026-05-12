@@ -27,6 +27,7 @@ native/.harvous_mac_derived_data/
 native/Harvous/build/
 native/Harvous/*.dmg
 native/Harvous/null.o
+**/xcuserdata/
 
 # jetbrains setting folder
 .idea/

@@ -215,7 +215,7 @@ final class EditorProxy: ObservableObject {
         }
         let pill = ScripturePillAttachment(reference: reference, translation: translation, theme: theme, accent: carriedAccent)
         let pillStr = NSMutableAttributedString(attachment: pill)
-        let bodyFont = HarvousFonts.system(size: 16, weight: 400)
+        let bodyFont = HarvousFonts.noteComposeBodyPlatformFont()
         var pillAttrs: [NSAttributedString.Key: Any] = [.font: bodyFont]
         if range.location < storage.length,
            let ps = storage.attribute(.paragraphStyle, at: range.location, effectiveRange: nil) as? NSParagraphStyle {

@@ -398,6 +398,7 @@ private extension NSAttributedString {
 /// until the user releases. We hit-test the original click point BEFORE entering super so
 /// the layout manager state is fresh, then fire the callback after super returns iff no
 /// drag-selection occurred. This handles every click reliably (first AND repeated).
+@MainActor
 fileprivate final class ScripturePassageNSTextView: NSTextView {
     var paintRanges: [(id: UUID, range: NSRange)] = []
     var onPaintTap: ((UUID) -> Void)?
@@ -452,6 +453,7 @@ fileprivate final class ScripturePassageNSTextView: NSTextView {
     }
 }
 
+@MainActor
 private struct ScripturePassageFittingTextView: NSViewRepresentable {
     var attributed: NSAttributedString
     /// When this changes, attributed string is re-applied (avoids clobbering text selection on unrelated SwiftUI updates).
@@ -526,6 +528,7 @@ private struct ScripturePassageFittingTextView: NSViewRepresentable {
         return CGSize(width: w, height: max(1, ceil(h)))
     }
 
+    @MainActor
     final class Coordinator: NSObject, NSTextViewDelegate {
         weak var textView: NSTextView?
         var onSelectionChange: ((String) -> Void)?

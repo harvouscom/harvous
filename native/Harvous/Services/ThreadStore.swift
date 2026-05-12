@@ -496,7 +496,9 @@ enum ThreadStore {
         let snippet = excerpt.isEmpty ? trimmed : excerpt
 
         do {
-            let generated = try await ScriptureReflectionGenerator.generate(excerpt: snippet, reference: trimmed)
+            let generated = try await Task.detached(priority: .userInitiated) {
+                try await ScriptureReflectionGenerator.generate(excerpt: snippet, reference: trimmed)
+            }.value
             // Re-fetch after async gap — dock's .task may have raced us to completion.
             guard let t = fetch(id: threadId, modelContext: modelContext),
                   !t.aiSuggestedQuestionsGenerated else { return }

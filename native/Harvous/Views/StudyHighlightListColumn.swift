@@ -64,7 +64,7 @@ struct StudyHighlightListColumn: View {
         #if os(macOS)
         EdgeInsets(top: 8, leading: 0, bottom: 4, trailing: 0)
         #else
-        EdgeInsets(top: 8, leading: 14, bottom: 4, trailing: 14)
+        EdgeInsets(top: 8, leading: HarvousFeedListLayout.listRowHorizontalInset, bottom: 4, trailing: HarvousFeedListLayout.listRowHorizontalInset)
         #endif
     }
 
@@ -271,7 +271,7 @@ struct StudyHighlightListColumn: View {
                     )
                 }
                 .buttonStyle(.plain)
-                .listRowInsets(EdgeInsets(top: 4, leading: 14, bottom: 4, trailing: 14))
+                .listRowInsets(EdgeInsets(top: 4, leading: HarvousFeedListLayout.listRowHorizontalInset, bottom: 4, trailing: HarvousFeedListLayout.listRowHorizontalInset))
                 .listRowBackground(Color.clear)
                 .listRowSeparator(.hidden)
             } else {
@@ -287,7 +287,7 @@ struct StudyHighlightListColumn: View {
                     )
                 }
                 .buttonStyle(.plain)
-                .listRowInsets(EdgeInsets(top: 4, leading: 14, bottom: 4, trailing: 14))
+                .listRowInsets(EdgeInsets(top: 4, leading: HarvousFeedListLayout.listRowHorizontalInset, bottom: 4, trailing: HarvousFeedListLayout.listRowHorizontalInset))
                 .listRowBackground(Color.clear)
                 .listRowSeparator(.hidden)
             }

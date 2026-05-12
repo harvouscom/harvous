@@ -93,7 +93,7 @@ private func applyBodyParagraphStyleToFullStorage(_ textView: UITextView) {
 @MainActor
 private func applyDefaultBodyTypingAttributes(to textView: NSTextView) {
     textView.typingAttributes = [
-        .font: HarvousFonts.system(size: 16, weight: 400),
+        .font: HarvousFonts.noteComposeBodyPlatformFont(),
         .foregroundColor: NSColor.labelColor,
         .paragraphStyle: noteBodyParagraphStyle(),
     ]
@@ -102,7 +102,7 @@ private func applyDefaultBodyTypingAttributes(to textView: NSTextView) {
 @MainActor
 private func applyDefaultBodyTypingAttributes(to textView: UITextView) {
     textView.typingAttributes = [
-        .font: HarvousFonts.system(size: 16, weight: 400),
+        .font: HarvousFonts.noteComposeBodyPlatformFont(),
         .foregroundColor: UIColor.label,
         .paragraphStyle: noteBodyParagraphStyle(),
     ]
@@ -237,7 +237,7 @@ private final class HarvousNoteTextView: NSTextView {
     /// Matches `EditorProxy` list marker font (body size) so toolbar list detection stays consistent.
     private static func noteListMarkerPrefixAttributes() -> [NSAttributedString.Key: Any] {
         [
-            .font: HarvousFonts.system(size: 16, weight: 400),
+            .font: HarvousFonts.noteComposeBodyPlatformFont(),
             .foregroundColor: NSColor.labelColor,
         ]
     }
@@ -836,7 +836,7 @@ private final class HarvousNoteTextView: NSTextView {
         }
         let loc = min(selectedRange().location, storage.length - 1)
         let font = storage.attribute(.font, at: max(0, loc), effectiveRange: nil) as? NSFont
-            ?? HarvousFonts.system(size: 16, weight: 400)
+            ?? HarvousFonts.noteComposeBodyPlatformFont()
         let natural = ceil(font.ascender - font.descender + font.leading)
         var r = rect
         r.size.height = min(rect.size.height, natural)
@@ -933,7 +933,7 @@ fileprivate func rehydrateNativeInlineBlocks(in textView: NSTextView) {
     guard let storage = textView.textStorage else { return }
     let para = noteBodyParagraphStyle()
     let bodyAttrs: [NSAttributedString.Key: Any] = [
-        .font: HarvousFonts.system(size: 16, weight: 400),
+        .font: HarvousFonts.noteComposeBodyPlatformFont(),
         .foregroundColor: NSColor.labelColor,
         .paragraphStyle: para
     ]
@@ -1061,7 +1061,7 @@ struct HarvousEditor: NSViewRepresentable {
     /// Persisted body for the selected note. Use this when `noteID` changes, not `state` alone: `@State` can lag one frame and would load the previous note’s text.
     var documentBody: String = ""
     var placeholder: String = "What are you studying?"
-    var font: NSFont = HarvousFonts.system(size: 16, weight: 400)
+    var font: NSFont = HarvousFonts.noteComposeBodyPlatformFont()
     /// Space accent for inline scripture pills (see `Space.scriptureThemeRaw` / `SpaceStore.scriptureTheme`).
     var scriptureTheme: HarvousColors.ThemeVariant = .blue
     /// Inline study highlights keyed to expanded-plain UTF‑16 anchors (applied after scripture pills hydrate).
@@ -1080,8 +1080,18 @@ struct HarvousEditor: NSViewRepresentable {
     var onStudyHighlightClick: ((UUID) -> Void)? = nil
     /// Deletes anchored `StudyThread` rows whose underline intersects the current body selection (see `HarvousStudyHighlightMapper.threadIdsIntersectingBodySelection`).
     var onRemoveStudyHighlightThreadIds: (([UUID]) -> Void)? = nil
+    /// Propagates SwiftUI Dynamic Type so `NSTextView` fonts track system text sizing.
+    var dynamicTypeSize: DynamicTypeSize = .large
 
     func makeCoordinator() -> Coordinator { Coordinator(state: $state) }
+
+    @MainActor
+    private func syncComposeTypographyForDynamicTypeIfNeeded(in textView: HarvousNoteTextView, context: Context) {
+        if context.coordinator.lastDynamicTypeSize != dynamicTypeSize {
+            context.coordinator.lastDynamicTypeSize = dynamicTypeSize
+            context.coordinator.refreshComposeBodyTypography()
+        }
+    }
 
     @MainActor
     func makeNSView(context: Context) -> HarvousEditorScrollView {
@@ -1113,7 +1123,7 @@ struct HarvousEditor: NSViewRepresentable {
         let para = noteBodyParagraphStyle()
         textView.defaultParagraphStyle = para
         textView.typingAttributes = [
-            .font: HarvousFonts.system(size: 16, weight: 400),
+            .font: HarvousFonts.noteComposeBodyPlatformFont(),
             .foregroundColor: NSColor.labelColor,
             .paragraphStyle: para
         ]
@@ -1177,6 +1187,7 @@ struct HarvousEditor: NSViewRepresentable {
     @MainActor
     func updateNSView(_ scrollView: HarvousEditorScrollView, context: Context) {
         let textView = scrollView.documentView as! HarvousNoteTextView
+        syncComposeTypographyForDynamicTypeIfNeeded(in: textView, context: context)
         let previousTheme = context.coordinator.scriptureTheme
         context.coordinator.scriptureTheme = scriptureTheme
         let themeChanged = previousTheme != scriptureTheme
@@ -1305,7 +1316,7 @@ struct HarvousEditor: NSViewRepresentable {
                 context.coordinator.markNotPlaceholder()
                 textView.string = state.plainText
                 textView.textColor = NSColor.labelColor
-                textView.font = HarvousFonts.system(size: 16, weight: 400)
+                textView.font = HarvousFonts.noteComposeBodyPlatformFont()
                 applyBodyParagraphStyleToFullStorage(textView)
                 rehydrateNativeInlineBlocks(in: textView)
             }
@@ -1321,7 +1332,7 @@ struct HarvousEditor: NSViewRepresentable {
                 context.coordinator.markNotPlaceholder()
                 textView.string = body
                 textView.textColor = NSColor.labelColor
-                textView.font = HarvousFonts.system(size: 16, weight: 400)
+                textView.font = HarvousFonts.noteComposeBodyPlatformFont()
                 applyBodyParagraphStyleToFullStorage(textView)
                 rehydrateNativeInlineBlocks(in: textView)
             }
@@ -1346,6 +1357,8 @@ struct HarvousEditor: NSViewRepresentable {
         /// Passed from SwiftUI to pick highlight palette.
         var studyHighlightsAssumeDarkAppearance: Bool = false
         var placeholderText = "What are you studying?"
+        /// Last applied `DynamicTypeSize` from SwiftUI — when it changes, compose fonts refresh for accessibility text sizing.
+        var lastDynamicTypeSize: DynamicTypeSize?
         /// True when the body shows placeholder copy (see `showPlaceholder`). The view’s `textColor` cannot be used: placeholder uses attributed `.foregroundColor` only.
         private var isDisplayingPlaceholder: Bool = false
         private var debounceTask: Task<Void, Never>?
@@ -1503,12 +1516,29 @@ struct HarvousEditor: NSViewRepresentable {
             isDisplayingPlaceholder = false
         }
 
+        /// Re-applies compose body font when Dynamic Type / larger text changes (placeholder vs normal).
+        @MainActor
+        func refreshComposeBodyTypography() {
+            guard let tv = textView else { return }
+            if isDisplayingPlaceholder {
+                let attrs: [NSAttributedString.Key: Any] = [
+                    .foregroundColor: NSColor.tertiaryLabelColor,
+                    .font: HarvousFonts.noteComposeBodyNSFont(),
+                ]
+                tv.textStorage?.setAttributedString(NSAttributedString(string: placeholderText, attributes: attrs))
+                tv.setSelectedRange(NSRange(location: 0, length: 0))
+            } else {
+                tv.font = HarvousFonts.noteComposeBodyNSFont()
+                applyDefaultBodyTypingAttributes(to: tv)
+            }
+        }
+
         func showPlaceholder(in textView: NSTextView, text: String) {
             // Simple placeholder via text storage (tertiary label reads lighter than .placeholderTextColor in the canvas)
             if textView.string.isEmpty {
                 let attrs: [NSAttributedString.Key: Any] = [
                     .foregroundColor: NSColor.tertiaryLabelColor,
-                    .font: HarvousFonts.system(size: 16, weight: 400)
+                    .font: HarvousFonts.noteComposeBodyPlatformFont()
                 ]
                 textView.textStorage?.setAttributedString(NSAttributedString(string: text, attributes: attrs))
                 isDisplayingPlaceholder = true
@@ -1523,13 +1553,13 @@ struct HarvousEditor: NSViewRepresentable {
             isDisplayingPlaceholder = false
             let para = noteBodyParagraphStyle()
             let attrs: [NSAttributedString.Key: Any] = [
-                .font: HarvousFonts.system(size: 16, weight: 400),
+                .font: HarvousFonts.noteComposeBodyPlatformFont(),
                 .foregroundColor: NSColor.labelColor,
                 .paragraphStyle: para
             ]
             tv.textStorage?.setAttributedString(NSAttributedString(string: "", attributes: attrs))
             tv.typingAttributes = attrs
-            tv.font = HarvousFonts.system(size: 16, weight: 400)
+            tv.font = HarvousFonts.noteComposeBodyPlatformFont()
             tv.textColor = NSColor.labelColor
             tv.setSelectedRange(NSRange(location: 0, length: 0))
         }
@@ -1938,7 +1968,7 @@ struct HarvousEditor: NSViewRepresentable {
                     accent: pillAccentResolver?(item.displayRef)
                 )
                 let pillStr = NSMutableAttributedString(attachment: pill)
-                let bodyFont: NSFont = HarvousFonts.system(size: 16, weight: 400)
+                let bodyFont: NSFont = HarvousFonts.noteComposeBodyPlatformFont()
                 var pillAttrs: [NSAttributedString.Key: Any] = [.font: bodyFont]
                 let pillLoc = item.range.location
                 if pillLoc < storage.length,
@@ -2034,7 +2064,7 @@ private final class HarvousBodyTextView: UITextView {
            let f = textStorage.attribute(.font, at: loc, effectiveRange: nil) as? UIFont {
             font = f
         } else {
-            font = HarvousFonts.system(size: 16, weight: 400)
+            font = HarvousFonts.noteComposeBodyPlatformFont()
         }
         let natural = ceil(font.ascender - font.descender + font.leading)
         r.size.height = min(r.size.height, natural)
@@ -2167,6 +2197,15 @@ struct HarvousEditor: UIViewRepresentable {
     /// Resolves the user-picked scripture pill accent for a given reference (persisted on the owning Note).
     var pillAccentResolver: ((String) -> StudyHighlightAccentToken?)? = nil
     var onRemoveStudyHighlightThreadIds: (([UUID]) -> Void)? = nil
+    /// Propagates SwiftUI Dynamic Type so `UITextView` fonts track the content size setting.
+    var dynamicTypeSize: DynamicTypeSize = .large
+
+    private func syncComposeTypographyForDynamicTypeIfNeeded(in textView: UITextView, context: Context) {
+        if context.coordinator.lastDynamicTypeSize != dynamicTypeSize {
+            context.coordinator.lastDynamicTypeSize = dynamicTypeSize
+            context.coordinator.refreshComposeBodyTypography()
+        }
+    }
 
     func makeCoordinator() -> Coordinator {
         let c = Coordinator(state: $state)
@@ -2187,7 +2226,7 @@ struct HarvousEditor: UIViewRepresentable {
         lm.addTextContainer(container)
         let tv = HarvousBodyTextView(frame: .zero, textContainer: container)
         let para = noteBodyParagraphStyle()
-        let bodyFont = HarvousFonts.system(size: 16, weight: 400)
+        let bodyFont = HarvousFonts.noteComposeBodyPlatformFont()
         tv.font = bodyFont
         tv.textColor = .label
         tv.backgroundColor = .clear
@@ -2254,6 +2293,7 @@ struct HarvousEditor: UIViewRepresentable {
     }
 
     func updateUIView(_ textView: UITextView, context: Context) {
+        syncComposeTypographyForDynamicTypeIfNeeded(in: textView, context: context)
         var didSyncBodyFromState = false
         let previousTheme = context.coordinator.scriptureTheme
         context.coordinator.scriptureTheme = scriptureTheme
@@ -2364,6 +2404,8 @@ struct HarvousEditor: UIViewRepresentable {
         var studyHighlightFocusedThreadId: UUID?
         var studyHighlightsAssumeDarkAppearance: Bool = false
         var placeholderText: String = "What are you studying?"
+        /// Mirrors macOS coordinator — refreshes compose fonts when Dynamic Type changes.
+        var lastDynamicTypeSize: DynamicTypeSize?
         var onScripturePillTap: ((String, String, NSRange) -> Void)?
         var onStudyHighlightTap: ((UUID) -> Void)?
         /// Resolver for per-note pill accents (see `HarvousEditor.pillAccentResolver`). Updated on every `updateUIView`.
@@ -2381,6 +2423,23 @@ struct HarvousEditor: UIViewRepresentable {
             programmaticBodyMutationDepth += 1
             work()
             programmaticBodyMutationDepth -= 1
+        }
+
+        /// Updates body / placeholder fonts when the user changes Larger Text.
+        @MainActor
+        func refreshComposeBodyTypography() {
+            guard let tv = textView else { return }
+            let f = HarvousFonts.noteComposeBodyUIFont()
+            tv.font = f
+            if tv.textColor == .tertiaryLabel {
+                tv.typingAttributes = [
+                    .font: f,
+                    .foregroundColor: UIColor.tertiaryLabel,
+                    .paragraphStyle: noteBodyParagraphStyle(),
+                ]
+            } else {
+                applyDefaultBodyTypingAttributes(to: tv)
+            }
         }
 
         init(state: Binding<EditorState>) {
@@ -2924,7 +2983,7 @@ struct HarvousEditor: UIViewRepresentable {
                     accent: pillAccentResolver?(item.displayRef)
                 )
                 let pillStr = NSMutableAttributedString(attachment: pill)
-                let pillBodyFont = HarvousFonts.system(size: 16, weight: 400)
+                let pillBodyFont = HarvousFonts.noteComposeBodyPlatformFont()
                 var pillAttrs: [NSAttributedString.Key: Any] = [.font: pillBodyFont]
                 let pillLoc = item.range.location
                 if pillLoc < storage.length,

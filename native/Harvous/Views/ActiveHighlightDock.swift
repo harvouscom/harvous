@@ -91,6 +91,8 @@ struct ActiveHighlightDock: View {
         .padding(.top, 6)
         .padding(.bottom, 10)
         .task(id: thread.id) {
+            // Yield so SwiftUI can commit study-dock chrome before `seed`/fire-and-forget work competes with layout.
+            await Task.yield()
             StudyPromptSuggester.seedScriptureRespondQuestionsIfNeeded(thread: thread, modelContext: modelContext)
 
             guard thread.entryKind == .scriptureLink else { return }
@@ -99,34 +101,18 @@ struct ActiveHighlightDock: View {
             guard !trimmed.isEmpty else { return }
             let transRaw = thread.scripturePassageTranslation?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
             let trans = transRaw.isEmpty ? ScriptureReference.defaultTranslation : transRaw
-            let excerpt = thread.scripturePassageExcerpt?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-            let snippet = excerpt.isEmpty ? trimmed : excerpt
 
-            async let prefetchDone: Void = ScripturePassageCache.shared.prefetch(reference: trimmed, translation: trans)
-
-            guard !thread.aiSuggestedQuestionsGenerated else {
-                await prefetchDone
-                return
+            Task(priority: .utility) {
+                await ScripturePassageCache.shared.prefetch(reference: trimmed, translation: trans)
             }
 
             if #available(macOS 26.0, iOS 26.0, *) {
-                do {
-                    let generated = try await ScriptureReflectionGenerator.generate(
-                        excerpt: snippet, reference: trimmed
-                    )
-                    await prefetchDone
-                    let defaults = StudyPromptSuggester.questions(forScriptureExcerpt: snippet, reference: trimmed)
-                    thread.suggestedQuestions = generated + defaults
-                    thread.aiSuggestedQuestionsGenerated = true
-                    try? modelContext.saveWithLogging()
-                    return
-                } catch {
-                    await prefetchDone
-                    return
+                guard !thread.aiSuggestedQuestionsGenerated else { return }
+                let threadId = thread.id
+                Task { @MainActor in
+                    await ThreadStore.warmScriptureReflectionQuestions(threadId: threadId, modelContext: modelContext)
                 }
             }
-
-            await prefetchDone
         }
     }
 

@@ -73,7 +73,7 @@ struct ScriptureHubView: View {
 
     /// Match scripture book rows (leading/trailing 14). Larger insets shrunk the passage card vs Notes/Highlights.
     private enum IOSScriptureHubListLayout {
-        static let dailyPassageRowInsets = EdgeInsets(top: 8, leading: 14, bottom: 4, trailing: 14)
+        static let dailyPassageRowInsets = EdgeInsets(top: 8, leading: HarvousFeedListLayout.listRowHorizontalInset, bottom: 4, trailing: HarvousFeedListLayout.listRowHorizontalInset)
     }
 
     private var navigationTitleText: String {
@@ -197,7 +197,7 @@ struct ScriptureHubView: View {
                         )
                     }
                     .buttonStyle(.plain)
-                    .listRowInsets(EdgeInsets(top: 4, leading: 14, bottom: 4, trailing: 14))
+                    .listRowInsets(EdgeInsets(top: 4, leading: HarvousFeedListLayout.listRowHorizontalInset, bottom: 4, trailing: HarvousFeedListLayout.listRowHorizontalInset))
                     .listRowBackground(Color.clear)
                     .listRowSeparator(.hidden)
                 }
@@ -275,7 +275,7 @@ struct ScriptureHubView: View {
                     )
                 }
                 .buttonStyle(.plain)
-                .listRowInsets(EdgeInsets(top: 4, leading: 14, bottom: 4, trailing: 14))
+                .listRowInsets(EdgeInsets(top: 4, leading: HarvousFeedListLayout.listRowHorizontalInset, bottom: 4, trailing: HarvousFeedListLayout.listRowHorizontalInset))
                 .listRowBackground(Color.clear)
                 .listRowSeparator(.hidden)
             }

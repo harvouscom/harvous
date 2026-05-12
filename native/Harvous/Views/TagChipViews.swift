@@ -193,7 +193,7 @@ struct ScriptureRefChip: View {
         }
         .foregroundStyle(HarvousColors.scriptureChipForeground(scriptureTheme).opacity(scriptureRefChipLabelOpacity))
         .padding(.horizontal, scriptureRefChipHorizontalPadding)
-        .padding(.vertical, 6)
+        .padding(.vertical, HarvousScripturePillStyle.rasterVerticalInset)
         .background(
             RoundedRectangle(cornerRadius: scriptureCornerRadius, style: .continuous)
                 .fill(HarvousColors.scriptureChipBackground(scriptureTheme))

@@ -120,6 +120,45 @@ This is the key balancing mechanism for:
 - Mentioning "David" once in a prayer note -> likely keeps a theme primary
 - Note repeatedly centered on David’s life -> character can become primary
 
+## Web parity (`bible-study-collection-web.ts`)
+
+Production note cards use the same intent as native:
+
+- **Primary** is chosen from the **full** deduped keyword set (`pickPrimaryRowFromDeduped` / `betterPrimaryRow`), not only from the top tag slice — so the auto primary is **not** “whatever matched first.”
+- **Secondaries** use the same stricter thresholds for `character` / `place` vs themes as native (`SECONDARY_MIN_SCORE`, `SECONDARY_CHARACTER_PLACE_MIN_SCORE`, `MAX_AUTO_SECONDARIES`).
+- **After edits**, `applyAutoCollectionAfterEdit` refreshes primary/secondaries with the same **cooldown** and **materially stronger** replacement rule as native (`AUTO_REPLACE_COOLDOWN_MS`, +0.18 margin; web also requires `strongSignal` on the candidate row’s raw match confidence).
+
+Paths: [`src/utils/bible-study-collection-web.ts`](../src/utils/bible-study-collection-web.ts), consumer [`src/components/react/CardFullEditable.tsx`](../src/components/react/CardFullEditable.tsx).
+
+## Re-analysis vs “promoting a stored secondary”
+
+Auto **secondaries** are computed **after** primary: same scored pool, minus the current primary label and overlapping concepts. The app does **not** run a separate step that only walks `secondaryFolders` / `secondaryCollections` to pick a new primary.
+
+What actually corrects a primary over time:
+
+1. Title + body are **re-scored** on each apply/edit.
+2. The new **global** primary winner can be a label that, if you had kept the old primary, would have appeared as a **secondary** — because both come from the same `picked` / row set; primary is the fold/reduction over **all** candidates, not “first tag.”
+3. **Replacing** an already-set primary is **conservative** (cooldown + stronger evidence) so the shelf label does not flap; see below.
+
+| Question | Answer |
+|----------|--------|
+| Is auto primary always the “first” folder or tag? | **No** — primary is chosen by folding the full overlap-deduped candidate list with score + tie-breaks. |
+| Does the app re-read only the stored secondary list to fix primary? | **No** — it **re-scores content**; the winner is global. |
+| Can primary change later with high confidence? | **Yes**, if the new winner clears **cooldown + materially stronger (+0.18) + strong evidence** (native: title or ≥3 occurrences on the **candidate** row; web: `strongSignal`). Pinned primary or manual override (without pin) can freeze updates. |
+
+## Primary replacement (stability gates)
+
+Native (`applyPrimaryMutation`):
+
+- **Cooldown**: `autoFolderCooldown` (25 seconds) after `folderLastAutoUpdatedAt` before allowing a primary **swap** to a different label.
+- **Swap rule** (`shouldReplacePrimaryFolder`): candidate must be **≥ 0.18** ahead on `primaryScore` vs current **and** show **title hit or ≥3 occurrences** on the candidate.
+
+Web (`applyAutoCollectionAfterEdit`): same cooldown and +0.18 idea; see `strongSignal` in TS for the web-specific confidence check.
+
+## Resolved library labels (native)
+
+Persisted `primaryFolder` is often a **library-resolved** string (e.g. keyword `Prayer` → existing folder `Prayer Life` via `resolveToExistingFolder`). Replacement compares `primaryScore` for **current vs candidate**. The implementation maps that persisted label back to the correct `picked` row (`scoredForLibraryFolderLabel`) so the current side is not mis-scored as `0` when the string does not exactly match a keyword `name`.
+
 ## Overlap Behavior
 
 `overlaps(...)` avoids clutter from semantically adjacent tags.

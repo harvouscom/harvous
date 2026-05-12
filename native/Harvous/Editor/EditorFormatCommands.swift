@@ -102,7 +102,7 @@ extension EditorProxy {
 #elseif os(iOS)
         let labelColor: Any = UIColor.label
 #endif
-        let bodyFont = HarvousFonts.system(size: 16, weight: 400)
+        let bodyFont = HarvousFonts.noteComposeBodyPlatformFont()
         let para = noteBodyParagraphStyleForInserts()
 
         if let uuid = attrs[.harvousStudyHighlightUUID] as? String, !uuid.isEmpty {
@@ -150,7 +150,7 @@ extension EditorProxy {
 
     func bodyText() {
         guard let (tv, storage) = textViewPair() else { return }
-        let bodyFont = HarvousFonts.system(size: 16, weight: 400)
+        let bodyFont = HarvousFonts.noteComposeBodyPlatformFont()
         let paraRange = (storage.string as NSString).paragraphRange(for: caretRange(for: tv))
         storage.beginEditing()
         if paraRange.length > 0 {
@@ -240,12 +240,12 @@ extension EditorProxy {
         let snippet = "[[\(title)]]"
 #if os(macOS)
         let body: [NSAttributedString.Key: Any] = [
-            .font: HarvousFonts.system(size: 16, weight: 400),
+            .font: HarvousFonts.noteComposeBodyPlatformFont(),
             .foregroundColor: NSColor.labelColor
         ]
 #else
         let body: [NSAttributedString.Key: Any] = [
-            .font: HarvousFonts.system(size: 16, weight: 400),
+            .font: HarvousFonts.noteComposeBodyPlatformFont(),
             .foregroundColor: UIColor.label
         ]
 #endif
@@ -264,13 +264,13 @@ extension EditorProxy {
         let para = noteBodyParagraphStyleForInserts()
 #if os(macOS)
         let body: [NSAttributedString.Key: Any] = [
-            .font: HarvousFonts.system(size: 16, weight: 400),
+            .font: HarvousFonts.noteComposeBodyPlatformFont(),
             .foregroundColor: NSColor.labelColor,
             .paragraphStyle: para
         ]
 #else
         let body: [NSAttributedString.Key: Any] = [
-            .font: HarvousFonts.system(size: 16, weight: 400),
+            .font: HarvousFonts.noteComposeBodyPlatformFont(),
             .foregroundColor: UIColor.label,
             .paragraphStyle: para
         ]
@@ -511,7 +511,7 @@ extension EditorProxy {
     ) -> Bool {
         if mask == .boldFontMask {
             if range.length == 0 {
-                let font = (tv.typingAttributes[.font] as? NSFont) ?? HarvousFonts.system(size: 16, weight: 400)
+                let font = (tv.typingAttributes[.font] as? NSFont) ?? HarvousFonts.noteComposeBodyPlatformFont()
                 if HarvousFonts.bodyHeadingLevel(matching: font) != nil { return false }
                 return mgr.traits(of: font).contains(mask)
             }
@@ -520,7 +520,7 @@ extension EditorProxy {
             var foundNonHeading = false
             while idx < end {
                 var eff = NSRange()
-                let font = (storage.attribute(.font, at: idx, effectiveRange: &eff) as? NSFont) ?? HarvousFonts.system(size: 16, weight: 400)
+                let font = (storage.attribute(.font, at: idx, effectiveRange: &eff) as? NSFont) ?? HarvousFonts.noteComposeBodyPlatformFont()
                 let sub = NSIntersectionRange(eff, range)
                 if sub.length > 0 {
                     if HarvousFonts.bodyHeadingLevel(matching: font) != nil {
@@ -540,14 +540,14 @@ extension EditorProxy {
         }
 
         if range.length == 0 {
-            let font = (tv.typingAttributes[.font] as? NSFont) ?? HarvousFonts.system(size: 16, weight: 400)
+            let font = (tv.typingAttributes[.font] as? NSFont) ?? HarvousFonts.noteComposeBodyPlatformFont()
             return mgr.traits(of: font).contains(mask)
         }
         let end = NSMaxRange(range)
         var idx = range.location
         while idx < end {
             var eff = NSRange()
-            let font = (storage.attribute(.font, at: idx, effectiveRange: &eff) as? NSFont) ?? HarvousFonts.system(size: 16, weight: 400)
+            let font = (storage.attribute(.font, at: idx, effectiveRange: &eff) as? NSFont) ?? HarvousFonts.noteComposeBodyPlatformFont()
             let sub = NSIntersectionRange(eff, range)
             if sub.length > 0, !mgr.traits(of: font).contains(mask) { return false }
             let next = NSMaxRange(eff)
@@ -568,17 +568,17 @@ extension EditorProxy {
             }
         }
         if range.length == 0 {
-            let font = (tv.typingAttributes[.font] as? NSFont) ?? HarvousFonts.system(size: 16, weight: 400)
+            let font = (tv.typingAttributes[.font] as? NSFont) ?? HarvousFonts.noteComposeBodyPlatformFont()
             return HarvousFonts.bodyHeadingLevel(matching: font)
         }
         let loc = min(max(range.location, 0), storage.length - 1)
-        let font = (storage.attribute(.font, at: loc, effectiveRange: nil) as? NSFont) ?? HarvousFonts.system(size: 16, weight: 400)
+        let font = (storage.attribute(.font, at: loc, effectiveRange: nil) as? NSFont) ?? HarvousFonts.noteComposeBodyPlatformFont()
         return HarvousFonts.bodyHeadingLevel(matching: font)
     }
 #elseif os(iOS)
     private func iosBoldToolbarActive(range: NSRange, tv: UITextView, storage: NSTextStorage) -> Bool {
         if range.length == 0 {
-            let font = (tv.typingAttributes[.font] as? UIFont) ?? HarvousFonts.system(size: 16, weight: 400)
+            let font = (tv.typingAttributes[.font] as? UIFont) ?? HarvousFonts.noteComposeBodyPlatformFont()
             if HarvousFonts.bodyHeadingLevel(matching: font) != nil { return false }
             return font.fontDescriptor.symbolicTraits.contains(.traitBold)
         }
@@ -587,7 +587,7 @@ extension EditorProxy {
         var foundNonHeading = false
         while idx < end {
             var eff = NSRange()
-            let font = (storage.attribute(.font, at: idx, effectiveRange: &eff) as? UIFont) ?? HarvousFonts.system(size: 16, weight: 400)
+            let font = (storage.attribute(.font, at: idx, effectiveRange: &eff) as? UIFont) ?? HarvousFonts.noteComposeBodyPlatformFont()
             let sub = NSIntersectionRange(eff, range)
             if sub.length > 0 {
                 if HarvousFonts.bodyHeadingLevel(matching: font) != nil {
@@ -608,14 +608,14 @@ extension EditorProxy {
 
     private func iosItalicToolbarActive(range: NSRange, tv: UITextView, storage: NSTextStorage) -> Bool {
         if range.length == 0 {
-            let font = (tv.typingAttributes[.font] as? UIFont) ?? HarvousFonts.system(size: 16, weight: 400)
+            let font = (tv.typingAttributes[.font] as? UIFont) ?? HarvousFonts.noteComposeBodyPlatformFont()
             return font.fontDescriptor.symbolicTraits.contains(.traitItalic)
         }
         let end = NSMaxRange(range)
         var idx = range.location
         while idx < end {
             var eff = NSRange()
-            let font = (storage.attribute(.font, at: idx, effectiveRange: &eff) as? UIFont) ?? HarvousFonts.system(size: 16, weight: 400)
+            let font = (storage.attribute(.font, at: idx, effectiveRange: &eff) as? UIFont) ?? HarvousFonts.noteComposeBodyPlatformFont()
             let sub = NSIntersectionRange(eff, range)
             if sub.length > 0, !font.fontDescriptor.symbolicTraits.contains(.traitItalic) { return false }
             let next = NSMaxRange(eff)
@@ -635,11 +635,11 @@ extension EditorProxy {
             }
         }
         if range.length == 0 {
-            let font = (tv.typingAttributes[.font] as? UIFont) ?? HarvousFonts.system(size: 16, weight: 400)
+            let font = (tv.typingAttributes[.font] as? UIFont) ?? HarvousFonts.noteComposeBodyPlatformFont()
             return HarvousFonts.bodyHeadingLevel(matching: font)
         }
         let loc = min(max(range.location, 0), storage.length - 1)
-        let font = (storage.attribute(.font, at: loc, effectiveRange: nil) as? UIFont) ?? HarvousFonts.system(size: 16, weight: 400)
+        let font = (storage.attribute(.font, at: loc, effectiveRange: nil) as? UIFont) ?? HarvousFonts.noteComposeBodyPlatformFont()
         return HarvousFonts.bodyHeadingLevel(matching: font)
     }
 #endif
@@ -720,7 +720,7 @@ extension EditorProxy {
 #endif
         if storage.length == 0 {
             return [
-                .font: HarvousFonts.system(size: 16, weight: 400),
+                .font: HarvousFonts.noteComposeBodyPlatformFont(),
                 .foregroundColor: labelColorAttr,
                 .paragraphStyle: para
             ]
@@ -732,12 +732,12 @@ extension EditorProxy {
     private func listPrefixAttributes() -> [NSAttributedString.Key: Any] {
 #if os(macOS)
         [
-            .font: HarvousFonts.system(size: 16, weight: 400),
+            .font: HarvousFonts.noteComposeBodyPlatformFont(),
             .foregroundColor: NSColor.labelColor
         ]
 #elseif os(iOS)
         [
-            .font: HarvousFonts.system(size: 16, weight: 400),
+            .font: HarvousFonts.noteComposeBodyPlatformFont(),
             .foregroundColor: UIColor.label
         ]
 #endif
@@ -751,7 +751,7 @@ extension EditorProxy {
         let mask = NSFontTraitMask(rawValue: rawValue)
         let manager = NSFontManager.shared
         if range.length == 0 {
-            let base = (tv.typingAttributes[.font] as? NSFont) ?? HarvousFonts.system(size: 16, weight: 400)
+            let base = (tv.typingAttributes[.font] as? NSFont) ?? HarvousFonts.noteComposeBodyPlatformFont()
             let hasTrait = manager.traits(of: base).contains(mask)
             let newFont = hasTrait ? manager.convert(base, toNotHaveTrait: mask) : manager.convert(base, toHaveTrait: mask)
             var attrs = tv.typingAttributes
@@ -788,7 +788,7 @@ extension EditorProxy {
         }
         let range = caretRange(for: tv)
         if range.length == 0 {
-            let base = (tv.typingAttributes[.font] as? UIFont) ?? HarvousFonts.system(size: 16, weight: 400)
+            let base = (tv.typingAttributes[.font] as? UIFont) ?? HarvousFonts.noteComposeBodyPlatformFont()
             let has = base.fontDescriptor.symbolicTraits.contains(symbolic)
             let updated = iosFontApplyingSymbolicTrait(symbolic, to: base, add: !has)
             var attrs = tv.typingAttributes
@@ -801,7 +801,7 @@ extension EditorProxy {
             while idx < rangeEnd {
                 var eff = NSRange()
                 let existing = (storage.attribute(.font, at: idx, effectiveRange: &eff) as? UIFont)
-                    ?? HarvousFonts.system(size: 16, weight: 400)
+                    ?? HarvousFonts.noteComposeBodyPlatformFont()
                 let sub = NSIntersectionRange(eff, range)
                 if sub.length > 0 {
                     let hasTrait = existing.fontDescriptor.symbolicTraits.contains(symbolic)

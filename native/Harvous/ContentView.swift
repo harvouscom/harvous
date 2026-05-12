@@ -549,165 +549,219 @@ private struct HarvousMacProfileToolbarMenu: View {
 struct iOSRootView: View {
     @EnvironmentObject private var appRouter: HarvousAppRouter
     @EnvironmentObject private var spaceStore: SpaceStore
+    @Environment(\.colorScheme) private var colorScheme
     @Environment(\.modelContext) private var modelContext
     @State private var iosNoteNavigationPath: [UUID] = []
     @State private var importSummaryPayload: HarvousVaultImportSummaryPayload?
     @State private var iosKeyboardOccupiesBottom = false
 
+    /// Material “breathing” band under morphing chrome is for list/hub surfaces only; on note pages it reads as an extra grey strip above the keyboard.
+    private var iosMorphingChromeKeyboardBreathingActive: Bool {
+        iosKeyboardOccupiesBottom && iosNoteNavigationPath.isEmpty
+    }
+
     var body: some View {
-        NavigationStack(path: $iosNoteNavigationPath) {
-            Group {
+        let chrome = iosNavigationStack
+            .overlay {
+                if appRouter.iosComposeCameraOrbPresented {
+                    GeometryReader { geo in
+                        let keyboardSlack = iosMorphingChromeKeyboardBreathingActive ? HarvousIOSMorphingChromeLayout.keyboardBreathingPadding : 0
+                        let reserve = HarvousIOSMorphingChromeLayout.composeCameraOrbDismissTapCatcherBottomReserve
+                            + geo.safeAreaInsets.bottom + keyboardSlack
+                        Color.clear
+                            .contentShape(Rectangle())
+                            .frame(width: geo.size.width, height: max(0, geo.size.height - reserve), alignment: .top)
+                            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                            .onTapGesture {
+                                appRouter.dismissIOSComposeCameraOrbIfPresented()
+                            }
+                    }
+                    .allowsHitTesting(true)
+                }
+            }
+            .tint(.harvousAccent)
+            .safeAreaInset(edge: .bottom, spacing: HarvousIOSMorphingChromeLayout.interChromeSpacing) {
+                iosMorphingChromeInset
+            }
+            .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { _ in
+                iosKeyboardOccupiesBottom = true
+            }
+            .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in
+                iosKeyboardOccupiesBottom = false
+            }
+
+        let withSheets = chrome
+            .sheet(isPresented: $appRouter.iosNotesFilterSearchPresented) {
+                IOSNotesFilterSearchSheet()
+                    .environmentObject(appRouter)
+                    .presentationDetents([.medium])
+                    .presentationDragIndicator(.visible)
+            }
+            .sheet(isPresented: $appRouter.iosShowMore, onDismiss: {
+                appRouter.youNavigationStack.removeAll()
+            }) {
+                iosYouRootSheet
+            }
+
+        let withScene = withSheets
+            .onChange(of: appRouter.iosListSurface) { _, newSurface in
+                if newSurface == .notes {
+                    return
+                }
+                appRouter.dismissStandaloneScripturePassageDock()
+                Task { @MainActor in
+                    iosNoteNavigationPath.removeAll()
+                }
+            }
+            .focusedSceneValue(\.newNoteAction) {
+                NotificationCenter.default.post(name: HarvousAppRouter.requestComposeNewNotification, object: nil)
+            }
+            .focusedSceneValue(\.showSearchAction) {
                 switch appRouter.iosListSurface {
                 case .notes:
-                    HomeHubView(iosNoteNavigationPath: $iosNoteNavigationPath)
-                case .folders:
-                    LibraryView(
-                        iosNoteNavigationPath: $iosNoteNavigationPath,
-                        externalSearchText: $appRouter.iosInlineSearchText
-                    )
-                case .highlights:
-                    HighlightsHubView(iosNoteNavigationPath: $iosNoteNavigationPath)
-                case .scripture:
-                    ScriptureHubView(
-                        iosNoteNavigationPath: $iosNoteNavigationPath,
-                        externalSearchText: $appRouter.iosInlineSearchText
-                    )
+                    appRouter.iosNotesFilterSearchPresented = true
+                case .folders, .highlights, .scripture:
+                    NotificationCenter.default.post(name: .harvousFocusIOSInlineSearch, object: nil)
                 case .more:
-                    // `.more` is now presented as a sheet; this branch is a fallback only.
-                    HomeHubView(iosNoteNavigationPath: $iosNoteNavigationPath)
+                    break
                 }
             }
-            .navigationDestination(for: UUID.self) { noteId in
-                NoteEditorById(noteId: noteId)
+            .focusedSceneValue(\.dailyNoteAction) {
+                NotificationCenter.default.post(name: .requestDailyNote, object: nil)
             }
-        }
-        .tint(.harvousAccent)
-        .safeAreaInset(edge: .bottom, spacing: HarvousIOSMorphingChromeLayout.interChromeSpacing) {
-            MorphingChromeBar()
-                .environmentObject(appRouter)
-                // Keyboard: inset `spacing` does not gap chrome from keyboard—add explicit bottom inset above prediction strip / keys.
-                // Idle: tuck slightly toward home indicator for reachability on notched phones.
-                .padding(
-                    .bottom,
-                    iosKeyboardOccupiesBottom ? HarvousIOSMorphingChromeLayout.keyboardBreathingPadding : -4
+            .focusedSceneValue(\.randomRevisitAction) {
+                NotificationCenter.default.post(name: .requestRandomRevisit, object: nil)
+            }
+            .focusedSceneValue(\.insertWikiLinkAction) {
+                NotificationCenter.default.post(name: .harvousRequestInsertWikiLink, object: nil)
+            }
+
+        return withScene
+            .onDrop(of: [.fileURL], isTargeted: .constant(false)) { providers in
+                HarvousVaultDropImport.handle(providers: providers, spaceId: spaceStore.activeSpaceUUID(), modelContext: modelContext)
+                return true
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .harvousVaultImportSummary)) { note in
+                importSummaryPayload = note.object as? HarvousVaultImportSummaryPayload
+            }
+            .alert(
+                "Import finished",
+                isPresented: Binding(
+                    get: { importSummaryPayload != nil },
+                    set: { if !$0 { importSummaryPayload = nil } }
                 )
-        }
-        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { _ in
-            iosKeyboardOccupiesBottom = true
-        }
-        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in
-            iosKeyboardOccupiesBottom = false
-        }
-        .sheet(isPresented: $appRouter.iosNotesFilterSearchPresented) {
-            IOSNotesFilterSearchSheet()
-                .environmentObject(appRouter)
-                .presentationDetents([.medium])
-                .presentationDragIndicator(.visible)
-        }
-        .sheet(isPresented: $appRouter.iosShowMore, onDismiss: {
-            appRouter.youNavigationStack.removeAll()
-        }) {
-            NavigationStack(path: $appRouter.youNavigationStack) {
-                YouRootView()
-                    .toolbar {
-                        ToolbarItem(placement: .cancellationAction) {
-                            Button("Done") {
-                                appRouter.iosShowMore = false
-                            }
-                        }
-                    }
-                    .navigationDestination(for: HarvousYouNavigation.self) { nav in
-                        switch nav {
-                        case .settingsList:
-                            IOSSettingsGroupedListView()
-                        case .settingsDetail(let item):
-                            HarvousSettingsFormView(item: item)
-                        }
-                    }
+            ) {
+                Button("OK", role: .cancel) { importSummaryPayload = nil }
+            } message: {
+                if let p = importSummaryPayload {
+                    Text(iosImportSummaryMessage(p))
+                }
             }
-            .environmentObject(appRouter)
-            .environmentObject(spaceStore)
-            .presentationDetents([.large])
-            .presentationDragIndicator(.visible)
-        }
-        .onChange(of: appRouter.iosListSurface) { _, newSurface in
-            if newSurface == .notes {
-                return
+            .sheet(isPresented: Binding(
+                get: { appRouter.standaloneScripturePassageDock != nil },
+                set: { isPresented in if !isPresented { appRouter.dismissStandaloneScripturePassageDock() } }
+            )) {
+                iosStandaloneScriptureDockSheet
             }
-            appRouter.dismissStandaloneScripturePassageDock()
-            // Clearing the path synchronously alongside tab chrome updates can collide with NavigationStack
-            // transactions (especially when switching surfaces after a List tap animation).
-            Task { @MainActor in
-                iosNoteNavigationPath.removeAll()
+            .onAppear {
+                HarvousCalendarStudyNotifier.requestAccessAndPrewarm(modelContext: modelContext)
+                appRouter.applyPendingDeepLink()
             }
+    }
+
+    private var iosNavigationStack: some View {
+        NavigationStack(path: $iosNoteNavigationPath) {
+            iosListSurfaceGroup
+                .navigationDestination(for: UUID.self) { noteId in
+                    NoteEditorById(noteId: noteId)
+                }
         }
-        .focusedSceneValue(\.newNoteAction) {
-            NotificationCenter.default.post(name: HarvousAppRouter.requestComposeNewNotification, object: nil)
-        }
-        .focusedSceneValue(\.showSearchAction) {
+    }
+
+    @ViewBuilder
+    private var iosListSurfaceGroup: some View {
+        Group {
             switch appRouter.iosListSurface {
             case .notes:
-                appRouter.iosNotesFilterSearchPresented = true
-            case .folders, .highlights, .scripture:
-                NotificationCenter.default.post(name: .harvousFocusIOSInlineSearch, object: nil)
+                HomeHubView(iosNoteNavigationPath: $iosNoteNavigationPath)
+            case .folders:
+                LibraryView(
+                    iosNoteNavigationPath: $iosNoteNavigationPath,
+                    externalSearchText: $appRouter.iosInlineSearchText
+                )
+            case .highlights:
+                HighlightsHubView(iosNoteNavigationPath: $iosNoteNavigationPath)
+            case .scripture:
+                ScriptureHubView(
+                    iosNoteNavigationPath: $iosNoteNavigationPath,
+                    externalSearchText: $appRouter.iosInlineSearchText
+                )
             case .more:
-                break
+                // `.more` is presented as a sheet; fallback only.
+                HomeHubView(iosNoteNavigationPath: $iosNoteNavigationPath)
             }
         }
-        .focusedSceneValue(\.dailyNoteAction) {
-            NotificationCenter.default.post(name: .requestDailyNote, object: nil)
-        }
-        .focusedSceneValue(\.randomRevisitAction) {
-            NotificationCenter.default.post(name: .requestRandomRevisit, object: nil)
-        }
-        .focusedSceneValue(\.insertWikiLinkAction) {
-            NotificationCenter.default.post(name: .harvousRequestInsertWikiLink, object: nil)
-        }
-        .onDrop(of: [.fileURL], isTargeted: .constant(false)) { providers in
-            HarvousVaultDropImport.handle(providers: providers, spaceId: spaceStore.activeSpaceUUID(), modelContext: modelContext)
-            return true
-        }
-        .onReceive(NotificationCenter.default.publisher(for: .harvousVaultImportSummary)) { note in
-            importSummaryPayload = note.object as? HarvousVaultImportSummaryPayload
-        }
-        .alert(
-            "Import finished",
-            isPresented: Binding(
-                get: { importSummaryPayload != nil },
-                set: { if !$0 { importSummaryPayload = nil } }
-            )
-        ) {
-            Button("OK", role: .cancel) { importSummaryPayload = nil }
-        } message: {
-            if let p = importSummaryPayload {
-                Text(iosImportSummaryMessage(p))
+    }
+
+    /// Keeps `MorphingChromeBar` in a stable slot (not inside `if/else` branches) so
+    /// `HarvousIOSInlineBottomChromeRow`'s `@FocusState` survives keyboard show/hide.
+    @ViewBuilder
+    private var iosMorphingChromeInset: some View {
+        VStack(spacing: 0) {
+            MorphingChromeBar()
+                .environmentObject(appRouter)
+                .padding(.bottom, iosKeyboardOccupiesBottom ? 0 : -4)
+            if iosMorphingChromeKeyboardBreathingActive {
+                HarvousIOSFloatingChromeBackdrop.keyboardGapFill(colorScheme: colorScheme)
+                    .frame(height: HarvousIOSMorphingChromeLayout.keyboardBreathingPadding)
+                    .frame(maxWidth: .infinity)
             }
         }
-        .sheet(isPresented: Binding(
-            get: { appRouter.standaloneScripturePassageDock != nil },
-            set: { isPresented in if !isPresented { appRouter.dismissStandaloneScripturePassageDock() } }
-        )) {
-            if let dock = appRouter.standaloneScripturePassageDock {
-                NavigationStack {
-                    StandaloneScripturePassageDockHost(
-                        presentation: dock,
-                        scriptureTheme: spaceStore.scriptureTheme,
-                        onDismiss: { appRouter.dismissStandaloneScripturePassageDock() }
-                    )
-                    .toolbar {
-                        ToolbarItem(placement: .cancellationAction) {
-                            Button("Done") {
-                                appRouter.dismissStandaloneScripturePassageDock()
-                            }
+    }
+
+    private var iosYouRootSheet: some View {
+        NavigationStack(path: $appRouter.youNavigationStack) {
+            YouRootView()
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Done") {
+                            appRouter.iosShowMore = false
                         }
                     }
                 }
-                .presentationDragIndicator(.visible)
-            }
+                .navigationDestination(for: HarvousYouNavigation.self) { nav in
+                    switch nav {
+                    case .settingsList:
+                        IOSSettingsGroupedListView()
+                    case .settingsDetail(let item):
+                        HarvousSettingsFormView(item: item)
+                    }
+                }
         }
-        .onAppear {
-            HarvousCalendarStudyNotifier.requestAccessAndPrewarm(modelContext: modelContext)
-            appRouter.applyPendingDeepLink()
+        .environmentObject(appRouter)
+        .environmentObject(spaceStore)
+        .presentationDetents([.large])
+        .presentationDragIndicator(.visible)
+    }
+
+    @ViewBuilder
+    private var iosStandaloneScriptureDockSheet: some View {
+        if let dock = appRouter.standaloneScripturePassageDock {
+            NavigationStack {
+                StandaloneScripturePassageDockHost(
+                    presentation: dock,
+                    scriptureTheme: spaceStore.scriptureTheme,
+                    onDismiss: { appRouter.dismissStandaloneScripturePassageDock() }
+                )
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Done") {
+                            appRouter.dismissStandaloneScripturePassageDock()
+                        }
+                    }
+                }
+            }
+            .presentationDragIndicator(.visible)
         }
     }
 
@@ -772,7 +826,8 @@ struct HarvousIOSInlineBottomChromeRow: View {
     }
 
     var body: some View {
-        HStack(alignment: .center, spacing: HarvousIOSMorphingChromeLayout.interChromeSpacing) {
+        // `.bottom` keeps list + search on the baseline when the compose column grows (camera orb above pencil).
+        HStack(alignment: .bottom, spacing: HarvousIOSMorphingChromeLayout.interChromeSpacing) {
             listPickerOrb
             searchPill
             composeOrb
@@ -854,15 +909,14 @@ struct HarvousIOSInlineBottomChromeRow: View {
                 }
             }
         } label: {
-            // Stable square bounds — outer `.padding` caused Menu’s dismiss animation to interpolate
-            // layout incorrectly (brief clipped “quadrant”). Center 44×44 orb in 52×52 like compose spacing.
+            // Match `HarvousIOSComposeOrbCluster` and search pill height (`chromeControlsHeight`) so the row stays aligned.
+            // Use explicit `.frame` (not outer padding) so Menu dismiss animation doesn’t interpolate clipped layout.
             HarvousFAGlyph(assetName: appRouter.iosListSurface.catalogGlyphAssetName, edgePt: 20)
                 .foregroundStyle(Color.primary.opacity(0.85))
-                .frame(width: 44, height: 44)
+                .frame(width: HarvousIOSMorphingChromeLayout.chromeControlsHeight, height: HarvousIOSMorphingChromeLayout.chromeControlsHeight)
                 .background { floatingChromeBackground(shape: Circle()) }
                 .compositingGroup()
-                .frame(width: 52, height: 52)
-                .contentShape(Rectangle())
+                .contentShape(Circle())
         }
         .buttonStyle(.plain)
         .menuIndicator(.hidden)
@@ -871,6 +925,11 @@ struct HarvousIOSInlineBottomChromeRow: View {
         .zIndex(2)
         .animation(nil, value: appRouter.iosListSurface)
         .accessibilityLabel("List: \(appRouter.iosListSurface.listChromeMenuTitle)")
+        .simultaneousGesture(
+            TapGesture().onEnded {
+                appRouter.dismissIOSComposeCameraOrbIfPresented()
+            }
+        )
     }
 
     private var searchPill: some View {
@@ -908,6 +967,7 @@ struct HarvousIOSInlineBottomChromeRow: View {
         .background { floatingChromeBackground(shape: Capsule(style: .continuous)) }
         .contentShape(Capsule(style: .continuous))
         .onTapGesture {
+            appRouter.dismissIOSComposeCameraOrbIfPresented()
             searchFocused = true
         }
         .animation(.easeInOut(duration: 0.15), value: hasSearchText)
@@ -918,17 +978,9 @@ struct HarvousIOSInlineBottomChromeRow: View {
     }
 
     private var composeOrb: some View {
-        Button {
-            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-            appRouter.requestComposeNewNote()
-        } label: {
-            HarvousFAGlyph(assetName: "Harvous.Pencil")
-                .foregroundStyle(Color.primary.opacity(0.9))
-                .frame(width: 44, height: 44)
-                .background { floatingChromeBackground(shape: Circle()) }
+        HarvousIOSComposeOrbCluster {
+            floatingChromeBackground(shape: Circle())
         }
-        .buttonStyle(.plain)
-        .accessibilityLabel("New note")
     }
 
     @ViewBuilder

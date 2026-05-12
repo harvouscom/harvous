@@ -21,25 +21,24 @@ enum HarvousBodyRichTextDiagnostics {
             if p.firstLineHeadIndent > 0.5 || p.headIndent > 0.5 { return true }
         }
 
-        let font = (attributes[.font] as? HVFont) ?? HarvousFonts.system(size: 16, weight: 400)
+        let font = (attributes[.font] as? HVFont) ?? HarvousFonts.noteComposeBodyPlatformFont()
 #if os(macOS)
         let manager = NSFontManager.shared
         if HarvousFonts.bodyHeadingLevel(matching: font) != nil { return true }
         if manager.traits(of: font).contains(.boldFontMask) { return true }
         if manager.traits(of: font).contains(.italicFontMask) { return true }
-        if font.pointSize >= 19 { return true }
 #else
         if HarvousFonts.bodyHeadingLevel(matching: font) != nil { return true }
         let traits = font.fontDescriptor.symbolicTraits
         if traits.contains(.traitBold) { return true }
         if traits.contains(.traitItalic) { return true }
-        if font.pointSize >= 19 { return true }
 #endif
         if emptyStorage { return false }
-        let diff16 = abs(font.pointSize - 16.0)
-        let diff15 = abs(font.pointSize - 15.0)
-        if diff16 > 0.4 && diff15 > 0.4 { return true }
-        return false
+        let referenceBody = HarvousFonts.noteComposeBodyPlatformFont().pointSize
+        let referenceH4 = referenceBody * (15.0 / HarvousFonts.noteComposeBodyPointSize)
+        let tol: CGFloat = 0.6
+        if abs(font.pointSize - referenceBody) <= tol || abs(font.pointSize - referenceH4) <= tol { return false }
+        return true
     }
 
     /// True when any non-attachment character in `utf16Range` carries clearable formatting.

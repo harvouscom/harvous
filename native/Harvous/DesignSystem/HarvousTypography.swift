@@ -58,8 +58,14 @@ enum HarvousTypography {
 
     // MARK: - UI chrome
 
-    /// Note title field — matches in-editor casual display
-    static let composeTitleField = HarvousFonts.font(size: 22, weight: 600, design: .rounded)
+    /// Note title field — matches in-editor casual display; scales with Dynamic Type / larger text (anchored like the body editor).
+    static func composeTitleFieldFont() -> Font {
+        #if os(iOS)
+        Font(HarvousFonts.noteComposeTitleUIFont())
+        #else
+        Font(HarvousFonts.noteComposeTitleNSFont())
+        #endif
+    }
 
     static let subheadline = HarvousFonts.font(size: 15, weight: 400, design: .default)
 

@@ -3,6 +3,20 @@ import SwiftUI
 
 /// Popover for primary folder edit, secondary membership list, pin, and clear-all.
 struct FolderChipPopover: View {
+    private enum Metrics {
+        /// Shared height for primary editor and Add-folder row so they match visually.
+        static let fieldRowHeight: CGFloat = 36
+
+        /// Minimum tap/click target for “Also in” row actions (promote / remove).
+        static var folderRowActionExtent: CGFloat {
+            #if os(iOS)
+            44
+            #else
+            32
+            #endif
+        }
+    }
+
     @Bindable var note: Note
 
     @Environment(\.modelContext) private var modelContext
@@ -11,35 +25,23 @@ struct FolderChipPopover: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            folderSourceBadge
+            folderSourceRow
 
-            Text("Primary")
-                .font(HarvousTypography.inspectorCompactMedium)
-                .foregroundStyle(.secondary)
+            HStack(spacing: 6) {
+                HarvousFAGlyph(assetName: "Harvous.Star", edgePt: 11)
+                    .foregroundStyle(.secondary)
+                Text("Primary")
+                    .font(HarvousTypography.caption)
+                    .foregroundStyle(.secondary)
+            }
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel("Primary folder")
 
             folderEditorRow
 
             membershipList
 
             newSecondaryRow
-
-            if canUseAutoSuggestion {
-                Button {
-                    applyAutoSuggestedFolder()
-                } label: {
-                    Label {
-                        Text("Use auto suggestion")
-                    } icon: {
-                        HarvousFAGlyph(assetName: "Harvous.CircleArrowLeft", edgePt: 13)
-                            .foregroundStyle(.secondary)
-                    }
-                    .font(HarvousTypography.inspectorCompactMedium)
-                }
-                .buttonStyle(.plain)
-                .foregroundStyle(.secondary)
-                .help("Restore the current auto-suggested folders")
-                .accessibilityLabel("Use auto suggested folders")
-            }
 
             Divider()
                 .opacity(0.45)
@@ -106,64 +108,91 @@ struct FolderChipPopover: View {
     // MARK: - Subviews
 
     private var membershipList: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Also in")
-                .font(HarvousTypography.inspectorCompactMedium)
-                .foregroundStyle(.secondary)
-            let primaryTrimmed = note.primaryFolder?.trimmingCharacters(in: .whitespacesAndNewlines)
-            ForEach(membershipRows(primaryTrimmed: primaryTrimmed), id: \.self) { label in
-                HStack {
-                    Label {
-                        Text(label)
-                            .font(HarvousTypography.inspectorCompactMedium)
-                            .lineLimit(2)
-                    } icon: {
-                        HarvousFAGlyph(assetName: "Harvous.Folder", edgePt: 13)
-                            .opacity(label.caseInsensitiveCompare(primaryTrimmed ?? "") == .orderedSame ? 1 : 0.55)
-                            .foregroundStyle(.secondary)
-                    }
-                    Spacer(minLength: 0)
-                    if label.caseInsensitiveCompare(primaryTrimmed ?? "") != .orderedSame {
-                        Button {
-                            removeSecondary(label)
-                        } label: {
-                            HarvousFAGlyph(assetName: "Harvous.CircleMinus", edgePt: 12)
-                                .foregroundStyle(.tertiary)
+        let primaryTrimmed = note.primaryFolder?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let rows = secondaryFolderRows(primaryTrimmed: primaryTrimmed)
+        return Group {
+            if !rows.isEmpty {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Also in")
+                        .font(HarvousTypography.caption)
+                        .foregroundStyle(.secondary)
+                    ForEach(rows, id: \.self) { label in
+                        HStack {
+                            Label {
+                                Text(label)
+                                    .font(HarvousTypography.subheadline)
+                                    .lineLimit(2)
+                            } icon: {
+                                HarvousFAGlyph(assetName: "Harvous.Folder", edgePt: 13)
+                                    .opacity(0.55)
+                                    .foregroundStyle(.secondary)
+                            }
+                            Spacer(minLength: 0)
+                            HStack(spacing: 2) {
+                                Button {
+                                    promoteSecondaryToPrimary(label)
+                                } label: {
+                                    HarvousFAGlyph(assetName: "Harvous.Star", edgePt: 14)
+                                        .foregroundStyle(Color.secondary)
+                                        .frame(
+                                            width: Metrics.folderRowActionExtent,
+                                            height: Metrics.folderRowActionExtent
+                                        )
+                                        .contentShape(Rectangle())
+                                }
+                                .buttonStyle(.plain)
+                                .help("Make \(label) the primary folder")
+                                .accessibilityLabel("Make \(label) the primary folder")
+
+                                Button {
+                                    removeSecondary(label)
+                                } label: {
+                                    HarvousFAGlyph(assetName: "Harvous.CircleMinus", edgePt: 14)
+                                        .foregroundStyle(.tertiary)
+                                        .frame(
+                                            width: Metrics.folderRowActionExtent,
+                                            height: Metrics.folderRowActionExtent
+                                        )
+                                        .contentShape(Rectangle())
+                                }
+                                .buttonStyle(.plain)
+                                .help("Remove from this note")
+                                .accessibilityLabel("Remove \(label)")
+                            }
                         }
-                        .buttonStyle(.plain)
-                        .help("Remove from this note")
-                        .accessibilityLabel("Remove \(label)")
                     }
                 }
             }
         }
     }
 
-    private func membershipRows(primaryTrimmed: String?) -> [String] {
-        var rows: [String] = []
-        if let p = primaryTrimmed, !p.isEmpty { rows.append(p) }
-        for s in note.normalizedSecondaryFolderLabels() {
-            if let p = primaryTrimmed, !p.isEmpty, s.caseInsensitiveCompare(p) == .orderedSame { continue }
-            rows.append(s)
+    /// Secondary folders only (primary is edited above; never duplicated here).
+    private func secondaryFolderRows(primaryTrimmed: String?) -> [String] {
+        note.normalizedSecondaryFolderLabels().filter { s in
+            if let p = primaryTrimmed, !p.isEmpty, s.caseInsensitiveCompare(p) == .orderedSame {
+                return false
+            }
+            return true
         }
-        return rows
     }
 
     private var newSecondaryRow: some View {
         VStack(alignment: .leading, spacing: 6) {
             Text("Add folder")
-                .font(HarvousTypography.inspectorCompactMedium)
+                .font(HarvousTypography.caption)
                 .foregroundStyle(.secondary)
             HStack(spacing: 8) {
                 TextField("Name", text: $draftNewSecondary)
                     .textFieldStyle(.roundedBorder)
-                    .font(HarvousTypography.inspectorCompactMedium)
+                    .font(HarvousTypography.subheadline)
+                    .frame(maxWidth: .infinity)
                     .onSubmit { addDraftSecondary() }
                 Button("Add") { addDraftSecondary() }
                     .buttonStyle(.borderedProminent)
-                    .controlSize(.small)
+                    .controlSize(.regular)
                     .disabled(draftNewSecondary.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             }
+            .frame(minHeight: Metrics.fieldRowHeight)
         }
     }
 
@@ -171,13 +200,17 @@ struct FolderChipPopover: View {
         HStack(spacing: 0) {
             TextField("No folder", text: $draftFolderLabel)
                 .textFieldStyle(.plain)
-                .font(HarvousTypography.body)
-                .frame(maxWidth: .infinity, minHeight: 40, maxHeight: 40)
+                .font(HarvousTypography.subheadline)
+                .frame(
+                    maxWidth: .infinity,
+                    minHeight: Metrics.fieldRowHeight,
+                    maxHeight: Metrics.fieldRowHeight
+                )
                 .padding(.leading, 12)
                 .padding(.trailing, 84)
                 .onSubmit { applyFolderDraft() }
         }
-        .frame(maxWidth: .infinity, minHeight: 40)
+        .frame(maxWidth: .infinity, minHeight: Metrics.fieldRowHeight)
         .background(
             RoundedRectangle(cornerRadius: 11, style: .continuous)
                 .fill(Color.secondary.opacity(0.08))
@@ -222,20 +255,46 @@ struct FolderChipPopover: View {
         }
     }
 
-    private var folderSourceBadge: some View {
-        HStack(spacing: 8) {
-            HarvousFAGlyph(assetName:
-                note.isFolderUserOverride ? "Harvous.UserCheck" : "Harvous.WandMagicSparkles",
-                edgePt: 11)
+    /// Manual / Automatic badge plus optional “Use auto suggestion” action on one row.
+    private var folderSourceRow: some View {
+        HStack(alignment: .center, spacing: 8) {
+            HStack(spacing: 8) {
+                HarvousFAGlyph(
+                    assetName: note.isFolderUserOverride ? "Harvous.Wrench" : "Harvous.WandMagicSparkles",
+                    edgePt: 11
+                )
                 .foregroundStyle(note.isFolderUserOverride ? Color.harvousAccent : .secondary)
 
-            Text(note.isFolderUserOverride ? "Manual" : "Automatic")
-                .font(HarvousTypography.inspectorCompactMedium)
+                Text(note.isFolderUserOverride ? "Manual" : "Automatic")
+                    .font(HarvousTypography.inspectorCompactMedium)
+            }
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel(note.isFolderUserOverride ? "Folder source: manual" : "Folder source: automatic")
 
-            Spacer(minLength: 0)
+            Spacer(minLength: 8)
+
+            if canUseAutoSuggestion {
+                Button {
+                    applyAutoSuggestedFolder()
+                } label: {
+                    Label {
+                        Text("Use auto suggestion")
+                            .lineLimit(2)
+                            .multilineTextAlignment(.trailing)
+                            .minimumScaleFactor(0.85)
+                    } icon: {
+                        HarvousFAGlyph(assetName: "Harvous.CircleArrowLeft", edgePt: 13)
+                            .foregroundStyle(.secondary)
+                    }
+                    .font(HarvousTypography.inspectorCompactMedium)
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(.secondary)
+                .help("Restore the current auto-suggested folders")
+                .accessibilityLabel("Use auto suggested folders")
+                .layoutPriority(1)
+            }
         }
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel(note.isFolderUserOverride ? "Folder source: manual" : "Folder source: automatic")
     }
 
     // MARK: - Computed
@@ -351,6 +410,33 @@ struct FolderChipPopover: View {
         let next = note.normalizedSecondaryFolderLabels().filter { $0.caseInsensitiveCompare(label) != .orderedSame }
         note.secondaryFolders = next
         note.isFolderUserOverride = true
+        persist()
+    }
+
+    /// Moves a secondary label to `primaryFolder` and pushes the former primary into secondaries when present.
+    private func promoteSecondaryToPrimary(_ label: String) {
+        let secs = note.normalizedSecondaryFolderLabels()
+        guard let promoted = secs.first(where: { $0.caseInsensitiveCompare(label) == .orderedSame }) else {
+            return
+        }
+        let formerPrimary = note.primaryFolder?.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        var merged: [String] = []
+        if let fp = formerPrimary, !fp.isEmpty,
+           fp.caseInsensitiveCompare(promoted) != .orderedSame {
+            merged.append(fp)
+        }
+        for s in secs where s.caseInsensitiveCompare(promoted) != .orderedSame {
+            merged.append(s)
+        }
+
+        note.primaryFolder = promoted
+        note.secondaryFolders = normalizeSecondaries(merged, primary: promoted)
+        draftFolderLabel = promoted
+        note.isFolderUserOverride = true
+        note.isFolderPinned = true
+        note.folderAutoConfidence = nil
+        note.folderLastAutoUpdatedAt = nil
         persist()
     }
 

@@ -14,6 +14,65 @@ enum HarvousFontDesign: Sendable {
 }
 
 enum HarvousFonts {
+    /// Default note compose body (before Dynamic Type / Larger Text scaling). iOS +1pt for legibility on smaller screens.
+    static let noteComposeBodyPointSize: CGFloat = {
+#if os(iOS)
+        17
+#else
+        16
+#endif
+    }()
+
+    /// Compose title baseline (before accessibility scaling); must stay in proportion with `noteComposeBodyPointSize`.
+    static var composeTitleReferencePointSize: CGFloat {
+#if os(iOS)
+        23
+#else
+        22
+#endif
+    }
+
+#if os(iOS)
+    private static let noteComposeMetrics = UIFontMetrics(forTextStyle: .body)
+
+    /// Note body in the rich editor — scales with Dynamic Type (anchored to `.body`).
+    static func noteComposeBodyUIFont() -> UIFont {
+        let base = system(size: noteComposeBodyPointSize, weight: 400, design: .default)
+        return noteComposeMetrics.scaledFont(for: base)
+    }
+
+    /// Note title `TextField` — same metrics chain as the body so proportions hold at every content size.
+    static func noteComposeTitleUIFont() -> UIFont {
+        let base = system(size: composeTitleReferencePointSize, weight: 600, design: .rounded)
+        return noteComposeMetrics.scaledFont(for: base)
+    }
+
+    static func noteComposeBodyPlatformFont() -> UIFont { noteComposeBodyUIFont() }
+
+#elseif os(macOS)
+    /// Observed `NSFont.preferredFont(forTextStyle: .body).pointSize` at default macOS text settings (Harvous baseline).
+    private static let macOSStandardPreferredBodyPointSize: CGFloat = 13
+
+    private static var macComposeRulerPointSize: CGFloat {
+        NSFont.preferredFont(forTextStyle: .body, options: [:]).pointSize
+    }
+
+    /// Note body — tracks Larger Text / system body sizing while preserving Harvous proportions vs. a 13pt baseline.
+    static func noteComposeBodyNSFont() -> NSFont {
+        let ruler = macComposeRulerPointSize
+        let size = ruler * (noteComposeBodyPointSize / macOSStandardPreferredBodyPointSize)
+        return system(size: size, weight: 400, design: .default)
+    }
+
+    static func noteComposeTitleNSFont() -> NSFont {
+        let ruler = macComposeRulerPointSize
+        let size = ruler * (composeTitleReferencePointSize / macOSStandardPreferredBodyPointSize)
+        return system(size: size, weight: 600, design: .rounded)
+    }
+
+    static func noteComposeBodyPlatformFont() -> NSFont { noteComposeBodyNSFont() }
+#endif
+
     // MARK: - Axis → platform weight (OpenType-style 100…900)
 
     #if os(macOS)
@@ -73,8 +132,9 @@ enum HarvousFonts {
     }
 
     /// Paragraph headings in the rich editor — rounded. Levels 2…4 only: the note title field is the sole display “H1”
-    /// (`HarvousTypography.composeTitleField`, 22pt); body headings sit clearly below it.
+    /// (`HarvousTypography.composeTitleFieldFont()`); body headings sit clearly below it.
     static func headingFont(level: Int) -> NSFont {
+        let ruler = macComposeRulerPointSize
         let lv = max(2, min(level, 4))
         let spec: (CGFloat, CGFloat) = switch lv {
         case 2: (19, 600) // largest in-body section heading
@@ -82,7 +142,8 @@ enum HarvousFonts {
         case 4: (15, 520)
         default: (15, 500)
         }
-        return system(size: spec.0, weight: spec.1, design: .rounded)
+        let size = ruler * (spec.0 / macOSStandardPreferredBodyPointSize)
+        return system(size: size, weight: spec.1, design: .rounded)
     }
 
     /// In-body heading level (2…4) when `font` matches a heading style or legacy saved headings; otherwise `nil`.
@@ -114,7 +175,7 @@ enum HarvousFonts {
         return UIFont(descriptor: roundedDesc, size: size)
     }
 
-    /// Same levels/sizes as macOS headings so cross-platform detection matches persisted notes.
+    /// Same level specs as macOS; sizes scale with Dynamic Type (`.body` metrics) so detection matches persisted notes.
     static func headingFont(level: Int) -> UIFont {
         let lv = max(2, min(level, 4))
         let spec: (CGFloat, CGFloat) = switch lv {
@@ -123,7 +184,8 @@ enum HarvousFonts {
         case 4: (15, 520)
         default: (15, 500)
         }
-        return system(size: spec.0, weight: spec.1, design: .rounded)
+        let base = system(size: spec.0, weight: spec.1, design: .rounded)
+        return noteComposeMetrics.scaledFont(for: base)
     }
 
     /// In-body heading level (2…4) — mirrors `bodyHeadingLevel(matching: NSFont)` for UIKit fonts.

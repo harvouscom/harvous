@@ -15,7 +15,7 @@ private let kHPad: CGFloat = 11 // +2 vs iOS — mac proportions
 #else
 private let kHPad: CGFloat = 9
 #endif
-private let kVPad:  CGFloat = 6   // vertical inset for pill background; pairs with kHPad for even inset
+private let kVPad: CGFloat = 4   // top/bottom inset inside pill capsule (mac + iOS aligned)
 private let kGap:   CGFloat = 4
 /// Transparent width on each side of the raster so inline prose isn’t flush against the pill edges.
 private let kLineSideMargin: CGFloat = 3
@@ -215,25 +215,24 @@ private func scriptureGradientProgress(now: Date = Date()) -> CGFloat {
 }
 
 #if os(macOS) || os(iOS)
+/// Raster helpers may run off the main actor; hop to the main thread and assert MainActor for AppKit/UIKit APIs.
 private func scripturePillEffectiveAppearanceIsDark() -> Bool {
-    var isDark = false
-    let read = {
+    let readOnMain: @MainActor () -> Bool = {
         #if os(macOS)
         guard let match = NSApp.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) else {
-            isDark = false
-            return
+            return false
         }
-        isDark = match == .darkAqua
+        return match == .darkAqua
         #elseif os(iOS)
-        isDark = UITraitCollection.current.userInterfaceStyle == .dark
+        return UITraitCollection.current.userInterfaceStyle == .dark
         #endif
     }
     if Thread.isMainThread {
-        read()
-    } else {
-        DispatchQueue.main.sync(execute: read)
+        return MainActor.assumeIsolated(readOnMain)
     }
-    return isDark
+    return DispatchQueue.main.sync {
+        MainActor.assumeIsolated(readOnMain)
+    }
 }
 #endif
 

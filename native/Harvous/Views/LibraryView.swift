@@ -390,9 +390,9 @@ struct LibraryView: View {
 
     /// Match hub note row insets in `NoteListColumn` (conversation rows use leading/trailing 14).
     private enum IOSFoldersListLayout {
-        static let rowInsets = EdgeInsets(top: 4, leading: 14, bottom: 4, trailing: 14)
+        static let rowInsets = EdgeInsets(top: 4, leading: HarvousFeedListLayout.listRowHorizontalInset, bottom: 4, trailing: HarvousFeedListLayout.listRowHorizontalInset)
         /// Same horizontal inset as sibling folder rows (was 16pt wider, noticeably narrower card than Notes/Highlights).
-        static let dailyPassageRowInsets = EdgeInsets(top: 8, leading: 14, bottom: 4, trailing: 14)
+        static let dailyPassageRowInsets = EdgeInsets(top: 8, leading: HarvousFeedListLayout.listRowHorizontalInset, bottom: 4, trailing: HarvousFeedListLayout.listRowHorizontalInset)
     }
 
     private var emptyState: some View {

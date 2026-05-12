@@ -252,7 +252,9 @@ struct ActiveScripturePillDock: View {
             speculativeGenTask = Task {
                 if #available(macOS 26.0, iOS 26.0, *) {
                     do {
-                        let questions = try await ScriptureReflectionGenerator.generate(excerpt: snippet, reference: ref)
+                        let questions = try await Task.detached(priority: .userInitiated) {
+                            try await ScriptureReflectionGenerator.generate(excerpt: snippet, reference: ref)
+                        }.value
                         guard !Task.isCancelled else { return }
                         speculativeGenResult = questions
                     } catch {}

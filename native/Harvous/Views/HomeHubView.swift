@@ -34,8 +34,9 @@ struct HomeHubView: View {
                 .accessibilityLabel("Account, profile, and settings")
             }
         }
-        .onReceive(NotificationCenter.default.publisher(for: HarvousAppRouter.requestComposeNewNotification)) { _ in
-            composeNewNoteIntoStack()
+        .onReceive(NotificationCenter.default.publisher(for: HarvousAppRouter.requestComposeNewNotification)) { notification in
+            let initial = notification.userInfo?[HarvousAppRouter.composeInitialBodyUserInfoKey] as? String
+            composeNewNoteIntoStack(initialBody: initial)
         }
         .onReceive(NotificationCenter.default.publisher(for: .requestDailyNote)) { _ in
             openDailyNoteIntoStack()
@@ -65,8 +66,15 @@ struct HomeHubView: View {
         }
     }
 
-    private func composeNewNoteIntoStack() {
+    private func composeNewNoteIntoStack(initialBody: String? = nil) {
         let note = Note(spaceId: spaceStore.activeSpaceUUID())
+        if let initialBody {
+            let trimmed = initialBody.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !trimmed.isEmpty {
+                note.body = trimmed
+                note.detectedRefs = ScriptureDetector.uniqueDisplayRefs(in: trimmed)
+            }
+        }
         modelContext.insert(note)
         NoteSimpleIDAssigner.assignIfMissing(note, in: modelContext)
         try? modelContext.saveWithLogging()

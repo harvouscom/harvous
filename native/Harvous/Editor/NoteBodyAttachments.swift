@@ -56,7 +56,7 @@ final class HorizontalRuleAttachment: NSTextAttachment {
         glyphPosition position: CGPoint,
         characterIndex charIndex: Int
     ) -> CGRect {
-        let f = HarvousFonts.system(size: 16, weight: 400)
+        let f = HarvousFonts.noteComposeBodyPlatformFont()
         let w = max(lineFrag.width, 1)
         let h: CGFloat = 22
 #if os(macOS)
@@ -104,7 +104,7 @@ final class NoteInlineImageAttachment: NSTextAttachment {
             return true
         }
 
-        let f = HarvousFonts.system(size: 16, weight: 400)
+        let f = HarvousFonts.noteComposeBodyPlatformFont()
         self.bounds = CGRect(x: 0, y: f.descender, width: outW, height: outH)
     }
 
@@ -132,7 +132,7 @@ final class NoteInlineImageAttachment: NSTextAttachment {
             path.stroke()
         }
 
-        let f = HarvousFonts.system(size: 16, weight: 400)
+        let f = HarvousFonts.noteComposeBodyPlatformFont()
         self.bounds = CGRect(x: 0, y: f.descender, width: outW, height: outH)
     }
 #endif

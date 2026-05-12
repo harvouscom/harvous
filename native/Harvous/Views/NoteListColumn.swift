@@ -212,7 +212,7 @@ struct NoteListColumn: View {
         #if os(macOS)
         EdgeInsets(top: 8, leading: Metrics.selectionHPadding, bottom: 4, trailing: Metrics.selectionHPadding)
         #else
-        EdgeInsets(top: 8, leading: 14, bottom: 4, trailing: 14)
+        EdgeInsets(top: 8, leading: HarvousFeedListLayout.listRowHorizontalInset, bottom: 4, trailing: HarvousFeedListLayout.listRowHorizontalInset)
         #endif
     }
 
@@ -439,7 +439,7 @@ struct NoteListColumn: View {
                 .swipeActions(edge: .trailing, allowsFullSwipe: true) {
                     noteRowDeleteSwipe(note: note, iosNavPath: iosNoteNavPath)
                 }
-                .listRowInsets(EdgeInsets(top: 4, leading: 14, bottom: 4, trailing: 14))
+                .listRowInsets(EdgeInsets(top: 4, leading: HarvousFeedListLayout.listRowHorizontalInset, bottom: 4, trailing: HarvousFeedListLayout.listRowHorizontalInset))
                 .listRowBackground(Color.clear)
                 .listRowSeparator(.hidden)
             } else {
@@ -455,7 +455,7 @@ struct NoteListColumn: View {
                 .swipeActions(edge: .trailing, allowsFullSwipe: true) {
                     noteRowDeleteSwipe(note: note, iosNavPath: nil)
                 }
-                .listRowInsets(EdgeInsets(top: 4, leading: 14, bottom: 4, trailing: 14))
+                .listRowInsets(EdgeInsets(top: 4, leading: HarvousFeedListLayout.listRowHorizontalInset, bottom: 4, trailing: HarvousFeedListLayout.listRowHorizontalInset))
                 .listRowBackground(Color.clear)
                 .listRowSeparator(.hidden)
             }

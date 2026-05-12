@@ -83,7 +83,12 @@ enum BibleStudyTagSuggester {
             note.primaryFolder = current
             return
         }
-        guard shouldReplacePrimaryFolder(current: current, candidate: scoringName ?? candidate, analysis: analysis) else {
+        guard shouldReplacePrimaryFolder(
+            current: current,
+            candidate: scoringName ?? candidate,
+            analysis: analysis,
+            existingFolders: existingFolders
+        ) else {
             note.primaryFolder = current
             return
         }
@@ -266,8 +271,18 @@ enum BibleStudyTagSuggester {
         return candidate
     }
 
-    private static func shouldReplacePrimaryFolder(current: String, candidate: String, analysis: Analysis) -> Bool {
-        let currentScore = primaryScoreForName(current, in: analysis)
+    private static func shouldReplacePrimaryFolder(
+        current: String,
+        candidate: String,
+        analysis: Analysis,
+        existingFolders: [String]
+    ) -> Bool {
+        let currentScore: Double
+        if let cur = scoredForLibraryFolderLabel(current, in: analysis, existingFolders: existingFolders) {
+            currentScore = primaryScore(cur)
+        } else {
+            currentScore = primaryScoreForName(current, in: analysis)
+        }
         guard let candidateScored = scoredForName(candidate, in: analysis) else { return false }
         let candidateScore = primaryScore(candidateScored)
         let materiallyStronger = candidateScore >= currentScore + 0.18
@@ -295,6 +310,27 @@ enum BibleStudyTagSuggester {
 
     private static func scoredForName(_ name: String, in analysis: Analysis) -> Scored? {
         analysis.picked.first { $0.name.caseInsensitiveCompare(name).rawValue == 0 }
+    }
+
+    /// Resolves a persisted library label (e.g. extended name from `resolveToExistingFolder`) to the
+    /// overlap-deduped keyword row so primary replacement compares the true current topic score, not `0`.
+    private static func scoredForLibraryFolderLabel(_ label: String, in analysis: Analysis, existingFolders: [String]) -> Scored? {
+        let norm = normalizedFolderName(label) ?? label
+        if let exact = scoredForName(norm, in: analysis) {
+            return exact
+        }
+        guard !existingFolders.isEmpty else { return nil }
+        var hits: [Scored] = []
+        for s in analysis.picked {
+            guard let resolved = resolveToExistingFolder(s.name, from: existingFolders) else { continue }
+            let r = normalizedFolderName(resolved) ?? resolved
+            if r.caseInsensitiveCompare(norm) == .orderedSame {
+                hits.append(s)
+            }
+        }
+        if hits.isEmpty { return nil }
+        if hits.count == 1 { return hits[0] }
+        return hits.max(by: { primaryScore($0) < primaryScore($1) })
     }
 
     private static func normalizedFolderName(_ value: String?) -> String? {

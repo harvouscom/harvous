@@ -45,8 +45,8 @@ struct HarvousIOSNoteFooterSupplement {
     var connectionsTitleLine: String
     var suppressScripturePillActionBar: Bool
     /// When a **pinned** highlight or scripture **overlay** dock is visible (`activePillDock` / pinned highlight),
-    /// hide the bottom morphing row’s leading slot (connections / format shell) but keep the same layout height
-    /// so inline study docks stay the usual distance above the keyboard.
+    /// or the inline highlight-annotation panel is open (selection → Highlight), hide the bottom morphing row so
+    /// that UI is not stacked above the footer capsule / compose row.
     var suppressesBottomMorphingChromeContent: Bool
     var onRefreshConnections: () -> Void
     var onOpenLinkedNote: (UUID) -> Void
@@ -117,6 +117,10 @@ final class HarvousAppRouter: ObservableObject {
     @Published var iosInlineSearchText = ""
     /// Notes tab: filter sheet (list has no `.searchable` chrome).
     @Published var iosNotesFilterSearchPresented = false
+    /// Camera / photo OCR flow started from the compose orb (vision text → new note).
+    @Published var iosTextCaptureFlowPresented = false
+    /// Second compose orb (camera) visible above the pencil — tap outside dismisses via `dismissIOSComposeCameraOrbIfPresented()`.
+    @Published var iosComposeCameraOrbPresented = false
     /// When set, the root bottom inset shows the note editor chrome (formatting / scripture / connections) instead of list + search.
     @Published private(set) var iosActiveNoteEditorChromeProxy: EditorProxy?
     /// Linked-note trail + callbacks for `NoteConnectionsBar` in the bottom inset (cleared with proxy).
@@ -235,6 +239,7 @@ final class HarvousAppRouter: ObservableObject {
     /// Changes list surface and persists selection for next launch.
     /// Passing `.more` opens the You sheet without changing the underlying surface.
     func selectIOSListSurface(_ surface: HarvousIOSListSurface) {
+        dismissIOSComposeCameraOrbIfPresented()
         if surface == .more {
             iosShowMore = true
             iosInlineSearchText = ""
@@ -252,11 +257,38 @@ final class HarvousAppRouter: ObservableObject {
 
     /// FAB / deep-link `harvous://compose` — Notes hub creates an empty note and pushes it onto its stack.
     static let requestComposeNewNotification = Notification.Name("Harvous.requestComposeNewNote")
+    /// Optional `userInfo` key for `requestComposeNewNotification` — plain text initial note body.
+    static let composeInitialBodyUserInfoKey = "Harvous.composeInitialBody"
 
-    func requestComposeNewNote() {
+    /// Dismiss the camera compose orb (e.g. tap outside, or open scan flow).
+    func dismissIOSComposeCameraOrbIfPresented() {
+        guard iosComposeCameraOrbPresented else { return }
+        withAnimation(.spring(response: 0.34, dampingFraction: 0.82)) {
+            iosComposeCameraOrbPresented = false
+        }
+    }
+
+    func requestPresentTextCaptureForCompose() {
+        iosComposeCameraOrbPresented = false
+        selectIOSListSurface(.notes)
+        iosTextCaptureFlowPresented = true
+    }
+
+    func requestComposeNewNote(initialBody: String? = nil) {
         selectIOSListSurface(.notes)
         DispatchQueue.main.async {
-            NotificationCenter.default.post(name: Self.requestComposeNewNotification, object: nil)
+            var userInfo: [AnyHashable: Any]?
+            if let initialBody {
+                let trimmed = initialBody.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !trimmed.isEmpty {
+                    userInfo = [Self.composeInitialBodyUserInfoKey: trimmed]
+                }
+            }
+            NotificationCenter.default.post(
+                name: Self.requestComposeNewNotification,
+                object: nil,
+                userInfo: userInfo
+            )
         }
     }
 

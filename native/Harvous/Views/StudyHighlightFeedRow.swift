@@ -78,10 +78,13 @@ struct StudyHighlightFeedRow: View {
             Text(conversationPreview)
                 .font(HarvousTypography.noteListPreview)
                 .foregroundStyle(.secondary)
-                .lineLimit(2)
+                .lineLimit(1)
                 .multilineTextAlignment(.leading)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+        #if os(iOS)
+        .padding(.horizontal, HarvousFeedListLayout.interiorContentHPadding)
+        #endif
         .padding(.vertical, 10)
         .frame(maxWidth: .infinity, alignment: .leading)
         .contentShape(Rectangle())

@@ -53,6 +53,23 @@ struct HighlightAnnotationPopover: View {
     }
 
     var body: some View {
+        highlightAnnotationForm
+            .frame(width: Metrics.capsuleWidth, alignment: .leading)
+            .background(
+                RoundedRectangle(cornerRadius: 22, style: .continuous)
+                    .fill(.regularMaterial)
+                    .matchedGeometryEffect(id: morphID, in: morphNamespace, isSource: false)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 22, style: .continuous)
+                    .strokeBorder(Color.primary.opacity(0.08), lineWidth: 0.75)
+            )
+            .shadow(color: .black.opacity(0.15), radius: 10, y: 4)
+            .accessibilityElement(children: .contain)
+            .accessibilityHint(popoverAccessibilityHint)
+    }
+
+    private var highlightAnnotationForm: some View {
         VStack(alignment: .leading, spacing: 10) {
             accentPrimaryRow
                 .frame(minHeight: Metrics.primaryToolbarHeight, alignment: .center)
@@ -67,19 +84,6 @@ struct HighlightAnnotationPopover: View {
         }
         .padding(.vertical, 10)
         .padding(.horizontal, 12)
-        .frame(width: Metrics.capsuleWidth, alignment: .leading)
-        .background(
-            RoundedRectangle(cornerRadius: 22, style: .continuous)
-                .fill(.regularMaterial)
-                .matchedGeometryEffect(id: morphID, in: morphNamespace, isSource: false)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 22, style: .continuous)
-                .strokeBorder(Color.primary.opacity(0.08), lineWidth: 0.75)
-        )
-        .shadow(color: .black.opacity(0.15), radius: 10, y: 4)
-        .accessibilityElement(children: .contain)
-        .accessibilityHint(popoverAccessibilityHint)
     }
 
     private var accentPrimaryRow: some View {
