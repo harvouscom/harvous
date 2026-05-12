@@ -73,6 +73,7 @@ struct NoteEditorView: View {
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.harvousScriptureTheme) private var scriptureTheme
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     /// When set, pushes `LinkedNotesView` for this linked-notes entry id (macOS split column + iOS nested stack).
     var onNavigateToLinkedNotes: ((UUID) -> Void)? = nil
@@ -133,14 +134,15 @@ struct NoteEditorView: View {
     @State private var showInspectorIOS = false
     @StateObject private var proxy = EditorProxy()
 
-    /// True when scripture/highlight docks hide footer chrome — mirrors `MorphingChromeBar.collapsesMorphingChromeForStudyDock`.
-    private var iosCollapsesFooterChromeForStudyDock: Bool {
-        guard appRouter.iosActiveNoteEditorChromeProxy === proxy else { return false }
-        return appRouter.iosNoteFooterSupplement?.suppressesBottomMorphingChromeContent == true
+    /// Matches `syncIOSNoteFooterSupplement` suppress flag (pill dock, pinned highlight, highlight capture)—not router timing alone.
+    private var iosStudyDockOverlayChromeSuppressed: Bool {
+        activePillDock != nil || dockPinnedHighlightThreadId != nil || highlightCaptureSession != nil
     }
 
     private var iosStudyDockOverlayBottomInset: CGFloat {
-        HarvousIOSMorphingChromeLayout.studyDockOverlayBottomInset(footerChromeCollapsed: iosCollapsesFooterChromeForStudyDock)
+        HarvousIOSMorphingChromeLayout.studyDockOverlayBottomInset(
+            footerChromeCollapsed: iosStudyDockOverlayChromeSuppressed
+        )
     }
 #endif
 
@@ -328,6 +330,11 @@ struct NoteEditorView: View {
                 syncIOSNoteFooterSupplement()
                 #endif
             }
+            .onChange(of: highlightCaptureSession?.id) { _, _ in
+                #if os(iOS)
+                syncIOSNoteFooterSupplement()
+                #endif
+            }
             .onChange(of: editorState.plainText) { _, _ in
                 guard let note else { return }
                 reconcileStudyHighlightsPainting(for: note)
@@ -453,6 +460,29 @@ struct NoteEditorView: View {
         scheduleRefreshThreads(note: note)
     }
 
+    #if os(iOS)
+    @ViewBuilder
+    private func iosHighlightAnnotationCaptureSheet(session: HighlightCaptureSession) -> some View {
+        if let n = note, n.id == session.parentNoteId {
+            IOSHighlightAuthoringSheet(
+                excerptPreview: session.excerpt,
+                annotationText: $highlightAnnotationDraft,
+                titleText: $highlightAnnotationTitle,
+                selectedAccent: $highlightAnnotationAccent,
+                onCancel: {
+                    dismissHighlightCapture()
+                },
+                onSave: { saveHighlightFromPanel(for: n) }
+            )
+            .presentationDetents([.medium, .large])
+            .presentationDragIndicator(.visible)
+        } else {
+            Color.clear
+                .task { dismissHighlightCapture() }
+        }
+    }
+    #endif
+
     /// Shared morph id — the bar and popover share their capsule chrome for a seamless grow animation.
     private static let selectionAccessoryCapsuleMorphID = "harvous-selection-accessory-capsule"
 
@@ -497,6 +527,7 @@ struct NoteEditorView: View {
                 ))
             }
             #endif
+            #if os(macOS)
             if let session = highlightCaptureSession, session.parentNoteId == note.id {
                 let baseRect = session.anchorRect ?? anchorRect ?? CGRect(x: horizontalClampWidth / 2, y: 80, width: 0, height: 0)
                 // Match `selectionAccessoryX` side inset (8pt) so the 360pt design cap never exceeds the paper column.
@@ -523,6 +554,7 @@ struct NoteEditorView: View {
                     removal: .opacity.combined(with: .scale(scale: 0.95, anchor: .top))
                 ))
             }
+            #endif
             if let prompt = proxy.scripturePillDeletionPrompt {
                 let barW: CGFloat = min(340, max(horizontalClampWidth - 16, 260))
                 let rect = prompt.anchorViewportRect
@@ -542,7 +574,9 @@ struct NoteEditorView: View {
                     ))
             }
         }
+        #if os(macOS)
         .animation(.spring(response: 0.36, dampingFraction: 0.82), value: highlightCaptureSession != nil)
+        #endif
         .animation(.spring(response: 0.32, dampingFraction: 0.84), value: proxy.scripturePillDeletionPrompt != nil)
     }
 
@@ -756,7 +790,7 @@ struct NoteEditorView: View {
                     VStack(alignment: .leading, spacing: 0) {
                         // Title — Apple Notes style: large, bold, full-width
                         TextField("Title", text: $title, axis: .vertical)
-                            .font(HarvousTypography.composeTitleField)
+                            .font(HarvousTypography.composeTitleFieldFont())
                             .foregroundStyle(.primary)
                             .textFieldStyle(.plain)
                             #if os(iOS)
@@ -792,7 +826,7 @@ struct NoteEditorView: View {
                             noteID: note.id,
                             documentBody: note.body,
                             placeholder: "Start writing…",
-                            font: HarvousFonts.system(size: 16, weight: 400, design: .default),
+                            font: HarvousFonts.noteComposeBodyNSFont(),
                             scriptureTheme: scriptureTheme,
                             studyHighlightPaints: studyHighlightPaints,
                             studyHighlightFocusedThreadId: nil,
@@ -805,7 +839,8 @@ struct NoteEditorView: View {
                                 return token
                             },
                             onStudyHighlightClick: { userActivatedStudyHighlight(threadId: $0) },
-                            onRemoveStudyHighlightThreadIds: { removeStudyHighlightThreads(ids: $0, parent: note) }
+                            onRemoveStudyHighlightThreadIds: { removeStudyHighlightThreads(ids: $0, parent: note) },
+                            dynamicTypeSize: dynamicTypeSize
                         )
                         // Fresh `NSViewRepresentable` + TextKit stack per note avoids pathological incremental
                         // `updateNSView` when reusing one `NSTextView` across scripture-heavy bodies.
@@ -835,7 +870,8 @@ struct NoteEditorView: View {
                                 guard let token = StudyHighlightAccentToken(rawValue: raw), token != .auto else { return nil }
                                 return token
                             },
-                            onRemoveStudyHighlightThreadIds: { removeStudyHighlightThreads(ids: $0, parent: note) }
+                            onRemoveStudyHighlightThreadIds: { removeStudyHighlightThreads(ids: $0, parent: note) },
+                            dynamicTypeSize: dynamicTypeSize
                         )
                         .frame(minHeight: 400)
                         .overlay(alignment: .topLeading) {
@@ -957,6 +993,7 @@ struct NoteEditorView: View {
         .animation(HarvousAnimation.spring, value: proxy.activeScripturePill != nil)
         .animation(HarvousAnimation.spring, value: activePillDock != nil)
         .animation(HarvousAnimation.spring, value: dockPinnedHighlightThreadId != nil)
+        .animation(HarvousAnimation.spring, value: highlightCaptureSession != nil)
         .toolbar {
             ToolbarItem(placement: .topBarLeading) {
                 NoteTopBar(
@@ -976,6 +1013,14 @@ struct NoteEditorView: View {
                     }
                 )
             }
+        }
+        .sheet(item: $highlightCaptureSession, onDismiss: {
+            // Interactive dismiss does not run `dismissHighlightCapture()`; reset bindings so the next capture is fresh.
+            highlightAnnotationDraft = ""
+            highlightAnnotationTitle = ""
+            highlightAnnotationAccent = .warmAmber
+        }) { session in
+            iosHighlightAnnotationCaptureSheet(session: session)
         }
         #endif
         .sheet(item: $highlightDetailThreadId) { item in
@@ -1114,12 +1159,14 @@ struct NoteEditorView: View {
             return
         }
         let titleLine = title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "Current note" : title
+        let suppressBottomChromeForOverlay =
+            activePillDock != nil || dockPinnedHighlightThreadId != nil || highlightCaptureSession != nil
         appRouter.iosNoteFooterSupplement = HarvousIOSNoteFooterSupplement(
             note: n,
             trailSnapshot: trailSnapshot,
             connectionsTitleLine: titleLine,
-            suppressScripturePillActionBar: activePillDock != nil || dockPinnedHighlightThreadId != nil,
-            suppressesBottomMorphingChromeContent: activePillDock != nil || dockPinnedHighlightThreadId != nil,
+            suppressScripturePillActionBar: suppressBottomChromeForOverlay,
+            suppressesBottomMorphingChromeContent: suppressBottomChromeForOverlay,
             onRefreshConnections: { iosFooterRefreshConnectionsFromSupplement() },
             onOpenLinkedNote: { iosFooterOpenLinkedNoteFromSupplement($0) }
         )
