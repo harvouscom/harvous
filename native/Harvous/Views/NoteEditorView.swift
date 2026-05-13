@@ -139,10 +139,12 @@ struct NoteEditorView: View {
         activePillDock != nil || dockPinnedHighlightThreadId != nil || highlightCaptureSession != nil
     }
 
-    private var iosStudyDockOverlayBottomInset: CGFloat {
-        HarvousIOSMorphingChromeLayout.studyDockOverlayBottomInset(
-            footerChromeCollapsed: iosStudyDockOverlayChromeSuppressed
-        )
+    /// When study docks occupy the footer slot via `safeAreaInset`, shrink the inner scroll tail padding —
+    /// the inset already consumes vertical space instead of overlapping like the legacy bottom overlay did.
+    private var iosNoteEditorScrollContentBottomPadding: CGFloat {
+        iosStudyDockOverlayChromeSuppressed
+            ? HarvousIOSMorphingChromeLayout.interChromeSpacing + 16
+            : HarvousIOSMorphingChromeLayout.noteEditorScrollContentBottomPadding
     }
 #endif
 
@@ -272,7 +274,7 @@ struct NoteEditorView: View {
             }
             syncFromNote()
             #if os(iOS)
-            syncIOSNoteFooterSupplement()
+            scheduleSyncIOSNoteFooterSupplement()
             #endif
             scheduleConsumePendingStudyHighlightListActivation()
         }
@@ -317,22 +319,22 @@ struct NoteEditorView: View {
             .onChange(of: bodySelectionChangeToken) { _, _ in onBodySelectionHostChanged() }
 #else
             .onChange(of: bodySelectionChangeToken) { _, _ in onBodySelectionHostChanged() }
-            .onChange(of: title) { _, _ in syncIOSNoteFooterSupplement() }
+            .onChange(of: title) { _, _ in scheduleSyncIOSNoteFooterSupplement() }
 #endif
             .onChange(of: activePillDock) { _, new in
                 refreshScripturePassageHighlights(item: new)
                 #if os(iOS)
-                syncIOSNoteFooterSupplement()
+                scheduleSyncIOSNoteFooterSupplement()
                 #endif
             }
             .onChange(of: dockPinnedHighlightThreadId) { _, _ in
                 #if os(iOS)
-                syncIOSNoteFooterSupplement()
+                scheduleSyncIOSNoteFooterSupplement()
                 #endif
             }
             .onChange(of: highlightCaptureSession?.id) { _, _ in
                 #if os(iOS)
-                syncIOSNoteFooterSupplement()
+                scheduleSyncIOSNoteFooterSupplement()
                 #endif
             }
             .onChange(of: editorState.plainText) { _, _ in
@@ -771,7 +773,7 @@ struct NoteEditorView: View {
         GeometryReader { outerGeo in
             let viewportCol = max(outerGeo.size.height, 1)
             #if os(iOS)
-            let dockViewportBudget = viewportCol - iosStudyDockOverlayBottomInset
+            let dockViewportBudget = viewportCol
             let dockExpandedContentMaxHeight = HarvousDockExpandedContentLayout.expandedScrollMaxHeight(
                 viewportHeight: max(dockViewportBudget, 1)
             )
@@ -780,10 +782,10 @@ struct NoteEditorView: View {
             #endif
 
             VStack(spacing: 0) {
-            // Scrollable writing surface — `minHeight` matches viewport so paper runs flush to the footer (no dead band).
-            HStack(spacing: 0) {
-                Spacer(minLength: 0)
-                GeometryReader { geo in
+                // Scrollable writing surface — `minHeight` matches viewport so paper runs flush to the footer (no dead band).
+                HStack(spacing: 0) {
+                    Spacer(minLength: 0)
+                    GeometryReader { geo in
                 let viewportH = max(geo.size.height, 1)
                 let paperClampW = max(geo.size.width - 40, 200)
                 ScrollView {
@@ -889,7 +891,7 @@ struct NoteEditorView: View {
                     .frame(maxWidth: .infinity, minHeight: viewportH, alignment: .top)
                     #else
                     .frame(maxWidth: .infinity, alignment: .top)
-                    .padding(.bottom, HarvousIOSMorphingChromeLayout.noteEditorScrollContentBottomPadding)
+                    .padding(.bottom, iosNoteEditorScrollContentBottomPadding)
                     #endif
                 }
                 #if os(iOS)
@@ -897,45 +899,59 @@ struct NoteEditorView: View {
                 .contentMargins(.bottom, HarvousIOSMorphingChromeLayout.interChromeSpacing, for: .scrollContent)
                 #endif
             }
-            .overlay(alignment: .bottom) {
-                VStack(alignment: .leading, spacing: studyDockStackSpacing) {
-                    activeStudyHighlightDock(note: note)
-                    activeScripturePillDock(note: note)
+#if os(macOS)
+                    .overlay(alignment: .bottom) {
+                        VStack(alignment: .leading, spacing: studyDockStackSpacing) {
+                            activeStudyHighlightDock(note: note)
+                            activeScripturePillDock(note: note)
+                        }
+                        .environment(\.harvousDockExpandedContentMaxHeight, dockExpandedContentMaxHeight)
+                    }
+#endif
+                    .frame(maxWidth: Self.editorScrollSurfaceMaxWidthPoints, maxHeight: .infinity)
+                    Spacer(minLength: 0)
                 }
-                .environment(\.harvousDockExpandedContentMaxHeight, dockExpandedContentMaxHeight)
-                #if os(iOS)
-                .padding(.bottom, iosStudyDockOverlayBottomInset)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+                #if os(macOS)
+                // Bottom bar: format toolbar or connections — scripture pickers/passage live only in the inline dock
+                // after an explicit pill tap (not when the caret sits next to a pill).
+                if proxy.shouldShowNoteToolbar {
+                    NoteToolbar(proxy: proxy)
+                        .id("noteToolbar")
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                } else {
+                    VStack(spacing: 0) {
+                        editorBottomChromeSeparatorLine()
+                        NoteConnectionsBar(
+                            note: note,
+                            snapshot: trailSnapshot,
+                            currentNoteTitle: title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "Current note" : title,
+                            onOpenLinkedNote: { id in openNoteInPlace(id: id) },
+                            onConnectionsChanged: { scheduleRefreshThreads(note: note) }
+                        )
+                    }
+                    .id("connectionsBar")
+                    .background(.thinMaterial)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                }
                 #endif
             }
-            .frame(maxWidth: Self.editorScrollSurfaceMaxWidthPoints, maxHeight: .infinity)
-                Spacer(minLength: 0)
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-
-            #if os(macOS)
-            // Bottom bar: format toolbar or connections — scripture pickers/passage live only in the inline dock
-            // after an explicit pill tap (not when the caret sits next to a pill).
-            if proxy.shouldShowNoteToolbar {
-                NoteToolbar(proxy: proxy)
-                    .id("noteToolbar")
+            #if os(iOS)
+            .safeAreaInset(edge: .bottom, spacing: HarvousIOSMorphingChromeLayout.interChromeSpacing) {
+                if iosStudyDockOverlayChromeSuppressed {
+                    VStack(alignment: .leading, spacing: studyDockStackSpacing) {
+                        activeStudyHighlightDock(note: note)
+                        activeScripturePillDock(note: note)
+                    }
+                    .environment(\.harvousDockExpandedContentMaxHeight, dockExpandedContentMaxHeight)
+                    .animation(HarvousAnimation.spring, value: activePillDock != nil)
+                    .animation(HarvousAnimation.spring, value: dockPinnedHighlightThreadId != nil)
+                    .animation(HarvousAnimation.spring, value: highlightCaptureSession != nil)
                     .transition(.move(edge: .bottom).combined(with: .opacity))
-            } else {
-                VStack(spacing: 0) {
-                    editorBottomChromeSeparatorLine()
-                    NoteConnectionsBar(
-                        note: note,
-                        snapshot: trailSnapshot,
-                        currentNoteTitle: title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "Current note" : title,
-                        onOpenLinkedNote: { id in openNoteInPlace(id: id) },
-                        onConnectionsChanged: { scheduleRefreshThreads(note: note) }
-                    )
                 }
-                .id("connectionsBar")
-                .background(.thinMaterial)
-                .transition(.move(edge: .bottom).combined(with: .opacity))
             }
             #endif
-            }
         }
         .onDisappear {
             scripturePillPrefetchTask?.cancel()
@@ -961,7 +977,7 @@ struct NoteEditorView: View {
         }
         .toolbar {}
         #else
-        // Sheet (not `.inspector`) so `NavigationStack` shows title + Cancel like `ComposeView`.
+        // Sheet (not `.inspector`) so `NavigationStack` shows inline title + trailing dismiss like You / passage sheets.
         .sheet(isPresented: $showInspectorIOS) {
             inspectorContent(note: note)
                 .presentationDetents([.large])
@@ -969,7 +985,7 @@ struct NoteEditorView: View {
         }
         .onAppear {
             appRouter.iosRegisterNoteEditorChrome(proxy: proxy)
-            syncIOSNoteFooterSupplement()
+            scheduleSyncIOSNoteFooterSupplement()
         }
         .onDisappear {
             appRouter.iosUnregisterNoteEditorChrome(proxy: proxy)
@@ -1172,6 +1188,14 @@ struct NoteEditorView: View {
         )
     }
 
+    /// `iosNoteFooterSupplement` is hosted on `@Published` chrome; assigning from synchronous `.onChange`
+    /// can trigger SwiftUI “Modifying state during view update” runtime warnings — defer past layout.
+    private func scheduleSyncIOSNoteFooterSupplement() {
+        DispatchQueue.main.async {
+            syncIOSNoteFooterSupplement()
+        }
+    }
+
     private func iosFooterRefreshConnectionsFromSupplement() {
         guard let n = note else { return }
         scheduleRefreshThreads(note: n)
@@ -1253,9 +1277,7 @@ struct NoteEditorView: View {
         // Mirrors `dismissActiveScripturePillDock` — avoids the scripture capsule / orb fighting the old caret-adjacent pill.
         proxy.activeScripturePill = nil
         proxy.preferOrbChromeUntilNextFormatSignal = true
-        #if os(iOS)
-        syncIOSNoteFooterSupplement()
-        #endif
+        // Footer chrome sync follows from `.onChange(of: dockPinnedHighlightThreadId)` (deferred publish).
     }
 
     /// Permanently delete the highlight's backing `StudyThread`, then refresh paint state
@@ -1329,6 +1351,7 @@ struct NoteEditorView: View {
         print("[Harvous.highlight.activate] OK — pinned dock for threadId=\(threadId)")
         #endif
         #if os(iOS)
+        proxy.resignBodyEditing()
         UIImpactFeedbackGenerator(style: .soft).impactOccurred()
         #endif
     }
@@ -1515,17 +1538,12 @@ struct NoteEditorView: View {
         NoteInspectorView(note: note)
         .inspectorColumnWidth(min: 240, ideal: 280, max: 320)
         #else
+        // Drag indicator + swipe-down handles dismissal (matches `FolderChipPopover` sheet) —
+        // omitting the redundant blue Done button keeps the chrome quieter and consistent.
         NavigationStack {
             NoteInspectorView(note: note)
-            .navigationTitle("Note Details")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") {
-                        showInspectorIOS = false
-                    }
-                }
-            }
+                .navigationTitle("Note Details")
+                .navigationBarTitleDisplayMode(.inline)
         }
         #endif
     }
@@ -1533,6 +1551,9 @@ struct NoteEditorView: View {
     private func scripturePillTapped(reference: String, translation: String, range: NSRange) {
         dockPinnedHighlightThreadId = nil
         activeHighlightDockExpanded = false
+        #if os(iOS)
+        titleFocused = false
+        #endif
 
         activePillDock = ActiveScripturePillDockItem(
             reference: reference,
@@ -1965,13 +1986,17 @@ struct NoteEditorView: View {
 
     private func animateFolderTextReveal(for value: String?) {
         guard value != nil else {
-            showFolderToolbarText = true
+            DispatchQueue.main.async {
+                showFolderToolbarText = true
+            }
             return
         }
-        showFolderToolbarText = false
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) {
-            withAnimation(.easeOut(duration: 0.18)) {
-                showFolderToolbarText = true
+        DispatchQueue.main.async {
+            showFolderToolbarText = false
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) {
+                withAnimation(.easeOut(duration: 0.18)) {
+                    showFolderToolbarText = true
+                }
             }
         }
     }

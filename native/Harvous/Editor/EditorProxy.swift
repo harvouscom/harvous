@@ -294,6 +294,13 @@ final class EditorProxy: ObservableObject {
         tv.becomeFirstResponder()
 #endif
     }
+
+    #if os(iOS)
+    /// End body editing so docks / overlays no longer compete with keyboard avoidance lifts.
+    func resignBodyEditing() {
+        textView?.resignFirstResponder()
+    }
+    #endif
 }
 
 /// Identifies an in-flight “remove scripture pill?” confirmation (native body editor).

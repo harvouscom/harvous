@@ -45,6 +45,11 @@ struct ActiveHighlightDock: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.colorScheme) private var dockColorScheme
 
+#if os(iOS)
+    /// Avoid auto-moving keyboard focus into the mini-note editors while UITextView is still key during dock reveal.
+    @FocusState private var dockMiniNoteFieldFocused: Bool
+#endif
+
     /// SwiftUI tint derived from the thread's persisted accent. Matches the underline paint exactly —
     /// `.auto` uses the per-kind default (same as `EditorStudyHighlight.applyHighlights`), named accents
     /// use their picked hue. We intentionally *don't* fall back to the space theme here so the dock
@@ -90,6 +95,12 @@ struct ActiveHighlightDock: View {
         .padding(.horizontal, 20)
         .padding(.top, 6)
         .padding(.bottom, 10)
+#if os(iOS)
+        .onChange(of: isExpanded) { _, expanded in
+            guard expanded else { return }
+            Task { @MainActor in dockMiniNoteFieldFocused = false }
+        }
+#endif
         .task(id: thread.id) {
             // Yield so SwiftUI can commit study-dock chrome before `seed`/fire-and-forget work competes with layout.
             await Task.yield()
@@ -240,67 +251,80 @@ struct ActiveHighlightDock: View {
             ? min(expandedScrollContentHeight, expandedContentMaxHeight)
             : expandedContentMaxHeight
 
-        // Note text — scrollable, clipped to the measured height.
+        // Note text — scrollable; `Spacer` + `minHeight` pin content to top when prose is shorter than the viewport cap.
         ScrollView {
-            VStack(alignment: .leading, spacing: 10) {
-                if thread.entryKind == .miniNote {
-                    TextField("Note (optional)…", text: $thread.miniNoteBody, axis: .vertical)
-                        .font(.system(size: 14, weight: .regular))
-                        .foregroundStyle(.secondary)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .textFieldStyle(.plain)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .onChange(of: thread.miniNoteBody) { old, new in
-                            guard old != new else { return }
-                            let now = Date()
-                            thread.updatedAt = now
-                            thread.highlightListEditedAt = now
-                            try? modelContext.saveWithLogging()
-                        }
-                } else if thread.entryKind == .scriptureLink,
-                          let ex = thread.scripturePassageExcerpt?.trimmingCharacters(in: .whitespacesAndNewlines),
-                          !ex.isEmpty {
-                    if !hideExcerptDisplay {
-                        Text(ex)
+            VStack(spacing: 0) {
+                VStack(alignment: .leading, spacing: 10) {
+                    if thread.entryKind == .miniNote {
+                        TextField("Note (optional)…", text: $thread.miniNoteBody, axis: .vertical)
                             .font(.system(size: 14, weight: .regular))
-                            .foregroundStyle(.primary)
+                            .foregroundStyle(.secondary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .textFieldStyle(.plain)
+                            .fixedSize(horizontal: false, vertical: true)
+#if os(iOS)
+                            .focused($dockMiniNoteFieldFocused)
+#endif
+                            .onChange(of: thread.miniNoteBody) { old, new in
+                                guard old != new else { return }
+                                let now = Date()
+                                thread.updatedAt = now
+                                thread.highlightListEditedAt = now
+                                try? modelContext.saveWithLogging()
+                            }
+                    } else if thread.entryKind == .scriptureLink,
+                              let ex = thread.scripturePassageExcerpt?.trimmingCharacters(in: .whitespacesAndNewlines),
+                              !ex.isEmpty {
+                        if !hideExcerptDisplay {
+                            Text(ex)
+                                .font(.system(size: 14, weight: .regular))
+                                .foregroundStyle(.primary)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+
+                        TextField("Note (optional)…", text: $thread.miniNoteBody, axis: .vertical)
+                            .font(.system(size: 14, weight: .regular))
+                            .foregroundStyle(.secondary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .textFieldStyle(.plain)
+                            .fixedSize(horizontal: false, vertical: true)
+#if os(iOS)
+                            .focused($dockMiniNoteFieldFocused)
+#endif
+                            .onChange(of: thread.miniNoteBody) { old, new in
+                                guard old != new else { return }
+                                let now = Date()
+                                thread.updatedAt = now
+                                thread.highlightListEditedAt = now
+                                try? modelContext.saveWithLogging()
+                            }
+                    } else {
+                        Text(DockHighlightCopy.detail(thread, modelContext: modelContext))
+                            .font(.system(size: 14, weight: .regular))
+                            .foregroundStyle(.secondary)
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .fixedSize(horizontal: false, vertical: true)
                     }
+                }
+                .frame(maxWidth: .infinity, alignment: .topLeading)
+                .background(
+                    GeometryReader { geo in
+                        Color.clear.preference(key: DockScrollContentHeightKey.self, value: geo.size.height)
+                    }
+                )
 
-                    TextField("Note (optional)…", text: $thread.miniNoteBody, axis: .vertical)
-                        .font(.system(size: 14, weight: .regular))
-                        .foregroundStyle(.secondary)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .textFieldStyle(.plain)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .onChange(of: thread.miniNoteBody) { old, new in
-                            guard old != new else { return }
-                            let now = Date()
-                            thread.updatedAt = now
-                            thread.highlightListEditedAt = now
-                            try? modelContext.saveWithLogging()
-                        }
-                } else {
-                    Text(DockHighlightCopy.detail(thread, modelContext: modelContext))
-                        .font(.system(size: 14, weight: .regular))
-                        .foregroundStyle(.secondary)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
+                Spacer(minLength: 0)
+                    .allowsHitTesting(false)
             }
-            .frame(maxWidth: .infinity, alignment: .topLeading)
-            .background(
-                GeometryReader { geo in
-                    Color.clear.preference(key: DockScrollContentHeightKey.self, value: geo.size.height)
-                }
-            )
+            .frame(maxWidth: .infinity, minHeight: max(computedHeight - 1, 1), alignment: .topLeading)
         }
         .frame(height: computedHeight)
         .onPreferenceChange(DockScrollContentHeightKey.self) { h in
-            // Snap height after layout — animating here resizes the ScrollView viewport and can
-            // flicker scroll indicators when content fits without scrolling.
-            expandedScrollContentHeight = h
+            // Prefer async so height updates aren't written during SwiftUI layout (runtime purple warnings).
+            Task { @MainActor in
+                expandedScrollContentHeight = h
+            }
         }
 
         // Respond chips — outside the vertical ScrollView so the horizontal scroll row can bleed

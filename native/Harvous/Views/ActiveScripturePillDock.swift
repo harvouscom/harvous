@@ -425,19 +425,31 @@ struct ActiveScripturePillDock: View {
                 ? min(scriptureScrollContentHeight, expandedContentMaxHeight)
                 : expandedContentMaxHeight
             ScrollView {
-                scripturePassageScrollContent
+                VStack(spacing: 0) {
+                    scripturePassageScrollContent
+
+                    Spacer(minLength: 0)
+                        .allowsHitTesting(false)
+                }
+                .frame(maxWidth: .infinity, minHeight: max(computedHeight - 1, 1), alignment: .topLeading)
             }
             .frame(height: computedHeight)
             .onPreferenceChange(DockScrollContentHeightKey.self) { h in
-                // Snap height after layout — animating here animates the ScrollView viewport and
-                // causes NSScrollView scrollbar flicker when content fits (no scrolling needed).
-                scriptureScrollContentHeight = h
+                Task { @MainActor in
+                    scriptureScrollContentHeight = h
+                }
             }
 
         }
         .coordinateSpace(name: "scripture-dock-expanded-body")
-        .onPreferenceChange(PassageFrameInBodyKey.self) { passageFrameInBodySpace = $0 }
-        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { expandedBodyWidth = $0 }
+        .onPreferenceChange(PassageFrameInBodyKey.self) { rect in
+            Task { @MainActor in
+                passageFrameInBodySpace = rect
+            }
+        }
+        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width in
+            Task { @MainActor in expandedBodyWidth = width }
+        }
         .overlay(alignment: .topLeading) { passageSelectionOverlay }
         .animation(.spring(response: 0.36, dampingFraction: 0.82), value: passageHighlightDraft != nil)
     }
@@ -452,18 +464,34 @@ struct ActiveScripturePillDock: View {
             GeometryReader { scrollViewport in
                 let h = max(scrollViewport.size.height, 120)
                 ScrollView {
-                    scripturePassageScrollContent
+                    VStack(spacing: 0) {
+                        scripturePassageScrollContent
+
+                        Spacer(minLength: 0)
+                            .allowsHitTesting(false)
+                    }
+                    .frame(maxWidth: .infinity, minHeight: max(h - 1, 1), alignment: .topLeading)
                 }
                 .frame(height: h)
-                .onPreferenceChange(DockScrollContentHeightKey.self) { scriptureScrollContentHeight = $0 }
+                .onPreferenceChange(DockScrollContentHeightKey.self) { height in
+                    Task { @MainActor in
+                        scriptureScrollContentHeight = height
+                    }
+                }
             }
             .frame(maxHeight: .infinity)
 
         }
         .frame(maxHeight: .infinity)
         .coordinateSpace(name: "scripture-dock-expanded-body")
-        .onPreferenceChange(PassageFrameInBodyKey.self) { passageFrameInBodySpace = $0 }
-        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { expandedBodyWidth = $0 }
+        .onPreferenceChange(PassageFrameInBodyKey.self) { rect in
+            Task { @MainActor in
+                passageFrameInBodySpace = rect
+            }
+        }
+        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width in
+            Task { @MainActor in expandedBodyWidth = width }
+        }
         .overlay(alignment: .topLeading) { passageSelectionOverlay }
         .animation(.spring(response: 0.36, dampingFraction: 0.82), value: passageHighlightDraft != nil)
     }

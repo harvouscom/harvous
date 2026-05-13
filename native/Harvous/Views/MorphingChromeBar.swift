@@ -48,19 +48,19 @@ enum HarvousIOSMorphingChromeLayout {
     static var morphingChromeLayoutHeight: CGFloat {
         chromeControlsHeight + chromeRowBottomPadding
     }
-    /// Pulls scripture/highlight docks toward the toolbar; keeps layout math centralized.
-    static let studyDockDownwardNudge: CGFloat = 14
-    /// Distance from study/highlight docks to the **bottom of the editor viewport** (`safeAreaInset` top).
-    /// When `footerChromeCollapsed` is true (`suppressesBottomMorphingChromeContent`), the morphing footer row drops to
-    /// zero height; add its former height here so docks keep the **same gap to the keyboard** as when the footer shows.
-    static func studyDockOverlayBottomInset(footerChromeCollapsed: Bool) -> CGFloat {
-        let nominal = morphingChromeLayoutHeight + interChromeSpacing - studyDockDownwardNudge
-        return footerChromeCollapsed ? nominal + morphingChromeLayoutHeight : nominal
+    /// Vertical footprint of MorphingHybrid note footer (`IOSNoteFooterHybridRow`) resting above home indicator —
+    /// `safeAreaInset(edge: .bottom, spacing: interChromeSpacing)` slab + capsule row metrics from this file +
+    /// `MorphingChromeBar.padding(.bottom, …)` in `ContentView.iosMorphingChromeInset`.
+    ///
+    /// Use when computing scroll/content padding beside the chrome slot. Study docks that replace this footer
+    /// use `safeAreaInset` in `NoteEditorView` (not a positive layout `offset`) so they align with this band without clipping.
+    static var morphingChromeFooterOccupiedHeightAboveMainColumnBottom: CGFloat {
+        interChromeSpacing + morphingChromeLayoutHeight
     }
 
     /// Bottom padding inside the note editor’s outer `ScrollView` so the last lines can scroll above the floating footer (`UITextView` has `isScrollEnabled == false`).
     static var noteEditorScrollContentBottomPadding: CGFloat {
-        morphingChromeLayoutHeight + interChromeSpacing + 16
+        morphingChromeFooterOccupiedHeightAboveMainColumnBottom + 16
     }
 
     /// Region left untapped by the camera-orb dismiss layer so morphing chrome (stacked orbs + row) stays interactive.
@@ -190,6 +190,7 @@ struct HarvousIOSComposeOrbCluster<Chrome: View>: View {
         .animation(revealAnimation, value: appRouter.iosComposeCameraOrbPresented)
     }
 }
+
 
 /// Bottom safe-area chrome: hub list/search/compose, or note editor hybrid (connections / format / scripture + compose).
 struct MorphingChromeBar: View {

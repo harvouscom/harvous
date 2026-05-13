@@ -11,6 +11,40 @@ import UIKit
 /// Displays tags and note metadata. Passage text is edited via the note action bar.
 /// Folder edits use the toolbar folder chip popover.
 struct NoteInspectorView: View {
+    private enum FieldMetrics {
+        static var rowHeight: CGFloat {
+            #if os(iOS)
+            48
+            #else
+            38
+            #endif
+        }
+
+        static var trailingReserve: CGFloat {
+            #if os(iOS)
+            108
+            #else
+            84
+            #endif
+        }
+
+        static var trailingButtonExtent: CGFloat {
+            #if os(iOS)
+            32
+            #else
+            26
+            #endif
+        }
+
+        static var bodyFont: Font {
+            #if os(iOS)
+            HarvousTypography.body
+            #else
+            HarvousTypography.subheadline
+            #endif
+        }
+    }
+
     let note: Note
     @Environment(\.modelContext) private var modelContext
     @State private var draftTag = ""
@@ -57,7 +91,7 @@ struct NoteInspectorView: View {
                     .foregroundStyle(.secondary)
                     .padding(.top, 4)
             } else {
-                FlowLayout(spacing: 6) {
+                FlowLayout(spacing: 8) {
                     ForEach(note.tags.uniquedPreservingOrder(), id: \.self) { tag in
                         tagChip(tag)
                     }
@@ -70,66 +104,79 @@ struct NoteInspectorView: View {
     }
 
     private func tagChip(_ tag: String) -> some View {
-        RemovableThemeTagChip(text: tag) {
+        RemovableInspectorNeutralTagChip(text: tag) {
             removeTag(tag)
         }
     }
 
     private var addTagRow: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 0) {
             TextField("Add tag", text: $draftTag)
                 .textFieldStyle(.plain)
-                .font(HarvousTypography.inspectorBody)
-                .padding(.horizontal, 10)
-                .frame(height: 34)
+                .font(FieldMetrics.bodyFont)
+                .frame(
+                    maxWidth: .infinity,
+                    minHeight: FieldMetrics.rowHeight,
+                    maxHeight: FieldMetrics.rowHeight
+                )
+                .padding(.leading, 16)
+                .padding(.trailing, FieldMetrics.trailingReserve)
+                .onSubmit { addDraftTag() }
+        }
+        .frame(maxWidth: .infinity, minHeight: FieldMetrics.rowHeight)
+        .background(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(Color.secondary.opacity(0.08))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .strokeBorder(Color.primary.opacity(0.08), lineWidth: 1)
+        )
+        .overlay(alignment: .trailing) {
+            HStack(spacing: 10) {
+                Button {
+                    addDraftTag()
+                } label: {
+                    HarvousFAGlyph(assetName: "Harvous.Check", edgePt: 13)
+                        .frame(width: FieldMetrics.trailingButtonExtent, height: FieldMetrics.trailingButtonExtent)
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(.white)
                 .background(
                     RoundedRectangle(cornerRadius: 9, style: .continuous)
-                        .fill(Color.secondary.opacity(0.08))
+                        .fill(Color.harvousAccent)
                 )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 9, style: .continuous)
-                        .strokeBorder(Color.primary.opacity(0.08), lineWidth: 1)
-                )
-                .onSubmit { addDraftTag() }
+                .disabled(draftTag.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                .help("Add tag")
+                .accessibilityLabel("Add tag")
 
-            Button {
-                addDraftTag()
-            } label: {
-                Text("Add")
-                    .font(HarvousTypography.inspectorCompactMedium)
-                    .padding(.horizontal, 20)
-                    .frame(height: 34)
-                    .background(
-                        RoundedRectangle(cornerRadius: 9, style: .continuous)
-                            .fill(Color.harvousAccent)
-                    )
-                    .foregroundStyle(.white)
+                Button {
+                    draftTag = ""
+                } label: {
+                    HarvousFAGlyph(assetName: "Harvous.Xmark", edgePt: 13)
+                        .frame(width: FieldMetrics.trailingButtonExtent, height: FieldMetrics.trailingButtonExtent)
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(.primary.opacity(0.85))
+                .background(
+                    RoundedRectangle(cornerRadius: 9, style: .continuous)
+                        .fill(Color.secondary.opacity(0.16))
+                )
+                .help("Clear typed tag")
+                .accessibilityLabel("Clear typed tag")
             }
-            .buttonStyle(.plain)
-            .help("Add tag")
-            .accessibilityLabel("Add tag")
+            .padding(.trailing, 10)
         }
     }
 
     // MARK: - Scripture references
 
+    /// Neutral grey capsules (same language as legacy inspector scripture rows) — not theme-gradient scripture blues.
     @ViewBuilder
     private var scriptureRefSection: some View {
-        FlowLayout(spacing: 6) {
+        FlowLayout(spacing: 8) {
             ForEach(note.detectedRefs.uniquedPreservingOrder(), id: \.self) { ref in
-                Text(ref)
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(.primary)
-                    .padding(.horizontal, 9)
-                    .padding(.vertical, 5)
-                    .background(
-                        Capsule(style: .continuous)
-                            .fill(Color.primary.opacity(0.07))
-                    )
-                    .overlay(
-                        Capsule(style: .continuous)
-                            .strokeBorder(Color.primary.opacity(0.12), lineWidth: 0.5)
-                    )
+                InspectorScriptureReferenceNeutralCapsule(reference: ref)
             }
         }
         .padding(.top, 4)
@@ -289,6 +336,163 @@ struct NoteInspectorView: View {
             .foregroundStyle(.secondary)
             .tracking(0.8)
             .padding(.bottom, 6)
+    }
+}
+
+// MARK: - Note Details pills (neutral — not scripture-theme blues)
+
+private enum InspectorDetailChipMetrics {
+    /// Slightly larger than legacy 12pt inspector pills for readability while staying secondary UI.
+    static var labelFont: Font {
+        #if os(iOS)
+        .system(size: 15, weight: .medium, design: .default)
+        #else
+        .system(size: 14, weight: .medium, design: .default)
+        #endif
+    }
+
+    static let horizontalPadding: CGFloat = 12
+    static let verticalPadding: CGFloat = 8
+    static let capsuleFillOpacity: Double = 0.07
+    static let capsuleStrokeOpacity: Double = 0.12
+    static let rowIconSpacing: CGFloat = 6
+    /// Sized up with `labelFont` (~15/14pt) so icons feel paired with the caps, not miniature.
+    static var leadingGlyphPt: CGFloat {
+        #if os(iOS)
+        14
+        #else
+        13
+        #endif
+    }
+
+    static var removeGlyphPt: CGFloat {
+        #if os(iOS)
+        12
+        #else
+        11
+        #endif
+    }
+
+    /// Column for the leading tag glyph when the remove control is hidden.
+    static var tagGlyphColumnWidth: CGFloat {
+        #if os(iOS)
+        18
+        #else
+        16
+        #endif
+    }
+}
+
+private struct InspectorScriptureReferenceNeutralCapsule: View {
+    let reference: String
+
+    var body: some View {
+        HStack(spacing: InspectorDetailChipMetrics.rowIconSpacing) {
+            HarvousFAGlyph(assetName: "Harvous.Bookmark", edgePt: InspectorDetailChipMetrics.leadingGlyphPt)
+                .foregroundStyle(.secondary.opacity(0.75))
+            Text(reference)
+                .font(InspectorDetailChipMetrics.labelFont)
+                .foregroundStyle(.primary)
+                .multilineTextAlignment(.leading)
+        }
+        .padding(.horizontal, InspectorDetailChipMetrics.horizontalPadding)
+        .padding(.vertical, InspectorDetailChipMetrics.verticalPadding)
+        .background(
+            Capsule(style: .continuous)
+                .fill(Color.primary.opacity(InspectorDetailChipMetrics.capsuleFillOpacity))
+        )
+        .overlay(
+            Capsule(style: .continuous)
+                .strokeBorder(
+                    Color.primary.opacity(InspectorDetailChipMetrics.capsuleStrokeOpacity),
+                    lineWidth: 0.5
+                )
+        )
+    }
+}
+
+/// Same interaction model as `RemovableThemeTagChip`, styled like pre-theme neutral inspector pills.
+private struct RemovableInspectorNeutralTagChip: View {
+    let text: String
+    let onRemove: () -> Void
+
+    @State private var hoverRemoval = false
+    @State private var tapRevealRemoval = false
+
+    private var showRemoval: Bool { hoverRemoval || tapRevealRemoval }
+
+    var body: some View {
+        HStack(spacing: 6) {
+            HStack(spacing: InspectorDetailChipMetrics.rowIconSpacing) {
+                ZStack(alignment: .leading) {
+                    HarvousFAGlyph(assetName: "Harvous.Tag", edgePt: InspectorDetailChipMetrics.leadingGlyphPt)
+                        .foregroundStyle(.secondary.opacity(0.75))
+                        .opacity(showRemoval ? 0 : 1)
+                        .accessibilityHidden(true)
+                }
+                .frame(width: showRemoval ? 0 : InspectorDetailChipMetrics.tagGlyphColumnWidth, alignment: .leading)
+                .clipped()
+
+                Text(text)
+                    .font(InspectorDetailChipMetrics.labelFont)
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+            }
+            .contentShape(Rectangle())
+            .onTapGesture {
+                guard !hoverRemoval else { return }
+                withAnimation(.easeInOut(duration: 0.18)) {
+                    tapRevealRemoval.toggle()
+                }
+            }
+
+            Button {
+                onRemove()
+                tapRevealRemoval = false
+            } label: {
+                HarvousFAGlyph(assetName: "Harvous.Xmark", edgePt: InspectorDetailChipMetrics.removeGlyphPt)
+                    .foregroundStyle(.primary.opacity(0.55))
+                    .frame(width: 21, height: 21)
+            }
+            .buttonStyle(.plain)
+            .help("Remove tag")
+            .accessibilityLabel("Remove tag \(text)")
+            .opacity(showRemoval ? 1 : 0)
+            .frame(width: showRemoval ? 28 : 0)
+            .clipped()
+            .allowsHitTesting(showRemoval)
+        }
+        .padding(.horizontal, InspectorDetailChipMetrics.horizontalPadding)
+        .padding(.vertical, InspectorDetailChipMetrics.verticalPadding)
+        .background(
+            Capsule(style: .continuous)
+                .fill(Color.primary.opacity(InspectorDetailChipMetrics.capsuleFillOpacity))
+        )
+        .overlay(
+            Capsule(style: .continuous)
+                .strokeBorder(
+                    Color.primary.opacity(InspectorDetailChipMetrics.capsuleStrokeOpacity),
+                    lineWidth: 0.5
+                )
+        )
+        .animation(.easeInOut(duration: 0.18), value: showRemoval)
+        .onHover { hovering in
+            withAnimation(.easeInOut(duration: 0.18)) {
+                hoverRemoval = hovering
+                if hovering {
+                    tapRevealRemoval = false
+                }
+            }
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Tag \(text)")
+        .accessibilityHint(showRemoval ? "Close icon is visible; activate it to remove this tag" : "Tag keyword")
+        .accessibilityActions {
+            Button("Remove tag", role: .destructive) {
+                onRemove()
+                tapRevealRemoval = false
+            }
+        }
     }
 }
 

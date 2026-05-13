@@ -5,16 +5,237 @@ import SwiftUI
 struct FolderChipPopover: View {
     private enum Metrics {
         /// Shared height for primary editor and Add-folder row so they match visually.
-        static let fieldRowHeight: CGFloat = 36
+        static var fieldRowHeight: CGFloat {
+            #if os(iOS)
+            48
+            #else
+            38
+            #endif
+        }
+
+        /// Edge insets — iOS sheets read better with fuller width use and breathing room between sections.
+        static var horizontalPadding: CGFloat {
+            #if os(iOS)
+            22
+            #else
+            16
+            #endif
+        }
+
+        static var verticalSectionSpacing: CGFloat {
+            #if os(iOS)
+            22
+            #else
+            14
+            #endif
+        }
 
         /// Minimum tap/click target for “Also in” row actions (promote / remove).
         static var folderRowActionExtent: CGFloat {
             #if os(iOS)
-            44
+            48
             #else
-            32
+            34
             #endif
         }
+
+        static var glyphSection: CGFloat {
+            #if os(iOS)
+            13
+            #else
+            11
+            #endif
+        }
+
+        static var glyphFolderRow: CGFloat {
+            #if os(iOS)
+            16
+            #else
+            13
+            #endif
+        }
+
+        static var glyphRowAction: CGFloat {
+            #if os(iOS)
+            17
+            #else
+            14
+            #endif
+        }
+
+        /// Primary-field trailing chrome (check / clear).
+        static var trailButtonExtent: CGFloat {
+            #if os(iOS)
+            32
+            #else
+            26
+            #endif
+        }
+
+        /// Space reserved inside the primary `TextField` for trailing buttons (≈ two buttons + paddings).
+        static var primaryFieldTrailingReserve: CGFloat {
+            #if os(iOS)
+            108
+            #else
+            84
+            #endif
+        }
+
+        /// Tighter vertical stacking for “Also in” rows — applied per row alongside `alsoInRowsStackSpacing`.
+        static var secondaryFolderRowVerticalPadding: CGFloat {
+            #if os(iOS)
+            1
+            #else
+            0
+            #endif
+        }
+
+        /// Spacing among secondary folder rows (and after the section title).
+        static var alsoInRowsStackSpacing: CGFloat {
+            #if os(iOS)
+            4
+            #else
+            3
+            #endif
+        }
+
+        /// Section-title-to-control gap — tighter than the outer section rhythm so labels feel paired with their fields.
+        static var sectionTitleControlSpacing: CGFloat {
+            #if os(iOS)
+            10
+            #else
+            8
+            #endif
+        }
+
+        /// Spacing inside the destructive footer group (divider above the “Remove all folders” button sits closer to it).
+        static var destructiveGroupSpacing: CGFloat {
+            #if os(iOS)
+            12
+            #else
+            8
+            #endif
+        }
+    }
+
+    /// Rounded capsule folder name field matching primary/add-secondary styling (`Metrics.fieldRowHeight`).
+    private struct FolderNameChromeRow: View {
+        @Binding var text: String
+        var placeholder: String
+        var onSubmitEditing: () -> Void
+        var onApply: () -> Void
+        var onClear: () -> Void
+        var applyAccessibilityLabel: String
+        var applyAccessibilityHint: String
+        var applyHelp: String
+        var clearAccessibilityLabel: String
+        var clearHelp: String
+        var applyDisabled: Bool
+
+        var body: some View {
+            HStack(spacing: 0) {
+                TextField(placeholder, text: $text)
+                    .textFieldStyle(.plain)
+                    .font(Self.rowBodyFontStatic)
+                    .frame(
+                        maxWidth: .infinity,
+                        minHeight: Metrics.fieldRowHeight,
+                        maxHeight: Metrics.fieldRowHeight
+                    )
+                    .padding(.leading, 16)
+                    .padding(.trailing, Metrics.primaryFieldTrailingReserve)
+                    .onSubmit { onSubmitEditing() }
+            }
+            .frame(maxWidth: .infinity, minHeight: Metrics.fieldRowHeight)
+            .background(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .fill(Color.secondary.opacity(0.08))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .strokeBorder(Color.primary.opacity(0.08), lineWidth: 1)
+            )
+            .overlay(alignment: .trailing) {
+                HStack(spacing: 10) {
+                    Button {
+                        onApply()
+                    } label: {
+                        HarvousFAGlyph(assetName: "Harvous.Check", edgePt: 13)
+                            .frame(width: Metrics.trailButtonExtent, height: Metrics.trailButtonExtent)
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.white)
+                    .background(
+                        RoundedRectangle(cornerRadius: 9, style: .continuous)
+                            .fill(Color.harvousAccent)
+                    )
+                    .help(applyHelp)
+                    .accessibilityLabel(applyAccessibilityLabel)
+                    .accessibilityHint(applyAccessibilityHint)
+                    .disabled(applyDisabled)
+
+                    Button {
+                        onClear()
+                    } label: {
+                        HarvousFAGlyph(assetName: "Harvous.Xmark", edgePt: 13)
+                            .frame(width: Metrics.trailButtonExtent, height: Metrics.trailButtonExtent)
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.primary.opacity(0.85))
+                    .background(
+                        RoundedRectangle(cornerRadius: 9, style: .continuous)
+                            .fill(Color.secondary.opacity(0.16))
+                    )
+                    .help(clearHelp)
+                    .accessibilityLabel(clearAccessibilityLabel)
+                }
+                .padding(.trailing, 10)
+            }
+        }
+
+        /// `rowBodyFont` is instance-only; expose the same typography for nested struct.
+        private static var rowBodyFontStatic: Font {
+            #if os(iOS)
+            HarvousTypography.body
+            #else
+            HarvousTypography.subheadline
+            #endif
+        }
+    }
+
+    /// Section subtitles (“Primary”, “Also in”).
+    private var sectionLabelFont: Font {
+        #if os(iOS)
+        HarvousFonts.font(size: 14, weight: 600, design: .default)
+        #else
+        HarvousTypography.caption
+        #endif
+    }
+
+    /// Source row (“Manual”) and body-style labels in lists.
+    private var emphasisBodyFont: Font {
+        #if os(iOS)
+        HarvousFonts.font(size: 16, weight: 500, design: .default)
+        #else
+        HarvousTypography.subheadline
+        #endif
+    }
+
+    private var rowBodyFont: Font {
+        #if os(iOS)
+        HarvousTypography.body
+        #else
+        HarvousTypography.subheadline
+        #endif
+    }
+
+    /// Secondary explanatory copy.
+    private var supportingCopyFont: Font {
+        #if os(iOS)
+        HarvousFonts.font(size: 14, weight: 400, design: .default)
+        #else
+        HarvousTypography.inspectorCompact
+        #endif
     }
 
     @Bindable var note: Note
@@ -24,84 +245,107 @@ struct FolderChipPopover: View {
     @State private var draftNewSecondary = ""
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            folderSourceRow
+        ScrollView {
+            VStack(alignment: .leading, spacing: Metrics.verticalSectionSpacing) {
+                folderSourceRow
 
-            HStack(spacing: 6) {
-                HarvousFAGlyph(assetName: "Harvous.Star", edgePt: 11)
-                    .foregroundStyle(.secondary)
-                Text("Primary")
-                    .font(HarvousTypography.caption)
-                    .foregroundStyle(.secondary)
-            }
-            .accessibilityElement(children: .combine)
-            .accessibilityLabel("Primary folder")
-
-            folderEditorRow
-
-            membershipList
-
-            newSecondaryRow
-
-            Divider()
-                .opacity(0.45)
-
-            VStack(alignment: .leading, spacing: 6) {
-                Toggle(isOn: Binding(
-                    get: { note.isFolderPinned },
-                    set: { newValue in
-                        note.isFolderPinned = newValue
-                        persist()
+                VStack(alignment: .leading, spacing: Metrics.sectionTitleControlSpacing) {
+                    HStack(spacing: 8) {
+                        HarvousFAGlyph(assetName: "Harvous.Star", edgePt: Metrics.glyphSection)
+                            .foregroundStyle(.secondary)
+                        Text("Primary")
+                            .font(sectionLabelFont)
+                            .foregroundStyle(.secondary)
                     }
-                )) {
-                    Text("Lock primary folder")
-                        .font(HarvousTypography.inspectorCompactMedium)
+                    .accessibilityElement(children: .combine)
+                    .accessibilityLabel("Primary folder")
+
+                    folderEditorRow
                 }
-                .toggleStyle(.switch)
-                .controlSize(.regular)
 
-                Text("When on, Harvous won't change the primary folder automatically; secondary suggestions still update from your note.")
-                    .font(HarvousTypography.inspectorCompact)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
+                membershipList
 
-            if note.isFolderUserOverride {
-                Text("Manual membership is set. Tap “Use auto suggestion” to follow Harvous again.")
-                    .font(HarvousTypography.inspectorCompact)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
+                newSecondaryRow
 
-            Divider()
-                .opacity(0.45)
+                Divider()
+                    .opacity(0.45)
 
-            Button(role: .destructive) {
-                clearAllFolders()
-            } label: {
-                Label {
-                    Text("Remove all folders")
-                } icon: {
-                    HarvousFAGlyph(assetName: "Harvous.Trash", edgePt: 13)
+                VStack(alignment: .leading, spacing: 10) {
+                    Toggle(isOn: Binding(
+                        get: { note.isFolderPinned },
+                        set: { newValue in
+                            note.isFolderPinned = newValue
+                            persist()
+                        }
+                    )) {
+                        Text("Lock primary folder")
+                            .font(emphasisBodyFont)
+                    }
+                    .toggleStyle(.switch)
+                    #if os(iOS)
+                    .controlSize(.large)
+                    #else
+                    .controlSize(.regular)
+                    #endif
+
+                    Text("When on, Harvous won't change the primary folder automatically; secondary suggestions still update from your note.")
+                        .font(supportingCopyFont)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
-                .font(HarvousTypography.inspectorCompactMedium)
+
+                if note.isFolderUserOverride {
+                    Text("Manual membership is set. Tap “Use auto suggestion” to follow Harvous again.")
+                        .font(supportingCopyFont)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                VStack(alignment: .leading, spacing: Metrics.destructiveGroupSpacing) {
+                    Divider()
+                        .opacity(0.45)
+
+                    Button(role: .destructive) {
+                        clearAllFolders()
+                    } label: {
+                        Label {
+                            Text("Remove all folders")
+                        } icon: {
+                            HarvousFAGlyph(assetName: "Harvous.Trash", edgePt: Metrics.glyphRowAction)
+                        }
+                        .font(emphasisBodyFont)
+                    }
+                    .buttonStyle(.plain)
+                }
             }
-            .buttonStyle(.plain)
+            .padding(.horizontal, Metrics.horizontalPadding)
+            .padding(.vertical, Metrics.horizontalPadding)
+            .frame(maxWidth: .infinity, alignment: .topLeading)
         }
-        .padding(16)
-        .frame(width: 300)
+        .scrollBounceBehavior(.basedOnSize)
+        #if os(iOS)
+        .frame(maxWidth: .infinity, alignment: .topLeading)
+        #else
+        .frame(width: 340, alignment: .topLeading)
+        #endif
         .onAppear {
-            draftFolderLabel = note.primaryFolder ?? ""
+            DispatchQueue.main.async {
+                draftFolderLabel = note.primaryFolder ?? ""
+            }
         }
         .onChange(of: note.primaryFolder) { _, newValue in
             let normalizedDraft = draftFolderLabel.trimmingCharacters(in: .whitespacesAndNewlines)
             let normalizedNote = (newValue ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-            if normalizedDraft.isEmpty || normalizedDraft == normalizedNote {
-                draftFolderLabel = newValue ?? ""
+            guard normalizedDraft.isEmpty || normalizedDraft == normalizedNote else { return }
+            let next = newValue ?? ""
+            DispatchQueue.main.async {
+                draftFolderLabel = next
             }
         }
         #if os(iOS)
-        .presentationCompactAdaptation(.popover)
+        .presentationCompactAdaptation(.sheet)
+        .presentationDragIndicator(.visible)
+        .presentationDetents([.medium, .large])
         #endif
     }
 
@@ -112,27 +356,28 @@ struct FolderChipPopover: View {
         let rows = secondaryFolderRows(primaryTrimmed: primaryTrimmed)
         return Group {
             if !rows.isEmpty {
-                VStack(alignment: .leading, spacing: 8) {
+                VStack(alignment: .leading, spacing: Metrics.alsoInRowsStackSpacing) {
                     Text("Also in")
-                        .font(HarvousTypography.caption)
+                        .font(sectionLabelFont)
                         .foregroundStyle(.secondary)
                     ForEach(rows, id: \.self) { label in
                         HStack {
                             Label {
                                 Text(label)
-                                    .font(HarvousTypography.subheadline)
+                                    .font(rowBodyFont)
                                     .lineLimit(2)
                             } icon: {
-                                HarvousFAGlyph(assetName: "Harvous.Folder", edgePt: 13)
+                                HarvousFAGlyph(assetName: "Harvous.Folder", edgePt: Metrics.glyphFolderRow)
                                     .opacity(0.55)
                                     .foregroundStyle(.secondary)
                             }
-                            Spacer(minLength: 0)
-                            HStack(spacing: 2) {
+                            .labelStyle(.titleAndIcon)
+                            Spacer(minLength: 12)
+                            HStack(spacing: 6) {
                                 Button {
                                     promoteSecondaryToPrimary(label)
                                 } label: {
-                                    HarvousFAGlyph(assetName: "Harvous.Star", edgePt: 14)
+                                    HarvousFAGlyph(assetName: "Harvous.Star", edgePt: Metrics.glyphRowAction)
                                         .foregroundStyle(Color.secondary)
                                         .frame(
                                             width: Metrics.folderRowActionExtent,
@@ -147,7 +392,7 @@ struct FolderChipPopover: View {
                                 Button {
                                     removeSecondary(label)
                                 } label: {
-                                    HarvousFAGlyph(assetName: "Harvous.CircleMinus", edgePt: 14)
+                                    HarvousFAGlyph(assetName: "Harvous.CircleMinus", edgePt: Metrics.glyphRowAction)
                                         .foregroundStyle(.tertiary)
                                         .frame(
                                             width: Metrics.folderRowActionExtent,
@@ -160,6 +405,7 @@ struct FolderChipPopover: View {
                                 .accessibilityLabel("Remove \(label)")
                             }
                         }
+                        .padding(.vertical, Metrics.secondaryFolderRowVerticalPadding)
                     }
                 }
             }
@@ -177,101 +423,60 @@ struct FolderChipPopover: View {
     }
 
     private var newSecondaryRow: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: Metrics.sectionTitleControlSpacing) {
             Text("Add folder")
-                .font(HarvousTypography.caption)
+                .font(sectionLabelFont)
                 .foregroundStyle(.secondary)
-            HStack(spacing: 8) {
-                TextField("Name", text: $draftNewSecondary)
-                    .textFieldStyle(.roundedBorder)
-                    .font(HarvousTypography.subheadline)
-                    .frame(maxWidth: .infinity)
-                    .onSubmit { addDraftSecondary() }
-                Button("Add") { addDraftSecondary() }
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.regular)
-                    .disabled(draftNewSecondary.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-            }
-            .frame(minHeight: Metrics.fieldRowHeight)
+
+            FolderNameChromeRow(
+                text: $draftNewSecondary,
+                placeholder: "New folder",
+                onSubmitEditing: addDraftSecondary,
+                onApply: addDraftSecondary,
+                onClear: { draftNewSecondary = "" },
+                applyAccessibilityLabel: "Add secondary folder",
+                applyAccessibilityHint: "Adds typed name when it is not blank.",
+                applyHelp: "Add folder",
+                clearAccessibilityLabel: "Clear typed name",
+                clearHelp: "Clears typed text without saving",
+                applyDisabled: draftNewSecondary.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            )
         }
     }
 
     private var folderEditorRow: some View {
-        HStack(spacing: 0) {
-            TextField("No folder", text: $draftFolderLabel)
-                .textFieldStyle(.plain)
-                .font(HarvousTypography.subheadline)
-                .frame(
-                    maxWidth: .infinity,
-                    minHeight: Metrics.fieldRowHeight,
-                    maxHeight: Metrics.fieldRowHeight
-                )
-                .padding(.leading, 12)
-                .padding(.trailing, 84)
-                .onSubmit { applyFolderDraft() }
-        }
-        .frame(maxWidth: .infinity, minHeight: Metrics.fieldRowHeight)
-        .background(
-            RoundedRectangle(cornerRadius: 11, style: .continuous)
-                .fill(Color.secondary.opacity(0.08))
+        FolderNameChromeRow(
+            text: $draftFolderLabel,
+            placeholder: "No folder",
+            onSubmitEditing: applyFolderDraft,
+            onApply: applyFolderDraft,
+            onClear: clearPrimaryOnly,
+            applyAccessibilityLabel: "Apply primary folder",
+            applyAccessibilityHint: "",
+            applyHelp: "Apply folder",
+            clearAccessibilityLabel: "Clear primary folder",
+            clearHelp: "Clear primary only",
+            applyDisabled: false
         )
-        .overlay(
-            RoundedRectangle(cornerRadius: 11, style: .continuous)
-                .strokeBorder(Color.primary.opacity(0.08), lineWidth: 1)
-        )
-        .overlay(alignment: .trailing) {
-            HStack(spacing: 6) {
-                Button {
-                    applyFolderDraft()
-                } label: {
-                    HarvousFAGlyph(assetName: "Harvous.Check", edgePt: 12)
-                        .frame(width: 24, height: 24)
-                }
-                .buttonStyle(.plain)
-                .foregroundStyle(.white)
-                .background(
-                    RoundedRectangle(cornerRadius: 7, style: .continuous)
-                        .fill(Color.harvousAccent)
-                )
-                .help("Apply folder")
-                .accessibilityLabel("Apply primary folder")
-
-                Button {
-                    clearPrimaryOnly()
-                } label: {
-                    HarvousFAGlyph(assetName: "Harvous.Xmark", edgePt: 12)
-                        .frame(width: 24, height: 24)
-                }
-                .buttonStyle(.plain)
-                .foregroundStyle(.primary.opacity(0.85))
-                .background(
-                    RoundedRectangle(cornerRadius: 7, style: .continuous)
-                        .fill(Color.secondary.opacity(0.16))
-                )
-                .help("Clear primary only")
-                .accessibilityLabel("Clear primary folder")
-            }
-            .padding(.trailing, 6)
-        }
     }
 
     /// Manual / Automatic badge plus optional “Use auto suggestion” action on one row.
     private var folderSourceRow: some View {
-        HStack(alignment: .center, spacing: 8) {
-            HStack(spacing: 8) {
+        HStack(alignment: .center, spacing: 14) {
+            HStack(spacing: 12) {
                 HarvousFAGlyph(
                     assetName: note.isFolderUserOverride ? "Harvous.Wrench" : "Harvous.WandMagicSparkles",
-                    edgePt: 11
+                    edgePt: Metrics.glyphSection
                 )
-                .foregroundStyle(note.isFolderUserOverride ? Color.harvousAccent : .secondary)
+                .foregroundStyle(.secondary)
 
                 Text(note.isFolderUserOverride ? "Manual" : "Automatic")
-                    .font(HarvousTypography.inspectorCompactMedium)
+                    .font(emphasisBodyFont)
             }
             .accessibilityElement(children: .combine)
             .accessibilityLabel(note.isFolderUserOverride ? "Folder source: manual" : "Folder source: automatic")
 
-            Spacer(minLength: 8)
+            Spacer(minLength: 14)
 
             if canUseAutoSuggestion {
                 Button {
@@ -281,12 +486,12 @@ struct FolderChipPopover: View {
                         Text("Use auto suggestion")
                             .lineLimit(2)
                             .multilineTextAlignment(.trailing)
-                            .minimumScaleFactor(0.85)
+                            .minimumScaleFactor(0.82)
+                            .font(emphasisBodyFont)
                     } icon: {
-                        HarvousFAGlyph(assetName: "Harvous.CircleArrowLeft", edgePt: 13)
+                        HarvousFAGlyph(assetName: "Harvous.CircleArrowLeft", edgePt: 15)
                             .foregroundStyle(.secondary)
                     }
-                    .font(HarvousTypography.inspectorCompactMedium)
                 }
                 .buttonStyle(.plain)
                 .foregroundStyle(.secondary)
@@ -295,6 +500,9 @@ struct FolderChipPopover: View {
                 .layoutPriority(1)
             }
         }
+        #if os(iOS)
+        .padding(.bottom, 2)
+        #endif
     }
 
     // MARK: - Computed

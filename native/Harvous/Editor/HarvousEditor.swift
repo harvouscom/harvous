@@ -2019,17 +2019,27 @@ private final class HarvousBodyTextView: UITextView {
     var studyHighlightPaintsSnapshot: [StudyHighlightPaint] = []
     var onRemoveIntersectingStudyHighlightsAction: (() -> Void)?
 
+    override init(frame: CGRect, textContainer: NSTextContainer?) {
+        super.init(frame: frame, textContainer: textContainer)
+        registerScripturePillAppearanceTraitRefresh()
+    }
+
+    required init?(coder: NSCoder) {
+        super.init(coder: coder)
+        registerScripturePillAppearanceTraitRefresh()
+    }
+
+    /// UITrait-change registration replaces `traitCollectionDidChange(_:)` (deprecated iOS 17).
+    private func registerScripturePillAppearanceTraitRefresh() {
+        registerForTraitChanges([UITraitUserInterfaceStyle.self]) { (self: HarvousBodyTextView, _: UITraitCollection) in
+            self.refreshScripturePillRastersForCurrentAppearance()
+        }
+    }
+
     /// `ScripturePillAttachment.image` is a `UIImage` rasterized eagerly via
     /// `UIGraphicsImageRenderer` against the trait collection at attachment-creation time, so
     /// label color and inner-edge wash freeze until storage is rebuilt. On a light↔dark toggle
     /// re-render every pill under the new trait and invalidate their glyph rects.
-    override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
-        super.traitCollectionDidChange(previousTraitCollection)
-        if traitCollection.hasDifferentColorAppearance(comparedTo: previousTraitCollection) {
-            refreshScripturePillRastersForCurrentAppearance()
-        }
-    }
-
     private func refreshScripturePillRastersForCurrentAppearance() {
         let storage = textStorage
         guard storage.length > 0 else { return }
@@ -2051,6 +2061,39 @@ private final class HarvousBodyTextView: UITextView {
             }
             setNeedsDisplay()
         }
+    }
+
+    /// Match macOS note body: strip RTF/HTML from the pasteboard so pasted runs use `typingAttributes`
+    /// (label color / compose font). Also clears the tertiary placeholder tint before insert so pasted text does
+    /// not briefly inherit `.tertiaryLabel` from stale typing attributes.
+    override func paste(_ sender: Any?) {
+        let pb = UIPasteboard.general
+
+        guard let pasted = pb.string else {
+            super.paste(sender)
+            return
+        }
+        let trimmed = pasted.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty, pb.image != nil {
+            super.paste(sender)
+            return
+        }
+
+        if textColor == .tertiaryLabel {
+            text = ""
+            textColor = .label
+            applyDefaultBodyTypingAttributes(to: self)
+            selectedRange = NSRange(location: 0, length: 0)
+        }
+
+        guard let sel = selectedTextRange else {
+            super.paste(sender)
+            return
+        }
+        replace(sel, withText: pasted)
+
+        invalidateIntrinsicContentSize()
+        NotificationCenter.default.post(name: UITextView.textDidChangeNotification, object: self)
     }
 
     /// Clips the caret rect to natural glyph height so the inter-line gap added by
@@ -2570,6 +2613,7 @@ struct HarvousEditor: UIViewRepresentable {
 
             // 1. Strict pill rect — avoids `utf16 ± 1` stealing taps on the first glyphs of a highlight after a pill.
             if let (pill, eff) = Self.scripturePillAtViewPoint(point, textView: tv, storage: storage) {
+                tv.resignFirstResponder()
                 onScripturePillTap?(pill.reference, pill.translation, eff)
                 return
             }
@@ -2602,6 +2646,7 @@ struct HarvousEditor: UIViewRepresentable {
 
             // 4. Last-resort pill probe (rect miss e.g. edge of attachment image).
             if let (pill, eff) = Self.pillAttachmentRange(containingUTF16: offset, in: storage) {
+                tv.resignFirstResponder()
                 onScripturePillTap?(pill.reference, pill.translation, eff)
                 return
             }
@@ -2798,6 +2843,7 @@ struct HarvousEditor: UIViewRepresentable {
             if textView.textColor == .tertiaryLabel {
                 textView.text = ""
                 textView.textColor = .label
+                applyDefaultBodyTypingAttributes(to: textView)
                 textView.selectedRange = NSRange(location: 0, length: 0)
             }
             let editorProxy = self.proxy
