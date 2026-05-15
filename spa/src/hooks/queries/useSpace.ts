@@ -104,6 +104,7 @@ export interface SpaceNoteRow {
   content?: string | null;
   noteType?: string;
   isPinned?: boolean;
+  simpleNoteId?: number | null;
   createdAt?: string;
   updatedAt?: string | null;
   lastVisited?: string | null;
@@ -112,6 +113,9 @@ export interface SpaceNoteRow {
   contentEncrypted?: boolean;
   primaryCollection?: string | null;
   secondaryCollections?: string[];
+  collectionPinned?: boolean;
+  collectionUserOverride?: boolean;
+  version?: string;
 }
 
 /** Paginated notes-only list from `GET /api/spaces/:spaceId/notes` */
@@ -139,7 +143,8 @@ export function useSpace(spaceId: string) {
 }
 
 export function useSpaceNotes(spaceId: string, limit = 20) {
-  const id = spaceId.startsWith('space_') ? spaceId : `space_${spaceId}`;
+  const trimmed = (spaceId ?? '').trim();
+  const id = trimmed.startsWith('space_') ? trimmed : trimmed ? `space_${trimmed}` : '';
   return useInfiniteQuery({
     queryKey: ['space', id, 'notes'],
     queryFn: ({ pageParam = 0 }) =>

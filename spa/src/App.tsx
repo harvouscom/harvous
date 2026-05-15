@@ -7,6 +7,7 @@ import { clearUserClientCaches } from '@/utils/clear-user-client-caches';
 import { RouterProvider } from '@tanstack/react-router';
 import React, { useEffect, useLayoutEffect, useState, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
+import { shouldSuppressAppToasts } from '@/utils/should-suppress-app-toasts';
 import { Toaster, toast as sonnerToast } from 'sonner';
 import { WebHaptics } from 'web-haptics';
 import { router } from './router';
@@ -53,51 +54,70 @@ if (!clerkPublishableKey) {
 }
 
 // Build window.toast from the same sonner instance used by <Toaster>
-function stripPunctuation(msg: string) { return msg.replace(/[.!]/g, ''); }
+function stripPunctuation(msg: string) {
+  return msg.replace(/[.!]/g, '');
+}
+
+function showToast(show: () => void) {
+  if (shouldSuppressAppToasts()) return;
+  show();
+}
 
 const windowToast = {
-  success: (message: string) => sonnerToast.success(stripPunctuation(message), { icon: null }),
-  allSynced: () => sonnerToast.success('Your Harvous is synced', { icon: null }),
-  error: (message: string) => sonnerToast.error(stripPunctuation(message), { icon: null }),
-  info: (message: string) => sonnerToast.info(stripPunctuation(message), { icon: null }),
-  warning: (message: string) => sonnerToast.warning(stripPunctuation(message), { icon: null }),
+  success: (message: string) =>
+    showToast(() => sonnerToast.success(stripPunctuation(message), { icon: null })),
+  allSynced: () => showToast(() => sonnerToast.success('Your Harvous is synced', { icon: null })),
+  error: (message: string) =>
+    showToast(() => sonnerToast.error(stripPunctuation(message), { icon: null })),
+  info: (message: string) =>
+    showToast(() => sonnerToast.info(stripPunctuation(message), { icon: null })),
+  warning: (message: string) =>
+    showToast(() => sonnerToast.warning(stripPunctuation(message), { icon: null })),
   show: (message: string, type: 'success' | 'error' | 'info' | 'warning' = 'success') => {
     windowToast[type](message);
   },
   errorWithAction: (message: string, action: { label: string; onClick: () => void }) => {
-    sonnerToast.error(stripPunctuation(message), { icon: null, duration: Infinity, action });
+    showToast(() =>
+      sonnerToast.error(stripPunctuation(message), { icon: null, duration: Infinity, action }),
+    );
   },
   upgradePrompt: (message: string, upgradeUrl?: string) => {
-    const url = upgradeUrl || '/upgrade';
-    sonnerToast.error(message, {
-      icon: null,
-      duration: Infinity,
-      className: 'harvous-upgrade-toast',
-      action: {
-        label: 'Upgrade',
-        onClick: () => {
-          try { sessionStorage.setItem('harvousSkipBeforeUnload', 'upgrade'); } catch (_) {}
-          window.location.href = url;
+    showToast(() => {
+      const url = upgradeUrl || '/upgrade';
+      sonnerToast.error(message, {
+        icon: null,
+        duration: Infinity,
+        className: 'harvous-upgrade-toast',
+        action: {
+          label: 'Upgrade',
+          onClick: () => {
+            try {
+              sessionStorage.setItem('harvousSkipBeforeUnload', 'upgrade');
+            } catch (_) {}
+            window.location.href = url;
+          },
         },
-      },
-      cancel: { label: 'Not now', onClick: () => {} },
+        cancel: { label: 'Not now', onClick: () => {} },
+      });
     });
   },
   pwaPrompt: (message: string) => {
-    sonnerToast.info(message, {
-      icon: null,
-      duration: Infinity,
-      className: 'harvous-pwa-toast',
-      action: {
-        label: 'How to install',
-        onClick: () => {
-          window.dispatchEvent(new CustomEvent(PWA_INSTALL_INSTRUCTIONS_EVENT));
+    showToast(() => {
+      sonnerToast.info(message, {
+        icon: null,
+        duration: Infinity,
+        className: 'harvous-pwa-toast',
+        action: {
+          label: 'How to install',
+          onClick: () => {
+            window.dispatchEvent(new CustomEvent(PWA_INSTALL_INSTRUCTIONS_EVENT));
+          },
         },
-      },
-      cancel: {
-        label: 'Not now',
-        onClick: () => setPwaPromptLastDismissed(),
-      },
+        cancel: {
+          label: 'Not now',
+          onClick: () => setPwaPromptLastDismissed(),
+        },
+      });
     });
   },
 };
@@ -150,19 +170,14 @@ function ToastSetup() {
     // Expose app version globally so GetSupportPanel can read it
     (window as any).__APP_VERSION__ = __APP_VERSION__;
 
-    // Don't show toasts on upgrade or auth pages
-    function isNoToastPath() {
-      const p = window.location.pathname;
-      return p === '/upgrade' || p.startsWith('/sign-in') || p.startsWith('/sign-up');
-    }
-
+    // Don't show toasts on upgrade, auth, or simplified prototype shells
     // Handle ?toast=success&message=... URL params (toast-handler.js also handles these on app:route-change)
     function handleUrlToast() {
       const params = new URLSearchParams(window.location.search);
       const toastType = params.get('toast');
       const message = params.get('message');
       if (!toastType || !message) return;
-      if (isNoToastPath()) return;
+      if (shouldSuppressAppToasts()) return;
 
       // Clean params from URL immediately
       const newUrl = new URL(window.location.href);
@@ -181,7 +196,7 @@ function ToastSetup() {
 
     // Handle 'toast' and 'showToast' custom events dispatched by components
     function handleToastEvent(event: Event) {
-      if (isNoToastPath()) return;
+      if (shouldSuppressAppToasts()) return;
       const { message, type, code, upgradeUrl } = (event as CustomEvent).detail || {};
       if (code === 'SHARED_SPACE_LIMIT_EXCEEDED') {
         windowToast.upgradePrompt(message ?? '', upgradeUrl);

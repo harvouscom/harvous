@@ -12,20 +12,33 @@ import { useUpdateNote } from '../../hooks/mutations/useUpdateNote';
 import { useProtoShell } from '../../layouts/proto-shell-context';
 import { effectiveNoteFolderLabel } from '@/utils/note-folder-display';
 import PrototypeInspectorPane from './PrototypeInspectorPane';
+import PrototypeMainPaneShell from './PrototypeMainPaneShell';
+import { usePrototypeHomeSpaceId } from '../../hooks/usePrototypeHomeSpaceId';
+import { stripServerAutoUntitledNoteTitleForDisplay } from '@/utils/server-auto-untitled-note-display';
 
 export default function PrototypeNotePage() {
-  const { spaceId: spaceSlugParam, noteId: noteSlugParam } = useParams({ strict: false }) as {
-    spaceId: string;
-    noteId: string;
-  };
-  const spaceId = spaceSlugParam.startsWith('space_') ? spaceSlugParam : `space_${spaceSlugParam}`;
+  const { noteId: noteSlugParam } = useParams({ strict: false }) as { noteId: string };
   const noteId = noteSlugParam.startsWith('note_') ? noteSlugParam : `note_${noteSlugParam}`;
+  const { homeSpaceId } = usePrototypeHomeSpaceId();
 
   const { data: note, isLoading } = useNote(noteId);
+
   const queryClient = useQueryClient();
   const updateNoteMutation = useUpdateNote();
   const processScriptureMutation = useProcessScriptureRefs();
-  const { inspectorOpen, isMobileSidebar, closeInspector, setPrototypeFolderChip } = useProtoShell();
+  const { inspectorOpen, isMobileSidebar, closeInspector, setPrototypeFolderChip, dismissStandaloneScripturePassage } =
+    useProtoShell();
+
+  useEffect(() => {
+    dismissStandaloneScripturePassage();
+  }, [dismissStandaloneScripturePassage]);
+
+  const resolvedSpaceFromNote =
+    typeof note?.spaceId === 'string' && note.spaceId.trim().length > 0 ? note.spaceId : null;
+  const resolvedSpaceFromThread = (note?.threads?.[0] as { spaceId?: string | null } | undefined)?.spaceId ?? null;
+
+  const effectiveSpaceId =
+    (resolvedSpaceFromNote != null ? resolvedSpaceFromNote : resolvedSpaceFromThread) ?? homeSpaceId ?? '';
 
   const isEditable = true;
 
@@ -62,9 +75,9 @@ export default function PrototypeNotePage() {
   const [formatToolbarHostEl, setFormatToolbarHostEl] = useState<HTMLDivElement | null>(null);
   const [scriptureChromeHostEl, setScriptureChromeHostEl] = useState<HTMLDivElement | null>(null);
   const [highlightChromeHostEl, setHighlightChromeHostEl] = useState<HTMLDivElement | null>(null);
-  const [chromeMode, setChromeMode] = useState<'format' | 'scripture' | 'highlight' | 'noteActions'>(
-    'noteActions',
-  );
+  const [chromeMode, setChromeMode] = useState<
+    'format' | 'scripture' | 'highlight' | 'noteActions' | 'hidden'
+  >('noteActions');
 
   useEffect(() => {
     const handler = (e: Event) => {
@@ -107,13 +120,13 @@ export default function PrototypeNotePage() {
           title: parentThread.title ?? '',
           noteCount: tw.count ?? 0,
           backgroundGradient: parentThread.backgroundGradient ?? '',
-          spaceId: tw.spaceId ?? spaceId,
+          spaceId: tw.spaceId ?? effectiveSpaceId,
         }),
       );
     } catch {
       /* ignore */
     }
-  }, [noteId, parentThread, spaceId]);
+  }, [noteId, parentThread, effectiveSpaceId]);
 
   const reprocessAttemptedRef = useRef<string | null>(null);
   useEffect(() => {
@@ -207,24 +220,26 @@ export default function PrototypeNotePage() {
   /* Loading — use PDS shimmer, no SPA card-full class */
   if (isLoading && !note) {
     return (
-      <div className="proto-editor-surface">
-        <div className="proto-editor-loading">
-          <div className="proto-editor-loading-inner">
-            <div className="proto-editor-loading-line proto-editor-loading-line--title" />
-            <div className="proto-editor-loading-line" style={{ width: '90%' }} />
-            <div className="proto-editor-loading-line" style={{ width: '75%' }} />
-            <div className="proto-editor-loading-line proto-editor-loading-line--short" />
+      <PrototypeMainPaneShell>
+        <div className="proto-editor-surface">
+          <div className="proto-editor-loading">
+            <div className="proto-editor-loading-inner">
+              <div className="proto-editor-loading-line proto-editor-loading-line--title" />
+              <div className="proto-editor-loading-line" style={{ width: '90%' }} />
+              <div className="proto-editor-loading-line" style={{ width: '75%' }} />
+              <div className="proto-editor-loading-line proto-editor-loading-line--short" />
+            </div>
           </div>
         </div>
-      </div>
+      </PrototypeMainPaneShell>
     );
   }
 
   if (!note) {
     return (
-      <div className="proto-editor-surface proto-editor-error">
-        Note not found.
-      </div>
+      <PrototypeMainPaneShell>
+        <div className="proto-editor-surface proto-editor-error">Note not found.</div>
+      </PrototypeMainPaneShell>
     );
   }
 
@@ -239,10 +254,13 @@ export default function PrototypeNotePage() {
       })()
     : '';
 
+  const prototypeDisplayTitle = stripServerAutoUntitledNoteTitleForDisplay(note.title);
+
   const showInspectorDesktop = inspectorOpen && !isMobileSidebar;
   const showInspectorMobile = inspectorOpen && isMobileSidebar;
 
   return (
+    <PrototypeMainPaneShell>
     <div
       style={{ display: 'flex', flexDirection: 'row', height: '100%', minHeight: 0, overflow: 'hidden' }}
       data-note-id={noteId}
@@ -250,7 +268,7 @@ export default function PrototypeNotePage() {
       data-parent-thread-title={parentThread?.title ?? ''}
       data-parent-thread-background-gradient={parentThread?.backgroundGradient ?? ''}
       data-parent-thread-count={String((parentThread as { count?: number })?.count ?? 0)}
-      data-parent-thread-space-id={(parentThread as { spaceId?: string | null })?.spaceId ?? spaceId}
+      data-parent-thread-space-id={(parentThread as { spaceId?: string | null })?.spaceId ?? effectiveSpaceId}
     >
       {/* Editor column */}
       <div className="proto-editor-surface" style={{ flex: 1, minWidth: 0 }}>
@@ -258,7 +276,7 @@ export default function PrototypeNotePage() {
           <SubtleContentMount key={noteId} variant="fade">
             <div className="proto-editor-content-wrap">
               <CardFullEditable
-                title={note.title || 'Untitled Note'}
+                title={prototypeDisplayTitle}
                 content={note.content ?? ''}
                 date={formattedDate}
                 noteId={noteId}
@@ -282,6 +300,8 @@ export default function PrototypeNotePage() {
                 initialCollectionUserOverride={note.collectionUserOverride ?? false}
                 initialCollectionLastAutoUpdatedAtIso={note.collectionLastAutoUpdatedAt ?? null}
                 onPrototypeFolderDisplayChange={onPrototypeFolderDisplayChange}
+                prototypeNoteActionsChrome={true}
+                alwaysEditing
               />
             </div>
           </SubtleContentMount>
@@ -291,6 +311,7 @@ export default function PrototypeNotePage() {
         <div
           className="proto-editor-bottom-bar"
           data-mode={chromeMode}
+          style={{ display: chromeMode === 'hidden' ? 'none' : undefined }}
         >
           <div
             ref={setHighlightChromeHostEl}
@@ -313,8 +334,8 @@ export default function PrototypeNotePage() {
           >
             <PrototypeNoteActionBar
               noteId={noteId}
-              spaceId={spaceId}
-              currentTitle={note.title || 'Untitled Note'}
+              spaceId={effectiveSpaceId}
+              currentTitle={prototypeDisplayTitle}
               linkedFromNotes={note.linkedFromNotes ?? []}
               linkedToNotes={note.linkedToNotes ?? []}
               connectDisabled={isOnboardingReadonly}
@@ -354,5 +375,6 @@ export default function PrototypeNotePage() {
         </>
       ) : null}
     </div>
+    </PrototypeMainPaneShell>
   );
 }

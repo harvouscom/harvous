@@ -130,10 +130,10 @@ final class ScripturePillActionBarCoordinator: ObservableObject {
 
 /// Bottom chrome for the focused scripture pill: toolbar (pickers, Done) and an always-visible passage preview row (iOS + macOS). Changes auto-apply immediately.
 struct ScripturePillActionBar: View {
-    /// Matches `NoteToolbar` typography (`HarvousTypography.actionBar*` at 15pt).
-    fileprivate static let toolbarControlHeight: CGFloat = 36
+    /// Matches `NoteToolbar`'s inset when paired in the inset unified shell (`14`).
+    static let toolbarControlHeight: CGFloat = 36
     /// Caps chapter / verse menu pickers so the row stays compact (still fits three-digit values e.g. Ps 150).
-    fileprivate static let scriptureNumberPickerMaxWidth: CGFloat = 58
+    static let scriptureNumberPickerMaxWidth: CGFloat = 58
 
     @Environment(\.harvousScriptureTheme) private var scriptureTheme
     @ObservedObject var proxy: EditorProxy

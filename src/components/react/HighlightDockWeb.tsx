@@ -29,27 +29,30 @@ export default function HighlightDockWeb({
 
   return (
     <div className="highlight-dock-web" role="region" aria-label="Highlight editor">
-      <div className="highlight-dock-web__row">
-        <div className="highlight-dock-web__swatches" role="group" aria-label="Highlight color">
-          {choices.map((key) => (
-            <button
-              key={key}
-              type="button"
-              className={`highlight-dock-web__swatch highlight-dock-web__swatch--${key}${
-                accent === key ? ' highlight-dock-web__swatch--selected' : ''
-              }`}
-              title={key}
-              aria-label={key}
-              aria-pressed={accent === key}
-              onMouseDown={(e) => e.preventDefault()}
-              onClick={() => onAccentChange(key as StudyHighlightAccentKey)}
-            />
-          ))}
+      <div className="highlight-dock-web__lane">
+        <div className="highlight-dock-web__scroll" role="group" aria-label="Highlight color">
+          <div className="highlight-dock-web__scroll-inner">
+            {choices.map((key) => (
+              <button
+                key={key}
+                type="button"
+                className={`highlight-dock-web__swatch highlight-dock-web__swatch--${key}${
+                  accent === key ? ' highlight-dock-web__swatch--selected' : ''
+                }`}
+                title={key}
+                aria-label={key}
+                aria-pressed={accent === key}
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => onAccentChange(key as StudyHighlightAccentKey)}
+              />
+            ))}
+          </div>
         </div>
+        <div className="highlight-dock-web__divider" aria-hidden />
         <div className="highlight-dock-web__actions">
           <button
             type="button"
-            className="btn btn--sm btn--ghost highlight-dock-web__btn"
+            className="highlight-dock-web__btn highlight-dock-web__btn--plain"
             onMouseDown={(e) => e.preventDefault()}
             onClick={onRemove}
           >
@@ -57,7 +60,7 @@ export default function HighlightDockWeb({
           </button>
           <button
             type="button"
-            className="btn btn--sm btn--secondary highlight-dock-web__btn"
+            className="highlight-dock-web__done-text"
             onMouseDown={(e) => e.preventDefault()}
             onClick={onDone}
           >

@@ -3,13 +3,20 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState, t
 /** Breakpoint sync with prototype-shell.css (899px drawer). */
 const MOBILE_MQ = '(max-width: 899px)';
 
-export type SidebarListMode = 'notes' | 'folders';
+export type SidebarListMode = 'notes' | 'folders' | 'highlights' | 'scripture';
 
 /** `undefined` = top-level list; `null` = “No folder” drill-down; `string` = named folder. */
 export type SidebarFolderDrilldown = string | null | undefined;
 
 /** Toolbar folder chip on prototype note routes — driven by note page + editor collection state. */
 export type PrototypeFolderChip = { noteId: string; label: string | null };
+
+/** Scripture-passage highlight opened from Highlights list — main pane shows standalone passage (native dock parity). */
+export type StandaloneScripturePassageState = {
+  canonicalReference: string;
+  translationCode: string;
+  focusedHighlightThreadId: string;
+};
 
 type ProtoShellContextValue = {
   /** Desktop: pinned open. Mobile drawer: overlay open flag. */
@@ -21,7 +28,7 @@ type ProtoShellContextValue = {
   /** Desktop only: hides the pinned sidebar column (toolbar toggle ⌘\ equivalent). */
   desktopSidebarCollapsed: boolean;
   toggleDesktopSidebar: () => void;
-  /** Notes vs folders in prototype sidebar list. */
+  /** Notes / folders / highlights / scripture sidebar list mode. */
   sidebarListMode: SidebarListMode;
   setSidebarListMode: (mode: SidebarListMode) => void;
   sidebarFolderDrilldown: SidebarFolderDrilldown;
@@ -35,6 +42,9 @@ type ProtoShellContextValue = {
   closeInspector: () => void;
   prototypeFolderChip: PrototypeFolderChip | null;
   setPrototypeFolderChip: (value: PrototypeFolderChip | null) => void;
+  standaloneScripturePassage: StandaloneScripturePassageState | null;
+  openStandaloneScripturePassage: (value: StandaloneScripturePassageState) => void;
+  dismissStandaloneScripturePassage: () => void;
 };
 
 const ProtoShellContext = createContext<ProtoShellContextValue | null>(null);
@@ -54,6 +64,9 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
   const [sidebarListMode, setSidebarListModeState] = useState<SidebarListMode>('notes');
   const [sidebarFolderDrilldown, setSidebarFolderDrilldown] = useState<SidebarFolderDrilldown>(undefined);
   const [prototypeFolderChip, setPrototypeFolderChipState] = useState<PrototypeFolderChip | null>(null);
+  const [standaloneScripturePassage, setStandaloneScripturePassage] = useState<StandaloneScripturePassageState | null>(
+    null,
+  );
 
   useEffect(() => {
     if (typeof window === 'undefined') return undefined;
@@ -75,7 +88,7 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
   const toggleDesktopSidebar = useCallback(() => setDesktopSidebarCollapsed((x) => !x), []);
   const setSidebarListMode = useCallback((mode: SidebarListMode) => {
     setSidebarListModeState(mode);
-    if (mode === 'notes') setSidebarFolderDrilldown(undefined);
+    if (mode !== 'folders') setSidebarFolderDrilldown(undefined);
   }, []);
   const ensureSidebarExpanded = useCallback(() => {
     if (isMobileSidebar) openDrawer();
@@ -86,6 +99,12 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
   const closeInspector = useCallback(() => setInspectorOpen(false), []);
   const setPrototypeFolderChip = useCallback((value: PrototypeFolderChip | null) => {
     setPrototypeFolderChipState(value);
+  }, []);
+  const openStandaloneScripturePassage = useCallback((value: StandaloneScripturePassageState) => {
+    setStandaloneScripturePassage(value);
+  }, []);
+  const dismissStandaloneScripturePassage = useCallback(() => {
+    setStandaloneScripturePassage(null);
   }, []);
 
   const value = useMemo(
@@ -108,6 +127,9 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
       closeInspector,
       prototypeFolderChip,
       setPrototypeFolderChip,
+      standaloneScripturePassage,
+      openStandaloneScripturePassage,
+      dismissStandaloneScripturePassage,
     }),
     [
       drawerOpen,
@@ -128,6 +150,9 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
       closeInspector,
       prototypeFolderChip,
       setPrototypeFolderChip,
+      standaloneScripturePassage,
+      openStandaloneScripturePassage,
+      dismissStandaloneScripturePassage,
     ],
   );
 

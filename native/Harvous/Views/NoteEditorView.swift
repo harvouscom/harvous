@@ -316,13 +316,16 @@ struct NoteEditorView: View {
     private var noteEditorLifecycleStack: some View {
         noteEditorStateObservers
 #if os(macOS)
-            .onChange(of: bodySelectionChangeToken) { _, _ in onBodySelectionHostChanged() }
+            .onChange(of: bodySelectionChangeToken) { _, _ in scheduleOnBodySelectionHostChanged() }
 #else
-            .onChange(of: bodySelectionChangeToken) { _, _ in onBodySelectionHostChanged() }
+            .onChange(of: bodySelectionChangeToken) { _, _ in scheduleOnBodySelectionHostChanged() }
             .onChange(of: title) { _, _ in scheduleSyncIOSNoteFooterSupplement() }
 #endif
             .onChange(of: activePillDock) { _, new in
-                refreshScripturePassageHighlights(item: new)
+                let item = new
+                DispatchQueue.main.async {
+                    refreshScripturePassageHighlights(item: item)
+                }
                 #if os(iOS)
                 scheduleSyncIOSNoteFooterSupplement()
                 #endif
@@ -369,10 +372,12 @@ struct NoteEditorView: View {
             }
             .onAppear {
                 proxy.onScripturePillAttachmentRemoved = { ranges in
-                    if let dock = activePillDock, case .body(let bodyRange) = dock.anchor,
-                       ranges.contains(where: { NSIntersectionRange($0, bodyRange).length > 0 }) {
-                        activePillDock = nil
-                        activePillDockExpanded = false
+                    DispatchQueue.main.async {
+                        if let dock = activePillDock, case .body(let bodyRange) = dock.anchor,
+                           ranges.contains(where: { NSIntersectionRange($0, bodyRange).length > 0 }) {
+                            activePillDock = nil
+                            activePillDockExpanded = false
+                        }
                     }
                 }
             }
@@ -1384,6 +1389,14 @@ struct NoteEditorView: View {
             }
         }
         reconcilePinnedHighlightDockWithBodySelection()
+    }
+
+    /// Defer past layout — `bodySelectionChangeToken` tracks `EditorProxy` selection; mutating `@State` in the
+    /// same turn triggers SwiftUI “Modifying state during view update” (see `scheduleSyncIOSNoteFooterSupplement`).
+    private func scheduleOnBodySelectionHostChanged() {
+        DispatchQueue.main.async {
+            onBodySelectionHostChanged()
+        }
     }
 
     /// Clears the pinned highlight dock when its anchor no longer appears in the document (e.g. deleted range).

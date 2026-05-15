@@ -1,10 +1,40 @@
 /**
- * List view popover — Notes vs Folders, same trigger chrome as SpaceSwitcherMenu.
+ * List view popover — Notes, Folders, Highlights, Scripture (native SidebarPanelView parity).
  */
 import { useEffect, useRef, useState } from 'react';
 import Icon from '@/components/react/Icon';
 import { useProtoShell, type SidebarListMode } from '../../layouts/proto-shell-context';
 import { PROTO_LIST_VIEW_ICON_SIZE, PROTO_TOOLBAR_ICON_SIZE } from './proto-toolbar-tokens';
+
+function listModeTitle(mode: SidebarListMode): string {
+  switch (mode) {
+    case 'notes':
+      return 'Notes list';
+    case 'folders':
+      return 'Folders list';
+    case 'highlights':
+      return 'Highlights list';
+    case 'scripture':
+      return 'Scripture index';
+    default:
+      return 'List view';
+  }
+}
+
+function ListModeTriggerIcon({ mode, size }: { mode: SidebarListMode; size: number }) {
+  switch (mode) {
+    case 'notes':
+      return <Icon name="note-sticky" size={size} />;
+    case 'folders':
+      return <Icon name="folder" size={size} />;
+    case 'highlights':
+      return <Icon name="highlighter" size={size} />;
+    case 'scripture':
+      return <Icon name="book" size={size} />;
+    default:
+      return <Icon name="note-sticky" size={size} />;
+  }
+}
 
 export default function ListViewMenu({ disabled }: { disabled?: boolean }) {
   const [open, setOpen] = useState(false);
@@ -47,15 +77,11 @@ export default function ListViewMenu({ disabled }: { disabled?: boolean }) {
         className="proto-space-trigger"
         aria-expanded={open}
         aria-haspopup="menu"
-        title={sidebarListMode === 'notes' ? 'Notes list' : 'Folders list'}
+        title={listModeTitle(sidebarListMode)}
         disabled={disabled}
         onClick={() => !disabled && setOpen((x) => !x)}
       >
-        {sidebarListMode === 'notes' ? (
-          <Icon name="note-sticky" size={PROTO_LIST_VIEW_ICON_SIZE} />
-        ) : (
-          <Icon name="folder" size={PROTO_LIST_VIEW_ICON_SIZE} />
-        )}
+        <ListModeTriggerIcon mode={sidebarListMode} size={PROTO_LIST_VIEW_ICON_SIZE} />
       </button>
 
       {open ? (
@@ -90,6 +116,36 @@ export default function ListViewMenu({ disabled }: { disabled?: boolean }) {
                 <Icon name="folder" size={PROTO_TOOLBAR_ICON_SIZE} />
               </span>
               <span style={{ flex: 1, minWidth: 0 }}>Folders</span>
+            </button>
+            <button
+              type="button"
+              role="menuitemradio"
+              aria-checked={sidebarListMode === 'highlights'}
+              className="proto-menu-item"
+              onClick={() => pick('highlights')}
+            >
+              <span className="proto-menu-item__check" aria-hidden>
+                {sidebarListMode === 'highlights' ? '✓' : ''}
+              </span>
+              <span className="proto-menu-item__icon" aria-hidden>
+                <Icon name="highlighter" size={PROTO_TOOLBAR_ICON_SIZE} />
+              </span>
+              <span style={{ flex: 1, minWidth: 0 }}>Highlights</span>
+            </button>
+            <button
+              type="button"
+              role="menuitemradio"
+              aria-checked={sidebarListMode === 'scripture'}
+              className="proto-menu-item"
+              onClick={() => pick('scripture')}
+            >
+              <span className="proto-menu-item__check" aria-hidden>
+                {sidebarListMode === 'scripture' ? '✓' : ''}
+              </span>
+              <span className="proto-menu-item__icon" aria-hidden>
+                <Icon name="book" size={PROTO_TOOLBAR_ICON_SIZE} />
+              </span>
+              <span style={{ flex: 1, minWidth: 0 }}>Scripture</span>
             </button>
           </div>
         </div>

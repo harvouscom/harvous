@@ -7,6 +7,9 @@
  *   GET    /api/spaces/items
  *   POST   /api/spaces/:spaceId/update
  *   GET    /api/spaces/:spaceId/notes
+ *   GET    /api/spaces/:spaceId/study-thread-highlights
+ *   GET    /api/spaces/:spaceId/scripture-index
+ *   GET    /api/spaces/:spaceId/study-threads/by-scripture
  *   GET    /api/spaces/:spaceId/connect-note-candidates
  *   GET    /api/spaces/:spaceId/items
  *   GET    /api/spaces/:spaceId/bootstrap
@@ -25,10 +28,12 @@
  */
 
 import { Hono } from 'hono';
+import { getTableColumns } from 'drizzle-orm';
 import { getAuth, getAuthenticatedAuth, requireAuth, requireParam } from '../middleware/auth';
 import {
   db, Spaces, Notes, Threads, NoteThreads, Members, SpaceInvitations, UserMetadata, ResourceMetadata, ScriptureMetadata,
-  eq, and, ne, count, inArray, desc, asc, sql, isNull,
+  StudyThreadEntries,
+  eq, and, ne, count, inArray, desc, asc, sql, isNull, isNotNull, gt, or,
   first,
 } from '../db';
 import { nowISO } from '../db/dates';
@@ -60,8 +65,38 @@ import { rateLimit } from '@/utils/rate-limit';
 import { generateSpaceId, generateShareToken } from '@/utils/ids';
 import { idToUrl } from '@/utils/url-helpers';
 import { getHarvousSystemUserId } from '../utils/harvous-admin';
+import { normalizeScriptureReference } from '@/utils/scripture-detector';
+import { buildSpaceScriptureIndex } from '../utils/build-space-scripture-index';
+import { mapStudyRow } from './study-threads';
+import { isStudyThreadEntriesTableMissing } from '../utils/pg-undefined-relation';
 
 const route = new Hono();
+
+function normalizePrototypeSpaceId(spaceIdRaw: string): string {
+  return spaceIdRaw.startsWith('space_') ? spaceIdRaw : `space_${spaceIdRaw}`;
+}
+
+/** Matches native StudyHighlightList eligibility (passage underline vs anchored mini/link/scripture rows). */
+function studyThreadEligibleForHighlightList(entry: typeof StudyThreadEntries.$inferSelect): boolean {
+  const passageHighlight =
+    entry.entryKindRaw === 'scriptureLink' &&
+    (entry.scripturePassageExcerpt ?? '').trim() !== '' &&
+    (entry.scripturePassageTranslation ?? '').trim() !== '';
+
+  const anchoredHighlight =
+    ['miniNote', 'linkedNote', 'scriptureLink'].includes(entry.entryKindRaw) &&
+    entry.anchorLocation != null &&
+    entry.anchorLocation >= 0 &&
+    entry.anchorLength != null &&
+    entry.anchorLength > 0;
+
+  /** Web prototype historically POSTed miniNotes with snippet/snapshot but omitted anchors — still user-visible highlights. */
+  const proseSnippetMiniNote =
+    entry.entryKindRaw === 'miniNote' &&
+    ((entry.sourceSnippet ?? '').trim() !== '' || (entry.anchorTextSnapshot ?? '').trim() !== '');
+
+  return passageHighlight || anchoredHighlight || proseSnippetMiniNote;
+}
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -337,6 +372,189 @@ route.get('/api/spaces/:spaceId/notes', requireAuth, async (c) => {
     return c.json({ notes: result.notes, hasMore: result.hasMore, offset, limit });
   } catch (error: any) {
     const standardError = handleAPIError(error, { endpoint: '/api/spaces/[spaceId]/notes', action: 'get_space_notes' });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+
+// ─── GET /api/spaces/:spaceId/study-thread-highlights ───────────────────────
+route.get('/api/spaces/:spaceId/study-thread-highlights', requireAuth, async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const spaceIdNorm = normalizePrototypeSpaceId(requireParam(c, 'spaceId'));
+    try {
+      await requireSpaceAccess(spaceIdNorm, auth.userId);
+    } catch (err) {
+      if (err instanceof SpaceAccessError) return c.json({ error: err.message, code: err.code }, err.status);
+      throw err;
+    }
+
+    // Broad SQL filter (indexed-friendly primitives only); exact eligibility matches native in JS.
+    // Avoids raw `trim(coalesce(...))` fragments that have failed against some Postgres/Supabase setups.
+    // Include `miniNote` rows so snippet-only highlights (legacy web creates) are fetched; JS narrows to list-eligible rows.
+    const highlightCandidates = or(
+      eq(StudyThreadEntries.entryKindRaw, 'scriptureLink'),
+      eq(StudyThreadEntries.entryKindRaw, 'miniNote'),
+      and(isNotNull(StudyThreadEntries.anchorLocation), isNotNull(StudyThreadEntries.anchorLength), gt(StudyThreadEntries.anchorLength, 0)),
+    );
+
+    let rows;
+    try {
+      rows = await db
+        .select({
+          ...getTableColumns(StudyThreadEntries),
+          parentNoteTitle: Notes.title,
+        })
+        .from(StudyThreadEntries)
+        .innerJoin(Notes, eq(StudyThreadEntries.parentNoteId, Notes.id))
+        .where(
+          and(
+            eq(StudyThreadEntries.isArchived, false),
+            ne(StudyThreadEntries.entryKindRaw, 'workspace'),
+            highlightCandidates,
+            eq(StudyThreadEntries.userId, auth.userId),
+            eq(Notes.userId, auth.userId),
+            eq(Notes.spaceId, spaceIdNorm),
+          ),
+        )
+        .orderBy(desc(StudyThreadEntries.highlightListEditedAt), desc(StudyThreadEntries.createdAt));
+    } catch (e) {
+      if (isStudyThreadEntriesTableMissing(e)) {
+        console.warn(
+          '[api/spaces/study-thread-highlights] StudyThreadEntries table missing; returning empty list. Run `npm run db:push` or apply server/db/manual/create-study-thread-entries.sql.',
+        );
+        return c.json({ success: true, studyThreads: [] });
+      }
+      throw e;
+    }
+
+    const eligibleRows = rows.filter((row) => studyThreadEligibleForHighlightList(row));
+
+    return c.json({
+      success: true,
+      studyThreads: eligibleRows.map((row) => {
+        const { parentNoteTitle, ...entry } = row;
+        return {
+          ...mapStudyRow(entry),
+          parentNoteTitle: parentNoteTitle ?? '',
+        };
+      }),
+    });
+  } catch (error: any) {
+    const standardError = handleAPIError(error, {
+      endpoint: '/api/spaces/[spaceId]/study-thread-highlights',
+      action: 'study_thread_highlights',
+    });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+
+// ─── GET /api/spaces/:spaceId/scripture-index ───────────────────────────────
+route.get('/api/spaces/:spaceId/scripture-index', requireAuth, async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const spaceIdNorm = normalizePrototypeSpaceId(requireParam(c, 'spaceId'));
+    try {
+      await requireSpaceAccess(spaceIdNorm, auth.userId);
+    } catch (err) {
+      if (err instanceof SpaceAccessError) return c.json({ error: err.message, code: err.code }, err.status);
+      throw err;
+    }
+
+    const noteRows = await db
+      .select({
+        id: Notes.id,
+        title: Notes.title,
+        content: Notes.content,
+        updatedAt: Notes.updatedAt,
+        createdAt: Notes.createdAt,
+      })
+      .from(Notes)
+      .where(
+        and(eq(Notes.spaceId, spaceIdNorm), eq(Notes.userId, auth.userId), eq(Notes.contentEncrypted, false)),
+      );
+
+    const payload = buildSpaceScriptureIndex(
+      noteRows.map((n) => ({
+        id: n.id,
+        title: n.title ?? null,
+        content: n.content ?? null,
+        updatedAt: n.updatedAt ? String(n.updatedAt) : null,
+        createdAt: String(n.createdAt),
+      })),
+    );
+
+    return c.json({ success: true, ...payload });
+  } catch (error: any) {
+    const standardError = handleAPIError(error, {
+      endpoint: '/api/spaces/[spaceId]/scripture-index',
+      action: 'scripture_index',
+    });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+
+// ─── GET /api/spaces/:spaceId/study-threads/by-scripture ─────────────────────
+route.get('/api/spaces/:spaceId/study-threads/by-scripture', requireAuth, async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const spaceIdNorm = normalizePrototypeSpaceId(requireParam(c, 'spaceId'));
+    try {
+      await requireSpaceAccess(spaceIdNorm, auth.userId);
+    } catch (err) {
+      if (err instanceof SpaceAccessError) return c.json({ error: err.message, code: err.code }, err.status);
+      throw err;
+    }
+
+    const refRaw = c.req.query('reference') ?? '';
+    const translation = (c.req.query('translation') ?? '').trim() || 'NET';
+    const norm = normalizeScriptureReference(refRaw.trim()) ?? refRaw.trim();
+    if (!norm) return c.json({ error: 'reference query required' }, 400);
+
+    let rows;
+    try {
+      rows = await db
+        .select({
+          ...getTableColumns(StudyThreadEntries),
+          parentNoteTitle: Notes.title,
+        })
+        .from(StudyThreadEntries)
+        .innerJoin(Notes, eq(StudyThreadEntries.parentNoteId, Notes.id))
+        .where(
+          and(
+            eq(StudyThreadEntries.userId, auth.userId),
+            eq(Notes.userId, auth.userId),
+            eq(Notes.spaceId, spaceIdNorm),
+            eq(StudyThreadEntries.entryKindRaw, 'scriptureLink'),
+            eq(StudyThreadEntries.scriptureReference, norm),
+            eq(StudyThreadEntries.scripturePassageTranslation, translation),
+          ),
+        )
+        .orderBy(desc(StudyThreadEntries.highlightListEditedAt), desc(StudyThreadEntries.createdAt));
+    } catch (e) {
+      if (isStudyThreadEntriesTableMissing(e)) {
+        console.warn(
+          '[api/spaces/study-threads/by-scripture] StudyThreadEntries table missing; returning empty list.',
+        );
+        return c.json({ success: true, studyThreads: [] });
+      }
+      throw e;
+    }
+
+    return c.json({
+      success: true,
+      studyThreads: rows.map((row) => {
+        const { parentNoteTitle, ...entry } = row;
+        return {
+          ...mapStudyRow(entry),
+          parentNoteTitle: parentNoteTitle ?? '',
+        };
+      }),
+    });
+  } catch (error: any) {
+    const standardError = handleAPIError(error, {
+      endpoint: '/api/spaces/[spaceId]/study-threads/by-scripture',
+      action: 'study_threads_by_scripture_space',
+    });
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });

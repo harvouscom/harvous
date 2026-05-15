@@ -29,7 +29,7 @@ const route = new Hono();
 
 const ENTRY_KINDS = new Set(['workspace', 'miniNote', 'linkedNote', 'scriptureLink']);
 
-function mapStudyRow(row: typeof StudyThreadEntries.$inferSelect) {
+export function mapStudyRow(row: typeof StudyThreadEntries.$inferSelect) {
   return {
     id: row.id,
     userId: row.userId,

@@ -3,10 +3,26 @@
  * Only structural/layout rules live here. Component visuals are in prototype-components.css.
  */
 
+/* ─── Viewport inset frame (Figma outer padding + shell corner radius) ─────── */
+.proto-shell-frame {
+  margin: var(--pds-shell-frame-inset);
+  box-sizing: border-box;
+  height: calc(100vh - 2 * var(--pds-shell-frame-inset));
+  height: calc(100dvh - 2 * var(--pds-shell-frame-inset));
+  border-radius: var(--pds-shell-frame-radius);
+  border: 1px solid var(--pds-border);
+  overflow: hidden;
+  /* Containing block for `position: fixed` drawer / inspector inside the shell */
+  transform: translateZ(0);
+}
+
+.proto-shell-frame > .proto-shell {
+  height: 100%;
+  min-height: 0;
+}
+
 /* ─── Root grid ──────────────────────────────────────────────────────────── */
 .proto-shell {
-  height: 100vh;
-  height: 100dvh;
   background: var(--pds-bg-page);
   display: grid;
   grid-template-rows: var(--pds-toolbar-h) minmax(0, 1fr) var(--pds-footer-h);
@@ -74,6 +90,8 @@
   overflow: hidden;
   border-right: 1px solid var(--pds-border);
   background: var(--pds-bg-sidebar);
+  backdrop-filter: saturate(150%) blur(20px);
+  -webkit-backdrop-filter: saturate(150%) blur(20px);
   display: flex;
   flex-direction: column;
 }
@@ -95,6 +113,8 @@
   overflow: hidden;
   border-left: 1px solid var(--pds-border);
   background: var(--pds-bg-sidebar);
+  backdrop-filter: saturate(150%) blur(20px);
+  -webkit-backdrop-filter: saturate(150%) blur(20px);
   display: flex;
   flex-direction: column;
 }
@@ -127,12 +147,14 @@
   min-height: 0;
   display: flex;
   flex-direction: column;
+  background: var(--pds-bg-sidebar);
 }
 
 .proto-sidebar-scroll {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
+  background: var(--pds-bg-sidebar);
 }
 
 /* ─── Main pane ──────────────────────────────────────────────────────────── */
@@ -191,6 +213,8 @@
     border-right: 1px solid var(--pds-border);
     box-shadow: 6px 0 24px rgba(0, 0, 0, 0.08);
     background: var(--pds-bg-sidebar);
+    backdrop-filter: saturate(150%) blur(20px);
+    -webkit-backdrop-filter: saturate(150%) blur(20px);
   }
 
   .proto-shell-drawer-overlay {
@@ -249,6 +273,8 @@
     z-index: 160;
     border-left: 1px solid var(--pds-border);
     background: var(--pds-bg-sidebar);
+    backdrop-filter: saturate(150%) blur(20px);
+    -webkit-backdrop-filter: saturate(150%) blur(20px);
     box-shadow: -6px 0 24px rgba(0, 0, 0, 0.08);
     overflow-y: auto;
     display: flex;

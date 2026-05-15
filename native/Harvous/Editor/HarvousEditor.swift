@@ -2570,6 +2570,7 @@ struct HarvousEditor: UIViewRepresentable {
         private func applyFormatBarHideIfNeeded() {
             guard let bodyProxy = proxy else { return }
             if bodyProxy.hasSelection { return }
+            if bodyProxy.isPointerOverFormatToolbar { return }
             bodyProxy.showFormatBarForActivity = false
         }
 

@@ -40,6 +40,7 @@ import { generateNoteId, generateThreadId, generateSpaceId, generateStudyThreadE
 import { ensureUnorganizedThread } from '../utils/unorganized-thread';
 import { detectScripture, getPrimaryReference, normalizeScriptureReference } from '@/utils/scripture-detector';
 import { fetchVerseText } from '../utils/fetch-verse-text';
+import { isStudyThreadEntriesTableMissing } from '../utils/pg-undefined-relation';
 
 const app = new Hono();
 
@@ -612,7 +613,19 @@ app.get('/api/sync/bootstrap', requireAuth, async (c) => {
       }).from(NoteTags).innerJoin(Notes, eq(Notes.id, NoteTags.noteId))
         .where(eq(Notes.userId, auth.userId)),
 
-      db.select().from(StudyThreadEntries).where(eq(StudyThreadEntries.userId, auth.userId)),
+      (async () => {
+        try {
+          return await db.select().from(StudyThreadEntries).where(eq(StudyThreadEntries.userId, auth.userId));
+        } catch (e) {
+          if (isStudyThreadEntriesTableMissing(e)) {
+            console.warn(
+              '[sync/bootstrap] StudyThreadEntries table missing; returning empty study threads. Run `npm run db:push` or apply server/db/manual/create-study-thread-entries.sql.',
+            );
+            return [];
+          }
+          throw e;
+        }
+      })(),
 
       db.select({
         id: UserMetadata.id, userId: UserMetadata.userId, highestSimpleNoteId: UserMetadata.highestSimpleNoteId,
@@ -739,10 +752,25 @@ app.get('/api/sync/changes', requireAuth, async (c) => {
       }).from(NoteTags).innerJoin(Notes, eq(Notes.id, NoteTags.noteId))
         .where(and(eq(Notes.userId, auth.userId), gt(NoteTags.createdAt, sinceDate))),
 
-      db
-        .select()
-        .from(StudyThreadEntries)
-        .where(and(eq(StudyThreadEntries.userId, auth.userId), or(gt(StudyThreadEntries.updatedAt, sinceDate), gt(StudyThreadEntries.createdAt, sinceDate)))),
+      (async () => {
+        try {
+          return await db
+            .select()
+            .from(StudyThreadEntries)
+            .where(
+              and(
+                eq(StudyThreadEntries.userId, auth.userId),
+                or(gt(StudyThreadEntries.updatedAt, sinceDate), gt(StudyThreadEntries.createdAt, sinceDate)),
+              ),
+            );
+        } catch (e) {
+          if (isStudyThreadEntriesTableMissing(e)) {
+            console.warn('[sync/changes] StudyThreadEntries table missing; returning empty study-thread delta.');
+            return [];
+          }
+          throw e;
+        }
+      })(),
 
       db.select({
         id: UserMetadata.id, userId: UserMetadata.userId, highestSimpleNoteId: UserMetadata.highestSimpleNoteId,

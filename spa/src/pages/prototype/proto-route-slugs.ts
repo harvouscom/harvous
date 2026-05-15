@@ -1,4 +1,4 @@
-/** Slugs for `/prototype/space/:spaceId/n/:noteId` TanStack routes (`space_*` / `note_*` prefixes omitted in URL). */
+/** Slugs for `/prototype/n/:noteId`; classic `/space/:spaceId` still passes full ids (`space_*` / `note_*`) where needed. */
 export function noteParamSlug(id: string) {
   return id.startsWith('note_') ? id.slice('note_'.length) : id;
 }

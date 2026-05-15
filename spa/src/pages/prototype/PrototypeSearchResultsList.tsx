@@ -7,13 +7,9 @@ function noteSlug(id: string) {
   return id.startsWith('note_') ? id.slice('note_'.length) : id;
 }
 
-function spaceSlug(spaceId: string) {
-  return spaceId.startsWith('space_') ? spaceId.slice('space_'.length) : spaceId;
-}
-
 export interface PrototypeSearchResultsListProps {
   query: string;
-  /** Full space id (`space_*`). Results open under this space in the prototype shell. */
+  /** Full space id (`space_*`) for scoped search. */
   spaceId: string;
 }
 
@@ -66,20 +62,16 @@ export default function PrototypeSearchResultsList({ query, spaceId }: Prototype
       <p className="proto-caption" style={{ marginBottom: 6 }}>
         {results.length} result{results.length !== 1 ? 's' : ''}
       </p>
-      {results.map((result) => {
-        const resolvedSpace =
-          typeof result.spaceId === 'string' && result.spaceId.startsWith('space_') ? result.spaceId : spaceId;
-        return (
+      {results.map((result) => (
           <Link
             key={result.id}
-            to="/prototype/space/$spaceId/n/$noteId"
-            params={{ spaceId: spaceSlug(resolvedSpace), noteId: noteSlug(result.id) }}
+            to="/prototype/n/$noteId"
+            params={{ noteId: noteSlug(result.id) }}
             style={{ textDecoration: 'none' }}
           >
             <PrototypeSearchResultRow result={result} />
           </Link>
-        );
-      })}
+        ))}
     </div>
   );
 }

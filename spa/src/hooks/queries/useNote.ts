@@ -280,9 +280,19 @@ export function seedNoteFromList(
   threadContext: NoteSeedThreadContext
 ): void {
   if (!listNote?.id) return;
-  const detail = listNoteToNoteDetail(listNote, threadContext);
-  queryClient.setQueryData(['note', listNote.id], detail);
-  setCachedNoteDetail(listNote.id, detail);
+  const merged = listNoteToNoteDetail(listNote, threadContext);
+  const prev =
+    queryClient.getQueryData<NoteDetail>(['note', listNote.id]) ?? getCachedNoteDetail(listNote.id);
+  if (prev) {
+    // List payloads omit tags / study threads / links — never clobber richer detail cache from GET …/details.
+    if (prev.tags?.length) merged.tags = prev.tags;
+    if (prev.studyThreads?.length) merged.studyThreads = prev.studyThreads;
+    if (prev.linkedFromNotes?.length) merged.linkedFromNotes = prev.linkedFromNotes;
+    if (prev.linkedToNotes?.length) merged.linkedToNotes = prev.linkedToNotes;
+    if (prev.simpleNoteId != null && merged.simpleNoteId == null) merged.simpleNoteId = prev.simpleNoteId;
+  }
+  queryClient.setQueryData(['note', listNote.id], merged);
+  setCachedNoteDetail(listNote.id, merged);
 }
 
 /** Parse `note.id` from POST /api/notes/create JSON (handles odd types conservatively). */
@@ -377,10 +387,22 @@ export function getNoteQueryOptions(noteId: string) {
 export function useNote(noteId: string) {
   const options = getNoteQueryOptions(noteId);
   const cachedDetail = noteId ? getCachedNoteDetail(noteId) : undefined;
+  /**
+   * Session snapshots from incomplete list seed (or older builds) may omit `simpleNoteId` entirely.
+   * Treat that as maximally stale so GET …/details runs; explicit `simpleNoteId: null` (legacy DB) stays normal stale window.
+   */
+  const initialDataUpdatedAt =
+    cachedDetail == null
+      ? undefined
+      : typeof cachedDetail.simpleNoteId === 'number'
+        ? Date.now() - 5_000
+        : 'simpleNoteId' in cachedDetail
+          ? Date.now() - 5_000
+          : 0;
   return useQuery({
     ...options,
     enabled: !!noteId,
     initialData: cachedDetail,
-    initialDataUpdatedAt: cachedDetail ? Date.now() - 5_000 : undefined,
+    initialDataUpdatedAt,
   });
 }

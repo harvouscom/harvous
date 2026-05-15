@@ -541,23 +541,33 @@ private struct ScripturePassageFittingTextView: NSViewRepresentable {
         }
 
         private func emitSelection(tv: NSTextView) {
+            let selCb = onSelectionChange
+            let rectCb = onSelectionRectChange
             let r = tv.selectedRange()
             let s = tv.string as NSString
             guard r.length > 0, NSMaxRange(r) <= s.length else {
-                onSelectionChange?("")
-                onSelectionRectChange?(nil)
+                DispatchQueue.main.async {
+                    selCb?("")
+                    rectCb?(nil)
+                }
                 return
             }
             let sub = s.substring(with: r)
-            onSelectionChange?(StudyThread.normalizedPassageExcerpt(sub))
-            if let rectCb = onSelectionRectChange,
+            let normalized = StudyThread.normalizedPassageExcerpt(sub)
+            var rectArg: CGRect?
+            if rectCb != nil,
                let lm = tv.layoutManager,
                let tc = tv.textContainer {
                 let glyphRange = lm.glyphRange(forCharacterRange: r, actualCharacterRange: nil)
                 let bounding = lm.boundingRect(forGlyphRange: glyphRange, in: tc)
                 let origin = tv.textContainerOrigin
-                let viewRect = bounding.offsetBy(dx: origin.x, dy: origin.y)
-                rectCb(viewRect)
+                rectArg = bounding.offsetBy(dx: origin.x, dy: origin.y)
+            }
+            DispatchQueue.main.async {
+                selCb?(normalized)
+                if let rectCb, let rectArg {
+                    rectCb(rectArg)
+                }
             }
         }
     }
@@ -659,21 +669,31 @@ private struct ScripturePassageFittingTextView: UIViewRepresentable {
         }
 
         func textViewDidChangeSelection(_ textView: UITextView) {
+            let selCb = onSelectionChange
+            let rectCb = onSelectionRectChange
             let r = textView.selectedRange
             let s = (textView.text ?? "") as NSString
             guard r.length > 0, NSMaxRange(r) <= s.length else {
-                onSelectionChange?("")
-                onSelectionRectChange?(nil)
+                DispatchQueue.main.async {
+                    selCb?("")
+                    rectCb?(nil)
+                }
                 return
             }
             let sub = s.substring(with: r)
-            onSelectionChange?(StudyThread.normalizedPassageExcerpt(sub))
-            if let rectCb = onSelectionRectChange {
+            let normalized = StudyThread.normalizedPassageExcerpt(sub)
+            let rectArg: CGRect? = {
+                guard rectCb != nil else { return nil }
                 let glyphRange = textView.layoutManager.glyphRange(forCharacterRange: r, actualCharacterRange: nil)
                 let bounding = textView.layoutManager.boundingRect(forGlyphRange: glyphRange, in: textView.textContainer)
                 let origin = CGPoint(x: textView.textContainerInset.left, y: textView.textContainerInset.top)
-                let viewRect = bounding.offsetBy(dx: origin.x, dy: origin.y)
-                rectCb(viewRect)
+                return bounding.offsetBy(dx: origin.x, dy: origin.y)
+            }()
+            DispatchQueue.main.async {
+                selCb?(normalized)
+                if let rectCb, let rectArg {
+                    rectCb(rectArg)
+                }
             }
         }
     }

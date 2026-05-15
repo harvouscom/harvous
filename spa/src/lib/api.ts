@@ -18,15 +18,23 @@ export class APIError extends Error {
 }
 
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
+  const headers = new Headers(init.headers ?? undefined);
+  // Avoid Content-Type on GET/HEAD so requests stay "simple" for cross-origin (Capacitor / split-origin dev).
+  if (
+    init.body !== undefined &&
+    init.body !== null &&
+    init.body !== '' &&
+    !headers.has('Content-Type')
+  ) {
+    headers.set('Content-Type', 'application/json');
+  }
+
   const res = await fetch(`${BASE_URL}${path}`, {
     ...init,
     credentials: 'include',
     // Let the server's Cache-Control headers work (e.g. max-age=30, stale-while-revalidate=60).
     // React Query's staleTime already prevents redundant refetches on the client side.
-    headers: {
-      'Content-Type': 'application/json',
-      ...init.headers,
-    },
+    headers,
   });
 
   if (!res.ok) {

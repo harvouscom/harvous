@@ -83,7 +83,14 @@ interface TiptapEditorProps {
    * is focused (unless scripture picker/confirm is open), and the parent can show a note action bar when not.
    */
   editorChromeMode?: 'default' | 'prototypeNative';
-  onPrototypeChromeModeChange?: (mode: 'format' | 'scripture' | 'noteActions' | 'highlight') => void;
+  onPrototypeChromeModeChange?: (
+    mode: 'format' | 'scripture' | 'noteActions' | 'highlight' | 'hidden',
+  ) => void;
+  /**
+   * Prototype-only: when false and no inline `noteActions` host is rendered, use `hidden` instead of `noteActions`
+   * when the editor would otherwise switch to note-actions chrome (blur or no format bar).
+   */
+  prototypeNoteActionsChrome?: boolean;
   /**
    * Prototype-only: portal target for highlight dock (accent / remove) — sibling to format + scripture hosts.
    */
@@ -99,6 +106,16 @@ interface TiptapEditorProps {
    * Bottom host for macOS-style scripture pill chrome (`ScripturePillChromeWeb`).
    */
   scriptureChromePortalTarget?: HTMLElement | null;
+  /**
+   * Prototype: set when the user taps a scripture pill in read-only HTML preview; TipTap opens the dock once the editor mounts.
+   */
+  prototypeScripturePillOpenRequest?: {
+    reference: string;
+    translation: string | null;
+    noteId: string | null;
+    pillAccent: string | null;
+  } | null;
+  onPrototypeScripturePillOpenRequestConsumed?: () => void;
 }
 
 const PROTOTYPE_FORMAT_BAR_HIDE_MS = 2000;
@@ -2833,9 +2850,12 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
   inBottomSheet = false,
   editorChromeMode = 'default',
   onPrototypeChromeModeChange,
+  prototypeNoteActionsChrome = false,
   formatToolbarPortalTarget = null,
   scriptureChromePortalTarget = null,
   highlightChromePortalTarget = null,
+  prototypeScripturePillOpenRequest = null,
+  onPrototypeScripturePillOpenRequestConsumed,
 }) => {
   const [isLoaded, setIsLoaded] = useState(false);
   const [isEditorFocused, setIsEditorFocused] = useState(false);
@@ -3931,6 +3951,52 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     };
   }, [editor, enableCreateNoteFromSelection, editorChromeMode]);
 
+  /** When CardFullEditable opens the editor from read-only preview after a scripture pill tap (prototype), open the dock once TipTap has rendered the pill in the doc. */
+  useEffect(() => {
+    if (
+      !editor ||
+      !isEditorValid(editor) ||
+      editorChromeMode !== 'prototypeNative' ||
+      !prototypeScripturePillOpenRequest
+    ) {
+      return;
+    }
+    const req = prototypeScripturePillOpenRequest;
+    let cancelled = false;
+    const run = () => {
+      if (cancelled || !isEditorValid(editor)) return;
+      const root = editor.view.dom as HTMLElement;
+      const pills = root.querySelectorAll('.scripture-pill');
+      let pillEl: HTMLElement | null = null;
+      pills.forEach((p) => {
+        if (pillEl) return;
+        if (p.getAttribute('data-scripture-reference') === req.reference) {
+          pillEl = p as HTMLElement;
+        }
+      });
+      if (!pillEl) return;
+      const boundaries = resolveScripturePillDOMRange(editor, pillEl);
+      if (!boundaries || cancelled) return;
+      setTranslationPicker(null);
+      setHighlightDockSession(null);
+      setScripturePillSession({
+        boundaries,
+        reference: req.reference,
+        translation: req.translation,
+        noteId: req.noteId,
+        pillAccent: req.pillAccent,
+      });
+      onPrototypeScripturePillOpenRequestConsumed?.();
+    };
+    const rafId = window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(run);
+    });
+    return () => {
+      cancelled = true;
+      window.cancelAnimationFrame(rafId);
+    };
+  }, [editor, editorChromeMode, prototypeScripturePillOpenRequest, onPrototypeScripturePillOpenRequestConsumed]);
+
   // Handle ALL scripture pill clicks via DOM click handler (both edit and read-only).
   // We use the CAPTURE phase on the wrapper div so our handler fires BEFORE
   // ProseMirror's internal click processing. user-select:none on pill spans
@@ -3945,6 +4011,115 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
 
     const handlePillClick = (e: MouseEvent) => {
       const target = e.target as HTMLElement;
+
+      const pillSpan = target.closest('.scripture-pill') as HTMLElement | null;
+      if (pillSpan) {
+        const reference = pillSpan.getAttribute('data-scripture-reference');
+        const translation = pillSpan.getAttribute('data-scripture-translation');
+        const noteId = pillSpan.getAttribute('data-note-id');
+        const pillAccent = pillSpan.getAttribute('data-pill-accent');
+        if (!reference) return;
+
+        e.preventDefault();
+        e.stopImmediatePropagation();
+
+        if (editor.isEditable) {
+          if (editorChromeMode === 'prototypeNative') {
+            setTranslationPicker(null);
+            setHighlightDockSession(null);
+            const boundaries = resolveScripturePillDOMRange(editor, pillSpan);
+            if (boundaries) {
+              setScripturePillSession({
+                boundaries,
+                reference,
+                translation,
+                noteId,
+                pillAccent,
+              });
+            }
+          } else {
+            setScripturePillSession(null);
+            const rect = pillSpan.getBoundingClientRect();
+            setTranslationPicker({
+              rect: { top: rect.top, left: rect.left, bottom: rect.bottom, right: rect.right, width: rect.width },
+              translation,
+              noteId,
+              reference,
+            });
+          }
+        } else {
+          // Read-only mode: navigate to the scripture note
+          if (!noteId || noteId === 'pending' || noteId === 'null') return;
+
+          // Determine thread context from URL/cache/DOM
+          let threadContext: string | undefined;
+          try {
+            const fromQuery = new URLSearchParams(window.location.search).get('thread');
+            if (fromQuery && fromQuery.startsWith('thread_')) {
+              threadContext = fromQuery;
+            }
+          } catch {
+            // ignore
+          }
+          const currentNoteId = extractIdFromPath(window.location.pathname);
+          if (!threadContext && currentNoteId?.startsWith('note_')) {
+            try {
+              const cached = localStorage.getItem(`harvous-note-thread-${currentNoteId}`);
+              if (cached && cached.startsWith('thread_')) {
+                threadContext = cached;
+              }
+            } catch {
+              // ignore
+            }
+          }
+          const noteElement = document.querySelector('[data-note-id]') as HTMLElement;
+          if (!threadContext && noteElement?.dataset.parentThreadId) {
+            threadContext = noteElement.dataset.parentThreadId;
+          } else {
+            const navElement = document.querySelector('[slot="navigation"]') as HTMLElement;
+            if (!threadContext && navElement?.dataset.parentThreadId) {
+              threadContext = navElement.dataset.parentThreadId;
+            } else {
+              const pathname = window.location.pathname;
+              if (pathname && pathname !== '/' && !pathname.includes('/dashboard') &&
+                  !pathname.includes('/sign-in') && !pathname.includes('/sign-up')) {
+                const itemId = extractIdFromPath(pathname);
+                if (itemId && itemId !== 'dashboard' &&
+                    !itemId.startsWith('note_') && !itemId.startsWith('space_')) {
+                  threadContext = itemId;
+                }
+              }
+            }
+          }
+
+          // Push current note onto nav stack for breadcrumb-style back navigation
+          if (currentNoteId?.startsWith('note_') && threadContext) {
+            pushNavStack(currentNoteId, threadContext);
+          }
+          const fullNoteId = noteId.startsWith('note_') ? noteId : `note_${noteId}`;
+          if (threadContext && threadContext !== 'thread_unorganized') {
+            fetch(`/api/notes/${fullNoteId}/add-thread`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ threadId: threadContext }),
+              credentials: 'include',
+            })
+              .then((res) => {
+                if (res.ok) {
+                  window.dispatchEvent(
+                    new CustomEvent('noteAddedToThread', {
+                      detail: { noteId: fullNoteId, threadId: threadContext, source: 'inlineAddThread' },
+                    }),
+                  );
+                }
+              })
+              .catch(() => {});
+          }
+          const url = idToUrl(fullNoteId, threadContext, currentNoteId || undefined);
+          safeNavigate(url);
+        }
+        return;
+      }
 
       const markInPm = target.closest('.ProseMirror mark') as HTMLElement | null;
       if (markInPm && editorChromeMode === 'prototypeNative' && editor.isEditable) {
@@ -3972,117 +4147,6 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
         });
         setScripturePillSession(null);
         setTranslationPicker(null);
-        return;
-      }
-
-      const pillSpan = target.closest('.scripture-pill') as HTMLElement;
-      if (!pillSpan) return;
-
-      // Read pill data from DOM attributes
-      const reference = pillSpan.getAttribute('data-scripture-reference');
-      const translation = pillSpan.getAttribute('data-scripture-translation');
-      const noteId = pillSpan.getAttribute('data-note-id');
-      const pillAccent = pillSpan.getAttribute('data-pill-accent');
-      if (!reference) return;
-
-      // Stop ProseMirror from processing this click
-      e.preventDefault();
-      e.stopImmediatePropagation();
-
-      if (editor.isEditable) {
-        if (editorChromeMode === 'prototypeNative') {
-          setTranslationPicker(null);
-          setHighlightDockSession(null);
-          const boundaries = resolveScripturePillDOMRange(editor, pillSpan);
-          if (boundaries) {
-            setScripturePillSession({
-              boundaries,
-              reference,
-              translation,
-              noteId,
-              pillAccent,
-            });
-          }
-        } else {
-          setScripturePillSession(null);
-          const rect = pillSpan.getBoundingClientRect();
-          setTranslationPicker({
-            rect: { top: rect.top, left: rect.left, bottom: rect.bottom, right: rect.right, width: rect.width },
-            translation,
-            noteId,
-            reference,
-          });
-        }
-      } else {
-        // Read-only mode: navigate to the scripture note
-        if (!noteId || noteId === 'pending' || noteId === 'null') return;
-
-        // Determine thread context from URL/cache/DOM
-        let threadContext: string | undefined;
-        try {
-          const fromQuery = new URLSearchParams(window.location.search).get('thread');
-          if (fromQuery && fromQuery.startsWith('thread_')) {
-            threadContext = fromQuery;
-          }
-        } catch {
-          // ignore
-        }
-        const currentNoteId = extractIdFromPath(window.location.pathname);
-        if (!threadContext && currentNoteId?.startsWith('note_')) {
-          try {
-            const cached = localStorage.getItem(`harvous-note-thread-${currentNoteId}`);
-            if (cached && cached.startsWith('thread_')) {
-              threadContext = cached;
-            }
-          } catch {
-            // ignore
-          }
-        }
-        const noteElement = document.querySelector('[data-note-id]') as HTMLElement;
-        if (!threadContext && noteElement?.dataset.parentThreadId) {
-          threadContext = noteElement.dataset.parentThreadId;
-        } else {
-          const navElement = document.querySelector('[slot="navigation"]') as HTMLElement;
-          if (!threadContext && navElement?.dataset.parentThreadId) {
-            threadContext = navElement.dataset.parentThreadId;
-          } else {
-            const pathname = window.location.pathname;
-            if (pathname && pathname !== '/' && !pathname.includes('/dashboard') &&
-                !pathname.includes('/sign-in') && !pathname.includes('/sign-up')) {
-              const itemId = extractIdFromPath(pathname);
-              if (itemId && itemId !== 'dashboard' &&
-                  !itemId.startsWith('note_') && !itemId.startsWith('space_')) {
-                threadContext = itemId;
-              }
-            }
-          }
-        }
-
-        // Push current note onto nav stack for breadcrumb-style back navigation
-        if (currentNoteId?.startsWith('note_') && threadContext) {
-          pushNavStack(currentNoteId, threadContext);
-        }
-        const fullNoteId = noteId.startsWith('note_') ? noteId : `note_${noteId}`;
-        if (threadContext && threadContext !== 'thread_unorganized') {
-          fetch(`/api/notes/${fullNoteId}/add-thread`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ threadId: threadContext }),
-            credentials: 'include',
-          })
-            .then((res) => {
-              if (res.ok) {
-                window.dispatchEvent(
-                  new CustomEvent('noteAddedToThread', {
-                    detail: { noteId: fullNoteId, threadId: threadContext, source: 'inlineAddThread' },
-                  })
-                );
-              }
-            })
-            .catch(() => {});
-        }
-        const url = idToUrl(fullNoteId, threadContext, currentNoteId || undefined);
-        safeNavigate(url);
       }
     };
 
@@ -4615,17 +4679,18 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       return;
     }
     if (!isEditorFocused) {
-      onPrototypeChromeModeChange('noteActions');
+      onPrototypeChromeModeChange(prototypeNoteActionsChrome ? 'noteActions' : 'hidden');
       return;
     }
     if (shouldShowPrototypeFormatToolbar) {
       onPrototypeChromeModeChange('format');
     } else {
-      onPrototypeChromeModeChange('noteActions');
+      onPrototypeChromeModeChange(prototypeNoteActionsChrome ? 'noteActions' : 'hidden');
     }
   }, [
     editorChromeMode,
     onPrototypeChromeModeChange,
+    prototypeNoteActionsChrome,
     scriptureChromeActive,
     highlightChromeActive,
     deleteConfirmPill,
@@ -5231,6 +5296,8 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                               sourceSnippet: snippet,
                               highlightAccentRaw: defaultAccent,
                               anchorTextSnapshot: snippet,
+                              anchorLocation: from,
+                              anchorLength: Math.max(0, to - from),
                             }),
                           });
                           if (res.ok) {

@@ -98,12 +98,9 @@ export default function NotePage() {
   const [formatToolbarHostEl, setFormatToolbarHostEl] = useState<HTMLDivElement | null>(null);
   const [scriptureChromeHostEl, setScriptureChromeHostEl] = useState<HTMLDivElement | null>(null);
   const [highlightChromeHostEl, setHighlightChromeHostEl] = useState<HTMLDivElement | null>(null);
-  const [noteActionsHostEl, setNoteActionsHostEl] = useState<HTMLDivElement | null>(null);
-  const [chromeMode, setChromeMode] = useState<'format' | 'scripture' | 'highlight' | 'noteActions'>('noteActions');
-
-  useEffect(() => {
-    setChromeMode('noteActions');
-  }, [noteId]);
+  const [chromeMode, setChromeMode] = useState<
+    'format' | 'scripture' | 'highlight' | 'noteActions' | 'hidden'
+  >('hidden');
 
   // Notes in shared spaces that the current user did not add are view-only (member view).
   // Welcome thread onboarding pack notes: read-only in the card like scripture notes (CardFullEditable readOnlyLikeScripture); API also rejects edits.
@@ -424,7 +421,6 @@ export default function NotePage() {
               formatToolbarPortalTarget={isEditable ? formatToolbarHostEl : null}
               scriptureChromePortalTarget={isEditable ? scriptureChromeHostEl : null}
               highlightChromePortalTarget={isEditable ? highlightChromeHostEl : null}
-              noteActionsPortalTarget={isEditable ? noteActionsHostEl : null}
               onPrototypeChromeModeChange={isEditable ? setChromeMode : undefined}
               initialPrimaryCollection={note.primaryCollection ?? null}
               initialSecondaryCollections={note.secondaryCollections ?? []}
@@ -437,7 +433,11 @@ export default function NotePage() {
           </SubtleContentMount>
         </div>
         {isEditable ? (
-          <div className="note-editor-bottom-bar" data-mode={chromeMode}>
+          <div
+            className="note-editor-bottom-bar"
+            data-mode={chromeMode}
+            style={{ display: chromeMode === 'hidden' ? 'none' : undefined }}
+          >
             <div
               ref={setHighlightChromeHostEl}
               className="note-editor-bottom-bar__highlight-host"
@@ -452,10 +452,6 @@ export default function NotePage() {
               ref={setFormatToolbarHostEl}
               className="note-editor-bottom-bar__format-host"
               style={{ display: chromeMode === 'format' ? 'flex' : 'none' }}
-            />
-            <div
-              ref={setNoteActionsHostEl}
-              style={{ display: chromeMode === 'noteActions' ? 'block' : 'none' }}
             />
           </div>
         ) : null}

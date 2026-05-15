@@ -9,6 +9,8 @@ import OfflineIndicator from './OfflineIndicator';
 
 interface SyncManagerIslandProps {
   userId?: string | null;
+  /** When true, sync still runs but the offline / sync-error floating UI is not shown (e.g. `/prototype/`). */
+  hideOfflineIndicator?: boolean;
 }
 
 /**
@@ -21,7 +23,10 @@ interface SyncManagerIslandProps {
  * 
  * @param userId - Optional userId from server-side auth. If provided, this takes precedence.
  */
-export default function SyncManagerIsland({ userId: serverUserId }: SyncManagerIslandProps = {}) {
+export default function SyncManagerIsland({
+  userId: serverUserId,
+  hideOfflineIndicator = false,
+}: SyncManagerIslandProps = {}) {
   // Initialize from server prop (fastest), then localStorage, then set window variable
   // This ensures window.__harvous_userId is available synchronously for all components
   const [userId, setUserId] = useState<string | null>(() => {
@@ -148,7 +153,9 @@ export default function SyncManagerIsland({ userId: serverUserId }: SyncManagerI
           setUserId(id);
         }
       }} />
-      {isOfflineEnabled && <OfflineIndicator userId={userId ?? undefined} />}
+      {isOfflineEnabled && !hideOfflineIndicator ? (
+        <OfflineIndicator userId={userId ?? undefined} />
+      ) : null}
     </>
   );
 }

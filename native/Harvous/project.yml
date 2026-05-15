@@ -1,4 +1,6 @@
 name: Harvous
+# Do not add global CODE_SIGNING_ALLOWED: NO (breaks device install). XcodeGen is
+# run automatically via npm install / npm run precommit; spec path: native/Harvous/project.yml
 options:
   deploymentTarget:
     macOS: "14.0"
@@ -11,16 +13,14 @@ settings:
     SWIFT_VERSION: "6.0"
     MARKETING_VERSION: "0.2.5"
     CURRENT_PROJECT_VERSION: "0.2.5"
-    CODE_SIGN_STYLE: Manual
-    CODE_SIGN_IDENTITY: "-"
-    CODE_SIGNING_REQUIRED: "NO"
-    CODE_SIGNING_ALLOWED: "NO"
-    CODE_SIGN_ENTITLEMENTS: ""
 
 targets:
   Harvous:
     type: application
     platform: [macOS, iOS]
+    configFiles:
+      Debug: Configuration/Harvous-Signing.xcconfig
+      Release: Configuration/Harvous-Signing.xcconfig
     sources:
       - path: .
         excludes:
@@ -41,6 +41,12 @@ targets:
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         ENABLE_PREVIEWS: YES
         SWIFT_STRICT_CONCURRENCY: targeted
+        CODE_SIGN_STYLE: Automatic
+        CODE_SIGN_IDENTITY: Apple Development
+        CODE_SIGNING_ALLOWED: YES
+        CODE_SIGNING_REQUIRED: YES
+        DEVELOPMENT_TEAM: B3U6BXA8KP
+        PROVISIONING_PROFILE_SPECIFIER: ""
       configs:
         Debug:
           DEBUG_INFORMATION_FORMAT: dwarf

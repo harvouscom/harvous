@@ -1,21 +1,33 @@
-import { useCallback, useMemo, useState } from 'react';
-import { useNavigate, useParams, useRouterState } from '@tanstack/react-router';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useNavigate, useRouterState } from '@tanstack/react-router';
 import { useQueryClient } from '@tanstack/react-query';
 import Icon from '@/components/react/Icon';
+import { toast } from '@/utils/toast';
+import { APIError } from '../../lib/api';
+import { useDeleteNote } from '../../hooks/mutations/useDeleteNote';
+import { usePinSpaceNote } from '../../hooks/mutations/usePinSpaceNote';
 import { useSpaceNotes, type SpaceNoteRow } from '../../hooks/queries/useSpace';
 import { getNoteQueryOptions, seedNoteFromList, type ListNoteForSeed } from '../../hooks/queries/useNote';
-import { effectiveNoteFolderLabel } from '@/utils/note-folder-display';
+import { noteFolderMembershipLabels } from '@/utils/note-folder-display';
+import { stripServerAutoUntitledNoteTitleForDisplay } from '@/utils/server-auto-untitled-note-display';
 import { useProtoShell } from '../../layouts/proto-shell-context';
+import { usePrototypeHomeSpaceId } from '../../hooks/usePrototypeHomeSpaceId';
 import { protoRelativeCaption } from './proto-time';
+import { PROTO_TOOLBAR_ICON_SIZE } from './proto-toolbar-tokens';
+import type { PrototypeHighlightStudyThreadRow } from '../../hooks/queries/usePrototypeSpaceStudyThreadHighlights';
+import { usePrototypeSpaceStudyThreadHighlights } from '../../hooks/queries/usePrototypeSpaceStudyThreadHighlights';
+import { usePrototypeSpaceScriptureIndex } from '../../hooks/queries/usePrototypeSpaceScriptureIndex';
+import {
+  isScripturePassageHighlightRow,
+  prototypeHighlightListTitle,
+  prototypeHighlightSubtitlePreview,
+  prototypeHighlightRecencyIso,
+} from './proto-highlight-subtitle';
 
 interface FolderBucket {
   name: string | null;
   count: number;
   mostRecentIso: string | null;
-}
-
-function spaceSlug(id: string) {
-  return id.startsWith('space_') ? id.slice('space_'.length) : id;
 }
 
 function noteParamSlug(id: string) {
@@ -28,28 +40,36 @@ function stripHtmlPreview(html: string | null | undefined, max = 80) {
   return t.length > max ? `${t.slice(0, max)}…` : t;
 }
 
+function describeQueryFailure(err: unknown): string {
+  if (err instanceof APIError) return err.message;
+  if (err instanceof Error) return err.message;
+  return '';
+}
+
 function buildFolders(notes: SpaceNoteRow[]): FolderBucket[] {
   const buckets = new Map<string, { count: number; mostRecentIso: string | null }>();
   for (const note of notes) {
     const n = note as SpaceNoteRow & { primaryCollection?: string | null; secondaryCollections?: string[] };
-    const label = effectiveNoteFolderLabel({
+    const labels = noteFolderMembershipLabels({
       primaryCollection: n.primaryCollection ?? null,
       secondaryCollections: n.secondaryCollections ?? [],
     });
-    const key = label ?? '__none__';
-    const existing = buckets.get(key) ?? { count: 0, mostRecentIso: null };
-    existing.count += 1;
+    const keys = labels.length > 0 ? labels : [null];
     const iso = note.updatedAt ?? note.createdAt ?? null;
-    if (iso && (!existing.mostRecentIso || iso > existing.mostRecentIso)) {
-      existing.mostRecentIso = iso;
+    for (const label of keys) {
+      const bucketKey = label ?? '__none__';
+      const existing = buckets.get(bucketKey) ?? { count: 0, mostRecentIso: null };
+      existing.count += 1;
+      if (iso && (!existing.mostRecentIso || iso > existing.mostRecentIso)) {
+        existing.mostRecentIso = iso;
+      }
+      buckets.set(bucketKey, existing);
     }
-    buckets.set(key, existing);
   }
   const result: FolderBucket[] = [];
   buckets.forEach((v, k) => {
     result.push({ name: k === '__none__' ? null : k, count: v.count, mostRecentIso: v.mostRecentIso });
   });
-  // Named folders first, sorted by most recent; ungrouped at end
   return result.sort((a, b) => {
     if (a.name === null) return 1;
     if (b.name === null) return -1;
@@ -58,21 +78,188 @@ function buildFolders(notes: SpaceNoteRow[]): FolderBucket[] {
   });
 }
 
+type PrototypeSidebarNoteRowProps = {
+  row: SpaceNoteRow;
+  active: boolean;
+  homeSpaceId: string;
+  activeNoteFullId: string | undefined;
+  prefetchNote: (row: SpaceNoteRow, opts?: { seedFromList?: boolean }) => void;
+  onOpenNote: (row: SpaceNoteRow) => void;
+};
+
+function PrototypeSidebarNoteRow({
+  row,
+  active,
+  homeSpaceId,
+  activeNoteFullId,
+  prefetchNote,
+  onOpenNote,
+}: PrototypeSidebarNoteRowProps) {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRootRef = useRef<HTMLDivElement>(null);
+  const navigate = useNavigate();
+  const { closeDrawer, isMobileSidebar } = useProtoShell();
+  const pinNote = usePinSpaceNote();
+  const deleteNote = useDeleteNote();
+
+  useEffect(() => {
+    if (!menuOpen) return undefined;
+    const onDoc = (e: MouseEvent) => {
+      const el = menuRootRef.current;
+      if (el && e.target instanceof Node && !el.contains(e.target)) setMenuOpen(false);
+    };
+    const onEsc = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setMenuOpen(false);
+    };
+    document.addEventListener('mousedown', onDoc);
+    document.addEventListener('keydown', onEsc);
+    return () => {
+      document.removeEventListener('mousedown', onDoc);
+      document.removeEventListener('keydown', onEsc);
+    };
+  }, [menuOpen]);
+
+  const iso = row.updatedAt ?? row.createdAt ?? null;
+  const rel = protoRelativeCaption(iso);
+  const preview = stripHtmlPreview(row.content, 80);
+  const line = rel && preview ? `${rel}  ${preview}` : rel || preview;
+  const rowTitle = stripServerAutoUntitledNoteTitleForDisplay(row.title?.trim() ?? '') || 'New Note';
+  const title = rowTitle;
+  const pinned = row.isPinned === true;
+
+  const onPin = () => {
+    setMenuOpen(false);
+    pinNote.mutate(
+      { spaceId: homeSpaceId, noteId: row.id, isPinned: !pinned },
+      {
+        onError: (err) => {
+          const msg = err instanceof APIError ? err.message : err instanceof Error ? err.message : 'Could not update pin';
+          toast.error(msg);
+        },
+      },
+    );
+  };
+
+  const onDelete = () => {
+    setMenuOpen(false);
+    if (!window.confirm('Delete this note permanently? This cannot be undone.')) return;
+    deleteNote.mutate(
+      { noteId: row.id, spaceId: homeSpaceId },
+      {
+        onSuccess: () => {
+          if (activeNoteFullId && row.id === activeNoteFullId) {
+            navigate({ to: '/prototype/' });
+            if (isMobileSidebar) closeDrawer();
+          }
+        },
+        onError: (err) => {
+          const msg = err instanceof APIError ? err.message : err instanceof Error ? err.message : 'Could not delete note';
+          toast.error(msg);
+        },
+      },
+    );
+  };
+
+  return (
+    <li className="proto-note-row-item" data-active={active ? 'true' : 'false'}>
+      <button
+        type="button"
+        className="proto-note-row__main"
+        onClick={() => onOpenNote(row)}
+        onMouseEnter={() => prefetchNote(row)}
+        onFocus={() => prefetchNote(row)}
+      >
+        <div className="proto-note-row__title-line">
+          {pinned ? (
+            <span className="proto-note-row__pin" aria-hidden>
+              <Icon name="thumbtack" size={12} />
+            </span>
+          ) : null}
+          <span className="pds-list-title proto-note-row__title-text">{title}</span>
+        </div>
+        {line ? <div className="pds-list-preview proto-note-row__preview">{line}</div> : null}
+      </button>
+      <div
+        className={`proto-menu proto-note-row__menu${menuOpen ? ' proto-note-row__menu--open' : ''}`}
+        ref={menuRootRef}
+      >
+        <button
+          type="button"
+          className="proto-note-row__menu-trigger"
+          aria-expanded={menuOpen}
+          aria-haspopup="menu"
+          aria-label="Note actions"
+          disabled={pinNote.isPending || deleteNote.isPending}
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            setMenuOpen((o) => !o);
+          }}
+        >
+          <Icon name="ellipsis-vertical" size={14} />
+        </button>
+        {menuOpen ? (
+          <div className="proto-menu__popover proto-menu__popover--right" role="menu" aria-label="Note actions">
+            <div className="proto-menu-section" role="group">
+              <button
+                type="button"
+                role="menuitem"
+                className="proto-menu-item"
+                disabled={pinNote.isPending}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onPin();
+                }}
+              >
+                <span className="proto-menu-item__icon" aria-hidden>
+                  <Icon name="thumbtack" size={PROTO_TOOLBAR_ICON_SIZE} />
+                </span>
+                <span style={{ flex: 1, minWidth: 0 }}>{pinned ? 'Unpin note' : 'Pin note'}</span>
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                className="proto-menu-item proto-menu-item--destructive"
+                disabled={deleteNote.isPending}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDelete();
+                }}
+              >
+                <span className="proto-menu-item__icon" aria-hidden>
+                  <Icon name="trash-can" size={PROTO_TOOLBAR_ICON_SIZE} />
+                </span>
+                <span style={{ flex: 1, minWidth: 0 }}>Delete note</span>
+              </button>
+            </div>
+          </div>
+        ) : null}
+      </div>
+    </li>
+  );
+}
+
+type ScriptureDrill =
+  | { level: 'books' }
+  | { level: 'passages'; bookOrder: number }
+  | { level: 'notes'; bookOrder: number; passageKey: string };
+
 export default function PrototypeSidebar() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const {
     closeDrawer,
     isMobileSidebar,
     sidebarListMode: mode,
-    setSidebarListMode,
-    sidebarFolderDrilldown: activeFolderKey,
     setSidebarFolderDrilldown: setActiveFolderKey,
+    sidebarFolderDrilldown: activeFolderKey,
+    standaloneScripturePassage,
+    openStandaloneScripturePassage,
+    dismissStandaloneScripturePassage,
   } = useProtoShell();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
-  const { spaceId: spaceSlugParam } = useParams({ strict: false }) as { spaceId?: string };
-  const spaceId = spaceSlugParam ? (spaceSlugParam.startsWith('space_') ? spaceSlugParam : `space_${spaceSlugParam}`) : null;
+  const { homeSpaceId, navReady } = usePrototypeHomeSpaceId();
 
   const {
     data: pages,
@@ -80,16 +267,24 @@ export default function PrototypeSidebar() {
     fetchNextPage,
     hasNextPage,
     isFetchingNextPage,
-  } = useSpaceNotes(spaceId ?? '');
+  } = useSpaceNotes(homeSpaceId ?? '');
+
+  const highlightsQuery = usePrototypeSpaceStudyThreadHighlights(mode === 'highlights' ? homeSpaceId ?? undefined : undefined);
+  const scriptureQuery = usePrototypeSpaceScriptureIndex(mode === 'scripture' ? homeSpaceId ?? undefined : undefined);
 
   const [q, setQ] = useState('');
+  const [scriptureDrill, setScriptureDrill] = useState<ScriptureDrill>({ level: 'books' });
+
+  useEffect(() => {
+    if (mode !== 'scripture') setScriptureDrill({ level: 'books' });
+  }, [mode]);
 
   const notes = useMemo(() => {
     if (!pages?.pages) return [];
     return pages.pages.flatMap((p) => p.notes);
   }, [pages]);
 
-  const noteMatch = pathname.match(/\/prototype\/space\/[^/]+\/n\/([^/]+)/);
+  const noteMatch = pathname.match(/^\/prototype\/n\/([^/]+)/);
   const activeNoteSlug = noteMatch?.[1];
   const activeNoteFullId = activeNoteSlug
     ? activeNoteSlug.startsWith('note_')
@@ -97,18 +292,17 @@ export default function PrototypeSidebar() {
       : `note_${activeNoteSlug}`
     : undefined;
 
-  /* Notes to show in notes mode (or when drilling into a folder) */
   const notesForMode = useMemo(() => {
     const base =
       activeFolderKey !== undefined
         ? notes.filter((n) => {
             const enriched = n as SpaceNoteRow & { primaryCollection?: string | null; secondaryCollections?: string[] };
-            const key =
-              effectiveNoteFolderLabel({
-                primaryCollection: enriched.primaryCollection ?? null,
-                secondaryCollections: enriched.secondaryCollections ?? [],
-              }) ?? null;
-            return key === activeFolderKey;
+            const labels = noteFolderMembershipLabels({
+              primaryCollection: enriched.primaryCollection ?? null,
+              secondaryCollections: enriched.secondaryCollections ?? [],
+            });
+            if (activeFolderKey === null) return labels.length === 0;
+            return labels.includes(activeFolderKey);
           })
         : notes;
     const t = q.trim().toLowerCase();
@@ -120,7 +314,6 @@ export default function PrototypeSidebar() {
     });
   }, [notes, q, activeFolderKey]);
 
-  /* Folder buckets for folders mode */
   const folders = useMemo(() => buildFolders(notes), [notes]);
   const filteredFolders = useMemo(() => {
     const t = q.trim().toLowerCase();
@@ -128,9 +321,73 @@ export default function PrototypeSidebar() {
     return folders.filter((c) => (c.name ?? 'No folder').toLowerCase().includes(t));
   }, [folders, q]);
 
+  const scriptureBooks = scriptureQuery.data ?? [];
+
+  const filteredHighlights = useMemo(() => {
+    const rows = highlightsQuery.data ?? [];
+    const t = q.trim().toLowerCase();
+    if (!t) return rows;
+    return rows.filter((r) => {
+      const hay = [
+        r.focusTitle,
+        r.anchorTextSnapshot,
+        r.parentNoteTitle,
+        r.miniNoteBody,
+        r.sourceSnippet,
+        r.scriptureReference,
+        r.scripturePassageExcerpt,
+      ]
+        .join(' ')
+        .toLowerCase();
+      return hay.includes(t);
+    });
+  }, [highlightsQuery.data, q]);
+
+  const filteredScriptureBooks = useMemo(() => {
+    const t = q.trim().toLowerCase();
+    if (!t) return scriptureBooks;
+    return scriptureBooks.filter((b) => {
+      if (b.title.toLowerCase().includes(t)) return true;
+      return b.passages.some((p) => {
+        if (p.displayRef.toLowerCase().includes(t)) return true;
+        return p.notes.some((n) => (n.title ?? '').toLowerCase().includes(t));
+      });
+    });
+  }, [scriptureBooks, q]);
+
+  const passagesForDrill = useMemo(() => {
+    if (scriptureDrill.level !== 'passages') return [];
+    const book = scriptureBooks.find((b) => b.bookOrder === scriptureDrill.bookOrder);
+    const passages = book?.passages ?? [];
+    const t = q.trim().toLowerCase();
+    if (!t) return passages;
+    return passages.filter((p) => {
+      if (p.displayRef.toLowerCase().includes(t)) return true;
+      return p.notes.some((n) => (n.title ?? '').toLowerCase().includes(t));
+    });
+  }, [scriptureBooks, scriptureDrill, q]);
+
+  const notesForScripturePassage = useMemo(() => {
+    if (scriptureDrill.level !== 'notes') return [];
+    const book = scriptureBooks.find((b) => b.bookOrder === scriptureDrill.bookOrder);
+    const passage = book?.passages.find((p) => p.passageKey === scriptureDrill.passageKey);
+    const noteRows = passage?.notes ?? [];
+    const t = q.trim().toLowerCase();
+    if (!t) return noteRows;
+    return noteRows.filter((n) => (n.title ?? '').toLowerCase().includes(t));
+  }, [scriptureBooks, scriptureDrill, q]);
+
+  const scriptureNotesPassageTitle =
+    scriptureDrill.level === 'notes'
+      ? scriptureBooks
+          .find((b) => b.bookOrder === scriptureDrill.bookOrder)
+          ?.passages.find((p) => p.passageKey === scriptureDrill.passageKey)?.displayRef ?? ''
+      : '';
+
   const prefetchNote = useCallback(
-    (row: SpaceNoteRow) => {
-      if (!spaceId) return;
+    (row: SpaceNoteRow, opts?: { seedFromList?: boolean }) => {
+      if (!homeSpaceId) return;
+      const seedFromList = opts?.seedFromList !== false;
       const listSeed: ListNoteForSeed = {
         id: row.id,
         title: row.title ?? '',
@@ -140,19 +397,28 @@ export default function PrototypeSidebar() {
         resourceTitle: row.resourceTitle ?? null,
         userId: undefined,
         threadId: 'thread_unorganized',
-        spaceId,
+        spaceId: homeSpaceId,
         createdAt: row.createdAt ?? undefined,
         updatedAt: row.updatedAt ?? undefined,
+        simpleNoteId: row.simpleNoteId ?? undefined,
+        primaryCollection: row.primaryCollection ?? null,
+        secondaryCollections:
+          row.secondaryCollections?.length ? [...row.secondaryCollections] : undefined,
+        collectionPinned: row.collectionPinned ?? false,
+        collectionUserOverride: row.collectionUserOverride ?? false,
+        version: row.version,
       };
-      seedNoteFromList(queryClient, listSeed, {
-        id: 'thread_unorganized',
-        title: '',
-        color: null,
-        backgroundGradient: '',
-      });
-      queryClient.prefetchQuery(getNoteQueryOptions(row.id)).catch(() => {});
+      if (seedFromList) {
+        seedNoteFromList(queryClient, listSeed, {
+          id: 'thread_unorganized',
+          title: '',
+          color: null,
+          backgroundGradient: '',
+        });
+      }
+      void queryClient.prefetchQuery(getNoteQueryOptions(row.id)).catch(() => {});
     },
-    [queryClient, spaceId],
+    [queryClient, homeSpaceId],
   );
 
   const afterNav = useCallback(() => {
@@ -160,63 +426,96 @@ export default function PrototypeSidebar() {
   }, [closeDrawer, isMobileSidebar]);
 
   const onNoteRow = (row: SpaceNoteRow) => {
-    if (!spaceId) return;
+    if (!homeSpaceId) return;
+    prefetchNote(row);
+    dismissStandaloneScripturePassage();
     navigate({
-      to: '/prototype/space/$spaceId/n/$noteId',
-      params: { spaceId: spaceSlug(spaceId), noteId: noteParamSlug(row.id) },
+      to: '/prototype/n/$noteId',
+      params: { noteId: noteParamSlug(row.id) },
     });
     afterNav();
   };
 
-  const renderSidebarNoteRow = (row: SpaceNoteRow) => {
-    const active = !!(activeNoteFullId && row.id === activeNoteFullId);
-    const iso = row.updatedAt ?? row.createdAt ?? null;
-    const rel = protoRelativeCaption(iso);
-    const preview = stripHtmlPreview(row.content, 80);
-    const line = rel && preview ? `${rel}  ${preview}` : rel || preview;
-    return (
-      <li key={row.id}>
-        <button
-          type="button"
-          className="proto-note-row"
-          data-active={active ? 'true' : 'false'}
-          onClick={() => onNoteRow(row)}
-          onMouseEnter={() => prefetchNote(row)}
-          onFocus={() => prefetchNote(row)}
-        >
-          <div className="pds-list-title">{row.title?.trim() || 'Untitled Note'}</div>
-          {line ? <div className="pds-list-preview">{line}</div> : null}
-        </button>
-      </li>
-    );
+  const onHighlightRow = (r: PrototypeHighlightStudyThreadRow) => {
+    if (!homeSpaceId) return;
+    if (isScripturePassageHighlightRow(r)) {
+      const canon = (r.scriptureReference ?? '').trim();
+      const trans = (r.scripturePassageTranslation ?? '').trim();
+      if (canon && trans) {
+        if (pathname.startsWith('/prototype/n/')) {
+          navigate({ to: '/prototype/' });
+        }
+        openStandaloneScripturePassage({
+          canonicalReference: canon,
+          translationCode: trans,
+          focusedHighlightThreadId: r.id,
+        });
+        afterNav();
+        return;
+      }
+    }
+    dismissStandaloneScripturePassage();
+    navigate({
+      to: '/prototype/n/$noteId',
+      params: { noteId: noteParamSlug(r.parentNoteId) },
+      search: { studyThread: r.id },
+    });
+    afterNav();
   };
 
-  // ──────────────────────────────────────────────────────────────────────────
-  // Render
-  // ──────────────────────────────────────────────────────────────────────────
+  const openScriptureIndexedNote = (
+    n: { id: string; title: string | null; updatedAt: string | null; createdAt: string },
+    prefetchOnly?: boolean,
+  ) => {
+    if (!homeSpaceId) return;
+    const row = {
+      id: n.id,
+      title: n.title,
+      content: '',
+      updatedAt: n.updatedAt,
+      createdAt: n.createdAt,
+      noteType: 'default',
+    } as SpaceNoteRow;
+    prefetchNote(row, { seedFromList: false });
+    if (prefetchOnly) return;
+    dismissStandaloneScripturePassage();
+    navigate({
+      to: '/prototype/n/$noteId',
+      params: { noteId: noteParamSlug(n.id) },
+    });
+    afterNav();
+  };
+
   return (
     <div className="proto-sidebar-root">
-      {/* Search input */}
       <div className="proto-sidebar-search">
-        <span className="proto-sidebar-search__icon" aria-hidden>
-          <Icon name="magnifying-glass" size={14} />
-        </span>
-        <input
-          type="search"
-          placeholder="Search"
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          autoComplete="off"
-          aria-label="Search"
-        />
+        <div className="proto-sidebar-search__field">
+          <span className="proto-sidebar-search__icon" aria-hidden>
+            <Icon name="magnifying-glass" size={14} />
+          </span>
+          <input
+            type="search"
+            placeholder="Search"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            autoComplete="off"
+            aria-label="Search"
+          />
+        </div>
       </div>
 
       <div className="proto-sidebar-scroll">
-        {spaceId ? (
-          /* ── Inside a space ──────────────────────────────────────────── */
+        {!navReady ? (
+          <p className="proto-caption" style={{ padding: '14px 18px' }}>
+            Loading…
+          </p>
+        ) : !homeSpaceId ? (
+          <p className="proto-caption" style={{ padding: '14px 18px' }}>
+            My Home isn’t available yet — open the classic app to finish setup.
+          </p>
+        ) : (
           <>
             {mode === 'notes' ? (
-              /* ── Notes mode ────────────────────────────────────────── */
               <>
                 {notesLoading && notesForMode.length === 0 ? (
                   <p className="proto-caption" style={{ padding: '12px 18px' }}>Loading notes…</p>
@@ -225,7 +524,21 @@ export default function PrototypeSidebar() {
                     {q.trim() ? 'No notes match.' : 'No notes yet.'}
                   </p>
                 ) : (
-                  <ul className="proto-note-list">{notesForMode.map((row) => renderSidebarNoteRow(row))}</ul>
+                  <ul className="proto-note-list">
+                    {notesForMode.map((row) => (
+                      <PrototypeSidebarNoteRow
+                        key={row.id}
+                        row={row}
+                        active={!!(activeNoteFullId && row.id === activeNoteFullId)}
+                        homeSpaceId={homeSpaceId}
+                        activeNoteFullId={activeNoteFullId}
+                        prefetchNote={prefetchNote}
+                        onOpenNote={(r) => {
+                          onNoteRow(r);
+                        }}
+                      />
+                    ))}
+                  </ul>
                 )}
                 {hasNextPage ? (
                   <div style={{ padding: '0 18px 16px', textAlign: 'center' }}>
@@ -248,69 +561,261 @@ export default function PrototypeSidebar() {
                   </div>
                 ) : null}
               </>
-            ) : (
-              /* ── Folders mode ──────────────────────────────────────── */
+            ) : null}
+
+            {mode === 'folders' && activeFolderKey !== undefined ? (
               <>
-                {activeFolderKey !== undefined ? (
-                  /* Drill-down into a folder */
-                  <>
-                    <div style={{ padding: '0 18px 8px' }}>
-                      <button
-                        type="button"
-                        className="proto-sidebar-back-btn"
-                        onClick={() => { setActiveFolderKey(undefined); setQ(''); }}
-                      >
-                        <Icon name="chevron-left" size={10} />
-                        Folders
-                      </button>
-                      <div className="pds-list-title" style={{ fontWeight: 600 }}>
-                        {activeFolderKey ?? 'No folder'}
-                      </div>
-                    </div>
-                    {notesForMode.length === 0 ? (
-                      <p className="proto-caption" style={{ padding: '12px 18px', textAlign: 'center' }}>No notes in this folder.</p>
-                    ) : (
-                      <ul className="proto-note-list">{notesForMode.map((row) => renderSidebarNoteRow(row))}</ul>
-                    )}
-                  </>
+                <div style={{ padding: '0 18px 8px' }}>
+                  <button
+                    type="button"
+                    className="proto-sidebar-back-btn"
+                    onClick={() => {
+                      setActiveFolderKey(undefined);
+                      setQ('');
+                    }}
+                  >
+                    <Icon name="chevron-left" size={10} />
+                    Folders
+                  </button>
+                  <div className="pds-list-title" style={{ fontWeight: 600 }}>
+                    {activeFolderKey ?? 'No folder'}
+                  </div>
+                </div>
+                {notesForMode.length === 0 ? (
+                  <p className="proto-caption" style={{ padding: '12px 18px', textAlign: 'center' }}>
+                    No notes in this folder.
+                  </p>
                 ) : (
-                  /* Folder list */
-                  notesLoading && filteredFolders.length === 0 ? (
-                    <p className="proto-caption" style={{ padding: '12px 18px' }}>Loading…</p>
-                  ) : filteredFolders.length === 0 ? (
-                    <div className="proto-main-empty" style={{ minHeight: 120 }}>
-                      <svg width="28" height="28" viewBox="0 0 16 16" fill="none" style={{ opacity: 0.28 }}>
-                        <rect x="1" y="4" width="14" height="9" rx="2" stroke="currentColor" strokeWidth="1.4" />
-                        <rect x="3.5" y="2" width="9" height="4" rx="1" stroke="currentColor" strokeWidth="1.2" />
-                      </svg>
-                      <span>No folders yet.</span>
-                    </div>
-                  ) : (
-                    <ul className="proto-note-list">
-                      {filteredFolders.map((col) => (
-                        <li key={col.name ?? '__none__'}>
-                          <button
-                            type="button"
-                            className="proto-note-row"
-                            onClick={() => setActiveFolderKey(col.name)}
-                          >
-                            <div className="pds-list-title">{col.name ?? 'No folder'}</div>
-                            <div className="pds-list-preview">
-                              {col.count} note{col.count !== 1 ? 's' : ''}
-                            </div>
-                          </button>
-                        </li>
-                      ))}
-                    </ul>
-                  )
+                  <ul className="proto-note-list">
+                    {notesForMode.map((row) => (
+                      <PrototypeSidebarNoteRow
+                        key={row.id}
+                        row={row}
+                        active={!!(activeNoteFullId && row.id === activeNoteFullId)}
+                        homeSpaceId={homeSpaceId}
+                        activeNoteFullId={activeNoteFullId}
+                        prefetchNote={prefetchNote}
+                        onOpenNote={(r) => {
+                          onNoteRow(r);
+                        }}
+                      />
+                    ))}
+                  </ul>
                 )}
               </>
-            )}
+            ) : null}
+
+            {mode === 'folders' && activeFolderKey === undefined ? (
+              notesLoading && filteredFolders.length === 0 ? (
+                <p className="proto-caption" style={{ padding: '12px 18px' }}>Loading…</p>
+              ) : filteredFolders.length === 0 ? (
+                <div className="proto-main-empty" style={{ minHeight: 120 }}>
+                  <svg width="28" height="28" viewBox="0 0 16 16" fill="none" style={{ opacity: 0.28 }}>
+                    <rect x="1" y="4" width="14" height="9" rx="2" stroke="currentColor" strokeWidth="1.4" />
+                    <rect x="3.5" y="2" width="9" height="4" rx="1" stroke="currentColor" strokeWidth="1.2" />
+                  </svg>
+                  <span>No folders yet.</span>
+                </div>
+              ) : (
+                <ul className="proto-note-list">
+                  {filteredFolders.map((col) => (
+                    <li key={col.name ?? '__none__'}>
+                      <button
+                        type="button"
+                        className="proto-note-row"
+                        onClick={() => setActiveFolderKey(col.name)}
+                      >
+                        <div className="pds-list-title">{col.name ?? 'No folder'}</div>
+                        <div className="pds-list-preview">
+                          {col.count} note{col.count !== 1 ? 's' : ''}
+                        </div>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )
+            ) : null}
+
+            {mode === 'highlights' ? (
+              <>
+                {highlightsQuery.isLoading ? (
+                  <p className="proto-caption" style={{ padding: '12px 18px' }}>Loading highlights…</p>
+                ) : highlightsQuery.isError ? (
+                  <p className="proto-caption" style={{ padding: '12px 18px', textAlign: 'center' }}>
+                    Could not load highlights.
+                    {describeQueryFailure(highlightsQuery.error) ? (
+                      <>
+                        {' '}
+                        <span style={{ display: 'block', marginTop: 8, opacity: 0.85 }}>
+                          {describeQueryFailure(highlightsQuery.error)}
+                        </span>
+                      </>
+                    ) : null}
+                  </p>
+                ) : filteredHighlights.length === 0 ? (
+                  <p className="proto-caption" style={{ padding: '12px 18px', textAlign: 'center' }}>
+                    {q.trim() ? 'No highlights match.' : 'No highlights yet.'}
+                  </p>
+                ) : (
+                  <ul className="proto-note-list">
+                    {filteredHighlights.map((r) => {
+                      const iso = prototypeHighlightRecencyIso(r);
+                      const rel = protoRelativeCaption(iso);
+                      const sub = prototypeHighlightSubtitlePreview(r, r.parentNoteTitle ?? '');
+                      const line = rel && sub ? `${rel}  ${sub}` : rel || sub;
+                      const title = prototypeHighlightListTitle(r);
+                      const activeRow =
+                        standaloneScripturePassage?.focusedHighlightThreadId === r.id ||
+                        (!isScripturePassageHighlightRow(r) && activeNoteFullId === r.parentNoteId);
+                      return (
+                        <li key={r.id} className="proto-note-row-item" data-active={activeRow ? 'true' : 'false'}>
+                          <button type="button" className="proto-note-row__main" onClick={() => onHighlightRow(r)}>
+                            <div className="pds-list-title proto-note-row__title-text">{title}</div>
+                            {line ? <div className="pds-list-preview proto-note-row__preview">{line}</div> : null}
+                          </button>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+              </>
+            ) : null}
+
+            {mode === 'scripture' && scriptureDrill.level === 'books' ? (
+              <>
+                {scriptureQuery.isLoading ? (
+                  <p className="proto-caption" style={{ padding: '12px 18px' }}>Loading…</p>
+                ) : scriptureQuery.isError ? (
+                  <p className="proto-caption" style={{ padding: '12px 18px', textAlign: 'center' }}>
+                    Could not load scripture index.
+                    {describeQueryFailure(scriptureQuery.error) ? (
+                      <>
+                        {' '}
+                        <span style={{ display: 'block', marginTop: 8, opacity: 0.85 }}>
+                          {describeQueryFailure(scriptureQuery.error)}
+                        </span>
+                      </>
+                    ) : null}
+                  </p>
+                ) : filteredScriptureBooks.length === 0 ? (
+                  <div className="proto-main-empty" style={{ minHeight: 120, padding: '12px 18px', textAlign: 'center' }}>
+                    <span>Add scripture references in your notes to build your index.</span>
+                  </div>
+                ) : (
+                  <ul className="proto-note-list">
+                    {filteredScriptureBooks.map((b) => (
+                      <li key={b.bookOrder}>
+                        <button
+                          type="button"
+                          className="proto-note-row"
+                          onClick={() => setScriptureDrill({ level: 'passages', bookOrder: b.bookOrder })}
+                        >
+                          <div className="pds-list-title">{b.title}</div>
+                          <div className="pds-list-preview">
+                            {b.referenceCount} reference{b.referenceCount !== 1 ? 's' : ''} · {b.noteCount} note
+                            {b.noteCount !== 1 ? 's' : ''}
+                          </div>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </>
+            ) : null}
+
+            {mode === 'scripture' && scriptureDrill.level === 'passages' ? (
+              <>
+                <div style={{ padding: '0 18px 8px' }}>
+                  <button
+                    type="button"
+                    className="proto-sidebar-back-btn"
+                    onClick={() => {
+                      setScriptureDrill({ level: 'books' });
+                      setQ('');
+                    }}
+                  >
+                    <Icon name="chevron-left" size={10} />
+                    Scripture
+                  </button>
+                  <div className="pds-list-title" style={{ fontWeight: 600 }}>
+                    {scriptureBooks.find((b) => b.bookOrder === scriptureDrill.bookOrder)?.title ?? 'Book'}
+                  </div>
+                </div>
+                {passagesForDrill.length === 0 ? (
+                  <p className="proto-caption" style={{ padding: '12px 18px', textAlign: 'center' }}>
+                    No passages match.
+                  </p>
+                ) : (
+                  <ul className="proto-note-list">
+                    {passagesForDrill.map((p) => (
+                      <li key={p.passageKey}>
+                        <button
+                          type="button"
+                          className="proto-note-row"
+                          onClick={() =>
+                            setScriptureDrill({
+                              level: 'notes',
+                              bookOrder: scriptureDrill.bookOrder,
+                              passageKey: p.passageKey,
+                            })
+                          }
+                        >
+                          <div className="pds-list-title">{p.displayRef}</div>
+                          <div className="pds-list-preview">
+                            {p.noteCount} note{p.noteCount !== 1 ? 's' : ''}
+                          </div>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </>
+            ) : null}
+
+            {mode === 'scripture' && scriptureDrill.level === 'notes' ? (
+              <>
+                <div style={{ padding: '0 18px 8px' }}>
+                  <button
+                    type="button"
+                    className="proto-sidebar-back-btn"
+                    onClick={() => {
+                      setScriptureDrill({ level: 'passages', bookOrder: scriptureDrill.bookOrder });
+                      setQ('');
+                    }}
+                  >
+                    <Icon name="chevron-left" size={10} />
+                    Passages
+                  </button>
+                  <div className="pds-list-title" style={{ fontWeight: 600 }}>
+                    {scriptureNotesPassageTitle}
+                  </div>
+                </div>
+                {notesForScripturePassage.length === 0 ? (
+                  <p className="proto-caption" style={{ padding: '12px 18px', textAlign: 'center' }}>
+                    No notes match.
+                  </p>
+                ) : (
+                  <ul className="proto-note-list">
+                    {notesForScripturePassage.map((n) => (
+                      <li key={n.id} className="proto-note-row-item" data-active={activeNoteFullId === n.id ? 'true' : 'false'}>
+                        <button
+                          type="button"
+                          className="proto-note-row__main"
+                          onClick={() => openScriptureIndexedNote(n)}
+                          onMouseEnter={() => openScriptureIndexedNote(n, true)}
+                          onFocus={() => openScriptureIndexedNote(n, true)}
+                        >
+                          <div className="pds-list-title proto-note-row__title-text">
+                            {stripServerAutoUntitledNoteTitleForDisplay(n.title?.trim() ?? '') || 'New Note'}
+                          </div>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </>
+            ) : null}
           </>
-        ) : (
-          <p className="proto-caption" style={{ padding: '14px 18px' }}>
-            Select a space from the space dropdown.
-          </p>
         )}
       </div>
     </div>

@@ -147,11 +147,16 @@
   outline-offset: 1px;
 }
 
-/* Active state (e.g. inspector is open) */
+/* Pressed / latched (e.g. inspector open) — neutral chrome like hover, not accent fill */
 .proto-toolbar-icon-btn[data-active='true'] {
-  background: var(--pds-accent-active-bg);
-  border-color: rgba(56, 105, 230, 0.18);
-  color: var(--pds-accent);
+  background: var(--pds-bg-row-selected);
+  border-color: rgba(0, 0, 0, 0.1);
+  color: var(--pds-text-primary);
+}
+
+.proto-toolbar-icon-btn[data-active='true']:hover {
+  background: rgba(0, 0, 0, 0.082);
+  border-color: rgba(0, 0, 0, 0.12);
 }
 
 /* Avatar circle */
@@ -329,45 +334,65 @@
 
 /* ─── Sidebar search input ───────────────────────────────────────────────── */
 .proto-sidebar-search {
-  position: relative;
   flex-shrink: 0;
   padding: 10px 12px 8px;
 }
 
+.proto-sidebar-search__field {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 34px;
+  padding: 0 10px;
+  border-radius: var(--pds-radius-input);
+  background: var(--pds-bg-input);
+}
+
+.proto-sidebar-search__field:focus-within {
+  background: var(--pds-bg-input-hover);
+  outline: 2px solid rgba(56, 105, 230, 0.20);
+  outline-offset: 0;
+}
+
 .proto-sidebar-search__icon {
-  position: absolute;
-  left: 22px;
-  top: 50%;
-  translate: 0 -50%;
-  width: 13px;
-  height: 13px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   opacity: 0.38;
   pointer-events: none;
   color: var(--pds-text-primary);
 }
 
 .proto-sidebar-search input {
-  width: 100%;
+  flex: 1;
+  min-width: 0;
   box-sizing: border-box;
+  margin: 0;
+  padding: 0;
   border: none;
-  border-radius: var(--pds-radius-input);
-  background: var(--pds-bg-input);
-  padding: 6px 10px 6px 30px;
+  border-radius: 0;
+  background: transparent;
   font-family: var(--pds-font-body);
   font-size: 0.9375rem;
   font-weight: 400;
+  line-height: 1.25;
   color: var(--pds-text-primary);
   outline: none;
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+.proto-sidebar-search input::-webkit-search-decoration,
+.proto-sidebar-search input::-webkit-search-cancel-button {
+  -webkit-appearance: none;
+  appearance: none;
 }
 
 .proto-sidebar-search input::placeholder {
   color: var(--pds-text-tertiary);
-}
-
-.proto-sidebar-search input:focus {
-  background: var(--pds-bg-input-hover);
-  outline: 2px solid rgba(56, 105, 230, 0.20);
-  outline-offset: 0;
 }
 
 /* ─── Sidebar mode toggle ────────────────────────────────────────────────── */
@@ -413,6 +438,160 @@
   padding: 4px 0 12px;
 }
 
+/* Note row with trailing overflow menu (prototype sidebar) */
+.proto-note-row-item {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+  width: calc(100% - 16px);
+  margin: 0 8px;
+  min-width: 0;
+  border-radius: var(--pds-radius-row);
+  transition: background 0.08s;
+}
+
+/* Popover extends below the row; lift stacking so later list items don't paint over the menu. */
+.proto-note-row-item:has(.proto-menu__popover) {
+  z-index: 80;
+}
+
+.proto-note-row-item:hover {
+  background: var(--pds-bg-row-hover);
+}
+
+.proto-note-row-item[data-active='true'] {
+  background: var(--pds-bg-row-selected);
+}
+
+.proto-note-row__main {
+  flex: 1;
+  min-width: 0;
+  display: block;
+  text-align: left;
+  padding: 7px 4px 7px 10px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  border-radius: var(--pds-radius-row) 0 0 var(--pds-radius-row);
+  font-family: var(--pds-font-body) !important;
+  font-weight: 400 !important;
+  color: var(--pds-text-primary) !important;
+}
+
+.proto-note-row__title-line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.proto-note-row__pin {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--pds-text-tertiary);
+  opacity: 0.92;
+}
+
+.proto-note-row__title-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600 !important;
+  color: var(--pds-text-primary) !important;
+  font-family: var(--pds-font-body) !important;
+}
+
+.proto-note-row__preview {
+  margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 400 !important;
+  color: var(--pds-text-secondary) !important;
+  font-family: var(--pds-font-body) !important;
+}
+
+.proto-note-row__menu {
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  z-index: 2;
+}
+
+/* ⋯ stays under the popover (backdrop-filter on popover can reorder compositing without explicit z-index). */
+.proto-note-row__menu-trigger {
+  position: relative;
+  z-index: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  align-self: stretch;
+  padding: 0;
+  margin: 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  color: var(--pds-text-secondary);
+  border-radius: 0 var(--pds-radius-row) var(--pds-radius-row) 0;
+  transition:
+    background 0.08s,
+    color 0.08s,
+    opacity 0.1s ease;
+}
+
+/*
+ * ⋯ menu: show on row hover for mouse desktops; keep visible on touch / coarse pointers (no reliable hover).
+ * Keyboard: :focus-within shows trigger while the row’s main button or menu has focus.
+ * Open popover: .proto-note-row__menu--open keeps the trigger visible (matches :has(...) but works if focus moves).
+ */
+@media (hover: hover) and (pointer: fine) {
+  .proto-note-row-item .proto-note-row__menu-trigger {
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  .proto-note-row-item:hover .proto-note-row__menu-trigger,
+  .proto-note-row-item:focus-within .proto-note-row__menu-trigger,
+  .proto-note-row-item:has(.proto-note-row__menu--open) .proto-note-row__menu-trigger {
+    opacity: 1;
+    pointer-events: auto;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .proto-note-row__menu-trigger {
+    transition: background 0.08s, color 0.08s;
+  }
+}
+
+.proto-note-row__menu-trigger:hover:not(:disabled),
+.proto-note-row__menu-trigger:focus-visible {
+  background: rgba(0, 0, 0, 0.06);
+  color: var(--pds-text-primary);
+}
+
+.proto-note-row__menu-trigger:focus-visible {
+  outline: 2px solid rgba(56, 105, 230, 0.35);
+  outline-offset: -1px;
+}
+
+.proto-note-row__menu-trigger:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.proto-note-row__menu .proto-menu__popover {
+  z-index: 10002;
+}
+
+/* Folder rows and legacy full-width note button (no menu) */
 .proto-note-row {
   display: block;
   width: 100%;
@@ -590,6 +769,35 @@
   font-size: 12px;
   color: var(--pds-text-primary);
   word-break: break-word;
+}
+
+.proto-inspector-note-id-btn {
+  font-family:
+    ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    Monaco,
+    Consolas,
+    "Liberation Mono",
+    monospace;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--pds-text-primary);
+  background: transparent;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  text-align: left;
+}
+
+.proto-inspector-note-id-btn:hover {
+  opacity: 0.85;
+}
+
+.proto-inspector-note-id-btn:focus-visible {
+  outline: 2px solid rgba(56, 105, 230, 0.35);
+  outline-offset: 2px;
+  border-radius: 2px;
 }
 
 .proto-inspector-input {

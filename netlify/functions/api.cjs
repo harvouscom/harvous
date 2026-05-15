@@ -30377,9 +30377,9 @@ async function generateAutoTags(noteTitle, noteContent, userId, confidenceThresh
       console.error("Auto-tag generation failed: userId is required");
       return { suggestions: [], totalFound: 0, highConfidence: 0 };
     }
-    const { stripHtml: stripHtml2 } = await Promise.resolve().then(() => (init_html_stripper(), html_stripper_exports));
+    const { stripHtml: stripHtml3 } = await Promise.resolve().then(() => (init_html_stripper(), html_stripper_exports));
     const cleanTitle2 = (noteTitle || "").trim();
-    const cleanContent = stripHtml2(noteContent || "", { preserveSpacing: true }).trim();
+    const cleanContent = stripHtml3(noteContent || "", { preserveSpacing: true }).trim();
     const fullText = `${cleanTitle2} ${cleanContent}`.trim();
     if (!fullText) return { suggestions: [], totalFound: 0, highConfidence: 0 };
     let foundKeywords = [];
@@ -72475,6 +72475,9 @@ function handleAPIError(error, context) {
   let errorCode;
   if (error instanceof Error) {
     errorMessage = error.message;
+    if (typeof window === "undefined" && error.cause instanceof Error && error.cause.message) {
+      errorMessage = `${errorMessage} \u2014 ${error.cause.message}`;
+    }
   } else if (typeof error === "string") {
     errorMessage = error;
   } else if (error && typeof error === "object" && "message" in error) {
@@ -87711,6 +87714,7 @@ route11.delete("/api/study-threads/:id", requireAuth, rateLimit("write"), async 
 var study_threads_default = route11;
 
 // server/routes/spaces.ts
+init_drizzle_orm();
 init_db2();
 init_dates();
 init_xp_system();
@@ -87887,7 +87891,186 @@ function idToUrl(id, threadContext, fromNoteId) {
 }
 
 // server/routes/spaces.ts
+init_scripture_detector();
+
+// server/utils/build-space-scripture-index.ts
+init_bible_chapters();
+init_scripture_detector();
+function stripHtml2(html) {
+  return html.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+}
+function extractDataScriptureReferences(html) {
+  const out = [];
+  const re2 = /data-scripture-reference\s*=\s*["']([^"']+)["']/gi;
+  let m2;
+  while ((m2 = re2.exec(html)) !== null) {
+    const v2 = m2[1]?.trim();
+    if (v2) out.push(v2);
+  }
+  return out;
+}
+function canonicalBookOrderMap() {
+  const data = bible_chapters_default;
+  const m2 = /* @__PURE__ */ new Map();
+  let i = 0;
+  for (const row of data) {
+    if (!m2.has(row.book)) {
+      m2.set(row.book, i++);
+    }
+  }
+  const song = m2.get("Song of Solomon");
+  if (song !== void 0 && !m2.has("Song of Songs")) {
+    m2.set("Song of Songs", song);
+  }
+  return m2;
+}
+function bookOrderToTitle() {
+  const data = bible_chapters_default;
+  const orderMap = canonicalBookOrderMap();
+  const m2 = /* @__PURE__ */ new Map();
+  for (const row of data) {
+    const ord = orderMap.get(row.book);
+    if (ord === void 0) continue;
+    if (!m2.has(ord)) m2.set(ord, row.book);
+  }
+  return m2;
+}
+function passageKey(bookOrder, chapter, verseStart, verseEnd) {
+  return `${bookOrder}:${chapter}:${verseStart}:${verseEnd}`;
+}
+function parsedFields(parsed) {
+  const ch = parsed.chapter;
+  const v2 = parsed.verse;
+  if (Array.isArray(v2)) {
+    return { chapter: ch, verseStart: v2[0], verseEnd: v2[1] };
+  }
+  return { chapter: ch, verseStart: v2, verseEnd: v2 };
+}
+function buildSpaceScriptureIndex(notes) {
+  const bookOrderMap = canonicalBookOrderMap();
+  const orderTitles = bookOrderToTitle();
+  const passages = /* @__PURE__ */ new Map();
+  const ingestRefString = (noteRow, refSource) => {
+    const norm = normalizeScriptureReference(refSource.trim()) ?? refSource.trim();
+    const parsed = parseScriptureReference(norm);
+    if (!parsed) return;
+    const bookOrder = bookOrderMap.get(parsed.book);
+    if (bookOrder === void 0) return;
+    const { chapter, verseStart, verseEnd } = parsedFields(parsed);
+    const pKey = passageKey(bookOrder, chapter, verseStart, verseEnd);
+    let m2 = passages.get(pKey);
+    if (!m2) {
+      m2 = {
+        displayRef: norm,
+        bookOrder,
+        chapter,
+        verseStart,
+        verseEnd,
+        referenceCount: 0,
+        noteIds: /* @__PURE__ */ new Set(),
+        notes: /* @__PURE__ */ new Map()
+      };
+      passages.set(pKey, m2);
+    }
+    m2.referenceCount += 1;
+    if (!m2.noteIds.has(noteRow.id)) {
+      m2.noteIds.add(noteRow.id);
+      m2.notes.set(noteRow.id, {
+        id: noteRow.id,
+        title: noteRow.title,
+        updatedAt: noteRow.updatedAt,
+        createdAt: noteRow.createdAt
+      });
+    }
+  };
+  for (const note of notes) {
+    const raw2 = note.content ?? "";
+    const plain = stripHtml2(raw2);
+    const detected = detectScriptureReferences(plain);
+    for (const ref of detected) {
+      ingestRefString(note, ref.reference);
+    }
+    for (const attrRef of extractDataScriptureReferences(raw2)) {
+      ingestRefString(note, attrRef);
+    }
+  }
+  const bookMap = /* @__PURE__ */ new Map();
+  const sortedPassageEntries = [...passages.entries()].sort(([, a], [, b3]) => {
+    if (a.bookOrder !== b3.bookOrder) return a.bookOrder - b3.bookOrder;
+    if (a.chapter !== b3.chapter) return a.chapter - b3.chapter;
+    if (a.verseStart !== b3.verseStart) return a.verseStart - b3.verseStart;
+    return a.verseEnd - b3.verseEnd;
+  });
+  for (const [pKey, m2] of sortedPassageEntries) {
+    const noteArr = [...m2.notes.values()].sort((x2, y2) => {
+      const ax = x2.updatedAt || x2.createdAt;
+      const ay = y2.updatedAt || y2.createdAt;
+      return ay.localeCompare(ax);
+    });
+    let bucket = bookMap.get(m2.bookOrder);
+    if (!bucket) {
+      bucket = { referenceCount: 0, noteIds: /* @__PURE__ */ new Set(), passageList: [] };
+      bookMap.set(m2.bookOrder, bucket);
+    }
+    bucket.referenceCount += m2.referenceCount;
+    for (const id of m2.noteIds) {
+      bucket.noteIds.add(id);
+    }
+    bucket.passageList.push({
+      passageKey: pKey,
+      displayRef: m2.displayRef,
+      bookOrder: m2.bookOrder,
+      chapter: m2.chapter,
+      verseStart: m2.verseStart,
+      verseEnd: m2.verseEnd,
+      referenceCount: m2.referenceCount,
+      noteCount: m2.noteIds.size,
+      notes: noteArr
+    });
+  }
+  const books = [...bookMap.entries()].sort((a, b3) => a[0] - b3[0]).map(([bookOrder, bucket]) => ({
+    bookOrder,
+    title: orderTitles.get(bookOrder) ?? "Scripture",
+    referenceCount: bucket.referenceCount,
+    noteCount: bucket.noteIds.size,
+    passages: bucket.passageList
+  }));
+  return { books };
+}
+
+// server/utils/pg-undefined-relation.ts
+function isPgUndefinedRelation(error, relationName) {
+  const needle = `relation "${relationName}" does not exist`;
+  let current = error;
+  const seen = /* @__PURE__ */ new Set();
+  for (let depth = 0; depth < 12 && current != null; depth++) {
+    if (typeof current === "object" && current !== null) {
+      if (seen.has(current)) break;
+      seen.add(current);
+    }
+    const msg = current instanceof Error ? current.message : typeof current === "string" ? current : "";
+    const code = current !== null && typeof current === "object" && "code" in current && current.code != null ? String(current.code) : "";
+    if (msg.includes(needle)) return true;
+    if (code === "42P01" && msg.includes(relationName)) return true;
+    current = current instanceof Error && "cause" in current ? current.cause : void 0;
+  }
+  return false;
+}
+function isStudyThreadEntriesTableMissing(error) {
+  return isPgUndefinedRelation(error, "StudyThreadEntries");
+}
+
+// server/routes/spaces.ts
 var route12 = new Hono2();
+function normalizePrototypeSpaceId(spaceIdRaw) {
+  return spaceIdRaw.startsWith("space_") ? spaceIdRaw : `space_${spaceIdRaw}`;
+}
+function studyThreadEligibleForHighlightList(entry) {
+  const passageHighlight = entry.entryKindRaw === "scriptureLink" && (entry.scripturePassageExcerpt ?? "").trim() !== "" && (entry.scripturePassageTranslation ?? "").trim() !== "";
+  const anchoredHighlight = ["miniNote", "linkedNote", "scriptureLink"].includes(entry.entryKindRaw) && entry.anchorLocation != null && entry.anchorLocation >= 0 && entry.anchorLength != null && entry.anchorLength > 0;
+  const proseSnippetMiniNote = entry.entryKindRaw === "miniNote" && ((entry.sourceSnippet ?? "").trim() !== "" || (entry.anchorTextSnapshot ?? "").trim() !== "");
+  return passageHighlight || anchoredHighlight || proseSnippetMiniNote;
+}
 function parseItemIds(raw2) {
   if (!raw2) return [];
   const trimmed = raw2.trim();
@@ -88130,6 +88313,157 @@ route12.get("/api/spaces/:spaceId/notes", requireAuth, async (c) => {
     return c.json({ notes: result.notes, hasMore: result.hasMore, offset, limit });
   } catch (error) {
     const standardError = handleAPIError(error, { endpoint: "/api/spaces/[spaceId]/notes", action: "get_space_notes" });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+route12.get("/api/spaces/:spaceId/study-thread-highlights", requireAuth, async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const spaceIdNorm = normalizePrototypeSpaceId(requireParam(c, "spaceId"));
+    try {
+      await requireSpaceAccess(spaceIdNorm, auth.userId);
+    } catch (err) {
+      if (err instanceof SpaceAccessError) return c.json({ error: err.message, code: err.code }, err.status);
+      throw err;
+    }
+    const highlightCandidates = or(
+      eq(StudyThreadEntries.entryKindRaw, "scriptureLink"),
+      eq(StudyThreadEntries.entryKindRaw, "miniNote"),
+      and(isNotNull(StudyThreadEntries.anchorLocation), isNotNull(StudyThreadEntries.anchorLength), gt(StudyThreadEntries.anchorLength, 0))
+    );
+    let rows;
+    try {
+      rows = await db.select({
+        ...getTableColumns(StudyThreadEntries),
+        parentNoteTitle: Notes.title
+      }).from(StudyThreadEntries).innerJoin(Notes, eq(StudyThreadEntries.parentNoteId, Notes.id)).where(
+        and(
+          eq(StudyThreadEntries.isArchived, false),
+          ne(StudyThreadEntries.entryKindRaw, "workspace"),
+          highlightCandidates,
+          eq(StudyThreadEntries.userId, auth.userId),
+          eq(Notes.userId, auth.userId),
+          eq(Notes.spaceId, spaceIdNorm)
+        )
+      ).orderBy(desc(StudyThreadEntries.highlightListEditedAt), desc(StudyThreadEntries.createdAt));
+    } catch (e) {
+      if (isStudyThreadEntriesTableMissing(e)) {
+        console.warn(
+          "[api/spaces/study-thread-highlights] StudyThreadEntries table missing; returning empty list. Run `npm run db:push` or apply server/db/manual/create-study-thread-entries.sql."
+        );
+        return c.json({ success: true, studyThreads: [] });
+      }
+      throw e;
+    }
+    const eligibleRows = rows.filter((row) => studyThreadEligibleForHighlightList(row));
+    return c.json({
+      success: true,
+      studyThreads: eligibleRows.map((row) => {
+        const { parentNoteTitle, ...entry } = row;
+        return {
+          ...mapStudyRow(entry),
+          parentNoteTitle: parentNoteTitle ?? ""
+        };
+      })
+    });
+  } catch (error) {
+    const standardError = handleAPIError(error, {
+      endpoint: "/api/spaces/[spaceId]/study-thread-highlights",
+      action: "study_thread_highlights"
+    });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+route12.get("/api/spaces/:spaceId/scripture-index", requireAuth, async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const spaceIdNorm = normalizePrototypeSpaceId(requireParam(c, "spaceId"));
+    try {
+      await requireSpaceAccess(spaceIdNorm, auth.userId);
+    } catch (err) {
+      if (err instanceof SpaceAccessError) return c.json({ error: err.message, code: err.code }, err.status);
+      throw err;
+    }
+    const noteRows = await db.select({
+      id: Notes.id,
+      title: Notes.title,
+      content: Notes.content,
+      updatedAt: Notes.updatedAt,
+      createdAt: Notes.createdAt
+    }).from(Notes).where(
+      and(eq(Notes.spaceId, spaceIdNorm), eq(Notes.userId, auth.userId), eq(Notes.contentEncrypted, false))
+    );
+    const payload = buildSpaceScriptureIndex(
+      noteRows.map((n) => ({
+        id: n.id,
+        title: n.title ?? null,
+        content: n.content ?? null,
+        updatedAt: n.updatedAt ? String(n.updatedAt) : null,
+        createdAt: String(n.createdAt)
+      }))
+    );
+    return c.json({ success: true, ...payload });
+  } catch (error) {
+    const standardError = handleAPIError(error, {
+      endpoint: "/api/spaces/[spaceId]/scripture-index",
+      action: "scripture_index"
+    });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+route12.get("/api/spaces/:spaceId/study-threads/by-scripture", requireAuth, async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const spaceIdNorm = normalizePrototypeSpaceId(requireParam(c, "spaceId"));
+    try {
+      await requireSpaceAccess(spaceIdNorm, auth.userId);
+    } catch (err) {
+      if (err instanceof SpaceAccessError) return c.json({ error: err.message, code: err.code }, err.status);
+      throw err;
+    }
+    const refRaw = c.req.query("reference") ?? "";
+    const translation = (c.req.query("translation") ?? "").trim() || "NET";
+    const norm = normalizeScriptureReference(refRaw.trim()) ?? refRaw.trim();
+    if (!norm) return c.json({ error: "reference query required" }, 400);
+    let rows;
+    try {
+      rows = await db.select({
+        ...getTableColumns(StudyThreadEntries),
+        parentNoteTitle: Notes.title
+      }).from(StudyThreadEntries).innerJoin(Notes, eq(StudyThreadEntries.parentNoteId, Notes.id)).where(
+        and(
+          eq(StudyThreadEntries.userId, auth.userId),
+          eq(Notes.userId, auth.userId),
+          eq(Notes.spaceId, spaceIdNorm),
+          eq(StudyThreadEntries.entryKindRaw, "scriptureLink"),
+          eq(StudyThreadEntries.scriptureReference, norm),
+          eq(StudyThreadEntries.scripturePassageTranslation, translation)
+        )
+      ).orderBy(desc(StudyThreadEntries.highlightListEditedAt), desc(StudyThreadEntries.createdAt));
+    } catch (e) {
+      if (isStudyThreadEntriesTableMissing(e)) {
+        console.warn(
+          "[api/spaces/study-threads/by-scripture] StudyThreadEntries table missing; returning empty list."
+        );
+        return c.json({ success: true, studyThreads: [] });
+      }
+      throw e;
+    }
+    return c.json({
+      success: true,
+      studyThreads: rows.map((row) => {
+        const { parentNoteTitle, ...entry } = row;
+        return {
+          ...mapStudyRow(entry),
+          parentNoteTitle: parentNoteTitle ?? ""
+        };
+      })
+    });
+  } catch (error) {
+    const standardError = handleAPIError(error, {
+      endpoint: "/api/spaces/[spaceId]/study-threads/by-scripture",
+      action: "study_threads_by_scripture_space"
+    });
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
@@ -93843,7 +94177,19 @@ app9.get("/api/sync/bootstrap", requireAuth, async (c) => {
         confidence: NoteTags.confidence,
         createdAt: NoteTags.createdAt
       }).from(NoteTags).innerJoin(Notes, eq(Notes.id, NoteTags.noteId)).where(eq(Notes.userId, auth.userId)),
-      db.select().from(StudyThreadEntries).where(eq(StudyThreadEntries.userId, auth.userId)),
+      (async () => {
+        try {
+          return await db.select().from(StudyThreadEntries).where(eq(StudyThreadEntries.userId, auth.userId));
+        } catch (e) {
+          if (isStudyThreadEntriesTableMissing(e)) {
+            console.warn(
+              "[sync/bootstrap] StudyThreadEntries table missing; returning empty study threads. Run `npm run db:push` or apply server/db/manual/create-study-thread-entries.sql."
+            );
+            return [];
+          }
+          throw e;
+        }
+      })(),
       db.select({
         id: UserMetadata.id,
         userId: UserMetadata.userId,
@@ -93994,7 +94340,22 @@ app9.get("/api/sync/changes", requireAuth, async (c) => {
         confidence: NoteTags.confidence,
         createdAt: NoteTags.createdAt
       }).from(NoteTags).innerJoin(Notes, eq(Notes.id, NoteTags.noteId)).where(and(eq(Notes.userId, auth.userId), gt(NoteTags.createdAt, sinceDate))),
-      db.select().from(StudyThreadEntries).where(and(eq(StudyThreadEntries.userId, auth.userId), or(gt(StudyThreadEntries.updatedAt, sinceDate), gt(StudyThreadEntries.createdAt, sinceDate)))),
+      (async () => {
+        try {
+          return await db.select().from(StudyThreadEntries).where(
+            and(
+              eq(StudyThreadEntries.userId, auth.userId),
+              or(gt(StudyThreadEntries.updatedAt, sinceDate), gt(StudyThreadEntries.createdAt, sinceDate))
+            )
+          );
+        } catch (e) {
+          if (isStudyThreadEntriesTableMissing(e)) {
+            console.warn("[sync/changes] StudyThreadEntries table missing; returning empty study-thread delta.");
+            return [];
+          }
+          throw e;
+        }
+      })(),
       db.select({
         id: UserMetadata.id,
         userId: UserMetadata.userId,

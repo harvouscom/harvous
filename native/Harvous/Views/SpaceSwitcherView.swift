@@ -12,7 +12,7 @@ struct SpaceSwitcherView: View {
     @State private var spaceToManage: Space?
 
     private var visibleSpaces: [Space] {
-        allSpaces.filter { !$0.isArchived }
+        allSpaces.filter { !$0.isArchived && $0.visibility == .personal }
     }
 
     private var selectedId: UUID {
@@ -20,6 +20,51 @@ struct SpaceSwitcherView: View {
     }
 
     var body: some View {
+        Group {
+            if visibleSpaces.count <= 1 {
+                personalHomeChrome
+            } else {
+                spacePickerMenu
+            }
+        }
+        .accessibilityLabel("Space")
+        .accessibilityValue(currentSpaceName)
+        .help("Study space.")
+        .onAppear {
+            spaceStore.bootstrapIfNeeded(modelContext: modelContext)
+            spaceStore.repairSelection(modelContext: modelContext)
+        }
+        .onChange(of: allSpaces.count) { _, _ in
+            spaceStore.repairSelection(modelContext: modelContext)
+        }
+        .sheet(isPresented: $spaceStore.showCreateSpaceSheet) {
+            CreateSpaceSheet()
+                .environmentObject(spaceStore)
+        }
+        .sheet(isPresented: $spaceStore.showJoinSpaceSheet) {
+            JoinSpaceSheet()
+                .environmentObject(spaceStore)
+        }
+        .sheet(item: $spaceToManage) { space in
+            ManageSpaceSheet(space: space)
+                .environmentObject(spaceStore)
+        }
+    }
+
+    private var personalHomeChrome: some View {
+        Label {
+            Text(currentSpaceName)
+                .lineLimit(1)
+                .foregroundStyle(.primary)
+        } icon: {
+            HarvousFAGlyph(assetName: currentCatalogAssetName, edgePt: HarvousFAIconMetrics.catalogGlyphBoxPt)
+                .foregroundStyle(.primary)
+        }
+        .labelStyle(.titleAndIcon)
+        .foregroundStyle(.primary)
+    }
+
+    private var spacePickerMenu: some View {
         Menu {
             Section {
                 ForEach(visibleSpaces, id: \.id) { space in
@@ -87,10 +132,10 @@ struct SpaceSwitcherView: View {
                 }
             }
         } label: {
-            #if os(macOS)
+#if os(macOS)
             HarvousFAGlyph(assetName: currentCatalogAssetName, edgePt: 15)
                 .offset(y: -1)
-            #else
+#else
             Label {
                 Text(currentSpaceName)
                     .lineLimit(1)
@@ -100,39 +145,16 @@ struct SpaceSwitcherView: View {
                     .foregroundStyle(.primary)
             }
             .labelStyle(.titleAndIcon)
-            #endif
+#endif
         }
-        #if os(macOS)
+#if os(macOS)
         .menuStyle(.automatic)
         .buttonStyle(.bordered)
         .menuIndicator(.hidden)
-        #else
+#else
         .menuStyle(.borderlessButton)
-        // Home / folders toolbars sit under `NavigationStack.tint(.harvousAccent)`; keep space control neutral like `NoteFolderChip`.
         .tint(.primary)
-        #endif
-        .accessibilityLabel("Space")
-        .accessibilityValue(currentSpaceName)
-        .help("Switch the active study space.")
-        .onAppear {
-            spaceStore.bootstrapIfNeeded(modelContext: modelContext)
-            spaceStore.repairSelection(modelContext: modelContext)
-        }
-        .onChange(of: allSpaces.count) { _, _ in
-            spaceStore.repairSelection(modelContext: modelContext)
-        }
-        .sheet(isPresented: $spaceStore.showCreateSpaceSheet) {
-            CreateSpaceSheet()
-                .environmentObject(spaceStore)
-        }
-        .sheet(isPresented: $spaceStore.showJoinSpaceSheet) {
-            JoinSpaceSheet()
-                .environmentObject(spaceStore)
-        }
-        .sheet(item: $spaceToManage) { space in
-            ManageSpaceSheet(space: space)
-                .environmentObject(spaceStore)
-        }
+#endif
     }
 
     private var currentSpaceName: String {

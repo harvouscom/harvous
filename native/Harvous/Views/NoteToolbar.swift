@@ -49,6 +49,12 @@ struct NoteToolbar: View {
                     .clipShape(Capsule(style: .continuous))
             }
         }
+        // Touch parity with macOS `.onHover` — keep idle hide timer cancelled while a finger is on the bar.
+        .simultaneousGesture(
+            DragGesture(minimumDistance: 0)
+                .onChanged { _ in proxy.setFormatToolbarHover(true) }
+                .onEnded { _ in proxy.setFormatToolbarHover(false) }
+        )
 #else
         stack
             .background(.thinMaterial)

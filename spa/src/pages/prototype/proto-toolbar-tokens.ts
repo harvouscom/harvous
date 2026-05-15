@@ -6,5 +6,5 @@
  */
 export const PROTO_TOOLBAR_ICON_SIZE = 15;
 
-/** List view mode trigger (`ListViewMenu` notes / folders icon) — kept equal to toolbar for parity. */
+/** List view mode trigger (`ListViewMenu` notes / folders / highlights / scripture icon) — toolbar-aligned box. */
 export const PROTO_LIST_VIEW_ICON_SIZE = 15;

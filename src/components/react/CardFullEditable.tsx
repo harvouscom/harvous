@@ -31,6 +31,7 @@ import {
   suggestSecondaryCollectionsFromNote,
 } from '@/utils/bible-study-collection-web';
 import { effectiveNoteFolderLabel } from '@/utils/note-folder-display';
+import { stripServerAutoUntitledNoteTitleForDisplay } from '@/utils/server-auto-untitled-note-display';
 
 // Lazy load TiptapEditor to reduce initial bundle size - only loads when user enters edit mode
 const TiptapEditor = lazy(() => import('./TiptapEditor'));
@@ -40,6 +41,13 @@ function looksLikeEncryptedBlob(s: string): boolean {
   if (!s || typeof s !== 'string' || s.length < 40) return false;
   const t = s.trim();
   return t.length >= 40 && /^[A-Za-z0-9+/]+=*$/.test(t);
+}
+
+/** Native parity: empty TipTap/HTML body (including `<p></p>`). */
+function isTiptapBodyEmpty(html: string | undefined | null): boolean {
+  if (html == null || html === '') return true;
+  const text = html.replace(/<[^>]+>/g, ' ').replace(/&nbsp;/gi, ' ').replace(/\s+/g, ' ').trim();
+  return text.length === 0;
 }
 
 // Title character limits
@@ -90,8 +98,13 @@ interface CardFullEditableProps {
    *  parent can render bars (format / note actions) as siblings of the scroll container,
    *  pinned to the bottom of the editor column. */
   formatToolbarPortalTarget?: HTMLElement | null;
-  /** Prototype-only: bubbles up the current bottom chrome mode (format / scripture / highlight / noteActions). */
-  onPrototypeChromeModeChange?: (mode: 'format' | 'scripture' | 'highlight' | 'noteActions') => void;
+  /** Prototype-only: bubbles up the current bottom chrome mode (format / scripture / highlight / noteActions / hidden). */
+  onPrototypeChromeModeChange?: (mode: 'format' | 'scripture' | 'highlight' | 'noteActions' | 'hidden') => void;
+  /**
+   * Prototype-only: when set, overrides whether the editor switches to note-actions chrome on blur /
+   * when the format toolbar is inactive. Omit to derive from `noteActionsPortalTarget` or `prototypeNoteActionBar`.
+   */
+  prototypeNoteActionsChrome?: boolean;
   /** Prototype-only: folder chip label derived from local collection chrome (keeps toolbar in sync while editing). */
   onPrototypeFolderDisplayChange?: (label: string | null) => void;
   /**
@@ -109,6 +122,11 @@ interface CardFullEditableProps {
   scriptureChromePortalTarget?: HTMLElement | null;
   /** Optional: URL/search-driven collection context for the multi-collection banner. */
   collectionNavContext?: WebCollectionNavSource;
+  /**
+   * With `editorChromeMode="prototypeNative"`, keep title + body in edit mode (prototype route only).
+   * Production note pages omit this so users still get view-then-edit.
+   */
+  alwaysEditing?: boolean;
 }
 
 export default function CardFullEditable({ 
@@ -136,6 +154,7 @@ export default function CardFullEditable({
   formatToolbarPortalTarget = null,
   onPrototypeChromeModeChange,
   onPrototypeFolderDisplayChange,
+  prototypeNoteActionsChrome,
   noteActionsPortalTarget = null,
   initialPrimaryCollection = null,
   initialSecondaryCollections = [] as string[],
@@ -145,7 +164,13 @@ export default function CardFullEditable({
   scriptureChromePortalTarget = null,
   highlightChromePortalTarget = null,
   collectionNavContext = { type: 'home' } as WebCollectionNavSource,
+  alwaysEditing = false,
 }: CardFullEditableProps) {
+  const effectivePrototypeNoteActionsChrome =
+    editorChromeMode === 'prototypeNative'
+      ? (prototypeNoteActionsChrome ?? !!(noteActionsPortalTarget || prototypeNoteActionBar))
+      : false;
+
   // Override isEditable for scripture notes, onboarding pack notes, and offline (create-only mode)
   const isCurrentlyOffline = useIsOffline();
   const effectiveIsEditable =
@@ -181,14 +206,20 @@ export default function CardFullEditable({
   const [scrollPosition, setScrollPosition] = useState(0);
   const [parentThreadId, setParentThreadId] = useState<string | undefined>(undefined);
   const [prototypeBottomChromeMode, setPrototypeBottomChromeModeInternal] = useState<
-    'format' | 'scripture' | 'highlight' | 'noteActions'
+    'format' | 'scripture' | 'highlight' | 'noteActions' | 'hidden'
   >('noteActions');
+  const [prototypeScripturePillOpenRequest, setPrototypeScripturePillOpenRequest] = useState<{
+    reference: string;
+    translation: string | null;
+    noteId: string | null;
+    pillAccent: string | null;
+  } | null>(null);
   const onPrototypeChromeModeChangeRef = useRef(onPrototypeChromeModeChange);
   useEffect(() => {
     onPrototypeChromeModeChangeRef.current = onPrototypeChromeModeChange;
   }, [onPrototypeChromeModeChange]);
   const setPrototypeBottomChromeMode = useCallback(
-    (mode: 'format' | 'scripture' | 'highlight' | 'noteActions') => {
+    (mode: 'format' | 'scripture' | 'highlight' | 'noteActions' | 'hidden') => {
       setPrototypeBottomChromeModeInternal(mode);
       onPrototypeChromeModeChangeRef.current?.(mode);
     },
@@ -197,9 +228,11 @@ export default function CardFullEditable({
 
   useEffect(() => {
     if (!isContentEditing) {
-      setPrototypeBottomChromeMode('noteActions');
+      setPrototypeBottomChromeMode(
+        effectivePrototypeNoteActionsChrome ? 'noteActions' : 'hidden',
+      );
     }
-  }, [isContentEditing, setPrototypeBottomChromeMode]);
+  }, [isContentEditing, effectivePrototypeNoteActionsChrome, setPrototypeBottomChromeMode]);
 
   const [collectionChrome, setCollectionChrome] = useState<CollectionChromeState>({
     primaryCollection: initialPrimaryCollection ?? null,
@@ -228,24 +261,43 @@ export default function CardFullEditable({
   ]);
 
   useEffect(() => {
+    setPrototypeScripturePillOpenRequest(null);
+  }, [noteId]);
+
+  const onPrototypeScripturePillOpenRequestConsumed = useCallback(() => {
+    setPrototypeScripturePillOpenRequest(null);
+  }, []);
+
+  useEffect(() => {
     if (editorChromeMode !== 'prototypeNative') return;
-    if (!isTitleEditing && !isContentEditing) return;
     const timer = window.setTimeout(() => {
       setCollectionChrome(prev => {
         if (prev.collectionUserOverride && !prev.collectionPinned) return prev;
-        let body = editContent;
-        if (editorInstanceRef.current && !editorInstanceRef.current.isDestroyed) {
+        const editing = isTitleEditing || isContentEditing;
+        const titleForSuggest = editing ? editTitle : displayTitle;
+        let bodyForSuggest: string;
+        if (isContentEditing && editorInstanceRef.current && !editorInstanceRef.current.isDestroyed) {
           try {
-            body = editorInstanceRef.current.getHTML();
+            bodyForSuggest = editorInstanceRef.current.getHTML();
           } catch {
-            /* keep editContent */
+            bodyForSuggest = editing ? editContent : displayContent;
           }
+        } else {
+          bodyForSuggest = editing ? editContent : displayContent;
         }
-        return applyAutoCollectionAfterEdit(prev, editTitle, body, new Date());
+        return applyAutoCollectionAfterEdit(prev, titleForSuggest, bodyForSuggest, new Date());
       });
     }, 400);
     return () => window.clearTimeout(timer);
-  }, [editTitle, editContent, editorChromeMode, isTitleEditing, isContentEditing]);
+  }, [
+    editTitle,
+    editContent,
+    displayTitle,
+    displayContent,
+    editorChromeMode,
+    isTitleEditing,
+    isContentEditing,
+  ]);
 
   useEffect(() => {
     if (editorChromeMode !== 'prototypeNative' || !onPrototypeFolderDisplayChange) return;
@@ -383,7 +435,11 @@ export default function CardFullEditable({
 
   // Initialize display content (and apply any pending sessionStorage update from createHyperlink when card wasn't mounted)
   useEffect(() => {
-    setDisplayTitle(title);
+    const nextDisplayTitle =
+      editorChromeMode === 'prototypeNative' && noteType === 'default'
+        ? stripServerAutoUntitledNoteTitleForDisplay(title)
+        : title;
+    setDisplayTitle(nextDisplayTitle ?? '');
     if (skipNextContentSyncRef.current) {
       skipNextContentSyncRef.current = false;
       return;
@@ -418,7 +474,69 @@ export default function CardFullEditable({
     if (!hasLocalContentUpdate.current) {
       setDisplayContent(content);
     }
-  }, [title, content, contentEncrypted, lockStateOverride, noteId]);
+  }, [title, content, contentEncrypted, lockStateOverride, noteId, editorChromeMode, noteType]);
+
+  // Prototype route: start in title+body edit (native parity) on note open / unlock — do not depend on title/content
+  // props after mount or edits reset on every server refresh.
+  useEffect(() => {
+    if (editorChromeMode !== 'prototypeNative' || !alwaysEditing || !effectiveIsEditable) return;
+    if (readOnlyLikeScripture || noteType === 'scripture') return;
+    if (contentEncrypted && !isNoteUnlocked(noteId ?? '')) return;
+
+    const initialTitle =
+      noteType === 'resource'
+        ? (title || resourceTitle || '')
+        : editorChromeMode === 'prototypeNative'
+          ? stripServerAutoUntitledNoteTitleForDisplay(title)
+          : title;
+    const c = content ?? '';
+    const initialContent =
+      noteType === 'resource' && !c.trim() && resourceDescription ? resourceDescription : c;
+
+    setEditTitle(initialTitle);
+    setEditContent(initialContent);
+    setIsTitleEditing(true);
+    setIsContentEditing(true);
+    setHasChanges(false);
+  }, [
+    noteId,
+    lockStateOverride,
+    editorChromeMode,
+    alwaysEditing,
+    effectiveIsEditable,
+    noteType,
+    readOnlyLikeScripture,
+    contentEncrypted,
+  ]);
+
+  // Brand-new empty note: focus title field (Native NoteEditorView ~80ms delay).
+  useEffect(() => {
+    if (editorChromeMode !== 'prototypeNative' || !alwaysEditing || !effectiveIsEditable) return;
+    if (readOnlyLikeScripture || noteType === 'scripture') return;
+    if (contentEncrypted && !isNoteUnlocked(noteId ?? '')) return;
+
+    const t =
+      noteType === 'default'
+        ? stripServerAutoUntitledNoteTitleForDisplay(title).trim()
+        : (title ?? '').trim();
+    if (t.length > 0 || !isTiptapBodyEmpty(content ?? '')) return;
+
+    const id = window.setTimeout(() => {
+      titleInputRef.current?.focus();
+    }, 80);
+    return () => window.clearTimeout(id);
+  }, [
+    noteId,
+    lockStateOverride,
+    editorChromeMode,
+    alwaysEditing,
+    effectiveIsEditable,
+    noteType,
+    readOnlyLikeScripture,
+    contentEncrypted,
+    title,
+    content,
+  ]);
 
   // Reset lock state overrides when contentEncrypted prop changes (e.g. from server)
   useEffect(() => {
@@ -1093,8 +1211,10 @@ export default function CardFullEditable({
 
   const cancelEdit = () => {
     keyboardProxyRef.current?.blur();
-    setIsTitleEditing(false);
-    setIsContentEditing(false);
+    if (!alwaysEditing) {
+      setIsTitleEditing(false);
+      setIsContentEditing(false);
+    }
     setEditTitle(displayTitle);
     setEditContent(displayContent);
     setHasChanges(false);
@@ -1142,8 +1262,9 @@ export default function CardFullEditable({
 
   useEffect(() => {
     flushEditsRef.current = async (closeAfter: boolean) => {
+      const shouldCloseEditMode = closeAfter && !alwaysEditing;
       if (!hasChanges) {
-        if (closeAfter) {
+        if (shouldCloseEditMode) {
           setIsTitleEditing(false);
           setIsContentEditing(false);
         }
@@ -1197,7 +1318,7 @@ export default function CardFullEditable({
         const applyAfterPersist = (finalTitle: string, finalHtml: string) => {
           setDisplayTitle(finalTitle);
           setDisplayContent(finalHtml);
-          if (closeAfter) {
+          if (shouldCloseEditMode) {
             setIsTitleEditing(false);
             setIsContentEditing(false);
             setHasChanges(false);
@@ -1471,6 +1592,22 @@ export default function CardFullEditable({
       const noteId = pillElement.getAttribute('data-note-id');
       const reference = pillElement.getAttribute('data-scripture-reference');
       const pillTranslation = pillElement.getAttribute('data-scripture-translation') || getCachedProfileData()?.defaultTranslation || 'NET';
+
+      // Prototype web shell: from read-only HTML preview, open TipTap + scripture dock — do not navigate away.
+      if (editorChromeMode === 'prototypeNative' && effectiveIsEditable && reference) {
+        e.preventDefault();
+        e.stopPropagation();
+        setPrototypeScripturePillOpenRequest({
+          reference,
+          translation: pillElement.getAttribute('data-scripture-translation'),
+          noteId,
+          pillAccent: pillElement.getAttribute('data-pill-accent'),
+        });
+        if (!isContentEditing) {
+          startEditing('content');
+        }
+        return;
+      }
 
       e.preventDefault();
       e.stopPropagation();
@@ -1748,7 +1885,7 @@ export default function CardFullEditable({
                       width: 'calc(100% + 16px)',
                       resize: 'none',
                     }}
-                    placeholder="Resource title"
+                    placeholder={alwaysEditing ? 'Title' : 'Resource title'}
                     onKeyDown={handleKeyDown}
                     onFocus={() => setIsTitleFocused(true)}
                     onBlur={() => setIsTitleFocused(false)}
@@ -1814,6 +1951,11 @@ export default function CardFullEditable({
                       highlightChromePortalTarget={
                         editorChromeMode === 'prototypeNative' ? highlightChromePortalTarget : null
                       }
+                      prototypeScripturePillOpenRequest={
+                        editorChromeMode === 'prototypeNative' ? prototypeScripturePillOpenRequest : null
+                      }
+                      onPrototypeScripturePillOpenRequestConsumed={onPrototypeScripturePillOpenRequestConsumed}
+                      prototypeNoteActionsChrome={effectivePrototypeNoteActionsChrome}
                     />
                   </Suspense>
                 </div>
@@ -1945,7 +2087,7 @@ export default function CardFullEditable({
   }
 
   const noteTitleFontFamily =
-    editorChromeMode === 'prototypeNative' ? 'var(--pds-font-body)' : 'var(--font-sans)';
+    editorChromeMode === 'prototypeNative' ? 'var(--pds-font-display)' : 'var(--font-sans)';
 
   // Default and Scripture notes - original editable layout
   return (
@@ -2056,7 +2198,7 @@ export default function CardFullEditable({
                   boxSizing: 'border-box',
                   resize: 'none',
                 }}
-                placeholder="Note title"
+                placeholder={alwaysEditing ? 'Title' : 'Note title'}
                 onKeyDown={handleKeyDown}
                 onFocus={() => setIsTitleFocused(true)}
                 onBlur={() => setIsTitleFocused(false)}
@@ -2147,6 +2289,11 @@ export default function CardFullEditable({
                     highlightChromePortalTarget={
                       editorChromeMode === 'prototypeNative' ? highlightChromePortalTarget : null
                     }
+                    prototypeScripturePillOpenRequest={
+                      editorChromeMode === 'prototypeNative' ? prototypeScripturePillOpenRequest : null
+                    }
+                    onPrototypeScripturePillOpenRequestConsumed={onPrototypeScripturePillOpenRequestConsumed}
+                    prototypeNoteActionsChrome={effectivePrototypeNoteActionsChrome}
                   />
                 </Suspense>
               </div>

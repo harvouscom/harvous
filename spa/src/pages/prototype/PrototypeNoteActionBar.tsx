@@ -3,7 +3,8 @@ import { Link } from '@tanstack/react-router';
 import Icon from '@/components/react/Icon';
 import type { LinkedNoteRef } from '../../hooks/queries/useNote';
 import PrototypeConnectNoteSheet from './PrototypeConnectNoteSheet';
-import { noteParamSlug, spaceParamSlug } from './proto-route-slugs';
+import { noteParamSlug } from './proto-route-slugs';
+import { stripServerAutoUntitledNoteTitleForDisplay } from '@/utils/server-auto-untitled-note-display';
 
 const PILL_LABEL_MAX = 28;
 
@@ -21,8 +22,8 @@ function pillDisplayTitle(n: LinkedNoteRef): string {
   if (n.noteType === 'resource' && (n.resourceTitle ?? '').trim()) {
     return (n.resourceTitle ?? '').trim();
   }
-  const t = (n.title ?? '').trim();
-  return t || 'Untitled note';
+  const t = stripServerAutoUntitledNoteTitleForDisplay((n.title ?? '').trim());
+  return t || 'New Note';
 }
 
 function truncatedLabel(text: string): string {
@@ -33,7 +34,7 @@ function truncatedLabel(text: string): string {
 
 function trimmedCurrentTitle(title: string): string {
   const t = title.trim();
-  return t || 'Current note';
+  return t || 'Title';
 }
 
 /** Prototype bottom chrome — linked-note strip + Connect note picker (stored as `linkedFromNoteId`). */
@@ -96,9 +97,8 @@ export default function PrototypeNoteActionBar({
             {linkedFromNotes.map((n) => (
               <span key={n.id} className="proto-note-action-bar__cluster">
                 <Link
-                  to="/prototype/space/$spaceId/n/$noteId"
+                  to="/prototype/n/$noteId"
                   params={{
-                    spaceId: spaceParamSlug(spaceId),
                     noteId: noteParamSlug(n.id),
                   }}
                   className="proto-note-action-bar__pill proto-note-action-bar__pill--link"
@@ -114,9 +114,8 @@ export default function PrototypeNoteActionBar({
               <span key={n.id} className="proto-note-action-bar__cluster">
                 <Icon name="arrows-left-right" size={14} className="proto-note-action-bar__sep" aria-hidden />
                 <Link
-                  to="/prototype/space/$spaceId/n/$noteId"
+                  to="/prototype/n/$noteId"
                   params={{
-                    spaceId: spaceParamSlug(spaceId),
                     noteId: noteParamSlug(n.id),
                   }}
                   className="proto-note-action-bar__pill proto-note-action-bar__pill--link"

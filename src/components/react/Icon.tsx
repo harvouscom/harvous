@@ -42,6 +42,9 @@ import noteStickySvg from '@fortawesome/fontawesome-free/svgs/solid/note-sticky.
 import bookSvg from '@fortawesome/fontawesome-free/svgs/solid/book.svg?raw';
 import paintbrushSvg from '@fortawesome/fontawesome-free/svgs/solid/paintbrush.svg?raw';
 import circleUserSvg from '@fortawesome/fontawesome-free/svgs/solid/circle-user.svg?raw';
+import ellipsisVerticalSvg from '@fortawesome/fontawesome-free/svgs/solid/ellipsis-vertical.svg?raw';
+import thumbtackSvg from '@fortawesome/fontawesome-free/svgs/solid/thumbtack.svg?raw';
+import trashCanSvg from '@fortawesome/fontawesome-free/svgs/solid/trash-can.svg?raw';
 
 function withCurrentColor(svg: string): string {
   return svg.includes('fill="currentColor"') ? svg : svg.replace(/<path /, '<path fill="currentColor" ');
@@ -80,6 +83,7 @@ const icons = {
   // Selection/action icons (Font Awesome)
   check: withCurrentColor(checkSvg),
   xmark: withCurrentColor(xmarkSvg),
+  'trash-can': withCurrentColor(trashCanSvg),
   paste: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="currentColor"><path d="M160 0c-23.7 0-44.8 14.9-52.9 37.3L48 112 48 96c0-26.5-21.5-48-48-48S0 69.5 0 96l0 384c0 26.5 21.5 48 48 48l224 0c26.5 0 48-21.5 48-48l0-16 16 0c26.5 0 48-21.5 48-48l0-256c0-26.5-21.5-48-48-48l-64 0 0-16c0-35.3-28.7-64-64-64zM96 48c0-8.8 7.2-16 16-16s16 7.2 16 16l0 16-32 0 0-16zm64 64l192 0c8.8 0 16 7.2 16 16l0 256c0 8.8-7.2 16-16 16l-192 0c-8.8 0-16-7.2-16-16l0-256c0-8.8 7.2-16 16-16z"/></svg>`,
   
   // Note type icons
@@ -100,6 +104,8 @@ const icons = {
   
   // Navigation/UI icons
   bars: withCurrentColor(barsSvg),
+  'ellipsis-vertical': svgRootCurrentColor(ellipsisVerticalSvg),
+  thumbtack: svgRootCurrentColor(thumbtackSvg),
   gear: withCurrentColor(gearSvg),
   key: withCurrentColor(keySvg),
   'table-cells': withCurrentColor(tableCellsSvg),

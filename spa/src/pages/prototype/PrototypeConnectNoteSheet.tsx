@@ -5,6 +5,7 @@ import { api } from '../../lib/api';
 import { useDebouncedSearchState } from '../../hooks/useDebouncedSearchState';
 import { useConnectNote } from '../../hooks/mutations/useConnectNote';
 import PrototypeSearchInput from './components/PrototypeSearchInput';
+import { stripServerAutoUntitledNoteTitleForDisplay } from '@/utils/server-auto-untitled-note-display';
 
 export interface ConnectNoteCandidate {
   id: string;
@@ -113,7 +114,7 @@ export default function PrototypeConnectNoteSheet({
               onClick={() => handlePick(n.id)}
             >
               <span className="proto-connect-note-sheet__row-title">
-                {(n.title ?? '').trim() || 'Untitled note'}
+                {stripServerAutoUntitledNoteTitleForDisplay((n.title ?? '').trim()) || 'New Note'}
               </span>
             </button>
           ))}

@@ -9,8 +9,6 @@ import ThreadPage from './pages/ThreadPage';
 import NotePage from './pages/NotePage';
 import SimplifiedPrototypeLayout from './layouts/SimplifiedPrototypeLayout';
 import PrototypeHomePage from './pages/prototype/PrototypeHomePage';
-import PrototypeSpaceLayout from './pages/prototype/PrototypeSpaceLayout';
-import PrototypeSpaceIndexPage from './pages/prototype/PrototypeSpaceIndexPage';
 import PrototypeNotePage from './pages/prototype/PrototypeNotePage';
 import PrototypeSearchPage from './pages/prototype/PrototypeSearchPage';
 
@@ -175,22 +173,38 @@ const prototypeSearchRoute = createRoute({
   }),
 });
 
-const prototypeSpaceLayoutRoute = createRoute({
+/** Legacy bookmarks: `/prototype/space/{id}/n/{note}` → flat note URL. */
+const prototypeLegacySpaceNoteRedirectRoute = createRoute({
+  getParentRoute: () => simplifiedPrototypeRoute,
+  path: 'space/$spaceId/n/$noteId',
+  beforeLoad: ({ params }) => {
+    throw redirect({
+      to: '/prototype/n/$noteId',
+      params: { noteId: params.noteId },
+      replace: true,
+    });
+  },
+});
+
+/** Legacy bookmarks: `/prototype/space/{id}` → inbox. */
+const prototypeLegacySpaceRedirectRoute = createRoute({
   getParentRoute: () => simplifiedPrototypeRoute,
   path: 'space/$spaceId',
-  component: PrototypeSpaceLayout,
+  beforeLoad: () => {
+    throw redirect({
+      to: '/prototype/',
+      replace: true,
+    });
+  },
 });
 
-const prototypeSpaceIndexRoute = createRoute({
-  getParentRoute: () => prototypeSpaceLayoutRoute,
-  path: '/',
-  component: PrototypeSpaceIndexPage,
-});
-
-const prototypeSpaceNoteRoute = createRoute({
-  getParentRoute: () => prototypeSpaceLayoutRoute,
+const prototypeNoteFlatRoute = createRoute({
+  getParentRoute: () => simplifiedPrototypeRoute,
   path: 'n/$noteId',
   component: PrototypeNotePage,
+  validateSearch: (search: Record<string, unknown>) => ({
+    studyThread: typeof search.studyThread === 'string' ? search.studyThread : undefined,
+  }),
 });
 
 // 404 catch-all — must be last
@@ -223,9 +237,11 @@ const routeTree = rootRoute.addChildren([
   sharedThreadRoute,
   invitationRoute,
   simplifiedPrototypeRoute.addChildren([
+    prototypeLegacySpaceNoteRedirectRoute,
+    prototypeLegacySpaceRedirectRoute,
     prototypeHomeRoute,
     prototypeSearchRoute,
-    prototypeSpaceLayoutRoute.addChildren([prototypeSpaceIndexRoute, prototypeSpaceNoteRoute]),
+    prototypeNoteFlatRoute,
   ]),
   notFoundRoute,
 ]);

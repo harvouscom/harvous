@@ -412,7 +412,7 @@ struct ActiveScripturePillDock: View {
     }
 
     private var expandedBodyContentFitHeight: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 8) {
             if allowsStructuralReferenceEdit {
                 referenceEditorRow
             }
@@ -456,7 +456,7 @@ struct ActiveScripturePillDock: View {
 
     /// Offered mainly from standalone Highlights-column host: passage scroll consumes all vertical space below the header row(s).
     private var expandedBodyPassageFillsOfferedHeight: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 8) {
             if allowsStructuralReferenceEdit {
                 referenceEditorRow
             }
@@ -617,100 +617,151 @@ struct ActiveScripturePillDock: View {
         var accent: StudyHighlightAccentToken
     }
 
-    /// Translation + Book / Chapter / Verse / range toggle. Single scrollable row; reference changes apply as pickers change.
+    /// Compact insets; label matches `NoteConnectionsBar` connect pills (`HarvousTypography.caption`).
+    private enum ScriptureDockReferenceBarMetrics {
+        static let controlHeight: CGFloat = 30
+        static let rowHSpacing: CGFloat = 6
+        static let numberClusterSpacing: CGFloat = 3
+        static let horizontalPadding: CGFloat = 7
+        static let verticalPadding: CGFloat = 3
+        static let chromeCornerRadius: CGFloat = 10
+        /// Align with `Harvous.ArrowRightArrowLeft` / trail glyphs in `NoteConnectionsBar` (~11pt).
+        static let rangeGlyphPt: CGFloat = 11
+        static let bookMaxWidth: CGFloat = 198
+        static let colonFrameWidth: CGFloat = 6
+        static let dashFrameWidth: CGFloat = 8
+        /// Same as connect placeholder + trail pill labels in the note action bar.
+        static let labelFont = HarvousTypography.caption
+    }
+
+    /// Translation + Book / Chapter / Verse / range toggle — compact bar (see `ScriptureDockReferenceBarMetrics`).
     private var referenceEditorRow: some View {
-        HStack(alignment: .center, spacing: 8) {
+        HStack(alignment: .center, spacing: 0) {
             ScrollView(.horizontal, showsIndicators: false) {
-                HStack(alignment: .center, spacing: 8) {
-                    Picker("Translation", selection: $translation) {
-                        ForEach(ScriptureReference.availableTranslations, id: \.self) { t in
-                            Text(ScriptureReference.displayTranslationLabel(t)).tag(t)
-                        }
-                    }
-                    .pickerStyle(.menu)
-                    .labelsHidden()
-                    .fixedSize(horizontal: true, vertical: false)
-                    .accessibilityLabel("Translation")
-
-                    Picker("Book", selection: $bookIndex) {
-                        ForEach(Array(ScriptureCanonicalBooks.titles.enumerated()), id: \.offset) { pair in
-                            Text(pair.element).tag(pair.offset)
-                        }
-                    }
-                    .pickerStyle(.menu)
-                    .labelsHidden()
-                    .fixedSize(horizontal: true, vertical: false)
-                    .frame(maxWidth: 180, alignment: .leading)
-                    .accessibilityLabel("Book")
-
-                    HStack(alignment: .center, spacing: 3) {
-                        Picker("Chapter", selection: $chapter) {
-                            ForEach(1...maxChapter, id: \.self) { c in
-                                Text(String(c)).tag(c)
+                HStack(alignment: .center, spacing: ScriptureDockReferenceBarMetrics.rowHSpacing) {
+                    Group {
+                        Picker("Translation", selection: $translation) {
+                            ForEach(ScriptureReference.availableTranslations, id: \.self) { t in
+                                Text(ScriptureReference.displayTranslationLabel(t)).tag(t)
                             }
                         }
                         .pickerStyle(.menu)
+                        .controlSize(.small)
                         .labelsHidden()
-                        .frame(minWidth: 52, maxWidth: 64)
-                        .accessibilityLabel("Chapter")
+                        .fixedSize(horizontal: true, vertical: false)
+                        .frame(height: ScriptureDockReferenceBarMetrics.controlHeight)
+                        .accessibilityLabel("Translation")
 
-                        Text(":")
-                            .font(.system(size: 13, weight: .regular))
-                            .foregroundStyle(.tertiary)
-
-                        Picker("Verse", selection: $verseStart) {
-                            ForEach(1...maxVerse, id: \.self) { v in
-                                Text(String(v)).tag(v)
+                        Picker("Book", selection: $bookIndex) {
+                            ForEach(Array(ScriptureCanonicalBooks.titles.enumerated()), id: \.offset) { pair in
+                                Text(pair.element).tag(pair.offset)
                             }
                         }
                         .pickerStyle(.menu)
+                        .controlSize(.small)
                         .labelsHidden()
-                        .frame(minWidth: 52, maxWidth: 64)
-                        .accessibilityLabel("Verse")
+                        .fixedSize(horizontal: true, vertical: false)
+                        .frame(maxWidth: ScriptureDockReferenceBarMetrics.bookMaxWidth, alignment: .leading)
+                        .frame(height: ScriptureDockReferenceBarMetrics.controlHeight)
+                        .accessibilityLabel("Book")
 
-                        if useVerseRange {
-                            Text("–")
-                                .font(.system(size: 13, weight: .regular))
-                                .foregroundStyle(.tertiary)
-
-                            Picker("End verse", selection: $verseEnd) {
-                                ForEach(verseStart...maxVerse, id: \.self) { v in
-                                    Text(String(v)).tag(v)
+                        HStack(alignment: .center, spacing: ScriptureDockReferenceBarMetrics.numberClusterSpacing) {
+                            Picker("Chapter", selection: $chapter) {
+                                ForEach(1...maxChapter, id: \.self) { c in
+                                    Text(String(c))
+                                        .monospacedDigit()
+                                        .lineLimit(1)
+                                        .tag(c)
                                 }
                             }
                             .pickerStyle(.menu)
+                            .controlSize(.small)
                             .labelsHidden()
-                            .frame(minWidth: 52, maxWidth: 64)
-                            .accessibilityLabel("End verse")
-                        }
-                    }
+                            .fixedSize(horizontal: true, vertical: false)
+                            .frame(height: ScriptureDockReferenceBarMetrics.controlHeight)
+                            .accessibilityLabel("Chapter")
 
-                    Button {
-                        withAnimation(.easeInOut(duration: 0.12)) {
-                            useVerseRange.toggle()
-                            if !useVerseRange { verseEnd = verseStart }
-                            clampVersesToCanon()
-                        }
-                    } label: {
-                        ZStack {
-                            if useVerseRange {
-                                Circle()
-                                    .fill(Color.primary.opacity(0.09))
-                                    .frame(width: 28, height: 28)
+                            Text(":")
+                                .font(ScriptureDockReferenceBarMetrics.labelFont)
+                                .foregroundStyle(HarvousColors.scriptureChipForeground(scriptureTheme).opacity(0.45))
+                                .frame(width: ScriptureDockReferenceBarMetrics.colonFrameWidth, alignment: .center)
+
+                            Picker("Verse", selection: $verseStart) {
+                                ForEach(1...maxVerse, id: \.self) { v in
+                                    Text(String(v))
+                                        .monospacedDigit()
+                                        .lineLimit(1)
+                                        .tag(v)
+                                }
                             }
-                            HarvousFAGlyph(assetName: "Harvous.ArrowsLeftRight", edgePt: 15)
-                                .foregroundStyle(.primary)
+                            .pickerStyle(.menu)
+                            .controlSize(.small)
+                            .labelsHidden()
+                            .fixedSize(horizontal: true, vertical: false)
+                            .frame(height: ScriptureDockReferenceBarMetrics.controlHeight)
+                            .accessibilityLabel("Verse")
+
+                            if useVerseRange {
+                                Text("–")
+                                    .font(ScriptureDockReferenceBarMetrics.labelFont)
+                                    .foregroundStyle(HarvousColors.scriptureChipForeground(scriptureTheme).opacity(0.45))
+                                    .frame(width: ScriptureDockReferenceBarMetrics.dashFrameWidth, alignment: .center)
+
+                                Picker("End verse", selection: $verseEnd) {
+                                    ForEach(verseStart...maxVerse, id: \.self) { v in
+                                        Text(String(v))
+                                            .monospacedDigit()
+                                            .lineLimit(1)
+                                            .tag(v)
+                                    }
+                                }
+                                .pickerStyle(.menu)
+                                .controlSize(.small)
+                                .labelsHidden()
+                                .fixedSize(horizontal: true, vertical: false)
+                                .frame(height: ScriptureDockReferenceBarMetrics.controlHeight)
+                                .accessibilityLabel("End verse")
+                            }
                         }
-                        .frame(width: 28, height: 28)
+
+                        Button {
+                            withAnimation(.easeInOut(duration: 0.12)) {
+                                useVerseRange.toggle()
+                                if !useVerseRange { verseEnd = verseStart }
+                                clampVersesToCanon()
+                            }
+                        } label: {
+                            HarvousFAGlyph(assetName: "Harvous.ArrowsLeftRight", edgePt: ScriptureDockReferenceBarMetrics.rangeGlyphPt)
+                                .foregroundStyle(.primary)
+                                .frame(
+                                    width: ScriptureDockReferenceBarMetrics.controlHeight,
+                                    height: ScriptureDockReferenceBarMetrics.controlHeight
+                                )
+                                .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel(useVerseRange ? "Single verse" : "Verse range")
+                        #if os(macOS)
+                        .help(useVerseRange ? "Single verse" : "Verse range")
+                        #endif
                     }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel(useVerseRange ? "Single verse" : "Verse range")
-                    #if os(macOS)
-                    .help(useVerseRange ? "Single verse" : "Verse range")
-                    #endif
+                    .environment(\.font, ScriptureDockReferenceBarMetrics.labelFont)
                 }
+                .padding(.horizontal, ScriptureDockReferenceBarMetrics.horizontalPadding)
+                .padding(.vertical, ScriptureDockReferenceBarMetrics.verticalPadding)
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
+        // Menu-style pickers default to system accent blue; primary reads as body text.
+        .tint(Color.primary)
+        .background(
+            RoundedRectangle(cornerRadius: ScriptureDockReferenceBarMetrics.chromeCornerRadius, style: .continuous)
+                .fill(Color.primary.opacity(0.05))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: ScriptureDockReferenceBarMetrics.chromeCornerRadius, style: .continuous)
+                .strokeBorder(Color.primary.opacity(0.08), lineWidth: 0.5)
+        )
         .onChange(of: bookIndex) { _, _ in
             clampSelectionToCanon()
             commitDraftReferenceIfNeeded()

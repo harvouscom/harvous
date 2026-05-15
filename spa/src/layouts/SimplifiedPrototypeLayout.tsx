@@ -9,6 +9,7 @@ import '../styles/prototype-tokens.css';
 import '../styles/prototype-shell.css';
 import '../styles/prototype-components.css';
 import '../styles/prototype-editor.css';
+import { usePrototypeHomeSpaceId } from '../hooks/usePrototypeHomeSpaceId';
 import { PROTO_LAST_SPACE_KEY } from './proto-session-keys';
 import { ProtoShellProvider, useProtoShell } from './proto-shell-context';
 
@@ -18,6 +19,7 @@ export default function SimplifiedPrototypeLayout() {
   const router = useRouter();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const searchRaw = useRouterState({ select: (s) => s.location.search });
+  const { homeSpaceId, navReady } = usePrototypeHomeSpaceId();
 
   useEffect(() => {
     if (!isLoaded || !isSignedIn) return;
@@ -50,20 +52,25 @@ export default function SimplifiedPrototypeLayout() {
 
   useEffect(() => {
     if (!isLoaded || !isSignedIn) return;
-    const m = pathname.match(/^\/prototype\/space\/([^/]+)/);
-    if (!m) return;
-    const raw = m[1];
-    const id = raw.startsWith('space_') ? raw : `space_${raw}`;
+    if (!navReady || !homeSpaceId) return;
+    const onMain =
+      pathname === '/prototype' ||
+      pathname === '/prototype/' ||
+      pathname.startsWith('/prototype/n/');
+    if (!onMain) return;
     try {
-      localStorage.setItem(PROTO_LAST_SPACE_KEY, id);
+      localStorage.setItem(PROTO_LAST_SPACE_KEY, homeSpaceId);
     } catch {
       /* ignore */
     }
-  }, [isLoaded, isSignedIn, pathname]);
+  }, [isLoaded, isSignedIn, navReady, homeSpaceId, pathname]);
 
   if (!isLoaded) {
     return (
-      <div className="proto-theme simplified-prototype-root" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div
+        className="proto-shell-frame proto-theme simplified-prototype-root"
+        style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+      >
         <p className="proto-caption">Loading…</p>
       </div>
     );
@@ -91,7 +98,6 @@ function PrototypeAuthenticatedChrome({ userId }: { userId?: string }) {
   const shellMods = [
     'proto-shell',
     'proto-theme',
-    'simplified-prototype-root',
     hideSidebar ? 'proto-shell--no-sidebar' : '',
     'proto-shell--no-footer',
     isMobileSidebar && drawerOpen && !hideSidebar ? 'proto-shell--drawer-open' : '',
@@ -101,27 +107,29 @@ function PrototypeAuthenticatedChrome({ userId }: { userId?: string }) {
     .join(' ');
 
   return (
-    <div className={shellMods}>
-      {userId ? <SyncManagerIsland userId={userId} /> : null}
-      <ReferralCreditInit userId={userId} />
+    <div className="proto-shell-frame simplified-prototype-root">
+      <div className={shellMods}>
+        {userId ? <SyncManagerIsland userId={userId} hideOfflineIndicator /> : null}
+        <ReferralCreditInit userId={userId} />
 
-      <header className="proto-shell__toolbar-cell">
-        <NativeToolbar />
-      </header>
+        <header className="proto-shell__toolbar-cell">
+          <NativeToolbar />
+        </header>
 
-      {!hideSidebar && isMobileSidebar && drawerOpen ? (
-        <DrawerOverlay onClose={closeDrawer} />
-      ) : null}
+        {!hideSidebar && isMobileSidebar && drawerOpen ? (
+          <DrawerOverlay onClose={closeDrawer} />
+        ) : null}
 
-      {!hideSidebar ? (
-        <aside className="proto-shell__sidebar-cell proto-shell-drawer-sidebar">
-          <PrototypeSidebar />
-        </aside>
-      ) : null}
+        {!hideSidebar ? (
+          <aside className="proto-shell__sidebar-cell proto-shell-drawer-sidebar">
+            <PrototypeSidebar />
+          </aside>
+        ) : null}
 
-      <main className="proto-shell__main-cell">
-        <Outlet />
-      </main>
+        <main className="proto-shell__main-cell">
+          <Outlet />
+        </main>
+      </div>
     </div>
   );
 }

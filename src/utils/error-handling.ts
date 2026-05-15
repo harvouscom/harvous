@@ -50,6 +50,14 @@ export function handleAPIError(
 
   if (error instanceof Error) {
     errorMessage = error.message;
+    // DrizzleQueryError and others attach the underlying driver error (e.g. Postgres “column … does not exist”).
+    if (
+      typeof window === 'undefined' &&
+      error.cause instanceof Error &&
+      error.cause.message
+    ) {
+      errorMessage = `${errorMessage} — ${error.cause.message}`;
+    }
   } else if (typeof error === 'string') {
     errorMessage = error;
   } else if (error && typeof error === 'object' && 'message' in error) {

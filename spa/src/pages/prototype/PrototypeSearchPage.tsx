@@ -3,35 +3,13 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Link, useRouterState } from '@tanstack/react-router';
 import { MIN_SEARCH_QUERY_LENGTH } from '@/utils/search-query';
 import { fetchSearchResults, searchQueryKey } from '../../../../src/hooks/useSearch';
-import { useNavigation, type NavSpace } from '../../hooks/queries/useNavigation';
-import { formatProtoSpaceRowTitle, resolvePersonalHomeSpaceId } from '../../utils/personal-home-space';
+import { usePrototypeHomeSpaceId } from '../../hooks/usePrototypeHomeSpaceId';
 import PrototypeSearchInput from './components/PrototypeSearchInput';
 import PrototypeSearchResultsList from './PrototypeSearchResultsList';
 
-function mergeSpaces(spaces: NavSpace[], memberOf: NavSpace[]): NavSpace[] {
-  const map = new Map<string, NavSpace>();
-  for (const s of spaces) map.set(s.id, s);
-  for (const s of memberOf) if (!map.has(s.id)) map.set(s.id, s);
-  return Array.from(map.values());
-}
-
 export default function PrototypeSearchPage() {
   const queryClient = useQueryClient();
-  const { data: nav, isLoading: navLoading } = useNavigation();
-
-  const spaceList = useMemo(
-    () => mergeSpaces(nav?.spaces ?? [], nav?.memberOfSpaces ?? []),
-    [nav?.spaces, nav?.memberOfSpaces],
-  );
-
-  const homeId = useMemo(() => resolvePersonalHomeSpaceId(nav?.spaces ?? []), [nav?.spaces]);
-
-  const orderedSpaceList = useMemo(() => {
-    if (!homeId) return spaceList;
-    const rest = spaceList.filter((s) => s.id !== homeId);
-    const home = spaceList.find((s) => s.id === homeId);
-    return home ? [home, ...rest] : spaceList;
-  }, [homeId, spaceList]);
+  const { homeSpaceId, navReady } = usePrototypeHomeSpaceId();
 
   const searchRaw = useRouterState({ select: (s) => s.location.search });
   const spaceFromRouter =
@@ -42,12 +20,14 @@ export default function PrototypeSearchPage() {
       ? ((searchRaw as Record<string, unknown>).space as string)
       : undefined;
 
-  const normalizedSpace =
+  const normalizedFromQuery =
     typeof spaceFromRouter === 'string' && spaceFromRouter.startsWith('space_')
       ? spaceFromRouter
       : typeof spaceFromRouter === 'string' && spaceFromRouter.length > 0
         ? `space_${spaceFromRouter}`
         : undefined;
+
+  const normalizedSpace = normalizedFromQuery ?? homeSpaceId;
 
   const [query, setQuery] = useState('');
 
@@ -60,40 +40,25 @@ export default function PrototypeSearchPage() {
     });
   };
 
-  if (!navLoading && spaceList.length > 0 && !normalizedSpace) {
+  if (!navReady) {
+    return (
+      <div className="proto-search-container">
+        <p className="proto-caption">Loading…</p>
+      </div>
+    );
+  }
+
+  if (!homeSpaceId) {
     return (
       <div className="proto-search-container">
         <h1 className="pds-title" style={{ marginBottom: 6 }}>
           Search
         </h1>
         <p className="proto-caption" style={{ marginBottom: 20 }}>
-          Choose a space to search notes.
+          My Home isn’t available yet. Finish setup in the classic app first.
         </p>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-          {orderedSpaceList.map((s) => (
-            <Link
-              key={s.id}
-              to="/prototype/search"
-              search={{ space: s.id }}
-              className="proto-search-result-row"
-              style={{ textDecoration: 'none' }}
-            >
-              <span className="proto-search-result-row__title">
-                {homeId && s.id === homeId ? 'My Home' : formatProtoSpaceRowTitle(s.title)}
-              </span>
-            </Link>
-          ))}
-        </div>
-      </div>
-    );
-  }
-
-  if (!normalizedSpace && !navLoading) {
-    return (
-      <div className="proto-search-container">
-        <p className="proto-caption">No spaces yet. Create one in the classic app.</p>
-        <Link to="/prototype" className="proto-link-quiet" style={{ display: 'block', marginTop: 10 }}>
-          ← Back
+        <Link to="/prototype" className="proto-link-quiet" style={{ display: 'inline-block', marginBottom: 10 }}>
+          ← Prototype home
         </Link>
       </div>
     );
@@ -110,10 +75,10 @@ export default function PrototypeSearchPage() {
           setQuery(v);
           prefetchSearch(v);
         }}
-        placeholder="Search notes in this space…"
+        placeholder="Search notes in My Home…"
         autoFocus
       />
-      {normalizedSpace ? <PrototypeSearchResultsList query={query} spaceId={normalizedSpace} /> : null}
+      <PrototypeSearchResultsList query={query} spaceId={normalizedSpace} />
     </div>
   );
 }

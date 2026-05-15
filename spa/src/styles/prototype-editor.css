@@ -239,9 +239,12 @@
   height: 0;
 }
 
-/* Study highlight marks (underline + accent — server ids optional) */
+/* Study highlight marks (underline + accent — server ids optional).
+ * TipTap renders marks inside `.ProseMirror`; initial load uses static HTML in
+ * `.card-full-editable__content-html` — same rules so view vs edit match. */
 
-.proto-editor-surface .ProseMirror mark {
+.proto-editor-surface .ProseMirror mark,
+.proto-editor-surface .card-full-editable__content-html mark {
   background: transparent !important;
   color: inherit !important;
   box-decoration-break: clone;
@@ -254,12 +257,18 @@
   padding: 0;
 }
 
-.proto-editor-surface .ProseMirror mark[data-color="neutral"] { text-decoration-color: var(--pds-highlight-neutral); }
-.proto-editor-surface .ProseMirror mark[data-color="warmAmber"] { text-decoration-color: var(--pds-highlight-warm-amber); }
-.proto-editor-surface .ProseMirror mark[data-color="skyBlue"] { text-decoration-color: var(--pds-highlight-sky-blue); }
-.proto-editor-surface .ProseMirror mark[data-color="violet"] { text-decoration-color: var(--pds-highlight-violet); }
-.proto-editor-surface .ProseMirror mark[data-color="mintGreen"] { text-decoration-color: var(--pds-highlight-mint-green); }
-.proto-editor-surface .ProseMirror mark[data-color="coralRose"] { text-decoration-color: var(--pds-highlight-coral-rose); }
+.proto-editor-surface .ProseMirror mark[data-color="neutral"],
+.proto-editor-surface .card-full-editable__content-html mark[data-color="neutral"] { text-decoration-color: var(--pds-highlight-neutral); }
+.proto-editor-surface .ProseMirror mark[data-color="warmAmber"],
+.proto-editor-surface .card-full-editable__content-html mark[data-color="warmAmber"] { text-decoration-color: var(--pds-highlight-warm-amber); }
+.proto-editor-surface .ProseMirror mark[data-color="skyBlue"],
+.proto-editor-surface .card-full-editable__content-html mark[data-color="skyBlue"] { text-decoration-color: var(--pds-highlight-sky-blue); }
+.proto-editor-surface .ProseMirror mark[data-color="violet"],
+.proto-editor-surface .card-full-editable__content-html mark[data-color="violet"] { text-decoration-color: var(--pds-highlight-violet); }
+.proto-editor-surface .ProseMirror mark[data-color="mintGreen"],
+.proto-editor-surface .card-full-editable__content-html mark[data-color="mintGreen"] { text-decoration-color: var(--pds-highlight-mint-green); }
+.proto-editor-surface .ProseMirror mark[data-color="coralRose"],
+.proto-editor-surface .card-full-editable__content-html mark[data-color="coralRose"] { text-decoration-color: var(--pds-highlight-coral-rose); }
 
 /* Selection */
 .proto-editor-surface .ProseMirror ::selection {
@@ -314,6 +323,13 @@
 
 .proto-editor-bottom-bar__highlight {
   width: 100%;
+}
+
+/* Dock roots — host bar supplies border + glass fill; avoids double borders. */
+.proto-editor-bottom-bar__scripture .scripture-pill-chrome,
+.proto-editor-bottom-bar__highlight .highlight-dock-web {
+  border-top: none;
+  background: transparent;
 }
 
 /* Connect / linked-note strip (note-actions mode) */

@@ -58,8 +58,13 @@ final class SpaceStore: ObservableObject {
     func repairSelection(modelContext: ModelContext) {
         let id = activeSpaceUUID()
         let fd = FetchDescriptor<Space>(predicate: #Predicate { $0.id == id && !$0.isArchived })
-        if (try? modelContext.fetch(fd).first) != nil { return }
-        setActiveSpace(id: HarvousSpaceBootstrap.personalHomeSpaceId, modelContext: modelContext)
+        guard let space = try? modelContext.fetch(fd).first else {
+            setActiveSpace(id: HarvousSpaceBootstrap.personalHomeSpaceId, modelContext: modelContext)
+            return
+        }
+        if space.visibility != .personal {
+            setActiveSpace(id: HarvousSpaceBootstrap.personalHomeSpaceId, modelContext: modelContext)
+        }
     }
 
     // MARK: - Permissions

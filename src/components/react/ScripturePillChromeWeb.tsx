@@ -11,9 +11,11 @@ import {
 import { TRANSLATION_ORDER, TRANSLATIONS } from '@/data/translations';
 import { getCachedProfileData } from '@/utils/profile-cache';
 import { safeRenderHtml } from '@/utils/content-renderer';
+import { fetchVerseHtml } from '@/utils/fetch-verse-html';
 import type { StudyHighlightAccentKey } from '@/utils/study-highlight-accents';
 import { STUDY_HIGHLIGHT_SWATCHES_WITH_NEUTRAL } from '@/utils/study-highlight-accents';
 
+import Icon from '@/components/react/Icon';
 import '@/styles/scripture-pill-chrome.css';
 import '@/styles/highlight-dock-web.css';
 
@@ -37,23 +39,6 @@ function maxChapterForBook(book: string): number {
     if (row.book === book) max = Math.max(max, row.chapter);
   }
   return max || 1;
-}
-
-async function fetchVerseHtml(reference: string, translation: string): Promise<string | null> {
-  try {
-    const res = await fetch('/api/scripture/fetch-verse', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
-      body: JSON.stringify({ reference, translation }),
-    });
-    if (!res.ok) return null;
-    const data = await res.json();
-    if (data.text && typeof data.text === 'string') return data.text;
-  } catch {
-    /* ignore */
-  }
-  return null;
 }
 
 function buildReferenceString(book: string, chapter: number, verseStart: number, verseEnd: number, useRange: boolean): string {
@@ -245,24 +230,6 @@ export default function ScripturePillChromeWeb({
 
   return (
     <div className="scripture-pill-chrome" role="region" aria-label="Scripture reference editor">
-      {onPillAccentChange ? (
-        <div className="scripture-pill-chrome__accent-row" role="group" aria-label="Pill accent color">
-          {STUDY_HIGHLIGHT_SWATCHES_WITH_NEUTRAL.map((key) => (
-            <button
-              key={key}
-              type="button"
-              className={`highlight-dock-web__swatch highlight-dock-web__swatch--${key}${
-                selectedSwatchKey === key ? ' highlight-dock-web__swatch--selected' : ''
-              }`}
-              title={key}
-              aria-label={key}
-              aria-pressed={selectedSwatchKey === key}
-              onMouseDown={(e) => e.preventDefault()}
-              onClick={() => onPillAccentChange(key)}
-            />
-          ))}
-        </div>
-      ) : null}
       <div className="scripture-pill-chrome__row">
         <div className="scripture-pill-chrome__scroll">
           <div className="scripture-pill-chrome__controls">
@@ -299,7 +266,7 @@ export default function ScripturePillChromeWeb({
             <label className="scripture-pill-chrome__field scripture-pill-chrome__field--narrow">
               <span className="sr-only">Chapter</span>
               <select
-                className="scripture-pill-chrome__select"
+                className="scripture-pill-chrome__select scripture-pill-chrome__select--number"
                 value={chapter}
                 onChange={(e) => setChapter(parseInt(e.target.value, 10))}
                 aria-label="Chapter"
@@ -311,13 +278,13 @@ export default function ScripturePillChromeWeb({
                 ))}
               </select>
             </label>
-            <span className="scripture-pill-chrome__meta" aria-hidden>
+            <span className="scripture-pill-chrome__meta scripture-pill-chrome__meta--colon" aria-hidden>
               :
             </span>
             <label className="scripture-pill-chrome__field scripture-pill-chrome__field--narrow">
               <span className="sr-only">Verse start</span>
               <select
-                className="scripture-pill-chrome__select"
+                className="scripture-pill-chrome__select scripture-pill-chrome__select--number"
                 value={verseStart}
                 onChange={(e) => {
                   const v = parseInt(e.target.value, 10);
@@ -335,13 +302,13 @@ export default function ScripturePillChromeWeb({
             </label>
             {useVerseRange ? (
               <>
-                <span className="scripture-pill-chrome__meta" aria-hidden>
+                <span className="scripture-pill-chrome__meta scripture-pill-chrome__meta--dash" aria-hidden>
                   –
                 </span>
                 <label className="scripture-pill-chrome__field scripture-pill-chrome__field--narrow">
                   <span className="sr-only">End verse</span>
                   <select
-                    className="scripture-pill-chrome__select"
+                    className="scripture-pill-chrome__select scripture-pill-chrome__select--number"
                     value={verseEnd}
                     onChange={(e) => setVerseEnd(parseInt(e.target.value, 10))}
                     aria-label="End verse"
@@ -368,15 +335,31 @@ export default function ScripturePillChromeWeb({
               aria-pressed={useVerseRange}
               aria-label={useVerseRange ? 'Switch to single verse' : 'Switch to verse range'}
             >
-              ↔
+              <Icon name="arrows-left-right" size={17} />
             </button>
+            {onPillAccentChange ? (
+              <div className="scripture-pill-chrome__accent-cluster" role="group" aria-label="Pill accent color">
+                {STUDY_HIGHLIGHT_SWATCHES_WITH_NEUTRAL.map((key) => (
+                  <button
+                    key={key}
+                    type="button"
+                    className={`highlight-dock-web__swatch highlight-dock-web__swatch--${key}${
+                      selectedSwatchKey === key ? ' highlight-dock-web__swatch--selected' : ''
+                    }`}
+                    title={key}
+                    aria-label={key}
+                    aria-pressed={selectedSwatchKey === key}
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => onPillAccentChange(key)}
+                  />
+                ))}
+              </div>
+            ) : null}
           </div>
         </div>
-        <div className="scripture-pill-chrome__actions">
-          <button type="button" className="btn btn--sm btn--ghost scripture-pill-chrome__done" onClick={onDone}>
-            Done
-          </button>
-        </div>
+        <button type="button" className="scripture-pill-chrome__done-text" onClick={onDone}>
+          Done
+        </button>
       </div>
       <div className="scripture-pill-chrome__passage" aria-busy={loadingPassage}>
         <div className="scripture-pill-chrome__passage-head">
@@ -402,7 +385,7 @@ export default function ScripturePillChromeWeb({
                 </span>
                 <button
                   type="button"
-                  className="btn btn--sm btn--ghost"
+                  className="highlight-dock-web__btn highlight-dock-web__btn--plain"
                   onMouseDown={(e) => e.preventDefault()}
                   onClick={() => void removePassageStudy(row.id)}
                 >

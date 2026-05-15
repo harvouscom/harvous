@@ -27,12 +27,22 @@ struct PassageFrameInBodyKey: PreferenceKey {
 /// Layout for expandable scripture-passage / highlight-detail regions inside pill and highlight docks.
 enum HarvousDockExpandedContentLayout {
     /// Applied when viewport-based height isn’t injected (fallback).
+    #if os(iOS)
+    static let fallbackMaxScrollHeight: CGFloat = 420
+    #else
     static let fallbackMaxScrollHeight: CGFloat = 320
+    #endif
 
-    /// Clamp scroll region for dock passage/details: `min(360, max(200, viewport * 0.45))`.
+    /// Clamp scroll region for dock passage/details.
+    /// - iOS: taller cap so expanded docks read more passage/thread detail before scrolling (`min(500, …)`).
+    /// - macOS: `min(360, max(200, viewport * 0.45))`.
     static func expandedScrollMaxHeight(viewportHeight: CGFloat) -> CGFloat {
         let v = max(viewportHeight, 1)
+        #if os(iOS)
+        return min(500, max(200, v * 0.53))
+        #else
         return min(360, max(200, v * 0.45))
+        #endif
     }
 }
 

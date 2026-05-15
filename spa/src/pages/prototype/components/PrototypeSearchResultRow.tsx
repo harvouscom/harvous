@@ -4,6 +4,7 @@
  */
 import Icon from '@/components/react/Icon';
 import type { SearchResult } from '@/hooks/useSearch';
+import { stripServerAutoUntitledNoteTitleForDisplay } from '@/utils/server-auto-untitled-note-display';
 
 interface PrototypeSearchResultRowProps {
   result: SearchResult;
@@ -25,7 +26,9 @@ export default function PrototypeSearchResultRow({ result }: PrototypeSearchResu
     <div className="proto-search-result-row">
       <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
         {leadingIcon}
-        <span className="proto-search-result-row__title">{result.title || 'Untitled Note'}</span>
+        <span className="proto-search-result-row__title">
+          {stripServerAutoUntitledNoteTitleForDisplay(result.title ?? '') || 'New Note'}
+        </span>
       </div>
       {primaryRef ? (
         <span className="proto-chip-scripture" style={{ marginTop: 3, alignSelf: 'flex-start' }}>

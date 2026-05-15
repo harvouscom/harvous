@@ -14,7 +14,7 @@ import { useUser } from '@clerk/clerk-react';
 import { Link, useNavigate, useRouterState } from '@tanstack/react-router';
 import { useQueryClient } from '@tanstack/react-query';
 import Icon from '@/components/react/Icon';
-import { useNavigation } from '../../hooks/queries/useNavigation';
+import { usePrototypeHomeSpaceId } from '../../hooks/usePrototypeHomeSpaceId';
 import {
   getNoteIdFromCreateResponse,
   seedNoteFromCreateResponse,
@@ -24,11 +24,7 @@ import { alertCreateNoteFailure, useCreateSimpleNote } from '../../hooks/mutatio
 import { useProtoShell } from '../../layouts/proto-shell-context';
 import { effectiveNoteFolderLabel } from '@/utils/note-folder-display';
 import ListViewMenu from './ListViewMenu';
-import {
-  noteParamSlug,
-  normalizeNoteIdFromParam,
-  spaceParamSlug,
-} from './proto-route-slugs';
+import { noteParamSlug, normalizeNoteIdFromParam } from './proto-route-slugs';
 import SpaceSwitcherMenu from './SpaceSwitcherMenu';
 import { PROTO_TOOLBAR_ICON_SIZE } from './proto-toolbar-tokens';
 
@@ -159,7 +155,7 @@ export default function NativeToolbar() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
-  const { data: nav } = useNavigation();
+  const { homeSpaceId, navReady } = usePrototypeHomeSpaceId();
   const createNote = useCreateSimpleNote();
 
   const {
@@ -173,11 +169,7 @@ export default function NativeToolbar() {
     prototypeFolderChip,
   } = useProtoShell();
 
-  const spaceMatch = pathname.match(/^\/prototype\/space\/([^/]+)/);
-  const spaceSlug = spaceMatch?.[1];
-  const spaceId = spaceSlug ? (spaceSlug.startsWith('space_') ? spaceSlug : `space_${spaceSlug}`) : null;
-
-  const notePageMatch = pathname.match(/^\/prototype\/space\/[^/]+\/n\/([^/]+)/);
+  const notePageMatch = pathname.match(/^\/prototype\/n\/([^/]+)/);
   const noteSlugFromPath = notePageMatch?.[1];
   const toolbarNoteId =
     noteSlugFromPath ? normalizeNoteIdFromParam(noteSlugFromPath) : null;
@@ -187,7 +179,7 @@ export default function NativeToolbar() {
   const displayName = user?.fullName || user?.username || undefined;
   const email = user?.primaryEmailAddress?.emailAddress;
 
-  const isOnNotePage = !!pathname.match(/\/prototype\/space\/[^/]+\/n\//);
+  const isOnNotePage = !!pathname.match(/^\/prototype\/n\//);
 
   const useShellFolderChip =
     isOnNotePage &&
@@ -205,16 +197,16 @@ export default function NativeToolbar() {
       : null;
 
   const onCompose = () => {
-    if (!spaceId || createNote.isPending) return;
+    if (!homeSpaceId || createNote.isPending) return;
     createNote.mutate(
-      { spaceId },
+      { spaceId: homeSpaceId },
       {
         onSuccess: (res) => {
           const nid = getNoteIdFromCreateResponse(res);
           const note = res?.note;
-          if (note && typeof note === 'object' && nid && spaceId) {
+          if (note && typeof note === 'object' && nid && homeSpaceId) {
             try {
-              seedNoteFromCreateResponse(queryClient, note as Record<string, unknown> & { id: string }, spaceId);
+              seedNoteFromCreateResponse(queryClient, note as Record<string, unknown> & { id: string }, homeSpaceId);
             } catch (e) {
               console.error('[NativeToolbar] seedNoteFromCreateResponse:', e);
             }
@@ -222,8 +214,8 @@ export default function NativeToolbar() {
           if (nid) {
             if (isMobileSidebar) closeDrawer();
             navigate({
-              to: '/prototype/space/$spaceId/n/$noteId',
-              params: { spaceId: spaceParamSlug(spaceId), noteId: noteParamSlug(nid) },
+              to: '/prototype/n/$noteId',
+              params: { noteId: noteParamSlug(nid) },
             });
           } else {
             alert('Create succeeded but response had no note id.');
@@ -254,18 +246,14 @@ export default function NativeToolbar() {
         >
           <Icon name="bars" size={PROTO_TOOLBAR_ICON_SIZE} />
         </button>
-        <SpaceSwitcherMenu
-          spaces={nav?.spaces ?? []}
-          memberOfSpaces={nav?.memberOfSpaces ?? []}
-          activeSpaceId={spaceId}
-        />
-        <ListViewMenu disabled={!spaceId} />
+        <SpaceSwitcherMenu homeSpaceId={homeSpaceId} navReady={navReady} />
+        <ListViewMenu disabled={!homeSpaceId} />
         <button
           type="button"
           className="proto-toolbar-icon-btn"
           title="New note"
           aria-label="New note"
-          disabled={!spaceId || createNote.isPending}
+          disabled={!homeSpaceId || createNote.isPending}
           onClick={onCompose}
         >
           <Icon name="pen-to-square" size={PROTO_TOOLBAR_ICON_SIZE} />

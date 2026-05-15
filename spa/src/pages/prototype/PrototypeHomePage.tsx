@@ -1,57 +1,57 @@
-import { getSelectedSpaceId } from '@/components/react/navigation/selectedSpace';
 import { Link, useNavigate } from '@tanstack/react-router';
-import { useEffect, useMemo } from 'react';
-import { useNavigation, type NavSpace } from '../../hooks/queries/useNavigation';
-import { PROTO_LAST_SPACE_KEY } from '../../layouts/proto-session-keys';
-import { resolvePersonalHomeSpaceId } from '../../utils/personal-home-space';
-
-function mergeSpaces(spaces: NavSpace[], memberOf: NavSpace[]) {
-  const map = new Map<string, NavSpace>();
-  for (const s of spaces) map.set(s.id, s);
-  for (const s of memberOf) if (!map.has(s.id)) map.set(s.id, s);
-  return Array.from(map.values());
-}
+import { useQueryClient } from '@tanstack/react-query';
+import { usePrototypeHomeSpaceId } from '../../hooks/usePrototypeHomeSpaceId';
+import {
+  alertCreateNoteFailure,
+  useCreateSimpleNote,
+} from '../../hooks/mutations/useCreateSimpleNote';
+import { getNoteIdFromCreateResponse, seedNoteFromCreateResponse } from '../../hooks/queries/useNote';
+import { useProtoShell } from '../../layouts/proto-shell-context';
+import PrototypeMainPaneShell from './PrototypeMainPaneShell';
+import PrototypeStandaloneScripturePassagePane from './PrototypeStandaloneScripturePassagePane';
+import { noteParamSlug } from './proto-route-slugs';
 
 export default function PrototypeHomePage() {
-  const { data: nav, isLoading } = useNavigation();
+  const { homeSpaceId, navReady } = usePrototypeHomeSpaceId();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const createNote = useCreateSimpleNote();
+  const { isMobileSidebar, closeDrawer, standaloneScripturePassage, dismissStandaloneScripturePassage } =
+    useProtoShell();
 
-  const list = useMemo(
-    () => mergeSpaces(nav?.spaces ?? [], nav?.memberOfSpaces ?? []),
-    [nav?.spaces, nav?.memberOfSpaces],
-  );
+  const onNewNote = () => {
+    if (!homeSpaceId || createNote.isPending) return;
+    createNote.mutate(
+      { spaceId: homeSpaceId },
+      {
+        onSuccess: (res) => {
+          const nid = getNoteIdFromCreateResponse(res);
+          const note = res?.note;
+          if (note && typeof note === 'object' && nid) {
+            try {
+              seedNoteFromCreateResponse(queryClient, note as Record<string, unknown> & { id: string }, homeSpaceId);
+            } catch (e) {
+              console.error('[PrototypeHomePage] seedNoteFromCreateResponse:', e);
+            }
+          }
+          if (nid) {
+            if (isMobileSidebar) closeDrawer();
+            navigate({
+              to: '/prototype/n/$noteId',
+              params: { noteId: noteParamSlug(nid) },
+            });
+          } else {
+            alert('Create succeeded but response had no note id.');
+          }
+        },
+        onError: (err) => {
+          alertCreateNoteFailure(err);
+        },
+      },
+    );
+  };
 
-  useEffect(() => {
-    if (isLoading || list.length === 0) return;
-
-    let preferred: string | undefined;
-    try {
-      const last = localStorage.getItem(PROTO_LAST_SPACE_KEY);
-      if (last && list.some((s) => s.id === last)) preferred = last;
-    } catch {
-      /* ignore */
-    }
-    if (!preferred) {
-      const selected = getSelectedSpaceId();
-      if (selected && list.some((s) => s.id === selected)) preferred = selected;
-    }
-    if (!preferred) {
-      const home = resolvePersonalHomeSpaceId(nav?.spaces ?? []);
-      if (home) preferred = home;
-    }
-    if (!preferred) {
-      preferred = list[0]?.id;
-    }
-    if (!preferred) return;
-    const slug = preferred.startsWith('space_') ? preferred.slice('space_'.length) : preferred;
-    navigate({
-      to: '/prototype/space/$spaceId',
-      params: { spaceId: slug },
-      replace: true,
-    });
-  }, [isLoading, list, navigate, nav?.spaces]);
-
-  if (isLoading && list.length === 0) {
+  if (!navReady) {
     return (
       <div className="proto-main-pane proto-main-empty">
         <p className="proto-caption">Loading…</p>
@@ -59,21 +59,73 @@ export default function PrototypeHomePage() {
     );
   }
 
-  if (list.length === 0) {
+  if (!homeSpaceId) {
     return (
       <div className="proto-main-pane proto-main-empty" style={{ maxWidth: 440 }}>
         <h1 className="proto-title-md" style={{ marginBottom: 8 }}>
-          No spaces yet
+          No home space yet
         </h1>
         <p className="proto-body" style={{ color: 'var(--proto-text-secondary)', marginBottom: 20 }}>
-          Create a space from the classic app, then pick it in the sidebar.
+          Open the classic app to finish setup; My Home should appear for your account.
         </p>
-        <Link to="/new-space" className="proto-caption" style={{ color: 'var(--proto-accent)', fontWeight: 600, textDecoration: 'none' }}>
-          New space →
+        <Link
+          to="/"
+          className="proto-caption"
+          style={{ color: 'var(--proto-accent)', fontWeight: 600, textDecoration: 'none' }}
+        >
+          Classic app →
         </Link>
       </div>
     );
   }
 
-  return <div className="proto-main-pane proto-main-empty"><p className="proto-caption">Opening your last space…</p></div>;
+  if (standaloneScripturePassage) {
+    return (
+      <PrototypeMainPaneShell>
+        <PrototypeStandaloneScripturePassagePane
+          state={standaloneScripturePassage}
+          onDone={dismissStandaloneScripturePassage}
+        />
+      </PrototypeMainPaneShell>
+    );
+  }
+
+  return (
+    <PrototypeMainPaneShell>
+      <div
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          minHeight: 200,
+          padding: 32,
+          textAlign: 'center',
+        }}
+      >
+        <p className="proto-title-md" style={{ marginBottom: 8 }}>
+          Select a note
+        </p>
+        <p className="proto-caption" style={{ maxWidth: 320, marginBottom: 20 }}>
+          Choose a note from the list, or create a new one.
+        </p>
+        <button
+          type="button"
+          className="proto-toolbar-icon-btn"
+          style={{
+            width: 'auto',
+            height: 'auto',
+            padding: '8px 16px',
+            fontSize: 14,
+            fontWeight: 600,
+            gap: 8,
+          }}
+          disabled={createNote.isPending}
+          onClick={onNewNote}
+        >
+          {createNote.isPending ? 'Creating…' : 'New note'}
+        </button>
+      </div>
+    </PrototypeMainPaneShell>
+  );
 }

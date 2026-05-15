@@ -121,6 +121,15 @@ Matches native `NoteInspectorView` sections.
 | Highlight bottom dock (accent / remove) | `HighlightDockWeb` portaled in prototype + classic note bottom bar when `chromeMode === 'highlight'` | ✅ implemented |
 | Scripture pill dock — accent swatches + passage-highlight list | `ScripturePillChromeWeb` + `GET /api/study-threads/by-scripture` | ✅ implemented |
 
+### Dock layout parity (native-aligned)
+
+Prototype scripture and highlight bottom docks mirror native lane geometry from `ScripturePillToolbarLane` / `ActiveHighlightDock` (layout only; not exhaustive feature parity).
+
+- Shared lane: `min-height` ~44px, horizontal inset **20px**, primary row **nowrap**.
+- Scripture: horizontal **scroll** lane (`flex: 1`, `min-width: 0`, scrollbar hidden) for pickers, **36×36** verse-range control (`Icon` **arrows-left-right**), and **inline accent swatches** (no separate full-width accent band). **Done** is **borderless text** pinned **outside** the scroll at the trailing edge (muted primary ~65% opacity, strengthens on hover). Book picker **max-width 220px**; chapter/start/end selects **58px**. Control gap **8px**. Passage block: padding **22px / 16px**, ~**14px** heading-to-passage rhythm; **`max-height: 280px`**, rising to **`min(400px, 40vh)`** at viewport **≥900px**.
+- Highlight: swatches in the same scroll pattern, **0.5×16px** divider (~12% primary) before actions; action cluster **gap ~6**; **Done** matches scripture text **Done**.
+- When portaled under **`.proto-editor-bottom-bar__scripture`** / **`__highlight`**, dock roots drop **`border-top`** and footer **background** so the glass bottom bar owns the chrome.
+
 **Cross-client identity (web Postgres vs native SwiftData):** The macOS/iOS apps store study rows in SwiftData with UUIDs generated on device. The web app persists the same *conceptual* model in Postgres (`StudyThreadEntries`) with server-issued string IDs. Until native reads and writes the shared API, **highlight and scripture-thread rows created on web will not appear in native and vice versa**; merging both sources without a migration would duplicate or mismatch anchors. Treat Postgres as the future shared source of truth only after a deliberate native sync migration.
 
 ---
