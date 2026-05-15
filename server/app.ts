@@ -25,6 +25,7 @@ import search from './routes/search';
 import content from './routes/content';
 import threads from './routes/threads';
 import notes from './routes/notes';
+import studyThreads from './routes/study-threads';
 import spaces from './routes/spaces';
 import user from './routes/user';
 import tagsScripture from './routes/tags-scripture';
@@ -40,6 +41,7 @@ import admin from './routes/admin';
 import featured from './routes/featured';
 import votd from './routes/votd';
 import test from './routes/test';
+import dictionary from './routes/dictionary';
 
 const app = new Hono();
 
@@ -70,6 +72,7 @@ app.route('/', search);
 app.route('/', content);
 app.route('/', threads);
 app.route('/', notes);
+app.route('/', studyThreads);
 app.route('/', spaces);
 app.route('/', user);
 app.route('/', tagsScripture);
@@ -85,5 +88,6 @@ app.route('/', admin);
 app.route('/', featured);
 app.route('/', votd);
 app.route('/', test);
+app.route('/', dictionary);
 
 export default app;
