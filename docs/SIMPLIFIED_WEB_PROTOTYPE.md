@@ -1,36 +1,48 @@
 # Simplified web prototype (`/prototype`)
 
-Parallel SPA surface for experimenting with a Mac/iOS-inspired layout on the web **without thread UI**.
+Parallel SPA surface for a Mac/iOS-inspired layout on the web **without thread UI**. Same auth, API, and Postgres data as classic Harvous.
 
-## Entry
+**Full architecture (1.0 vs prototype vs native):** [PROTOTYPE_2_0_ARCHITECTURE.md](./PROTOTYPE_2_0_ARCHITECTURE.md)  
+**Native menu and surface parity:** [design-parity/PROTOTYPE_NATIVE_MENU_CONTENT_PARITY.md](./design-parity/PROTOTYPE_NATIVE_MENU_CONTENT_PARITY.md)
 
-- **`/prototype`** — Spaces list (merge of `spaces` + `memberOfSpaces` from `/api/navigation/data`).
-- **`/prototype/space/{spaceId}`** — Split shell: note list + empty state (desktop) / list only (mobile until a note opens).
-- **`/prototype/space/{spaceId}/n/{noteId}`** — TipTap note editor via shared `CardFullEditable` (same save + scripture processing as production Note page, without `?thread=` handling).
-- **`/prototype/search`** — Pick a space first, then FTS **notes only** (`type=notes` + `spaceId`) with links into the prototype routes (no thread query params).
+## Routes (current)
 
-Classic app remains at `/` and unchanged.
+- **`/prototype` / `/prototype/`** — Home: empty main pane + “new note”; **sidebar lists notes for My Home** only (`usePrototypeHomeSpaceId` from `/api/navigation/data` merged spaces list).
+- **`/prototype/n/{noteId}`** — TipTap note editor via shared `CardFullEditable` (same save + scripture processing as production `NotePage`, without `?thread=` in the URL). Optional `?studyThread=` for dock/chrome alignment.
+- **`/prototype/search`** — Pick a space, then FTS **notes only** (`type=notes` + `spaceId`); results link to `/prototype/n/...` (no thread query params).
+- **Legacy bookmarks:** `/prototype/space/{spaceId}` redirects to `/prototype/`; `/prototype/space/{spaceId}/n/{noteId}` redirects to `/prototype/n/{noteId}`.
+
+Classic app remains at `/` and is unchanged.
+
+## Scope: My Home in the sidebar
+
+The prototype **space switcher** only treats **My Home** as an in-shell selectable space. Create/join/manage shared spaces use **classic routes** from the switcher (see `SpaceSwitcherMenu.tsx`).
 
 ## Thread assumptions (backend unchanged)
 
-- Lists use **`GET /api/spaces/:spaceId/notes`** (notes by `spaceId`), not thread routes.
-- New notes use **`POST /api/notes/create`** with `threadId: ''` and a `spaceId`; the server still attaches `thread_unorganized` internally.
-- Cache seeding uses **`thread_unorganized` + My Pile title** so shared `seedNoteFromList` / editor metadata stay valid without showing threads.
-- Search uses **`useSearch(..., { spaceId }, 'notes')`** only; result links go to `/prototype/space/.../n/...` and never add `?thread=`.
+- Lists use **`GET /api/spaces/:spaceId/notes`** (notes by `spaceId`), not thread list routes.
+- New notes use **`POST /api/notes/create`** with `threadId: ''` and My Home `spaceId`; the server still attaches **`thread_unorganized`** internally.
+- Cache seeding uses **`thread_unorganized` + My Pile title** so shared `seedNoteFromList` / editor metadata stay valid without showing threads in the UI.
+- Search uses **`useSearch(..., { spaceId }, 'notes')`** only; result links go to **`/prototype/n/...`** and never add `?thread=`.
 
 ## Native design parity (web tokens)
 
-CSS variables and utility classes live in:
-
 - `spa/src/styles/prototype-tokens.css` — accent, radius, shadow, type scale (aligned with `HarvousColors` / `HarvousShape` / typography in native).
-- `spa/src/styles/prototype-shell.css` — responsive split + mobile nav.
+- `spa/src/styles/prototype-shell.css` — responsive split + mobile drawer.
+- `spa/src/styles/prototype-components.css`, `spa/src/styles/prototype-editor.css` — component and editor chrome.
 
-## Files
+## Key files
 
 | Area | Location |
 |------|----------|
 | Shell + auth gate | `spa/src/layouts/SimplifiedPrototypeLayout.tsx` |
+| Shell UI state | `spa/src/layouts/proto-shell-context.tsx` |
 | Routes | `spa/src/router.tsx` (`simplifiedPrototypeRoute` tree) |
 | Pages | `spa/src/pages/prototype/*.tsx` |
-| Create note hook | `spa/src/hooks/mutations/useCreateSimpleNote.ts` |
-| Space notes API fix | `spa/src/hooks/queries/useSpace.ts` — `useSpaceNotes` reads `{ notes }` from the API |
+| My Home space id | `spa/src/hooks/usePrototypeHomeSpaceId.ts` |
+| Create note | `spa/src/hooks/mutations/useCreateSimpleNote.ts` |
+| Space notes list | `spa/src/hooks/queries/useSpace.ts` — `useSpaceNotes` reads `{ notes }` from the API |
+| Scripture index / highlights / by-scripture | `spa/src/hooks/queries/usePrototypeSpace*.ts` |
+| Pin note | `spa/src/hooks/mutations/usePinSpaceNote.ts` |
+
+A fuller file map lives in [PROTOTYPE_2_0_ARCHITECTURE.md](./PROTOTYPE_2_0_ARCHITECTURE.md#appendix-code-map-for-prototype).
