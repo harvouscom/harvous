@@ -27,7 +27,7 @@ import { normalizeScriptureReference } from '@/utils/scripture-detector';
 
 const route = new Hono();
 
-const ENTRY_KINDS = new Set(['workspace', 'miniNote', 'linkedNote', 'scriptureLink']);
+const ENTRY_KINDS = new Set(['workspace', 'miniNote', 'linkedNote', 'scriptureLink', 'reference']);
 
 export function mapStudyRow(row: typeof StudyThreadEntries.$inferSelect) {
   return {

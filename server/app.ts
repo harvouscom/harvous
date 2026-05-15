@@ -41,6 +41,7 @@ import admin from './routes/admin';
 import featured from './routes/featured';
 import votd from './routes/votd';
 import test from './routes/test';
+import dictionary from './routes/dictionary';
 
 const app = new Hono();
 
@@ -87,5 +88,6 @@ app.route('/', admin);
 app.route('/', featured);
 app.route('/', votd);
 app.route('/', test);
+app.route('/', dictionary);
 
 export default app;

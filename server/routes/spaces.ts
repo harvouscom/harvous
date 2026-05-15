@@ -67,6 +67,7 @@ import { idToUrl } from '@/utils/url-helpers';
 import { getHarvousSystemUserId } from '../utils/harvous-admin';
 import { normalizeScriptureReference } from '@/utils/scripture-detector';
 import { buildSpaceScriptureIndex } from '../utils/build-space-scripture-index';
+import { buildSpaceReferencesIndex } from '../utils/build-space-references-index';
 import { mapStudyRow } from './study-threads';
 import { isStudyThreadEntriesTableMissing } from '../utils/pg-undefined-relation';
 
@@ -84,7 +85,7 @@ function studyThreadEligibleForHighlightList(entry: typeof StudyThreadEntries.$i
     (entry.scripturePassageTranslation ?? '').trim() !== '';
 
   const anchoredHighlight =
-    ['miniNote', 'linkedNote', 'scriptureLink'].includes(entry.entryKindRaw) &&
+    ['miniNote', 'linkedNote', 'scriptureLink', 'reference'].includes(entry.entryKindRaw) &&
     entry.anchorLocation != null &&
     entry.anchorLocation >= 0 &&
     entry.anchorLength != null &&
@@ -488,6 +489,49 @@ route.get('/api/spaces/:spaceId/scripture-index', requireAuth, async (c) => {
     const standardError = handleAPIError(error, {
       endpoint: '/api/spaces/[spaceId]/scripture-index',
       action: 'scripture_index',
+    });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+
+// ─── GET /api/spaces/:spaceId/references-index ──────────────────────────────
+route.get('/api/spaces/:spaceId/references-index', requireAuth, async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const spaceIdNorm = normalizePrototypeSpaceId(requireParam(c, 'spaceId'));
+    try {
+      await requireSpaceAccess(spaceIdNorm, auth.userId);
+    } catch (err) {
+      if (err instanceof SpaceAccessError) return c.json({ error: err.message, code: err.code }, err.status);
+      throw err;
+    }
+
+    const noteRows = await db
+      .select({
+        id: Notes.id,
+        title: Notes.title,
+        content: Notes.content,
+        updatedAt: Notes.updatedAt,
+      })
+      .from(Notes)
+      .where(
+        and(eq(Notes.spaceId, spaceIdNorm), eq(Notes.userId, auth.userId), eq(Notes.contentEncrypted, false)),
+      );
+
+    const payload = buildSpaceReferencesIndex(
+      noteRows.map((n) => ({
+        id: n.id,
+        title: n.title ?? null,
+        content: n.content ?? null,
+        updatedAt: n.updatedAt ? String(n.updatedAt) : null,
+      })),
+    );
+
+    return c.json({ success: true, ...payload });
+  } catch (error: any) {
+    const standardError = handleAPIError(error, {
+      endpoint: '/api/spaces/[spaceId]/references-index',
+      action: 'references_index',
     });
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
