@@ -23,7 +23,7 @@ struct EastonsSlugIndexEntry: Codable, Hashable, Sendable {
         switch category {
         case "person": return "Harvous.UserFilled"
         case "place":  return "Harvous.Globe"
-        case "thing":  return "Harvous.Tag"
+        case "thing":  return "Harvous.Cube"
         default:       return nil
         }
     }
