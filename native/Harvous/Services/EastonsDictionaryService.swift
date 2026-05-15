@@ -12,8 +12,21 @@ import Foundation
 struct EastonsSlugIndexEntry: Codable, Hashable, Sendable {
     let slug: String
     let headword: String
-    /// Optional category: "person" | "place" | "thing" | "concept" — used for an icon in the dock.
+    /// Optional category: "person" | "place" | "thing" — used for icons in the dock and list.
     let category: String?
+
+    /// Font Awesome asset name for this entry's category.
+    var categoryIconAsset: String? { Self.categoryIconAsset(for: category) }
+
+    /// Static overload so callers that only hold a raw category string can call without an instance.
+    static func categoryIconAsset(for category: String?) -> String? {
+        switch category {
+        case "person": return "Harvous.UserFilled"
+        case "place":  return "Harvous.Globe"
+        case "thing":  return "Harvous.Tag"
+        default:       return nil
+        }
+    }
 }
 
 struct EastonsDictionaryEntry: Codable, Hashable, Sendable {

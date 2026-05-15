@@ -139,6 +139,12 @@ struct ActiveHighlightDock: View {
         }
     }
 
+    /// Category icon for the active reference slug — resolved synchronously from the loaded index.
+    private var referenceCategoryIconAsset: String? {
+        guard thread.entryKind == .reference, !activeReferenceSlug.isEmpty else { return nil }
+        return EastonsDictionaryService.shared.slugIndex[activeReferenceSlug]?.categoryIconAsset
+    }
+
     private var headerRow: some View {
         // Title is always lineLimit(1) so left and right sides are the same height — .center keeps
         // the icon/text row visually aligned with the color swatch, chevron, and close controls.
@@ -164,6 +170,15 @@ struct ActiveHighlightDock: View {
                 .submitLabel(.done)
                 #endif
                 .accessibilityLabel("Highlight title")
+
+            // Category icon badge — only for reference highlights, once the slug index has resolved.
+            if let iconAsset = referenceCategoryIconAsset {
+                HarvousFAGlyph(assetName: iconAsset, edgePt: 11)
+                    .foregroundStyle(Color.primary.opacity(0.45))
+                    .padding(.horizontal, 5)
+                    .padding(.vertical, 3)
+                    .background(Capsule().fill(Color.primary.opacity(0.07)))
+            }
 
             // Utility toolbar — `.animation(.none)` prevents the spring on `isExpanded` from
             // sliding the chevron symbol or the whole toolbar during expand/collapse.
@@ -312,7 +327,7 @@ struct ActiveHighlightDock: View {
                                 try? modelContext.saveWithLogging()
                             }
                     } else if thread.entryKind == .reference {
-                        EastonsEntryView(slug: $activeReferenceSlug, showDisclaimer: true)
+                        EastonsEntryView(slug: $activeReferenceSlug, showHeadword: false, showDisclaimer: true)
                             .frame(maxWidth: .infinity, alignment: .leading)
                     } else {
                         Text(DockHighlightCopy.detail(thread, modelContext: modelContext))

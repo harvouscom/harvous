@@ -13,7 +13,7 @@ struct EastonsEntryDetailView: View {
 
     var body: some View {
         ScrollView {
-            EastonsEntryView(slug: $slug, showCategoryChip: true, showDisclaimer: true)
+            EastonsEntryView(slug: $slug, showHeadword: true, showDisclaimer: true)
                 .padding(16)
                 .frame(maxWidth: .infinity, alignment: .leading)
         }

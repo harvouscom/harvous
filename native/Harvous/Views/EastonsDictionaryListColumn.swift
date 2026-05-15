@@ -2,8 +2,8 @@ import SwiftUI
 
 #if os(macOS)
 
-/// Sidebar column listing all Easton's Bible Dictionary entries A-Z with category filter tabs and
-/// search. Tapping a row pushes `EastonsEntryDetailView` inside the parent `NavigationStack`.
+/// Sidebar column listing all Easton's Bible Dictionary entries A-Z.
+/// Category tabs filter by person / place / thing; the sidebar search bar narrows by headword.
 struct EastonsDictionaryListColumn: View {
     var externalSearchText: Binding<String>? = nil
 
@@ -11,18 +11,14 @@ struct EastonsDictionaryListColumn: View {
     @State private var categoryFilter: CategoryFilter = .all
 
     private enum CategoryFilter: String, CaseIterable, Identifiable {
-        case all
-        case person
-        case place
-        case thing
-
+        case all, person, place, thing
         var id: String { rawValue }
         var label: String {
             switch self {
-            case .all: return "All"
+            case .all:    return "All"
             case .person: return "People"
-            case .place: return "Places"
-            case .thing: return "Things"
+            case .place:  return "Places"
+            case .thing:  return "Things"
             }
         }
     }
@@ -32,34 +28,29 @@ struct EastonsDictionaryListColumn: View {
     }
 
     private var filteredEntries: [EastonsSlugIndexEntry] {
-        let all = service.slugIndex.values
-        let categoryFiltered: [EastonsSlugIndexEntry]
-        if categoryFilter == .all {
-            categoryFiltered = Array(all)
-        } else {
-            categoryFiltered = all.filter { ($0.category ?? "") == categoryFilter.rawValue }
-        }
+        let base = service.slugIndex.values
+        let categoryFiltered: AnySequence<EastonsSlugIndexEntry> = categoryFilter == .all
+            ? AnySequence(base)
+            : AnySequence(base.filter { ($0.category ?? "") == categoryFilter.rawValue })
         let q = searchQuery.lowercased()
-        let searched: [EastonsSlugIndexEntry]
-        if q.isEmpty {
-            searched = categoryFiltered
-        } else {
-            searched = categoryFiltered.filter { $0.headword.lowercased().contains(q) }
-        }
+        let searched = q.isEmpty
+            ? Array(categoryFiltered)
+            : categoryFiltered.filter { $0.headword.lowercased().contains(q) }
         return searched.sorted { $0.headword.localizedCaseInsensitiveCompare($1.headword) == .orderedAscending }
     }
 
     var body: some View {
         VStack(spacing: 0) {
-            Picker("Category", selection: $categoryFilter) {
+            Picker(selection: $categoryFilter) {
                 ForEach(CategoryFilter.allCases) { filter in
                     Text(filter.label).tag(filter)
                 }
-            }
+            } label: { EmptyView() }
+            .labelsHidden()
             .pickerStyle(.segmented)
             .padding(.horizontal, 10)
             .padding(.top, 8)
-            .padding(.bottom, 6)
+            .padding(.bottom, 4)
 
             listBody
         }
@@ -95,30 +86,36 @@ struct EastonsDictionaryListColumn: View {
                 List(filteredEntries, id: \.slug) { entry in
                     NavigationLink(destination: EastonsEntryDetailView(initialSlug: entry.slug)) {
                         dictionaryRow(entry)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 2)
                     }
-                    .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 10))
+                    .listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 4, trailing: 0))
+                    .listRowBackground(Color.clear)
+                    .listRowSeparator(.hidden)
                 }
                 .listStyle(.plain)
+                .scrollContentBackground(.hidden)
             }
         }
     }
 
     private func dictionaryRow(_ entry: EastonsSlugIndexEntry) -> some View {
-        HStack(spacing: 8) {
-            VStack(alignment: .leading, spacing: 1) {
-                Text(entry.headword)
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundStyle(Color.primary)
-                if let category = entry.category, !category.isEmpty {
-                    Text(category.capitalized)
-                        .font(.system(size: 11))
-                        .foregroundStyle(Color.primary.opacity(0.5))
-                }
+        HStack(alignment: .center, spacing: 8) {
+            if let iconAsset = entry.categoryIconAsset {
+                HarvousFAGlyph(assetName: iconAsset, edgePt: 11)
+                    .foregroundStyle(Color.primary.opacity(0.35))
+                    .frame(width: 14, alignment: .center)
+            } else {
+                Color.clear.frame(width: 14)
             }
+            Text(entry.headword)
+                .font(HarvousTypography.noteListTitle)
+                .foregroundStyle(.primary)
+                .lineLimit(1)
             Spacer(minLength: 0)
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 5)
+        .padding(.vertical, 6)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .contentShape(Rectangle())
     }
 }

@@ -12,7 +12,9 @@ import SwiftUI
 
 struct EastonsEntryView: View {
     @Binding var slug: String
-    var showCategoryChip: Bool = true
+    /// Show the headword + category icon row. Pass `false` when the headword is already rendered
+    /// in the parent (e.g. the `ActiveHighlightDock` header) to avoid duplication.
+    var showHeadword: Bool = true
     var showDisclaimer: Bool = true
 
     @State private var entry: EastonsDictionaryEntry?
@@ -69,17 +71,18 @@ struct EastonsEntryView: View {
 
     @ViewBuilder
     private func entryBody(_ entry: EastonsDictionaryEntry) -> some View {
-        HStack(alignment: .firstTextBaseline, spacing: 8) {
-            Text(entry.headword)
-                .font(.system(size: 17, weight: .semibold))
-                .foregroundStyle(Color.primary)
-            if showCategoryChip, let category = entry.category, !category.isEmpty {
-                Text(category.capitalized)
-                    .font(.system(size: 10, weight: .medium))
-                    .foregroundStyle(Color.primary.opacity(0.7))
-                    .padding(.horizontal, 7)
-                    .padding(.vertical, 3)
-                    .background(Capsule().fill(Color.primary.opacity(0.08)))
+        if showHeadword {
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                Text(entry.headword)
+                    .font(.system(size: 17, weight: .semibold))
+                    .foregroundStyle(Color.primary)
+                if let iconAsset = EastonsSlugIndexEntry.categoryIconAsset(for: entry.category) {
+                    HarvousFAGlyph(assetName: iconAsset, edgePt: 11)
+                        .foregroundStyle(Color.primary.opacity(0.45))
+                        .padding(.horizontal, 5)
+                        .padding(.vertical, 3)
+                        .background(Capsule().fill(Color.primary.opacity(0.07)))
+                }
             }
         }
         Text(entry.body)
