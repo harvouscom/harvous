@@ -354,37 +354,45 @@ final class ScripturePillAttachment: NSTextAttachment {
     func setPointerHovered(_ hovered: Bool) {
         guard hovered != isPointerHovered else { return }
         isPointerHovered = hovered
-        let img = Self.renderPill(
-            reference: reference,
-            translation: translation,
-            accent: accent,
-            pointerHovered: hovered
-        )
-        self.image = img
-        let refFont = HarvousFonts.system(size: kRefSize, weight: 500)
-        self.bounds = CGRect(
-            origin: CGPoint(x: 0, y: refFont.descender - kVPad),
-            size: img.size
-        )
+        NSApp.effectiveAppearance.performAsCurrentDrawingAppearance {
+            let img = Self.renderPill(
+                reference: self.reference,
+                translation: self.translation,
+                accent: self.accent,
+                pointerHovered: hovered
+            )
+            self.image = img
+            let refFont = HarvousFonts.system(size: kRefSize, weight: 500)
+            self.bounds = CGRect(
+                origin: CGPoint(x: 0, y: refFont.descender - kVPad),
+                size: img.size
+            )
+        }
     }
 
     /// Re-rasterizes the pill image so label color and inner-edge wash track the current
     /// `NSApp.effectiveAppearance`. Call from the host text view's
-    /// `viewDidChangeEffectiveAppearance` so light/dark toggles repaint baked-in label colors
-    /// (`NSColor.labelColor` resolves to a concrete color when drawn into an `NSImage`).
+    /// `viewDidChangeEffectiveAppearance` so light/dark toggles repaint baked-in label colors.
+    ///
+    /// `renderPill` resolves `NSColor.labelColor` (and the inner-edge wash) against
+    /// `NSAppearance.current` — but `NSAppearance.current` is *not* automatically the view's
+    /// effective appearance inside a `viewDidChangeEffectiveAppearance` callback. Wrap the
+    /// render in `performAsCurrent` so dynamic colors resolve under the new appearance.
     func refreshRasterForCurrentAppearance() {
-        let img = Self.renderPill(
-            reference: reference,
-            translation: translation,
-            accent: accent,
-            pointerHovered: isPointerHovered
-        )
-        self.image = img
-        let refFont = HarvousFonts.system(size: kRefSize, weight: 500)
-        self.bounds = CGRect(
-            origin: CGPoint(x: 0, y: refFont.descender - kVPad),
-            size: img.size
-        )
+        NSApp.effectiveAppearance.performAsCurrentDrawingAppearance {
+            let img = Self.renderPill(
+                reference: self.reference,
+                translation: self.translation,
+                accent: self.accent,
+                pointerHovered: self.isPointerHovered
+            )
+            self.image = img
+            let refFont = HarvousFonts.system(size: kRefSize, weight: 500)
+            self.bounds = CGRect(
+                origin: CGPoint(x: 0, y: refFont.descender - kVPad),
+                size: img.size
+            )
+        }
     }
 
     required init?(coder: NSCoder) { fatalError() }

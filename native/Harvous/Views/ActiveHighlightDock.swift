@@ -12,6 +12,11 @@ struct ActiveHighlightDock: View {
     @State private var expandedScrollContentHeight: CGFloat = 0
     @State private var responsePromptsCollapsed: Bool = false
 
+    /// Local slug binding for reference-kind threads. Initialized from `thread.sourceSnippet` and
+    /// resettable via see-also chip taps. Resets when `thread.id` changes so reopening the dock for
+    /// a different reference highlight doesn't keep stale see-also navigation state.
+    @State private var activeReferenceSlug: String = ""
+
     @Bindable var thread: StudyThread
     @Binding var isExpanded: Bool
 
@@ -105,6 +110,13 @@ struct ActiveHighlightDock: View {
             // Yield so SwiftUI can commit study-dock chrome before `seed`/fire-and-forget work competes with layout.
             await Task.yield()
             StudyPromptSuggester.seedScriptureRespondQuestionsIfNeeded(thread: thread, modelContext: modelContext)
+
+            // Reference highlights: seed local slug from the looked-up word so see-also nav can swap in place.
+            if thread.entryKind == .reference {
+                let word = thread.sourceSnippet.trimmingCharacters(in: .whitespacesAndNewlines)
+                let matched = EastonsDictionaryService.shared.matchedSlug(forWord: word) ?? word.lowercased()
+                await MainActor.run { activeReferenceSlug = matched }
+            }
 
             guard thread.entryKind == .scriptureLink else { return }
             let ref = thread.scriptureReference ?? thread.miniNoteBody
@@ -299,6 +311,9 @@ struct ActiveHighlightDock: View {
                                 thread.highlightListEditedAt = now
                                 try? modelContext.saveWithLogging()
                             }
+                    } else if thread.entryKind == .reference {
+                        EastonsEntryView(slug: $activeReferenceSlug, showDisclaimer: true)
+                            .frame(maxWidth: .infinity, alignment: .leading)
                     } else {
                         Text(DockHighlightCopy.detail(thread, modelContext: modelContext))
                             .font(.system(size: 14, weight: .regular))
@@ -445,6 +460,7 @@ struct ActiveHighlightDock: View {
         case .miniNote: return "Harvous.Highlight"
         case .linkedNote: return "Harvous.ArrowRightArrowLeft"
         case .scriptureLink: return "Harvous.BookOpen"
+        case .reference: return "Harvous.LinesLeaning"
         case .workspace: return "Harvous.WandMagicSparkles"
         }
     }

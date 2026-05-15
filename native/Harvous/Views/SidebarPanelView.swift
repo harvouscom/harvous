@@ -24,6 +24,7 @@ struct SidebarPanelView: View {
         case folders
         case scripture
         case highlights
+        case dictionary
 
         var id: String { rawValue }
         var title: String {
@@ -32,6 +33,7 @@ struct SidebarPanelView: View {
             case .folders: return "Folders"
             case .highlights: return "Highlights"
             case .scripture: return "Scripture"
+            case .dictionary: return "Dictionary"
             }
         }
 
@@ -41,6 +43,7 @@ struct SidebarPanelView: View {
             case .folders: return "Harvous.Folder"
             case .highlights: return "Harvous.Highlight"
             case .scripture: return "Harvous.BookOpen"
+            case .dictionary: return "Harvous.LinesLeaning"
             }
         }
     }
@@ -246,6 +249,8 @@ struct SidebarPanelView: View {
                         externalSearchText: unifiedSearchText,
                         columnStyle: .macOSSidebar
                     )
+                } else if mode == .dictionary {
+                    EastonsDictionaryListColumn(externalSearchText: unifiedSearchText)
                 } else if mode == .scripture {
                     switch scriptureDrill {
                     case .root:
@@ -299,6 +304,9 @@ struct SidebarPanelView: View {
                 }
                 if newMode != .scripture {
                     scriptureDrill = .root
+                }
+                if newMode == .dictionary {
+                    folderListSearchText = ""
                 }
                 HarvousMacSidebarSearchFieldGlyph.scheduleBrandMagnifyingGlassPatch()
             }

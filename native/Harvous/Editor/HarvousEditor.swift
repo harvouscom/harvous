@@ -27,6 +27,9 @@ func harvousExpandedPlainText(in storage: NSTextStorage) -> String {
                 if !pill.translation.isEmpty { piece += " " + pill.translation }
                 out += piece
                 i = NSMaxRange(eff)
+            } else if let urlPill = att as? URLLinkPillAttachment {
+                out += urlPill.href
+                i = NSMaxRange(eff)
             } else {
 #if os(macOS)
                 if att is HorizontalRuleAttachment {
@@ -655,6 +658,17 @@ private final class HarvousNoteTextView: NSTextView {
             return
         }
 
+        // URL pill — open the href in the default browser. Mirror the rect hit-test pattern used
+        // for scripture pills above; URL pills are tap-to-open today (no preview popover until the
+        // LinkPreviewCard native equivalent ships).
+        if let (urlPill, _) = urlLinkPillAtPoint(point, in: storage) {
+            super.mouseDown(with: event)
+            if let url = URL(string: urlPill.href) {
+                NSWorkspace.shared.open(url)
+            }
+            return
+        }
+
         // Study highlights — rect hit test only (`studyHighlightUUIDFromPaints`); pill rects were handled above.
         if let uuid = studyHighlightUUIDFromPaints(atViewPoint: point) {
             pendingStudyHighlightActivation = uuid
@@ -729,6 +743,30 @@ private final class HarvousNoteTextView: NSTextView {
             var eff = NSRange()
             let val = storage.attribute(.attachment, at: idx, effectiveRange: &eff)
             if let pill = val as? ScripturePillAttachment {
+                var actual = NSRange()
+                let screenRect = firstRect(forCharacterRange: eff, actualRange: &actual)
+                if screenRect != .zero {
+                    let viewRect = convert(win.convertFromScreen(screenRect), from: nil)
+                    if viewRect.contains(point) { return (pill, eff) }
+                }
+            }
+            let next = NSMaxRange(eff)
+            if next <= idx { break }
+            idx = next
+        }
+        return nil
+    }
+
+    /// Returns the URL pill whose rendered rect contains `point` (view-local coords).
+    /// Same hit-testing strategy as `scripturePillAtPoint`.
+    private func urlLinkPillAtPoint(_ point: NSPoint, in storage: NSTextStorage) -> (URLLinkPillAttachment, NSRange)? {
+        guard let win = window else { return nil }
+        let end = storage.length
+        var idx = 0
+        while idx < end {
+            var eff = NSRange()
+            let val = storage.attribute(.attachment, at: idx, effectiveRange: &eff)
+            if let pill = val as? URLLinkPillAttachment {
                 var actual = NSRange()
                 let screenRect = firstRect(forCharacterRange: eff, actualRange: &actual)
                 if screenRect != .zero {
@@ -861,6 +899,9 @@ private final class HarvousNoteTextView: NSTextView {
             let value = storage.attribute(.attachment, at: idx, effectiveRange: &eff)
             if let pill = value as? ScripturePillAttachment {
                 pill.refreshRasterForCurrentAppearance()
+                invalidateScripturePillGlyphDisplay(characterRange: eff)
+            } else if let urlPill = value as? URLLinkPillAttachment {
+                urlPill.refreshRasterForCurrentAppearance()
                 invalidateScripturePillGlyphDisplay(characterRange: eff)
             }
             let next = NSMaxRange(eff)
@@ -1577,6 +1618,9 @@ struct HarvousEditor: NSViewRepresentable {
             }
             let range = tv.selectedRange()
             let hasSelection = range.length > 0
+            let singleWord: String? = hasSelection
+                ? (tv.textStorage.map { EditorProxy.singleWordSelectionText(in: $0, range: range) } ?? nil)
+                : nil
 
             // Compute selection rect while we still have the text view in scope
             var contentPoint: CGPoint? = nil
@@ -1621,6 +1665,7 @@ struct HarvousEditor: NSViewRepresentable {
             Task { @MainActor in
                 capturedProxy?.syncBodyFirstResponderState(textView: tv)
                 capturedProxy?.hasSelection = hasSelection
+                capturedProxy?.singleWordSelection = singleWord
                 capturedProxy?.selectionContentPoint = contentPoint
                 capturedProxy?.selectionViewPoint = selectionViewPoint
                 capturedProxy?.selectionViewportRect = selectionViewportRectLocal
@@ -1882,6 +1927,7 @@ struct HarvousEditor: NSViewRepresentable {
                 collapseProxySelectionState: { [weak self] in
                     guard let proxy = self?.proxy else { return }
                     proxy.hasSelection = false
+                    proxy.singleWordSelection = nil
                     proxy.selectionViewportRect = nil
                     proxy.selectionCaretViewportRect = nil
                     proxy.refreshFormatState()
@@ -1981,6 +2027,13 @@ struct HarvousEditor: NSViewRepresentable {
             // Do not reset fonts on the full document here — that stripped headings/bold after scripture detection.
             // Pills already get body font when inserted above.
             removeDuplicateTranslationAfterPillAttachments(in: storage)
+
+            // URL pill detection runs in the same edit pass so the layout manager performs a single
+            // layout flush. Scripture pills win any overlap because their ranges land in
+            // `protectedRanges`.
+            let bodyFontForURL: NSFont = HarvousFonts.noteComposeBodyPlatformFont()
+            detectAndInsertURLLinkPills(in: storage, bodyFont: bodyFontForURL)
+
             storage.endEditing()
             applyDefaultBodyTypingAttributes(to: textView)
             // Callers that own a dedicated highlight-paint step (note-switch Hop 2) pass paintHighlights: false
@@ -2016,6 +2069,10 @@ import UIKit
 private final class HarvousBodyTextView: UITextView {
     var onHighlightCaptureAction: (() -> Void)?
     var onNewStandaloneNoteAction: (() -> Void)?
+    var onLookupAction: ((String) -> Void)?
+    /// Set from `updateUIView` on the main actor — the word to look up when selection is exactly one
+    /// Easton's-indexed word. `nil` when selection doesn't qualify (multi-word, no entry, etc.).
+    var singleWordForLookup: String?
     var studyHighlightPaintsSnapshot: [StudyHighlightPaint] = []
     var onRemoveIntersectingStudyHighlightsAction: (() -> Void)?
 
@@ -2052,6 +2109,10 @@ private final class HarvousBodyTextView: UITextView {
                 let value = storage.attribute(.attachment, at: idx, effectiveRange: &eff)
                 if let pill = value as? ScripturePillAttachment {
                     pill.refreshRasterForCurrentAppearance()
+                    let glyphRange = lm.glyphRange(forCharacterRange: eff, actualCharacterRange: nil)
+                    lm.invalidateDisplay(forGlyphRange: glyphRange)
+                } else if let urlPill = value as? URLLinkPillAttachment {
+                    urlPill.refreshRasterForCurrentAppearance()
                     let glyphRange = lm.glyphRange(forCharacterRange: eff, actualCharacterRange: nil)
                     lm.invalidateDisplay(forGlyphRange: glyphRange)
                 }
@@ -2141,6 +2202,11 @@ private final class HarvousBodyTextView: UITextView {
             if let hl = onHighlightCaptureAction {
                 front.append(UIAction(title: "Highlight…", image: UIImage(systemName: "highlighter")) { _ in
                     hl()
+                })
+            }
+            if let singleWord = singleWordForLookup, let lookupHandler = onLookupAction {
+                front.append(UIAction(title: "Look Up in Easton's", image: UIImage(systemName: "books.vertical")) { _ in
+                    lookupHandler(singleWord)
                 })
             }
             if let handler = onNewStandaloneNoteAction {
@@ -2432,6 +2498,13 @@ struct HarvousEditor: UIViewRepresentable {
             body.onRemoveIntersectingStudyHighlightsAction = { [weak coordinator] in
                 coordinator?.invokeEraseInlineFormattingFromSelectionIfPossible()
             }
+            body.singleWordForLookup = {
+                guard let w = proxy?.singleWordSelection else { return nil }
+                return EastonsDictionaryService.shared.hasEntry(forWord: w) ? w : nil
+            }()
+            body.onLookupAction = { [weak coordinator] word in
+                coordinator?.invokeLookupActionFromEditMenuIfPossible(word: word)
+            }
         }
     }
 
@@ -2584,6 +2657,16 @@ struct HarvousEditor: UIViewRepresentable {
             )
         }
 
+        func invokeLookupActionFromEditMenuIfPossible(word: String) {
+            guard let tv = textView, tv.textColor != .tertiaryLabel else { return }
+            HarvousStandaloneSelectionNote.postLookupWordRequestedIfEligible(
+                storage: tv.textStorage,
+                utf16Selection: tv.selectedRange,
+                word: word,
+                parentNoteId: boundNoteID
+            )
+        }
+
         func invokeNewStandaloneNoteFromEditMenuIfPossible() {
             guard let tv = textView, tv.textColor != .tertiaryLabel else { return }
             let storage = tv.textStorage
@@ -2598,6 +2681,7 @@ struct HarvousEditor: UIViewRepresentable {
                 collapseProxySelectionState: { [weak self] in
                     guard let proxy = self?.proxy else { return }
                     proxy.hasSelection = false
+                    proxy.singleWordSelection = nil
                     proxy.selectionViewportRect = nil
                     proxy.selectionCaretViewportRect = nil
                     proxy.refreshFormatState()
@@ -2616,6 +2700,15 @@ struct HarvousEditor: UIViewRepresentable {
             if let (pill, eff) = Self.scripturePillAtViewPoint(point, textView: tv, storage: storage) {
                 tv.resignFirstResponder()
                 onScripturePillTap?(pill.reference, pill.translation, eff)
+                return
+            }
+
+            // 1b. URL pill — open href in Safari. Same rect hit-test as scripture pills above.
+            if let (urlPill, _) = Self.urlLinkPillAtViewPoint(point, textView: tv, storage: storage) {
+                tv.resignFirstResponder()
+                if let url = URL(string: urlPill.href) {
+                    UIApplication.shared.open(url, options: [:], completionHandler: nil)
+                }
                 return
             }
 
@@ -2675,6 +2768,30 @@ struct HarvousEditor: UIViewRepresentable {
                 var eff = NSRange()
                 let val = storage.attribute(.attachment, at: idx, effectiveRange: &eff)
                 if let pill = val as? ScripturePillAttachment {
+                    let rectInView = Self.firstRectInTextView(forUTF16Range: eff, textView: tv)
+                    guard !rectInView.isEmpty, !rectInView.isNull else {
+                        let next = NSMaxRange(eff)
+                        if next <= idx { break }
+                        idx = next
+                        continue
+                    }
+                    if rectInView.contains(point) { return (pill, eff) }
+                }
+                let next = NSMaxRange(eff)
+                if next <= idx { break }
+                idx = next
+            }
+            return nil
+        }
+
+        /// View-local tap point vs rendered URL pill bounds. Mirrors `scripturePillAtViewPoint`.
+        static func urlLinkPillAtViewPoint(_ point: CGPoint, textView tv: UITextView, storage: NSTextStorage) -> (URLLinkPillAttachment, NSRange)? {
+            let end = storage.length
+            var idx = 0
+            while idx < end {
+                var eff = NSRange()
+                let val = storage.attribute(.attachment, at: idx, effectiveRange: &eff)
+                if let pill = val as? URLLinkPillAttachment {
                     let rectInView = Self.firstRectInTextView(forUTF16Range: eff, textView: tv)
                     guard !rectInView.isEmpty, !rectInView.isNull else {
                         let next = NSMaxRange(eff)
@@ -2875,6 +2992,9 @@ struct HarvousEditor: UIViewRepresentable {
                 let unionRect = startRect.union(endRect)
                 viewportRect = unionRect.isNull || unionRect.isEmpty ? nil : unionRect
             }
+            let singleWord: String? = hasSelection
+                ? EditorProxy.singleWordSelectionText(in: textView.textStorage, range: selectedRange)
+                : nil
             let editorProxy = self.proxy
             Task { @MainActor in
                 let adjacent = activeScripturePillFromUITextViewSelection(textView)
@@ -2882,6 +3002,7 @@ struct HarvousEditor: UIViewRepresentable {
                     editorProxy?.activeScripturePill = nil
                 }
                 editorProxy?.hasSelection = hasSelection
+                editorProxy?.singleWordSelection = singleWord
                 editorProxy?.selectionViewportRect = viewportRect
                 editorProxy?.refreshFormatState()
                 if hasSelection {
@@ -2908,6 +3029,7 @@ struct HarvousEditor: UIViewRepresentable {
             let editorProxy = self.proxy
             Task { @MainActor in
                 editorProxy?.hasSelection = false
+                editorProxy?.singleWordSelection = nil
                 editorProxy?.selectionViewportRect = nil
                 editorProxy?.isBodyFirstResponder = false
                 editorProxy?.showFormatBarForActivity = false
@@ -3041,6 +3163,12 @@ struct HarvousEditor: UIViewRepresentable {
                 storage.replaceCharacters(in: item.range, with: pillStr)
             }
             removeDuplicateTranslationAfterPillAttachments(in: storage)
+
+            // URL pill detection runs in the same edit pass so the layout manager performs a single
+            // layout flush. Scripture pills win any overlap via `protectedRanges` inside the helper.
+            let bodyFontForURL: UIFont = HarvousFonts.noteComposeBodyPlatformFont()
+            detectAndInsertURLLinkPills(in: storage, bodyFont: bodyFontForURL)
+
             storage.endEditing()
             applyDefaultBodyTypingAttributes(to: textView)
             paintStudyHighlights(on: textView)

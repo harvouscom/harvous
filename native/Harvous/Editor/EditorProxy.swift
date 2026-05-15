@@ -41,6 +41,10 @@ final class EditorProxy: ObservableObject {
     #endif
 
     @Published var hasSelection: Bool = false
+    /// Plain-text of the current selection when it's exactly one word (no internal whitespace,
+    /// no attachment glyphs). `nil` for caret-only or multi-word/multi-line selections. Used by
+    /// the selection action bar to gate the "Look up" affordance.
+    @Published var singleWordSelection: String? = nil
     @Published var selectionContentPoint: CGPoint? = nil
     /// Selection anchor in NSScrollView / document-visible space (viewport-relative top-left origin) for inline UI (e.g. thread chip).
     @Published var selectionViewPoint: CGPoint? = nil
@@ -149,6 +153,7 @@ final class EditorProxy: ObservableObject {
     /// Clears bar-driving state when switching to another note (the same `NSTextView` can keep first responder).
     func resetFormatBarStateForNewNote() {
         hasSelection = false
+        singleWordSelection = nil
         showFormatBarForActivity = false
         formatBarUnlocked = false
         selectionContentPoint = nil
@@ -247,6 +252,24 @@ final class EditorProxy: ObservableObject {
 
     var cancelFormatBarHideAction: (() -> Void)?
     var scheduleFormatBarHideAction: (() -> Void)?
+
+    /// Returns the selected substring when it represents exactly one whitespace-bounded word:
+    /// non-empty after trimming, contains no internal whitespace, contains no attachment glyphs
+    /// (`U+FFFC`). Returns `nil` for caret-only, multi-word, or multi-line selections.
+    ///
+    /// Mirrors the web `selection is one word` gate that drives the "Look up" button.
+    static func singleWordSelectionText(in storage: NSTextStorage, range: NSRange) -> String? {
+        guard range.length > 0,
+              range.location != NSNotFound,
+              NSMaxRange(range) <= storage.length else { return nil }
+        let raw = (storage.string as NSString).substring(with: range)
+        if raw.contains("\u{FFFC}") { return nil }
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        // No internal whitespace.
+        if trimmed.rangeOfCharacter(from: .whitespacesAndNewlines) != nil { return nil }
+        return trimmed
+    }
 
     func caretRange(for tv: HVTextView) -> NSRange {
 #if os(macOS)

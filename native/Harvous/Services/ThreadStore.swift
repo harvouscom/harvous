@@ -342,6 +342,34 @@ enum ThreadStore {
         return thread
     }
 
+    /// Inline reference-lookup highlight anchored to the current body selection (Easton's dictionary look-up flow).
+    @MainActor
+    @discardableResult
+    static func createReferenceHighlight(
+        parent: Note,
+        spaceId: UUID,
+        word: String,
+        expandedAnchorUTF16Range: NSRange,
+        expandedPlainForAnchor: String,
+        modelContext: ModelContext
+    ) -> StudyThread {
+        let trimmed = word.trimmingCharacters(in: .whitespacesAndNewlines)
+        let thread = StudyThread(
+            spaceId: spaceId,
+            parentNoteId: parent.id,
+            sourceSnippet: trimmed,
+            focusTitle: trimmed,
+            entryKindRaw: StudyThread.EntryKind.reference.rawValue,
+            highlightAccentRaw: StudyHighlightAccentToken.warmAmber.rawValue,
+            parentNote: parent
+        )
+        applyAnchoredExpandedRange(expandedAnchorUTF16Range, expandedPlain: expandedPlainForAnchor, to: thread)
+        modelContext.insert(thread)
+        try? modelContext.saveWithLogging()
+        touchParentNoteIfNeeded(thread, modelContext: modelContext)
+        return thread
+    }
+
     /// All dock passage highlights for this reference + translation across the local library (any space).
     @MainActor
     static func fetchScripturePassageHighlights(

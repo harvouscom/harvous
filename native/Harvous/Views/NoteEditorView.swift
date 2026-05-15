@@ -117,6 +117,9 @@ struct NoteEditorView: View {
     /// drives selection-near-pill editing of book/chapter/verse.
     @State private var activePillDock: ActiveScripturePillDockItem?
     @State private var activePillDockExpanded: Bool = true
+    /// Observed to drive the action bar's Look up button visibility (the bar checks slug index
+    /// existence inside `onLookup` closure conditional).
+    @ObservedObject private var eastonsService = EastonsDictionaryService.shared
     /// Passage highlights for the active pill dock reference + translation (library-wide).
     @State private var scripturePassageHighlights: [StudyThread] = []
     /// Prefetch scripture HTML for pills in this note — cancelled when switching notes or on editor disappear.
@@ -296,6 +299,9 @@ struct NoteEditorView: View {
             if let n = note {
                 scheduleRefreshThreads(note: n)
             }
+            // Warm the Easton's slug index so the action bar's Look up button can probe
+            // synchronously while the user selects words.
+            EastonsDictionaryService.shared.loadIndexIfNeeded()
         }
         // Auto-focus title when a brand-new empty note is opened (Apple Notes UX)
         .task(id: note?.id) {
@@ -360,6 +366,9 @@ struct NoteEditorView: View {
             }
             .onReceive(NotificationCenter.default.publisher(for: .harvousHighlightCapturePrompt)) { payload in
                 Task { @MainActor in consumeHighlightPrompt(payload) }
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .harvousLookupWordRequested)) { payload in
+                Task { @MainActor in consumeLookupWordRequested(payload) }
             }
             .onReceive(NotificationCenter.default.publisher(for: .harvousRequestInsertWikiLink)) { _ in
                 guard note != nil else { return }
@@ -447,6 +456,30 @@ struct NoteEditorView: View {
         highlightAnnotationAccent = .warmAmber
     }
 
+    private func consumeLookupWordRequested(_ notification: Notification) {
+        guard isCurrentForStandaloneSelection else { return }
+        guard let ui = notification.userInfo,
+              let idStr = ui[HarvousLookupWordRequestedUserInfo.parentNoteIdKey] as? String,
+              let nid = UUID(uuidString: idStr),
+              let current = note, current.id == nid,
+              let word = ui[HarvousLookupWordRequestedUserInfo.wordKey] as? String else { return }
+        let loc = (ui[HarvousLookupWordRequestedUserInfo.expandedLocationKey] as? NSNumber)?.intValue
+        let len = (ui[HarvousLookupWordRequestedUserInfo.expandedLengthKey] as? NSNumber)?.intValue
+        guard let loc, let len, len > 0 else { return }
+        let thread = ThreadStore.createReferenceHighlight(
+            parent: current,
+            spaceId: current.resolvedSpaceId(),
+            word: word,
+            expandedAnchorUTF16Range: NSRange(location: loc, length: len),
+            expandedPlainForAnchor: editorState.plainText,
+            modelContext: context
+        )
+        scheduleRefreshThreads(note: current)
+        // Open the highlight dock for the new reference — the dock renders the Easton's entry inline.
+        dockPinnedHighlightThreadId = thread.id
+        activeHighlightDockExpanded = true
+    }
+
     private func saveHighlightFromPanel(for note: Note) {
         guard let session = highlightCaptureSession, session.parentNoteId == note.id else { return }
         let trimmed = highlightAnnotationDraft.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -503,13 +536,22 @@ struct NoteEditorView: View {
                 let intersectRemovals = threadIdsIntersectingCurrentBodySelection()
                 let clearFormatting = selectionIntersectsClearableRichFormatting()
                 let showErase = !intersectRemovals.isEmpty || clearFormatting
-                let width: CGFloat = showErase ? 134 : 92
+                let showLookup = proxy.singleWordSelection
+                    .map { eastonsService.hasEntry(forWord: $0) } ?? false
+                // Base = Highlight + New Note (84pt) + horizontal padding (12). Each optional pill
+                // (Look up, Erase) adds 37pt (36 glyph + 0.5 divider + spacing).
+                let extras = (showLookup ? 37 : 0) + (showErase ? 37 : 0)
+                let width: CGFloat = 96 + CGFloat(extras)
                 let x = selectionAccessoryX(rect: rect, containerWidth: horizontalClampWidth, width: width)
                 let y = selectionAccessoryY(rect: rect)
                 let eraseHelp: String = {
                     if !intersectRemovals.isEmpty, clearFormatting { return "Erase highlight and formatting" }
                     if !intersectRemovals.isEmpty { return "Remove highlight from text" }
                     return "Clear bold, links, and other formatting"
+                }()
+                let lookupTarget: String? = {
+                    guard let w = proxy.singleWordSelection else { return nil }
+                    return eastonsService.hasEntry(forWord: w) ? w : nil
                 }()
                 SelectionActionBar(
                     morphNamespace: selectionAccessoryNamespace,
@@ -520,6 +562,27 @@ struct NoteEditorView: View {
                         }
                     },
                     onNewStandaloneNote: { proxy.triggerStandaloneNoteFromSelection?() },
+                    onLookup: lookupTarget.map { word in
+                        {
+                            guard let (_, storage) = proxy.textViewPair() else { return }
+                            let storageRange = proxy.bodySelectedUTF16Range
+                            guard case .success(let expRange) = HarvousStudyHighlightMapper.expandedRange(
+                                forStorageSelection: storageRange, in: storage
+                            ), expRange.length > 0 else { return }
+                            let thread = ThreadStore.createReferenceHighlight(
+                                parent: note,
+                                spaceId: note.resolvedSpaceId(),
+                                word: word,
+                                expandedAnchorUTF16Range: expRange,
+                                expandedPlainForAnchor: editorState.plainText,
+                                modelContext: context
+                            )
+                            scheduleRefreshThreads(note: note)
+                            // Open the highlight dock so the user sees the Easton's entry inline.
+                            dockPinnedHighlightThreadId = thread.id
+                            activeHighlightDockExpanded = true
+                        }
+                    },
                     onEraseInlineFormatting: showErase
                         ? {
                             proxy.triggerRemoveIntersectingStudyHighlightsFromSelection?()

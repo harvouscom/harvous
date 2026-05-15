@@ -77,7 +77,7 @@ enum StudyHighlightAccentToken: String, CaseIterable {
     func resolvedFromAuto(forKind kind: StudyThread.EntryKind) -> StudyHighlightAccentToken {
         guard self == .auto else { return self }
         switch kind {
-        case .miniNote, .workspace: return .warmAmber
+        case .miniNote, .workspace, .reference: return .warmAmber
         case .scriptureLink: return .neutral
         case .linkedNote: return .violet
         }
@@ -181,7 +181,7 @@ private struct StudyHighlightKindHues {
 
     static func forKind(_ kind: StudyThread.EntryKind) -> StudyHighlightKindHues {
         switch kind {
-        case .miniNote: return .init(hue: 0.12, saturation: 0.45)
+        case .miniNote, .reference: return .init(hue: 0.12, saturation: 0.45)
         case .linkedNote: return .init(hue: 0.75, saturation: 0.40)
         case .scriptureLink: return .init(hue: 0.55, saturation: 0.42)
         case .workspace: return .init(hue: 0.12, saturation: 0.45)

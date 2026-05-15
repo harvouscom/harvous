@@ -257,6 +257,20 @@
 		FE7A027034697770576F8B38 /* HarvousLayoutManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C5E84A7E8D525BEB44C7092 /* HarvousLayoutManager.swift */; };
 		FED33FD47C6FC27C86F60E52 /* ScripturePillAttachment.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4AC0F9F8412356EDEC99471 /* ScripturePillAttachment.swift */; };
 		FF928DB5169ABB320F34C2CD /* ScriptureBookListIndexTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B93890DEA8798198EF5489B /* ScriptureBookListIndexTests.swift */; };
+		A1A1A1A1000000000000DA02 /* URLLinkPillAttachment.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A1A1A1000000000000DA01 /* URLLinkPillAttachment.swift */; };
+		A1A1A1A1000000000000DA03 /* URLLinkPillAttachment.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A1A1A1000000000000DA01 /* URLLinkPillAttachment.swift */; };
+		A1A1A1A1000000000000DA05 /* URLLinkDetectionCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A1A1A1000000000000DA04 /* URLLinkDetectionCoordinator.swift */; };
+		A1A1A1A1000000000000DA06 /* URLLinkDetectionCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A1A1A1000000000000DA04 /* URLLinkDetectionCoordinator.swift */; };
+		A1A1A1A1000000000000DA08 /* URLReferencesLocalIndex.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A1A1A1000000000000DA07 /* URLReferencesLocalIndex.swift */; };
+		A1A1A1A1000000000000DA09 /* URLReferencesLocalIndex.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A1A1A1000000000000DA07 /* URLReferencesLocalIndex.swift */; };
+		A1A1A1A1000000000000EA02 /* EastonsDictionaryService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A1A1A1000000000000EA01 /* EastonsDictionaryService.swift */; };
+		A1A1A1A1000000000000EA03 /* EastonsDictionaryService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A1A1A1000000000000EA01 /* EastonsDictionaryService.swift */; };
+		A1A1A1A1000000000000EA07 /* EastonsEntryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A1A1A1000000000000EA0A /* EastonsEntryView.swift */; };
+		A1A1A1A1000000000000EA08 /* EastonsEntryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A1A1A1000000000000EA0A /* EastonsEntryView.swift */; };
+		A1A1A1A1000000000000EA09 /* EastonsDictionaryListColumn.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A1A1A1000000000000EA0B /* EastonsDictionaryListColumn.swift */; };
+		A1A1A1A1000000000000EA0C /* EastonsDictionaryListColumn.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A1A1A1000000000000EA0B /* EastonsDictionaryListColumn.swift */; };
+		A1A1A1A1000000000000EA0D /* EastonsEntryDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A1A1A1000000000000EA0E /* EastonsEntryDetailView.swift */; };
+		A1A1A1A1000000000000EA0F /* EastonsEntryDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A1A1A1000000000000EA0E /* EastonsEntryDetailView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -425,6 +439,13 @@
 		F51AA942BEC89033EB75DF1D /* ConnectNotePicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectNotePicker.swift; sourceTree = "<group>"; };
 		FF24DFA0CEB544D43275EE77 /* StudyHighlightListIndex.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudyHighlightListIndex.swift; sourceTree = "<group>"; };
 		FF6798156F234EF0EA8B64B1 /* HarvousVaultLocation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HarvousVaultLocation.swift; sourceTree = "<group>"; };
+		A1A1A1A1000000000000DA01 /* URLLinkPillAttachment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = URLLinkPillAttachment.swift; sourceTree = "<group>"; };
+		A1A1A1A1000000000000DA04 /* URLLinkDetectionCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = URLLinkDetectionCoordinator.swift; sourceTree = "<group>"; };
+		A1A1A1A1000000000000DA07 /* URLReferencesLocalIndex.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = URLReferencesLocalIndex.swift; sourceTree = "<group>"; };
+		A1A1A1A1000000000000EA01 /* EastonsDictionaryService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EastonsDictionaryService.swift; sourceTree = "<group>"; };
+		A1A1A1A1000000000000EA0A /* EastonsEntryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EastonsEntryView.swift; sourceTree = "<group>"; };
+		A1A1A1A1000000000000EA0B /* EastonsDictionaryListColumn.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EastonsDictionaryListColumn.swift; sourceTree = "<group>"; };
+		A1A1A1A1000000000000EA0E /* EastonsEntryDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EastonsEntryDetailView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
@@ -480,6 +501,9 @@
 				9C960A76D8DB37A824FE3182 /* StudyHighlightListColumn.swift */,
 				774823E2624C017AA2D19452 /* TagChipViews.swift */,
 				C173EE86842CB06E6991BC32 /* ThreadQuickOptionsPanel.swift */,
+				A1A1A1A1000000000000EA0A /* EastonsEntryView.swift */,
+				A1A1A1A1000000000000EA0B /* EastonsDictionaryListColumn.swift */,
+				A1A1A1A1000000000000EA0E /* EastonsEntryDetailView.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -570,6 +594,8 @@
 				1DA3E0816A62181FA8CAE778 /* ScriptureDetector.swift */,
 				B4AC0F9F8412356EDEC99471 /* ScripturePillAttachment.swift */,
 				63FEFA686ED28F7639CEA2FA /* ScriptureReferenceParser.swift */,
+				A1A1A1A1000000000000DA01 /* URLLinkPillAttachment.swift */,
+				A1A1A1A1000000000000DA04 /* URLLinkDetectionCoordinator.swift */,
 			);
 			path = Editor;
 			sourceTree = "<group>";
@@ -611,6 +637,8 @@
 				A6DB7DD83F92E017190736B0 /* StudyPromptSuggester.swift */,
 				65189A47E387EE77990E4E7B /* ThreadStore.swift */,
 				684855BC3CED90C546AE7F80 /* VotdService.swift */,
+				A1A1A1A1000000000000DA07 /* URLReferencesLocalIndex.swift */,
+				A1A1A1A1000000000000EA01 /* EastonsDictionaryService.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -971,6 +999,13 @@
 				3B166089E43064C257FBD442 /* ScripturePassageView.swift in Sources */,
 				2947F149FF02A6EF97041A15 /* ScripturePillActionBar.swift in Sources */,
 				691AFE34426BBA935459B53C /* ScripturePillAttachment.swift in Sources */,
+				A1A1A1A1000000000000DA02 /* URLLinkPillAttachment.swift in Sources */,
+				A1A1A1A1000000000000DA05 /* URLLinkDetectionCoordinator.swift in Sources */,
+				A1A1A1A1000000000000DA08 /* URLReferencesLocalIndex.swift in Sources */,
+				A1A1A1A1000000000000EA02 /* EastonsDictionaryService.swift in Sources */,
+				A1A1A1A1000000000000EA07 /* EastonsEntryView.swift in Sources */,
+				A1A1A1A1000000000000EA09 /* EastonsDictionaryListColumn.swift in Sources */,
+				A1A1A1A1000000000000EA0D /* EastonsEntryDetailView.swift in Sources */,
 				C06E43E4F5E8CFA1AD5F4487 /* ScriptureReference.swift in Sources */,
 				D9EC7202281BD2CF39EF0743 /* ScriptureReferenceParser.swift in Sources */,
 				0968CDF6569A773C4A66C8F8 /* ScriptureReflectionGenerator.swift in Sources */,
@@ -1118,6 +1153,13 @@
 				D698062C635684BD3578FD5B /* ScripturePassageView.swift in Sources */,
 				3D51FF494AC422B4F9E1C351 /* ScripturePillActionBar.swift in Sources */,
 				FED33FD47C6FC27C86F60E52 /* ScripturePillAttachment.swift in Sources */,
+				A1A1A1A1000000000000DA03 /* URLLinkPillAttachment.swift in Sources */,
+				A1A1A1A1000000000000DA06 /* URLLinkDetectionCoordinator.swift in Sources */,
+				A1A1A1A1000000000000DA09 /* URLReferencesLocalIndex.swift in Sources */,
+				A1A1A1A1000000000000EA03 /* EastonsDictionaryService.swift in Sources */,
+				A1A1A1A1000000000000EA08 /* EastonsEntryView.swift in Sources */,
+				A1A1A1A1000000000000EA0C /* EastonsDictionaryListColumn.swift in Sources */,
+				A1A1A1A1000000000000EA0F /* EastonsEntryDetailView.swift in Sources */,
 				6EA9F1BA119843B7DF4A67E6 /* ScriptureReference.swift in Sources */,
 				CF9A286EF65CBFE8ADAD4A4B /* ScriptureReferenceParser.swift in Sources */,
 				E9FACCFEB970814F02A7D842 /* ScriptureReflectionGenerator.swift in Sources */,

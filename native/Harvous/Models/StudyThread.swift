@@ -10,6 +10,7 @@ final class StudyThread {
         case miniNote
         case linkedNote
         case scriptureLink
+        case reference
     }
 
     @Attribute(.unique) var id: UUID
@@ -145,7 +146,7 @@ final class StudyThread {
     }
 
     /// Kinds that render as inline prose highlights when anchored.
-    static let anchoredHighlightKinds: Set<EntryKind> = [.miniNote, .linkedNote, .scriptureLink]
+    static let anchoredHighlightKinds: Set<EntryKind> = [.miniNote, .linkedNote, .scriptureLink, .reference]
 
     /// True when inline prose highlight should paint (`anchorLocation` non-negative and positive length).
     /// Unanchored linked-note markers use sentinels `anchorLocation == -1`, `anchorLength == 0`.
