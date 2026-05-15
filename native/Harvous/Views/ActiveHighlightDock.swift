@@ -139,46 +139,62 @@ struct ActiveHighlightDock: View {
         }
     }
 
-    /// Category icon for the active reference slug — resolved synchronously from the loaded index.
-    private var referenceCategoryIconAsset: String? {
+    /// Category icon + label for the active reference slug — resolved synchronously from the loaded index.
+    private var referenceCategoryMeta: (iconAsset: String, label: String)? {
         guard thread.entryKind == .reference, !activeReferenceSlug.isEmpty else { return nil }
-        return EastonsDictionaryService.shared.slugIndex[activeReferenceSlug]?.categoryIconAsset
+        guard let entry = EastonsDictionaryService.shared.slugIndex[activeReferenceSlug],
+              let icon = entry.categoryIconAsset,
+              let cat = entry.category else { return nil }
+        return (icon, cat.capitalized)
+    }
+
+    @ViewBuilder
+    private func referenceCategoryBadge(iconAsset: String, label: String) -> some View {
+        HStack(spacing: 3) {
+            HarvousFAGlyph(assetName: iconAsset, edgePt: 10)
+            Text(label)
+                .font(.system(size: 11, weight: .medium))
+        }
+        .foregroundStyle(Color.primary.opacity(0.5))
+        .padding(.horizontal, 6)
+        .padding(.vertical, 3)
+        .background(Capsule().fill(Color.primary.opacity(0.07)))
     }
 
     private var headerRow: some View {
         // Title is always lineLimit(1) so left and right sides are the same height — .center keeps
         // the icon/text row visually aligned with the color swatch, chevron, and close controls.
         HStack(alignment: .center, spacing: 8) {
-            // Glyph (tap to expand/collapse) + editable title (placeholder from `defaultHighlightTitle`).
+            // Glyph (tap to expand/collapse)
             headerGlyphImage
 
-            TextField("", text: $thread.focusTitle, prompt: Text(defaultHighlightTitle).foregroundStyle(.secondary))
-                .font(.system(size: 14, weight: .semibold))
-                .foregroundStyle(.primary)
-                .textFieldStyle(.plain)
-                .lineLimit(1)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .onChange(of: thread.focusTitle) { old, new in
-                    // Avoid bumping list sort / vault timestamps on spurious binding parity or no-op edits.
-                    guard old != new else { return }
-                    let now = Date()
-                    thread.updatedAt = now
-                    thread.highlightListEditedAt = now
-                    try? modelContext.saveWithLogging()
-                }
-                #if os(iOS)
-                .submitLabel(.done)
-                #endif
-                .accessibilityLabel("Highlight title")
+            // Title + optional category badge (reference kind only) pushed left; Spacer fills gap to toolbar.
+            HStack(alignment: .firstTextBaseline, spacing: 5) {
+                TextField("", text: $thread.focusTitle, prompt: Text(defaultHighlightTitle).foregroundStyle(.secondary))
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(.primary)
+                    .textFieldStyle(.plain)
+                    .lineLimit(1)
+                    .onChange(of: thread.focusTitle) { old, new in
+                        // Avoid bumping list sort / vault timestamps on spurious binding parity or no-op edits.
+                        guard old != new else { return }
+                        let now = Date()
+                        thread.updatedAt = now
+                        thread.highlightListEditedAt = now
+                        try? modelContext.saveWithLogging()
+                    }
+                    #if os(iOS)
+                    .submitLabel(.done)
+                    #endif
+                    .accessibilityLabel("Highlight title")
 
-            // Category icon badge — only for reference highlights, once the slug index has resolved.
-            if let iconAsset = referenceCategoryIconAsset {
-                HarvousFAGlyph(assetName: iconAsset, edgePt: 11)
-                    .foregroundStyle(Color.primary.opacity(0.45))
-                    .padding(.horizontal, 5)
-                    .padding(.vertical, 3)
-                    .background(Capsule().fill(Color.primary.opacity(0.07)))
+                if let meta = referenceCategoryMeta {
+                    referenceCategoryBadge(iconAsset: meta.iconAsset, label: meta.label)
+                }
+
+                Spacer(minLength: 0)
             }
+            .frame(maxWidth: .infinity)
 
             // Utility toolbar — `.animation(.none)` prevents the spring on `isExpanded` from
             // sliding the chevron symbol or the whole toolbar during expand/collapse.

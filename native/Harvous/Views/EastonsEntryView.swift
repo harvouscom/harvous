@@ -86,8 +86,9 @@ struct EastonsEntryView: View {
             }
         }
         Text(entry.body)
-            .font(.system(size: 13))
-            .foregroundStyle(Color.primary.opacity(0.85))
+            .font(.system(size: 15))
+            .lineSpacing(4)
+            .foregroundStyle(Color.primary.opacity(0.9))
             .fixedSize(horizontal: false, vertical: true)
             .textSelection(.enabled)
         if !entry.seeAlso.isEmpty {
@@ -96,9 +97,9 @@ struct EastonsEntryView: View {
     }
 
     private func seeAlsoRow(_ items: [String]) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: 6) {
             Text("See also")
-                .font(.system(size: 11, weight: .medium))
+                .font(.system(size: 12, weight: .medium))
                 .foregroundStyle(Color.primary.opacity(0.55))
             EastonsChipFlowLayout(spacing: 6) {
                 ForEach(items, id: \.self) { item in
@@ -116,7 +117,7 @@ struct EastonsEntryView: View {
             if let matched { slug = matched }
         } label: {
             Text(item)
-                .font(.system(size: 12, weight: .medium))
+                .font(.system(size: 13, weight: .medium))
                 .foregroundStyle(matched != nil ? Color.accentColor : Color.primary.opacity(0.45))
                 .padding(.horizontal, 8)
                 .padding(.vertical, 4)
