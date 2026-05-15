@@ -3,12 +3,15 @@ import SwiftUI
 #if os(macOS)
 
 /// Sidebar column listing all Easton's Bible Dictionary entries A-Z.
-/// Category tabs filter by person / place / thing; the sidebar search bar narrows by headword.
+/// Category chips filter by person / place / thing; the sidebar search bar narrows by headword.
+/// Tapping a row calls `onSelectEntry` so the parent can drill in-sidebar (like folders).
 struct EastonsDictionaryListColumn: View {
     var externalSearchText: Binding<String>? = nil
+    var onSelectEntry: (String) -> Void = { _ in }
 
     @ObservedObject private var service = EastonsDictionaryService.shared
     @State private var categoryFilter: CategoryFilter = .all
+    @Namespace private var chipNamespace
 
     private enum CategoryFilter: String, CaseIterable, Identifiable {
         case all, person, place, thing
@@ -20,6 +23,9 @@ struct EastonsDictionaryListColumn: View {
             case .place:  return "Places"
             case .thing:  return "Things"
             }
+        }
+        var iconAsset: String? {
+            EastonsSlugIndexEntry.categoryIconAsset(for: rawValue == "all" ? nil : rawValue)
         }
     }
 
@@ -41,17 +47,7 @@ struct EastonsDictionaryListColumn: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            Picker(selection: $categoryFilter) {
-                ForEach(CategoryFilter.allCases) { filter in
-                    Text(filter.label).tag(filter)
-                }
-            } label: { EmptyView() }
-            .labelsHidden()
-            .pickerStyle(.segmented)
-            .padding(.horizontal, 10)
-            .padding(.top, 8)
-            .padding(.bottom, 4)
-
+            categoryChipBar
             listBody
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
@@ -59,6 +55,53 @@ struct EastonsDictionaryListColumn: View {
             EastonsDictionaryService.shared.loadIndexIfNeeded()
         }
     }
+
+    // MARK: - Category chip bar
+
+    private var categoryChipBar: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 6) {
+                ForEach(CategoryFilter.allCases) { filter in
+                    categoryChip(filter)
+                }
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 8)
+        }
+    }
+
+    private func categoryChip(_ filter: CategoryFilter) -> some View {
+        let isSelected = categoryFilter == filter
+        return Button {
+            withAnimation(.spring(response: 0.28, dampingFraction: 0.78)) {
+                categoryFilter = filter
+            }
+        } label: {
+            HStack(spacing: 4) {
+                if let iconAsset = filter.iconAsset {
+                    HarvousFAGlyph(assetName: iconAsset, edgePt: 10)
+                }
+                Text(filter.label)
+                    .font(.system(size: 12, weight: .medium))
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 5)
+            .foregroundStyle(isSelected ? Color.white : Color.primary.opacity(0.75))
+            .background {
+                if isSelected {
+                    Capsule()
+                        .fill(Color.accentColor)
+                        .matchedGeometryEffect(id: "dictionaryChip", in: chipNamespace)
+                } else {
+                    Capsule()
+                        .fill(Color.primary.opacity(0.07))
+                }
+            }
+        }
+        .buttonStyle(.plain)
+    }
+
+    // MARK: - List
 
     @ViewBuilder
     private var listBody: some View {
@@ -84,11 +127,12 @@ struct EastonsDictionaryListColumn: View {
                 ContentUnavailableView.search(text: searchQuery)
             } else {
                 List(filteredEntries, id: \.slug) { entry in
-                    NavigationLink(destination: EastonsEntryDetailView(initialSlug: entry.slug)) {
+                    Button { onSelectEntry(entry.slug) } label: {
                         dictionaryRow(entry)
                             .padding(.horizontal, 10)
                             .padding(.vertical, 2)
                     }
+                    .buttonStyle(.plain)
                     .listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 4, trailing: 0))
                     .listRowBackground(Color.clear)
                     .listRowSeparator(.hidden)

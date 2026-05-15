@@ -1,7 +1,9 @@
 import SwiftUI
 
-/// Sidebar drill-down detail view for a single Easton's Bible Dictionary entry.
-/// See-also chips update `slug` in-place (same entry swaps without navigation).
+/// Inline sidebar detail view for a single Easton's Bible Dictionary entry.
+/// Rendered directly inside the sidebar column (not pushed via NavigationLink) so it
+/// stays in the sidebar panel rather than replacing the main editor area.
+/// See-also chips update `slug` in-place without any further navigation.
 struct EastonsEntryDetailView: View {
     let initialSlug: String
     @State private var slug: String
@@ -17,9 +19,6 @@ struct EastonsEntryDetailView: View {
                 .padding(16)
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .navigationTitle(Text("Dictionary"))
-        #if os(macOS)
-        .navigationSubtitle(Text("Easton's Bible Dictionary"))
-        #endif
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 }

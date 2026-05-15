@@ -60,6 +60,11 @@ struct SidebarPanelView: View {
         case passage(ParsedScriptureFields)
     }
 
+    private enum DictionaryDrill: Equatable {
+        case root
+        case entry(String) // slug
+    }
+
     @Binding var selectedNote: Note?
     @Binding var splitColumnVisibility: NavigationSplitViewVisibility
     var onCreateNewNote: (() -> Void)?
@@ -69,6 +74,7 @@ struct SidebarPanelView: View {
     @State private var mode: SidebarMode = .notes
     @State private var foldersDrill: FoldersDrill = .root
     @State private var scriptureDrill: ScriptureDrill = .root
+    @State private var dictionaryDrill: DictionaryDrill = .root
     @State private var folderListSearchText = ""
     @State private var sidebarColumnMeasuredWidth: CGFloat = 0
     @State private var pinnedFolderRowIds: [String] = []
@@ -209,6 +215,15 @@ struct SidebarPanelView: View {
                     .buttonStyle(.bordered)
                     .help(scriptureSidebarBackButtonHelp)
                 }
+                if mode == .dictionary, dictionaryDrill != .root {
+                    Button {
+                        dictionaryDrill = .root
+                    } label: {
+                        HarvousFAGlyph(assetName: "Harvous.ChevronLeft", edgePt: 13)
+                    }
+                    .buttonStyle(.bordered)
+                    .help("Back to dictionary")
+                }
                 modeMenu
             }
             sidebarHideSidebarToolbarButton
@@ -250,7 +265,15 @@ struct SidebarPanelView: View {
                         columnStyle: .macOSSidebar
                     )
                 } else if mode == .dictionary {
-                    EastonsDictionaryListColumn(externalSearchText: unifiedSearchText)
+                    switch dictionaryDrill {
+                    case .root:
+                        EastonsDictionaryListColumn(
+                            externalSearchText: unifiedSearchText,
+                            onSelectEntry: { slug in dictionaryDrill = .entry(slug) }
+                        )
+                    case .entry(let slug):
+                        EastonsEntryDetailView(initialSlug: slug)
+                    }
                 } else if mode == .scripture {
                     switch scriptureDrill {
                     case .root:
@@ -305,7 +328,9 @@ struct SidebarPanelView: View {
                 if newMode != .scripture {
                     scriptureDrill = .root
                 }
-                if newMode == .dictionary {
+                if newMode != .dictionary {
+                    dictionaryDrill = .root
+                } else {
                     folderListSearchText = ""
                 }
                 HarvousMacSidebarSearchFieldGlyph.scheduleBrandMagnifyingGlassPatch()
