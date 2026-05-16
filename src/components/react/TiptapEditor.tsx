@@ -14,6 +14,7 @@ import { NoteLink } from './TiptapNoteLink';
 import { ScripturePill } from './TiptapScripturePill';
 import { BoldCustom } from './TiptapBoldCustom';
 import { HighlightCustom } from './TiptapHighlightCustom';
+import { UrlLink } from './TiptapUrlLink';
 import { normalizeScriptureReference, detectScriptureReferences, matchTrailingTranslationAbbreviation, type ScriptureReference, type ScriptureReferenceWithTranslation } from '@/utils/scripture-detector';
 import { isStudyHighlightAccentKey, type StudyHighlightAccentKey } from '@/utils/study-highlight-accents';
 import { TRANSLATION_ORDER, TRANSLATIONS } from '@/data/translations';
@@ -26,6 +27,11 @@ import { debug } from '@/utils/logger';
 import { getOrCreateScriptureNote } from '@/utils/scripture-note-utils';
 import ScripturePillChromeWeb from './ScripturePillChromeWeb';
 import HighlightDockWeb from './HighlightDockWeb';
+import LinkPreviewCard from './LinkPreviewCard';
+import UrlLinkPromptUI from './UrlLinkPromptUI';
+import ReferenceDockWeb from './ReferenceDockWeb';
+import { useEditorHoverPreview } from './useEditorHoverPreview';
+import { useEastonsSlugIndex, lookupWord } from '../../../spa/src/hooks/useEastonsSlugIndex';
 import '@/styles/tiptap-editor.css';
 
 // Icon component for inline SVGs (allows CSS styling)
@@ -84,7 +90,7 @@ interface TiptapEditorProps {
    */
   editorChromeMode?: 'default' | 'prototypeNative';
   onPrototypeChromeModeChange?: (
-    mode: 'format' | 'scripture' | 'noteActions' | 'highlight' | 'hidden',
+    mode: 'format' | 'scripture' | 'noteActions' | 'highlight' | 'reference' | 'hidden',
   ) => void;
   /**
    * Prototype-only: when false and no inline `noteActions` host is rendered, use `hidden` instead of `noteActions`
@@ -95,6 +101,12 @@ interface TiptapEditorProps {
    * Prototype-only: portal target for highlight dock (accent / remove) — sibling to format + scripture hosts.
    */
   highlightChromePortalTarget?: HTMLElement | null;
+  /**
+   * Prototype-only: portal target for the Reference dock (dictionary lookup + reference sources).
+   */
+  referenceChromePortalTarget?: HTMLElement | null;
+  /** Prototype-only: when set, auto-opens the reference dock for this word once the editor mounts. */
+  initialReferenceWord?: string | null;
   /**
    * Prototype-only: when provided, the prototype-native format toolbar is rendered
    * via `createPortal` into this element instead of inline. This lets the parent
@@ -2854,6 +2866,8 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
   formatToolbarPortalTarget = null,
   scriptureChromePortalTarget = null,
   highlightChromePortalTarget = null,
+  referenceChromePortalTarget = null,
+  initialReferenceWord = null,
   prototypeScripturePillOpenRequest = null,
   onPrototypeScripturePillOpenRequestConsumed,
 }) => {
@@ -2892,6 +2906,21 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     rect: DOMRect;
     reference: string;
     boundaries: { start: number; end: number };
+  } | null>(null);
+  // URL link prompt (Phase A): floating input over the current selection / existing url-link.
+  const [urlLinkPrompt, setUrlLinkPrompt] = useState<{
+    rect: { top: number; left: number; bottom: number; right: number; width: number };
+    range: { from: number; to: number };
+    initialHref: string;
+    mode: 'create' | 'edit';
+  } | null>(null);
+  // Reference dock: opens when the user taps "Look up" on a single-word selection.
+  // Renders as a bottom dock (mirroring HighlightDockWeb / ScripturePillChromeWeb).
+  const [referenceDockSession, setReferenceDockSession] = useState<{
+    query: string;
+    noteHighlightRange?: { from: number; to: number } | null;
+    noteHighlightAccent?: StudyHighlightAccentKey | null;
+    studyThreadEntryId?: string | null;
   } | null>(null);
   // Ref mirrors deleteConfirmPill for reading inside handleKeyDown (avoids stale closure)
   const deleteConfirmPillRef = useRef<{
@@ -2999,6 +3028,10 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
         underline: false,
         // Exclude bold from StarterKit so we can use custom Bold extension
         bold: false,
+        // Disable StarterKit's bundled Link extension — we use our own UrlLink mark which
+        // renders a <span data-url-link> instead of <a>. Without this, StarterKit wraps
+        // bare URLs in <a> tags, causing a double underline (browser <a> default + .url-link).
+        link: false,
       }),
       Heading.configure({
         levels: [2, 3, 4], // H1 reserved for note titles; H4 matches native body toolbar
@@ -3009,6 +3042,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       HighlightCustom, // Use custom Highlight extension that prevents application after pills
       ScripturePill, // Must come before NoteLink so scripture pills are parsed correctly
       NoteLink,
+      UrlLink, // External URL links — parse priority lower so note/scripture spans win
       Placeholder.configure({
         placeholder: placeholder,
         showOnlyWhenEditable: true,
@@ -3738,6 +3772,198 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     immediatelyRender: false,
   });
 
+  // Auto-open the reference dock when initialReferenceWord is set (e.g. navigated from sidebar row)
+  const initialReferenceWordFiredRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!initialReferenceWord || initialReferenceWordFiredRef.current === initialReferenceWord) return;
+    if (!editor || !isEditorValid(editor)) return;
+    initialReferenceWordFiredRef.current = initialReferenceWord;
+    setReferenceDockSession({ query: initialReferenceWord });
+  }, [initialReferenceWord, editor]);
+
+  // Hover preview card for scripture pills + note links (+ urlLink later in Phase A).
+  // Adds a new affordance without changing existing click behavior.
+  const hoverPreviewDisabled = !!(
+    selectionActionBar ||
+    translationPicker ||
+    scripturePillSession ||
+    deleteConfirmPill ||
+    highlightDockSession ||
+    urlLinkPrompt
+  );
+  const { preview: hoverPreview, cancelHide: cancelHoverPreviewHide, dismiss: dismissHoverPreview } = useEditorHoverPreview({
+    containerRef: tiptapContentRef,
+    disabled: hoverPreviewDisabled || !editor,
+  });
+
+  // Easton's slug index — loaded once, used to detect single-word selections worth looking up.
+  const { data: eastonsIndex } = useEastonsSlugIndex();
+
+  const getSelectedSingleWord = useCallback((): string | null => {
+    if (!editor) return null;
+    const { from, to } = editor.state.selection;
+    if (from === to) return null;
+    const text = editor.state.doc.textBetween(from, to).trim();
+    if (!text || /\s/.test(text) || text.length > 40) return null;
+    return text;
+  }, [editor]);
+
+  const handleHoverPreviewOpen = useCallback(() => {
+    if (!hoverPreview) return;
+    const p = hoverPreview.payload;
+    if (hoverPreview.kind === 'url' && p.href) {
+      dismissHoverPreview();
+      window.open(p.href, '_blank', 'noopener,noreferrer');
+      return;
+    }
+    const rawNoteId = p.noteId || p.scriptureNoteId;
+    if (!rawNoteId || rawNoteId === 'pending' || rawNoteId === 'null') {
+      dismissHoverPreview();
+      return;
+    }
+    const fullNoteId = rawNoteId.startsWith('note_') ? rawNoteId : `note_${rawNoteId}`;
+    let threadContext: string | undefined;
+    try {
+      const fromQuery = new URLSearchParams(window.location.search).get('thread');
+      if (fromQuery && fromQuery.startsWith('thread_')) threadContext = fromQuery;
+    } catch { /* ignore */ }
+    const currentNoteId = extractIdFromPath(window.location.pathname);
+    if (!threadContext && currentNoteId?.startsWith('note_')) {
+      try {
+        const cached = localStorage.getItem(`harvous-note-thread-${currentNoteId}`);
+        if (cached && cached.startsWith('thread_')) threadContext = cached;
+      } catch { /* ignore */ }
+    }
+    if (currentNoteId?.startsWith('note_') && threadContext) {
+      pushNavStack(currentNoteId, threadContext);
+    }
+    if (threadContext && threadContext !== 'thread_unorganized') {
+      fetch(`/api/notes/${fullNoteId}/add-thread`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ threadId: threadContext }),
+        credentials: 'include',
+      })
+        .then((res) => {
+          if (res.ok) {
+            window.dispatchEvent(
+              new CustomEvent('noteAddedToThread', {
+                detail: { noteId: fullNoteId, threadId: threadContext, source: 'inlineAddThread' },
+              }),
+            );
+          }
+        })
+        .catch(() => {});
+    }
+    dismissHoverPreview();
+    safeNavigate(idToUrl(fullNoteId, threadContext, currentNoteId || undefined));
+  }, [hoverPreview, dismissHoverPreview]);
+
+  const openUrlLinkPrompt = useCallback(() => {
+    if (!editor || !isEditorValid(editor)) return;
+    const { from, to } = editor.state.selection;
+    if (from === to) return;
+    const existingMark = editor.state.doc.rangeHasMark(from, to, editor.state.schema.marks.urlLink);
+    const start = editor.view.coordsAtPos(from);
+    const end = editor.view.coordsAtPos(to);
+    const rect = {
+      top: Math.min(start.top, end.top),
+      left: Math.min(start.left, end.left),
+      bottom: Math.max(start.bottom, end.bottom),
+      right: Math.max(start.right, end.right),
+      width: Math.abs(end.right - start.left),
+    };
+    let initialHref = '';
+    if (existingMark) {
+      editor.state.doc.nodesBetween(from, to, (node) => {
+        const m = node.marks.find((mk) => mk.type.name === 'urlLink');
+        if (m && typeof m.attrs.href === 'string') initialHref = m.attrs.href;
+      });
+    }
+    setSelectionActionBar(null);
+    setUrlLinkPrompt({
+      rect,
+      range: { from, to },
+      initialHref,
+      mode: existingMark ? 'edit' : 'create',
+    });
+  }, [editor]);
+
+  const applyUrlLink = useCallback((rawHref: string) => {
+    if (!editor || !urlLinkPrompt) return;
+    const href = rawHref.trim();
+    if (!href) { setUrlLinkPrompt(null); return; }
+    let normalized = href;
+    if (!/^https?:\/\//i.test(normalized)) normalized = `https://${normalized}`;
+    // Strip underline on the range — URL links are visually underlined by their own style,
+    // so coexisting Underline marks produce a stacked double-underline.
+    editor
+      .chain()
+      .focus()
+      .setTextSelection(urlLinkPrompt.range)
+      .unsetMark('underline')
+      .setUrlLink({ href: normalized })
+      .run();
+    setUrlLinkPrompt(null);
+  }, [editor, urlLinkPrompt]);
+
+  const removeUrlLinkAtCurrentRange = useCallback(() => {
+    if (!editor || !urlLinkPrompt) return;
+    editor
+      .chain()
+      .focus()
+      .setTextSelection(urlLinkPrompt.range)
+      .unsetUrlLink()
+      .run();
+    setUrlLinkPrompt(null);
+  }, [editor, urlLinkPrompt]);
+
+  // Get the full mark range from a DOM anchor element (used by hover-card remove/edit).
+  const getUrlLinkRangeFromAnchorEl = useCallback((anchorEl: HTMLElement): { from: number; to: number } | null => {
+    if (!editor) return null;
+    try {
+      const pos = editor.view.posAtDOM(anchorEl, 0);
+      const $pos = editor.state.doc.resolve(pos);
+      const markType = editor.state.schema.marks.urlLink;
+      if (!markType) return null;
+      const range = getMarkRange($pos, markType);
+      if (!range) return null;
+      return { from: range.from, to: range.to };
+    } catch {
+      return null;
+    }
+  }, [editor]);
+
+  const removeUrlLinkFromHoverCard = useCallback(() => {
+    if (!editor || !hoverPreview || hoverPreview.kind !== 'url') return;
+    const range = getUrlLinkRangeFromAnchorEl(hoverPreview.anchorEl);
+    if (!range) return;
+    dismissHoverPreview();
+    editor.chain().focus().setTextSelection(range).unsetUrlLink().run();
+  }, [editor, hoverPreview, getUrlLinkRangeFromAnchorEl, dismissHoverPreview]);
+
+  const editUrlLinkFromHoverCard = useCallback(() => {
+    if (!editor || !hoverPreview || hoverPreview.kind !== 'url') return;
+    const range = getUrlLinkRangeFromAnchorEl(hoverPreview.anchorEl);
+    if (!range) return;
+    dismissHoverPreview();
+    const start = editor.view.coordsAtPos(range.from);
+    const end = editor.view.coordsAtPos(range.to);
+    const rect = {
+      top: Math.min(start.top, end.top),
+      left: Math.min(start.left, end.left),
+      bottom: Math.max(start.bottom, end.bottom),
+      right: Math.max(start.right, end.right),
+      width: Math.abs(end.right - start.left),
+    };
+    setUrlLinkPrompt({
+      rect,
+      range,
+      initialHref: hoverPreview.payload.href ?? '',
+      mode: 'edit',
+    });
+  }, [editor, hoverPreview, getUrlLinkRangeFromAnchorEl, dismissHoverPreview]);
+
   // Store editor in ref for handleKeyDown access
   useEffect(() => {
     if (editor) {
@@ -4125,9 +4351,45 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       if (markInPm && editorChromeMode === 'prototypeNative' && editor.isEditable) {
         e.preventDefault();
         e.stopImmediatePropagation();
+        const markColor = markInPm.getAttribute('data-color');
+        const markReference = markInPm.getAttribute('data-reference');
+        // Reference highlights (looked-up words) open the reference dock with highlight controls.
+        // - New format: data-reference="word" (created via "Look up")
+        // - Legacy format: data-color="referenceHighlight" (pre-refactor, word inferred from text)
+        const isReference = !!markReference || markColor === 'referenceHighlight';
+        if (isReference) {
+          const word = markReference || markInPm.textContent?.trim() || '';
+          const markStudyId = markInPm.getAttribute('data-study-thread-id');
+          const noteRange = (() => {
+            try {
+              const pos = editor.view.posAtDOM(markInPm, 0);
+              const $p = editor.state.doc.resolve(pos);
+              const markType = editor.state.schema.marks.highlight;
+              if (!markType) return null;
+              const r = getMarkRange($p, markType);
+              if (r && typeof r.from === 'number' && typeof r.to === 'number') {
+                return { from: r.from, to: r.to };
+              }
+            } catch {
+              /* ignore */
+            }
+            return null;
+          })();
+          const accent = isStudyHighlightAccentKey(markColor) ? markColor : 'warmAmber';
+          setReferenceDockSession({
+            query: word,
+            noteHighlightRange: noteRange,
+            noteHighlightAccent: accent,
+            studyThreadEntryId: markStudyId,
+          });
+          setHighlightDockSession(null);
+          setScripturePillSession(null);
+          setTranslationPicker(null);
+          return;
+        }
         setHighlightDockSession({
           studyThreadEntryId: markInPm.getAttribute('data-study-thread-id'),
-          accent: markInPm.getAttribute('data-color') || 'warmAmber',
+          accent: markColor || 'warmAmber',
           excerpt: markInPm.textContent || '',
           range: (() => {
             try {
@@ -4156,13 +4418,15 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
         target.closest('.scripture-translation-picker') ||
         target.closest('.scripture-pill-chrome') ||
         target.closest('.scripture-pill') ||
-        target.closest('.highlight-dock-web')
+        target.closest('.highlight-dock-web') ||
+        target.closest('.reference-dock-web')
       ) {
         // Keep open
       } else {
         setTranslationPicker(null);
         setScripturePillSession(null);
         setHighlightDockSession(null);
+        setReferenceDockSession(null);
       }
       if (!target.closest('.scripture-delete-confirm') && !target.closest('.scripture-pill')) {
         setDeleteConfirmPill(null);
@@ -4661,11 +4925,15 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
   const highlightChromeActive =
     editorChromeMode === 'prototypeNative' && highlightDockSession != null;
 
+  const referenceChromeActive =
+    editorChromeMode === 'prototypeNative' && referenceDockSession != null;
+
   const shouldShowPrototypeFormatToolbar =
     editorChromeMode === 'prototypeNative' &&
     isEditorFocused &&
     !scriptureChromeActive &&
     !highlightChromeActive &&
+    !referenceChromeActive &&
     (selectionExpanded || showFormatBarForActivity || isPointerOverFormatToolbar);
 
   useEffect(() => {
@@ -4676,6 +4944,10 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     }
     if (highlightChromeActive) {
       onPrototypeChromeModeChange('highlight');
+      return;
+    }
+    if (referenceChromeActive) {
+      onPrototypeChromeModeChange('reference');
       return;
     }
     if (!isEditorFocused) {
@@ -4693,9 +4965,11 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     prototypeNoteActionsChrome,
     scriptureChromeActive,
     highlightChromeActive,
+    referenceChromeActive,
     deleteConfirmPill,
     scripturePillSession,
     highlightDockSession,
+    referenceDockSession,
     isEditorFocused,
     shouldShowPrototypeFormatToolbar,
   ]);
@@ -5062,12 +5336,12 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
             </ToolbarButton>
             <ToolbarButton
               onClick={() => {
-                void handleCreateNoteFromSelection();
+                openUrlLinkPrompt();
               }}
-              isActive={false}
+              isActive={!!editor?.isActive('urlLink')}
               disabled={!hasTextSelection}
-              title="Link selection to a note"
-              ariaLabel="Link selection to a note"
+              title="Add link to selection"
+              ariaLabel="Add link to selection"
             >
               <ProtoLinkIcon className="proto-toolbar-icon" aria-hidden />
             </ToolbarButton>
@@ -5248,6 +5522,38 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
         }}
       >
         <EditorContent editor={editor} />
+        {/* Hover preview card for scripture pills + note links + url-link. */}
+        {hoverPreview ? (
+          <LinkPreviewCard
+            kind={hoverPreview.kind}
+            anchorRect={hoverPreview.anchorRect}
+            payload={hoverPreview.payload}
+            onOpen={
+              hoverPreview.kind === 'url'
+                ? handleHoverPreviewOpen
+                : (hoverPreview.payload.noteId || hoverPreview.payload.scriptureNoteId)
+                  ? handleHoverPreviewOpen
+                  : undefined
+            }
+            onEdit={hoverPreview.kind === 'url' ? editUrlLinkFromHoverCard : undefined}
+            onRemove={hoverPreview.kind === 'url' ? removeUrlLinkFromHoverCard : undefined}
+            onDismiss={dismissHoverPreview}
+            onPointerEnter={cancelHoverPreviewHide}
+            onPointerLeave={dismissHoverPreview}
+          />
+        ) : null}
+        {/* URL link prompt — floating input for adding/editing the urlLink mark. */}
+        {urlLinkPrompt && createPortal(
+          <UrlLinkPromptUI
+            rect={urlLinkPrompt.rect}
+            initialHref={urlLinkPrompt.initialHref}
+            mode={urlLinkPrompt.mode}
+            onSubmit={applyUrlLink}
+            onRemove={urlLinkPrompt.mode === 'edit' ? removeUrlLinkAtCurrentRange : undefined}
+            onCancel={() => setUrlLinkPrompt(null)}
+          />,
+          document.body,
+        )}
         {/* Custom floating selection action bar — positioned via selectionUpdate event */}
         {/* Uses createPortal like the translation picker for reliable positioning */}
         {selectionActionBar && enableCreateNoteFromSelection && createPortal(
@@ -5336,6 +5642,86 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                 >
                   <Icon name="highlighter" size={14} />
                 </button>
+                {(() => {
+                  const word = getSelectedSingleWord();
+                  const entry = word ? lookupWord(word, eastonsIndex) : null;
+                  if (!entry) return null;
+                  return (
+                    <>
+                      <span className="pds-native-selection-bar__rule" aria-hidden />
+                      <button
+                        type="button"
+                        className="pds-native-selection-bar__btn"
+                        title={`Look up "${word}" in Easton's Bible Dictionary`}
+                        aria-label="Look up in dictionary"
+                        onMouseDown={(e: React.MouseEvent) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          if (!editor || !isEditorValid(editor) || !word) {
+                            setSelectionActionBar(null);
+                            return;
+                          }
+                          const { from, to } = editor.state.selection;
+                          if (from === to) {
+                            setReferenceDockSession({ query: word });
+                            setSelectionActionBar(null);
+                            return;
+                          }
+                          const snippet = editor.state.doc.textBetween(from, to);
+                          const defaultAccent = 'warmAmber';
+                          setSelectionActionBar(null);
+                          void (async () => {
+                            let studyId: string | null = null;
+                            if (editorChromeMode === 'prototypeNative' && sourceNoteId) {
+                              try {
+                                const res = await fetch(`/api/notes/${sourceNoteId}/study-threads`, {
+                                  method: 'POST',
+                                  credentials: 'include',
+                                  headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({
+                                    entryKind: 'reference',
+                                    sourceSnippet: snippet,
+                                    highlightAccentRaw: defaultAccent,
+                                    anchorTextSnapshot: snippet,
+                                    anchorLocation: from,
+                                    anchorLength: Math.max(0, to - from),
+                                    focusTitle: snippet,
+                                  }),
+                                });
+                                if (res.ok) {
+                                  const data = await res.json();
+                                  studyId = data.studyThread?.id ?? null;
+                                }
+                              } catch {
+                                /* fall through to local mark */
+                              }
+                            }
+                            if (!editor || !isEditorValid(editor)) return;
+                            editor
+                              .chain()
+                              .focus()
+                              .setTextSelection({ from, to })
+                              .setHighlight({
+                                color: defaultAccent,
+                                reference: snippet,
+                                studyThreadEntryId: studyId || undefined,
+                              })
+                              .run();
+                            onContentChange?.(editor.getHTML());
+                            setReferenceDockSession({
+                              query: snippet,
+                              noteHighlightRange: { from, to },
+                              noteHighlightAccent: defaultAccent,
+                              studyThreadEntryId: studyId,
+                            });
+                          })();
+                        }}
+                      >
+                        <Icon name="lines-leaning" size={14} />
+                      </button>
+                    </>
+                  );
+                })()}
                 <span className="pds-native-selection-bar__rule" aria-hidden />
                 <button
                   type="button"
@@ -5839,6 +6225,68 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
             onDone={() => setHighlightDockSession(null)}
           />,
           highlightChromePortalTarget || document.body,
+        )}
+        {referenceDockSession && editorChromeMode === 'prototypeNative' && createPortal(
+          <ReferenceDockWeb
+            initialQuery={referenceDockSession.query}
+            noteHighlightRange={referenceDockSession.noteHighlightRange}
+            noteHighlightAccent={referenceDockSession.noteHighlightAccent}
+            onChangeNoteHighlight={(accent) => {
+              if (!editor || !isEditorValid(editor) || !referenceDockSession.noteHighlightRange) return;
+              const { from, to } = referenceDockSession.noteHighlightRange;
+              const sid = referenceDockSession.studyThreadEntryId;
+              void (async () => {
+                if (sid) {
+                  try {
+                    await fetch(`/api/study-threads/${sid}`, {
+                      method: 'PATCH',
+                      credentials: 'include',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ highlightAccentRaw: accent }),
+                    });
+                  } catch {
+                    /* ignore */
+                  }
+                }
+                if (!editor || !isEditorValid(editor)) return;
+                editor
+                  .chain()
+                  .focus()
+                  .setTextSelection({ from, to })
+                  .setHighlight({
+                    color: accent,
+                    reference: referenceDockSession.query,
+                    studyThreadEntryId: sid || undefined,
+                  })
+                  .run();
+                onContentChange?.(editor.getHTML());
+                setReferenceDockSession((s) => (s ? { ...s, noteHighlightAccent: accent } : null));
+              })();
+            }}
+            onRemoveNoteHighlight={() => {
+              if (!editor || !isEditorValid(editor) || !referenceDockSession.noteHighlightRange) return;
+              const { from, to } = referenceDockSession.noteHighlightRange;
+              const sid = referenceDockSession.studyThreadEntryId;
+              void (async () => {
+                if (sid) {
+                  try {
+                    await fetch(`/api/study-threads/${sid}`, {
+                      method: 'DELETE',
+                      credentials: 'include',
+                    });
+                  } catch {
+                    /* ignore */
+                  }
+                }
+                if (!editor || !isEditorValid(editor)) return;
+                editor.chain().focus().setTextSelection({ from, to }).unsetHighlight().run();
+                onContentChange?.(editor.getHTML());
+                setReferenceDockSession(null);
+              })();
+            }}
+            onDone={() => setReferenceDockSession(null)}
+          />,
+          referenceChromePortalTarget || document.body,
         )}
       </div>
       {!minimalToolbar && isEditorFocused && toolbarAtBottom && editorChromeMode !== 'prototypeNative' && (

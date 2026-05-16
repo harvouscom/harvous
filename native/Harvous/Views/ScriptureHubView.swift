@@ -15,8 +15,6 @@ struct ScriptureHubView: View {
     @EnvironmentObject private var spaceStore: SpaceStore
     @EnvironmentObject private var appRouter: HarvousAppRouter
 
-    @AppStorage(VotdService.passageCardDismissedDayUserDefaultsKey) private var votdPassageCardDismissedDay: String = ""
-
     private enum ScriptureDrill: Equatable {
         case root
         case book(Int)
@@ -64,16 +62,6 @@ struct ScriptureHubView: View {
             )
         }
         return []
-    }
-
-    private var showDailyPassageRow: Bool {
-        activeSearchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            && votdPassageCardDismissedDay != VotdService.todayCalendarDayKey()
-    }
-
-    /// Match scripture book rows (leading/trailing 14). Larger insets shrunk the passage card vs Notes/Highlights.
-    private enum IOSScriptureHubListLayout {
-        static let dailyPassageRowInsets = EdgeInsets(top: 8, leading: HarvousFeedListLayout.listRowHorizontalInset, bottom: 4, trailing: HarvousFeedListLayout.listRowHorizontalInset)
     }
 
     private var navigationTitleText: String {
@@ -147,6 +135,12 @@ struct ScriptureHubView: View {
                     .accessibilityLabel(scriptureBackAccessibilityLabel)
                 }
             }
+            if #available(iOS 26, *) {
+                ToolbarSpacer(.fixed, placement: .topBarLeading)
+            }
+            ToolbarItem(placement: .topBarLeading) {
+                IOSListSurfaceChip()
+            }
             ToolbarItem(placement: .topBarTrailing) {
                 Button {
                     UIImpactFeedbackGenerator(style: .light).impactOccurred()
@@ -209,9 +203,9 @@ struct ScriptureHubView: View {
 
     @ViewBuilder
     private var scriptureRootContent: some View {
-        if !showDailyPassageRow && notesInActiveSpace.isEmpty {
+        if notesInActiveSpace.isEmpty {
             emptyNotesState
-        } else if !showDailyPassageRow && scriptureBookRows.isEmpty {
+        } else if scriptureBookRows.isEmpty {
             ContentUnavailableView {
                 Label {
                     Text("No Scripture References")
@@ -221,7 +215,7 @@ struct ScriptureHubView: View {
             } description: {
                 Text("Add scripture references in your notes to build your index.")
             }
-        } else if !showDailyPassageRow && !activeSearchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && filteredScriptureBookRows.isEmpty {
+        } else if !activeSearchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && filteredScriptureBookRows.isEmpty {
             ContentUnavailableView.search(text: activeSearchQuery)
         } else {
             scriptureFlatList
@@ -241,27 +235,6 @@ struct ScriptureHubView: View {
 
     private var scriptureFlatList: some View {
         List {
-            if showDailyPassageRow {
-                DailyPassageCard { note in
-                    iosNoteNavigationPath.append(note.id)
-                }
-                .listRowInsets(IOSScriptureHubListLayout.dailyPassageRowInsets)
-                .listRowBackground(Color.clear)
-                .listRowSeparator(.hidden)
-                .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                    Button {
-                        votdPassageCardDismissedDay = VotdService.todayCalendarDayKey()
-                    } label: {
-                        Label {
-                            Text("Dismiss")
-                        } icon: {
-                            HarvousFAGlyph(assetName: "Harvous.CircleXmark", edgePt: 16)
-                        }
-                    }
-                    .tint(.secondary)
-                    .accessibilityLabel("Dismiss today's passage")
-                }
-            }
             ForEach(filteredScriptureBookRows) { row in
                 Button {
                     scriptureDrill = .book(row.bookIndex)

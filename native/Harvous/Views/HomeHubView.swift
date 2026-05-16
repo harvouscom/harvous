@@ -22,6 +22,12 @@ struct HomeHubView: View {
             ToolbarItem(placement: .topBarLeading) {
                 SpaceSwitcherView()
             }
+            if #available(iOS 26, *) {
+                ToolbarSpacer(.fixed, placement: .topBarLeading)
+            }
+            ToolbarItem(placement: .topBarLeading) {
+                IOSListSurfaceChip()
+            }
             ToolbarItem(placement: .topBarTrailing) {
                 Button {
                     UIImpactFeedbackGenerator(style: .light).impactOccurred()
@@ -34,6 +40,7 @@ struct HomeHubView: View {
                 .accessibilityLabel("Account, profile, and settings")
             }
         }
+        .navigationBarTitleDisplayMode(.inline)
         .onReceive(NotificationCenter.default.publisher(for: HarvousAppRouter.requestComposeNewNotification)) { notification in
             let initial = notification.userInfo?[HarvousAppRouter.composeInitialBodyUserInfoKey] as? String
             composeNewNoteIntoStack(initialBody: initial)

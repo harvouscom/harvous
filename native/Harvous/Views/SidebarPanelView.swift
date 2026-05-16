@@ -81,8 +81,7 @@ struct SidebarPanelView: View {
     @State private var renameTarget: HarvousFolderRow?
     @State private var renameDraft: String = ""
     @State private var removeConfirmRow: HarvousFolderRow?
-
-    @AppStorage(VotdService.passageCardDismissedDayUserDefaultsKey) private var votdPassageCardDismissedDay: String = ""
+    @FocusState private var searchFieldFocused: Bool
 
     private var unifiedSearchText: Binding<String> {
         Binding(
@@ -157,10 +156,39 @@ struct SidebarPanelView: View {
         }
     }
 
-    /// Match highlights list: hide VOTD while searching; respect dismiss for the day.
-    private var showDailyPassageRow: Bool {
-        folderListSearchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            && votdPassageCardDismissedDay != VotdService.todayCalendarDayKey()
+    private var sidebarSearchField: some View {
+        HStack(spacing: 8) {
+            HarvousFAGlyph(assetName: "Harvous.MagnifyingGlass", edgePt: 14)
+                .foregroundStyle(.secondary)
+            TextField("Search", text: $folderListSearchText)
+                .textFieldStyle(.plain)
+                .font(.system(size: 15))
+                .focused($searchFieldFocused)
+            if !folderListSearchText.isEmpty {
+                Button {
+                    folderListSearchText = ""
+                    searchFieldFocused = false
+                } label: {
+                    HarvousFAGlyph(assetName: "Harvous.CircleXmark", edgePt: 15)
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(Color.primary.opacity(0.07))
+        )
+        .padding(.horizontal, HarvousFeedListLayout.listRowHorizontalInset)
+        .padding(.top, 2)
+        .padding(.bottom, 6)
+        .background(
+            Button("") { searchFieldFocused = true }
+                .keyboardShortcut("f", modifiers: .command)
+                .opacity(0)
+        )
     }
 
     private var showSidebarToolbarChrome: Bool {
@@ -255,55 +283,90 @@ struct SidebarPanelView: View {
 
     var body: some View {
         NavigationStack {
-            Group {
-                if mode == .notes {
-                    NoteListColumn(filter: .all, selectedNote: $selectedNote, externalSearchText: unifiedSearchText)
-                } else if mode == .highlights {
-                    StudyHighlightListColumn(
-                        selectedNote: $selectedNote,
-                        externalSearchText: unifiedSearchText,
-                        columnStyle: .macOSSidebar
-                    )
-                } else if mode == .dictionary {
-                    switch dictionaryDrill {
-                    case .root:
-                        EastonsDictionaryListColumn(
-                            externalSearchText: unifiedSearchText,
-                            onSelectEntry: { slug in dictionaryDrill = .entry(slug) }
-                        )
-                    case .entry(let slug):
-                        EastonsEntryDetailView(initialSlug: slug)
-                    }
-                } else if mode == .scripture {
-                    switch scriptureDrill {
-                    case .root:
-                        scriptureBooksList
-                    case .book:
-                        scripturePassagesList
-                    case .passage(let passage):
-                        NoteListColumn(
-                            filter: .scripturePassage(passage),
+            VStack(spacing: 0) {
+                sidebarSearchField
+
+                Group {
+                    if mode == .notes {
+                        NoteListColumn(filter: .all, selectedNote: $selectedNote, externalSearchText: unifiedSearchText, ownsSidebarChrome: false)
+                    } else if mode == .highlights {
+                        StudyHighlightListColumn(
                             selectedNote: $selectedNote,
-                            externalSearchText: unifiedSearchText
+                            externalSearchText: unifiedSearchText,
+                            columnStyle: .macOSSidebar,
+                            ownsSidebarChrome: false
                         )
+                    } else if mode == .dictionary {
+                        switch dictionaryDrill {
+                        case .root:
+                            EastonsDictionaryListColumn(
+                                externalSearchText: unifiedSearchText,
+                                onSelectEntry: { slug in dictionaryDrill = .entry(slug) }
+                            )
+                        case .entry(let slug):
+                            EastonsEntryDetailView(initialSlug: slug)
+                        }
+                    } else if mode == .scripture {
+                        switch scriptureDrill {
+                        case .root:
+                            scriptureBooksList
+                        case .book:
+                            scripturePassagesList
+                        case .passage(let passage):
+                            NoteListColumn(
+                                filter: .scripturePassage(passage),
+                                selectedNote: $selectedNote,
+                                externalSearchText: unifiedSearchText,
+                                ownsSidebarChrome: false
+                            )
+                        }
+                    } else {
+                        switch foldersDrill {
+                        case .root:
+                            foldersList
+                        case .bucket(let folderBucketKey):
+                            NoteListColumn(filter: .folder(folderBucketKey), selectedNote: $selectedNote, externalSearchText: unifiedSearchText, ownsSidebarChrome: false)
+                        }
                     }
-                } else {
-                    switch foldersDrill {
-                    case .root:
-                        foldersList
-                    case .bucket(let folderBucketKey):
-                        NoteListColumn(filter: .folder(folderBucketKey), selectedNote: $selectedNote, externalSearchText: unifiedSearchText)
-                    }
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                .overlay(alignment: .bottom) {
+                    DailyPassagePill(onStudyNow: { note in macSelectNoteWithoutListAnimation(note) })
+                        .padding(.horizontal, HarvousFeedListLayout.listRowHorizontalInset)
+                        .padding(.bottom, 8)
                 }
             }
             .toolbar(removing: .sidebarToggle)
-            .searchable(text: $folderListSearchText, placement: .sidebar, prompt: "Search")
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-            .background(
+            .background {
+                // Width tracker
                 GeometryReader { proxy in
                     Color.clear.preference(key: SidebarColumnWidthPreferenceKey.self, value: proxy.size.width)
                 }
-            )
+                // Unified sidebar chrome — covers search + list as one block
+                GeometryReader { proxy in
+                    let lead: CGFloat = 1
+                    let w = proxy.size.width
+                    let h = proxy.size.height
+                    let shape = UnevenRoundedRectangle(
+                        topLeadingRadius: 0,
+                        bottomLeadingRadius: HarvousRadius.sidebarGlassLeading,
+                        bottomTrailingRadius: 0,
+                        topTrailingRadius: 0,
+                        style: .continuous
+                    )
+                    Group {
+                        if #available(macOS 26.0, *) {
+                            shape.fill(Color.clear).glassEffect(in: shape)
+                        } else {
+                            shape.fill(.ultraThinMaterial)
+                        }
+                    }
+                    .frame(width: max(0, w - lead), height: h)
+                    .padding(.leading, lead)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                }
+                .ignoresSafeArea()
+            }
             .toolbar {
                 sidebarMacToolbarItems
             }
@@ -312,14 +375,12 @@ struct SidebarPanelView: View {
                 if newVisibility == .detailOnly {
                     sidebarColumnMeasuredWidth = 0
                 }
-                HarvousMacSidebarSearchFieldGlyph.scheduleBrandMagnifyingGlassPatch()
             }
             .onChange(of: mode) { _, newMode in
                 if newMode == .notes {
                     foldersDrill = .root
                     scriptureDrill = .root
                     folderListSearchText = ""
-                    HarvousMacSidebarSearchFieldGlyph.scheduleBrandMagnifyingGlassPatch()
                     return
                 }
                 if newMode != .folders {
@@ -333,11 +394,9 @@ struct SidebarPanelView: View {
                 } else {
                     folderListSearchText = ""
                 }
-                HarvousMacSidebarSearchFieldGlyph.scheduleBrandMagnifyingGlassPatch()
             }
             .onAppear {
                 reloadPinnedFolderOrder()
-                HarvousMacSidebarSearchFieldGlyph.scheduleBrandMagnifyingGlassPatch()
             }
             .onChange(of: spaceStore.selectedSpaceId) { _, _ in reloadPinnedFolderOrder() }
             .sheet(item: $renameTarget) { row in
@@ -565,7 +624,7 @@ struct SidebarPanelView: View {
 
     private var scriptureBooksList: some View {
         Group {
-            if !showDailyPassageRow && scriptureBookRows.isEmpty {
+            if scriptureBookRows.isEmpty {
                 ContentUnavailableView {
                     Label {
                         Text("No Scripture References")
@@ -575,31 +634,10 @@ struct SidebarPanelView: View {
                 } description: {
                     Text("Add scripture references in your notes to build your index.")
                 }
-            } else if !showDailyPassageRow && filteredScriptureBookRows.isEmpty {
+            } else if filteredScriptureBookRows.isEmpty {
                 ContentUnavailableView.search(text: folderListSearchText)
             } else {
                 List {
-                    if showDailyPassageRow {
-                        DailyPassageCard { note in
-                            macSelectNoteWithoutListAnimation(note)
-                        }
-                        .listRowInsets(EdgeInsets(top: 8, leading: 0, bottom: 4, trailing: 0))
-                        .listRowBackground(Color.clear)
-                        .listRowSeparator(.hidden)
-                        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                            Button {
-                                votdPassageCardDismissedDay = VotdService.todayCalendarDayKey()
-                            } label: {
-                                Label {
-                                    Text("Dismiss")
-                                } icon: {
-                                    HarvousFAGlyph(assetName: "Harvous.CircleXmark", edgePt: 16)
-                                }
-                            }
-                            .tint(.secondary)
-                            .accessibilityLabel("Dismiss today's passage")
-                        }
-                    }
                     ForEach(filteredScriptureBookRows) { row in
                         scriptureBookRootListRow(row)
                             .listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 4, trailing: 0))
@@ -674,7 +712,7 @@ struct SidebarPanelView: View {
 
     private var foldersList: some View {
         Group {
-            if !showDailyPassageRow && folderRows.isEmpty {
+            if folderRows.isEmpty {
                 ContentUnavailableView {
                     Label {
                         Text("No Folders")
@@ -684,31 +722,10 @@ struct SidebarPanelView: View {
                 } description: {
                     Text("Folders created from your notes will appear here.")
                 }
-            } else if !showDailyPassageRow && orderedFilteredFolderRows.isEmpty {
+            } else if orderedFilteredFolderRows.isEmpty {
                 ContentUnavailableView.search(text: folderListSearchText)
             } else {
                 List {
-                    if showDailyPassageRow {
-                        DailyPassageCard { note in
-                            macSelectNoteWithoutListAnimation(note)
-                        }
-                        .listRowInsets(EdgeInsets(top: 8, leading: 0, bottom: 4, trailing: 0))
-                        .listRowBackground(Color.clear)
-                        .listRowSeparator(.hidden)
-                        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                            Button {
-                                votdPassageCardDismissedDay = VotdService.todayCalendarDayKey()
-                            } label: {
-                                Label {
-                                    Text("Dismiss")
-                                } icon: {
-                                    HarvousFAGlyph(assetName: "Harvous.CircleXmark", edgePt: 16)
-                                }
-                            }
-                            .tint(.secondary)
-                            .accessibilityLabel("Dismiss today's passage")
-                        }
-                    }
                     ForEach(orderedFilteredFolderRows) { row in
                         folderRootListRow(row)
                             .listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 4, trailing: 0))

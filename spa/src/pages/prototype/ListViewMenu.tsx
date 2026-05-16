@@ -120,21 +120,6 @@ export default function ListViewMenu({ disabled }: { disabled?: boolean }) {
             <button
               type="button"
               role="menuitemradio"
-              aria-checked={sidebarListMode === 'highlights'}
-              className="proto-menu-item"
-              onClick={() => pick('highlights')}
-            >
-              <span className="proto-menu-item__check" aria-hidden>
-                {sidebarListMode === 'highlights' ? '✓' : ''}
-              </span>
-              <span className="proto-menu-item__icon" aria-hidden>
-                <Icon name="highlighter" size={PROTO_TOOLBAR_ICON_SIZE} />
-              </span>
-              <span style={{ flex: 1, minWidth: 0 }}>Highlights</span>
-            </button>
-            <button
-              type="button"
-              role="menuitemradio"
               aria-checked={sidebarListMode === 'scripture'}
               className="proto-menu-item"
               onClick={() => pick('scripture')}
@@ -146,6 +131,21 @@ export default function ListViewMenu({ disabled }: { disabled?: boolean }) {
                 <Icon name="book" size={PROTO_TOOLBAR_ICON_SIZE} />
               </span>
               <span style={{ flex: 1, minWidth: 0 }}>Scripture</span>
+            </button>
+            <button
+              type="button"
+              role="menuitemradio"
+              aria-checked={sidebarListMode === 'highlights'}
+              className="proto-menu-item"
+              onClick={() => pick('highlights')}
+            >
+              <span className="proto-menu-item__check" aria-hidden>
+                {sidebarListMode === 'highlights' ? '✓' : ''}
+              </span>
+              <span className="proto-menu-item__icon" aria-hidden>
+                <Icon name="highlighter" size={PROTO_TOOLBAR_ICON_SIZE} />
+              </span>
+              <span style={{ flex: 1, minWidth: 0 }}>Highlights</span>
             </button>
           </div>
         </div>

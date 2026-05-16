@@ -485,6 +485,100 @@ enum ThreadStore {
         try? modelContext.saveWithLogging()
     }
 
+    /// Removes every `linkedNote` thread whose marker (`parentNoteId` *or* `linkedNoteId`) points to
+    /// `deletedNoteId`. Call right before / after deleting a `Note` so dangling pills and underlines
+    /// in any *other* note that referenced the doomed note get cleaned up in the same commit.
+    /// Returns the set of parent note ids whose UI should refresh after the cleanup.
+    @MainActor
+    @discardableResult
+    static func purgeLinkedNoteMarkers(referencingDeletedNote deletedNoteId: UUID, modelContext: ModelContext) -> Set<UUID> {
+        let nid = deletedNoteId
+        let linkedKindRaw = StudyThread.EntryKind.linkedNote.rawValue
+        let descriptor = FetchDescriptor<StudyThread>(
+            predicate: #Predicate { t in
+                t.entryKindRaw == linkedKindRaw
+                    && (t.linkedNoteId == nid || t.parentNoteId == nid)
+            }
+        )
+        let orphans = (try? modelContext.fetch(descriptor)) ?? []
+        guard !orphans.isEmpty else { return [] }
+        var touchedParents = Set<UUID>()
+        for t in orphans {
+            if t.parentNoteId != nid { touchedParents.insert(t.parentNoteId) }
+            modelContext.delete(t)
+        }
+        try? modelContext.saveWithLogging()
+        return touchedParents
+    }
+
+    /// Lazy migration: scan every `linkedNote` thread parented to `parentNoteId` and delete any whose
+    /// `linkedNoteId` no longer resolves to an existing `Note`. Heals legacy orphans created before
+    /// `purgeLinkedNoteMarkers(referencingDeletedNote:)` was wired into note deletion. Returns true if
+    /// anything was deleted so the caller can trigger a UI refresh.
+    @MainActor
+    @discardableResult
+    static func purgeDanglingLinkedNoteMarkers(parentNoteId: UUID, modelContext: ModelContext) -> Bool {
+        let nid = parentNoteId
+        let linkedKindRaw = StudyThread.EntryKind.linkedNote.rawValue
+        let descriptor = FetchDescriptor<StudyThread>(
+            predicate: #Predicate { t in
+                t.parentNoteId == nid && t.entryKindRaw == linkedKindRaw
+            }
+        )
+        let candidates = (try? modelContext.fetch(descriptor)) ?? []
+        guard !candidates.isEmpty else { return false }
+        var deletedAny = false
+        for t in candidates {
+            guard let linkedId = t.linkedNoteId else {
+                modelContext.delete(t)
+                deletedAny = true
+                continue
+            }
+            let fd = FetchDescriptor<Note>(predicate: #Predicate { $0.id == linkedId })
+            let exists = ((try? modelContext.fetch(fd))?.first) != nil
+            if !exists {
+                modelContext.delete(t)
+                deletedAny = true
+            }
+        }
+        if deletedAny {
+            try? modelContext.saveWithLogging()
+        }
+        return deletedAny
+    }
+
+    /// One-shot global sweep — walks every `linkedNote` thread in the database, drops any whose
+    /// `linkedNoteId` no longer resolves to a `Note`. Call once at app launch (or from a refresh
+    /// command) to heal accumulated orphans across all notes / all spaces in one pass.
+    @MainActor
+    @discardableResult
+    static func purgeAllDanglingLinkedNoteMarkers(modelContext: ModelContext) -> Int {
+        let linkedKindRaw = StudyThread.EntryKind.linkedNote.rawValue
+        let descriptor = FetchDescriptor<StudyThread>(
+            predicate: #Predicate { t in t.entryKindRaw == linkedKindRaw }
+        )
+        let all = (try? modelContext.fetch(descriptor)) ?? []
+        guard !all.isEmpty else { return 0 }
+        // Snapshot existing Note ids in one fetch instead of one-fetch-per-thread.
+        let allNotes = (try? modelContext.fetch(FetchDescriptor<Note>())) ?? []
+        let liveIds = Set(allNotes.map(\.id))
+        var deleted = 0
+        for t in all {
+            let linkedId = t.linkedNoteId
+            if linkedId == nil || !liveIds.contains(linkedId!) {
+                modelContext.delete(t)
+                deleted += 1
+            }
+        }
+        if deleted > 0 {
+            try? modelContext.saveWithLogging()
+            #if DEBUG
+            print("[ThreadStore] purgeAllDanglingLinkedNoteMarkers: removed \(deleted) orphans")
+            #endif
+        }
+        return deleted
+    }
+
     @MainActor
     static func save(_ thread: StudyThread, modelContext: ModelContext) {
         let now = Date()

@@ -244,10 +244,21 @@ struct MorphingChromeBar: View {
 struct IOSNoteFooterHybridRow: View {
     @EnvironmentObject private var appRouter: HarvousAppRouter
     @Environment(\.colorScheme) private var colorScheme
+    @AppStorage("harvous.iosNoteFooterCollapsed") private var iosNoteFooterCollapsed: Bool = false
+
+    /// Show the collapse orb only when the editor is active, no dock is suppressing chrome, and the format toolbar isn't showing.
+    private var collapseOrbVisible: Bool {
+        guard let proxy = appRouter.iosActiveNoteEditorChromeProxy else { return false }
+        guard !(appRouter.iosNoteFooterSupplement?.suppressesBottomMorphingChromeContent ?? false) else { return false }
+        return !proxy.shouldShowNoteToolbar
+    }
 
     var body: some View {
         // Match hub row: bottom-align so the pencil compose orb stays on one baseline when the camera orb stacks above.
         HStack(alignment: .bottom, spacing: HarvousIOSMorphingChromeLayout.interChromeSpacing) {
+            if collapseOrbVisible {
+                collapseOrb
+            }
             Group {
                 if let proxy = appRouter.iosActiveNoteEditorChromeProxy, let supplement = appRouter.iosNoteFooterSupplement {
                     IOSNoteEditorFooterSlot(proxy: proxy, supplement: supplement)
@@ -267,6 +278,29 @@ struct IOSNoteFooterHybridRow: View {
         }
         .padding(.horizontal, 12)
         .padding(.bottom, 4)
+        .animation(HarvousAnimation.spring, value: collapseOrbVisible)
+    }
+
+    private var collapseOrb: some View {
+        Button {
+            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+            withAnimation(HarvousAnimation.spring) {
+                iosNoteFooterCollapsed.toggle()
+            }
+        } label: {
+            HarvousFAGlyph(
+                assetName: iosNoteFooterCollapsed ? "Harvous.ChevronRight" : "Harvous.ChevronLeft",
+                edgePt: 17
+            )
+            .foregroundStyle(.primary)
+            .frame(width: HarvousIOSMorphingChromeLayout.chromeControlsHeight, height: HarvousIOSMorphingChromeLayout.chromeControlsHeight)
+            .background {
+                HarvousIOSFloatingChromeBackdrop.material(Circle(), colorScheme: colorScheme)
+            }
+            .contentShape(Circle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(iosNoteFooterCollapsed ? "Show note actions" : "Hide note actions")
     }
 
     private var composeOrb: some View {
@@ -283,6 +317,7 @@ private struct IOSNoteEditorFooterSlot: View {
     let supplement: HarvousIOSNoteFooterSupplement
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.colorScheme) private var colorScheme
+    @AppStorage("harvous.iosNoteFooterCollapsed") private var iosNoteFooterCollapsed: Bool = false
 
     @StateObject private var scriptureInsetCoordinator = ScripturePillActionBarCoordinator()
 
@@ -378,6 +413,12 @@ private struct IOSNoteEditorFooterSlot: View {
                 iosUnifiedFormatScriptureEditingChrome
                     .id("iosInsetUnifiedFormatScriptureCapsule")
                     .transition(.opacity)
+            } else if iosNoteFooterCollapsed {
+                Color.clear
+                    .frame(maxWidth: .infinity)
+                    .frame(height: HarvousIOSMorphingChromeLayout.chromeControlsHeight)
+                    .id("iosInsetCollapsedPeek")
+                    .transition(.opacity)
             } else {
                 NoteConnectionsBar(
                     note: supplement.note,
@@ -397,6 +438,7 @@ private struct IOSNoteEditorFooterSlot: View {
         }
         .animation(reduceMotion ? .easeInOut(duration: 0.2) : spring, value: showsUnifiedFormattingScriptureCapsule)
         .animation(reduceMotion ? .easeInOut(duration: 0.2) : spring, value: supplement.suppressesBottomMorphingChromeContent)
+        .animation(reduceMotion ? .easeInOut(duration: 0.2) : spring, value: iosNoteFooterCollapsed)
         .onAppear {
             scriptureInsetCoordinator.bind(proxy: proxy)
         }

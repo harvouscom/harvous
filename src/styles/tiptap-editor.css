@@ -367,3 +367,113 @@
   }
 }
 
+
+/* When a url-link span sits inside a highlight <mark>, suppress the link's own blue underline
+   so the highlight color stays dominant. The hover card still surfaces the URL on hover.
+   text-decoration: none removes both the color and the line without fighting specificity. */
+.tiptap-content .ProseMirror mark .url-link,
+.card-full-editable__content-html mark .url-link {
+  text-decoration: none !important;
+  color: inherit !important;
+}
+
+/* URL link mark — external hyperlinks rendered as pills.
+   Box styles are set via inline style in TiptapUrlLink.ts (highest specificity, matches
+   scripture pill pattern). Only the ::after icon needs CSS since pseudo-elements can't
+   be set inline. gap: 4px on the parent flex container provides the text-to-icon spacing. */
+.ProseMirror .url-link-pill::after,
+.card-full-editable__content-html .url-link-pill::after {
+  content: '';
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  background-color: currentColor;
+  /* FA arrow-up-right-from-square */
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Cpath d='M320 0c-17.7 0-32 14.3-32 32s14.3 32 32 32l82.7 0L201.4 265.4c-12.5 12.5-12.5 32.8 0 45.3s32.8 12.5 45.3 0L448 109.3l0 82.7c0 17.7 14.3 32 32 32s32-14.3 32-32l0-160c0-17.7-14.3-32-32-32L320 0zM80 32C35.8 32 0 67.8 0 112l0 320c0 44.2 35.8 80 80 80l320 0c44.2 0 80-35.8 80-80l0-112c0-17.7-14.3-32-32-32s-32 14.3-32 32l0 112c0 8.8-7.2 16-16 16l-320 0c-8.8 0-16-7.2-16-16l0-320c0-8.8 7.2-16 16-16l112 0c17.7 0 32-14.3 32-32s-14.3-32-32-32l-112 0z'/%3E%3C/svg%3E");
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Cpath d='M320 0c-17.7 0-32 14.3-32 32s14.3 32 32 32l82.7 0L201.4 265.4c-12.5 12.5-12.5 32.8 0 45.3s32.8 12.5 45.3 0L448 109.3l0 82.7c0 17.7 14.3 32 32 32s32-14.3 32-32l0-160c0-17.7-14.3-32-32-32L320 0zM80 32C35.8 32 0 67.8 0 112l0 320c0 44.2 35.8 80 80 80l320 0c44.2 0 80-35.8 80-80l0-112c0-17.7-14.3-32-32-32s-32 14.3-32 32l0 112c0 8.8-7.2 16-16 16l-320 0c-8.8 0-16-7.2-16-16l0-320c0-8.8 7.2-16 16-16l112 0c17.7 0 32-14.3 32-32s-14.3-32-32-32l-112 0z'/%3E%3C/svg%3E");
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-size: contain;
+  mask-size: contain;
+  -webkit-mask-position: center;
+  mask-position: center;
+  flex-shrink: 0;
+  align-self: center;
+}
+
+/* URL link prompt — floating input for adding/editing the urlLink mark */
+.url-link-prompt {
+  background: var(--pds-bg-toolbar, rgba(255, 255, 255, 0.98));
+  border: 1px solid var(--pds-border, rgba(0, 0, 0, 0.08));
+  border-radius: 12px;
+  box-shadow:
+    0 10px 28px rgba(0, 0, 0, 0.14),
+    0 1px 2px rgba(0, 0, 0, 0.06);
+  backdrop-filter: saturate(180%) blur(20px);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  padding: 8px;
+  animation: link-preview-card-enter 120ms ease-out;
+}
+
+.url-link-prompt__form {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.url-link-prompt__input {
+  flex: 1;
+  min-width: 0;
+  height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--pds-border, rgba(0, 0, 0, 0.12));
+  border-radius: 999px;
+  background: var(--pds-bg-input, rgba(0, 0, 0, 0.03));
+  color: var(--pds-text-primary, #1a1a1a);
+  font-size: 13px;
+  outline: none;
+}
+
+.url-link-prompt__input:focus {
+  border-color: var(--pds-accent, #2563eb);
+}
+
+.url-link-prompt__btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  transition: background 120ms ease;
+}
+
+.url-link-prompt__btn:hover {
+  background: var(--pds-bg-row-hover, rgba(0, 0, 0, 0.06));
+}
+
+.url-link-prompt__btn--primary {
+  background: var(--pds-text-primary, #1a1a1a);
+  color: #ffffff !important;
+}
+
+/* Override the global `button *` color rule so the SVG arrow inherits white via currentColor */
+.url-link-prompt__btn--primary svg,
+.url-link-prompt__btn--primary svg * {
+  color: #ffffff !important;
+  fill: #ffffff !important;
+}
+
+.url-link-prompt__btn--primary:hover {
+  background: var(--pds-text-primary, #1a1a1a);
+  filter: brightness(1.15);
+}
+
+.url-link-prompt__btn--danger:hover {
+  color: #c62828;
+}
+

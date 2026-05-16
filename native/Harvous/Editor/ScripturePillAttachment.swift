@@ -215,7 +215,6 @@ private func scriptureGradientProgress(now: Date = Date()) -> CGFloat {
 }
 
 #if os(macOS) || os(iOS)
-/// Raster helpers may run off the main actor; hop to the main thread and assert MainActor for AppKit/UIKit APIs.
 private func scripturePillEffectiveAppearanceIsDark() -> Bool {
     let readOnMain: @MainActor () -> Bool = {
         #if os(macOS)
@@ -351,7 +350,7 @@ final class ScripturePillAttachment: NSTextAttachment {
     }
 
     /// Updates raster label emphasis when the pointer enters/leaves this attachment (macOS body editor).
-    func setPointerHovered(_ hovered: Bool) {
+    @MainActor func setPointerHovered(_ hovered: Bool) {
         guard hovered != isPointerHovered else { return }
         isPointerHovered = hovered
         NSApp.effectiveAppearance.performAsCurrentDrawingAppearance {
@@ -378,7 +377,7 @@ final class ScripturePillAttachment: NSTextAttachment {
     /// `NSAppearance.current` — but `NSAppearance.current` is *not* automatically the view's
     /// effective appearance inside a `viewDidChangeEffectiveAppearance` callback. Wrap the
     /// render in `performAsCurrent` so dynamic colors resolve under the new appearance.
-    func refreshRasterForCurrentAppearance() {
+    @MainActor func refreshRasterForCurrentAppearance() {
         NSApp.effectiveAppearance.performAsCurrentDrawingAppearance {
             let img = Self.renderPill(
                 reference: self.reference,

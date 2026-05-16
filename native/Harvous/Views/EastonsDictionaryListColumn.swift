@@ -1,7 +1,5 @@
 import SwiftUI
 
-#if os(macOS)
-
 /// Sidebar column listing all Easton's Bible Dictionary entries A-Z.
 /// Category chips filter by person / place / thing; the sidebar search bar narrows by headword.
 /// Tapping a row calls `onSelectEntry` so the parent can drill in-sidebar (like folders).
@@ -11,7 +9,9 @@ struct EastonsDictionaryListColumn: View {
 
     @ObservedObject private var service = EastonsDictionaryService.shared
     @State private var categoryFilter: CategoryFilter = .all
+    @State private var chipBarAvailableWidth: CGFloat = 300
     @Namespace private var chipNamespace
+    @State private var pinnedSlugs: [String] = []
 
     private enum CategoryFilter: String, CaseIterable, Identifiable {
         case all, person, place, thing
@@ -29,6 +29,14 @@ struct EastonsDictionaryListColumn: View {
         }
     }
 
+    private var selectedSegmentBackground: Color {
+        #if os(macOS)
+        Color(NSColor.controlBackgroundColor)
+        #else
+        Color(UIColor.secondarySystemBackground)
+        #endif
+    }
+
     private var searchQuery: String {
         externalSearchText?.wrappedValue.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
     }
@@ -42,7 +50,19 @@ struct EastonsDictionaryListColumn: View {
         let searched = q.isEmpty
             ? Array(categoryFiltered)
             : categoryFiltered.filter { $0.headword.lowercased().contains(q) }
-        return searched.sorted { $0.headword.localizedCaseInsensitiveCompare($1.headword) == .orderedAscending }
+        let alphabetical = searched.sorted { $0.headword.localizedCaseInsensitiveCompare($1.headword) == .orderedAscending }
+        guard !pinnedSlugs.isEmpty else { return alphabetical }
+        let pinnedSet = Set(pinnedSlugs)
+        let bySlug = Dictionary(uniqueKeysWithValues: alphabetical.map { ($0.slug, $0) })
+        let pinned = pinnedSlugs.compactMap { bySlug[$0] }
+        let unpinned = alphabetical.filter { !pinnedSet.contains($0.slug) }
+        return pinned + unpinned
+    }
+
+    private func togglePin(_ slug: String) {
+        withAnimation {
+            pinnedSlugs = HarvousPinnedDictionaryEntriesStore.togglePin(slug: slug)
+        }
     }
 
     var body: some View {
@@ -53,48 +73,72 @@ struct EastonsDictionaryListColumn: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .onAppear {
             EastonsDictionaryService.shared.loadIndexIfNeeded()
+            pinnedSlugs = HarvousPinnedDictionaryEntriesStore.loadOrderedSlugs()
         }
     }
 
-    // MARK: - Category chip bar
+    // MARK: - Category segmented control
 
     private var categoryChipBar: some View {
         ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 6) {
+            HStack(spacing: 0) {
                 ForEach(CategoryFilter.allCases) { filter in
-                    categoryChip(filter)
+                    categorySegment(filter)
                 }
+                Spacer(minLength: 0)
             }
-            .padding(.horizontal, 10)
+            .frame(minWidth: chipBarAvailableWidth - 2 * HarvousFeedListLayout.listRowHorizontalInset)
+            .padding(3)
+            .background(Capsule().fill(Color.primary.opacity(0.07)))
+            .padding(.horizontal, HarvousFeedListLayout.listRowHorizontalInset)
             .padding(.vertical, 8)
         }
+        .background(
+            GeometryReader { proxy in
+                Color.clear
+                    .onAppear { chipBarAvailableWidth = proxy.size.width }
+                    .onChange(of: proxy.size.width) { _, w in chipBarAvailableWidth = w }
+            }
+        )
     }
 
-    private func categoryChip(_ filter: CategoryFilter) -> some View {
+    private func categorySegment(_ filter: CategoryFilter) -> some View {
         let isSelected = categoryFilter == filter
+        #if os(iOS)
+        let iconPt: CGFloat = 14
+        let labelFont: Font = HarvousFonts.font(size: 16, weight: 500, design: .default)
+        let hStackSpacing: CGFloat = 6
+        let hPad: CGFloat = 12
+        let vPad: CGFloat = 8
+        #else
+        let iconPt: CGFloat = 10
+        let labelFont: Font = .system(size: 12, weight: .medium)
+        let hStackSpacing: CGFloat = 4
+        let hPad: CGFloat = 10
+        let vPad: CGFloat = 5
+        #endif
         return Button {
-            withAnimation(.spring(response: 0.28, dampingFraction: 0.78)) {
+            withAnimation(.spring(response: 0.25, dampingFraction: 0.82)) {
                 categoryFilter = filter
             }
         } label: {
-            HStack(spacing: 4) {
+            HStack(spacing: hStackSpacing) {
                 if let iconAsset = filter.iconAsset {
-                    HarvousFAGlyph(assetName: iconAsset, edgePt: 10)
+                    HarvousFAGlyph(assetName: iconAsset, edgePt: iconPt)
                 }
                 Text(filter.label)
-                    .font(.system(size: 12, weight: .medium))
+                    .font(labelFont)
+                    .lineLimit(1)
             }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 5)
-            .foregroundStyle(isSelected ? Color.white : Color.primary.opacity(0.75))
+            .padding(.horizontal, hPad)
+            .padding(.vertical, vPad)
+            .foregroundStyle(isSelected ? Color.primary : Color.primary.opacity(0.5))
             .background {
                 if isSelected {
                     Capsule()
-                        .fill(Color.accentColor)
+                        .fill(selectedSegmentBackground)
+                        .shadow(color: .black.opacity(0.1), radius: 2, y: 1)
                         .matchedGeometryEffect(id: "dictionaryChip", in: chipNamespace)
-                } else {
-                    Capsule()
-                        .fill(Color.primary.opacity(0.07))
                 }
             }
         }
@@ -127,8 +171,9 @@ struct EastonsDictionaryListColumn: View {
                 ContentUnavailableView.search(text: searchQuery)
             } else {
                 List(filteredEntries, id: \.slug) { entry in
+                    let pinned = pinnedSlugs.contains(entry.slug)
                     Button { onSelectEntry(entry.slug) } label: {
-                        dictionaryRow(entry)
+                        dictionaryRow(entry, isPinned: pinned)
                             .padding(.horizontal, 10)
                             .padding(.vertical, 2)
                     }
@@ -136,6 +181,35 @@ struct EastonsDictionaryListColumn: View {
                     .listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 4, trailing: 0))
                     .listRowBackground(Color.clear)
                     .listRowSeparator(.hidden)
+                    .contextMenu {
+                        Button {
+                            togglePin(entry.slug)
+                        } label: {
+                            Label {
+                                Text(pinned ? "Unpin" : "Pin")
+                            } icon: {
+                                HarvousFAGlyph(
+                                    assetName: pinned ? "Harvous.ThumbtackSlash" : "Harvous.Thumbtack",
+                                    edgePt: HarvousFAIconMetrics.menuRowLeadingGlyphPt
+                                )
+                            }
+                        }
+                    }
+                    .swipeActions(edge: .leading, allowsFullSwipe: true) {
+                        Button {
+                            togglePin(entry.slug)
+                        } label: {
+                            Label {
+                                Text(pinned ? "Unpin" : "Pin")
+                            } icon: {
+                                HarvousFAGlyph(
+                                    assetName: pinned ? "Harvous.ThumbtackSlash" : "Harvous.Thumbtack",
+                                    edgePt: 14
+                                )
+                            }
+                        }
+                        .tint(.orange)
+                    }
                 }
                 .listStyle(.plain)
                 .scrollContentBackground(.hidden)
@@ -143,20 +217,24 @@ struct EastonsDictionaryListColumn: View {
         }
     }
 
-    private func dictionaryRow(_ entry: EastonsSlugIndexEntry) -> some View {
+    private func dictionaryRow(_ entry: EastonsSlugIndexEntry, isPinned: Bool = false) -> some View {
         HStack(alignment: .center, spacing: 8) {
             if let iconAsset = entry.categoryIconAsset {
-                HarvousFAGlyph(assetName: iconAsset, edgePt: 11)
+                HarvousFAGlyph(assetName: iconAsset, edgePt: 13)
                     .foregroundStyle(Color.primary.opacity(0.35))
-                    .frame(width: 14, alignment: .center)
+                    .frame(width: 16, alignment: .center)
             } else {
-                Color.clear.frame(width: 14)
+                Color.clear.frame(width: 16)
             }
             Text(entry.headword)
                 .font(HarvousTypography.noteListTitle)
                 .foregroundStyle(.primary)
                 .lineLimit(1)
             Spacer(minLength: 0)
+            if isPinned {
+                HarvousFAGlyph(assetName: "Harvous.Thumbtack", edgePt: 11)
+                    .foregroundStyle(Color.primary.opacity(0.45))
+            }
         }
         .padding(.vertical, 6)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -164,4 +242,51 @@ struct EastonsDictionaryListColumn: View {
     }
 }
 
+#if os(iOS)
+/// iOS hub that hosts the dictionary list with NavigationStack drill-down to entry detail.
+/// Toolbar matches the other hub views (Notes, Folders, etc.): SpaceSwitcher + list chip + Account.
+struct IOSDictionaryHubView: View {
+    @EnvironmentObject private var appRouter: HarvousAppRouter
+    var externalSearchText: Binding<String>? = nil
+    @State private var navigationPath: [String] = []
+
+    var body: some View {
+        NavigationStack(path: $navigationPath) {
+            EastonsDictionaryListColumn(
+                externalSearchText: externalSearchText,
+                onSelectEntry: { slug in navigationPath.append(slug) }
+            )
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    SpaceSwitcherView()
+                }
+                if #available(iOS 26, *) {
+                    ToolbarSpacer(.fixed, placement: .topBarLeading)
+                }
+                ToolbarItem(placement: .topBarLeading) {
+                    IOSListSurfaceChip()
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                        appRouter.selectIOSListSurface(.more)
+                    } label: {
+                        HarvousFAGlyph(assetName: "Harvous.UserFilled", edgePt: 17)
+                            .foregroundStyle(.primary)
+                            .frame(width: 32, height: 32)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .tint(.primary)
+                    .accessibilityLabel("Account, profile, and settings")
+                }
+            }
+            .navigationDestination(for: String.self) { slug in
+                EastonsEntryDetailView(initialSlug: slug)
+                    .navigationBarTitleDisplayMode(.inline)
+            }
+        }
+    }
+}
 #endif

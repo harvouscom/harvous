@@ -83,7 +83,6 @@ struct FolderFeedRow: View {
 
     private var pinGlyph: some View {
         HarvousFAGlyph(assetName: "Harvous.Thumbtack", edgePt: 9)
-            .foregroundStyle(.tertiary)
-            .rotationEffect(.degrees(45))
+            .foregroundStyle(Color.primary.opacity(0.45))
     }
 }

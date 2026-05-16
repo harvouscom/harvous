@@ -11,14 +11,18 @@ struct StudyHighlightListColumn: View {
     #endif
 
     #if os(macOS)
+    var ownsSidebarChrome: Bool = true
+
     init(
         selectedNote: Binding<Note?>,
         externalSearchText: Binding<String>? = nil,
-        columnStyle: NoteListColumnStyle = .macOSSidebar
+        columnStyle: NoteListColumnStyle = .macOSSidebar,
+        ownsSidebarChrome: Bool = true
     ) {
         _selectedNote = selectedNote
         self.externalSearchText = externalSearchText
         self.columnStyle = columnStyle
+        self.ownsSidebarChrome = ownsSidebarChrome
     }
     #else
     init(
@@ -47,25 +51,47 @@ struct StudyHighlightListColumn: View {
     @EnvironmentObject private var spaceStore: SpaceStore
     @EnvironmentObject private var appRouter: HarvousAppRouter
 
-    @AppStorage(VotdService.passageCardDismissedDayUserDefaultsKey) private var votdPassageCardDismissedDay: String = ""
-
     @State private var sidebarSelectedThreadId: UUID?
+    @State private var kindFilter: KindFilter = .all
+    @State private var chipBarAvailableWidth: CGFloat = 300
+    @Namespace private var kindChipNamespace
+    @State private var pinnedThreadIds: [String] = []
+    @State private var removeConfirmThread: StudyThread?
+
+    private enum KindFilter: String, CaseIterable, Identifiable {
+        case all, highlights, connected, scripture, references
+        var id: String { rawValue }
+        var label: String {
+            switch self {
+            case .all:        return "All"
+            case .highlights: return "Notes"
+            case .connected:  return "Connected"
+            case .scripture:  return "Scripture"
+            case .references: return "References"
+            }
+        }
+        var iconAsset: String? {
+            switch self {
+            case .all:        return nil
+            case .highlights: return "Harvous.Note"
+            case .connected:  return "Harvous.ArrowRightArrowLeft"
+            case .scripture:  return "Harvous.BookOpen"
+            case .references: return "Harvous.LinesLeaning"
+            }
+        }
+        func matches(_ kind: StudyThread.EntryKind) -> Bool {
+            switch self {
+            case .all:        return true
+            case .highlights: return kind == .workspace || kind == .miniNote
+            case .connected:  return kind == .linkedNote
+            case .scripture:  return kind == .scriptureLink
+            case .references: return kind == .reference
+            }
+        }
+    }
 
     private var searchText: String {
         externalSearchText?.wrappedValue ?? ""
-    }
-
-    private var showDailyPassageRow: Bool {
-        searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            && votdPassageCardDismissedDay != VotdService.todayCalendarDayKey()
-    }
-
-    private var dailyPassageListRowInsets: EdgeInsets {
-        #if os(macOS)
-        EdgeInsets(top: 8, leading: 0, bottom: 4, trailing: 0)
-        #else
-        EdgeInsets(top: 8, leading: HarvousFeedListLayout.listRowHorizontalInset, bottom: 4, trailing: HarvousFeedListLayout.listRowHorizontalInset)
-        #endif
     }
 
     #if os(iOS)
@@ -96,7 +122,48 @@ struct StudyHighlightListColumn: View {
     }
 
     private var filteredRows: [StudyThread] {
-        StudyHighlightListIndex.filter(baseRows, query: searchText)
+        let kindFiltered = kindFilter == .all
+            ? baseRows
+            : baseRows.filter { kindFilter.matches($0.entryKind) }
+        let searched = StudyHighlightListIndex.filter(kindFiltered, query: searchText)
+        return applyPinOrdering(searched)
+    }
+
+    private func applyPinOrdering(_ rows: [StudyThread]) -> [StudyThread] {
+        guard !pinnedThreadIds.isEmpty else { return rows }
+        let pinnedSet = Set(pinnedThreadIds)
+        let rowById = Dictionary(uniqueKeysWithValues: rows.map { ($0.id.uuidString, $0) })
+        let pinned = pinnedThreadIds.compactMap { rowById[$0] }
+        let unpinned = rows.filter { !pinnedSet.contains($0.id.uuidString) }
+        return pinned + unpinned
+    }
+
+    private func reloadPinnedThreads() {
+        pinnedThreadIds = HarvousPinnedHighlightsStore.loadOrderedIds(spaceId: spaceStore.activeSpaceUUID())
+    }
+
+    private func togglePin(_ thread: StudyThread) {
+        withAnimation {
+            pinnedThreadIds = HarvousPinnedHighlightsStore.togglePin(
+                rowId: thread.id.uuidString,
+                spaceId: spaceStore.activeSpaceUUID()
+            )
+        }
+    }
+
+    private func deleteHighlightThread(_ thread: StudyThread) {
+        let sid = spaceStore.activeSpaceUUID()
+        let threadId = thread.id
+        HarvousPinnedHighlightsStore.removePinId(threadId.uuidString, spaceId: sid)
+        context.delete(thread)
+        try? context.saveWithLogging()
+        if sidebarSelectedThreadId == threadId {
+            sidebarSelectedThreadId = nil
+        }
+        reloadPinnedThreads()
+        #if os(iOS)
+        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        #endif
     }
 
     private enum Metrics {
@@ -113,19 +180,21 @@ struct StudyHighlightListColumn: View {
             #if os(macOS)
             mainContent
                 .background {
-                    GeometryReader { proxy in
-                        let lead = Metrics.sidebarWindowBezelInsetLeading
-                        let top = Metrics.sidebarWindowBezelInsetTop
-                        let w = proxy.size.width
-                        let h = proxy.size.height
-                        macOSSidebarChromeBackground()
-                            .frame(width: max(0, w - lead), height: max(0, h - top))
-                            .padding(.top, top)
-                            .padding(.leading, lead)
-                            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-                            .clipShape(macOSSidebarChromeShape())
+                    if ownsSidebarChrome {
+                        GeometryReader { proxy in
+                            let lead = Metrics.sidebarWindowBezelInsetLeading
+                            let top = Metrics.sidebarWindowBezelInsetTop
+                            let w = proxy.size.width
+                            let h = proxy.size.height
+                            macOSSidebarChromeBackground()
+                                .frame(width: max(0, w - lead), height: max(0, h - top))
+                                .padding(.top, top)
+                                .padding(.leading, lead)
+                                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                                .clipShape(macOSSidebarChromeShape())
+                        }
+                        .ignoresSafeArea()
                     }
-                    .ignoresSafeArea()
                 }
             #else
             Group { mainContent }
@@ -142,6 +211,28 @@ struct StudyHighlightListColumn: View {
         #endif
         .onAppear {
             sidebarSelectedThreadId = nil
+            reloadPinnedThreads()
+        }
+        .onChange(of: spaceStore.selectedSpaceId) { _, _ in
+            reloadPinnedThreads()
+        }
+        .confirmationDialog(
+            "Delete highlight?",
+            isPresented: Binding(
+                get: { removeConfirmThread != nil },
+                set: { if !$0 { removeConfirmThread = nil } }
+            ),
+            titleVisibility: .visible
+        ) {
+            if let thread = removeConfirmThread {
+                Button("Delete highlight", role: .destructive) {
+                    deleteHighlightThread(thread)
+                    removeConfirmThread = nil
+                }
+                Button("Cancel", role: .cancel) { removeConfirmThread = nil }
+            }
+        } message: {
+            Text("The highlight is removed from the source note. The note itself is kept.")
         }
         .onChange(of: selectedNote?.id) { _, newId in
             guard let tid = sidebarSelectedThreadId else { return }
@@ -170,15 +261,88 @@ struct StudyHighlightListColumn: View {
     }
 
     private var mainContent: some View {
-        Group {
-            if !showDailyPassageRow && filteredRows.isEmpty && baseRows.isEmpty {
-                emptyState
-            } else if !showDailyPassageRow && filteredRows.isEmpty {
-                ContentUnavailableView.search(text: searchText)
-            } else {
-                highlightList
+        VStack(spacing: 0) {
+            kindChipBar
+            Group {
+                if filteredRows.isEmpty && baseRows.isEmpty {
+                    emptyState
+                } else if filteredRows.isEmpty {
+                    ContentUnavailableView.search(text: searchText)
+                } else {
+                    highlightList
+                }
             }
         }
+    }
+
+    private var kindChipBar: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 0) {
+                ForEach(KindFilter.allCases) { filter in
+                    kindChipSegment(filter)
+                }
+                Spacer(minLength: 0)
+            }
+            .frame(minWidth: chipBarAvailableWidth - 2 * HarvousFeedListLayout.listRowHorizontalInset)
+            .padding(3)
+            .background(Capsule().fill(Color.primary.opacity(0.07)))
+            .padding(.horizontal, HarvousFeedListLayout.listRowHorizontalInset)
+            .padding(.vertical, 8)
+        }
+        .background(
+            GeometryReader { proxy in
+                Color.clear
+                    .onAppear { chipBarAvailableWidth = proxy.size.width }
+                    .onChange(of: proxy.size.width) { _, w in chipBarAvailableWidth = w }
+            }
+        )
+    }
+
+    private func kindChipSegment(_ filter: KindFilter) -> some View {
+        let isSelected = kindFilter == filter
+        #if os(iOS)
+        let iconPt: CGFloat = 14
+        let labelFont: Font = HarvousFonts.font(size: 16, weight: 500, design: .default)
+        let hStackSpacing: CGFloat = 6
+        let hPad: CGFloat = 12
+        let vPad: CGFloat = 8
+        #else
+        let iconPt: CGFloat = 10
+        let labelFont: Font = .system(size: 12, weight: .medium)
+        let hStackSpacing: CGFloat = 4
+        let hPad: CGFloat = 10
+        let vPad: CGFloat = 5
+        #endif
+        return Button {
+            withAnimation(.spring(response: 0.25, dampingFraction: 0.82)) {
+                kindFilter = filter
+            }
+        } label: {
+            HStack(spacing: hStackSpacing) {
+                if let asset = filter.iconAsset {
+                    HarvousFAGlyph(assetName: asset, edgePt: iconPt)
+                }
+                Text(filter.label)
+                    .font(labelFont)
+                    .lineLimit(1)
+            }
+            .padding(.horizontal, hPad)
+            .padding(.vertical, vPad)
+            .foregroundStyle(isSelected ? Color.primary : Color.primary.opacity(0.5))
+            .background {
+                if isSelected {
+                    Capsule()
+                        #if os(macOS)
+                        .fill(Color(NSColor.controlBackgroundColor))
+                        #else
+                        .fill(Color(UIColor.secondarySystemGroupedBackground))
+                        #endif
+                        .shadow(color: .black.opacity(0.1), radius: 2, y: 1)
+                        .matchedGeometryEffect(id: "highlightKindChip", in: kindChipNamespace)
+                }
+            }
+        }
+        .buttonStyle(.plain)
     }
 
     #if os(macOS)
@@ -208,33 +372,6 @@ struct StudyHighlightListColumn: View {
 
     private var highlightList: some View {
         List {
-            if showDailyPassageRow {
-                DailyPassageCard { note in
-                    #if os(iOS)
-                    if let iosNoteNavPath {
-                        iosNoteNavPath.wrappedValue.append(note.id)
-                    }
-                    #else
-                    macSelectNoteWithoutListAnimation(note)
-                    #endif
-                }
-                .listRowInsets(dailyPassageListRowInsets)
-                .listRowBackground(Color.clear)
-                .listRowSeparator(.hidden)
-                .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                    Button {
-                        votdPassageCardDismissedDay = VotdService.todayCalendarDayKey()
-                    } label: {
-                        Label {
-                            Text("Dismiss")
-                        } icon: {
-                            HarvousFAGlyph(assetName: "Harvous.CircleXmark", edgePt: 16)
-                        }
-                    }
-                    .tint(.secondary)
-                    .accessibilityLabel("Dismiss today's passage")
-                }
-            }
             ForEach(filteredRows) { thread in
                 highlightRowContent(for: thread)
             }
@@ -267,15 +404,17 @@ struct StudyHighlightListColumn: View {
                         focusTitle: thread.focusTitle,
                         subtitle: subtitle,
                         updatedAt: StudyHighlightListIndex.highlightsFeedRecencyDate(thread),
-                        variant: .conversation
+                        variant: .conversation,
+                        entryKind: thread.entryKind,
+                        isPinned: pinnedThreadIds.contains(thread.id.uuidString)
                     )
                 }
                 .buttonStyle(.plain)
                 .listRowInsets(EdgeInsets(top: 4, leading: HarvousFeedListLayout.listRowHorizontalInset, bottom: 4, trailing: HarvousFeedListLayout.listRowHorizontalInset))
                 .listRowBackground(Color.clear)
                 .listRowSeparator(.hidden)
+                .modifier(HighlightRowActions(thread: thread, isPinned: pinnedThreadIds.contains(thread.id.uuidString), onTogglePin: { togglePin(thread) }, onRequestDelete: { removeConfirmThread = thread }))
             } else {
-                // Unlikely: no path — open parent if resolvable.
                 Button {
                     openHighlightMacStyle(thread)
                 } label: {
@@ -283,19 +422,24 @@ struct StudyHighlightListColumn: View {
                         focusTitle: thread.focusTitle,
                         subtitle: subtitle,
                         updatedAt: StudyHighlightListIndex.highlightsFeedRecencyDate(thread),
-                        variant: .conversation
+                        variant: .conversation,
+                        entryKind: thread.entryKind,
+                        isPinned: pinnedThreadIds.contains(thread.id.uuidString)
                     )
                 }
                 .buttonStyle(.plain)
                 .listRowInsets(EdgeInsets(top: 4, leading: HarvousFeedListLayout.listRowHorizontalInset, bottom: 4, trailing: HarvousFeedListLayout.listRowHorizontalInset))
                 .listRowBackground(Color.clear)
                 .listRowSeparator(.hidden)
+                .modifier(HighlightRowActions(thread: thread, isPinned: pinnedThreadIds.contains(thread.id.uuidString), onTogglePin: { togglePin(thread) }, onRequestDelete: { removeConfirmThread = thread }))
             }
         } else {
             sidebarSelectableRow(thread: thread, subtitle: subtitle)
+                .modifier(HighlightRowActions(thread: thread, isPinned: pinnedThreadIds.contains(thread.id.uuidString), onTogglePin: { togglePin(thread) }, onRequestDelete: { removeConfirmThread = thread }))
         }
         #else
         sidebarSelectableRow(thread: thread, subtitle: subtitle)
+            .modifier(HighlightRowActions(thread: thread, isPinned: pinnedThreadIds.contains(thread.id.uuidString), onTogglePin: { togglePin(thread) }, onRequestDelete: { removeConfirmThread = thread }))
         #endif
     }
 
@@ -379,7 +523,9 @@ struct StudyHighlightListColumn: View {
             focusTitle: thread.focusTitle,
             subtitle: subtitle,
             updatedAt: StudyHighlightListIndex.highlightsFeedRecencyDate(thread),
-            variant: .sidebarCompact
+            variant: .sidebarCompact,
+            entryKind: thread.entryKind,
+            isPinned: pinnedThreadIds.contains(thread.id.uuidString)
         )
         .padding(.horizontal, Metrics.sidebarRowHInset)
         .padding(.vertical, Metrics.sidebarRowVInset)
@@ -437,6 +583,66 @@ struct StudyHighlightListColumn: View {
         #endif
     }
 
+    private struct HighlightRowActions: ViewModifier {
+        let thread: StudyThread
+        let isPinned: Bool
+        let onTogglePin: () -> Void
+        let onRequestDelete: () -> Void
+
+        func body(content: Content) -> some View {
+            content
+                .contextMenu {
+                    Button {
+                        onTogglePin()
+                    } label: {
+                        Label {
+                            Text(isPinned ? "Unpin" : "Pin")
+                        } icon: {
+                            HarvousFAGlyph(
+                                assetName: isPinned ? "Harvous.ThumbtackSlash" : "Harvous.Thumbtack",
+                                edgePt: HarvousFAIconMetrics.menuRowLeadingGlyphPt
+                            )
+                        }
+                    }
+                    Button(role: .destructive) {
+                        onRequestDelete()
+                    } label: {
+                        Label {
+                            Text("Delete highlight")
+                        } icon: {
+                            HarvousFAGlyph(assetName: "Harvous.Trash", edgePt: HarvousFAIconMetrics.menuRowLeadingGlyphPt)
+                        }
+                    }
+                }
+                .swipeActions(edge: .leading, allowsFullSwipe: true) {
+                    Button {
+                        onTogglePin()
+                    } label: {
+                        Label {
+                            Text(isPinned ? "Unpin" : "Pin")
+                        } icon: {
+                            HarvousFAGlyph(
+                                assetName: isPinned ? "Harvous.ThumbtackSlash" : "Harvous.Thumbtack",
+                                edgePt: 14
+                            )
+                        }
+                    }
+                    .tint(.orange)
+                }
+                .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                    Button(role: .destructive) {
+                        onRequestDelete()
+                    } label: {
+                        Label {
+                            Text("Delete")
+                        } icon: {
+                            HarvousFAGlyph(assetName: "Harvous.Trash", edgePt: 14)
+                        }
+                    }
+                }
+        }
+    }
+
     private var emptyState: some View {
         VStack(spacing: 8) {
             HarvousFAGlyph(assetName: "Harvous.Highlight", edgePt: 16)
@@ -471,6 +677,12 @@ struct HighlightsHubView: View {
             ToolbarItem(placement: .topBarLeading) {
                 SpaceSwitcherView()
             }
+            if #available(iOS 26, *) {
+                ToolbarSpacer(.fixed, placement: .topBarLeading)
+            }
+            ToolbarItem(placement: .topBarLeading) {
+                IOSListSurfaceChip()
+            }
             ToolbarItem(placement: .topBarTrailing) {
                 Button {
                     UIImpactFeedbackGenerator(style: .light).impactOccurred()
@@ -486,6 +698,7 @@ struct HighlightsHubView: View {
                 .accessibilityLabel("Account, profile, and settings")
             }
         }
+        .navigationBarTitleDisplayMode(.inline)
     }
 }
 #endif

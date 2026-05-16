@@ -133,6 +133,29 @@
   background: var(--pds-bg-section) !important;
 }
 
+/* ─── URL link pill (prototype editor) — matches scripture pill visual style ── */
+.proto-editor-surface .url-link-pill {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 4px !important;
+  border-radius: var(--pds-radius-scripture) !important;
+  padding: 0.08em 0.35em !important;
+  font-family: inherit !important;
+  font-size: inherit !important;
+  font-weight: 400 !important;
+  line-height: inherit !important;
+  background: var(--pds-bg-section) !important;
+  color: var(--pds-text-primary) !important;
+  border: 0.5px solid var(--pds-border) !important;
+  text-decoration: none !important;
+  cursor: pointer;
+  box-shadow: none !important;
+}
+
+.proto-editor-surface .url-link-pill:hover {
+  background: var(--pds-bg-row-hover) !important;
+}
+
 /* ─── TipTap prose content resets (inside proto-editor) ──────────────────── */
 .proto-editor-surface .ProseMirror {
   outline: none;
@@ -325,9 +348,14 @@
   width: 100%;
 }
 
+.proto-editor-bottom-bar__reference {
+  width: 100%;
+}
+
 /* Dock roots — host bar supplies border + glass fill; avoids double borders. */
 .proto-editor-bottom-bar__scripture .scripture-pill-chrome,
-.proto-editor-bottom-bar__highlight .highlight-dock-web {
+.proto-editor-bottom-bar__highlight .highlight-dock-web,
+.proto-editor-bottom-bar__reference .reference-dock-web {
   border-top: none;
   background: transparent;
 }

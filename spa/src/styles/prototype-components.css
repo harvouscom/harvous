@@ -1109,3 +1109,28 @@
 .proto-connect-note-sheet__cancel:hover {
   background: rgba(56, 105, 230, 0.12);
 }
+
+/* ── References dock ─────────────────────────────────────────────────────── */
+
+.proto-ref-url-item {
+  list-style: none;
+  padding: 0;
+}
+
+.proto-ref-url-item__label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Nested note list under each URL row */
+.proto-ref-url-notes {
+  list-style: none;
+  margin: 0;
+  padding: 0 0 4px 16px;
+}
+
+.proto-ref-url-note-btn {
+  padding-left: 12px !important;
+  opacity: 0.85;
+}

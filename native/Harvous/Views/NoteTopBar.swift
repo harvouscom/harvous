@@ -240,15 +240,12 @@ struct NoteShareMoreBar: View {
             } label: {
                 Label {
                     Text("Delete Note")
+                        .foregroundStyle(.red)
                 } icon: {
                     HarvousFAGlyph(assetName: "Harvous.Trash", edgePt: HarvousFAIconMetrics.menuRowLeadingGlyphPt)
+                        .foregroundStyle(.red)
                 }
             }
-#if os(iOS)
-            .tint(Color(uiColor: .systemRed))
-#else
-            .tint(Color.red)
-#endif
 
         } label: {
             #if os(iOS)
@@ -349,11 +346,12 @@ struct MacNoteShareMoreToolbar: ToolbarContent {
                 } label: {
                     Label {
                         Text("Delete Note")
+                            .foregroundStyle(.red)
                     } icon: {
                         HarvousFAGlyph(assetName: "Harvous.Trash", edgePt: HarvousFAIconMetrics.menuRowLeadingGlyphPt)
+                            .foregroundStyle(.red)
                     }
                 }
-                .tint(Color.red)
             } label: {
                 HarvousFAGlyph(
                     assetName: "Harvous.Ellipsis",

@@ -12,10 +12,10 @@ struct ActiveHighlightDock: View {
     @State private var expandedScrollContentHeight: CGFloat = 0
     @State private var responsePromptsCollapsed: Bool = false
 
-    /// Local slug binding for reference-kind threads. Initialized from `thread.sourceSnippet` and
-    /// resettable via see-also chip taps. Resets when `thread.id` changes so reopening the dock for
-    /// a different reference highlight doesn't keep stale see-also navigation state.
-    @State private var activeReferenceSlug: String = ""
+    /// User-driven override slug for reference-kind threads. `nil` means "fall back to the slug
+    /// derived from `thread.sourceSnippet`" — see `effectiveReferenceSlug`. Set when the user taps a
+    /// see-also chip. Reset when `thread.id` changes so reopening the dock starts from the snippet.
+    @State private var referenceSlugOverride: String? = nil
 
     @Bindable var thread: StudyThread
     @Binding var isExpanded: Bool
@@ -107,16 +107,16 @@ struct ActiveHighlightDock: View {
         }
 #endif
         .task(id: thread.id) {
+            // Drop any prior see-also override when the dock swaps to a different reference highlight.
+            // The badge + body for the new thread is derived synchronously from `thread.sourceSnippet`
+            // via `effectiveReferenceSlug`, so no need to set state up-front.
+            if thread.entryKind == .reference {
+                referenceSlugOverride = nil
+            }
+
             // Yield so SwiftUI can commit study-dock chrome before `seed`/fire-and-forget work competes with layout.
             await Task.yield()
             StudyPromptSuggester.seedScriptureRespondQuestionsIfNeeded(thread: thread, modelContext: modelContext)
-
-            // Reference highlights: seed local slug from the looked-up word so see-also nav can swap in place.
-            if thread.entryKind == .reference {
-                let word = thread.sourceSnippet.trimmingCharacters(in: .whitespacesAndNewlines)
-                let matched = EastonsDictionaryService.shared.matchedSlug(forWord: word) ?? word.lowercased()
-                await MainActor.run { activeReferenceSlug = matched }
-            }
 
             guard thread.entryKind == .scriptureLink else { return }
             let ref = thread.scriptureReference ?? thread.miniNoteBody
@@ -139,10 +139,31 @@ struct ActiveHighlightDock: View {
         }
     }
 
+    /// Effective slug for reference rendering — uses the user's see-also override if set, otherwise
+    /// derives synchronously from `thread.sourceSnippet`. Computing this on first render (instead of
+    /// waiting for `.task` to set @State) keeps the category badge in the same animation frame as the
+    /// rest of the dock chrome — no second-frame snap-in.
+    private var effectiveReferenceSlug: String {
+        if let override = referenceSlugOverride { return override }
+        guard thread.entryKind == .reference else { return "" }
+        let word = thread.sourceSnippet.trimmingCharacters(in: .whitespacesAndNewlines)
+        return EastonsDictionaryService.shared.matchedSlug(forWord: word) ?? word.lowercased()
+    }
+
+    /// Binding handed to `EastonsEntryView` — reads the effective slug, writes through the override
+    /// state so see-also taps swap the entry in-place without disturbing the badge's first-frame anchor.
+    private var referenceSlugBinding: Binding<String> {
+        Binding(
+            get: { effectiveReferenceSlug },
+            set: { newValue in referenceSlugOverride = newValue }
+        )
+    }
+
     /// Category icon + label for the active reference slug — resolved synchronously from the loaded index.
     private var referenceCategoryMeta: (iconAsset: String, label: String)? {
-        guard thread.entryKind == .reference, !activeReferenceSlug.isEmpty else { return nil }
-        guard let entry = EastonsDictionaryService.shared.slugIndex[activeReferenceSlug],
+        let slug = effectiveReferenceSlug
+        guard thread.entryKind == .reference, !slug.isEmpty else { return nil }
+        guard let entry = EastonsDictionaryService.shared.slugIndex[slug],
               let icon = entry.categoryIconAsset,
               let cat = entry.category else { return nil }
         return (icon, cat.capitalized)
@@ -168,33 +189,35 @@ struct ActiveHighlightDock: View {
             // Glyph (tap to expand/collapse)
             headerGlyphImage
 
-            // Title + optional category badge (reference kind only) pushed left; Spacer fills gap to toolbar.
-            HStack(alignment: .firstTextBaseline, spacing: 5) {
-                TextField("", text: $thread.focusTitle, prompt: Text(defaultHighlightTitle).foregroundStyle(.secondary))
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(.primary)
-                    .textFieldStyle(.plain)
-                    .lineLimit(1)
-                    .onChange(of: thread.focusTitle) { old, new in
-                        // Avoid bumping list sort / vault timestamps on spurious binding parity or no-op edits.
-                        guard old != new else { return }
-                        let now = Date()
-                        thread.updatedAt = now
-                        thread.highlightListEditedAt = now
-                        try? modelContext.saveWithLogging()
-                    }
-                    #if os(iOS)
-                    .submitLabel(.done)
-                    #endif
-                    .accessibilityLabel("Highlight title")
-
-                if let meta = referenceCategoryMeta {
-                    referenceCategoryBadge(iconAsset: meta.iconAsset, label: meta.label)
+            // Title: when a reference badge is present, shrink to content-width (capped) so the badge
+            // sits immediately adjacent to the title. Without a badge, let the TextField fill the
+            // remaining space so long titles can truncate cleanly instead of overflowing the frame.
+            let hasReferenceBadge = referenceCategoryMeta != nil
+            TextField("", text: $thread.focusTitle, prompt: Text(defaultHighlightTitle).foregroundStyle(.secondary))
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(.primary)
+                .textFieldStyle(.plain)
+                .lineLimit(1)
+                .truncationMode(.tail)
+                .modifier(HighlightDockTitleSizing(contentWidth: hasReferenceBadge))
+                .onChange(of: thread.focusTitle) { old, new in
+                    // Avoid bumping list sort / vault timestamps on spurious binding parity or no-op edits.
+                    guard old != new else { return }
+                    let now = Date()
+                    thread.updatedAt = now
+                    thread.highlightListEditedAt = now
+                    try? modelContext.saveWithLogging()
                 }
+                #if os(iOS)
+                .submitLabel(.done)
+                #endif
+                .accessibilityLabel("Highlight title")
 
-                Spacer(minLength: 0)
+            if let meta = referenceCategoryMeta {
+                referenceCategoryBadge(iconAsset: meta.iconAsset, label: meta.label)
             }
-            .frame(maxWidth: .infinity)
+
+            Spacer(minLength: 0)
 
             // Utility toolbar — `.animation(.none)` prevents the spring on `isExpanded` from
             // sliding the chevron symbol or the whole toolbar during expand/collapse.
@@ -343,8 +366,9 @@ struct ActiveHighlightDock: View {
                                 try? modelContext.saveWithLogging()
                             }
                     } else if thread.entryKind == .reference {
-                        EastonsEntryView(slug: $activeReferenceSlug, showHeadword: false, showDisclaimer: true)
+                        EastonsEntryView(slug: referenceSlugBinding, showHeadword: false, showDisclaimer: true)
                             .frame(maxWidth: .infinity, alignment: .leading)
+                            .fixedSize(horizontal: false, vertical: true)
                     } else {
                         Text(DockHighlightCopy.detail(thread, modelContext: modelContext))
                             .font(.system(size: 14, weight: .regular))
@@ -454,8 +478,11 @@ struct ActiveHighlightDock: View {
                 Button {
                     onJumpToLinkedNote?(nid)
                 } label: {
-                    Label("View connected note", image: "Harvous.ArrowRightArrowLeft")
-                        .font(.system(size: 13, weight: .medium))
+                    HStack(spacing: 5) {
+                        HarvousFAGlyph(assetName: "Harvous.ArrowRightArrowLeft", edgePt: 12)
+                        Text("View connected note")
+                            .font(.system(size: 13, weight: .medium))
+                    }
                 }
                 .buttonStyle(.plain)
                 .foregroundStyle(accentTint)
@@ -753,6 +780,25 @@ private enum DockHighlightUtilities {
         let line = String(first)
         if line.count <= 220 { return line }
         return String(line.prefix(217)) + "…"
+    }
+}
+
+// MARK: - Title sizing helper
+
+/// Switches the dock title between content-width (badge adjacent) and flexible-fill (truncates).
+private struct HighlightDockTitleSizing: ViewModifier {
+    let contentWidth: Bool
+
+    func body(content: Content) -> some View {
+        if contentWidth {
+            // Dictionary headwords are short — let the title hug its content so the badge sits
+            // immediately to its right, with no centering gap.
+            content
+                .fixedSize(horizontal: true, vertical: false)
+        } else {
+            content
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
     }
 }
 

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useParams } from '@tanstack/react-router';
+import { useParams, useSearch } from '@tanstack/react-router';
 import { useQueryClient } from '@tanstack/react-query';
 import CardFullEditable from '../../../../src/components/react/CardFullEditable';
 import PrototypeNoteActionBar from './PrototypeNoteActionBar';
@@ -19,6 +19,7 @@ import { stripServerAutoUntitledNoteTitleForDisplay } from '@/utils/server-auto-
 export default function PrototypeNotePage() {
   const { noteId: noteSlugParam } = useParams({ strict: false }) as { noteId: string };
   const noteId = noteSlugParam.startsWith('note_') ? noteSlugParam : `note_${noteSlugParam}`;
+  const { reference: initialReferenceWord } = useSearch({ strict: false }) as { reference?: string };
   const { homeSpaceId } = usePrototypeHomeSpaceId();
 
   const { data: note, isLoading } = useNote(noteId);
@@ -75,8 +76,9 @@ export default function PrototypeNotePage() {
   const [formatToolbarHostEl, setFormatToolbarHostEl] = useState<HTMLDivElement | null>(null);
   const [scriptureChromeHostEl, setScriptureChromeHostEl] = useState<HTMLDivElement | null>(null);
   const [highlightChromeHostEl, setHighlightChromeHostEl] = useState<HTMLDivElement | null>(null);
+  const [referenceChromeHostEl, setReferenceChromeHostEl] = useState<HTMLDivElement | null>(null);
   const [chromeMode, setChromeMode] = useState<
-    'format' | 'scripture' | 'highlight' | 'noteActions' | 'hidden'
+    'format' | 'scripture' | 'highlight' | 'reference' | 'noteActions' | 'hidden'
   >('noteActions');
 
   useEffect(() => {
@@ -293,6 +295,8 @@ export default function PrototypeNotePage() {
                 formatToolbarPortalTarget={formatToolbarHostEl}
                 scriptureChromePortalTarget={scriptureChromeHostEl}
                 highlightChromePortalTarget={highlightChromeHostEl}
+                referenceChromePortalTarget={referenceChromeHostEl}
+                initialReferenceWord={initialReferenceWord || null}
                 onPrototypeChromeModeChange={setChromeMode}
                 initialPrimaryCollection={note.primaryCollection ?? null}
                 initialSecondaryCollections={note.secondaryCollections ?? []}
@@ -322,6 +326,11 @@ export default function PrototypeNotePage() {
             ref={setScriptureChromeHostEl}
             className="proto-editor-bottom-bar__scripture"
             style={{ display: chromeMode === 'scripture' ? 'block' : 'none' }}
+          />
+          <div
+            ref={setReferenceChromeHostEl}
+            className="proto-editor-bottom-bar__reference"
+            style={{ display: chromeMode === 'reference' ? 'block' : 'none' }}
           />
           <div
             ref={setFormatToolbarHostEl}

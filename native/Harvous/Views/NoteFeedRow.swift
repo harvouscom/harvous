@@ -31,8 +31,7 @@ struct NoteFeedRow: View {
             HStack(spacing: 4) {
                 if note.isPinned {
                     HarvousFAGlyph(assetName: "Harvous.Thumbtack", edgePt: 9)
-                        .foregroundStyle(.tertiary)
-                        .rotationEffect(.degrees(45))
+                        .foregroundStyle(Color.primary.opacity(0.45))
                 }
                 Text(note.title.isEmpty ? "New Note" : note.title)
                     .font(HarvousTypography.noteListTitle)
@@ -68,8 +67,7 @@ struct NoteFeedRow: View {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
                 if note.isPinned {
                     HarvousFAGlyph(assetName: "Harvous.Thumbtack", edgePt: 9)
-                        .foregroundStyle(.tertiary)
-                        .rotationEffect(.degrees(45))
+                        .foregroundStyle(Color.primary.opacity(0.45))
                 }
 
                 Text(note.title.isEmpty ? "New Note" : note.title)

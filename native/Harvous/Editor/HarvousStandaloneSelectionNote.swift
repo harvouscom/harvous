@@ -8,18 +8,19 @@ import UIKit
 
 /// Builds a standalone note payload from prose selection (expanded plain coordinates).
 enum HarvousStandaloneSelectionNote {
+    /// Word count threshold: selections at or below this become the title; longer ones become the body.
+    private static let shortSelectionWordThreshold = 5
+
     static func payload(excerpt: String) -> (title: String, body: String, detectedRefs: [String]) {
         let trimmed = excerpt.trimmingCharacters(in: .whitespacesAndNewlines)
         let refs = ScriptureDetector.detect(in: trimmed).map(\.displayText)
-        let quotedLines =
-            excerpt
-            .split(separator: "\n", omittingEmptySubsequences: false)
-            .map { "> \($0)" }
-            .joined(separator: "\n")
-        let body = trimmed.isEmpty ? quotedLines : quotedLines
-        let titleSrc = trimmed.isEmpty ? excerpt : trimmed
-        let title = ThreadEditorSnippet.deriveFocus(from: titleSrc)
-        return (title, body.isEmpty ? titleSrc : body, refs)
+        let wordCount = trimmed.split(separator: " ").count
+        if wordCount <= shortSelectionWordThreshold {
+            // Short selection → title only, no body.
+            return (ThreadEditorSnippet.deriveFocus(from: trimmed), "", refs)
+        } else {
+            return ("", excerpt, refs)
+        }
     }
 
     static func excerptIfValid(

@@ -98,8 +98,8 @@ interface CardFullEditableProps {
    *  parent can render bars (format / note actions) as siblings of the scroll container,
    *  pinned to the bottom of the editor column. */
   formatToolbarPortalTarget?: HTMLElement | null;
-  /** Prototype-only: bubbles up the current bottom chrome mode (format / scripture / highlight / noteActions / hidden). */
-  onPrototypeChromeModeChange?: (mode: 'format' | 'scripture' | 'highlight' | 'noteActions' | 'hidden') => void;
+  /** Prototype-only: bubbles up the current bottom chrome mode (format / scripture / highlight / search / noteActions / hidden). */
+  onPrototypeChromeModeChange?: (mode: 'format' | 'scripture' | 'highlight' | 'reference' | 'noteActions' | 'hidden') => void;
   /**
    * Prototype-only: when set, overrides whether the editor switches to note-actions chrome on blur /
    * when the format toolbar is inactive. Omit to derive from `noteActionsPortalTarget` or `prototypeNoteActionBar`.
@@ -111,6 +111,12 @@ interface CardFullEditableProps {
    * Prototype-only: when set, the highlight dock is portaled into this element (column-level bottom bar).
    */
   highlightChromePortalTarget?: HTMLElement | null;
+  /**
+   * Prototype-only: when set, the Search dock is portaled into this element (column-level bottom bar).
+   */
+  referenceChromePortalTarget?: HTMLElement | null;
+  /** Prototype-only: when set, auto-opens the reference dock for this word once the editor is ready. */
+  initialReferenceWord?: string | null;
   /** When set with prototype chrome + column shell, portals the native-like note actions bar here. */
   noteActionsPortalTarget?: HTMLElement | null;
   /** Server-stored Bible study collection (native parity). */
@@ -163,6 +169,8 @@ export default function CardFullEditable({
   initialCollectionLastAutoUpdatedAtIso = null,
   scriptureChromePortalTarget = null,
   highlightChromePortalTarget = null,
+  referenceChromePortalTarget = null,
+  initialReferenceWord = null,
   collectionNavContext = { type: 'home' } as WebCollectionNavSource,
   alwaysEditing = false,
 }: CardFullEditableProps) {
@@ -206,7 +214,7 @@ export default function CardFullEditable({
   const [scrollPosition, setScrollPosition] = useState(0);
   const [parentThreadId, setParentThreadId] = useState<string | undefined>(undefined);
   const [prototypeBottomChromeMode, setPrototypeBottomChromeModeInternal] = useState<
-    'format' | 'scripture' | 'highlight' | 'noteActions' | 'hidden'
+    'format' | 'scripture' | 'highlight' | 'reference' | 'noteActions' | 'hidden'
   >('noteActions');
   const [prototypeScripturePillOpenRequest, setPrototypeScripturePillOpenRequest] = useState<{
     reference: string;
@@ -219,7 +227,7 @@ export default function CardFullEditable({
     onPrototypeChromeModeChangeRef.current = onPrototypeChromeModeChange;
   }, [onPrototypeChromeModeChange]);
   const setPrototypeBottomChromeMode = useCallback(
-    (mode: 'format' | 'scripture' | 'highlight' | 'noteActions' | 'hidden') => {
+    (mode: 'format' | 'scripture' | 'highlight' | 'reference' | 'noteActions' | 'hidden') => {
       setPrototypeBottomChromeModeInternal(mode);
       onPrototypeChromeModeChangeRef.current?.(mode);
     },
@@ -1951,6 +1959,10 @@ export default function CardFullEditable({
                       highlightChromePortalTarget={
                         editorChromeMode === 'prototypeNative' ? highlightChromePortalTarget : null
                       }
+                      referenceChromePortalTarget={
+                        editorChromeMode === 'prototypeNative' ? referenceChromePortalTarget : null
+                      }
+                      initialReferenceWord={editorChromeMode === 'prototypeNative' ? initialReferenceWord : null}
                       prototypeScripturePillOpenRequest={
                         editorChromeMode === 'prototypeNative' ? prototypeScripturePillOpenRequest : null
                       }
@@ -2289,6 +2301,10 @@ export default function CardFullEditable({
                     highlightChromePortalTarget={
                       editorChromeMode === 'prototypeNative' ? highlightChromePortalTarget : null
                     }
+                    referenceChromePortalTarget={
+                      editorChromeMode === 'prototypeNative' ? referenceChromePortalTarget : null
+                    }
+                    initialReferenceWord={editorChromeMode === 'prototypeNative' ? initialReferenceWord : null}
                     prototypeScripturePillOpenRequest={
                       editorChromeMode === 'prototypeNative' ? prototypeScripturePillOpenRequest : null
                     }

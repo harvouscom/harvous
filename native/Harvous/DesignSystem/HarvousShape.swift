@@ -17,7 +17,7 @@ enum HarvousRadius {
     static let sidebarGlassLeading: CGFloat = 16
 }
 
-/// iOS home / library / scripture / highlight feeds: `listRowInsets` horizontal edge plus interior padding on row content matches `DailyPassageCard` so titles align with the card copy.
+/// iOS home / library / scripture / highlight feeds: `listRowInsets` horizontal edge plus interior padding keeps row titles aligned across surfaces.
 enum HarvousFeedListLayout {
     static let listRowHorizontalInset: CGFloat = 14
     static let interiorContentHPadding: CGFloat = 10

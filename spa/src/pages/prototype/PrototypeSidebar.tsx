@@ -271,7 +271,6 @@ export default function PrototypeSidebar() {
 
   const highlightsQuery = usePrototypeSpaceStudyThreadHighlights(mode === 'highlights' ? homeSpaceId ?? undefined : undefined);
   const scriptureQuery = usePrototypeSpaceScriptureIndex(mode === 'scripture' ? homeSpaceId ?? undefined : undefined);
-
   const [q, setQ] = useState('');
   const [scriptureDrill, setScriptureDrill] = useState<ScriptureDrill>({ level: 'books' });
 
@@ -384,6 +383,7 @@ export default function PrototypeSidebar() {
           ?.passages.find((p) => p.passageKey === scriptureDrill.passageKey)?.displayRef ?? ''
       : '';
 
+
   const prefetchNote = useCallback(
     (row: SpaceNoteRow, opts?: { seedFromList?: boolean }) => {
       if (!homeSpaceId) return;
@@ -455,10 +455,13 @@ export default function PrototypeSidebar() {
       }
     }
     dismissStandaloneScripturePassage();
+    const isReferenceRow = r.entryKind === 'reference';
     navigate({
       to: '/prototype/n/$noteId',
       params: { noteId: noteParamSlug(r.parentNoteId) },
-      search: { studyThread: r.id },
+      search: isReferenceRow
+        ? { studyThread: r.id, reference: r.sourceSnippet || '' }
+        : { studyThread: r.id },
     });
     afterNav();
   };
@@ -664,13 +667,22 @@ export default function PrototypeSidebar() {
                       const sub = prototypeHighlightSubtitlePreview(r, r.parentNoteTitle ?? '');
                       const line = rel && sub ? `${rel}  ${sub}` : rel || sub;
                       const title = prototypeHighlightListTitle(r);
+                      const isReferenceRow = r.entryKind === 'reference';
                       const activeRow =
                         standaloneScripturePassage?.focusedHighlightThreadId === r.id ||
                         (!isScripturePassageHighlightRow(r) && activeNoteFullId === r.parentNoteId);
                       return (
                         <li key={r.id} className="proto-note-row-item" data-active={activeRow ? 'true' : 'false'}>
                           <button type="button" className="proto-note-row__main" onClick={() => onHighlightRow(r)}>
-                            <div className="pds-list-title proto-note-row__title-text">{title}</div>
+                            <div
+                              className="pds-list-title proto-note-row__title-text"
+                              style={isReferenceRow ? { display: 'inline-flex', alignItems: 'center', gap: 6 } : undefined}
+                            >
+                              {isReferenceRow ? (
+                                <Icon name="lines-leaning" size={11} aria-hidden />
+                              ) : null}
+                              <span>{title}</span>
+                            </div>
                             {line ? <div className="pds-list-preview proto-note-row__preview">{line}</div> : null}
                           </button>
                         </li>
@@ -815,6 +827,7 @@ export default function PrototypeSidebar() {
                 )}
               </>
             ) : null}
+
           </>
         )}
       </div>

@@ -204,6 +204,7 @@ const prototypeNoteFlatRoute = createRoute({
   component: PrototypeNotePage,
   validateSearch: (search: Record<string, unknown>) => ({
     studyThread: typeof search.studyThread === 'string' ? search.studyThread : undefined,
+    reference: typeof search.reference === 'string' ? search.reference : undefined,
   }),
 });
 

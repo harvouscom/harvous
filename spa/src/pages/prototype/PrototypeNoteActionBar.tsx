@@ -1,10 +1,14 @@
-import { useState } from 'react';
+import { type FocusEvent, type MouseEvent as ReactMouseEvent, useRef, useState } from 'react';
 import { Link } from '@tanstack/react-router';
 import Icon from '@/components/react/Icon';
+import LinkPreviewCard from '@/components/react/LinkPreviewCard';
 import type { LinkedNoteRef } from '../../hooks/queries/useNote';
 import PrototypeConnectNoteSheet from './PrototypeConnectNoteSheet';
 import { noteParamSlug } from './proto-route-slugs';
 import { stripServerAutoUntitledNoteTitleForDisplay } from '@/utils/server-auto-untitled-note-display';
+
+const HOVER_ENTER_MS = 200;
+const HOVER_LEAVE_MS = 140;
 
 const PILL_LABEL_MAX = 28;
 
@@ -35,6 +39,82 @@ function truncatedLabel(text: string): string {
 function trimmedCurrentTitle(title: string): string {
   const t = title.trim();
   return t || 'Title';
+}
+
+interface ConnectedNotePillProps {
+  note: LinkedNoteRef;
+  direction: 'from' | 'to';
+}
+
+function ConnectedNotePill({ note, direction }: ConnectedNotePillProps) {
+  const elementRef = useRef<HTMLElement | null>(null);
+  const enterTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const leaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [anchorRect, setAnchorRect] = useState<DOMRect | null>(null);
+
+  const clearTimers = () => {
+    if (enterTimer.current) { clearTimeout(enterTimer.current); enterTimer.current = null; }
+    if (leaveTimer.current) { clearTimeout(leaveTimer.current); leaveTimer.current = null; }
+  };
+
+  const captureAnchor = (e: ReactMouseEvent<HTMLElement> | FocusEvent<HTMLElement>) => {
+    elementRef.current = e.currentTarget;
+  };
+
+  const scheduleShow = () => {
+    if (leaveTimer.current) { clearTimeout(leaveTimer.current); leaveTimer.current = null; }
+    if (anchorRect) return;
+    if (enterTimer.current) clearTimeout(enterTimer.current);
+    enterTimer.current = setTimeout(() => {
+      if (elementRef.current) setAnchorRect(elementRef.current.getBoundingClientRect());
+    }, HOVER_ENTER_MS);
+  };
+
+  const scheduleHide = () => {
+    if (enterTimer.current) { clearTimeout(enterTimer.current); enterTimer.current = null; }
+    if (leaveTimer.current) clearTimeout(leaveTimer.current);
+    leaveTimer.current = setTimeout(() => setAnchorRect(null), HOVER_LEAVE_MS);
+  };
+
+  const dismiss = () => { clearTimers(); setAnchorRect(null); };
+
+  return (
+    <>
+      <Link
+        to="/prototype/n/$noteId"
+        params={{ noteId: noteParamSlug(note.id) }}
+        className="proto-note-action-bar__pill proto-note-action-bar__pill--link"
+        onMouseEnter={(e: ReactMouseEvent<HTMLElement>) => { captureAnchor(e); scheduleShow(); }}
+        onMouseLeave={scheduleHide}
+        onFocus={(e: FocusEvent<HTMLElement>) => { captureAnchor(e); scheduleShow(); }}
+        onBlur={scheduleHide}
+      >
+        {direction === 'from' ? (
+          <>
+            <Icon name="arrow-left" size={14} className="proto-note-action-bar__pill-git" aria-hidden />
+            <span className="proto-note-action-bar__pill-text">{truncatedLabel(pillDisplayTitle(note))}</span>
+          </>
+        ) : (
+          <>
+            <span className="proto-note-action-bar__pill-text">{truncatedLabel(pillDisplayTitle(note))}</span>
+            <Icon name="arrow-right" size={14} className="proto-note-action-bar__pill-git" aria-hidden />
+          </>
+        )}
+      </Link>
+      {anchorRect ? (
+        <LinkPreviewCard
+          kind="note"
+          anchorRect={anchorRect}
+          payload={{ noteId: note.id }}
+          onDismiss={dismiss}
+          onPointerEnter={() => {
+            if (leaveTimer.current) { clearTimeout(leaveTimer.current); leaveTimer.current = null; }
+          }}
+          onPointerLeave={scheduleHide}
+        />
+      ) : null}
+    </>
+  );
 }
 
 /** Prototype bottom chrome — linked-note strip + Connect note picker (stored as `linkedFromNoteId`). */
@@ -96,16 +176,7 @@ export default function PrototypeNoteActionBar({
           <div className="proto-note-action-bar__strip">
             {linkedFromNotes.map((n) => (
               <span key={n.id} className="proto-note-action-bar__cluster">
-                <Link
-                  to="/prototype/n/$noteId"
-                  params={{
-                    noteId: noteParamSlug(n.id),
-                  }}
-                  className="proto-note-action-bar__pill proto-note-action-bar__pill--link"
-                >
-                  <Icon name="arrow-left" size={14} className="proto-note-action-bar__pill-git" aria-hidden />
-                  <span className="proto-note-action-bar__pill-text">{truncatedLabel(pillDisplayTitle(n))}</span>
-                </Link>
+                <ConnectedNotePill note={n} direction="from" />
                 <Icon name="arrows-left-right" size={14} className="proto-note-action-bar__sep" aria-hidden />
               </span>
             ))}
@@ -113,16 +184,7 @@ export default function PrototypeNoteActionBar({
             {linkedToNotes.map((n) => (
               <span key={n.id} className="proto-note-action-bar__cluster">
                 <Icon name="arrows-left-right" size={14} className="proto-note-action-bar__sep" aria-hidden />
-                <Link
-                  to="/prototype/n/$noteId"
-                  params={{
-                    noteId: noteParamSlug(n.id),
-                  }}
-                  className="proto-note-action-bar__pill proto-note-action-bar__pill--link"
-                >
-                  <span className="proto-note-action-bar__pill-text">{truncatedLabel(pillDisplayTitle(n))}</span>
-                  <Icon name="arrow-right" size={14} className="proto-note-action-bar__pill-git" aria-hidden />
-                </Link>
+                <ConnectedNotePill note={n} direction="to" />
               </span>
             ))}
             {connectButton ? (

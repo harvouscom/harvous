@@ -21,9 +21,9 @@ struct EastonsSlugIndexEntry: Codable, Hashable, Sendable {
     /// Static overload so callers that only hold a raw category string can call without an instance.
     static func categoryIconAsset(for category: String?) -> String? {
         switch category {
-        case "person": return "Harvous.UserFilled"
-        case "place":  return "Harvous.Globe"
-        case "thing":  return "Harvous.Cube"
+        case "person": return "Harvous.Person"
+        case "place":  return "Harvous.LocationDot"
+        case "thing":  return "Harvous.Shapes"
         default:       return nil
         }
     }

@@ -9,6 +9,7 @@ enum HarvousIOSListSurface: String, CaseIterable {
     case folders
     case scripture
     case highlights
+    case dictionary
     case more
 
     static let persistenceKey = "harvous_ios_list_surface_v3"
@@ -22,6 +23,7 @@ enum HarvousIOSListSurface: String, CaseIterable {
         case .folders: "Harvous.Folder"
         case .scripture: "Harvous.BookOpen"
         case .highlights: "Harvous.Highlight"
+        case .dictionary: "Harvous.LinesLeaning"
         case .more: "Harvous.Note"
         }
     }
@@ -33,6 +35,7 @@ enum HarvousIOSListSurface: String, CaseIterable {
         case .folders: "Folders"
         case .scripture: "Scripture"
         case .highlights: "Highlights"
+        case .dictionary: "Dictionary"
         case .more: "Account"
         }
     }
@@ -312,7 +315,7 @@ final class HarvousAppRouter: ObservableObject {
             switch iosListSurface {
             case .notes:
                 iosNotesFilterSearchPresented = true
-            case .folders, .highlights, .scripture:
+            case .folders, .highlights, .scripture, .dictionary:
                 NotificationCenter.default.post(name: .harvousFocusIOSInlineSearch, object: nil)
             case .more:
                 break

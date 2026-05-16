@@ -9,6 +9,8 @@ enum NoteFilter: Hashable, Sendable {
     case scriptureBook(bookIndex: Int)
     /// Notes that cite this exact parsed passage (canonical book/chapter/verses).
     case scripturePassage(ParsedScriptureFields)
+    /// Notes that cite this exact URL (matches `URLLinkPillAttachment.href`).
+    case urlReference(href: String)
 
     var displayName: String {
         switch self {
@@ -26,6 +28,8 @@ enum NoteFilter: Hashable, Sendable {
                 verseStart: p.verseStart,
                 verseEnd: p.verseEnd
             )
+        case .urlReference(let href):
+            return urlLinkPillDisplayHost(href)
         }
     }
 }

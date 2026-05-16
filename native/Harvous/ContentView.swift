@@ -31,6 +31,12 @@ struct ContentView: View {
             spaceStore.bootstrapIfNeeded(modelContext: modelContext)
             _ = spaceStore.consumePendingJoinToken(modelContext: modelContext)
             NoteSimpleIDAssigner.backfillAllIfNeeded(in: modelContext)
+            // Heal accumulated orphans: linkedNote markers whose target Note was deleted before the
+            // deletion-time cleanup landed. One-shot sweep; new deletions are caught at the source.
+            let purged = ThreadStore.purgeAllDanglingLinkedNoteMarkers(modelContext: modelContext)
+            if purged > 0 {
+                NotificationCenter.default.post(name: .harvousStudyThreadsPurged, object: nil)
+            }
         }
         .onChange(of: scenePhase) { _, phase in
             guard phase == .inactive || phase == .background else { return }
@@ -185,6 +191,7 @@ struct MacRootView: View {
                                     let nid = note.id
                                     HarvousVaultExporter.removeMirrorFiles(for: note, modelContext: context)
                                     HarvousNoteSpotlightIndexer.removeNote(id: nid)
+                                    ThreadStore.purgeLinkedNoteMarkers(referencingDeletedNote: nid, modelContext: context)
                                     selectedNote = nil
                                     context.delete(note)
                                     try? context.saveWithLogging()
@@ -555,19 +562,13 @@ struct iOSRootView: View {
     @State private var importSummaryPayload: HarvousVaultImportSummaryPayload?
     @State private var iosKeyboardOccupiesBottom = false
 
-    /// Material “breathing” band under morphing chrome is for list/hub surfaces only; on note pages it reads as an extra grey strip above the keyboard.
-    private var iosMorphingChromeKeyboardBreathingActive: Bool {
-        iosKeyboardOccupiesBottom && iosNoteNavigationPath.isEmpty
-    }
-
     var body: some View {
         let chrome = iosNavigationStack
             .overlay {
                 if appRouter.iosComposeCameraOrbPresented {
                     GeometryReader { geo in
-                        let keyboardSlack = iosMorphingChromeKeyboardBreathingActive ? HarvousIOSMorphingChromeLayout.keyboardBreathingPadding : 0
                         let reserve = HarvousIOSMorphingChromeLayout.composeCameraOrbDismissTapCatcherBottomReserve
-                            + geo.safeAreaInsets.bottom + keyboardSlack
+                            + geo.safeAreaInsets.bottom
                         Color.clear
                             .contentShape(Rectangle())
                             .frame(width: geo.size.width, height: max(0, geo.size.height - reserve), alignment: .top)
@@ -620,7 +621,7 @@ struct iOSRootView: View {
                 switch appRouter.iosListSurface {
                 case .notes:
                     appRouter.iosNotesFilterSearchPresented = true
-                case .folders, .highlights, .scripture:
+                case .folders, .highlights, .scripture, .dictionary:
                     NotificationCenter.default.post(name: .harvousFocusIOSInlineSearch, object: nil)
                 case .more:
                     break
@@ -696,6 +697,8 @@ struct iOSRootView: View {
                     iosNoteNavigationPath: $iosNoteNavigationPath,
                     externalSearchText: $appRouter.iosInlineSearchText
                 )
+            case .dictionary:
+                IOSDictionaryHubView(externalSearchText: $appRouter.iosInlineSearchText)
             case .more:
                 // `.more` is presented as a sheet; fallback only.
                 HomeHubView(iosNoteNavigationPath: $iosNoteNavigationPath)
@@ -707,16 +710,9 @@ struct iOSRootView: View {
     /// `HarvousIOSInlineBottomChromeRow`'s `@FocusState` survives keyboard show/hide.
     @ViewBuilder
     private var iosMorphingChromeInset: some View {
-        VStack(spacing: 0) {
-            MorphingChromeBar()
-                .environmentObject(appRouter)
-                .padding(.bottom, iosKeyboardOccupiesBottom ? 0 : -4)
-            if iosMorphingChromeKeyboardBreathingActive {
-                HarvousIOSFloatingChromeBackdrop.keyboardGapFill(colorScheme: colorScheme)
-                    .frame(height: HarvousIOSMorphingChromeLayout.keyboardBreathingPadding)
-                    .frame(maxWidth: .infinity)
-            }
-        }
+        MorphingChromeBar()
+            .environmentObject(appRouter)
+            .padding(.bottom, iosKeyboardOccupiesBottom ? 0 : -4)
     }
 
     private var iosYouRootSheet: some View {
@@ -811,7 +807,73 @@ private struct IOSNotesFilterSearchSheet: View {
     }
 }
 
-// MARK: - Bottom row (list picker, search pill, compose)
+// MARK: - Top-bar list-surface chip (Notes / Folders / Scripture / Highlights / Dictionary)
+
+/// Replaces the floating circle orb at the bottom-left: a chip in the hub views'
+/// `.topBarLeading` toolbar slot — same position and treatment as `NoteFolderChip`
+/// in `NoteTopBar.swift`. iOS 26's auto-glass on toolbar items provides the capsule
+/// background; we just contribute icon + label and let the system style it.
+struct IOSListSurfaceChip: View {
+    @EnvironmentObject private var appRouter: HarvousAppRouter
+
+    private var labelFont: Font {
+        HarvousFonts.font(size: 16, weight: 500, design: .default)
+    }
+
+    var body: some View {
+        Menu {
+            chipMenuButton(.notes, label: "Notes", icon: "Harvous.Note")
+            chipMenuButton(.folders, label: "Folders", icon: "Harvous.Folder")
+            chipMenuButton(.scripture, label: "Scripture", icon: "Harvous.BookOpen")
+            chipMenuButton(.highlights, label: "Highlights", icon: "Harvous.Highlight")
+            chipMenuButton(.dictionary, label: "Dictionary", icon: "Harvous.LinesLeaning")
+        } label: {
+            HStack(spacing: 6) {
+                HarvousFAGlyph(
+                    assetName: appRouter.iosListSurface.catalogGlyphAssetName,
+                    edgePt: HarvousFAIconMetrics.catalogGlyphBoxPt
+                )
+                .frame(
+                    width: HarvousFAIconMetrics.catalogGlyphBoxPt,
+                    height: HarvousFAIconMetrics.catalogGlyphBoxPt
+                )
+                Text(appRouter.iosListSurface.listChromeMenuTitle)
+                    .font(labelFont)
+                    .lineLimit(1)
+            }
+            .fixedSize(horizontal: true, vertical: false)
+            .padding(.horizontal, 8)
+            .frame(minHeight: 24)
+        }
+        .menuIndicator(.hidden)
+        .buttonStyle(.plain)
+        .tint(.primary)
+        .accessibilityLabel("List: \(appRouter.iosListSurface.listChromeMenuTitle)")
+    }
+
+    @ViewBuilder
+    private func chipMenuButton(_ surface: HarvousIOSListSurface, label: String, icon: String) -> some View {
+        Button {
+            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+            appRouter.selectIOSListSurface(surface)
+        } label: {
+            HStack {
+                Label {
+                    Text(label)
+                } icon: {
+                    HarvousFAGlyph(assetName: icon, edgePt: HarvousFAIconMetrics.compactMenuRowLeadingGlyphPt)
+                }
+                Spacer(minLength: 8)
+                if appRouter.iosListSurface == surface {
+                    HarvousFAGlyph(assetName: "Harvous.Check", edgePt: HarvousFAIconMetrics.menuRowCheckGlyphPt)
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+    }
+}
+
+// MARK: - Bottom row (search pill, compose)
 
 struct HarvousIOSInlineBottomChromeRow: View {
     @EnvironmentObject private var appRouter: HarvousAppRouter
@@ -826,9 +888,8 @@ struct HarvousIOSInlineBottomChromeRow: View {
     }
 
     var body: some View {
-        // `.bottom` keeps list + search on the baseline when the compose column grows (camera orb above pencil).
+        // `.bottom` keeps search on the baseline when the compose column grows (camera orb above pencil).
         HStack(alignment: .bottom, spacing: HarvousIOSMorphingChromeLayout.interChromeSpacing) {
-            listPickerOrb
             searchPill
             composeOrb
         }
@@ -836,100 +897,19 @@ struct HarvousIOSInlineBottomChromeRow: View {
         .padding(.bottom, 4)
         .frame(maxWidth: Self.hubClusterMaxWidth)
         .frame(maxWidth: .infinity)
-    }
-
-    private var listPickerOrb: some View {
-        Menu {
-            Button {
-                UIImpactFeedbackGenerator(style: .light).impactOccurred()
-                appRouter.selectIOSListSurface(.notes)
-            } label: {
-                HStack {
-                    Label {
-                        Text("Notes")
-                    } icon: {
-                        HarvousFAGlyph(assetName: "Harvous.Note", edgePt: HarvousFAIconMetrics.compactMenuRowLeadingGlyphPt)
-                    }
-                    Spacer(minLength: 8)
-                    if appRouter.iosListSurface == .notes {
-                        HarvousFAGlyph(assetName: "Harvous.Check", edgePt: HarvousFAIconMetrics.menuRowCheckGlyphPt)
-                            .foregroundStyle(.secondary)
-                    }
-                }
+        // DailyPassagePill lives here as an overlay so it doesn't consume HStack width.
+        // Bottom offset: 4pt row-padding + 44pt orb + 8pt gap above pill.
+        .overlay(alignment: .bottom) {
+            DailyPassagePill { note in
+                NotificationCenter.default.post(
+                    name: .harvousRequestOpenNoteId,
+                    object: nil,
+                    userInfo: [HarvousOpenNoteIdPayload.idKey: note.id.uuidString]
+                )
             }
-            Button {
-                UIImpactFeedbackGenerator(style: .light).impactOccurred()
-                appRouter.selectIOSListSurface(.folders)
-            } label: {
-                HStack {
-                    Label {
-                        Text("Folders")
-                    } icon: {
-                        HarvousFAGlyph(assetName: "Harvous.Folder", edgePt: HarvousFAIconMetrics.compactMenuRowLeadingGlyphPt)
-                    }
-                    Spacer(minLength: 8)
-                    if appRouter.iosListSurface == .folders {
-                        HarvousFAGlyph(assetName: "Harvous.Check", edgePt: HarvousFAIconMetrics.menuRowCheckGlyphPt)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-            }
-            Button {
-                UIImpactFeedbackGenerator(style: .light).impactOccurred()
-                appRouter.selectIOSListSurface(.scripture)
-            } label: {
-                HStack {
-                    Label {
-                        Text("Scripture")
-                    } icon: {
-                        HarvousFAGlyph(assetName: "Harvous.BookOpen", edgePt: HarvousFAIconMetrics.compactMenuRowLeadingGlyphPt)
-                    }
-                    Spacer(minLength: 8)
-                    if appRouter.iosListSurface == .scripture {
-                        HarvousFAGlyph(assetName: "Harvous.Check", edgePt: HarvousFAIconMetrics.menuRowCheckGlyphPt)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-            }
-            Button {
-                UIImpactFeedbackGenerator(style: .light).impactOccurred()
-                appRouter.selectIOSListSurface(.highlights)
-            } label: {
-                HStack {
-                    Label {
-                        Text("Highlights")
-                    } icon: {
-                        HarvousFAGlyph(assetName: "Harvous.Highlight", edgePt: HarvousFAIconMetrics.compactMenuRowLeadingGlyphPt)
-                    }
-                    Spacer(minLength: 8)
-                    if appRouter.iosListSurface == .highlights {
-                        HarvousFAGlyph(assetName: "Harvous.Check", edgePt: HarvousFAIconMetrics.menuRowCheckGlyphPt)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-            }
-        } label: {
-            // Match `HarvousIOSComposeOrbCluster` and search pill height (`chromeControlsHeight`) so the row stays aligned.
-            // Use explicit `.frame` (not outer padding) so Menu dismiss animation doesn’t interpolate clipped layout.
-            HarvousFAGlyph(assetName: appRouter.iosListSurface.catalogGlyphAssetName, edgePt: 20)
-                .foregroundStyle(Color.primary.opacity(0.85))
-                .frame(width: HarvousIOSMorphingChromeLayout.chromeControlsHeight, height: HarvousIOSMorphingChromeLayout.chromeControlsHeight)
-                .background { floatingChromeBackground(shape: Circle()) }
-                .compositingGroup()
-                .contentShape(Circle())
+            .padding(.horizontal, 14)
+            .padding(.bottom, 56)
         }
-        .buttonStyle(.plain)
-        .menuIndicator(.hidden)
-        .fixedSize(horizontal: true, vertical: true)
-        .layoutPriority(1)
-        .zIndex(2)
-        .animation(nil, value: appRouter.iosListSurface)
-        .accessibilityLabel("List: \(appRouter.iosListSurface.listChromeMenuTitle)")
-        .simultaneousGesture(
-            TapGesture().onEnded {
-                appRouter.dismissIOSComposeCameraOrbIfPresented()
-            }
-        )
     }
 
     private var searchPill: some View {

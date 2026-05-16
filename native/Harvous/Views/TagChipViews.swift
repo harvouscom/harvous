@@ -85,26 +85,21 @@ struct RemovableThemeTagChip: View {
 
     var body: some View {
         HStack(spacing: 4) {
-            HStack(spacing: 4) {
-                ZStack(alignment: .leading) {
-                    HarvousFAGlyph(assetName: "Harvous.Tag", edgePt: 9)
-                        .opacity(showRemoval ? 0 : 1)
-                        .accessibilityHidden(true)
-                }
-                .frame(width: showRemoval ? 0 : 12, alignment: .leading)
-                .clipped()
+            HarvousFAGlyph(assetName: "Harvous.Tag", edgePt: 9)
+                .opacity(showRemoval ? 0 : 1)
+                .frame(width: 12)
+                .accessibilityHidden(true)
 
-                Text(text)
-                    .font(HarvousTypography.inspectorCompactMedium)
-                    .lineLimit(1)
-            }
-            .contentShape(Rectangle())
-            .onTapGesture {
-                guard !hoverRemoval else { return }
-                withAnimation(.easeInOut(duration: 0.18)) {
-                    tapRevealRemoval.toggle()
+            Text(text)
+                .font(HarvousTypography.inspectorCompactMedium)
+                .lineLimit(1)
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    guard !hoverRemoval else { return }
+                    withAnimation(.easeInOut(duration: 0.18)) {
+                        tapRevealRemoval.toggle()
+                    }
                 }
-            }
 
             Button {
                 onRemove()
@@ -112,14 +107,13 @@ struct RemovableThemeTagChip: View {
             } label: {
                 HarvousFAGlyph(assetName: "Harvous.Xmark", edgePt: 9)
                     .foregroundStyle(HarvousColors.scriptureChipForeground(scriptureTheme).opacity(0.85))
-                    .frame(width: 16, height: 16)
+                    .frame(width: 12, height: 12)
             }
             .buttonStyle(.plain)
             .help("Remove tag")
             .accessibilityLabel("Remove tag \(text)")
             .opacity(showRemoval ? 1 : 0)
-            .frame(width: showRemoval ? 22 : 0)
-            .clipped()
+            .frame(width: 12)
             .allowsHitTesting(showRemoval)
         }
         .foregroundStyle(HarvousColors.scriptureChipForeground(scriptureTheme))

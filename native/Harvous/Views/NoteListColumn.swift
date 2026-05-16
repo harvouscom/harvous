@@ -34,12 +34,16 @@ struct NoteListColumn: View {
     #endif
 
     #if os(macOS)
+    /// When `false`, the column skips its own glass/material sidebar chrome — the parent owns and applies it.
+    var ownsSidebarChrome: Bool = true
+
     init(
         filter: NoteFilter = .all,
         selectedNote: Binding<Note?>,
         externalSearchText: Binding<String>? = nil,
         columnStyle: NoteListColumnStyle = .macOSSidebar,
         navigationTitleOverride: String? = nil,
+        ownsSidebarChrome: Bool = true,
         onNewNote: @escaping () -> Void = {}
     ) {
         self.filter = filter
@@ -47,6 +51,7 @@ struct NoteListColumn: View {
         self.externalSearchText = externalSearchText
         self.columnStyle = columnStyle
         self.navigationTitleOverride = navigationTitleOverride
+        self.ownsSidebarChrome = ownsSidebarChrome
         self.onNewNote = onNewNote
     }
     #else
@@ -82,8 +87,6 @@ struct NoteListColumn: View {
     #if os(macOS)
     @EnvironmentObject private var macNoteListSelectionCoordinator: MacNoteListSelectionCoordinator
     #endif
-
-    @AppStorage(VotdService.passageCardDismissedDayUserDefaultsKey) private var votdPassageCardDismissedDay: String = ""
 
     private var notesInActiveSpace: [Note] {
         let sid = spaceStore.activeSpaceUUID()
@@ -149,6 +152,8 @@ struct NoteListColumn: View {
             return notesInActiveSpace.filter { $0.noteBelongsToScriptureBook(bookIndex) }
         case .scripturePassage(let passage):
             return notesInActiveSpace.filter { $0.noteBelongsToScripturePassage(passage) }
+        case .urlReference(let href):
+            return notesInActiveSpace.filter { $0.noteBelongsToURLReference(href) }
         }
     }
 
@@ -207,15 +212,6 @@ struct NoteListColumn: View {
         static let sidebarWindowBezelInsetTop: CGFloat = 0
     }
 
-    /// macOS: passage card applies `sidebarRowHInset` internally; keep list insets aligned with note rows.
-    private var dailyPassageListRowInsets: EdgeInsets {
-        #if os(macOS)
-        EdgeInsets(top: 8, leading: Metrics.selectionHPadding, bottom: 4, trailing: Metrics.selectionHPadding)
-        #else
-        EdgeInsets(top: 8, leading: HarvousFeedListLayout.listRowHorizontalInset, bottom: 4, trailing: HarvousFeedListLayout.listRowHorizontalInset)
-        #endif
-    }
-
     // MARK: - Body
 
     var body: some View {
@@ -223,19 +219,21 @@ struct NoteListColumn: View {
             #if os(macOS)
             mainContent
                 .background {
-                    GeometryReader { proxy in
-                        let lead = Metrics.sidebarWindowBezelInsetLeading
-                        let top = Metrics.sidebarWindowBezelInsetTop
-                        let w = proxy.size.width
-                        let h = proxy.size.height
-                        macOSSidebarChromeBackground()
-                            .frame(width: max(0, w - lead), height: max(0, h - top))
-                            .padding(.top, top)
-                            .padding(.leading, lead)
-                            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-                            .clipShape(macOSSidebarChromeShape())
+                    if ownsSidebarChrome {
+                        GeometryReader { proxy in
+                            let lead = Metrics.sidebarWindowBezelInsetLeading
+                            let top = Metrics.sidebarWindowBezelInsetTop
+                            let w = proxy.size.width
+                            let h = proxy.size.height
+                            macOSSidebarChromeBackground()
+                                .frame(width: max(0, w - lead), height: max(0, h - top))
+                                .padding(.top, top)
+                                .padding(.leading, lead)
+                                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                                .clipShape(macOSSidebarChromeShape())
+                        }
+                        .ignoresSafeArea()
                     }
-                    .ignoresSafeArea()
                 }
             #else
             Group { mainContent }
@@ -378,31 +376,6 @@ struct NoteListColumn: View {
 
     private var noteList: some View {
         List {
-            if filter == .all, votdPassageCardDismissedDay != VotdService.todayCalendarDayKey() {
-                DailyPassageCard { note in
-                    #if os(iOS)
-                    iosNoteNavPath?.wrappedValue.append(note.id)
-                    #else
-                    macSelectNoteWithoutListAnimation(note)
-                    #endif
-                }
-                .listRowInsets(dailyPassageListRowInsets)
-                .listRowBackground(Color.clear)
-                .listRowSeparator(.hidden)
-                .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                    Button {
-                        votdPassageCardDismissedDay = VotdService.todayCalendarDayKey()
-                    } label: {
-                        Label {
-                            Text("Dismiss")
-                        } icon: {
-                            HarvousFAGlyph(assetName: "Harvous.CircleXmark", edgePt: 16)
-                        }
-                    }
-                    .tint(.secondary)
-                    .accessibilityLabel("Dismiss today's passage")
-                }
-            }
             ForEach(sortedFiltered) { note in
                 noteRowContent(for: note)
             }
@@ -507,6 +480,7 @@ struct NoteListColumn: View {
                 if selectedNote?.id == doomedId { selectedNote = nil }
                 HarvousVaultExporter.removeMirrorFiles(for: note, modelContext: context)
                 HarvousNoteSpotlightIndexer.removeNote(id: doomedId)
+                ThreadStore.purgeLinkedNoteMarkers(referencingDeletedNote: doomedId, modelContext: context)
                 context.delete(note)
                 try? context.save()
             }

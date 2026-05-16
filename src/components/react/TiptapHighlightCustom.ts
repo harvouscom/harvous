@@ -57,6 +57,19 @@ export const HighlightCustom = Highlight.extend({
           return { 'data-study-thread-id': String(attributes.studyThreadEntryId) };
         },
       },
+      // Reference word — when set, this highlight was created by "Look up" and clicking it
+      // opens the reference dock for that word (instead of the regular highlight dock).
+      // Visually identical to a regular highlight (uses the same color attribute).
+      reference: {
+        default: null,
+        parseHTML: (element) => element.getAttribute('data-reference'),
+        renderHTML: (attributes) => {
+          if (!attributes.reference) {
+            return {};
+          }
+          return { 'data-reference': String(attributes.reference) };
+        },
+      },
     };
   },
 

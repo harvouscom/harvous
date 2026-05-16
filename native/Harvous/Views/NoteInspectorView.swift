@@ -422,29 +422,24 @@ private struct RemovableInspectorNeutralTagChip: View {
     private var showRemoval: Bool { hoverRemoval || tapRevealRemoval }
 
     var body: some View {
-        HStack(spacing: 6) {
-            HStack(spacing: InspectorDetailChipMetrics.rowIconSpacing) {
-                ZStack(alignment: .leading) {
-                    HarvousFAGlyph(assetName: "Harvous.Tag", edgePt: InspectorDetailChipMetrics.leadingGlyphPt)
-                        .foregroundStyle(.secondary.opacity(0.75))
-                        .opacity(showRemoval ? 0 : 1)
-                        .accessibilityHidden(true)
-                }
-                .frame(width: showRemoval ? 0 : InspectorDetailChipMetrics.tagGlyphColumnWidth, alignment: .leading)
-                .clipped()
+        HStack(spacing: InspectorDetailChipMetrics.rowIconSpacing) {
+            HarvousFAGlyph(assetName: "Harvous.Tag", edgePt: InspectorDetailChipMetrics.leadingGlyphPt)
+                .foregroundStyle(.secondary.opacity(0.75))
+                .opacity(showRemoval ? 0 : 1)
+                .frame(width: InspectorDetailChipMetrics.tagGlyphColumnWidth)
+                .accessibilityHidden(true)
 
-                Text(text)
-                    .font(InspectorDetailChipMetrics.labelFont)
-                    .foregroundStyle(.primary)
-                    .lineLimit(1)
-            }
-            .contentShape(Rectangle())
-            .onTapGesture {
-                guard !hoverRemoval else { return }
-                withAnimation(.easeInOut(duration: 0.18)) {
-                    tapRevealRemoval.toggle()
+            Text(text)
+                .font(InspectorDetailChipMetrics.labelFont)
+                .foregroundStyle(.primary)
+                .lineLimit(1)
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    guard !hoverRemoval else { return }
+                    withAnimation(.easeInOut(duration: 0.18)) {
+                        tapRevealRemoval.toggle()
+                    }
                 }
-            }
 
             Button {
                 onRemove()
@@ -452,14 +447,13 @@ private struct RemovableInspectorNeutralTagChip: View {
             } label: {
                 HarvousFAGlyph(assetName: "Harvous.Xmark", edgePt: InspectorDetailChipMetrics.removeGlyphPt)
                     .foregroundStyle(.primary.opacity(0.55))
-                    .frame(width: 21, height: 21)
+                    .frame(width: InspectorDetailChipMetrics.tagGlyphColumnWidth)
             }
             .buttonStyle(.plain)
             .help("Remove tag")
             .accessibilityLabel("Remove tag \(text)")
             .opacity(showRemoval ? 1 : 0)
-            .frame(width: showRemoval ? 28 : 0)
-            .clipped()
+            .frame(width: InspectorDetailChipMetrics.tagGlyphColumnWidth)
             .allowsHitTesting(showRemoval)
         }
         .padding(.horizontal, InspectorDetailChipMetrics.horizontalPadding)

@@ -16,7 +16,6 @@ struct LibraryView: View {
     @EnvironmentObject private var spaceStore: SpaceStore
     @EnvironmentObject private var appRouter: HarvousAppRouter
 
-    @AppStorage(VotdService.passageCardDismissedDayUserDefaultsKey) private var votdPassageCardDismissedDay: String = ""
 
     @State private var pinnedFolderRowIds: [String] = []
     @State private var renameTarget: HarvousFolderRow?
@@ -59,12 +58,6 @@ struct LibraryView: View {
             filteredFolderRows,
             pinnedIdsInOrder: pinnedFolderRowIds
         )
-    }
-
-    /// Hide passage while searching; respect dismiss for the day (same key as Notes/Highlights).
-    private var showDailyPassageRow: Bool {
-        activeSearchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            && votdPassageCardDismissedDay != VotdService.todayCalendarDayKey()
     }
 
     private var navigationTitleText: String {
@@ -119,6 +112,12 @@ struct LibraryView: View {
                     .tint(.primary)
                     .accessibilityLabel("Back to folders")
                 }
+            }
+            if #available(iOS 26, *) {
+                ToolbarSpacer(.fixed, placement: .topBarLeading)
+            }
+            ToolbarItem(placement: .topBarLeading) {
+                IOSListSurfaceChip()
             }
             ToolbarItem(placement: .topBarTrailing) {
                 Button {
@@ -335,9 +334,9 @@ struct LibraryView: View {
 
     @ViewBuilder
     private var foldersRootContent: some View {
-        if !showDailyPassageRow && notesInActiveSpace.isEmpty {
+        if notesInActiveSpace.isEmpty {
             emptyState
-        } else if !showDailyPassageRow && folderRows.isEmpty {
+        } else if folderRows.isEmpty {
             ContentUnavailableView {
                 Label {
                     Text("No Folders")
@@ -347,7 +346,7 @@ struct LibraryView: View {
             } description: {
                 Text("Folders created from your notes will appear here.")
             }
-        } else if !showDailyPassageRow && !activeSearchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && filteredFolderRows.isEmpty {
+        } else if !activeSearchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && filteredFolderRows.isEmpty {
             ContentUnavailableView.search(text: activeSearchQuery)
         } else {
             foldersFlatList
@@ -356,27 +355,6 @@ struct LibraryView: View {
 
     private var foldersFlatList: some View {
         List {
-            if showDailyPassageRow {
-                DailyPassageCard { note in
-                    iosNoteNavigationPath.append(note.id)
-                }
-                .listRowInsets(IOSFoldersListLayout.dailyPassageRowInsets)
-                .listRowBackground(Color.clear)
-                .listRowSeparator(.hidden)
-                .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                    Button {
-                        votdPassageCardDismissedDay = VotdService.todayCalendarDayKey()
-                    } label: {
-                        Label {
-                            Text("Dismiss")
-                        } icon: {
-                            HarvousFAGlyph(assetName: "Harvous.CircleXmark", edgePt: 16)
-                        }
-                    }
-                    .tint(.secondary)
-                    .accessibilityLabel("Dismiss today's passage")
-                }
-            }
             ForEach(orderedFilteredFolderRows) { row in
                 folderRootListRow(row)
                     .listRowInsets(IOSFoldersListLayout.rowInsets)
@@ -391,8 +369,6 @@ struct LibraryView: View {
     /// Match hub note row insets in `NoteListColumn` (conversation rows use leading/trailing 14).
     private enum IOSFoldersListLayout {
         static let rowInsets = EdgeInsets(top: 4, leading: HarvousFeedListLayout.listRowHorizontalInset, bottom: 4, trailing: HarvousFeedListLayout.listRowHorizontalInset)
-        /// Same horizontal inset as sibling folder rows (was 16pt wider, noticeably narrower card than Notes/Highlights).
-        static let dailyPassageRowInsets = EdgeInsets(top: 8, leading: HarvousFeedListLayout.listRowHorizontalInset, bottom: 4, trailing: HarvousFeedListLayout.listRowHorizontalInset)
     }
 
     private var emptyState: some View {

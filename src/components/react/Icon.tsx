@@ -45,6 +45,13 @@ import circleUserSvg from '@fortawesome/fontawesome-free/svgs/solid/circle-user.
 import ellipsisVerticalSvg from '@fortawesome/fontawesome-free/svgs/solid/ellipsis-vertical.svg?raw';
 import thumbtackSvg from '@fortawesome/fontawesome-free/svgs/solid/thumbtack.svg?raw';
 import trashCanSvg from '@fortawesome/fontawesome-free/svgs/solid/trash-can.svg?raw';
+import penSvg from '@fortawesome/fontawesome-free/svgs/solid/pen.svg?raw';
+import linkSvg from '@fortawesome/fontawesome-free/svgs/solid/link.svg?raw';
+import personSvg from '@fortawesome/fontawesome-free/svgs/solid/person.svg?raw';
+import bookOpenSvg from '@fortawesome/fontawesome-free/svgs/solid/book-open.svg?raw';
+import linesLeaningSvg from '@fortawesome/fontawesome-free/svgs/solid/lines-leaning.svg?raw';
+import locationDotSvg from '@fortawesome/fontawesome-free/svgs/solid/location-dot.svg?raw';
+import tagSvg from '@fortawesome/fontawesome-free/svgs/solid/tag.svg?raw';
 
 function withCurrentColor(svg: string): string {
   return svg.includes('fill="currentColor"') ? svg : svg.replace(/<path /, '<path fill="currentColor" ');
@@ -84,6 +91,13 @@ const icons = {
   check: withCurrentColor(checkSvg),
   xmark: withCurrentColor(xmarkSvg),
   'trash-can': withCurrentColor(trashCanSvg),
+  'pen': withCurrentColor(penSvg),
+  'link': svgRootCurrentColor(linkSvg),
+  'person': withCurrentColor(personSvg),
+  'book-open': svgRootCurrentColor(bookOpenSvg),
+  'lines-leaning': withCurrentColor(linesLeaningSvg),
+  'location-dot': svgRootCurrentColor(locationDotSvg),
+  'tag': withCurrentColor(tagSvg),
   paste: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="currentColor"><path d="M160 0c-23.7 0-44.8 14.9-52.9 37.3L48 112 48 96c0-26.5-21.5-48-48-48S0 69.5 0 96l0 384c0 26.5 21.5 48 48 48l224 0c26.5 0 48-21.5 48-48l0-16 16 0c26.5 0 48-21.5 48-48l0-256c0-26.5-21.5-48-48-48l-64 0 0-16c0-35.3-28.7-64-64-64zM96 48c0-8.8 7.2-16 16-16s16 7.2 16 16l0 16-32 0 0-16zm64 64l192 0c8.8 0 16 7.2 16 16l0 256c0 8.8-7.2 16-16 16l-192 0c-8.8 0-16-7.2-16-16l0-256c0-8.8 7.2-16 16-16z"/></svg>`,
   
   // Note type icons

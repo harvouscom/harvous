@@ -68,7 +68,7 @@ final class URLLinkPillAttachment: NSTextAttachment {
     /// `viewDidChangeEffectiveAppearance`, same as `ScripturePillAttachment`. Wraps in
     /// `performAsCurrent` so `NSColor.labelColor` resolves under the new appearance (the callback
     /// runs before `NSAppearance.current` updates).
-    func refreshRasterForCurrentAppearance() {
+    @MainActor func refreshRasterForCurrentAppearance() {
         NSApp.effectiveAppearance.performAsCurrentDrawingAppearance {
             let img = Self.renderPill(displayHost: self.displayHost)
             self.image = img

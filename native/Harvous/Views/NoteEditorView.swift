@@ -132,6 +132,7 @@ struct NoteEditorView: View {
     @StateObject private var proxy = EditorProxy()
     @EnvironmentObject private var appRouter: HarvousAppRouter
     var showInspector: Binding<Bool> = .constant(false)
+    @AppStorage("harvous.macNoteFooterCollapsed") private var macNoteFooterCollapsed: Bool = false
     #else
     @EnvironmentObject private var appRouter: HarvousAppRouter
     @State private var showInspectorIOS = false
@@ -378,6 +379,15 @@ struct NoteEditorView: View {
                 proxy.refocusTextView()
                 #endif
                 showWikiLinkPicker = true
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .harvousStudyThreadsPurged)) { _ in
+                // A global purge happened — drop any pinned dock that may now reference a deleted
+                // thread, then refresh so trail snapshot + paints reflect the cleaned DB.
+                if let pinned = dockPinnedHighlightThreadId,
+                   ThreadStore.fetch(id: pinned, modelContext: context) == nil {
+                    dismissStudyHighlightDock()
+                }
+                if let n = note { refreshThreads(note: n) }
             }
             .onAppear {
                 proxy.onScripturePillAttachmentRemoved = { ranges in
@@ -983,12 +993,13 @@ struct NoteEditorView: View {
 
                 #if os(macOS)
                 // Bottom bar: format toolbar or connections — scripture pickers/passage live only in the inline dock
-                // after an explicit pill tap (not when the caret sits next to a pill).
+                // after an explicit pill tap (not when the caret sits next to a pill). Collapse orb floats as an overlay
+                // on the outer VStack so it stays anchored bottom-right whether the connections bar is shown or hidden.
                 if proxy.shouldShowNoteToolbar {
                     NoteToolbar(proxy: proxy)
                         .id("noteToolbar")
                         .transition(.move(edge: .bottom).combined(with: .opacity))
-                } else {
+                } else if !macNoteFooterCollapsed {
                     VStack(spacing: 0) {
                         editorBottomChromeSeparatorLine()
                         NoteConnectionsBar(
@@ -1005,6 +1016,30 @@ struct NoteEditorView: View {
                 }
                 #endif
             }
+            #if os(macOS)
+            .overlay(alignment: .bottomTrailing) {
+                if !proxy.shouldShowNoteToolbar {
+                    Button {
+                        macNoteFooterCollapsed.toggle()
+                    } label: {
+                        HarvousFAGlyph(
+                            assetName: macNoteFooterCollapsed ? "Harvous.ChevronUp" : "Harvous.ChevronDown",
+                            edgePt: 11
+                        )
+                        .foregroundStyle(.primary)
+                        .frame(width: 28, height: 28)
+                        .background(.regularMaterial, in: Circle())
+                        .overlay(Circle().strokeBorder(Color.primary.opacity(0.08), lineWidth: 0.5))
+                        .shadow(color: .black.opacity(0.18), radius: 4, x: 0, y: 2)
+                    }
+                    .buttonStyle(.plain)
+                    .padding(.trailing, 12)
+                    .padding(.bottom, 12)
+                    .accessibilityLabel(macNoteFooterCollapsed ? "Show note connections" : "Hide note connections")
+                    .transition(.opacity)
+                }
+            }
+            #endif
             #if os(iOS)
             .safeAreaInset(edge: .bottom, spacing: HarvousIOSMorphingChromeLayout.interChromeSpacing) {
                 if iosStudyDockOverlayChromeSuppressed {
@@ -1014,7 +1049,7 @@ struct NoteEditorView: View {
                     }
                     .environment(\.harvousDockExpandedContentMaxHeight, dockExpandedContentMaxHeight)
                     .animation(HarvousAnimation.spring, value: activePillDock != nil)
-                    .animation(HarvousAnimation.spring, value: dockPinnedHighlightThreadId != nil)
+                    .animation(HarvousAnimation.spring, value: dockPinnedHighlightThreadId)
                     .animation(HarvousAnimation.spring, value: highlightCaptureSession != nil)
                     .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
@@ -1040,6 +1075,14 @@ struct NoteEditorView: View {
         .animation(HarvousAnimation.spring, value: proxy.activeScripturePill != nil)
         .animation(HarvousAnimation.spring, value: activePillDock != nil)
         .animation(HarvousAnimation.spring, value: dockPinnedHighlightThreadId != nil)
+        // Asymmetric animation for the connections-bar collapse: expanding snaps in fast, collapsing settles slower.
+        // `macNoteFooterCollapsed` here is the value AFTER the toggle, so `true` means we just collapsed.
+        .animation(
+            macNoteFooterCollapsed
+                ? .spring(response: 0.46, dampingFraction: 0.88)
+                : .spring(response: 0.28, dampingFraction: 0.82),
+            value: macNoteFooterCollapsed
+        )
         .inspector(isPresented: showInspector) {
             inspectorContent(note: note)
         }
@@ -1221,6 +1264,7 @@ struct NoteEditorView: View {
         let nid = n.id
         HarvousVaultExporter.removeMirrorFiles(for: n, modelContext: context)
         HarvousNoteSpotlightIndexer.removeNote(id: nid)
+        ThreadStore.purgeLinkedNoteMarkers(referencingDeletedNote: nid, modelContext: context)
         context.delete(n)
         do {
             try context.save()
@@ -1275,6 +1319,9 @@ struct NoteEditorView: View {
     #endif
 
     private func refreshThreads(note: Note) {
+        // Heal legacy orphans first — any `linkedNote` thread whose target Note no longer exists.
+        // Otherwise stale pills + inline underlines persist on notes that pre-date the deletion fix.
+        ThreadStore.purgeDanglingLinkedNoteMarkers(parentNoteId: note.id, modelContext: context)
         let active = ThreadStore.activeThreads(
             parentNoteId: note.id,
             spaceId: note.resolvedSpaceId(),
@@ -1335,6 +1382,9 @@ struct NoteEditorView: View {
                 },
                 highlightOrdinal: anchoredHighlightOrdinal(for: dockThreadId)
             )
+            // Per-thread identity so swapping highlights (UUID → UUID) re-triggers the transition
+            // instead of the dock body silently re-rendering its content without animation.
+            .id(dockThreadId)
             .transition(.move(edge: .bottom).combined(with: .opacity))
         }
     }
@@ -2278,6 +2328,9 @@ struct ActiveScripturePillDockItem: Identifiable, Equatable {
 extension Notification.Name {
     /// Prompts `HarvousEditor` to re-run scripture pill detection so accent changes repaint in place.
     static let harvousForceScripturePillRedetect = Notification.Name("harvousForceScripturePillRedetect")
+    /// Posted after a global cleanup of orphan study threads (e.g. dangling linked-note markers).
+    /// Mounted editors observe this to drop stale paint + trail state without waiting for a note switch.
+    static let harvousStudyThreadsPurged = Notification.Name("harvousStudyThreadsPurged")
 }
 
 #Preview {

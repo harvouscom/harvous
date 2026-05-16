@@ -72,18 +72,24 @@ struct EastonsEntryView: View {
     @ViewBuilder
     private func entryBody(_ entry: EastonsDictionaryEntry) -> some View {
         if showHeadword {
-            HStack(alignment: .firstTextBaseline, spacing: 6) {
+            HStack(alignment: .center, spacing: 8) {
                 Text(entry.headword)
                     .font(.system(size: 17, weight: .semibold))
                     .foregroundStyle(Color.primary)
-                if let iconAsset = EastonsSlugIndexEntry.categoryIconAsset(for: entry.category) {
-                    HarvousFAGlyph(assetName: iconAsset, edgePt: 11)
-                        .foregroundStyle(Color.primary.opacity(0.45))
-                        .padding(.horizontal, 5)
-                        .padding(.vertical, 3)
-                        .background(Capsule().fill(Color.primary.opacity(0.07)))
+                if let iconAsset = EastonsSlugIndexEntry.categoryIconAsset(for: entry.category),
+                   let category = entry.category {
+                    HStack(spacing: 4) {
+                        HarvousFAGlyph(assetName: iconAsset, edgePt: 11)
+                        Text(category.capitalized)
+                            .font(.system(size: 11, weight: .medium))
+                    }
+                    .foregroundStyle(Color.primary.opacity(0.45))
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(Capsule().fill(Color.primary.opacity(0.07)))
                 }
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
         Text(entry.body)
             .font(.system(size: 15))
