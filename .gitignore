@@ -39,3 +39,11 @@ native/Harvous/null.o
 
 # Local publish gate — copy from docs/easter-2026-shared-space/SIGNOFF.template.txt
 docs/easter-2026-shared-space/SIGNOFF.txt
+# iOS derived data (outside project dir)
+native/.harvous_ios_derived_data/
+native/Harvous/.harvous_ios_derived_data/
+
+# Tool/agent runtime files
+.agents/
+skills-lock.json
+.claude/scheduled_tasks.lock
