@@ -34,6 +34,8 @@ targets:
           - "package-dmg.sh"
           - "release.sh"
           - "null.o"
+          - ".harvous_ios_derived_data/**"
+          - "reupload-mac-dmg.sh"
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.harvous.app
