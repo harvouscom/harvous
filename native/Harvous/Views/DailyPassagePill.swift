@@ -28,15 +28,22 @@ struct DailyPassagePill: View {
     @State private var isHovered = false
     @State private var isDismissHovered = false
     @State private var dragOffset: CGFloat = 0
+    /// True when the user partially swiped left and released — card rests at `revealLatchOffset`
+    /// showing the dismiss button (matches `List.swipeActions` latching behavior).
+    @State private var swipeLatched: Bool = false
 
     private var showDismiss: Bool { isHovered || isDismissHovered }
 
-    /// iOS swipe-to-dismiss threshold (leftward). Past this, release dismisses.
-    private let swipeDismissThreshold: CGFloat = -90
-    /// Opacity fade as the card is dragged left toward dismiss.
+    /// Position the card latches to after a partial left-swipe (button is fully visible here).
+    private let revealLatchOffset: CGFloat = -88
+    /// Past this drag distance on release, the swipe latches open instead of springing back.
+    private let partialRevealThreshold: CGFloat = -40
+    /// Past this projected drag distance (uses predicted velocity), full-swipe commits dismiss.
+    private let fullSwipeCommitThreshold: CGFloat = -180
+    /// Opacity fade as the card is dragged past the latch position toward full commit.
     private var swipeFadeOpacity: Double {
-        guard dragOffset < 0 else { return 1 }
-        let frac = min(1, abs(dragOffset) / abs(swipeDismissThreshold * 2))
+        guard dragOffset < revealLatchOffset else { return 1 }
+        let frac = min(1, (abs(dragOffset) - abs(revealLatchOffset)) / abs(fullSwipeCommitThreshold))
         return Double(1 - frac * 0.5)
     }
 
@@ -172,23 +179,38 @@ struct DailyPassagePill: View {
         }
         .buttonStyle(.plain)
         .opacity(dragOffset < -8 ? 1 : 0)
-        .allowsHitTesting(dragOffset < -40)
+        .allowsHitTesting(dragOffset <= partialRevealThreshold)
         .accessibilityLabel("Dismiss today's passage")
     }
     #endif
 
     #if os(iOS)
-    /// Swipe left to dismiss for today. Past `swipeDismissThreshold`, release animates
-    /// the card off-screen and sets `dismissedDay`. Otherwise springs back.
+    /// Latching swipe-to-dismiss matching `List.swipeActions(allowsFullSwipe: true)`:
+    ///  - Partial left-swipe past `partialRevealThreshold` → latches at `revealLatchOffset`
+    ///    with the red dismiss button revealed. User can tap the button to commit.
+    ///  - Full left-swipe whose projected end (velocity-aware) is past `fullSwipeCommitThreshold`
+    ///    → commits dismiss immediately, sliding card off-screen.
+    ///  - Right-swipe while latched → closes the latch.
     private var swipeDismissGesture: some Gesture {
         DragGesture(minimumDistance: 12)
             .onChanged { value in
-                // Leftward only — let upward/rightward gestures fall through.
-                guard value.translation.width < 0 else { return }
-                dragOffset = value.translation.width
+                let base: CGFloat = swipeLatched ? revealLatchOffset : 0
+                let proposed = base + value.translation.width
+                if swipeLatched {
+                    // While latched, allow drag in either direction (clamped to closed/open).
+                    dragOffset = max(-UIScreen.main.bounds.width, min(0, proposed))
+                } else {
+                    // From closed state, only respond to leftward drags.
+                    guard value.translation.width <= 0 else { return }
+                    dragOffset = max(-UIScreen.main.bounds.width, proposed)
+                }
             }
             .onEnded { value in
-                if value.translation.width < swipeDismissThreshold {
+                let base: CGFloat = swipeLatched ? revealLatchOffset : 0
+                // Velocity-aware projection — matches List swipe feel where a fast flick
+                // past a smaller actual distance still commits.
+                let projected = base + value.predictedEndTranslation.width
+                if projected < fullSwipeCommitThreshold {
                     UIImpactFeedbackGenerator(style: .light).impactOccurred()
                     withAnimation(HarvousAnimation.snappy) {
                         dragOffset = -UIScreen.main.bounds.width
@@ -196,11 +218,21 @@ struct DailyPassagePill: View {
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.22) {
                         dismissedDay = VotdService.todayCalendarDayKey()
                         dragOffset = 0
+                        swipeLatched = false
                     }
+                } else if projected < partialRevealThreshold {
+                    if !swipeLatched {
+                        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                    }
+                    withAnimation(HarvousAnimation.spring) {
+                        dragOffset = revealLatchOffset
+                    }
+                    swipeLatched = true
                 } else {
                     withAnimation(HarvousAnimation.spring) {
                         dragOffset = 0
                     }
+                    swipeLatched = false
                 }
             }
     }

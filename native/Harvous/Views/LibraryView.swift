@@ -9,7 +9,6 @@ struct LibraryView: View {
     @Binding var iosNoteNavigationPath: [UUID]
     var externalSearchText: Binding<String>? = nil
     @State private var fallbackSearchText = ""
-    @State private var foldersDrill: FoldersDrill = .root
 
     @Query(sort: \Note.updatedAt, order: .reverse) private var notes: [Note]
     @Environment(\.modelContext) private var modelContext
@@ -22,10 +21,9 @@ struct LibraryView: View {
     @State private var renameDraft: String = ""
     @State private var removeConfirmRow: HarvousFolderRow?
 
-    private enum FoldersDrill: Equatable {
-        case root
-        /// `nil` means notes with no primary folder (same as macOS bucket key).
-        case bucket(String?)
+    /// Drill state lives on `HarvousAppRouter.iosFoldersDrill` so the bottom-chrome chip can read it.
+    private var foldersDrill: HarvousIOSFoldersDrill {
+        appRouter.iosFoldersDrill
     }
 
     private var notesInActiveSpace: [Note] {
@@ -100,22 +98,11 @@ struct LibraryView: View {
             ToolbarItem(placement: .topBarLeading) {
                 SpaceSwitcherView()
             }
-            if foldersDrill != .root {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button {
-                        foldersDrill = .root
-                    } label: {
-                        HarvousFAGlyph(assetName: "Harvous.ChevronLeft", edgePt: 17)
-                            .foregroundStyle(.primary)
-                    }
-                    .buttonStyle(.plain)
-                    .tint(.primary)
-                    .accessibilityLabel("Back to folders")
-                }
-            }
             if #available(iOS 26, *) {
                 ToolbarSpacer(.fixed, placement: .topBarLeading)
             }
+            // When drilled into a folder, the chip itself morphs into a chevron-back + folder
+            // name affordance (see `IOSListSurfaceChip`), so no separate back button is needed here.
             ToolbarItem(placement: .topBarLeading) {
                 IOSListSurfaceChip()
             }
@@ -132,11 +119,6 @@ struct LibraryView: View {
                 .buttonStyle(.plain)
                 .tint(.primary)
                 .accessibilityLabel("Account, profile, and settings")
-            }
-        }
-        .onChange(of: appRouter.iosListSurface) { _, newSurface in
-            if newSurface != .folders {
-                foldersDrill = .root
             }
         }
         .onAppear { reloadPinnedFolderOrder() }
@@ -255,7 +237,7 @@ struct LibraryView: View {
     private func folderRootListRow(_ row: HarvousFolderRow) -> some View {
         let pinned = pinnedFolderRowIds.contains(row.id)
         let openBucket = Button {
-            foldersDrill = .bucket(row.folderLabel)
+            appRouter.iosFoldersDrill = .bucket(row.folderLabel)
         } label: {
             FolderFeedRow(
                 title: row.title,
@@ -364,6 +346,7 @@ struct LibraryView: View {
         }
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
+        .iosListBottomChromeReserve()
     }
 
     /// Match hub note row insets in `NoteListColumn` (conversation rows use leading/trailing 14).

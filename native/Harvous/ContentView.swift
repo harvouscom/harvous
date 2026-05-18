@@ -565,13 +565,19 @@ struct iOSRootView: View {
     var body: some View {
         let chrome = iosNavigationStack
             .overlay {
-                if appRouter.iosComposeCameraOrbPresented {
+                // Detail screens (drilled in via NavigationStack) own a system back button — never let the
+                // dismiss tap-catcher cover its hit area. The overlay also reserves the top safe area so the
+                // back button stays tappable even at the root list level if the orb somehow stays presented.
+                if appRouter.iosComposeCameraOrbPresented && iosNoteNavigationPath.isEmpty {
                     GeometryReader { geo in
-                        let reserve = HarvousIOSMorphingChromeLayout.composeCameraOrbDismissTapCatcherBottomReserve
+                        let bottomReserve = HarvousIOSMorphingChromeLayout.composeCameraOrbDismissTapCatcherBottomReserve
                             + geo.safeAreaInsets.bottom
+                        let topReserve = geo.safeAreaInsets.top + 44
+                        let usableHeight = max(0, geo.size.height - bottomReserve - topReserve)
                         Color.clear
                             .contentShape(Rectangle())
-                            .frame(width: geo.size.width, height: max(0, geo.size.height - reserve), alignment: .top)
+                            .frame(width: geo.size.width, height: usableHeight, alignment: .top)
+                            .padding(.top, topReserve)
                             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                             .onTapGesture {
                                 appRouter.dismissIOSComposeCameraOrbIfPresented()
@@ -612,6 +618,13 @@ struct iOSRootView: View {
                 appRouter.dismissStandaloneScripturePassageDock()
                 Task { @MainActor in
                     iosNoteNavigationPath.removeAll()
+                }
+            }
+            .onChange(of: iosNoteNavigationPath) { _, newPath in
+                // Drilling into a detail screen must hide the compose orb so the system back button is never
+                // shadowed by its dismiss tap-catcher (back-button unresponsive bug).
+                if !newPath.isEmpty {
+                    appRouter.dismissIOSComposeCameraOrbIfPresented()
                 }
             }
             .focusedSceneValue(\.newNoteAction) {
@@ -704,6 +717,10 @@ struct iOSRootView: View {
                 HomeHubView(iosNoteNavigationPath: $iosNoteNavigationPath)
             }
         }
+        // Note: bottom scroll-content inset is applied directly inside each vertical `List`
+        // (see `.iosListBottomChromeReserve()`), not here. Applying it at this level would
+        // also affect the horizontal `ScrollView`s used for the dictionary/highlights chip
+        // bars and create a large empty band between the chips and the list.
     }
 
     /// Keeps `MorphingChromeBar` in a stable slot (not inside `if/else` branches) so
@@ -820,7 +837,24 @@ struct IOSListSurfaceChip: View {
         HarvousFonts.font(size: 16, weight: 500, design: .default)
     }
 
+    /// When the user has drilled into a specific folder bucket, the chip morphs into a back-affordance
+    /// showing the active folder name. Returns the display name to render (matches `NoteFilter.folder.displayName`),
+    /// or `nil` when the chip should keep its normal surface-switcher behavior.
+    private var drilledFolderLabel: String? {
+        guard appRouter.iosListSurface == .folders,
+              case .bucket(let key) = appRouter.iosFoldersDrill else { return nil }
+        return NoteFilter.folder(key).displayName
+    }
+
     var body: some View {
+        if let folderLabel = drilledFolderLabel {
+            drilledChip(folderLabel: folderLabel)
+        } else {
+            surfaceMenuChip
+        }
+    }
+
+    private var surfaceMenuChip: some View {
         Menu {
             chipMenuButton(.notes, label: "Notes", icon: "Harvous.Note")
             chipMenuButton(.folders, label: "Folders", icon: "Harvous.Folder")
@@ -849,6 +883,33 @@ struct IOSListSurfaceChip: View {
         .buttonStyle(.plain)
         .tint(.primary)
         .accessibilityLabel("List: \(appRouter.iosListSurface.listChromeMenuTitle)")
+    }
+
+    private func drilledChip(folderLabel: String) -> some View {
+        Button {
+            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+            appRouter.iosFoldersDrill = .root
+        } label: {
+            HStack(spacing: 6) {
+                HarvousFAGlyph(
+                    assetName: "Harvous.ChevronLeft",
+                    edgePt: HarvousFAIconMetrics.catalogGlyphBoxPt
+                )
+                .frame(
+                    width: HarvousFAIconMetrics.catalogGlyphBoxPt,
+                    height: HarvousFAIconMetrics.catalogGlyphBoxPt
+                )
+                Text(folderLabel)
+                    .font(labelFont)
+                    .lineLimit(1)
+            }
+            .fixedSize(horizontal: true, vertical: false)
+            .padding(.horizontal, 8)
+            .frame(minHeight: 24)
+        }
+        .buttonStyle(.plain)
+        .tint(.primary)
+        .accessibilityLabel("Back to folders, currently viewing \(folderLabel)")
     }
 
     @ViewBuilder
@@ -888,18 +949,18 @@ struct HarvousIOSInlineBottomChromeRow: View {
     }
 
     var body: some View {
-        // `.bottom` keeps search on the baseline when the compose column grows (camera orb above pencil).
-        HStack(alignment: .bottom, spacing: HarvousIOSMorphingChromeLayout.interChromeSpacing) {
-            searchPill
-            composeOrb
-        }
-        .padding(.horizontal, 14)
-        .padding(.bottom, 4)
-        .frame(maxWidth: Self.hubClusterMaxWidth)
-        .frame(maxWidth: .infinity)
-        // DailyPassagePill lives here as an overlay so it doesn't consume HStack width.
-        // Bottom offset: 4pt row-padding + 44pt orb + 8pt gap above pill.
-        .overlay(alignment: .bottom) {
+        // DailyPassagePill is in the VStack so its height is part of safeAreaInset layout —
+        // lists scroll above both pill and chrome row when the pill is visible.
+        // When not visible, DailyPassagePill renders Color.clear.frame(0,0) so the VStack
+        // collapses back to just the chrome row.
+        //
+        // `.fixedSize(horizontal: false, vertical: true)` is required: the pill's internal
+        // ZStack contains a swipe-dismiss background with `.frame(maxHeight: .infinity)`.
+        // Inside the old `.overlay`, that infinity was clamped by the chrome row's 48pt host
+        // bounds, but inside this VStack (safeAreaInset content has no parent height limit)
+        // it would expand to fill the entire screen, pushing the chrome bar far above its
+        // natural bottom position. fixedSize forces the pill to size to its natural content height.
+        VStack(spacing: 0) {
             DailyPassagePill { note in
                 NotificationCenter.default.post(
                     name: .harvousRequestOpenNoteId,
@@ -907,8 +968,19 @@ struct HarvousIOSInlineBottomChromeRow: View {
                     userInfo: [HarvousOpenNoteIdPayload.idKey: note.id.uuidString]
                 )
             }
+            .fixedSize(horizontal: false, vertical: true)
             .padding(.horizontal, 14)
-            .padding(.bottom, 56)
+            .padding(.bottom, 8)
+
+            // `.bottom` keeps search on the baseline when the compose column grows (camera orb above pencil).
+            HStack(alignment: .bottom, spacing: HarvousIOSMorphingChromeLayout.interChromeSpacing) {
+                searchPill
+                composeOrb
+            }
+            .padding(.horizontal, 14)
+            .padding(.bottom, 4)
+            .frame(maxWidth: Self.hubClusterMaxWidth)
+            .frame(maxWidth: .infinity)
         }
     }
 

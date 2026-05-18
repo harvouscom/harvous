@@ -198,6 +198,7 @@ struct ScriptureHubView: View {
             }
             .listStyle(.plain)
             .scrollContentBackground(.hidden)
+            .iosListBottomChromeReserve()
         }
     }
 
@@ -255,6 +256,7 @@ struct ScriptureHubView: View {
         }
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
+        .iosListBottomChromeReserve()
     }
 }
 

@@ -127,6 +127,9 @@ struct NoteEditorView: View {
     /// Coalesces rapid back-to-back refreshThreads() calls (note switch, scene phase, highlight events)
     /// into a single execution within the same event turn.
     @State private var refreshThreadsTask: Task<Void, Never>?
+    /// Coalesces rapid keystroke-driven highlight paint reconciliation so the SwiftData fetch + sort
+    /// does not run on every character — the cumulative main-thread cost was holding up nav back-button hits.
+    @State private var reconcileStudyHighlightsTask: Task<Void, Never>?
 
     #if os(macOS)
     @StateObject private var proxy = EditorProxy()
@@ -330,7 +333,8 @@ struct NoteEditorView: View {
 #endif
             .onChange(of: activePillDock) { _, new in
                 let item = new
-                DispatchQueue.main.async {
+                Task { @MainActor in
+                    guard note != nil else { return }
                     refreshScripturePassageHighlights(item: item)
                 }
                 #if os(iOS)
@@ -349,7 +353,7 @@ struct NoteEditorView: View {
             }
             .onChange(of: editorState.plainText) { _, _ in
                 guard let note else { return }
-                reconcileStudyHighlightsPainting(for: note)
+                scheduleReconcileStudyHighlightsPainting(for: note)
                 scheduleConsumePendingStudyHighlightListActivation()
             }
             .onChange(of: appRouter.pendingStudyHighlightActivation?.requestId) { _, _ in
@@ -366,32 +370,40 @@ struct NoteEditorView: View {
                 }
             }
             .onReceive(NotificationCenter.default.publisher(for: .harvousHighlightCapturePrompt)) { payload in
+                // Same fan-out rationale as `.harvousNewStandaloneNoteFromSelection` above — multiple editors
+                // may be mounted; only the focused one should react. Stale instances reaching SwiftData via
+                // their retained context is the documented crash source.
+                guard isCurrentForStandaloneSelection else { return }
                 Task { @MainActor in consumeHighlightPrompt(payload) }
             }
             .onReceive(NotificationCenter.default.publisher(for: .harvousLookupWordRequested)) { payload in
+                guard isCurrentForStandaloneSelection else { return }
                 Task { @MainActor in consumeLookupWordRequested(payload) }
             }
             .onReceive(NotificationCenter.default.publisher(for: .harvousRequestInsertWikiLink)) { _ in
-                guard note != nil else { return }
-                #if os(iOS)
-                guard appRouter.iosActiveNoteEditorChromeProxy === proxy else { return }
-                #else
+                guard isCurrentForStandaloneSelection else { return }
+                #if os(macOS)
                 proxy.refocusTextView()
                 #endif
                 showWikiLinkPicker = true
             }
             .onReceive(NotificationCenter.default.publisher(for: .harvousStudyThreadsPurged)) { _ in
-                // A global purge happened — drop any pinned dock that may now reference a deleted
-                // thread, then refresh so trail snapshot + paints reflect the cleaned DB.
+                // Global purge — only the focused editor needs to react; stale editors mutating their dock
+                // state on a torn-down context was contributing to crash signals on rapid open/close.
+                guard isCurrentForStandaloneSelection else { return }
                 if let pinned = dockPinnedHighlightThreadId,
                    ThreadStore.fetch(id: pinned, modelContext: context) == nil {
                     dismissStudyHighlightDock()
                 }
-                if let n = note { refreshThreads(note: n) }
+                if let n = note { scheduleRefreshThreads(note: n) }
             }
             .onAppear {
                 proxy.onScripturePillAttachmentRemoved = { ranges in
-                    DispatchQueue.main.async {
+                    Task { @MainActor in
+                        // Guard against firing after the editor has been dismissed — proxy's removal
+                        // callback can outlive a rapid open/close on iOS and we'd otherwise mutate
+                        // dock @State on a torn-down view.
+                        guard note != nil else { return }
                         if let dock = activePillDock, case .body(let bodyRange) = dock.anchor,
                            ranges.contains(where: { NSIntersectionRange($0, bodyRange).length > 0 }) {
                             activePillDock = nil
@@ -1059,6 +1071,10 @@ struct NoteEditorView: View {
         .onDisappear {
             scripturePillPrefetchTask?.cancel()
             scripturePillPrefetchTask = nil
+            reconcileStudyHighlightsTask?.cancel()
+            reconcileStudyHighlightsTask = nil
+            refreshThreadsTask?.cancel()
+            refreshThreadsTask = nil
         }
         #if os(macOS)
         .sheet(isPresented: $proxy.showAddLinkSheet) {
@@ -1121,7 +1137,12 @@ struct NoteEditorView: View {
         .animation(HarvousAnimation.spring, value: activePillDock != nil)
         .animation(HarvousAnimation.spring, value: dockPinnedHighlightThreadId != nil)
         .animation(HarvousAnimation.spring, value: highlightCaptureSession != nil)
+        // Spacer + folder-chip leading inset keeps a clean tap target on the system back chevron
+        // so the folder chip's hit area never crowds it (the "back button too hard to tap" complaint).
         .toolbar {
+            if #available(iOS 26, *) {
+                ToolbarSpacer(.fixed, placement: .topBarLeading)
+            }
             ToolbarItem(placement: .topBarLeading) {
                 NoteTopBar(
                     note: note,
@@ -1129,6 +1150,7 @@ struct NoteEditorView: View {
                     showFolderToolbarText: showFolderToolbarText,
                     scriptureTheme: scriptureTheme
                 )
+                .padding(.leading, 12)
             }
             ToolbarItem(placement: .topBarTrailing) {
                 NoteShareDeleteBar(
@@ -1330,10 +1352,10 @@ struct NoteEditorView: View {
         threadsForNote = active
         trailSnapshot = ThreadStore.trailSnapshot(for: note, modelContext: context)
         reconcileStudyHighlightsPainting(for: note)
-        // Tag refresh used to run synchronously inside `syncFromNote` on every note switch — that meant
-        // ~300 regex matches against the full body (200 keyword rows + 66 book names) blocking the main
-        // thread on each click. Moved here so it runs in the deferred 50ms slot via `scheduleRefreshThreads`,
-        // off the critical note-switch path. `allowPrimaryUpdate: false` matches the prior behavior.
+        // Tag refresh used to run synchronously inside `syncFromNote` on every note switch — ~300 regex
+        // matches against the full body blocked the main thread. Now runs inside the debounced slot
+        // (50 ms macOS / 150 ms iOS), well after the NavigationStack push transition, so the back-button
+        // hit area isn't queued behind it. `allowPrimaryUpdate: false` matches the prior behavior.
         BibleStudyTagSuggester.applyToNote(note, allowPrimaryUpdate: false)
         #if os(iOS)
         syncIOSNoteFooterSupplement()
@@ -1341,11 +1363,16 @@ struct NoteEditorView: View {
     }
 
     /// Coalesces multiple rapid calls (note switch, scene-phase transition, highlight events firing together)
-    /// into a single refreshThreads execution 50 ms later.
+    /// into a single refreshThreads execution. Debounce is larger on iOS (150 ms) to clear the typical
+    /// NavigationStack push transition (~250 ms) before doing the SwiftData + tag work.
     private func scheduleRefreshThreads(note: Note) {
         refreshThreadsTask?.cancel()
         refreshThreadsTask = Task { @MainActor in
+            #if os(iOS)
+            try? await Task.sleep(for: .milliseconds(150))
+            #else
             try? await Task.sleep(for: .milliseconds(50))
+            #endif
             guard !Task.isCancelled else { return }
             refreshThreads(note: note)
         }
@@ -1472,6 +1499,20 @@ struct NoteEditorView: View {
         proxy.resignBodyEditing()
         UIImpactFeedbackGenerator(style: .soft).impactOccurred()
         #endif
+    }
+
+    /// Keystroke-driven entry point — coalesces rapid edits so the SwiftData fetch + sort does not run
+    /// on every character. Also deferred long enough (≥80 ms) to clear the typical NavigationStack push
+    /// transition window so back-button taps after first mount land in the system gesture's first frame.
+    private func scheduleReconcileStudyHighlightsPainting(for note: Note) {
+        reconcileStudyHighlightsTask?.cancel()
+        let noteId = note.id
+        reconcileStudyHighlightsTask = Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(120))
+            guard !Task.isCancelled else { return }
+            guard let n = self.note, n.id == noteId else { return }
+            reconcileStudyHighlightsPainting(for: n)
+        }
     }
 
     private func reconcileStudyHighlightsPainting(for note: Note) {

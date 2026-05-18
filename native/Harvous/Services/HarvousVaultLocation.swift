@@ -46,6 +46,10 @@ enum HarvousVaultPreferences {
     }
 }
 
+enum HarvousVaultError: Error {
+    case noApplicationSupportDirectory
+}
+
 /// Resolves the root URL of the Harvous vault (`Harvous/` …) and ensures admin folders exist.
 enum HarvousVaultLocation {
     private static let vaultRootFolderName = "Harvous"
@@ -73,7 +77,9 @@ enum HarvousVaultLocation {
             let docs = cloud.appendingPathComponent("Documents", isDirectory: true)
             return try ensureVaultTree(under: docs)
         }
-        let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+        guard let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else {
+            throw HarvousVaultError.noApplicationSupportDirectory
+        }
         let fallback = base
             .appendingPathComponent("Harvous", isDirectory: true)
             .appendingPathComponent("VaultMirror", isDirectory: true)

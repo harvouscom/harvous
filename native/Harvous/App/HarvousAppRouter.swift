@@ -41,6 +41,12 @@ enum HarvousIOSListSurface: String, CaseIterable {
     }
 }
 
+/// iOS folders surface drill state. `nil` bucket key = ungrouped (matches `HarvousFolderRow.folderLabel` / `NoteFilter.folder`).
+enum HarvousIOSFoldersDrill: Equatable {
+    case root
+    case bucket(String?)
+}
+
 /// Data for `NoteConnectionsBar` + scripture-bar gating while the note editor owns the bottom safe-area chrome.
 struct HarvousIOSNoteFooterSupplement {
     let note: Note
@@ -115,6 +121,9 @@ enum HarvousPendingRoute {
 final class HarvousAppRouter: ObservableObject {
     #if os(iOS)
     @Published private(set) var iosListSurface: HarvousIOSListSurface
+    /// Drill state for the iOS Folders surface. Lifted from `LibraryView` so the bottom-chrome
+    /// `IOSListSurfaceChip` can read the active folder name and pop the drill on tap.
+    @Published var iosFoldersDrill: HarvousIOSFoldersDrill = .root
     /// Drives the Account sheet (You root + settings; not an inline surface — always a modal).
     @Published var iosShowMore = false
     @Published var iosInlineSearchText = ""
@@ -256,6 +265,10 @@ final class HarvousAppRouter: ObservableObject {
         UserDefaults.standard.set(surface.rawValue, forKey: HarvousIOSListSurface.persistenceKey)
         iosInlineSearchText = ""
         iosNotesFilterSearchPresented = false
+        // Reset folders drill whenever leaving the folders surface so the chip / nav title don't stick.
+        if surface != .folders {
+            iosFoldersDrill = .root
+        }
     }
 
     /// FAB / deep-link `harvous://compose` — Notes hub creates an empty note and pushes it onto its stack.

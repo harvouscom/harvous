@@ -285,13 +285,22 @@ struct NoteListColumn: View {
     }
 
     private var mainContent: some View {
-        Group {
-            if sortedFiltered.isEmpty && baseNotes.isEmpty {
+        // Single-pass evaluation: `baseNotes` walks the @Query, `NoteSearchIndex.filter` is O(n), and the
+        // pinned/unpinned split is two passes. Computing them once per render (vs. up to four times via the
+        // computed properties) keeps the list column off the back-button hit dispatch path during transitions.
+        let base = baseNotes
+        let filteredOnce = NoteSearchIndex.filter(base, query: searchText)
+        var rows: [Note] = []
+        rows.reserveCapacity(filteredOnce.count)
+        for n in filteredOnce where n.isPinned { rows.append(n) }
+        for n in filteredOnce where !n.isPinned { rows.append(n) }
+        return Group {
+            if rows.isEmpty && base.isEmpty {
                 emptyState
-            } else if sortedFiltered.isEmpty {
+            } else if rows.isEmpty {
                 ContentUnavailableView.search(text: searchText)
             } else {
-                noteList
+                noteList(rows: rows)
             }
         }
     }
@@ -374,14 +383,17 @@ struct NoteListColumn: View {
         #endif
     }
 
-    private var noteList: some View {
+    private func noteList(rows: [Note]) -> some View {
         List {
-            ForEach(sortedFiltered) { note in
+            ForEach(rows) { note in
                 noteRowContent(for: note)
             }
         }
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
+        #if os(iOS)
+        .iosListBottomChromeReserve()
+        #endif
     }
 
     #if os(macOS)

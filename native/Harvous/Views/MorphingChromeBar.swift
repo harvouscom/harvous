@@ -67,6 +67,41 @@ enum HarvousIOSMorphingChromeLayout {
     static var composeCameraOrbDismissTapCatcherBottomReserve: CGFloat {
         chromeControlsHeight * 2 + 10 + chromeRowBottomPadding + interChromeSpacing + 12
     }
+
+    /// Extra bottom inset reserved above the chrome row when the daily-passage pill is visible:
+    /// pill card (~75pt) + its 8pt bottom padding — accounts for the fact that iOS 17 does
+    /// not propagate the pill's height (rendered inside the chrome bar's `safeAreaInset` VStack)
+    /// into List scroll content insets, so we must add it explicitly.
+    static let dailyPassagePillBottomScrollReserve: CGFloat = 76
+}
+
+/// Adds the right amount of bottom scroll-content inset to a vertical `List` so its last
+/// row clears the floating chrome bar (and the daily-passage pill when visible). Must be
+/// applied directly to the List — applying it to a parent view would also affect the
+/// horizontal `ScrollView`s used for category chip bars and create unwanted vertical gaps.
+struct IOSListBottomChromeReserveModifier: ViewModifier {
+    @AppStorage(VotdService.passageCardDismissedDayUserDefaultsKey) private var dismissedDay: String = ""
+
+    private var pillVisible: Bool {
+        dismissedDay != VotdService.todayCalendarDayKey()
+    }
+
+    private var bottomReserve: CGFloat {
+        let chromeReserve = HarvousIOSMorphingChromeLayout.morphingChromeFooterOccupiedHeightAboveMainColumnBottom
+        let pillReserve: CGFloat = pillVisible ? HarvousIOSMorphingChromeLayout.dailyPassagePillBottomScrollReserve : 0
+        return chromeReserve + pillReserve
+    }
+
+    func body(content: Content) -> some View {
+        content.contentMargins(.bottom, bottomReserve, for: .scrollContent)
+    }
+}
+
+extension View {
+    /// iOS-only — see `IOSListBottomChromeReserveModifier`.
+    func iosListBottomChromeReserve() -> some View {
+        modifier(IOSListBottomChromeReserveModifier())
+    }
 }
 
 // MARK: - Compose orb + long-press camera (scan text)

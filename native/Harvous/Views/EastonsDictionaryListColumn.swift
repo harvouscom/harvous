@@ -33,7 +33,11 @@ struct EastonsDictionaryListColumn: View {
         #if os(macOS)
         Color(NSColor.controlBackgroundColor)
         #else
-        Color(UIColor.secondarySystemBackground)
+        // `systemBackground` (white in light, near-black in dark) — gives the same raised
+        // pill contrast macOS gets from `controlBackgroundColor`. `secondarySystemBackground`
+        // was too close to the chip track's translucent grey and made the selected state
+        // nearly invisible.
+        Color(UIColor.systemBackground)
         #endif
     }
 
@@ -167,10 +171,14 @@ struct EastonsDictionaryListColumn: View {
                 Text("Check your connection and reopen the sidebar.")
             }
         case .loaded:
-            if filteredEntries.isEmpty {
+            // Single-pass filter+sort: previously `filteredEntries` ran twice (empty check + List source) on
+            // every render, which under category-switch animation became a perceptible main-thread cost while
+            // a system back button was trying to claim hits.
+            let entries = filteredEntries
+            if entries.isEmpty {
                 ContentUnavailableView.search(text: searchQuery)
             } else {
-                List(filteredEntries, id: \.slug) { entry in
+                List(entries, id: \.slug) { entry in
                     let pinned = pinnedSlugs.contains(entry.slug)
                     Button { onSelectEntry(entry.slug) } label: {
                         dictionaryRow(entry, isPinned: pinned)
@@ -213,6 +221,9 @@ struct EastonsDictionaryListColumn: View {
                 }
                 .listStyle(.plain)
                 .scrollContentBackground(.hidden)
+                #if os(iOS)
+                .iosListBottomChromeReserve()
+                #endif
             }
         }
     }
@@ -243,49 +254,94 @@ struct EastonsDictionaryListColumn: View {
 }
 
 #if os(iOS)
-/// iOS hub that hosts the dictionary list with NavigationStack drill-down to entry detail.
+/// iOS hub that hosts the dictionary list.
 /// Toolbar matches the other hub views (Notes, Folders, etc.): SpaceSwitcher + list chip + Account.
+///
+/// Drill-in is a state replacement (not a nested NavigationStack push) — nesting a String-typed
+/// NavigationStack inside the outer UUID-typed `iosNavigationStack` crashes with
+/// `AnyNavigationPath.Error.comparisonTypeMismatch` because the inner stack's destination
+/// registration leaks into the outer scope's type-comparison machinery. Same pattern macOS sidebar
+/// uses (see `SidebarPanelView.dictionaryDrill`).
 struct IOSDictionaryHubView: View {
     @EnvironmentObject private var appRouter: HarvousAppRouter
     var externalSearchText: Binding<String>? = nil
-    @State private var navigationPath: [String] = []
+    @State private var drilledSlug: String?
 
     var body: some View {
-        NavigationStack(path: $navigationPath) {
-            EastonsDictionaryListColumn(
-                externalSearchText: externalSearchText,
-                onSelectEntry: { slug in navigationPath.append(slug) }
-            )
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    SpaceSwitcherView()
-                }
-                if #available(iOS 26, *) {
-                    ToolbarSpacer(.fixed, placement: .topBarLeading)
-                }
-                ToolbarItem(placement: .topBarLeading) {
-                    IOSListSurfaceChip()
-                }
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        UIImpactFeedbackGenerator(style: .light).impactOccurred()
-                        appRouter.selectIOSListSurface(.more)
-                    } label: {
-                        HarvousFAGlyph(assetName: "Harvous.UserFilled", edgePt: 17)
-                            .foregroundStyle(.primary)
-                            .frame(width: 32, height: 32)
-                            .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                    .tint(.primary)
-                    .accessibilityLabel("Account, profile, and settings")
-                }
-            }
-            .navigationDestination(for: String.self) { slug in
+        Group {
+            if let slug = drilledSlug {
                 EastonsEntryDetailView(initialSlug: slug)
                     .navigationBarTitleDisplayMode(.inline)
+                    .toolbar {
+                        ToolbarItem(placement: .topBarLeading) {
+                            Button {
+                                withAnimation(.easeOut(duration: 0.22)) {
+                                    drilledSlug = nil
+                                }
+                            } label: {
+                                HStack(spacing: 6) {
+                                    HarvousFAGlyph(
+                                        assetName: "Harvous.ChevronLeft",
+                                        edgePt: HarvousFAIconMetrics.catalogGlyphBoxPt
+                                    )
+                                    .frame(
+                                        width: HarvousFAIconMetrics.catalogGlyphBoxPt,
+                                        height: HarvousFAIconMetrics.catalogGlyphBoxPt
+                                    )
+                                    Text("Dictionary")
+                                        .font(HarvousFonts.font(size: 16, weight: 500, design: .default))
+                                        .lineLimit(1)
+                                }
+                                .fixedSize(horizontal: true, vertical: false)
+                                .padding(.horizontal, 8)
+                                .frame(minHeight: 24)
+                                .foregroundStyle(.primary)
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel("Back to dictionary")
+                        }
+                    }
+                    .transition(.move(edge: .trailing).combined(with: .opacity))
+            } else {
+                EastonsDictionaryListColumn(
+                    externalSearchText: externalSearchText,
+                    onSelectEntry: { slug in
+                        withAnimation(.easeOut(duration: 0.22)) {
+                            drilledSlug = slug
+                        }
+                    }
+                )
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .topBarLeading) {
+                        SpaceSwitcherView()
+                    }
+                    if #available(iOS 26, *) {
+                        ToolbarSpacer(.fixed, placement: .topBarLeading)
+                    }
+                    ToolbarItem(placement: .topBarLeading) {
+                        IOSListSurfaceChip()
+                    }
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button {
+                            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                            appRouter.selectIOSListSurface(.more)
+                        } label: {
+                            HarvousFAGlyph(assetName: "Harvous.UserFilled", edgePt: 17)
+                                .foregroundStyle(.primary)
+                                .frame(width: 32, height: 32)
+                                .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .tint(.primary)
+                        .accessibilityLabel("Account, profile, and settings")
+                    }
+                }
+                .transition(.move(edge: .leading).combined(with: .opacity))
             }
+        }
+        .onChange(of: appRouter.iosListSurface) { _, surface in
+            if surface != .dictionary { drilledSlug = nil }
         }
     }
 }

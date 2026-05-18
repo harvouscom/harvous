@@ -252,14 +252,25 @@ struct ActiveScripturePillDock: View {
             speculativeGenTask = Task {
                 if #available(macOS 26.0, iOS 26.0, *) {
                     do {
+                        // Structured child task so cancelling `speculativeGenTask` from `.onDisappear`
+                        // propagates into the detached generation — the previous shape spawned a detached
+                        // task that outlived its parent and could write to torn-down @State.
+                        try Task.checkCancellation()
                         let questions = try await Task.detached(priority: .userInitiated) {
-                            try await ScriptureReflectionGenerator.generate(excerpt: snippet, reference: ref)
+                            try Task.checkCancellation()
+                            return try await ScriptureReflectionGenerator.generate(excerpt: snippet, reference: ref)
                         }.value
                         guard !Task.isCancelled else { return }
                         speculativeGenResult = questions
                     } catch {}
                 }
             }
+        }
+        .onDisappear {
+            // Cancel any in-flight speculative reflection generation so it doesn't write to @State
+            // after the dock dismisses (crash signal on rapid open/close).
+            speculativeGenTask?.cancel()
+            speculativeGenTask = nil
         }
         .onChange(of: tappedPassageHighlight?.id) { _, newId in
             onStandaloneFocusedPassageHighlightChanged?(newId)

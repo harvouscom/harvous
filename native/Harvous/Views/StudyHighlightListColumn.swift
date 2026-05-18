@@ -335,7 +335,9 @@ struct StudyHighlightListColumn: View {
                         #if os(macOS)
                         .fill(Color(NSColor.controlBackgroundColor))
                         #else
-                        .fill(Color(UIColor.secondarySystemGroupedBackground))
+                        // Match macOS: raised white pill against the translucent track.
+                        // `secondarySystemGroupedBackground` was too close to the track color.
+                        .fill(Color(UIColor.systemBackground))
                         #endif
                         .shadow(color: .black.opacity(0.1), radius: 2, y: 1)
                         .matchedGeometryEffect(id: "highlightKindChip", in: kindChipNamespace)
@@ -378,6 +380,9 @@ struct StudyHighlightListColumn: View {
         }
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
+        #if os(iOS)
+        .iosListBottomChromeReserve()
+        #endif
     }
 
     #if os(macOS)
@@ -483,7 +488,7 @@ struct StudyHighlightListColumn: View {
             selectedNote = parent
             sidebarSelectedThreadId = thread.id
         }
-        DispatchQueue.main.async {
+        Task { @MainActor in
             appRouter.enqueueStudyHighlightListActivation(noteId: parent.id, threadId: thread.id)
         }
     }
@@ -502,7 +507,7 @@ struct StudyHighlightListColumn: View {
         guard let parent = ThreadStore.fetchNote(id: thread.parentNoteId, modelContext: context) else { return }
         sidebarSelectedThreadId = thread.id
         iosNavPath.wrappedValue.append(parent.id)
-        DispatchQueue.main.async {
+        Task { @MainActor in
             appRouter.enqueueStudyHighlightListActivation(noteId: parent.id, threadId: thread.id)
         }
     }

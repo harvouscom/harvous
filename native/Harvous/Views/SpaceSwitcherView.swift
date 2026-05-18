@@ -20,11 +20,14 @@ struct SpaceSwitcherView: View {
     }
 
     var body: some View {
-        // Always use the picker menu — even with one space the trigger renders as the same icon-only
-        // bordered orb (macOS) / labeled chip (iOS) the user already learned from the multi-space
-        // case. Avoids a divergent "My Home text label" chrome on macOS when only one space exists.
-        spacePickerMenu
-            .accessibilityLabel("Space")
+        Group {
+            if hasMultipleOptions {
+                spacePickerMenu
+            } else {
+                spaceLabel
+            }
+        }
+        .accessibilityLabel("Space")
         .accessibilityValue(currentSpaceName)
         .help("Study space.")
         .onAppear {
@@ -147,5 +150,22 @@ struct SpaceSwitcherView: View {
 
     private var currentCatalogAssetName: String {
         visibleSpaces.first { $0.id == selectedId }?.visibility.harvousCatalogAssetName ?? "Harvous.Home"
+    }
+
+    private var hasMultipleOptions: Bool {
+        visibleSpaces.count > 1 || showSpaceSharingAndManageMenu
+    }
+
+    private var spaceLabel: some View {
+#if os(macOS)
+        Button(action: {}) {
+            HarvousFAGlyph(assetName: currentCatalogAssetName, edgePt: 15)
+                .offset(y: -1)
+        }
+        .buttonStyle(.bordered)
+#else
+        HarvousFAGlyph(assetName: currentCatalogAssetName, edgePt: 16)
+            .foregroundStyle(.primary)
+#endif
     }
 }

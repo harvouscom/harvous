@@ -219,14 +219,21 @@ struct SidebarPanelView: View {
         HStack(spacing: SidebarToolbarLayout.borderedIconClusterSpacing) {
             if showSidebarToolbarChrome {
                 SpaceSwitcherView()
-                if mode == .folders, foldersDrill != .root {
+                if mode == .folders, case .bucket(let key) = foldersDrill {
                     Button {
                         foldersDrill = .root
                     } label: {
-                        HarvousFAGlyph(assetName: "Harvous.ChevronLeft", edgePt: 13)
+                        HStack(spacing: 5) {
+                            HarvousFAGlyph(assetName: "Harvous.ChevronLeft", edgePt: 13)
+                            Text(NoteFilter.folder(key).displayName)
+                                .font(.system(size: 12, weight: .medium))
+                                .lineLimit(1)
+                                .fixedSize(horizontal: true, vertical: false)
+                        }
                     }
                     .buttonStyle(.bordered)
                     .help("Back to folders")
+                    .accessibilityLabel("Back to folders, currently viewing \(NoteFilter.folder(key).displayName)")
                 }
                 if mode == .scripture, scriptureDrill != .root {
                     Button {
@@ -330,7 +337,7 @@ struct SidebarPanelView: View {
                     }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-                .overlay(alignment: .bottom) {
+                .safeAreaInset(edge: .bottom, spacing: 0) {
                     DailyPassagePill(onStudyNow: { note in macSelectNoteWithoutListAnimation(note) })
                         .padding(.horizontal, HarvousFeedListLayout.listRowHorizontalInset)
                         .padding(.bottom, 8)

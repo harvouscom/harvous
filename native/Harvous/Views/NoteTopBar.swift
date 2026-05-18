@@ -56,19 +56,35 @@ struct NoteFolderChip: View {
     }
 
     var body: some View {
+        #if os(macOS)
+        if chipMainLabel != nil {
+            buttonCore
+                .buttonStyle(.bordered)
+                .controlSize(.regular)
+                .tint(HarvousColors.themeAccent(scriptureTheme))
+        } else {
+            buttonCore
+        }
+        #else
+        buttonCore
+            .buttonStyle(.plain)
+        #endif
+    }
+
+    private var buttonCore: some View {
         Button {
             showPopover = true
         } label: {
-            HStack(spacing: 6) {
-                FolderSymbol(
-                    isContextUpdating: isFolderContextUpdating,
-                    folderIconPt: HarvousFAIconMetrics.catalogGlyphBoxPt
-                )
-                .frame(
-                    width: HarvousFAIconMetrics.catalogGlyphBoxPt,
-                    height: HarvousFAIconMetrics.catalogGlyphBoxPt
-                )
-                if let label = chipMainLabel {
+            if let label = chipMainLabel {
+                HStack(spacing: 6) {
+                    FolderSymbol(
+                        isContextUpdating: isFolderContextUpdating,
+                        folderIconPt: HarvousFAIconMetrics.catalogGlyphBoxPt
+                    )
+                    .frame(
+                        width: HarvousFAIconMetrics.catalogGlyphBoxPt,
+                        height: HarvousFAIconMetrics.catalogGlyphBoxPt
+                    )
                     HStack(spacing: 4) {
                         Text(label)
                             .font(folderChipLabelFont)
@@ -90,21 +106,19 @@ struct NoteFolderChip: View {
                     .offset(x: showFolderToolbarText ? 0 : -8)
                     .animation(.easeOut(duration: 0.18), value: showFolderToolbarText)
                 }
+                .padding(.horizontal, 8)
+                .frame(minHeight: 24)
+            } else {
+                FolderSymbol(
+                    isContextUpdating: isFolderContextUpdating,
+                    folderIconPt: HarvousFAIconMetrics.catalogGlyphBoxPt
+                )
+                .frame(
+                    width: HarvousFAIconMetrics.catalogGlyphBoxPt,
+                    height: HarvousFAIconMetrics.catalogGlyphBoxPt
+                )
             }
-            .padding(.horizontal, 8)
-            .frame(minHeight: 24)
         }
-        #if os(macOS)
-        .buttonStyle(.bordered)
-        .controlSize(.regular)
-        .tint(
-            chipMainLabel != nil
-                ? HarvousColors.themeAccent(scriptureTheme)
-                : Color.secondary
-        )
-        #else
-        .buttonStyle(.plain)
-        #endif
         .accessibilityLabel(accessibilitySummary)
         .accessibilityHint(
             chipMainLabel != nil
