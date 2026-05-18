@@ -113,10 +113,6 @@ struct NoteFolderChip: View {
                     isContextUpdating: isFolderContextUpdating,
                     folderIconPt: HarvousFAIconMetrics.catalogGlyphBoxPt
                 )
-                .frame(
-                    width: HarvousFAIconMetrics.catalogGlyphBoxPt,
-                    height: HarvousFAIconMetrics.catalogGlyphBoxPt
-                )
             }
         }
         .accessibilityLabel(accessibilitySummary)
