@@ -86,7 +86,6 @@ struct RemovableThemeTagChip: View {
     var body: some View {
         HStack(spacing: 4) {
             HarvousFAGlyph(assetName: "Harvous.Tag", edgePt: 9)
-                .opacity(showRemoval ? 0 : 1)
                 .frame(width: 12)
                 .accessibilityHidden(true)
 
@@ -101,20 +100,20 @@ struct RemovableThemeTagChip: View {
                     }
                 }
 
-            Button {
-                onRemove()
-                tapRevealRemoval = false
-            } label: {
-                HarvousFAGlyph(assetName: "Harvous.Xmark", edgePt: 9)
-                    .foregroundStyle(HarvousColors.scriptureChipForeground(scriptureTheme).opacity(0.85))
-                    .frame(width: 12, height: 12)
+            if showRemoval {
+                Button {
+                    onRemove()
+                    tapRevealRemoval = false
+                } label: {
+                    HarvousFAGlyph(assetName: "Harvous.Xmark", edgePt: 9)
+                        .foregroundStyle(HarvousColors.scriptureChipForeground(scriptureTheme).opacity(0.85))
+                        .frame(width: 12, height: 12)
+                }
+                .buttonStyle(.plain)
+                .help("Remove tag")
+                .accessibilityLabel("Remove tag \(text)")
+                .transition(.opacity)
             }
-            .buttonStyle(.plain)
-            .help("Remove tag")
-            .accessibilityLabel("Remove tag \(text)")
-            .opacity(showRemoval ? 1 : 0)
-            .frame(width: 12)
-            .allowsHitTesting(showRemoval)
         }
         .foregroundStyle(HarvousColors.scriptureChipForeground(scriptureTheme))
         .padding(.horizontal, 7)

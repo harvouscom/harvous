@@ -425,7 +425,6 @@ private struct RemovableInspectorNeutralTagChip: View {
         HStack(spacing: InspectorDetailChipMetrics.rowIconSpacing) {
             HarvousFAGlyph(assetName: "Harvous.Tag", edgePt: InspectorDetailChipMetrics.leadingGlyphPt)
                 .foregroundStyle(.secondary.opacity(0.75))
-                .opacity(showRemoval ? 0 : 1)
                 .frame(width: InspectorDetailChipMetrics.tagGlyphColumnWidth)
                 .accessibilityHidden(true)
 
@@ -441,20 +440,20 @@ private struct RemovableInspectorNeutralTagChip: View {
                     }
                 }
 
-            Button {
-                onRemove()
-                tapRevealRemoval = false
-            } label: {
-                HarvousFAGlyph(assetName: "Harvous.Xmark", edgePt: InspectorDetailChipMetrics.removeGlyphPt)
-                    .foregroundStyle(.primary.opacity(0.55))
-                    .frame(width: InspectorDetailChipMetrics.tagGlyphColumnWidth)
+            if showRemoval {
+                Button {
+                    onRemove()
+                    tapRevealRemoval = false
+                } label: {
+                    HarvousFAGlyph(assetName: "Harvous.Xmark", edgePt: InspectorDetailChipMetrics.removeGlyphPt)
+                        .foregroundStyle(.primary.opacity(0.55))
+                        .frame(width: InspectorDetailChipMetrics.tagGlyphColumnWidth)
+                }
+                .buttonStyle(.plain)
+                .help("Remove tag")
+                .accessibilityLabel("Remove tag \(text)")
+                .transition(.opacity)
             }
-            .buttonStyle(.plain)
-            .help("Remove tag")
-            .accessibilityLabel("Remove tag \(text)")
-            .opacity(showRemoval ? 1 : 0)
-            .frame(width: InspectorDetailChipMetrics.tagGlyphColumnWidth)
-            .allowsHitTesting(showRemoval)
         }
         .padding(.horizontal, InspectorDetailChipMetrics.horizontalPadding)
         .padding(.vertical, InspectorDetailChipMetrics.verticalPadding)

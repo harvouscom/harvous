@@ -1137,8 +1137,9 @@ struct NoteEditorView: View {
         .animation(HarvousAnimation.spring, value: activePillDock != nil)
         .animation(HarvousAnimation.spring, value: dockPinnedHighlightThreadId != nil)
         .animation(HarvousAnimation.spring, value: highlightCaptureSession != nil)
-        // Spacer + folder-chip leading inset keeps a clean tap target on the system back chevron
-        // so the folder chip's hit area never crowds it (the "back button too hard to tap" complaint).
+        // ToolbarSpacer (iOS 26+) keeps the folder chip from crowding the system back chevron.
+        // The chip's tap target (44 pt square on icon-only, wider pill when named) is self-contained,
+        // so no extra leading inset is needed — asymmetric padding shifts the glass orb off-center.
         .toolbar {
             if #available(iOS 26, *) {
                 ToolbarSpacer(.fixed, placement: .topBarLeading)
@@ -1150,7 +1151,6 @@ struct NoteEditorView: View {
                     showFolderToolbarText: showFolderToolbarText,
                     scriptureTheme: scriptureTheme
                 )
-                .padding(.leading, 12)
             }
             ToolbarItem(placement: .topBarTrailing) {
                 NoteShareDeleteBar(

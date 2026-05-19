@@ -366,7 +366,9 @@ enum BibleStudyTagSuggester {
             let floor = strongContext ? secondaryMinPrimaryScore : secondaryCharacterPlaceMinScore
             return ps >= floor
         default:
-            return ps >= secondaryMinPrimaryScore
+            // Tags surface every detected theme; folders require evidence the keyword is a real topic — title presence or a repeat in the body.
+            let strongContext = s.inTitle || s.occurrences >= 2
+            return strongContext && ps >= secondaryMinPrimaryScore
         }
     }
 

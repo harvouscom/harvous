@@ -281,7 +281,6 @@ struct StudyHighlightListColumn: View {
                 ForEach(KindFilter.allCases) { filter in
                     kindChipSegment(filter)
                 }
-                Spacer(minLength: 0)
             }
             .frame(minWidth: chipBarAvailableWidth - 2 * HarvousFeedListLayout.listRowHorizontalInset)
             .padding(3)
@@ -325,9 +324,11 @@ struct StudyHighlightListColumn: View {
                 Text(filter.label)
                     .font(labelFont)
                     .lineLimit(1)
+                    .fixedSize(horizontal: true, vertical: false)
             }
             .padding(.horizontal, hPad)
             .padding(.vertical, vPad)
+            .frame(maxWidth: .infinity)
             .foregroundStyle(isSelected ? Color.primary : Color.primary.opacity(0.5))
             .background {
                 if isSelected {

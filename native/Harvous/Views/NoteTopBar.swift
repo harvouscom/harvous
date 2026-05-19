@@ -113,6 +113,10 @@ struct NoteFolderChip: View {
                     isContextUpdating: isFolderContextUpdating,
                     folderIconPt: HarvousFAIconMetrics.catalogGlyphBoxPt
                 )
+                #if os(iOS)
+                .foregroundStyle(.primary)
+                .frame(width: 44, height: 44)
+                #endif
             }
         }
         .accessibilityLabel(accessibilitySummary)
@@ -250,10 +254,20 @@ struct NoteShareMoreBar: View {
             } label: {
                 Label {
                     Text("Delete Note")
-                        .foregroundStyle(.red)
                 } icon: {
+                    #if os(iOS)
+                    // UIKit's UIAction bridge can only extract a UIImage from a *direct* Image view —
+                    // custom view structs (HarvousFAGlyph) are not bridged, so the icon renders
+                    // without colour. Pre-tinting here and returning Image(uiImage:) directly is the
+                    // only reliable way to get a red icon in a UIMenu item.
+                    Image(uiImage: (HarvousFAGlyph.rasterTemplateUIImage(
+                        named: "Harvous.Trash",
+                        edgePt: HarvousFAIconMetrics.menuRowLeadingGlyphPt
+                    )?.withTintColor(.systemRed, renderingMode: .alwaysOriginal)) ?? UIImage())
+                    #else
                     HarvousFAGlyph(assetName: "Harvous.Trash", edgePt: HarvousFAIconMetrics.menuRowLeadingGlyphPt)
                         .foregroundStyle(.red)
+                    #endif
                 }
             }
 
@@ -356,7 +370,6 @@ struct MacNoteShareMoreToolbar: ToolbarContent {
                 } label: {
                     Label {
                         Text("Delete Note")
-                            .foregroundStyle(.red)
                     } icon: {
                         HarvousFAGlyph(assetName: "Harvous.Trash", edgePt: HarvousFAIconMetrics.menuRowLeadingGlyphPt)
                             .foregroundStyle(.red)
