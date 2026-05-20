@@ -65,6 +65,7 @@ struct ContentView: View {
 #if os(macOS)
 struct MacRootView: View {
     @State private var selectedNote: Note?
+    @State private var liveShareSnapshot = NoteShareSnapshot(title: "", body: "")
     @State private var lastSelectedNote: Note?
     @State private var splitColumnVisibility: NavigationSplitViewVisibility = .all
     @State private var showSearch = false
@@ -124,6 +125,7 @@ struct MacRootView: View {
                         .transition(.opacity)
                     }
                 }
+                    .onPreferenceChange(NoteShareSnapshotPreferenceKey.self) { liveShareSnapshot = $0 }
                     .toolbar(removing: .sidebarToggle)
                     .toolbar {
                         // Sidebar scope uses `.automatic` so these stay paired; keep Show sidebar (.detailOnly)
@@ -186,7 +188,7 @@ struct MacRootView: View {
                         if let note = selectedNote {
                             MacNoteShareMoreToolbar(
                                 note: note,
-                                scriptureTheme: spaceStore.scriptureTheme,
+                                liveShareSnapshot: liveShareSnapshot,
                                 onDeleteConfirmed: {
                                     let nid = note.id
                                     HarvousVaultExporter.removeMirrorFiles(for: note, modelContext: context)

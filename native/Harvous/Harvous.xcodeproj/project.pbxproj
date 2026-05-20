@@ -25,6 +25,7 @@
 		111A163E42E94B5FFAE74633 /* FolderChipPopover.swift in Sources */ = {isa = PBXBuildFile; fileRef = DFFCD31D73BEF3FA29B1879A /* FolderChipPopover.swift */; };
 		11E4CA639E3852FB2B83ED7C /* HarvousApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D3CDB28BB9BF31E5832F658 /* HarvousApp.swift */; };
 		11E76E611295AAE9DF380859 /* StatefulNoteEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F3B8EAAC2F85848348AB8E7 /* StatefulNoteEditorView.swift */; };
+		14FDE62CAC6E0A0E6E30B6C9 /* HarvousSystemShareLink.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD58400AAB02DEA727D6CEA4 /* HarvousSystemShareLink.swift */; };
 		15BC62787EA579203BE46AB3 /* NoteSimpleIDAssigner.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA8CF525B9046173CB709D3E /* NoteSimpleIDAssigner.swift */; };
 		163D98306EDE07BDD0951FEA /* HarvousPinnedFoldersStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0E092C1AAE9BA2235B5BD28 /* HarvousPinnedFoldersStore.swift */; };
 		16920F57701885BCB36AF877 /* BookFilled.svg in Resources */ = {isa = PBXBuildFile; fileRef = EE1D3F6F9CE323B2507D3844 /* BookFilled.svg */; };
@@ -42,11 +43,13 @@
 		211E0564D2EF1C8286A1FA2C /* HarvousEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19A8E6EB0CD972726ED60880 /* HarvousEditor.swift */; };
 		213FC00CB673C6D8D31545C9 /* Note.swift in Sources */ = {isa = PBXBuildFile; fileRef = 966FCC1B45C46A41DA2BCB13 /* Note.swift */; };
 		21977552C5F1E17F5337486C /* ActiveHighlightDock.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0652390A38821B73086171C7 /* ActiveHighlightDock.swift */; };
+		21D4B504E0D0F77D091D2365 /* HarvousNoteShareBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 614045C536C379F18876CCDC /* HarvousNoteShareBuilder.swift */; };
 		22F020C64B89FBC64019AF26 /* NoteVersionDiffView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2F86CEA488BE9EB0C0E060F /* NoteVersionDiffView.swift */; };
 		26BAAB41F9166C35B5A053E0 /* HarvousAppRouter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 369C425660450E4ADFE55F21 /* HarvousAppRouter.swift */; };
 		27100247CAF207D0D1BDBEEF /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 0DCA9F6B6587D05D924F4C57 /* Assets.xcassets */; };
 		2895FD14578CD6B241F32E56 /* SidebarPanelView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 326645C025CE83554007016A /* SidebarPanelView.swift */; };
 		2937D98EB91D78ABC45AF480 /* MacNoteListSelectionCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 54031E02ED9FB685410E1DF7 /* MacNoteListSelectionCoordinator.swift */; };
+		293A075F9713AD13CC54EFB8 /* HarvousSystemShareLink.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD58400AAB02DEA727D6CEA4 /* HarvousSystemShareLink.swift */; };
 		2947F149FF02A6EF97041A15 /* ScripturePillActionBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 54A34848CE71A3904DF33EEF /* ScripturePillActionBar.swift */; };
 		296CA07211236ED14E03E192 /* HarvousVaultImportFormats.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0DAFEFB963AD158BCE34CB5D /* HarvousVaultImportFormats.swift */; };
 		29C9B49D80CB784E6E0E8712 /* HarvousFolderListIndex.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5FCD6A30B02EBDF35A3645A6 /* HarvousFolderListIndex.swift */; };
@@ -70,6 +73,7 @@
 		3B166089E43064C257FBD442 /* ScripturePassageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF4BFB19D1DD4E8F9C3AE8FF /* ScripturePassageView.swift */; };
 		3BF4C5FFA3065CC3F152500E /* NoteToolbar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4DDA4F38E9CBF0A99695D91E /* NoteToolbar.swift */; };
 		3D51FF494AC422B4F9E1C351 /* ScripturePillActionBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 54A34848CE71A3904DF33EEF /* ScripturePillActionBar.swift */; };
+		3DACBB1E3B6147AA8750ED7C /* HarvousNoteShareBuilderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C31B7768129D5866248031DF /* HarvousNoteShareBuilderTests.swift */; };
 		407DAFC725BD4AEFD7B90E28 /* DockExpandedContentEnvironment.swift in Sources */ = {isa = PBXBuildFile; fileRef = 593C2F48E9B13AC1EA6FF24E /* DockExpandedContentEnvironment.swift */; };
 		42EF207CB460ADD1BCC9A883 /* MacCollectionChip.swift in Sources */ = {isa = PBXBuildFile; fileRef = B477277FA8277C3C7A61685B /* MacCollectionChip.swift */; };
 		4325C3D150A3F7BD2A318E28 /* EastonsEntryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 707C2F50FA943977A1C32589 /* EastonsEntryView.swift */; };
@@ -171,6 +175,7 @@
 		A18283F635D9FF48F2F67A2F /* NoteTopBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9AFFB4C1255212A15C5D8F9A /* NoteTopBar.swift */; };
 		A1FC0FCD68626BEF88D7D30E /* VotdService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 684855BC3CED90C546AE7F80 /* VotdService.swift */; };
 		A38C24990C08D7CFF42A671E /* NoteSearchIndex.swift in Sources */ = {isa = PBXBuildFile; fileRef = 606142989F80707A96817BFB /* NoteSearchIndex.swift */; };
+		A45E454F24B92C55BBB6F0DD /* HarvousNoteShareBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 614045C536C379F18876CCDC /* HarvousNoteShareBuilder.swift */; };
 		A4FB5610436A731B82DE0DF7 /* NoteBodyAttachments.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD852741320FC91DAC26796B /* NoteBodyAttachments.swift */; };
 		A712F22DE6DF26037193951F /* NoteBodyAttachments.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD852741320FC91DAC26796B /* NoteBodyAttachments.swift */; };
 		AAF56ACFA76B643FF2349D3B /* MacCollectionChip.swift in Sources */ = {isa = PBXBuildFile; fileRef = B477277FA8277C3C7A61685B /* MacCollectionChip.swift */; };
@@ -272,6 +277,7 @@
 		F95D433B3BBC3B59CDF22911 /* StudyPromptSuggester.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6DB7DD83F92E017190736B0 /* StudyPromptSuggester.swift */; };
 		F98C8D198E8FCB3484014E86 /* HarvousVaultImporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9317A05B9D1F267F5F937F9A /* HarvousVaultImporter.swift */; };
 		FB720DBD2FECF7EF37EFB827 /* ActiveScripturePillDock.swift in Sources */ = {isa = PBXBuildFile; fileRef = 75D9D6CD8788226D9258B9A3 /* ActiveScripturePillDock.swift */; };
+		FCE89579C360AA8E27CA83F5 /* HarvousNoteShareBuilderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C31B7768129D5866248031DF /* HarvousNoteShareBuilderTests.swift */; };
 		FCF882036FC41F992F2E88C1 /* NoteVersionDiffView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2F86CEA488BE9EB0C0E060F /* NoteVersionDiffView.swift */; };
 		FD7CF438EE5B995144C56E98 /* HarvousColors.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7CF94AEEA13DB450400AEDA6 /* HarvousColors.swift */; };
 		FE7A027034697770576F8B38 /* HarvousLayoutManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C5E84A7E8D525BEB44C7092 /* HarvousLayoutManager.swift */; };
@@ -370,6 +376,7 @@
 		5FCD6A30B02EBDF35A3645A6 /* HarvousFolderListIndex.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HarvousFolderListIndex.swift; sourceTree = "<group>"; };
 		606142989F80707A96817BFB /* NoteSearchIndex.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NoteSearchIndex.swift; sourceTree = "<group>"; };
 		613771F7E191505CBC5A994B /* NoteRelativeTime.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NoteRelativeTime.swift; sourceTree = "<group>"; };
+		614045C536C379F18876CCDC /* HarvousNoteShareBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HarvousNoteShareBuilder.swift; sourceTree = "<group>"; };
 		614471FAF6AEEC5B84B7153D /* StandaloneScripturePassageDockHost.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StandaloneScripturePassageDockHost.swift; sourceTree = "<group>"; };
 		62E511ED42560CBA21AC42D0 /* HarvousVaultExporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HarvousVaultExporter.swift; sourceTree = "<group>"; };
 		63FEFA686ED28F7639CEA2FA /* ScriptureReferenceParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScriptureReferenceParser.swift; sourceTree = "<group>"; };
@@ -419,6 +426,7 @@
 		A781CCDACB48ECA94521C9E3 /* Highlight.svg */ = {isa = PBXFileReference; path = Highlight.svg; sourceTree = "<group>"; };
 		A7BD7C6E0B976DD4FAEA70D8 /* StudyHighlightFeedRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudyHighlightFeedRow.swift; sourceTree = "<group>"; };
 		AA9454B67B2D0A05909AD0C1 /* Harvous.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Harvous.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		AD58400AAB02DEA727D6CEA4 /* HarvousSystemShareLink.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HarvousSystemShareLink.swift; sourceTree = "<group>"; };
 		ADE571CAD30EEA3ECC27ACCF /* FolderFeedRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FolderFeedRow.swift; sourceTree = "<group>"; };
 		AEBDA751B69360F19DA397AB /* CardsFilled.svg */ = {isa = PBXFileReference; path = CardsFilled.svg; sourceTree = "<group>"; };
 		B01C0F956EDEE14AFA9CFCE4 /* NoteInspectorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NoteInspectorView.swift; sourceTree = "<group>"; };
@@ -432,6 +440,7 @@
 		BD852741320FC91DAC26796B /* NoteBodyAttachments.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NoteBodyAttachments.swift; sourceTree = "<group>"; };
 		C068EBF1AF29F5B152F49F3E /* AddLinkSheetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddLinkSheetView.swift; sourceTree = "<group>"; };
 		C173EE86842CB06E6991BC32 /* ThreadQuickOptionsPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThreadQuickOptionsPanel.swift; sourceTree = "<group>"; };
+		C31B7768129D5866248031DF /* HarvousNoteShareBuilderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HarvousNoteShareBuilderTests.swift; sourceTree = "<group>"; };
 		C93484EA0BE0D455C54A35A4 /* NoteHistorySection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NoteHistorySection.swift; sourceTree = "<group>"; };
 		CB17E61EEB98DBCD110C606A /* NoteFilter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NoteFilter.swift; sourceTree = "<group>"; };
 		CB88BB4BD68BBB80D21FC7E8 /* HarvousCSVImportTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HarvousCSVImportTests.swift; sourceTree = "<group>"; };
@@ -477,6 +486,7 @@
 				B75F28F387F499E3433789BC /* HarvousPinnedDictionaryEntriesStore.swift */,
 				A0E092C1AAE9BA2235B5BD28 /* HarvousPinnedFoldersStore.swift */,
 				5A095B7E58EB5E0D9E54AA47 /* HarvousPinnedHighlightsStore.swift */,
+				AD58400AAB02DEA727D6CEA4 /* HarvousSystemShareLink.swift */,
 				DAD02937B4E61EECDC985BEB /* HighlightAnnotationPopover.swift */,
 				8E4C7F276B56927A295EB2CF /* HomeHubView.swift */,
 				0FC075712259BDB7D1498A56 /* IOSHighlightAuthoringSheet.swift */,
@@ -533,6 +543,7 @@
 			isa = PBXGroup;
 			children = (
 				CB88BB4BD68BBB80D21FC7E8 /* HarvousCSVImportTests.swift */,
+				C31B7768129D5866248031DF /* HarvousNoteShareBuilderTests.swift */,
 				595E7301ACD5DE03BE81AC12 /* HarvousVaultMarkdownTests.swift */,
 				3B93890DEA8798198EF5489B /* ScriptureBookListIndexTests.swift */,
 				787E80AD5F4ADA5ED0070730 /* ScriptureReferenceParserTests.swift */,
@@ -630,6 +641,7 @@
 			children = (
 				8CDF2569A93D83705CF06B24 /* EastonsDictionaryService.swift */,
 				8B7BC37E769A80FCD22B404A /* HarvousCalendarStudyNotifier.swift */,
+				614045C536C379F18876CCDC /* HarvousNoteShareBuilder.swift */,
 				15D3B6F8F4060FDDF7330A0D /* HarvousNoteSpotlightIndexer.swift */,
 				62E511ED42560CBA21AC42D0 /* HarvousVaultExporter.swift */,
 				9317A05B9D1F267F5F937F9A /* HarvousVaultImporter.swift */,
@@ -958,6 +970,7 @@
 				D0E5C9291BB8AF1A4E10383E /* HarvousLaunchArguments.swift in Sources */,
 				B877ADBC94273E7725CC0974 /* HarvousLayoutManager.swift in Sources */,
 				AD076952B3203CDEE25C2104 /* HarvousLocalIdentity.swift in Sources */,
+				A45E454F24B92C55BBB6F0DD /* HarvousNoteShareBuilder.swift in Sources */,
 				689E145DFB9A1A4814149BF2 /* HarvousNoteSpotlightIndexer.swift in Sources */,
 				EA02A5AA8BAD331438256FEE /* HarvousPinnedDictionaryEntriesStore.swift in Sources */,
 				32211D66247CA28A65E4BEE0 /* HarvousPinnedFoldersStore.swift in Sources */,
@@ -966,6 +979,7 @@
 				52FC0797E465D1D5F756A78D /* HarvousShape.swift in Sources */,
 				CBEA7D025C548113C7540542 /* HarvousSpaceBootstrap.swift in Sources */,
 				54F7C8D4FB11B565F0D3E2A3 /* HarvousStandaloneSelectionNote.swift in Sources */,
+				293A075F9713AD13CC54EFB8 /* HarvousSystemShareLink.swift in Sources */,
 				3351A1BA164277C29E29001B /* HarvousTypography.swift in Sources */,
 				E85D90AC0F18FCC1F3D1F575 /* HarvousVaultExporter.swift in Sources */,
 				296CA07211236ED14E03E192 /* HarvousVaultImportFormats.swift in Sources */,
@@ -1053,6 +1067,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				C58F8E722779C804A7B738C8 /* HarvousCSVImportTests.swift in Sources */,
+				FCE89579C360AA8E27CA83F5 /* HarvousNoteShareBuilderTests.swift in Sources */,
 				6D2D9E8BB0FC72EF6B1B4C8E /* HarvousVaultMarkdownTests.swift in Sources */,
 				2F285CE0D570113958B52B49 /* ScriptureBookListIndexTests.swift in Sources */,
 				C011A1EA43D2C749DC4E1D9B /* ScriptureReferenceParserTests.swift in Sources */,
@@ -1064,6 +1079,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				A010BBECFA0D4BE4655A5251 /* HarvousCSVImportTests.swift in Sources */,
+				3DACBB1E3B6147AA8750ED7C /* HarvousNoteShareBuilderTests.swift in Sources */,
 				AD02B74721815DAE1F855C21 /* HarvousVaultMarkdownTests.swift in Sources */,
 				FF928DB5169ABB320F34C2CD /* ScriptureBookListIndexTests.swift in Sources */,
 				F26F8E7D2DF4132262C7E383 /* ScriptureReferenceParserTests.swift in Sources */,
@@ -1115,6 +1131,7 @@
 				7989C0D9059EBA2CB6A00671 /* HarvousLaunchArguments.swift in Sources */,
 				FE7A027034697770576F8B38 /* HarvousLayoutManager.swift in Sources */,
 				EF42CF3442DF956BB0CD82AF /* HarvousLocalIdentity.swift in Sources */,
+				21D4B504E0D0F77D091D2365 /* HarvousNoteShareBuilder.swift in Sources */,
 				9ACFACC0118A0B191DA60FAD /* HarvousNoteSpotlightIndexer.swift in Sources */,
 				170F7EE55CFF9640C6B34FF6 /* HarvousPinnedDictionaryEntriesStore.swift in Sources */,
 				163D98306EDE07BDD0951FEA /* HarvousPinnedFoldersStore.swift in Sources */,
@@ -1123,6 +1140,7 @@
 				CAC91B6BC58F835BD72A53F4 /* HarvousShape.swift in Sources */,
 				7044980D0803D3354E89EB56 /* HarvousSpaceBootstrap.swift in Sources */,
 				6093905634FC194DB0C029AD /* HarvousStandaloneSelectionNote.swift in Sources */,
+				14FDE62CAC6E0A0E6E30B6C9 /* HarvousSystemShareLink.swift in Sources */,
 				93E509D965005EFAE62E700F /* HarvousTypography.swift in Sources */,
 				CC93A8F1D096C520D26DCAE2 /* HarvousVaultExporter.swift in Sources */,
 				D03AC309EBE6ACD610693186 /* HarvousVaultImportFormats.swift in Sources */,

@@ -4,18 +4,6 @@ import SwiftUI
 import UIKit
 #endif
 
-/// Trailing inset for the note share + ⋯ cluster so the ellipsis isn’t flush to the bar edge (matches iOS ↔ macOS).
-private enum NoteShareMoreClusterChrome {
-    static var ellipsisTrailingInset: CGFloat {
-        #if os(iOS)
-        HarvousIOSMorphingChromeLayout.interChromeSpacing
-        #else
-        // Keep numerically in sync with `HarvousIOSMorphingChromeLayout.interChromeSpacing` (12).
-        12
-        #endif
-    }
-}
-
 /// Folder chip toolbar item — tapping opens a compact folder editor popover.
 struct NoteFolderChip: View {
     @Bindable var note: Note
@@ -138,40 +126,40 @@ struct NoteFolderChip: View {
 }
 
 /// Share button + ellipsis "more" menu (pin toggle, delete with confirmation).
-/// iOS note editor: **only** FA `⋯` — no SwiftUI-drawn capsule/glass (`UINavigationBar` supplies the orb; same layering model as substituted back glyph).
+/// iOS: `[share]` + `[⋯]` in the navigation bar (system supplies the glass orb).
 /// macOS: `[share]` + `[⋯]` in the toolbar (`MacNoteShareMoreToolbar`).
 struct NoteShareMoreBar: View {
     @Bindable var note: Note
     @Environment(\.modelContext) private var modelContext
-    var scriptureTheme: HarvousColors.ThemeVariant
     var onDeleteConfirmed: () -> Void
     /// iOS only: opens full note inspector (tags, highlights, metadata).
     var onOpenNoteDetails: (() -> Void)?
+    /// Live editor snapshot; when `nil`, uses persisted `note.title` / `note.body` (previews / fallback).
+    var shareSnapshot: (() -> NoteShareSnapshot)?
 
     @State private var confirmDelete = false
 
     init(
         note: Note,
-        scriptureTheme: HarvousColors.ThemeVariant,
         onDeleteConfirmed: @escaping () -> Void,
-        onOpenNoteDetails: (() -> Void)? = nil
+        onOpenNoteDetails: (() -> Void)? = nil,
+        shareSnapshot: (() -> NoteShareSnapshot)? = nil
     ) {
         _note = Bindable(note)
-        self.scriptureTheme = scriptureTheme
         self.onDeleteConfirmed = onDeleteConfirmed
         self.onOpenNoteDetails = onOpenNoteDetails
+        self.shareSnapshot = shareSnapshot
+    }
+
+    private var resolvedShareText: String {
+        let snap = shareSnapshot?() ?? NoteShareSnapshot(title: note.title, body: note.body)
+        return HarvousNoteShareBuilder.plainText(snapshot: snap)
     }
 
     var body: some View {
-        Group {
-            #if os(iOS)
+        HStack(spacing: 8) {
+            HarvousSystemShareLink(shareText: resolvedShareText)
             moreMenu
-            #else
-            HStack(spacing: 8) {
-                shareButton
-                moreMenu
-            }
-            #endif
         }
         .confirmationDialog(
             "Delete this note? This cannot be undone.",
@@ -183,33 +171,6 @@ struct NoteShareMoreBar: View {
             }
             Button("Cancel", role: .cancel) {}
         }
-    }
-
-    private var shareButton: some View {
-        Button {} label: {
-            // `Harvous.ShareSquare` ships with a non-square viewBox (576×512). Without an explicit
-            // square frame the bordered button hugs the glyph and looks pinched next to the sidebar
-            // cluster — match `sidebarHideSidebarToolbarButton`'s `catalogGlyphBoxPt` framing.
-            HarvousFAGlyph(
-                assetName: "Harvous.ShareSquare",
-                edgePt: HarvousFAIconMetrics.catalogGlyphBoxPt
-            )
-            .frame(
-                width: HarvousFAIconMetrics.catalogGlyphBoxPt,
-                height: HarvousFAIconMetrics.catalogGlyphBoxPt
-            )
-        }
-        #if os(macOS)
-        .buttonStyle(.bordered)
-        .controlSize(.regular)
-        #else
-        .buttonStyle(.bordered)
-        #endif
-        .tint(Color.secondary)
-        .disabled(true)
-        .opacity(0.4)
-        .accessibilityLabel("Share")
-        .accessibilityHint("Share is not yet available")
     }
 
     private var moreMenu: some View {
@@ -292,14 +253,9 @@ struct NoteShareMoreBar: View {
         .tint(.primary)
 #else
         .buttonStyle(.bordered)
-        .controlSize(.regular)
-        .tint(Color.secondary)
         .menuIndicator(.hidden)
 #endif
         .accessibilityLabel("More options")
-#if os(macOS)
-        .padding(.trailing, NoteShareMoreClusterChrome.ellipsisTrailingInset)
-#endif
     }
 }
 
@@ -311,39 +267,28 @@ struct NoteShareMoreBar: View {
 struct MacNoteShareMoreToolbar: ToolbarContent {
     @Bindable var note: Note
     @Environment(\.modelContext) private var modelContext
-    var scriptureTheme: HarvousColors.ThemeVariant
+    var liveShareSnapshot: NoteShareSnapshot
     var onDeleteConfirmed: () -> Void
 
     @State private var confirmDelete = false
 
     init(
         note: Note,
-        scriptureTheme: HarvousColors.ThemeVariant,
+        liveShareSnapshot: NoteShareSnapshot,
         onDeleteConfirmed: @escaping () -> Void
     ) {
         _note = Bindable(note)
-        self.scriptureTheme = scriptureTheme
+        self.liveShareSnapshot = liveShareSnapshot
         self.onDeleteConfirmed = onDeleteConfirmed
+    }
+
+    private var toolbarShareText: String {
+        HarvousNoteShareBuilder.plainText(snapshot: liveShareSnapshot)
     }
 
     var body: some ToolbarContent {
         ToolbarItemGroup(placement: .primaryAction) {
-            Button {} label: {
-                HarvousFAGlyph(
-                    assetName: "Harvous.ShareSquare",
-                    edgePt: HarvousFAIconMetrics.catalogGlyphBoxPt
-                )
-                .frame(
-                    width: HarvousFAIconMetrics.catalogGlyphBoxPt,
-                    height: HarvousFAIconMetrics.catalogGlyphBoxPt
-                )
-            }
-            .buttonStyle(.bordered)
-            .controlSize(.regular)
-            .disabled(true)
-            .opacity(0.4)
-            .accessibilityLabel("Share")
-            .accessibilityHint("Share is not yet available")
+            HarvousSystemShareLink(shareText: toolbarShareText)
 
             Menu {
                 Button {
@@ -387,9 +332,7 @@ struct MacNoteShareMoreToolbar: ToolbarContent {
             }
             .menuIndicator(.hidden)
             .buttonStyle(.bordered)
-            .controlSize(.regular)
             .accessibilityLabel("More options")
-            .padding(.trailing, NoteShareMoreClusterChrome.ellipsisTrailingInset)
             .confirmationDialog(
                 "Delete this note? This cannot be undone.",
                 isPresented: $confirmDelete,
@@ -422,32 +365,32 @@ struct NoteTopBar: View {
     }
 }
 
-/// Share (stub) + delete as a separate toolbar group.
+/// Share + delete as a separate toolbar group.
 /// Kept as a façade so call sites that still reference this name compile.
 struct NoteShareDeleteBar: View {
     var note: Note
-    var scriptureTheme: HarvousColors.ThemeVariant
     var onDeleteConfirmed: () -> Void
     var onOpenNoteDetails: (() -> Void)?
+    var shareSnapshot: (() -> NoteShareSnapshot)?
 
     init(
         note: Note,
-        scriptureTheme: HarvousColors.ThemeVariant,
         onDeleteConfirmed: @escaping () -> Void,
-        onOpenNoteDetails: (() -> Void)? = nil
+        onOpenNoteDetails: (() -> Void)? = nil,
+        shareSnapshot: (() -> NoteShareSnapshot)? = nil
     ) {
         self.note = note
-        self.scriptureTheme = scriptureTheme
         self.onDeleteConfirmed = onDeleteConfirmed
         self.onOpenNoteDetails = onOpenNoteDetails
+        self.shareSnapshot = shareSnapshot
     }
 
     var body: some View {
         NoteShareMoreBar(
             note: note,
-            scriptureTheme: scriptureTheme,
             onDeleteConfirmed: onDeleteConfirmed,
-            onOpenNoteDetails: onOpenNoteDetails
+            onOpenNoteDetails: onOpenNoteDetails,
+            shareSnapshot: shareSnapshot
         )
     }
 }

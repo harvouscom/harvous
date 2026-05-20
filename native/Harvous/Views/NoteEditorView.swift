@@ -247,6 +247,10 @@ struct NoteEditorView: View {
                 emptyDetail
             }
         }
+        .preference(
+            key: NoteShareSnapshotPreferenceKey.self,
+            value: NoteShareSnapshot(title: note != nil ? title : "", body: note != nil ? editorState.plainText : "")
+        )
         .onChange(of: note?.id) { oldId, newId in
             // Synchronous: `HarvousEditor` also resets async on `boundNoteID` change; without this, proxy
             // pill / format state can lag one turn and briefly pair stale UI with the new note.
@@ -1155,11 +1159,11 @@ struct NoteEditorView: View {
             ToolbarItem(placement: .topBarTrailing) {
                 NoteShareDeleteBar(
                     note: note,
-                    scriptureTheme: scriptureTheme,
                     onDeleteConfirmed: { deleteCurrentNoteIfPossible() },
                     onOpenNoteDetails: {
                         withAnimation(HarvousAnimation.spring) { showInspectorIOS = true }
-                    }
+                    },
+                    shareSnapshot: { NoteShareSnapshot(title: title, body: editorState.plainText) }
                 )
             }
         }
