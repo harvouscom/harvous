@@ -1261,6 +1261,7 @@ struct HarvousEditor: NSViewRepresentable {
 
         if let noteID, context.coordinator.boundNoteID != noteID {
             context.coordinator.boundNoteID = noteID
+            context.coordinator.invalidateDeferredNoteBindingWork()
             context.coordinator.isEditing = false
             context.coordinator.suppressFormatBarOnNextBodyCaretUpdate = true
             // Load plain/serialized body synchronously so the view has correct text immediately.
@@ -1404,12 +1405,22 @@ struct HarvousEditor: NSViewRepresentable {
         private var isDisplayingPlaceholder: Bool = false
         private var debounceTask: Task<Void, Never>?
         private var formatBarHideTask: Task<Void, Never>?
+        /// Bumped on note switch so deferred `Task`s from the previous note cannot write `state.plainText`.
+        fileprivate var noteBindingGeneration: UInt64 = 0
         /// Dismisses a stray caret `selectionUpdate` after we replace the document (note switch) so the bar does not show until the user changes selection again.
         /// `fileprivate` so `HarvousEditor.updateNSView` can set it when `boundNoteID` changes (nested `private` is not visible to the outer type).
         fileprivate var suppressFormatBarOnNextBodyCaretUpdate: Bool = false
         /// `textDidChange` fires for programmatic loads, pill rewrites, etc. — suppress the format bar until user typing.
         private var programmaticBodyMutationDepth: Int = 0
         private var isProgrammaticBodyMutation: Bool { programmaticBodyMutationDepth > 0 }
+
+        /// Cancels in-flight debounced work and invalidates deferred binding updates scheduled before a note switch.
+        fileprivate func invalidateDeferredNoteBindingWork() {
+            noteBindingGeneration &+= 1
+            debounceTask?.cancel()
+            debounceTask = nil
+            cancelFormatBarHide()
+        }
 
         init(state: Binding<EditorState>) {
             _state = state
@@ -1824,12 +1835,14 @@ struct HarvousEditor: NSViewRepresentable {
             let plain = harvousExpandedPlainText(in: storage)
             // Capture before the deferred `Task`: mutation scope may end before the task runs.
             let isProgrammatic = isProgrammaticBodyMutation
+            let bindingGeneration = noteBindingGeneration
 
             // Debounced scripture detection
             debounceTask?.cancel()
             debounceTask = Task { @MainActor in
                 try? await Task.sleep(for: .milliseconds(400))
                 guard !Task.isCancelled else { return }
+                guard bindingGeneration == self.noteBindingGeneration else { return }
                 // Do not mutate storage while IME/marked text or a different document view is active.
                 guard tv === self.textView, !tv.hasMarkedText() else { return }
                 self.detectAndInsertPills(in: tv, text: plain)
@@ -1837,6 +1850,7 @@ struct HarvousEditor: NSViewRepresentable {
 
             // Defer binding + proxy so this isn’t the same run loop as TextKit/NSView layout.
             Task { @MainActor in
+                guard bindingGeneration == self.noteBindingGeneration else { return }
                 self.state.plainText = plain
                 if !isProgrammatic {
                     self.proxy?.preferOrbChromeUntilNextFormatSignal = false
@@ -2052,7 +2066,9 @@ struct HarvousEditor: NSViewRepresentable {
             // `freshMatches` itself stays as-is so per-pill placement above retains every occurrence.
             var seenRefs = Set<String>()
             let refsOut = freshMatches.map(\.displayText).filter { seenRefs.insert($0).inserted }
+            let bindingGeneration = noteBindingGeneration
             Task { @MainActor in
+                guard bindingGeneration == self.noteBindingGeneration else { return }
                 self.state.plainText = plainOut
                 self.state.detectedRefs = refsOut
             }
@@ -2432,7 +2448,9 @@ struct HarvousEditor: UIViewRepresentable {
 
         if let noteID, context.coordinator.boundNoteID != noteID {
             context.coordinator.boundNoteID = noteID
+            context.coordinator.invalidateDeferredNoteBindingWork()
             context.coordinator.isEditing = false
+            context.coordinator.withProgrammaticBodyMutation {
             if documentBody.isEmpty {
                 textView.text = placeholder
                 textView.textColor = .tertiaryLabel
@@ -2446,13 +2464,15 @@ struct HarvousEditor: UIViewRepresentable {
                 context.coordinator.reapplyScripturePillsToBody(in: textView)
             }
             context.coordinator.paintStudyHighlights(on: textView)
+            }
             if let p = proxy {
                 DispatchQueue.main.async {
                     p.resetFormatBarStateForNewNote()
                     p.syncBodyFirstResponderState(textView: textView)
                 }
             }
-            return        }
+            return
+        }
         if !context.coordinator.isEditing {
             let plainStorage = harvousExpandedPlainText(in: textView.textStorage)
             if plainStorage != state.plainText {
@@ -2530,15 +2550,24 @@ struct HarvousEditor: UIViewRepresentable {
         var onRemoveStudyHighlightThreadIds: (([UUID]) -> Void)?
         private var debounceTask: Task<Void, Never>?
         private var formatBarHideTask: Task<Void, Never>?
+        /// Bumped on note switch so deferred `Task`s from the previous note cannot write `state.plainText`.
+        fileprivate var noteBindingGeneration: UInt64 = 0
         /// Pauses scripture pill detection while Apple Writing Tools mutates the document (iOS 18+).
         private var isWritingToolsActive = false
         private var programmaticBodyMutationDepth: Int = 0
         private var isProgrammaticBodyMutation: Bool { programmaticBodyMutationDepth > 0 }
 
-        private func withProgrammaticBodyMutation(_ work: () -> Void) {
+        fileprivate func withProgrammaticBodyMutation(_ work: () -> Void) {
             programmaticBodyMutationDepth += 1
             work()
             programmaticBodyMutationDepth -= 1
+        }
+
+        fileprivate func invalidateDeferredNoteBindingWork() {
+            noteBindingGeneration &+= 1
+            debounceTask?.cancel()
+            debounceTask = nil
+            cancelFormatBarHide()
         }
 
         /// Updates body / placeholder fonts when the user changes Larger Text.
@@ -3040,9 +3069,11 @@ struct HarvousEditor: UIViewRepresentable {
         func textViewDidChange(_ textView: UITextView) {
             guard textView.textColor != .tertiaryLabel else { return }
             let plain = harvousExpandedPlainText(in: textView.textStorage)
+            let bindingGeneration = noteBindingGeneration
             // Tell SwiftUI the text view height may have changed so the outer ScrollView resizes.
             textView.invalidateIntrinsicContentSize()
             Task { @MainActor in
+                guard bindingGeneration == self.noteBindingGeneration else { return }
                 self.state.plainText = plain
                 self.proxy?.preferOrbChromeUntilNextFormatSignal = false
                 self.proxy?.formatBarUnlocked = true
@@ -3056,6 +3087,7 @@ struct HarvousEditor: UIViewRepresentable {
             debounceTask = Task { @MainActor in
                 try? await Task.sleep(for: .milliseconds(400))
                 guard !Task.isCancelled else { return }
+                guard bindingGeneration == self.noteBindingGeneration else { return }
                 self.detectAndInsertPills(in: textView, text: plain)
             }
         }
@@ -3072,7 +3104,9 @@ struct HarvousEditor: UIViewRepresentable {
         func textViewWritingToolsDidEnd(_ textView: UITextView) {
             isWritingToolsActive = false
             let plain = harvousExpandedPlainText(in: textView.textStorage)
+            let bindingGeneration = noteBindingGeneration
             Task { @MainActor in
+                guard bindingGeneration == self.noteBindingGeneration else { return }
                 self.state.plainText = plain
                 self.detectAndInsertPills(in: textView, text: plain)
                 self.proxy?.refreshFormatState()
@@ -3181,7 +3215,9 @@ struct HarvousEditor: UIViewRepresentable {
             // `freshMatches` itself stays as-is so per-pill placement above retains every occurrence.
             var seenRefs = Set<String>()
             let refsOut = freshMatches.map(\.displayText).filter { seenRefs.insert($0).inserted }
+            let bindingGeneration = noteBindingGeneration
             Task { @MainActor in
+                guard bindingGeneration == self.noteBindingGeneration else { return }
                 self.state.plainText = plainOut
                 self.state.detectedRefs = refsOut
             }

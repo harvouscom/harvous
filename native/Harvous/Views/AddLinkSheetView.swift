@@ -77,6 +77,11 @@ struct AddLinkSheetView: View {
             TextField("Enter a URL or note title", text: $proxy.addLinkTargetURL)
                 .textFieldStyle(.plain)
                 .font(.system(size: 14))
+                .autocorrectionDisabled()
+#if os(iOS)
+                .textInputAutocapitalization(.never)
+                .keyboardType(.URL)
+#endif
                 .padding(10)
                 .background(
                     RoundedRectangle(cornerRadius: fieldCorner, style: .continuous)

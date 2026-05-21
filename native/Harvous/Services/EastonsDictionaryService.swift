@@ -6,8 +6,10 @@ import Foundation
 //   GET /api/dictionary/eastons/index   → [{ slug, headword, category }]
 //   GET /api/dictionary/eastons/:slug   → { slug, headword, category, body, seeAlso }
 //
-// Both are public-domain static data — cache the index once per process and per-entry results in
-// memory. No persistence layer needed; the dataset is small and reloads on next launch are cheap.
+// Both are public-domain static data. The slug index is persisted to disk (see
+// `EastonsSlugIndexDiskStore`) so cold launches can answer `hasEntry(forWord:)` before the
+// network refresh resolves. Per-entry results are cached in memory only — the dataset is small
+// and a session-scoped cache plus selection-time + ref-highlight prefetch covers the hot path.
 
 struct EastonsSlugIndexEntry: Codable, Hashable, Sendable {
     let slug: String
@@ -70,13 +72,22 @@ final class EastonsDictionaryService: ObservableObject {
     // MARK: - Index
 
     /// Fetches the slug index once. Repeated calls are no-ops while a fetch is in flight or after
-    /// success. Failure resets state to `.idle` so the next call retries.
+    /// success. On cold launch, hydrates from `EastonsSlugIndexDiskStore` before the network call
+    /// resolves so `hasEntry(forWord:)` works immediately. A network failure that arrives *after*
+    /// a disk hit leaves the state as `.loaded` rather than regressing to `.failed`.
     func loadIndexIfNeeded() {
         if indexLoadState == .loaded || indexLoadState == .loading { return }
         indexLoadState = .loading
         inflightIndexTask?.cancel()
         inflightIndexTask = Task { [weak self] in
             guard let self else { return }
+            if self.slugIndex.isEmpty, let cached = await EastonsSlugIndexDiskStore.shared.read() {
+                var map: [String: EastonsSlugIndexEntry] = [:]
+                map.reserveCapacity(cached.count)
+                for e in cached { map[e.slug.lowercased()] = e }
+                self.slugIndex = map
+                self.indexLoadState = .loaded
+            }
             do {
                 let entries = try await Self.fetchIndex()
                 var map: [String: EastonsSlugIndexEntry] = [:]
@@ -84,8 +95,11 @@ final class EastonsDictionaryService: ObservableObject {
                 for e in entries { map[e.slug.lowercased()] = e }
                 self.slugIndex = map
                 self.indexLoadState = .loaded
+                await EastonsSlugIndexDiskStore.shared.write(entries)
             } catch {
-                self.indexLoadState = .failed
+                if self.slugIndex.isEmpty {
+                    self.indexLoadState = .failed
+                }
             }
             self.inflightIndexTask = nil
         }
@@ -163,6 +177,45 @@ final class EastonsDictionaryService: ObservableObject {
         let entry = try await Self.fetchEntryRequest(slug: key)
         entryCache[key] = entry
         return entry
+    }
+
+    // MARK: - Prefetch
+
+    /// Fire-and-forget background fetch for a single slug. No-op if already cached or in-flight is
+    /// already pending — the in-memory `entryCache` write at the end of `fetchEntry` deduplicates.
+    /// Used by the editor to warm the cache as soon as a single-word selection has a slug match,
+    /// so by the time the user taps Look up the entry renders without a spinner.
+    func prefetchEntry(slug: String) {
+        let key = slug.lowercased()
+        guard !key.isEmpty, entryCache[key] == nil else { return }
+        Task(priority: .utility) { [weak self] in
+            _ = try? await self?.fetchEntry(slug: key)
+        }
+    }
+
+    /// Bounded-concurrency prefetch for a batch of slugs. Mirrors `ScripturePassageCache.prefetchDistinctPairs`
+    /// (default 3 concurrent). Callers resolve `matchedSlug(forWord:)` themselves before calling so
+    /// non-matches don't enter the pipeline.
+    func prefetchEntries(slugs: [String], maxConcurrency: Int = 3) async {
+        let unique = Array(Set(slugs.map { $0.lowercased() })).filter { !$0.isEmpty && entryCache[$0] == nil }
+        guard !unique.isEmpty else { return }
+        let bound = max(1, min(maxConcurrency, unique.count))
+        await withTaskGroup(of: Void.self) { group in
+            var iterator = unique.makeIterator()
+            for _ in 0..<bound {
+                guard let slug = iterator.next() else { break }
+                group.addTask { [weak self] in
+                    _ = try? await self?.fetchEntry(slug: slug)
+                }
+            }
+            while await group.next() != nil {
+                if let slug = iterator.next() {
+                    group.addTask { [weak self] in
+                        _ = try? await self?.fetchEntry(slug: slug)
+                    }
+                }
+            }
+        }
     }
 
     private static func fetchEntryRequest(slug: String) async throws -> EastonsDictionaryEntry {

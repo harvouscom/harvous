@@ -316,7 +316,6 @@ extension EditorProxy {
             addLinkDisplayName = "link"
         }
         addLinkTargetURL = existingURL.isEmpty ? "" : existingURL
-        if addLinkTargetURL.isEmpty { addLinkTargetURL = "https://" }
         addLinkPendingRange = range
         addLinkIsInsertion = range.length == 0
         Task { @MainActor in

@@ -38,11 +38,13 @@ private final class EditorAutosaveDebouncer {
         task?.cancel()
         sequence += 1
         let token = sequence
+        let expectedNoteId = note.id
         task = Task { @MainActor in
             defer { onSettled(token) }
             let nanos = UInt64((delay * 1_000_000_000).rounded())
             try? await Task.sleep(nanoseconds: nanos)
             guard !Task.isCancelled else { return }
+            guard note.id == expectedNoteId else { return }
             let unchanged =
                 note.title == self.latestTitle && note.body == self.latestBody && note.detectedRefs == self.latestRefs
             guard !unchanged else { return }
@@ -84,6 +86,8 @@ struct NoteEditorView: View {
     /// Reference-type debounce — must not use `@State` timestamps keyed to each keypress (that remounts the editor).
     @State private var autosave = EditorAutosaveDebouncer()
     @State private var latestAutosaveToken: UInt64 = 0
+    /// Suppresses debounced saves while `syncFromNote` and the text view reset settle after a note switch.
+    @State private var isNoteTransition = false
     @State private var isFolderContextUpdating = false
     @State private var newNoteTiltTrigger = false
     @State private var showFolderToolbarText = true
@@ -124,6 +128,9 @@ struct NoteEditorView: View {
     @State private var scripturePassageHighlights: [StudyThread] = []
     /// Prefetch scripture HTML for pills in this note — cancelled when switching notes or on editor disappear.
     @State private var scripturePillPrefetchTask: Task<Void, Never>?
+    /// Prefetch Easton's entries for words on this note's existing reference-highlight threads —
+    /// cancelled on note switch. Re-fired when threads change or when the slug index finishes loading.
+    @State private var eastonsEntryPrefetchTask: Task<Void, Never>?
     /// Coalesces rapid back-to-back refreshThreads() calls (note switch, scene phase, highlight events)
     /// into a single execution within the same event turn.
     @State private var refreshThreadsTask: Task<Void, Never>?
@@ -252,6 +259,7 @@ struct NoteEditorView: View {
             value: NoteShareSnapshot(title: note != nil ? title : "", body: note != nil ? editorState.plainText : "")
         )
         .onChange(of: note?.id) { oldId, newId in
+            isNoteTransition = true
             // Synchronous: `HarvousEditor` also resets async on `boundNoteID` change; without this, proxy
             // pill / format state can lag one turn and briefly pair stale UI with the new note.
             proxy.resetFormatBarStateForNewNote()
@@ -288,6 +296,9 @@ struct NoteEditorView: View {
             scheduleSyncIOSNoteFooterSupplement()
             #endif
             scheduleConsumePendingStudyHighlightListActivation()
+            Task { @MainActor in
+                isNoteTransition = false
+            }
         }
         .onChange(of: scenePhase) { _, phase in
             if phase == .active {
@@ -324,6 +335,20 @@ struct NoteEditorView: View {
         .onChange(of: isFolderContextUpdating) { _, updating in
             guard updating else { return }
             animateFolderTextReveal(for: chipPrimaryLabel)
+        }
+        .onChange(of: proxy.singleWordSelection) { _, word in
+            // Speculative prefetch — by the time the user taps Look up, the in-memory entry
+            // cache is already warm and `EastonsEntryView.runFetch` short-circuits the spinner.
+            guard let word, !word.isEmpty else { return }
+            guard let slug = eastonsService.matchedSlug(forWord: word) else { return }
+            eastonsService.prefetchEntry(slug: slug)
+        }
+        .onChange(of: eastonsService.indexLoadState) { _, state in
+            // Once the slug index is loaded (disk hit or network), prefetch entries for any
+            // reference highlights already on this note — covers the case where threads loaded
+            // before the index did.
+            guard state == .loaded, let n = note else { return }
+            scheduleEastonsEntryPrefetch(note: n)
         }
     }
 
@@ -1354,6 +1379,7 @@ struct NoteEditorView: View {
             modelContext: context
         )
         threadsForNote = active
+        scheduleEastonsEntryPrefetch(note: note)
         trailSnapshot = ThreadStore.trailSnapshot(for: note, modelContext: context)
         reconcileStudyHighlightsPainting(for: note)
         // Tag refresh used to run synchronously inside `syncFromNote` on every note switch — ~300 regex
@@ -1767,6 +1793,26 @@ struct NoteEditorView: View {
         }
     }
 
+    /// Bounded-concurrency Easton's prefetch for words on this note's existing reference highlights
+    /// (mirrors `scheduleScripturePassagePrefetch`). Skipped if the slug index isn't loaded yet —
+    /// `.onChange(of: eastonsService.indexLoadState)` re-fires this when it lands.
+    private func scheduleEastonsEntryPrefetch(note: Note) {
+        guard eastonsService.indexLoadState == .loaded else { return }
+        var slugs: [String] = []
+        for thread in threadsForNote where thread.entryKind == .reference {
+            let word = thread.sourceSnippet.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !word.isEmpty else { continue }
+            if let slug = eastonsService.matchedSlug(forWord: word) {
+                slugs.append(slug)
+            }
+        }
+        guard !slugs.isEmpty else { return }
+        eastonsEntryPrefetchTask?.cancel()
+        eastonsEntryPrefetchTask = Task(priority: .utility) {
+            await EastonsDictionaryService.shared.prefetchEntries(slugs: slugs, maxConcurrency: 3)
+        }
+    }
+
     @ViewBuilder
     private func activeScripturePillDock(note: Note) -> some View {
         if let item = activePillDock {
@@ -2047,6 +2093,7 @@ struct NoteEditorView: View {
     // MARK: - Autosave
 
     private func scheduleAutosave(_ note: Note) {
+        guard !isNoteTransition else { return }
         let nextTitle = title
         let nextBody = editorState.plainText
         let allowPrimaryUpdate = shouldAllowPrimaryFolderUpdate(
