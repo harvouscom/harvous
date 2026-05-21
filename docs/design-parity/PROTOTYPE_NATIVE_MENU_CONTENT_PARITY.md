@@ -103,6 +103,7 @@ Matches native `NoteInspectorView` sections.
 | Tags section | Shows tag chips | ✅ implemented |
 | Tag editing | ⏳ Edit in classic app | ⏳ deferred |
 | Info section (created/modified/words) | `InspectorRow` items | ✅ implemented |
+| Added by (note source attribution) | `InspectorRow` + native `infoRow` via `formatNoteAddedBySource` / `addedBySourceLabel` | ✅ implemented |
 | Note type, thread, visibility | Shown when non-default | ✅ implemented |
 
 ---
