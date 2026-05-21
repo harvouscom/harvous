@@ -82,6 +82,7 @@
 		4516BEEC0FEA8BDCECCD6B4E /* NoteListColumn.swift in Sources */ = {isa = PBXBuildFile; fileRef = 498127C75F54638C23269FD1 /* NoteListColumn.swift */; };
 		480D11EE537287A1600314C6 /* EastonsDictionaryService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8CDF2569A93D83705CF06B24 /* EastonsDictionaryService.swift */; };
 		4815A2565DEC8E920FAC39A4 /* HarvousSmokeUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 789F53982AAA89D0DA4699DE /* HarvousSmokeUITests.swift */; };
+		491ECC9B3899B94C5D88BE02 /* ScriptureDockCompareViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = D736977E80024838CA912C8F /* ScriptureDockCompareViews.swift */; };
 		493E2D37181C04CA6449D67C /* Pencil.svg in Resources */ = {isa = PBXBuildFile; fileRef = E10A6B779582F28450068588 /* Pencil.svg */; };
 		49BBC8D30A7F5F382043125E /* ScriptureApplyFeedback.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2CD4564CFE7897AC0499AEEF /* ScriptureApplyFeedback.swift */; };
 		4A8A47AE6F9346DD07A04E12 /* LayoutSidebarRight.svg in Resources */ = {isa = PBXBuildFile; fileRef = 19AA6606D13DD2000D749D2E /* LayoutSidebarRight.svg */; };
@@ -191,6 +192,7 @@
 		B00EB9C463731F7DAFCEF71A /* ActiveScripturePillDock.swift in Sources */ = {isa = PBXBuildFile; fileRef = 75D9D6CD8788226D9258B9A3 /* ActiveScripturePillDock.swift */; };
 		B032F7C840551DC90B9FFD3A /* ScriptureDetectionCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5AA89EACF0D3ACDB001EBBAE /* ScriptureDetectionCoordinator.swift */; };
 		B106AA1D6DE2BD7202D0DD7F /* URLReferencesLocalIndex.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8CBC73396CA186C61E4E1DFE /* URLReferencesLocalIndex.swift */; };
+		B23709D31AE472229F5242FB /* ScriptureDockCompareViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = D736977E80024838CA912C8F /* ScriptureDockCompareViews.swift */; };
 		B3B23C8C73E4C24290856820 /* NoteSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = 76EE19D07C33C5ED54DCF090 /* NoteSnapshot.swift */; };
 		B5749B884617FE5ED1D361A9 /* NoteRelativeTime.swift in Sources */ = {isa = PBXBuildFile; fileRef = 613771F7E191505CBC5A994B /* NoteRelativeTime.swift */; };
 		B62A90665C9446F2A61C2CFF /* HarvousSettingsRoute.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1F6D96B3720050F5E1CDA57 /* HarvousSettingsRoute.swift */; };
@@ -448,6 +450,7 @@
 		CF4BFB19D1DD4E8F9C3AE8FF /* ScripturePassageView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScripturePassageView.swift; sourceTree = "<group>"; };
 		D1F6D96B3720050F5E1CDA57 /* HarvousSettingsRoute.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HarvousSettingsRoute.swift; sourceTree = "<group>"; };
 		D20F2D07B9A7BBBBD8639821 /* README.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = README.md; sourceTree = "<group>"; };
+		D736977E80024838CA912C8F /* ScriptureDockCompareViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScriptureDockCompareViews.swift; sourceTree = "<group>"; };
 		D94D3C7B640BE394DACE5E71 /* LibraryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryView.swift; sourceTree = "<group>"; };
 		DAD02937B4E61EECDC985BEB /* HighlightAnnotationPopover.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HighlightAnnotationPopover.swift; sourceTree = "<group>"; };
 		DB9144D351ECEEB3C826E125 /* NoteFeedRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NoteFeedRow.swift; sourceTree = "<group>"; };
@@ -510,6 +513,7 @@
 				852C74F2A93BB84591859B94 /* ProfileAndSettingsViews.swift */,
 				6A05601AB4F64FCC39B74A44 /* RelatedNotesSheet.swift */,
 				844F0D4C9EECA1D033F21A7B /* ScriptureBookListIndex.swift */,
+				D736977E80024838CA912C8F /* ScriptureDockCompareViews.swift */,
 				33EE20524A0A5E391C4EA530 /* ScriptureHubView.swift */,
 				CF4BFB19D1DD4E8F9C3AE8FF /* ScripturePassageView.swift */,
 				54A34848CE71A3904DF33EEF /* ScripturePillActionBar.swift */,
@@ -1025,6 +1029,7 @@
 				782B79D85BE56136E30D5919 /* ScriptureCanon.swift in Sources */,
 				E89CE97C2FC14EF23EA03EEC /* ScriptureDetectionCoordinator.swift in Sources */,
 				D48E8B8AF6ECF0AAB0AF27B6 /* ScriptureDetector.swift in Sources */,
+				B23709D31AE472229F5242FB /* ScriptureDockCompareViews.swift in Sources */,
 				C97A3BB52C550589C449CD3F /* ScriptureHubView.swift in Sources */,
 				54E0D5AEE1B3F46D31B2CB6C /* ScripturePassageCache.swift in Sources */,
 				EA47FB277B2A0838ED9AE852 /* ScripturePassageDiskStore.swift in Sources */,
@@ -1186,6 +1191,7 @@
 				6A79C3D0EAF96045541867A1 /* ScriptureCanon.swift in Sources */,
 				B032F7C840551DC90B9FFD3A /* ScriptureDetectionCoordinator.swift in Sources */,
 				E638D1DCCB1C39C3E0826134 /* ScriptureDetector.swift in Sources */,
+				491ECC9B3899B94C5D88BE02 /* ScriptureDockCompareViews.swift in Sources */,
 				9AB3DCF19339D79E7141B687 /* ScriptureHubView.swift in Sources */,
 				D4CA351BB42D262FE36AC116 /* ScripturePassageCache.swift in Sources */,
 				E9CA087BE449583307239F7B /* ScripturePassageDiskStore.swift in Sources */,

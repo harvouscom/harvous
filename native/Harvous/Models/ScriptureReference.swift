@@ -4,6 +4,8 @@ import Foundation
 /// (`SettingsDefaultBibleView`) and `UserMetadata.defaultTranslation` on the web.
 enum HarvousStudyDefaults {
     static let defaultTranslationStorageKey = "harvous.settings.study.defaultTranslation"
+    /// Mirrors web `localStorage` key `scriptureCompareLastTranslation`.
+    static let scriptureCompareLastTranslationKey = "harvous.settings.study.scriptureCompareLastTranslation"
 
     /// Reads `UserDefaults.standard` so native scripture pills and chips respect the same value as `@AppStorage`.
     static func resolvedPreferredTranslation() -> String {
@@ -11,6 +13,20 @@ enum HarvousStudyDefaults {
             .trimmingCharacters(in: .whitespacesAndNewlines)
         if raw.isEmpty { return "NET" }
         return raw
+    }
+
+    /// Last translation chosen in scripture Compare mode; falls back to `fallback` when unset or invalid.
+    static func resolvedCompareTranslation(fallback: String) -> String {
+        let raw = (UserDefaults.standard.string(forKey: scriptureCompareLastTranslationKey) ?? "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        if raw.isEmpty { return fallback }
+        if ScriptureReference.availableTranslations.contains(raw) { return raw }
+        return fallback
+    }
+
+    static func persistCompareTranslation(_ code: String) {
+        guard ScriptureReference.availableTranslations.contains(code) else { return }
+        UserDefaults.standard.set(code, forKey: scriptureCompareLastTranslationKey)
     }
 }
 

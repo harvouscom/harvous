@@ -67,6 +67,11 @@ struct ActiveScripturePillDock: View {
 
     @Environment(\.modelContext) private var modelContext
     @Environment(\.colorScheme) private var dockColorScheme
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+
+    /// Study (default) vs read-only translation compare — compare never mutates the inline pill.
+    @State private var dockMode: ScriptureDockMode = .study
+    @State private var compareTranslation: String = ScriptureReference.defaultTranslation
 
     // MARK: Local picker state (seeded from `reference`; commits immediately when pickers change)
 
@@ -162,6 +167,19 @@ struct ActiveScripturePillDock: View {
         allowsCollapseExpand ? isExpanded : true
     }
 
+    private var compareNoteBlockLabel: String {
+        showsPillAccentControls ? "Your note" : "Passage"
+    }
+
+    private var useSideBySideCompare: Bool {
+        guard expandedBodyWidth > 600 else { return false }
+        #if os(macOS)
+        return true
+        #else
+        return horizontalSizeClass == .regular
+        #endif
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             headerRow
@@ -187,7 +205,7 @@ struct ActiveScripturePillDock: View {
                 .allowsHitTesting(false)
         )
         .overlay(alignment: .bottom) {
-            if let tapped = tappedPassageHighlight {
+            if dockMode == .study, let tapped = tappedPassageHighlight {
                 ActiveHighlightDock(
                     thread: tapped,
                     isExpanded: $tappedPassageHighlightExpanded,
@@ -222,6 +240,7 @@ struct ActiveScripturePillDock: View {
         }
         .onAppear {
             seedPickerStateFromReference(reference)
+            seedCompareTranslationFromNote()
             syncInitialFocusedPassageHighlightIfNeeded(force: false)
         }
         .onChange(of: scripturePassageHighlights.map(\.id)) { _, _ in
@@ -234,12 +253,17 @@ struct ActiveScripturePillDock: View {
         .onChange(of: reference) { _, newValue in
             passageSelectionNormalized = ""
             appliedInitialFocusedPassageHighlightId = nil
+            dockMode = .study
+            seedCompareTranslationFromNote()
             seedPickerStateFromReference(newValue)
             syncInitialFocusedPassageHighlightIfNeeded(force: false)
         }
         .onChange(of: translation) { _, _ in
             passageSelectionNormalized = ""
             syncInitialFocusedPassageHighlightIfNeeded(force: false)
+            if dockMode == .compare {
+                seedCompareTranslationFromNote()
+            }
         }
         .onChange(of: passageSelectionNormalized) { _, new in
             // Start speculative generation as soon as text is selected so the result is ready
@@ -281,7 +305,7 @@ struct ActiveScripturePillDock: View {
         // Title is lineLimit(1) so both sides are the same height — .center aligns icon/text with
         // optional accent controls, collapse chevron (when enabled), and close on the right.
         HStack(alignment: .center, spacing: 8) {
-            HarvousFAGlyph(assetName: "Harvous.BookOpen", edgePt: 13)
+            HarvousFAGlyph(assetName: dockMode == .compare ? "Harvous.ArrowsLeftRight" : "Harvous.BookOpen", edgePt: 13)
                 .foregroundStyle(.primary)
 
             HStack(alignment: .center, spacing: 8) {
@@ -289,22 +313,58 @@ struct ActiveScripturePillDock: View {
                     .font(.system(size: 14, weight: .semibold))
                     .foregroundStyle(.primary)
                     .lineLimit(1)
-                Text(ScriptureReference.displayTranslationLabel(translation))
-                    .font(.system(size: 10, weight: .semibold))
-                    .textCase(.uppercase)
-                    .foregroundStyle(.secondary)
+                if dockMode == .study {
+                    Text(ScriptureReference.displayTranslationLabel(translation))
+                        .font(.system(size: 10, weight: .semibold))
+                        .textCase(.uppercase)
+                        .foregroundStyle(.secondary)
+                } else {
+                    Text("Compare")
+                        .font(.system(size: 10, weight: .semibold))
+                        .textCase(.uppercase)
+                        .foregroundStyle(.secondary)
+                }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .contentShape(Rectangle())
             .onTapGesture {
-                guard allowsCollapseExpand else { return }
+                guard allowsCollapseExpand, dockMode == .study else { return }
                 withAnimation(.spring(response: 0.32, dampingFraction: 0.82)) {
                     isExpanded.toggle()
                 }
             }
 
             HStack(spacing: 2) {
-                if showsPillAccentControls {
+                if dockMode == .study {
+                    toolbarButton(
+                        assetName: "Harvous.ArrowsLeftRight",
+                        help: "Compare translations",
+                        prominent: false
+                    ) {
+                        clearPassageSelectionState()
+                        withAnimation(.spring(response: 0.32, dampingFraction: 0.82)) {
+                            seedCompareTranslationFromNote()
+                            dockMode = .compare
+                            if allowsCollapseExpand { isExpanded = true }
+                        }
+                    }
+
+                    toolbarDivider
+                } else {
+                    toolbarButton(
+                        assetName: "Harvous.BookOpen",
+                        help: "Back to study",
+                        prominent: true
+                    ) {
+                        withAnimation(.spring(response: 0.32, dampingFraction: 0.82)) {
+                            dockMode = .study
+                        }
+                    }
+
+                    toolbarDivider
+                }
+
+                if showsPillAccentControls, dockMode == .study {
                     DockAccentSwatchButton(
                         selection: Binding(
                             get: { accent ?? .neutral },
@@ -319,7 +379,7 @@ struct ActiveScripturePillDock: View {
                     toolbarDivider
                 }
 
-                if allowsCollapseExpand {
+                if allowsCollapseExpand, dockMode == .study {
                     toolbarButton(
                         assetName: isExpanded ? "Harvous.ChevronUp" : "Harvous.ChevronDown",
                         help: isExpanded ? "Collapse" : "Expand",
@@ -415,10 +475,26 @@ struct ActiveScripturePillDock: View {
 
     @ViewBuilder
     private var expandedBody: some View {
-        if fillsAvailableHeight {
+        if dockMode == .compare {
+            compareExpandedBody
+        } else if fillsAvailableHeight {
             expandedBodyPassageFillsOfferedHeight
         } else {
             expandedBodyContentFitHeight
+        }
+    }
+
+    private var compareExpandedBody: some View {
+        ScriptureDockCompareSection(
+            reference: reference,
+            noteTranslation: translation,
+            compareTranslation: $compareTranslation,
+            noteBlockLabel: compareNoteBlockLabel,
+            useSideBySide: useSideBySideCompare,
+            fillsAvailableHeight: fillsAvailableHeight
+        )
+        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width in
+            Task { @MainActor in expandedBodyWidth = width }
         }
     }
 
@@ -461,7 +537,11 @@ struct ActiveScripturePillDock: View {
         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width in
             Task { @MainActor in expandedBodyWidth = width }
         }
-        .overlay(alignment: .topLeading) { passageSelectionOverlay }
+        .overlay(alignment: .topLeading) {
+            if dockMode == .study {
+                passageSelectionOverlay
+            }
+        }
         .animation(.spring(response: 0.36, dampingFraction: 0.82), value: passageHighlightDraft != nil)
     }
 
@@ -503,7 +583,11 @@ struct ActiveScripturePillDock: View {
         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width in
             Task { @MainActor in expandedBodyWidth = width }
         }
-        .overlay(alignment: .topLeading) { passageSelectionOverlay }
+        .overlay(alignment: .topLeading) {
+            if dockMode == .study {
+                passageSelectionOverlay
+            }
+        }
         .animation(.spring(response: 0.36, dampingFraction: 0.82), value: passageHighlightDraft != nil)
     }
 
@@ -851,6 +935,20 @@ struct ActiveScripturePillDock: View {
         tappedPassageHighlight = hit
         tappedPassageHighlightExpanded = true
         appliedInitialFocusedPassageHighlightId = want
+    }
+
+    private func seedCompareTranslationFromNote() {
+        compareTranslation = HarvousStudyDefaults.resolvedCompareTranslation(fallback: translation)
+    }
+
+    private func clearPassageSelectionState() {
+        passageSelectionNormalized = ""
+        passageSelectionRect = nil
+        passageHighlightDraft = nil
+        tappedPassageHighlight = nil
+        speculativeGenTask?.cancel()
+        speculativeGenTask = nil
+        speculativeGenResult = nil
     }
 }
 
