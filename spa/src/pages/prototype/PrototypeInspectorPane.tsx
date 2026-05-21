@@ -6,6 +6,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { NoteDetail } from '../../hooks/queries/useNote';
 import { noteFolderMembershipLabels } from '@/utils/note-folder-display';
+import { formatNoteAddedBySource } from '@/utils/note-added-by-display';
 import Icon from '@/components/react/Icon';
 import { useProtoShell } from '../../layouts/proto-shell-context';
 
@@ -72,6 +73,7 @@ export default function PrototypeInspectorPane({ note }: PrototypeInspectorPaneP
             <InspectorSimpleNoteIdRow simpleNoteId={note.simpleNoteId} />
           ) : null}
           <InspectorRow label="Created" value={createdStr} />
+          <InspectorRow label="Added by" value={formatNoteAddedBySource(note.addedBy)} />
           <InspectorRow label="Modified" value={updatedStr} />
           <InspectorRow label="Words" value={String(wordCount)} />
           {note.noteType && note.noteType !== 'default' ? (

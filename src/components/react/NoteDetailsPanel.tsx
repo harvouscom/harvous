@@ -18,6 +18,7 @@ import { getCachedNoteDetails, setCachedNoteDetails } from '@/utils/note-details
 import { invalidatePanelDataCache, PANEL_CACHE_KEYS } from '@/utils/panel-data-cache';
 import { getModalOverlayBaseStyle, useDesktopMainModalPortal } from '@/hooks/useDesktopMainModalPortal';
 import { isMyPileDisplayTitle, MY_PILE_THREAD_TITLE } from '@/utils/my-pile-thread';
+import { formatNoteAddedByLabel, normalizeNoteAddedBy } from '@/utils/note-added-by-display';
 
 interface Thread {
   id: string;
@@ -192,7 +193,7 @@ export default function NoteDetailsPanel({
         setNoteCreatedAt(cached.note.createdAt ? new Date(cached.note.createdAt) : null);
         setNoteSimpleId(cached.note.simpleNoteId ?? null);
         setNoteVersion(cached.note.version ?? null);
-        setNoteAddedBy(cached.note.addedBy || 'user');
+        setNoteAddedBy(normalizeNoteAddedBy(cached.note.addedBy));
         setNoteType(cached.note.noteType || 'default');
         setNoteUserId(cached.note.userId ?? null);
         setLinkedFromNoteId(cached.note.linkedFromNoteId ?? null);
@@ -248,7 +249,7 @@ export default function NoteDetailsPanel({
           setNoteCreatedAt(data.note.createdAt ? new Date(data.note.createdAt) : null);
           setNoteSimpleId(data.note.simpleNoteId || null);
           setNoteVersion(data.note.version || null);
-          setNoteAddedBy(data.note.addedBy || 'user');
+          setNoteAddedBy(normalizeNoteAddedBy(data.note.addedBy));
           setNoteType(data.note.noteType || 'default');
           setNoteUserId(data.note.userId ?? null);
           setLinkedFromNoteId(data.note.linkedFromNoteId ?? null);
@@ -763,7 +764,7 @@ export default function NoteDetailsPanel({
                       )}
                       {noteAddedBy && (
                         <span className="leading-[normal] text-nowrap">
-                          {noteAddedBy === 'harvous' ? 'Added by Harvous' : 'Added by you'}
+                          {formatNoteAddedByLabel(noteAddedBy)}
                         </span>
                       )}
                     </div>

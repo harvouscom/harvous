@@ -38,6 +38,8 @@ final class Note {
     /// Local per-device sequential ID for human-readable labels (`N001`), assigned on create/backfill.
     /// TODO: When native cloud sync lands, reconcile with server `simpleNoteId` on conflict.
     var simpleNoteId: Int?
+    /// Source attribution (`user`, `harvous`, `mcp-*`, etc.). Defaults to user until cloud sync maps server values.
+    var addedBy: String = "user"
     var createdAt: Date
     var updatedAt: Date
 
@@ -208,5 +210,10 @@ extension Note {
             guard let p = ScriptureReferenceParser.parse(ref) else { return false }
             return p == passage
         }
+    }
+
+    /// Source name for inspector rows where the label is already "Added by".
+    var addedBySourceLabel: String {
+        addedBy == "harvous" ? "Harvous" : "You"
     }
 }

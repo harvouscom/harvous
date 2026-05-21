@@ -227,6 +227,7 @@ struct NoteInspectorView: View {
                 infoSimpleNoteIdRow(displayText: simpleNoteIdCopied ? "Copied" : formatSimpleNoteId(sid))
             }
             infoRow("Created", value: note.createdAt.formatted(date: .abbreviated, time: .shortened))
+            infoRow("Added by", value: note.addedBySourceLabel)
             infoRow("Modified", value: note.updatedAt.formatted(date: .abbreviated, time: .shortened))
             infoRow("Reading", value: readingTimeLabel)
             infoRow("Words", value: wordCount)
