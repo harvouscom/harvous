@@ -4,9 +4,6 @@ import SwiftData
 #if canImport(ClerkKit)
 import ClerkKit
 #endif
-#if canImport(ClerkKitUI)
-import ClerkKitUI
-#endif
 
 /// Root view that swaps between Clerk's auth UI and `Content` based on
 /// the current session state. Loading Clerk is awaited once; thereafter the
@@ -63,14 +60,7 @@ struct SignInGate<Content: View>: View {
 /// silently breaking the build.
 private struct SignInPlaceholder: View {
     var body: some View {
-        // ClerkKitUI 1.1.x only ships `AuthView` inside `#if os(iOS)`, so on
-        // macOS we render a placeholder until a Mac-native auth flow lands
-        // (likely an `ASWebAuthenticationSession` against the Clerk-hosted UI).
-        #if os(iOS) && canImport(ClerkKitUI)
-        AuthView()
-        #elseif canImport(ClerkKit)
-        // ClerkKitUI's AuthView is iOS-only in 1.1.x, so on macOS we use a
-        // hand-rolled email-code form against ClerkKit's core APIs.
+        #if canImport(ClerkKit)
         MacSignInView()
         #else
         VStack(spacing: 12) {

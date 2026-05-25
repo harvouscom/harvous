@@ -66,7 +66,9 @@ struct MacSignInView: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
+        #if os(macOS)
         .frame(minWidth: 560, minHeight: 560)
+        #endif
     }
 
     // MARK: - Floating site-style header bar (mirrors /site/ Header.astro)
@@ -112,34 +114,41 @@ struct MacSignInView: View {
 
     @ViewBuilder
     private var heroHeadline: some View {
-        // "your" gets the marker swipe across every state.
         switch step {
         case .enterDetails where mode == .signIn:
-            HStack(alignment: .firstTextBaseline, spacing: 0) {
-                displayWord("Open ")
-                displayWord("your", marked: true)
-                displayWord(" study Bible.")
-            }
+            headlineLayout(line1Start: "Open ", line2: "study Bible.")
         case .enterDetails where mode == .signUp:
-            HStack(alignment: .firstTextBaseline, spacing: 0) {
-                displayWord("Create ")
-                displayWord("your", marked: true)
-                displayWord(" study Bible.")
-            }
+            headlineLayout(line1Start: "Create ", line2: "study Bible.")
         case .enterCode:
-            HStack(alignment: .firstTextBaseline, spacing: 0) {
-                displayWord("Check ")
-                displayWord("your", marked: true)
-                displayWord(" inbox.")
-            }
+            headlineLayout(line1Start: "Check ", line2: "inbox.")
         default:
             EmptyView()
         }
     }
 
+    @ViewBuilder
+    private func headlineLayout(line1Start: String, line2: String) -> some View {
+        VStack(spacing: 0) {
+            HStack(alignment: .firstTextBaseline, spacing: 0) {
+                displayWord(line1Start)
+                displayWord("your", marked: true)
+            }
+            displayWord(line2)
+        }
+        .multilineTextAlignment(.center)
+        .frame(maxWidth: .infinity)
+    }
+
     private func displayWord(_ text: String, marked: Bool = false) -> some View {
+        let fontSize: CGFloat = {
+            #if os(iOS)
+            return UIScreen.main.bounds.width * 0.105
+            #else
+            return 44
+            #endif
+        }()
         let view = Text(text)
-            .font(.harvousDisplay(size: 44))
+            .font(.harvousDisplay(size: fontSize))
             .foregroundStyle(HarvousSitePalette.ink)
         if marked {
             return AnyView(

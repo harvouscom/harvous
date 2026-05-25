@@ -8,6 +8,11 @@ options:
   defaultConfig: Debug
   xcodeVersion: "16.0"
 
+packages:
+  ClerkiOS:
+    url: https://github.com/clerk/clerk-ios
+    version: 1.1.3
+
 settings:
   base:
     SWIFT_VERSION: "6.0"
@@ -19,8 +24,8 @@ targets:
     type: application
     platform: [macOS, iOS]
     configFiles:
-      Debug: Configuration/Harvous-Signing.xcconfig
-      Release: Configuration/Harvous-Signing.xcconfig
+      Debug: Configuration/Harvous-Signing.Debug.xcconfig
+      Release: Configuration/Harvous-Signing.Release.xcconfig
     sources:
       - path: .
         excludes:
@@ -35,6 +40,7 @@ targets:
           - "release.sh"
           - "null.o"
           - ".harvous_ios_derived_data/**"
+          - ".harvous_mac_derived_data/**"
           - "reupload-mac-dmg.sh"
     settings:
       base:
@@ -54,6 +60,11 @@ targets:
           DEBUG_INFORMATION_FORMAT: dwarf
         Release:
           DEBUG_INFORMATION_FORMAT: dwarf-with-dsym
+    dependencies:
+      - package: ClerkiOS
+        product: ClerkKit
+      - package: ClerkiOS
+        product: ClerkKitUI
     entitlements:
       path: Harvous.entitlements
 
