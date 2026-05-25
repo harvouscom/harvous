@@ -3,6 +3,12 @@ import UniformTypeIdentifiers
 #if os(iOS)
 import UIKit
 #endif
+#if canImport(ClerkKit)
+import ClerkKit
+#endif
+#if canImport(ClerkKitUI)
+import ClerkKitUI
+#endif
 
 // MARK: - Settings detail background
 
@@ -61,10 +67,8 @@ struct HarvousSettingsFormView: View {
     var body: some View {
         Group {
             switch item {
-            case .editProfile:
-                SettingsEditProfileView()
-            case .emailPassword:
-                SettingsEmailPasswordView()
+            case .account:
+                SettingsAccountView()
             case .subscription:
                 SettingsSubscriptionView()
             case .defaultBible:
@@ -94,65 +98,215 @@ struct HarvousSettingsFormView: View {
     }
 }
 
-// MARK: - Name
+// MARK: - Account (Name + email/password/sign-out/delete)
 
-private struct SettingsEditProfileView: View {
+/// Combined account screen. Top: Name editor (replaces the old avatar header).
+/// Bottom: email, password, sign-out, delete account — on iOS via ClerkKitUI's
+/// `UserProfileView`, on macOS via the custom `MacAccountSecurityView`.
+private struct SettingsAccountView: View {
+    var body: some View {
+        #if os(iOS) && canImport(ClerkKitUI)
+        // iOS embeds Clerk's UserProfileView for email/password/MFA; the Name editor
+        // sits above it in its own grouped form-style block.
+        ScrollView {
+            VStack(spacing: 0) {
+                NameEditorBlock()
+                UserProfileView()
+                    .frame(minHeight: 600)
+            }
+        }
+        .background(Color.harvousSettingsDetailBackground)
+        #else
+        // macOS: a single Form with the Name editor first, then the Mac-native
+        // account-security sections (email, sign-out, delete).
+        MacAccountSecurityView()
+        #endif
+    }
+}
+
+#if os(iOS) && canImport(ClerkKitUI)
+/// iOS-only: standalone Name editor block shown above Clerk's `UserProfileView`.
+private struct NameEditorBlock: View {
+    var body: some View {
+        Form {
+            NameEditorSectionContent()
+        }
+        .harvousGroupedSettingsForm()
+        .frame(minHeight: 320)
+        .scrollDisabled(true)
+    }
+}
+#endif
+
+/// Shared section content — used by the iOS `NameEditorBlock` and the macOS
+/// `MacAccountSecurityView` so both surfaces stay in sync.
+private struct NameEditorSectionContent: View {
     @AppStorage(HarvousSettingsStorageKeys.firstName) private var firstName = ""
     @AppStorage(HarvousSettingsStorageKeys.lastName) private var lastName = ""
+    @State private var bridge = HarvousClerkBridge.shared
+    @State private var isSaving = false
+    @State private var saveError: String?
+
+    private var isSignedIn: Bool { bridge.currentProfile != nil }
 
     var body: some View {
-        Form {
-            Section {
-                Text("How you appear in Harvous. When you use the web app while signed in, these fields sync to your account.")
-                    .font(HarvousTypography.subheadline)
-                    .foregroundStyle(.secondary)
-            }
-            Section("Name") {
-                TextField("First name", text: $firstName)
-                    .textContentType(.givenName)
-                TextField("Last name", text: $lastName)
-                    .textContentType(.familyName)
-            }
-            Section {
-                Text("Changes here are stored on this device. Open app.harvous.com and use Profile to sync to the cloud.")
-                    .font(HarvousTypography.footnote)
-                    .foregroundStyle(.secondary)
-            }
+        Section("Name") {
+            TextField("First name", text: $firstName)
+                .textContentType(.givenName)
+            TextField("Last name", text: $lastName)
+                .textContentType(.familyName)
         }
-        .harvousGroupedSettingsForm()
-    }
-}
-
-// MARK: - Email & password
-
-private struct SettingsEmailPasswordView: View {
-    var body: some View {
-        Form {
+        if isSignedIn {
             Section {
-                Text("Harvous uses Clerk for sign-in, email verification, and password changes. The native app does not embed the full account flow yet.")
-                    .font(HarvousTypography.subheadline)
-                    .foregroundStyle(.secondary)
-            }
-            Section("Manage on the web") {
-                Link(destination: URL(string: "https://app.harvous.com/sign-in")!) {
-                    #if os(iOS)
-                    HarvousIOSSettingsGlyphRow(title: "Open Harvous sign-in", assetName: "Harvous.Globe")
-                    #else
-                    Label("Open Harvous sign-in", systemImage: "safari")
-                    #endif
+                Button {
+                    Task { await saveToCloud() }
+                } label: {
+                    HStack {
+                        Text("Save to my account")
+                        if isSaving {
+                            Spacer()
+                            ProgressView().controlSize(.small)
+                        }
+                    }
                 }
-                Link(destination: URL(string: "https://app.harvous.com/profile")!) {
-                    #if os(iOS)
-                    HarvousIOSSettingsGlyphRow(title: "Open profile on the web", assetName: "Harvous.UserFilled")
-                    #else
-                    Label("Open profile on the web", systemImage: "person.crop.circle")
-                    #endif
+                .disabled(isSaving)
+                if let saveError {
+                    Text(saveError)
+                        .font(HarvousTypography.footnote)
+                        .foregroundStyle(.red)
                 }
             }
         }
-        .harvousGroupedSettingsForm()
+        Section {
+            Text(isSignedIn
+                 ? "Shown as “First L.” throughout the app. Names also save on this device so the app looks correct offline."
+                 : "Changes here are stored on this device only. Sign in to sync them to your Harvous account.")
+                .font(HarvousTypography.footnote)
+                .foregroundStyle(.secondary)
+        }
+        .onAppear { hydrateFromCloud() }
+    }
+
+    private func hydrateFromCloud() {
+        guard let p = bridge.currentProfile else { return }
+        if firstName.isEmpty, let f = p.firstName, !f.isEmpty { firstName = f }
+        if lastName.isEmpty, let l = p.lastName, !l.isEmpty { lastName = l }
+    }
+
+    private func saveToCloud() async {
+        isSaving = true
+        saveError = nil
+        defer { isSaving = false }
+        do {
+            try await bridge.updateProfile(
+                firstName: firstName.trimmingCharacters(in: .whitespaces),
+                lastName: lastName.trimmingCharacters(in: .whitespaces)
+            )
+        } catch {
+            saveError = error.localizedDescription
+        }
     }
 }
+
+#if !(os(iOS) && canImport(ClerkKitUI))
+/// Native macOS account screen: avatar, email, sign-out, delete account. The
+/// "edit name" flow lives in `SettingsEditProfileView` so we don't duplicate it.
+private struct MacAccountSecurityView: View {
+    @State private var bridge = HarvousClerkBridge.shared
+    @State private var isSigningOut = false
+    @State private var confirmDelete = false
+    @State private var isDeleting = false
+    @State private var actionError: String?
+
+    var body: some View {
+        Form {
+            // Name editor sits at the top, replacing the old avatar/email header row.
+            NameEditorSectionContent()
+
+            if let profile = bridge.currentProfile {
+                Section("Email") {
+                    LabeledContent("Email", value: profile.primaryEmail ?? "—")
+                }
+                Section {
+                    Text("Manage password, multi-factor authentication, and connected accounts on iPhone, iPad, or at app.harvous.com — a full Mac flow is coming soon.")
+                        .font(HarvousTypography.footnote)
+                        .foregroundStyle(.secondary)
+                }
+                Section {
+                    Button {
+                        Task { await doSignOut() }
+                    } label: {
+                        if isSigningOut {
+                            HStack { Text("Signing out…"); Spacer(); ProgressView().controlSize(.small) }
+                        } else {
+                            Text("Sign out")
+                        }
+                    }
+                    .disabled(isSigningOut || isDeleting)
+                }
+                Section {
+                    Button(role: .destructive) {
+                        confirmDelete = true
+                    } label: {
+                        Text("Delete account")
+                    }
+                    .disabled(isSigningOut || isDeleting)
+                } footer: {
+                    Text("Deleting your account is permanent. Your cloud notes will be removed; on-device copies will remain until you sign in again.")
+                }
+            } else {
+                Section {
+                    Text("You're not signed in. Sign in on the welcome screen to manage your account here.")
+                        .font(HarvousTypography.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            if let actionError {
+                Section {
+                    Text(actionError)
+                        .font(HarvousTypography.footnote)
+                        .foregroundStyle(.red)
+                }
+            }
+        }
+        .harvousGroupedSettingsForm()
+        .confirmationDialog(
+            "Delete this account?",
+            isPresented: $confirmDelete,
+            titleVisibility: .visible
+        ) {
+            Button("Delete permanently", role: .destructive) {
+                Task { await doDelete() }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("This removes the account from Harvous and signs you out of all devices. This cannot be undone.")
+        }
+        .onAppear { bridge.refreshProfile() }
+    }
+
+    private func doSignOut() async {
+        isSigningOut = true
+        actionError = nil
+        defer { isSigningOut = false }
+        await bridge.signOut()
+    }
+
+    private func doDelete() async {
+        isDeleting = true
+        actionError = nil
+        defer { isDeleting = false }
+        do {
+            try await bridge.deleteAccount()
+            await bridge.signOut() // ensure SignInGate flips back
+        } catch {
+            actionError = error.localizedDescription
+        }
+    }
+}
+
+#endif
 
 // MARK: - Subscription
 
@@ -703,9 +857,32 @@ private func harvousYouSheetProfileInitials(firstName: String, lastName: String)
 struct YouRootView: View {
     @AppStorage(HarvousSettingsStorageKeys.firstName) private var firstName = ""
     @AppStorage(HarvousSettingsStorageKeys.lastName) private var lastName = ""
+    @State private var bridge = HarvousClerkBridge.shared
+    @State private var isSigningOut = false
+
+    private var profile: HarvousUserProfile? { bridge.currentProfile }
+
+    private var headlineName: String {
+        if let p = profile { return p.compactDisplayName }
+        let trimmedFirst = firstName.trimmingCharacters(in: .whitespaces)
+        let trimmedLast = lastName.trimmingCharacters(in: .whitespaces)
+        if !trimmedFirst.isEmpty {
+            if let initial = trimmedLast.first.map({ String($0).uppercased() }) {
+                return "\(trimmedFirst) \(initial)."
+            }
+            return trimmedFirst
+        }
+        return "You"
+    }
+
+    private var subheading: String {
+        if let email = profile?.primaryEmail { return email }
+        return "Harvous on this device"
+    }
 
     private var profileInitials: String {
-        harvousYouSheetProfileInitials(firstName: firstName, lastName: lastName)
+        if let p = profile { return p.initials }
+        return harvousYouSheetProfileInitials(firstName: firstName, lastName: lastName)
     }
 
     var body: some View {
@@ -724,9 +901,9 @@ struct YouRootView: View {
                         }
                         .frame(width: 56, height: 56)
                         VStack(alignment: .leading, spacing: 4) {
-                            Text("You")
+                            Text(headlineName)
                                 .font(.title2.weight(.semibold))
-                            Text("Harvous on this device")
+                            Text(subheading)
                                 .font(.subheadline)
                                 .foregroundStyle(.secondary)
                         }
@@ -741,9 +918,32 @@ struct YouRootView: View {
                     HarvousIOSSettingsGlyphRow(title: "Settings", assetName: "Harvous.Gear")
                 }
             }
+
+            if profile != nil {
+                Section {
+                    Button {
+                        Task { await doSignOut() }
+                    } label: {
+                        HStack {
+                            Text(isSigningOut ? "Signing out…" : "Sign out")
+                                .foregroundStyle(.red)
+                            Spacer()
+                            if isSigningOut { ProgressView().controlSize(.small) }
+                        }
+                    }
+                    .disabled(isSigningOut)
+                }
+            }
         }
         .navigationTitle("Account")
         .navigationBarTitleDisplayMode(.inline)
+        .onAppear { bridge.refreshProfile() }
+    }
+
+    private func doSignOut() async {
+        isSigningOut = true
+        defer { isSigningOut = false }
+        await bridge.signOut()
     }
 }
 
@@ -791,7 +991,7 @@ private struct MacPreferencesWindowToolbarChrome: ViewModifier {
 struct MacPreferencesRootView: View {
     @EnvironmentObject private var appRouter: HarvousAppRouter
 
-    @State private var history: [HarvousSettingsSidebarItem] = [.editProfile]
+    @State private var history: [HarvousSettingsSidebarItem] = [.account]
     @State private var historyIndex: Int = 0
 
     private var currentItem: HarvousSettingsSidebarItem { history[historyIndex] }

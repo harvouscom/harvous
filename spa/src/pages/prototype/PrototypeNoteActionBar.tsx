@@ -4,6 +4,7 @@ import Icon from '@/components/react/Icon';
 import LinkPreviewCard from '@/components/react/LinkPreviewCard';
 import type { LinkedNoteRef } from '../../hooks/queries/useNote';
 import PrototypeConnectNoteSheet from './PrototypeConnectNoteSheet';
+import PrototypeShareButton from './PrototypeShareButton';
 import { noteParamSlug } from './proto-route-slugs';
 import { stripServerAutoUntitledNoteTitleForDisplay } from '@/utils/server-auto-untitled-note-display';
 
@@ -20,6 +21,12 @@ export interface PrototypeNoteActionBarProps {
   linkedToNotes: LinkedNoteRef[];
   /** When true, hide Connect note (e.g. onboarding system notes). */
   connectDisabled?: boolean;
+  /** Whether the note currently has a public share link. */
+  isPublic?: boolean;
+  /** The active share token (if any). */
+  shareToken?: string | null;
+  /** When true, hide the share button (encrypted notes, onboarding, etc.). */
+  shareDisabled?: boolean;
 }
 
 function pillDisplayTitle(n: LinkedNoteRef): string {
@@ -125,10 +132,14 @@ export default function PrototypeNoteActionBar({
   linkedFromNotes,
   linkedToNotes,
   connectDisabled = false,
+  isPublic = false,
+  shareToken = null,
+  shareDisabled = false,
 }: PrototypeNoteActionBarProps) {
   const hasTrail = linkedFromNotes.length > 0 || linkedToNotes.length > 0;
   const [connectOpen, setConnectOpen] = useState(false);
   const showConnect = !connectDisabled;
+  const showShare = !shareDisabled;
 
   const connectButton = showConnect ? (
     <button
@@ -143,6 +154,14 @@ export default function PrototypeNoteActionBar({
     </button>
   ) : null;
 
+  const shareButton = showShare ? (
+    <PrototypeShareButton
+      noteId={noteId}
+      isPublic={isPublic}
+      shareToken={shareToken}
+    />
+  ) : null;
+
   const connectSheet = showConnect ? (
     <PrototypeConnectNoteSheet
       open={connectOpen}
@@ -152,7 +171,7 @@ export default function PrototypeNoteActionBar({
     />
   ) : null;
 
-  if (!hasTrail && connectDisabled) {
+  if (!hasTrail && connectDisabled && shareDisabled) {
     return null;
   }
 
@@ -161,7 +180,10 @@ export default function PrototypeNoteActionBar({
       <>
         <div className="proto-note-action-bar" role="toolbar" aria-label="Connected notes">
           <div className="proto-note-action-bar__scroll">
-            <div className="proto-note-action-bar__strip proto-note-action-bar__strip--solo">{connectButton}</div>
+            <div className="proto-note-action-bar__strip proto-note-action-bar__strip--solo">
+              {connectButton}
+              {shareButton}
+            </div>
           </div>
         </div>
         {connectSheet}
@@ -191,6 +213,12 @@ export default function PrototypeNoteActionBar({
               <>
                 <Icon name="arrows-left-right" size={14} className="proto-note-action-bar__sep" aria-hidden />
                 {connectButton}
+              </>
+            ) : null}
+            {shareButton ? (
+              <>
+                <Icon name="arrows-left-right" size={14} className="proto-note-action-bar__sep" aria-hidden />
+                {shareButton}
               </>
             ) : null}
           </div>

@@ -1,0 +1,458 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key></key>
+	<string></string>
+	<key> </key>
+	<string> </string>
+	<key>%@ will be removed from this account. You will no longer be able to sign in using this connected account.</key>
+	<string>%@将从该账户中移除。您将无法再使用此关联账户登录。</string>
+	<key>%@ will be removed from this account. You will no longer be able to sign in using this email address.</key>
+	<string>%@将从该账户中移除。您将无法再使用此电子邮件地址登录。</string>
+	<key>%@ will be removed from this account. You will no longer be able to sign in using this passkey.</key>
+	<string>%@将从该账户中移除。您将无法再使用此密码钥匙登录。</string>
+	<key>%@ will be removed from this account. You will no longer be able to sign in using this phone number.</key>
+	<string>%@将从该账户中移除。您将无法再使用此电话号码登录。</string>
+	<key>%@ will no longer be receiving verification codes when signing in.</key>
+	<string>%@ 将不再在登录时接收验证码。</string>
+	<key>A text message containing a verification code will be sent to this phone number. Message and data rates may apply.</key>
+	<string>将向此电话号码发送包含验证码的短信。可能会收取短信和数据费用。</string>
+	<key>ACTIVE DEVICES</key>
+	<string>活跃设备</string>
+	<key>Account</key>
+	<string>账户</string>
+	<key>Add SMS code verification</key>
+	<string>添加短信验证码验证</string>
+	<key>Add a passkey</key>
+	<string>添加通行密钥</string>
+	<key>Add account</key>
+	<string>添加账户</string>
+	<key>Add authenticator application</key>
+	<string>添加身份验证应用</string>
+	<key>Add email address</key>
+	<string>添加电子邮箱地址</string>
+	<key>Add password</key>
+	<string>添加密码</string>
+	<key>Add phone number</key>
+	<string>添加电话号码</string>
+	<key>Add two-step verification</key>
+	<string>添加两步验证</string>
+	<key>Admin</key>
+	<string>管理员</string>
+	<key>Alternatively, if your authenticator supports TOTP URIs, you can also copy the full URI.</key>
+	<string>或者，如果您的身份验证器支持TOTP URI，您也可以复制完整的URI。</string>
+	<key>Are you sure you want to delete your account? This action is permanent and irreversible.</key>
+	<string>您确定要删除您的账户吗？此操作是永久性的且不可逆转。</string>
+	<key>Authenticator app</key>
+	<string>身份验证器应用</string>
+	<key>Authenticator app verification enabled</key>
+	<string>验证器应用程序验证已启用</string>
+	<key>Authenticator application</key>
+	<string>身份验证应用程序</string>
+	<key>Backup code</key>
+	<string>备用码</string>
+	<key>Backup codes</key>
+	<string>备用码</string>
+	<key>Backup codes are now enabled. You can use one of these to sign in to your account, if you lose access to your authentication device. Each code can only be used once.</key>
+	<string>备份代码现已启用。如果您无法访问身份验证设备，可以使用其中一个代码登录您的帐户。每个代码只能使用一次。</string>
+	<key>CONNECTED ACCOUNTS</key>
+	<string>关联账户</string>
+	<key>Cancel</key>
+	<string>取消</string>
+	<key>Change password</key>
+	<string>更改密码</string>
+	<key>Check your email</key>
+	<string>请检查您的邮箱</string>
+	<key>Check your phone</key>
+	<string>请查看您的手机</string>
+	<key>Choose a username.</key>
+	<string>选择用户名。</string>
+	<key>Choose an Organization</key>
+	<string>选择组织</string>
+	<key>Choose from photo library</key>
+	<string>从照片库中选择</string>
+	<key>Choose how you'd like to receive your two-step verification code.</key>
+	<string>选择您希望如何接收两步验证码。</string>
+	<key>Choose the phone number you want to use for SMS code two-step verification</key>
+	<string>选择您要用于短信代码两步验证的电话号码</string>
+	<key>Choose which method you prefer to protect your account with an extra layer of security</key>
+	<string>选择您喜欢的方法来保护您的帐户并提供额外的安全层</string>
+	<key>Choose your password</key>
+	<string>选择您的密码</string>
+	<key>Choose your username</key>
+	<string>选择您的用户名</string>
+	<key>Close</key>
+	<string>关闭</string>
+	<key>Complete your profile</key>
+	<string>完善您的个人资料</string>
+	<key>Confirm password</key>
+	<string>确认密码</string>
+	<key>Connect account</key>
+	<string>连接账户</string>
+	<key>Contact your organization admin for an invitation.</key>
+	<string>请联系您的组织管理员获取邀请。</string>
+	<key>Continue</key>
+	<string>继续</string>
+	<key>Continue to %@</key>
+	<string>继续前往%@</string>
+	<key>Continue with %@</key>
+	<string>使用%@继续</string>
+	<key>Copy to clipboard</key>
+	<string>复制到剪贴板</string>
+	<key>Create a unique password.</key>
+	<string>创建一个独特的密码。</string>
+	<key>Create organization</key>
+	<string>创建组织</string>
+	<key>Create your account</key>
+	<string>创建您的账户</string>
+	<key>Created: %@</key>
+	<string>创建时间：%@</string>
+	<key>Current password</key>
+	<string>当前密码</string>
+	<key>DELETE</key>
+	<string>删除</string>
+	<key>DELETE ACCOUNT</key>
+	<string>删除账户</string>
+	<key>Default</key>
+	<string>默认</string>
+	<key>Delete account</key>
+	<string>删除账户</string>
+	<key>Desktop device</key>
+	<string>桌面设备</string>
+	<key>Didn't receive a code?</key>
+	<string>没有收到验证码？</string>
+	<key>Done</key>
+	<string>完成</string>
+	<key>Download</key>
+	<string>下载</string>
+	<key>EMAIL ADDRESSES</key>
+	<string>电子邮箱地址</string>
+	<key>Edit profile</key>
+	<string>编辑个人资料</string>
+	<key>Email address</key>
+	<string>电子邮箱地址</string>
+	<key>Email code to %@</key>
+	<string>发送验证码至%@</string>
+	<key>Email support</key>
+	<string>电子邮件支持</string>
+	<key>Enter a backup code</key>
+	<string>输入备用码</string>
+	<key>Enter a slug using lowercase letters, numbers, and hyphens.</key>
+	<string>请输入仅包含小写字母、数字和连字符的 slug。</string>
+	<key>Enter password</key>
+	<string>使用您的密码登录</string>
+	<key>Enter the email address you'd like to use.</key>
+	<string>输入您想要使用的电子邮箱地址。</string>
+	<key>Enter the password for your account</key>
+	<string>输入您账户的密码</string>
+	<key>Enter the phone number you'd like to use.</key>
+	<string>输入您想要使用的电话号码。</string>
+	<key>Enter the verification code from authenticator application</key>
+	<string>输入验证器应用程序中的验证码</string>
+	<key>Enter the verification code from your authenticator application.</key>
+	<string>输入来自您的身份验证应用的验证码。</string>
+	<key>Enter the verification code sent to %@</key>
+	<string>输入发送到%@的验证码</string>
+	<key>Enter your current password to set a new one.</key>
+	<string>输入您当前的密码以设置新密码。</string>
+	<key>Enter your email</key>
+	<string>请输入您的邮箱</string>
+	<key>Enter your email or username</key>
+	<string>请输入您的邮箱或用户名</string>
+	<key>Enter your organization details to continue</key>
+	<string>输入您的组织详细信息以继续</string>
+	<key>Enter your password</key>
+	<string>使用密码登录</string>
+	<key>Enter your phone number</key>
+	<string>请输入您的电话号码</string>
+	<key>Enter your username</key>
+	<string>请输入您的用户名</string>
+	<key>Facing issues? You can use any of these methods to sign in.</key>
+	<string>遇到问题？您可以使用以下任一方法登录。</string>
+	<key>First name</key>
+	<string>名</string>
+	<key>First, enter the code sent to your email address</key>
+	<string>首先，输入发送到您邮箱的验证码</string>
+	<key>First, enter the code sent to your phone</key>
+	<string>首先，输入发送到您手机的验证码</string>
+	<key>Forgot password?</key>
+	<string>忘记密码？</string>
+	<key>Get help</key>
+	<string>获取帮助</string>
+	<key>Go back</key>
+	<string>返回</string>
+	<key>I agree to the [Privacy Policy](LegalConsentView://privacy)</key>
+	<string>我同意[隐私政策](LegalConsentView://privacy)</string>
+	<key>I agree to the [Terms of Service](LegalConsentView://terms)</key>
+	<string>我同意[服务条款](LegalConsentView://terms)</string>
+	<key>I agree to the [Terms of Service](LegalConsentView://terms) and [Privacy Policy](LegalConsentView://privacy)</key>
+	<string>我同意[服务条款](LegalConsentView://terms)和[隐私政策](LegalConsentView://privacy)</string>
+	<key>If you have trouble completing required account setup, email us and we will help you finish as soon as possible.</key>
+	<string>如果您在完成所需的帐户设置时遇到困难，请给我们发送电子邮件，我们将帮助您尽快完成。</string>
+	<key>If you have trouble creating your account, email us and we will work with you to complete your registration as soon as possible.</key>
+	<string>如果您在创建账户时遇到问题，请发送电子邮件给我们，我们将与您合作尽快完成您的注册。</string>
+	<key>If you have trouble signing into your account, email us and we will work with you to restore access as soon as possible.</key>
+	<string>如果您在登录账户时遇到问题，请发送电子邮件给我们，我们将与您合作尽快恢复访问权限。</string>
+	<key>International</key>
+	<string>国际</string>
+	<key>It is recommended to sign out of all other devices which may have used your old password.</key>
+	<string>建议从所有可能使用过您旧密码的其他设备注销。</string>
+	<key>Join</key>
+	<string>加入</string>
+	<key>Join an existing organization</key>
+	<string>加入现有组织</string>
+	<key>Join an existing organization or create a new one</key>
+	<string>加入现有组织或创建新组织</string>
+	<key>Last Used</key>
+	<string>最后使用</string>
+	<key>Last name</key>
+	<string>姓</string>
+	<key>Last used: %@</key>
+	<string>最后使用：%@</string>
+	<key>Link another login option to your account. You’ll need to verify it before it can be used.</key>
+	<string>将其他登录选项链接到您的账户。使用前需要验证。</string>
+	<key>Linked</key>
+	<string>已关联</string>
+	<key>MFA reserved</key>
+	<string>为MFA保留</string>
+	<key>Make sure Time-based or One-time passwords is enabled, then finish linking your account.</key>
+	<string>确保启用基于时间或一次性的密码，然后完成帐户关联。</string>
+	<key>Manage account</key>
+	<string>管理账户</string>
+	<key>Manual setup key</key>
+	<string>手动设置键</string>
+	<key>Member</key>
+	<string>成员</string>
+	<key>Mobile device</key>
+	<string>移动设备</string>
+	<key>Name of passkey</key>
+	<string>通行密钥名称</string>
+	<key>New password</key>
+	<string>新密码</string>
+	<key>Next</key>
+	<string>下一步</string>
+	<key>Or, sign in with another method</key>
+	<string>或使用其他方式登录</string>
+	<key>Organization name</key>
+	<string>组织名称</string>
+	<key>PASSKEYS</key>
+	<string>通行密钥</string>
+	<key>PASSWORD</key>
+	<string>密码</string>
+	<key>PHONE NUMBERS</key>
+	<string>电话号码</string>
+	<key>Password</key>
+	<string>密码</string>
+	<key>Passwords don't match.</key>
+	<string>密码不匹配。</string>
+	<key>Pending approval</key>
+	<string>等待批准</string>
+	<key>Phone number</key>
+	<string>电话号码</string>
+	<key>Primary</key>
+	<string>主要</string>
+	<key>Privacy Policy</key>
+	<string>隐私政策</string>
+	<key>Profile Details</key>
+	<string>个人资料详情</string>
+	<key>Recommended size 1:1, up to 10MB.</key>
+	<string>建议尺寸为 1:1，最大 10MB。</string>
+	<key>Reconnect</key>
+	<string>重新连接</string>
+	<key>Redirect URL is missing or invalid. Unable to start external authentication flow.</key>
+	<string>重定向 URL 缺失或无效。无法启动外部身份验证流程。</string>
+	<key>Regenerate</key>
+	<string>重新生成</string>
+	<key>Remove</key>
+	<string>移除</string>
+	<key>Remove connected account</key>
+	<string>删除已连接账户</string>
+	<key>Remove connection</key>
+	<string>删除连接</string>
+	<key>Remove email</key>
+	<string>删除邮箱</string>
+	<key>Remove email address</key>
+	<string>删除邮箱地址</string>
+	<key>Remove passkey</key>
+	<string>删除密码钥匙</string>
+	<key>Remove phone</key>
+	<string>删除电话</string>
+	<key>Remove phone number</key>
+	<string>删除电话号码</string>
+	<key>Remove photo</key>
+	<string>移除照片</string>
+	<key>Remove two-step verification</key>
+	<string>移除两步验证</string>
+	<key>Rename</key>
+	<string>重命名</string>
+	<key>Rename passkey</key>
+	<string>重命名通行密钥</string>
+	<key>Request to join</key>
+	<string>请求加入</string>
+	<key>Resend</key>
+	<string>重新发送</string>
+	<key>Resend (%lld)</key>
+	<string>重新发送 (%lld)</string>
+	<key>Reset password</key>
+	<string>重置密码</string>
+	<key>Reset your password</key>
+	<string>重置您的密码</string>
+	<key>SMS code</key>
+	<string>短信验证码</string>
+	<key>SMS code verification enabled</key>
+	<string>短信验证码已启用</string>
+	<key>Save</key>
+	<string>保存</string>
+	<key>Save these codes somewhere safe. If you lose access to your authentication device, you can use a backup code to sign in.</key>
+	<string>将这些代码保存在安全的地方。如果您无法访问身份验证设备，您可以使用备份代码登录。</string>
+	<key>Secured by</key>
+	<string>安全提供</string>
+	<key>Security</key>
+	<string>安全</string>
+	<key>Select an existing phone number to register for SMS code two-step verification or add a new one.</key>
+	<string>选择现有电话号码注册短信验证码两步验证，或添加新号码。</string>
+	<key>Send SMS code to %@</key>
+	<string>发送验证码至%@</string>
+	<key>Set as default</key>
+	<string>设为默认</string>
+	<key>Set as primary</key>
+	<string>设为主要</string>
+	<key>Set new password</key>
+	<string>设置新密码</string>
+	<key>Set up a new sign-in method in your authenticator and enter the Key provided below.
+
+Make sure Time-based or One-time passwords is enabled, then finish linking your account.</key>
+	<string>在您的身份验证器中设置新的登录方法，并输入下面提供的密钥。
+
+确保启用基于时间或一次性密码，然后完成账户链接。</string>
+	<key>Set up a new sign-in method in your authenticator app using the manual setup key below to link it to your account.</key>
+	<string>在您的身份验证器应用中设置新的登录方式，并使用下方的手动设置密钥将其关联到您的帐户。</string>
+	<key>Set up two-step verification</key>
+	<string>设置两步验证</string>
+	<key>Sign in with your passkey</key>
+	<string>使用您的通行密钥登录</string>
+	<key>Sign in with your password</key>
+	<string>使用密码登录</string>
+	<key>Sign out</key>
+	<string>退出登录</string>
+	<key>Sign out of all accounts</key>
+	<string>退出所有账户</string>
+	<key>Sign out of all other devices</key>
+	<string>退出所有其他设备</string>
+	<key>Sign out of device</key>
+	<string>从设备注销</string>
+	<key>Sign up</key>
+	<string>注册</string>
+	<key>Slug</key>
+	<string>URL 简称</string>
+	<key>Success</key>
+	<string>成功</string>
+	<key>Switch account</key>
+	<string>切换账户</string>
+	<key>TWO-STEP VERIFICATION</key>
+	<string>两步验证</string>
+	<key>Terms of Service</key>
+	<string>服务条款</string>
+	<key>There was an error loading the image from the photos library.</key>
+	<string>从照片库加载图像时出错。</string>
+	<key>This device</key>
+	<string>这个设备</string>
+	<key>To continue, please enter the verification code generated by your authenticator app</key>
+	<string>要继续，请输入您的身份验证器应用生成的验证码</string>
+	<key>Two-step verification</key>
+	<string>两步验证</string>
+	<key>Two-step verification is now enabled. When signing in, you will need to enter a verification code from this authenticator app as an additional step.
+
+Save these backup codes and store them somewhere safe. If you lose access to your authentication device, you can use backup codes to sign in.</key>
+	<string>两步验证现已启用。登录时，您需要输入来自此身份验证应用的验证码作为额外步骤。
+
+保存这些备份代码并将其存储在安全的地方。如果您无法访问身份验证设备，可以使用备份代码登录。</string>
+	<key>Two-step verification setup</key>
+	<string>两步验证设置</string>
+	<key>Type "DELETE" to continue</key>
+	<string>输入"删除"以继续</string>
+	<key>Unknown code verification method. Please use another method.</key>
+	<string>未知的验证码验证方式。请使用其他方式。</string>
+	<key>Unknown device</key>
+	<string>未知设备</string>
+	<key>Unverified</key>
+	<string>未验证</string>
+	<key>Update password</key>
+	<string>更新密码</string>
+	<key>Upload logo</key>
+	<string>上传徽标</string>
+	<key>Use a backup code</key>
+	<string>使用备用码</string>
+	<key>Use another method</key>
+	<string>使用其他方法</string>
+	<key>Use email address</key>
+	<string>使用电子邮箱</string>
+	<key>Use email address or username</key>
+	<string>使用电子邮箱或用户名</string>
+	<key>Use phone number</key>
+	<string>使用电话号码</string>
+	<key>Use username</key>
+	<string>使用用户名</string>
+	<key>Use your authenticator app</key>
+	<string>使用您的身份验证器应用</string>
+	<key>Use your passkey</key>
+	<string>使用您的通行密钥</string>
+	<key>Username</key>
+	<string>用户名</string>
+	<key>Using your passkey confirms it's you. Your device may ask for your fingerprint, face or screen lock.</key>
+	<string>使用您的通行密钥可确认您的身份。您的设备可能会要求您提供指纹、面容或屏幕锁定。</string>
+	<key>Verification codes from this authenticator will no longer be required when signing in.</key>
+	<string>登录时将不再需要此身份验证器的验证码。</string>
+	<key>Verify</key>
+	<string>验证</string>
+	<key>Verify authenticator app</key>
+	<string>验证身份验证应用</string>
+	<key>Verify email address</key>
+	<string>验证电子邮箱地址</string>
+	<key>Verify phone number</key>
+	<string>验证电话号码</string>
+	<key>Verify your phone number</key>
+	<string>验证您的电话号码</string>
+	<key>Verifying...</key>
+	<string>正在验证...</string>
+	<key>Welcome! Please fill in the details to get started.</key>
+	<string>欢迎！请填写详细信息以开始使用。</string>
+	<key>Welcome! Sign in to continue</key>
+	<string>欢迎！登录以继续</string>
+	<key>When signing in, you will need to enter a verification code sent to this phone number as an additional step.
+
+Save these backup codes and store them somewhere safe. If you lose access to your authentication device, you can use backup codes to sign in.</key>
+	<string>登录时，您需要输入发送到此电话号码的验证码作为额外步骤。
+
+保存这些备份代码并将其存储在安全的地方。如果您无法访问身份验证设备，可以使用备份代码登录。</string>
+	<key>When you sign in, you'll be asked for a verification code sent to this phone number.</key>
+	<string>登录时，系统会要求您提供发送到该电话号码的验证码。</string>
+	<key>When you sign in, you'll need to enter a verification code from this authenticator app.</key>
+	<string>登录时，您需要输入此身份验证器应用程序中的验证码。</string>
+	<key>Whoops, something is wrong</key>
+	<string>哎呀，出错了</string>
+	<key>You are no longer a member of this organization. Please choose another one.</key>
+	<string>您不再是该组织的成员。请选择其他组织。</string>
+	<key>You are no longer a member of this organization. Please choose or create another one.</key>
+	<string>您不再是该组织的成员。请选择其他组织或创建新组织。</string>
+	<key>You can change the passkey name to make it easier to find.</key>
+	<string>您可以更改通行密钥名称，以便更容易找到。</string>
+	<key>You must belong to an organization</key>
+	<string>您必须属于一个组织</string>
+	<key>You'll need to verify this email address before it can be added to your account.</key>
+	<string>在将此电子邮箱地址添加到您的账户之前，您需要先进行验证。</string>
+	<key>You're signing in from a new device. We're asking for verification to keep your account secure.</key>
+	<string>您正在从新设备登录。我们要求进行验证以保护您的账户安全。</string>
+	<key>Your account requires a new password before you can continue</key>
+	<string>您的账户需要设置新密码才能继续。</string>
+	<key>Your backup code is the one you got when setting up two-step authentication.</key>
+	<string>您的备用码是在设置两步验证时获得的。</string>
+	<key>or</key>
+	<string>或</string>
+	<key>to continue</key>
+	<string>继续</string>
+	<key>to continue to %@</key>
+	<string>继续前往%@</string>
+</dict>
+</plist>

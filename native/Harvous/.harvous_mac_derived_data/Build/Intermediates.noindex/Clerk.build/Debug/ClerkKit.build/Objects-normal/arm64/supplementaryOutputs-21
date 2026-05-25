@@ -1,0 +1,135 @@
+{
+  "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/SourcePackages/checkouts/clerk-ios/Sources/ClerkKit/Networking/Middleware/ClerkProxyRequestMiddleware.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKit.build/Objects-normal/arm64/ClerkProxyRequestMiddleware.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKit.build/Objects-normal/arm64/ClerkProxyRequestMiddleware.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKit.build/Objects-normal/arm64/ClerkProxyRequestMiddleware.dia",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKit.build/Objects-normal/arm64/ClerkProxyRequestMiddleware.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKit.build/Objects-normal/arm64/ClerkProxyRequestMiddleware.swiftdeps"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/SourcePackages/checkouts/clerk-ios/Sources/ClerkKit/Networking/Middleware/ClerkQueryItemsRequestMiddleware.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKit.build/Objects-normal/arm64/ClerkQueryItemsRequestMiddleware.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKit.build/Objects-normal/arm64/ClerkQueryItemsRequestMiddleware.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKit.build/Objects-normal/arm64/ClerkQueryItemsRequestMiddleware.dia",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKit.build/Objects-normal/arm64/ClerkQueryItemsRequestMiddleware.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKit.build/Objects-normal/arm64/ClerkQueryItemsRequestMiddleware.swiftdeps"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/SourcePackages/checkouts/clerk-ios/Sources/ClerkKit/Networking/Middleware/ClerkRateLimitRetryMiddleware.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKit.build/Objects-normal/arm64/ClerkRateLimitRetryMiddleware.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKit.build/Objects-normal/arm64/ClerkRateLimitRetryMiddleware.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKit.build/Objects-normal/arm64/ClerkRateLimitRetryMiddleware.dia",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKit.build/Objects-normal/arm64/ClerkRateLimitRetryMiddleware.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKit.build/Objects-normal/arm64/ClerkRateLimitRetryMiddleware.swiftdeps"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/SourcePackages/checkouts/clerk-ios/Sources/ClerkKit/Networking/Middleware/ClerkURLEncodedFormEncoderMiddleware.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKit.build/Objects-normal/arm64/ClerkURLEncodedFormEncoderMiddleware.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKit.build/Objects-normal/arm64/ClerkURLEncodedFormEncoderMiddleware.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKit.build/Objects-normal/arm64/ClerkURLEncodedFormEncoderMiddleware.dia",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKit.build/Objects-normal/arm64/ClerkURLEncodedFormEncoderMiddleware.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKit.build/Objects-normal/arm64/ClerkURLEncodedFormEncoderMiddleware.swiftdeps"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/SourcePackages/checkouts/clerk-ios/Sources/ClerkKit/Networking/Middleware/NetworkMiddleware.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKit.build/Objects-normal/arm64/NetworkMiddleware.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKit.build/Objects-normal/arm64/NetworkMiddleware.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKit.build/Objects-normal/arm64/NetworkMiddleware.dia",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKit.build/Objects-normal/arm64/NetworkMiddleware.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKit.build/Objects-normal/arm64/NetworkMiddleware.swiftdeps"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/SourcePackages/checkouts/clerk-ios/Sources/ClerkKit/Storage/CacheManager.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKit.build/Objects-normal/arm64/CacheManager.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKit.build/Objects-normal/arm64/CacheManager.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKit.build/Objects-normal/arm64/CacheManager.dia",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKit.build/Objects-normal/arm64/CacheManager.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKit.build/Objects-normal/arm64/CacheManager.swiftdeps"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/SourcePackages/checkouts/clerk-ios/Sources/ClerkKit/Storage/Keychain/Clerk+Keychain.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKit.build/Objects-normal/arm64/Clerk+Keychain.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKit.build/Objects-normal/arm64/Clerk+Keychain.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKit.build/Objects-normal/arm64/Clerk+Keychain.dia",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKit.build/Objects-normal/arm64/Clerk+Keychain.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKit.build/Objects-normal/arm64/Clerk+Keychain.swiftdeps"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/SourcePackages/checkouts/clerk-ios/Sources/ClerkKit/Storage/Keychain/ClerkKeychainKey.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKit.build/Objects-normal/arm64/ClerkKeychainKey.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKit.build/Objects-normal/arm64/ClerkKeychainKey.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKit.build/Objects-normal/arm64/ClerkKeychainKey.dia",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKit.build/Objects-normal/arm64/ClerkKeychainKey.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKit.build/Objects-normal/arm64/ClerkKeychainKey.swiftdeps"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/SourcePackages/checkouts/clerk-ios/Sources/ClerkKit/Storage/Keychain/InMemoryKeychain.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKit.build/Objects-normal/arm64/InMemoryKeychain.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKit.build/Objects-normal/arm64/InMemoryKeychain.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKit.build/Objects-normal/arm64/InMemoryKeychain.dia",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKit.build/Objects-normal/arm64/InMemoryKeychain.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKit.build/Objects-normal/arm64/InMemoryKeychain.swiftdeps"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/SourcePackages/checkouts/clerk-ios/Sources/ClerkKit/Storage/Keychain/KeychainStorage.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKit.build/Objects-normal/arm64/KeychainStorage.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKit.build/Objects-normal/arm64/KeychainStorage.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKit.build/Objects-normal/arm64/KeychainStorage.dia",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKit.build/Objects-normal/arm64/KeychainStorage.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKit.build/Objects-normal/arm64/KeychainStorage.swiftdeps"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/SourcePackages/checkouts/clerk-ios/Sources/ClerkKit/Storage/Keychain/MigratingKeychainStorage.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKit.build/Objects-normal/arm64/MigratingKeychainStorage.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKit.build/Objects-normal/arm64/MigratingKeychainStorage.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKit.build/Objects-normal/arm64/MigratingKeychainStorage.dia",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKit.build/Objects-normal/arm64/MigratingKeychainStorage.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKit.build/Objects-normal/arm64/MigratingKeychainStorage.swiftdeps"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/SourcePackages/checkouts/clerk-ios/Sources/ClerkKit/Storage/Keychain/SystemKeychain.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKit.build/Objects-normal/arm64/SystemKeychain.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKit.build/Objects-normal/arm64/SystemKeychain.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKit.build/Objects-normal/arm64/SystemKeychain.dia",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKit.build/Objects-normal/arm64/SystemKeychain.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKit.build/Objects-normal/arm64/SystemKeychain.swiftdeps"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/SourcePackages/checkouts/clerk-ios/Sources/ClerkKit/Telemetry/TelemetryCollector.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKit.build/Objects-normal/arm64/TelemetryCollector.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKit.build/Objects-normal/arm64/TelemetryCollector.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKit.build/Objects-normal/arm64/TelemetryCollector.dia",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKit.build/Objects-normal/arm64/TelemetryCollector.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKit.build/Objects-normal/arm64/TelemetryCollector.swiftdeps"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/SourcePackages/checkouts/clerk-ios/Sources/ClerkKit/Telemetry/TelemetryEnvironment.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKit.build/Objects-normal/arm64/TelemetryEnvironment.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKit.build/Objects-normal/arm64/TelemetryEnvironment.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKit.build/Objects-normal/arm64/TelemetryEnvironment.dia",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKit.build/Objects-normal/arm64/TelemetryEnvironment.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKit.build/Objects-normal/arm64/TelemetryEnvironment.swiftdeps"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/SourcePackages/checkouts/clerk-ios/Sources/ClerkKit/Telemetry/TelemetryEvents.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKit.build/Objects-normal/arm64/TelemetryEvents.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKit.build/Objects-normal/arm64/TelemetryEvents.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKit.build/Objects-normal/arm64/TelemetryEvents.dia",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKit.build/Objects-normal/arm64/TelemetryEvents.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKit.build/Objects-normal/arm64/TelemetryEvents.swiftdeps"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/SourcePackages/checkouts/clerk-ios/Sources/ClerkKit/Telemetry/TelemetryThrottler.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKit.build/Objects-normal/arm64/TelemetryThrottler.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKit.build/Objects-normal/arm64/TelemetryThrottler.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKit.build/Objects-normal/arm64/TelemetryThrottler.dia",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKit.build/Objects-normal/arm64/TelemetryThrottler.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKit.build/Objects-normal/arm64/TelemetryThrottler.swiftdeps"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/SourcePackages/checkouts/clerk-ios/Sources/ClerkKit/Telemetry/TelemetryTypes.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKit.build/Objects-normal/arm64/TelemetryTypes.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKit.build/Objects-normal/arm64/TelemetryTypes.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKit.build/Objects-normal/arm64/TelemetryTypes.dia",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKit.build/Objects-normal/arm64/TelemetryTypes.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKit.build/Objects-normal/arm64/TelemetryTypes.swiftdeps"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/SourcePackages/checkouts/clerk-ios/Sources/ClerkKit/Utils/DeviceHelper.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKit.build/Objects-normal/arm64/DeviceHelper.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKit.build/Objects-normal/arm64/DeviceHelper.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKit.build/Objects-normal/arm64/DeviceHelper.dia",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKit.build/Objects-normal/arm64/DeviceHelper.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKit.build/Objects-normal/arm64/DeviceHelper.swiftdeps"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/SourcePackages/checkouts/clerk-ios/Sources/ClerkKit/Utils/EnvironmentDetection.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKit.build/Objects-normal/arm64/EnvironmentDetection.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKit.build/Objects-normal/arm64/EnvironmentDetection.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKit.build/Objects-normal/arm64/EnvironmentDetection.dia",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKit.build/Objects-normal/arm64/EnvironmentDetection.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKit.build/Objects-normal/arm64/EnvironmentDetection.swiftdeps"
+  }
+}

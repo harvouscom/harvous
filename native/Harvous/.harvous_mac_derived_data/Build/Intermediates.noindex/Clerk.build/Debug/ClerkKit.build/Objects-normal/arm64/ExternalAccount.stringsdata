@@ -1,0 +1,24 @@
+{
+  "source": "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/SourcePackages/checkouts/clerk-ios/Sources/ClerkKit/Domains/User/ExternalAccount/ExternalAccount.swift",
+  "tables": {
+    "Localizable": [
+      {
+        "comment": "",
+        "key": "Something went wrong. Please try again.",
+        "location": {
+          "startingColumn": 39,
+          "startingLine": 146
+        }
+      },
+      {
+        "comment": "",
+        "key": "Redirect URL is missing or invalid. Unable to start external authentication flow.",
+        "location": {
+          "startingColumn": 39,
+          "startingLine": 134
+        }
+      }
+    ]
+  },
+  "version": 1
+}

@@ -1,0 +1,7 @@
+// Debug configuration — signing settings + dev/test environment.
+// Set this as the "Based on Configuration File" for Debug in Xcode
+// (Project → Info tab → Configurations → Debug).
+#include "Harvous-Signing.xcconfig"
+
+CLERK_PUBLISHABLE_KEY = pk_test_bXV0dWFsLXNwaWRlci0xOC5jbGVyay5hY2NvdW50cy5kZXYk
+HARVOUS_API_BASE_URL = http:/$()/192.168.1.130:4321

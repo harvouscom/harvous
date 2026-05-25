@@ -73,6 +73,11 @@ final class StudyThread {
     /// Inline highlight pastel override (`StudyHighlightAccentToken.rawValue`). Uses `StudyHighlightAccentToken.decoding` at read time.
     var highlightAccentRaw: String = StudyHighlightAccentToken.warmAmber.rawValue
 
+    /// Server string id (e.g. `study_1730000000000`) for cloud sync.
+    var serverId: String?
+    /// Tracks rows pending upload to the cloud.
+    var needsSync: Bool = false
+
     var parentNote: Note?
 
     init(

@@ -36,6 +36,22 @@ import { stripServerAutoUntitledNoteTitleForDisplay } from '@/utils/server-auto-
 // Lazy load TiptapEditor to reduce initial bundle size - only loads when user enters edit mode
 const TiptapEditor = lazy(() => import('./TiptapEditor'));
 
+/**
+ * Stable references for default values of array/object props.
+ *
+ * Without these, a default like `initialSecondaryCollections = [] as string[]`
+ * in the destructure creates a fresh `[]` on every render whenever the caller
+ * doesn't pass the prop. That fresh array then lands in the dep list of the
+ * `setCollectionChrome` effect (~line 279), and `Object.is(prevArr, nextArr)`
+ * is `false` → effect fires → setState → re-render → new `[]` → loop, which
+ * is the "Maximum update depth exceeded" error every shared-note viewer hits.
+ *
+ * Module-level constants are referentially stable across renders, so callers
+ * that omit the prop will land on the same array each render.
+ */
+const EMPTY_SECONDARY_COLLECTIONS: ReadonlyArray<string> = Object.freeze([]);
+const DEFAULT_COLLECTION_NAV_CONTEXT: WebCollectionNavSource = Object.freeze({ type: 'home' }) as WebCollectionNavSource;
+
 /** Heuristic: avoid ever rendering encrypted blob as HTML (e.g. race where content branch would show it). */
 function looksLikeEncryptedBlob(s: string): boolean {
   if (!s || typeof s !== 'string' || s.length < 40) return false;
@@ -163,7 +179,7 @@ export default function CardFullEditable({
   prototypeNoteActionsChrome,
   noteActionsPortalTarget = null,
   initialPrimaryCollection = null,
-  initialSecondaryCollections = [] as string[],
+  initialSecondaryCollections = EMPTY_SECONDARY_COLLECTIONS as unknown as string[],
   initialCollectionPinned = false,
   initialCollectionUserOverride = false,
   initialCollectionLastAutoUpdatedAtIso = null,
@@ -171,7 +187,7 @@ export default function CardFullEditable({
   highlightChromePortalTarget = null,
   referenceChromePortalTarget = null,
   initialReferenceWord = null,
-  collectionNavContext = { type: 'home' } as WebCollectionNavSource,
+  collectionNavContext = DEFAULT_COLLECTION_NAV_CONTEXT,
   alwaysEditing = false,
 }: CardFullEditableProps) {
   const effectivePrototypeNoteActionsChrome =
@@ -211,6 +227,20 @@ export default function CardFullEditable({
   const editContentRef = useRef(editContent);
   editTitleRef.current = editTitle;
   editContentRef.current = editContent;
+  // Mirror hasChanges in a ref so the unmount cleanup can read the live value
+  const hasChangesRef = useRef(hasChanges);
+  hasChangesRef.current = hasChanges;
+  // Mirror editorChromeMode so unmount cleanup isn't a stale closure
+  const editorChromeModeRef = useRef(editorChromeMode);
+  editorChromeModeRef.current = editorChromeMode;
+
+  // Prototype-specific save state — entirely ref-based, bypasses hasChanges state machine
+  const protoLastSavedRef = useRef<{ title: string; content: string } | null>(null);
+  const protoIsSavingRef = useRef(false);
+  // Set when a save attempt is dropped because another save is in flight. The
+  // in-flight save's `finally` block checks this and re-fires protoSaveAsync so
+  // trailing edits (typed during a save, or captured by unmount cleanup) aren't lost.
+  const protoPendingFlushRef = useRef(false);
   const [scrollPosition, setScrollPosition] = useState(0);
   const [parentThreadId, setParentThreadId] = useState<string | undefined>(undefined);
   const [prototypeBottomChromeMode, setPrototypeBottomChromeModeInternal] = useState<
@@ -272,6 +302,13 @@ export default function CardFullEditable({
     setPrototypeScripturePillOpenRequest(null);
   }, [noteId]);
 
+  // Reset proto save tracking on note switch so first edit always triggers a save
+  useEffect(() => {
+    protoLastSavedRef.current = null;
+    protoIsSavingRef.current = false;
+    protoPendingFlushRef.current = false;
+  }, [noteId]);
+
   const onPrototypeScripturePillOpenRequestConsumed = useCallback(() => {
     setPrototypeScripturePillOpenRequest(null);
   }, []);
@@ -321,6 +358,22 @@ export default function CardFullEditable({
     collectionChrome.primaryCollection,
     collectionChrome.secondaryCollections,
   ]);
+
+  // Flush any unsaved changes when the component unmounts (e.g. user navigates to a different note
+  // before the 700ms debounce fires). React state updates are silently dropped after unmount,
+  // but the network request still goes through.
+  useEffect(() => {
+    return () => {
+      // Prototype path: use ref-based saver (doesn't depend on hasChanges state).
+      // protoSaveAsync bails early if noteSaveCallback isn't registered (non-prototype route).
+      if (editorChromeModeRef.current === 'prototypeNative') {
+        void protoSaveAsync();
+      } else if (hasChangesRef.current) {
+        void flushEditsRef.current(false);
+      }
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // intentionally empty — cleanup only, refs hold live values
 
   // Track if we've updated content locally (e.g., with a highlight)
   const hasLocalContentUpdate = useRef(false);
@@ -1380,15 +1433,32 @@ export default function CardFullEditable({
 
         if (saveResult.processedContent && editorInstanceRef.current) {
           const editor = editorInstanceRef.current;
-          editor.commands.setContent(saveResult.processedContent, { emitUpdate: false });
-          requestAnimationFrame(async () => {
-            if (editorInstanceRef.current) {
-              const { convertNoteLinksToScripturePills } = await import('./TiptapEditor');
-              await convertNoteLinksToScripturePills(editorInstanceRef.current);
-              const finalContent = editorInstanceRef.current.getHTML();
-              applyAfterPersist(editTitle, finalContent);
+          let liveHtml: string | null = null;
+          if (!editor.isDestroyed) {
+            try {
+              liveHtml = editor.getHTML();
+            } catch {
+              liveHtml = null;
             }
-          });
+          }
+          const userTypedDuringSave = liveHtml != null && liveHtml !== editorContent;
+
+          if (userTypedDuringSave) {
+            // Skip the pill-injection override; the next debounced save will reprocess the newer content.
+            // Pass editorContent (what was actually saved) as finalHtml so applyAfterPersist computes
+            // hasChanges = (liveHtml !== editorContent) = true — keeping the follow-up save alive.
+            applyAfterPersist(editTitle, editorContent);
+          } else {
+            editor.commands.setContent(saveResult.processedContent, { emitUpdate: false });
+            requestAnimationFrame(async () => {
+              if (editorInstanceRef.current) {
+                const { convertNoteLinksToScripturePills } = await import('./TiptapEditor');
+                await convertNoteLinksToScripturePills(editorInstanceRef.current);
+                const finalContent = editorInstanceRef.current.getHTML();
+                applyAfterPersist(editTitle, finalContent);
+              }
+            });
+          }
         } else {
           if (editorInstanceRef.current) {
             editorContent = editorInstanceRef.current.getHTML();
@@ -1410,25 +1480,105 @@ export default function CardFullEditable({
     saveChangesRef.current = saveChanges;
   });
 
+  // Prototype auto-save: purely ref-based, never depends on hasChanges state so it can't be
+  // silently wiped by init-effect re-fires or applyAfterPersist. Fires 700ms after the last
+  // editTitle / editContent change, reads live content from the editor ref, and calls
+  // noteSaveCallback directly.
+  const protoSaveAsync = useCallback(async () => {
+    if (protoIsSavingRef.current) {
+      // A save is in flight. Remember that a flush was requested so we re-fire
+      // when it returns — otherwise trailing edits typed during the in-flight
+      // save (or content captured by an unmount cleanup) are silently dropped.
+      protoPendingFlushRef.current = true;
+      return;
+    }
+
+    const currentTitle = editTitleRef.current;
+    const currentContent = (() => {
+      if (editorInstanceRef.current && !editorInstanceRef.current.isDestroyed) {
+        try { return editorInstanceRef.current.getHTML(); } catch { /* */ }
+      }
+      return editContentRef.current;
+    })();
+
+    const last = protoLastSavedRef.current;
+    if (last && last.title === currentTitle && last.content === currentContent) {
+      // Natural termination of the recursion chain — nothing new to save.
+      return;
+    }
+
+    const globalCallback = (window as any).noteSaveCallback;
+    if (!globalCallback) return;
+
+    protoIsSavingRef.current = true;
+    const prevLast = protoLastSavedRef.current;
+    protoLastSavedRef.current = { title: currentTitle, content: currentContent };
+
+    try {
+      const saveResult: any = await globalCallback(currentTitle, currentContent);
+
+      if (saveResult?.processedContent && editorInstanceRef.current && !editorInstanceRef.current.isDestroyed) {
+        const editor = editorInstanceRef.current;
+        let liveHtml: string | null = null;
+        try { liveHtml = editor.getHTML(); } catch { /* */ }
+        if (liveHtml != null && liveHtml === currentContent) {
+          // Safe to inject pills — user hasn't typed since save started
+          editor.commands.setContent(saveResult.processedContent, { emitUpdate: false });
+          requestAnimationFrame(async () => {
+            if (!editorInstanceRef.current || editorInstanceRef.current.isDestroyed) return;
+            const { convertNoteLinksToScripturePills } = await import('./TiptapEditor');
+            await convertNoteLinksToScripturePills(editorInstanceRef.current);
+            const finalContent = editorInstanceRef.current.getHTML();
+            protoLastSavedRef.current = { title: currentTitle, content: finalContent };
+            setDisplayTitle(currentTitle);
+            setDisplayContent(finalContent);
+            setHasChanges(false);
+          });
+        } else {
+          // User typed during save — we did NOT update protoLastSavedRef to the
+          // live content, so the chained re-fire below will see a mismatch and
+          // save the trailing characters.
+          setDisplayTitle(currentTitle);
+          setDisplayContent(currentContent);
+          protoPendingFlushRef.current = true;
+        }
+      } else {
+        setDisplayTitle(currentTitle);
+        setDisplayContent(currentContent);
+        setHasChanges(false);
+      }
+    } catch {
+      // Restore last-saved so the next attempt retries the full content
+      protoLastSavedRef.current = prevLast;
+      protoPendingFlushRef.current = true;
+    } finally {
+      protoIsSavingRef.current = false;
+      if (protoPendingFlushRef.current) {
+        protoPendingFlushRef.current = false;
+        // Re-fire after releasing the lock. The equality-check guard above
+        // prevents infinite loops when content is unchanged.
+        void protoSaveAsync();
+      }
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // intentionally empty — reads everything from refs
+
+  // Prototype mode is alwaysEditing — the editor is conceptually always in edit
+  // mode, so we don't gate on isTitleEditing/isContentEditing here. Gating on those
+  // states created a window during note transitions (init effect hasn't flipped them
+  // to true yet) where keystrokes wouldn't schedule a save.
   useEffect(() => {
     if (editorChromeMode !== 'prototypeNative') return;
     if (!effectiveIsEditable) return;
-    if (!isTitleEditing && !isContentEditing) return;
-    if (!hasChanges || isSaving) return;
 
-    const timerId = window.setTimeout(() => {
-      void flushEditsRef.current(false);
-    }, 700);
+    const timerId = window.setTimeout(() => { void protoSaveAsync(); }, 700);
     return () => window.clearTimeout(timerId);
   }, [
     editorChromeMode,
     effectiveIsEditable,
-    isTitleEditing,
-    isContentEditing,
-    hasChanges,
-    isSaving,
     editTitle,
     editContent,
+    protoSaveAsync,
   ]);
 
   // Listen for keyboard shortcut to save when editing (Cmd+S)
@@ -1471,6 +1621,15 @@ export default function CardFullEditable({
       // Handle Select All for title textarea (Cmd+A on Mac, Ctrl+A on Windows/Linux)
       const target = e.target as HTMLTextAreaElement;
       if (target === titleInputRef.current) {
+        // Tab from title → focus content editor
+        if (e.key === 'Tab' && !e.shiftKey) {
+          e.preventDefault();
+          if (editorInstanceRef.current && !editorInstanceRef.current.isDestroyed) {
+            editorInstanceRef.current.commands.focus('end');
+          }
+          return;
+        }
+
         if ((e.metaKey || e.ctrlKey) && e.key === 'a') {
           e.preventDefault();
           target.select();

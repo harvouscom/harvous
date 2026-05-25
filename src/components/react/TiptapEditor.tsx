@@ -15,6 +15,7 @@ import { ScripturePill } from './TiptapScripturePill';
 import { BoldCustom } from './TiptapBoldCustom';
 import { HighlightCustom } from './TiptapHighlightCustom';
 import { UrlLink } from './TiptapUrlLink';
+import { TextIndent } from './TiptapTextIndent';
 import { normalizeScriptureReference, detectScriptureReferences, matchTrailingTranslationAbbreviation, type ScriptureReference, type ScriptureReferenceWithTranslation } from '@/utils/scripture-detector';
 import { isStudyHighlightAccentKey, type StudyHighlightAccentKey } from '@/utils/study-highlight-accents';
 import { TRANSLATION_ORDER, TRANSLATIONS } from '@/data/translations';
@@ -3043,6 +3044,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       ScripturePill, // Must come before NoteLink so scripture pills are parsed correctly
       NoteLink,
       UrlLink, // External URL links — parse priority lower so note/scripture spans win
+      TextIndent,
       Placeholder.configure({
         placeholder: placeholder,
         showOnlyWhenEditable: true,
@@ -3895,12 +3897,17 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     if (!href) { setUrlLinkPrompt(null); return; }
     let normalized = href;
     if (!/^https?:\/\//i.test(normalized)) normalized = `https://${normalized}`;
-    // Strip underline on the range — URL links are visually underlined by their own style,
-    // so coexisting Underline marks produce a stacked double-underline.
+    // Strip formatting marks on the range — URL link pills set their own inline styles
+    // (font-weight:500, no italics, no underline) so inherited bold/italic/etc. would
+    // wrap the pill in <strong>/<em>/etc. without visible effect but polluting the HTML.
     editor
       .chain()
       .focus()
       .setTextSelection(urlLinkPrompt.range)
+      .unsetMark('bold')
+      .unsetMark('italic')
+      .unsetMark('code')
+      .unsetMark('strike')
       .unsetMark('underline')
       .setUrlLink({ href: normalized })
       .run();
@@ -4933,8 +4940,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     isEditorFocused &&
     !scriptureChromeActive &&
     !highlightChromeActive &&
-    !referenceChromeActive &&
-    (selectionExpanded || showFormatBarForActivity || isPointerOverFormatToolbar);
+    !referenceChromeActive;
 
   useEffect(() => {
     if (editorChromeMode !== 'prototypeNative' || !onPrototypeChromeModeChange) return;
@@ -5191,8 +5197,11 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
 
   const renderPrototypeNativeFormatToolbar = (placement: 'top' | 'bottom' | 'portal') => {
     if (!editor) return null;
-    const canSink = editor.can().sinkListItem('listItem');
-    const canLift = editor.can().liftListItem('listItem');
+    const isInListItem = editor.isActive('listItem');
+    const canSink = isInListItem ? editor.can().sinkListItem('listItem') : true;
+    const canLift = isInListItem
+      ? editor.can().liftListItem('listItem')
+      : editor.can().decreaseIndent();
     const { from, to } = editor.state.selection;
     const hasTextSelection = from !== to;
 
@@ -5308,20 +5317,28 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
               <ProtoListNumbersIcon className="proto-toolbar-icon" aria-hidden />
             </ToolbarButton>
             <ToolbarButton
-              onClick={() => editor.chain().focus().liftListItem('listItem').run()}
+              onClick={() =>
+                isInListItem
+                  ? editor.chain().focus().liftListItem('listItem').run()
+                  : editor.chain().focus().decreaseIndent().run()
+              }
               isActive={false}
               disabled={!canLift}
-              title="Outdent list"
-              ariaLabel="Outdent list"
+              title="Outdent"
+              ariaLabel="Outdent"
             >
               <ProtoOutdentIcon className="proto-toolbar-icon" aria-hidden />
             </ToolbarButton>
             <ToolbarButton
-              onClick={() => editor.chain().focus().sinkListItem('listItem').run()}
+              onClick={() =>
+                isInListItem
+                  ? editor.chain().focus().sinkListItem('listItem').run()
+                  : editor.chain().focus().increaseIndent().run()
+              }
               isActive={false}
               disabled={!canSink}
-              title="Indent list"
-              ariaLabel="Indent list"
+              title="Indent"
+              ariaLabel="Indent"
             >
               <ProtoIndentIcon className="proto-toolbar-icon" aria-hidden />
             </ToolbarButton>

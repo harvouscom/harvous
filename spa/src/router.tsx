@@ -130,25 +130,25 @@ const adminVotdRoute = createRoute({
 const joinSpaceRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/spaces/join/$token',
-  component: lazyRouteComponent(() => import('./pages/JoinSpacePage')),
+  component: lazyRouteComponent(() => import('./pages/public/PublicJoinSpacePage')),
 });
 
 const sharedNoteRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/shared/note/$shareToken',
-  component: lazyRouteComponent(() => import('./pages/SharedNotePage')),
+  component: lazyRouteComponent(() => import('./pages/public/PublicSharedNotePage')),
 });
 
 const sharedThreadRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/shared/thread/$shareToken',
-  component: lazyRouteComponent(() => import('./pages/SharedThreadPage')),
+  component: lazyRouteComponent(() => import('./pages/public/PublicSharedThreadPage')),
 });
 
 const invitationRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/invitations/$token',
-  component: lazyRouteComponent(() => import('./pages/InvitationPage')),
+  component: lazyRouteComponent(() => import('./pages/public/PublicInvitationPage')),
 });
 
 /** Simplified prototype — parallel shell, no threads in UI (see docs/SIMPLIFIED_WEB_PROTOTYPE.md). */

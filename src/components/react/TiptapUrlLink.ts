@@ -26,9 +26,10 @@ const URL_REGEX = /(https?:\/\/[^\s<>"']+)/g;
 export const UrlLink = Mark.create<UrlLinkOptions>({
   name: 'urlLink',
   inclusive: false,
-  // Underline coexisting with urlLink stacks two underlines (mark style + <u> tag).
-  // URL links are visually underlined by the mark itself, so exclude underline.
-  excludes: 'underline',
+  // URL link pills are visually styled with inline CSS (font-weight:500, no italics, etc.).
+  // Exclude all formatting marks so surrounding bold/italic/code/strike/underline can't
+  // bleed into the pill and wrap it in <strong>/<em>/etc.
+  excludes: 'bold italic code strike underline',
 
   addOptions() {
     return { HTMLAttributes: {} };

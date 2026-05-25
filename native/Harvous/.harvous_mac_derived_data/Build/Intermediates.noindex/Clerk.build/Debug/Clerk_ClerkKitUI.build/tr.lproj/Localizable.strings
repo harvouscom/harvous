@@ -1,0 +1,458 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key></key>
+	<string></string>
+	<key> </key>
+	<string> </string>
+	<key>%@ will be removed from this account. You will no longer be able to sign in using this connected account.</key>
+	<string>%@ bu hesaptan kaldırılacak. Bu bağlı hesabı kullanarak artık giriş yapamayacaksınız.</string>
+	<key>%@ will be removed from this account. You will no longer be able to sign in using this email address.</key>
+	<string>%@ bu hesaptan kaldırılacak. Bu e-posta adresini kullanarak artık giriş yapamayacaksınız.</string>
+	<key>%@ will be removed from this account. You will no longer be able to sign in using this passkey.</key>
+	<string>%@ bu hesaptan kaldırılacak. Bu geçiş anahtarını kullanarak artık giriş yapamayacaksınız.</string>
+	<key>%@ will be removed from this account. You will no longer be able to sign in using this phone number.</key>
+	<string>%@ bu hesaptan kaldırılacak. Bu telefon numarasını kullanarak artık giriş yapamayacaksınız.</string>
+	<key>%@ will no longer be receiving verification codes when signing in.</key>
+	<string>%@ giriş yaparken artık doğrulama kodu almayacak.</string>
+	<key>A text message containing a verification code will be sent to this phone number. Message and data rates may apply.</key>
+	<string>Bu telefon numarasına doğrulama kodu içeren bir SMS gönderilecek. Mesaj ve veri ücretleri geçerli olabilir.</string>
+	<key>ACTIVE DEVICES</key>
+	<string>AKTİF CİHAZLAR</string>
+	<key>Account</key>
+	<string>Hesap</string>
+	<key>Add SMS code verification</key>
+	<string>SMS kodu doğrulaması ekle</string>
+	<key>Add a passkey</key>
+	<string>Geçiş anahtarı ekle</string>
+	<key>Add account</key>
+	<string>Hesap ekle</string>
+	<key>Add authenticator application</key>
+	<string>Doğrulama uygulaması ekle</string>
+	<key>Add email address</key>
+	<string>E-posta adresi ekle</string>
+	<key>Add password</key>
+	<string>Parola ekle</string>
+	<key>Add phone number</key>
+	<string>Telefon numarası ekle</string>
+	<key>Add two-step verification</key>
+	<string>İki adımlı doğrulama ekle</string>
+	<key>Admin</key>
+	<string>Yönetici</string>
+	<key>Alternatively, if your authenticator supports TOTP URIs, you can also copy the full URI.</key>
+	<string>Doğrulama uygulamanız TOTP URI'lerini destekliyorsa tam URI'yi de kopyalayabilirsiniz.</string>
+	<key>Are you sure you want to delete your account? This action is permanent and irreversible.</key>
+	<string>Hesabınızı silmek istediğinizden emin misiniz? Bu işlem kalıcıdır ve geri alınamaz.</string>
+	<key>Authenticator app</key>
+	<string>Doğrulama uygulaması</string>
+	<key>Authenticator app verification enabled</key>
+	<string>Doğrulama uygulaması doğrulaması etkinleştirildi</string>
+	<key>Authenticator application</key>
+	<string>Doğrulama uygulaması</string>
+	<key>Backup code</key>
+	<string>Yedek kod</string>
+	<key>Backup codes</key>
+	<string>Yedek kodlar</string>
+	<key>Backup codes are now enabled. You can use one of these to sign in to your account, if you lose access to your authentication device. Each code can only be used once.</key>
+	<string>Yedek kodlar etkinleştirildi. Doğrulama cihazınıza erişiminizi kaybederseniz hesabınıza giriş yapmak için bunlardan birini kullanabilirsiniz. Her kod yalnızca bir kez kullanılabilir.</string>
+	<key>CONNECTED ACCOUNTS</key>
+	<string>BAĞLI HESAPLAR</string>
+	<key>Cancel</key>
+	<string>İptal</string>
+	<key>Change password</key>
+	<string>Parolayı değiştir</string>
+	<key>Check your email</key>
+	<string>E-postanı kontrol et</string>
+	<key>Check your phone</key>
+	<string>Telefonunu kontrol et</string>
+	<key>Choose a username.</key>
+	<string>Bir kullanıcı adı seç.</string>
+	<key>Choose an Organization</key>
+	<string>Kuruluş seç</string>
+	<key>Choose from photo library</key>
+	<string>Fotoğraf kitaplığından seç</string>
+	<key>Choose how you'd like to receive your two-step verification code.</key>
+	<string>İki adımlı doğrulama kodunuzu nasıl almak istediğinizi seçin.</string>
+	<key>Choose the phone number you want to use for SMS code two-step verification</key>
+	<string>SMS kodu ile iki adımlı doğrulama için kullanmak istediğiniz telefon numarasını seçin</string>
+	<key>Choose which method you prefer to protect your account with an extra layer of security</key>
+	<string>Hesabınızı ekstra bir güvenlik katmanıyla korumak için tercih ettiğiniz yöntemi seçin</string>
+	<key>Choose your password</key>
+	<string>Parolanızı seçin</string>
+	<key>Choose your username</key>
+	<string>Kullanıcı adınızı seçin</string>
+	<key>Close</key>
+	<string>Kapat</string>
+	<key>Complete your profile</key>
+	<string>Profilini tamamla</string>
+	<key>Confirm password</key>
+	<string>Parolayı onayla</string>
+	<key>Connect account</key>
+	<string>Hesap bağla</string>
+	<key>Contact your organization admin for an invitation.</key>
+	<string>Davet için kuruluş yöneticinizle iletişime geçin.</string>
+	<key>Continue</key>
+	<string>Devam et</string>
+	<key>Continue to %@</key>
+	<string>%@ uygulamasına devam et</string>
+	<key>Continue with %@</key>
+	<string>%@ ile devam et</string>
+	<key>Copy to clipboard</key>
+	<string>Panoya kopyala</string>
+	<key>Create a unique password.</key>
+	<string>Benzersiz bir parola oluştur.</string>
+	<key>Create organization</key>
+	<string>Kuruluş oluştur</string>
+	<key>Create your account</key>
+	<string>Hesabını oluştur</string>
+	<key>Created: %@</key>
+	<string>Oluşturulma: %@</string>
+	<key>Current password</key>
+	<string>Mevcut parola</string>
+	<key>DELETE</key>
+	<string>SİL</string>
+	<key>DELETE ACCOUNT</key>
+	<string>HESABI SİL</string>
+	<key>Default</key>
+	<string>Varsayılan</string>
+	<key>Delete account</key>
+	<string>Hesabı sil</string>
+	<key>Desktop device</key>
+	<string>Masaüstü cihaz</string>
+	<key>Didn't receive a code?</key>
+	<string>Kod almadın mı?</string>
+	<key>Done</key>
+	<string>Tamam</string>
+	<key>Download</key>
+	<string>İndir</string>
+	<key>EMAIL ADDRESSES</key>
+	<string>E-POSTA ADRESLERİ</string>
+	<key>Edit profile</key>
+	<string>Profili düzenle</string>
+	<key>Email address</key>
+	<string>E-posta adresi</string>
+	<key>Email code to %@</key>
+	<string>%@ adresine e-posta kodu gönder</string>
+	<key>Email support</key>
+	<string>E-posta desteği</string>
+	<key>Enter a backup code</key>
+	<string>Yedek kod gir</string>
+	<key>Enter a slug using lowercase letters, numbers, and hyphens.</key>
+	<string>Küçük harfler, sayılar ve kısa çizgiler kullanarak bir slug girin.</string>
+	<key>Enter password</key>
+	<string>Parolayı gir</string>
+	<key>Enter the email address you'd like to use.</key>
+	<string>Kullanmak istediğiniz e-posta adresini girin.</string>
+	<key>Enter the password for your account</key>
+	<string>Hesabınızın parolasını girin</string>
+	<key>Enter the phone number you'd like to use.</key>
+	<string>Kullanmak istediğiniz telefon numarasını girin.</string>
+	<key>Enter the verification code from authenticator application</key>
+	<string>Doğrulama uygulamasındaki kodu girin</string>
+	<key>Enter the verification code from your authenticator application.</key>
+	<string>Doğrulama uygulamanızdaki kodu girin.</string>
+	<key>Enter the verification code sent to %@</key>
+	<string>%@ adresine gönderilen doğrulama kodunu girin</string>
+	<key>Enter your current password to set a new one.</key>
+	<string>Yeni bir parola belirlemek için mevcut parolanızı girin.</string>
+	<key>Enter your email</key>
+	<string>E-postanızı girin</string>
+	<key>Enter your email or username</key>
+	<string>E-posta veya kullanıcı adınızı girin</string>
+	<key>Enter your organization details to continue</key>
+	<string>Devam etmek için kuruluş bilgilerinizi girin</string>
+	<key>Enter your password</key>
+	<string>Parolanızı girin</string>
+	<key>Enter your phone number</key>
+	<string>Telefon numaranızı girin</string>
+	<key>Enter your username</key>
+	<string>Kullanıcı adınızı girin</string>
+	<key>Facing issues? You can use any of these methods to sign in.</key>
+	<string>Sorun mu yaşıyorsun? Bu yöntemlerden herhangi birini kullanarak giriş yapabilirsin.</string>
+	<key>First name</key>
+	<string>Ad</string>
+	<key>First, enter the code sent to your email address</key>
+	<string>Önce e-posta adresine gönderilen kodu gir</string>
+	<key>First, enter the code sent to your phone</key>
+	<string>Önce telefonuna gönderilen kodu gir</string>
+	<key>Forgot password?</key>
+	<string>Parolanı mı unuttun?</string>
+	<key>Get help</key>
+	<string>Yardım al</string>
+	<key>Go back</key>
+	<string>Geri dön</string>
+	<key>I agree to the [Privacy Policy](LegalConsentView://privacy)</key>
+	<string>[Gizlilik Politikası](LegalConsentView://privacy)'nı kabul ediyorum</string>
+	<key>I agree to the [Terms of Service](LegalConsentView://terms)</key>
+	<string>[Kullanım Koşulları](LegalConsentView://terms)'nı kabul ediyorum</string>
+	<key>I agree to the [Terms of Service](LegalConsentView://terms) and [Privacy Policy](LegalConsentView://privacy)</key>
+	<string>[Kullanım Koşulları](LegalConsentView://terms) ve [Gizlilik Politikası](LegalConsentView://privacy)'nı kabul ediyorum</string>
+	<key>If you have trouble completing required account setup, email us and we will help you finish as soon as possible.</key>
+	<string>Hesap kurulumunu tamamlamakta sorun yaşıyorsanız bize e-posta gönderin, en kısa sürede yardımcı olalım.</string>
+	<key>If you have trouble creating your account, email us and we will work with you to complete your registration as soon as possible.</key>
+	<string>Hesap oluştururken sorun yaşıyorsanız bize e-posta gönderin, kaydınızı en kısa sürede tamamlayalım.</string>
+	<key>If you have trouble signing into your account, email us and we will work with you to restore access as soon as possible.</key>
+	<string>Hesabınıza giriş yapmakta sorun yaşıyorsanız bize e-posta gönderin, erişiminizi en kısa sürede geri yükleyelim.</string>
+	<key>International</key>
+	<string>Uluslararası</string>
+	<key>It is recommended to sign out of all other devices which may have used your old password.</key>
+	<string>Eski parolanızı kullanmış olabilecek diğer tüm cihazlardan çıkış yapmanız önerilir.</string>
+	<key>Join</key>
+	<string>Katıl</string>
+	<key>Join an existing organization</key>
+	<string>Mevcut bir kuruluşa katıl</string>
+	<key>Join an existing organization or create a new one</key>
+	<string>Mevcut bir kuruluşa katıl veya yeni bir kuruluş oluştur</string>
+	<key>Last Used</key>
+	<string>Son Kullanım</string>
+	<key>Last name</key>
+	<string>Soyad</string>
+	<key>Last used: %@</key>
+	<string>Son kullanım: %@</string>
+	<key>Link another login option to your account. You’ll need to verify it before it can be used.</key>
+	<string>Hesabınıza başka bir giriş seçeneği bağlayın. Kullanılmadan önce doğrulamanız gerekecek.</string>
+	<key>Linked</key>
+	<string>Bağlı</string>
+	<key>MFA reserved</key>
+	<string>MFA için ayrılmış</string>
+	<key>Make sure Time-based or One-time passwords is enabled, then finish linking your account.</key>
+	<string>Zamana dayalı veya tek kullanımlık parolaların etkin olduğundan emin olun, ardından hesabınızı bağlamayı tamamlayın.</string>
+	<key>Manage account</key>
+	<string>Hesabı yönet</string>
+	<key>Manual setup key</key>
+	<string>Manuel kurulum anahtarı</string>
+	<key>Member</key>
+	<string>Üye</string>
+	<key>Mobile device</key>
+	<string>Mobil cihaz</string>
+	<key>Name of passkey</key>
+	<string>Geçiş anahtarı adı</string>
+	<key>New password</key>
+	<string>Yeni parola</string>
+	<key>Next</key>
+	<string>İleri</string>
+	<key>Or, sign in with another method</key>
+	<string>Veya başka bir yöntemle giriş yap</string>
+	<key>Organization name</key>
+	<string>Kuruluş adı</string>
+	<key>PASSKEYS</key>
+	<string>GEÇİŞ ANAHTARLARI</string>
+	<key>PASSWORD</key>
+	<string>PAROLA</string>
+	<key>PHONE NUMBERS</key>
+	<string>TELEFON NUMARALARI</string>
+	<key>Password</key>
+	<string>Parola</string>
+	<key>Passwords don't match.</key>
+	<string>Parolalar eşleşmiyor.</string>
+	<key>Pending approval</key>
+	<string>Onay bekleniyor</string>
+	<key>Phone number</key>
+	<string>Telefon numarası</string>
+	<key>Primary</key>
+	<string>Birincil</string>
+	<key>Privacy Policy</key>
+	<string>Gizlilik Politikası</string>
+	<key>Profile Details</key>
+	<string>Profil Bilgileri</string>
+	<key>Recommended size 1:1, up to 10MB.</key>
+	<string>Önerilen boyut 1:1, en fazla 10 MB.</string>
+	<key>Reconnect</key>
+	<string>Yeniden bağlan</string>
+	<key>Redirect URL is missing or invalid. Unable to start external authentication flow.</key>
+	<string>Yönlendirme URL'si eksik veya geçersiz. Harici kimlik doğrulama akışı başlatılamıyor.</string>
+	<key>Regenerate</key>
+	<string>Yeniden oluştur</string>
+	<key>Remove</key>
+	<string>Kaldır</string>
+	<key>Remove connected account</key>
+	<string>Bağlı hesabı kaldır</string>
+	<key>Remove connection</key>
+	<string>Bağlantıyı kaldır</string>
+	<key>Remove email</key>
+	<string>E-postayı kaldır</string>
+	<key>Remove email address</key>
+	<string>E-posta adresini kaldır</string>
+	<key>Remove passkey</key>
+	<string>Geçiş anahtarını kaldır</string>
+	<key>Remove phone</key>
+	<string>Telefonu kaldır</string>
+	<key>Remove phone number</key>
+	<string>Telefon numarasını kaldır</string>
+	<key>Remove photo</key>
+	<string>Fotoğrafı kaldır</string>
+	<key>Remove two-step verification</key>
+	<string>İki adımlı doğrulamayı kaldır</string>
+	<key>Rename</key>
+	<string>Yeniden adlandır</string>
+	<key>Rename passkey</key>
+	<string>Geçiş anahtarını yeniden adlandır</string>
+	<key>Request to join</key>
+	<string>Katılma talebi gönder</string>
+	<key>Resend</key>
+	<string>Tekrar gönder</string>
+	<key>Resend (%lld)</key>
+	<string>Tekrar gönder (%lld)</string>
+	<key>Reset password</key>
+	<string>Parolayı sıfırla</string>
+	<key>Reset your password</key>
+	<string>Parolanızı sıfırlayın</string>
+	<key>SMS code</key>
+	<string>SMS kodu</string>
+	<key>SMS code verification enabled</key>
+	<string>SMS kodu doğrulaması etkinleştirildi</string>
+	<key>Save</key>
+	<string>Kaydet</string>
+	<key>Save these codes somewhere safe. If you lose access to your authentication device, you can use a backup code to sign in.</key>
+	<string>Bu kodları güvenli bir yere kaydedin. Doğrulama cihazınıza erişiminizi kaybederseniz giriş yapmak için yedek kod kullanabilirsiniz.</string>
+	<key>Secured by</key>
+	<string>Güvenlik sağlayıcı:</string>
+	<key>Security</key>
+	<string>Güvenlik</string>
+	<key>Select an existing phone number to register for SMS code two-step verification or add a new one.</key>
+	<string>SMS kodu ile iki adımlı doğrulama için mevcut bir telefon numarası seçin veya yeni bir tane ekleyin.</string>
+	<key>Send SMS code to %@</key>
+	<string>%@ numarasına SMS kodu gönder</string>
+	<key>Set as default</key>
+	<string>Varsayılan olarak ayarla</string>
+	<key>Set as primary</key>
+	<string>Birincil olarak ayarla</string>
+	<key>Set new password</key>
+	<string>Yeni parola belirle</string>
+	<key>Set up a new sign-in method in your authenticator and enter the Key provided below.
+
+Make sure Time-based or One-time passwords is enabled, then finish linking your account.</key>
+	<string>Doğrulama uygulamanızda yeni bir giriş yöntemi oluşturun ve aşağıda verilen Anahtarı girin.
+
+Zamana dayalı veya tek kullanımlık parolaların etkin olduğundan emin olun, ardından hesabınızı bağlamayı tamamlayın.</string>
+	<key>Set up a new sign-in method in your authenticator app using the manual setup key below to link it to your account.</key>
+	<string>Aşağıdaki manuel kurulum anahtarını kullanarak doğrulama uygulamanızda yeni bir giriş yöntemi oluşturun ve hesabınıza bağlayın.</string>
+	<key>Set up two-step verification</key>
+	<string>İki adımlı doğrulamayı kur</string>
+	<key>Sign in with your passkey</key>
+	<string>Geçiş anahtarınla giriş yap</string>
+	<key>Sign in with your password</key>
+	<string>Parolanla giriş yap</string>
+	<key>Sign out</key>
+	<string>Çıkış yap</string>
+	<key>Sign out of all accounts</key>
+	<string>Tüm hesaplardan çıkış yap</string>
+	<key>Sign out of all other devices</key>
+	<string>Diğer tüm cihazlardan çıkış yap</string>
+	<key>Sign out of device</key>
+	<string>Cihazdan çıkış yap</string>
+	<key>Sign up</key>
+	<string>Kayıt ol</string>
+	<key>Slug</key>
+	<string>Slug</string>
+	<key>Success</key>
+	<string>Başarılı</string>
+	<key>Switch account</key>
+	<string>Hesap değiştir</string>
+	<key>TWO-STEP VERIFICATION</key>
+	<string>İKİ ADIMLI DOĞRULAMA</string>
+	<key>Terms of Service</key>
+	<string>Kullanım Koşulları</string>
+	<key>There was an error loading the image from the photos library.</key>
+	<string>Fotoğraf kitaplığından görsel yüklenirken bir hata oluştu.</string>
+	<key>This device</key>
+	<string>Bu cihaz</string>
+	<key>To continue, please enter the verification code generated by your authenticator app</key>
+	<string>Devam etmek için doğrulama uygulamanız tarafından oluşturulan kodu girin</string>
+	<key>Two-step verification</key>
+	<string>İki adımlı doğrulama</string>
+	<key>Two-step verification is now enabled. When signing in, you will need to enter a verification code from this authenticator app as an additional step.
+
+Save these backup codes and store them somewhere safe. If you lose access to your authentication device, you can use backup codes to sign in.</key>
+	<string>İki adımlı doğrulama etkinleştirildi. Giriş yaparken ek bir adım olarak bu doğrulama uygulamasından bir kod girmeniz gerekecek.
+
+Bu yedek kodları kaydedin ve güvenli bir yerde saklayın. Doğrulama cihazınıza erişiminizi kaybederseniz giriş yapmak için yedek kodları kullanabilirsiniz.</string>
+	<key>Two-step verification setup</key>
+	<string>İki adımlı doğrulama kurulumu</string>
+	<key>Type "DELETE" to continue</key>
+	<string>Devam etmek için "SİL" yazın</string>
+	<key>Unknown code verification method. Please use another method.</key>
+	<string>Bilinmeyen doğrulama yöntemi. Lütfen başka bir yöntem kullanın.</string>
+	<key>Unknown device</key>
+	<string>Bilinmeyen cihaz</string>
+	<key>Unverified</key>
+	<string>Doğrulanmamış</string>
+	<key>Update password</key>
+	<string>Parolayı güncelle</string>
+	<key>Upload logo</key>
+	<string>Logo yükle</string>
+	<key>Use a backup code</key>
+	<string>Yedek kod kullan</string>
+	<key>Use another method</key>
+	<string>Başka yöntem kullan</string>
+	<key>Use email address</key>
+	<string>E-posta adresi kullan</string>
+	<key>Use email address or username</key>
+	<string>E-posta veya kullanıcı adı kullan</string>
+	<key>Use phone number</key>
+	<string>Telefon numarası kullan</string>
+	<key>Use username</key>
+	<string>Kullanıcı adı kullan</string>
+	<key>Use your authenticator app</key>
+	<string>Doğrulama uygulamanızı kullanın</string>
+	<key>Use your passkey</key>
+	<string>Geçiş anahtarınızı kullanın</string>
+	<key>Username</key>
+	<string>Kullanıcı adı</string>
+	<key>Using your passkey confirms it's you. Your device may ask for your fingerprint, face or screen lock.</key>
+	<string>Geçiş anahtarınızı kullanmak kimliğinizi doğrular. Cihazınız parmak izi, yüz tanıma veya ekran kilidi isteyebilir.</string>
+	<key>Verification codes from this authenticator will no longer be required when signing in.</key>
+	<string>Bu doğrulama uygulamasından gelen kodlar giriş yaparken artık istenmeyecek.</string>
+	<key>Verify</key>
+	<string>Doğrula</string>
+	<key>Verify authenticator app</key>
+	<string>Doğrulama uygulamasını doğrula</string>
+	<key>Verify email address</key>
+	<string>E-posta adresini doğrula</string>
+	<key>Verify phone number</key>
+	<string>Telefon numarasını doğrula</string>
+	<key>Verify your phone number</key>
+	<string>Telefon numaranızı doğrulayın</string>
+	<key>Verifying...</key>
+	<string>Doğrulanıyor...</string>
+	<key>Welcome! Please fill in the details to get started.</key>
+	<string>Hoş geldin! Başlamak için bilgileri doldur.</string>
+	<key>Welcome! Sign in to continue</key>
+	<string>Hoş geldin! Devam etmek için giriş yap</string>
+	<key>When signing in, you will need to enter a verification code sent to this phone number as an additional step.
+
+Save these backup codes and store them somewhere safe. If you lose access to your authentication device, you can use backup codes to sign in.</key>
+	<string>Giriş yaparken ek bir adım olarak bu telefon numarasına gönderilen doğrulama kodunu girmeniz gerekecek.
+
+Bu yedek kodları kaydedin ve güvenli bir yerde saklayın. Doğrulama cihazınıza erişiminizi kaybederseniz giriş yapmak için yedek kodları kullanabilirsiniz.</string>
+	<key>When you sign in, you'll be asked for a verification code sent to this phone number.</key>
+	<string>Giriş yaptığınızda bu telefon numarasına gönderilen doğrulama kodu istenecek.</string>
+	<key>When you sign in, you'll need to enter a verification code from this authenticator app.</key>
+	<string>Giriş yaptığınızda bu doğrulama uygulamasından bir kod girmeniz gerekecek.</string>
+	<key>Whoops, something is wrong</key>
+	<string>Bir şeyler ters gitti</string>
+	<key>You are no longer a member of this organization. Please choose another one.</key>
+	<string>Artık bu kuruluşun bir üyesi değilsiniz. Lütfen başka bir kuruluş seçin.</string>
+	<key>You are no longer a member of this organization. Please choose or create another one.</key>
+	<string>Artık bu kuruluşun bir üyesi değilsiniz. Lütfen başka bir kuruluş seçin veya yeni bir kuruluş oluşturun.</string>
+	<key>You can change the passkey name to make it easier to find.</key>
+	<string>Geçiş anahtarı adını kolayca bulabilmek için değiştirebilirsiniz.</string>
+	<key>You must belong to an organization</key>
+	<string>Bir kuruluşun üyesi olmalısınız</string>
+	<key>You'll need to verify this email address before it can be added to your account.</key>
+	<string>Bu e-posta adresini hesabınıza eklemeden önce doğrulamanız gerekecek.</string>
+	<key>You're signing in from a new device. We're asking for verification to keep your account secure.</key>
+	<string>Yeni bir cihazdan giriş yapıyorsunuz. Hesabınızın güvenliği için doğrulama istiyoruz.</string>
+	<key>Your account requires a new password before you can continue</key>
+	<string>Devam etmeden önce hesabınız için yeni bir parola belirlemeniz gerekiyor</string>
+	<key>Your backup code is the one you got when setting up two-step authentication.</key>
+	<string>Yedek kodunuz iki adımlı doğrulamayı kurarken aldığınız koddur.</string>
+	<key>or</key>
+	<string>veya</string>
+	<key>to continue</key>
+	<string>devam etmek için</string>
+	<key>to continue to %@</key>
+	<string>%@ için devam etmek için</string>
+</dict>
+</plist>

@@ -1,68 +1,86 @@
 /**
  * Prototype inspector pane — mirrors native NoteInspectorView.
- * Sections: Folder · Tags · Info
+ * Sections: Connected Notes · Folder · Tags · Info
  * Standalone — no SPA CSS variables or shared styles.
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { NoteDetail } from '../../hooks/queries/useNote';
-import { noteFolderMembershipLabels } from '@/utils/note-folder-display';
+import { Link } from '@tanstack/react-router';
+import type { NoteDetail, LinkedNoteRef } from '../../hooks/queries/useNote';
 import { formatNoteAddedBySource } from '@/utils/note-added-by-display';
+import { stripServerAutoUntitledNoteTitleForDisplay } from '@/utils/server-auto-untitled-note-display';
 import Icon from '@/components/react/Icon';
-import { useProtoShell } from '../../layouts/proto-shell-context';
+import PrototypeConnectNoteSheet from './PrototypeConnectNoteSheet';
+import PrototypeFolderTagEditor from './PrototypeFolderTagEditor';
+import { noteParamSlug } from './proto-route-slugs';
 
 interface PrototypeInspectorPaneProps {
   note: NoteDetail;
+  spaceId?: string;
 }
 
-export default function PrototypeInspectorPane({ note }: PrototypeInspectorPaneProps) {
-  const { prototypeFolderChip } = useProtoShell();
-  const serverFolders = noteFolderMembershipLabels({
-    primaryCollection: note.primaryCollection ?? null,
-    secondaryCollections: note.secondaryCollections ?? [],
-  });
-  /** Draft chip from editor overrides server list when set for this note; empty string clears to “no folder”. */
-  const displayFolders =
-    prototypeFolderChip?.noteId === note.id
-      ? prototypeFolderChip.label?.trim()
-        ? [prototypeFolderChip.label.trim()]
-        : []
-      : serverFolders;
-  const tags = note.tags ?? [];
+export default function PrototypeInspectorPane({ note, spaceId = '' }: PrototypeInspectorPaneProps) {
+  const [connectOpen, setConnectOpen] = useState(false);
 
   const createdStr = note.createdAt ? formatDate(new Date(note.createdAt)) : '—';
   const updatedStr = note.updatedAt ? formatDate(new Date(note.updatedAt)) : '—';
 
   const wordCount = estimateWords(note.content ?? '');
 
+  const linkedFromNotes = note.linkedFromNotes ?? [];
+  const linkedToNotes = note.linkedToNotes ?? [];
+  const hasConnections = linkedFromNotes.length > 0 || linkedToNotes.length > 0;
+
   return (
     <div className="proto-inspector">
-      {/* Folder section */}
+      {/* Connected Notes section */}
       <section className="proto-inspector-section">
-        <p className="proto-inspector-section-title">Folder</p>
-        {displayFolders.length > 0 ? (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-            <Icon name="folder" size={13} style={{ opacity: 0.45, flexShrink: 0 }} />
-            <span className="proto-inspector-body">{displayFolders.join(' · ')}</span>
-          </div>
-        ) : (
-          <p className="proto-inspector-muted">No folder — auto-generated from note content.</p>
-        )}
-      </section>
-
-      {/* Tags section */}
-      <section className="proto-inspector-section">
-        <p className="proto-inspector-section-title">Tags</p>
-        {tags.length > 0 ? (
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-            {tags.map((t) => (
-              <span key={t.id} className="proto-inspector-tag">
-                {t.name}
-              </span>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+          <p className="proto-inspector-section-title" style={{ marginBottom: 0 }}>Connected Notes</p>
+          {spaceId ? (
+            <button
+              type="button"
+              className="proto-inspector-connect-btn"
+              title="Connect another note"
+              aria-label="Connect another note"
+              onClick={() => setConnectOpen(true)}
+            >
+              <Icon name="plus" size={12} aria-hidden />
+              Connect
+            </button>
+          ) : null}
+        </div>
+        {hasConnections ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+            {linkedFromNotes.map((n) => (
+              <ConnectedNoteRow key={n.id} note={n} direction="from" />
+            ))}
+            {linkedToNotes.map((n) => (
+              <ConnectedNoteRow key={n.id} note={n} direction="to" />
             ))}
           </div>
         ) : (
-          <p className="proto-inspector-muted">No tags yet. Add them in the classic app.</p>
+          <p className="proto-inspector-muted">No connections yet.</p>
         )}
+      </section>
+
+      {spaceId ? (
+        <PrototypeConnectNoteSheet
+          open={connectOpen}
+          onOpenChange={setConnectOpen}
+          spaceId={spaceId}
+          parentNoteId={note.id}
+        />
+      ) : null}
+
+      {/* Folder + Tags */}
+      <section className="proto-inspector-section">
+        <p className="proto-inspector-section-title">Folder</p>
+        <PrototypeFolderTagEditor note={note} folderOnly />
+      </section>
+
+      <section className="proto-inspector-section">
+        <p className="proto-inspector-section-title">Tags</p>
+        <PrototypeFolderTagEditor note={note} tagsOnly />
       </section>
 
       {/* Info section */}
@@ -80,11 +98,35 @@ export default function PrototypeInspectorPane({ note }: PrototypeInspectorPaneP
             <InspectorRow label="Type" value={capitalize(note.noteType)} />
           ) : null}
           {note.isPublic ? (
-            <InspectorRow label="Visibility" value="Public" />
+            <InspectorRow label="Sharing" value="Public" />
           ) : null}
         </div>
       </section>
     </div>
+  );
+}
+
+function ConnectedNoteRow({ note, direction }: { note: LinkedNoteRef; direction: 'from' | 'to' }) {
+  const rawTitle =
+    note.noteType === 'resource' && (note.resourceTitle ?? '').trim()
+      ? (note.resourceTitle ?? '').trim()
+      : stripServerAutoUntitledNoteTitleForDisplay((note.title ?? '').trim()) || 'New Note';
+
+  return (
+    <Link
+      to="/prototype/n/$noteId"
+      params={{ noteId: noteParamSlug(note.id) }}
+      search={{}}
+      className="proto-inspector-connected-note"
+    >
+      <Icon
+        name={direction === 'from' ? 'arrow-left' : 'arrow-right'}
+        size={10}
+        className="proto-inspector-connected-note__arrow"
+        aria-hidden
+      />
+      <span className="proto-inspector-connected-note__title">{rawTitle}</span>
+    </Link>
   );
 }
 

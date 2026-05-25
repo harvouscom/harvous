@@ -1,0 +1,30 @@
+{
+  "/Users/heyderekj/harvous/native/Harvous/Editor/HarvousEditor.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/HarvousEditor.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/HarvousEditor.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/HarvousEditor.dia",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/HarvousEditor.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/HarvousEditor.swiftdeps"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/HarvousApp.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/HarvousApp.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/HarvousApp.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/HarvousApp.dia",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/HarvousApp.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/HarvousApp.swiftdeps"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/Views/FolderChipPopover.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/FolderChipPopover.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/FolderChipPopover.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/FolderChipPopover.dia",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/FolderChipPopover.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/FolderChipPopover.swiftdeps"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/Views/HarvousFolderBulkActions.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/HarvousFolderBulkActions.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/HarvousFolderBulkActions.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/HarvousFolderBulkActions.dia",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/HarvousFolderBulkActions.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/HarvousFolderBulkActions.swiftdeps"
+  }
+}

@@ -3,15 +3,11 @@
  *
  * Left group:  [sidebar toggle] [space switcher] [list view] [compose]
  * Center:       "Prototype" brand, or folder chip on prototype note routes
- * Right group: [inspector toggle] [profile menu]
- *
- * Profile menu sections (native parity):
- *   1. Name (display only)
- *   2. Settings / Name & color / Manage account on web
+ * Right group: [inspector toggle] [account button → Clerk UserProfile modal]
  */
-import { useEffect, useRef, useState } from 'react';
-import { useUser } from '@clerk/clerk-react';
-import { Link, useNavigate, useRouterState } from '@tanstack/react-router';
+import { useRef, useState } from 'react';
+import { useClerk } from '@clerk/clerk-react';
+import { useNavigate, useRouterState } from '@tanstack/react-router';
 import { useQueryClient } from '@tanstack/react-query';
 import Icon from '@/components/react/Icon';
 import { usePrototypeHomeSpaceId } from '../../hooks/usePrototypeHomeSpaceId';
@@ -27,134 +23,22 @@ import ListViewMenu from './ListViewMenu';
 import { noteParamSlug, normalizeNoteIdFromParam } from './proto-route-slugs';
 import SpaceSwitcherMenu from './SpaceSwitcherMenu';
 import { PROTO_TOOLBAR_ICON_SIZE } from './proto-toolbar-tokens';
-
-/** Profile header: "First L." instead of full last name (matches native-style compact name). */
-function firstNameAndLastInitial(displayName: string): string {
-  const parts = displayName.trim().split(/\s+/).filter(Boolean);
-  if (parts.length <= 1) return parts[0] ?? displayName;
-  const first = parts[0];
-  const last = parts[parts.length - 1];
-  const initial = last[0] ? last[0].toUpperCase() : '';
-  return initial ? `${first} ${initial}.` : first;
-}
-
-/* ── Profile menu ────────────────────────────────────────────────────────── */
-function ProfileMenu({ displayName, email }: { displayName?: string; email?: string }) {
-  const [open, setOpen] = useState(false);
-  const rootRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!open) return undefined;
-    const onDoc = (e: MouseEvent) => {
-      const el = rootRef.current;
-      if (el && e.target instanceof Node && !el.contains(e.target)) setOpen(false);
-    };
-    const onEsc = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false); };
-    document.addEventListener('mousedown', onDoc);
-    document.addEventListener('keydown', onEsc);
-    return () => {
-      document.removeEventListener('mousedown', onDoc);
-      document.removeEventListener('keydown', onEsc);
-    };
-  }, [open]);
-
-  return (
-    <div className="proto-menu" ref={rootRef}>
-      <button
-        type="button"
-        className="proto-toolbar-icon-btn"
-        aria-expanded={open}
-        aria-haspopup="menu"
-        title="Profile and settings"
-        aria-label="Profile and settings"
-        onClick={() => setOpen((x) => !x)}
-      >
-        <Icon name="user" size={PROTO_TOOLBAR_ICON_SIZE} />
-      </button>
-
-      {open ? (
-        <div className="proto-menu__popover proto-menu__popover--right" role="menu" aria-label="Profile">
-          {/* Display name / email header */}
-          {(displayName || email) && (
-            <div className="proto-menu-section">
-              <div className="proto-menu-muted" style={{ fontWeight: 600, color: 'var(--pds-text-primary)' }}>
-                {displayName ? firstNameAndLastInitial(displayName) : email}
-              </div>
-              {displayName && email && (
-                <div className="proto-menu-muted" style={{ paddingTop: 0 }}>{email}</div>
-              )}
-            </div>
-          )}
-
-          {/* Settings actions */}
-          <div className="proto-menu-section" role="group">
-            <Link
-              to="/"
-              className="proto-menu-item"
-              style={{ textDecoration: 'none' }}
-              title="Open Settings in the classic app"
-              onClick={() => setOpen(false)}
-              role="menuitem"
-            >
-              <span className="proto-menu-item__icon"><Icon name="gear" size={14} /></span>
-              Settings
-              <span style={{ marginLeft: 'auto' }}><Icon name="arrow-up-right-from-square" size={11} style={{ opacity: 0.45 }} /></span>
-            </Link>
-            <Link
-              to="/"
-              className="proto-menu-item"
-              style={{ textDecoration: 'none' }}
-              title="Change your display name and theme color in the classic app"
-              onClick={() => setOpen(false)}
-              role="menuitem"
-            >
-              <span className="proto-menu-item__icon"><Icon name="paintbrush" size={14} /></span>
-              Name &amp; color
-              <span style={{ marginLeft: 'auto' }}><Icon name="arrow-up-right-from-square" size={11} style={{ opacity: 0.45 }} /></span>
-            </Link>
-          </div>
-
-          {/* Account management */}
-          <div className="proto-menu-section" role="group">
-            <a
-              href="https://accounts.clerk.dev/user"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="proto-menu-item"
-              style={{ textDecoration: 'none' }}
-              onClick={() => setOpen(false)}
-              role="menuitem"
-            >
-              <span className="proto-menu-item__icon"><Icon name="circle-user" size={14} /></span>
-              Manage account on web
-              <span style={{ marginLeft: 'auto' }}><Icon name="arrow-up-right-from-square" size={11} style={{ opacity: 0.45 }} /></span>
-            </a>
-          </div>
-
-          {/* Classic app divider */}
-          <div className="proto-menu-section" role="group">
-            <Link
-              to="/"
-              className="proto-menu-item"
-              style={{ textDecoration: 'none' }}
-              onClick={() => setOpen(false)}
-              role="menuitem"
-            >
-              Classic Harvous app →
-            </Link>
-          </div>
-        </div>
-      ) : null}
-    </div>
-  );
-}
+import PrototypeSharePopover from './PrototypeSharePopover';
+import PrototypeFolderPopover from './PrototypeFolderPopover';
 
 /* ── NativeToolbar ───────────────────────────────────────────────────────── */
 export default function NativeToolbar() {
-  const { user } = useUser();
+  const clerk = useClerk();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
+
+  // Share popover state — anchored to the toolbar share button.
+  const shareButtonRef = useRef<HTMLButtonElement | null>(null);
+  const [shareAnchorRect, setShareAnchorRect] = useState<DOMRect | null>(null);
+  // Folder popover state — anchored to the toolbar folder chip.
+  const folderChipRef = useRef<HTMLButtonElement | null>(null);
+  const [folderAnchorRect, setFolderAnchorRect] = useState<DOMRect | null>(null);
   const { homeSpaceId, navReady } = usePrototypeHomeSpaceId();
   const createNote = useCreateSimpleNote();
 
@@ -175,9 +59,6 @@ export default function NativeToolbar() {
     noteSlugFromPath ? normalizeNoteIdFromParam(noteSlugFromPath) : null;
 
   const { data: toolbarNote, isLoading: toolbarNoteLoading } = useNote(toolbarNoteId ?? '');
-
-  const displayName = user?.fullName || user?.username || undefined;
-  const email = user?.primaryEmailAddress?.emailAddress;
 
   const isOnNotePage = !!pathname.match(/^\/prototype\/n\//);
 
@@ -260,36 +141,78 @@ export default function NativeToolbar() {
         </button>
       </div>
 
-      {/* Center — folder chip on note routes; brand elsewhere */}
+      {/* Center — folder chip on note routes; empty elsewhere */}
       <div className="proto-toolbar-center">
-        {isOnNotePage ? (
-          toolbarNoteLoading || !toolbarNote ? (
-            <span className="proto-toolbar-brand proto-toolbar-brand--muted" aria-hidden>
-              Prototype
-            </span>
-          ) : (
+        {isOnNotePage && !toolbarNoteLoading && toolbarNote ? (
+          <>
             <button
+              ref={folderChipRef}
               type="button"
               className="proto-toolbar-folder-chip"
-              title="Folder — open note details"
-              aria-label={`Folder: ${toolbarFolderLabel?.trim() ? toolbarFolderLabel : 'No folder'}`}
-              onClick={toggleInspector}
+              title="Folder — edit folders and lock"
+              aria-label={`Folder: ${toolbarFolderLabel?.trim() ? toolbarFolderLabel : 'Unsorted'}`}
+              aria-haspopup="dialog"
+              aria-expanded={folderAnchorRect !== null}
+              onClick={() => {
+                if (folderAnchorRect) {
+                  setFolderAnchorRect(null);
+                } else if (folderChipRef.current) {
+                  setFolderAnchorRect(folderChipRef.current.getBoundingClientRect());
+                }
+              }}
             >
               <Icon name="folder" size={14} className="proto-toolbar-folder-chip__icon" aria-hidden />
               <span className="proto-toolbar-folder-chip__label">
-                {toolbarFolderLabel?.trim() ? toolbarFolderLabel : 'No folder'}
+                {toolbarFolderLabel?.trim() ? toolbarFolderLabel : 'Unsorted'}
               </span>
             </button>
-          )
-        ) : (
-          <span className="proto-toolbar-brand" aria-hidden>
-            Prototype
-          </span>
-        )}
+            {folderAnchorRect && toolbarNoteId ? (
+              <PrototypeFolderPopover
+                note={toolbarNote}
+                anchorRect={folderAnchorRect}
+                onDismiss={() => setFolderAnchorRect(null)}
+              />
+            ) : null}
+          </>
+        ) : null}
       </div>
 
       {/* Right group */}
       <div className="proto-toolbar-right">
+        {/* Share button — only on note pages with shareable notes */}
+        {isOnNotePage && toolbarNote && !toolbarNote.contentEncrypted ? (
+          <>
+            <button
+              ref={shareButtonRef}
+              type="button"
+              className="proto-toolbar-icon-btn"
+              data-active={toolbarNote.isPublic ? 'true' : 'false'}
+              title={toolbarNote.isPublic ? 'This note has a share link' : 'Share note'}
+              aria-label={toolbarNote.isPublic ? 'Manage share link' : 'Share note'}
+              aria-haspopup="dialog"
+              aria-expanded={shareAnchorRect !== null}
+              onClick={() => {
+                if (shareAnchorRect) {
+                  setShareAnchorRect(null);
+                } else if (shareButtonRef.current) {
+                  setShareAnchorRect(shareButtonRef.current.getBoundingClientRect());
+                }
+              }}
+            >
+              <Icon name="share" size={PROTO_TOOLBAR_ICON_SIZE} />
+            </button>
+            {shareAnchorRect && toolbarNoteId ? (
+              <PrototypeSharePopover
+                noteId={toolbarNoteId}
+                isPublic={!!toolbarNote.isPublic}
+                shareToken={toolbarNote.shareToken ?? null}
+                anchorRect={shareAnchorRect}
+                onDismiss={() => setShareAnchorRect(null)}
+              />
+            ) : null}
+          </>
+        ) : null}
+
         {isOnNotePage ? (
           <button
             type="button"
@@ -303,7 +226,15 @@ export default function NativeToolbar() {
           </button>
         ) : null}
 
-        <ProfileMenu displayName={displayName} email={email} />
+        <button
+          type="button"
+          className="proto-toolbar-icon-btn"
+          title="Account"
+          aria-label="Account"
+          onClick={() => clerk.openUserProfile()}
+        >
+          <Icon name="circle-user" size={PROTO_TOOLBAR_ICON_SIZE} />
+        </button>
       </div>
     </div>
   );

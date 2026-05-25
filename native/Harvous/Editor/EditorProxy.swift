@@ -205,6 +205,85 @@ final class EditorProxy: ObservableObject {
         activeScripturePill = nil
     }
 
+    /// Replaces a URL pill at `range` with a fresh `URLLinkPillAttachment` carrying `newHref`.
+    /// Mirrors `replaceActiveScripturePill` shape; cached title is intentionally dropped so
+    /// `URLLinkTitleService` (Slice 3) re-resolves for the new href. Empty input is a no-op.
+    ///
+    /// `newHref` is trimmed and gets an `https://` prefix when no scheme is present — matches the
+    /// web `applyUrlLink` normalization in `TiptapEditor.tsx`.
+    ///
+    /// The existing pill's `label` is carried over to the new pill so users editing only the href
+    /// from the dock's quick-edit don't lose their custom label. Full label-aware edits go through
+    /// the Add Link sheet (`EditorFormatCommands.applyAddLinkFromSheet`).
+    func replaceURLPill(in range: NSRange, newHref rawHref: String) {
+        let trimmed = rawHref.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        var normalized = trimmed
+        if normalized.range(of: "^https?://", options: [.regularExpression, .caseInsensitive]) == nil {
+            normalized = "https://\(normalized)"
+        }
+
+        guard let (tv, storage) = textViewPair() else { return }
+        guard range.location != NSNotFound,
+              range.length > 0,
+              NSMaxRange(range) <= storage.length,
+              let existing = storage.attribute(.attachment, at: range.location, effectiveRange: nil) as? URLLinkPillAttachment
+        else { return }
+
+        let carriedLabel = existing.label
+        let pill = URLLinkPillAttachment(href: normalized, title: nil, label: carriedLabel)
+        let pillStr = NSMutableAttributedString(attachment: pill)
+        let bodyFont = HarvousFonts.noteComposeBodyPlatformFont()
+        var attrs: [NSAttributedString.Key: Any] = [.font: bodyFont]
+        if range.location < storage.length,
+           let ps = storage.attribute(.paragraphStyle, at: range.location, effectiveRange: nil) as? NSParagraphStyle {
+            attrs[.paragraphStyle] = ps
+        }
+        pillStr.addAttributes(attrs, range: NSRange(location: 0, length: pillStr.length))
+
+        storage.beginEditing()
+        storage.replaceCharacters(in: range, with: pillStr)
+        storage.endEditing()
+        hvNotifyBodyChanged(tv)
+        syncPlainTextBindingFromTextView?(tv)
+
+        let newRange = NSRange(location: range.location, length: pillStr.length)
+        setCaret(for: tv, NSRange(location: NSMaxRange(newRange), length: 0))
+        refreshFormatState()
+    }
+
+    /// Removes a URL pill at `range`, replacing it with its visible label as plain body text —
+    /// the pill's user-set `label` if present, else its scheme-stripped `displayHost`. Either way
+    /// the substitute won't match the `http(s)://` URL detector, so the pill doesn't immediately
+    /// re-form. Mirrors the web's "Remove link" semantics: chrome goes away, label survives.
+    func removeURLPill(in range: NSRange) {
+        guard let (tv, storage) = textViewPair() else { return }
+        guard range.location != NSNotFound,
+              range.length > 0,
+              NSMaxRange(range) <= storage.length,
+              let pill = storage.attribute(.attachment, at: range.location, effectiveRange: nil) as? URLLinkPillAttachment
+        else { return }
+
+        let replacement = NSMutableAttributedString(string: pill.effectiveDisplay)
+        let bodyFont = HarvousFonts.noteComposeBodyPlatformFont()
+        var attrs: [NSAttributedString.Key: Any] = [.font: bodyFont]
+        if range.location < storage.length,
+           let ps = storage.attribute(.paragraphStyle, at: range.location, effectiveRange: nil) as? NSParagraphStyle {
+            attrs[.paragraphStyle] = ps
+        }
+        replacement.addAttributes(attrs, range: NSRange(location: 0, length: replacement.length))
+
+        storage.beginEditing()
+        storage.replaceCharacters(in: range, with: replacement)
+        storage.endEditing()
+        hvNotifyBodyChanged(tv)
+        syncPlainTextBindingFromTextView?(tv)
+
+        let newRange = NSRange(location: range.location, length: replacement.length)
+        setCaret(for: tv, NSRange(location: NSMaxRange(newRange), length: 0))
+        refreshFormatState()
+    }
+
     /// Replaces the focused inline pill with a new reference + translation and keeps it selected.
     ///
     /// Accent is preserved across the replacement: if the original pill had a per-reference accent set

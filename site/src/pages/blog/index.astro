@@ -1,0 +1,48 @@
+---
+import BaseLayout from "../../layouts/BaseLayout.astro";
+import BlogCard from "../../components/BlogCard.astro";
+import { getCollection } from "astro:content";
+
+const allPosts = await getCollection("blog");
+const posts = allPosts
+  .filter((p) => !p.data.draft)
+  .sort((a, b) => new Date(b.data.publishDate).getTime() - new Date(a.data.publishDate).getTime());
+---
+
+<BaseLayout
+  title="Blog — Harvous"
+  description="Thoughts on building, studying, and keeping what you learn from Scripture."
+>
+  <!-- Page header -->
+  <section class="border-b border-[var(--color-rule)]">
+    <div class="mx-auto max-w-3xl px-5 py-16 text-center md:py-24">
+      <div class="text-xs uppercase tracking-[0.14em] text-[var(--color-ink-faint)]">The Harvous blog</div>
+      <h1 class="mt-3 font-display text-5xl leading-[1.0] md:text-7xl">
+        From the blog.
+      </h1>
+      <p class="mx-auto mt-5 max-w-xl text-lg text-[var(--color-ink-soft)]">
+        Thoughts on building, studying, and keeping what you learn.
+      </p>
+    </div>
+  </section>
+
+  <!-- Post grid -->
+  <section class="mx-auto max-w-5xl px-5 py-16 md:py-20">
+    {posts.length === 0 ? (
+      <p class="text-center text-[var(--color-ink-soft)]">Nothing here yet. Check back soon.</p>
+    ) : (
+      <div class="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+        {posts.map((post) => (
+          <BlogCard
+            title={post.data.title}
+            description={post.data.description}
+            publishDate={post.data.publishDate}
+            category={post.data.category}
+            slug={post.id}
+            readingTime={post.data.readingTime}
+          />
+        ))}
+      </div>
+    )}
+  </section>
+</BaseLayout>

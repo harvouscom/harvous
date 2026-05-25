@@ -55,12 +55,16 @@ struct NoteListColumn: View {
         self.onNewNote = onNewNote
     }
     #else
+    /// No-op on iOS — iPad sidebar owns its own chrome.
+    var ownsSidebarChrome: Bool = true
+
     init(
         filter: NoteFilter = .all,
         selectedNote: Binding<Note?>,
         externalSearchText: Binding<String>? = nil,
         columnStyle: NoteListColumnStyle = .iOSHomeFeed,
         navigationTitleOverride: String? = nil,
+        ownsSidebarChrome: Bool = true,
         searchPresentationBinding: Binding<Bool>? = nil,
         iosNoteNavPath: Binding<[UUID]>? = nil,
         onNewNote: @escaping () -> Void = {}
@@ -70,6 +74,7 @@ struct NoteListColumn: View {
         self.externalSearchText = externalSearchText
         self.columnStyle = columnStyle
         self.navigationTitleOverride = navigationTitleOverride
+        self.ownsSidebarChrome = ownsSidebarChrome
         self.searchPresentationBinding = searchPresentationBinding
         self.iosNoteNavPath = iosNoteNavPath
         self.onNewNote = onNewNote
@@ -82,6 +87,7 @@ struct NoteListColumn: View {
     ]) private var notes: [Note]
     @Environment(\.modelContext) private var context
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.harvousIsIPadSplitLayout) private var isIPadSplitLayout
     @EnvironmentObject private var spaceStore: SpaceStore
     @EnvironmentObject private var appRouter: HarvousAppRouter
     #if os(macOS)
@@ -115,7 +121,9 @@ struct NoteListColumn: View {
         case .iOSHomeFeed, .iOSTabNoteList:
             return false
         case .macOSSidebar:
-            return true
+            // Match macOS: when the parent owns the chrome (via `externalSearchText`) it also owns the
+            // search field, so don't attach a second one (avoids the iPad-sidebar double search bug).
+            return externalSearchText == nil
         }
         #else
         externalSearchText == nil
@@ -262,7 +270,9 @@ struct NoteListColumn: View {
         #endif
         #if os(iOS)
         .toolbar {
-            if columnStyle == .macOSSidebar {
+            // Only own the compose toolbar item when the column owns its own chrome — when embedded
+            // in `SidebarPanelView` (iPad), the sidebar parent owns compose and we'd otherwise duplicate.
+            if columnStyle == .macOSSidebar, ownsSidebarChrome {
                 ToolbarItem(placement: .primaryAction) {
                     Button(action: onNewNote) {
                         HarvousFAGlyph(assetName: "Harvous.Pencil", edgePt: 16)
@@ -392,7 +402,7 @@ struct NoteListColumn: View {
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
         #if os(iOS)
-        .iosListBottomChromeReserve()
+        .modifier(IPadAwareListBottomChromeReserve(skip: isIPadSplitLayout))
         #endif
     }
 
@@ -493,7 +503,7 @@ struct NoteListColumn: View {
                 HarvousVaultExporter.removeMirrorFiles(for: note, modelContext: context)
                 HarvousNoteSpotlightIndexer.removeNote(id: doomedId)
                 ThreadStore.purgeLinkedNoteMarkers(referencingDeletedNote: doomedId, modelContext: context)
-                context.delete(note)
+                HarvousSyncingDelete.delete(note: note, context: context)
                 try? context.save()
             }
             guard let iosNavPath else { return }
@@ -519,7 +529,7 @@ struct NoteListColumn: View {
         Button {
             withAnimation {
                 note.isPinned.toggle()
-                note.updatedAt = Date()
+                note.markDirty()
                 try? context.saveWithLogging()
             }
             HarvousNoteSpotlightIndexer.reindex(note: note)

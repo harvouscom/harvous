@@ -1,0 +1,121 @@
+{
+  "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/SourcePackages/checkouts/clerk-ios/Sources/ClerkKitUI/Common/ProviderIconView.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKitUI.build/Objects-normal/arm64/ProviderIconView.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKitUI.build/Objects-normal/arm64/ProviderIconView.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKitUI.build/Objects-normal/arm64/ProviderIconView.dia",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKitUI.build/Objects-normal/arm64/ProviderIconView.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKitUI.build/Objects-normal/arm64/ProviderIconView.swiftdeps"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/SourcePackages/checkouts/clerk-ios/Sources/ClerkKitUI/Common/SafariView.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKitUI.build/Objects-normal/arm64/SafariView.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKitUI.build/Objects-normal/arm64/SafariView.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKitUI.build/Objects-normal/arm64/SafariView.dia",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKitUI.build/Objects-normal/arm64/SafariView.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKitUI.build/Objects-normal/arm64/SafariView.swiftdeps"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/SourcePackages/checkouts/clerk-ios/Sources/ClerkKitUI/Common/SecuredByClerkView.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKitUI.build/Objects-normal/arm64/SecuredByClerkView.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKitUI.build/Objects-normal/arm64/SecuredByClerkView.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKitUI.build/Objects-normal/arm64/SecuredByClerkView.dia",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKitUI.build/Objects-normal/arm64/SecuredByClerkView.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKitUI.build/Objects-normal/arm64/SecuredByClerkView.swiftdeps"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/SourcePackages/checkouts/clerk-ios/Sources/ClerkKitUI/Common/SocialButton.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKitUI.build/Objects-normal/arm64/SocialButton.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKitUI.build/Objects-normal/arm64/SocialButton.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKitUI.build/Objects-normal/arm64/SocialButton.dia",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKitUI.build/Objects-normal/arm64/SocialButton.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKitUI.build/Objects-normal/arm64/SocialButton.swiftdeps"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/SourcePackages/checkouts/clerk-ios/Sources/ClerkKitUI/Common/SocialButtonLayout.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKitUI.build/Objects-normal/arm64/SocialButtonLayout.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKitUI.build/Objects-normal/arm64/SocialButtonLayout.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKitUI.build/Objects-normal/arm64/SocialButtonLayout.dia",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKitUI.build/Objects-normal/arm64/SocialButtonLayout.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKitUI.build/Objects-normal/arm64/SocialButtonLayout.swiftdeps"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/SourcePackages/checkouts/clerk-ios/Sources/ClerkKitUI/Common/SpinnerView.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKitUI.build/Objects-normal/arm64/SpinnerView.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKitUI.build/Objects-normal/arm64/SpinnerView.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKitUI.build/Objects-normal/arm64/SpinnerView.dia",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKitUI.build/Objects-normal/arm64/SpinnerView.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKitUI.build/Objects-normal/arm64/SpinnerView.swiftdeps"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/SourcePackages/checkouts/clerk-ios/Sources/ClerkKitUI/Common/StrategyOptionButton.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKitUI.build/Objects-normal/arm64/StrategyOptionButton.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKitUI.build/Objects-normal/arm64/StrategyOptionButton.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKitUI.build/Objects-normal/arm64/StrategyOptionButton.dia",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKitUI.build/Objects-normal/arm64/StrategyOptionButton.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKitUI.build/Objects-normal/arm64/StrategyOptionButton.swiftdeps"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/SourcePackages/checkouts/clerk-ios/Sources/ClerkKitUI/Common/TextDivider.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKitUI.build/Objects-normal/arm64/TextDivider.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKitUI.build/Objects-normal/arm64/TextDivider.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKitUI.build/Objects-normal/arm64/TextDivider.dia",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKitUI.build/Objects-normal/arm64/TextDivider.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKitUI.build/Objects-normal/arm64/TextDivider.swiftdeps"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/SourcePackages/checkouts/clerk-ios/Sources/ClerkKitUI/Common/WarningText.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKitUI.build/Objects-normal/arm64/WarningText.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKitUI.build/Objects-normal/arm64/WarningText.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKitUI.build/Objects-normal/arm64/WarningText.dia",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKitUI.build/Objects-normal/arm64/WarningText.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKitUI.build/Objects-normal/arm64/WarningText.swiftdeps"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/SourcePackages/checkouts/clerk-ios/Sources/ClerkKitUI/Common/WrappingHStack.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKitUI.build/Objects-normal/arm64/WrappingHStack.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKitUI.build/Objects-normal/arm64/WrappingHStack.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKitUI.build/Objects-normal/arm64/WrappingHStack.dia",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKitUI.build/Objects-normal/arm64/WrappingHStack.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKitUI.build/Objects-normal/arm64/WrappingHStack.swiftdeps"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/SourcePackages/checkouts/clerk-ios/Sources/ClerkKitUI/Components/Auth/AuthIdentifierConfig.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKitUI.build/Objects-normal/arm64/AuthIdentifierConfig.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKitUI.build/Objects-normal/arm64/AuthIdentifierConfig.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKitUI.build/Objects-normal/arm64/AuthIdentifierConfig.dia",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKitUI.build/Objects-normal/arm64/AuthIdentifierConfig.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKitUI.build/Objects-normal/arm64/AuthIdentifierConfig.swiftdeps"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/SourcePackages/checkouts/clerk-ios/Sources/ClerkKitUI/Components/Auth/AuthNavigation.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKitUI.build/Objects-normal/arm64/AuthNavigation.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKitUI.build/Objects-normal/arm64/AuthNavigation.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKitUI.build/Objects-normal/arm64/AuthNavigation.dia",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKitUI.build/Objects-normal/arm64/AuthNavigation.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKitUI.build/Objects-normal/arm64/AuthNavigation.swiftdeps"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/SourcePackages/checkouts/clerk-ios/Sources/ClerkKitUI/Components/Auth/AuthStartView.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKitUI.build/Objects-normal/arm64/AuthStartView.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKitUI.build/Objects-normal/arm64/AuthStartView.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKitUI.build/Objects-normal/arm64/AuthStartView.dia",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKitUI.build/Objects-normal/arm64/AuthStartView.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKitUI.build/Objects-normal/arm64/AuthStartView.swiftdeps"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/SourcePackages/checkouts/clerk-ios/Sources/ClerkKitUI/Components/Auth/AuthState.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKitUI.build/Objects-normal/arm64/AuthState.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKitUI.build/Objects-normal/arm64/AuthState.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKitUI.build/Objects-normal/arm64/AuthState.dia",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKitUI.build/Objects-normal/arm64/AuthState.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKitUI.build/Objects-normal/arm64/AuthState.swiftdeps"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/SourcePackages/checkouts/clerk-ios/Sources/ClerkKitUI/Components/Auth/AuthView.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKitUI.build/Objects-normal/arm64/AuthView.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKitUI.build/Objects-normal/arm64/AuthView.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKitUI.build/Objects-normal/arm64/AuthView.dia",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKitUI.build/Objects-normal/arm64/AuthView.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKitUI.build/Objects-normal/arm64/AuthView.swiftdeps"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/SourcePackages/checkouts/clerk-ios/Sources/ClerkKitUI/Components/Auth/GetHelpView.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKitUI.build/Objects-normal/arm64/GetHelpView.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKitUI.build/Objects-normal/arm64/GetHelpView.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKitUI.build/Objects-normal/arm64/GetHelpView.dia",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKitUI.build/Objects-normal/arm64/GetHelpView.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKitUI.build/Objects-normal/arm64/GetHelpView.swiftdeps"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/SourcePackages/checkouts/clerk-ios/Sources/ClerkKitUI/Components/Auth/LastUsedAuth.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKitUI.build/Objects-normal/arm64/LastUsedAuth.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKitUI.build/Objects-normal/arm64/LastUsedAuth.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKitUI.build/Objects-normal/arm64/LastUsedAuth.dia",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKitUI.build/Objects-normal/arm64/LastUsedAuth.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKitUI.build/Objects-normal/arm64/LastUsedAuth.swiftdeps"
+  }
+}

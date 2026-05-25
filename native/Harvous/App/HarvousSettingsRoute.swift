@@ -51,8 +51,7 @@ enum HarvousAvatarColorToken: String, CaseIterable, Identifiable {
 // MARK: - Settings items (aligned with docs/native/PROFILE_PREFERENCES_IA.md)
 
 enum HarvousSettingsSidebarItem: String, CaseIterable, Hashable, Identifiable {
-    case editProfile
-    case emailPassword
+    case account
     case subscription
     case defaultBible
     case myChurch
@@ -67,8 +66,7 @@ enum HarvousSettingsSidebarItem: String, CaseIterable, Hashable, Identifiable {
 
     var title: String {
         switch self {
-        case .editProfile: return "Name"
-        case .emailPassword: return "Email & password"
+        case .account: return "Account"
         case .subscription: return "Subscription"
         case .defaultBible: return "Default Bible translation"
         case .myChurch: return "My church"
@@ -83,8 +81,7 @@ enum HarvousSettingsSidebarItem: String, CaseIterable, Hashable, Identifiable {
 
     var systemImage: String {
         switch self {
-        case .editProfile: return "person.crop.circle"
-        case .emailPassword: return "envelope.badge.shield.half.filled"
+        case .account: return "person.crop.circle"
         case .subscription: return "creditcard"
         case .defaultBible: return "book.closed"
         case .myChurch: return "building.columns"
@@ -100,8 +97,7 @@ enum HarvousSettingsSidebarItem: String, CaseIterable, Hashable, Identifiable {
     /// `Assets.xcassets` `Harvous.*` name for iOS settings lists (You → Settings). macOS preferences still use `systemImage`.
     var settingsListFAAssetName: String {
         switch self {
-        case .editProfile: return "Harvous.UserFilled"
-        case .emailPassword: return "Harvous.Envelope"
+        case .account: return "Harvous.UserFilled"
         case .subscription: return "Harvous.CreditCard"
         case .defaultBible: return "Harvous.BookFilled"
         case .myChurch: return "Harvous.Church"
@@ -116,10 +112,8 @@ enum HarvousSettingsSidebarItem: String, CaseIterable, Hashable, Identifiable {
 
     var footnote: String {
         switch self {
-        case .editProfile:
-            return "Syncs with your Harvous account when signed in on the web."
-        case .emailPassword:
-            return "Managed by Clerk. You may be redirected to sign in on the web."
+        case .account:
+            return "Your name syncs with your Harvous account. Email and password are managed by Clerk."
         case .subscription:
             return "Billing is handled on the web for now."
         case .defaultBible:
@@ -143,7 +137,7 @@ enum HarvousSettingsSidebarItem: String, CaseIterable, Hashable, Identifiable {
 
     /// Account row(s). Subscription is temporarily hidden from the sidebar.
     static var accountItems: [HarvousSettingsSidebarItem] {
-        [.editProfile, .emailPassword]
+        [.account]
     }
 
     /// My church and lock PIN are temporarily hidden from the sidebar.
@@ -198,10 +192,9 @@ enum HarvousSettingsPathParser {
 
         switch parts[1] {
         case "account":
-            if parts.count < 3 { return .editProfile }
+            if parts.count < 3 { return .account }
             switch parts[2] {
-            case "profile": return .editProfile
-            case "email": return .emailPassword
+            case "profile", "email": return .account
             case "subscription": return .subscription
             default: return nil
             }

@@ -60,9 +60,12 @@ final class Space {
     var scriptureThemeRaw: String = "blue"
     /// Per-space daily study passage (e.g. "John 3:16"). `nil` means not set.
     var dailyPassageRef: String? = nil
-    /// Server UUID when syncing (v2). Always `nil` in v1.
+    /// Server UUID when syncing (v2). Always `nil` in v1. Superseded by `serverId`
+    /// because the Hono backend uses prefixed string ids (`space_…`), not UUIDs.
     var cloudId: UUID?
-    /// Tracks rows pending upload in v2. Unused locally in v1.
+    /// Server string id (e.g. `space_1730000000000`) for cloud sync.
+    var serverId: String?
+    /// Tracks rows pending upload to the cloud.
     var needsSync: Bool = false
 
     @Relationship(deleteRule: .cascade, inverse: \SpaceMember.space)

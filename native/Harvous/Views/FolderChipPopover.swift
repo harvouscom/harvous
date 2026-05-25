@@ -549,6 +549,7 @@ struct FolderChipPopover: View {
     // MARK: - Mutations
 
     private func persist() {
+        note.markDirty()
         try? modelContext.saveWithLogging()
         HarvousNoteSpotlightIndexer.reindex(note: note)
         HarvousVaultExporter.scheduleWrite(note: note, modelContext: modelContext)

@@ -12,6 +12,7 @@ struct EastonsDictionaryListColumn: View {
     @State private var chipBarAvailableWidth: CGFloat = 300
     @Namespace private var chipNamespace
     @State private var pinnedSlugs: [String] = []
+    @Environment(\.harvousIsIPadSplitLayout) private var isIPadSplitLayout
 
     private enum CategoryFilter: String, CaseIterable, Identifiable {
         case all, person, place, thing
@@ -223,7 +224,7 @@ struct EastonsDictionaryListColumn: View {
                 .listStyle(.plain)
                 .scrollContentBackground(.hidden)
                 #if os(iOS)
-                .iosListBottomChromeReserve()
+                .modifier(IPadAwareListBottomChromeReserve(skip: isIPadSplitLayout))
                 #endif
             }
         }

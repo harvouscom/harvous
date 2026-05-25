@@ -60,6 +60,18 @@
 	<string>Harvous can remind you with note context before Bible study events on your calendar.</string>
 	<key>NSCameraUsageDescription</key>
 	<string>Harvous uses the camera to scan text from books and handouts into a new note.</string>
+	<key>HarvousClerkPublishableKey</key>
+	<string>$(CLERK_PUBLISHABLE_KEY)</string>
+	<key>HarvousAPIBaseURL</key>
+	<string>$(HARVOUS_API_BASE_URL)</string>
+	<key>UIAppFonts</key>
+	<array>
+		<string>Scorekard-Regular.otf</string>
+		<string>Scorekard-Semibold.otf</string>
+		<string>Scorekard-Bold.otf</string>
+	</array>
+	<key>ATSApplicationFontsPath</key>
+	<string>.</string>
 	<key>NSUbiquitousContainers</key>
 	<dict>
 		<key>iCloud.com.harvous.app</key>

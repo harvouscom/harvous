@@ -3,7 +3,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState, t
 /** Breakpoint sync with prototype-shell.css (899px drawer). */
 const MOBILE_MQ = '(max-width: 899px)';
 
-export type SidebarListMode = 'notes' | 'folders' | 'highlights' | 'scripture';
+export type SidebarListMode = 'notes' | 'folders' | 'highlights' | 'scripture' | 'dictionary';
 
 /** `undefined` = top-level list; `null` = “No folder” drill-down; `string` = named folder. */
 export type SidebarFolderDrilldown = string | null | undefined;
@@ -33,6 +33,9 @@ type ProtoShellContextValue = {
   setSidebarListMode: (mode: SidebarListMode) => void;
   sidebarFolderDrilldown: SidebarFolderDrilldown;
   setSidebarFolderDrilldown: (value: SidebarFolderDrilldown) => void;
+  /** Active dictionary entry slug when drilled into a Easton's entry in the sidebar. */
+  sidebarDictionarySlug: string | undefined;
+  setSidebarDictionarySlug: (slug: string | undefined) => void;
   /** Open mobile drawer or expand desktop sidebar so the list is visible. */
   ensureSidebarExpanded: () => void;
   /** Inspector pane — desktop: inline column; mobile: slide-over on note page. */
@@ -63,6 +66,7 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
   const [inspectorOpen, setInspectorOpen] = useState(false);
   const [sidebarListMode, setSidebarListModeState] = useState<SidebarListMode>('notes');
   const [sidebarFolderDrilldown, setSidebarFolderDrilldown] = useState<SidebarFolderDrilldown>(undefined);
+  const [sidebarDictionarySlug, setSidebarDictionarySlug] = useState<string | undefined>(undefined);
   const [prototypeFolderChip, setPrototypeFolderChipState] = useState<PrototypeFolderChip | null>(null);
   const [standaloneScripturePassage, setStandaloneScripturePassage] = useState<StandaloneScripturePassageState | null>(
     null,
@@ -89,6 +93,7 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
   const setSidebarListMode = useCallback((mode: SidebarListMode) => {
     setSidebarListModeState(mode);
     if (mode !== 'folders') setSidebarFolderDrilldown(undefined);
+    if (mode !== 'dictionary') setSidebarDictionarySlug(undefined);
   }, []);
   const ensureSidebarExpanded = useCallback(() => {
     if (isMobileSidebar) openDrawer();
@@ -120,6 +125,8 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
       setSidebarListMode,
       sidebarFolderDrilldown,
       setSidebarFolderDrilldown,
+      sidebarDictionarySlug,
+      setSidebarDictionarySlug,
       ensureSidebarExpanded,
       inspectorOpen,
       toggleInspector,
@@ -143,6 +150,8 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
       setSidebarListMode,
       sidebarFolderDrilldown,
       setSidebarFolderDrilldown,
+      sidebarDictionarySlug,
+      setSidebarDictionarySlug,
       ensureSidebarExpanded,
       inspectorOpen,
       toggleInspector,

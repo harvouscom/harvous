@@ -6,5 +6,12 @@
 // sometimes drops baseConfigurationReference when editing signing; if that
 // happens, re-link it in Build Settings. Also set Code Signing Allowed on the
 // Harvous_iOS / Harvous_macOS targets (target settings override the project).
+#include "Harvous-Env.xcconfig"
+
 CODE_SIGNING_ALLOWED = YES
 CODE_SIGNING_REQUIRED = YES
+
+// macOS local dev: ad-hoc signing avoids provisioning/keychain timing failures
+// on macOS 26+ which validates signatures at launch time. Safe because entitlements
+// are empty. Remove this if the Mac build ever needs distribution signing.
+CODE_SIGN_IDENTITY[sdk=macosx*] = -

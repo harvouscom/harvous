@@ -1,0 +1,228 @@
+import { useState, useEffect } from 'react';
+import { useSignIn, useSignUp } from '@clerk/clerk-react';
+import { useNavigate } from '@tanstack/react-router';
+import { postAuthRedirectPath } from '../../utils/post-auth-redirect';
+
+/**
+ * Custom Clerk-headless auth form that drives `useSignIn()` / `useSignUp()`
+ * directly. Renders the same email-code flow as the native macOS sign-in
+ * (`MacSignInView.swift`) so the visual is identical across surfaces.
+ * Replaces Clerk's prebuilt `<SignIn>` / `<SignUp>` components so no Clerk
+ * card chrome, dev-mode striped banner, or built-in CTAs leak SPA styling.
+ *
+ * Two steps:
+ *   1. Enter email → Clerk sends a 6-digit one-time code.
+ *   2. Enter code → activate the new session, redirect.
+ */
+export default function HarvousAuthForm({
+  mode,
+  redirectRaw,
+}: {
+  mode: 'signIn' | 'signUp';
+  redirectRaw: string | null;
+}) {
+  const { isLoaded: signInLoaded, signIn, setActive: setSignInActive } = useSignIn();
+  const { isLoaded: signUpLoaded, signUp, setActive: setSignUpActive } = useSignUp();
+  const navigate = useNavigate();
+
+  type Step = 'enterEmail' | 'enterCode';
+  const [step, setStep] = useState<Step>('enterEmail');
+  const [email, setEmail] = useState('');
+  const [code, setCode] = useState('');
+  const [isBusy, setIsBusy] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  // Auto-focus the code field once it appears.
+  useEffect(() => {
+    if (step !== 'enterCode') return;
+    const id = window.setTimeout(() => {
+      document.getElementById('harvous-auth-code')?.focus();
+    }, 40);
+    return () => window.clearTimeout(id);
+  }, [step]);
+
+  const isValidEmail = (s: string) => {
+    const t = s.trim();
+    return t.includes('@') && t.includes('.') && t.length >= 5;
+  };
+  const ready =
+    mode === 'signIn' ? signInLoaded && !!signIn : signUpLoaded && !!signUp;
+
+  function friendlyError(err: any): string {
+    const m: string =
+      err?.errors?.[0]?.longMessage ||
+      err?.errors?.[0]?.message ||
+      err?.message ||
+      'Something went wrong. Please try again.';
+    return m;
+  }
+
+  function redirectAfterAuth() {
+    const params = new URLSearchParams(window.location.search);
+    const target = postAuthRedirectPath(params.get('redirect_url'));
+    navigate({ to: target as any });
+  }
+
+  async function beginEmailFlow(e: React.FormEvent) {
+    e.preventDefault();
+    if (!ready || !isValidEmail(email)) return;
+    setIsBusy(true);
+    setErrorMessage(null);
+    try {
+      const trimmed = email.trim();
+      if (mode === 'signIn' && signIn) {
+        const attempt = await signIn.create({ identifier: trimmed });
+        const factor = attempt.supportedFirstFactors?.find(
+          (f) => f.strategy === 'email_code'
+        ) as { strategy: 'email_code'; emailAddressId: string } | undefined;
+        if (!factor) {
+          throw new Error("This email isn't set up for code sign-in. Try a different email or contact support.");
+        }
+        await signIn.prepareFirstFactor({
+          strategy: 'email_code',
+          emailAddressId: factor.emailAddressId,
+        });
+      } else if (mode === 'signUp' && signUp) {
+        await signUp.create({ emailAddress: trimmed });
+        await signUp.prepareEmailAddressVerification({ strategy: 'email_code' });
+      }
+      setStep('enterCode');
+    } catch (err: any) {
+      setErrorMessage(friendlyError(err));
+    } finally {
+      setIsBusy(false);
+    }
+  }
+
+  async function verifyCode(e: React.FormEvent) {
+    e.preventDefault();
+    if (!ready) return;
+    setIsBusy(true);
+    setErrorMessage(null);
+    try {
+      const trimmed = code.trim();
+      if (mode === 'signIn' && signIn) {
+        const result = await signIn.attemptFirstFactor({
+          strategy: 'email_code',
+          code: trimmed,
+        });
+        if (result.status === 'complete' && result.createdSessionId) {
+          await setSignInActive({ session: result.createdSessionId });
+          redirectAfterAuth();
+        } else {
+          setErrorMessage('Could not complete sign-in. Please try again.');
+        }
+      } else if (mode === 'signUp' && signUp) {
+        const result = await signUp.attemptEmailAddressVerification({ code: trimmed });
+        if (result.status === 'complete' && result.createdSessionId) {
+          await setSignUpActive({ session: result.createdSessionId });
+          redirectAfterAuth();
+        } else {
+          setErrorMessage('Could not complete sign-up. Please try again.');
+        }
+      }
+    } catch (err: any) {
+      setErrorMessage(friendlyError(err));
+    } finally {
+      setIsBusy(false);
+    }
+  }
+
+  function useDifferentEmail() {
+    setStep('enterEmail');
+    setCode('');
+    setErrorMessage(null);
+  }
+
+  const hasCustomRedirect = redirectRaw != null && redirectRaw !== '';
+  const switcherHref =
+    mode === 'signIn'
+      ? hasCustomRedirect
+        ? `/sign-up?redirect_url=${encodeURIComponent(redirectRaw!)}`
+        : '/sign-up'
+      : hasCustomRedirect
+        ? `/sign-in?redirect_url=${encodeURIComponent(redirectRaw!)}`
+        : '/sign-in';
+
+  return (
+    <div className="harvous-auth-form">
+      {step === 'enterEmail' ? (
+        <form onSubmit={beginEmailFlow} className="harvous-auth-form__inner">
+          <input
+            type="email"
+            inputMode="email"
+            autoComplete="email"
+            autoFocus
+            placeholder="Enter your email"
+            className="harvous-auth-form__input"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            aria-label="Email address"
+          />
+          <button
+            type="submit"
+            className="harvous-auth-form__primary"
+            disabled={isBusy || !ready || !isValidEmail(email)}
+          >
+            {isBusy ? (
+              <span className="harvous-auth-form__spinner" aria-hidden />
+            ) : mode === 'signIn' ? (
+              'Sign in with email'
+            ) : (
+              'Send sign-in code'
+            )}
+          </button>
+        </form>
+      ) : (
+        <form onSubmit={verifyCode} className="harvous-auth-form__inner">
+          <p className="harvous-auth-form__hint">
+            Enter the 6-digit code we sent to <strong>{email}</strong>.
+          </p>
+          <input
+            id="harvous-auth-code"
+            type="text"
+            inputMode="numeric"
+            autoComplete="one-time-code"
+            placeholder="123456"
+            className="harvous-auth-form__input harvous-auth-form__input--code"
+            value={code}
+            onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 8))}
+            aria-label="Verification code"
+          />
+          <button
+            type="submit"
+            className="harvous-auth-form__primary"
+            disabled={isBusy || !ready || code.length < 4}
+          >
+            {isBusy ? (
+              <span className="harvous-auth-form__spinner" aria-hidden />
+            ) : (
+              'Verify and continue'
+            )}
+          </button>
+          <button
+            type="button"
+            onClick={useDifferentEmail}
+            className="harvous-auth-form__secondary-link"
+          >
+            Use a different email
+          </button>
+        </form>
+      )}
+
+      {errorMessage && (
+        <p className="harvous-auth-form__error" role="alert">
+          {errorMessage}
+        </p>
+      )}
+
+      {step === 'enterEmail' && (
+        <p className="auth-page__footer-switch">
+          {mode === 'signIn' ? "Don't have an account?" : 'Already have an account?'}
+          <a href={switcherHref}>{mode === 'signIn' ? 'Sign up' : 'Sign in'}</a>
+        </p>
+      )}
+      <p className="auth-page__secured-by">Secured by Clerk</p>
+    </div>
+  );
+}

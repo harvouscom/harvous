@@ -16,6 +16,8 @@ function listModeTitle(mode: SidebarListMode): string {
       return 'Highlights list';
     case 'scripture':
       return 'Scripture index';
+    case 'dictionary':
+      return 'Dictionary';
     default:
       return 'List view';
   }
@@ -31,6 +33,8 @@ function ListModeTriggerIcon({ mode, size }: { mode: SidebarListMode; size: numb
       return <Icon name="highlighter" size={size} />;
     case 'scripture':
       return <Icon name="book" size={size} />;
+    case 'dictionary':
+      return <Icon name="book-open" size={size} />;
     default:
       return <Icon name="note-sticky" size={size} />;
   }
@@ -146,6 +150,21 @@ export default function ListViewMenu({ disabled }: { disabled?: boolean }) {
                 <Icon name="highlighter" size={PROTO_TOOLBAR_ICON_SIZE} />
               </span>
               <span style={{ flex: 1, minWidth: 0 }}>Highlights</span>
+            </button>
+            <button
+              type="button"
+              role="menuitemradio"
+              aria-checked={sidebarListMode === 'dictionary'}
+              className="proto-menu-item"
+              onClick={() => pick('dictionary')}
+            >
+              <span className="proto-menu-item__check" aria-hidden>
+                {sidebarListMode === 'dictionary' ? '✓' : ''}
+              </span>
+              <span className="proto-menu-item__icon" aria-hidden>
+                <Icon name="book-open" size={PROTO_TOOLBAR_ICON_SIZE} />
+              </span>
+              <span style={{ flex: 1, minWidth: 0 }}>Dictionary</span>
             </button>
           </div>
         </div>

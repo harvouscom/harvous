@@ -3,9 +3,15 @@
   "configurations": [
     {
       "name": "spa",
-      "runtimeExecutable": "npx",
-      "runtimeArgs": ["vite", "--port", "4323"],
-      "port": 4323
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev:all"],
+      "port": 4322
+    },
+    {
+      "name": "site",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev", "--prefix", "site"],
+      "port": 4321
     }
   ]
 }

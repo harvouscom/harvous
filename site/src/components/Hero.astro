@@ -1,0 +1,34 @@
+---
+import CTAButton from "./CTAButton.astro";
+import ProductPreview from "./ProductPreview.astro";
+import FeatureIconStrip from "./FeatureIconStrip.astro";
+---
+
+<section class="relative overflow-hidden">
+  <div class="mx-auto max-w-6xl px-5 pb-10 pt-14 md:pt-20">
+    <div class="mx-auto max-w-4xl text-center">
+      <h1 class="font-display text-5xl leading-[1.0] tracking-tight md:whitespace-nowrap md:text-[5rem]">
+        Create your <span class="whitespace-nowrap">study Bible.</span>
+      </h1>
+      <p class="mx-auto mt-6 max-w-2xl text-lg text-[var(--color-ink-soft)] md:text-xl">
+        Notes and highlights <mark>linked to scripture</mark>, with a built-in dictionary.<br class="hidden md:inline" /> Seven translations. On web, Mac, iPhone, and iPad.
+      </p>
+      <div class="mt-7 flex items-center justify-center gap-3">
+        <CTAButton href="https://app.harvous.com/sign-up" variant="primary" size="lg" external>
+          Start for free
+        </CTAButton>
+        <CTAButton href="/features" variant="secondary" size="lg">
+          See features
+        </CTAButton>
+      </div>
+    </div>
+
+    <div class="relative mx-auto mt-14 max-w-5xl md:mt-20">
+      <ProductPreview />
+    </div>
+
+    <div class="mx-auto max-w-4xl">
+      <FeatureIconStrip />
+    </div>
+  </div>
+</section>

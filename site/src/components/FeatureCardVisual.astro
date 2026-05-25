@@ -1,0 +1,145 @@
+---
+// Small themed visual that fills the middle of a feature card.
+// Each `kind` matches a feature MDX filename (slug) and uses the card's
+// tone colors for a recognizable mini-mock.
+interface Props {
+  kind: string;
+  bg: string;
+  ink: string;
+}
+const { kind, bg, ink } = Astro.props;
+---
+
+<div class="relative my-3 flex h-full items-center justify-center overflow-hidden">
+  {kind === "scripture-pills" && (
+    <div
+      class="rotate-[-2deg] rounded-xl bg-white px-3 py-2.5 text-[11px] leading-relaxed shadow-[0_10px_24px_-12px_rgba(20,18,12,0.18)] ring-1 ring-[var(--color-rule)]"
+      style={`max-width: 90%;`}
+    >
+      Read it in <span
+        class="mx-0.5 inline-flex items-center rounded-md px-1.5 py-0.5 text-[10px] font-semibold"
+        style={`background: ${bg}; color: ${ink};`}
+      >John 3:16</span> first.
+    </div>
+  )}
+
+  {kind === "dictionary" && (
+    <div
+      class="rotate-[1.5deg] w-full max-w-[88%] rounded-xl bg-white p-3 shadow-[0_10px_24px_-12px_rgba(20,18,12,0.18)] ring-1 ring-[var(--color-rule)]"
+    >
+      <div class="text-[9px] font-semibold uppercase tracking-wider" style={`color: ${ink}; opacity: 0.55;`}>Dictionary</div>
+      <div class="mt-0.5 text-[13px] font-semibold" style={`color: var(--color-ink);`}>Grace</div>
+      <div class="text-[9px]" style={`color: var(--color-ink-faint);`}>Easton's, 1897</div>
+      <div class="mt-1.5 text-[10px] leading-snug" style={`color: var(--color-ink-soft);`}>
+        (3.) God's forgiving mercy <span style={`color: ${ink};`}>(Rom. 11:6)</span>.
+      </div>
+    </div>
+  )}
+
+  {kind === "highlights" && (
+    <div class="relative w-full max-w-[88%]">
+      <div
+        class="rotate-[-1.5deg] rounded-xl bg-white px-3 py-2.5 text-[11px] leading-relaxed shadow-[0_10px_24px_-12px_rgba(20,18,12,0.18)] ring-1 ring-[var(--color-rule)]"
+      >
+        We're saved <mark class="px-0.5" style={`background: linear-gradient(180deg, transparent 55%, ${bg} 55%);`}>by grace</mark> through faith.
+      </div>
+      <div
+        class="absolute -bottom-3 right-1 rotate-[4deg] rounded-lg bg-white px-2 py-1 text-[9px] font-medium shadow-[0_6px_18px_-10px_rgba(20,18,12,0.2)] ring-1 ring-[var(--color-rule)]"
+        style={`color: ${ink};`}
+      >
+        <span class="mr-1 inline-block h-1.5 w-1.5 rounded-full align-middle" style={`background: ${ink};`}></span>
+        Note
+      </div>
+    </div>
+  )}
+
+  {kind === "sidebar-modes" && (
+    <div
+      class="rotate-[-1deg] w-full max-w-[72%] rounded-xl bg-white p-2.5 shadow-[0_10px_24px_-12px_rgba(20,18,12,0.18)] ring-1 ring-[var(--color-rule)]"
+    >
+      <div class="space-y-1 text-[10px]">
+        <div class="rounded px-1.5 py-0.5 font-medium" style={`background: ${bg}; color: ${ink};`}>Notes</div>
+        <div class="px-1.5 py-0.5" style={`color: var(--color-ink-soft);`}>Folders</div>
+        <div class="px-1.5 py-0.5" style={`color: var(--color-ink-soft);`}>Highlights</div>
+        <div class="px-1.5 py-0.5" style={`color: var(--color-ink-soft);`}>Scripture</div>
+        <div class="px-1.5 py-0.5" style={`color: var(--color-ink-soft);`}>Dictionary</div>
+      </div>
+    </div>
+  )}
+
+  {kind === "native-apps" && (
+    <div class="flex items-end gap-1.5">
+      <div class="h-14 w-9 rounded-md ring-1 ring-[var(--color-rule)]" style={`background: ${bg};`}>
+        <div class="mx-auto mt-1 h-0.5 w-3 rounded-full" style={`background: ${ink}; opacity: 0.35;`}></div>
+      </div>
+      <div class="h-20 w-14 rounded-md ring-1 ring-[var(--color-rule)]" style={`background: ${bg};`}>
+        <div class="mx-auto mt-1 h-0.5 w-5 rounded-full" style={`background: ${ink}; opacity: 0.35;`}></div>
+      </div>
+      <div class="h-12 w-[68px] rounded-md ring-1 ring-[var(--color-rule)]" style={`background: ${bg};`}>
+        <div class="ml-1 mt-1 flex gap-0.5">
+          <span class="h-1 w-1 rounded-full" style={`background: ${ink}; opacity: 0.35;`}></span>
+          <span class="h-1 w-1 rounded-full" style={`background: ${ink}; opacity: 0.35;`}></span>
+          <span class="h-1 w-1 rounded-full" style={`background: ${ink}; opacity: 0.35;`}></span>
+        </div>
+      </div>
+    </div>
+  )}
+
+  {kind === "sharing" && (
+    <div class="relative w-full max-w-[82%]">
+      <div
+        class="rotate-[2deg] rounded-xl bg-white px-3 py-2.5 shadow-[0_10px_24px_-12px_rgba(20,18,12,0.18)] ring-1 ring-[var(--color-rule)]"
+      >
+        <div class="text-[10px] font-semibold" style={`color: var(--color-ink);`}>Saved by grace</div>
+        <div class="text-[9px]" style={`color: var(--color-ink-faint);`}>harvous.com/n/abc123</div>
+      </div>
+      <div
+        class="absolute -right-1 -top-2 rotate-[-6deg] rounded-full px-2 py-1 text-[9px] font-semibold shadow-[0_6px_18px_-10px_rgba(20,18,12,0.25)]"
+        style={`background: ${ink}; color: white;`}
+      >
+        Shared
+      </div>
+    </div>
+  )}
+
+  {kind === "offline-sync" && (
+    <div class="flex flex-col items-center gap-1.5">
+      <div
+        class="rounded-xl px-3 py-2 text-[10px] font-semibold shadow-[0_10px_24px_-12px_rgba(20,18,12,0.18)] ring-1 ring-[var(--color-rule)]"
+        style={`background: white; color: ${ink};`}
+      >
+        <span class="mr-1 inline-block h-1.5 w-1.5 rounded-full align-middle" style={`background: ${ink};`}></span>
+        Offline
+      </div>
+      <svg viewBox="0 0 16 16" fill="currentColor" class="h-3 w-3" style={`color: ${ink}; opacity: 0.5;`}>
+        <path d="M8 12.5 4 8.5l1.06-1.06L7.25 9.63V3.5h1.5v6.13l2.19-2.19L12 8.5l-4 4Z"/>
+      </svg>
+      <div
+        class="rounded-xl px-3 py-2 text-[10px] font-semibold ring-1"
+        style={`background: ${bg}; color: ${ink}; border-color: ${ink};`}
+      >
+        Synced
+      </div>
+    </div>
+  )}
+
+  {kind === "daily-passage" && (
+    <div
+      class="rotate-[-2deg] w-full max-w-[84%] rounded-xl bg-white p-3 shadow-[0_10px_24px_-12px_rgba(20,18,12,0.18)] ring-1 ring-[var(--color-rule)]"
+    >
+      <div class="flex items-center justify-between">
+        <div>
+          <div class="text-[9px]" style={`color: var(--color-ink-faint);`}>Today's Passage</div>
+          <div class="mt-0.5 text-[12px] font-semibold" style={`color: var(--color-ink);`}>Proverbs 3:11–12</div>
+        </div>
+        <div
+          class="flex h-7 w-7 flex-col items-center justify-center rounded-md text-[9px] font-semibold leading-none"
+          style={`background: ${bg}; color: ${ink};`}
+        >
+          <span class="text-[7px] uppercase tracking-wide" style={`opacity: 0.7;`}>May</span>
+          <span class="text-[12px]">21</span>
+        </div>
+      </div>
+    </div>
+  )}
+</div>

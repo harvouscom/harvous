@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>logFormatVersion</key>
+	<integer>12</integer>
+	<key>logs</key>
+	<dict>
+		<key>1E93F9CB-F394-4417-B22F-4A3AD3E95121</key>
+		<dict>
+			<key>className</key>
+			<string>IDECommandLineBuildLog</string>
+			<key>documentTypeString</key>
+			<string>&lt;nil&gt;</string>
+			<key>domainType</key>
+			<string>Xcode.IDEActivityLogDomainType.BuildLog</string>
+			<key>fileName</key>
+			<string>1E93F9CB-F394-4417-B22F-4A3AD3E95121.xcactivitylog</string>
+			<key>hasPrimaryLog</key>
+			<true/>
+			<key>primaryObservable</key>
+			<dict>
+				<key>highLevelStatus</key>
+				<string>S</string>
+				<key>totalNumberOfAnalyzerIssues</key>
+				<integer>0</integer>
+				<key>totalNumberOfErrors</key>
+				<integer>0</integer>
+				<key>totalNumberOfTestFailures</key>
+				<integer>0</integer>
+				<key>totalNumberOfWarnings</key>
+				<integer>0</integer>
+			</dict>
+			<key>schemeIdentifier-containerName</key>
+			<string>Harvous project</string>
+			<key>schemeIdentifier-schemeName</key>
+			<string>Harvous_iOS</string>
+			<key>schemeIdentifier-sharedScheme</key>
+			<integer>1</integer>
+			<key>signature</key>
+			<string>Building project Harvous with scheme Harvous_iOS and configuration Debug</string>
+			<key>timeStartedRecording</key>
+			<real>801366638.12966394</real>
+			<key>timeStoppedRecording</key>
+			<real>801366701.88347304</real>
+			<key>title</key>
+			<string>Building project Harvous with scheme Harvous_iOS and configuration Debug</string>
+			<key>uniqueIdentifier</key>
+			<string>1E93F9CB-F394-4417-B22F-4A3AD3E95121</string>
+		</dict>
+		<key>1ED20C78-E893-4902-BD7B-92129B37AFF8</key>
+		<dict>
+			<key>className</key>
+			<string>IDECommandLineBuildLog</string>
+			<key>documentTypeString</key>
+			<string>&lt;nil&gt;</string>
+			<key>domainType</key>
+			<string>Xcode.IDEActivityLogDomainType.BuildLog</string>
+			<key>fileName</key>
+			<string>1ED20C78-E893-4902-BD7B-92129B37AFF8.xcactivitylog</string>
+			<key>hasPrimaryLog</key>
+			<true/>
+			<key>primaryObservable</key>
+			<dict>
+				<key>highLevelStatus</key>
+				<string>W</string>
+				<key>totalNumberOfAnalyzerIssues</key>
+				<integer>0</integer>
+				<key>totalNumberOfErrors</key>
+				<integer>0</integer>
+				<key>totalNumberOfTestFailures</key>
+				<integer>0</integer>
+				<key>totalNumberOfWarnings</key>
+				<integer>17</integer>
+			</dict>
+			<key>schemeIdentifier-containerName</key>
+			<string>Harvous project</string>
+			<key>schemeIdentifier-schemeName</key>
+			<string>Harvous_macOS</string>
+			<key>schemeIdentifier-sharedScheme</key>
+			<integer>1</integer>
+			<key>signature</key>
+			<string>Building project Harvous with scheme Harvous_macOS and configuration Debug</string>
+			<key>timeStartedRecording</key>
+			<real>801366586.181005</real>
+			<key>timeStoppedRecording</key>
+			<real>801366608.48391795</real>
+			<key>title</key>
+			<string>Building project Harvous with scheme Harvous_macOS and configuration Debug</string>
+			<key>uniqueIdentifier</key>
+			<string>1ED20C78-E893-4902-BD7B-92129B37AFF8</string>
+		</dict>
+	</dict>
+</dict>
+</plist>

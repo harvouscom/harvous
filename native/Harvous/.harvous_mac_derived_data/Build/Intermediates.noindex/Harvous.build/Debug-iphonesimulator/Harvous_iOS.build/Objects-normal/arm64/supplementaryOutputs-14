@@ -1,0 +1,114 @@
+{
+  "/Users/heyderekj/harvous/native/Harvous/Editor/ScriptureApplyFeedback.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug-iphonesimulator/Harvous_iOS.build/Objects-normal/arm64/ScriptureApplyFeedback.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug-iphonesimulator/Harvous_iOS.build/Objects-normal/arm64/ScriptureApplyFeedback.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug-iphonesimulator/Harvous_iOS.build/Objects-normal/arm64/ScriptureApplyFeedback.dia",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug-iphonesimulator/Harvous_iOS.build/Objects-normal/arm64/ScriptureApplyFeedback.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug-iphonesimulator/Harvous_iOS.build/Objects-normal/arm64/ScriptureApplyFeedback.swiftdeps"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/Editor/ScriptureCanon.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug-iphonesimulator/Harvous_iOS.build/Objects-normal/arm64/ScriptureCanon.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug-iphonesimulator/Harvous_iOS.build/Objects-normal/arm64/ScriptureCanon.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug-iphonesimulator/Harvous_iOS.build/Objects-normal/arm64/ScriptureCanon.dia",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug-iphonesimulator/Harvous_iOS.build/Objects-normal/arm64/ScriptureCanon.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug-iphonesimulator/Harvous_iOS.build/Objects-normal/arm64/ScriptureCanon.swiftdeps"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/Editor/ScriptureDetectionCoordinator.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug-iphonesimulator/Harvous_iOS.build/Objects-normal/arm64/ScriptureDetectionCoordinator.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug-iphonesimulator/Harvous_iOS.build/Objects-normal/arm64/ScriptureDetectionCoordinator.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug-iphonesimulator/Harvous_iOS.build/Objects-normal/arm64/ScriptureDetectionCoordinator.dia",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug-iphonesimulator/Harvous_iOS.build/Objects-normal/arm64/ScriptureDetectionCoordinator.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug-iphonesimulator/Harvous_iOS.build/Objects-normal/arm64/ScriptureDetectionCoordinator.swiftdeps"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/Editor/ScriptureDetector.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug-iphonesimulator/Harvous_iOS.build/Objects-normal/arm64/ScriptureDetector.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug-iphonesimulator/Harvous_iOS.build/Objects-normal/arm64/ScriptureDetector.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug-iphonesimulator/Harvous_iOS.build/Objects-normal/arm64/ScriptureDetector.dia",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug-iphonesimulator/Harvous_iOS.build/Objects-normal/arm64/ScriptureDetector.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug-iphonesimulator/Harvous_iOS.build/Objects-normal/arm64/ScriptureDetector.swiftdeps"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/Services/NoteSnapshotter.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug-iphonesimulator/Harvous_iOS.build/Objects-normal/arm64/NoteSnapshotter.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug-iphonesimulator/Harvous_iOS.build/Objects-normal/arm64/NoteSnapshotter.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug-iphonesimulator/Harvous_iOS.build/Objects-normal/arm64/NoteSnapshotter.dia",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug-iphonesimulator/Harvous_iOS.build/Objects-normal/arm64/NoteSnapshotter.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug-iphonesimulator/Harvous_iOS.build/Objects-normal/arm64/NoteSnapshotter.swiftdeps"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/Services/ScripturePassageCache.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug-iphonesimulator/Harvous_iOS.build/Objects-normal/arm64/ScripturePassageCache.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug-iphonesimulator/Harvous_iOS.build/Objects-normal/arm64/ScripturePassageCache.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug-iphonesimulator/Harvous_iOS.build/Objects-normal/arm64/ScripturePassageCache.dia",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug-iphonesimulator/Harvous_iOS.build/Objects-normal/arm64/ScripturePassageCache.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug-iphonesimulator/Harvous_iOS.build/Objects-normal/arm64/ScripturePassageCache.swiftdeps"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/Services/ScripturePassageDiskStore.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug-iphonesimulator/Harvous_iOS.build/Objects-normal/arm64/ScripturePassageDiskStore.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug-iphonesimulator/Harvous_iOS.build/Objects-normal/arm64/ScripturePassageDiskStore.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug-iphonesimulator/Harvous_iOS.build/Objects-normal/arm64/ScripturePassageDiskStore.dia",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug-iphonesimulator/Harvous_iOS.build/Objects-normal/arm64/ScripturePassageDiskStore.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug-iphonesimulator/Harvous_iOS.build/Objects-normal/arm64/ScripturePassageDiskStore.swiftdeps"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/Views/NoteSharePopoverView.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug-iphonesimulator/Harvous_iOS.build/Objects-normal/arm64/NoteSharePopoverView.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug-iphonesimulator/Harvous_iOS.build/Objects-normal/arm64/NoteSharePopoverView.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug-iphonesimulator/Harvous_iOS.build/Objects-normal/arm64/NoteSharePopoverView.dia",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug-iphonesimulator/Harvous_iOS.build/Objects-normal/arm64/NoteSharePopoverView.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug-iphonesimulator/Harvous_iOS.build/Objects-normal/arm64/NoteSharePopoverView.swiftdeps"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/Views/NoteToolbar.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug-iphonesimulator/Harvous_iOS.build/Objects-normal/arm64/NoteToolbar.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug-iphonesimulator/Harvous_iOS.build/Objects-normal/arm64/NoteToolbar.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug-iphonesimulator/Harvous_iOS.build/Objects-normal/arm64/NoteToolbar.dia",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug-iphonesimulator/Harvous_iOS.build/Objects-normal/arm64/NoteToolbar.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug-iphonesimulator/Harvous_iOS.build/Objects-normal/arm64/NoteToolbar.swiftdeps"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/Views/NoteTopBar.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug-iphonesimulator/Harvous_iOS.build/Objects-normal/arm64/NoteTopBar.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug-iphonesimulator/Harvous_iOS.build/Objects-normal/arm64/NoteTopBar.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug-iphonesimulator/Harvous_iOS.build/Objects-normal/arm64/NoteTopBar.dia",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug-iphonesimulator/Harvous_iOS.build/Objects-normal/arm64/NoteTopBar.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug-iphonesimulator/Harvous_iOS.build/Objects-normal/arm64/NoteTopBar.swiftdeps"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/Views/NoteVersionDiffView.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug-iphonesimulator/Harvous_iOS.build/Objects-normal/arm64/NoteVersionDiffView.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug-iphonesimulator/Harvous_iOS.build/Objects-normal/arm64/NoteVersionDiffView.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug-iphonesimulator/Harvous_iOS.build/Objects-normal/arm64/NoteVersionDiffView.dia",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug-iphonesimulator/Harvous_iOS.build/Objects-normal/arm64/NoteVersionDiffView.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug-iphonesimulator/Harvous_iOS.build/Objects-normal/arm64/NoteVersionDiffView.swiftdeps"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/Views/ProfileAndSettingsViews.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug-iphonesimulator/Harvous_iOS.build/Objects-normal/arm64/ProfileAndSettingsViews.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug-iphonesimulator/Harvous_iOS.build/Objects-normal/arm64/ProfileAndSettingsViews.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug-iphonesimulator/Harvous_iOS.build/Objects-normal/arm64/ProfileAndSettingsViews.dia",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug-iphonesimulator/Harvous_iOS.build/Objects-normal/arm64/ProfileAndSettingsViews.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug-iphonesimulator/Harvous_iOS.build/Objects-normal/arm64/ProfileAndSettingsViews.swiftdeps"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/Views/RelatedNotesSheet.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug-iphonesimulator/Harvous_iOS.build/Objects-normal/arm64/RelatedNotesSheet.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug-iphonesimulator/Harvous_iOS.build/Objects-normal/arm64/RelatedNotesSheet.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug-iphonesimulator/Harvous_iOS.build/Objects-normal/arm64/RelatedNotesSheet.dia",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug-iphonesimulator/Harvous_iOS.build/Objects-normal/arm64/RelatedNotesSheet.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug-iphonesimulator/Harvous_iOS.build/Objects-normal/arm64/RelatedNotesSheet.swiftdeps"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/Views/ScriptureBookListIndex.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug-iphonesimulator/Harvous_iOS.build/Objects-normal/arm64/ScriptureBookListIndex.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug-iphonesimulator/Harvous_iOS.build/Objects-normal/arm64/ScriptureBookListIndex.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug-iphonesimulator/Harvous_iOS.build/Objects-normal/arm64/ScriptureBookListIndex.dia",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug-iphonesimulator/Harvous_iOS.build/Objects-normal/arm64/ScriptureBookListIndex.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug-iphonesimulator/Harvous_iOS.build/Objects-normal/arm64/ScriptureBookListIndex.swiftdeps"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/Views/ScriptureDockCompareViews.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug-iphonesimulator/Harvous_iOS.build/Objects-normal/arm64/ScriptureDockCompareViews.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug-iphonesimulator/Harvous_iOS.build/Objects-normal/arm64/ScriptureDockCompareViews.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug-iphonesimulator/Harvous_iOS.build/Objects-normal/arm64/ScriptureDockCompareViews.dia",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug-iphonesimulator/Harvous_iOS.build/Objects-normal/arm64/ScriptureDockCompareViews.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug-iphonesimulator/Harvous_iOS.build/Objects-normal/arm64/ScriptureDockCompareViews.swiftdeps"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/Views/ScriptureHubView.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug-iphonesimulator/Harvous_iOS.build/Objects-normal/arm64/ScriptureHubView.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug-iphonesimulator/Harvous_iOS.build/Objects-normal/arm64/ScriptureHubView.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug-iphonesimulator/Harvous_iOS.build/Objects-normal/arm64/ScriptureHubView.dia",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug-iphonesimulator/Harvous_iOS.build/Objects-normal/arm64/ScriptureHubView.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug-iphonesimulator/Harvous_iOS.build/Objects-normal/arm64/ScriptureHubView.swiftdeps"
+  }
+}

@@ -51,7 +51,7 @@ private final class EditorAutosaveDebouncer {
             note.title = self.latestTitle
             note.body = self.latestBody
             note.detectedRefs = self.latestRefs
-            note.updatedAt = Date()
+            note.markDirty()
             BibleStudyTagSuggester.applyToNote(note, allowPrimaryUpdate: allowPrimaryFolderUpdate, existingFolders: existingFolders)
             try? context.saveWithLogging()
             NoteSnapshotter.shared.noteDidAutosave(
@@ -76,6 +76,7 @@ struct NoteEditorView: View {
     @Environment(\.harvousScriptureTheme) private var scriptureTheme
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.harvousIsIPadSplitLayout) private var isIPadSplitLayout
 
     /// When set, pushes `LinkedNotesView` for this linked-notes entry id (macOS split column + iOS nested stack).
     var onNavigateToLinkedNotes: ((UUID) -> Void)? = nil
@@ -121,6 +122,13 @@ struct NoteEditorView: View {
     /// drives selection-near-pill editing of book/chapter/verse.
     @State private var activePillDock: ActiveScripturePillDockItem?
     @State private var activePillDockExpanded: Bool = true
+    /// Inline URL-pill chrome: opened on URL-pill tap, mutually exclusive with `activePillDock`
+    /// so we never stack two pill docks. Carries the `displayHost` for the dock title fallback
+    /// and the attachment range so Remove / Edit can mutate the right span.
+    @State private var activeUrlPillDock: ActiveURLPillDockItem?
+    /// Set when the user picks Edit from the URL pill dock — drives the modal href editor sheet.
+    /// Carries the original href + range so the sheet can call `proxy.replaceURLPill(in:newHref:)`.
+    @State private var editingURLPillDraft: ActiveURLPillDockItem?
     /// Observed to drive the action bar's Look up button visibility (the bar checks slug index
     /// existence inside `onLookup` closure conditional).
     @ObservedObject private var eastonsService = EastonsDictionaryService.shared
@@ -138,19 +146,17 @@ struct NoteEditorView: View {
     /// does not run on every character — the cumulative main-thread cost was holding up nav back-button hits.
     @State private var reconcileStudyHighlightsTask: Task<Void, Never>?
 
-    #if os(macOS)
-    @StateObject private var proxy = EditorProxy()
-    @EnvironmentObject private var appRouter: HarvousAppRouter
+    /// When provided by a split-layout parent (macOS, iPad), the inspector panel is controlled externally.
+    /// On iPhone this stays `.constant(false)` and the editor uses its internal sheet instead.
     var showInspector: Binding<Bool> = .constant(false)
-    @AppStorage("harvous.macNoteFooterCollapsed") private var macNoteFooterCollapsed: Bool = false
-    #else
-    @EnvironmentObject private var appRouter: HarvousAppRouter
-    @State private var showInspectorIOS = false
     @StateObject private var proxy = EditorProxy()
+    @EnvironmentObject private var appRouter: HarvousAppRouter
+    #if os(iOS)
+    @State private var showInspectorIOS = false
 
     /// Matches `syncIOSNoteFooterSupplement` suppress flag (pill dock, pinned highlight, highlight capture)—not router timing alone.
     private var iosStudyDockOverlayChromeSuppressed: Bool {
-        activePillDock != nil || dockPinnedHighlightThreadId != nil || highlightCaptureSession != nil
+        activePillDock != nil || activeUrlPillDock != nil || dockPinnedHighlightThreadId != nil || highlightCaptureSession != nil
     }
 
     /// When study docks occupy the footer slot via `safeAreaInset`, shrink the inner scroll tail padding —
@@ -269,6 +275,7 @@ struct NoteEditorView: View {
             activeHighlightDockExpanded = false
             activePillDock = nil
             activePillDockExpanded = false
+            activeUrlPillDock = nil
             studyHighlightPaints = []
             scripturePassageSheet = nil
             highlightDetailThreadId = nil
@@ -537,7 +544,7 @@ struct NoteEditorView: View {
         autosave.cancel()
         persistEditorIntoNote(note)
         let exp = NSRange(location: session.expandedUTF16Location, length: session.expandedUTF16Length)
-        SelectionHighlightCreator.create(
+        let thread = SelectionHighlightCreator.create(
             parent: note,
             excerpt: session.excerpt,
             annotation: trimmed,
@@ -549,6 +556,12 @@ struct NoteEditorView: View {
         )
         dismissHighlightCapture()
         scheduleRefreshThreads(note: note)
+        // New highlight wins — replace any open scripture/URL pill dock so the user sees their
+        // freshly created highlight pinned in the inline dock.
+        dismissActiveScripturePillDock()
+        activeUrlPillDock = nil
+        dockPinnedHighlightThreadId = thread.id
+        activeHighlightDockExpanded = true
     }
 
     #if os(iOS)
@@ -862,7 +875,10 @@ struct NoteEditorView: View {
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
             #else
-            Text("Choose a note in the list to open it.")
+            // iPad split layout has a sidebar and hardware-keyboard ⌘N support — use Mac wording.
+            Text(isIPadSplitLayout
+                 ? "Choose a note in the sidebar, or press ⌘N to start writing."
+                 : "Choose a note in the list to open it.")
                 .font(HarvousTypography.body)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
@@ -877,14 +893,20 @@ struct NoteEditorView: View {
     /// Capped width of the scrollable title + body column (centered in the window via leading/trailing `Spacer`s).
     private static let editorScrollSurfaceMaxWidthPoints: CGFloat = 794
 
-    /// Hairline above bottom chrome (`NoteConnectionsBar` stack) — platform-appropriate system separator.
-    @ViewBuilder
-    private func editorBottomChromeSeparatorLine() -> some View {
+    /// Mac shows formatting toolbar + connections bar at the bottom of the editor; iPhone uses the
+    /// floating `MorphingChromeBar` instead; iPad reuses the Mac chrome when hosted in `iPadRootView`.
+    private var shouldShowMacStyleBottomChrome: Bool {
         #if os(macOS)
-        Color(nsColor: .separatorColor).frame(height: 0.5)
+        return true
         #else
-        Color(uiColor: .separator).frame(height: 0.5)
+        return isIPadSplitLayout
         #endif
+    }
+
+    /// Formatting `NoteToolbar` is shown inline whenever the body is the first responder.
+    /// Connections moved to the right-panel inspector — the bottom chrome is now formatting-only.
+    private var shouldShowFormatToolbarInline: Bool {
+        proxy.isBodyFirstResponder
     }
 
     @ViewBuilder
@@ -953,6 +975,7 @@ struct NoteEditorView: View {
                             studyHighlightFocusedThreadId: nil,
                             studyHighlightsAssumeDarkAppearance: colorScheme == .dark,
                             onScripturePillTap: { scripturePillTapped(reference: $0, translation: $1, range: $2) },
+                            onURLPillTap: { urlPillTapped(href: $0, title: $1, label: $2, range: $3) },
                             onResolvedScripturePillPairs: { scheduleScripturePassagePrefetch(pairs: $0) },
                             pillAccentResolver: { [note] reference in
                                 guard let raw = note.scripturePillAccentRaw(forReference: reference) else { return nil }
@@ -981,6 +1004,7 @@ struct NoteEditorView: View {
                             scriptureTheme: scriptureTheme,
                             proxy: proxy,
                             onScripturePillTap: { scripturePillTapped(reference: $0, translation: $1, range: $2) },
+                            onURLPillTap: { urlPillTapped(href: $0, title: $1, label: $2, range: $3) },
                             onResolvedScripturePillPairs: { scheduleScripturePassagePrefetch(pairs: $0) },
                             onStudyHighlightTap: { userActivatedStudyHighlight(threadId: $0) },
                             studyHighlightPaints: studyHighlightPaints,
@@ -992,7 +1016,8 @@ struct NoteEditorView: View {
                                 return token
                             },
                             onRemoveStudyHighlightThreadIds: { removeStudyHighlightThreads(ids: $0, parent: note) },
-                            dynamicTypeSize: dynamicTypeSize
+                            dynamicTypeSize: dynamicTypeSize,
+                            isIPadSplitLayout: isIPadSplitLayout
                         )
                         .frame(minHeight: 400)
                         .overlay(alignment: .topLeading) {
@@ -1023,6 +1048,7 @@ struct NoteEditorView: View {
                         VStack(alignment: .leading, spacing: studyDockStackSpacing) {
                             activeStudyHighlightDock(note: note)
                             activeScripturePillDock(note: note)
+                            activeURLPillDock(note: note)
                         }
                         .environment(\.harvousDockExpandedContentMaxHeight, dockExpandedContentMaxHeight)
                     }
@@ -1032,64 +1058,25 @@ struct NoteEditorView: View {
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-                #if os(macOS)
-                // Bottom bar: format toolbar or connections — scripture pickers/passage live only in the inline dock
-                // after an explicit pill tap (not when the caret sits next to a pill). Collapse orb floats as an overlay
-                // on the outer VStack so it stays anchored bottom-right whether the connections bar is shown or hidden.
-                if proxy.shouldShowNoteToolbar {
+                // Bottom bar: formatting toolbar only. Connections moved to the right-panel inspector.
+                // Mac uses this always; iPad uses it when hosted in the split layout; iPhone uses the MorphingChromeBar.
+                if shouldShowMacStyleBottomChrome, shouldShowFormatToolbarInline {
                     NoteToolbar(proxy: proxy)
                         .id("noteToolbar")
                         .transition(.move(edge: .bottom).combined(with: .opacity))
-                } else if !macNoteFooterCollapsed {
-                    VStack(spacing: 0) {
-                        editorBottomChromeSeparatorLine()
-                        NoteConnectionsBar(
-                            note: note,
-                            snapshot: trailSnapshot,
-                            currentNoteTitle: title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "Current note" : title,
-                            onOpenLinkedNote: { id in openNoteInPlace(id: id) },
-                            onConnectionsChanged: { scheduleRefreshThreads(note: note) }
-                        )
-                    }
-                    .id("connectionsBar")
-                    .background(.thinMaterial)
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
-                }
-                #endif
-            }
-            #if os(macOS)
-            .overlay(alignment: .bottomTrailing) {
-                if !proxy.shouldShowNoteToolbar {
-                    Button {
-                        macNoteFooterCollapsed.toggle()
-                    } label: {
-                        HarvousFAGlyph(
-                            assetName: macNoteFooterCollapsed ? "Harvous.ChevronUp" : "Harvous.ChevronDown",
-                            edgePt: 11
-                        )
-                        .foregroundStyle(.primary)
-                        .frame(width: 28, height: 28)
-                        .background(.regularMaterial, in: Circle())
-                        .overlay(Circle().strokeBorder(Color.primary.opacity(0.08), lineWidth: 0.5))
-                        .shadow(color: .black.opacity(0.18), radius: 4, x: 0, y: 2)
-                    }
-                    .buttonStyle(.plain)
-                    .padding(.trailing, 12)
-                    .padding(.bottom, 12)
-                    .accessibilityLabel(macNoteFooterCollapsed ? "Show note connections" : "Hide note connections")
-                    .transition(.opacity)
                 }
             }
-            #endif
             #if os(iOS)
             .safeAreaInset(edge: .bottom, spacing: HarvousIOSMorphingChromeLayout.interChromeSpacing) {
                 if iosStudyDockOverlayChromeSuppressed {
                     VStack(alignment: .leading, spacing: studyDockStackSpacing) {
                         activeStudyHighlightDock(note: note)
                         activeScripturePillDock(note: note)
+                        activeURLPillDock(note: note)
                     }
                     .environment(\.harvousDockExpandedContentMaxHeight, dockExpandedContentMaxHeight)
                     .animation(HarvousAnimation.spring, value: activePillDock != nil)
+                    .animation(HarvousAnimation.spring, value: activeUrlPillDock != nil)
                     .animation(HarvousAnimation.spring, value: dockPinnedHighlightThreadId)
                     .animation(HarvousAnimation.spring, value: highlightCaptureSession != nil)
                     .transition(.move(edge: .bottom).combined(with: .opacity))
@@ -1119,18 +1106,9 @@ struct NoteEditorView: View {
         .animation(HarvousAnimation.spring, value: proxy.shouldShowNoteToolbar)
         .animation(HarvousAnimation.spring, value: proxy.activeScripturePill != nil)
         .animation(HarvousAnimation.spring, value: activePillDock != nil)
+        .animation(HarvousAnimation.spring, value: activeUrlPillDock != nil)
         .animation(HarvousAnimation.spring, value: dockPinnedHighlightThreadId != nil)
-        // Asymmetric animation for the connections-bar collapse: expanding snaps in fast, collapsing settles slower.
-        // `macNoteFooterCollapsed` here is the value AFTER the toggle, so `true` means we just collapsed.
-        .animation(
-            macNoteFooterCollapsed
-                ? .spring(response: 0.46, dampingFraction: 0.88)
-                : .spring(response: 0.28, dampingFraction: 0.82),
-            value: macNoteFooterCollapsed
-        )
-        .inspector(isPresented: showInspector) {
-            inspectorContent(note: note)
-        }
+        .animation(HarvousAnimation.spring, value: proxy.isBodyFirstResponder)
         .toolbar {}
         #else
         // Sheet (not `.inspector`) so `NavigationStack` shows inline title + trailing dismiss like You / passage sheets.
@@ -1162,34 +1140,38 @@ struct NoteEditorView: View {
             }
         }
         .animation(HarvousAnimation.spring, value: proxy.shouldShowNoteToolbar)
+        .animation(HarvousAnimation.spring, value: proxy.isBodyFirstResponder)
         .animation(HarvousAnimation.spring, value: proxy.activeScripturePill != nil)
         .animation(HarvousAnimation.spring, value: activePillDock != nil)
+        .animation(HarvousAnimation.spring, value: activeUrlPillDock != nil)
         .animation(HarvousAnimation.spring, value: dockPinnedHighlightThreadId != nil)
         .animation(HarvousAnimation.spring, value: highlightCaptureSession != nil)
         // ToolbarSpacer (iOS 26+) keeps the folder chip from crowding the system back chevron.
         // The chip's tap target (44 pt square on icon-only, wider pill when named) is self-contained,
         // so no extra leading inset is needed — asymmetric padding shifts the glass orb off-center.
         .toolbar {
-            if #available(iOS 26, *) {
-                ToolbarSpacer(.fixed, placement: .topBarLeading)
-            }
-            ToolbarItem(placement: .topBarLeading) {
-                NoteTopBar(
-                    note: note,
-                    isFolderContextUpdating: isFolderContextUpdating,
-                    showFolderToolbarText: showFolderToolbarText,
-                    scriptureTheme: scriptureTheme
-                )
-            }
-            ToolbarItem(placement: .topBarTrailing) {
-                NoteShareDeleteBar(
-                    note: note,
-                    onDeleteConfirmed: { deleteCurrentNoteIfPossible() },
-                    onOpenNoteDetails: {
-                        withAnimation(HarvousAnimation.spring) { showInspectorIOS = true }
-                    },
-                    shareSnapshot: { NoteShareSnapshot(title: title, body: editorState.plainText) }
-                )
+            if !isIPadSplitLayout {
+                if #available(iOS 26, *) {
+                    ToolbarSpacer(.fixed, placement: .topBarLeading)
+                }
+                ToolbarItem(placement: .topBarLeading) {
+                    NoteTopBar(
+                        note: note,
+                        isFolderContextUpdating: isFolderContextUpdating,
+                        showFolderToolbarText: showFolderToolbarText,
+                        scriptureTheme: scriptureTheme
+                    )
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    NoteShareDeleteBar(
+                        note: note,
+                        onDeleteConfirmed: { deleteCurrentNoteIfPossible() },
+                        onOpenNoteDetails: {
+                            withAnimation(HarvousAnimation.spring) { showInspectorIOS = true }
+                        },
+                        shareSnapshot: { NoteShareSnapshot(title: title, body: editorState.plainText) }
+                    )
+                }
             }
         }
         .sheet(item: $highlightCaptureSession, onDismiss: {
@@ -1201,8 +1183,23 @@ struct NoteEditorView: View {
             iosHighlightAnnotationCaptureSheet(session: session)
         }
         #endif
+        // Inspector pane — Mac always, iPad when hosted in `iPadRootView`, iPhone never (showInspector
+        // stays `.constant(false)` and the in-editor "Note Details" button opens the `.sheet` above instead).
+        .inspector(isPresented: showInspector) {
+            inspectorContent(note: note)
+        }
         .sheet(item: $highlightDetailThreadId) { item in
             highlightDetailSheet(for: item.threadId)
+        }
+        .sheet(item: $editingURLPillDraft) { draft in
+            EditURLLinkSheetView(
+                initialHref: draft.href,
+                onSave: { newHref in
+                    proxy.replaceURLPill(in: draft.range, newHref: newHref)
+                    editingURLPillDraft = nil
+                },
+                onCancel: { editingURLPillDraft = nil }
+            )
         }
         .sheet(item: $scripturePassageSheet) { item in
             NavigationStack {
@@ -1316,7 +1313,7 @@ struct NoteEditorView: View {
         HarvousVaultExporter.removeMirrorFiles(for: n, modelContext: context)
         HarvousNoteSpotlightIndexer.removeNote(id: nid)
         ThreadStore.purgeLinkedNoteMarkers(referencingDeletedNote: nid, modelContext: context)
-        context.delete(n)
+        HarvousSyncingDelete.delete(note: n, context: context)
         do {
             try context.save()
         } catch {
@@ -1339,7 +1336,7 @@ struct NoteEditorView: View {
         }
         let titleLine = title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "Current note" : title
         let suppressBottomChromeForOverlay =
-            activePillDock != nil || dockPinnedHighlightThreadId != nil || highlightCaptureSession != nil
+            activePillDock != nil || activeUrlPillDock != nil || dockPinnedHighlightThreadId != nil || highlightCaptureSession != nil
         appRouter.iosNoteFooterSupplement = HarvousIOSNoteFooterSupplement(
             note: n,
             trailSnapshot: trailSnapshot,
@@ -1416,7 +1413,9 @@ struct NoteEditorView: View {
     @ViewBuilder
     private func activeStudyHighlightDock(note: Note) -> some View {
         let dockThreadId: UUID? = {
-            guard activePillDock == nil else { return nil }
+            // Highlight dock yields to either scripture-pill or URL-pill dock so the user only
+            // sees one piece of inline chrome at a time.
+            guard activePillDock == nil, activeUrlPillDock == nil else { return nil }
             return dockPinnedHighlightThreadId
         }()
         if let dockThreadId,
@@ -1458,7 +1457,7 @@ struct NoteEditorView: View {
     /// Permanently delete the highlight's backing `StudyThread`, then refresh paint state
     /// so the underline immediately disappears from the editor.
     private func removeHighlightThread(_ thread: StudyThread, parent: Note) {
-        context.delete(thread)
+        HarvousSyncingDelete.delete(thread: thread, context: context)
         try? context.saveWithLogging()
         scheduleRefreshThreads(note: parent)
         #if os(iOS)
@@ -1731,16 +1730,30 @@ struct NoteEditorView: View {
 
     @ViewBuilder
     private func inspectorContent(note: Note) -> some View {
+        let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        let resolvedTitle = trimmedTitle.isEmpty ? "Current note" : trimmedTitle
         #if os(macOS)
-        NoteInspectorView(note: note)
+        NoteInspectorView(
+            note: note,
+            snapshot: trailSnapshot,
+            currentNoteTitle: resolvedTitle,
+            onOpenLinkedNote: { id in openNoteInPlace(id: id) },
+            onConnectionsChanged: { scheduleRefreshThreads(note: note) }
+        )
         .inspectorColumnWidth(min: 240, ideal: 280, max: 320)
         #else
         // Drag indicator + swipe-down handles dismissal (matches `FolderChipPopover` sheet) —
         // omitting the redundant blue Done button keeps the chrome quieter and consistent.
         NavigationStack {
-            NoteInspectorView(note: note)
-                .navigationTitle("Note Details")
-                .navigationBarTitleDisplayMode(.inline)
+            NoteInspectorView(
+                note: note,
+                snapshot: trailSnapshot,
+                currentNoteTitle: resolvedTitle,
+                onOpenLinkedNote: { id in openNoteInPlace(id: id) },
+                onConnectionsChanged: { scheduleRefreshThreads(note: note) }
+            )
+            .navigationTitle("Note Details")
+            .navigationBarTitleDisplayMode(.inline)
         }
         #endif
     }
@@ -1748,6 +1761,10 @@ struct NoteEditorView: View {
     private func scripturePillTapped(reference: String, translation: String, range: NSRange) {
         dockPinnedHighlightThreadId = nil
         activeHighlightDockExpanded = false
+        // Close the URL pill dock if it's open — only one pill dock at a time.
+        if activeUrlPillDock != nil {
+            dismissActiveURLPillDock()
+        }
         #if os(iOS)
         titleFocused = false
         #endif
@@ -1890,6 +1907,68 @@ struct NoteEditorView: View {
         proxy.activeScripturePill = nil
         // Avoid flashing bottom format chrome while `showFormatBarForActivity` stays true from caret focus (iOS + macOS).
         proxy.preferOrbChromeUntilNextFormatSignal = true
+    }
+
+    /// URL-pill tap → opens the inline `ActiveURLPillDock`. Closes any other pill dock first so
+    /// the two never stack on top of each other (mutual exclusion mirrors how `scripturePillTapped`
+    /// supersedes a pinned highlight dock above).
+    private func urlPillTapped(href: String, title: String?, label: String?, range: NSRange) {
+        dockPinnedHighlightThreadId = nil
+        activeHighlightDockExpanded = false
+        // Close the scripture dock if it's open — only one pill dock at a time.
+        if activePillDock != nil {
+            dismissActiveScripturePillDock()
+        }
+        #if os(iOS)
+        titleFocused = false
+        #endif
+
+        activeUrlPillDock = ActiveURLPillDockItem(
+            href: href,
+            title: title,
+            label: label,
+            range: range
+        )
+        #if os(iOS)
+        UIImpactFeedbackGenerator(style: .soft).impactOccurred()
+        #endif
+    }
+
+    private func dismissActiveURLPillDock() {
+        activeUrlPillDock = nil
+        // Match the scripture-dock dismissal: avoid flashing bottom format chrome from caret focus.
+        proxy.preferOrbChromeUntilNextFormatSignal = true
+    }
+
+    @ViewBuilder
+    private func activeURLPillDock(note: Note) -> some View {
+        if let item = activeUrlPillDock {
+            ActiveURLPillDock(
+                href: item.href,
+                initialTitle: item.title,
+                userLabel: item.label,
+                onOpenInBrowser: {
+                    guard let url = URL(string: item.href) else { return }
+                    #if os(macOS)
+                    NSWorkspace.shared.open(url)
+                    #else
+                    UIApplication.shared.open(url, options: [:], completionHandler: nil)
+                    #endif
+                    dismissActiveURLPillDock()
+                },
+                onEdit: {
+                    // Capture current dock item before dismiss; sheet binds against the draft state.
+                    editingURLPillDraft = item
+                    dismissActiveURLPillDock()
+                },
+                onRemove: {
+                    proxy.removeURLPill(in: item.range)
+                    dismissActiveURLPillDock()
+                },
+                onDismiss: dismissActiveURLPillDock
+            )
+            .transition(.move(edge: .bottom).combined(with: .opacity))
+        }
     }
 
     private func refreshScripturePassageHighlights(item: ActiveScripturePillDockItem?) {
@@ -2140,7 +2219,7 @@ struct NoteEditorView: View {
         n.title = title
         n.body = body
         n.detectedRefs = refs
-        n.updatedAt = Date()
+        n.markDirty()
         BibleStudyTagSuggester.applyToNote(
             n,
             allowPrimaryUpdate: shouldAllowPrimaryFolderUpdate(
@@ -2178,7 +2257,7 @@ struct NoteEditorView: View {
         previous.title = title
         previous.body = body
         previous.detectedRefs = refs
-        previous.updatedAt = Date()
+        previous.markDirty()
         BibleStudyTagSuggester.applyToNote(
             previous,
             allowPrimaryUpdate: shouldAllowPrimaryFolderUpdate(
@@ -2417,6 +2496,24 @@ struct ActiveScripturePillDockItem: Identifiable, Equatable {
     }
 }
 
+/// Inline URL-pill dock context. Identifies the tapped pill so Open / Remove / Edit actions
+/// know which attachment range to mutate. Title is the cached resolved title at tap time —
+/// the dock view also observes the title-resolved notification (Slice 3) for late updates.
+/// Label is the user-specified display text from the Add Link sheet (Slice 4); when present, it
+/// sits between the page title and the host in the dock headline / subline.
+struct ActiveURLPillDockItem: Identifiable, Equatable {
+    let href: String
+    let title: String?
+    let label: String?
+    let range: NSRange
+
+    var id: String { "u|\(href)|\(range.location)|\(range.length)" }
+
+    static func == (lhs: ActiveURLPillDockItem, rhs: ActiveURLPillDockItem) -> Bool {
+        lhs.href == rhs.href && lhs.title == rhs.title && lhs.label == rhs.label && NSEqualRanges(lhs.range, rhs.range)
+    }
+}
+
 extension Notification.Name {
     /// Prompts `HarvousEditor` to re-run scripture pill detection so accent changes repaint in place.
     static let harvousForceScripturePillRedetect = Notification.Name("harvousForceScripturePillRedetect")
@@ -2430,4 +2527,310 @@ extension Notification.Name {
         .modelContainer(for: [Note.self, StudyThread.self], inMemory: true)
         .environmentObject(HarvousAppRouter())
         .frame(minWidth: 600, minHeight: 500)
+}
+
+// MARK: - ActiveURLPillDock
+//
+// Lightweight URL-pill dock paired visually with `ActiveScripturePillDock` but without the
+// translation pickers / passage view. Title resolves async (Slice 3); until then we render the
+// display host as the headline. The host is always shown as the secondary line.
+
+/// Inline URL-pill chrome. Mirrors the rounded-rect glass styling of `ActiveScripturePillDock`
+/// so users see the same visual idiom for any pill tap. Title resolution happens off this view —
+/// observe the title-resolved notification to update late.
+struct ActiveURLPillDock: View {
+    @Environment(\.colorScheme) private var dockColorScheme
+
+    let href: String
+    /// Best-known title at present time (may be `nil`). When `nil`, dock shows the display host.
+    let initialTitle: String?
+    /// User-specified visible label (Add Link sheet). When set, it takes precedence over the
+    /// auto-resolved page title in the headline so the dock always echoes what the pill itself
+    /// shows in the body — minimizes "wait, what's this link?" confusion.
+    let userLabel: String?
+    let onOpenInBrowser: () -> Void
+    let onEdit: () -> Void
+    let onRemove: () -> Void
+    let onDismiss: () -> Void
+
+    /// Live title state: seeded from `initialTitle` + cache, then updated on
+    /// `harvousURLLinkTitleResolved` while the dock is open. Lets users see the resolved title
+    /// without re-tapping the pill.
+    @State private var liveTitle: String?
+
+    /// Display label = scheme-stripped host. Computed once per `href`; matches the pill's own label.
+    private var displayHost: String { urlLinkPillDisplayHost(href) }
+
+    /// Headline priority:
+    ///   1. User label (what the pill shows in-body)
+    ///   2. Resolved page title
+    ///   3. Display host
+    private var headline: String {
+        if let userLabel, !userLabel.isEmpty { return userLabel }
+        if let liveTitle, !liveTitle.isEmpty { return liveTitle }
+        return displayHost
+    }
+    /// Subline showcases whichever piece of context isn't already the headline. Suppressed when
+    /// headline already equals host (nothing extra to say).
+    private var subline: String? {
+        // User-label headline: prefer page title as context, else host.
+        if let userLabel, !userLabel.isEmpty {
+            if let liveTitle, !liveTitle.isEmpty, liveTitle != userLabel { return liveTitle }
+            return displayHost == userLabel ? nil : displayHost
+        }
+        // Title headline: show host (already filtered when title == host below).
+        if let liveTitle, !liveTitle.isEmpty, liveTitle != displayHost { return displayHost }
+        return nil
+    }
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 10) {
+            HarvousFAGlyph(assetName: "Harvous.Link", edgePt: 14)
+                .foregroundStyle(.secondary)
+                .accessibilityHidden(true)
+
+            VStack(alignment: .leading, spacing: 1) {
+                Text(headline)
+                    .font(.system(size: 14, weight: .semibold))
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                if let subline {
+                    Text(subline)
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+            Button(action: onOpenInBrowser) {
+                HarvousFAGlyph(assetName: "Harvous.ArrowUpRight", edgePt: 13)
+                    .frame(width: 28, height: 28)
+            }
+            .buttonStyle(.plain)
+            .help("Open in browser")
+            .accessibilityLabel("Open link in browser")
+
+            Button(action: onEdit) {
+                HarvousFAGlyph(assetName: "Harvous.PenToSquare", edgePt: 13)
+                    .frame(width: 28, height: 28)
+            }
+            .buttonStyle(.plain)
+            .help("Edit link")
+            .accessibilityLabel("Edit link")
+
+            Button(action: onRemove) {
+                HarvousFAGlyph(assetName: "Harvous.Trash", edgePt: 13)
+                    .frame(width: 28, height: 28)
+            }
+            .buttonStyle(.plain)
+            .help("Remove link (keep text)")
+            .accessibilityLabel("Remove link")
+
+            Button(action: onDismiss) {
+                HarvousFAGlyph(assetName: "Harvous.Xmark", edgePt: 11)
+                    .frame(width: 24, height: 24)
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(.secondary)
+            .accessibilityLabel("Close link dock")
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .background(urlDockChrome)
+        .overlay(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .strokeBorder(Color.primary.opacity(0.10), lineWidth: 1.0)
+                .allowsHitTesting(false)
+        )
+        .shadow(color: .black.opacity(0.10), radius: 12, y: 4)
+        .shadow(color: .black.opacity(0.06), radius: 3, y: 1)
+        .padding(.horizontal, 20)
+        .padding(.top, 6)
+        .padding(.bottom, 10)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Link controls for \(headline)")
+        .onAppear {
+            // Prefer the cached title over the value captured at tap time — the cache may have
+            // resolved between the tap and dock mount on a fast network.
+            let cached = URLLinkTitleService.shared.cachedTitle(for: href)
+            liveTitle = cached ?? initialTitle
+            // Kick the fetcher in case the dock opened from a pill inserted before the post-detect
+            // resolution pass had a chance to run for this href (e.g. very fast tap).
+            URLLinkTitleService.shared.ensureResolved(for: href)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .harvousURLLinkTitleResolved)) { note in
+            guard let resolvedHref = note.userInfo?["href"] as? String, resolvedHref == href,
+                  let resolvedTitle = note.userInfo?["title"] as? String else { return }
+            liveTitle = resolvedTitle
+        }
+    }
+
+    private var urlDockChrome: some View {
+        ZStack {
+            let shape = RoundedRectangle(cornerRadius: 18, style: .continuous)
+            shape.fill(.background)
+            if #available(macOS 26.0, iOS 26.0, *) {
+                shape
+                    .fill(.clear)
+                    .glassEffect(in: shape)
+            } else {
+                shape.fill(.ultraThinMaterial)
+            }
+        }
+        .allowsHitTesting(false)
+    }
+}
+
+// MARK: - EditURLLinkSheetView
+//
+// Focused single-field URL editor presented from `ActiveURLPillDock`'s Edit action. Kept separate
+// from `AddLinkSheetView` because that sheet drives the internal note-link flow (title + display
+// name + proxy session state) — URL pill editing only needs an href, and the proxy normalizes
+// scheme on save (`replaceURLPill(in:newHref:)`).
+
+struct EditURLLinkSheetView: View {
+    @Environment(\.dismiss) private var dismiss
+    @State private var href: String
+    @FocusState private var focused: Bool
+
+    let onSave: (String) -> Void
+    let onCancel: () -> Void
+
+    init(initialHref: String, onSave: @escaping (String) -> Void, onCancel: @escaping () -> Void) {
+        _href = State(initialValue: initialHref)
+        self.onSave = onSave
+        self.onCancel = onCancel
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text("Edit Link")
+                .font(.system(size: 15, weight: .semibold))
+                .frame(maxWidth: .infinity)
+                .padding(.bottom, 10)
+
+            Text("URL")
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(.secondary)
+                .padding(.bottom, 3)
+
+            TextField("https://…", text: $href)
+                .textFieldStyle(.plain)
+                .font(.system(size: 14))
+                .autocorrectionDisabled()
+                #if os(iOS)
+                .textInputAutocapitalization(.never)
+                .keyboardType(.URL)
+                #endif
+                .padding(10)
+                .background(
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .strokeBorder(focused ? Color.harvousAccent : Color.secondary.opacity(0.35),
+                                      lineWidth: focused ? 2.5 : 1)
+                )
+                .background(
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .fill(editFieldFill)
+                )
+                .focused($focused)
+                .submitLabel(.done)
+                .onSubmit { commit() }
+                .padding(.bottom, 14)
+
+            HStack(spacing: 8) {
+                Spacer(minLength: 0)
+                Button("Cancel") { cancel() }
+                    #if os(macOS)
+                    .keyboardShortcut(.cancelAction)
+                    #endif
+                    .buttonStyle(EditLinkSheetButtonStyle(role: .cancel))
+                Button("Save") { commit() }
+                    #if os(macOS)
+                    .keyboardShortcut(.defaultAction)
+                    #endif
+                    .buttonStyle(EditLinkSheetButtonStyle(role: .ok))
+                    .disabled(href.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            }
+        }
+        .padding(16)
+        #if os(macOS)
+        .frame(width: 320)
+        #endif
+        .background(
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                .fill(editCardBackground)
+                #if os(macOS)
+                .shadow(color: .black.opacity(0.12), radius: 20, y: 8)
+                #endif
+        )
+        #if os(iOS)
+        .presentationDetents([.medium])
+        .presentationDragIndicator(.visible)
+        #endif
+        .onAppear { focused = true }
+    }
+
+    private func commit() {
+        let trimmed = href.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        onSave(trimmed)
+        dismiss()
+    }
+
+    private func cancel() {
+        onCancel()
+        dismiss()
+    }
+
+    private var editFieldFill: Color {
+        #if os(macOS)
+        Color(nsColor: .textBackgroundColor).opacity(0.55)
+        #else
+        Color(uiColor: .secondarySystemFill)
+        #endif
+    }
+
+    private var editCardBackground: Color {
+        #if os(macOS)
+        Color(nsColor: .windowBackgroundColor).opacity(0.96)
+        #else
+        Color(uiColor: .secondarySystemGroupedBackground)
+        #endif
+    }
+}
+
+private struct EditLinkSheetButtonStyle: ButtonStyle {
+    enum Role { case cancel, ok }
+    var role: Role
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.system(size: 13, weight: .semibold))
+            .padding(.horizontal, 14)
+            .padding(.vertical, 6)
+            .background(
+                Group {
+                    switch role {
+                    case .cancel:
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            .fill(Self.cancelBacking)
+                    case .ok:
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            .fill(Color.harvousAccent)
+                    }
+                }
+            )
+            .foregroundStyle(role == .ok ? Color.white : Color.primary)
+            .opacity(configuration.isPressed ? 0.88 : 1)
+    }
+
+    private static var cancelBacking: Color {
+        #if os(macOS)
+        Color(nsColor: .quaternaryLabelColor).opacity(0.35)
+        #else
+        Color(uiColor: .quaternaryLabel).opacity(0.35)
+        #endif
+    }
 }

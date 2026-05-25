@@ -20,9 +20,25 @@
   min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* SubtleContentMount (variant="fade") wraps the card — make its inner div a flex
+   container so proto-editor-content-wrap can participate in the flex height chain. */
+.proto-editor-scroll .subtle-content-mount__inner {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
 }
 
 .proto-editor-content-wrap {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
   max-width: 720px;
   margin: 0 auto;
   width: 100%;
@@ -543,6 +559,159 @@
 
 .proto-note-action-bar__pill--connect {
   color: var(--pds-text-secondary);
+}
+
+/* Share pill — when sharing is enabled, paint it blue so the user can tell at
+   a glance that the current note is public. The neutral pill is identical to
+   `--connect` so the action bar stays visually consistent. */
+.proto-note-action-bar__pill--share-active {
+  color: #fff;
+  background: var(--pds-accent, #3869e6);
+}
+.proto-note-action-bar__pill--share-active:hover {
+  background: #2a5ad8;
+  color: #fff;
+}
+
+/* ─── Share popover (createPortal'd to document.body) ──────────────────── */
+.proto-share-popover {
+  background: #ffffff;
+  color: var(--pds-text-primary);
+  border: 1px solid var(--pds-border, rgba(20, 18, 12, 0.10));
+  border-radius: 14px;
+  box-shadow:
+    0 1px 2px rgba(20, 18, 12, 0.04),
+    0 12px 32px -12px rgba(20, 18, 12, 0.18),
+    0 24px 56px -24px rgba(20, 18, 12, 0.22);
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  font-family: var(--pds-font-body);
+}
+
+.proto-share-popover__header {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.proto-share-popover__title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--pds-text-primary);
+  letter-spacing: -0.005em;
+}
+
+.proto-share-popover__subtitle {
+  font-size: 12.5px;
+  line-height: 1.4;
+  color: var(--pds-text-secondary);
+}
+
+.proto-share-popover__primary {
+  appearance: none;
+  background: linear-gradient(180deg, #5a92ff 0%, #3869e6 55%, #2456d9 100%);
+  color: #ffffff !important;
+  border: 0;
+  border-radius: 999px;
+  padding: 10px 14px;
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.35),
+    0 4px 12px -6px rgba(56, 105, 230, 0.45);
+}
+.proto-share-popover__primary:hover:not(:disabled) {
+  filter: brightness(1.05);
+}
+.proto-share-popover__primary:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.proto-share-popover__url-row {
+  display: flex;
+  align-items: stretch;
+  gap: 6px;
+}
+
+.proto-share-popover__url-input {
+  flex: 1;
+  min-width: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--pds-border, rgba(20, 18, 12, 0.10));
+  border-radius: 8px;
+  background: rgba(20, 18, 12, 0.03);
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 12px;
+  color: var(--pds-text-primary);
+  outline: none;
+}
+.proto-share-popover__url-input:focus {
+  border-color: var(--pds-accent, #3869e6);
+  background: #fff;
+}
+
+.proto-share-popover__copy {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 12px;
+  border: 1px solid var(--pds-border, rgba(20, 18, 12, 0.10));
+  border-radius: 8px;
+  background: #fff;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--pds-text-primary);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.proto-share-popover__copy:hover:not(:disabled) {
+  background: rgba(20, 18, 12, 0.04);
+}
+.proto-share-popover__copy:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.proto-share-popover__actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  padding-top: 2px;
+}
+
+.proto-share-popover__link-action {
+  appearance: none;
+  background: transparent;
+  border: 0;
+  padding: 4px 2px;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--pds-accent, #3869e6);
+  cursor: pointer;
+}
+.proto-share-popover__link-action:hover:not(:disabled) {
+  text-decoration: underline;
+}
+.proto-share-popover__link-action--danger {
+  color: #b03030;
+}
+.proto-share-popover__link-action:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.proto-share-popover__error {
+  font-size: 12.5px;
+  color: #b03030;
+  background: rgba(176, 48, 48, 0.08);
+  padding: 6px 10px;
+  border-radius: 8px;
+  line-height: 1.4;
 }
 
 .proto-note-action-bar__pill-git {

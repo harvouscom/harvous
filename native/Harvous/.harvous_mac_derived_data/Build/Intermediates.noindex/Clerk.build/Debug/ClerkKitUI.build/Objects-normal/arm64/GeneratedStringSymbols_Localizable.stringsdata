@@ -1,0 +1,16 @@
+{
+  "source": "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Clerk.build/Debug/ClerkKitUI.build/DerivedSources/GeneratedStringSymbols_Localizable.swift",
+  "tables": {
+    "Localizable": [
+      {
+        "comment": "",
+        "key": "Redirect URL is missing or invalid. Unable to start external authentication flow.",
+        "location": {
+          "startingColumn": 33,
+          "startingLine": 25
+        }
+      }
+    ]
+  },
+  "version": 1
+}

@@ -1,0 +1,23 @@
+{
+  "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/PhoneNumberKit.build/Debug/PhoneNumberKit.build/DerivedSources/resource_bundle_accessor.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/PhoneNumberKit.build/Debug/PhoneNumberKit.build/Objects-normal/arm64/resource_bundle_accessor.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/PhoneNumberKit.build/Debug/PhoneNumberKit.build/Objects-normal/arm64/resource_bundle_accessor.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/PhoneNumberKit.build/Debug/PhoneNumberKit.build/Objects-normal/arm64/resource_bundle_accessor.dia",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/PhoneNumberKit.build/Debug/PhoneNumberKit.build/Objects-normal/arm64/resource_bundle_accessor.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/PhoneNumberKit.build/Debug/PhoneNumberKit.build/Objects-normal/arm64/resource_bundle_accessor.swiftdeps"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/SourcePackages/checkouts/PhoneNumberKit/PhoneNumberKit/Bundle+Resources.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/PhoneNumberKit.build/Debug/PhoneNumberKit.build/Objects-normal/arm64/Bundle+Resources.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/PhoneNumberKit.build/Debug/PhoneNumberKit.build/Objects-normal/arm64/Bundle+Resources.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/PhoneNumberKit.build/Debug/PhoneNumberKit.build/Objects-normal/arm64/Bundle+Resources.dia",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/PhoneNumberKit.build/Debug/PhoneNumberKit.build/Objects-normal/arm64/Bundle+Resources.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/PhoneNumberKit.build/Debug/PhoneNumberKit.build/Objects-normal/arm64/Bundle+Resources.swiftdeps"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/SourcePackages/checkouts/PhoneNumberKit/PhoneNumberKit/Constants.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/PhoneNumberKit.build/Debug/PhoneNumberKit.build/Objects-normal/arm64/Constants.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/PhoneNumberKit.build/Debug/PhoneNumberKit.build/Objects-normal/arm64/Constants.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/PhoneNumberKit.build/Debug/PhoneNumberKit.build/Objects-normal/arm64/Constants.dia",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/PhoneNumberKit.build/Debug/PhoneNumberKit.build/Objects-normal/arm64/Constants.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/PhoneNumberKit.build/Debug/PhoneNumberKit.build/Objects-normal/arm64/Constants.swiftdeps"
+  }
+}

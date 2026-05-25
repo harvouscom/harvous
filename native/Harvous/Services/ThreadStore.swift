@@ -136,6 +136,7 @@ enum ThreadStore {
             applyAnchoredExpandedRange(rr, expandedPlain: plain, to: thread)
         }
         modelContext.insert(thread)
+        thread.markDirty()
         try? modelContext.saveWithLogging()
         return thread
     }

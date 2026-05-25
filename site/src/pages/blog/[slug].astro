@@ -1,0 +1,168 @@
+---
+import BaseLayout from "../../layouts/BaseLayout.astro";
+import { getCollection, render } from "astro:content";
+import BlogCard from "../../components/BlogCard.astro";
+
+export async function getStaticPaths() {
+  const posts = await getCollection("blog");
+  return posts
+    .filter((p) => !p.data.draft)
+    .map((p) => ({ params: { slug: p.id }, props: { post: p } }));
+}
+
+const { post } = Astro.props;
+const { Content } = await render(post);
+
+const categoryLabels: Record<string, string> = {
+  "study-habits": "Study habits",
+  "behind-the-build": "Behind the build",
+  "scripture-study": "Scripture study",
+  "product": "Product",
+};
+
+const categoryColors: Record<string, { bg: string; ink: string }> = {
+  "study-habits": { bg: "var(--color-mint)", ink: "var(--color-mint-ink)" },
+  "behind-the-build": { bg: "var(--color-sky)", ink: "var(--color-sky-ink)" },
+  "scripture-study": { bg: "var(--color-lilac)", ink: "var(--color-lilac-ink)" },
+  "product": { bg: "var(--color-peach)", ink: "var(--color-peach-ink)" },
+};
+
+const label = categoryLabels[post.data.category] ?? post.data.category;
+const color = categoryColors[post.data.category] ?? { bg: "var(--color-warm)", ink: "var(--color-ink-soft)" };
+
+const formattedDate = new Intl.DateTimeFormat("en-US", {
+  month: "long",
+  day: "numeric",
+  year: "numeric",
+}).format(new Date(post.data.publishDate));
+
+// Related posts: same category, excluding current
+const allPosts = await getCollection("blog");
+const related = allPosts
+  .filter((p) => !p.data.draft && p.id !== post.id && p.data.category === post.data.category)
+  .sort((a, b) => new Date(b.data.publishDate).getTime() - new Date(a.data.publishDate).getTime())
+  .slice(0, 2);
+---
+
+<BaseLayout
+  title={`${post.data.title} — Harvous`}
+  description={post.data.description}
+>
+  <!-- Post header -->
+  <section class="border-b border-[var(--color-rule)]">
+    <div class="mx-auto max-w-2xl px-5 py-14 md:py-20">
+      <div class="flex flex-wrap items-center gap-3">
+        <span
+          class="rounded-full px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wider"
+          style={`background: ${color.bg}; color: ${color.ink};`}
+        >
+          {label}
+        </span>
+        <span class="text-sm text-[var(--color-ink-faint)]">{formattedDate}</span>
+        {post.data.readingTime && (
+          <span class="text-sm text-[var(--color-ink-faint)]">{post.data.readingTime} min read</span>
+        )}
+      </div>
+      <h1 class="mt-5 font-display text-4xl leading-[1.05] md:text-6xl">
+        {post.data.title}
+      </h1>
+      <p class="mt-4 text-lg text-[var(--color-ink-soft)]">{post.data.description}</p>
+    </div>
+  </section>
+
+  <!-- Post body -->
+  <section class="mx-auto max-w-2xl px-5 py-12 md:py-16">
+    <div class="prose-post">
+      <Content />
+    </div>
+
+    <!-- Author close -->
+    <div class="mt-16 flex items-center gap-4 border-t border-[var(--color-rule)] pt-10">
+      <img
+        src="/derek-avatar.jpeg"
+        alt="Derek Castelli"
+        class="h-12 w-12 rounded-full object-cover"
+      />
+      <div>
+        <div class="font-semibold text-[var(--color-ink)]">Derek Castelli</div>
+        <a
+          href="mailto:derek@harvous.com"
+          class="text-sm text-[var(--color-ink-soft)] underline decoration-[var(--color-rule)] underline-offset-4 hover:decoration-[var(--color-ink)]"
+        >
+          derek@harvous.com
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <!-- Related posts -->
+  {related.length > 0 && (
+    <section class="fade-rule-t">
+      <div class="mx-auto max-w-5xl px-5 py-14 md:py-16">
+        <h2 class="mb-8 text-sm font-semibold uppercase tracking-[0.14em] text-[var(--color-ink-faint)]">
+          More from the journal
+        </h2>
+        <div class="grid gap-5 sm:grid-cols-2">
+          {related.map((p) => (
+            <BlogCard
+              title={p.data.title}
+              description={p.data.description}
+              publishDate={p.data.publishDate}
+              category={p.data.category}
+              slug={p.id}
+              readingTime={p.data.readingTime}
+            />
+          ))}
+        </div>
+        <div class="mt-8">
+          <a href="/blog" class="text-sm font-medium text-[var(--color-accent)] hover:underline">
+            All posts &rarr;
+          </a>
+        </div>
+      </div>
+    </section>
+  )}
+</BaseLayout>
+
+<style>
+  .prose-post {
+    font-size: 1.0625rem;
+    line-height: 1.7;
+    color: var(--color-ink);
+  }
+  .prose-post p {
+    margin-bottom: 1.35em;
+  }
+  .prose-post p:last-child {
+    margin-bottom: 0;
+  }
+  .prose-post h2, .prose-post h3 {
+    margin-top: 2em;
+    margin-bottom: 0.6em;
+  }
+  .prose-post hr {
+    border: none;
+    border-top: 1px solid var(--color-rule);
+    margin: 2em 0;
+  }
+  .prose-post strong {
+    font-weight: 600;
+    color: var(--color-ink);
+  }
+  .prose-post ul, .prose-post ol {
+    padding-left: 1.4em;
+    margin-bottom: 1.35em;
+  }
+  .prose-post li {
+    margin-bottom: 0.4em;
+  }
+  .prose-post a {
+    color: var(--color-accent);
+    text-decoration: underline;
+    text-decoration-color: var(--color-accent-soft);
+    text-underline-offset: 3px;
+  }
+  .prose-post a:hover {
+    text-decoration-color: var(--color-accent);
+  }
+</style>

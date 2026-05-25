@@ -10,9 +10,9 @@ struct StudyHighlightListColumn: View {
     var iosNoteNavPath: Binding<[UUID]>?
     #endif
 
-    #if os(macOS)
     var ownsSidebarChrome: Bool = true
 
+    #if os(macOS)
     init(
         selectedNote: Binding<Note?>,
         externalSearchText: Binding<String>? = nil,
@@ -29,11 +29,13 @@ struct StudyHighlightListColumn: View {
         selectedNote: Binding<Note?>,
         externalSearchText: Binding<String>? = nil,
         columnStyle: NoteListColumnStyle = .iOSTabNoteList,
+        ownsSidebarChrome: Bool = true,
         iosNoteNavPath: Binding<[UUID]>? = nil
     ) {
         _selectedNote = selectedNote
         self.externalSearchText = externalSearchText
         self.columnStyle = columnStyle
+        self.ownsSidebarChrome = ownsSidebarChrome
         self.iosNoteNavPath = iosNoteNavPath
     }
     #endif
@@ -48,6 +50,7 @@ struct StudyHighlightListColumn: View {
 
     @Environment(\.modelContext) private var context
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.harvousIsIPadSplitLayout) private var isIPadSplitLayout
     @EnvironmentObject private var spaceStore: SpaceStore
     @EnvironmentObject private var appRouter: HarvousAppRouter
 
@@ -155,7 +158,7 @@ struct StudyHighlightListColumn: View {
         let sid = spaceStore.activeSpaceUUID()
         let threadId = thread.id
         HarvousPinnedHighlightsStore.removePinId(threadId.uuidString, spaceId: sid)
-        context.delete(thread)
+        HarvousSyncingDelete.delete(thread: thread, context: context)
         try? context.saveWithLogging()
         if sidebarSelectedThreadId == threadId {
             sidebarSelectedThreadId = nil
@@ -382,7 +385,7 @@ struct StudyHighlightListColumn: View {
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
         #if os(iOS)
-        .iosListBottomChromeReserve()
+        .modifier(IPadAwareListBottomChromeReserve(skip: isIPadSplitLayout))
         #endif
     }
 

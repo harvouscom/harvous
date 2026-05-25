@@ -1,0 +1,35 @@
+---
+interface Props {
+  href: string;
+  variant?: "primary" | "secondary" | "dark" | "ghost";
+  size?: "md" | "lg";
+  external?: boolean;
+  class?: string;
+}
+
+const { href, variant = "primary", size = "md", external = false, class: className = "" } = Astro.props;
+
+const base = "inline-flex items-center justify-center gap-2 rounded-full font-medium transition-all";
+
+const variants = {
+  primary: "text-white bg-[linear-gradient(180deg,#5a92ff_0%,#3869e6_55%,#2456d9_100%)] shadow-[0_1px_0_rgba(255,255,255,0.35)_inset,0_-1px_0_rgba(0,0,0,0.12)_inset,0_8px_20px_-8px_rgba(56,105,230,0.55)] ring-1 ring-[#2456d9]/40 hover:brightness-[1.05]",
+  secondary: "bg-white text-[var(--color-ink)] border border-[var(--color-rule)] hover:bg-[var(--color-warm)]",
+  dark: "bg-[var(--color-ink)] text-white hover:bg-[#2a2823]",
+  ghost: "text-[var(--color-ink)] hover:bg-[var(--color-warm)]",
+};
+
+const sizes = {
+  md: "px-4 py-2 text-sm",
+  lg: "px-5 py-3 text-base",
+};
+
+const cls = `${base} ${variants[variant]} ${sizes[size]} ${className}`;
+---
+
+<a
+  href={href}
+  class={cls}
+  {...external ? { target: "_blank", rel: "noopener" } : {}}
+>
+  <slot />
+</a>

@@ -43,16 +43,23 @@ func urlLinkPillDisplayHost(_ href: String) -> String {
 final class URLLinkPillAttachment: NSTextAttachment {
     let href: String
     var title: String?
+    /// User-specified visible label (Add Link sheet). When non-empty, replaces `displayHost` as the
+    /// pill's rendered text. `nil` / empty means auto-detected URL — pill shows host as before.
+    var label: String?
     /// Cached host string used for rendering. Recomputed on init from `href`.
     private(set) var displayHost: String
 
-    init(href: String, title: String? = nil) {
+    /// What the pill image actually draws — label when supplied, host otherwise.
+    var effectiveDisplay: String { (label?.isEmpty == false ? label : nil) ?? displayHost }
+
+    init(href: String, title: String? = nil, label: String? = nil) {
         self.href = href
         self.title = title
+        self.label = label
         self.displayHost = urlLinkPillDisplayHost(href)
         super.init(data: nil, ofType: nil)
 
-        let img = Self.renderPill(displayHost: self.displayHost)
+        let img = Self.renderPill(displayHost: self.effectiveDisplay)
         self.image = img
 
         let refFont = HarvousFonts.system(size: kUrlRefSize, weight: 500)
@@ -70,7 +77,7 @@ final class URLLinkPillAttachment: NSTextAttachment {
     /// runs before `NSAppearance.current` updates).
     @MainActor func refreshRasterForCurrentAppearance() {
         NSApp.effectiveAppearance.performAsCurrentDrawingAppearance {
-            let img = Self.renderPill(displayHost: self.displayHost)
+            let img = Self.renderPill(displayHost: self.effectiveDisplay)
             self.image = img
             let refFont = HarvousFonts.system(size: kUrlRefSize, weight: 500)
             self.bounds = CGRect(
@@ -78,6 +85,13 @@ final class URLLinkPillAttachment: NSTextAttachment {
                 size: img.size
             )
         }
+    }
+
+    /// Mutates label and re-rasterizes. Caller is responsible for any storage `edited` notification
+    /// to trigger layout — the cached attachment image changed but storage characters did not.
+    @MainActor func setLabelAndRefresh(_ newLabel: String?) {
+        label = (newLabel?.isEmpty == true) ? nil : newLabel
+        refreshRasterForCurrentAppearance()
     }
 
     static func renderPill(displayHost: String) -> NSImage {
@@ -128,15 +142,22 @@ final class URLLinkPillAttachment: NSTextAttachment {
 final class URLLinkPillAttachment: NSTextAttachment {
     let href: String
     var title: String?
+    /// User-specified visible label (Add Link sheet). When non-empty, replaces `displayHost` as the
+    /// pill's rendered text. `nil` / empty means auto-detected URL — pill shows host as before.
+    var label: String?
     private(set) var displayHost: String
 
-    init(href: String, title: String? = nil) {
+    /// What the pill image actually draws — label when supplied, host otherwise.
+    var effectiveDisplay: String { (label?.isEmpty == false ? label : nil) ?? displayHost }
+
+    init(href: String, title: String? = nil, label: String? = nil) {
         self.href = href
         self.title = title
+        self.label = label
         self.displayHost = urlLinkPillDisplayHost(href)
         super.init(data: nil, ofType: nil)
 
-        let img = Self.renderPill(displayHost: self.displayHost)
+        let img = Self.renderPill(displayHost: self.effectiveDisplay)
         self.image = img
 
         let refFont = HarvousFonts.system(size: kUrlRefSize, weight: 500)
@@ -149,13 +170,20 @@ final class URLLinkPillAttachment: NSTextAttachment {
     required init?(coder: NSCoder) { fatalError() }
 
     func refreshRasterForCurrentAppearance() {
-        let img = Self.renderPill(displayHost: displayHost)
+        let img = Self.renderPill(displayHost: effectiveDisplay)
         self.image = img
         let refFont = HarvousFonts.system(size: kUrlRefSize, weight: 500)
         self.bounds = CGRect(
             origin: CGPoint(x: 0, y: CGFloat(refFont.descender) - kUrlVPad),
             size: img.size
         )
+    }
+
+    /// Mutates label and re-rasterizes. Caller is responsible for any storage `edited` notification
+    /// to trigger layout — the cached attachment image changed but storage characters did not.
+    @MainActor func setLabelAndRefresh(_ newLabel: String?) {
+        label = (newLabel?.isEmpty == true) ? nil : newLabel
+        refreshRasterForCurrentAppearance()
     }
 
     static func renderPill(displayHost: String) -> UIImage {

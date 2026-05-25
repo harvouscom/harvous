@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useSearch } from '@tanstack/react-router';
 import { useQueryClient } from '@tanstack/react-query';
 import CardFullEditable from '../../../../src/components/react/CardFullEditable';
-import PrototypeNoteActionBar from './PrototypeNoteActionBar';
 import SubtleContentMount from '@/components/react/SubtleContentMount';
 import { detectScriptureReferences } from '@/utils/scripture-detector';
 import { updateNoteOffline } from '../../../../src/utils/offline-mutations';
@@ -26,6 +25,9 @@ export default function PrototypeNotePage() {
 
   const queryClient = useQueryClient();
   const updateNoteMutation = useUpdateNote();
+  // Stable ref so noteSaveCallback never re-registers just because the mutation object identity changed
+  const updateNoteMutationRef = useRef(updateNoteMutation);
+  updateNoteMutationRef.current = updateNoteMutation;
   const processScriptureMutation = useProcessScriptureRefs();
   const { inspectorOpen, isMobileSidebar, closeInspector, setPrototypeFolderChip, dismissStandaloneScripturePassage } =
     useProtoShell();
@@ -79,7 +81,7 @@ export default function PrototypeNotePage() {
   const [referenceChromeHostEl, setReferenceChromeHostEl] = useState<HTMLDivElement | null>(null);
   const [chromeMode, setChromeMode] = useState<
     'format' | 'scripture' | 'highlight' | 'reference' | 'noteActions' | 'hidden'
-  >('noteActions');
+  >('hidden');
 
   useEffect(() => {
     const handler = (e: Event) => {
@@ -197,7 +199,7 @@ export default function PrototypeNotePage() {
       } catch (err) {
         console.error('[PrototypeNotePage] offline note update:', err);
       }
-      return updateNoteMutation.mutateAsync({
+      return updateNoteMutationRef.current.mutateAsync({
         noteId,
         title: newTitle,
         content: newContent,
@@ -208,7 +210,7 @@ export default function PrototypeNotePage() {
     return () => {
       delete (window as unknown as { noteSaveCallback?: unknown }).noteSaveCallback;
     };
-  }, [noteId, updateNoteMutation]);
+  }, [noteId]); // updateNoteMutation intentionally omitted — accessed via ref
 
   useEffect(() => {
     if (!inspectorOpen || !isMobileSidebar) return undefined;
@@ -311,11 +313,17 @@ export default function PrototypeNotePage() {
           </SubtleContentMount>
         </div>
 
-        {/* Column-level bottom bar — sibling of the scroll, pinned to viewport bottom. */}
+        {/* Column-level bottom bar — sibling of the scroll, pinned to viewport bottom.
+            Keep in DOM (never display:none) so portal-target refs stay alive for TipTap.
+            Use height:0/overflow:hidden to visually collapse it when not needed. */}
         <div
           className="proto-editor-bottom-bar"
           data-mode={chromeMode}
-          style={{ display: chromeMode === 'hidden' ? 'none' : undefined }}
+          style={
+            chromeMode === 'hidden' || chromeMode === 'noteActions'
+              ? { height: 0, overflow: 'hidden', borderTop: 'none' }
+              : undefined
+          }
         >
           <div
             ref={setHighlightChromeHostEl}
@@ -337,19 +345,6 @@ export default function PrototypeNotePage() {
             className="proto-editor-bottom-bar__format"
             style={{ display: chromeMode === 'format' ? 'flex' : 'none' }}
           />
-          <div
-            className="proto-editor-bottom-bar__note-actions-stack"
-            style={{ display: chromeMode === 'noteActions' ? 'flex' : 'none' }}
-          >
-            <PrototypeNoteActionBar
-              noteId={noteId}
-              spaceId={effectiveSpaceId}
-              currentTitle={prototypeDisplayTitle}
-              linkedFromNotes={note.linkedFromNotes ?? []}
-              linkedToNotes={note.linkedToNotes ?? []}
-              connectDisabled={isOnboardingReadonly}
-            />
-          </div>
         </div>
       </div>
 
@@ -366,7 +361,7 @@ export default function PrototypeNotePage() {
             flexDirection: 'column',
           }}
         >
-          <PrototypeInspectorPane note={note} />
+          <PrototypeInspectorPane note={note} spaceId={effectiveSpaceId} />
         </div>
       ) : null}
 
@@ -379,7 +374,7 @@ export default function PrototypeNotePage() {
             onClick={closeInspector}
           />
           <div className="proto-inspector-mobile-panel" role="dialog" aria-label="Note details">
-            <PrototypeInspectorPane note={note} />
+            <PrototypeInspectorPane note={note} spaceId={effectiveSpaceId} />
           </div>
         </>
       ) : null}

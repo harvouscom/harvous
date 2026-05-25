@@ -1,0 +1,559 @@
+{
+  "" : {
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/Nuke-primary.dia",
+    "emit-module-dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/Nuke-primary-emit-module.d",
+    "emit-module-diagnostics" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/Nuke-primary-emit-module.dia",
+    "pch" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/Nuke-primary-Bridging-header.pch",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/Nuke-primary.swiftdeps"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/SourcePackages/checkouts/Nuke/Sources/Nuke/Caching/Cache.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/Cache.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/Cache.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/Cache.dia",
+    "index-unit-output-path" : "/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/Cache.o",
+    "llvm-bc" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/Cache.bc",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/Cache.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/Cache.swiftdeps",
+    "swiftmodule" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/Cache~partial.swiftmodule"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/SourcePackages/checkouts/Nuke/Sources/Nuke/Caching/DataCache.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/DataCache.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/DataCache.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/DataCache.dia",
+    "index-unit-output-path" : "/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/DataCache.o",
+    "llvm-bc" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/DataCache.bc",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/DataCache.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/DataCache.swiftdeps",
+    "swiftmodule" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/DataCache~partial.swiftmodule"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/SourcePackages/checkouts/Nuke/Sources/Nuke/Caching/DataCaching.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/DataCaching.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/DataCaching.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/DataCaching.dia",
+    "index-unit-output-path" : "/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/DataCaching.o",
+    "llvm-bc" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/DataCaching.bc",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/DataCaching.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/DataCaching.swiftdeps",
+    "swiftmodule" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/DataCaching~partial.swiftmodule"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/SourcePackages/checkouts/Nuke/Sources/Nuke/Caching/ImageCache.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageCache.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageCache.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageCache.dia",
+    "index-unit-output-path" : "/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageCache.o",
+    "llvm-bc" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageCache.bc",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageCache.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageCache.swiftdeps",
+    "swiftmodule" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageCache~partial.swiftmodule"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/SourcePackages/checkouts/Nuke/Sources/Nuke/Caching/ImageCaching.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageCaching.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageCaching.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageCaching.dia",
+    "index-unit-output-path" : "/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageCaching.o",
+    "llvm-bc" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageCaching.bc",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageCaching.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageCaching.swiftdeps",
+    "swiftmodule" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageCaching~partial.swiftmodule"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/SourcePackages/checkouts/Nuke/Sources/Nuke/Decoding/AssetType.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/AssetType.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/AssetType.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/AssetType.dia",
+    "index-unit-output-path" : "/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/AssetType.o",
+    "llvm-bc" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/AssetType.bc",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/AssetType.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/AssetType.swiftdeps",
+    "swiftmodule" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/AssetType~partial.swiftmodule"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/SourcePackages/checkouts/Nuke/Sources/Nuke/Decoding/ImageDecoderRegistry.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageDecoderRegistry.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageDecoderRegistry.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageDecoderRegistry.dia",
+    "index-unit-output-path" : "/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageDecoderRegistry.o",
+    "llvm-bc" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageDecoderRegistry.bc",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageDecoderRegistry.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageDecoderRegistry.swiftdeps",
+    "swiftmodule" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageDecoderRegistry~partial.swiftmodule"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/SourcePackages/checkouts/Nuke/Sources/Nuke/Decoding/ImageDecoders+Default.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageDecoders+Default.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageDecoders+Default.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageDecoders+Default.dia",
+    "index-unit-output-path" : "/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageDecoders+Default.o",
+    "llvm-bc" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageDecoders+Default.bc",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageDecoders+Default.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageDecoders+Default.swiftdeps",
+    "swiftmodule" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageDecoders+Default~partial.swiftmodule"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/SourcePackages/checkouts/Nuke/Sources/Nuke/Decoding/ImageDecoders+Empty.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageDecoders+Empty.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageDecoders+Empty.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageDecoders+Empty.dia",
+    "index-unit-output-path" : "/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageDecoders+Empty.o",
+    "llvm-bc" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageDecoders+Empty.bc",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageDecoders+Empty.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageDecoders+Empty.swiftdeps",
+    "swiftmodule" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageDecoders+Empty~partial.swiftmodule"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/SourcePackages/checkouts/Nuke/Sources/Nuke/Decoding/ImageDecoding.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageDecoding.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageDecoding.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageDecoding.dia",
+    "index-unit-output-path" : "/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageDecoding.o",
+    "llvm-bc" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageDecoding.bc",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageDecoding.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageDecoding.swiftdeps",
+    "swiftmodule" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageDecoding~partial.swiftmodule"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/SourcePackages/checkouts/Nuke/Sources/Nuke/Encoding/ImageEncoders+Default.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageEncoders+Default.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageEncoders+Default.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageEncoders+Default.dia",
+    "index-unit-output-path" : "/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageEncoders+Default.o",
+    "llvm-bc" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageEncoders+Default.bc",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageEncoders+Default.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageEncoders+Default.swiftdeps",
+    "swiftmodule" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageEncoders+Default~partial.swiftmodule"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/SourcePackages/checkouts/Nuke/Sources/Nuke/Encoding/ImageEncoders+ImageIO.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageEncoders+ImageIO.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageEncoders+ImageIO.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageEncoders+ImageIO.dia",
+    "index-unit-output-path" : "/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageEncoders+ImageIO.o",
+    "llvm-bc" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageEncoders+ImageIO.bc",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageEncoders+ImageIO.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageEncoders+ImageIO.swiftdeps",
+    "swiftmodule" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageEncoders+ImageIO~partial.swiftmodule"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/SourcePackages/checkouts/Nuke/Sources/Nuke/Encoding/ImageEncoders.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageEncoders.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageEncoders.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageEncoders.dia",
+    "index-unit-output-path" : "/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageEncoders.o",
+    "llvm-bc" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageEncoders.bc",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageEncoders.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageEncoders.swiftdeps",
+    "swiftmodule" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageEncoders~partial.swiftmodule"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/SourcePackages/checkouts/Nuke/Sources/Nuke/Encoding/ImageEncoding.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageEncoding.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageEncoding.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageEncoding.dia",
+    "index-unit-output-path" : "/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageEncoding.o",
+    "llvm-bc" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageEncoding.bc",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageEncoding.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageEncoding.swiftdeps",
+    "swiftmodule" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageEncoding~partial.swiftmodule"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/SourcePackages/checkouts/Nuke/Sources/Nuke/ImageContainer.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageContainer.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageContainer.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageContainer.dia",
+    "index-unit-output-path" : "/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageContainer.o",
+    "llvm-bc" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageContainer.bc",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageContainer.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageContainer.swiftdeps",
+    "swiftmodule" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageContainer~partial.swiftmodule"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/SourcePackages/checkouts/Nuke/Sources/Nuke/ImageRequest.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageRequest.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageRequest.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageRequest.dia",
+    "index-unit-output-path" : "/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageRequest.o",
+    "llvm-bc" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageRequest.bc",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageRequest.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageRequest.swiftdeps",
+    "swiftmodule" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageRequest~partial.swiftmodule"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/SourcePackages/checkouts/Nuke/Sources/Nuke/ImageResponse.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageResponse.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageResponse.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageResponse.dia",
+    "index-unit-output-path" : "/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageResponse.o",
+    "llvm-bc" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageResponse.bc",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageResponse.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageResponse.swiftdeps",
+    "swiftmodule" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageResponse~partial.swiftmodule"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/SourcePackages/checkouts/Nuke/Sources/Nuke/ImageTask.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageTask.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageTask.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageTask.dia",
+    "index-unit-output-path" : "/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageTask.o",
+    "llvm-bc" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageTask.bc",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageTask.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageTask.swiftdeps",
+    "swiftmodule" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageTask~partial.swiftmodule"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/SourcePackages/checkouts/Nuke/Sources/Nuke/Internal/Atomic.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/Atomic.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/Atomic.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/Atomic.dia",
+    "index-unit-output-path" : "/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/Atomic.o",
+    "llvm-bc" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/Atomic.bc",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/Atomic.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/Atomic.swiftdeps",
+    "swiftmodule" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/Atomic~partial.swiftmodule"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/SourcePackages/checkouts/Nuke/Sources/Nuke/Internal/DataPublisher.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/DataPublisher.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/DataPublisher.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/DataPublisher.dia",
+    "index-unit-output-path" : "/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/DataPublisher.o",
+    "llvm-bc" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/DataPublisher.bc",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/DataPublisher.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/DataPublisher.swiftdeps",
+    "swiftmodule" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/DataPublisher~partial.swiftmodule"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/SourcePackages/checkouts/Nuke/Sources/Nuke/Internal/Extensions.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/Extensions.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/Extensions.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/Extensions.dia",
+    "index-unit-output-path" : "/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/Extensions.o",
+    "llvm-bc" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/Extensions.bc",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/Extensions.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/Extensions.swiftdeps",
+    "swiftmodule" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/Extensions~partial.swiftmodule"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/SourcePackages/checkouts/Nuke/Sources/Nuke/Internal/Graphics.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/Graphics.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/Graphics.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/Graphics.dia",
+    "index-unit-output-path" : "/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/Graphics.o",
+    "llvm-bc" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/Graphics.bc",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/Graphics.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/Graphics.swiftdeps",
+    "swiftmodule" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/Graphics~partial.swiftmodule"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/SourcePackages/checkouts/Nuke/Sources/Nuke/Internal/ImagePublisher.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImagePublisher.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImagePublisher.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImagePublisher.dia",
+    "index-unit-output-path" : "/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImagePublisher.o",
+    "llvm-bc" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImagePublisher.bc",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImagePublisher.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImagePublisher.swiftdeps",
+    "swiftmodule" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImagePublisher~partial.swiftmodule"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/SourcePackages/checkouts/Nuke/Sources/Nuke/Internal/ImageRequestKeys.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageRequestKeys.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageRequestKeys.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageRequestKeys.dia",
+    "index-unit-output-path" : "/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageRequestKeys.o",
+    "llvm-bc" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageRequestKeys.bc",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageRequestKeys.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageRequestKeys.swiftdeps",
+    "swiftmodule" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageRequestKeys~partial.swiftmodule"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/SourcePackages/checkouts/Nuke/Sources/Nuke/Internal/LinkedList.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/LinkedList.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/LinkedList.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/LinkedList.dia",
+    "index-unit-output-path" : "/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/LinkedList.o",
+    "llvm-bc" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/LinkedList.bc",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/LinkedList.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/LinkedList.swiftdeps",
+    "swiftmodule" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/LinkedList~partial.swiftmodule"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/SourcePackages/checkouts/Nuke/Sources/Nuke/Internal/Log.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/Log.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/Log.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/Log.dia",
+    "index-unit-output-path" : "/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/Log.o",
+    "llvm-bc" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/Log.bc",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/Log.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/Log.swiftdeps",
+    "swiftmodule" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/Log~partial.swiftmodule"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/SourcePackages/checkouts/Nuke/Sources/Nuke/Internal/Operation.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/Operation.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/Operation.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/Operation.dia",
+    "index-unit-output-path" : "/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/Operation.o",
+    "llvm-bc" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/Operation.bc",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/Operation.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/Operation.swiftdeps",
+    "swiftmodule" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/Operation~partial.swiftmodule"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/SourcePackages/checkouts/Nuke/Sources/Nuke/Internal/RateLimiter.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/RateLimiter.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/RateLimiter.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/RateLimiter.dia",
+    "index-unit-output-path" : "/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/RateLimiter.o",
+    "llvm-bc" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/RateLimiter.bc",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/RateLimiter.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/RateLimiter.swiftdeps",
+    "swiftmodule" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/RateLimiter~partial.swiftmodule"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/SourcePackages/checkouts/Nuke/Sources/Nuke/Internal/ResumableData.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ResumableData.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ResumableData.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ResumableData.dia",
+    "index-unit-output-path" : "/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ResumableData.o",
+    "llvm-bc" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ResumableData.bc",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ResumableData.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ResumableData.swiftdeps",
+    "swiftmodule" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ResumableData~partial.swiftmodule"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/SourcePackages/checkouts/Nuke/Sources/Nuke/Loading/DataLoader.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/DataLoader.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/DataLoader.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/DataLoader.dia",
+    "index-unit-output-path" : "/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/DataLoader.o",
+    "llvm-bc" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/DataLoader.bc",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/DataLoader.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/DataLoader.swiftdeps",
+    "swiftmodule" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/DataLoader~partial.swiftmodule"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/SourcePackages/checkouts/Nuke/Sources/Nuke/Loading/DataLoading.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/DataLoading.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/DataLoading.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/DataLoading.dia",
+    "index-unit-output-path" : "/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/DataLoading.o",
+    "llvm-bc" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/DataLoading.bc",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/DataLoading.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/DataLoading.swiftdeps",
+    "swiftmodule" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/DataLoading~partial.swiftmodule"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/SourcePackages/checkouts/Nuke/Sources/Nuke/Pipeline/ImagePipeline+Cache.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImagePipeline+Cache.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImagePipeline+Cache.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImagePipeline+Cache.dia",
+    "index-unit-output-path" : "/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImagePipeline+Cache.o",
+    "llvm-bc" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImagePipeline+Cache.bc",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImagePipeline+Cache.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImagePipeline+Cache.swiftdeps",
+    "swiftmodule" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImagePipeline+Cache~partial.swiftmodule"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/SourcePackages/checkouts/Nuke/Sources/Nuke/Pipeline/ImagePipeline+Configuration.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImagePipeline+Configuration.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImagePipeline+Configuration.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImagePipeline+Configuration.dia",
+    "index-unit-output-path" : "/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImagePipeline+Configuration.o",
+    "llvm-bc" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImagePipeline+Configuration.bc",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImagePipeline+Configuration.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImagePipeline+Configuration.swiftdeps",
+    "swiftmodule" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImagePipeline+Configuration~partial.swiftmodule"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/SourcePackages/checkouts/Nuke/Sources/Nuke/Pipeline/ImagePipeline+Delegate.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImagePipeline+Delegate.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImagePipeline+Delegate.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImagePipeline+Delegate.dia",
+    "index-unit-output-path" : "/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImagePipeline+Delegate.o",
+    "llvm-bc" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImagePipeline+Delegate.bc",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImagePipeline+Delegate.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImagePipeline+Delegate.swiftdeps",
+    "swiftmodule" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImagePipeline+Delegate~partial.swiftmodule"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/SourcePackages/checkouts/Nuke/Sources/Nuke/Pipeline/ImagePipeline+Error.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImagePipeline+Error.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImagePipeline+Error.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImagePipeline+Error.dia",
+    "index-unit-output-path" : "/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImagePipeline+Error.o",
+    "llvm-bc" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImagePipeline+Error.bc",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImagePipeline+Error.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImagePipeline+Error.swiftdeps",
+    "swiftmodule" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImagePipeline+Error~partial.swiftmodule"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/SourcePackages/checkouts/Nuke/Sources/Nuke/Pipeline/ImagePipeline.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImagePipeline.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImagePipeline.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImagePipeline.dia",
+    "index-unit-output-path" : "/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImagePipeline.o",
+    "llvm-bc" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImagePipeline.bc",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImagePipeline.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImagePipeline.swiftdeps",
+    "swiftmodule" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImagePipeline~partial.swiftmodule"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/SourcePackages/checkouts/Nuke/Sources/Nuke/Prefetching/ImagePrefetcher.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImagePrefetcher.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImagePrefetcher.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImagePrefetcher.dia",
+    "index-unit-output-path" : "/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImagePrefetcher.o",
+    "llvm-bc" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImagePrefetcher.bc",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImagePrefetcher.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImagePrefetcher.swiftdeps",
+    "swiftmodule" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImagePrefetcher~partial.swiftmodule"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/SourcePackages/checkouts/Nuke/Sources/Nuke/Processing/ImageDecompression.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageDecompression.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageDecompression.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageDecompression.dia",
+    "index-unit-output-path" : "/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageDecompression.o",
+    "llvm-bc" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageDecompression.bc",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageDecompression.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageDecompression.swiftdeps",
+    "swiftmodule" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageDecompression~partial.swiftmodule"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/SourcePackages/checkouts/Nuke/Sources/Nuke/Processing/ImageProcessing.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageProcessing.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageProcessing.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageProcessing.dia",
+    "index-unit-output-path" : "/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageProcessing.o",
+    "llvm-bc" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageProcessing.bc",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageProcessing.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageProcessing.swiftdeps",
+    "swiftmodule" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageProcessing~partial.swiftmodule"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/SourcePackages/checkouts/Nuke/Sources/Nuke/Processing/ImageProcessingOptions.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageProcessingOptions.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageProcessingOptions.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageProcessingOptions.dia",
+    "index-unit-output-path" : "/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageProcessingOptions.o",
+    "llvm-bc" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageProcessingOptions.bc",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageProcessingOptions.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageProcessingOptions.swiftdeps",
+    "swiftmodule" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageProcessingOptions~partial.swiftmodule"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/SourcePackages/checkouts/Nuke/Sources/Nuke/Processing/ImageProcessors+Anonymous.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageProcessors+Anonymous.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageProcessors+Anonymous.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageProcessors+Anonymous.dia",
+    "index-unit-output-path" : "/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageProcessors+Anonymous.o",
+    "llvm-bc" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageProcessors+Anonymous.bc",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageProcessors+Anonymous.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageProcessors+Anonymous.swiftdeps",
+    "swiftmodule" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageProcessors+Anonymous~partial.swiftmodule"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/SourcePackages/checkouts/Nuke/Sources/Nuke/Processing/ImageProcessors+Circle.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageProcessors+Circle.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageProcessors+Circle.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageProcessors+Circle.dia",
+    "index-unit-output-path" : "/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageProcessors+Circle.o",
+    "llvm-bc" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageProcessors+Circle.bc",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageProcessors+Circle.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageProcessors+Circle.swiftdeps",
+    "swiftmodule" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageProcessors+Circle~partial.swiftmodule"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/SourcePackages/checkouts/Nuke/Sources/Nuke/Processing/ImageProcessors+Composition.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageProcessors+Composition.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageProcessors+Composition.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageProcessors+Composition.dia",
+    "index-unit-output-path" : "/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageProcessors+Composition.o",
+    "llvm-bc" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageProcessors+Composition.bc",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageProcessors+Composition.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageProcessors+Composition.swiftdeps",
+    "swiftmodule" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageProcessors+Composition~partial.swiftmodule"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/SourcePackages/checkouts/Nuke/Sources/Nuke/Processing/ImageProcessors+CoreImage.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageProcessors+CoreImage.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageProcessors+CoreImage.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageProcessors+CoreImage.dia",
+    "index-unit-output-path" : "/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageProcessors+CoreImage.o",
+    "llvm-bc" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageProcessors+CoreImage.bc",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageProcessors+CoreImage.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageProcessors+CoreImage.swiftdeps",
+    "swiftmodule" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageProcessors+CoreImage~partial.swiftmodule"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/SourcePackages/checkouts/Nuke/Sources/Nuke/Processing/ImageProcessors+GaussianBlur.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageProcessors+GaussianBlur.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageProcessors+GaussianBlur.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageProcessors+GaussianBlur.dia",
+    "index-unit-output-path" : "/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageProcessors+GaussianBlur.o",
+    "llvm-bc" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageProcessors+GaussianBlur.bc",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageProcessors+GaussianBlur.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageProcessors+GaussianBlur.swiftdeps",
+    "swiftmodule" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageProcessors+GaussianBlur~partial.swiftmodule"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/SourcePackages/checkouts/Nuke/Sources/Nuke/Processing/ImageProcessors+Resize.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageProcessors+Resize.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageProcessors+Resize.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageProcessors+Resize.dia",
+    "index-unit-output-path" : "/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageProcessors+Resize.o",
+    "llvm-bc" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageProcessors+Resize.bc",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageProcessors+Resize.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageProcessors+Resize.swiftdeps",
+    "swiftmodule" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageProcessors+Resize~partial.swiftmodule"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/SourcePackages/checkouts/Nuke/Sources/Nuke/Processing/ImageProcessors+RoundedCorners.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageProcessors+RoundedCorners.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageProcessors+RoundedCorners.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageProcessors+RoundedCorners.dia",
+    "index-unit-output-path" : "/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageProcessors+RoundedCorners.o",
+    "llvm-bc" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageProcessors+RoundedCorners.bc",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageProcessors+RoundedCorners.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageProcessors+RoundedCorners.swiftdeps",
+    "swiftmodule" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageProcessors+RoundedCorners~partial.swiftmodule"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/SourcePackages/checkouts/Nuke/Sources/Nuke/Processing/ImageProcessors.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageProcessors.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageProcessors.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageProcessors.dia",
+    "index-unit-output-path" : "/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageProcessors.o",
+    "llvm-bc" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageProcessors.bc",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageProcessors.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageProcessors.swiftdeps",
+    "swiftmodule" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/ImageProcessors~partial.swiftmodule"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/SourcePackages/checkouts/Nuke/Sources/Nuke/Tasks/AsyncPipelineTask.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/AsyncPipelineTask.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/AsyncPipelineTask.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/AsyncPipelineTask.dia",
+    "index-unit-output-path" : "/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/AsyncPipelineTask.o",
+    "llvm-bc" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/AsyncPipelineTask.bc",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/AsyncPipelineTask.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/AsyncPipelineTask.swiftdeps",
+    "swiftmodule" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/AsyncPipelineTask~partial.swiftmodule"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/SourcePackages/checkouts/Nuke/Sources/Nuke/Tasks/AsyncTask.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/AsyncTask.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/AsyncTask.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/AsyncTask.dia",
+    "index-unit-output-path" : "/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/AsyncTask.o",
+    "llvm-bc" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/AsyncTask.bc",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/AsyncTask.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/AsyncTask.swiftdeps",
+    "swiftmodule" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/AsyncTask~partial.swiftmodule"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/SourcePackages/checkouts/Nuke/Sources/Nuke/Tasks/TaskFetchOriginalData.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/TaskFetchOriginalData.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/TaskFetchOriginalData.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/TaskFetchOriginalData.dia",
+    "index-unit-output-path" : "/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/TaskFetchOriginalData.o",
+    "llvm-bc" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/TaskFetchOriginalData.bc",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/TaskFetchOriginalData.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/TaskFetchOriginalData.swiftdeps",
+    "swiftmodule" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/TaskFetchOriginalData~partial.swiftmodule"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/SourcePackages/checkouts/Nuke/Sources/Nuke/Tasks/TaskFetchOriginalImage.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/TaskFetchOriginalImage.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/TaskFetchOriginalImage.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/TaskFetchOriginalImage.dia",
+    "index-unit-output-path" : "/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/TaskFetchOriginalImage.o",
+    "llvm-bc" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/TaskFetchOriginalImage.bc",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/TaskFetchOriginalImage.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/TaskFetchOriginalImage.swiftdeps",
+    "swiftmodule" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/TaskFetchOriginalImage~partial.swiftmodule"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/SourcePackages/checkouts/Nuke/Sources/Nuke/Tasks/TaskFetchWithPublisher.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/TaskFetchWithPublisher.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/TaskFetchWithPublisher.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/TaskFetchWithPublisher.dia",
+    "index-unit-output-path" : "/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/TaskFetchWithPublisher.o",
+    "llvm-bc" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/TaskFetchWithPublisher.bc",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/TaskFetchWithPublisher.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/TaskFetchWithPublisher.swiftdeps",
+    "swiftmodule" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/TaskFetchWithPublisher~partial.swiftmodule"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/SourcePackages/checkouts/Nuke/Sources/Nuke/Tasks/TaskLoadData.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/TaskLoadData.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/TaskLoadData.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/TaskLoadData.dia",
+    "index-unit-output-path" : "/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/TaskLoadData.o",
+    "llvm-bc" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/TaskLoadData.bc",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/TaskLoadData.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/TaskLoadData.swiftdeps",
+    "swiftmodule" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/TaskLoadData~partial.swiftmodule"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/SourcePackages/checkouts/Nuke/Sources/Nuke/Tasks/TaskLoadImage.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/TaskLoadImage.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/TaskLoadImage.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/TaskLoadImage.dia",
+    "index-unit-output-path" : "/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/TaskLoadImage.o",
+    "llvm-bc" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/TaskLoadImage.bc",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/TaskLoadImage.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/TaskLoadImage.swiftdeps",
+    "swiftmodule" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/TaskLoadImage~partial.swiftmodule"
+  }
+}

@@ -2,7 +2,6 @@ import SwiftUI
 import SwiftData
 
 #if os(macOS)
-
 private enum SidebarToolbarLayout {
     /// Omit SwiftUI sidebar `toolbar` while measured width is in `(0 ..< this)` during split resize. When width is still `0`, chrome stays visible so expanding from `detailOnly` never blanks the space switcher.
     static let narrowColumnToolbarSuppressBelow: CGFloat = 210
@@ -16,6 +15,7 @@ private struct SidebarColumnWidthPreferenceKey: PreferenceKey {
         value = nextValue()
     }
 }
+#endif
 
 /// Sidebar — note list with a notes/folders toggle. Collapsible via ⌘\.
 struct SidebarPanelView: View {
@@ -70,18 +70,21 @@ struct SidebarPanelView: View {
     var onCreateNewNote: (() -> Void)?
     @Query(sort: \Note.updatedAt, order: .reverse) private var notes: [Note]
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.harvousIsIPadSplitLayout) private var isIPadSplitLayout
     @EnvironmentObject private var spaceStore: SpaceStore
     @State private var mode: SidebarMode = .notes
     @State private var foldersDrill: FoldersDrill = .root
     @State private var scriptureDrill: ScriptureDrill = .root
     @State private var dictionaryDrill: DictionaryDrill = .root
     @State private var folderListSearchText = ""
-    @State private var sidebarColumnMeasuredWidth: CGFloat = 0
     @State private var pinnedFolderRowIds: [String] = []
     @State private var renameTarget: HarvousFolderRow?
     @State private var renameDraft: String = ""
     @State private var removeConfirmRow: HarvousFolderRow?
     @FocusState private var searchFieldFocused: Bool
+    #if os(macOS)
+    @State private var sidebarColumnMeasuredWidth: CGFloat = 0
+    #endif
 
     private var unifiedSearchText: Binding<String> {
         Binding(
@@ -191,6 +194,7 @@ struct SidebarPanelView: View {
         )
     }
 
+    #if os(macOS)
     private var showSidebarToolbarChrome: Bool {
         guard splitColumnVisibility != .detailOnly else { return false }
         let w = sidebarColumnMeasuredWidth
@@ -287,6 +291,88 @@ struct SidebarPanelView: View {
         .help("Hide sidebar")
         .accessibilityLabel("Hide sidebar")
     }
+    #endif
+
+    #if os(iOS)
+    @ToolbarContentBuilder
+    private var sidebarIPadToolbarItems: some ToolbarContent {
+        // Cluster all sidebar controls in one tight HStack — mirrors the Mac `sidebarMacToolbarClusterBar`.
+        // Using ToolbarItemGroup + HStack avoids the wide inter-item gaps that separate ToolbarItems produce.
+        // Explicitly pass isIPadSplitLayout into SpaceSwitcherView: toolbar items may not inherit env values
+        // from the surrounding view hierarchy on iOS (UIKit hosts them separately).
+        ToolbarItemGroup(placement: .topBarLeading) {
+            HStack(spacing: 7) {
+                SpaceSwitcherView()
+                    .environment(\.harvousIsIPadSplitLayout, isIPadSplitLayout)
+
+                if mode == .folders, case .bucket(let key) = foldersDrill {
+                    Button { foldersDrill = .root } label: {
+                        HStack(spacing: 5) {
+                            HarvousFAGlyph(assetName: "Harvous.ChevronLeft", edgePt: 13)
+                                .foregroundStyle(.primary)
+                            Text(NoteFilter.folder(key).displayName)
+                                .font(.system(size: 14, weight: .medium))
+                                .lineLimit(1)
+                        }
+                    }
+                    .buttonStyle(.bordered)
+                    .accessibilityLabel("Back to folders, currently viewing \(NoteFilter.folder(key).displayName)")
+                }
+
+                if mode == .scripture, scriptureDrill != .root {
+                    Button {
+                        switch scriptureDrill {
+                        case .root: break
+                        case .book: scriptureDrill = .root
+                        case .passage(let p): scriptureDrill = .book(p.bookIndex)
+                        }
+                    } label: {
+                        HarvousFAGlyph(assetName: "Harvous.ChevronLeft", edgePt: 13)
+                            .foregroundStyle(.primary)
+                    }
+                    .buttonStyle(.bordered)
+                    .accessibilityLabel(scriptureSidebarBackButtonHelp)
+                }
+
+                if mode == .dictionary, dictionaryDrill != .root {
+                    Button { dictionaryDrill = .root } label: {
+                        HarvousFAGlyph(assetName: "Harvous.ChevronLeft", edgePt: 13)
+                            .foregroundStyle(.primary)
+                    }
+                    .buttonStyle(.bordered)
+                    .accessibilityLabel("Back to dictionary")
+                }
+
+                modeMenu
+
+                // iPad split layout: custom hide-sidebar glyph matching Mac's `sidebarHideSidebarToolbarButton`.
+                if isIPadSplitLayout {
+                    Button {
+                        splitColumnVisibility = .detailOnly
+                    } label: {
+                        Label {
+                            Text("Hide sidebar")
+                        } icon: {
+                            HarvousFAGlyph(
+                                assetName: "Harvous.LayoutSidebarLeft",
+                                edgePt: HarvousFAIconMetrics.catalogGlyphBoxPt
+                            )
+                            .frame(
+                                width: HarvousFAIconMetrics.catalogGlyphBoxPt,
+                                height: HarvousFAIconMetrics.catalogGlyphBoxPt
+                            )
+                            .foregroundStyle(.primary)
+                        }
+                    }
+                    .labelStyle(.iconOnly)
+                    .buttonStyle(.bordered)
+                    .help("Hide sidebar")
+                    .accessibilityLabel("Hide sidebar")
+                }
+            }
+        }
+    }
+    #endif
 
     var body: some View {
         NavigationStack {
@@ -295,7 +381,13 @@ struct SidebarPanelView: View {
 
                 Group {
                     if mode == .notes {
-                        NoteListColumn(filter: .all, selectedNote: $selectedNote, externalSearchText: unifiedSearchText, ownsSidebarChrome: false)
+                        NoteListColumn(
+                            filter: .all,
+                            selectedNote: $selectedNote,
+                            externalSearchText: unifiedSearchText,
+                            columnStyle: .macOSSidebar,
+                            ownsSidebarChrome: false
+                        )
                     } else if mode == .highlights {
                         StudyHighlightListColumn(
                             selectedNote: $selectedNote,
@@ -324,6 +416,7 @@ struct SidebarPanelView: View {
                                 filter: .scripturePassage(passage),
                                 selectedNote: $selectedNote,
                                 externalSearchText: unifiedSearchText,
+                                columnStyle: .macOSSidebar,
                                 ownsSidebarChrome: false
                             )
                         }
@@ -332,19 +425,39 @@ struct SidebarPanelView: View {
                         case .root:
                             foldersList
                         case .bucket(let folderBucketKey):
-                            NoteListColumn(filter: .folder(folderBucketKey), selectedNote: $selectedNote, externalSearchText: unifiedSearchText, ownsSidebarChrome: false)
+                            NoteListColumn(
+                                filter: .folder(folderBucketKey),
+                                selectedNote: $selectedNote,
+                                externalSearchText: unifiedSearchText,
+                                columnStyle: .macOSSidebar,
+                                ownsSidebarChrome: false
+                            )
                         }
                     }
                 }
+                // Give the list group priority so it fills remaining space before the Spacer;
+                // on iPad the List doesn't expand naturally, so .layoutPriority(1) is needed.
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-                .safeAreaInset(edge: .bottom, spacing: 0) {
-                    DailyPassagePill(onStudyNow: { note in macSelectNoteWithoutListAnimation(note) })
-                        .padding(.horizontal, HarvousFeedListLayout.listRowHorizontalInset)
-                        .padding(.bottom, 8)
-                }
+                .layoutPriority(1)
+
+                Spacer(minLength: 0)
+
+                // Daily passage pill — pinned at the column bottom via Spacer above.
+                DailyPassagePill(onStudyNow: { note in macSelectNoteWithoutListAnimation(note) })
+                    .padding(.horizontal, HarvousFeedListLayout.listRowHorizontalInset)
+                    .padding(.bottom, 8)
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            // Suppress any automatic navigation title (prevents "Home" / space name appearing as bar title).
+            #if os(iOS)
+            .navigationTitle("")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbarBackground(.hidden, for: .navigationBar)
+            #endif
+            // Suppress system sidebar toggle on both platforms; we supply our own custom glyph button.
             .toolbar(removing: .sidebarToggle)
             .background {
+                #if os(macOS)
                 // Width tracker
                 GeometryReader { proxy in
                     Color.clear.preference(key: SidebarColumnWidthPreferenceKey.self, value: proxy.size.width)
@@ -373,16 +486,28 @@ struct SidebarPanelView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                 }
                 .ignoresSafeArea()
+                #else
+                // iPad split layout: give the sidebar a glassy material backing (matching Mac's visual separation).
+                Rectangle()
+                    .fill(.ultraThinMaterial)
+                    .ignoresSafeArea()
+                #endif
             }
             .toolbar {
+                #if os(macOS)
                 sidebarMacToolbarItems
+                #else
+                sidebarIPadToolbarItems
+                #endif
             }
+            #if os(macOS)
             .onPreferenceChange(SidebarColumnWidthPreferenceKey.self) { sidebarColumnMeasuredWidth = $0 }
             .onChange(of: splitColumnVisibility) { _, newVisibility in
                 if newVisibility == .detailOnly {
                     sidebarColumnMeasuredWidth = 0
                 }
             }
+            #endif
             .onChange(of: mode) { _, newMode in
                 if newMode == .notes {
                     foldersDrill = .root
@@ -430,8 +555,10 @@ struct SidebarPanelView: View {
                 Text("Notes are kept; only the folder label is removed from them.")
             }
         }
+        #if os(macOS)
         .toolbarBackground(.clear, for: .automatic)
         .modifier(HarvousSidebarTransparentWindowToolbar())
+        #endif
     }
 
     private func reloadPinnedFolderOrder() {
@@ -515,7 +642,9 @@ struct SidebarPanelView: View {
                 renameDraft = row.folderLabel ?? ""
             }
         }
+        #if os(macOS)
         .frame(minWidth: 360, minHeight: 200)
+        #endif
     }
 
     @ViewBuilder
@@ -623,6 +752,7 @@ struct SidebarPanelView: View {
         } label: {
             HarvousFAGlyph(assetName: mode.icon)
                 .fixedSize(horizontal: true, vertical: true)
+                .foregroundStyle(.primary)
         }
         .buttonStyle(.bordered)
         .menuIndicator(.hidden)
@@ -763,9 +893,11 @@ struct SidebarPanelView: View {
     }
     .environmentObject(SpaceStore())
     .environmentObject(HarvousAppRouter())
+    #if os(macOS)
     .environmentObject(MacNoteListSelectionCoordinator())
+    #endif
     .modelContainer(for: [Note.self, StudyThread.self, Space.self, SpaceMember.self, SpaceInvite.self, SpaceJoinLink.self], inMemory: true)
+    #if os(macOS)
     .frame(width: 700, height: 500)
+    #endif
 }
-
-#endif

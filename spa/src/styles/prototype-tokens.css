@@ -85,8 +85,8 @@
   --pds-inspector-w: 260px;
 
   /* Prototype shell viewport frame (web — Figma outer padding + shell radius) */
-  --pds-shell-frame-inset: 4px;
-  --pds-shell-frame-radius: 12px;
+  --pds-shell-frame-inset: 14px;
+  --pds-shell-frame-radius: 18px;
 
   /* Native `StudyHighlightAccentToken` underline colors */
   --pds-highlight-neutral: #8e8e93;

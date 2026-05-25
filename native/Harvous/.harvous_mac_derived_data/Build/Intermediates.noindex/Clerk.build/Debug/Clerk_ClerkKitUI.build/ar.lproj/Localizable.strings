@@ -1,0 +1,458 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key></key>
+	<string></string>
+	<key> </key>
+	<string> </string>
+	<key>%@ will be removed from this account. You will no longer be able to sign in using this connected account.</key>
+	<string>سيتم إزالة %@ من هذا الحساب. لن تتمكن بعد الآن من تسجيل الدخول باستخدام هذا الحساب المتصل.</string>
+	<key>%@ will be removed from this account. You will no longer be able to sign in using this email address.</key>
+	<string>سيتم إزالة %@ من هذا الحساب. لن تتمكن بعد الآن من تسجيل الدخول باستخدام عنوان البريد الإلكتروني هذا.</string>
+	<key>%@ will be removed from this account. You will no longer be able to sign in using this passkey.</key>
+	<string>سيتم إزالة %@ من هذا الحساب. لن تتمكن بعد الآن من تسجيل الدخول باستخدام مفتاح المرور هذا.</string>
+	<key>%@ will be removed from this account. You will no longer be able to sign in using this phone number.</key>
+	<string>سيتم إزالة %@ من هذا الحساب. لن تتمكن بعد الآن من تسجيل الدخول باستخدام رقم الهاتف هذا.</string>
+	<key>%@ will no longer be receiving verification codes when signing in.</key>
+	<string>%@ لن يعود يتلقى رموز التحقق عند تسجيل الدخول.</string>
+	<key>A text message containing a verification code will be sent to this phone number. Message and data rates may apply.</key>
+	<string>سيتم إرسال رسالة نصية تحتوي على رمز التحقق إلى رقم الهاتف هذا. قد يتم تطبيق رسوم الرسائل والبيانات.</string>
+	<key>ACTIVE DEVICES</key>
+	<string>الأجهزة النشطة</string>
+	<key>Account</key>
+	<string>الحساب</string>
+	<key>Add SMS code verification</key>
+	<string>إضافة التحقق من رمز الرسائل النصية</string>
+	<key>Add a passkey</key>
+	<string>إضافة مفتاح مرور</string>
+	<key>Add account</key>
+	<string>إضافة حساب</string>
+	<key>Add authenticator application</key>
+	<string>إضافة تطبيق المصادقة</string>
+	<key>Add email address</key>
+	<string>إضافة عنوان بريد إلكتروني</string>
+	<key>Add password</key>
+	<string>إضافة كلمة مرور</string>
+	<key>Add phone number</key>
+	<string>إضافة رقم هاتف</string>
+	<key>Add two-step verification</key>
+	<string>إضافة التحقق بخطوتين</string>
+	<key>Admin</key>
+	<string>المسؤول</string>
+	<key>Alternatively, if your authenticator supports TOTP URIs, you can also copy the full URI.</key>
+	<string>بدلاً من ذلك، إذا كان المصادق الخاص بك يدعم عناوين TOTP URI، يمكنك أيضاً نسخ العنوان الكامل.</string>
+	<key>Are you sure you want to delete your account? This action is permanent and irreversible.</key>
+	<string>هل أنت متأكد من أنك تريد حذف حسابك؟ هذا الإجراء دائم ولا يمكن الرجوع عنه.</string>
+	<key>Authenticator app</key>
+	<string>تطبيق المصادقة</string>
+	<key>Authenticator app verification enabled</key>
+	<string>تم تمكين التحقق من تطبيق Authenticator</string>
+	<key>Authenticator application</key>
+	<string>تطبيق المصادقة</string>
+	<key>Backup code</key>
+	<string>رمز النسخ الاحتياطي</string>
+	<key>Backup codes</key>
+	<string>رموز النسخ الاحتياطي</string>
+	<key>Backup codes are now enabled. You can use one of these to sign in to your account, if you lose access to your authentication device. Each code can only be used once.</key>
+	<string>تم تفعيل رموز النسخ الاحتياطي الآن. يمكنك استخدام أحدها لتسجيل الدخول إلى حسابك إذا فقدت الوصول إلى جهاز المصادقة الخاص بك. يمكن استخدام كل رمز مرة واحدة فقط.</string>
+	<key>CONNECTED ACCOUNTS</key>
+	<string>الحسابات المتصلة</string>
+	<key>Cancel</key>
+	<string>إلغاء</string>
+	<key>Change password</key>
+	<string>تغيير كلمة لمرور</string>
+	<key>Check your email</key>
+	<string>تحقق من بريدك الإلكتروني</string>
+	<key>Check your phone</key>
+	<string>تحقق من هاتفك</string>
+	<key>Choose a username.</key>
+	<string>اختر اسم مستخدم.</string>
+	<key>Choose an Organization</key>
+	<string>اختر منظمة</string>
+	<key>Choose from photo library</key>
+	<string>اختر من مكتبة الصور</string>
+	<key>Choose how you'd like to receive your two-step verification code.</key>
+	<string>اختر كيف تريد استلام رمز التحقق المكون من خطوتين.</string>
+	<key>Choose the phone number you want to use for SMS code two-step verification</key>
+	<string>اختر رقم الهاتف الذي تريد استخدامه للتحقق بخطوتين من رمز الرسائل القصيرة</string>
+	<key>Choose which method you prefer to protect your account with an extra layer of security</key>
+	<string>اختر الطريقة التي تفضلها لحماية حسابك بطبقة إضافية من الأمان</string>
+	<key>Choose your password</key>
+	<string>اختر كلمة المرور الخاصة بك</string>
+	<key>Choose your username</key>
+	<string>اختر اسم المستخدم الخاص بك</string>
+	<key>Close</key>
+	<string>إغلاق</string>
+	<key>Complete your profile</key>
+	<string>أكمل ملفك الشخصي</string>
+	<key>Confirm password</key>
+	<string>تأكيد كلمة المرور</string>
+	<key>Connect account</key>
+	<string>ربط الحساب</string>
+	<key>Contact your organization admin for an invitation.</key>
+	<string>تواصل مع مسؤول منظمتك للحصول على دعوة.</string>
+	<key>Continue</key>
+	<string>متابعة</string>
+	<key>Continue to %@</key>
+	<string>للمتابعة إلى %@</string>
+	<key>Continue with %@</key>
+	<string>متابعة باستخدام %@</string>
+	<key>Copy to clipboard</key>
+	<string>نسخ إلى الحافظة</string>
+	<key>Create a unique password.</key>
+	<string>إنشاء كلمة مرور فريدة.</string>
+	<key>Create organization</key>
+	<string>إنشاء منظمة</string>
+	<key>Create your account</key>
+	<string>إنشاء حسابك</string>
+	<key>Created: %@</key>
+	<string>تم الإنشاء: %@</string>
+	<key>Current password</key>
+	<string>كلمة المرور الحالية</string>
+	<key>DELETE</key>
+	<string>حذف</string>
+	<key>DELETE ACCOUNT</key>
+	<string>حذف الحساب</string>
+	<key>Default</key>
+	<string>افتراضي</string>
+	<key>Delete account</key>
+	<string>حذف الحساب</string>
+	<key>Desktop device</key>
+	<string>جهاز سطح المكتب</string>
+	<key>Didn't receive a code?</key>
+	<string>لم تستلم رمزاً؟</string>
+	<key>Done</key>
+	<string>تم</string>
+	<key>Download</key>
+	<string>تحميل</string>
+	<key>EMAIL ADDRESSES</key>
+	<string>عناوين البريد الإلكتروني</string>
+	<key>Edit profile</key>
+	<string>تعديل الملف الشخصي</string>
+	<key>Email address</key>
+	<string>عنوان البريد الإلكتروني</string>
+	<key>Email code to %@</key>
+	<string>إرسال رمز إلى %@</string>
+	<key>Email support</key>
+	<string>الدعم بالبريد الإلكتروني</string>
+	<key>Enter a backup code</key>
+	<string>أدخل رمز النسخ الاحتياطي</string>
+	<key>Enter a slug using lowercase letters, numbers, and hyphens.</key>
+	<string>أدخل معرّفًا قصيرًا باستخدام أحرف صغيرة وأرقام وشرطات.</string>
+	<key>Enter password</key>
+	<string>أدخل كلمة المرور الخاصة بك</string>
+	<key>Enter the email address you'd like to use.</key>
+	<string>أدخل عنوان البريد الإلكتروني الذي تريد استخدامه.</string>
+	<key>Enter the password for your account</key>
+	<string>أدخل كلمة المرور لحسابك</string>
+	<key>Enter the phone number you'd like to use.</key>
+	<string>أدخل رقم الهاتف الذي تريد استخدامه.</string>
+	<key>Enter the verification code from authenticator application</key>
+	<string>أدخل رمز التحقق من تطبيق المصادقة</string>
+	<key>Enter the verification code from your authenticator application.</key>
+	<string>أدخل رمز التحقق من تطبيق المصادقة الخاص بك.</string>
+	<key>Enter the verification code sent to %@</key>
+	<string>أدخل رمز التحقق المرسل إلى %@</string>
+	<key>Enter your current password to set a new one.</key>
+	<string>أدخل كلمة المرور الحالية لتعيين كلمة مرور جديدة.</string>
+	<key>Enter your email</key>
+	<string>أدخل بريدك الإلكتروني</string>
+	<key>Enter your email or username</key>
+	<string>أدخل بريدك الإلكتروني أو اسم المستخدم</string>
+	<key>Enter your organization details to continue</key>
+	<string>أدخل تفاصيل منظمتك للمتابعة</string>
+	<key>Enter your password</key>
+	<string>أدخل كلمة المرور الخاصة بك</string>
+	<key>Enter your phone number</key>
+	<string>أدخل رقم الهاتف</string>
+	<key>Enter your username</key>
+	<string>أدخل اسم المستخدم الخاص بك</string>
+	<key>Facing issues? You can use any of these methods to sign in.</key>
+	<string>تواجه مشاكل؟ يمكنك استخدام أي من هذه الطرق لتسجيل الدخول.</string>
+	<key>First name</key>
+	<string>الاسم الأول</string>
+	<key>First, enter the code sent to your email address</key>
+	<string>أولاً، أدخل الرمز المرسل إلى عنوان بريدك الإلكتروني</string>
+	<key>First, enter the code sent to your phone</key>
+	<string>أولاً، أدخل الرمز المرسل إلى هاتفك</string>
+	<key>Forgot password?</key>
+	<string>نسيت كلمة المرور؟</string>
+	<key>Get help</key>
+	<string>احصل على المساعدة</string>
+	<key>Go back</key>
+	<string>ارجع</string>
+	<key>I agree to the [Privacy Policy](LegalConsentView://privacy)</key>
+	<string>أوافق على [سياسة الخصوصية](LegalConsentView://privacy)</string>
+	<key>I agree to the [Terms of Service](LegalConsentView://terms)</key>
+	<string>أوافق على [شروط الخدمة](LegalConsentView://terms)</string>
+	<key>I agree to the [Terms of Service](LegalConsentView://terms) and [Privacy Policy](LegalConsentView://privacy)</key>
+	<string>أوافق على [شروط الخدمة](LegalConsentView://terms) و[سياسة الخصوصية](LegalConsentView://privacy)</string>
+	<key>If you have trouble completing required account setup, email us and we will help you finish as soon as possible.</key>
+	<string>إذا كانت لديك مشكلة في إكمال إعداد الحساب المطلوب، راسلنا عبر البريد الإلكتروني وسنساعدك على الانتهاء في أقرب وقت ممكن.</string>
+	<key>If you have trouble creating your account, email us and we will work with you to complete your registration as soon as possible.</key>
+	<string>إذا واجهت مشكلة في إنشاء حسابك، أرسل لنا بريداً إلكترونياً وسنعمل معك لإكمال تسجيلك في أقرب وقت ممكن.</string>
+	<key>If you have trouble signing into your account, email us and we will work with you to restore access as soon as possible.</key>
+	<string>إذا واجهت مشكلة في تسجيل الدخول إلى حسابك، أرسل لنا بريداً إلكترونياً وسنعمل معك لاستعادة الوصول في أقرب وقت ممكن.</string>
+	<key>International</key>
+	<string>دولي</string>
+	<key>It is recommended to sign out of all other devices which may have used your old password.</key>
+	<string>يُنصح بتسجيل الخروج من جميع الأجهزة الأخرى التي قد تكون استخدمت كلمة المرور القديمة.</string>
+	<key>Join</key>
+	<string>انضم</string>
+	<key>Join an existing organization</key>
+	<string>انضم إلى منظمة موجودة</string>
+	<key>Join an existing organization or create a new one</key>
+	<string>انضم إلى منظمة موجودة أو أنشئ واحدة جديدة</string>
+	<key>Last Used</key>
+	<string>آخر استخدام</string>
+	<key>Last name</key>
+	<string>اسم العائلة</string>
+	<key>Last used: %@</key>
+	<string>آخر استخدام: %@</string>
+	<key>Link another login option to your account. You’ll need to verify it before it can be used.</key>
+	<string>ربط خيار تسجيل دخول آخر بحسابك. ستحتاج إلى التحقق منه قبل استخدامه.</string>
+	<key>Linked</key>
+	<string>مرتبط</string>
+	<key>MFA reserved</key>
+	<string>مخصص للمصادقة متعددة العوامل</string>
+	<key>Make sure Time-based or One-time passwords is enabled, then finish linking your account.</key>
+	<string>تأكد من تمكين كلمات المرور المستندة إلى الوقت أو لمرة واحدة، ثم قم بإنهاء ربط حسابك.</string>
+	<key>Manage account</key>
+	<string>إدارة الحساب</string>
+	<key>Manual setup key</key>
+	<string>مفتاح الإعداد اليدوي</string>
+	<key>Member</key>
+	<string>عضو</string>
+	<key>Mobile device</key>
+	<string>جهاز محمول</string>
+	<key>Name of passkey</key>
+	<string>اسم مفتاح المرور</string>
+	<key>New password</key>
+	<string>كلمة المرور الجديدة</string>
+	<key>Next</key>
+	<string>التالي</string>
+	<key>Or, sign in with another method</key>
+	<string>أو، سجل الدخول بطريقة أخرى</string>
+	<key>Organization name</key>
+	<string>اسم المنظمة</string>
+	<key>PASSKEYS</key>
+	<string>مفاتيح المرور</string>
+	<key>PASSWORD</key>
+	<string>كلمة المرور</string>
+	<key>PHONE NUMBERS</key>
+	<string>أرقام الهواتف</string>
+	<key>Password</key>
+	<string>كلمة المرور</string>
+	<key>Passwords don't match.</key>
+	<string>كلمات المرور غير متطابقة.</string>
+	<key>Pending approval</key>
+	<string>في انتظار الموافقة</string>
+	<key>Phone number</key>
+	<string>رقم الهاتف</string>
+	<key>Primary</key>
+	<string>رئيسي</string>
+	<key>Privacy Policy</key>
+	<string>سياسة الخصوصية</string>
+	<key>Profile Details</key>
+	<string>تفاصيل الملف الشخصي</string>
+	<key>Recommended size 1:1, up to 10MB.</key>
+	<string>الحجم الموصى به 1:1، حتى 10 ميجابايت.</string>
+	<key>Reconnect</key>
+	<string>إعادة الاتصال</string>
+	<key>Redirect URL is missing or invalid. Unable to start external authentication flow.</key>
+	<string>عنوان URL لإعادة التوجيه مفقود أو غير صالح. لا يمكن بدء تدفق المصادقة الخارجية.</string>
+	<key>Regenerate</key>
+	<string>إعادة توليد</string>
+	<key>Remove</key>
+	<string>إزالة</string>
+	<key>Remove connected account</key>
+	<string>إزالة الحساب المتصل</string>
+	<key>Remove connection</key>
+	<string>إزالة الاتصال</string>
+	<key>Remove email</key>
+	<string>إزالة البريد الإلكتروني</string>
+	<key>Remove email address</key>
+	<string>إزالة عنوان البريد الإلكتروني</string>
+	<key>Remove passkey</key>
+	<string>إزالة مفتاح المرور</string>
+	<key>Remove phone</key>
+	<string>إزالة الهاتف</string>
+	<key>Remove phone number</key>
+	<string>إزالة رقم الهاتف</string>
+	<key>Remove photo</key>
+	<string>إزالة الصورة</string>
+	<key>Remove two-step verification</key>
+	<string>إزالة التحقق بخطوتين</string>
+	<key>Rename</key>
+	<string>إعادة تسمية</string>
+	<key>Rename passkey</key>
+	<string>إعادة تسمية مفتاح المرور</string>
+	<key>Request to join</key>
+	<string>طلب الانضمام</string>
+	<key>Resend</key>
+	<string>إعادة الإرسال</string>
+	<key>Resend (%lld)</key>
+	<string>إعادة الإرسال (%lld)</string>
+	<key>Reset password</key>
+	<string>إعادة تعيين كلمة المرور</string>
+	<key>Reset your password</key>
+	<string>إعادة تعيين كلمة المرور الخاصة بك</string>
+	<key>SMS code</key>
+	<string>رمز الرسائل القصيرة</string>
+	<key>SMS code verification enabled</key>
+	<string>تم تمكين التحقق من رمز الرسائل القصيرة</string>
+	<key>Save</key>
+	<string>حفظ</string>
+	<key>Save these codes somewhere safe. If you lose access to your authentication device, you can use a backup code to sign in.</key>
+	<string>احفظ هذه الرموز في مكان آمن. إذا فقدت إمكانية الوصول إلى جهاز المصادقة الخاص بك، فيمكنك استخدام رمز احتياطي لتسجيل الدخول.</string>
+	<key>Secured by</key>
+	<string>مؤمن بواسطة</string>
+	<key>Security</key>
+	<string>الأمان</string>
+	<key>Select an existing phone number to register for SMS code two-step verification or add a new one.</key>
+	<string>اختر رقم هاتف موجود للتسجيل في التحقق بخطوتين عبر رمز الرسائل النصية أو أضف رقماً جديداً.</string>
+	<key>Send SMS code to %@</key>
+	<string>إرسال رمز SMS إلى %@</string>
+	<key>Set as default</key>
+	<string>تعيين كافتراضي</string>
+	<key>Set as primary</key>
+	<string>تعيين كأساسي</string>
+	<key>Set new password</key>
+	<string>تعيين كلمة مرور جديدة</string>
+	<key>Set up a new sign-in method in your authenticator and enter the Key provided below.
+
+Make sure Time-based or One-time passwords is enabled, then finish linking your account.</key>
+	<string>قم بإعداد طريقة تسجيل دخول جديدة في المصادق الخاص بك وأدخل المفتاح المقدم أدناه.
+
+تأكد من تمكين كلمات المرور المستندة إلى الوقت أو لمرة واحدة، ثم أنهِ ربط حسابك.</string>
+	<key>Set up a new sign-in method in your authenticator app using the manual setup key below to link it to your account.</key>
+	<string>قم بإعداد طريقة تسجيل دخول جديدة في تطبيق المصادقة الخاص بك باستخدام مفتاح الإعداد اليدوي أدناه لربطها بحسابك.</string>
+	<key>Set up two-step verification</key>
+	<string>قم بإعداد التحقق بخطوتين</string>
+	<key>Sign in with your passkey</key>
+	<string>تسجيل الدخول باستخدام مفتاح المرور الخاص بك</string>
+	<key>Sign in with your password</key>
+	<string>تسجيل الدخول باستخدام كلمة المرور</string>
+	<key>Sign out</key>
+	<string>تسجيل الخروج</string>
+	<key>Sign out of all accounts</key>
+	<string>تسجيل الخروج من جميع الحسابات</string>
+	<key>Sign out of all other devices</key>
+	<string>تسجيل الخروج من جميع الأجهزة الأخرى</string>
+	<key>Sign out of device</key>
+	<string>تسجيل الخروج من الجهاز</string>
+	<key>Sign up</key>
+	<string>إنشاء حساب</string>
+	<key>Slug</key>
+	<string>رابط المنظمة</string>
+	<key>Success</key>
+	<string>نجاح</string>
+	<key>Switch account</key>
+	<string>تبديل الحساب</string>
+	<key>TWO-STEP VERIFICATION</key>
+	<string>التحقق بخطوتين</string>
+	<key>Terms of Service</key>
+	<string>شروط الخدمة</string>
+	<key>There was an error loading the image from the photos library.</key>
+	<string>حدث خطأ أثناء تحميل الصورة من مكتبة الصور.</string>
+	<key>This device</key>
+	<string>هذا الجهاز</string>
+	<key>To continue, please enter the verification code generated by your authenticator app</key>
+	<string>للمتابعة، يرجى إدخال رمز التحقق الذي تم إنشاؤه بواسطة تطبيق المصادقة الخاص بك</string>
+	<key>Two-step verification</key>
+	<string>التحقق بخطوتين</string>
+	<key>Two-step verification is now enabled. When signing in, you will need to enter a verification code from this authenticator app as an additional step.
+
+Save these backup codes and store them somewhere safe. If you lose access to your authentication device, you can use backup codes to sign in.</key>
+	<string>تم تمكين التحقق بخطوتين الآن. عند تسجيل الدخول، ستحتاج إلى إدخال رمز التحقق من تطبيق المصادقة هذا كخطوة إضافية.
+
+احفظ رموز النسخ الاحتياطي هذه واحتفظ بها في مكان آمن. إذا فقدت الوصول إلى جهاز المصادقة الخاص بك، يمكنك استخدام رموز النسخ الاحتياطي لتسجيل الدخول.</string>
+	<key>Two-step verification setup</key>
+	<string>إعداد التحقق بخطوتين</string>
+	<key>Type "DELETE" to continue</key>
+	<string>اكتب "حذف" للمتابعة</string>
+	<key>Unknown code verification method. Please use another method.</key>
+	<string>طريقة تحقق غير معروفة. يرجى استخدام طريقة أخرى.</string>
+	<key>Unknown device</key>
+	<string>جهاز غير معروف</string>
+	<key>Unverified</key>
+	<string>غير موثق</string>
+	<key>Update password</key>
+	<string>تحديث كلمة المرور</string>
+	<key>Upload logo</key>
+	<string>تحميل الشعار</string>
+	<key>Use a backup code</key>
+	<string>استخدام رمز النسخ الاحتياطي</string>
+	<key>Use another method</key>
+	<string>استخدام طريقة أخرى</string>
+	<key>Use email address</key>
+	<string>استخدام عنوان البريد الإلكتروني</string>
+	<key>Use email address or username</key>
+	<string>استخدام عنوان البريد الإلكتروني أو اسم المستخدم</string>
+	<key>Use phone number</key>
+	<string>استخدام رقم الهاتف</string>
+	<key>Use username</key>
+	<string>استخدام اسم المستخدم</string>
+	<key>Use your authenticator app</key>
+	<string>استخدام تطبيق المصادقة الخاص بك</string>
+	<key>Use your passkey</key>
+	<string>استخدام مفتاح المرور الخاص بك</string>
+	<key>Username</key>
+	<string>اسم المستخدم</string>
+	<key>Using your passkey confirms it's you. Your device may ask for your fingerprint, face or screen lock.</key>
+	<string>استخدام مفتاح المرور الخاص بك يؤكد هويتك. قد يطلب جهازك بصمة إصبعك أو وجهك أو قفل الشاشة.</string>
+	<key>Verification codes from this authenticator will no longer be required when signing in.</key>
+	<string>لن تعود رموز التحقق من هذا المصدق مطلوبة عند تسجيل الدخول.</string>
+	<key>Verify</key>
+	<string>تحقق</string>
+	<key>Verify authenticator app</key>
+	<string>تحقق من تطبيق المصادقة</string>
+	<key>Verify email address</key>
+	<string>تحقق من عنوان البريد الإلكتروني</string>
+	<key>Verify phone number</key>
+	<string>تحقق من رقم الهاتف</string>
+	<key>Verify your phone number</key>
+	<string>التحقق من رقم هاتفك</string>
+	<key>Verifying...</key>
+	<string>جاري التحقق...</string>
+	<key>Welcome! Please fill in the details to get started.</key>
+	<string>مرحباً! يرجى ملء التفاصيل للبدء.</string>
+	<key>Welcome! Sign in to continue</key>
+	<string>مرحباً! سجل دخولك للمتابعة</string>
+	<key>When signing in, you will need to enter a verification code sent to this phone number as an additional step.
+
+Save these backup codes and store them somewhere safe. If you lose access to your authentication device, you can use backup codes to sign in.</key>
+	<string>عند تسجيل الدخول، ستحتاج إلى إدخال رمز التحقق المرسل إلى رقم الهاتف هذا كخطوة إضافية.
+
+احفظ رموز النسخ الاحتياطي هذه واحتفظ بها في مكان آمن. إذا فقدت الوصول إلى جهاز المصادقة الخاص بك، يمكنك استخدام رموز النسخ الاحتياطي لتسجيل الدخول.</string>
+	<key>When you sign in, you'll be asked for a verification code sent to this phone number.</key>
+	<string>عند تسجيل الدخول، سيُطلب منك إرسال رمز التحقق إلى رقم الهاتف هذا.</string>
+	<key>When you sign in, you'll need to enter a verification code from this authenticator app.</key>
+	<string>عند تسجيل الدخول، ستحتاج إلى إدخال رمز التحقق من تطبيق المصادقة هذا.</string>
+	<key>Whoops, something is wrong</key>
+	<string>عذراً، هناك خطأ ما</string>
+	<key>You are no longer a member of this organization. Please choose another one.</key>
+	<string>لم تعد عضوًا في هذه المنظمة. يرجى اختيار منظمة أخرى.</string>
+	<key>You are no longer a member of this organization. Please choose or create another one.</key>
+	<string>لم تعد عضوًا في هذه المنظمة. يرجى اختيار منظمة أخرى أو إنشاء منظمة جديدة.</string>
+	<key>You can change the passkey name to make it easier to find.</key>
+	<string>يمكنك تغيير اسم مفتاح المرور لتسهيل العثور عليه.</string>
+	<key>You must belong to an organization</key>
+	<string>يجب أن تنتمي إلى منظمة</string>
+	<key>You'll need to verify this email address before it can be added to your account.</key>
+	<string>ستحتاج إلى التحقق من عنوان البريد الإلكتروني هذا قبل أن تتمكن من إضافته إلى حسابك.</string>
+	<key>You're signing in from a new device. We're asking for verification to keep your account secure.</key>
+	<string>أنت تسجل الدخول من جهاز جديد. نطلب التحقق للحفاظ على أمان حسابك.</string>
+	<key>Your account requires a new password before you can continue</key>
+	<string>يتطلب حسابك كلمة مرور جديدة قبل أن تتمكن من المتابعة.</string>
+	<key>Your backup code is the one you got when setting up two-step authentication.</key>
+	<string>رمز النسخ الاحتياطي الخاص بك هو الرمز الذي حصلت عليه عند إعداد المصادقة بخطوتين.</string>
+	<key>or</key>
+	<string>أو</string>
+	<key>to continue</key>
+	<string>للمتابعة</string>
+	<key>to continue to %@</key>
+	<string>للمتابعة إلى %@</string>
+</dict>
+</plist>

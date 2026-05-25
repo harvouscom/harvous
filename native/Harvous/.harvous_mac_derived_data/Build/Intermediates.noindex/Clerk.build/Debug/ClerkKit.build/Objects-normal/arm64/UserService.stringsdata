@@ -1,0 +1,40 @@
+{
+  "source": "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/SourcePackages/checkouts/clerk-ios/Sources/ClerkKit/Domains/User/UserService.swift",
+  "tables": {
+    "Localizable": [
+      {
+        "comment": "",
+        "key": "Invalid credential type.",
+        "location": {
+          "startingColumn": 39,
+          "startingLine": 175
+        }
+      },
+      {
+        "comment": "",
+        "key": "Unable to get the user ID for the passkey.",
+        "location": {
+          "startingColumn": 39,
+          "startingLine": 161
+        }
+      },
+      {
+        "comment": "",
+        "key": "Unable to get the username for the passkey.",
+        "location": {
+          "startingColumn": 39,
+          "startingLine": 157
+        }
+      },
+      {
+        "comment": "",
+        "key": "Unable to get the challenge for the passkey.",
+        "location": {
+          "startingColumn": 39,
+          "startingLine": 153
+        }
+      }
+    ]
+  },
+  "version": 1
+}

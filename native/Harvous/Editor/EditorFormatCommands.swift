@@ -51,6 +51,7 @@ extension EditorProxy {
         if next == 0 { storage.removeAttribute(.strikethroughStyle, range: range) }
         else         { storage.addAttribute(.strikethroughStyle, value: next, range: range) }
         storage.endEditing()
+        hvNotifyBodyChanged(tv)
         refocusTextView()
         refreshFormatState()
     }
@@ -141,6 +142,7 @@ extension EditorProxy {
             storage.addAttribute(.font, value: font, range: paraRange)
         }
         storage.endEditing()
+        hvNotifyBodyChanged(tv)
         var typing = tv.typingAttributes
         typing[.font] = font
         tv.typingAttributes = typing
@@ -157,6 +159,7 @@ extension EditorProxy {
             storage.addAttribute(.font, value: bodyFont, range: paraRange)
         }
         storage.endEditing()
+        hvNotifyBodyChanged(tv)
         var typing = tv.typingAttributes
         typing[.font] = bodyFont
         tv.typingAttributes = typing
@@ -171,25 +174,25 @@ extension EditorProxy {
     func insertNumbered() { toggleNumberedList() }
 
     func indent() {
-        guard let (tv, storage) = textViewPair() else { return }
-        let paraRange = (storage.string as NSString).paragraphRange(for: caretRange(for: tv))
-        let existing = storage.attribute(.paragraphStyle, at: paraRange.location, effectiveRange: nil)
-        let next = mergedBodyParagraphStyleForIndentChange(existingAttr: existing, firstLineDelta: 20, headDelta: 20)
-        storage.beginEditing()
-        storage.addAttribute(.paragraphStyle, value: next, range: paraRange)
-        storage.endEditing()
-        refocusTextView()
-        refreshFormatState()
+        applyIndentDelta(20)
     }
 
     func outdent() {
+        applyIndentDelta(-20)
+    }
+
+    private func applyIndentDelta(_ delta: CGFloat) {
         guard let (tv, storage) = textViewPair() else { return }
+        guard storage.length > 0 else { return }
         let paraRange = (storage.string as NSString).paragraphRange(for: caretRange(for: tv))
+        guard paraRange.length > 0, NSMaxRange(paraRange) <= storage.length else { return }
+        if storage.attribute(.attachment, at: paraRange.location, effectiveRange: nil) != nil { return }
         let existing = storage.attribute(.paragraphStyle, at: paraRange.location, effectiveRange: nil)
-        let next = mergedBodyParagraphStyleForIndentChange(existingAttr: existing, firstLineDelta: -20, headDelta: -20)
+        let next = mergedBodyParagraphStyleForIndentChange(existingAttr: existing, firstLineDelta: delta, headDelta: delta)
         storage.beginEditing()
         storage.addAttribute(.paragraphStyle, value: next, range: paraRange)
         storage.endEditing()
+        hvNotifyBodyChanged(tv)
         refocusTextView()
         refreshFormatState()
     }
@@ -294,6 +297,27 @@ extension EditorProxy {
         guard let (tv, storage) = textViewPair() else { return }
         var range = caretRange(for: tv)
         if storage.length == 0, range.length == 0 { return }
+
+        // Existing URL pill detection: if the caret sits on (or adjacent to) a URL pill attachment,
+        // pre-fill the sheet so users can edit the pill in place instead of double-pilling.
+        if range.length == 0 {
+            for probe in [range.location - 1, range.location] where probe >= 0 && probe < storage.length {
+                var eff = NSRange()
+                if let pill = storage.attribute(.attachment, at: probe, effectiveRange: &eff) as? URLLinkPillAttachment {
+                    range = eff
+                    addLinkInitialSelectedText = pill.effectiveDisplay
+                    addLinkDisplayName = pill.label ?? pill.effectiveDisplay
+                    addLinkTargetURL = pill.href
+                    addLinkPendingRange = eff
+                    addLinkIsInsertion = false
+                    Task { @MainActor in self.showAddLinkSheet = true }
+                    return
+                }
+            }
+        }
+
+        // Legacy `.link` attribute path (defensive — `convertLinkAttributedRunsToURLLinkPills`
+        // should usually have already replaced these with pills before the user can hit Add Link).
         if range.length == 0, range.location > 0 {
             var w = NSRange()
             if storage.attribute(.link, at: range.location - 1, effectiveRange: &w) != nil { range = w }
@@ -348,37 +372,56 @@ extension EditorProxy {
             return addLinkInitialSelectedText
         }()
 
+        // Normalize href to match the auto-detector / web parity: trim + ensure `https://` prefix
+        // when no scheme is present. Empty URL falls through to the plain-text branch below.
+        var normalizedHref: String? = nil
+        if !urlT.isEmpty {
+            var n = urlT
+            if n.range(of: "^https?://", options: [.regularExpression, .caseInsensitive]) == nil {
+                n = "https://\(n)"
+            }
+            normalizedHref = n
+        }
+
         let attrIndex = min(loc, max(storage.length - 1, 0))
+        let bodyFont = HarvousFonts.noteComposeBodyPlatformFont()
+        let paragraphStyle: NSParagraphStyle? = (attrIndex < storage.length)
+            ? (storage.attribute(.paragraphStyle, at: attrIndex, effectiveRange: nil) as? NSParagraphStyle)
+            : nil
+
         storage.beginEditing()
-        if addLinkIsInsertion {
-            if urlT.isEmpty {
-                let attrs = defaultBodyTypingAttributes(in: storage, at: attrIndex)
-                storage.insert(NSAttributedString(string: resolvedName, attributes: attrs), at: loc)
+        if let href = normalizedHref {
+            // Insert / replace with a labeled URL pill. The pill carries the label so it round-trips
+            // via `[label](href)` in `harvousExpandedPlainText` and re-pills on reload via
+            // `URLLinkDetector`'s labeled-link branch.
+            let labelForPill: String? = (resolvedName == href) ? nil : resolvedName
+            let pill = URLLinkPillAttachment(href: href, title: nil, label: labelForPill)
+            let pillStr = NSMutableAttributedString(attachment: pill)
+            var attrs: [NSAttributedString.Key: Any] = [.font: bodyFont]
+            if let ps = paragraphStyle { attrs[.paragraphStyle] = ps }
+            pillStr.addAttributes(attrs, range: NSRange(location: 0, length: pillStr.length))
+
+            if addLinkIsInsertion {
+                storage.insert(pillStr, at: loc)
+                setCaret(for: tv, NSRange(location: loc + pillStr.length, length: 0))
             } else {
-                var attrs = defaultBodyTypingAttributes(in: storage, at: attrIndex)
-                if let u = Self.urlForLink(urlT) { attrs[.link] = u }
-                else { attrs[.link] = urlT as NSString }
-                storage.insert(NSAttributedString(string: resolvedName, attributes: attrs), at: loc)
+                storage.replaceCharacters(in: range, with: pillStr)
+                setCaret(for: tv, NSRange(location: loc + pillStr.length, length: 0))
+            }
+            // Kick async title resolve so the dock can show a richer headline on next tap.
+            URLLinkTitleService.shared.ensureResolved(for: href)
+        } else {
+            // No URL → plain text insertion / replacement. Mirrors the pre-pill behavior so a user
+            // who clears the URL just gets the label as ordinary body text.
+            let attrs = defaultBodyTypingAttributes(in: storage, at: attrIndex)
+            let replacement = NSAttributedString(string: resolvedName, attributes: attrs)
+            if addLinkIsInsertion {
+                storage.insert(replacement, at: loc)
+            } else {
+                storage.replaceCharacters(in: range, with: replacement)
             }
             let newLen = (resolvedName as NSString).length
             setCaret(for: tv, NSRange(location: loc + newLen, length: 0))
-        } else {
-            let r = range
-            if urlT.isEmpty {
-                if resolvedName == addLinkInitialSelectedText {
-                    storage.removeAttribute(.link, range: r)
-                } else {
-                    var attrs = storage.attributes(at: r.location, effectiveRange: nil)
-                    attrs.removeValue(forKey: .link)
-                    storage.replaceCharacters(in: r, with: NSAttributedString(string: resolvedName, attributes: attrs))
-                }
-            } else {
-                var base = defaultBodyTypingAttributes(in: storage, at: r.location)
-                if let u = Self.urlForLink(urlT) { base[.link] = u } else { base[.link] = urlT as NSString }
-                storage.replaceCharacters(in: r, with: NSAttributedString(string: resolvedName, attributes: base))
-            }
-            let newLen = (resolvedName as NSString).length
-            setCaret(for: tv, NSRange(location: r.location, length: newLen))
         }
         storage.endEditing()
         addLinkPendingRange = .init(location: NSNotFound, length: 0)
@@ -392,8 +435,26 @@ extension EditorProxy {
         guard let (tv, storage) = textViewPair() else { return }
         let range = addLinkPendingRange
         guard range.location != NSNotFound, !addLinkIsInsertion, range.length > 0, NSMaxRange(range) <= storage.length else { cancelAddLinkSheet(); return }
+
+        let bodyFont = HarvousFonts.noteComposeBodyPlatformFont()
+        let attrIndex = min(range.location, max(storage.length - 1, 0))
+        let paragraphStyle: NSParagraphStyle? = (attrIndex < storage.length)
+            ? (storage.attribute(.paragraphStyle, at: attrIndex, effectiveRange: nil) as? NSParagraphStyle)
+            : nil
+        var attrs: [NSAttributedString.Key: Any] = [.font: bodyFont]
+        if let ps = paragraphStyle { attrs[.paragraphStyle] = ps }
+
         storage.beginEditing()
-        storage.removeAttribute(.link, range: range)
+        if let pill = storage.attribute(.attachment, at: range.location, effectiveRange: nil) as? URLLinkPillAttachment {
+            // URL pill → replace with its label (or displayHost when no label) so detection
+            // doesn't immediately re-pill: bare host without scheme won't match `https?://`.
+            let plain = pill.effectiveDisplay
+            storage.replaceCharacters(in: range, with: NSAttributedString(string: plain, attributes: attrs))
+        } else {
+            // Fallback for legacy `.link`-attributed runs (shouldn't survive the convert pass, but
+            // belt-and-suspenders): just strip the link attribute.
+            storage.removeAttribute(.link, range: range)
+        }
         storage.endEditing()
         addLinkPendingRange = .init(location: NSNotFound, length: 0)
         showAddLinkSheet = false
@@ -682,7 +743,7 @@ extension EditorProxy {
     }
 
     private func mergedBodyParagraphStyleForIndentChange(existingAttr: Any?, firstLineDelta: CGFloat, headDelta: CGFloat) -> NSParagraphStyle {
-        let m = noteBodyParagraphStyleForInserts().mutableCopy() as! NSMutableParagraphStyle
+        let m = (noteBodyParagraphStyleForInserts().mutableCopy() as? NSMutableParagraphStyle) ?? NSMutableParagraphStyle()
         guard let existing = existingAttr as? NSParagraphStyle else {
             m.firstLineHeadIndent = max(0, firstLineDelta)
             m.headIndent = max(0, headDelta)
@@ -876,14 +937,43 @@ extension EditorProxy {
         return i - para.location + 1
     }
 
+    /// (paraLocation, charsRemoved, charsInserted) — captured before edits so we can adjust the caret after.
+    private struct ListEdit { let paraLocation: Int; let removed: Int; let inserted: Int }
+
+    private func adjustedSelectionAfterListEdits(originalSelection: NSRange, edits: [ListEdit]) -> NSRange {
+        let sortedAsc = edits.sorted { $0.paraLocation < $1.paraLocation }
+        func adjust(_ pos: Int) -> Int {
+            var out = pos
+            for e in sortedAsc {
+                let oldPrefixEnd = e.paraLocation + e.removed
+                if pos >= oldPrefixEnd {
+                    out += (e.inserted - e.removed)
+                } else if pos > e.paraLocation {
+                    // caret was inside the OLD prefix range — snap to end of new prefix
+                    out = e.paraLocation + e.inserted + (out - e.paraLocation - e.removed)
+                    out = max(out, e.paraLocation + e.inserted)
+                } else if pos == e.paraLocation, e.inserted > 0 {
+                    // caret at paragraph start when we add a prefix — move past the new prefix
+                    out = e.paraLocation + e.inserted
+                }
+            }
+            return out
+        }
+        let newLoc = adjust(originalSelection.location)
+        let newEnd = adjust(NSMaxRange(originalSelection))
+        return NSRange(location: newLoc, length: max(0, newEnd - newLoc))
+    }
+
     private func toggleBulletList() {
         guard let (tv, storage) = textViewPair() else { return }
         let ns = storage.string as NSString
-        let paras = paragraphRangesCovering(selection: caretRange(for: tv), ns: ns)
+        let originalSelection = caretRange(for: tv)
+        let paras = paragraphRangesCovering(selection: originalSelection, ns: ns)
         guard !paras.isEmpty else { return }
 
         let allBulleted = paras.allSatisfy { bulletPrefixLength(ns: ns, para: $0) != nil }
         let sorted = paras.sorted { $0.location > $1.location }
+        var edits: [ListEdit] = []
 
         storage.beginEditing()
         for pr in sorted {
@@ -893,15 +983,21 @@ extension EditorProxy {
             if allBulleted {
                 if let len = bLen {
                     storage.deleteCharacters(in: NSRange(location: pr.location, length: len))
+                    edits.append(ListEdit(paraLocation: pr.location, removed: len, inserted: 0))
                 }
             } else {
                 if bLen != nil { continue }
                 let stripLen = nLen ?? 0
                 let insert = NSAttributedString(string: "• ", attributes: listPrefixAttributes())
                 storage.replaceCharacters(in: NSRange(location: pr.location, length: stripLen), with: insert)
+                edits.append(ListEdit(paraLocation: pr.location, removed: stripLen, inserted: insert.length))
             }
         }
         storage.endEditing()
+        hvNotifyBodyChanged(tv)
+        let newSel = adjustedSelectionAfterListEdits(originalSelection: originalSelection, edits: edits)
+        let clamped = NSRange(location: min(newSel.location, storage.length), length: min(newSel.length, max(0, storage.length - min(newSel.location, storage.length))))
+        setCaret(for: tv, clamped)
         refocusTextView()
         refreshFormatState()
     }
@@ -909,11 +1005,13 @@ extension EditorProxy {
     private func toggleNumberedList() {
         guard let (tv, storage) = textViewPair() else { return }
         let ns = storage.string as NSString
-        let paras = paragraphRangesCovering(selection: caretRange(for: tv), ns: ns)
+        let originalSelection = caretRange(for: tv)
+        let paras = paragraphRangesCovering(selection: originalSelection, ns: ns)
         guard !paras.isEmpty else { return }
 
         let allNumbered = paras.allSatisfy { numberedPrefixLength(ns: ns, para: $0) != nil }
         let sorted = paras.sorted { $0.location > $1.location }
+        var edits: [ListEdit] = []
 
         storage.beginEditing()
         if allNumbered {
@@ -921,6 +1019,7 @@ extension EditorProxy {
                 let live = storage.string as NSString
                 if let len = numberedPrefixLength(ns: live, para: pr) {
                     storage.deleteCharacters(in: NSRange(location: pr.location, length: len))
+                    edits.append(ListEdit(paraLocation: pr.location, removed: len, inserted: 0))
                 }
             }
         } else {
@@ -934,9 +1033,14 @@ extension EditorProxy {
                 let prefix = "\(num). "
                 let insert = NSAttributedString(string: prefix, attributes: listPrefixAttributes())
                 storage.replaceCharacters(in: NSRange(location: pr.location, length: stripLen), with: insert)
+                edits.append(ListEdit(paraLocation: pr.location, removed: stripLen, inserted: insert.length))
             }
         }
         storage.endEditing()
+        hvNotifyBodyChanged(tv)
+        let newSel = adjustedSelectionAfterListEdits(originalSelection: originalSelection, edits: edits)
+        let clamped = NSRange(location: min(newSel.location, storage.length), length: min(newSel.length, max(0, storage.length - min(newSel.location, storage.length))))
+        setCaret(for: tv, clamped)
         refocusTextView()
         refreshFormatState()
     }

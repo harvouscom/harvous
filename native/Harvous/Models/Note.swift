@@ -27,10 +27,21 @@ final class Note {
     var isPinned: Bool = false
     /// Scoped to a `Space.id`; `nil` is treated as the default personal home during migration.
     var spaceId: UUID?
-    /// Server UUID when syncing (v2). Always `nil` in v1.
+    /// Server UUID when syncing (v2). Always `nil` in v1. Superseded by `serverId`
+    /// because the Hono backend uses prefixed string ids (`note_…`), not UUIDs.
     var cloudId: UUID?
-    /// Tracks rows pending upload in v2. Unused locally in v1.
+    /// Server string id (e.g. `note_1730000000000`) for cloud sync. Set on first
+    /// pull/upload; the canonical handle for all subsequent API calls.
+    var serverId: String?
+    /// Tracks rows pending upload to the cloud. Set on local mutations; cleared
+    /// once `HarvousSyncService` flushes the change.
     var needsSync: Bool = false
+    /// Whether a public share link is currently active for this note. Mirrors
+    /// `Notes.isPublic` on the server — set by `POST /api/notes/:id/share`.
+    var isPublic: Bool = false
+    /// Active share-link token (e.g. `abc123def456…`) when `isPublic == true`.
+    /// The public viewer URL is `harvous.com/shared/note/<shareToken>`.
+    var shareToken: String? = nil
     /// Cached filename (no path) last written under the space folder in the Markdown vault mirror.
     var vaultFilename: String?
     /// Optional 1–7 “stickiness” score (Steph-style rating); `nil` means unset.
@@ -138,6 +149,7 @@ final class Note {
             map.removeValue(forKey: reference)
         }
         encodeScripturePillAccents(map)
+        needsSync = true
         updatedAt = Date()
     }
 }

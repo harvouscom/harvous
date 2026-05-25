@@ -23,6 +23,7 @@ struct HarvousApp: App {
         if !HarvousLaunchArguments.isUITesting {
             ScriptureVerseFetch.warmBackendForVerseFetch()
         }
+        HarvousClerkBridge.shared.configure()
     }
 
     @StateObject private var appRouter = HarvousAppRouter()
@@ -132,13 +133,15 @@ struct HarvousApp: App {
 
     var body: some Scene {
         WindowGroup {
-            ContentView()
-                .environmentObject(appRouter)
-                .environmentObject(spaceStore)
-                #if os(macOS)
-                .environmentObject(macNoteListSelectionCoordinator)
-                .frame(minWidth: 980)
-                #endif
+            SignInGate {
+                ContentView()
+                    .environmentObject(appRouter)
+                    .environmentObject(spaceStore)
+                    #if os(macOS)
+                    .environmentObject(macNoteListSelectionCoordinator)
+                    .frame(minWidth: 980)
+                    #endif
+            }
         }
         #if os(macOS)
         // Unified title bar + traffic lights: same as document window (glass reads under the toolbar).

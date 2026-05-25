@@ -46,14 +46,24 @@ struct NoteInspectorView: View {
     }
 
     let note: Note
+    var snapshot: ThreadStore.TrailSnapshot = .init(incoming: [], outgoing: [])
+    var currentNoteTitle: String = "Current note"
+    var onOpenLinkedNote: (UUID) -> Void = { _ in }
+    var onConnectionsChanged: (() -> Void)? = nil
     @Environment(\.modelContext) private var modelContext
     @State private var draftTag = ""
     @State private var simpleNoteIdCopied = false
     @State private var allResourceLines: [String] = []
+    @State private var showConnectPicker = false
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
+                sectionHeader("Connections")
+                connectionsSection
+
+                Divider().padding(.vertical, 12)
+
                 sectionHeader("Tags")
                 tagsSection
 
@@ -78,6 +88,183 @@ struct NoteInspectorView: View {
             .padding(.vertical, 20)
         }
         .task(id: note.id) { loadResourceLines() }
+        #if os(macOS)
+        .popover(isPresented: $showConnectPicker, arrowEdge: .leading) {
+            ConnectNotePicker(
+                spaceId: note.resolvedSpaceId(),
+                parentNoteId: note.id,
+                onPick: { picked in
+                    _ = ThreadStore.createUnanchoredConnection(
+                        parent: note,
+                        linked: picked,
+                        modelContext: modelContext
+                    )
+                    showConnectPicker = false
+                    onConnectionsChanged?()
+                },
+                onCancel: { showConnectPicker = false }
+            )
+        }
+        #else
+        .sheet(isPresented: $showConnectPicker) {
+            NavigationStack {
+                ConnectNotePicker(
+                    spaceId: note.resolvedSpaceId(),
+                    parentNoteId: note.id,
+                    onPick: { picked in
+                        _ = ThreadStore.createUnanchoredConnection(
+                            parent: note,
+                            linked: picked,
+                            modelContext: modelContext
+                        )
+                        showConnectPicker = false
+                        onConnectionsChanged?()
+                    },
+                    onCancel: { showConnectPicker = false }
+                )
+                .navigationTitle("Connect note")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Cancel") {
+                            showConnectPicker = false
+                        }
+                    }
+                }
+            }
+            .presentationDetents([.medium])
+        }
+        #endif
+    }
+
+    // MARK: - Connections (linked-note markers)
+
+    @ViewBuilder
+    private var connectionsSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            if snapshot.incoming.isEmpty && snapshot.outgoing.isEmpty {
+                Text("No connections")
+                    .font(HarvousTypography.inspectorBody)
+                    .foregroundStyle(.secondary)
+                    .padding(.top, 4)
+            } else {
+                if !snapshot.incoming.isEmpty {
+                    connectionsGroup(
+                        label: "Linked from",
+                        markers: snapshot.incoming,
+                        directionGlyph: "Harvous.ArrowLeft",
+                        navigateId: { $0.parentNoteId },
+                        resolveTitle: resolvedIncomingTitle,
+                        onRemove: removeIncomingMarker
+                    )
+                }
+                if !snapshot.outgoing.isEmpty {
+                    connectionsGroup(
+                        label: "Links to",
+                        markers: snapshot.outgoing.filter { $0.linkedNoteId != nil },
+                        directionGlyph: "Harvous.ArrowRight",
+                        navigateId: { $0.linkedNoteId },
+                        resolveTitle: resolvedOutgoingTitle,
+                        onRemove: removeOutgoingMarker
+                    )
+                }
+            }
+
+            addConnectionButton
+        }
+    }
+
+    @ViewBuilder
+    private func connectionsGroup(
+        label: String,
+        markers: [StudyThread],
+        directionGlyph: String,
+        navigateId: @escaping (StudyThread) -> UUID?,
+        resolveTitle: @escaping (StudyThread) -> String,
+        onRemove: @escaping (StudyThread) -> Void
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(label.uppercased())
+                .font(HarvousTypography.inspectorSectionLabel)
+                .foregroundStyle(.secondary)
+                .tracking(0.6)
+
+            VStack(alignment: .leading, spacing: 6) {
+                ForEach(markers, id: \.id) { marker in
+                    InspectorConnectionRow(
+                        title: resolveTitle(marker),
+                        directionGlyph: directionGlyph,
+                        onNavigate: {
+                            if let id = navigateId(marker) {
+                                onOpenLinkedNote(id)
+                            }
+                        },
+                        onRemove: { onRemove(marker) }
+                    )
+                }
+            }
+        }
+    }
+
+    private var addConnectionButton: some View {
+        Button {
+            showConnectPicker = true
+        } label: {
+            HStack(spacing: 6) {
+                HarvousFAGlyph(assetName: "Harvous.Plus", edgePt: 11)
+                    .foregroundStyle(.secondary)
+                Text("Connect note")
+                    .font(HarvousTypography.inspectorBody)
+                    .foregroundStyle(.secondary)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 7)
+            .background(
+                Capsule(style: .continuous)
+                    .fill(Color.primary.opacity(0.06))
+            )
+            .overlay(
+                Capsule(style: .continuous)
+                    .strokeBorder(Color.primary.opacity(0.12), lineWidth: 0.5)
+            )
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Connect note")
+    }
+
+    private func resolvedIncomingTitle(_ marker: StudyThread) -> String {
+        if let parent = ThreadStore.fetchNote(id: marker.parentNoteId, modelContext: modelContext) {
+            let live = parent.title.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !live.isEmpty { return live }
+        }
+        let focus = marker.focusTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+        return focus.isEmpty ? "Untitled note" : focus
+    }
+
+    private func resolvedOutgoingTitle(_ marker: StudyThread) -> String {
+        if let nid = marker.linkedNoteId,
+           let linked = ThreadStore.fetchNote(id: nid, modelContext: modelContext) {
+            let live = linked.title.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !live.isEmpty { return live }
+        }
+        let cached = marker.linkedNoteTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !cached.isEmpty { return cached }
+        let focus = marker.focusTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+        return focus.isEmpty ? "Untitled note" : focus
+    }
+
+    private func removeIncomingMarker(_ marker: StudyThread) {
+        ThreadStore.deleteLinkedNoteMarker(marker, modelContext: modelContext)
+        if let parent = ThreadStore.fetchNote(id: marker.parentNoteId, modelContext: modelContext) {
+            HarvousVaultExporter.scheduleWrite(note: parent, modelContext: modelContext)
+        }
+        onConnectionsChanged?()
+    }
+
+    private func removeOutgoingMarker(_ marker: StudyThread) {
+        ThreadStore.deleteLinkedNoteMarker(marker, modelContext: modelContext)
+        HarvousVaultExporter.scheduleWrite(note: note, modelContext: modelContext)
+        onConnectionsChanged?()
     }
 
     // MARK: - Tags (theme / keyword; not scripture)
@@ -231,6 +418,9 @@ struct NoteInspectorView: View {
             infoRow("Modified", value: note.updatedAt.formatted(date: .abbreviated, time: .shortened))
             infoRow("Reading", value: readingTimeLabel)
             infoRow("Words", value: wordCount)
+            if note.isPublic {
+                infoRow("Sharing", value: "Public")
+            }
         }
         .padding(.top, 4)
     }
@@ -532,6 +722,81 @@ struct FlowLayout: Layout {
             view.place(at: CGPoint(x: currentX, y: currentY), proposal: ProposedViewSize(size))
             currentX += size.width + spacing
             rowHeight = max(rowHeight, size.height)
+        }
+    }
+}
+
+private struct InspectorConnectionRow: View {
+    let title: String
+    let directionGlyph: String
+    let onNavigate: () -> Void
+    let onRemove: () -> Void
+
+    @State private var hoverRemoval = false
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Button(action: onNavigate) {
+                HStack(spacing: 8) {
+                    HarvousFAGlyph(assetName: directionGlyph, edgePt: 11)
+                        .foregroundStyle(.secondary.opacity(0.75))
+                    Text(title)
+                        .font(InspectorDetailChipMetrics.labelFont)
+                        .foregroundStyle(.primary)
+                        .lineLimit(2)
+                        .multilineTextAlignment(.leading)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            #if os(macOS)
+            .help("Open linked note")
+            #endif
+
+            Button(action: onRemove) {
+                HarvousFAGlyph(assetName: "Harvous.Xmark", edgePt: InspectorDetailChipMetrics.removeGlyphPt)
+                    .foregroundStyle(.primary.opacity(0.55))
+                    .frame(width: InspectorDetailChipMetrics.tagGlyphColumnWidth)
+            }
+            .buttonStyle(.plain)
+            #if os(macOS)
+            .help("Remove connection")
+            #endif
+            .opacity(hoverRemoval ? 1 : 0)
+            .frame(width: hoverRemoval ? 22 : 0)
+            .clipped()
+            .allowsHitTesting(hoverRemoval)
+            .accessibilityLabel("Remove connection to \(title)")
+        }
+        .padding(.horizontal, InspectorDetailChipMetrics.horizontalPadding)
+        .padding(.vertical, InspectorDetailChipMetrics.verticalPadding)
+        .background(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(Color.primary.opacity(InspectorDetailChipMetrics.capsuleFillOpacity))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .strokeBorder(
+                    Color.primary.opacity(InspectorDetailChipMetrics.capsuleStrokeOpacity),
+                    lineWidth: 0.5
+                )
+        )
+        .animation(.easeInOut(duration: 0.18), value: hoverRemoval)
+        .onHover { hovering in
+            withAnimation(.easeInOut(duration: 0.18)) {
+                hoverRemoval = hovering
+            }
+        }
+        .contextMenu {
+            Button("Open note") { onNavigate() }
+            Button("Remove connection", role: .destructive) { onRemove() }
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Connected note, \(title)")
+        .accessibilityActions {
+            Button("Open note") { onNavigate() }
+            Button("Remove connection", role: .destructive) { onRemove() }
         }
     }
 }

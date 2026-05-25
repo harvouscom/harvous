@@ -5,6 +5,8 @@ import Icon from '@/components/react/Icon';
 import { toast } from '@/utils/toast';
 import { APIError } from '../../lib/api';
 import { useDeleteNote } from '../../hooks/mutations/useDeleteNote';
+import { useDeleteHighlight } from '../../hooks/mutations/useDeleteHighlight';
+import { useUpdateHighlight } from '../../hooks/mutations/useUpdateHighlight';
 import { usePinSpaceNote } from '../../hooks/mutations/usePinSpaceNote';
 import { useSpaceNotes, type SpaceNoteRow } from '../../hooks/queries/useSpace';
 import { getNoteQueryOptions, seedNoteFromList, type ListNoteForSeed } from '../../hooks/queries/useNote';
@@ -23,6 +25,12 @@ import {
   prototypeHighlightSubtitlePreview,
   prototypeHighlightRecencyIso,
 } from './proto-highlight-subtitle';
+import PrototypeDictionaryColumn from './PrototypeDictionaryColumn';
+import PrototypeDictionaryEntry from './PrototypeDictionaryEntry';
+import {
+  loadPinnedHighlightIds,
+  togglePinnedHighlightId,
+} from './proto-pinned-stores';
 
 interface FolderBucket {
   name: string | null;
@@ -86,6 +94,179 @@ type PrototypeSidebarNoteRowProps = {
   prefetchNote: (row: SpaceNoteRow, opts?: { seedFromList?: boolean }) => void;
   onOpenNote: (row: SpaceNoteRow) => void;
 };
+
+const HIGHLIGHT_ACCENT_SWATCHES: { token: string; label: string; cssVar: string }[] = [
+  { token: 'warmAmber', label: 'Warm amber', cssVar: '--pds-highlight-warm-amber' },
+  { token: 'skyBlue', label: 'Sky blue', cssVar: '--pds-highlight-sky-blue' },
+  { token: 'violet', label: 'Violet', cssVar: '--pds-highlight-violet' },
+  { token: 'mintGreen', label: 'Mint green', cssVar: '--pds-highlight-mint-green' },
+  { token: 'coralRose', label: 'Coral rose', cssVar: '--pds-highlight-coral-rose' },
+  { token: 'neutral', label: 'Neutral', cssVar: '--pds-highlight-neutral' },
+];
+
+function HighlightRow({
+  isActive,
+  isPinned,
+  isReferenceRow,
+  title,
+  line,
+  currentAccent,
+  onOpen,
+  onTogglePin,
+  onSetAccent,
+  onDelete,
+  isDeleting,
+}: {
+  isActive: boolean;
+  isPinned: boolean;
+  isReferenceRow: boolean;
+  title: string;
+  line: string;
+  currentAccent: string | null;
+  onOpen: () => void;
+  onTogglePin: () => void;
+  onSetAccent: (token: string) => void;
+  onDelete: () => void;
+  isDeleting: boolean;
+}) {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRootRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!menuOpen) return undefined;
+    const onDoc = (e: MouseEvent) => {
+      const el = menuRootRef.current;
+      if (el && e.target instanceof Node && !el.contains(e.target)) setMenuOpen(false);
+    };
+    const onEsc = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setMenuOpen(false);
+    };
+    document.addEventListener('mousedown', onDoc);
+    document.addEventListener('keydown', onEsc);
+    return () => {
+      document.removeEventListener('mousedown', onDoc);
+      document.removeEventListener('keydown', onEsc);
+    };
+  }, [menuOpen]);
+
+  return (
+    <li
+      className="proto-note-row-item"
+      data-active={isActive ? 'true' : 'false'}
+      onContextMenu={(e) => {
+        e.preventDefault();
+        setMenuOpen(true);
+      }}
+    >
+      <button type="button" className="proto-note-row__main" onClick={onOpen}>
+        <div className="proto-note-row__title-line">
+          {isPinned ? (
+            <span className="proto-note-row__pin" aria-hidden>
+              <Icon name="thumbtack" size={11} />
+            </span>
+          ) : null}
+          <div
+            className="pds-list-title proto-note-row__title-text"
+            style={isReferenceRow ? { display: 'inline-flex', alignItems: 'center', gap: 6 } : undefined}
+          >
+            {isReferenceRow ? <Icon name="lines-leaning" size={11} aria-hidden /> : null}
+            <span>{title}</span>
+          </div>
+        </div>
+        {line ? <div className="pds-list-preview proto-note-row__preview">{line}</div> : null}
+      </button>
+      <div
+        className={`proto-menu proto-note-row__menu${menuOpen ? ' proto-note-row__menu--open' : ''}`}
+        ref={menuRootRef}
+      >
+        <button
+          type="button"
+          className="proto-note-row__menu-trigger"
+          aria-expanded={menuOpen}
+          aria-haspopup="menu"
+          aria-label="Highlight actions"
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            setMenuOpen((o) => !o);
+          }}
+        >
+          <Icon name="ellipsis-vertical" size={14} />
+        </button>
+        {menuOpen ? (
+          <div className="proto-menu__popover proto-menu__popover--right" role="menu" aria-label="Highlight actions">
+            <div className="proto-menu-section" role="group">
+              <button
+                type="button"
+                role="menuitem"
+                className="proto-menu-item"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setMenuOpen(false);
+                  onTogglePin();
+                }}
+              >
+                <span className="proto-menu-item__icon" aria-hidden>
+                  <Icon name="thumbtack" size={PROTO_TOOLBAR_ICON_SIZE} />
+                </span>
+                <span style={{ flex: 1, minWidth: 0 }}>{isPinned ? 'Unpin highlight' : 'Pin highlight'}</span>
+              </button>
+              <div
+                role="group"
+                aria-label="Highlight accent"
+                style={{ display: 'flex', gap: 6, padding: '6px 12px', alignItems: 'center' }}
+              >
+                {HIGHLIGHT_ACCENT_SWATCHES.map((s) => {
+                  const selected = currentAccent === s.token;
+                  return (
+                    <button
+                      key={s.token}
+                      type="button"
+                      role="menuitemradio"
+                      aria-checked={selected}
+                      aria-label={s.label}
+                      title={s.label}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setMenuOpen(false);
+                        onSetAccent(s.token);
+                      }}
+                      style={{
+                        width: 16,
+                        height: 16,
+                        borderRadius: '50%',
+                        border: selected ? '2px solid var(--pds-fg-primary, #111)' : '1px solid rgba(0,0,0,0.15)',
+                        background: `var(${s.cssVar})`,
+                        padding: 0,
+                        cursor: 'pointer',
+                      }}
+                    />
+                  );
+                })}
+              </div>
+              <button
+                type="button"
+                role="menuitem"
+                className="proto-menu-item"
+                disabled={isDeleting}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setMenuOpen(false);
+                  onDelete();
+                }}
+              >
+                <span className="proto-menu-item__icon" aria-hidden>
+                  <Icon name="trash-can" size={PROTO_TOOLBAR_ICON_SIZE} />
+                </span>
+                <span style={{ flex: 1, minWidth: 0 }}>Delete highlight</span>
+              </button>
+            </div>
+          </div>
+        ) : null}
+      </div>
+    </li>
+  );
+}
 
 function PrototypeSidebarNoteRow({
   row,
@@ -244,6 +425,33 @@ type ScriptureDrill =
   | { level: 'passages'; bookOrder: number }
   | { level: 'notes'; bookOrder: number; passageKey: string };
 
+type HighlightKindFilter = 'all' | 'notes' | 'connected' | 'scripture' | 'references';
+
+const HIGHLIGHT_KIND_OPTIONS: { id: HighlightKindFilter; label: string; iconName?: string }[] = [
+  { id: 'all', label: 'All' },
+  { id: 'notes', label: 'Notes', iconName: 'note-sticky' },
+  { id: 'connected', label: 'Connected', iconName: 'arrow-right-arrow-left' },
+  { id: 'scripture', label: 'Scripture', iconName: 'book-open' },
+  { id: 'references', label: 'References', iconName: 'lines-leaning' },
+];
+
+function highlightKindMatches(filter: HighlightKindFilter, entryKind: string | null | undefined): boolean {
+  switch (filter) {
+    case 'all':
+      return true;
+    case 'notes':
+      return entryKind === 'workspace' || entryKind === 'miniNote';
+    case 'connected':
+      return entryKind === 'linkedNote';
+    case 'scripture':
+      return entryKind === 'scriptureLink';
+    case 'references':
+      return entryKind === 'reference';
+    default:
+      return true;
+  }
+}
+
 export default function PrototypeSidebar() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const {
@@ -252,6 +460,8 @@ export default function PrototypeSidebar() {
     sidebarListMode: mode,
     setSidebarFolderDrilldown: setActiveFolderKey,
     sidebarFolderDrilldown: activeFolderKey,
+    sidebarDictionarySlug,
+    setSidebarDictionarySlug,
     standaloneScripturePassage,
     openStandaloneScripturePassage,
     dismissStandaloneScripturePassage,
@@ -273,6 +483,20 @@ export default function PrototypeSidebar() {
   const scriptureQuery = usePrototypeSpaceScriptureIndex(mode === 'scripture' ? homeSpaceId ?? undefined : undefined);
   const [q, setQ] = useState('');
   const [scriptureDrill, setScriptureDrill] = useState<ScriptureDrill>({ level: 'books' });
+  const [highlightKindFilter, setHighlightKindFilter] = useState<HighlightKindFilter>('all');
+  const [pinnedHighlightIds, setPinnedHighlightIds] = useState<string[]>([]);
+
+  useEffect(() => {
+    setPinnedHighlightIds(loadPinnedHighlightIds(homeSpaceId ?? undefined));
+  }, [homeSpaceId]);
+
+  const togglePinnedHighlight = useCallback(
+    (id: string) => {
+      if (!homeSpaceId) return;
+      setPinnedHighlightIds(togglePinnedHighlightId(homeSpaceId, id));
+    },
+    [homeSpaceId],
+  );
 
   useEffect(() => {
     if (mode !== 'scripture') setScriptureDrill({ level: 'books' });
@@ -317,7 +541,7 @@ export default function PrototypeSidebar() {
   const filteredFolders = useMemo(() => {
     const t = q.trim().toLowerCase();
     if (!t) return folders;
-    return folders.filter((c) => (c.name ?? 'No folder').toLowerCase().includes(t));
+    return folders.filter((c) => (c.name ?? 'Unsorted').toLowerCase().includes(t));
   }, [folders, q]);
 
   const scriptureBooks = scriptureQuery.data ?? [];
@@ -325,22 +549,34 @@ export default function PrototypeSidebar() {
   const filteredHighlights = useMemo(() => {
     const rows = highlightsQuery.data ?? [];
     const t = q.trim().toLowerCase();
-    if (!t) return rows;
-    return rows.filter((r) => {
-      const hay = [
-        r.focusTitle,
-        r.anchorTextSnapshot,
-        r.parentNoteTitle,
-        r.miniNoteBody,
-        r.sourceSnippet,
-        r.scriptureReference,
-        r.scripturePassageExcerpt,
-      ]
-        .join(' ')
-        .toLowerCase();
-      return hay.includes(t);
+    const kindFiltered = rows.filter((r) => highlightKindMatches(highlightKindFilter, r.entryKind));
+    const searched = !t
+      ? kindFiltered
+      : kindFiltered.filter((r) => {
+          const hay = [
+            r.focusTitle,
+            r.anchorTextSnapshot,
+            r.parentNoteTitle,
+            r.miniNoteBody,
+            r.sourceSnippet,
+            r.scriptureReference,
+            r.scripturePassageExcerpt,
+          ]
+            .join(' ')
+            .toLowerCase();
+          return hay.includes(t);
+        });
+    if (pinnedHighlightIds.length === 0) return searched;
+    const pinnedSet = new Set(pinnedHighlightIds);
+    const byId = new Map(searched.map((r) => [r.id, r]));
+    const pinned: typeof searched = [];
+    pinnedHighlightIds.forEach((id) => {
+      const row = byId.get(id);
+      if (row) pinned.push(row);
     });
-  }, [highlightsQuery.data, q]);
+    const unpinned = searched.filter((r) => !pinnedSet.has(r.id));
+    return [...pinned, ...unpinned];
+  }, [highlightsQuery.data, q, highlightKindFilter, pinnedHighlightIds]);
 
   const filteredScriptureBooks = useMemo(() => {
     const t = q.trim().toLowerCase();
@@ -434,6 +670,44 @@ export default function PrototypeSidebar() {
       params: { noteId: noteParamSlug(row.id) },
     });
     afterNav();
+  };
+
+  const deleteHighlight = useDeleteHighlight();
+  const updateHighlight = useUpdateHighlight();
+
+  const onSetHighlightAccent = (r: PrototypeHighlightStudyThreadRow, token: string) => {
+    if (!homeSpaceId) return;
+    if (r.highlightAccentRaw === token) return;
+    updateHighlight.mutate(
+      {
+        id: r.id,
+        spaceId: homeSpaceId,
+        parentNoteId: r.parentNoteId,
+        highlightAccentRaw: token,
+      },
+      {
+        onError: (err) => {
+          const msg =
+            err instanceof APIError ? err.message : err instanceof Error ? err.message : 'Could not update highlight';
+          toast.error(msg);
+        },
+      },
+    );
+  };
+
+  const onDeleteHighlight = (r: PrototypeHighlightStudyThreadRow) => {
+    if (!homeSpaceId) return;
+    if (!window.confirm('Delete this highlight? This cannot be undone.')) return;
+    deleteHighlight.mutate(
+      { id: r.id, spaceId: homeSpaceId, parentNoteId: r.parentNoteId },
+      {
+        onError: (err) => {
+          const msg =
+            err instanceof APIError ? err.message : err instanceof Error ? err.message : 'Could not delete highlight';
+          toast.error(msg);
+        },
+      },
+    );
   };
 
   const onHighlightRow = (r: PrototypeHighlightStudyThreadRow) => {
@@ -581,7 +855,7 @@ export default function PrototypeSidebar() {
                     Folders
                   </button>
                   <div className="pds-list-title" style={{ fontWeight: 600 }}>
-                    {activeFolderKey ?? 'No folder'}
+                    {activeFolderKey ?? 'Unsorted'}
                   </div>
                 </div>
                 {notesForMode.length === 0 ? (
@@ -628,7 +902,7 @@ export default function PrototypeSidebar() {
                         className="proto-note-row"
                         onClick={() => setActiveFolderKey(col.name)}
                       >
-                        <div className="pds-list-title">{col.name ?? 'No folder'}</div>
+                        <div className="pds-list-title">{col.name ?? 'Unsorted'}</div>
                         <div className="pds-list-preview">
                           {col.count} note{col.count !== 1 ? 's' : ''}
                         </div>
@@ -641,6 +915,24 @@ export default function PrototypeSidebar() {
 
             {mode === 'highlights' ? (
               <>
+                <div className="proto-chip-bar" role="tablist" aria-label="Highlight kind">
+                  {HIGHLIGHT_KIND_OPTIONS.map((opt) => {
+                    const selected = highlightKindFilter === opt.id;
+                    return (
+                      <button
+                        key={opt.id}
+                        type="button"
+                        role="tab"
+                        aria-selected={selected}
+                        className={`proto-chip${selected ? ' proto-chip--selected' : ''}`}
+                        onClick={() => setHighlightKindFilter(opt.id)}
+                      >
+                        {opt.iconName ? <Icon name={opt.iconName} size={11} aria-hidden /> : null}
+                        {opt.label}
+                      </button>
+                    );
+                  })}
+                </div>
                 {highlightsQuery.isLoading ? (
                   <p className="proto-caption" style={{ padding: '12px 18px' }}>Loading highlights…</p>
                 ) : highlightsQuery.isError ? (
@@ -657,7 +949,7 @@ export default function PrototypeSidebar() {
                   </p>
                 ) : filteredHighlights.length === 0 ? (
                   <p className="proto-caption" style={{ padding: '12px 18px', textAlign: 'center' }}>
-                    {q.trim() ? 'No highlights match.' : 'No highlights yet.'}
+                    {q.trim() || highlightKindFilter !== 'all' ? 'No highlights match.' : 'No highlights yet.'}
                   </p>
                 ) : (
                   <ul className="proto-note-list">
@@ -668,29 +960,51 @@ export default function PrototypeSidebar() {
                       const line = rel && sub ? `${rel}  ${sub}` : rel || sub;
                       const title = prototypeHighlightListTitle(r);
                       const isReferenceRow = r.entryKind === 'reference';
+                      const isPinned = pinnedHighlightIds.includes(r.id);
                       const activeRow =
                         standaloneScripturePassage?.focusedHighlightThreadId === r.id ||
                         (!isScripturePassageHighlightRow(r) && activeNoteFullId === r.parentNoteId);
                       return (
-                        <li key={r.id} className="proto-note-row-item" data-active={activeRow ? 'true' : 'false'}>
-                          <button type="button" className="proto-note-row__main" onClick={() => onHighlightRow(r)}>
-                            <div
-                              className="pds-list-title proto-note-row__title-text"
-                              style={isReferenceRow ? { display: 'inline-flex', alignItems: 'center', gap: 6 } : undefined}
-                            >
-                              {isReferenceRow ? (
-                                <Icon name="lines-leaning" size={11} aria-hidden />
-                              ) : null}
-                              <span>{title}</span>
-                            </div>
-                            {line ? <div className="pds-list-preview proto-note-row__preview">{line}</div> : null}
-                          </button>
-                        </li>
+                        <HighlightRow
+                          key={r.id}
+                          isActive={activeRow}
+                          isPinned={isPinned}
+                          isReferenceRow={isReferenceRow}
+                          title={title}
+                          line={line}
+                          currentAccent={r.highlightAccentRaw}
+                          onOpen={() => onHighlightRow(r)}
+                          onTogglePin={() => togglePinnedHighlight(r.id)}
+                          onSetAccent={(token) => onSetHighlightAccent(r, token)}
+                          onDelete={() => onDeleteHighlight(r)}
+                          isDeleting={
+                            deleteHighlight.isPending &&
+                            deleteHighlight.variables?.id === r.id
+                          }
+                        />
                       );
                     })}
                   </ul>
                 )}
               </>
+            ) : null}
+
+            {mode === 'dictionary' && sidebarDictionarySlug ? (
+              <PrototypeDictionaryEntry
+                slug={sidebarDictionarySlug}
+                onBack={() => {
+                  setSidebarDictionarySlug(undefined);
+                  setQ('');
+                }}
+                onNavigateSlug={(slug) => setSidebarDictionarySlug(slug)}
+              />
+            ) : null}
+
+            {mode === 'dictionary' && !sidebarDictionarySlug ? (
+              <PrototypeDictionaryColumn
+                searchQuery={q}
+                onOpenSlug={(slug) => setSidebarDictionarySlug(slug)}
+              />
             ) : null}
 
             {mode === 'scripture' && scriptureDrill.level === 'books' ? (

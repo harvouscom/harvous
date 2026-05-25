@@ -104,6 +104,21 @@ extension View {
     }
 }
 
+/// iPad-aware wrapper: applies `iosListBottomChromeReserve` only when not in the iPad split layout.
+/// In `iPadRootView`, lists live inside a `NavigationSplitView` column with no floating bottom chrome,
+/// so the iPhone-sized reserve would push the daily-passage pill into the middle of the column.
+struct IPadAwareListBottomChromeReserve: ViewModifier {
+    let skip: Bool
+
+    func body(content: Content) -> some View {
+        if skip {
+            content
+        } else {
+            content.iosListBottomChromeReserve()
+        }
+    }
+}
+
 // MARK: - Compose orb + long-press camera (scan text)
 
 /// Reliable tap vs long-press: SwiftUI `Button` + `onLongPressGesture` often fails because gesture edges compete.

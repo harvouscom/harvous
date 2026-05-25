@@ -70,7 +70,7 @@ export default function SpaceSwitcherMenu({ homeSpaceId, navReady }: { homeSpace
           <div className="proto-menu-section" role="group">
             {!hasHome ? (
               <p className="proto-menu-muted">
-                My Home isn’t available yet — open the classic app to finish setup.
+                My Home isn't available yet — open the classic app to finish setup.
               </p>
             ) : (
               <button

@@ -1,0 +1,458 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key></key>
+	<string></string>
+	<key> </key>
+	<string> </string>
+	<key>%@ will be removed from this account. You will no longer be able to sign in using this connected account.</key>
+	<string>%@はこのアカウントから削除されます。この接続されたアカウントを使用してサインインできなくなります。</string>
+	<key>%@ will be removed from this account. You will no longer be able to sign in using this email address.</key>
+	<string>%@はこのアカウントから削除されます。このメールアドレスを使用してサインインできなくなります。</string>
+	<key>%@ will be removed from this account. You will no longer be able to sign in using this passkey.</key>
+	<string>%@はこのアカウントから削除されます。このパスキーを使用してサインインできなくなります。</string>
+	<key>%@ will be removed from this account. You will no longer be able to sign in using this phone number.</key>
+	<string>%@はこのアカウントから削除されます。この電話番号を使用してサインインできなくなります。</string>
+	<key>%@ will no longer be receiving verification codes when signing in.</key>
+	<string>%@ はサインイン時に確認コードを受信しなくなります。</string>
+	<key>A text message containing a verification code will be sent to this phone number. Message and data rates may apply.</key>
+	<string>この電話番号に認証コードを含むテキストメッセージが送信されます。メッセージとデータの料金が適用される場合があります。</string>
+	<key>ACTIVE DEVICES</key>
+	<string>アクティブなデバイス</string>
+	<key>Account</key>
+	<string>アカウント</string>
+	<key>Add SMS code verification</key>
+	<string>SMSコード認証を追加</string>
+	<key>Add a passkey</key>
+	<string>パスキーを追加</string>
+	<key>Add account</key>
+	<string>アカウントを追加</string>
+	<key>Add authenticator application</key>
+	<string>認証アプリを追加</string>
+	<key>Add email address</key>
+	<string>メールアドレスを追加</string>
+	<key>Add password</key>
+	<string>パスワードを追加</string>
+	<key>Add phone number</key>
+	<string>電話番号を追加</string>
+	<key>Add two-step verification</key>
+	<string>2段階認証を追加</string>
+	<key>Admin</key>
+	<string>管理者</string>
+	<key>Alternatively, if your authenticator supports TOTP URIs, you can also copy the full URI.</key>
+	<string>または、認証アプリがTOTP URIをサポートしている場合は、完全なURIをコピーすることもできます。</string>
+	<key>Are you sure you want to delete your account? This action is permanent and irreversible.</key>
+	<string>アカウントを削除してもよろしいですか？この操作は永続的で元に戻すことはできません。</string>
+	<key>Authenticator app</key>
+	<string>認証アプリ</string>
+	<key>Authenticator app verification enabled</key>
+	<string>認証アプリの検証が有効になっています</string>
+	<key>Authenticator application</key>
+	<string>認証アプリケーション</string>
+	<key>Backup code</key>
+	<string>バックアップコード</string>
+	<key>Backup codes</key>
+	<string>バックアップコード</string>
+	<key>Backup codes are now enabled. You can use one of these to sign in to your account, if you lose access to your authentication device. Each code can only be used once.</key>
+	<string>バックアップコードが有効になりました。認証デバイスへのアクセスを失った場合、これらのうちの1つを使ってアカウントにサインインできます。各コードは1回しか使用できません。</string>
+	<key>CONNECTED ACCOUNTS</key>
+	<string>接続済みアカウント</string>
+	<key>Cancel</key>
+	<string>キャンセル</string>
+	<key>Change password</key>
+	<string>パスワードを変更</string>
+	<key>Check your email</key>
+	<string>メールを確認してください</string>
+	<key>Check your phone</key>
+	<string>電話を確認してください</string>
+	<key>Choose a username.</key>
+	<string>ユーザー名を選択してください。</string>
+	<key>Choose an Organization</key>
+	<string>組織を選択</string>
+	<key>Choose from photo library</key>
+	<string>写真ライブラリから選択</string>
+	<key>Choose how you'd like to receive your two-step verification code.</key>
+	<string>2段階認証コードの受信方法を選択してください。</string>
+	<key>Choose the phone number you want to use for SMS code two-step verification</key>
+	<string>SMS コードの 2 段階認証に使用する電話番号を選択してください</string>
+	<key>Choose which method you prefer to protect your account with an extra layer of security</key>
+	<string>追加のセキュリティ層でアカウントを保護する方法を選択してください</string>
+	<key>Choose your password</key>
+	<string>パスワードを選択してください</string>
+	<key>Choose your username</key>
+	<string>ユーザー名を選択してください</string>
+	<key>Close</key>
+	<string>閉じる</string>
+	<key>Complete your profile</key>
+	<string>プロフィールを完成させてください</string>
+	<key>Confirm password</key>
+	<string>パスワードの確認</string>
+	<key>Connect account</key>
+	<string>アカウントを接続</string>
+	<key>Contact your organization admin for an invitation.</key>
+	<string>招待を受けるには組織の管理者にお問い合わせください。</string>
+	<key>Continue</key>
+	<string>続ける</string>
+	<key>Continue to %@</key>
+	<string>%@に続けるには</string>
+	<key>Continue with %@</key>
+	<string>%@で続ける</string>
+	<key>Copy to clipboard</key>
+	<string>クリップボードにコピー</string>
+	<key>Create a unique password.</key>
+	<string>固有のパスワードを作成してください。</string>
+	<key>Create organization</key>
+	<string>組織を作成</string>
+	<key>Create your account</key>
+	<string>アカウントを作成</string>
+	<key>Created: %@</key>
+	<string>作成日: %@</string>
+	<key>Current password</key>
+	<string>現在のパスワード</string>
+	<key>DELETE</key>
+	<string>削除</string>
+	<key>DELETE ACCOUNT</key>
+	<string>アカウントを削除</string>
+	<key>Default</key>
+	<string>デフォルト</string>
+	<key>Delete account</key>
+	<string>アカウントを削除</string>
+	<key>Desktop device</key>
+	<string>デスクトップデバイス</string>
+	<key>Didn't receive a code?</key>
+	<string>コードが届きませんでしたか？</string>
+	<key>Done</key>
+	<string>完了</string>
+	<key>Download</key>
+	<string>ダウンロード</string>
+	<key>EMAIL ADDRESSES</key>
+	<string>メールアドレス</string>
+	<key>Edit profile</key>
+	<string>プロフィールを編集</string>
+	<key>Email address</key>
+	<string>メールアドレス</string>
+	<key>Email code to %@</key>
+	<string>%@にコードを送信</string>
+	<key>Email support</key>
+	<string>メールサポート</string>
+	<key>Enter a backup code</key>
+	<string>バックアップコードを入力</string>
+	<key>Enter a slug using lowercase letters, numbers, and hyphens.</key>
+	<string>小文字、数字、ハイフンを使用してスラッグを入力してください。</string>
+	<key>Enter password</key>
+	<string>パスワードを入力</string>
+	<key>Enter the email address you'd like to use.</key>
+	<string>使用したいメールアドレスを入力してください。</string>
+	<key>Enter the password for your account</key>
+	<string>アカウントのパスワードを入力</string>
+	<key>Enter the phone number you'd like to use.</key>
+	<string>使用したい電話番号を入力してください。</string>
+	<key>Enter the verification code from authenticator application</key>
+	<string>認証アプリケーションから確認コードを入力します</string>
+	<key>Enter the verification code from your authenticator application.</key>
+	<string>認証アプリから確認コードを入力してください。</string>
+	<key>Enter the verification code sent to %@</key>
+	<string>%@ に送信された認証コードを入力してください</string>
+	<key>Enter your current password to set a new one.</key>
+	<string>新しいパスワードを設定するには、現在のパスワードを入力してください。</string>
+	<key>Enter your email</key>
+	<string>メールアドレスを入力</string>
+	<key>Enter your email or username</key>
+	<string>メールアドレスまたはユーザー名を入力</string>
+	<key>Enter your organization details to continue</key>
+	<string>続行するには組織の詳細を入力してください</string>
+	<key>Enter your password</key>
+	<string>パスワードを入力</string>
+	<key>Enter your phone number</key>
+	<string>電話番号を入力</string>
+	<key>Enter your username</key>
+	<string>ユーザー名を入力</string>
+	<key>Facing issues? You can use any of these methods to sign in.</key>
+	<string>問題が発生していますか？これらの方法のいずれかを使用してサインインできます。</string>
+	<key>First name</key>
+	<string>名</string>
+	<key>First, enter the code sent to your email address</key>
+	<string>まず、メールアドレスに送信されたコードを入力してください</string>
+	<key>First, enter the code sent to your phone</key>
+	<string>まず、電話番号に送信されたコードを入力してください</string>
+	<key>Forgot password?</key>
+	<string>パスワードをお忘れですか？</string>
+	<key>Get help</key>
+	<string>ヘルプを取得</string>
+	<key>Go back</key>
+	<string>戻る</string>
+	<key>I agree to the [Privacy Policy](LegalConsentView://privacy)</key>
+	<string>[プライバシーポリシー](LegalConsentView://privacy)に同意します</string>
+	<key>I agree to the [Terms of Service](LegalConsentView://terms)</key>
+	<string>[利用規約](LegalConsentView://terms)に同意します</string>
+	<key>I agree to the [Terms of Service](LegalConsentView://terms) and [Privacy Policy](LegalConsentView://privacy)</key>
+	<string>[利用規約](LegalConsentView://terms)と[プライバシーポリシー](LegalConsentView://privacy)に同意します</string>
+	<key>If you have trouble completing required account setup, email us and we will help you finish as soon as possible.</key>
+	<string>必要なアカウント設定を完了できない場合は、メールでお問い合わせください。できるだけ早く完了するようお手伝いいたします。</string>
+	<key>If you have trouble creating your account, email us and we will work with you to complete your registration as soon as possible.</key>
+	<string>アカウントの作成で問題が発生した場合は、メールでご連絡ください。できるだけ早く登録を完了できるよう対応いたします。</string>
+	<key>If you have trouble signing into your account, email us and we will work with you to restore access as soon as possible.</key>
+	<string>アカウントへのサインインで問題が発生した場合は、メールでご連絡ください。できるだけ早くアクセスを復元できるよう対応いたします。</string>
+	<key>International</key>
+	<string>国際</string>
+	<key>It is recommended to sign out of all other devices which may have used your old password.</key>
+	<string>古いパスワードを使用した可能性のある他のすべてのデバイスからサインアウトすることをお勧めします。</string>
+	<key>Join</key>
+	<string>参加する</string>
+	<key>Join an existing organization</key>
+	<string>既存の組織に参加する</string>
+	<key>Join an existing organization or create a new one</key>
+	<string>既存の組織に参加するか、新しい組織を作成します</string>
+	<key>Last Used</key>
+	<string>最終使用</string>
+	<key>Last name</key>
+	<string>姓</string>
+	<key>Last used: %@</key>
+	<string>最終使用: %@</string>
+	<key>Link another login option to your account. You’ll need to verify it before it can be used.</key>
+	<string>アカウントに別のログイン方法をリンクします。使用する前に確認が必要です。</string>
+	<key>Linked</key>
+	<string>リンク済み</string>
+	<key>MFA reserved</key>
+	<string>MFA用に予約済み</string>
+	<key>Make sure Time-based or One-time passwords is enabled, then finish linking your account.</key>
+	<string>時間ベースのパスワードまたはワンタイム パスワードが有効になっていることを確認し、アカウントのリンクを完了します。</string>
+	<key>Manage account</key>
+	<string>アカウント管理</string>
+	<key>Manual setup key</key>
+	<string>手動設定キー</string>
+	<key>Member</key>
+	<string>メンバー</string>
+	<key>Mobile device</key>
+	<string>モバイルデバイス</string>
+	<key>Name of passkey</key>
+	<string>パスキーの名前</string>
+	<key>New password</key>
+	<string>新しいパスワード</string>
+	<key>Next</key>
+	<string>次へ</string>
+	<key>Or, sign in with another method</key>
+	<string>または、別の方法でサインイン</string>
+	<key>Organization name</key>
+	<string>組織名</string>
+	<key>PASSKEYS</key>
+	<string>パスキー</string>
+	<key>PASSWORD</key>
+	<string>パスワード</string>
+	<key>PHONE NUMBERS</key>
+	<string>電話番号</string>
+	<key>Password</key>
+	<string>パスワード</string>
+	<key>Passwords don't match.</key>
+	<string>パスワードが一致しません。</string>
+	<key>Pending approval</key>
+	<string>承認待ち</string>
+	<key>Phone number</key>
+	<string>電話番号</string>
+	<key>Primary</key>
+	<string>主要</string>
+	<key>Privacy Policy</key>
+	<string>プライバシーポリシー</string>
+	<key>Profile Details</key>
+	<string>プロフィール詳細</string>
+	<key>Recommended size 1:1, up to 10MB.</key>
+	<string>推奨サイズ 1:1、最大 10MB</string>
+	<key>Reconnect</key>
+	<string>再接続</string>
+	<key>Redirect URL is missing or invalid. Unable to start external authentication flow.</key>
+	<string>リダイレクトURLが不足しているか無効です。外部認証フローを開始できません。</string>
+	<key>Regenerate</key>
+	<string>再生成</string>
+	<key>Remove</key>
+	<string>削除</string>
+	<key>Remove connected account</key>
+	<string>接続されたアカウントを削除</string>
+	<key>Remove connection</key>
+	<string>接続を削除</string>
+	<key>Remove email</key>
+	<string>メールを削除</string>
+	<key>Remove email address</key>
+	<string>メールアドレスを削除</string>
+	<key>Remove passkey</key>
+	<string>パスキーを削除</string>
+	<key>Remove phone</key>
+	<string>電話を削除</string>
+	<key>Remove phone number</key>
+	<string>電話番号を削除</string>
+	<key>Remove photo</key>
+	<string>写真を削除</string>
+	<key>Remove two-step verification</key>
+	<string>2段階認証を削除</string>
+	<key>Rename</key>
+	<string>名前を変更</string>
+	<key>Rename passkey</key>
+	<string>パスキーの名前を変更</string>
+	<key>Request to join</key>
+	<string>参加をリクエストする</string>
+	<key>Resend</key>
+	<string>再送信</string>
+	<key>Resend (%lld)</key>
+	<string>再送信 (%lld)</string>
+	<key>Reset password</key>
+	<string>パスワードをリセット</string>
+	<key>Reset your password</key>
+	<string>パスワードをリセット</string>
+	<key>SMS code</key>
+	<string>SMSコード</string>
+	<key>SMS code verification enabled</key>
+	<string>SMSコード認証が有効になりました</string>
+	<key>Save</key>
+	<string>保存</string>
+	<key>Save these codes somewhere safe. If you lose access to your authentication device, you can use a backup code to sign in.</key>
+	<string>これらのコードを安全な場所に保存してください。認証デバイスにアクセスできなくなった場合は、バックアップ コードを使用してサインインできます。</string>
+	<key>Secured by</key>
+	<string>セキュリティ提供</string>
+	<key>Security</key>
+	<string>セキュリティ</string>
+	<key>Select an existing phone number to register for SMS code two-step verification or add a new one.</key>
+	<string>SMSコード2段階認証に登録する既存の電話番号を選択するか、新しい番号を追加してください。</string>
+	<key>Send SMS code to %@</key>
+	<string>%@にSMSコードを送信</string>
+	<key>Set as default</key>
+	<string>デフォルトに設定</string>
+	<key>Set as primary</key>
+	<string>プライマリに設定</string>
+	<key>Set new password</key>
+	<string>新しいパスワードを設定</string>
+	<key>Set up a new sign-in method in your authenticator and enter the Key provided below.
+
+Make sure Time-based or One-time passwords is enabled, then finish linking your account.</key>
+	<string>認証アプリで新しいサインイン方法を設定し、以下に提供されているキーを入力してください。
+
+時間ベースまたはワンタイムパスワードが有効になっていることを確認してから、アカウントのリンクを完了してください。</string>
+	<key>Set up a new sign-in method in your authenticator app using the manual setup key below to link it to your account.</key>
+	<string>認証アプリで新しいサインイン方法を設定し、下記の手動セットアップキーを使用してアカウントにリンクします。</string>
+	<key>Set up two-step verification</key>
+	<string>2段階認証を設定する</string>
+	<key>Sign in with your passkey</key>
+	<string>パスキーでサインイン</string>
+	<key>Sign in with your password</key>
+	<string>パスワードでサインイン</string>
+	<key>Sign out</key>
+	<string>サインアウト</string>
+	<key>Sign out of all accounts</key>
+	<string>すべてのアカウントからサインアウト</string>
+	<key>Sign out of all other devices</key>
+	<string>他のすべてのデバイスからサインアウト</string>
+	<key>Sign out of device</key>
+	<string>デバイスからサインアウト</string>
+	<key>Sign up</key>
+	<string>サインアップ</string>
+	<key>Slug</key>
+	<string>Slug</string>
+	<key>Success</key>
+	<string>成功</string>
+	<key>Switch account</key>
+	<string>アカウントを切り替え</string>
+	<key>TWO-STEP VERIFICATION</key>
+	<string>2段階認証</string>
+	<key>Terms of Service</key>
+	<string>利用規約</string>
+	<key>There was an error loading the image from the photos library.</key>
+	<string>フォトライブラリから画像を読み込む際にエラーが発生しました。</string>
+	<key>This device</key>
+	<string>このデバイス</string>
+	<key>To continue, please enter the verification code generated by your authenticator app</key>
+	<string>続行するには、認証アプリで生成された認証コードを入力してください</string>
+	<key>Two-step verification</key>
+	<string>2段階認証</string>
+	<key>Two-step verification is now enabled. When signing in, you will need to enter a verification code from this authenticator app as an additional step.
+
+Save these backup codes and store them somewhere safe. If you lose access to your authentication device, you can use backup codes to sign in.</key>
+	<string>2段階認証が有効になりました。サインイン時に、追加のステップとしてこの認証アプリから確認コードを入力する必要があります。
+
+これらのバックアップコードを保存し、安全な場所に保管してください。認証デバイスへのアクセスを失った場合、バックアップコードを使用してサインインできます。</string>
+	<key>Two-step verification setup</key>
+	<string>2段階認証の設定</string>
+	<key>Type "DELETE" to continue</key>
+	<string>続行するには"削除"と入力してください</string>
+	<key>Unknown code verification method. Please use another method.</key>
+	<string>不明なコード認証方法です。別の方法を使用してください。</string>
+	<key>Unknown device</key>
+	<string>不明なデバイス</string>
+	<key>Unverified</key>
+	<string>未確認</string>
+	<key>Update password</key>
+	<string>パスワードを更新</string>
+	<key>Upload logo</key>
+	<string>ロゴをアップロード</string>
+	<key>Use a backup code</key>
+	<string>バックアップコードを使用</string>
+	<key>Use another method</key>
+	<string>他の方法を使用</string>
+	<key>Use email address</key>
+	<string>メールアドレスを使用</string>
+	<key>Use email address or username</key>
+	<string>メールアドレスまたはユーザー名を使用</string>
+	<key>Use phone number</key>
+	<string>電話番号を使用</string>
+	<key>Use username</key>
+	<string>ユーザー名を使用</string>
+	<key>Use your authenticator app</key>
+	<string>認証アプリを使用</string>
+	<key>Use your passkey</key>
+	<string>パスキーを使用</string>
+	<key>Username</key>
+	<string>ユーザー名</string>
+	<key>Using your passkey confirms it's you. Your device may ask for your fingerprint, face or screen lock.</key>
+	<string>パスキーを使用することで本人確認ができます。デバイスが指紋、顔認証、画面ロックを要求する場合があります。</string>
+	<key>Verification codes from this authenticator will no longer be required when signing in.</key>
+	<string>この認証機器からの確認コードは、サインイン時に不要になります。</string>
+	<key>Verify</key>
+	<string>確認</string>
+	<key>Verify authenticator app</key>
+	<string>認証アプリを確認</string>
+	<key>Verify email address</key>
+	<string>メールアドレスを確認</string>
+	<key>Verify phone number</key>
+	<string>電話番号を確認</string>
+	<key>Verify your phone number</key>
+	<string>電話番号を確認してください</string>
+	<key>Verifying...</key>
+	<string>確認中...</string>
+	<key>Welcome! Please fill in the details to get started.</key>
+	<string>ようこそ！開始するには詳細を入力してください。</string>
+	<key>Welcome! Sign in to continue</key>
+	<string>ようこそ！続けるにはサインインしてください</string>
+	<key>When signing in, you will need to enter a verification code sent to this phone number as an additional step.
+
+Save these backup codes and store them somewhere safe. If you lose access to your authentication device, you can use backup codes to sign in.</key>
+	<string>サインイン時に、追加のステップとしてこの電話番号に送信される確認コードを入力する必要があります。
+
+これらのバックアップコードを保存し、安全な場所に保管してください。認証デバイスへのアクセスを失った場合、バックアップコードを使用してサインインできます。</string>
+	<key>When you sign in, you'll be asked for a verification code sent to this phone number.</key>
+	<string>サインインすると、この電話番号に送信される確認コードの入力が求められます。</string>
+	<key>When you sign in, you'll need to enter a verification code from this authenticator app.</key>
+	<string>サインインするときは、この認証アプリからの確認コードを入力する必要があります。</string>
+	<key>Whoops, something is wrong</key>
+	<string>おっと、何か問題が発生しました</string>
+	<key>You are no longer a member of this organization. Please choose another one.</key>
+	<string>この組織のメンバーではなくなりました。別の組織を選択してください。</string>
+	<key>You are no longer a member of this organization. Please choose or create another one.</key>
+	<string>この組織のメンバーではなくなりました。別の組織を選択するか、新しく作成してください。</string>
+	<key>You can change the passkey name to make it easier to find.</key>
+	<string>パスキー名を変更することで、見つけやすくすることができます。</string>
+	<key>You must belong to an organization</key>
+	<string>組織に所属する必要があります</string>
+	<key>You'll need to verify this email address before it can be added to your account.</key>
+	<string>このメールアドレスをアカウントに追加する前に、確認が必要です。</string>
+	<key>You're signing in from a new device. We're asking for verification to keep your account secure.</key>
+	<string>新しいデバイスからサインインしています。アカウントを保護するために確認を求めています。</string>
+	<key>Your account requires a new password before you can continue</key>
+	<string>続行するには、アカウントに新しいパスワードを設定する必要があります。</string>
+	<key>Your backup code is the one you got when setting up two-step authentication.</key>
+	<string>バックアップコードは、2段階認証の設定時に取得したものです。</string>
+	<key>or</key>
+	<string>または</string>
+	<key>to continue</key>
+	<string>続けるには</string>
+	<key>to continue to %@</key>
+	<string>%@に続けるには</string>
+</dict>
+</plist>

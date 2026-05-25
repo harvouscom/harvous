@@ -24,7 +24,6 @@ enum HarvousFolderBulkActions {
         guard !trimmed.isEmpty else { return }
 
         let targets = notes(inBucket: oldBucket, from: notesInActiveSpace)
-        let now = Date()
         for note in targets {
             if let p = note.primaryFolder?.trimmingCharacters(in: .whitespacesAndNewlines),
                !p.isEmpty, p.caseInsensitiveCompare(oldBucket) == .orderedSame {
@@ -41,7 +40,7 @@ enum HarvousFolderBulkActions {
             note.isFolderPinned = true
             note.folderAutoConfidence = nil
             note.folderLastAutoUpdatedAt = nil
-            note.updatedAt = now
+            note.markDirty()
             HarvousNoteSpotlightIndexer.reindex(note: note)
             HarvousVaultExporter.scheduleWrite(note: note, modelContext: modelContext)
         }
@@ -55,10 +54,9 @@ enum HarvousFolderBulkActions {
         modelContext: ModelContext
     ) {
         let targets = notes(inBucket: bucket, from: notesInActiveSpace)
-        let now = Date()
         for note in targets {
-            if let p = note.primaryFolder?.trimmingCharacters(in: .whitespacesAndNewlines),
-               !p.isEmpty, p.caseInsensitiveCompare(bucket) == .orderedSame {
+            if let p = note.primaryFolder?.trimmingCharacters(in: .whitespacesAndNewlines), !p.isEmpty,
+               p.caseInsensitiveCompare(bucket) == .orderedSame {
                 note.primaryFolder = nil
             }
             let filtered = note.normalizedSecondaryFolderLabels().filter {
@@ -71,7 +69,7 @@ enum HarvousFolderBulkActions {
                 note.folderAutoConfidence = nil
                 note.folderLastAutoUpdatedAt = nil
             }
-            note.updatedAt = now
+            note.markDirty()
             HarvousNoteSpotlightIndexer.reindex(note: note)
             HarvousVaultExporter.scheduleWrite(note: note, modelContext: modelContext)
         }

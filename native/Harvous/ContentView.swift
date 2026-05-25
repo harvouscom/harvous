@@ -22,7 +22,11 @@ struct ContentView: View {
             #if os(macOS)
             MacRootView()
             #else
-            iOSRootView()
+            if UIDevice.current.userInterfaceIdiom == .pad {
+                iPadRootView()
+            } else {
+                iOSRootView()
+            }
             #endif
         }
         .accessibilityIdentifier(HarvousAccessibilityID.rootContent)
@@ -195,7 +199,7 @@ struct MacRootView: View {
                                     HarvousNoteSpotlightIndexer.removeNote(id: nid)
                                     ThreadStore.purgeLinkedNoteMarkers(referencingDeletedNote: nid, modelContext: context)
                                     selectedNote = nil
-                                    context.delete(note)
+                                    HarvousSyncingDelete.delete(note: note, context: context)
                                     try? context.saveWithLogging()
                                 }
                             )
@@ -308,7 +312,7 @@ struct MacRootView: View {
                         let pid = prev.id
                         HarvousVaultExporter.removeMirrorFiles(for: prev, modelContext: context)
                         HarvousNoteSpotlightIndexer.removeNote(id: pid)
-                        context.delete(prev)
+                        HarvousSyncingDelete.delete(note: prev, context: context)
                         try? context.saveWithLogging()
                     }
                     lastSelectedNote = newNote
@@ -443,29 +447,16 @@ struct MacRootView: View {
 
 // MARK: - Profile / account (macOS toolbar, Apple-style)
 
-/// Trailing toolbar control: person icon tinted by profile color, menu for Settings and web account (like Mail / TV).
+/// Trailing toolbar control: person icon tinted by profile color, menu showing the
+/// signed-in Clerk account and a single entry into Settings.
 private struct HarvousMacProfileToolbarMenu: View {
     @EnvironmentObject private var appRouter: HarvousAppRouter
     @Environment(\.openWindow) private var openWindow
-    @Environment(\.openURL) private var openURL
     @Environment(\.colorScheme) private var colorScheme
 
-    @AppStorage(HarvousSettingsStorageKeys.firstName) private var firstName = ""
-    @AppStorage(HarvousSettingsStorageKeys.lastName) private var lastName = ""
     @AppStorage(HarvousSettingsStorageKeys.avatarColor) private var avatarColorRaw = HarvousAvatarColorToken.blue.rawValue
 
-    private var hasName: Bool {
-        !firstName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            || !lastName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-    }
-
-    private var menuTitle: String {
-        let f = firstName.trimmingCharacters(in: .whitespacesAndNewlines)
-        let l = lastName.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !f.isEmpty else { return l }
-        guard !l.isEmpty else { return f }
-        return "\(f) \(String(l.prefix(1)))"
-    }
+    @State private var bridge = HarvousClerkBridge.shared
 
     private var avatarFill: Color {
         let token = HarvousAvatarColorToken(rawValue: avatarColorRaw) ?? .blue
@@ -490,12 +481,14 @@ private struct HarvousMacProfileToolbarMenu: View {
 
     var body: some View {
         Menu {
-            if hasName {
-                Text(menuTitle)
+            if let profile = bridge.currentProfile {
+                Text(profile.compactDisplayName)
                     .font(.system(size: 15, weight: .semibold, design: .default))
-                Text("On this Mac")
-                    .font(HarvousTypography.caption)
-                    .foregroundStyle(.secondary)
+                if let email = profile.primaryEmail, !email.isEmpty, email != profile.compactDisplayName {
+                    Text(email)
+                        .font(HarvousTypography.caption)
+                        .foregroundStyle(.secondary)
+                }
                 Divider()
             }
 
@@ -506,29 +499,6 @@ private struct HarvousMacProfileToolbarMenu: View {
                     Text("Settings…")
                 } icon: {
                     HarvousFAGlyph(assetName: "Harvous.Gear", edgePt: HarvousFAIconMetrics.menuRowLeadingGlyphPt)
-                }
-            }
-
-            Button {
-                appRouter.macSettingsDeepLink = .editProfile
-                openWindow(id: HarvousMacPreferencesWindow.sceneID)
-            } label: {
-                Label {
-                    Text("Name…")
-                } icon: {
-                    HarvousFAGlyph(assetName: "Harvous.UserFilled", edgePt: HarvousFAIconMetrics.menuRowLeadingGlyphPt)
-                }
-            }
-
-            Divider()
-
-            Button {
-                openURL(URL(string: "https://app.harvous.com/profile")!)
-            } label: {
-                Label {
-                    Text("Manage account on the web…")
-                } icon: {
-                    HarvousFAGlyph(assetName: "Harvous.Globe", edgePt: HarvousFAIconMetrics.menuRowLeadingGlyphPt)
                 }
             }
         } label: {
@@ -795,7 +765,7 @@ struct iOSRootView: View {
 
 // MARK: - Notes filter (no list `.searchable` chrome)
 
-private struct IOSNotesFilterSearchSheet: View {
+struct IOSNotesFilterSearchSheet: View {
     @EnvironmentObject private var appRouter: HarvousAppRouter
     @FocusState private var fieldFocused: Bool
 

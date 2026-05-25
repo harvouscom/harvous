@@ -1,0 +1,4 @@
+module ClerkKit {
+header "ClerkKit-Swift.h"
+export *
+}

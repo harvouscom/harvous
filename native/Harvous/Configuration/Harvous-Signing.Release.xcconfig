@@ -1,0 +1,7 @@
+// Release configuration — signing settings + production environment.
+// Set this as the "Based on Configuration File" for Release in Xcode
+// (Project → Info tab → Configurations → Release).
+#include "Harvous-Signing.xcconfig"
+
+CLERK_PUBLISHABLE_KEY = pk_live_Y2xlcmsuaGFydm91cy5jb20k
+HARVOUS_API_BASE_URL = https:/$()/app.harvous.com

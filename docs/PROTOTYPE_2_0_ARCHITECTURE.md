@@ -2,7 +2,7 @@
 
 This document describes how the **production SPA** split works today: classic routes versus the **`/prototype` shell**, how data reaches both from the same API, how that compares to **native** SwiftData clients, and what moving toward a unified “2.0” product implies for users and engineering.
 
-**See also:** [SIMPLIFIED_WEB_PROTOTYPE.md](./SIMPLIFIED_WEB_PROTOTYPE.md) (quick entry and file pointers), [design-parity/PROTOTYPE_NATIVE_MENU_CONTENT_PARITY.md](./design-parity/PROTOTYPE_NATIVE_MENU_CONTENT_PARITY.md) (menu and surface parity checklist), [native-prototype/NATIVE_2_0_PLATFORM_STRATEGY.md](./native-prototype/NATIVE_2_0_PLATFORM_STRATEGY.md) (migration, auth, data, and billing options — draft for review).
+**See also:** [ARCHITECTURE_DIAGRAM.md](./ARCHITECTURE_DIAGRAM.md) (combined Mermaid diagram of clients, API, DB, and folders-vs-threads usage by surface), [SIMPLIFIED_WEB_PROTOTYPE.md](./SIMPLIFIED_WEB_PROTOTYPE.md) (quick entry and file pointers), [design-parity/PROTOTYPE_NATIVE_MENU_CONTENT_PARITY.md](./design-parity/PROTOTYPE_NATIVE_MENU_CONTENT_PARITY.md) (menu and surface parity checklist), [native-prototype/NATIVE_2_0_PLATFORM_STRATEGY.md](./native-prototype/NATIVE_2_0_PLATFORM_STRATEGY.md) (migration, auth, data, and billing options — draft for review).
 
 ---
 

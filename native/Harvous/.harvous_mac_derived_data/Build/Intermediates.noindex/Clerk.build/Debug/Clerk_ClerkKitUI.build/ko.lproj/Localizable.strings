@@ -1,0 +1,458 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key></key>
+	<string></string>
+	<key> </key>
+	<string> </string>
+	<key>%@ will be removed from this account. You will no longer be able to sign in using this connected account.</key>
+	<string>%@이(가) 이 계정에서 제거됩니다. 이 연결된 계정을 사용하여 더 이상 로그인할 수 없습니다.</string>
+	<key>%@ will be removed from this account. You will no longer be able to sign in using this email address.</key>
+	<string>%@이(가) 이 계정에서 제거됩니다. 이 이메일 주소를 사용하여 더 이상 로그인할 수 없습니다.</string>
+	<key>%@ will be removed from this account. You will no longer be able to sign in using this passkey.</key>
+	<string>%@이(가) 이 계정에서 제거됩니다. 이 패스키를 사용하여 더 이상 로그인할 수 없습니다.</string>
+	<key>%@ will be removed from this account. You will no longer be able to sign in using this phone number.</key>
+	<string>%@이(가) 이 계정에서 제거됩니다. 이 전화번호를 사용하여 더 이상 로그인할 수 없습니다.</string>
+	<key>%@ will no longer be receiving verification codes when signing in.</key>
+	<string>%@는 로그인 시 더 이상 인증 코드를 받지 않습니다.</string>
+	<key>A text message containing a verification code will be sent to this phone number. Message and data rates may apply.</key>
+	<string>이 전화번호로 인증 코드가 포함된 문자 메시지가 전송됩니다. 메시지 및 데이터 요금이 적용될 수 있습니다.</string>
+	<key>ACTIVE DEVICES</key>
+	<string>활성 기기</string>
+	<key>Account</key>
+	<string>계정</string>
+	<key>Add SMS code verification</key>
+	<string>SMS 코드 인증 추가</string>
+	<key>Add a passkey</key>
+	<string>패스키 추가</string>
+	<key>Add account</key>
+	<string>계정 추가</string>
+	<key>Add authenticator application</key>
+	<string>인증 애플리케이션 추가</string>
+	<key>Add email address</key>
+	<string>이메일 주소 추가</string>
+	<key>Add password</key>
+	<string>비밀번호 추가</string>
+	<key>Add phone number</key>
+	<string>전화번호 추가</string>
+	<key>Add two-step verification</key>
+	<string>2단계 인증 추가</string>
+	<key>Admin</key>
+	<string>관리자</string>
+	<key>Alternatively, if your authenticator supports TOTP URIs, you can also copy the full URI.</key>
+	<string>또는 인증기가 TOTP URI를 지원하는 경우 전체 URI를 복사할 수도 있습니다.</string>
+	<key>Are you sure you want to delete your account? This action is permanent and irreversible.</key>
+	<string>계정을 삭제하시겠습니까? 이 작업은 영구적이며 되돌릴 수 없습니다.</string>
+	<key>Authenticator app</key>
+	<string>인증 앱</string>
+	<key>Authenticator app verification enabled</key>
+	<string>OTP 앱 확인이 활성화되었습니다.</string>
+	<key>Authenticator application</key>
+	<string>인증 애플리케이션</string>
+	<key>Backup code</key>
+	<string>백업 코드</string>
+	<key>Backup codes</key>
+	<string>백업 코드</string>
+	<key>Backup codes are now enabled. You can use one of these to sign in to your account, if you lose access to your authentication device. Each code can only be used once.</key>
+	<string>백업 코드가 이제 활성화되었습니다. 인증 장치에 접근할 수 없을 때 이 중 하나를 사용하여 계정에 로그인할 수 있습니다. 각 코드는 한 번만 사용할 수 있습니다.</string>
+	<key>CONNECTED ACCOUNTS</key>
+	<string>연결된 계정</string>
+	<key>Cancel</key>
+	<string>취소</string>
+	<key>Change password</key>
+	<string>비밀번호 변경</string>
+	<key>Check your email</key>
+	<string>이메일을 확인하세요</string>
+	<key>Check your phone</key>
+	<string>휴대폰을 확인하세요</string>
+	<key>Choose a username.</key>
+	<string>사용자 이름을 선택하세요.</string>
+	<key>Choose an Organization</key>
+	<string>조직 선택</string>
+	<key>Choose from photo library</key>
+	<string>사진 보관함에서 선택</string>
+	<key>Choose how you'd like to receive your two-step verification code.</key>
+	<string>2단계 인증 코드를 받을 방법을 선택하세요.</string>
+	<key>Choose the phone number you want to use for SMS code two-step verification</key>
+	<string>SMS 코드 2단계 인증에 사용할 전화번호를 선택하세요.</string>
+	<key>Choose which method you prefer to protect your account with an extra layer of security</key>
+	<string>추가 보안 계층으로 계정을 보호하기 위해 선호하는 방법을 선택하세요.</string>
+	<key>Choose your password</key>
+	<string>비밀번호를 선택하세요</string>
+	<key>Choose your username</key>
+	<string>사용자 이름을 선택하세요</string>
+	<key>Close</key>
+	<string>닫기</string>
+	<key>Complete your profile</key>
+	<string>프로필을 완성하세요</string>
+	<key>Confirm password</key>
+	<string>비밀번호 확인</string>
+	<key>Connect account</key>
+	<string>계정 연결</string>
+	<key>Contact your organization admin for an invitation.</key>
+	<string>초대가 필요하면 조직 관리자에게 문의해 주세요.</string>
+	<key>Continue</key>
+	<string>계속</string>
+	<key>Continue to %@</key>
+	<string>%@(으)로 계속하려면</string>
+	<key>Continue with %@</key>
+	<string>%@(으)로 계속하기</string>
+	<key>Copy to clipboard</key>
+	<string>클립보드에 복사</string>
+	<key>Create a unique password.</key>
+	<string>고유한 비밀번호를 만드세요.</string>
+	<key>Create organization</key>
+	<string>조직 만들기</string>
+	<key>Create your account</key>
+	<string>계정 만들기</string>
+	<key>Created: %@</key>
+	<string>생성됨: %@</string>
+	<key>Current password</key>
+	<string>현재 비밀번호</string>
+	<key>DELETE</key>
+	<string>삭제</string>
+	<key>DELETE ACCOUNT</key>
+	<string>계정 삭제</string>
+	<key>Default</key>
+	<string>기본값</string>
+	<key>Delete account</key>
+	<string>계정 삭제</string>
+	<key>Desktop device</key>
+	<string>데스크톱 기기</string>
+	<key>Didn't receive a code?</key>
+	<string>인증코드를 받지 못하셨나요?</string>
+	<key>Done</key>
+	<string>완료</string>
+	<key>Download</key>
+	<string>다운로드</string>
+	<key>EMAIL ADDRESSES</key>
+	<string>이메일 주소</string>
+	<key>Edit profile</key>
+	<string>프로필 편집</string>
+	<key>Email address</key>
+	<string>이메일 주소</string>
+	<key>Email code to %@</key>
+	<string>%@에 코드 전송</string>
+	<key>Email support</key>
+	<string>이메일 지원</string>
+	<key>Enter a backup code</key>
+	<string>백업 코드 입력</string>
+	<key>Enter a slug using lowercase letters, numbers, and hyphens.</key>
+	<string>소문자, 숫자, 하이픈을 사용해 슬러그를 입력하세요.</string>
+	<key>Enter password</key>
+	<string>비밀번호 입력</string>
+	<key>Enter the email address you'd like to use.</key>
+	<string>사용하고 싶은 이메일 주소를 입력하세요.</string>
+	<key>Enter the password for your account</key>
+	<string>계정 비밀번호 입력</string>
+	<key>Enter the phone number you'd like to use.</key>
+	<string>사용하고 싶은 전화번호를 입력하세요.</string>
+	<key>Enter the verification code from authenticator application</key>
+	<string>인증신청에서 받은 인증번호를 입력하세요.</string>
+	<key>Enter the verification code from your authenticator application.</key>
+	<string>인증 애플리케이션에서 확인 코드를 입력하세요.</string>
+	<key>Enter the verification code sent to %@</key>
+	<string>%@로 전송된 인증 코드를 입력하세요</string>
+	<key>Enter your current password to set a new one.</key>
+	<string>새 비밀번호를 설정하려면 현재 비밀번호를 입력하세요.</string>
+	<key>Enter your email</key>
+	<string>이메일 입력</string>
+	<key>Enter your email or username</key>
+	<string>이메일 또는 사용자 이름 입력</string>
+	<key>Enter your organization details to continue</key>
+	<string>조직 정보를 입력해 계속하세요</string>
+	<key>Enter your password</key>
+	<string>비밀번호 입력</string>
+	<key>Enter your phone number</key>
+	<string>전화번호 입력</string>
+	<key>Enter your username</key>
+	<string>사용자 이름 입력</string>
+	<key>Facing issues? You can use any of these methods to sign in.</key>
+	<string>문제가 발생했나요? 다음 방법 중 하나를 사용하여 로그인할 수 있습니다.</string>
+	<key>First name</key>
+	<string>이름</string>
+	<key>First, enter the code sent to your email address</key>
+	<string>먼저 이메일 주소로 전송된 코드를 입력하세요</string>
+	<key>First, enter the code sent to your phone</key>
+	<string>먼저 휴대폰으로 전송된 코드를 입력하세요</string>
+	<key>Forgot password?</key>
+	<string>비밀번호를 잊으셨나요?</string>
+	<key>Get help</key>
+	<string>도움말 보기</string>
+	<key>Go back</key>
+	<string>뒤로 가기</string>
+	<key>I agree to the [Privacy Policy](LegalConsentView://privacy)</key>
+	<string>[개인정보 보호정책](LegalConsentView://privacy)에 동의합니다</string>
+	<key>I agree to the [Terms of Service](LegalConsentView://terms)</key>
+	<string>[서비스 약관](LegalConsentView://terms)에 동의합니다</string>
+	<key>I agree to the [Terms of Service](LegalConsentView://terms) and [Privacy Policy](LegalConsentView://privacy)</key>
+	<string>[서비스 약관](LegalConsentView://terms) 및 [개인정보 보호정책](LegalConsentView://privacy)에 동의합니다</string>
+	<key>If you have trouble completing required account setup, email us and we will help you finish as soon as possible.</key>
+	<string>필수 계정 설정을 완료하는 데 문제가 있는 경우 이메일을 보내주시면 최대한 빨리 완료하도록 도와드리겠습니다.</string>
+	<key>If you have trouble creating your account, email us and we will work with you to complete your registration as soon as possible.</key>
+	<string>계정 생성에 문제가 있으시면 이메일로 문의해 주세요. 최대한 빨리 등록을 완료하도록 도와드리겠습니다.</string>
+	<key>If you have trouble signing into your account, email us and we will work with you to restore access as soon as possible.</key>
+	<string>계정 로그인에 문제가 있으시면 이메일로 문의해 주세요. 최대한 빨리 접근 권한을 복구하도록 도와드리겠습니다.</string>
+	<key>International</key>
+	<string>국제</string>
+	<key>It is recommended to sign out of all other devices which may have used your old password.</key>
+	<string>이전 비밀번호를 사용했을 수 있는 모든 다른 기기에서 로그아웃하는 것이 좋습니다.</string>
+	<key>Join</key>
+	<string>참여</string>
+	<key>Join an existing organization</key>
+	<string>기존 조직에 참여하세요</string>
+	<key>Join an existing organization or create a new one</key>
+	<string>기존 조직에 참여하거나 새 조직을 만드세요</string>
+	<key>Last Used</key>
+	<string>마지막 사용</string>
+	<key>Last name</key>
+	<string>성</string>
+	<key>Last used: %@</key>
+	<string>마지막 사용: %@</string>
+	<key>Link another login option to your account. You’ll need to verify it before it can be used.</key>
+	<string>계정에 다른 로그인 옵션을 연결하세요. 사용하기 전에 확인이 필요합니다.</string>
+	<key>Linked</key>
+	<string>연결됨</string>
+	<key>MFA reserved</key>
+	<string>MFA 예약됨</string>
+	<key>Make sure Time-based or One-time passwords is enabled, then finish linking your account.</key>
+	<string>시간 기반 또는 일회용 비밀번호가 활성화되어 있는지 확인한 다음 계정 연결을 완료하세요.</string>
+	<key>Manage account</key>
+	<string>계정 관리</string>
+	<key>Manual setup key</key>
+	<string>수동 설정 키</string>
+	<key>Member</key>
+	<string>멤버</string>
+	<key>Mobile device</key>
+	<string>모바일 기기</string>
+	<key>Name of passkey</key>
+	<string>패스키 이름</string>
+	<key>New password</key>
+	<string>새 비밀번호</string>
+	<key>Next</key>
+	<string>다음</string>
+	<key>Or, sign in with another method</key>
+	<string>또는 다른 방법으로 로그인</string>
+	<key>Organization name</key>
+	<string>조직 이름</string>
+	<key>PASSKEYS</key>
+	<string>패스키</string>
+	<key>PASSWORD</key>
+	<string>비밀번호</string>
+	<key>PHONE NUMBERS</key>
+	<string>전화번호</string>
+	<key>Password</key>
+	<string>비밀번호</string>
+	<key>Passwords don't match.</key>
+	<string>비밀번호가 일치하지 않습니다.</string>
+	<key>Pending approval</key>
+	<string>승인 대기 중</string>
+	<key>Phone number</key>
+	<string>전화번호</string>
+	<key>Primary</key>
+	<string>기본</string>
+	<key>Privacy Policy</key>
+	<string>개인정보 보호정책</string>
+	<key>Profile Details</key>
+	<string>프로필 세부정보</string>
+	<key>Recommended size 1:1, up to 10MB.</key>
+	<string>권장 크기 1:1, 최대 10MB.</string>
+	<key>Reconnect</key>
+	<string>다시 연결</string>
+	<key>Redirect URL is missing or invalid. Unable to start external authentication flow.</key>
+	<string>리디렉션 URL이 없거나 유효하지 않습니다. 외부 인증 흐름을 시작할 수 없습니다。</string>
+	<key>Regenerate</key>
+	<string>재생성</string>
+	<key>Remove</key>
+	<string>제거</string>
+	<key>Remove connected account</key>
+	<string>연결된 계정 제거</string>
+	<key>Remove connection</key>
+	<string>연결 제거</string>
+	<key>Remove email</key>
+	<string>이메일 제거</string>
+	<key>Remove email address</key>
+	<string>이메일 주소 제거</string>
+	<key>Remove passkey</key>
+	<string>패스키 제거</string>
+	<key>Remove phone</key>
+	<string>전화 제거</string>
+	<key>Remove phone number</key>
+	<string>전화번호 제거</string>
+	<key>Remove photo</key>
+	<string>사진 제거</string>
+	<key>Remove two-step verification</key>
+	<string>2단계 인증 제거</string>
+	<key>Rename</key>
+	<string>이름 바꾸기</string>
+	<key>Rename passkey</key>
+	<string>패스키 이름 바꾸기</string>
+	<key>Request to join</key>
+	<string>참여 요청</string>
+	<key>Resend</key>
+	<string>재전송</string>
+	<key>Resend (%lld)</key>
+	<string>재전송 (%lld)</string>
+	<key>Reset password</key>
+	<string>비밀번호 재설정</string>
+	<key>Reset your password</key>
+	<string>비밀번호 재설정</string>
+	<key>SMS code</key>
+	<string>SMS 코드</string>
+	<key>SMS code verification enabled</key>
+	<string>SMS 코드 확인이 활성화되었습니다.</string>
+	<key>Save</key>
+	<string>저장</string>
+	<key>Save these codes somewhere safe. If you lose access to your authentication device, you can use a backup code to sign in.</key>
+	<string>이 코드를 안전한 곳에 저장하세요. 인증 장치에 접근할 수 없는 경우 백업 코드를 사용하여 로그인할 수 있습니다.</string>
+	<key>Secured by</key>
+	<string>보안 제공</string>
+	<key>Security</key>
+	<string>보안</string>
+	<key>Select an existing phone number to register for SMS code two-step verification or add a new one.</key>
+	<string>SMS 코드 2단계 인증에 등록할 기존 전화번호를 선택하거나 새 번호를 추가하세요.</string>
+	<key>Send SMS code to %@</key>
+	<string>%@에 SMS 코드 전송</string>
+	<key>Set as default</key>
+	<string>기본값으로 설정</string>
+	<key>Set as primary</key>
+	<string>기본으로 설정</string>
+	<key>Set new password</key>
+	<string>새 비밀번호 설정</string>
+	<key>Set up a new sign-in method in your authenticator and enter the Key provided below.
+
+Make sure Time-based or One-time passwords is enabled, then finish linking your account.</key>
+	<string>인증기에서 새로운 로그인 방법을 설정하고 아래 제공된 키를 입력하세요.
+
+시간 기반 또는 일회용 비밀번호가 활성화되어 있는지 확인한 다음 계정 연결을 완료하세요.</string>
+	<key>Set up a new sign-in method in your authenticator app using the manual setup key below to link it to your account.</key>
+	<string>인증 앱에서 새로운 로그인 방법을 설정하고 아래의 수동 설정 키를 사용하여 계정에 연결하세요.</string>
+	<key>Set up two-step verification</key>
+	<string>2단계 인증 설정</string>
+	<key>Sign in with your passkey</key>
+	<string>패스키로 로그인</string>
+	<key>Sign in with your password</key>
+	<string>비밀번호로 로그인</string>
+	<key>Sign out</key>
+	<string>로그아웃</string>
+	<key>Sign out of all accounts</key>
+	<string>모든 계정에서 로그아웃</string>
+	<key>Sign out of all other devices</key>
+	<string>다른 모든 기기에서 로그아웃</string>
+	<key>Sign out of device</key>
+	<string>기기에서 로그아웃</string>
+	<key>Sign up</key>
+	<string>가입하기</string>
+	<key>Slug</key>
+	<string>슬러그</string>
+	<key>Success</key>
+	<string>성공</string>
+	<key>Switch account</key>
+	<string>계정 전환</string>
+	<key>TWO-STEP VERIFICATION</key>
+	<string>2단계 인증</string>
+	<key>Terms of Service</key>
+	<string>서비스 약관</string>
+	<key>There was an error loading the image from the photos library.</key>
+	<string>사진 라이브러리에서 이미지를 로드하는 중 오류가 발생했습니다.</string>
+	<key>This device</key>
+	<string>이 기기</string>
+	<key>To continue, please enter the verification code generated by your authenticator app</key>
+	<string>계속하려면 인증 앱에서 생성된 인증 코드를 입력하세요</string>
+	<key>Two-step verification</key>
+	<string>2단계 인증</string>
+	<key>Two-step verification is now enabled. When signing in, you will need to enter a verification code from this authenticator app as an additional step.
+
+Save these backup codes and store them somewhere safe. If you lose access to your authentication device, you can use backup codes to sign in.</key>
+	<string>2단계 인증이 이제 활성화되었습니다. 로그인할 때 추가 단계로 이 인증 앱에서 확인 코드를 입력해야 합니다.
+
+이 백업 코드를 저장하고 안전한 곳에 보관하세요. 인증 기기에 대한 액세스를 잃으면 백업 코드를 사용하여 로그인할 수 있습니다.</string>
+	<key>Two-step verification setup</key>
+	<string>2단계 인증 설정</string>
+	<key>Type "DELETE" to continue</key>
+	<string>계속하려면 "삭제"를 입력하세요</string>
+	<key>Unknown code verification method. Please use another method.</key>
+	<string>알 수 없는 코드 인증 방법입니다. 다른 방법을 사용하세요.</string>
+	<key>Unknown device</key>
+	<string>알 수 없는 기기</string>
+	<key>Unverified</key>
+	<string>인증되지 않음</string>
+	<key>Update password</key>
+	<string>비밀번호 업데이트</string>
+	<key>Upload logo</key>
+	<string>로고 업로드</string>
+	<key>Use a backup code</key>
+	<string>백업 코드 사용</string>
+	<key>Use another method</key>
+	<string>다른 방법 사용</string>
+	<key>Use email address</key>
+	<string>이메일 주소 사용</string>
+	<key>Use email address or username</key>
+	<string>이메일 주소 또는 사용자 이름 사용</string>
+	<key>Use phone number</key>
+	<string>전화번호 사용</string>
+	<key>Use username</key>
+	<string>사용자 이름 사용</string>
+	<key>Use your authenticator app</key>
+	<string>인증 앱 사용</string>
+	<key>Use your passkey</key>
+	<string>패스키 사용</string>
+	<key>Username</key>
+	<string>사용자 이름</string>
+	<key>Using your passkey confirms it's you. Your device may ask for your fingerprint, face or screen lock.</key>
+	<string>패스키를 사용하면 본인임을 확인할 수 있습니다. 기기에서 지문, 얼굴 또는 화면 잠금을 요구할 수 있습니다.</string>
+	<key>Verification codes from this authenticator will no longer be required when signing in.</key>
+	<string>이 인증기의 인증 코드는 로그인 시 더 이상 필요하지 않습니다.</string>
+	<key>Verify</key>
+	<string>확인</string>
+	<key>Verify authenticator app</key>
+	<string>인증 앱 확인</string>
+	<key>Verify email address</key>
+	<string>이메일 주소 확인</string>
+	<key>Verify phone number</key>
+	<string>전화번호 확인</string>
+	<key>Verify your phone number</key>
+	<string>전화번호를 확인하세요</string>
+	<key>Verifying...</key>
+	<string>확인 중...</string>
+	<key>Welcome! Please fill in the details to get started.</key>
+	<string>환영합니다! 시작하려면 세부 정보를 입력해 주세요.</string>
+	<key>Welcome! Sign in to continue</key>
+	<string>환영합니다! 계속하려면 로그인하세요</string>
+	<key>When signing in, you will need to enter a verification code sent to this phone number as an additional step.
+
+Save these backup codes and store them somewhere safe. If you lose access to your authentication device, you can use backup codes to sign in.</key>
+	<string>로그인할 때 추가 단계로 이 전화번호로 전송된 확인 코드를 입력해야 합니다.
+
+이 백업 코드를 저장하고 안전한 곳에 보관하세요. 인증 기기에 대한 액세스를 잃으면 백업 코드를 사용하여 로그인할 수 있습니다.</string>
+	<key>When you sign in, you'll be asked for a verification code sent to this phone number.</key>
+	<string>로그인하면 이 전화번호로 전송된 인증 코드를 입력하라는 메시지가 표시됩니다.</string>
+	<key>When you sign in, you'll need to enter a verification code from this authenticator app.</key>
+	<string>로그인할 때 이 인증 앱의 인증 코드를 입력해야 합니다.</string>
+	<key>Whoops, something is wrong</key>
+	<string>앗, 문제가 발생했습니다</string>
+	<key>You are no longer a member of this organization. Please choose another one.</key>
+	<string>이 조직의 멤버가 아닙니다. 다른 조직을 선택해 주세요.</string>
+	<key>You are no longer a member of this organization. Please choose or create another one.</key>
+	<string>이 조직의 멤버가 아닙니다. 다른 조직을 선택하거나 새로 만들어 주세요.</string>
+	<key>You can change the passkey name to make it easier to find.</key>
+	<string>패스키 이름을 변경하여 더 쉽게 찾을 수 있습니다.</string>
+	<key>You must belong to an organization</key>
+	<string>조직에 소속되어 있어야 합니다</string>
+	<key>You'll need to verify this email address before it can be added to your account.</key>
+	<string>이 이메일 주소를 계정에 추가하기 전에 확인해야 합니다.</string>
+	<key>You're signing in from a new device. We're asking for verification to keep your account secure.</key>
+	<string>새 기기에서 로그인하고 있습니다. 계정을 안전하게 유지하기 위해 확인을 요청하고 있습니다.</string>
+	<key>Your account requires a new password before you can continue</key>
+	<string>계속하기 전에 계정에 새 비밀번호를 설정해야 합니다.</string>
+	<key>Your backup code is the one you got when setting up two-step authentication.</key>
+	<string>백업 코드는 2단계 인증을 설정할 때 받은 코드입니다.</string>
+	<key>or</key>
+	<string>또는</string>
+	<key>to continue</key>
+	<string>계속하려면</string>
+	<key>to continue to %@</key>
+	<string>%@(으)로 계속하려면</string>
+</dict>
+</plist>

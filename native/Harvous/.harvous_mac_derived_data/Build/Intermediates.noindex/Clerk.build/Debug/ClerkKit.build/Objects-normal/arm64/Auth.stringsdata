@@ -1,0 +1,32 @@
+{
+  "source": "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/SourcePackages/checkouts/clerk-ios/Sources/ClerkKit/Core/Auth.swift",
+  "tables": {
+    "Localizable": [
+      {
+        "comment": "",
+        "key": "Unable to retrieve the Apple identity token.",
+        "location": {
+          "startingColumn": 39,
+          "startingLine": 194
+        }
+      },
+      {
+        "comment": "",
+        "key": "Redirect URL is missing or invalid. Unable to start external authentication flow.",
+        "location": {
+          "startingColumn": 39,
+          "startingLine": 382
+        }
+      },
+      {
+        "comment": "",
+        "key": "Redirect URL is missing or invalid. Unable to start external authentication flow.",
+        "location": {
+          "startingColumn": 39,
+          "startingLine": 453
+        }
+      }
+    ]
+  },
+  "version": 1
+}

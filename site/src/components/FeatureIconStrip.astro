@@ -1,0 +1,39 @@
+---
+import { Icon } from "astro-icon/components";
+
+const items = [
+  { label: "Notes", icon: "fa6-solid:note-sticky" },
+  { label: "Scripture", icon: "fa6-solid:book-bible" },
+  { label: "Highlights", icon: "fa6-solid:highlighter" },
+  { label: "Dictionary", icon: "fa6-solid:book-open" },
+  { label: "Offline", icon: "fa6-solid:cloud-arrow-down" },
+];
+---
+
+<div class="mx-auto mt-10 max-w-xl">
+  <!-- Mobile: 3 on top row, 2 centered below. Desktop: all 5 in one row. -->
+  <div class="flex justify-center gap-x-6 gap-y-4 sm:hidden">
+    {items.slice(0, 3).map((item) => (
+      <div class="flex flex-col items-center gap-2 text-[var(--color-ink-soft)]">
+        <Icon name={item.icon} class="h-6 w-6" />
+        <span class="text-xs font-medium tracking-wide text-[var(--color-ink)]">{item.label}</span>
+      </div>
+    ))}
+  </div>
+  <div class="mt-4 flex justify-center gap-x-6 sm:hidden">
+    {items.slice(3).map((item) => (
+      <div class="flex flex-col items-center gap-2 text-[var(--color-ink-soft)]">
+        <Icon name={item.icon} class="h-6 w-6" />
+        <span class="text-xs font-medium tracking-wide text-[var(--color-ink)]">{item.label}</span>
+      </div>
+    ))}
+  </div>
+  <div class="hidden justify-center gap-x-10 sm:flex">
+    {items.map((item) => (
+      <div class="flex flex-col items-center gap-2 text-[var(--color-ink-soft)]">
+        <Icon name={item.icon} class="h-6 w-6" />
+        <span class="text-xs font-medium tracking-wide text-[var(--color-ink)]">{item.label}</span>
+      </div>
+    ))}
+  </div>
+</div>

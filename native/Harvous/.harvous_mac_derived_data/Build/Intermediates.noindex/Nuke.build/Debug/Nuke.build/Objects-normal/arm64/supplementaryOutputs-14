@@ -1,0 +1,44 @@
+{
+  "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/SourcePackages/checkouts/Nuke/Sources/Nuke/Tasks/AsyncTask.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/AsyncTask.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/AsyncTask.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/AsyncTask.dia",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/AsyncTask.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/AsyncTask.swiftdeps"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/SourcePackages/checkouts/Nuke/Sources/Nuke/Tasks/TaskFetchOriginalData.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/TaskFetchOriginalData.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/TaskFetchOriginalData.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/TaskFetchOriginalData.dia",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/TaskFetchOriginalData.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/TaskFetchOriginalData.swiftdeps"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/SourcePackages/checkouts/Nuke/Sources/Nuke/Tasks/TaskFetchOriginalImage.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/TaskFetchOriginalImage.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/TaskFetchOriginalImage.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/TaskFetchOriginalImage.dia",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/TaskFetchOriginalImage.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/TaskFetchOriginalImage.swiftdeps"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/SourcePackages/checkouts/Nuke/Sources/Nuke/Tasks/TaskFetchWithPublisher.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/TaskFetchWithPublisher.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/TaskFetchWithPublisher.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/TaskFetchWithPublisher.dia",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/TaskFetchWithPublisher.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/TaskFetchWithPublisher.swiftdeps"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/SourcePackages/checkouts/Nuke/Sources/Nuke/Tasks/TaskLoadData.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/TaskLoadData.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/TaskLoadData.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/TaskLoadData.dia",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/TaskLoadData.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/TaskLoadData.swiftdeps"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/SourcePackages/checkouts/Nuke/Sources/Nuke/Tasks/TaskLoadImage.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/TaskLoadImage.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/TaskLoadImage.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/TaskLoadImage.dia",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/TaskLoadImage.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Nuke.build/Debug/Nuke.build/Objects-normal/arm64/TaskLoadImage.swiftdeps"
+  }
+}

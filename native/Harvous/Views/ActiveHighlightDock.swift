@@ -232,9 +232,8 @@ struct ActiveHighlightDock: View {
                         },
                         set: { newValue in
                             thread.highlightAccentRaw = newValue.rawValue
-                            let now = Date()
-                            thread.updatedAt = now
-                            thread.highlightListEditedAt = now
+                            thread.highlightListEditedAt = Date()
+                            thread.markDirty()
                             try? modelContext.saveWithLogging()
                             onAccentPersisted()
                         }
@@ -333,9 +332,8 @@ struct ActiveHighlightDock: View {
 #endif
                             .onChange(of: thread.miniNoteBody) { old, new in
                                 guard old != new else { return }
-                                let now = Date()
-                                thread.updatedAt = now
-                                thread.highlightListEditedAt = now
+                                thread.highlightListEditedAt = Date()
+                                thread.markDirty()
                                 try? modelContext.saveWithLogging()
                             }
                     } else if thread.entryKind == .scriptureLink,
@@ -360,9 +358,8 @@ struct ActiveHighlightDock: View {
 #endif
                             .onChange(of: thread.miniNoteBody) { old, new in
                                 guard old != new else { return }
-                                let now = Date()
-                                thread.updatedAt = now
-                                thread.highlightListEditedAt = now
+                                thread.highlightListEditedAt = Date()
+                                thread.markDirty()
                                 try? modelContext.saveWithLogging()
                             }
                     } else if thread.entryKind == .reference {

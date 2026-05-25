@@ -28,7 +28,14 @@ func harvousExpandedPlainText(in storage: NSTextStorage) -> String {
                 out += piece
                 i = NSMaxRange(eff)
             } else if let urlPill = att as? URLLinkPillAttachment {
-                out += urlPill.href
+                // Labeled pills serialize as `[label](href)` so the round-trip detector can rebuild
+                // the pill with its label. Auto-detected pills (no label) round-trip as bare href —
+                // unchanged from the URL-pill v1 shape so existing notes don't get rewritten.
+                if let label = urlPill.label, !label.isEmpty {
+                    out += "[\(label)](\(urlPill.href))"
+                } else {
+                    out += urlPill.href
+                }
                 i = NSMaxRange(eff)
             } else {
 #if os(macOS)
@@ -112,6 +119,127 @@ private func applyDefaultBodyTypingAttributes(to textView: UITextView) {
 }
 #endif
 
+// MARK: - List marker syntax helpers (shared iOS/macOS)
+
+/// Pure helpers for detecting and writing `• ` / `N. ` list prefixes at paragraph starts.
+/// Used by the macOS HVTextView class and the iOS UITextViewDelegate alike.
+enum HVListSyntax {
+
+    static func listMarkerAttributes() -> [NSAttributedString.Key: Any] {
+#if os(macOS)
+        return [
+            .font: HarvousFonts.noteComposeBodyPlatformFont(),
+            .foregroundColor: NSColor.labelColor,
+        ]
+#else
+        return [
+            .font: HarvousFonts.noteComposeBodyPlatformFont(),
+            .foregroundColor: UIColor.label,
+        ]
+#endif
+    }
+
+    static func bulletPrefixLength(ns: NSString, para: NSRange) -> Int? {
+        guard para.length >= 2 else { return nil }
+        let bulletScalar: unichar = 0x2022
+        if ns.character(at: para.location) == bulletScalar, ns.character(at: para.location + 1) == 32 {
+            return 2
+        }
+        return nil
+    }
+
+    static func numberedPrefixLength(ns: NSString, para: NSRange) -> Int? {
+        guard para.length >= 3 else { return nil }
+        var i = para.location
+        let end = NSMaxRange(para)
+        let digitStart = i
+        while i < end {
+            let c = ns.character(at: i)
+            if c >= 48 && c <= 57 {
+                i += 1
+                if i - digitStart > 4 { return nil }
+                continue
+            }
+            break
+        }
+        guard i > digitStart else { return nil }
+        guard i < end, ns.character(at: i) == 46 else { return nil }
+        i += 1
+        guard i < end, ns.character(at: i) == 32 else { return nil }
+        return i - para.location + 1
+    }
+
+    /// `1.` … `9999.` immediately before the caret at paragraph start (caret right after `.`).
+    static func numberedDigitDotPrefixLength(ns: NSString, paraStart: Int, caret: Int) -> Int? {
+        guard caret > paraStart else { return nil }
+        let len = caret - paraStart
+        guard len >= 2, len <= 6 else { return nil }
+        var i = paraStart
+        let end = caret
+        let digitStart = i
+        while i < end {
+            let c = ns.character(at: i)
+            if c >= 48 && c <= 57 {
+                i += 1
+                if i - digitStart > 4 { return nil }
+                continue
+            }
+            break
+        }
+        guard i > digitStart, i < end, ns.character(at: i) == 46 else { return nil }
+        guard i + 1 == end else { return nil }
+        return len
+    }
+
+    static func numberedListStartValue(ns: NSString, para: NSRange, prefixLength: Int) -> Int? {
+        var acc = 0
+        var i = para.location
+        let stop = para.location + prefixLength
+        while i < stop {
+            let c = ns.character(at: i)
+            if c >= 48 && c <= 57 {
+                acc = acc * 10 + Int(c - 48)
+                i += 1
+            } else if c == 46 {
+                return acc
+            } else {
+                return nil
+            }
+        }
+        return nil
+    }
+
+    /// Rewrites `N. ` prefixes for one contiguous numbered block (blank line or non-numbered paragraph ends the run).
+    static func renumberNumberedListRun(storage: NSTextStorage, anchorLocation: Int) {
+        let ns = storage.string as NSString
+        guard ns.length > 0 else { return }
+        let anchor = min(max(0, anchorLocation), ns.length - 1)
+        var runStart = ns.paragraphRange(for: NSRange(location: anchor, length: 0)).location
+        while runStart > 0 {
+            let prevPara = ns.paragraphRange(for: NSRange(location: runStart - 1, length: 0))
+            guard numberedPrefixLength(ns: ns, para: prevPara) != nil else { break }
+            runStart = prevPara.location
+        }
+        var segments: [(start: Int, oldLen: Int)] = []
+        var loc = runStart
+        while loc < ns.length {
+            let pr = ns.paragraphRange(for: NSRange(location: loc, length: 0))
+            guard let plen = numberedPrefixLength(ns: ns, para: pr) else { break }
+            segments.append((pr.location, plen))
+            let next = NSMaxRange(pr)
+            if next <= loc { break }
+            loc = next
+        }
+        guard segments.count >= 2 else { return }
+        for i in stride(from: segments.count - 1, through: 0, by: -1) {
+            let newNum = i + 1
+            let seg = segments[i]
+            let replacement = NSAttributedString(string: "\(newNum). ", attributes: listMarkerAttributes())
+            storage.replaceCharacters(in: NSRange(location: seg.start, length: seg.oldLen), with: replacement)
+        }
+    }
+}
+
 // MARK: - Cross-platform wrapper
 
 #if os(macOS)
@@ -137,6 +265,10 @@ private func mergedParagraphStyleWithCanonicalLineMetrics(_ saved: NSParagraphSt
 private final class HarvousNoteTextView: NSTextView {
     /// UTF-16 attachment range in storage.
     var pillTapHandler: ((String, String, NSRange) -> Void)?
+    /// URL pill tap → mirrors `pillTapHandler` but for `URLLinkPillAttachment`. Args are
+    /// `(href, cached title or nil, user-label or nil, attachment UTF-16 range)`. The host is
+    /// responsible for presenting the contextual dock; no in-process browser open happens here.
+    var urlPillTapHandler: ((String, String?, String?, NSRange) -> Void)?
 
     /// Single-click on highlighted prose opens the anchored thread target (pill hits take precedence).
     var onStudyHighlightClick: ((UUID) -> Void)?
@@ -658,14 +790,12 @@ private final class HarvousNoteTextView: NSTextView {
             return
         }
 
-        // URL pill — open the href in the default browser. Mirror the rect hit-test pattern used
-        // for scripture pills above; URL pills are tap-to-open today (no preview popover until the
-        // LinkPreviewCard native equivalent ships).
-        if let (urlPill, _) = urlLinkPillAtPoint(point, in: storage) {
+        // URL pill — invoke the host's tap handler so it can open the inline `ActiveURLPillDock`
+        // (Open / Remove / Edit actions). The dock owns the "open in browser" action, mirroring how
+        // scripture pills go through the host (`pillTapHandler`) instead of acting locally.
+        if let (urlPill, eff) = urlLinkPillAtPoint(point, in: storage) {
             super.mouseDown(with: event)
-            if let url = URL(string: urlPill.href) {
-                NSWorkspace.shared.open(url)
-            }
+            urlPillTapHandler?(urlPill.href, urlPill.title, urlPill.label, eff)
             return
         }
 
@@ -1112,6 +1242,9 @@ struct HarvousEditor: NSViewRepresentable {
     /// When true, pastel highlight paints use the dark-appearance palette (`NSColor`/UIColor alpha tuned).
     var studyHighlightsAssumeDarkAppearance: Bool = false
     var onScripturePillTap: ((String, String, NSRange) -> Void)? = nil
+    /// URL pill tap callback. Args: `(href, cached title or nil, user-label or nil, attachment UTF-16 range)`.
+    /// Host opens the inline `ActiveURLPillDock`; no browser navigation happens inside the editor.
+    var onURLPillTap: ((String, String?, String?, NSRange) -> Void)? = nil
     /// Fires after scripture pills are (re-)materialized from plain text (`detectAndInsertPills`), for prefetch/network warm.
     var onResolvedScripturePillPairs: (([(reference: String, translation: String)]) -> Void)? = nil
     /// Resolves the user-picked scripture pill accent for a given reference (persisted on the owning Note).
@@ -1149,6 +1282,7 @@ struct HarvousEditor: NSViewRepresentable {
         let textView = HarvousNoteTextView(frame: .zero, textContainer: container)
         scrollView.documentView = textView
         textView.pillTapHandler = onScripturePillTap
+        textView.urlPillTapHandler = onURLPillTap
         wireStudyHighlightInteractions(textView: textView)
         scrollView.drawsBackground = false
         // `NoteEditorView` wraps this in a SwiftUI `ScrollView`; nested AppKit scrollers steal clicks/coordinates.
@@ -1240,6 +1374,7 @@ struct HarvousEditor: NSViewRepresentable {
         context.coordinator.onRemoveStudyHighlightThreadIds = onRemoveStudyHighlightThreadIds
 
         textView.pillTapHandler = onScripturePillTap
+        textView.urlPillTapHandler = onURLPillTap
         wireStudyHighlightInteractions(textView: textView)
         context.coordinator.proxy = proxy
         context.coordinator.wireFormatBarToProxy(proxy)
@@ -1433,6 +1568,14 @@ struct HarvousEditor: NSViewRepresentable {
                 name: .harvousForceScripturePillRedetect,
                 object: nil
             )
+            // URL pill title resolved (Slice 3): update the matching attachment so the next tap
+            // hands a non-nil title to `ActiveURLPillDock`.
+            NotificationCenter.default.addObserver(
+                self,
+                selector: #selector(handleURLLinkTitleResolved(_:)),
+                name: .harvousURLLinkTitleResolved,
+                object: nil
+            )
         }
 
         deinit {
@@ -1445,6 +1588,15 @@ struct HarvousEditor: NSViewRepresentable {
                 if let uuid = note.object as? UUID, let mine = boundNoteID, uuid != mine { return }
                 guard let tv = textView else { return }
                 detectAndInsertPills(in: tv, text: state.plainText)
+            }
+        }
+
+        @objc private func handleURLLinkTitleResolved(_ note: Notification) {
+            MainActor.assumeIsolated {
+                guard let href = note.userInfo?["href"] as? String,
+                      let title = note.userInfo?["title"] as? String,
+                      let tv = textView, let storage = tv.textStorage else { return }
+                applyResolvedURLLinkTitle(title, forHref: href, in: storage)
             }
         }
 
@@ -2044,9 +2196,25 @@ struct HarvousEditor: NSViewRepresentable {
 
             // URL pill detection runs in the same edit pass so the layout manager performs a single
             // layout flush. Scripture pills win any overlap because their ranges land in
-            // `protectedRanges`.
+            // `protectedRanges`. `titleResolver` plugs in cached page titles so pills restored after
+            // re-detection (e.g. note switch) don't briefly drop to nil-title state.
             let bodyFontForURL: NSFont = HarvousFonts.noteComposeBodyPlatformFont()
-            detectAndInsertURLLinkPills(in: storage, bodyFont: bodyFontForURL)
+            // Defensive migration: any `.link`-attributed run (legacy AddLink path or pasted RTF)
+            // becomes a labeled `URLLinkPillAttachment` first, so storage converges to one shape.
+            convertLinkAttributedRunsToURLLinkPills(in: storage, bodyFont: bodyFontForURL)
+            detectAndInsertURLLinkPills(
+                in: storage,
+                bodyFont: bodyFontForURL,
+                titleResolver: { URLLinkTitleService.shared.cachedTitle(for: $0) }
+            )
+            // Kick off async title resolution for any pill that still has nil title. Cheap when
+            // cache is warm — `ensureResolved` is a synchronous no-op after the first call.
+            for range in rangesOfURLLinkPillAttachments(in: storage) {
+                if let pill = storage.attribute(.attachment, at: range.location, effectiveRange: nil) as? URLLinkPillAttachment,
+                   pill.title == nil {
+                    URLLinkTitleService.shared.ensureResolved(for: pill.href)
+                }
+            }
 
             storage.endEditing()
             applyDefaultBodyTypingAttributes(to: textView)
@@ -2313,6 +2481,9 @@ struct HarvousEditor: UIViewRepresentable {
     /// Body formatting + scripture focus state (mirror macOS `proxy`).
     var proxy: EditorProxy? = nil
     var onScripturePillTap: ((String, String, NSRange) -> Void)? = nil
+    /// URL pill tap callback. Args: `(href, cached title or nil, user-label or nil, attachment UTF-16 range)`.
+    /// The host opens the inline `ActiveURLPillDock` — the editor no longer opens Safari directly.
+    var onURLPillTap: ((String, String?, String?, NSRange) -> Void)? = nil
     /// Fires after scripture pills are materialized — used to prefetch passages off the tap path (iOS).
     var onResolvedScripturePillPairs: (([(reference: String, translation: String)]) -> Void)? = nil
     var onStudyHighlightTap: ((UUID) -> Void)? = nil
@@ -2324,12 +2495,26 @@ struct HarvousEditor: UIViewRepresentable {
     var onRemoveStudyHighlightThreadIds: (([UUID]) -> Void)? = nil
     /// Propagates SwiftUI Dynamic Type so `UITextView` fonts track the content size setting.
     var dynamicTypeSize: DynamicTypeSize = .large
+    /// When `true` (iPad split layout), suppress the system `inputAssistantItem` bar so it doesn't
+    /// shadow the Mac-style `NoteToolbar` rendered at the editor's bottom.
+    var isIPadSplitLayout: Bool = false
 
     private func syncComposeTypographyForDynamicTypeIfNeeded(in textView: UITextView, context: Context) {
         if context.coordinator.lastDynamicTypeSize != dynamicTypeSize {
             context.coordinator.lastDynamicTypeSize = dynamicTypeSize
             context.coordinator.refreshComposeBodyTypography()
         }
+    }
+
+    /// On iPad split layout, the Mac-style `NoteToolbar` lives at the editor's bottom — we don't want
+    /// the system to also render its `inputAssistantItem` capsule (keyboard / B / I / U / Aa / mic),
+    /// which otherwise floats on top of the keyboard and shadows our toolbar. Clearing both bar groups
+    /// and the accessory view suppresses it. iPhone path keeps the defaults (`isIPadSplitLayout == false`).
+    private func applyIPadSplitInputAssistantSuppression(to textView: UITextView) {
+        guard isIPadSplitLayout else { return }
+        textView.inputAssistantItem.leadingBarButtonGroups = []
+        textView.inputAssistantItem.trailingBarButtonGroups = []
+        textView.inputAccessoryView = nil
     }
 
     func makeCoordinator() -> Coordinator {
@@ -2374,6 +2559,9 @@ struct HarvousEditor: UIViewRepresentable {
         ]
         // Disable internal scroll so title and body scroll together in the outer SwiftUI ScrollView.
         tv.isScrollEnabled = false
+        // On iPad split layout the Mac-style `NoteToolbar` lives at the editor's bottom — clear the
+        // system `inputAssistantItem` shortcut bar so it doesn't shadow our own formatting toolbar.
+        applyIPadSplitInputAssistantSuppression(to: tv)
         tv.delegate = context.coordinator
         context.coordinator.textView = tv
         let coordinator = context.coordinator
@@ -2419,6 +2607,7 @@ struct HarvousEditor: UIViewRepresentable {
 
     func updateUIView(_ textView: UITextView, context: Context) {
         syncComposeTypographyForDynamicTypeIfNeeded(in: textView, context: context)
+        applyIPadSplitInputAssistantSuppression(to: textView)
         var didSyncBodyFromState = false
         let previousTheme = context.coordinator.scriptureTheme
         context.coordinator.scriptureTheme = scriptureTheme
@@ -2429,6 +2618,7 @@ struct HarvousEditor: UIViewRepresentable {
 
         context.coordinator.placeholderText = placeholder
         context.coordinator.onScripturePillTap = onScripturePillTap
+        context.coordinator.onURLPillTap = onURLPillTap
         context.coordinator.onStudyHighlightTap = onStudyHighlightTap
         context.coordinator.pillAccentResolver = pillAccentResolver
         context.coordinator.onResolvedScripturePillPairs = onResolvedScripturePillPairs
@@ -2543,6 +2733,7 @@ struct HarvousEditor: UIViewRepresentable {
         /// Mirrors macOS coordinator — refreshes compose fonts when Dynamic Type changes.
         var lastDynamicTypeSize: DynamicTypeSize?
         var onScripturePillTap: ((String, String, NSRange) -> Void)?
+        var onURLPillTap: ((String, String?, String?, NSRange) -> Void)?
         var onStudyHighlightTap: ((UUID) -> Void)?
         /// Resolver for per-note pill accents (see `HarvousEditor.pillAccentResolver`). Updated on every `updateUIView`.
         var pillAccentResolver: ((String) -> StudyHighlightAccentToken?)?
@@ -2596,6 +2787,14 @@ struct HarvousEditor: UIViewRepresentable {
                 name: .harvousForceScripturePillRedetect,
                 object: nil
             )
+            // URL pill title resolved (Slice 3): update the matching attachment so the next tap
+            // hands a non-nil title to `ActiveURLPillDock`.
+            NotificationCenter.default.addObserver(
+                self,
+                selector: #selector(handleURLLinkTitleResolved(_:)),
+                name: .harvousURLLinkTitleResolved,
+                object: nil
+            )
         }
 
         deinit {
@@ -2607,6 +2806,16 @@ struct HarvousEditor: UIViewRepresentable {
                 if let uuid = note.object as? UUID, let mine = boundNoteID, uuid != mine { return }
                 guard let tv = textView else { return }
                 detectAndInsertPills(in: tv, text: state.plainText)
+            }
+        }
+
+        @objc private func handleURLLinkTitleResolved(_ note: Notification) {
+            MainActor.assumeIsolated {
+                guard let href = note.userInfo?["href"] as? String,
+                      let title = note.userInfo?["title"] as? String,
+                      let tv = textView else { return }
+                let storage = tv.textStorage
+                applyResolvedURLLinkTitle(title, forHref: href, in: storage)
             }
         }
 
@@ -2732,12 +2941,12 @@ struct HarvousEditor: UIViewRepresentable {
                 return
             }
 
-            // 1b. URL pill — open href in Safari. Same rect hit-test as scripture pills above.
-            if let (urlPill, _) = Self.urlLinkPillAtViewPoint(point, textView: tv, storage: storage) {
+            // 1b. URL pill — invoke the host's tap handler so it can open the inline
+            // `ActiveURLPillDock` (Open / Remove / Edit). The dock owns the browser-open action;
+            // mirrors how scripture pills route through the host (`onScripturePillTap`).
+            if let (urlPill, eff) = Self.urlLinkPillAtViewPoint(point, textView: tv, storage: storage) {
                 tv.resignFirstResponder()
-                if let url = URL(string: urlPill.href) {
-                    UIApplication.shared.open(url, options: [:], completionHandler: nil)
-                }
+                onURLPillTap?(urlPill.href, urlPill.title, urlPill.label, eff)
                 return
             }
 
@@ -2962,25 +3171,132 @@ struct HarvousEditor: UIViewRepresentable {
             guard !isProgrammaticBodyMutation else { return true }
             if textView.textColor == .tertiaryLabel { return true }
             let storage = textView.textStorage
-            guard storage.length > 0 else { return true }
-            let hitRanges = harvousPillAttachmentRangesIntersectingIOS(range, in: storage)
-            guard !hitRanges.isEmpty else { return true }
-            guard let proxy else { return false }
-            let sortedHit = hitRanges.sorted { $0.location < $1.location }
-            let refs = sortedHit.compactMap { r -> String? in
-                (storage.attribute(.attachment, at: r.location, effectiveRange: nil) as? ScripturePillAttachment)?.reference
+            if storage.length > 0 {
+                let hitRanges = harvousPillAttachmentRangesIntersectingIOS(range, in: storage)
+                if !hitRanges.isEmpty {
+                    guard let proxy else { return false }
+                    let sortedHit = hitRanges.sorted { $0.location < $1.location }
+                    let refs = sortedHit.compactMap { r -> String? in
+                        (storage.attribute(.attachment, at: r.location, effectiveRange: nil) as? ScripturePillAttachment)?.reference
+                    }
+                    let refLabel = refs.first ?? "Scripture"
+                    let anchor = iosViewportRectForPillRanges(sortedHit, in: textView)
+                        ?? proxy.selectionViewportRect
+                        ?? CGRect(x: 0, y: 24, width: 120, height: 22)
+                    let prompt = ScripturePillDeletionPrompt(
+                        reference: refLabel,
+                        pillUTF16Ranges: sortedHit,
+                        anchorViewportRect: anchor
+                    )
+                    Task { @MainActor in
+                        proxy.scripturePillDeletionPrompt = prompt
+                    }
+                    return false
+                }
             }
-            let refLabel = refs.first ?? "Scripture"
-            let anchor = iosViewportRectForPillRanges(sortedHit, in: textView)
-                ?? proxy.selectionViewportRect
-                ?? CGRect(x: 0, y: 24, width: 120, height: 22)
-            let prompt = ScripturePillDeletionPrompt(
-                reference: refLabel,
-                pillUTF16Ranges: sortedHit,
-                anchorViewportRect: anchor
-            )
-            Task { @MainActor in
-                proxy.scripturePillDeletionPrompt = prompt
+
+            if text == "\n", tryApplyListContinuationOnHardNewlineIOS(textView: textView, range: range) {
+                return false
+            }
+            if text == " ", tryApplyMarkdownListTriggerIOS(textView: textView, range: range) {
+                return false
+            }
+            return true
+        }
+
+        /// Return inside a `• `/`N. ` line: insert newline + continuing marker. Return on an empty list item exits the list.
+        private func tryApplyListContinuationOnHardNewlineIOS(textView: UITextView, range: NSRange) -> Bool {
+            let storage = textView.textStorage
+            guard range.length == 0 else { return false }
+            let loc = range.location
+            let ns = storage.string as NSString
+            guard ns.length > 0 else { return false }
+            let paraAnchor = min(max(0, loc), ns.length - 1)
+            let pr = ns.paragraphRange(for: NSRange(location: paraAnchor, length: 0))
+            if storage.attribute(.attachment, at: pr.location, effectiveRange: nil) != nil { return false }
+            let bLen = HVListSyntax.bulletPrefixLength(ns: ns, para: pr)
+            let nLen = HVListSyntax.numberedPrefixLength(ns: ns, para: pr)
+            guard let plen = bLen ?? nLen, loc >= pr.location + plen else { return false }
+
+            // Empty list item (caret right after the prefix, nothing else on the line) → exit list.
+            let trailingNewline = pr.length > 0 && ns.character(at: NSMaxRange(pr) - 1) == 10
+            let paraTextLen = pr.length - (trailingNewline ? 1 : 0)
+            if paraTextLen == plen, loc == pr.location + plen {
+                withProgrammaticBodyMutation {
+                    storage.deleteCharacters(in: NSRange(location: pr.location, length: plen))
+                }
+                textView.selectedRange = NSRange(location: pr.location, length: 0)
+                proxy?.hvNotifyBodyChanged(textView)
+                proxy?.refreshFormatState()
+                return true
+            }
+
+            let savedParaStyle = storage.attribute(.paragraphStyle, at: pr.location, effectiveRange: nil) as? NSParagraphStyle
+            let wasNumbered = nLen != nil
+            let markerString: String
+            if bLen != nil {
+                markerString = "\u{2022} "
+            } else if let nln = nLen, let v = HVListSyntax.numberedListStartValue(ns: ns, para: pr, prefixLength: nln) {
+                markerString = "\(v + 1). "
+            } else {
+                return false
+            }
+            let combined = NSMutableAttributedString(string: "\n" + markerString, attributes: HVListSyntax.listMarkerAttributes())
+
+            withProgrammaticBodyMutation {
+                storage.replaceCharacters(in: range, with: combined)
+                if let ps = savedParaStyle {
+                    let live = storage.string as NSString
+                    let newPara = live.paragraphRange(for: NSRange(location: min(loc + 1, max(0, live.length - 1)), length: 0))
+                    storage.addAttribute(.paragraphStyle, value: ps, range: newPara)
+                }
+                if wasNumbered {
+                    HVListSyntax.renumberNumberedListRun(storage: storage, anchorLocation: loc + 1)
+                }
+            }
+            let caretPos = min(loc + combined.length, storage.length)
+            textView.selectedRange = NSRange(location: caretPos, length: 0)
+            proxy?.hvNotifyBodyChanged(textView)
+            proxy?.refreshFormatState()
+            return true
+        }
+
+        /// `- ` / `* ` / `+ ` / `N. ` typed at paragraph start: replace the prefix with a real list marker.
+        private func tryApplyMarkdownListTriggerIOS(textView: UITextView, range: NSRange) -> Bool {
+            let storage = textView.textStorage
+            guard range.length == 0 else { return false }
+            let loc = range.location
+            guard loc > 0, loc <= storage.length else { return false }
+            let ns = storage.string as NSString
+            let pr = ns.paragraphRange(for: NSRange(location: loc - 1, length: 0))
+            let p = pr.location
+            guard loc > p else { return false }
+            if storage.attribute(.attachment, at: p, effectiveRange: nil) != nil { return false }
+            if HVListSyntax.bulletPrefixLength(ns: ns, para: pr) != nil { return false }
+            let prefixLen = loc - p
+            if prefixLen == 1 {
+                let c = ns.character(at: p)
+                if c == 45 || c == 42 || c == 43 {
+                    let bullet = NSAttributedString(string: "\u{2022} ", attributes: HVListSyntax.listMarkerAttributes())
+                    withProgrammaticBodyMutation {
+                        storage.replaceCharacters(in: NSRange(location: p, length: 1), with: bullet)
+                    }
+                    textView.selectedRange = NSRange(location: p + bullet.length, length: 0)
+                    proxy?.hvNotifyBodyChanged(textView)
+                    proxy?.refreshFormatState()
+                    return true
+                }
+            }
+            if let dotLen = HVListSyntax.numberedDigitDotPrefixLength(ns: ns, paraStart: p, caret: loc) {
+                let digitsDot = ns.substring(with: NSRange(location: p, length: dotLen))
+                let replacement = NSAttributedString(string: digitsDot + " ", attributes: HVListSyntax.listMarkerAttributes())
+                withProgrammaticBodyMutation {
+                    storage.replaceCharacters(in: NSRange(location: p, length: dotLen), with: replacement)
+                }
+                textView.selectedRange = NSRange(location: p + replacement.length, length: 0)
+                proxy?.hvNotifyBodyChanged(textView)
+                proxy?.refreshFormatState()
+                return true
             }
             return false
         }
@@ -3200,8 +3516,23 @@ struct HarvousEditor: UIViewRepresentable {
 
             // URL pill detection runs in the same edit pass so the layout manager performs a single
             // layout flush. Scripture pills win any overlap via `protectedRanges` inside the helper.
+            // `titleResolver` restores cached titles after re-detection (note switch / typing pass).
             let bodyFontForURL: UIFont = HarvousFonts.noteComposeBodyPlatformFont()
-            detectAndInsertURLLinkPills(in: storage, bodyFont: bodyFontForURL)
+            // Defensive migration: any `.link`-attributed run becomes a labeled pill first so the
+            // editor never displays the default blue/underline link styling.
+            convertLinkAttributedRunsToURLLinkPills(in: storage, bodyFont: bodyFontForURL)
+            detectAndInsertURLLinkPills(
+                in: storage,
+                bodyFont: bodyFontForURL,
+                titleResolver: { URLLinkTitleService.shared.cachedTitle(for: $0) }
+            )
+            // Async title resolution for any pill still lacking a cached title.
+            for range in rangesOfURLLinkPillAttachments(in: storage) {
+                if let pill = storage.attribute(.attachment, at: range.location, effectiveRange: nil) as? URLLinkPillAttachment,
+                   pill.title == nil {
+                    URLLinkTitleService.shared.ensureResolved(for: pill.href)
+                }
+            }
 
             storage.endEditing()
             applyDefaultBodyTypingAttributes(to: textView)

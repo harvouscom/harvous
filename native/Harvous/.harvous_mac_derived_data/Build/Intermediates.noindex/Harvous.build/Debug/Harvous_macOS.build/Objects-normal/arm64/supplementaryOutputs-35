@@ -1,0 +1,121 @@
+{
+  "/Users/heyderekj/harvous/native/Harvous/Editor/NoteBodyAttachments.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/NoteBodyAttachments.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/NoteBodyAttachments.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/NoteBodyAttachments.dia",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/NoteBodyAttachments.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/NoteBodyAttachments.swiftdeps"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/Models/Note.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/Note.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/Note.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/Note.dia",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/Note.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/Note.swiftdeps"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/Models/NoteSimpleIDAssigner.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/NoteSimpleIDAssigner.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/NoteSimpleIDAssigner.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/NoteSimpleIDAssigner.dia",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/NoteSimpleIDAssigner.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/NoteSimpleIDAssigner.swiftdeps"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/Models/NoteSnapshot.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/NoteSnapshot.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/NoteSnapshot.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/NoteSnapshot.dia",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/NoteSnapshot.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/NoteSnapshot.swiftdeps"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/NoteRelativeTime.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/NoteRelativeTime.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/NoteRelativeTime.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/NoteRelativeTime.dia",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/NoteRelativeTime.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/NoteRelativeTime.swiftdeps"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/Services/ModelContextExtensions.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/ModelContextExtensions.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/ModelContextExtensions.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/ModelContextExtensions.dia",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/ModelContextExtensions.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/ModelContextExtensions.swiftdeps"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/Services/NoteSearchIndex.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/NoteSearchIndex.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/NoteSearchIndex.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/NoteSearchIndex.dia",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/NoteSearchIndex.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/NoteSearchIndex.swiftdeps"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/Views/MorphingChromeBar.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/MorphingChromeBar.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/MorphingChromeBar.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/MorphingChromeBar.dia",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/MorphingChromeBar.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/MorphingChromeBar.swiftdeps"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/Views/NoteCardView.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/NoteCardView.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/NoteCardView.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/NoteCardView.dia",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/NoteCardView.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/NoteCardView.swiftdeps"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/Views/NoteConnectionsBar.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/NoteConnectionsBar.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/NoteConnectionsBar.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/NoteConnectionsBar.dia",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/NoteConnectionsBar.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/NoteConnectionsBar.swiftdeps"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/Views/NoteEditorById.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/NoteEditorById.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/NoteEditorById.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/NoteEditorById.dia",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/NoteEditorById.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/NoteEditorById.swiftdeps"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/Views/NoteEditorView.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/NoteEditorView.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/NoteEditorView.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/NoteEditorView.dia",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/NoteEditorView.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/NoteEditorView.swiftdeps"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/Views/NoteFeedRow.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/NoteFeedRow.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/NoteFeedRow.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/NoteFeedRow.dia",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/NoteFeedRow.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/NoteFeedRow.swiftdeps"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/Views/NoteFilter.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/NoteFilter.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/NoteFilter.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/NoteFilter.dia",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/NoteFilter.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/NoteFilter.swiftdeps"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/Views/NoteHistorySection.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/NoteHistorySection.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/NoteHistorySection.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/NoteHistorySection.dia",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/NoteHistorySection.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/NoteHistorySection.swiftdeps"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/Views/NoteInspectorView.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/NoteInspectorView.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/NoteInspectorView.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/NoteInspectorView.dia",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/NoteInspectorView.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/NoteInspectorView.swiftdeps"
+  },
+  "/Users/heyderekj/harvous/native/Harvous/Views/NoteListColumn.swift" : {
+    "const-values" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/NoteListColumn.swiftconstvalues",
+    "dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/NoteListColumn.d",
+    "diagnostics" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/NoteListColumn.dia",
+    "object" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/NoteListColumn.o",
+    "swift-dependencies" : "/Users/heyderekj/harvous/native/Harvous/.harvous_mac_derived_data/Build/Intermediates.noindex/Harvous.build/Debug/Harvous_macOS.build/Objects-normal/arm64/NoteListColumn.swiftdeps"
+  }
+}
