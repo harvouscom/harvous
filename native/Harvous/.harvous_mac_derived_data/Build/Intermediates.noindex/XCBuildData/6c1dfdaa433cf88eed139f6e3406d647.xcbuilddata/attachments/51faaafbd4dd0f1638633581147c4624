@@ -1,4 +1,0 @@
-module Nuke {
-header "Nuke-Swift.h"
-export *
-}

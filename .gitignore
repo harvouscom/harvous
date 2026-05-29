@@ -22,7 +22,10 @@ pnpm-debug.log*
 # macOS-specific files
 .DS_Store
 
-# Harvous native: local Xcode DerivedData for package-dmg / release.sh (must stay outside Harvous sources)
+# Harvous native: local Xcode DerivedData / verify scratch dirs for package-dmg / release.sh
+# (build output only — must never be committed; any harvous_* derived-data or verify dir, anywhere under native/)
+native/**/.harvous_*derived_data*/
+native/**/.harvous_*verify*/
 native/.harvous_mac_derived_data/
 native/Harvous/build/
 native/Harvous/*.dmg
