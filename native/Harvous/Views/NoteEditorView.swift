@@ -150,6 +150,7 @@ struct NoteEditorView: View {
     /// On iPhone this stays `.constant(false)` and the editor uses its internal sheet instead.
     var showInspector: Binding<Bool> = .constant(false)
     @StateObject private var proxy = EditorProxy()
+    @EnvironmentObject private var shiftHints: HarvousShiftHintsMonitor
     @EnvironmentObject private var appRouter: HarvousAppRouter
     #if os(iOS)
     @State private var showInspectorIOS = false
@@ -1091,6 +1092,18 @@ struct NoteEditorView: View {
             reconcileStudyHighlightsTask = nil
             refreshThreadsTask?.cancel()
             refreshThreadsTask = nil
+            shiftHints.isEditorBodyFocused = false
+            shiftHints.isTitleFieldFocused = false
+        }
+        .onChange(of: proxy.isBodyFirstResponder) { _, focused in
+            shiftHints.isEditorBodyFocused = focused
+        }
+        .onChange(of: titleFocused) { _, focused in
+            shiftHints.isTitleFieldFocused = focused
+        }
+        .onAppear {
+            shiftHints.isEditorBodyFocused = proxy.isBodyFirstResponder
+            shiftHints.isTitleFieldFocused = titleFocused
         }
         #if os(macOS)
         .sheet(isPresented: $proxy.showAddLinkSheet) {
