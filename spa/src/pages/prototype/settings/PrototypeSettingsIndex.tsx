@@ -18,7 +18,7 @@ export default function PrototypeSettingsIndex() {
   const { data: profile } = useProfile();
 
   if (!isMobileSidebar) {
-    return <Navigate to="/prototype/settings/account" replace />;
+    return <Navigate to={SETTINGS_CATEGORIES[0].route} replace />;
   }
 
   const translationLabel = profile?.defaultTranslation

@@ -1,5 +1,6 @@
 import { useCallback, useMemo, useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
+import { prototypeNoteRouteTo } from '@/lib/prototype-path';
 import { useQueryClient } from '@tanstack/react-query';
 import Icon from '@/components/react/Icon';
 import {
@@ -47,7 +48,7 @@ export default function PrototypeDailyPassagePill({ homeSpaceId, notes }: Props)
   const openNote = useCallback(
     (noteId: string) => {
       navigate({
-        to: '/prototype/n/$noteId',
+        to: prototypeNoteRouteTo(),
         params: { noteId: noteParamSlug(noteId) },
       });
       afterNav();

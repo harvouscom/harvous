@@ -5,6 +5,7 @@
  */
 import { useCallback, useEffect, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react';
 import { Link, useNavigate } from '@tanstack/react-router';
+import { prototypeHomeRouteTo, prototypeNoteRouteTo } from '@/lib/prototype-path';
 import type { NoteDetail, LinkedNoteRef } from '../../hooks/queries/useNote';
 import { formatNoteAddedBySource } from '@/utils/note-added-by-display';
 import { stripServerAutoUntitledNoteTitleForDisplay } from '@/utils/server-auto-untitled-note-display';
@@ -39,7 +40,7 @@ export default function PrototypeInspectorPane({ note, spaceId = '' }: Prototype
         onSuccess: () => {
           setDeleteConfirmOpen(false);
           closeInspector();
-          navigate({ to: '/prototype/' });
+          navigate({ to: prototypeHomeRouteTo() });
           if (isMobileSidebar) closeDrawer();
         },
         onError: (err) => {
@@ -174,7 +175,7 @@ function ConnectedNoteRow({ note, direction }: { note: LinkedNoteRef; direction:
 
   return (
     <Link
-      to="/prototype/n/$noteId"
+      to={prototypeNoteRouteTo()}
       params={{ noteId: noteParamSlug(note.id) }}
       search={{}}
       className="proto-inspector-connected-note"

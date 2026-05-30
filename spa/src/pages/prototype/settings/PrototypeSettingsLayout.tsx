@@ -3,12 +3,14 @@ import { createPortal } from 'react-dom';
 import { Outlet, useNavigate, useRouterState } from '@tanstack/react-router';
 import Icon from '@/components/react/Icon';
 import { Drawer, DrawerContent } from '@/components/ui/drawer';
+import { prototypeSettingsRouteTo } from '@/lib/prototype-path';
 import { readSettingsOpenerPath } from '../../../lib/prototype-settings-opener';
 import { useProtoShell } from '../../../layouts/proto-shell-context';
 import { SETTINGS_CATEGORIES } from './settingsCategories';
 
 function isSettingsIndexPath(pathname: string) {
-  return pathname === '/prototype/settings' || pathname === '/prototype/settings/';
+  const settingsRoot = prototypeSettingsRouteTo();
+  return pathname === settingsRoot || pathname === `${settingsRoot}/`;
 }
 
 /**
@@ -27,7 +29,7 @@ export default function PrototypeSettingsLayout() {
   }, [navigate]);
 
   const goToSettingsList = useCallback(() => {
-    navigate({ to: '/prototype/settings', replace: true });
+    navigate({ to: prototypeSettingsRouteTo(), replace: true });
   }, [navigate]);
 
   useEffect(() => {

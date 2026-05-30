@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from '@tanstack/react-router';
+import { prototypeHomeRouteTo } from '@/lib/prototype-path';
 import { useAuth, useUser } from '@clerk/clerk-react';
 import { useQueryClient } from '@tanstack/react-query';
 import CondensedNoteItem from '@/components/react/CondensedNoteItem';
@@ -213,7 +214,7 @@ export default function PublicSharedThreadPage() {
                           className="public-cta-btn"
                           onClick={() => {
                             void queryClient.invalidateQueries({ queryKey: ['dashboard'] });
-                            navigate({ to: '/prototype' as any });
+                            navigate({ to: prototypeHomeRouteTo() as any });
                           }}
                         >
                           View in my Harvous

@@ -1,5 +1,7 @@
+import { isPrototypeShellPath } from '@/lib/prototype-path';
+
 /**
- * Auth/upgrade shells and `/prototype/` skip global toast UI (Sonner + offline sync chip).
+ * Auth/upgrade shells and prototype shell skip global toast UI (Sonner + offline sync chip).
  * Keep in sync with SPA toast gating in `spa/src/App.tsx` (single source: import from here).
  */
 export function shouldSuppressAppToasts(): boolean {
@@ -9,6 +11,6 @@ export function shouldSuppressAppToasts(): boolean {
     p === '/upgrade' ||
     p.startsWith('/sign-in') ||
     p.startsWith('/sign-up') ||
-    p.startsWith('/prototype')
+    isPrototypeShellPath(p)
   );
 }

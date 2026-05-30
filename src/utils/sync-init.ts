@@ -2,11 +2,12 @@ import React from 'react';
 import { useUser } from '@clerk/clerk-react';
 import { bootstrapSync, syncNow, needsBootstrap, startBackgroundSync } from './sync-manager';
 import { isOfflineModeEnabled } from './offline-mode';
+import { isPrototypeShellPath } from '@/lib/prototype-path';
 
 /** Prototype shell uses React Query only; IndexedDB bootstrap competes with first paint and can OOM the tab. */
 export function isPrototypeShellRoute(): boolean {
   if (typeof window === 'undefined') return false;
-  return window.location.pathname.startsWith('/prototype');
+  return isPrototypeShellPath(window.location.pathname);
 }
 
 export type InitializeSyncOptions = {

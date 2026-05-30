@@ -15,7 +15,24 @@
  */
 (function prototypeRouteBoot() {
   if (typeof window === 'undefined' || typeof document === 'undefined') return;
-  if (!window.location.pathname.startsWith('/prototype')) return;
+  var path = window.location.pathname;
+  var host = window.location.hostname;
+  var onDedicated = host === 'new.harvous.com';
+  if (onDedicated) {
+    if (path.indexOf('/sign-in') === 0 || path.indexOf('/sign-up') === 0) return;
+    if (
+      path !== '/' &&
+      !path.startsWith('/prototype') &&
+      !path.startsWith('/n/') &&
+      !path.startsWith('/search') &&
+      !path.startsWith('/settings') &&
+      !path.startsWith('/space/')
+    ) {
+      return;
+    }
+  } else if (!path.startsWith('/prototype')) {
+    return;
+  }
 
   var PROTO_BG_KEY = 'harvous-proto-bg';
   var MAX_IMAGE_DATA_URL_CHARS = 1600000;

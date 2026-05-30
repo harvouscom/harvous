@@ -1,4 +1,9 @@
 import { createRouter, createRoute, createRootRoute, redirect, lazyRouteComponent } from '@tanstack/react-router';
+import {
+  isDedicatedPrototypeHost,
+  prototypeHomeRouteTo,
+  prototypeNoteRouteTo,
+} from '@/lib/prototype-path';
 import AppLayout from './layouts/AppLayout';
 import AuthLayout from './layouts/AuthLayout';
 import DashboardPage from './pages/DashboardPage';
@@ -13,7 +18,14 @@ import PrototypeNotePage from './pages/prototype/PrototypeNotePage';
 import PrototypeSearchPage from './pages/prototype/PrototypeSearchPage';
 
 // Root route
-const rootRoute = createRootRoute();
+const rootRoute = createRootRoute({
+  beforeLoad: ({ location }) => {
+    if (!isDedicatedPrototypeHost() || !location.pathname.startsWith('/prototype')) return;
+    const rest = location.pathname.replace(/^\/prototype\/?/, '');
+    const target = rest ? `/${rest}` : '/';
+    throw redirect({ href: `${target}${location.searchStr}`, replace: true });
+  },
+});
 
 // Auth routes (no nav shell)
 const authLayoutRoute = createRoute({
@@ -151,10 +163,12 @@ const invitationRoute = createRoute({
   component: lazyRouteComponent(() => import('./pages/public/PublicInvitationPage')),
 });
 
+const dedicatedPrototypeHost = isDedicatedPrototypeHost();
+
 /** Simplified prototype — parallel shell, no threads in UI (see docs/SIMPLIFIED_WEB_PROTOTYPE.md). */
 const simplifiedPrototypeRoute = createRoute({
   getParentRoute: () => rootRoute,
-  path: '/prototype',
+  path: dedicatedPrototypeHost ? '/' : '/prototype',
   component: SimplifiedPrototypeLayout,
 });
 
@@ -179,7 +193,7 @@ const prototypeLegacySpaceNoteRedirectRoute = createRoute({
   path: 'space/$spaceId/n/$noteId',
   beforeLoad: ({ params }) => {
     throw redirect({
-      to: '/prototype/n/$noteId',
+      to: prototypeNoteRouteTo(),
       params: { noteId: params.noteId },
       replace: true,
     });
@@ -192,7 +206,7 @@ const prototypeLegacySpaceRedirectRoute = createRoute({
   path: 'space/$spaceId',
   beforeLoad: () => {
     throw redirect({
-      to: '/prototype/',
+      to: prototypeHomeRouteTo(),
       replace: true,
     });
   },
@@ -276,6 +290,14 @@ const prototypeSettingsKeyboardShortcutsRoute = createRoute({
   component: lazyRouteComponent(() => import('./pages/prototype/settings/PrototypeKeyboardShortcutsPage')),
 });
 
+const dedicatedDashboardRedirectRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/dashboard',
+  beforeLoad: () => {
+    throw redirect({ to: '/', replace: true });
+  },
+});
+
 // 404 catch-all — must be last
 const notFoundRoute = createRoute({
   getParentRoute: () => rootRoute,
@@ -283,23 +305,25 @@ const notFoundRoute = createRoute({
   component: lazyRouteComponent(() => import('./pages/NotFoundPage')),
 });
 
+const classicAppRoutes = appLayoutRoute.addChildren([
+  indexRoute,
+  dashboardRoute,
+  findRoute,
+  profileRoute,
+  newSpaceRoute,
+  spaceRoute,
+  threadRoute,
+  noteRoute,
+  adminVotdRoute,
+]);
+
 // Route tree
 const routeTree = rootRoute.addChildren([
   authLayoutRoute.addChildren([
     signInRoute.addChildren([signInSplatRoute]),
     signUpRoute.addChildren([signUpSplatRoute]),
   ]),
-  appLayoutRoute.addChildren([
-    indexRoute,
-    dashboardRoute,
-    findRoute,
-    profileRoute,
-    newSpaceRoute,
-    spaceRoute,
-    threadRoute,
-    noteRoute,
-    adminVotdRoute,
-  ]),
+  ...(dedicatedPrototypeHost ? [dedicatedDashboardRedirectRoute] : [classicAppRoutes]),
   upgradeRoute,
   joinSpaceRoute,
   sharedNoteRoute,

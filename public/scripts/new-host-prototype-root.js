@@ -1,12 +1,12 @@
 /**
- * Fallback when edge redirect rules miss: new.harvous.com root → /prototype/.
- * Runs before the Vite bundle so TanStack Router sees the prototype path.
+ * new.harvous.com: legacy /prototype/* bookmarks → same path without prefix.
  */
-(function newHostPrototypeRoot() {
+(function newHostPrototypeLegacyPaths() {
   if (typeof window === 'undefined') return;
   if (window.location.hostname !== 'new.harvous.com') return;
   var path = window.location.pathname;
-  if (path !== '/' && path !== '') return;
-  var target = '/prototype/' + window.location.search + window.location.hash;
-  window.location.replace(target);
+  if (!path.startsWith('/prototype')) return;
+  var rest = path.slice('/prototype'.length) || '/';
+  if (rest.charAt(0) !== '/') rest = '/' + rest;
+  window.location.replace(rest + window.location.search + window.location.hash);
 })();

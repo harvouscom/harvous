@@ -14,6 +14,12 @@ import { noteFolderMembershipLabels } from '@/utils/note-folder-display';
 import { stripServerAutoUntitledNoteTitleForDisplay } from '@/utils/server-auto-untitled-note-display';
 import { useProtoShell } from '../../layouts/proto-shell-context';
 import { usePrototypeHomeSpaceId } from '../../hooks/usePrototypeHomeSpaceId';
+import {
+  isPrototypeNotePath,
+  matchPrototypeNoteId,
+  prototypeHomeRouteTo,
+  prototypeNoteRouteTo,
+} from '@/lib/prototype-path';
 import { protoRelativeCaption } from './proto-time';
 import { PROTO_TOOLBAR_ICON_SIZE } from './proto-toolbar-tokens';
 import ProtoConfirmDialog from './ProtoConfirmDialog';
@@ -355,7 +361,7 @@ function PrototypeSidebarNoteRow({
         onSuccess: () => {
           setDeleteConfirmOpen(false);
           if (activeNoteFullId && row.id === activeNoteFullId) {
-            navigate({ to: '/prototype/' });
+            navigate({ to: prototypeHomeRouteTo() });
             if (isMobileSidebar) closeDrawer();
           }
         },
@@ -551,8 +557,8 @@ export default function PrototypeSidebar() {
     return pages.pages.flatMap((p) => p.notes);
   }, [pages]);
 
-  const noteMatch = pathname.match(/^\/prototype\/n\/([^/]+)/);
-  const activeNoteSlug = noteMatch?.[1];
+  const noteSlugFromPath = matchPrototypeNoteId(pathname);
+  const activeNoteSlug = noteSlugFromPath;
   const activeNoteFullId = activeNoteSlug
     ? activeNoteSlug.startsWith('note_')
       ? activeNoteSlug
@@ -719,7 +725,7 @@ export default function PrototypeSidebar() {
     prefetchNote(row);
     dismissStandaloneScripturePassage();
     navigate({
-      to: '/prototype/n/$noteId',
+      to: prototypeNoteRouteTo(),
       params: { noteId: noteParamSlug(row.id) },
     });
     afterNav();
@@ -774,8 +780,8 @@ export default function PrototypeSidebar() {
       const canon = (r.scriptureReference ?? '').trim();
       const trans = (r.scripturePassageTranslation ?? '').trim();
       if (canon && trans) {
-        if (pathname.startsWith('/prototype/n/')) {
-          navigate({ to: '/prototype/' });
+        if (isPrototypeNotePath(pathname)) {
+          navigate({ to: prototypeHomeRouteTo() });
         }
         openStandaloneScripturePassage({
           canonicalReference: canon,
@@ -789,7 +795,7 @@ export default function PrototypeSidebar() {
     dismissStandaloneScripturePassage();
     const isReferenceRow = r.entryKind === 'reference';
     navigate({
-      to: '/prototype/n/$noteId',
+      to: prototypeNoteRouteTo(),
       params: { noteId: noteParamSlug(r.parentNoteId) },
       search: isReferenceRow
         ? { studyThread: r.id, reference: r.sourceSnippet || '' }
@@ -815,7 +821,7 @@ export default function PrototypeSidebar() {
     if (prefetchOnly) return;
     dismissStandaloneScripturePassage();
     navigate({
-      to: '/prototype/n/$noteId',
+      to: prototypeNoteRouteTo(),
       params: { noteId: noteParamSlug(n.id) },
     });
     afterNav();

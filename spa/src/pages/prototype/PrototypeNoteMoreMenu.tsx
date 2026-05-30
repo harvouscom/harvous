@@ -4,6 +4,7 @@
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
+import { prototypeHomeRouteTo } from '@/lib/prototype-path';
 import { useQueryClient, type InfiniteData } from '@tanstack/react-query';
 import Icon from '@/components/react/Icon';
 import { toast } from '@/utils/toast';
@@ -107,7 +108,7 @@ export default function PrototypeNoteMoreMenu({
       {
         onSuccess: () => {
           setDeleteConfirmOpen(false);
-          navigate({ to: '/prototype/' });
+          navigate({ to: prototypeHomeRouteTo() });
           if (isMobileSidebar) closeDrawer();
         },
         onError: (err) => {

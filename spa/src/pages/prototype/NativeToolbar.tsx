@@ -29,6 +29,7 @@ import PrototypeFolderPopover from './PrototypeFolderPopover';
 import PrototypeToolbarShortcutItem from './PrototypeToolbarShortcutItem';
 import PrototypeNoteMoreMenu from './PrototypeNoteMoreMenu';
 import { usePrototypeShiftHints } from '../../hooks/usePrototypeShiftHints';
+import { isPrototypeNotePath, matchPrototypeNoteId, prototypeNoteRouteTo } from '@/lib/prototype-path';
 
 /* ── NativeToolbar ───────────────────────────────────────────────────────── */
 export default function NativeToolbar() {
@@ -61,8 +62,7 @@ export default function NativeToolbar() {
     prototypeFolderChip,
   } = useProtoShell();
 
-  const notePageMatch = pathname.match(/^\/prototype\/n\/([^/]+)/);
-  const noteSlugFromPath = notePageMatch?.[1];
+  const noteSlugFromPath = matchPrototypeNoteId(pathname);
   const toolbarNoteId =
     noteSlugFromPath ? normalizeNoteIdFromParam(noteSlugFromPath) : null;
 
@@ -70,7 +70,7 @@ export default function NativeToolbar() {
 
   const noteSpaceId = toolbarNote?.spaces?.[0]?.id ?? homeSpaceId;
 
-  const isOnNotePage = !!pathname.match(/^\/prototype\/n\//);
+  const isOnNotePage = isPrototypeNotePath(pathname);
 
   const useShellFolderChip =
     isOnNotePage &&
@@ -105,7 +105,7 @@ export default function NativeToolbar() {
           if (nid) {
             if (isMobileSidebar) closeDrawer();
             navigate({
-              to: '/prototype/n/$noteId',
+              to: prototypeNoteRouteTo(),
               params: { noteId: noteParamSlug(nid) },
             });
           } else {

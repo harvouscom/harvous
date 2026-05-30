@@ -8,6 +8,14 @@
 import { getBackTarget, popNavStack } from './nav-stack';
 import { cycleTabNavStep, navigatePersistentNavStep } from './keyboard-navigation-helpers';
 import { detectEntityTypeFromPath, extractIdFromPath, idToUrl } from './url-helpers';
+import {
+  isPrototypeNotePath,
+  isPrototypeShellPath,
+  matchPrototypeNoteId,
+  prototypeHomePath,
+  prototypeHref,
+  prototypeSettingsRouteTo,
+} from '@/lib/prototype-path';
 
 /** Second press of the same browser-conflicting shortcut within this window lets the browser handle it. */
 const PASSTHROUGH_WINDOW_MS = 600;
@@ -85,11 +93,11 @@ function getPageContext(): { isNote: boolean; isThread: boolean; isSpace: boolea
 }
 
 function isPrototypeRoute(path: string): boolean {
-  return path === '/prototype' || path.startsWith('/prototype/');
+  return isPrototypeShellPath(path);
 }
 
 function isPrototypeNoteRoute(path: string): boolean {
-  return /^\/prototype\/n\/[^/]+/.test(path);
+  return isPrototypeNotePath(path);
 }
 
 function isElementInEditorContext(activeElement: HTMLElement | null): boolean {
@@ -296,9 +304,8 @@ function tryHierarchyNavigateBack(): boolean {
 }
 
 function extractPrototypeNoteId(path: string): string | null {
-  const m = path.match(/^\/prototype\/n\/([^/]+)/);
-  if (!m) return null;
-  const slug = m[1];
+  const slug = matchPrototypeNoteId(path);
+  if (!slug) return null;
   return slug.startsWith('note_') ? slug : `note_${slug}`;
 }
 
@@ -331,12 +338,12 @@ function handlePrototypeKeyboardShortcut(event: KeyboardEvent): boolean {
     }
     if (key === 'k') {
       event.preventDefault();
-      navigateTo('/prototype/search');
+      navigateTo(prototypeHref('search'));
       return true;
     }
     if (event.key === ',') {
       event.preventDefault();
-      navigateTo('/prototype/settings');
+      navigateTo(prototypeSettingsRouteTo());
       return true;
     }
     if (key === 'b') {
@@ -394,22 +401,23 @@ function handlePrototypeKeyboardShortcut(event: KeyboardEvent): boolean {
     if (shouldPassThroughToBrowser(event, 'prototype-mod-arrowleft')) return true;
     event.preventDefault();
 
-    if (path.startsWith('/prototype/settings/')) {
-      navigateTo('/prototype/settings');
+    const settingsRoot = prototypeSettingsRouteTo();
+    if (path.startsWith(`${settingsRoot}/`)) {
+      navigateTo(settingsRoot);
       return true;
     }
-    if (path === '/prototype/settings' || path === '/prototype/settings/') {
-      navigateTo('/prototype/');
+    if (path === settingsRoot || path === `${settingsRoot}/`) {
+      navigateTo(prototypeHomePath());
       return true;
     }
-    if (path.startsWith('/prototype/n/') || path.startsWith('/prototype/search')) {
-      navigateTo('/prototype/');
+    if (isPrototypeNotePath(path) || path.startsWith(prototypeHref('search'))) {
+      navigateTo(prototypeHomePath());
       return true;
     }
     if (window.history.length > 1) {
       window.history.back();
     } else {
-      navigateTo('/prototype/');
+      navigateTo(prototypeHomePath());
     }
     return true;
   }

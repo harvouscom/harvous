@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from '@tanstack/react-router';
+import { prototypeHomeRouteTo } from '@/lib/prototype-path';
 import { useAuth } from '@clerk/clerk-react';
 import { useQueryClient } from '@tanstack/react-query';
 import CardFullEditable from '@/components/react/CardFullEditable';
@@ -189,7 +190,7 @@ export default function PublicSharedNotePage() {
                             className="public-cta-btn"
                             onClick={() => {
                               void queryClient.invalidateQueries({ queryKey: ['dashboard'] });
-                              navigate({ to: '/prototype' as any });
+                              navigate({ to: prototypeHomeRouteTo() as any });
                             }}
                           >
                             View in my Harvous

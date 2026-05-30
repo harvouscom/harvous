@@ -7,6 +7,7 @@ import { api, APIError } from '../../lib/api';
 import { useAcceptInvitation } from '../../hooks/mutations/useAcceptInvitation';
 import { navigationQueryKeyPrefix } from '../../hooks/queries/useNavigation';
 import { idToUrl } from '@/utils/url-helpers';
+import { prototypeHomePath, prototypeHomeRouteTo } from '@/lib/prototype-path';
 import { PublicTopBar, CircleQuestionIcon } from './public-shared';
 
 interface InvitationResponse {
@@ -121,7 +122,7 @@ export default function PublicInvitationPage() {
                 <p className="public-error__message">
                   This invitation link is no longer valid. Please request a new invitation from the space owner.
                 </p>
-                <a href="/prototype" className="public-error__link">Go to app</a>
+                <a href={prototypeHomePath()} className="public-error__link">Go to app</a>
               </div>
             ) : (error === 'already_used' || isAlreadyUsed) ? (
               <div className="public-error">
@@ -132,7 +133,7 @@ export default function PublicInvitationPage() {
                 <p className="public-error__message">
                   This invitation link has already been used and is no longer active.
                 </p>
-                <a href="/prototype" className="public-error__link">Go to app</a>
+                <a href={prototypeHomePath()} className="public-error__link">Go to app</a>
               </div>
             ) : invitation ? (
               <SubtleContentMount>
@@ -180,7 +181,7 @@ export default function PublicInvitationPage() {
                           Sign in to accept
                         </a>
                       ) : data?.alreadyMember ? (
-                        <button className="public-cta-btn" onClick={() => navigate({ to: '/prototype' as any })}>
+                        <button className="public-cta-btn" onClick={() => navigate({ to: prototypeHomeRouteTo() as any })}>
                           Go to app
                         </button>
                       ) : (

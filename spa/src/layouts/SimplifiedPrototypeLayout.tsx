@@ -29,6 +29,14 @@ import {
   readBackground,
 } from '../lib/prototype-background';
 import { noteParamSlug } from '../pages/prototype/proto-route-slugs';
+import {
+  isPrototypeHomePath,
+  isPrototypeNotePath,
+  isPrototypeSearchPath,
+  isPrototypeShellPath,
+  prototypeHomePath,
+  prototypeNoteRouteTo,
+} from '@/lib/prototype-path';
 
 export default function SimplifiedPrototypeLayout() {
   const { isLoaded, isSignedIn } = useAuth();
@@ -63,7 +71,10 @@ export default function SimplifiedPrototypeLayout() {
 
   useEffect(() => {
     if (!isLoaded || isSignedIn) return;
-    const path = typeof window !== 'undefined' ? `${window.location.pathname}${window.location.search || ''}` : '/prototype';
+    const path =
+      typeof window !== 'undefined'
+        ? `${window.location.pathname}${window.location.search || ''}`
+        : prototypeHomePath();
     router.navigate({
       to: '/sign-in',
       search: { redirect_url: path },
@@ -74,10 +85,7 @@ export default function SimplifiedPrototypeLayout() {
   useEffect(() => {
     if (!isLoaded || !isSignedIn) return;
     if (!navReady || !homeSpaceId) return;
-    const onMain =
-      pathname === '/prototype' ||
-      pathname === '/prototype/' ||
-      pathname.startsWith('/prototype/n/');
+    const onMain = isPrototypeHomePath(pathname) || isPrototypeNotePath(pathname);
     if (!onMain) return;
     try {
       localStorage.setItem(PROTO_LAST_SPACE_KEY, homeSpaceId);
@@ -125,8 +133,8 @@ function PrototypeAuthenticatedChrome({ userId }: { userId?: string }) {
   const resizeHandleRef = useRef<HTMLDivElement | null>(null);
   const widthRef = useRef(sidebarWidth);
 
-  const hideSidebar = pathname.startsWith('/prototype/search');
-  const isNoteRoute = pathname.startsWith('/prototype/n/');
+  const hideSidebar = isPrototypeSearchPath(pathname);
+  const isNoteRoute = isPrototypeNotePath(pathname);
   // inspector is rendered inline in PrototypeNotePage (flex-row), no extra grid column needed
   void inspectorOpen;
 
@@ -160,7 +168,7 @@ function PrototypeAuthenticatedChrome({ userId }: { userId?: string }) {
     let debounceTimer: ReturnType<typeof setTimeout> | null = null;
     const onVisible = () => {
       if (document.visibilityState !== 'visible') return;
-      if (!pathname.startsWith('/prototype')) return;
+      if (!isPrototypeShellPath(pathname)) return;
       if (debounceTimer) clearTimeout(debounceTimer);
       debounceTimer = setTimeout(() => {
         debounceTimer = null;
@@ -378,7 +386,7 @@ function PrototypeShortcutBridge() {
           }
           if (isMobileSidebar) closeDrawer();
           navigate.navigate({
-            to: '/prototype/n/$noteId',
+            to: prototypeNoteRouteTo(),
             params: { noteId: noteParamSlug(nid) },
           });
         },
@@ -419,7 +427,7 @@ function PrototypeShortcutBridge() {
     const onNewNote = () => createPrototypeNote();
     const onToggleSidebar = () => togglePrototypeSidebar();
     const onToggleInspector = () => {
-      if (!pathname.startsWith('/prototype/n/')) return;
+      if (!isPrototypeNotePath(pathname)) return;
       toggleInspector();
     };
     const onFocusList = () => focusPrototypeNoteList();

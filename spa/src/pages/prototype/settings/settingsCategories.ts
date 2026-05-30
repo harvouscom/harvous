@@ -7,6 +7,7 @@
  * HarvousSettingsRoute.swift (Account, Study, Appearance, Sharing, …).
  */
 import type { IconName } from '@/components/react/Icon';
+import { prototypeHref } from '@/lib/prototype-path';
 
 export interface SettingsCategory {
   key: string;
@@ -22,28 +23,28 @@ export const SETTINGS_CATEGORIES: SettingsCategory[] = [
   {
     key: 'account',
     title: 'Account',
-    route: '/prototype/settings/account',
+    route: prototypeHref('settings/account'),
     icon: 'circle-user',
     footnote: 'Your name, email, and password.',
   },
   {
     key: 'translation',
     title: 'Default Bible translation',
-    route: '/prototype/settings/translation',
+    route: prototypeHref('settings/translation'),
     icon: 'book-open',
     footnote: 'The translation used across the app.',
   },
   {
     key: 'church',
     title: 'My Church',
-    route: '/prototype/settings/church',
+    route: prototypeHref('settings/church'),
     icon: 'church',
     footnote: 'Your church details, synced across your devices.',
   },
   {
     key: 'appearance',
     title: 'Appearance',
-    route: '/prototype/settings/appearance',
+    route: prototypeHref('settings/appearance'),
     icon: 'paintbrush',
     footnote: 'Background color or image behind the app.',
   },
@@ -51,28 +52,28 @@ export const SETTINGS_CATEGORIES: SettingsCategory[] = [
   {
     key: 'sharing',
     title: 'Sharing',
-    route: '/prototype/settings/sharing',
+    route: prototypeHref('settings/sharing'),
     icon: 'share',
     footnote: 'See what you have shared and stop sharing.',
   },
   {
     key: 'data',
     title: 'My Data',
-    route: '/prototype/settings/data',
+    route: prototypeHref('settings/data'),
     icon: 'cloud-arrow-up',
     footnote: 'Export, import, or delete your data.',
   },
   {
     key: 'support',
     title: 'Get Support',
-    route: '/prototype/settings/support',
+    route: prototypeHref('settings/support'),
     icon: 'circle-info',
     footnote: 'Get help or contact us.',
   },
   {
     key: 'keyboardShortcuts',
     title: 'Keyboard shortcuts',
-    route: '/prototype/settings/keyboard-shortcuts',
+    route: prototypeHref('settings/keyboard-shortcuts'),
     icon: 'keyboard',
     footnote: 'On Mac and iPad.',
   },

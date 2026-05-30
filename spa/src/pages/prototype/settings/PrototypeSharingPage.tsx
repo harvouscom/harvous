@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Link } from '@tanstack/react-router';
+import { prototypeNoteRouteTo } from '@/lib/prototype-path';
 import { toast } from '@/utils/toast';
 import { useShareNote } from '../../../hooks/mutations/useShareNote';
 import { mySharingQueryKey, useMySharing, type SharedNoteItem } from '../../../hooks/queries/useMySharing';
@@ -65,7 +66,7 @@ export default function PrototypeSharingPage() {
           {notes.map((note) => (
             <div key={note.id} className="proto-sharing-row">
               <Link
-                to="/prototype/n/$noteId"
+                to={prototypeNoteRouteTo()}
                 params={{ noteId: noteParamSlug(note.id) }}
                 search={{}}
                 className="proto-sharing-row__title"

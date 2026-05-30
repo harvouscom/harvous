@@ -1,7 +1,3 @@
-# new.harvous.com root → prototype shell (absolute URLs; force beats index.html shadowing)
-https://new.harvous.com/  https://new.harvous.com/prototype/  302!
-http://new.harvous.com/   https://new.harvous.com/prototype/  302!
-
 # API routes → Hono Netlify Function
 /api/*  /.netlify/functions/api/:splat  200
 

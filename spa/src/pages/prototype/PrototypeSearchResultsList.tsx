@@ -1,4 +1,5 @@
 import { Link } from '@tanstack/react-router';
+import { prototypeNoteRouteTo } from '@/lib/prototype-path';
 import { MIN_SEARCH_QUERY_LENGTH } from '@/utils/search-query';
 import { useSearch } from '../../../../src/hooks/useSearch';
 import PrototypeSearchResultRow from './components/PrototypeSearchResultRow';
@@ -65,7 +66,7 @@ export default function PrototypeSearchResultsList({ query, spaceId }: Prototype
       {results.map((result) => (
           <Link
             key={result.id}
-            to="/prototype/n/$noteId"
+            to={prototypeNoteRouteTo()}
             params={{ noteId: noteSlug(result.id) }}
             style={{ textDecoration: 'none' }}
           >

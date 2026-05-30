@@ -9,6 +9,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useRouterState } from '@tanstack/react-router';
 import Icon from '@/components/react/Icon';
 import { resolveClerkProfileImageUrl } from '../../lib/clerk-profile-image';
+import { prototypeSettingsRouteTo } from '@/lib/prototype-path';
 import { storeSettingsOpenerPath } from '../../lib/prototype-settings-opener';
 import { updateCachedProfile, useProfile } from '../../hooks/queries/useProfile';
 import ProtoPopoverShell from './ProtoPopoverShell';
@@ -113,7 +114,7 @@ export default function AccountMenu({ iconSize, disabled = false }: { iconSize: 
               onClick={() => {
                 setOpen(false);
                 storeSettingsOpenerPath(`${pathname}${searchRaw ?? ''}`);
-                void navigate({ to: '/prototype/settings' });
+                void navigate({ to: prototypeSettingsRouteTo() });
               }}
             >
               <span className="proto-menu-item__icon" aria-hidden>

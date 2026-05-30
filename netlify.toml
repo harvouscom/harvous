@@ -17,18 +17,11 @@
   # Plan ID is inlined into SPA bundle by Vite; it's a public plan identifier, not a secret
   SECRETS_SCAN_OMIT_KEYS = "VITE_CLERK_UNLIMITED_PLAN_ID,CLERK_UNLIMITED_PLAN_ID"
 
-# new.harvous.com defaults to the 2.0 prototype shell (Classic stays default on app.harvous.com).
-# Use absolute URLs in from/to (Netlify domain rules); force=true beats index.html shadowing.
-# Duplicated in public/_redirects for reliability. /prototype/* deep links use the SPA catch-all.
+# new.harvous.com serves the 2.0 shell at / (SPA host routing). Classic app stays on app.harvous.com.
+# Optional: strip legacy /prototype bookmarks on the new host only.
 [[redirects]]
-  from = "https://new.harvous.com/"
-  to = "https://new.harvous.com/prototype/"
-  status = 302
-  force = true
-
-[[redirects]]
-  from = "https://new.harvous.com"
-  to = "https://new.harvous.com/prototype/"
+  from = "https://new.harvous.com/prototype/*"
+  to = "https://new.harvous.com/:splat"
   status = 302
   force = true
 

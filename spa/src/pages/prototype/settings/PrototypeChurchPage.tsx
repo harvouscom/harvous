@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
+import { prototypeSettingsRouteTo } from '@/lib/prototype-path';
 import { useProfile } from '../../../hooks/queries/useProfile';
 import { useUpdateChurch } from '../../../hooks/mutations/useUpdateChurch';
 import { SettingsShell } from './SettingsShell';
@@ -63,7 +64,7 @@ export default function PrototypeChurchPage() {
   const handleSave = () => {
     updateChurch.mutate(
       { churchName: name, churchCity: city, churchState: state, churchCountry: country },
-      { onSuccess: () => navigate({ to: '/prototype/settings' }) },
+      { onSuccess: () => navigate({ to: prototypeSettingsRouteTo() }) },
     );
   };
 

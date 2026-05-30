@@ -1,3 +1,5 @@
+import { prototypeHomePath } from '@/lib/prototype-path';
+
 /** Shared icons for public pages. */
 
 /**
@@ -38,7 +40,7 @@ export function PublicTopBar({ isSignedIn }: { isSignedIn: boolean }) {
           <span className="public-toolbar__wordmark">Harvous</span>
         </a>
         {isSignedIn ? (
-          <a href="/prototype" className="public-toolbar__cta">
+          <a href={prototypeHomePath()} className="public-toolbar__cta">
             Open app
           </a>
         ) : (

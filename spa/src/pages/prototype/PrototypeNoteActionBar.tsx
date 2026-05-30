@@ -1,5 +1,6 @@
 import { type FocusEvent, type MouseEvent as ReactMouseEvent, useRef, useState } from 'react';
 import { Link } from '@tanstack/react-router';
+import { prototypeNoteRouteTo } from '@/lib/prototype-path';
 import Icon from '@/components/react/Icon';
 import LinkPreviewCard from '@/components/react/LinkPreviewCard';
 import type { LinkedNoteRef } from '../../hooks/queries/useNote';
@@ -88,7 +89,7 @@ function ConnectedNotePill({ note, direction }: ConnectedNotePillProps) {
   return (
     <>
       <Link
-        to="/prototype/n/$noteId"
+        to={prototypeNoteRouteTo()}
         params={{ noteId: noteParamSlug(note.id) }}
         className="proto-note-action-bar__pill proto-note-action-bar__pill--link"
         onMouseEnter={(e: ReactMouseEvent<HTMLElement>) => { captureAnchor(e); scheduleShow(); }}

@@ -1,6 +1,11 @@
 import { Link, useRouterState } from '@tanstack/react-router';
 import { useSpace } from '../../hooks/queries/useSpace';
 import { usePrototypeHomeSpaceId } from '../../hooks/usePrototypeHomeSpaceId';
+import {
+  isPrototypeHomePath,
+  isPrototypeNotePath,
+  matchLegacyPrototypeSpaceId,
+} from '@/lib/prototype-path';
 
 function spaceSlug(id: string) {
   return id.startsWith('space_') ? id.slice('space_'.length) : id;
@@ -17,13 +22,12 @@ export default function SpacePillFooter() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const { homeSpaceId } = usePrototypeHomeSpaceId();
 
-  const legacyMatch = pathname.match(/^\/prototype\/space\/([^/]+)/);
-  const onFlatPrototypeHome =
-    pathname === '/prototype' || pathname === '/prototype/' || pathname.startsWith('/prototype/n/');
-  const spaceIdFromPath = legacyMatch?.[1]
-    ? legacyMatch[1].startsWith('space_')
-      ? legacyMatch[1]
-      : `space_${legacyMatch[1]}`
+  const legacySpaceId = matchLegacyPrototypeSpaceId(pathname);
+  const onFlatPrototypeHome = isPrototypeHomePath(pathname) || isPrototypeNotePath(pathname);
+  const spaceIdFromPath = legacySpaceId
+    ? legacySpaceId.startsWith('space_')
+      ? legacySpaceId
+      : `space_${legacySpaceId}`
     : onFlatPrototypeHome
       ? homeSpaceId ?? null
       : null;
