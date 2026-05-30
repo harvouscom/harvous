@@ -1,7 +1,8 @@
 ---
-// Closing dual-CTA card. Craft-style — soft mint pastel background with
-// painterly overlays, large display heading, two buttons: a translucent
-// "Continue on web" pill and a solid black "Download on the App Store".
+// Closing CTA card. Craft-style — soft mint pastel background with
+// painterly overlays, large display heading, and a single "Start for free"
+// primary button (native apps are not yet on the App Store).
+import CTAButton from "./CTAButton.astro";
 ---
 
 <section class="px-4 pb-20 pt-4">
@@ -24,24 +25,10 @@
         A notes app thoughtfully designed for Bible study — for a practice that isn't just on Sundays.
       </p>
 
-      <div class="mt-10 flex flex-col items-center justify-center gap-3 sm:flex-row sm:gap-4">
-        <a
-          href="https://app.harvous.com/sign-up"
-          class="inline-flex items-center justify-center rounded-full bg-white/70 px-7 py-4 text-base font-semibold shadow-[0_10px_30px_-12px_rgba(20,18,12,0.2)] ring-1 ring-white/60 backdrop-blur transition hover:bg-white/90"
-          style="color: var(--color-cream-ink);"
-        >
-          Continue on web
-        </a>
-        <a
-          href="#"
-          class="inline-flex items-center justify-center gap-2.5 rounded-full bg-[linear-gradient(180deg,#5a92ff_0%,#3869e6_55%,#2456d9_100%)] px-7 py-4 text-base font-semibold text-white shadow-[0_1px_0_rgba(255,255,255,0.35)_inset,0_-1px_0_rgba(0,0,0,0.12)_inset,0_18px_40px_-14px_rgba(56,105,230,0.55)] ring-1 ring-[#2456d9]/40 transition-all hover:brightness-[1.05]"
-        >
-          <span>Download on the</span>
-          <svg class="h-5 w-5" viewBox="0 0 384 512" fill="currentColor" aria-hidden="true">
-            <path d="M318.7 268.7c-.2-36.7 16.4-64.4 50-84.8-18.8-26.9-47.2-41.7-84.7-44.6-35.5-2.8-74.3 20.7-88.5 20.7-15 0-49.4-19.7-76.4-19.7C63.3 141.2 4 184.8 4 273.5q0 39.3 14.4 81.2c12.8 36.7 59 126.7 107.2 125.2 25.2-.6 43-17.9 75.8-17.9 31.8 0 48.3 17.9 76.4 17.9 48.6-.7 90.4-82.5 102.6-119.3-65.2-30.7-61.7-90-61.7-91.9zm-56.6-164.2c27.3-32.4 24.8-61.9 24-72.5-24.1 1.4-52 16.4-67.9 34.9-17.5 19.8-27.8 44.3-25.6 71.9 26.1 2 49.9-11.4 69.5-34.3z"/>
-          </svg>
-          <span>App Store</span>
-        </a>
+      <div class="mt-10 flex justify-center">
+        <CTAButton href="https://app.harvous.com/sign-up" variant="primary" size="lg" external>
+          Start for free
+        </CTAButton>
       </div>
     </div>
   </div>

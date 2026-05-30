@@ -1,91 +1,35 @@
 ---
 const year = new Date().getFullYear();
 
-const columns = [
-  {
-    heading: "Product",
-    links: [
-      { label: "Features", href: "/features" },
-      { label: "Pricing", href: "/pricing" },
-      { label: "What's new", href: "/changelog" },
-      { label: "Roadmap", href: "/roadmap" },
-    ],
-  },
-  {
-    heading: "Use cases",
-    links: [
-      { label: "Daily journal", href: "/use-cases/daily-journal" },
-      { label: "Sermon notes", href: "/use-cases/sermon-notes" },
-      { label: "Small group", href: "/use-cases/small-group" },
-      { label: "Book study", href: "/use-cases/book-study" },
-      { label: "Topical study", href: "/use-cases/topical-study" },
-    ],
-  },
-  {
-    heading: "Download",
-    links: [
-      { label: "Harvous for Mac", href: "https://app.harvous.com/sign-up" },
-      { label: "Harvous for iPhone", href: "https://app.harvous.com/sign-up" },
-      { label: "Harvous for iPad", href: "https://app.harvous.com/sign-up" },
-      { label: "Harvous on web", href: "https://app.harvous.com" },
-    ],
-  },
-  {
-    heading: "Resources",
-    links: [
-      { label: "Help", href: "mailto:derek@harvous.com?subject=Harvous%20Help" },
-      { label: "Compare", href: "/compare" },
-      { label: "Blog", href: "/blog" },
-      { label: "Status", href: "https://status.harvous.com/" },
-      { label: "GitHub", href: "https://github.com/harvouscom/harvous" },
-    ],
-  },
-  {
-    heading: "Company",
-    links: [
-      { label: "About", href: "/about" },
-      { label: "Privacy", href: "/privacy" },
-      { label: "Terms", href: "/terms" },
-      { label: "Sign in", href: "https://app.harvous.com/sign-in" },
-      { label: "Start for free", href: "https://app.harvous.com/sign-up" },
-    ],
-  },
+const productLinks = [
+  { label: "Features", href: "/features" },
+  { label: "Use cases", href: "/use-cases" },
+  { label: "Blog", href: "/blog" },
+];
+
+const links = [
+  { label: "Help", href: "mailto:derek@harvous.com?subject=Harvous%20Help" },
+  { label: "Status", href: "https://status.harvous.com/" },
+  { label: "About", href: "/about" },
+  { label: "Privacy", href: "/privacy" },
+  { label: "Terms", href: "/terms" },
 ];
 ---
 
-<footer class="px-4 pt-20">
-  <div class="relative mx-auto max-w-7xl overflow-hidden rounded-t-3xl bg-[#0e0d0a] text-white">
-    <div
-      aria-hidden="true"
-      class="pointer-events-none absolute inset-0 opacity-60"
-      style="background-image: radial-gradient(rgba(255,255,255,0.05) 1px, transparent 1px), radial-gradient(rgba(255,255,255,0.035) 1px, transparent 1px); background-size: 26px 26px, 14px 14px; background-position: 0 0, 7px 7px;"
-    ></div>
-
-    <div class="relative grid grid-cols-2 gap-x-8 gap-y-12 px-8 pt-16 pb-12 md:grid-cols-5 md:px-14 md:pt-20 md:pb-16">
-      {columns.map((col) => (
-        <div>
-          <h3 class="text-xs font-semibold uppercase tracking-[0.16em]" style="color: rgba(255,255,255,0.92);">
-            {col.heading}
-          </h3>
-          <ul class="mt-5 space-y-3 text-sm text-white/55">
-            {col.links.map((l) => (
-              <li>
-                <a href={l.href} class="transition hover:text-white">{l.label}</a>
-              </li>
-            ))}
-          </ul>
-        </div>
+<footer class="mx-auto max-w-6xl px-5 py-8">
+  <div class="border-t border-[var(--color-rule)] pt-8 text-xs text-[var(--color-ink-faint)]">
+    <nav class="flex flex-wrap items-center justify-center gap-x-5 gap-y-2 sm:justify-start">
+      {productLinks.map((l) => (
+        <a href={l.href} class="transition hover:text-[var(--color-ink)]">{l.label}</a>
       ))}
-    </div>
-
-    <div class="relative border-t border-white/10 px-8 py-6 md:px-14">
-      <div class="flex flex-col items-start justify-between gap-4 md:flex-row md:items-center">
-        <div class="flex items-center gap-3">
-          <span aria-hidden="true" class="inline-grid h-6 w-6 place-items-center rounded-md bg-white text-[11px] font-bold leading-none text-[var(--color-ink)]">H</span>
-          <p class="text-xs text-white/50">© {year} Testament Made LLC. All rights reserved.</p>
-        </div>
-        <p class="text-xs italic text-white/45">for a practice that isn't just on Sundays.</p>
-      </div>
+    </nav>
+    <div class="mt-4 flex flex-col items-center justify-between gap-4 sm:flex-row">
+      <p>© {year} Testament Made LLC. All rights reserved.</p>
+      <nav class="flex flex-wrap items-center gap-x-5 gap-y-2">
+        {links.map((l) => (
+          <a href={l.href} class="transition hover:text-[var(--color-ink)]">{l.label}</a>
+        ))}
+      </nav>
     </div>
   </div>
 </footer>
