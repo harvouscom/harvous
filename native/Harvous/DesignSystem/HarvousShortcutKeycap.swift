@@ -22,16 +22,12 @@ struct HarvousShortcutKeycap: View {
     let symbol: String
     var compact: Bool = false
 
+    @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.harvousGlassTint) private var glassTint
+    @Environment(HarvousAppearanceStore.self) private var appearanceStore
+
     var body: some View {
-        Text(symbol)
-            .font(
-                HarvousFonts.font(
-                    size: compact ? HarvousShortcutKeycapMetrics.hintFontSize : HarvousShortcutKeycapMetrics.settingsFontSize,
-                    weight: compact ? .semibold : .medium,
-                    design: .rounded
-                )
-            )
-            .foregroundStyle(.primary.opacity(compact ? 1 : 0.88))
+        keycapLabel
             .multilineTextAlignment(.center)
             .frame(
                 minWidth: compact ? HarvousShortcutKeycapMetrics.hintMinWidth : HarvousShortcutKeycapMetrics.settingsMinWidth,
@@ -47,7 +43,30 @@ struct HarvousShortcutKeycap: View {
                 RoundedRectangle(cornerRadius: compact ? 4 : 8, style: .continuous)
                     .strokeBorder(keyCapBorder, lineWidth: 1)
             }
-            .shadow(color: Color.black.opacity(compact ? 0 : 0.07), radius: 0, x: 0, y: compact ? 0 : 1)
+            .shadow(color: keyCapShadow, radius: 0, x: 0, y: compact ? 0 : 1)
+    }
+
+    @ViewBuilder
+    private var keycapLabel: some View {
+        if isShiftSymbol {
+            Image("Harvous.CircleUp")
+                .renderingMode(.template)
+                .resizable()
+                .scaledToFit()
+                .frame(width: compact ? 9 : 11, height: compact ? 9 : 11)
+                .foregroundStyle(.primary.opacity(compact ? 1 : 0.88))
+                .accessibilityLabel("Shift")
+        } else {
+            Text(symbol)
+                .font(
+                    HarvousFonts.font(
+                        size: compact ? HarvousShortcutKeycapMetrics.hintFontSize : HarvousShortcutKeycapMetrics.settingsFontSize,
+                        weight: compact ? .semibold : .medium,
+                        design: .rounded
+                    )
+                )
+                .foregroundStyle(.primary.opacity(compact ? 1 : 0.88))
+        }
     }
 
     private var keyCapFill: Color {
@@ -65,12 +84,30 @@ struct HarvousShortcutKeycap: View {
         #endif
     }
 
+    private var isShiftSymbol: Bool {
+        symbol == "⇧" || symbol == "\u{21E7}"
+    }
+
+    private var resolvedCanvasColor: Color {
+        glassTint ?? HarvousAppearanceColors.defaultCanvasColor(for: colorScheme)
+    }
+
     private var keyCapBorder: Color {
-        #if os(macOS)
-        Color(nsColor: .separatorColor).opacity(0.9)
-        #else
-        Color(uiColor: .separator).opacity(0.85)
-        #endif
+        HarvousAppearanceBorders.keycapBorder(
+            canvasColor: resolvedCanvasColor,
+            isPhotoWallpaper: appearanceStore.isPhotoSelected(),
+            colorScheme: colorScheme,
+            compact: compact
+        )
+    }
+
+    private var keyCapShadow: Color {
+        guard !compact else { return .clear }
+        return HarvousAppearanceBorders.keycapShadow(
+            canvasColor: resolvedCanvasColor,
+            isPhotoWallpaper: appearanceStore.isPhotoSelected(),
+            colorScheme: colorScheme
+        )
     }
 }
 

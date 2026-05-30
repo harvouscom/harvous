@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import SquareButton from './SquareButton';
+import ShortcutKeycap from './ShortcutKeycap';
 import DefaultTranslationPanel from './DefaultTranslationPanel';
 import MyChurchPanel from './MyChurchPanel';
 import LockPinPanel from './LockPinPanel';
@@ -91,7 +92,7 @@ export default function MyPreferencesPanel({ onClose, inBottomSheet = false }: M
                                     {i > 0 ? (
                                       <span className="keyboard-shortcuts-panel__chord-sep">+</span>
                                     ) : null}
-                                    <kbd>{part}</kbd>
+                                    <ShortcutKeycap symbol={part} />
                                   </React.Fragment>
                                 ))}
                               </span>

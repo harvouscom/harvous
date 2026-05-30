@@ -63,6 +63,7 @@ interface MobileNavigationProps {
   currentThread?: Thread | null;
   initials?: string;
   userColor?: string;
+  avatarImageUrl?: string | null;
   /** Current pathname for route-derived selected space and currentItemId sync */
   pathname?: string;
   /** Current search string for ?space= */
@@ -82,6 +83,7 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
   currentThread = null,
   initials = 'U',
   userColor = 'blue',
+  avatarImageUrl = null,
   pathname: pathnameProp = '',
   search: searchProp = '',
   initialPath = '',
@@ -134,11 +136,12 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
   const [profileData, setProfileData] = useState({
     initials: initials,
     userColor: userColor,
+    avatarImageUrl: avatarImageUrl ?? null,
   });
   // Sync avatar when parent passes updated profile (e.g. useProfile() resolve after sign-in)
   useEffect(() => {
-    setProfileData({ initials, userColor });
-  }, [initials, userColor]);
+    setProfileData({ initials, userColor, avatarImageUrl: avatarImageUrl ?? null });
+  }, [initials, userColor, avatarImageUrl]);
 
   // Keep localSpaces in sync with spaces prop (match desktop: merge, never re-add deleted)
   useEffect(() => {
@@ -1457,7 +1460,12 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
       {/* Avatar (Column 1: auto) */}
       <div className="mobile-nav__col">
         <div style={{ cursor: 'pointer' }} onClick={() => navigate('/profile')}>
-          <Avatar initials={profileData.initials} color={profileData.userColor} className="avatar--nav-compact" />
+          <Avatar
+            initials={profileData.initials}
+            color={profileData.userColor}
+            imageUrl={profileData.avatarImageUrl}
+            className="avatar--nav-compact"
+          />
         </div>
       </div>
 

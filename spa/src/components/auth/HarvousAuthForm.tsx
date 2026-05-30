@@ -110,7 +110,7 @@ export default function HarvousAuthForm({
           await setSignInActive({ session: result.createdSessionId });
           redirectAfterAuth();
         } else {
-          setErrorMessage('Could not complete sign-in. Please try again.');
+          setErrorMessage('Could not complete log-in. Please try again.');
         }
       } else if (mode === 'signUp' && signUp) {
         const result = await signUp.attemptEmailAddressVerification({ code: trimmed });
@@ -167,7 +167,7 @@ export default function HarvousAuthForm({
             {isBusy ? (
               <span className="harvous-auth-form__spinner" aria-hidden />
             ) : mode === 'signIn' ? (
-              'Sign in with email'
+              'Log in with email'
             ) : (
               'Send sign-in code'
             )}
@@ -219,7 +219,7 @@ export default function HarvousAuthForm({
       {step === 'enterEmail' && (
         <p className="auth-page__footer-switch">
           {mode === 'signIn' ? "Don't have an account?" : 'Already have an account?'}
-          <a href={switcherHref}>{mode === 'signIn' ? 'Sign up' : 'Sign in'}</a>
+          <a href={switcherHref}>{mode === 'signIn' ? 'Sign up' : 'Log in'}</a>
         </p>
       )}
       <p className="auth-page__secured-by">Secured by Clerk</p>

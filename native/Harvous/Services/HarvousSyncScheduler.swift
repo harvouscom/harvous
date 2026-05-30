@@ -13,6 +13,8 @@ enum HarvousSyncScheduler {
     private static let flushDebounceNanos: UInt64 = 1_500_000_000
     /// Coalesce pulls after typing; long enough that a 100+ note ingest does not run per autosave.
     private static let pullDebounceNanos: UInt64 = 10_000_000_000
+    /// Faster pull when another device signals a change via Supabase Realtime.
+    private static let realtimePullDebounceNanos: UInt64 = 500_000_000
 
     @MainActor
     private static var registeredContext: ModelContext?
@@ -57,6 +59,13 @@ enum HarvousSyncScheduler {
         }
     }
 
+    /// Pull after a remote Realtime invalidation (shorter debounce than post-upload pull).
+    nonisolated static func scheduleRealtimePull() {
+        Task { @MainActor in
+            scheduleRealtimePullOnMainActor()
+        }
+    }
+
     /// Full upload + download cycle (deletes, infrequent explicit refresh).
     nonisolated static func scheduleFullSync() {
         Task { @MainActor in
@@ -80,9 +89,19 @@ enum HarvousSyncScheduler {
 
     @MainActor
     private static func schedulePullOnMainActor() {
+        schedulePullOnMainActor(debounceNanos: pullDebounceNanos)
+    }
+
+    @MainActor
+    private static func scheduleRealtimePullOnMainActor() {
+        schedulePullOnMainActor(debounceNanos: realtimePullDebounceNanos)
+    }
+
+    @MainActor
+    private static func schedulePullOnMainActor(debounceNanos: UInt64) {
         pullTask?.cancel()
         pullTask = Task { @MainActor in
-            try? await Task.sleep(nanoseconds: pullDebounceNanos)
+            try? await Task.sleep(nanoseconds: debounceNanos)
             guard !Task.isCancelled else { return }
             await runPull()
         }

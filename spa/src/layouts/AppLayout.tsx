@@ -7,6 +7,7 @@ import { isPWA } from '../../../src/utils/content-list-helpers';
 import { useAuth, useUser } from '@clerk/clerk-react';
 import ReferralCreditInit from '../../../src/components/react/ReferralCreditInit';
 import SyncManagerIsland from '../../../src/components/react/SyncManagerIsland';
+import { useRealtimeSync } from '@/hooks/useRealtimeSync';
 import { useQueryClient } from '@tanstack/react-query';
 import { Outlet, useRouter, useRouterState } from '@tanstack/react-router';
 import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
@@ -22,6 +23,7 @@ import ActionStrip from '../../../src/components/react/ActionStrip';
 import { getMenuOptions, shouldShowActionStripMenu } from '../../../src/utils/menu-options';
 import { urlToId } from '@/utils/url-helpers';
 import { api } from '../lib/api';
+import { resolveClerkProfileImageUrl } from '../lib/clerk-profile-image';
 import { useRecordThreadVisit, useRecordNoteVisit } from '../hooks/mutations/useRecordVisit';
 import {
   useNavigation,
@@ -61,8 +63,9 @@ const HARVOUS_SESSION_ACTIVE_KEY = 'harvous-session-active';
 
 export default function AppLayout() {
   const isOffline = useIsOffline();
-  const { isLoaded, isSignedIn, signOut } = useAuth();
+  const { isLoaded, isSignedIn, signOut, userId } = useAuth();
   const { user } = useUser();
+  useRealtimeSync(isSignedIn ? userId ?? undefined : undefined);
   const router = useRouter();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const searchRaw = useRouterState({ select: (s) => s.location.search });
@@ -125,6 +128,10 @@ export default function AppLayout() {
   const navAvatarInitials = useMemo(
     () => getNavAvatarInitials(user ?? undefined, profile ?? localStorageNames ?? undefined),
     [user, profile, localStorageNames],
+  );
+  const navAvatarImageUrl = useMemo(
+    () => resolveClerkProfileImageUrl(user ?? undefined, profile?.profileImageUrl),
+    [user, profile?.profileImageUrl],
   );
   const navDisplayName = useMemo(() => {
     const name = getNavDisplayName(user ?? undefined, profile);
@@ -906,6 +913,7 @@ export default function AppLayout() {
             currentId={currentId}
             showProfile={false}
             initials={navAvatarInitials}
+            avatarImageUrl={navAvatarImageUrl}
             userDisplayName={navDisplayName}
             userColor={profile?.userColor ?? getCachedUserColor() ?? 'blue'}
             pathname={pathname}
@@ -993,6 +1001,7 @@ export default function AppLayout() {
             currentSpace={currentSpace}
             currentThread={activeThread}
             initials={navAvatarInitials}
+            avatarImageUrl={navAvatarImageUrl}
             userColor={profile?.userColor ?? getCachedUserColor() ?? 'blue'}
             pathname={pathname}
             search={search}

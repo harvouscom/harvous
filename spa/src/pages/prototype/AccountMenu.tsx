@@ -1,28 +1,55 @@
 /**
  * Account menu — toolbar dropdown. Shows the signed-in name + email (like native
- * Mac's account screen) and a single entry into the prototype Settings hub.
+ * Mac's account screen), Settings, and Log out.
  * Mirrors SpaceSwitcherMenu / ListViewMenu (proto-menu popover, right-anchored).
  */
-import { useEffect, useRef, useState } from 'react';
+import { useClerk, useUser } from '@clerk/clerk-react';
+import { useQueryClient } from '@tanstack/react-query';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useRouterState } from '@tanstack/react-router';
 import Icon from '@/components/react/Icon';
+import { resolveClerkProfileImageUrl } from '../../lib/clerk-profile-image';
 import { storeSettingsOpenerPath } from '../../lib/prototype-settings-opener';
-import { useProfile } from '../../hooks/queries/useProfile';
+import { updateCachedProfile, useProfile } from '../../hooks/queries/useProfile';
 import ProtoPopoverShell from './ProtoPopoverShell';
 
 export default function AccountMenu({ iconSize, disabled = false }: { iconSize: number; disabled?: boolean }) {
+  const clerk = useClerk();
+  const { user } = useUser();
   const [open, setOpen] = useState(false);
+  const [isSigningOut, setIsSigningOut] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const searchRaw = useRouterState({ select: (s) => s.location.searchStr });
   const { data: profile } = useProfile();
+  const queryClient = useQueryClient();
+  const [photoLoadFailed, setPhotoLoadFailed] = useState(false);
+
+  const avatarImageUrl = useMemo(
+    () => resolveClerkProfileImageUrl(user, profile?.profileImageUrl),
+    [user, profile?.profileImageUrl],
+  );
+
+  useEffect(() => {
+    setPhotoLoadFailed(false);
+  }, [avatarImageUrl]);
+
+  useEffect(() => {
+    if (!user?.id || user.hasImage !== false) return;
+    updateCachedProfile({ profileImageUrl: null });
+    queryClient.setQueriesData<{ profileImageUrl?: string | null }>(
+      { queryKey: ['profile'] },
+      (old) => (old && typeof old === 'object' ? { ...old, profileImageUrl: null } : old),
+    );
+  }, [user?.hasImage, user?.id, queryClient]);
 
   const name =
     [profile?.firstName, profile?.lastName].filter(Boolean).join(' ').trim() ||
     profile?.displayName ||
     'Your account';
   const email = profile?.email ?? '';
+  const showProfilePhoto = Boolean(avatarImageUrl) && !photoLoadFailed;
 
   useEffect(() => {
     if (!open) return undefined;
@@ -56,7 +83,16 @@ export default function AccountMenu({ iconSize, disabled = false }: { iconSize: 
           setOpen((x) => !x);
         }}
       >
-        <Icon name="circle-user" size={iconSize} />
+        {showProfilePhoto ? (
+          <img
+            src={avatarImageUrl!}
+            alt=""
+            className="proto-profile-orb__photo"
+            onError={() => setPhotoLoadFailed(true)}
+          />
+        ) : (
+          <Icon name="circle-user" size={iconSize} />
+        )}
       </button>
 
       {open ? (
@@ -84,6 +120,24 @@ export default function AccountMenu({ iconSize, disabled = false }: { iconSize: 
                 <Icon name="gear" size={15} />
               </span>
               <span style={{ flex: 1, minWidth: 0 }}>Settings</span>
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              className="proto-menu-item"
+              disabled={isSigningOut}
+              onClick={() => {
+                setOpen(false);
+                setIsSigningOut(true);
+                void clerk.signOut({ redirectUrl: '/sign-in' }).finally(() => {
+                  setIsSigningOut(false);
+                });
+              }}
+            >
+              <span className="proto-menu-item__icon" aria-hidden>
+                <Icon name="right-from-bracket" size={15} />
+              </span>
+              <span style={{ flex: 1, minWidth: 0 }}>{isSigningOut ? 'Logging out…' : 'Log out'}</span>
             </button>
           </div>
         </ProtoPopoverShell>

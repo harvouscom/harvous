@@ -36,6 +36,7 @@ struct HarvousFAGlyph: View {
         #if os(macOS)
         if let img = HarvousFARasterMac.templateImage(named: assetName, edgePt: edgePt) {
             Image(nsImage: img)
+                .frame(width: edgePt, height: edgePt)
         } else {
             Image(systemName: "questionmark.circle")
                 .font(.system(size: edgePt))
@@ -43,6 +44,7 @@ struct HarvousFAGlyph: View {
         #elseif os(iOS)
         if let img = HarvousFARasterIOS.templateImage(named: assetName, edgePt: edgePt) {
             Image(uiImage: img)
+                .frame(width: edgePt, height: edgePt)
         } else {
             Image(systemName: "questionmark.circle")
                 .font(.system(size: edgePt))

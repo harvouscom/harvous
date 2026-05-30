@@ -150,6 +150,15 @@ struct NoteEditorView: View {
     /// Coalesces rapid keystroke-driven highlight paint reconciliation so the SwiftData fetch + sort
     /// does not run on every character — the cumulative main-thread cost was holding up nav back-button hits.
     @State private var reconcileStudyHighlightsTask: Task<Void, Never>?
+#if os(macOS)
+    /// Stable menu/command targets — refreshed only when `note?.id` changes (not every render).
+    @State private var macEditorDeleteAction: (() -> Void)?
+    @State private var macEditorNewConnectedAction: (() -> Void)?
+    @State private var macEditorNextHighlightAction: (() -> Void)?
+    @State private var macEditorPrevHighlightAction: (() -> Void)?
+    @State private var macEditorToggleHighlightDockAction: (() -> Void)?
+    @State private var macEditorRemoveHighlightAction: (() -> Void)?
+#endif
 
     /// When provided by a split-layout parent (macOS, iPad), the inspector panel is controlled externally.
     /// On iPhone this stays `.constant(false)` and the editor uses its internal sheet instead.
@@ -187,70 +196,52 @@ struct NoteEditorView: View {
 #if os(macOS)
     /// Extracted so the type checker doesn't have to resolve the whole modifier chain + lifecycleStack in one pass.
     private var noteEditorMacOSScene: some View {
-        // Pre-type the optional closures so the modifier chain has no ternary inference to do.
-        let hasNote = note != nil
-        let deleteAction: (() -> Void)? = hasNote ? { deleteCurrentNoteIfPossible() } : nil
-        let newConnectedAction: (() -> Void)? = hasNote ? { createConnectedNoteFromKeyboard() } : nil
-        let nextHighlightAction: (() -> Void)? = hasNote ? { focusNextStudyHighlight() } : nil
-        let prevHighlightAction: (() -> Void)? = hasNote ? { focusPreviousStudyHighlight() } : nil
-        let toggleHighlightDockAction: (() -> Void)? = hasNote ? { toggleStudyHighlightDockExpandedFromKeyboard() } : nil
-        let removeHighlightAction: (() -> Void)? = hasNote ? { removeActiveHighlightFromKeyboard() } : nil
-        return noteEditorMacOSFocusValues(
-            deleteAction: deleteAction,
-            newConnectedAction: newConnectedAction,
-            nextHighlightAction: nextHighlightAction,
-            prevHighlightAction: prevHighlightAction,
-            toggleHighlightDockAction: toggleHighlightDockAction,
-            removeHighlightAction: removeHighlightAction
-        )
+        noteEditorMacOSFocusValues()
     }
 
-    // Split into two functions so the type checker handles each half independently
-    // without inserting a Group node into the view tree (Group disrupts view identity
-    // and breaks dock animation continuity).
-    private func noteEditorMacOSFocusValues(
-        deleteAction: (() -> Void)?,
-        newConnectedAction: (() -> Void)?,
-        nextHighlightAction: (() -> Void)?,
-        prevHighlightAction: (() -> Void)?,
-        toggleHighlightDockAction: (() -> Void)?,
-        removeHighlightAction: (() -> Void)?
-    ) -> some View {
-        noteEditorInnerFocusValues(
-            deleteAction: deleteAction,
-            newConnectedAction: newConnectedAction,
-            nextHighlightAction: nextHighlightAction,
-            prevHighlightAction: prevHighlightAction,
-            toggleHighlightDockAction: toggleHighlightDockAction,
-            removeHighlightAction: removeHighlightAction
-        )
-        .onAppear {
-            proxy.onScripturePillKeyboardFocus = { ref, trans, range in
-                scripturePillTapped(reference: ref, translation: trans, range: range)
+    private func noteEditorMacOSFocusValues() -> some View {
+        noteEditorInnerFocusValues()
+            .onAppear {
+                proxy.onScripturePillKeyboardFocus = { ref, trans, range in
+                    scripturePillTapped(reference: ref, translation: trans, range: range)
+                }
             }
-        }
-        .onReceive(NotificationCenter.default.publisher(for: .harvousToggleActivePillDockExpanded)) { _ in
-            guard activePillDock != nil else { return }
-            activePillDockExpanded.toggle()
-        }
+            .onReceive(NotificationCenter.default.publisher(for: .harvousToggleActivePillDockExpanded)) { _ in
+                guard activePillDock != nil else { return }
+                activePillDockExpanded.toggle()
+            }
     }
 
-    private func noteEditorInnerFocusValues(
-        deleteAction: (() -> Void)?,
-        newConnectedAction: (() -> Void)?,
-        nextHighlightAction: (() -> Void)?,
-        prevHighlightAction: (() -> Void)?,
-        toggleHighlightDockAction: (() -> Void)?,
-        removeHighlightAction: (() -> Void)?
-    ) -> some View {
+    private func noteEditorInnerFocusValues() -> some View {
         noteEditorLifecycleStack
             .focusedObject(proxy)
-            .focusedSceneValue(\.deleteNoteAction, deleteAction)
-            .focusedSceneValue(\.newConnectedNoteAction, newConnectedAction)
-            .focusedSceneValue(\.nextStudyHighlightAction, nextHighlightAction)
-            .focusedSceneValue(\.previousStudyHighlightAction, prevHighlightAction)
-            .focusedSceneValue(\.toggleStudyHighlightDockExpandedAction, toggleHighlightDockAction)
-            .focusedSceneValue(\.removeActiveStudyHighlightAction, removeHighlightAction)
+            .focusedSceneValue(\.deleteNoteAction, macEditorDeleteAction)
+            .focusedSceneValue(\.newConnectedNoteAction, macEditorNewConnectedAction)
+            .focusedSceneValue(\.nextStudyHighlightAction, macEditorNextHighlightAction)
+            .focusedSceneValue(\.previousStudyHighlightAction, macEditorPrevHighlightAction)
+            .focusedSceneValue(\.toggleStudyHighlightDockExpandedAction, macEditorToggleHighlightDockAction)
+            .focusedSceneValue(\.removeActiveStudyHighlightAction, macEditorRemoveHighlightAction)
+            .onChange(of: note?.id, initial: true) { _, _ in
+                refreshMacEditorFocusedActions()
+            }
+    }
+
+    private func refreshMacEditorFocusedActions() {
+        guard note != nil else {
+            macEditorDeleteAction = nil
+            macEditorNewConnectedAction = nil
+            macEditorNextHighlightAction = nil
+            macEditorPrevHighlightAction = nil
+            macEditorToggleHighlightDockAction = nil
+            macEditorRemoveHighlightAction = nil
+            return
+        }
+        macEditorDeleteAction = { deleteCurrentNoteIfPossible() }
+        macEditorNewConnectedAction = { createConnectedNoteFromKeyboard() }
+        macEditorNextHighlightAction = { focusNextStudyHighlight() }
+        macEditorPrevHighlightAction = { focusPreviousStudyHighlight() }
+        macEditorToggleHighlightDockAction = { toggleStudyHighlightDockExpandedFromKeyboard() }
+        macEditorRemoveHighlightAction = { removeActiveHighlightFromKeyboard() }
     }
 #endif
 
@@ -1217,12 +1208,9 @@ struct NoteEditorView: View {
                 ToolbarItem(placement: .topBarTrailing) {
                     HStack(spacing: 2) {
                         NoteFindToolbarButton()
-                        NoteShareToolbarButton(
-                            note: note,
-                            shareSnapshot: { NoteShareSnapshot(title: title, body: editorState.plainText) }
-                        )
                         NoteMoreToolbarMenu(
                             note: note,
+                            shareSnapshot: { NoteShareSnapshot(title: title, body: editorState.plainText) },
                             onDeleteConfirmed: { deleteCurrentNoteIfPossible() },
                             onOpenNoteDetails: {
                                 withAnimation(HarvousAnimation.spring) { showInspectorIOS = true }

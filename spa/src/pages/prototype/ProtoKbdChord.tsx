@@ -1,4 +1,6 @@
-/** Per-character keycap row — matches native `SettingsShortcutKeycapsRow`. */
+import ShortcutKeycap, { keycapAccessibilityLabel } from '@/components/react/ShortcutKeycap';
+
+/** Per-character keycap row — matches native `HarvousShortcutKeycapsRow`. */
 export default function ProtoKbdChord({
   keys,
   compact = false,
@@ -23,12 +25,12 @@ export default function ProtoKbdChord({
     .filter(Boolean)
     .join(' ');
 
+  const ariaLabel = chars.map(keycapAccessibilityLabel).join(' ');
+
   return (
-    <span className={mods}>
+    <span className={mods} aria-label={ariaLabel}>
       {chars.map((symbol, index) => (
-        <kbd key={`${keys}-${index}-${symbol}`} className={`proto-kbd${compact ? ' proto-kbd--compact' : ''}`}>
-          {symbol}
-        </kbd>
+        <ShortcutKeycap key={`${keys}-${index}-${symbol}`} symbol={symbol} compact={compact} />
       ))}
     </span>
   );

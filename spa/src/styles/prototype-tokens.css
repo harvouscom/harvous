@@ -346,7 +346,7 @@ html.harvous-prototype-route {
   --pds-glass-rim: inset 0 -0.5px 0 oklch(0% 0 0 / 0.04);
 }
 
-/* Default + color preset — darker lines in light mode, more visible alpha. */
+/* Paper (base) + color preset — darker lines in light mode, more visible alpha. */
 html.harvous-prototype-route:not(.harvous-proto-wallpaper-image) {
   --pds-border: oklch(from var(--pds-canvas-bg, var(--pds-canvas-default)) calc(l * 0.9) c h / 0.26);
   --pds-border-soft: oklch(from var(--pds-canvas-bg, var(--pds-canvas-default)) calc(l * 0.93) c h / 0.15);

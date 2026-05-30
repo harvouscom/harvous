@@ -536,3 +536,26 @@ struct StudyHighlightPaint: Equatable {
     /// UTF-16 range in expanded plain (`harvousExpandedPlainText`).
     let expandedUTF16Range: NSRange
 }
+
+extension HarvousStudyHighlightMapper {
+    /// Stable digest for skipping redundant full-document highlight strip/reapply passes.
+    static func studyHighlightPaintSignature(
+        paints: [StudyHighlightPaint],
+        focusedThreadId: UUID?,
+        isDark: Bool
+    ) -> String {
+        let focus = focusedThreadId?.uuidString ?? ""
+        let body = paints
+            .sorted {
+                let lhs = $0.expandedUTF16Range.location
+                let rhs = $1.expandedUTF16Range.location
+                if lhs != rhs { return lhs < rhs }
+                return $0.threadId.uuidString < $1.threadId.uuidString
+            }
+            .map { p in
+                "\(p.threadId.uuidString):\(p.expandedUTF16Range.location):\(p.expandedUTF16Range.length):\(p.accent.rawValue):\(p.entryKind.rawValue)"
+            }
+            .joined(separator: ";")
+        return "\(isDark)|\(focus)|\(body)"
+    }
+}

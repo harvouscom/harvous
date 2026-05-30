@@ -5,7 +5,6 @@ dist-spa/
 # generated types
 .astro/
 server/routes/founder-letter.inline.generated.ts
-src/utils/onboarding-notes.generated.ts
 
 # dependencies
 node_modules/

@@ -310,7 +310,7 @@ struct MacSignInView: View {
 
     private var primaryButton: some View {
         Button { Task { await beginEmailFlow() } } label: {
-            primaryButtonLabel(title: mode == .signIn ? "Sign in with email" : "Send sign-in code")
+            primaryButtonLabel(title: mode == .signIn ? "Log in with email" : "Send sign-in code")
         }
         .buttonStyle(.plain)
         .keyboardShortcut(.defaultAction)
@@ -357,7 +357,7 @@ struct MacSignInView: View {
             Text(mode == .signIn ? "Don't have an account?" : "Already have an account?")
                 .font(HarvousFonts.font(size: 13, weight: .regular, design: .default))
                 .foregroundStyle(HarvousSitePalette.inkSoft)
-            Button(mode == .signIn ? "Sign up" : "Sign in") {
+            Button(mode == .signIn ? "Sign up" : "Log in") {
                 mode = mode == .signIn ? .signUp : .signIn
                 errorMessage = nil
             }

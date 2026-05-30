@@ -1545,7 +1545,7 @@ struct HarvousEditor: NSViewRepresentable {
                     guard let scrollView else { return }
                     guard let tv2 = scrollView.documentView as? HarvousNoteTextView else { return }
                     guard coordinator.boundNoteID == capturedNoteID else { return }
-                    coordinator.paintStudyHighlights(on: tv2)
+                    coordinator.paintStudyHighlightsIfNeeded(on: tv2, force: true)
                     DispatchQueue.main.async { [weak scrollView] in
                         guard let scrollView else { return }
                         guard coordinator.boundNoteID == capturedNoteID else { return }
@@ -1591,8 +1591,10 @@ struct HarvousEditor: NSViewRepresentable {
                 context.coordinator.reapplyScripturePillsToBody(in: textView)
             }
         }
-        context.coordinator.paintStudyHighlights(on: textView)
-        scrollView.scheduleBodyLayoutHeightPublish(to: proxy)
+        context.coordinator.paintStudyHighlightsIfNeeded(on: textView)
+        if !context.coordinator.isEditing {
+            scrollView.scheduleBodyLayoutHeightPublish(to: proxy)
+        }
     }
 
     @MainActor
@@ -1672,6 +1674,16 @@ struct HarvousEditor: NSViewRepresentable {
         /// `textDidChange` fires for programmatic loads, pill rewrites, etc. — suppress the format bar until user typing.
         private var programmaticBodyMutationDepth: Int = 0
         private var isProgrammaticBodyMutation: Bool { programmaticBodyMutationDepth > 0 }
+        /// Last applied highlight paint inputs — avoids strip/reapply on every SwiftUI `updateNSView` during typing.
+        private var lastAppliedStudyHighlightSignature: String?
+
+        private func currentStudyHighlightPaintSignature() -> String {
+            HarvousStudyHighlightMapper.studyHighlightPaintSignature(
+                paints: studyHighlightPaints,
+                focusedThreadId: studyHighlightFocusedThreadId,
+                isDark: studyHighlightsAssumeDarkAppearance
+            )
+        }
 
         /// Cancels in-flight debounced work and invalidates deferred binding updates scheduled before a note switch.
         fileprivate func invalidateDeferredNoteBindingWork() {
@@ -1680,6 +1692,7 @@ struct HarvousEditor: NSViewRepresentable {
             debounceTask = nil
             inlineImageRehydrateTask?.cancel()
             inlineImageRehydrateTask = nil
+            lastAppliedStudyHighlightSignature = nil
             cancelFormatBarHide()
         }
 
@@ -2056,7 +2069,8 @@ struct HarvousEditor: NSViewRepresentable {
                     storage.replaceCharacters(in: r, with: "")
                 }
                 pushPlainTextAndRefsFromTextView(tv)
-                paintStudyHighlights(on: tv)
+                applyStudyHighlightPaint(to: tv)
+                lastAppliedStudyHighlightSignature = currentStudyHighlightPaintSignature()
             }
             proxy.hvNotifyBodyChanged(tv)
             proxy.syncPlainTextBindingFromTextView?(tv)
@@ -2119,6 +2133,8 @@ struct HarvousEditor: NSViewRepresentable {
             isEditing = false
             cancelFormatBarHide()
             guard let tv = notification.object as? NSTextView else { return }
+            paintStudyHighlightsIfNeeded(on: tv)
+            (tv.enclosingScrollView as? HarvousEditorScrollView)?.scheduleBodyLayoutHeightPublish(to: proxy)
             let placeholder = placeholderText
             Task { @MainActor in
                 self.proxy?.isBodyFirstResponder = false
@@ -2251,7 +2267,33 @@ struct HarvousEditor: NSViewRepresentable {
 
         /// Re-draws pastel study highlights once scripture pills settle (runs on main actor).
         @MainActor
-        func paintStudyHighlights(on textView: NSTextView) {
+        func paintStudyHighlightsIfNeeded(on textView: NSTextView, force: Bool = false) {
+            let signature = currentStudyHighlightPaintSignature()
+            guard force || signature != lastAppliedStudyHighlightSignature else { return }
+            paintStudyHighlightsPreservingSelection(on: textView)
+            lastAppliedStudyHighlightSignature = signature
+        }
+
+        /// Applies highlight attributes while keeping the caret/selection stable (attribute passes can fire selection callbacks).
+        @MainActor
+        private func paintStudyHighlightsPreservingSelection(on textView: NSTextView) {
+            let savedSelection = textView.selectedRange()
+            let savedDelegate = textView.delegate
+            textView.delegate = nil
+            withProgrammaticBodyMutation {
+                applyStudyHighlightPaint(to: textView)
+            }
+            textView.delegate = savedDelegate
+            guard savedSelection.location != NSNotFound, let storage = textView.textStorage else { return }
+            let len = storage.length
+            let loc = min(savedSelection.location, len)
+            let end = min(NSMaxRange(savedSelection), len)
+            let safeLen = max(0, end - loc)
+            textView.setSelectedRange(NSRange(location: loc, length: safeLen))
+        }
+
+        @MainActor
+        private func applyStudyHighlightPaint(to textView: NSTextView) {
             guard let storage = textView.textStorage else { return }
             if studyHighlightPaints.isEmpty {
                 HarvousStudyHighlightMapper.stripPainting(from: storage, fullDocumentRange: NSRange(location: 0, length: storage.length))
@@ -2369,7 +2411,7 @@ struct HarvousEditor: NSViewRepresentable {
             // Callers that own a dedicated highlight-paint step (note-switch Hop 2) pass paintHighlights: false
             // to avoid a redundant full-document attribute pass.
             if paintHighlights {
-                paintStudyHighlights(on: textView)
+                paintStudyHighlightsIfNeeded(on: textView, force: true)
             }
 
             // `textDidChange` is not always sent when `textStorage` is edited programmatically. Sync

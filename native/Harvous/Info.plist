@@ -64,6 +64,10 @@
 	<string>$(CLERK_PUBLISHABLE_KEY)</string>
 	<key>HarvousAPIBaseURL</key>
 	<string>$(HARVOUS_API_BASE_URL)</string>
+	<key>HarvousSupabaseURL</key>
+	<string>$(HARVOUS_SUPABASE_URL)</string>
+	<key>HarvousSupabaseAnonKey</key>
+	<string>$(HARVOUS_SUPABASE_ANON_KEY)</string>
 	<key>UIAppFonts</key>
 	<array>
 		<string>Scorekard-Regular.otf</string>

@@ -9,6 +9,7 @@ import { Hono } from 'hono';
 import { verifyWebhook } from '@clerk/backend/webhooks';
 import { tagAsAppUser } from '@/utils/audienceful';
 import { handleAPIError } from '@/utils/error-handling';
+import { invalidateUserCache } from '../utils/user-cache';
 
 const app = new Hono();
 
@@ -149,6 +150,13 @@ async function handleUserUpdated(event: ClerkUserWebhookEvent): Promise<void> {
   const email = getPrimaryEmail(event);
 
   console.log('[Webhook] Processing user.updated event:', { clerkUserId, email: email || 'NO_EMAIL' });
+
+  try {
+    await invalidateUserCache(clerkUserId);
+  } catch (cacheError: unknown) {
+    const message = cacheError instanceof Error ? cacheError.message : String(cacheError);
+    console.warn('[Webhook] Failed to invalidate user cache after user.updated:', { clerkUserId, message });
+  }
 
   if (!email) {
     console.log('[Webhook] User has no email, skipping Audienceful update');

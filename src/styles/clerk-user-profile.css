@@ -1,0 +1,287 @@
+/*
+ * Clerk User Profile modal (openUserProfile) — match Harvous prototype settings chrome.
+ * Portaled outside .clerk-form-root; scoped so sign-in btn-cta rules do not apply.
+ */
+
+.cl-modalBackdrop {
+  background: var(--pds-overlay-heavy, oklch(0% 0 0 / 0.35)) !important;
+}
+
+.cl-modalContent:has(.cl-userProfile),
+.cl-modalContent:has(.cl-userProfile-root) {
+  border-radius: var(--pds-shell-frame-radius, 18px) !important;
+  border: 0.5px solid var(--pds-border-modal-highlight, oklch(100% 0 0 / 0.75)) !important;
+  background: var(--pds-bg-page, #fff) !important;
+  box-shadow: var(--pds-shadow-sheet, 0 24px 48px oklch(0% 0 0 / 0.12)),
+    inset 0 0.5px 0 var(--pds-bg-modal-inset-highlight, oklch(100% 0 0 / 0.9)) !important;
+  overflow: hidden !important;
+  font-family: var(--pds-font-body, var(--font-sans)) !important;
+  color: var(--pds-text-primary, var(--color-deep-grey)) !important;
+}
+
+.cl-userProfile-root,
+.cl-userProfile {
+  font-family: var(--pds-font-body, var(--font-sans)) !important;
+  color: var(--pds-text-primary, var(--color-deep-grey)) !important;
+  background: var(--pds-bg-page, #fff) !important;
+}
+
+/* Sidebar nav (Profile / Security / Billing) */
+.cl-userProfile .cl-navbar,
+.cl-userProfile-root .cl-navbar {
+  background: var(--pds-bg-page, #fff) !important;
+  border-right: 0.5px solid var(--pds-border, oklch(0% 0 0 / 0.072)) !important;
+  padding: 10px 8px !important;
+  gap: 2px !important;
+}
+
+.cl-userProfile .cl-navbarButton,
+.cl-userProfile-root .cl-navbarButton,
+.cl-userProfile .cl-navbar button,
+.cl-userProfile-root .cl-navbar button {
+  display: flex !important;
+  align-items: flex-start !important;
+  gap: 10px !important;
+  width: 100% !important;
+  text-align: left !important;
+  padding: 8px 10px !important;
+  margin: 0 !important;
+  border: none !important;
+  background: transparent !important;
+  border-radius: var(--pds-radius-row, 10px) !important;
+  box-shadow: none !important;
+  height: auto !important;
+  min-height: 0 !important;
+  font-family: var(--pds-font-body, var(--font-sans)) !important;
+  font-weight: 400 !important;
+  font-size: 14px !important;
+  line-height: 1.3 !important;
+  color: var(--pds-text-primary, var(--color-deep-grey)) !important;
+  cursor: pointer !important;
+  transition: background 0.08s !important;
+  transform: none !important;
+}
+
+.cl-userProfile .cl-navbarButton:hover,
+.cl-userProfile-root .cl-navbarButton:hover,
+.cl-userProfile .cl-navbar button:hover,
+.cl-userProfile-root .cl-navbar button:hover {
+  background: var(--pds-bg-row-hover, oklch(0% 0 0 / 0.038)) !important;
+}
+
+.cl-userProfile .cl-navbarButton[data-active='true'],
+.cl-userProfile-root .cl-navbarButton[data-active='true'],
+.cl-userProfile .cl-navbarButton[aria-current='page'],
+.cl-userProfile-root .cl-navbarButton[aria-current='page'] {
+  background: var(--pds-bg-row-selected, oklch(0% 0 0 / 0.065)) !important;
+}
+
+.cl-userProfile .cl-navbarButton *,
+.cl-userProfile-root .cl-navbarButton *,
+.cl-userProfile .cl-navbar button *,
+.cl-userProfile-root .cl-navbar button * {
+  font-family: inherit !important;
+  font-weight: inherit !important;
+  color: inherit !important;
+  transform: none !important;
+}
+
+.cl-userProfile .cl-navbarButtonIcon,
+.cl-userProfile-root .cl-navbarButtonIcon {
+  color: var(--pds-text-secondary, var(--color-pebble-grey)) !important;
+}
+
+.cl-userProfile .cl-navbarButton[data-active='true'] .cl-navbarButtonIcon,
+.cl-userProfile-root .cl-navbarButton[data-active='true'] .cl-navbarButtonIcon {
+  color: var(--pds-text-primary, var(--color-deep-grey)) !important;
+}
+
+/* Page titles */
+.cl-userProfile .cl-headerTitle,
+.cl-userProfile-root .cl-headerTitle,
+.cl-userProfile .cl-profileSectionTitle,
+.cl-userProfile-root .cl-profileSectionTitle {
+  font-family: var(--pds-font-display, var(--pds-font-body, var(--font-sans))) !important;
+  font-weight: 600 !important;
+  font-size: 1.05rem !important;
+  color: var(--pds-text-primary, var(--color-deep-grey)) !important;
+}
+
+.cl-userProfile .cl-headerSubtitle,
+.cl-userProfile-root .cl-headerSubtitle {
+  font-family: var(--pds-font-body, var(--font-sans)) !important;
+  font-weight: 400 !important;
+  font-size: 13px !important;
+  color: var(--pds-text-secondary, var(--color-pebble-grey)) !important;
+}
+
+/* Primary actions — settings secondary pill, not auth CTA */
+.cl-userProfile .cl-profileSectionPrimaryButton,
+.cl-userProfile-root .cl-profileSectionPrimaryButton,
+.cl-userProfile .cl-button[data-variant='solid'][data-color='primary'],
+.cl-userProfile-root .cl-button[data-variant='solid'][data-color='primary'] {
+  appearance: none !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: auto !important;
+  min-width: 0 !important;
+  height: auto !important;
+  padding: 8px 14px !important;
+  border: 0.5px solid var(--pds-border-control, oklch(0% 0 0 / 0.08)) !important;
+  border-radius: var(--pds-radius-pill, 999px) !important;
+  background: var(--pds-bg-input, oklch(0% 0 0 / 0.055)) !important;
+  box-shadow: none !important;
+  font-family: var(--pds-font-body, var(--font-sans)) !important;
+  font-weight: 600 !important;
+  font-size: 14px !important;
+  line-height: 1.2 !important;
+  color: var(--pds-text-primary, var(--color-deep-grey)) !important;
+  cursor: pointer !important;
+  transition: background 0.1s, border-color 0.1s !important;
+  transform: none !important;
+  will-change: auto !important;
+}
+
+.cl-userProfile .cl-profileSectionPrimaryButton:hover,
+.cl-userProfile-root .cl-profileSectionPrimaryButton:hover,
+.cl-userProfile .cl-button[data-variant='solid'][data-color='primary']:hover,
+.cl-userProfile-root .cl-button[data-variant='solid'][data-color='primary']:hover {
+  background: var(--pds-bg-row-hover, oklch(0% 0 0 / 0.038)) !important;
+  filter: none !important;
+}
+
+.cl-userProfile .cl-profileSectionPrimaryButton:active,
+.cl-userProfile-root .cl-profileSectionPrimaryButton:active,
+.cl-userProfile .cl-button[data-variant='solid'][data-color='primary']:active,
+.cl-userProfile-root .cl-button[data-variant='solid'][data-color='primary']:active {
+  transform: none !important;
+  background: var(--pds-bg-control-pressed, oklch(0% 0 0 / 0.082)) !important;
+  box-shadow: none !important;
+}
+
+.cl-userProfile .cl-profileSectionPrimaryButton *,
+.cl-userProfile-root .cl-profileSectionPrimaryButton *,
+.cl-userProfile .cl-button[data-variant='solid'][data-color='primary'] *,
+.cl-userProfile-root .cl-button[data-variant='solid'][data-color='primary'] * {
+  color: inherit !important;
+  font-weight: inherit !important;
+  transform: none !important;
+}
+
+/* “Add email address” and similar full-width secondary rows (not sidebar nav) */
+.cl-userProfile .cl-button[data-variant='ghost']:not(.cl-navbarButton),
+.cl-userProfile-root .cl-button[data-variant='ghost']:not(.cl-navbarButton),
+.cl-userProfile .cl-button[data-variant='outline']:not(.cl-navbarButton),
+.cl-userProfile-root .cl-button[data-variant='outline']:not(.cl-navbarButton),
+.cl-userProfile button.cl-button:not([data-variant='solid']):not(.cl-navbarButton),
+.cl-userProfile-root button.cl-button:not([data-variant='solid']):not(.cl-navbarButton) {
+  appearance: none !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  gap: 8px !important;
+  width: 100% !important;
+  height: auto !important;
+  min-height: 44px !important;
+  padding: 10px 12px !important;
+  border: 0.5px solid var(--pds-border, oklch(0% 0 0 / 0.072)) !important;
+  border-radius: var(--pds-radius-menu, 12px) !important;
+  background: var(--pds-bg-input, oklch(0% 0 0 / 0.055)) !important;
+  box-shadow: none !important;
+  font-family: var(--pds-font-body, var(--font-sans)) !important;
+  font-weight: 500 !important;
+  font-size: 14px !important;
+  color: var(--pds-text-primary, var(--color-deep-grey)) !important;
+  cursor: pointer !important;
+  transform: none !important;
+}
+
+.cl-userProfile .cl-button[data-variant='ghost']:hover,
+.cl-userProfile-root .cl-button[data-variant='ghost']:hover,
+.cl-userProfile .cl-button[data-variant='outline']:hover,
+.cl-userProfile-root .cl-button[data-variant='outline']:hover {
+  background: var(--pds-bg-row-hover, oklch(0% 0 0 / 0.038)) !important;
+}
+
+/* Icon-only menu buttons (email row …) */
+.cl-userProfile .cl-menuButton,
+.cl-userProfile-root .cl-menuButton,
+.cl-userProfile .cl-button[data-variant='ghost'].cl-menuButton,
+.cl-userProfile-root .cl-button[data-variant='ghost'].cl-menuButton {
+  width: auto !important;
+  min-width: 36px !important;
+  min-height: 36px !important;
+  padding: 8px !important;
+  justify-content: center !important;
+  border-radius: var(--pds-radius-row, 10px) !important;
+}
+
+/* Badges (e.g. Primary) */
+.cl-userProfile .cl-badge,
+.cl-userProfile-root .cl-badge {
+  font-family: var(--pds-font-body, var(--font-sans)) !important;
+  font-weight: 500 !important;
+  font-size: 11px !important;
+  padding: 2px 8px !important;
+  border-radius: var(--pds-radius-pill, 999px) !important;
+  border: 0.5px solid var(--pds-border-soft, oklch(0% 0 0 / 0.04)) !important;
+  background: var(--pds-bg-chip, oklch(0% 0 0 / 0.06)) !important;
+  color: var(--pds-text-secondary, var(--color-pebble-grey)) !important;
+}
+
+/* Profile name line */
+.cl-userProfile .cl-userPreviewMainIdentifier,
+.cl-userProfile-root .cl-userPreviewMainIdentifier,
+.cl-userProfile .cl-userPreviewMainIdentifierText {
+  font-family: var(--pds-font-body, var(--font-sans)) !important;
+  font-weight: 600 !important;
+  font-size: 15px !important;
+  color: var(--pds-text-primary, var(--color-deep-grey)) !important;
+}
+
+/* Inputs inside profile flows */
+.cl-userProfile input,
+.cl-userProfile-root input,
+.cl-userProfile select,
+.cl-userProfile-root select,
+.cl-userProfile textarea,
+.cl-userProfile-root textarea {
+  font-family: var(--pds-font-body, var(--font-sans)) !important;
+  font-weight: 500 !important;
+  font-size: 15px !important;
+  color: var(--pds-text-primary, var(--color-deep-grey)) !important;
+  border-radius: var(--pds-radius-input, 10px) !important;
+  border: 0.5px solid var(--pds-border-control, oklch(0% 0 0 / 0.08)) !important;
+  background: var(--pds-bg-input, oklch(0% 0 0 / 0.055)) !important;
+  box-shadow: none !important;
+}
+
+/* Generic buttons inside profile — beat global.css late button rules */
+.cl-userProfile-root button,
+.cl-userProfile-root .cl-button,
+.cl-userProfile button,
+.cl-userProfile .cl-button {
+  font-family: var(--pds-font-body, var(--font-sans)) !important;
+}
+
+.cl-userProfile-root button:not(.cl-navbarButton):not(.cl-profileSectionPrimaryButton),
+.cl-userProfile button:not(.cl-navbarButton):not(.cl-profileSectionPrimaryButton) {
+  font-weight: 500 !important;
+}
+
+.cl-userProfile-root button span,
+.cl-userProfile-root button div,
+.cl-userProfile-root button p,
+.cl-userProfile-root button *,
+.cl-userProfile-root .cl-button *,
+.cl-userProfile button span,
+.cl-userProfile button div,
+.cl-userProfile button p,
+.cl-userProfile button *,
+.cl-userProfile .cl-button * {
+  font-family: inherit !important;
+  font-weight: inherit !important;
+  color: inherit !important;
+  transform: none !important;
+}

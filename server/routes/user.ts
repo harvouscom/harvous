@@ -490,7 +490,9 @@ app.get('/api/user/get-profile', requireAuth, async (c) => {
 
     return c.json({
       firstName: userData.firstName, lastName: userData.lastName,
-      userColor: userData.userColor, email: userData.email, emailVerified,
+      userColor: userData.userColor, email: userData.email,
+      profileImageUrl: userData.profileImageUrl ?? null,
+      emailVerified,
       churchName: churchData.churchName, churchCity: churchData.churchCity, churchState: churchData.churchState, churchCountry: churchData.churchCountry,
       defaultTranslation,
       hasLockPinSet

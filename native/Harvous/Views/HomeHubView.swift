@@ -28,16 +28,9 @@ struct HomeHubView: View {
             ToolbarItem(placement: .topBarLeading) {
                 IOSListSurfaceChip()
             }
-            ToolbarItem(placement: .topBarTrailing) {
-                Button {
-                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
-                    appRouter.selectIOSListSurface(.more)
-                } label: {
-                    homeToolbarProfileButton
-                }
-                .buttonStyle(.plain)
-                .tint(.primary)
-                .accessibilityLabel("Account, profile, and settings")
+            HarvousIOSProfileToolbarTrailingItem {
+                UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                appRouter.selectIOSListSurface(.more)
             }
         }
         .navigationBarTitleDisplayMode(.inline)
@@ -117,12 +110,6 @@ struct HomeHubView: View {
         pushNoteOntoIOSStack(pick.id)
     }
 
-    private var homeToolbarProfileButton: some View {
-            HarvousFAGlyph(assetName: "Harvous.UserFilled", edgePt: 17)
-                .foregroundStyle(.primary)
-            .frame(width: 32, height: 32)
-            .contentShape(Rectangle())
-    }
 }
 
 #endif

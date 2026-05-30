@@ -30,6 +30,7 @@ struct StatefulNoteEditorView: View {
             onRequestDismissEditor: { dismiss() }
         )
         .navigationBarTitleDisplayMode(.inline)
+        .harvousIOSGlassOverCanvasShell()
         .toolbar(.hidden, for: .tabBar)
         .sheet(item: $linkedNoteSheet) { dest in
             NavigationStack {

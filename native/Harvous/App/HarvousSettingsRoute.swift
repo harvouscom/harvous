@@ -55,6 +55,7 @@ enum HarvousSettingsSidebarItem: String, CaseIterable, Hashable, Identifiable {
     case subscription
     case defaultBible
     case myChurch
+    case appearance
     case lockPin
     case referral
     case mySharing
@@ -71,6 +72,7 @@ enum HarvousSettingsSidebarItem: String, CaseIterable, Hashable, Identifiable {
         case .subscription: return "Subscription"
         case .defaultBible: return "Default Bible translation"
         case .myChurch: return "My church"
+        case .appearance: return "Appearance"
         case .lockPin: return "Lock PIN"
         case .referral: return "Refer friends"
         case .mySharing: return "Sharing"
@@ -87,6 +89,7 @@ enum HarvousSettingsSidebarItem: String, CaseIterable, Hashable, Identifiable {
         case .subscription: return "creditcard"
         case .defaultBible: return "book.closed"
         case .myChurch: return "building.columns"
+        case .appearance: return "paintbrush"
         case .lockPin: return "lock"
         case .referral: return "person.2.badge.gearshape"
         case .mySharing: return "square.and.arrow.up"
@@ -104,9 +107,10 @@ enum HarvousSettingsSidebarItem: String, CaseIterable, Hashable, Identifiable {
         case .subscription: return "Harvous.CreditCard"
         case .defaultBible: return "Harvous.BookFilled"
         case .myChurch: return "Harvous.Church"
+        case .appearance: return "Harvous.Shapes"
         case .lockPin: return "Harvous.Lock"
         case .referral: return "Harvous.Users"
-        case .mySharing: return "Harvous.Share"
+        case .mySharing: return "Harvous.ShareSquare"
         case .myData: return "Harvous.HardDrive"
         case .support: return "Harvous.CircleQuestion"
         case .aboutFounder: return "Harvous.Heart"
@@ -124,6 +128,8 @@ enum HarvousSettingsSidebarItem: String, CaseIterable, Hashable, Identifiable {
             return "The translation used across the app."
         case .myChurch:
             return "Your church details, synced across your devices."
+        case .appearance:
+            return "Background color or image behind the app."
         case .lockPin:
             return "One PIN for all locked notes on your account."
         case .referral:
@@ -161,6 +167,7 @@ enum HarvousSettingsSidebarItem: String, CaseIterable, Hashable, Identifiable {
         var rows: [HarvousSettingsSidebarItem] = []
         rows.append(contentsOf: accountItems)
         rows.append(contentsOf: studyItems)
+        rows.append(.appearance)
         rows.append(.mySharing)
         rows.append(.myData)
         rows.append(contentsOf: supportItems)
@@ -213,6 +220,7 @@ enum HarvousSettingsPathParser {
             case "lock-pin", "lockpin": return .lockPin
             default: return nil
             }
+        case "appearance": return .appearance
         case "referral": return .referral
         case "sharing": return .mySharing
         case "data": return .myData

@@ -186,6 +186,7 @@ export function useProfile() {
             lastName: data.lastName ?? '',
             userColor: data.userColor ?? 'blue',
             email: data.email ?? '',
+            profileImageUrl: data.profileImageUrl ?? null,
             emailVerified: data.emailVerified ?? false,
             churchName: data.churchName ?? null,
             churchCity: data.churchCity ?? null,

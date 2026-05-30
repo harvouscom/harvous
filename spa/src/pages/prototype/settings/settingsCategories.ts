@@ -2,7 +2,9 @@
  * Single source of truth for the prototype Settings categories.
  * Used by both the wide two-pane sidebar (PrototypeSettingsLayout) and the
  * narrow drilldown list (PrototypeSettingsIndex) so the two never drift.
- * Mirrors the native Mac sidebar items in HarvousSettingsRoute.swift.
+ *
+ * Order aligns with native `HarvousSettingsSidebarItem.allSettingsRows()` in
+ * HarvousSettingsRoute.swift (Account, Study, Appearance, Sharing, …).
  */
 import type { IconName } from '@/components/react/Icon';
 
@@ -32,18 +34,18 @@ export const SETTINGS_CATEGORIES: SettingsCategory[] = [
     footnote: 'The translation used across the app.',
   },
   {
-    key: 'appearance',
-    title: 'Appearance',
-    route: '/prototype/settings/appearance',
-    icon: 'paintbrush',
-    footnote: 'Background color or image behind the app.',
-  },
-  {
     key: 'church',
     title: 'My Church',
     route: '/prototype/settings/church',
     icon: 'church',
     footnote: 'Your church details, synced across your devices.',
+  },
+  {
+    key: 'appearance',
+    title: 'Appearance',
+    route: '/prototype/settings/appearance',
+    icon: 'paintbrush',
+    footnote: 'Background color or image behind the app.',
   },
   // lockPin temporarily hidden while note lock is disabled in the prototype.
   {
@@ -71,7 +73,7 @@ export const SETTINGS_CATEGORIES: SettingsCategory[] = [
     key: 'keyboardShortcuts',
     title: 'Keyboard shortcuts',
     route: '/prototype/settings/keyboard-shortcuts',
-    icon: 'key',
+    icon: 'keyboard',
     footnote: 'On Mac and iPad.',
   },
 ];

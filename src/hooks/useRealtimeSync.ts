@@ -1,0 +1,168 @@
+/**
+ * Supabase Realtime Broadcast listener — debounced React Query + IndexedDB refresh.
+ */
+
+import { useEffect, useRef } from 'react';
+import { useAuth } from '@clerk/clerk-react';
+import { useQueryClient, type QueryClient } from '@tanstack/react-query';
+import { getSupabaseBrowserClient, isSupabaseRealtimeConfigured, syncChannelName } from '@/lib/supabase-client';
+import { isRealtimeInvalidationPayload, type RealtimeInvalidationPayload } from '@/lib/realtime-invalidation';
+import { isPrototypeShellRoute } from '@/utils/sync-init';
+import { syncNow } from '@/utils/sync-manager';
+
+const CLERK_SUPABASE_JWT_TEMPLATE = 'supabase';
+const DEBOUNCE_MS = 600;
+
+export type UseRealtimeSyncOptions = {
+  /** Home space for `/prototype` list refresh (optional). */
+  homeSpaceId?: string | null;
+};
+
+async function applyInvalidation(
+  queryClient: QueryClient,
+  payload: RealtimeInvalidationPayload,
+  userId: string,
+  homeSpaceId?: string | null,
+): Promise<void> {
+  const { type, id } = payload;
+
+  if (type === 'sync:batch') {
+    if (isPrototypeShellRoute()) {
+      const { refreshPrototypeLists } = await import('../../spa/src/lib/refresh-client-data');
+      await refreshPrototypeLists(queryClient, homeSpaceId);
+    } else {
+      await invalidateMainAppQueries(queryClient, { type: 'note:updated', id });
+      if (!isPrototypeShellRoute()) {
+        try {
+          await syncNow(userId);
+        } catch (err) {
+          console.error('[useRealtimeSync] syncNow after batch:', err);
+        }
+      }
+    }
+    return;
+  }
+
+  if (isPrototypeShellRoute()) {
+    const { refreshPrototypeLists } = await import('../../spa/src/lib/refresh-client-data');
+    await refreshPrototypeLists(queryClient, homeSpaceId);
+    if (id && type.startsWith('note:')) {
+      await queryClient.invalidateQueries({ queryKey: ['note', id] });
+    }
+    return;
+  }
+
+  await invalidateMainAppQueries(queryClient, payload);
+
+  if (!isPrototypeShellRoute()) {
+    try {
+      await syncNow(userId);
+    } catch (err) {
+      console.error('[useRealtimeSync] syncNow:', err);
+    }
+  }
+}
+
+async function invalidateMainAppQueries(
+  queryClient: QueryClient,
+  payload: RealtimeInvalidationPayload,
+): Promise<void> {
+  const { type, id } = payload;
+
+  if (type.startsWith('note:') || type === 'sync:batch') {
+    await queryClient.invalidateQueries({ queryKey: ['navigation'] });
+    await queryClient.invalidateQueries({
+      queryKey: ['space'],
+      predicate: (q) => q.queryKey[2] === 'notes' || q.queryKey[2] === 'bootstrap',
+    });
+    if (id) {
+      await queryClient.invalidateQueries({ queryKey: ['note', id] });
+    } else {
+      await queryClient.invalidateQueries({ queryKey: ['note'] });
+    }
+  }
+
+  if (type.startsWith('thread:')) {
+    await queryClient.invalidateQueries({ queryKey: ['navigation'] });
+    if (id) {
+      await queryClient.invalidateQueries({ queryKey: ['thread', id] });
+      await queryClient.invalidateQueries({ queryKey: ['thread', id, 'notes'] });
+    } else {
+      await queryClient.invalidateQueries({ queryKey: ['thread'] });
+    }
+  }
+
+  if (type.startsWith('space:')) {
+    await queryClient.invalidateQueries({ queryKey: ['navigation'] });
+    if (id) {
+      await queryClient.invalidateQueries({ queryKey: ['space', id] });
+    } else {
+      await queryClient.invalidateQueries({ queryKey: ['space'] });
+    }
+  }
+}
+
+export function useRealtimeSync(userId: string | undefined, options?: UseRealtimeSyncOptions): void {
+  const { getToken, isSignedIn } = useAuth();
+  const queryClient = useQueryClient();
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const homeSpaceId = options?.homeSpaceId;
+
+  const channelRef = useRef<ReturnType<NonNullable<ReturnType<typeof getSupabaseBrowserClient>>['channel']> | null>(null);
+
+  useEffect(() => {
+    if (!userId || !isSignedIn || !isSupabaseRealtimeConfigured()) return;
+
+    const supabase = getSupabaseBrowserClient();
+    if (!supabase) return;
+
+    let cancelled = false;
+
+    const setup = async () => {
+      try {
+        const token = await getToken({ template: CLERK_SUPABASE_JWT_TEMPLATE });
+        if (token && !cancelled) {
+          await supabase.realtime.setAuth(token);
+        }
+      } catch (err) {
+        console.warn('[useRealtimeSync] Clerk Supabase JWT unavailable; Realtime may not connect:', err);
+      }
+
+      if (cancelled) return;
+
+      const channel = supabase.channel(syncChannelName(userId));
+      channelRef.current = channel;
+
+      channel.on('broadcast', { event: 'invalidate' }, ({ payload }) => {
+        if (!isRealtimeInvalidationPayload(payload)) return;
+
+        if (debounceRef.current) clearTimeout(debounceRef.current);
+        debounceRef.current = setTimeout(() => {
+          debounceRef.current = null;
+          void applyInvalidation(queryClient, payload, userId, homeSpaceId);
+        }, DEBOUNCE_MS);
+      });
+
+      channel.subscribe((status) => {
+        if (status === 'CHANNEL_ERROR') {
+          console.warn('[useRealtimeSync] channel error for', syncChannelName(userId));
+        }
+      });
+    };
+
+    void setup();
+
+    return () => {
+      cancelled = true;
+      if (debounceRef.current) {
+        clearTimeout(debounceRef.current);
+        debounceRef.current = null;
+      }
+      const ch = channelRef.current;
+      channelRef.current = null;
+      if (ch) {
+        void supabase.removeChannel(ch);
+      }
+    };
+  }, [userId, isSignedIn, getToken, queryClient, homeSpaceId]);
+}

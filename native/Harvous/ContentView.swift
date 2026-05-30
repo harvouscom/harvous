@@ -84,6 +84,7 @@ struct MacRootView: View {
     /// observable) — otherwise the unified window toolbar is re-applied on every render
     /// and re-enters the window update-constraints pass → recursion/crash on note open.
     @State private var isAuthed = false
+    @State private var macToggleInspectorFocusedAction: (() -> Void)?
     @Environment(\.modelContext) private var context
     @EnvironmentObject private var appRouter: HarvousAppRouter
     @EnvironmentObject private var spaceStore: SpaceStore
@@ -181,10 +182,10 @@ struct MacRootView: View {
                                 .help("New Note (⇧N)")
                             }
 
-                            if #available(macOS 26, *) { ToolbarSpacer(.fixed) }
+                            if let note = selectedNote {
+                                if #available(macOS 26, *) { ToolbarSpacer(.fixed) }
 
-                            ToolbarItem(placement: .cancellationAction) {
-                                if let note = selectedNote {
+                                ToolbarItem(placement: .cancellationAction) {
                                     NoteFolderChip(
                                         note: note,
                                         isFolderContextUpdating: false,
@@ -192,17 +193,15 @@ struct MacRootView: View {
                                         scriptureTheme: spaceStore.scriptureTheme
                                     )
                                 }
-                            }
 
-                            // Flexible spacer absorbs extra width between the folder chip and the
-                            // share/more group. Two fixed spacers before share/more match the
-                            // perceived leading inset of the trailing `confirmationAction` cluster
-                            // (`.primaryAction` sits in a tighter column than the trailing slot).
-                            if #available(macOS 26, *) { ToolbarSpacer(.flexible) }
-                            if #available(macOS 26, *) { ToolbarSpacer(.fixed) }
-                            if #available(macOS 26, *) { ToolbarSpacer(.fixed) }
+                                // Flexible spacer absorbs extra width between the folder chip and the
+                                // share/more group. Two fixed spacers before share/more match the
+                                // perceived leading inset of the trailing `confirmationAction` cluster
+                                // (`.primaryAction` sits in a tighter column than the trailing slot).
+                                if #available(macOS 26, *) { ToolbarSpacer(.flexible) }
+                                if #available(macOS 26, *) { ToolbarSpacer(.fixed) }
+                                if #available(macOS 26, *) { ToolbarSpacer(.fixed) }
 
-                            if let note = selectedNote {
                                 MacNoteShareMoreToolbar(
                                     note: note,
                                     liveShareSnapshot: liveShareSnapshot,
@@ -216,9 +215,12 @@ struct MacRootView: View {
                                         try? context.saveWithLogging()
                                     }
                                 )
-                            }
 
-                            if #available(macOS 26, *) { ToolbarSpacer(.fixed) }
+                                if #available(macOS 26, *) { ToolbarSpacer(.fixed) }
+                            } else if #available(macOS 26, *) {
+                                // Push inspector + profile to the trailing edge when chip/share are hidden.
+                                ToolbarSpacer(.flexible)
+                            }
 
                             ToolbarItemGroup(placement: .confirmationAction) {
                                 Button {
@@ -275,6 +277,7 @@ struct MacRootView: View {
     private var macSplitStyled: some View {
         macNavigationSplit
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(Color.clear)
             .navigationSplitViewStyle(.balanced)
             // When signed out, SignInGate keeps this NavigationSplitView in the
             // tree under the sign-in overlay. Its unified toolbar's vibrancy
@@ -300,27 +303,21 @@ struct MacRootView: View {
     private var macWithBaseFocusedValues: some View {
         macSplitStyled
             .focusedSceneValue(\.newNoteAction, createNewNote)
-            .focusedSceneValue(\.showSearchAction, { showSearch = true })
+            .focusedSceneValue(\.showSearchAction, macOpenSearch)
             .focusedSceneValue(\.dailyNoteAction, openDailyNote)
             .focusedSceneValue(\.randomRevisitAction, openRandomNote)
-            .focusedSceneValue(\.insertWikiLinkAction, {
-                NotificationCenter.default.post(name: .harvousRequestInsertWikiLink, object: nil)
-            })
+            .focusedSceneValue(\.insertWikiLinkAction, macPostInsertWikiLink)
     }
 
     private var macWithInspectorAndListFocus: some View {
         macWithBaseFocusedValues
-            .focusedSceneValue(
-                \.toggleInspectorAction,
-                selectedNote == nil
-                    ? nil
-                    : {
-                        showInspector.toggle()
-                    }
-            )
-            .focusedSceneValue(\.focusNoteListAction, { selectedNote = nil })
-            .focusedSceneValue(\.nextNoteAction) { macNoteListSelectionCoordinator.nextNote() }
-            .focusedSceneValue(\.previousNoteAction) { macNoteListSelectionCoordinator.previousNote() }
+            .focusedSceneValue(\.toggleInspectorAction, macToggleInspectorFocusedAction)
+            .focusedSceneValue(\.focusNoteListAction, macFocusNoteList)
+            .focusedSceneValue(\.nextNoteAction, macNoteListSelectionCoordinator.nextNote)
+            .focusedSceneValue(\.previousNoteAction, macNoteListSelectionCoordinator.previousNote)
+            .onChange(of: selectedNote?.id, initial: true) { _, _ in
+                macToggleInspectorFocusedAction = selectedNote == nil ? nil : { showInspector.toggle() }
+            }
     }
 
     private var macRootChrome: some View {
@@ -397,6 +394,7 @@ struct MacRootView: View {
                     Text(macImportSummaryMessage(p))
                 }
             }
+            .harvousCanvasBackground()
     }
 
     private func macImportSummaryMessage(_ p: HarvousVaultImportSummaryPayload) -> String {
@@ -470,6 +468,18 @@ struct MacRootView: View {
         }
     }
 
+    private func macOpenSearch() {
+        showSearch = true
+    }
+
+    private func macFocusNoteList() {
+        selectedNote = nil
+    }
+
+    private func macPostInsertWikiLink() {
+        NotificationCenter.default.post(name: .harvousRequestInsertWikiLink, object: nil)
+    }
+
     private func createNewNote() {
         let note = Note(spaceId: spaceStore.activeSpaceUUID())
         context.insert(note)
@@ -514,37 +524,14 @@ struct MacRootView: View {
 
 // MARK: - Profile / account (macOS toolbar, Apple-style)
 
-/// Trailing toolbar control: person icon tinted by profile color, menu showing the
-/// signed-in Clerk account and a single entry into Settings.
+/// Trailing toolbar control: neutral person orb (or Clerk photo), menu for account + Settings.
 private struct HarvousMacProfileToolbarMenu: View {
     @EnvironmentObject private var appRouter: HarvousAppRouter
     @Environment(\.openWindow) private var openWindow
     @Environment(\.colorScheme) private var colorScheme
 
-    @AppStorage(HarvousSettingsStorageKeys.avatarColor) private var avatarColorRaw = HarvousAvatarColorToken.blue.rawValue
-
-    @State private var bridge = HarvousClerkBridge.shared
-
-    private var avatarFill: Color {
-        let token = HarvousAvatarColorToken(rawValue: avatarColorRaw) ?? .blue
-        switch token {
-        case .paper:
-            return colorScheme == .dark ? Color.white.opacity(0.12) : Color.black.opacity(0.07)
-        default:
-            return Color.thread(avatarColorRaw) ?? Color.harvousAccent.opacity(0.35)
-        }
-    }
-
-    /// Foreground for the toolbar person glyph (follows profile avatar color; readable on pastel disk).
-    private var iconTint: Color {
-        let token = HarvousAvatarColorToken(rawValue: avatarColorRaw) ?? .blue
-        switch token {
-        case .paper:
-            return colorScheme == .dark ? Color.white.opacity(0.55) : Color.primary.opacity(0.55)
-        default:
-            return Color.threadGlyph(avatarColorRaw) ?? Color.harvousAccent
-        }
-    }
+    @Bindable private var bridge = HarvousClerkBridge.shared
+    @State private var isSigningOut = false
 
     var body: some View {
         Menu {
@@ -570,27 +557,63 @@ private struct HarvousMacProfileToolbarMenu: View {
                 }
             }
             .font(HarvousTypography.profileMenuAction)
+
+            Button {
+                Task { await logOut() }
+            } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: "rectangle.portrait.and.arrow.right")
+                        .font(.system(size: HarvousFAIconMetrics.menuRowLeadingGlyphPt, weight: .regular))
+                        .frame(width: HarvousFAIconMetrics.menuRowLeadingGlyphPt, alignment: .center)
+                    Text(isSigningOut ? "Logging out…" : "Log out")
+                        .font(HarvousTypography.profileMenuAction)
+                    Spacer(minLength: 0)
+                    if isSigningOut {
+                        ProgressView().controlSize(.small)
+                    }
+                }
+            }
+            .font(HarvousTypography.profileMenuAction)
+            .disabled(isSigningOut)
         } label: {
             profileOrbLabel
         }
         .menuIndicator(.hidden)
         .buttonStyle(.bordered)
         .help("Account, profile, and settings")
+        .onAppear { bridge.refreshProfile() }
     }
 
     private var profileOrbLabel: some View {
         ZStack {
-            Circle()
-                .fill(avatarFill)
-                .frame(width: 28, height: 28)
-            HarvousFAGlyph(assetName: "Harvous.UserFilled")
-                .foregroundStyle(iconTint)
+            if bridge.macToolbarProfileImage == nil {
+                Circle()
+                    .fill(HarvousProfileOrb.neutralFill(colorScheme: colorScheme))
+                    .frame(width: 28, height: 28)
+            }
+            if let photo = bridge.macToolbarProfileImage {
+                Image(nsImage: photo)
+                    .frame(width: 28, height: 28)
+            } else {
+                HarvousFAGlyph(assetName: "Harvous.UserFilled")
+                    .foregroundStyle(HarvousProfileOrb.neutralGlyphTint(colorScheme: colorScheme))
+            }
         }
+        .frame(width: 28, height: 28)
+        .clipShape(Circle())
         .overlay {
-            Circle()
-                .strokeBorder(Color.primary.opacity(colorScheme == .dark ? 0.12 : 0.18), lineWidth: 0.75)
+            if bridge.macToolbarProfileImage == nil {
+                Circle()
+                    .strokeBorder(Color.primary.opacity(colorScheme == .dark ? 0.12 : 0.18), lineWidth: 0.75)
+            }
         }
         .accessibilityLabel("Account, profile, and settings")
+    }
+
+    private func logOut() async {
+        isSigningOut = true
+        defer { isSigningOut = false }
+        await bridge.signOut()
     }
 }
 #endif
@@ -657,6 +680,7 @@ struct iOSRootView: View {
             }
             .sheet(isPresented: $appRouter.iosShowMore, onDismiss: {
                 appRouter.youNavigationStack.removeAll()
+                HarvousClerkBridge.shared.refreshProfile()
             }) {
                 iosYouRootSheet
             }
@@ -676,28 +700,11 @@ struct iOSRootView: View {
                     appRouter.dismissIOSComposeCameraOrbIfPresented()
                 }
             }
-            .focusedSceneValue(\.newNoteAction) {
-                NotificationCenter.default.post(name: HarvousAppRouter.requestComposeNewNotification, object: nil)
-            }
-            .focusedSceneValue(\.showSearchAction) {
-                switch appRouter.iosListSurface {
-                case .notes:
-                    appRouter.iosNotesFilterSearchPresented = true
-                case .folders, .highlights, .scripture, .dictionary:
-                    NotificationCenter.default.post(name: .harvousFocusIOSInlineSearch, object: nil)
-                case .more:
-                    break
-                }
-            }
-            .focusedSceneValue(\.dailyNoteAction) {
-                NotificationCenter.default.post(name: .requestDailyNote, object: nil)
-            }
-            .focusedSceneValue(\.randomRevisitAction) {
-                NotificationCenter.default.post(name: .requestRandomRevisit, object: nil)
-            }
-            .focusedSceneValue(\.insertWikiLinkAction) {
-                NotificationCenter.default.post(name: .harvousRequestInsertWikiLink, object: nil)
-            }
+            .focusedSceneValue(\.newNoteAction, iosFocusedComposeNew)
+            .focusedSceneValue(\.showSearchAction, iosFocusedOpenSearch)
+            .focusedSceneValue(\.dailyNoteAction, iosFocusedDailyNote)
+            .focusedSceneValue(\.randomRevisitAction, iosFocusedRandomRevisit)
+            .focusedSceneValue(\.insertWikiLinkAction, iosFocusedInsertWikiLink)
 
         return withScene
             .onDrop(of: [.fileURL], isTargeted: .constant(false)) { providers in
@@ -732,15 +739,20 @@ struct iOSRootView: View {
                 HarvousCalendarStudyNotifier.requestAccessAndPrewarm(modelContext: modelContext)
                 appRouter.applyPendingDeepLink()
             }
+            .harvousCanvasBackground()
     }
 
     private var iosNavigationStack: some View {
         NavigationStack {
             iosListSurfaceGroup
+                .modifier(HarvousIOSNavigationContainerBackgroundClearModifier())
                 .navigationDestination(item: $iosSelectedNoteId) { noteId in
                     NoteEditorById(noteId: noteId)
+                        .modifier(HarvousIOSNavigationContainerBackgroundClearModifier())
                 }
         }
+        .background(Color.clear)
+        .harvousIOSGlassOverCanvasShell()
     }
 
     @ViewBuilder
@@ -808,6 +820,7 @@ struct iOSRootView: View {
         .id(navStackResetToken)
         .environmentObject(appRouter)
         .environmentObject(spaceStore)
+        .harvousCanvasBackground()
         .presentationDetents([.large])
         .presentationDragIndicator(.visible)
     }
@@ -843,6 +856,33 @@ struct iOSRootView: View {
             s += "\n\nSkipped (\(p.report.skipped.count)):\n" + lines.joined(separator: "\n")
         }
         return s
+    }
+
+    private func iosFocusedComposeNew() {
+        NotificationCenter.default.post(name: HarvousAppRouter.requestComposeNewNotification, object: nil)
+    }
+
+    private func iosFocusedOpenSearch() {
+        switch appRouter.iosListSurface {
+        case .notes:
+            appRouter.iosNotesFilterSearchPresented = true
+        case .folders, .highlights, .scripture, .dictionary:
+            NotificationCenter.default.post(name: .harvousFocusIOSInlineSearch, object: nil)
+        case .more:
+            break
+        }
+    }
+
+    private func iosFocusedDailyNote() {
+        NotificationCenter.default.post(name: .requestDailyNote, object: nil)
+    }
+
+    private func iosFocusedRandomRevisit() {
+        NotificationCenter.default.post(name: .requestRandomRevisit, object: nil)
+    }
+
+    private func iosFocusedInsertWikiLink() {
+        NotificationCenter.default.post(name: .harvousRequestInsertWikiLink, object: nil)
     }
 }
 
@@ -1018,7 +1058,9 @@ struct HarvousIOSInlineBottomChromeRow: View {
             }
             .fixedSize(horizontal: false, vertical: true)
             .padding(.horizontal, 14)
-            .padding(.bottom, 8)
+            .padding(.bottom, HarvousIOSMorphingChromeLayout.interChromeSpacing)
+            .frame(maxWidth: Self.hubClusterMaxWidth)
+            .frame(maxWidth: .infinity)
 
             // `.bottom` keeps search on the baseline when the compose column grows (camera orb above pencil).
             HStack(alignment: .bottom, spacing: HarvousIOSMorphingChromeLayout.interChromeSpacing) {

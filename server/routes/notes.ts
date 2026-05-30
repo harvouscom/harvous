@@ -52,6 +52,7 @@ import { requireSpaceAccess, SpaceAccessError } from '../utils/space-permissions
 import { getEffectiveHighestSimpleNoteId } from '../utils/highest-simple-note-id';
 import { extractArticleContent } from '@/utils/content-extractor';
 import { sortByLastVisited } from '@/utils/sorting';
+import { broadcastInvalidation } from '../utils/realtime';
 import { stripHtml } from '@/utils/html-stripper';
 import { deleteNotesCascadeForUser, deleteSingleNoteCascadeForUser } from '../utils/delete-note-cascade';
 import { recordDeletedEntities } from '../utils/sync-deletion-log';
@@ -382,6 +383,8 @@ route.post('/api/notes/create', requireAuth, rateLimitNoteCreate(), async (c) =>
       })().catch((err) => console.error('[api/notes/create] Unhandled background scripture error:', newNote.id, err));
     }
 
+    broadcastInvalidation(auth.userId, { type: 'note:created', id: newNote.id });
+
     return c.json({
       success: 'Note created!',
       note: noteJsonWithParsedSecondaries(newNote as { secondaryCollections?: string | null }),
@@ -515,6 +518,8 @@ route.put('/api/notes/update', requireAuth, rateLimit('write'), async (c) => {
       }
     }
 
+    broadcastInvalidation(auth.userId, { type: 'note:updated', id: noteId });
+
     return c.json({
       success: 'Note updated!',
       note: noteJsonWithParsedSecondaries(updatedNote),
@@ -591,6 +596,7 @@ route.post('/api/notes/connect-link', requireAuth, rateLimit('write'), async (c)
     await db.update(Notes).set({ updatedAt: nowISO() })
       .where(and(eq(Notes.id, parentNoteId), eq(Notes.userId, auth.userId)));
 
+    broadcastInvalidation(auth.userId, { type: 'note:updated', id: parentNoteId });
     return c.json({ success: true });
   } catch (error: any) {
     const standardError = handleAPIError(error, { endpoint: '/api/notes/connect-link', action: 'connect_link' });
@@ -626,6 +632,8 @@ route.delete('/api/notes/delete', requireAuth, rateLimit('write'), async (c) => 
         await revokeAllXPForItem(auth.userId, noteId);
       } catch {}
     })().catch(() => {});
+
+    broadcastInvalidation(auth.userId, { type: 'note:deleted', id: noteId });
 
     return c.json({ success: true, deletedId: noteId, noteId, threadId });
   } catch (error: any) {
@@ -1358,6 +1366,7 @@ route.post('/api/notes/:id/update-content', requireAuth, rateLimit('write'), asy
     }
 
     await db.update(Notes).set(updateData).where(and(eq(Notes.id, id), eq(Notes.userId, auth.userId)));
+    broadcastInvalidation(auth.userId, { type: 'note:updated', id });
     return c.json({ success: true, message: 'Note content updated' });
   } catch (error) {
     console.error('Error updating note content:', error);
@@ -1402,6 +1411,7 @@ route.post('/api/notes/:id/add-thread', requireAuth, rateLimit('write'), async (
       return c.json({ success: false, error: standardError.message, code: standardError.code }, 500);
     }
 
+    broadcastInvalidation(auth.userId, { type: 'note:updated', id });
     return c.json({ success: true, message: 'Note added to thread', note: { id: note.id, threadId } });
   } catch (error) {
     const standardError = handleAPIError(error, { endpoint: '/api/notes/[id]/add-thread', action: 'add_note_to_thread' });
@@ -1474,6 +1484,7 @@ route.post('/api/notes/:id/remove-thread', requireAuth, rateLimit('write'), asyn
       return c.json({ success: false, error: standardError.message, code: standardError.code }, 500);
     }
 
+    broadcastInvalidation(auth.userId, { type: 'note:updated', id });
     return c.json({ success: true, message: 'Note removed from thread', note: { id: note.id, threadId } });
   } catch (error) {
     const standardError = handleAPIError(error, { endpoint: '/api/notes/[id]/remove-thread', action: 'remove_note_from_thread' });

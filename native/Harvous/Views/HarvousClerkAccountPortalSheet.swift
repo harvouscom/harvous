@@ -2,8 +2,9 @@
 import SwiftUI
 import WebKit
 
-/// In-app Clerk Account Portal (`/user`) for macOS, where ClerkKitUI's `UserProfileView`
-/// is not available. Keeps account management inside Harvous instead of an external browser tab.
+/// Legacy in-app Clerk Account Portal (`/user`) via WKWebView. Unused: the portal has no native
+/// session cookies, so the sheet renders blank. iOS uses `UserProfileView`; macOS uses
+/// `HarvousMacUserProfileSheet` (ClerkKit APIs).
 struct HarvousClerkAccountPortalSheet: View {
     let url: URL
     @Environment(\.dismiss) private var dismiss

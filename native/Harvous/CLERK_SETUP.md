@@ -65,6 +65,10 @@ first successful sync (`HarvousSyncService.pullAll`) populates them.
 
 **Cross-device testing:** use the **Debug-Prod** scheme so Mac/iOS talk to `https://app.harvous.com`. The default **Debug** scheme targets localhost only; production web (`/prototype`) will not see those notes. See [docs/troubleshooting/CROSS_PLATFORM_SYNC.md](../../docs/troubleshooting/CROSS_PLATFORM_SYNC.md).
 
+## Supabase Realtime (instant cross-device sync)
+
+Set `HARVOUS_SUPABASE_URL` and `HARVOUS_SUPABASE_ANON_KEY` in the active signing xcconfig (see `Configuration/Harvous-Env.xcconfig`). Create Clerk JWT template **`supabase`** (see [docs/SUPABASE_REALTIME_SETUP.md](../../docs/SUPABASE_REALTIME_SETUP.md)). `HarvousRealtimeSync` subscribes on sign-in and triggers a debounced pull when the API broadcasts `invalidate`.
+
 Edits made offline flag rows with `needsSync = true` (see `markDirty()` on
 each model). The next flush uploads them; on success `serverId` is written
 back and the dirty flag clears.

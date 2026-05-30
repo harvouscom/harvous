@@ -28,8 +28,7 @@ route.get('/api/navigation/data', async (c) => {
       return c.json({ error: 'Unauthorized' }, 401);
     }
 
-    // Ensure user cache (and onboarding thread for new users) exists before reading thread list,
-    // so the first load shows onboarding without a refresh.
+    // Ensure user cache exists before reading thread list.
     await getCachedUserData(userId);
     await ensurePersonalHomeSpace(userId);
 

@@ -17,3 +17,6 @@
 
 CLERK_PUBLISHABLE_KEY = pk_test_REPLACE_ME
 HARVOUS_API_BASE_URL = https:/$()/app.harvous.com
+// Supabase Realtime (anon key only). Set in per-config xcconfig or leave empty to disable native Realtime.
+HARVOUS_SUPABASE_URL =
+HARVOUS_SUPABASE_ANON_KEY =

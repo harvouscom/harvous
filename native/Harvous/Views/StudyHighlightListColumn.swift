@@ -201,7 +201,7 @@ struct StudyHighlightListColumn: View {
                 }
             #else
             Group { mainContent }
-                .background(Color(.systemGroupedBackground))
+                .background(Color.clear)
             #endif
         }
         #if os(macOS)
@@ -211,6 +211,7 @@ struct StudyHighlightListColumn: View {
         #else
         .navigationTitle(iosNavigationTitle)
         .navigationBarTitleDisplayMode(iosNavigationBarTitleDisplayMode)
+        .harvousIOSGlassOverCanvasShell()
         #endif
         .onAppear {
             sidebarSelectedThreadId = nil
@@ -689,22 +690,13 @@ struct HighlightsHubView: View {
             ToolbarItem(placement: .topBarLeading) {
                 IOSListSurfaceChip()
             }
-            ToolbarItem(placement: .topBarTrailing) {
-                Button {
-                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
-                    appRouter.selectIOSListSurface(.more)
-                } label: {
-                    HarvousFAGlyph(assetName: "Harvous.UserFilled", edgePt: 17)
-                        .foregroundStyle(.primary)
-                        .frame(width: 32, height: 32)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .tint(.primary)
-                .accessibilityLabel("Account, profile, and settings")
+            HarvousIOSProfileToolbarTrailingItem {
+                UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                appRouter.selectIOSListSurface(.more)
             }
         }
         .navigationBarTitleDisplayMode(.inline)
+        .harvousIOSGlassOverCanvasShell()
     }
 }
 #endif

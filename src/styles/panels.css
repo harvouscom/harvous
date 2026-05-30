@@ -1891,6 +1891,11 @@ form.new-note-panel {
   box-shadow: none;
 }
 
+.keyboard-shortcuts-panel__chord .proto-kbd__modifier-icon {
+  display: block;
+  opacity: 0.9;
+}
+
 .keyboard-shortcuts-panel__chord-sep {
   font-family: var(--font-sans);
   font-size: 11px;

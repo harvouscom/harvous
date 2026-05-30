@@ -9,6 +9,7 @@ import {
   isPhotoSelected,
   isPresetSelected,
   presetApplyValue,
+  presetDisplayLabel,
   presetSwatchColor,
   readBackground,
   readSavedImage,
@@ -118,7 +119,7 @@ export default function PrototypeAppearancePage() {
             return (
               <AppearancePreviewTile
                 key={preset.label}
-                label={preset.label}
+                label={presetDisplayLabel(preset, colorScheme)}
                 selected={isPresetSelected(preset, active)}
                 canvasColor={presetSwatchColor(preset)}
                 onClick={() => onPickPreset(preset)}

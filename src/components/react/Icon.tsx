@@ -32,6 +32,7 @@ import highlighterSvg from '@fortawesome/fontawesome-free/svgs/solid/highlighter
 import barsSvg from '@fortawesome/fontawesome-free/svgs/solid/bars.svg?raw';
 import gearSvg from '@fortawesome/fontawesome-free/svgs/solid/gear.svg?raw';
 import keySvg from '@fortawesome/fontawesome-free/svgs/solid/key.svg?raw';
+import keyboardSvg from '@fortawesome/fontawesome-free/svgs/solid/keyboard.svg?raw';
 import tableCellsSvg from '@fortawesome/fontawesome-free/svgs/solid/table-cells.svg?raw';
 import tableColumnsSvg from '@fortawesome/fontawesome-free/svgs/solid/table-columns.svg?raw';
 import arrowRightArrowLeftSvg from '@fortawesome/fontawesome-free/svgs/solid/arrow-right-arrow-left.svg?raw';
@@ -57,6 +58,7 @@ import locationDotSvg from '@fortawesome/fontawesome-free/svgs/solid/location-do
 import churchSvg from '@fortawesome/fontawesome-free/svgs/solid/church.svg?raw';
 import tagSvg from '@fortawesome/fontawesome-free/svgs/solid/tag.svg?raw';
 import shareSvg from '@fortawesome/fontawesome-free/svgs/solid/share.svg?raw';
+import circleUpSvg from '@fortawesome/fontawesome-free/svgs/solid/circle-up.svg?raw';
 
 function withCurrentColor(svg: string): string {
   return svg.includes('fill="currentColor"') ? svg : svg.replace(/<path /, '<path fill="currentColor" ');
@@ -130,6 +132,8 @@ const icons = {
   thumbtack: svgRootCurrentColor(thumbtackSvg),
   gear: withCurrentColor(gearSvg),
   key: withCurrentColor(keySvg),
+  keyboard: withCurrentColor(keyboardSvg),
+  'circle-up': withCurrentColor(circleUpSvg),
   'table-cells': withCurrentColor(tableCellsSvg),
   'table-columns': withCurrentColor(tableColumnsSvg),
   'arrow-left': withCurrentColor(arrowLeftSvg),

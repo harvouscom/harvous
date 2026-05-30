@@ -48,6 +48,7 @@ import { fetchVerseText } from '../utils/fetch-verse-text';
 import { isStudyThreadEntriesTableMissing } from '../utils/pg-undefined-relation';
 import { deleteSingleNoteCascadeForUser } from '../utils/delete-note-cascade';
 import { loadDeletedEntitiesSince, recordDeletedEntities } from '../utils/sync-deletion-log';
+import { broadcastInvalidationForSyncPush } from '../utils/realtime';
 
 const app = new Hono();
 
@@ -610,6 +611,8 @@ app.post('/api/sync/push', requireAuth, async (c) => {
         results.push({ success: false, operationId: mutation.operationId, error: error instanceof Error ? error.message : String(error) });
       }
     }
+
+    broadcastInvalidationForSyncPush(auth.userId, mutations, results);
 
     return c.json({ results }, 200, { 'Cache-Control': 'private, no-cache' });
   } catch (error) {

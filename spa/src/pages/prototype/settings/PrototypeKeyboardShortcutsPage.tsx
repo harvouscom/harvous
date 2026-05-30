@@ -1,4 +1,5 @@
 import React from 'react';
+import ShortcutKeycap from '@/components/react/ShortcutKeycap';
 import { getPrototypeKeyboardShortcutsReference } from '@/utils/keyboard-shortcuts';
 import { SettingsShell } from './SettingsShell';
 
@@ -25,7 +26,7 @@ export default function PrototypeKeyboardShortcutsPage() {
                     {row.keyParts.map((part, i) => (
                       <React.Fragment key={`${row.action}-${i}-${part}`}>
                         {i > 0 ? <span className="proto-kbd-chord__sep">+</span> : null}
-                        <kbd className="proto-kbd">{part}</kbd>
+                        <ShortcutKeycap symbol={part} />
                       </React.Fragment>
                     ))}
                   </span>

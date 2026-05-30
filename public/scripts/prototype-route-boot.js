@@ -92,6 +92,9 @@
     document.head.appendChild(style);
   }
 
+  var LEGACY_PAPER_LIGHT_HEX = '#f7f6f3';
+  var LEGACY_PAPER_DARK_HEX = '#1a1a1c';
+
   function readBackground() {
     try {
       var raw = localStorage.getItem(PROTO_BG_KEY);
@@ -103,6 +106,13 @@
         typeof parsed.value === 'string'
       ) {
         if (parsed.kind === 'image' && parsed.value.length > MAX_IMAGE_DATA_URL_CHARS) {
+          localStorage.removeItem(PROTO_BG_KEY);
+          return null;
+        }
+        if (
+          parsed.kind === 'color' &&
+          (parsed.value === LEGACY_PAPER_LIGHT_HEX || parsed.value === LEGACY_PAPER_DARK_HEX)
+        ) {
           localStorage.removeItem(PROTO_BG_KEY);
           return null;
         }

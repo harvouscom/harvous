@@ -3,9 +3,9 @@ import SwiftUI
 // MARK: - Daily passage pill list scroll reserve (macOS sidebar + iOS lists)
 
 enum HarvousDailyPassagePillListLayout {
-    /// Pill card (~75pt) + 8pt bottom padding — used when the pill is pinned below a `List` but does not
-    /// propagate into scroll content insets (macOS sidebar `Spacer` layout, iOS floating chrome, etc.).
-    static let bottomScrollReserve: CGFloat = 76
+    /// Pill card (~72pt) + 12pt gap above iOS search row — used when the pill is pinned below a `List`
+    /// but does not propagate into scroll content insets (macOS sidebar `Spacer` layout, iOS floating chrome, etc.).
+    static let bottomScrollReserve: CGFloat = 84
 }
 
 /// Adds bottom scroll-content inset so the last `List` row clears the daily-passage pill when visible.

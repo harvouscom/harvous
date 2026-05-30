@@ -13,15 +13,20 @@ struct NoteEditorById: View {
     }
 
     var body: some View {
-        if let note = candidates.first {
-            StatefulNoteEditorView(note: note)
-        } else {
-            HarvousEmptyStateView(
-                iconAsset: "Harvous.Note",
-                title: "Note unavailable",
-                description: "This note may have been deleted.",
-                scale: .compact
-            )
+        Group {
+            if let note = candidates.first {
+                StatefulNoteEditorView(note: note)
+            } else {
+                HarvousEmptyStateView(
+                    iconAsset: "Harvous.Note",
+                    title: "Note unavailable",
+                    description: "This note may have been deleted.",
+                    scale: .compact
+                )
+            }
         }
+        #if os(iOS)
+        .harvousIOSGlassOverCanvasShell()
+        #endif
     }
 }

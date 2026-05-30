@@ -245,7 +245,7 @@ struct NoteListColumn: View {
                 }
             #else
             Group { mainContent }
-                .background(Color(.systemGroupedBackground))
+                .background(Color.clear)
             #endif
         }
         #if os(macOS)
@@ -255,6 +255,7 @@ struct NoteListColumn: View {
         #else
         .navigationTitle(iosNavigationTitle)
         .navigationBarTitleDisplayMode(iosNavigationBarTitleDisplayMode)
+        .harvousIOSGlassOverCanvasShell()
         #endif
         #if os(iOS)
         .modifier(

@@ -3,9 +3,9 @@ import { useProfile } from '../../../hooks/queries/useProfile';
 import { SettingsShell, SettingsGroup, SettingsRow } from './SettingsShell';
 
 /**
- * Account detail pane — name + email header, Manage account (Clerk), and Sign out.
- * Extracted from the old single-page Settings hub; this is the default detail pane
- * on wide screens (PrototypeSettingsIndex redirects here).
+ * Account detail pane — name + email header and Manage account (Clerk).
+ * Log out lives in the account toolbar menu. Default detail pane on wide screens
+ * (PrototypeSettingsIndex redirects here).
  */
 export default function PrototypeAccountPage() {
   const clerk = useClerk();
@@ -35,15 +35,6 @@ export default function PrototypeAccountPage() {
           onClick={() => clerk.openUserProfile()}
         />
       </SettingsGroup>
-
-      <button
-        type="button"
-        className="proto-settings-btn"
-        style={{ marginTop: 8 }}
-        onClick={() => { void clerk.signOut({ redirectUrl: '/sign-in' }); }}
-      >
-        Sign out
-      </button>
     </SettingsShell>
   );
 }

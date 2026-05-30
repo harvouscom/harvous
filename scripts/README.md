@@ -181,7 +181,7 @@ Edit the `generateFeatureBenefit`, `generateFixBenefit`, and `generateImprovemen
 ## Other Scripts
 
 - `db-sync.js` - Database schema synchronization
-- `seed-database.js` - Prints how to get a clean new user with only the onboarding thread (no seed: sign up fresh or use POST /api/test/reset-to-new-user and refresh)
+- `seed-database.js` - Prints how to get a clean new user (no seed: sign up fresh or use POST /api/test/reset-to-new-user and refresh)
 - Various Webflow sync scripts for changelog publishing
 
 For questions or improvements, update this README!

@@ -128,9 +128,7 @@ struct NoteFolderChip: View {
     }
 }
 
-/// Small accent dot overlaid on the share glyph to signal an active share link — a subtle
-/// indicator instead of fully tinting the icon blue. The background-colored ring separates it
-/// from the glyph beneath. Shared by the iPhone and macOS/iPad share buttons.
+/// Small accent dot on the more-menu glyph when a share link is active.
 struct NoteShareStateDot: View {
     var body: some View {
         Circle()
@@ -144,66 +142,12 @@ struct NoteShareStateDot: View {
 }
 
 #if os(iOS)
-/// iPhone trailing toolbar — standalone share orb. Hosted in its own `ToolbarItem` so the
-/// system renders a separate glass capsule from the more menu (not one squished pill).
-struct NoteShareToolbarButton: View {
-    @Bindable var note: Note
-    /// Live editor snapshot; when `nil`, uses persisted `note.title` / `note.body` (previews / fallback).
-    var shareSnapshot: (() -> NoteShareSnapshot)?
-
-    @State private var showShareLinkPopover = false
-
-    init(note: Note, shareSnapshot: (() -> NoteShareSnapshot)? = nil) {
-        _note = Bindable(note)
-        self.shareSnapshot = shareSnapshot
-    }
-
-    private var resolvedShareText: String {
-        let snap = shareSnapshot?() ?? NoteShareSnapshot(title: note.title, body: note.body)
-        return HarvousNoteShareBuilder.plainText(snapshot: snap)
-    }
-
-    /// Single share entry point — opens a popover that hosts both the token-based share-link
-    /// flow (`POST /api/notes/:id/share`) and the system Share Sheet for plain-text export.
-    var body: some View {
-        Button {
-            showShareLinkPopover = true
-        } label: {
-            HarvousFAGlyph(
-                assetName: "Harvous.ShareSquare",
-                edgePt: HarvousFAIconMetrics.catalogGlyphBoxPt
-            )
-            // 40pt hit target (glyph stays small) so the button is easy to tap inside the bar capsule.
-            .frame(width: 40, height: 40)
-            .contentShape(Rectangle())
-            // Glyph stays neutral; an active share link is flagged by a subtle accent dot (below)
-            // rather than fully tinting the icon. `.tint(.primary)` keeps it from inheriting the nav accent.
-            .foregroundStyle(.primary)
-            .overlay(alignment: .topTrailing) {
-                if note.isPublic {
-                    NoteShareStateDot()
-                        .padding(.top, 7)
-                        .padding(.trailing, 7)
-                }
-            }
-        }
-        .buttonStyle(.plain)
-        .tint(.primary)
-        .accessibilityLabel(note.isPublic ? "Manage share" : "Share")
-        .popover(isPresented: $showShareLinkPopover, arrowEdge: .top) {
-            NoteSharePopoverView(
-                note: note,
-                onDismiss: { showShareLinkPopover = false },
-                shareText: resolvedShareText
-            )
-        }
-    }
-}
-
-/// iPhone trailing toolbar — standalone more-menu orb (note details / connect / pin / delete).
+/// iPhone trailing toolbar — more-menu orb (note details / connect / share / pin / delete).
 struct NoteMoreToolbarMenu: View {
     @Bindable var note: Note
     @Environment(\.modelContext) private var modelContext
+    /// Live editor snapshot; when `nil`, uses persisted `note.title` / `note.body`.
+    var shareSnapshot: (() -> NoteShareSnapshot)?
     var onDeleteConfirmed: () -> Void
     /// Opens the full note inspector (tags, highlights, metadata).
     var onOpenNoteDetails: (() -> Void)?
@@ -212,17 +156,25 @@ struct NoteMoreToolbarMenu: View {
 
     @State private var confirmDelete = false
     @State private var showConnectPicker = false
+    @State private var showShareLinkPopover = false
 
     init(
         note: Note,
+        shareSnapshot: (() -> NoteShareSnapshot)? = nil,
         onDeleteConfirmed: @escaping () -> Void,
         onOpenNoteDetails: (() -> Void)? = nil,
         onConnectionsChanged: (() -> Void)? = nil
     ) {
         _note = Bindable(note)
+        self.shareSnapshot = shareSnapshot
         self.onDeleteConfirmed = onDeleteConfirmed
         self.onOpenNoteDetails = onOpenNoteDetails
         self.onConnectionsChanged = onConnectionsChanged
+    }
+
+    private var resolvedShareText: String {
+        let snap = shareSnapshot?() ?? NoteShareSnapshot(title: note.title, body: note.body)
+        return HarvousNoteShareBuilder.plainText(snapshot: snap)
     }
 
     var body: some View {
@@ -257,6 +209,19 @@ struct NoteMoreToolbarMenu: View {
             Divider()
 
             Button {
+                showShareLinkPopover = true
+            } label: {
+                Label {
+                    Text(note.isPublic ? "Manage share" : "Share")
+                } icon: {
+                    HarvousFAGlyph(
+                        assetName: "Harvous.ShareSquare",
+                        edgePt: HarvousFAIconMetrics.menuRowLeadingGlyphPt
+                    )
+                }
+            }
+
+            Button {
                 toggleNotePin()
             } label: {
                 Label {
@@ -286,9 +251,15 @@ struct NoteMoreToolbarMenu: View {
         } label: {
             HarvousFAGlyph(assetName: "Harvous.Ellipsis", edgePt: HarvousFAIconMetrics.catalogGlyphBoxPt)
                 .foregroundStyle(.primary)
-                // Match the share button's 40pt hit target so the cluster reads as one evenly-tappable capsule.
                 .frame(width: 40, height: 40)
                 .contentShape(Rectangle())
+                .overlay(alignment: .topTrailing) {
+                    if note.isPublic {
+                        NoteShareStateDot()
+                            .padding(.top, 7)
+                            .padding(.trailing, 7)
+                    }
+                }
         }
         .menuIndicator(.hidden)
         // `ContentView` uses `NavigationStack.tint(.harvousAccent)`; override so this control matches neutral bar glyphs (cf. SpaceSwitcher note).
@@ -304,6 +275,13 @@ struct NoteMoreToolbarMenu: View {
         }
         .sheet(isPresented: $showConnectPicker) {
             connectNotePickerSheet
+        }
+        .popover(isPresented: $showShareLinkPopover, arrowEdge: .top) {
+            NoteSharePopoverView(
+                note: note,
+                onDismiss: { showShareLinkPopover = false },
+                shareText: resolvedShareText
+            )
         }
     }
 
@@ -346,7 +324,7 @@ struct NoteMoreToolbarMenu: View {
 }
 #endif
 
-/// Trailing toolbar cluster: Find + Share + More. Used on macOS and iPad.
+/// Trailing toolbar cluster: Find + More (share / pin / delete inside More). Used on macOS and iPad.
 struct MacNoteShareMoreToolbar: ToolbarContent {
     @Bindable var note: Note
     @Environment(\.modelContext) private var modelContext
@@ -379,44 +357,19 @@ struct MacNoteShareMoreToolbar: ToolbarContent {
         ToolbarItemGroup(placement: .primaryAction) {
             NoteFindToolbarButton(useBorderedToolbarStyle: true)
 
-            // Single share entry — popover hosts both the token-based share-link
-            // flow and the system Share Sheet (plaintext export, inside the popover).
-            Button {
-                showShareLinkPopover = true
-            } label: {
-                HarvousFAGlyph(
-                    assetName: "Harvous.ShareSquare",
-                    edgePt: HarvousFAIconMetrics.catalogGlyphBoxPt
-                )
-                .frame(
-                    width: HarvousFAIconMetrics.catalogGlyphBoxPt,
-                    height: HarvousFAIconMetrics.catalogGlyphBoxPt
-                )
-                // Glyph stays neutral; an active share link is flagged by a subtle accent dot.
-                .foregroundStyle(.primary)
-                .overlay(alignment: .topTrailing) {
-                    if note.isPublic {
-                        NoteShareStateDot()
-                            .offset(x: 3, y: -3)
-                    }
-                }
-            }
-            .buttonStyle(.bordered)
-            .accessibilityLabel(note.isPublic ? "Manage share" : "Share")
-            .popover(isPresented: $showShareLinkPopover, arrowEdge: .bottom) {
-                NoteSharePopoverView(
-                    note: note,
-                    onDismiss: { showShareLinkPopover = false },
-                    shareText: toolbarShareText
-                )
-            }
-
             Group {
                 #if os(macOS)
                 macToolbarMoreMenu
                 #else
                 iosToolbarMoreMenu
                 #endif
+            }
+            .popover(isPresented: $showShareLinkPopover, arrowEdge: .bottom) {
+                NoteSharePopoverView(
+                    note: note,
+                    onDismiss: { showShareLinkPopover = false },
+                    shareText: toolbarShareText
+                )
             }
             .confirmationDialog(
                 "Delete this note? This cannot be undone.",
@@ -450,8 +403,22 @@ struct MacNoteShareMoreToolbar: ToolbarContent {
         }
         .buttonStyle(.bordered)
         .accessibilityLabel("More options")
+        .overlay(alignment: .topTrailing) {
+            if note.isPublic {
+                NoteShareStateDot()
+                    .offset(x: 3, y: -3)
+            }
+        }
         .popover(isPresented: $showMoreMenu, arrowEdge: .bottom) {
             HarvousPopoverMenuPanel {
+                HarvousPopoverMenuRow(
+                    title: note.isPublic ? "Manage share" : "Share",
+                    iconAsset: "Harvous.ShareSquare"
+                ) {
+                    showMoreMenu = false
+                    showShareLinkPopover = true
+                }
+                HarvousPopoverMenuDivider()
                 HarvousPopoverMenuRow(
                     title: note.isPinned ? "Unpin Note" : "Pin Note",
                     iconAsset: note.isPinned ? "Harvous.ThumbtackSlash" : "Harvous.Thumbtack"
@@ -491,6 +458,19 @@ struct MacNoteShareMoreToolbar: ToolbarContent {
             Divider()
 
             Button {
+                showShareLinkPopover = true
+            } label: {
+                Label {
+                    Text(note.isPublic ? "Manage share" : "Share")
+                } icon: {
+                    HarvousFAGlyph(
+                        assetName: "Harvous.ShareSquare",
+                        edgePt: HarvousFAIconMetrics.menuRowLeadingGlyphPt
+                    )
+                }
+            }
+
+            Button {
                 toggleToolbarNotePin()
             } label: {
                 Label {
@@ -524,6 +504,12 @@ struct MacNoteShareMoreToolbar: ToolbarContent {
                 width: HarvousFAIconMetrics.catalogGlyphBoxPt,
                 height: HarvousFAIconMetrics.catalogGlyphBoxPt
             )
+            .overlay(alignment: .topTrailing) {
+                if note.isPublic {
+                    NoteShareStateDot()
+                        .offset(x: 3, y: -3)
+                }
+            }
         }
         .menuIndicator(.hidden)
         .buttonStyle(.bordered)

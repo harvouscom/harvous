@@ -82,6 +82,8 @@ struct HarvousSettingsFormView: View {
                 SettingsDefaultBibleView()
             case .myChurch:
                 SettingsMyChurchView()
+            case .appearance:
+                SettingsAppearanceView()
             case .lockPin:
                 SettingsLockPINView()
             case .referral:
@@ -100,29 +102,27 @@ struct HarvousSettingsFormView: View {
         }
         #if os(iOS)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        .background(Color.harvousSettingsDetailBackground)
+        .background(item == .appearance ? Color.clear : Color.harvousSettingsDetailBackground)
         .navigationBarTitleDisplayMode(.inline)
+        .harvousIOSGlassOverCanvasShell()
         #endif
         .navigationTitle(item.title)
     }
 }
 
-// MARK: - Account (read-only identity + Manage account + Sign out)
+// MARK: - Account (read-only identity + Manage account)
 
-/// Matches web `PrototypeAccountPage`: read-only name/email, Clerk manage-account,
-/// and sign-out on this pane (not the profile menu root).
+/// Matches web `PrototypeAccountPage`: read-only name/email and Clerk manage-account.
+/// Log out lives in the profile menu root (You sheet / macOS toolbar menu).
 private struct SettingsAccountView: View {
     @AppStorage(HarvousSettingsStorageKeys.firstName) private var firstName = ""
     @AppStorage(HarvousSettingsStorageKeys.lastName) private var lastName = ""
     @State private var bridge = HarvousClerkBridge.shared
-    #if canImport(ClerkKitUI) && os(iOS)
+    #if canImport(ClerkKit)
+    #if os(iOS) || os(macOS)
     @State private var showClerkProfile = false
     #endif
-    #if os(macOS)
-    @State private var showAccountPortal = false
-    @State private var accountPortalURL: URL?
     #endif
-    @State private var isSigningOut = false
 
     private var profile: HarvousUserProfile? { bridge.currentProfile }
 
@@ -144,6 +144,57 @@ private struct SettingsAccountView: View {
     }
 
     var body: some View {
+        Group {
+            #if os(macOS)
+            macAccountBody
+            #else
+            iosAccountBody
+            #endif
+        }
+        .background(Color.harvousSettingsDetailBackground)
+        #if canImport(ClerkKit)
+        #if os(iOS) || os(macOS)
+        .sheet(isPresented: $showClerkProfile, onDismiss: { bridge.refreshProfile() }) {
+            HarvousMacUserProfileSheet()
+                .environment(Clerk.shared)
+                #if os(iOS)
+                .presentationDragIndicator(.visible)
+                #endif
+        }
+        #endif
+        #endif
+        .onAppear { bridge.refreshProfile() }
+    }
+
+    #if os(macOS)
+    private var macAccountBody: some View {
+        Form {
+            Section {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(displayName)
+                        .font(HarvousTypography.title)
+                    if let emailLine {
+                        Text(emailLine)
+                            .font(HarvousTypography.subheadline)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .padding(.vertical, 4)
+            }
+            Section {
+                Button(action: openManageAccount) {
+                    SettingsAccountManageRowLabel()
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .harvousGroupedSettingsForm()
+    }
+    #endif
+
+    #if os(iOS)
+    private var iosAccountBody: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 VStack(alignment: .leading, spacing: 2) {
@@ -162,77 +213,25 @@ private struct SettingsAccountView: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(.horizontal, 16)
                         .padding(.vertical, 14)
-                        .background(settingsAccountRowBackground)
+                        .background(Color(uiColor: .secondarySystemGroupedBackground))
                         .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                 }
                 .buttonStyle(.plain)
                 .contentShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-
-                Button {
-                    Task { await signOut() }
-                } label: {
-                    HStack(spacing: 8) {
-                        Text(isSigningOut ? "Signing out…" : "Sign out")
-                        if isSigningOut { ProgressView().controlSize(.small) }
-                    }
-                }
-                .buttonStyle(.bordered)
-                .disabled(isSigningOut)
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 12)
             .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .background(Color.harvousSettingsDetailBackground)
-        #if canImport(ClerkKitUI) && os(iOS)
-        .sheet(isPresented: $showClerkProfile) {
-            NavigationStack {
-                UserProfileView()
-                    .toolbar {
-                        ToolbarItem(placement: .cancellationAction) {
-                            Button("Done") { showClerkProfile = false }
-                        }
-                    }
-            }
-            .environment(Clerk.shared)
-            .presentationDragIndicator(.visible)
-        }
-        #endif
-        #if os(macOS)
-        .sheet(isPresented: $showAccountPortal) {
-            if let accountPortalURL {
-                HarvousClerkAccountPortalSheet(url: accountPortalURL)
-            }
-        }
-        #endif
-        .onAppear { bridge.refreshProfile() }
     }
-
-    private var settingsAccountRowBackground: Color {
-        #if os(macOS)
-        Color(nsColor: .controlBackgroundColor)
-        #else
-        Color(uiColor: .secondarySystemGroupedBackground)
-        #endif
-    }
+    #endif
 
     private func openManageAccount() {
-        #if canImport(ClerkKitUI) && os(iOS)
+        #if canImport(ClerkKit)
+        #if os(iOS) || os(macOS)
         showClerkProfile = true
-        #elseif os(macOS)
-        if let url = HarvousClerkBridge.clerkAccountPortalUserURL() {
-            accountPortalURL = url
-            showAccountPortal = true
-        }
-        #else
-        break
         #endif
-    }
-
-    private func signOut() async {
-        isSigningOut = true
-        defer { isSigningOut = false }
-        await bridge.signOut()
+        #endif
     }
 }
 
@@ -1054,6 +1053,7 @@ struct YouRootView: View {
     @AppStorage(HarvousSettingsStorageKeys.firstName) private var firstName = ""
     @AppStorage(HarvousSettingsStorageKeys.lastName) private var lastName = ""
     @State private var bridge = HarvousClerkBridge.shared
+    @State private var isSigningOut = false
 
     private var profile: HarvousUserProfile? { bridge.currentProfile }
 
@@ -1109,12 +1109,38 @@ struct YouRootView: View {
                 NavigationLink(value: HarvousYouNavigation.settingsList) {
                     HarvousIOSSettingsGlyphRow(title: "Settings", assetName: "Harvous.Gear")
                 }
+                Button {
+                    Task { await logOut() }
+                } label: {
+                    HStack(spacing: 12) {
+                        Image(systemName: "rectangle.portrait.and.arrow.right")
+                            .font(.system(size: HarvousFAIconMetrics.catalogGlyphBoxPt, weight: .regular))
+                            .foregroundStyle(Color.primary)
+                            .frame(width: 28, alignment: .center)
+                        HStack(spacing: 8) {
+                            Text(isSigningOut ? "Logging out…" : "Log out")
+                                .font(HarvousTypography.settingsListRow)
+                                .foregroundStyle(Color.primary)
+                            if isSigningOut {
+                                Spacer(minLength: 0)
+                                ProgressView().controlSize(.small)
+                            }
+                        }
+                    }
+                }
+                .disabled(isSigningOut)
             }
         }
         .harvousListMenuTypography()
         .navigationTitle("Account")
         .navigationBarTitleDisplayMode(.inline)
         .onAppear { bridge.refreshProfile() }
+    }
+
+    private func logOut() async {
+        isSigningOut = true
+        defer { isSigningOut = false }
+        await bridge.signOut()
     }
 }
 

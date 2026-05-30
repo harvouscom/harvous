@@ -5,6 +5,9 @@ import os
 #if canImport(ClerkKit)
 import ClerkKit
 #endif
+#if os(macOS)
+import AppKit
+#endif
 
 /// Reads CLERK_PUBLISHABLE_KEY / HARVOUS_API_BASE_URL from Info.plist (which
 /// substitutes them from `Harvous-Env.xcconfig` at build time). Crashes loudly
@@ -116,11 +119,31 @@ final class HarvousClerkBridge {
         #endif
     }
 
+    /// JWT for Supabase Realtime (Clerk Dashboard → JWT templates → `supabase`).
+    func supabaseRealtimeToken() async -> String? {
+        #if canImport(ClerkKit)
+        do {
+            return try await Clerk.shared.session?.getToken(
+                Session.GetTokenOptions(template: "supabase")
+            )
+        } catch {
+            Logger.app.error("Clerk Supabase token failed: \(error.localizedDescription, privacy: .public)")
+            return nil
+        }
+        #else
+        return nil
+        #endif
+    }
+
     func signOut() async {
         #if canImport(ClerkKit)
         // SignOut is exposed via the `auth` namespace in ClerkKit 1.1.x.
         try? await Clerk.shared.auth.signOut()
         currentProfile = nil
+        #if os(macOS)
+        macToolbarProfileImageTask?.cancel()
+        macToolbarProfileImage = nil
+        #endif
         #endif
     }
 
@@ -130,14 +153,46 @@ final class HarvousClerkBridge {
     /// `import ClerkKit`. Updated explicitly via `refreshProfile()`.
     private(set) var currentProfile: HarvousUserProfile?
 
+    #if os(macOS)
+    /// Rasterized Clerk avatar for the unified toolbar `Menu` label (loaded off the label view tree).
+    private(set) var macToolbarProfileImage: NSImage?
+    private var macToolbarProfileImageTask: Task<Void, Never>?
+    #endif
+
     /// Re-reads `Clerk.shared.user` into the value-type snapshot. Call after
     /// sign-in completes, after `updateProfile()`, and on focus changes that
     /// might have produced a server-side change.
     func refreshProfile() {
         #if canImport(ClerkKit)
         currentProfile = HarvousUserProfile(user: Clerk.shared.user)
+        #if os(macOS)
+        reloadMacToolbarProfileImage()
+        #endif
         #endif
     }
+
+    #if os(macOS)
+    private func reloadMacToolbarProfileImage() {
+        macToolbarProfileImageTask?.cancel()
+        #if canImport(ClerkKit)
+        guard let user = Clerk.shared.user, user.hasImage else {
+            macToolbarProfileImage = nil
+            return
+        }
+        guard let url = HarvousProfilePhotoLoader.validatedURL(from: user.imageUrl) else {
+            macToolbarProfileImage = nil
+            return
+        }
+        #else
+        return
+        #endif
+        macToolbarProfileImageTask = Task { @MainActor in
+            let image = await HarvousProfilePhotoLoader.loadThumbnail(url: url, diameter: 28)
+            guard !Task.isCancelled else { return }
+            macToolbarProfileImage = image
+        }
+    }
+    #endif
 
     /// Update first/last name on the Clerk user.
     func updateProfile(firstName: String?, lastName: String?) async throws {
@@ -152,6 +207,71 @@ final class HarvousClerkBridge {
         #endif
     }
 
+    /// Reload the signed-in Clerk user from the API (emails, verification state, etc.).
+    func reloadClerkUser() async throws {
+        #if canImport(ClerkKit)
+        guard let user = Clerk.shared.user else {
+            throw HarvousProfileError.notSignedIn
+        }
+        _ = try await user.reload()
+        refreshProfile()
+        #else
+        throw HarvousProfileError.notSignedIn
+        #endif
+    }
+
+    /// Change or set the account password (macOS in-app manage account).
+    func updatePassword(
+        currentPassword: String?,
+        newPassword: String,
+        signOutOfOtherSessions: Bool = true
+    ) async throws {
+        #if canImport(ClerkKit)
+        guard let user = Clerk.shared.user else {
+            throw HarvousProfileError.notSignedIn
+        }
+        _ = try await user.updatePassword(
+            .init(
+                currentPassword: currentPassword,
+                newPassword: newPassword,
+                signOutOfOtherSessions: signOutOfOtherSessions
+            )
+        )
+        refreshProfile()
+        #else
+        throw HarvousProfileError.notSignedIn
+        #endif
+    }
+
+    /// Add an email address; caller verifies with `EmailAddress.sendCode()` / `verifyCode(_:)`.
+    func createEmailAddress(_ email: String) async throws -> EmailAddress {
+        #if canImport(ClerkKit)
+        guard let user = Clerk.shared.user else {
+            throw HarvousProfileError.notSignedIn
+        }
+        let created = try await user.createEmailAddress(email)
+        _ = try await user.reload()
+        refreshProfile()
+        return created
+        #else
+        throw HarvousProfileError.notSignedIn
+        #endif
+    }
+
+    /// Remove the Clerk profile image.
+    func deleteProfileImage() async throws {
+        #if canImport(ClerkKit)
+        guard let user = Clerk.shared.user else {
+            throw HarvousProfileError.notSignedIn
+        }
+        _ = try await user.deleteProfileImage()
+        _ = try await user.reload()
+        refreshProfile()
+        #else
+        throw HarvousProfileError.notSignedIn
+        #endif
+    }
+
     /// Replace the Clerk profile image with PNG/JPEG bytes.
     func setProfileImage(data: Data) async throws {
         #if canImport(ClerkKit)
@@ -159,6 +279,7 @@ final class HarvousClerkBridge {
             throw HarvousProfileError.notSignedIn
         }
         _ = try await user.setProfileImage(imageData: data)
+        _ = try await user.reload()
         refreshProfile()
         #else
         throw HarvousProfileError.notSignedIn
@@ -177,8 +298,8 @@ final class HarvousClerkBridge {
         #endif
     }
 
-    /// Clerk Account Portal URL for the signed-in user's profile page (macOS fallback when
-    /// `UserProfileView` is unavailable). Derived from the publishable key's Frontend API host.
+    /// Clerk Account Portal URL for the signed-in user's profile page (fallback when
+    /// ClerkKitUI is not linked — opens in the system browser). Derived from the publishable key's Frontend API host.
     static func clerkAccountPortalUserURL() -> URL? {
         guard let frontend = clerkFrontendAPIURL(from: HarvousEnvironment.publishableKey),
               var components = URLComponents(url: frontend, resolvingAgainstBaseURL: false),
@@ -282,8 +403,9 @@ struct HarvousUserProfile: Equatable {
         self.firstName = user.firstName
         self.lastName = user.lastName
         self.primaryEmail = user.primaryEmailAddress?.emailAddress
-        self.imageUrl = user.hasImage ? user.imageUrl : nil
-        self.hasImage = user.hasImage
+        let rawImageURL = user.imageUrl.trimmingCharacters(in: .whitespacesAndNewlines)
+        self.imageUrl = user.hasImage && !rawImageURL.isEmpty ? rawImageURL : nil
+        self.hasImage = user.hasImage && self.imageUrl != nil
     }
     #endif
 }

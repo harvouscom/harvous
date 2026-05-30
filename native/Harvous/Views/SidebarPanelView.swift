@@ -455,6 +455,7 @@ struct SidebarPanelView: View {
                     .padding(.bottom, 8)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(Color.clear)
             // Suppress any automatic navigation title (prevents "Home" / space name appearing as bar title).
             #if os(iOS)
             .navigationTitle("")
@@ -469,34 +470,19 @@ struct SidebarPanelView: View {
                 GeometryReader { proxy in
                     Color.clear.preference(key: SidebarColumnWidthPreferenceKey.self, value: proxy.size.width)
                 }
-                // Unified sidebar chrome — covers search + list as one block
+                // Unified sidebar chrome — canvas-tinted glass (see `HarvousSidebarColumnGlassBackdrop`).
                 GeometryReader { proxy in
                     let lead: CGFloat = 1
                     let w = proxy.size.width
                     let h = proxy.size.height
-                    let shape = UnevenRoundedRectangle(
-                        topLeadingRadius: 0,
-                        bottomLeadingRadius: HarvousRadius.sidebarGlassLeading,
-                        bottomTrailingRadius: 0,
-                        topTrailingRadius: 0,
-                        style: .continuous
-                    )
-                    Group {
-                        if #available(macOS 26.0, *) {
-                            shape.fill(Color.clear).glassEffect(in: shape)
-                        } else {
-                            shape.fill(.ultraThinMaterial)
-                        }
-                    }
-                    .frame(width: max(0, w - lead), height: h)
-                    .padding(.leading, lead)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                    HarvousSidebarColumnGlassBackdrop(shape: HarvousSidebarColumnGlassBackdropShape.macOSColumn())
+                        .frame(width: max(0, w - lead), height: h)
+                        .padding(.leading, lead)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                 }
                 .ignoresSafeArea()
                 #else
-                // iPad split layout: give the sidebar a glassy material backing (matching Mac's visual separation).
-                Rectangle()
-                    .fill(.ultraThinMaterial)
+                HarvousSidebarColumnGlassBackdrop(shape: Rectangle())
                     .ignoresSafeArea()
                 #endif
             }

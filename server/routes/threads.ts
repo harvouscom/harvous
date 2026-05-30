@@ -41,6 +41,7 @@ import { generateThreadId, generateShareToken } from '@/utils/ids';
 import { MY_PILE_THREAD_TITLE } from '@/utils/my-pile-thread';
 import { deleteNotesCascadeForUser } from '../utils/delete-note-cascade';
 import { recordDeletedEntities } from '../utils/sync-deletion-log';
+import { broadcastInvalidation } from '../utils/realtime';
 
 const route = new Hono();
 
@@ -230,6 +231,7 @@ route.post('/api/threads/create', requireAuth, rateLimit('write'), async (c) => 
 
     awardCreationBonusXP(auth.userId, 'thread').catch(() => {});
 
+    broadcastInvalidation(auth.userId, { type: 'thread:updated', id: newThread.id });
     return c.json({ success: 'Thread created!', thread: newThread });
   } catch (error: any) {
     const standardError = handleAPIError(error, { endpoint: '/api/threads/create', action: 'create_thread' });
@@ -292,6 +294,7 @@ route.post('/api/threads/update', requireAuth, rateLimit('write'), async (c) => 
         .where(and(eq(Threads.id, threadId), eq(Threads.userId, auth.userId)));
     }
 
+    broadcastInvalidation(auth.userId, { type: 'thread:updated', id: threadId });
     return c.json({ success: 'Thread updated!', thread: updatedThread });
   } catch (error: any) {
     const standardError = handleAPIError(error, { endpoint: '/api/threads/update', action: 'update_thread' });
@@ -356,6 +359,7 @@ route.delete('/api/threads/delete', requireAuth, rateLimit('write'), async (c) =
     await db.delete(Threads).where(and(eq(Threads.id, threadId), eq(Threads.userId, auth.userId)));
     await recordDeletedEntities(auth.userId, 'thread', [threadId]);
 
+    broadcastInvalidation(auth.userId, { type: 'thread:deleted', id: threadId });
     return c.json({ success: `Thread erased! Notes have been moved to the ${MY_PILE_THREAD_TITLE} thread.`, threadId });
   } catch (error: any) {
     const standardError = handleAPIError(error, { endpoint: '/api/threads/delete', action: 'delete_thread' });

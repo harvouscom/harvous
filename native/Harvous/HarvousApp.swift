@@ -27,6 +27,9 @@ struct HarvousApp: App {
             ScriptureVerseFetch.warmBackendForVerseFetch()
         }
         HarvousClerkBridge.shared.configure()
+        #if os(iOS)
+        HarvousIOSCanvasChromeAppearance.applyGlobally()
+        #endif
     }
 
     @StateObject private var appRouter = HarvousAppRouter()
@@ -145,6 +148,7 @@ struct HarvousApp: App {
                     .environmentObject(appRouter)
                     .environmentObject(spaceStore)
                     .environmentObject(shiftHints)
+                    .environment(HarvousAppearanceStore.shared)
                     #if os(macOS)
                     .environmentObject(macNoteListSelectionCoordinator)
                     // Explicit floor only — do not use `.windowResizability(.contentMinSize)` here:
@@ -189,6 +193,7 @@ struct HarvousApp: App {
             MacPreferencesRootView()
                 .environmentObject(appRouter)
                 .environmentObject(spaceStore)
+                .environment(HarvousAppearanceStore.shared)
                 .environment(\.harvousScriptureTheme, spaceStore.scriptureTheme)
                 #if canImport(ClerkKit)
                 .environment(Clerk.shared)

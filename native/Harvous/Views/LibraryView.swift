@@ -15,7 +15,6 @@ struct LibraryView: View {
     @EnvironmentObject private var spaceStore: SpaceStore
     @EnvironmentObject private var appRouter: HarvousAppRouter
 
-
     @State private var pinnedFolderRowIds: [String] = []
     @State private var renameTarget: HarvousFolderRow?
     @State private var renameDraft: String = ""
@@ -77,7 +76,7 @@ struct LibraryView: View {
             case .root:
                 // Match `NoteListColumn` iOS: grouped chrome behind plain `List` + `.scrollContentBackground(.hidden)`.
                 Group { foldersRootContent }
-                    .background(Color(.systemGroupedBackground))
+                    .background(Color.clear)
             case .bucket(let folderBucketKey):
                 NoteListColumn(
                     filter: .folder(folderBucketKey),
@@ -94,6 +93,7 @@ struct LibraryView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .navigationTitle(navigationTitleText)
         .navigationBarTitleDisplayMode(.inline)
+        .harvousIOSGlassOverCanvasShell()
         .toolbar {
             ToolbarItem(placement: .topBarLeading) {
                 SpaceSwitcherView()
@@ -106,19 +106,9 @@ struct LibraryView: View {
             ToolbarItem(placement: .topBarLeading) {
                 IOSListSurfaceChip()
             }
-            ToolbarItem(placement: .topBarTrailing) {
-                Button {
-                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
-                    appRouter.selectIOSListSurface(.more)
-                } label: {
-                    HarvousFAGlyph(assetName: "Harvous.UserFilled", edgePt: 17)
-                        .foregroundStyle(.primary)
-                        .frame(width: 32, height: 32)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .tint(.primary)
-                .accessibilityLabel("Account, profile, and settings")
+            HarvousIOSProfileToolbarTrailingItem {
+                UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                appRouter.selectIOSListSurface(.more)
             }
         }
         .onAppear { reloadPinnedFolderOrder() }

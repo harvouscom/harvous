@@ -106,6 +106,8 @@ Playwright tests for **join** and **invite** flows live in `e2e/shared-space-joi
 
 Supabase Postgres via Drizzle ORM. Schema in `server/db/schema.ts`. Env: `SUPABASE_DATABASE_URL` (pooler, port 6543 — used at runtime), `SUPABASE_DIRECT_URL` (port 5432 — used by drizzle-kit for migrations). Run `npm run db:push` (drizzle-kit push) pre-deploy, `npm run db:check` pre-commit.
 
+**Cross-device instant sync (Realtime):** After mutations, the API broadcasts on Supabase Realtime channel `sync-{userId}` when `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` are set. Web uses `useRealtimeSync` (`VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, Clerk template `supabase`). Native uses `HarvousRealtimeSync` (`HARVOUS_SUPABASE_*` in xcconfig). See [docs/SUPABASE_REALTIME_SETUP.md](docs/SUPABASE_REALTIME_SETUP.md). HTTP sync remains authoritative; 5-minute background poll is still a fallback.
+
 **Production data verification (no user data showing):** The API reads from the same Supabase DB. If the app shows no data: (1) In Netlify, confirm `SUPABASE_DATABASE_URL` is set and points to the correct Supabase project. (2) Check Netlify function logs for `[api/content/load-more]` and `[api/user/get-profile]`: 401 = auth (cookies not sent or invalid), 0 items = DB empty or wrong user, 500 = exception. (3) Ensure Clerk cookies are valid for the production domain and that Netlify forwards the `Cookie` header to the function.
 
 ## Auth (Clerk)

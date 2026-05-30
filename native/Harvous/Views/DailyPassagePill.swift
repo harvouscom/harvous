@@ -241,24 +241,37 @@ struct DailyPassagePill: View {
         dailyPassageNoteExists ? 38 : 68
     }
 
+    private var cardInteriorHorizontalPadding: CGFloat {
+        #if os(iOS)
+        14
+        #else
+        HarvousFeedListLayout.interiorContentHPadding
+        #endif
+    }
+
+    /// Web prototype: `.proto-daily-passage-pill__content { gap: 4px }` — eyebrow → reference.
+    private static let eyebrowToReferenceSpacing: CGFloat = 4
+
+    /// Web prototype: `.proto-daily-passage-pill__eyebrow` — 12px / 500 on `proto-caption`.
+    private static let eyebrowFont = HarvousFonts.font(size: 12, weight: 500, design: .default)
+    /// Web prototype + native: `.proto-daily-passage-pill__reference` — 17px / 600.
+    private static let referenceFont = HarvousFonts.font(size: 17, weight: .semibold, design: .default)
+
     private func cardContent(votd: VotdToday) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: Self.eyebrowToReferenceSpacing) {
             Text("Today's Passage")
-                // Use 12pt on both platforms — matches the Mac sidebar pill; noteListPreview
-                // intentionally upsizes to 14pt on iOS for list rows but the pill is a compact
-                // widget that should stay tight regardless of platform.
-                .font(HarvousFonts.font(size: 12, weight: 400, design: .default))
+                .font(Self.eyebrowFont)
                 .foregroundStyle(.secondary)
 
             Text(votd.reference)
-                .font(HarvousFonts.font(size: 14, weight: .semibold, design: .default))
+                .font(Self.referenceFont)
                 .foregroundStyle(.primary)
                 .lineLimit(2)
                 .multilineTextAlignment(.leading)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.trailing, passageTitleTrailingInset)
                 .overlay(alignment: .bottomTrailing) {
-                    HStack(spacing: 8) {
+                    HStack(spacing: OrbLayout.spacing) {
                         orbButton(assetName: "Harvous.BookOpen") {
                             showingPassage = true
                         }
@@ -271,7 +284,7 @@ struct DailyPassagePill: View {
                 }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, HarvousFeedListLayout.interiorContentHPadding)
+        .padding(.horizontal, cardInteriorHorizontalPadding)
         .padding(.top, 9)
         .padding(.bottom, 8)
         .background(cardChrome)
@@ -298,12 +311,23 @@ struct DailyPassagePill: View {
         }
     }
 
+    /// Web prototype: `.proto-daily-passage-pill__orb` — 30×30 circle, 12px icon.
+    private enum OrbLayout {
+        static let size: CGFloat = 30
+        static let glyphPt: CGFloat = 12
+        static let spacing: CGFloat = 8
+    }
+
     private func orbButton(assetName: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            HarvousFAGlyph(assetName: assetName, edgePt: 12)
-                .foregroundStyle(.secondary.opacity(0.8))
-                .frame(width: 30, height: 30)
-                .background(Circle().fill(Color.primary.opacity(0.08)))
+            ZStack {
+                Circle()
+                    .fill(Color.primary.opacity(0.08))
+                HarvousFAGlyph(assetName: assetName, edgePt: OrbLayout.glyphPt)
+                    .foregroundStyle(.secondary.opacity(0.8))
+            }
+            .frame(width: OrbLayout.size, height: OrbLayout.size)
+            .contentShape(Circle())
         }
         .buttonStyle(.plain)
     }

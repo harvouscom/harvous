@@ -1,6 +1,6 @@
 /**
  * Reset a user to "new user" state: clear all their content and UserMetadata
- * so the next load treats them as new and creates only the onboarding thread.
+ * so the next load treats them as new (empty content).
  * Used by POST /api/test/reset-to-new-user and by dev server startup when DEV_RESET_USER_ID is set.
  */
 

@@ -76,6 +76,9 @@ struct EastonsDictionaryListColumn: View {
             listBody
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        #if os(iOS)
+        .harvousIOSGlassOverCanvasShell()
+        #endif
         .onAppear {
             EastonsDictionaryService.shared.loadIndexIfNeeded()
             pinnedSlugs = HarvousPinnedDictionaryEntriesStore.loadOrderedSlugs()
@@ -323,19 +326,9 @@ struct IOSDictionaryHubView: View {
                     ToolbarItem(placement: .topBarLeading) {
                         IOSListSurfaceChip()
                     }
-                    ToolbarItem(placement: .topBarTrailing) {
-                        Button {
-                            UIImpactFeedbackGenerator(style: .light).impactOccurred()
-                            appRouter.selectIOSListSurface(.more)
-                        } label: {
-                            HarvousFAGlyph(assetName: "Harvous.UserFilled", edgePt: 17)
-                                .foregroundStyle(.primary)
-                                .frame(width: 32, height: 32)
-                                .contentShape(Rectangle())
-                        }
-                        .buttonStyle(.plain)
-                        .tint(.primary)
-                        .accessibilityLabel("Account, profile, and settings")
+                    HarvousIOSProfileToolbarTrailingItem {
+                        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                        appRouter.selectIOSListSurface(.more)
                     }
                 }
                 .transition(.move(edge: .leading).combined(with: .opacity))
@@ -344,6 +337,7 @@ struct IOSDictionaryHubView: View {
         .onChange(of: appRouter.iosListSurface) { _, surface in
             if surface != .dictionary { drilledSlug = nil }
         }
+        .harvousIOSGlassOverCanvasShell()
     }
 }
 #endif

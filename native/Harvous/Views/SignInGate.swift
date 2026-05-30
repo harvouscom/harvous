@@ -43,19 +43,29 @@ struct SignInGate<Content: View>: View {
                 content()
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .task(id: bridge.userId) {
-                        guard bridge.isAuthenticated else { return }
+                        defer { HarvousRealtimeSync.shared.stop() }
+                        guard bridge.isAuthenticated, let userId = bridge.userId else { return }
                         HarvousSyncScheduler.registerContext(modelContext)
                         HarvousSyncScheduler.cancelPendingScheduledSync()
-                        sync.resetIfUserChanged(currentUserId: bridge.userId)
+                        sync.resetIfUserChanged(currentUserId: userId)
                         bridge.refreshProfile()
                         await sync.flushPending(context: modelContext)
                         await sync.pullAll(context: modelContext)
                         await sync.flushPending(context: modelContext)
+                        HarvousRealtimeSync.shared.start(userId: userId)
+                        while !Task.isCancelled {
+                            try? await Task.sleep(nanoseconds: 1_000_000_000)
+                        }
                     }
                     .onChange(of: scenePhase) { _, phase in
-                        guard phase == .active, bridge.isAuthenticated else { return }
+                        if phase != .active {
+                            HarvousRealtimeSync.shared.stop()
+                            return
+                        }
+                        guard bridge.isAuthenticated, let userId = bridge.userId else { return }
                         HarvousSyncScheduler.registerContext(modelContext)
                         HarvousSyncScheduler.cancelPendingScheduledSync()
+                        HarvousRealtimeSync.shared.start(userId: userId)
                         Task {
                             await sync.flushPending(context: modelContext)
                             await sync.pullAll(context: modelContext)

@@ -64,6 +64,8 @@ interface NavigationColumnProps {
   currentId?: string;
   showProfile?: boolean;
   initials?: string;
+  /** Clerk profile photo (mobile nav only; desktop uses name pill). */
+  avatarImageUrl?: string | null;
   userDisplayName?: string;
   userColor?: string;
   pathname?: string;

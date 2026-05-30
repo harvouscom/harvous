@@ -26,7 +26,8 @@ struct iPadRootView: View {
     @State private var showInspector = false
     @State private var threadNavPath: [UUID] = []
     @State private var importSummaryPayload: HarvousVaultImportSummaryPayload?
-    @State private var bridge = HarvousClerkBridge.shared
+    @State private var padToggleInspectorFocusedAction: (() -> Void)?
+    @Bindable private var bridge = HarvousClerkBridge.shared
 
     @Environment(\.modelContext) private var context
     @EnvironmentObject private var appRouter: HarvousAppRouter
@@ -214,34 +215,8 @@ struct iPadRootView: View {
         .accessibilityLabel("Account, profile, and settings")
     }
 
-    @AppStorage(HarvousSettingsStorageKeys.avatarColor)
-    private var avatarColorRaw: String = HarvousAvatarColorToken.blue.rawValue
-
-    @Environment(\.colorScheme) private var colorScheme
-
     private var padAvatarDisc: some View {
-        let token = HarvousAvatarColorToken(rawValue: avatarColorRaw) ?? .blue
-        let fill: Color
-        let tint: Color
-        switch token {
-        case .paper:
-            fill = colorScheme == .dark ? Color.white.opacity(0.12) : Color.black.opacity(0.07)
-            tint = colorScheme == .dark ? Color.white.opacity(0.55) : Color.primary.opacity(0.55)
-        default:
-            fill = Color.thread(avatarColorRaw) ?? Color.harvousAccent.opacity(0.35)
-            tint = Color.threadGlyph(avatarColorRaw) ?? Color.harvousAccent
-        }
-        return ZStack {
-            Circle()
-                .fill(fill)
-                .frame(width: 28, height: 28)
-            HarvousFAGlyph(assetName: "Harvous.UserFilled")
-                .foregroundStyle(tint)
-        }
-        .overlay {
-            Circle()
-                .strokeBorder(Color.primary.opacity(colorScheme == .dark ? 0.12 : 0.18), lineWidth: 0.75)
-        }
+        HarvousProfileOrb(imageUrl: bridge.currentProfile?.imageUrl, size: 28)
     }
 
     private var padSettingsSheet: some View {
@@ -273,6 +248,7 @@ struct iPadRootView: View {
 
     private var padSplitStyled: some View {
         padNavigationSplit
+            .background(Color.clear)
             .navigationSplitViewStyle(.balanced)
             .environment(\.harvousIsIPadSplitLayout, true)
             .transaction(value: showInspector) { $0.disablesAnimations = true }
@@ -294,6 +270,7 @@ struct iPadRootView: View {
             }
             .sheet(isPresented: $appRouter.iosShowMore, onDismiss: {
                 appRouter.youNavigationStack.removeAll()
+                bridge.refreshProfile()
             }) {
                 padSettingsSheet
             }
@@ -302,17 +279,15 @@ struct iPadRootView: View {
     private var padWithFocusedValues: some View {
         padWithSheetsAndSearch
             .focusedSceneValue(\.newNoteAction, createNewNote)
-            .focusedSceneValue(\.showSearchAction) { showSearch = true }
+            .focusedSceneValue(\.showSearchAction, padOpenSearch)
             .focusedSceneValue(\.dailyNoteAction, openDailyNote)
             .focusedSceneValue(\.randomRevisitAction, openRandomNote)
-            .focusedSceneValue(\.insertWikiLinkAction) {
-                NotificationCenter.default.post(name: .harvousRequestInsertWikiLink, object: nil)
+            .focusedSceneValue(\.insertWikiLinkAction, padPostInsertWikiLink)
+            .focusedSceneValue(\.toggleInspectorAction, padToggleInspectorFocusedAction)
+            .focusedSceneValue(\.focusNoteListAction, padFocusNoteList)
+            .onChange(of: selectedNote?.id, initial: true) { _, _ in
+                padToggleInspectorFocusedAction = selectedNote == nil ? nil : { showInspector.toggle() }
             }
-            .focusedSceneValue(
-                \.toggleInspectorAction,
-                selectedNote == nil ? nil : { showInspector.toggle() }
-            )
-            .focusedSceneValue(\.focusNoteListAction) { selectedNote = nil }
     }
 
     private var padRootChrome: some View {
@@ -374,6 +349,7 @@ struct iPadRootView: View {
                 HarvousCalendarStudyNotifier.requestAccessAndPrewarm(modelContext: context)
                 appRouter.applyPendingDeepLink()
             }
+            .harvousCanvasBackground()
     }
 
     // MARK: - Helpers
@@ -422,6 +398,18 @@ struct iPadRootView: View {
             s += "\n\nSkipped (\(p.report.skipped.count)):\n" + lines.joined(separator: "\n")
         }
         return s
+    }
+
+    private func padOpenSearch() {
+        showSearch = true
+    }
+
+    private func padFocusNoteList() {
+        selectedNote = nil
+    }
+
+    private func padPostInsertWikiLink() {
+        NotificationCenter.default.post(name: .harvousRequestInsertWikiLink, object: nil)
     }
 
     private func createNewNote() {

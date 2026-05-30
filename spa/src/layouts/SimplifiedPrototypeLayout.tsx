@@ -2,6 +2,7 @@ import PrototypePinPanels from '../pages/prototype/PrototypePinPanels';
 import ReferralCreditInit from '../../../src/components/react/ReferralCreditInit';
 import KeyboardShortcutsInit from '../../../src/components/react/KeyboardShortcutsInit';
 import SyncManagerIsland from '../../../src/components/react/SyncManagerIsland';
+import { useRealtimeSync } from '@/hooks/useRealtimeSync';
 import { useAuth, useUser } from '@clerk/clerk-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { HARVOUS_REMOTE_SYNC_COMPLETED } from '@/utils/harvous-remote-sync-event';
@@ -105,6 +106,7 @@ export default function SimplifiedPrototypeLayout() {
 function PrototypeAuthenticatedChrome({ userId }: { userId?: string }) {
   const queryClient = useQueryClient();
   const { homeSpaceId } = usePrototypeHomeSpaceId();
+  useRealtimeSync(userId, { homeSpaceId });
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const {
     isMobileSidebar,

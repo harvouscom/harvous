@@ -656,10 +656,13 @@
   width: 100%;
 }
 
-/* Ensure cl-formButtonPrimary has matching height and padding like btn-cta */
-.cl-formButtonPrimary,
-button.cl-formButtonPrimary,
-.cl-formButtonPrimary.cl-button {
+/* Sign-in / upgrade Clerk forms only — do not style openUserProfile() account UI */
+.clerk-form-root .cl-formButtonPrimary,
+.clerk-form-card .cl-formButtonPrimary,
+.clerk-form-root button.cl-formButtonPrimary,
+.clerk-form-card button.cl-formButtonPrimary,
+.clerk-form-root .cl-formButtonPrimary.cl-button,
+.clerk-form-card .cl-formButtonPrimary.cl-button {
   height: 64px !important;  /* Match btn-cta fixed height */
   padding-top: 1.5rem !important;  /* 24px */
   padding-bottom: 1.75rem !important;  /* 28px - matches btn-cta */
@@ -667,20 +670,27 @@ button.cl-formButtonPrimary,
   padding-right: 1.5rem !important;  /* 24px */
 }
 
-/* Ensure Clerk's internal button classes also have white text - target all possible combinations */
-.clerk-form-button-primary.cl-button,
-.clerk-form-button-primary[data-variant="solid"],
-.cl-formButtonPrimary.clerk-form-button-primary,
-.cl-formButtonPrimary.cl-button.clerk-form-button-primary,
-.cl-formButtonPrimary[data-variant="solid"],
-button.clerk-form-button-primary,
-button.cl-formButtonPrimary.clerk-form-button-primary {
+.clerk-form-root .clerk-form-button-primary.cl-button,
+.clerk-form-card .clerk-form-button-primary.cl-button,
+.clerk-form-root .clerk-form-button-primary[data-variant="solid"],
+.clerk-form-card .clerk-form-button-primary[data-variant="solid"],
+.clerk-form-root .cl-formButtonPrimary.clerk-form-button-primary,
+.clerk-form-card .cl-formButtonPrimary.clerk-form-button-primary,
+.clerk-form-root .cl-formButtonPrimary.cl-button.clerk-form-button-primary,
+.clerk-form-card .cl-formButtonPrimary.cl-button.clerk-form-button-primary,
+.clerk-form-root .cl-formButtonPrimary[data-variant="solid"],
+.clerk-form-card .cl-formButtonPrimary[data-variant="solid"],
+.clerk-form-root button.clerk-form-button-primary,
+.clerk-form-card button.clerk-form-button-primary,
+.clerk-form-root button.cl-formButtonPrimary.clerk-form-button-primary,
+.clerk-form-card button.cl-formButtonPrimary.clerk-form-button-primary {
   color: white !important;
 }
 
-/* Target all Clerk primary buttons (solid variant with primary color) */
-.cl-button[data-variant="solid"][data-color="primary"],
-button.cl-button[data-variant="solid"][data-color="primary"] {
+.clerk-form-root .cl-button[data-variant="solid"][data-color="primary"],
+.clerk-form-card .cl-button[data-variant="solid"][data-color="primary"],
+.clerk-form-root button.cl-button[data-variant="solid"][data-color="primary"],
+.clerk-form-card button.cl-button[data-variant="solid"][data-color="primary"] {
   color: white !important;
   background-color: var(--color-bold-blue) !important;
   height: 64px !important;  /* Match btn-cta fixed height */
@@ -701,9 +711,10 @@ button.cl-button[data-variant="solid"][data-color="primary"] {
   will-change: transform, box-shadow !important;
 }
 
-/* Active state for Clerk primary buttons */
-.cl-button[data-variant="solid"][data-color="primary"]:active,
-button.cl-button[data-variant="solid"][data-color="primary"]:active {
+.clerk-form-root .cl-button[data-variant="solid"][data-color="primary"]:active,
+.clerk-form-card .cl-button[data-variant="solid"][data-color="primary"]:active,
+.clerk-form-root button.cl-button[data-variant="solid"][data-color="primary"]:active,
+.clerk-form-card button.cl-button[data-variant="solid"][data-color="primary"]:active {
   transform: scale(0.98) !important;
   background-color: var(--color-navy) !important;
   box-shadow:
@@ -712,18 +723,24 @@ button.cl-button[data-variant="solid"][data-color="primary"]:active {
     0px 4px 0px 0px #00000040 inset !important;
 }
 
-.cl-button[data-variant="solid"][data-color="primary"]:active > *,
-button.cl-button[data-variant="solid"][data-color="primary"]:active > * {
+.clerk-form-root .cl-button[data-variant="solid"][data-color="primary"]:active > *,
+.clerk-form-card .cl-button[data-variant="solid"][data-color="primary"]:active > *,
+.clerk-form-root button.cl-button[data-variant="solid"][data-color="primary"]:active > *,
+.clerk-form-card button.cl-button[data-variant="solid"][data-color="primary"]:active > * {
   translate: 0 0 !important;
   transform: scale(0.98) !important;
 }
 
-/* Target text content inside button */
-.clerk-form-button-primary *,
-.cl-formButtonPrimary.clerk-form-button-primary *,
-button.clerk-form-button-primary *,
-.cl-button[data-variant="solid"][data-color="primary"] *,
-button.cl-button[data-variant="solid"][data-color="primary"] * {
+.clerk-form-root .clerk-form-button-primary *,
+.clerk-form-card .clerk-form-button-primary *,
+.clerk-form-root .cl-formButtonPrimary.clerk-form-button-primary *,
+.clerk-form-card .cl-formButtonPrimary.clerk-form-button-primary *,
+.clerk-form-root button.clerk-form-button-primary *,
+.clerk-form-card button.clerk-form-button-primary *,
+.clerk-form-root .cl-button[data-variant="solid"][data-color="primary"] *,
+.clerk-form-card .cl-button[data-variant="solid"][data-color="primary"] *,
+.clerk-form-root button.cl-button[data-variant="solid"][data-color="primary"] *,
+.clerk-form-card button.cl-button[data-variant="solid"][data-color="primary"] * {
   color: white !important;
 }
 
@@ -754,36 +771,45 @@ button.cl-button[data-variant="solid"][data-color="primary"] * {
   box-shadow: var(--shadow-small) !important;
 }
 
-/* Reduce gaps between Clerk form fields to 12px.
-   Clerk wraps fields in internal divs (cl-internal-*) with 24px gap
-   that can't be targeted via the appearance API, so we use structural selectors. */
-.cl-form,
-.cl-form > *,
-.cl-main,
-.cl-main > *,
-.cl-card,
-.cl-formContainer,
-.cl-formFieldRow {
+/* Reduce gaps between Clerk form fields to 12px (sign-in / upgrade only). */
+.clerk-form-root .cl-form,
+.clerk-form-card .cl-form,
+.clerk-form-root .cl-form > *,
+.clerk-form-card .cl-form > *,
+.clerk-form-root .cl-main,
+.clerk-form-card .cl-main,
+.clerk-form-root .cl-main > *,
+.clerk-form-card .cl-main > *,
+.clerk-form-root .cl-card,
+.clerk-form-card .cl-card,
+.clerk-form-root .cl-formContainer,
+.clerk-form-card .cl-formContainer,
+.clerk-form-root .cl-formFieldRow,
+.clerk-form-card .cl-formFieldRow {
   gap: 12px !important;
 }
 
-.cl-formFieldRow,
-.cl-formField {
+.clerk-form-root .cl-formFieldRow,
+.clerk-form-card .cl-formFieldRow,
+.clerk-form-root .cl-formField,
+.clerk-form-card .cl-formField {
   margin-bottom: 0 !important;
   margin-top: 0 !important;
   padding-bottom: 0 !important;
   padding-top: 0 !important;
 }
 
-/* Hide labels and zero out the internal field wrapper gap (label + input container)
-   so labels don't add extra spacing. */
-.cl-formFieldLabel,
-.cl-formFieldLabelRow {
+.clerk-form-root .cl-formFieldLabel,
+.clerk-form-card .cl-formFieldLabel,
+.clerk-form-root .cl-formFieldLabelRow,
+.clerk-form-card .cl-formFieldLabelRow {
   display: none !important;
 }
 
-.cl-formField,
-.cl-formField > * {
+.clerk-form-root .cl-formField,
+.clerk-form-card .cl-formField,
+.clerk-form-root .cl-formField > *,
+.clerk-form-card .cl-formField > * {
   gap: 0 !important;
 }
 

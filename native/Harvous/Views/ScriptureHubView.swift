@@ -92,10 +92,10 @@ struct ScriptureHubView: View {
             switch scriptureDrill {
             case .root:
                 Group { scriptureRootContent }
-                    .background(Color(.systemGroupedBackground))
+                    .background(Color.clear)
             case .book:
                 Group { scripturePassagesBookContent }
-                    .background(Color(.systemGroupedBackground))
+                    .background(Color.clear)
             case .passage(let passage):
                 NoteListColumn(
                     filter: .scripturePassage(passage),
@@ -112,6 +112,7 @@ struct ScriptureHubView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .navigationTitle(navigationTitleText)
         .navigationBarTitleDisplayMode(.inline)
+        .harvousIOSGlassOverCanvasShell()
         .toolbar {
             ToolbarItem(placement: .topBarLeading) {
                 SpaceSwitcherView()
@@ -141,19 +142,9 @@ struct ScriptureHubView: View {
             ToolbarItem(placement: .topBarLeading) {
                 IOSListSurfaceChip()
             }
-            ToolbarItem(placement: .topBarTrailing) {
-                Button {
-                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
-                    appRouter.selectIOSListSurface(.more)
-                } label: {
-                    HarvousFAGlyph(assetName: "Harvous.UserFilled", edgePt: 17)
-                        .foregroundStyle(.primary)
-                        .frame(width: 32, height: 32)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .tint(.primary)
-                .accessibilityLabel("Account, profile, and settings")
+            HarvousIOSProfileToolbarTrailingItem {
+                UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                appRouter.selectIOSListSurface(.more)
             }
         }
         .onChange(of: appRouter.iosListSurface) { _, newSurface in

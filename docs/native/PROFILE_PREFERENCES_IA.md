@@ -76,8 +76,7 @@ Tab: You
       │  ├─ NavigationLink → DefaultTranslationPicker
       │  ├─ NavigationLink → MyChurchForm
       │  └─ NavigationLink → LockPIN
-      ├─ Section “General” (future)
-      │  └─ Notifications, appearance, haptics, etc.
+      ├─ NavigationLink → Appearance (device-local canvas preset or photo)
       ├─ Section “Referral”
       │  └─ NavigationLink → Referral
       ├─ Section “Data & privacy”
@@ -132,6 +131,7 @@ Use a single scheme for the native app (replace `harvous` with your final bundle
 | `harvous://settings/account/subscription` | Billing / subscription (often opens web).                                     |
 | `harvous://settings/study/translation`    | Default Bible translation.                                                    |
 | `harvous://settings/study/church`         | My Church.                                                                    |
+| `harvous://settings/appearance`           | Appearance (canvas preset or photo; device-local).                            |
 | `harvous://settings/study/lock-pin`       | Lock PIN.                                                                     |
 | `harvous://settings/referral`             | Refer friends.                                                                |
 | `harvous://settings/data`                 | My Data (export / privacy / delete).                                          |

@@ -1,3 +1,5 @@
+import appearancePresetsCatalog from '../../../shared/appearance-presets.json';
+
 /**
  * Device-local customization of the canvas behind the prototype shell card
  * (the 14px gutter around `/prototype/*`). The chosen color/image is stored in
@@ -38,11 +40,13 @@ export const DEFAULT_CANVAS_BG = 'var(--pds-canvas-default)';
 
 /**
  * Hex equivalents of `--pds-lch-canvas-default` in prototype-tokens.css
- * (light: 100% 0 0, dark: 12% 0.01 285). Used when lightening image shell tints.
+ * (light: 98.7% 0.005 92, dark: 12% 0.01 285). Used when lightening image shell tints.
  */
 /** Matches :root --pds-lch-canvas-default in prototype-tokens.css */
-const CANVAS_DEFAULT_LIGHT_HEX = '#f9f8f6';
-const CANVAS_DEFAULT_DARK_HEX = '#1e1e22';
+const CANVAS_DEFAULT_LIGHT_HEX = appearancePresetsCatalog.canvasDefaultLightHex;
+const CANVAS_DEFAULT_DARK_HEX = appearancePresetsCatalog.canvasDefaultDarkHex;
+const LEGACY_PAPER_LIGHT_HEX = appearancePresetsCatalog.legacyPaperLightHex;
+const LEGACY_PAPER_DARK_HEX = appearancePresetsCatalog.legacyPaperDarkHex;
 
 /** Reject uploads larger than this (data URLs inflate ~33% over raw bytes). */
 export const MAX_IMAGE_BYTES = 3 * 1024 * 1024; // 3 MB
@@ -51,23 +55,16 @@ export const MAX_IMAGE_DATA_URL_CHARS = 1_600_000;
 
 export type BgPreset = {
   label: string;
+  /** Carousel label in dark mode; falls back to `label`. */
+  darkLabel?: string;
   /** Stored canvas color in light mode; `null` = follow `--pds-canvas-default`. */
   light: string | null;
   /** Stored / preview color in dark mode; omit to reuse `light`. */
   dark?: string | null;
 };
 
-/** Solid-color presets — light values from marketing site; dark values tuned for dark chrome. */
-export const BG_PRESETS: BgPreset[] = [
-  { label: 'Default', light: null, dark: null },
-  { label: 'Paper', light: '#f7f6f3', dark: '#1a1a1c' },
-  { label: 'Sky', light: '#c2dcf8', dark: '#152536' },
-  { label: 'Lilac', light: '#dec5ed', dark: '#2a2438' },
-  { label: 'Peach', light: '#fbc8ad', dark: '#382820' },
-  { label: 'Mint', light: '#c9e3b8', dark: '#1e2e22' },
-  { label: 'Pink', light: '#f3c8e0', dark: '#382030' },
-  { label: 'Cream', light: '#f6ecd6', dark: '#2e2818' },
-];
+/** Solid-color presets — shared with native via `shared/appearance-presets.json`. */
+export const BG_PRESETS: BgPreset[] = appearancePresetsCatalog.presets;
 
 export function isDarkAppearance(): boolean {
   if (typeof window === 'undefined') return false;
@@ -94,6 +91,14 @@ export function presetSwatchColor(preset: BgPreset): string {
   return preset.light === null ? 'var(--pds-canvas-default)' : preset.light;
 }
 
+/** Theme-aware carousel label (e.g. Cream → Umber in dark mode). */
+export function presetDisplayLabel(preset: BgPreset, scheme: 'light' | 'dark' = getColorSchemeSnapshot()): string {
+  if (scheme === 'dark') {
+    return preset.darkLabel ?? preset.label;
+  }
+  return preset.label;
+}
+
 /** Value to persist when the user picks a preset in the current theme. */
 export function presetApplyValue(preset: BgPreset): ProtoBg {
   const dark = isDarkAppearance();
@@ -104,8 +109,9 @@ export function presetApplyValue(preset: BgPreset): ProtoBg {
 }
 
 export function isPresetSelected(preset: BgPreset, bg: ProtoBg): boolean {
-  const isDefaultPreset = preset.light === null && (preset.dark === null || preset.dark === undefined);
-  if (isDefaultPreset) return bg === null;
+  const isPaperPreset =
+    preset.light === null && (preset.dark === null || preset.dark === undefined);
+  if (isPaperPreset) return bg === null;
   if (bg?.kind !== 'color') return false;
   const candidates = [preset.light, preset.dark].filter((v): v is string => typeof v === 'string');
   return candidates.includes(bg.value);
@@ -119,6 +125,14 @@ export function isPhotoAvailable(savedImage: ProtoSavedImage | null): boolean {
   return savedImage !== null && savedImage.value.length > 0;
 }
 
+function migrateLegacyPaper(bg: ProtoBg): ProtoBg {
+  if (bg?.kind !== 'color') return bg;
+  if (bg.value === LEGACY_PAPER_LIGHT_HEX || bg.value === LEGACY_PAPER_DARK_HEX) {
+    return null;
+  }
+  return bg;
+}
+
 function parseProtoBg(raw: string | null): ProtoBg {
   if (!raw) return null;
   try {
@@ -130,6 +144,17 @@ function parseProtoBg(raw: string | null): ProtoBg {
     ) {
       if (parsed.kind === 'image' && parsed.value.length > MAX_IMAGE_DATA_URL_CHARS) {
         return null;
+      }
+      if (parsed.kind === 'color') {
+        const migrated = migrateLegacyPaper(parsed);
+        if (migrated === null && parsed !== null) {
+          try {
+            localStorage.removeItem(PROTO_BG_KEY);
+          } catch {
+            /* ignore */
+          }
+        }
+        return migrated;
       }
       return parsed;
     }
@@ -245,7 +270,7 @@ export function selectSavedImage(): ProtoBg | null {
   return active;
 }
 
-/** Clear the archived photo; reset active to Default when it was the wallpaper. */
+/** Clear the archived photo; reset active to Paper when it was the wallpaper. */
 export function removeSavedImage(): ProtoBg {
   const active = parseProtoBg(localStorage.getItem(PROTO_BG_KEY));
   writeSavedImage(null);
