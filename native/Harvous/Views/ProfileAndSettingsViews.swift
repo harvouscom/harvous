@@ -3,6 +3,9 @@ import UniformTypeIdentifiers
 #if os(iOS)
 import UIKit
 #endif
+#if os(macOS)
+import AppKit
+#endif
 #if canImport(ClerkKit)
 import ClerkKit
 #endif
@@ -32,8 +35,11 @@ private extension View {
         self
             .formStyle(.grouped)
             .tint(.harvousAccent)
+            .harvousListMenuTypography()
         #else
-        self.formStyle(.grouped)
+        self
+            .formStyle(.grouped)
+            .harvousListMenuTypography()
         #endif
     }
 }
@@ -51,6 +57,7 @@ private struct HarvousIOSSettingsGlyphRow: View {
                 .foregroundStyle(Color.primary)
                 .frame(width: 28, alignment: .center)
             Text(title)
+                .font(HarvousTypography.settingsListRow)
                 .foregroundStyle(Color.primary)
         }
     }
@@ -79,6 +86,8 @@ struct HarvousSettingsFormView: View {
                 SettingsLockPINView()
             case .referral:
                 SettingsReferralView()
+            case .mySharing:
+                SettingsSharingView()
             case .myData:
                 SettingsMyDataView()
             case .support:
@@ -98,215 +107,153 @@ struct HarvousSettingsFormView: View {
     }
 }
 
-// MARK: - Account (Name + email/password/sign-out/delete)
+// MARK: - Account (read-only identity + Manage account + Sign out)
 
-/// Combined account screen. Top: Name editor (replaces the old avatar header).
-/// Bottom: email, password, sign-out, delete account — on iOS via ClerkKitUI's
-/// `UserProfileView`, on macOS via the custom `MacAccountSecurityView`.
+/// Matches web `PrototypeAccountPage`: read-only name/email, Clerk manage-account,
+/// and sign-out on this pane (not the profile menu root).
 private struct SettingsAccountView: View {
-    var body: some View {
-        #if os(iOS) && canImport(ClerkKitUI)
-        // iOS embeds Clerk's UserProfileView for email/password/MFA; the Name editor
-        // sits above it in its own grouped form-style block.
-        ScrollView {
-            VStack(spacing: 0) {
-                NameEditorBlock()
-                UserProfileView()
-                    .frame(minHeight: 600)
-            }
-        }
-        .background(Color.harvousSettingsDetailBackground)
-        #else
-        // macOS: a single Form with the Name editor first, then the Mac-native
-        // account-security sections (email, sign-out, delete).
-        MacAccountSecurityView()
-        #endif
-    }
-}
-
-#if os(iOS) && canImport(ClerkKitUI)
-/// iOS-only: standalone Name editor block shown above Clerk's `UserProfileView`.
-private struct NameEditorBlock: View {
-    var body: some View {
-        Form {
-            NameEditorSectionContent()
-        }
-        .harvousGroupedSettingsForm()
-        .frame(minHeight: 320)
-        .scrollDisabled(true)
-    }
-}
-#endif
-
-/// Shared section content — used by the iOS `NameEditorBlock` and the macOS
-/// `MacAccountSecurityView` so both surfaces stay in sync.
-private struct NameEditorSectionContent: View {
     @AppStorage(HarvousSettingsStorageKeys.firstName) private var firstName = ""
     @AppStorage(HarvousSettingsStorageKeys.lastName) private var lastName = ""
     @State private var bridge = HarvousClerkBridge.shared
-    @State private var isSaving = false
-    @State private var saveError: String?
-
-    private var isSignedIn: Bool { bridge.currentProfile != nil }
-
-    var body: some View {
-        Section("Name") {
-            TextField("First name", text: $firstName)
-                .textContentType(.givenName)
-            TextField("Last name", text: $lastName)
-                .textContentType(.familyName)
-        }
-        if isSignedIn {
-            Section {
-                Button {
-                    Task { await saveToCloud() }
-                } label: {
-                    HStack {
-                        Text("Save to my account")
-                        if isSaving {
-                            Spacer()
-                            ProgressView().controlSize(.small)
-                        }
-                    }
-                }
-                .disabled(isSaving)
-                if let saveError {
-                    Text(saveError)
-                        .font(HarvousTypography.footnote)
-                        .foregroundStyle(.red)
-                }
-            }
-        }
-        Section {
-            Text(isSignedIn
-                 ? "Shown as “First L.” throughout the app. Names also save on this device so the app looks correct offline."
-                 : "Changes here are stored on this device only. Sign in to sync them to your Harvous account.")
-                .font(HarvousTypography.footnote)
-                .foregroundStyle(.secondary)
-        }
-        .onAppear { hydrateFromCloud() }
-    }
-
-    private func hydrateFromCloud() {
-        guard let p = bridge.currentProfile else { return }
-        if firstName.isEmpty, let f = p.firstName, !f.isEmpty { firstName = f }
-        if lastName.isEmpty, let l = p.lastName, !l.isEmpty { lastName = l }
-    }
-
-    private func saveToCloud() async {
-        isSaving = true
-        saveError = nil
-        defer { isSaving = false }
-        do {
-            try await bridge.updateProfile(
-                firstName: firstName.trimmingCharacters(in: .whitespaces),
-                lastName: lastName.trimmingCharacters(in: .whitespaces)
-            )
-        } catch {
-            saveError = error.localizedDescription
-        }
-    }
-}
-
-#if !(os(iOS) && canImport(ClerkKitUI))
-/// Native macOS account screen: avatar, email, sign-out, delete account. The
-/// "edit name" flow lives in `SettingsEditProfileView` so we don't duplicate it.
-private struct MacAccountSecurityView: View {
-    @State private var bridge = HarvousClerkBridge.shared
+    #if canImport(ClerkKitUI) && os(iOS)
+    @State private var showClerkProfile = false
+    #endif
+    #if os(macOS)
+    @State private var showAccountPortal = false
+    @State private var accountPortalURL: URL?
+    #endif
     @State private var isSigningOut = false
-    @State private var confirmDelete = false
-    @State private var isDeleting = false
-    @State private var actionError: String?
+
+    private var profile: HarvousUserProfile? { bridge.currentProfile }
+
+    private var displayName: String {
+        if let p = profile, !p.displayName.isEmpty { return p.displayName }
+        let parts = [
+            firstName.trimmingCharacters(in: .whitespaces),
+            lastName.trimmingCharacters(in: .whitespaces)
+        ].filter { !$0.isEmpty }
+        if !parts.isEmpty { return parts.joined(separator: " ") }
+        return "Your account"
+    }
+
+    private var emailLine: String? {
+        guard let email = profile?.primaryEmail?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !email.isEmpty
+        else { return nil }
+        return email
+    }
 
     var body: some View {
-        Form {
-            // Name editor sits at the top, replacing the old avatar/email header row.
-            NameEditorSectionContent()
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(displayName)
+                        .font(HarvousTypography.title)
+                    if let emailLine {
+                        Text(emailLine)
+                            .font(HarvousTypography.subheadline)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .padding(.horizontal, 4)
 
-            if let profile = bridge.currentProfile {
-                Section("Email") {
-                    LabeledContent("Email", value: profile.primaryEmail ?? "—")
+                Button(action: openManageAccount) {
+                    SettingsAccountManageRowLabel()
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 14)
+                        .background(settingsAccountRowBackground)
+                        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                 }
-                Section {
-                    Text("Manage password, multi-factor authentication, and connected accounts on iPhone, iPad, or at app.harvous.com — a full Mac flow is coming soon.")
-                        .font(HarvousTypography.footnote)
-                        .foregroundStyle(.secondary)
+                .buttonStyle(.plain)
+                .contentShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+
+                Button {
+                    Task { await signOut() }
+                } label: {
+                    HStack(spacing: 8) {
+                        Text(isSigningOut ? "Signing out…" : "Sign out")
+                        if isSigningOut { ProgressView().controlSize(.small) }
+                    }
                 }
-                Section {
-                    Button {
-                        Task { await doSignOut() }
-                    } label: {
-                        if isSigningOut {
-                            HStack { Text("Signing out…"); Spacer(); ProgressView().controlSize(.small) }
-                        } else {
-                            Text("Sign out")
+                .buttonStyle(.bordered)
+                .disabled(isSigningOut)
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .background(Color.harvousSettingsDetailBackground)
+        #if canImport(ClerkKitUI) && os(iOS)
+        .sheet(isPresented: $showClerkProfile) {
+            NavigationStack {
+                UserProfileView()
+                    .toolbar {
+                        ToolbarItem(placement: .cancellationAction) {
+                            Button("Done") { showClerkProfile = false }
                         }
                     }
-                    .disabled(isSigningOut || isDeleting)
-                }
-                Section {
-                    Button(role: .destructive) {
-                        confirmDelete = true
-                    } label: {
-                        Text("Delete account")
-                    }
-                    .disabled(isSigningOut || isDeleting)
-                } footer: {
-                    Text("Deleting your account is permanent. Your cloud notes will be removed; on-device copies will remain until you sign in again.")
-                }
-            } else {
-                Section {
-                    Text("You're not signed in. Sign in on the welcome screen to manage your account here.")
-                        .font(HarvousTypography.subheadline)
-                        .foregroundStyle(.secondary)
-                }
             }
-
-            if let actionError {
-                Section {
-                    Text(actionError)
-                        .font(HarvousTypography.footnote)
-                        .foregroundStyle(.red)
-                }
+            .environment(Clerk.shared)
+            .presentationDragIndicator(.visible)
+        }
+        #endif
+        #if os(macOS)
+        .sheet(isPresented: $showAccountPortal) {
+            if let accountPortalURL {
+                HarvousClerkAccountPortalSheet(url: accountPortalURL)
             }
         }
-        .harvousGroupedSettingsForm()
-        .confirmationDialog(
-            "Delete this account?",
-            isPresented: $confirmDelete,
-            titleVisibility: .visible
-        ) {
-            Button("Delete permanently", role: .destructive) {
-                Task { await doDelete() }
-            }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("This removes the account from Harvous and signs you out of all devices. This cannot be undone.")
-        }
+        #endif
         .onAppear { bridge.refreshProfile() }
     }
 
-    private func doSignOut() async {
+    private var settingsAccountRowBackground: Color {
+        #if os(macOS)
+        Color(nsColor: .controlBackgroundColor)
+        #else
+        Color(uiColor: .secondarySystemGroupedBackground)
+        #endif
+    }
+
+    private func openManageAccount() {
+        #if canImport(ClerkKitUI) && os(iOS)
+        showClerkProfile = true
+        #elseif os(macOS)
+        if let url = HarvousClerkBridge.clerkAccountPortalUserURL() {
+            accountPortalURL = url
+            showAccountPortal = true
+        }
+        #else
+        break
+        #endif
+    }
+
+    private func signOut() async {
         isSigningOut = true
-        actionError = nil
         defer { isSigningOut = false }
         await bridge.signOut()
     }
+}
 
-    private func doDelete() async {
-        isDeleting = true
-        actionError = nil
-        defer { isDeleting = false }
-        do {
-            try await bridge.deleteAccount()
-            await bridge.signOut() // ensure SignInGate flips back
-        } catch {
-            actionError = error.localizedDescription
+private struct SettingsAccountManageRowLabel: View {
+    var body: some View {
+        HStack(alignment: .center, spacing: 12) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Manage account")
+                    .font(HarvousTypography.body)
+                    .foregroundStyle(.primary)
+                Text("Name, email, and password")
+                    .font(HarvousTypography.footnote)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer(minLength: 8)
+            Image(systemName: "chevron.right")
+                .font(HarvousTypography.caption)
+                .foregroundStyle(.tertiary)
         }
     }
 }
-
-#endif
 
 // MARK: - Subscription
 
@@ -314,7 +261,7 @@ private struct SettingsSubscriptionView: View {
     var body: some View {
         Form {
             Section {
-                Text("Plans and payment methods are managed in your Harvous account on the web (Clerk + billing).")
+                Text("Manage your plan and payment methods in your account on the web.")
                     .font(HarvousTypography.subheadline)
                     .foregroundStyle(.secondary)
             }
@@ -358,15 +305,28 @@ private struct SettingsDefaultBibleView: View {
 // MARK: - My church
 
 private struct SettingsMyChurchView: View {
+    // Local cache so the form is populated offline and on first paint; the server
+    // is authoritative when signed in (hydrated on appear, written back on save).
     @AppStorage(HarvousSettingsStorageKeys.churchName) private var churchName = ""
     @AppStorage(HarvousSettingsStorageKeys.churchCity) private var churchCity = ""
     @AppStorage(HarvousSettingsStorageKeys.churchState) private var churchState = ""
     @AppStorage(HarvousSettingsStorageKeys.churchCountry) private var churchCountry = ""
 
+    @State private var bridge = HarvousClerkBridge.shared
+    @State private var isHydrating = false
+    @State private var didHydrate = false
+    @State private var isSaving = false
+    @State private var didSave = false
+    @State private var saveError: String?
+
+    private var isSignedIn: Bool { bridge.currentProfile != nil }
+
     var body: some View {
         Form {
             Section {
-                Text("Optional context for your study life. On the web, these fields sync with My Church in preferences.")
+                Text(isSignedIn
+                     ? "Optional details about your church. These sync across your devices."
+                     : "Optional details about your church. Stored on this device only — sign in to sync them to your account.")
                     .font(HarvousTypography.subheadline)
                     .foregroundStyle(.secondary)
             }
@@ -376,8 +336,67 @@ private struct SettingsMyChurchView: View {
                 TextField("State / region", text: $churchState)
                 TextField("Country", text: $churchCountry)
             }
+            if isSignedIn {
+                Section {
+                    Button {
+                        Task { await save() }
+                    } label: {
+                        HStack {
+                            Text(didSave ? "Saved" : "Save")
+                            if isSaving {
+                                Spacer()
+                                ProgressView().controlSize(.small)
+                            }
+                        }
+                    }
+                    .disabled(isSaving || isHydrating)
+                    if let saveError {
+                        Text(saveError)
+                            .font(HarvousTypography.footnote)
+                            .foregroundStyle(.red)
+                    }
+                }
+            }
         }
         .harvousGroupedSettingsForm()
+        .onChange(of: churchName) { _, _ in didSave = false }
+        .onChange(of: churchCity) { _, _ in didSave = false }
+        .onChange(of: churchState) { _, _ in didSave = false }
+        .onChange(of: churchCountry) { _, _ in didSave = false }
+        .task { await hydrate() }
+        // Profile can finish loading after first paint — hydrate once it's available.
+        .onChange(of: isSignedIn) { _, signedIn in
+            if signedIn { Task { await hydrate() } }
+        }
+    }
+
+    private func hydrate() async {
+        guard isSignedIn, !isHydrating, !didHydrate else { return }
+        isHydrating = true
+        defer { isHydrating = false }
+        guard let profile = try? await HarvousAPIClient.shared.getProfile() else { return }
+        churchName = profile.churchName ?? ""
+        churchCity = profile.churchCity ?? ""
+        churchState = profile.churchState ?? ""
+        churchCountry = profile.churchCountry ?? ""
+        didHydrate = true
+    }
+
+    private func save() async {
+        isSaving = true
+        saveError = nil
+        defer { isSaving = false }
+        do {
+            _ = try await HarvousAPIClient.shared.updateChurch(
+                name: churchName,
+                city: churchCity,
+                state: churchState,
+                country: churchCountry
+            )
+            didSave = true
+        } catch {
+            saveError = error.localizedDescription
+        }
     }
 }
 
@@ -390,7 +409,7 @@ private struct SettingsLockPINView: View {
     var body: some View {
         Form {
             Section {
-                Text("A PIN can protect locked notes in Harvous. On the web, your PIN is hashed on the server; the native app will use the same API when sign-in is connected.")
+                Text("Your Harvous lock PIN is account-wide — the same four digits lock and unlock every protected note on your account.")
                     .font(HarvousTypography.subheadline)
                     .foregroundStyle(.secondary)
             }
@@ -433,6 +452,23 @@ private struct SettingsReferralView: View {
 
 // MARK: - My data
 
+/// Wraps exported account bytes so `.fileExporter` can write them — presents the
+/// macOS save panel and the iOS Files picker from one cross-platform API.
+private struct HarvousExportDocument: FileDocument {
+    static var readableContentTypes: [UTType] { [.plainText, .commaSeparatedText] }
+    static var writableContentTypes: [UTType] {
+        [.plainText, .commaSeparatedText, UTType(filenameExtension: "md") ?? .plainText]
+    }
+    var data: Data
+    init(data: Data) { self.data = data }
+    init(configuration: ReadConfiguration) throws {
+        data = configuration.file.regularFileContents ?? Data()
+    }
+    func fileWrapper(configuration: WriteConfiguration) throws -> FileWrapper {
+        FileWrapper(regularFileWithContents: data)
+    }
+}
+
 private struct VaultStatusCard: View {
     let mirrorEnabled: Bool
     let exportedNoteCount: Int
@@ -440,15 +476,15 @@ private struct VaultStatusCard: View {
 
     private var lastSyncLabel: String {
         guard let d = lastWrite else { return "—" }
-        return "Last synced \(d.formatted(date: .abbreviated, time: .shortened))"
+        return "Last saved \(d.formatted(date: .abbreviated, time: .shortened))"
     }
 
     private var statusTitle: String {
         if mirrorEnabled {
-            if exportedNoteCount == 1 { return "Mirroring active — 1 note" }
-            return "Mirroring active — \(exportedNoteCount) notes"
+            if exportedNoteCount == 1 { return "Saving 1 note here" }
+            return "Saving \(exportedNoteCount) notes here"
         }
-        return "Mirroring off"
+        return "Not saving copies here"
     }
 
     var body: some View {
@@ -459,7 +495,7 @@ private struct VaultStatusCard: View {
                 .padding(.top, 4)
             VStack(alignment: .leading, spacing: 4) {
                 Text(statusTitle)
-                    .font(HarvousTypography.body)
+                    .font(HarvousTypography.settingsFormEnvironment)
                 Text(lastSyncLabel)
                     .font(HarvousTypography.footnote)
                     .foregroundStyle(.secondary)
@@ -486,6 +522,24 @@ private struct SettingsMyDataView: View {
     @State private var rebuildResultMessage: String?
     @State private var showRebuildResult = false
 
+    // Server-backed data actions (parity with the prototype My Data page).
+    @State private var bridge = HarvousClerkBridge.shared
+    @State private var exportBusy: HarvousAPIClient.ExportFormat?
+    @State private var exportDocument: HarvousExportDocument?
+    @State private var exportFilename = "harvous-export"
+    @State private var exportContentType: UTType = .plainText
+    @State private var showExporter = false
+    @State private var showClearConfirm = false
+    @State private var showDeleteConfirm = false
+    @State private var isClearing = false
+    @State private var isDeleting = false
+    @State private var isRefreshing = false
+    @State private var showRefreshConfirm = false
+    @State private var dataActionMessage: String?
+    @State private var dataActionError: String?
+
+    private var isSignedIn: Bool { bridge.currentProfile != nil }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             VaultStatusCard(
@@ -498,8 +552,8 @@ private struct SettingsMyDataView: View {
             .padding(.bottom, 8)
 
             Form {
-                Section("Vault mirror") {
-                    Toggle("Mirror notes to Markdown", isOn: $mirrorEnabled)
+                Section("Copy on this device") {
+                    Toggle("Save a copy on my device", isOn: $mirrorEnabled)
                         .onChange(of: mirrorEnabled) { _, on in
                             HarvousVaultPreferences.isMirrorEnabled = on
                             if on {
@@ -514,11 +568,11 @@ private struct SettingsMyDataView: View {
                         }
 
                         #if os(macOS)
-                        Button("Open vault in Finder") {
+                        Button("Show in Finder") {
                             HarvousVaultLocation.revealVaultRootInSystem()
                         }
                         #else
-                        Button("Copy vault path") {
+                        Button("Copy location") {
                             HarvousVaultLocation.revealVaultRootInSystem()
                         }
                         #endif
@@ -531,20 +585,86 @@ private struct SettingsMyDataView: View {
                     }
 
                     Text(
-                        "Accepts Markdown, HTML, ENEX, DOCX, RTF (ZIP on Mac). Obsidian vaults, Notion Markdown zips, Evernote ENEX, and Apple Notes (via HTML/Markdown export) work too."
+                        "Bring in notes from Obsidian, Notion, Evernote, and Apple Notes, plus Markdown, HTML, and Word files."
                     )
                     .font(HarvousTypography.footnote)
                     .foregroundStyle(.secondary)
                 }
 
+                if isSignedIn {
+                    Section("Export") {
+                        Button {
+                            Task { await exportData(.markdown) }
+                        } label: {
+                            HStack {
+                                Text("Export as Markdown")
+                                if exportBusy == .markdown { Spacer(); ProgressView().controlSize(.small) }
+                            }
+                        }
+                        .disabled(exportBusy != nil)
+
+                        Button {
+                            Task { await exportData(.csvThreads) }
+                        } label: {
+                            HStack {
+                                Text("Export as CSV")
+                                if exportBusy == .csvThreads { Spacer(); ProgressView().controlSize(.small) }
+                            }
+                        }
+                        .disabled(exportBusy != nil)
+
+                        Text("Downloads a copy of your study from your account.")
+                            .font(HarvousTypography.footnote)
+                            .foregroundStyle(.secondary)
+                    }
+                    .listRowBackground(Color.clear)
+                }
+
+                if isSignedIn {
+                    Section {
+                        Button {
+                            dataActionError = nil
+                            dataActionMessage = nil
+                            showRefreshConfirm = true
+                        } label: {
+                            HStack {
+                                Text("Refresh from server…")
+                                if isRefreshing { Spacer(); ProgressView().controlSize(.small) }
+                            }
+                        }
+                        .disabled(isRefreshing || isClearing || isDeleting)
+
+                        Text("Uploads pending changes, then replaces this device's library with your account.")
+                            .font(HarvousTypography.footnote)
+                            .foregroundStyle(.secondary)
+
+                        if HarvousAPIClient.shared.isLocalDevBase {
+                            Text(
+                                "Connected to local dev (\(HarvousEnvironment.apiBaseURL.host ?? "dev")). "
+                                + "Other devices on app.harvous.com will not see changes. "
+                                + "Use the Debug-Prod scheme to sync with production."
+                            )
+                            .font(HarvousTypography.footnote)
+                            .foregroundStyle(.orange)
+                        } else {
+                            Text("API: \(HarvousEnvironment.apiBaseURL.absoluteString)")
+                                .font(HarvousTypography.footnote)
+                                .foregroundStyle(.secondary)
+                        }
+                    } header: {
+                        Text("Sync")
+                    }
+                    .listRowBackground(Color.clear)
+                }
+
                 Section {
                     DisclosureGroup("Advanced") {
-                        Button("Choose external vault folder…") {
+                        Button("Choose where copies are saved…") {
                             showVaultFolderImporter = true
                         }
 
                         if HarvousVaultLocation.isUsingExternalBookmark {
-                            Button("Stop using external folder") {
+                            Button("Use the default location") {
                                 HarvousVaultPreferences.clearExternalVaultBookmark()
                                 if HarvousVaultPreferences.isMirrorEnabled {
                                     HarvousVaultExporter.rewriteAllNotes(modelContext: modelContext)
@@ -554,11 +674,11 @@ private struct SettingsMyDataView: View {
                         }
 
                         VStack(alignment: .leading, spacing: 6) {
-                            Button("Rebuild library from vault…", role: .destructive) {
+                            Button("Rebuild from saved copies…", role: .destructive) {
                                 showRebuildConfirm = true
                             }
                             Text(
-                                "Re-reads vault Markdown into this library. Missing files on disk do not remove notes from this library."
+                                "Reloads notes from the copies saved on your device. Nothing is deleted if a file is missing."
                             )
                             .font(HarvousTypography.footnote)
                             .foregroundStyle(.secondary)
@@ -567,23 +687,79 @@ private struct SettingsMyDataView: View {
                     }
                 }
 
-                Section("On the web") {
-                    Link(destination: URL(string: "https://app.harvous.com/profile")!) {
-                        #if os(iOS)
-                        HarvousIOSSettingsGlyphRow(
-                            title: "My Data (export / import / delete)",
-                            assetName: "Harvous.HardDrive"
-                        )
-                        #else
-                        Label("My Data (export / import / delete)", systemImage: "externaldrive")
-                        #endif
+                if isSignedIn {
+                    Section {
+                        Button("Clear all data…", role: .destructive) {
+                            dataActionError = nil; dataActionMessage = nil
+                            showClearConfirm = true
+                        }
+                        .disabled(isClearing || isDeleting || isRefreshing)
+
+                        Button("Delete account…", role: .destructive) {
+                            dataActionError = nil; dataActionMessage = nil
+                            showDeleteConfirm = true
+                        }
+                        .disabled(isClearing || isDeleting || isRefreshing)
+
+                        if let dataActionMessage {
+                            Text(dataActionMessage)
+                                .font(HarvousTypography.footnote)
+                                .foregroundStyle(.secondary)
+                        }
+                        if let dataActionError {
+                            Text(dataActionError)
+                                .font(HarvousTypography.footnote)
+                                .foregroundStyle(.red)
+                        }
+                    } header: {
+                        Text("Danger zone")
+                    } footer: {
+                        Text("Clearing removes your notes, folders, and highlights but keeps your account. Deleting your account is permanent.")
                     }
+                    .listRowBackground(Color.clear)
                 }
             }
             .harvousGroupedSettingsForm()
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .onAppear { mirrorEnabled = HarvousVaultPreferences.isMirrorEnabled }
+        .fileExporter(
+            isPresented: $showExporter,
+            document: exportDocument,
+            contentType: exportContentType,
+            defaultFilename: exportFilename
+        ) { result in
+            if case .failure = result {
+                dataActionError = "Couldn't save the export file."
+            } else {
+                dataActionMessage = "Export saved."
+            }
+            exportDocument = nil
+        }
+        .confirmationDialog(
+            "Upload pending changes, then replace this device's library with your account? Notes on this device that aren't on the server will be uploaded first.",
+            isPresented: $showRefreshConfirm,
+            titleVisibility: .visible
+        ) {
+            Button("Refresh from server") { Task { await refreshFromServer() } }
+            Button("Cancel", role: .cancel) {}
+        }
+        .confirmationDialog(
+            "Clear all notes, folders, and highlights? Your account stays. This can't be undone.",
+            isPresented: $showClearConfirm,
+            titleVisibility: .visible
+        ) {
+            Button("Clear all data", role: .destructive) { Task { await clearData() } }
+            Button("Cancel", role: .cancel) {}
+        }
+        .confirmationDialog(
+            "Permanently delete your account and all data? This can't be undone.",
+            isPresented: $showDeleteConfirm,
+            titleVisibility: .visible
+        ) {
+            Button("Delete account", role: .destructive) { Task { await deleteAccount() } }
+            Button("Cancel", role: .cancel) {}
+        }
         .fileImporter(
             isPresented: $showVaultFolderImporter,
             allowedContentTypes: [.folder],
@@ -635,7 +811,7 @@ private struct SettingsMyDataView: View {
             }
         }
         .confirmationDialog(
-            "Rebuild merges vault Markdown and highlight sidecars into this device library. Notes on disk update or add rows; nothing is deleted if a file is missing.",
+            "This reloads notes from the copies saved on your device. Notes are added or updated; nothing is deleted if a file is missing.",
             isPresented: $showRebuildConfirm,
             titleVisibility: .visible
         ) {
@@ -650,6 +826,68 @@ private struct SettingsMyDataView: View {
             Button("OK", role: .cancel) {}
         } message: {
             Text(rebuildResultMessage ?? "")
+        }
+    }
+
+    // MARK: - Server-backed data actions
+
+    private func exportData(_ format: HarvousAPIClient.ExportFormat) async {
+        exportBusy = format
+        dataActionError = nil; dataActionMessage = nil
+        defer { exportBusy = nil }
+        do {
+            let result = try await HarvousAPIClient.shared.exportData(format: format)
+            exportDocument = HarvousExportDocument(data: result.data)
+            // `.fileExporter` appends the extension from `contentType`; pass the base only.
+            exportFilename = (result.suggestedFilename as NSString).deletingPathExtension
+            exportContentType = format == .csvThreads
+                ? .commaSeparatedText
+                : (UTType(filenameExtension: "md") ?? .plainText)
+            showExporter = true
+        } catch {
+            dataActionError = error.localizedDescription
+        }
+    }
+
+    private func refreshFromServer() async {
+        isRefreshing = true
+        dataActionError = nil
+        dataActionMessage = nil
+        defer { isRefreshing = false }
+        do {
+            try await HarvousSyncService.shared.refreshFromServer(context: modelContext)
+            spaceStore.bootstrapIfNeeded(modelContext: modelContext)
+            dataActionMessage = "Library refreshed from your account."
+        } catch let refreshErr as HarvousSyncRefreshError {
+            dataActionError = refreshErr.localizedDescription
+        } catch {
+            dataActionError = error.localizedDescription
+        }
+    }
+
+    private func clearData() async {
+        isClearing = true
+        dataActionError = nil; dataActionMessage = nil
+        defer { isClearing = false }
+        do {
+            try await HarvousAPIClient.shared.clearData()
+            HarvousSyncService.shared.wipeLocalStore(context: modelContext)
+            dataActionMessage = "Your notes, folders, and highlights were cleared."
+        } catch {
+            dataActionError = error.localizedDescription
+        }
+    }
+
+    private func deleteAccount() async {
+        isDeleting = true
+        dataActionError = nil; dataActionMessage = nil
+        defer { isDeleting = false }
+        do {
+            try await HarvousAPIClient.shared.deleteAccountData()
+            HarvousSyncService.shared.wipeLocalStore(context: modelContext)
+            await bridge.signOut() // flip SignInGate back to sign-in
+        } catch {
+            dataActionError = error.localizedDescription
         }
     }
 }
@@ -718,56 +956,6 @@ private struct SettingsAboutFounderView: View {
 
 // MARK: - Keyboard shortcuts
 
-/// Per-key “keycap” styling for settings shortcut rows (matches compact macOS key legend affordance).
-private struct SettingsShortcutKeycapsRow: View {
-    let keys: String
-
-    var body: some View {
-        HStack(spacing: 4) {
-            ForEach(Array(keys.enumerated()), id: \.offset) { _, ch in
-                keyCap(String(ch))
-            }
-        }
-        .fixedSize(horizontal: true, vertical: false)
-    }
-
-    @ViewBuilder
-    private func keyCap(_ symbol: String) -> some View {
-        Text(symbol)
-            .font(.system(size: 12.5, weight: .medium, design: .rounded))
-            .foregroundStyle(.primary.opacity(0.88))
-            .multilineTextAlignment(.center)
-            .frame(minWidth: 24, minHeight: 22)
-            .padding(.horizontal, 5)
-            .padding(.vertical, 3)
-            .background {
-                RoundedRectangle(cornerRadius: 5, style: .continuous)
-                    .fill(keyCapFill)
-            }
-            .overlay {
-                RoundedRectangle(cornerRadius: 5, style: .continuous)
-                    .strokeBorder(keyCapBorder, lineWidth: 1)
-            }
-            .shadow(color: Color.black.opacity(0.07), radius: 0, x: 0, y: 1)
-    }
-
-    private var keyCapFill: Color {
-        #if os(macOS)
-        Color(nsColor: .controlBackgroundColor)
-        #else
-        Color(uiColor: .secondarySystemGroupedBackground)
-        #endif
-    }
-
-    private var keyCapBorder: Color {
-        #if os(macOS)
-        Color(nsColor: .separatorColor).opacity(0.9)
-        #else
-        Color(uiColor: .separator).opacity(0.85)
-        #endif
-    }
-}
-
 private struct SettingsKeyboardShortcutsView: View {
     private struct Row: Identifiable {
         let action: String
@@ -777,16 +965,19 @@ private struct SettingsKeyboardShortcutsView: View {
 
     #if os(macOS)
     private let nativeRows: [Row] = [
-        Row(action: "New note", keys: "⌘N"),
-        Row(action: "Search", keys: "⌘K"),
-        Row(action: "Settings", keys: "⌘,"),
-        Row(action: "Focus note list", keys: "⌘0"),
+        Row(action: "New note", keys: "⇧N"),
+        Row(action: "Search", keys: "⇧K"),
+        Row(action: "Settings", keys: "⇧,"),
+        Row(action: "Toggle sidebar", keys: "⇧B"),
+        Row(action: "Focus note list", keys: "⇧J"),
+        Row(action: "Find in note", keys: "⇧F"),
+        Row(action: "Note details", keys: "⇧D"),
+        Row(action: "Cycle list mode", keys: "⇧← / ⇧→"),
         Row(action: "Daily note", keys: "⌘T"),
         Row(action: "Random revisit", keys: "⌃⌘R"),
         Row(action: "Insert note wikilink", keys: "⇧⌘L"),
         Row(action: "New connected note", keys: "⌘⌥N"),
         Row(action: "Delete note", keys: "⌃⌘⌫"),
-        Row(action: "Toggle note details", keys: "⌘⌥I"),
         Row(action: "Next note", keys: "⌃⌘↓"),
         Row(action: "Previous note", keys: "⌃⌘↑"),
         Row(action: "Bold", keys: "⌘B"),
@@ -810,8 +1001,14 @@ private struct SettingsKeyboardShortcutsView: View {
     ]
     #else
     private let nativeRows: [Row] = [
-        Row(action: "New note", keys: "⌘N"),
-        Row(action: "Search", keys: "⌘K"),
+        Row(action: "New note", keys: "⇧N"),
+        Row(action: "Search", keys: "⇧K"),
+        Row(action: "Settings", keys: "⇧,"),
+        Row(action: "Toggle sidebar", keys: "⇧B"),
+        Row(action: "Focus note list", keys: "⇧J"),
+        Row(action: "Find in note", keys: "⇧F"),
+        Row(action: "Note details", keys: "⇧D"),
+        Row(action: "Cycle list mode", keys: "⇧← / ⇧→"),
         Row(action: "Daily note", keys: "⌘T"),
         Row(action: "Random revisit", keys: "⌃⌘R"),
         Row(action: "Insert note wikilink", keys: "⇧⌘L"),
@@ -824,11 +1021,10 @@ private struct SettingsKeyboardShortcutsView: View {
                 ForEach(nativeRows) { row in
                     HStack(alignment: .center, spacing: 12) {
                         Text(row.action)
-                            .font(HarvousTypography.body)
                             .foregroundStyle(.primary)
                             .multilineTextAlignment(.leading)
                             .frame(maxWidth: .infinity, alignment: .leading)
-                        SettingsShortcutKeycapsRow(keys: row.keys)
+                        HarvousShortcutKeycapsRow(keys: row.keys)
                     }
                 }
             }
@@ -858,20 +1054,16 @@ struct YouRootView: View {
     @AppStorage(HarvousSettingsStorageKeys.firstName) private var firstName = ""
     @AppStorage(HarvousSettingsStorageKeys.lastName) private var lastName = ""
     @State private var bridge = HarvousClerkBridge.shared
-    @State private var isSigningOut = false
 
     private var profile: HarvousUserProfile? { bridge.currentProfile }
 
     private var headlineName: String {
-        if let p = profile { return p.compactDisplayName }
-        let trimmedFirst = firstName.trimmingCharacters(in: .whitespaces)
-        let trimmedLast = lastName.trimmingCharacters(in: .whitespaces)
-        if !trimmedFirst.isEmpty {
-            if let initial = trimmedLast.first.map({ String($0).uppercased() }) {
-                return "\(trimmedFirst) \(initial)."
-            }
-            return trimmedFirst
-        }
+        if let p = profile { return p.displayName }
+        let parts = [
+            firstName.trimmingCharacters(in: .whitespaces),
+            lastName.trimmingCharacters(in: .whitespaces)
+        ].filter { !$0.isEmpty }
+        if !parts.isEmpty { return parts.joined(separator: " ") }
         return "You"
     }
 
@@ -894,7 +1086,7 @@ struct YouRootView: View {
                             Circle()
                                 .fill(.thinMaterial)
                             Text(profileInitials)
-                                .font(.system(size: 20, weight: .semibold, design: .rounded))
+                                .font(HarvousFonts.font(size: 20, weight: .semibold, design: .rounded))
                                 .foregroundStyle(.primary)
                                 .minimumScaleFactor(0.5)
                                 .lineLimit(1)
@@ -902,9 +1094,9 @@ struct YouRootView: View {
                         .frame(width: 56, height: 56)
                         VStack(alignment: .leading, spacing: 4) {
                             Text(headlineName)
-                                .font(.title2.weight(.semibold))
+                                .font(HarvousTypography.title)
                             Text(subheading)
-                                .font(.subheadline)
+                                .font(HarvousTypography.subheadline)
                                 .foregroundStyle(.secondary)
                         }
                     }
@@ -918,32 +1110,11 @@ struct YouRootView: View {
                     HarvousIOSSettingsGlyphRow(title: "Settings", assetName: "Harvous.Gear")
                 }
             }
-
-            if profile != nil {
-                Section {
-                    Button {
-                        Task { await doSignOut() }
-                    } label: {
-                        HStack {
-                            Text(isSigningOut ? "Signing out…" : "Sign out")
-                                .foregroundStyle(.red)
-                            Spacer()
-                            if isSigningOut { ProgressView().controlSize(.small) }
-                        }
-                    }
-                    .disabled(isSigningOut)
-                }
-            }
         }
+        .harvousListMenuTypography()
         .navigationTitle("Account")
         .navigationBarTitleDisplayMode(.inline)
         .onAppear { bridge.refreshProfile() }
-    }
-
-    private func doSignOut() async {
-        isSigningOut = true
-        defer { isSigningOut = false }
-        await bridge.signOut()
     }
 }
 
@@ -964,6 +1135,7 @@ struct IOSSettingsGroupedListView: View {
                 }
             }
         }
+        .harvousListMenuTypography()
         .navigationTitle("Settings")
     }
 }
@@ -1049,6 +1221,7 @@ struct MacPreferencesRootView: View {
             }
         }
         .navigationSplitViewStyle(.balanced)
+        .harvousListMenuTypography()
         .modifier(MacPreferencesWindowToolbarChrome())
         .onChange(of: appRouter.macSettingsDeepLink) { _, newVal in
             guard let detail = newVal else { return }
@@ -1061,8 +1234,13 @@ struct MacPreferencesRootView: View {
     private var settingsSections: some View {
         Section {
             ForEach(HarvousSettingsSidebarItem.allSettingsRows(includeKeyboardShortcuts: true)) { item in
-                Label(item.title, systemImage: item.systemImage)
-                    .tag(item)
+                HStack(spacing: 8) {
+                    HarvousFAGlyph(assetName: item.settingsListFAAssetName, edgePt: 15)
+                        .frame(width: 20, alignment: .center)
+                    Text(item.title)
+                        .font(HarvousTypography.settingsListRow)
+                }
+                .tag(item)
             }
         }
     }

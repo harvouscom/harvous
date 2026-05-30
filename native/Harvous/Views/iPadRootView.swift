@@ -24,12 +24,14 @@ struct iPadRootView: View {
     @State private var splitColumnVisibility: NavigationSplitViewVisibility = .all
     @State private var showSearch = false
     @State private var showInspector = false
-    @State private var threadNavPath = NavigationPath()
+    @State private var threadNavPath: [UUID] = []
     @State private var importSummaryPayload: HarvousVaultImportSummaryPayload?
+    @State private var bridge = HarvousClerkBridge.shared
 
     @Environment(\.modelContext) private var context
     @EnvironmentObject private var appRouter: HarvousAppRouter
     @EnvironmentObject private var spaceStore: SpaceStore
+    @EnvironmentObject private var shiftHints: HarvousShiftHintsMonitor
 
     var body: some View {
         padRootChrome
@@ -62,12 +64,15 @@ struct iPadRootView: View {
                         .transition(.opacity)
                     }
                 }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .onPreferenceChange(NoteShareSnapshotPreferenceKey.self) { liveShareSnapshot = $0 }
                 .toolbar { padDetailToolbar }
                 .navigationDestination(for: UUID.self) { threadID in
                     LinkedNotesView(linkedNoteMarkerId: threadID)
                 }
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .id(navStackResetToken)
         }
     }
 
@@ -75,112 +80,124 @@ struct iPadRootView: View {
 
     @ToolbarContentBuilder
     private var padDetailToolbar: some ToolbarContent {
-        if splitColumnVisibility == .detailOnly {
+        if bridge.isAuthenticated {
+            if splitColumnVisibility == .detailOnly {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button {
+                        splitColumnVisibility = .all
+                    } label: {
+                        Label {
+                            Text("Show sidebar")
+                        } icon: {
+                            HarvousFAGlyph(
+                                assetName: "Harvous.LayoutSidebarRight",
+                                edgePt: HarvousFAIconMetrics.catalogGlyphBoxPt
+                            )
+                            .frame(
+                                width: HarvousFAIconMetrics.catalogGlyphBoxPt,
+                                height: HarvousFAIconMetrics.catalogGlyphBoxPt
+                            )
+                            .foregroundStyle(.primary)
+                            .harvousToolbarShortcutHint("B")
+                        }
+                    }
+                    .labelStyle(.iconOnly)
+                    .buttonStyle(.bordered)
+                    .accessibilityLabel("Show sidebar")
+                }
+            }
+
             ToolbarItem(placement: .topBarLeading) {
-                Button {
-                    splitColumnVisibility = .all
-                } label: {
-                    Label {
-                        Text("Show sidebar")
-                    } icon: {
-                        HarvousFAGlyph(
-                            assetName: "Harvous.LayoutSidebarRight",
-                            edgePt: HarvousFAIconMetrics.catalogGlyphBoxPt
-                        )
-                        .frame(
-                            width: HarvousFAIconMetrics.catalogGlyphBoxPt,
-                            height: HarvousFAIconMetrics.catalogGlyphBoxPt
-                        )
+                Button(action: createNewNote) {
+                    HarvousFAGlyph(assetName: "Harvous.Pencil")
+                        .fixedSize(horizontal: true, vertical: true)
                         .foregroundStyle(.primary)
+                        .harvousToolbarShortcutHint("N")
+                }
+                .buttonStyle(.bordered)
+                .help("New Note (⇧N)")
+            }
+
+            if let note = selectedNote {
+                ToolbarItem(placement: .principal) {
+                    NoteFolderChip(
+                        note: note,
+                        isFolderContextUpdating: false,
+                        showFolderToolbarText: true,
+                        scriptureTheme: spaceStore.scriptureTheme
+                    )
+                }
+            }
+
+            if let note = selectedNote {
+                MacNoteShareMoreToolbar(
+                    note: note,
+                    liveShareSnapshot: liveShareSnapshot,
+                    onDeleteConfirmed: {
+                        let nid = note.id
+                        HarvousVaultExporter.removeMirrorFiles(for: note, modelContext: context)
+                        HarvousNoteSpotlightIndexer.removeNote(id: nid)
+                        ThreadStore.purgeLinkedNoteMarkers(referencingDeletedNote: nid, modelContext: context)
+                        selectedNote = nil
+                        HarvousSyncingDelete.delete(note: note, context: context)
+                        try? context.saveWithLogging()
+                    },
+                    onConnectionsChanged: {
+                        NotificationCenter.default.post(
+                            name: .harvousNoteConnectionsChanged,
+                            object: note.id
+                        )
+                    }
+                )
+            }
+
+            // Inspector + profile come AFTER find/share/more in declaration order so the trailing cluster
+            // reads left→right as: find, share, ellipsis, inspector toggle, avatar — matching macOS.
+            ToolbarItem(placement: .primaryAction) {
+                Button {
+                    showInspector.toggle()
+                } label: {
+                    if showInspector {
+                        Label {
+                            Text("Hide note details")
+                        } icon: {
+                            HarvousFAGlyph(
+                                assetName: "Harvous.LayoutSidebarLeft",
+                                edgePt: HarvousFAIconMetrics.catalogGlyphBoxPt
+                            )
+                            .frame(
+                                width: HarvousFAIconMetrics.catalogGlyphBoxPt,
+                                height: HarvousFAIconMetrics.catalogGlyphBoxPt
+                            )
+                            .foregroundStyle(.primary)
+                            .harvousToolbarShortcutHint("D")
+                        }
+                    } else {
+                        Label {
+                            Text("Note details")
+                        } icon: {
+                            HarvousFAGlyph(
+                                assetName: "Harvous.LayoutSidebarRight",
+                                edgePt: HarvousFAIconMetrics.catalogGlyphBoxPt
+                            )
+                            .frame(
+                                width: HarvousFAIconMetrics.catalogGlyphBoxPt,
+                                height: HarvousFAIconMetrics.catalogGlyphBoxPt
+                            )
+                            .foregroundStyle(.primary)
+                            .harvousToolbarShortcutHint("D")
+                        }
                     }
                 }
                 .labelStyle(.iconOnly)
                 .buttonStyle(.bordered)
-                .accessibilityLabel("Show sidebar")
+                .help(showInspector ? "Hide note details (⇧D)" : "Show note details (⇧D)")
+                .disabled(selectedNote == nil)
             }
-        }
 
-        ToolbarItem(placement: .topBarLeading) {
-            Button(action: createNewNote) {
-                HarvousFAGlyph(assetName: "Harvous.Pencil")
-                    .fixedSize(horizontal: true, vertical: true)
-                    .foregroundStyle(.primary)
+            ToolbarItem(placement: .primaryAction) {
+                padProfileButton
             }
-            .buttonStyle(.bordered)
-            .help("New Note")
-        }
-
-        if let note = selectedNote {
-            ToolbarItem(placement: .principal) {
-                NoteFolderChip(
-                    note: note,
-                    isFolderContextUpdating: false,
-                    showFolderToolbarText: true,
-                    scriptureTheme: spaceStore.scriptureTheme
-                )
-            }
-        }
-
-        if let note = selectedNote {
-            MacNoteShareMoreToolbar(
-                note: note,
-                liveShareSnapshot: liveShareSnapshot,
-                onDeleteConfirmed: {
-                    let nid = note.id
-                    HarvousVaultExporter.removeMirrorFiles(for: note, modelContext: context)
-                    HarvousNoteSpotlightIndexer.removeNote(id: nid)
-                    ThreadStore.purgeLinkedNoteMarkers(referencingDeletedNote: nid, modelContext: context)
-                    selectedNote = nil
-                    HarvousSyncingDelete.delete(note: note, context: context)
-                    try? context.saveWithLogging()
-                }
-            )
-        }
-
-        // Inspector + profile come AFTER share/more in declaration order so the trailing-cluster
-        // reads left→right as: share, ellipsis, inspector toggle, avatar — matching macOS.
-        ToolbarItem(placement: .primaryAction) {
-            Button {
-                showInspector.toggle()
-            } label: {
-                if showInspector {
-                    Label {
-                        Text("Hide note details")
-                    } icon: {
-                        HarvousFAGlyph(
-                            assetName: "Harvous.LayoutSidebarLeft",
-                            edgePt: HarvousFAIconMetrics.catalogGlyphBoxPt
-                        )
-                        .frame(
-                            width: HarvousFAIconMetrics.catalogGlyphBoxPt,
-                            height: HarvousFAIconMetrics.catalogGlyphBoxPt
-                        )
-                        .foregroundStyle(.primary)
-                    }
-                } else {
-                    Label {
-                        Text("Note details")
-                    } icon: {
-                        HarvousFAGlyph(
-                            assetName: "Harvous.LayoutSidebarRight",
-                            edgePt: HarvousFAIconMetrics.catalogGlyphBoxPt
-                        )
-                        .frame(
-                            width: HarvousFAIconMetrics.catalogGlyphBoxPt,
-                            height: HarvousFAIconMetrics.catalogGlyphBoxPt
-                        )
-                        .foregroundStyle(.primary)
-                    }
-                }
-            }
-            .labelStyle(.iconOnly)
-            .buttonStyle(.bordered)
-            .help(showInspector ? "Hide note details" : "Show note details")
-            .disabled(selectedNote == nil)
-        }
-
-        ToolbarItem(placement: .primaryAction) {
-            padProfileButton
         }
     }
 
@@ -244,6 +261,8 @@ struct iPadRootView: View {
                     }
                 }
         }
+        .harvousListMenuTypography()
+        .id(navStackResetToken)
         .environmentObject(appRouter)
         .environmentObject(spaceStore)
         .presentationDetents([.large])
@@ -298,8 +317,17 @@ struct iPadRootView: View {
 
     private var padRootChrome: some View {
         padWithFocusedValues
+            .background {
+                shiftHints.makeKeyMonitorRepresentable()
+                    .frame(width: 0, height: 0)
+                    .accessibilityHidden(true)
+            }
+            .onAppear {
+                wireShiftHints()
+            }
             .onChange(of: selectedNote?.id) { _, _ in
-                threadNavPath = NavigationPath()
+                shiftHints.isNoteRouteActive = selectedNote != nil
+                threadNavPath.removeAll()
                 let newNote = selectedNote
                 let previous = lastSelectedNote
                 Task { @MainActor in
@@ -342,12 +370,47 @@ struct iPadRootView: View {
                 if let p = importSummaryPayload { Text(importSummaryMessage(p)) }
             }
             .onAppear {
+                wireShiftHints()
                 HarvousCalendarStudyNotifier.requestAccessAndPrewarm(modelContext: context)
                 appRouter.applyPendingDeepLink()
             }
     }
 
     // MARK: - Helpers
+
+    private func wireShiftHints() {
+        shiftHints.isNoteRouteActive = selectedNote != nil
+        shiftHints.onShortcut = { shortcut in
+            handleShiftShortcut(shortcut)
+        }
+    }
+
+    private func handleShiftShortcut(_ shortcut: HarvousShiftShortcut) {
+        switch shortcut {
+        case .newNote:
+            createNewNote()
+        case .search:
+            showSearch = true
+        case .settings:
+            appRouter.iosShowMore = true
+        case .toggleSidebar:
+            splitColumnVisibility = splitColumnVisibility == .detailOnly ? .all : .detailOnly
+        case .focusNoteList:
+            selectedNote = nil
+        case .findInNote:
+            appRouter.requestFindInNote()
+        case .lockNote:
+            break // Note lock temporarily disabled.
+        case .toggleInspector:
+            if selectedNote != nil { showInspector.toggle() }
+        case .cycleListMode(let step):
+            NotificationCenter.default.post(
+                name: .harvousCycleSidebarMode,
+                object: nil,
+                userInfo: ["step": step]
+            )
+        }
+    }
 
     private func importSummaryMessage(_ p: HarvousVaultImportSummaryPayload) -> String {
         var s = p.report.summaryLine
@@ -365,6 +428,7 @@ struct iPadRootView: View {
         let note = Note(spaceId: spaceStore.activeSpaceUUID())
         context.insert(note)
         NoteSimpleIDAssigner.assignIfMissing(note, in: context)
+        note.markDirty()
         try? context.saveWithLogging()
         HarvousNoteSpotlightIndexer.reindex(note: note)
         HarvousVaultExporter.scheduleWrite(note: note, modelContext: context)
@@ -386,6 +450,7 @@ struct iPadRootView: View {
         let note = Note(title: key, body: "", spaceId: sid)
         context.insert(note)
         NoteSimpleIDAssigner.assignIfMissing(note, in: context)
+        note.markDirty()
         try? context.saveWithLogging()
         HarvousNoteSpotlightIndexer.reindex(note: note)
         HarvousVaultExporter.scheduleWrite(note: note, modelContext: context)

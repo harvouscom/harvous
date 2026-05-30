@@ -57,6 +57,7 @@ enum HarvousSettingsSidebarItem: String, CaseIterable, Hashable, Identifiable {
     case myChurch
     case lockPin
     case referral
+    case mySharing
     case myData
     case support
     case aboutFounder
@@ -72,6 +73,7 @@ enum HarvousSettingsSidebarItem: String, CaseIterable, Hashable, Identifiable {
         case .myChurch: return "My church"
         case .lockPin: return "Lock PIN"
         case .referral: return "Refer friends"
+        case .mySharing: return "Sharing"
         case .myData: return "My data"
         case .support: return "Get support"
         case .aboutFounder: return "Letter from the founder"
@@ -87,6 +89,7 @@ enum HarvousSettingsSidebarItem: String, CaseIterable, Hashable, Identifiable {
         case .myChurch: return "building.columns"
         case .lockPin: return "lock"
         case .referral: return "person.2.badge.gearshape"
+        case .mySharing: return "square.and.arrow.up"
         case .myData: return "externaldrive"
         case .support: return "questionmark.circle"
         case .aboutFounder: return "heart.text.square"
@@ -103,6 +106,7 @@ enum HarvousSettingsSidebarItem: String, CaseIterable, Hashable, Identifiable {
         case .myChurch: return "Harvous.Church"
         case .lockPin: return "Harvous.Lock"
         case .referral: return "Harvous.Users"
+        case .mySharing: return "Harvous.Share"
         case .myData: return "Harvous.HardDrive"
         case .support: return "Harvous.CircleQuestion"
         case .aboutFounder: return "Harvous.Heart"
@@ -113,25 +117,27 @@ enum HarvousSettingsSidebarItem: String, CaseIterable, Hashable, Identifiable {
     var footnote: String {
         switch self {
         case .account:
-            return "Your name syncs with your Harvous account. Email and password are managed by Clerk."
+            return "Your name, email, and password."
         case .subscription:
-            return "Billing is handled on the web for now."
+            return "Manage your plan and billing."
         case .defaultBible:
-            return "Stored in your Harvous profile (UserMetadata.defaultTranslation)."
+            return "The translation used across the app."
         case .myChurch:
-            return "Church details sync with your Harvous profile."
+            return "Your church details, synced across your devices."
         case .lockPin:
-            return "PIN protects locked notes. Matches server hashing when online."
+            return "One PIN for all locked notes on your account."
         case .referral:
             return "Share Harvous and earn bonus notes."
+        case .mySharing:
+            return "See what you have shared and stop sharing."
         case .myData:
-            return "Export, import, or delete your account data."
+            return "Import notes and keep a copy on your device."
         case .support:
-            return "Help and contact options."
+            return "Get help or contact us."
         case .aboutFounder:
             return "About Harvous."
         case .keyboardShortcuts:
-            return "Reference for Mac and iPad with an external keyboard."
+            return "On Mac and iPad."
         }
     }
 
@@ -140,9 +146,9 @@ enum HarvousSettingsSidebarItem: String, CaseIterable, Hashable, Identifiable {
         [.account]
     }
 
-    /// My church and lock PIN are temporarily hidden from the sidebar.
+    /// Study preferences. Lock PIN temporarily hidden while note lock is disabled.
     static var studyItems: [HarvousSettingsSidebarItem] {
-        [.defaultBible]
+        [.defaultBible, .myChurch]
     }
 
     /// Support row(s). “Letter from the founder” is temporarily hidden from the sidebar.
@@ -155,6 +161,7 @@ enum HarvousSettingsSidebarItem: String, CaseIterable, Hashable, Identifiable {
         var rows: [HarvousSettingsSidebarItem] = []
         rows.append(contentsOf: accountItems)
         rows.append(contentsOf: studyItems)
+        rows.append(.mySharing)
         rows.append(.myData)
         rows.append(contentsOf: supportItems)
         if includeKeyboardShortcuts {
@@ -207,6 +214,7 @@ enum HarvousSettingsPathParser {
             default: return nil
             }
         case "referral": return .referral
+        case "sharing": return .mySharing
         case "data": return .myData
         case "support": return .support
         case "about": return .aboutFounder

@@ -1,5 +1,6 @@
 import Foundation
 import SwiftUI
+import CoreText
 
 #if os(macOS)
 import AppKit
@@ -7,13 +8,17 @@ import AppKit
 import UIKit
 #endif
 
-/// SF Pro everywhere; **rounded** for display, note titles, and in-editor headings for a slightly warmer, casual feel.
+/// Google Sans Flex everywhere; rounded terminal axis for display/title styles.
 enum HarvousFontDesign: Sendable {
     case `default`
     case rounded
 }
 
 enum HarvousFonts {
+    private static let googleSansFlexPostScriptName = "GoogleSansFlex-Regular"
+    private static let roundedAxisValue: CGFloat = 100
+    private static let defaultAxisValue: CGFloat = 0
+
     /// Default note compose body (before Dynamic Type / Larger Text scaling). iOS +1pt for legibility on smaller screens.
     static let noteComposeBodyPointSize: CGFloat = {
 #if os(iOS)
@@ -120,10 +125,36 @@ enum HarvousFonts {
         }
     }
 
+    private static func axisTag(_ tag: String) -> NSNumber {
+        let scalar = tag.utf8.reduce(0) { ($0 << 8) | UInt32($1) }
+        return NSNumber(value: scalar)
+    }
+
+    private static func axisSettings(size: CGFloat, weight: CGFloat, design: HarvousFontDesign) -> [NSNumber: NSNumber] {
+        [
+            axisTag("wght"): NSNumber(value: Double(max(1, min(1000, weight)))),
+            axisTag("ROND"): NSNumber(value: Double(design == .rounded ? roundedAxisValue : defaultAxisValue)),
+            axisTag("opsz"): NSNumber(value: Double(max(6, min(144, size))))
+        ]
+    }
+
     // MARK: - AppKit / UIKit (body, pills, `NSTextView`, appearances)
 
     #if os(macOS)
+    private static func googleSansFlexNSFont(size: CGFloat, weight axis: CGFloat, design: HarvousFontDesign) -> NSFont? {
+        let variationKey = NSFontDescriptor.AttributeName(rawValue: kCTFontVariationAttribute as String)
+        let attrs: [NSFontDescriptor.AttributeName: Any] = [
+            .name: googleSansFlexPostScriptName,
+            variationKey: axisSettings(size: size, weight: axis, design: design)
+        ]
+        let descriptor = NSFontDescriptor(fontAttributes: attrs)
+        return NSFont(descriptor: descriptor, size: size)
+    }
+
     static func system(size: CGFloat, weight axis: CGFloat = 400, design: HarvousFontDesign = .default) -> NSFont {
+        if let font = googleSansFlexNSFont(size: size, weight: axis, design: design) {
+            return font
+        }
         let w = nsWeight(fromAxis: axis)
         let base = NSFont.systemFont(ofSize: size, weight: w)
         guard design == .rounded else { return base }
@@ -167,7 +198,20 @@ enum HarvousFonts {
     }
 
     #elseif os(iOS)
+    private static func googleSansFlexUIFont(size: CGFloat, weight axis: CGFloat, design: HarvousFontDesign) -> UIFont? {
+        let variationKey = UIFontDescriptor.AttributeName(rawValue: kCTFontVariationAttribute as String)
+        let attrs: [UIFontDescriptor.AttributeName: Any] = [
+            .name: googleSansFlexPostScriptName,
+            variationKey: axisSettings(size: size, weight: axis, design: design)
+        ]
+        let descriptor = UIFontDescriptor(fontAttributes: attrs)
+        return UIFont(descriptor: descriptor, size: size)
+    }
+
     static func system(size: CGFloat, weight axis: CGFloat = 400, design: HarvousFontDesign = .default) -> UIFont {
+        if let font = googleSansFlexUIFont(size: size, weight: axis, design: design) {
+            return font
+        }
         let w = uiWeight(fromAxis: axis)
         let base = UIFont.systemFont(ofSize: size, weight: w)
         guard design == .rounded else { return base }
@@ -226,13 +270,27 @@ enum HarvousFonts {
     // MARK: - SwiftUI
 
     static func font(size: CGFloat, weight axis: CGFloat, design: HarvousFontDesign = .default) -> Font {
-        let fw = fontWeight(fromAxis: axis)
-        let d: Font.Design = design == .rounded ? .rounded : .default
-        return Font.system(size: size, weight: fw, design: d)
+        #if os(macOS)
+        Font(system(size: size, weight: axis, design: design))
+        #else
+        Font(system(size: size, weight: axis, design: design))
+        #endif
     }
 
     static func font(size: CGFloat, weight: Font.Weight, design: HarvousFontDesign = .default) -> Font {
-        let d: Font.Design = design == .rounded ? .rounded : .default
-        return Font.system(size: size, weight: weight, design: d)
+        let axis: CGFloat
+        switch weight {
+        case .ultraLight: axis = 100
+        case .thin: axis = 200
+        case .light: axis = 300
+        case .regular: axis = 400
+        case .medium: axis = 500
+        case .semibold: axis = 600
+        case .bold: axis = 700
+        case .heavy: axis = 800
+        case .black: axis = 900
+        default: axis = 400
+        }
+        return font(size: size, weight: axis, design: design)
     }
 }

@@ -310,17 +310,17 @@ struct ActiveScripturePillDock: View {
 
             HStack(alignment: .center, spacing: 8) {
                 Text(reference)
-                    .font(.system(size: 14, weight: .semibold))
+                    .font(HarvousFonts.font(size: 14, weight: .semibold, design: .default))
                     .foregroundStyle(.primary)
                     .lineLimit(1)
                 if dockMode == .study {
                     Text(ScriptureReference.displayTranslationLabel(translation))
-                        .font(.system(size: 10, weight: .semibold))
+                        .font(HarvousFonts.font(size: 10, weight: .semibold, design: .default))
                         .textCase(.uppercase)
                         .foregroundStyle(.secondary)
                 } else {
                     Text("Compare")
-                        .font(.system(size: 10, weight: .semibold))
+                        .font(HarvousFonts.font(size: 10, weight: .semibold, design: .default))
                         .textCase(.uppercase)
                         .foregroundStyle(.secondary)
                 }

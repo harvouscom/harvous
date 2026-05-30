@@ -2,30 +2,15 @@
 import PhotosUI
 import SwiftUI
 
-/// Sheet for inserting an inline image into the note editor (photo library).
-struct IOSInlineImagePickSheet: View {
+/// Presents the system photo picker directly when inserting an inline image (no intermediate sheet).
+private struct IOSInlineImagePickerModifier: ViewModifier {
     @Binding var isPresented: Bool
     var onPick: (UIImage) -> Void
     @State private var item: PhotosPickerItem?
 
-    var body: some View {
-        NavigationStack {
-            PhotosPicker(selection: $item, matching: .images) {
-                Label("Choose Photo", image: "Harvous.ImagesMulti")
-                    .font(.headline)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-            }
-            .buttonStyle(.borderedProminent)
-            .padding(24)
-            .navigationTitle("Insert Image")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") {
-                        isPresented = false
-                    }
-                }
-            }
+    func body(content: Content) -> some View {
+        content
+            .photosPicker(isPresented: $isPresented, selection: $item, matching: .images)
             .onChange(of: item) { _, newVal in
                 guard let newVal else { return }
                 Task {
@@ -40,7 +25,12 @@ struct IOSInlineImagePickSheet: View {
                     }
                 }
             }
-        }
+    }
+}
+
+extension View {
+    func iosInlineImagePicker(isPresented: Binding<Bool>, onPick: @escaping (UIImage) -> Void) -> some View {
+        modifier(IOSInlineImagePickerModifier(isPresented: isPresented, onPick: onPick))
     }
 }
 

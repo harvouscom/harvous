@@ -1,4 +1,5 @@
 import Foundation
+import os
 
 struct VotdToday {
     let reference: String
@@ -39,11 +40,16 @@ enum VotdService {
     }
 
     /// DEBUG tries localhost first (matches typical `npm run dev`), then production — same as scripture (`HarvousAPI`) when local API is off.
-    private static func fetchOrigins() -> [String] {
+    private static func fetchOrigins() async -> [String] {
         #if DEBUG
-        ["http://localhost:3001", HarvousAPI.baseURL]
+        var origins: [String] = []
+        if await LocalDevAPIGate.shared.shouldTryLocalhost() {
+            origins.append("http://localhost:3001")
+        }
+        origins.append(HarvousAPI.baseURL)
+        return origins
         #else
-        [HarvousAPI.baseURL]
+        return [HarvousAPI.baseURL]
         #endif
     }
 
@@ -88,10 +94,17 @@ enum VotdService {
     }
 
     private static func fetchFromNetwork() async -> VotdToday? {
-        for origin in fetchOrigins() {
+        for origin in await fetchOrigins() {
             if let v = await fetchVotd(origin: origin) { return v }
         }
         return nil
+    }
+
+    private static func isLocalDevOrigin(_ origin: String) -> Bool {
+        guard let url = URL(string: origin), let host = url.host?.lowercased() else { return false }
+        if host == "localhost" || host == "127.0.0.1" { return true }
+        if host.hasPrefix("192.168.") || host.hasPrefix("10.") { return true }
+        return false
     }
 
     private static func fetchVotd(origin: String) async -> VotdToday? {
@@ -101,13 +114,17 @@ enum VotdService {
         guard let url = components?.url else { return nil }
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
+        let isLocal = isLocalDevOrigin(origin)
         // Fail fast when local API is not running so production fallback loads quickly.
-        if origin.contains("localhost") || origin.contains("127.0.0.1") {
+        if isLocal {
             request.timeoutInterval = 2.5
         }
         request.setValue(ianaTz, forHTTPHeaderField: "X-Votd-Timezone")
         do {
             let (data, response) = try await urlSession.data(for: request)
+            if isLocal {
+                await LocalDevAPIGate.shared.recordLocalhostSuccess()
+            }
             if let http = response as? HTTPURLResponse, !(200 ..< 300).contains(http.statusCode) {
                 return nil
             }
@@ -115,6 +132,11 @@ enum VotdService {
                   let ref = decoded.reference, !ref.isEmpty else { return nil }
             return VotdToday(reference: ref, translation: decoded.translation ?? "NET")
         } catch {
+            if isLocal {
+                if await LocalDevAPIGate.shared.recordLocalhostFailure() {
+                    Logger.app.info("Local dev API unreachable; skipping localhost for 60s (GETs fall back to production).")
+                }
+            }
             return nil
         }
     }

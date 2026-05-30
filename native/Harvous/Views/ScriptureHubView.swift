@@ -6,7 +6,7 @@ import UIKit
 
 /// iPhone Scripture index: books with parsed references, drill-in to notes for that book.
 struct ScriptureHubView: View {
-    @Binding var iosNoteNavigationPath: [UUID]
+    @Binding var iosSelectedNoteId: UUID?
     var externalSearchText: Binding<String>? = nil
     @State private var fallbackSearchText = ""
     @State private var scriptureDrill: ScriptureDrill = .root
@@ -104,7 +104,7 @@ struct ScriptureHubView: View {
                     columnStyle: .iOSTabNoteList,
                     navigationTitleOverride: nil,
                     searchPresentationBinding: nil,
-                    iosNoteNavPath: $iosNoteNavigationPath,
+                    iosSelectedNoteId: $iosSelectedNoteId,
                     onNewNote: {}
                 )
             }
@@ -168,15 +168,12 @@ struct ScriptureHubView: View {
         if !activeSearchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && filteredScriptureReferenceRows.isEmpty {
             ContentUnavailableView.search(text: activeSearchQuery)
         } else if scriptureReferenceRowsForBookDrill.isEmpty {
-            ContentUnavailableView {
-                Label {
-                    Text("No passages")
-                } icon: {
-                    HarvousFAGlyph(assetName: "Harvous.BookOpen", edgePt: 28)
-                }
-            } description: {
-                Text("No parsed references for this book in the active space.")
-            }
+            HarvousEmptyStateView(
+                iconAsset: "Harvous.BookOpen",
+                title: "No passages",
+                description: "No parsed references for this book in the active space.",
+                scale: .compact
+            )
         } else {
             List {
                 ForEach(filteredScriptureReferenceRows) { row in
@@ -207,15 +204,12 @@ struct ScriptureHubView: View {
         if notesInActiveSpace.isEmpty {
             emptyNotesState
         } else if scriptureBookRows.isEmpty {
-            ContentUnavailableView {
-                Label {
-                    Text("No Scripture References")
-                } icon: {
-                    HarvousFAGlyph(assetName: "Harvous.BookOpen", edgePt: 28)
-                }
-            } description: {
-                Text("Add scripture references in your notes to build your index.")
-            }
+            HarvousEmptyStateView(
+                iconAsset: "Harvous.BookOpen",
+                title: "No Scripture References",
+                description: "Add scripture references in your notes to build your index.",
+                scale: .compact
+            )
         } else if !activeSearchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && filteredScriptureBookRows.isEmpty {
             ContentUnavailableView.search(text: activeSearchQuery)
         } else {
@@ -224,14 +218,11 @@ struct ScriptureHubView: View {
     }
 
     private var emptyNotesState: some View {
-        VStack(spacing: 12) {
-            HarvousFAGlyph(assetName: "Harvous.BookOpen", edgePt: 40)
-                .foregroundStyle(.quaternary)
-            Text("Your notes will organize here")
-                .font(HarvousTypography.body)
-                .foregroundStyle(.secondary)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        HarvousEmptyStateView(
+            iconAsset: "Harvous.BookOpen",
+            title: "Your notes will organize here",
+            scale: .compact
+        )
     }
 
     private var scriptureFlatList: some View {

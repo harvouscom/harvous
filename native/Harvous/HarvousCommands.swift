@@ -71,15 +71,6 @@ struct PinSelectedNoteStateKey: FocusedValueKey {
     typealias Value = Bool
 }
 
-struct FolderContextUpdatingKey: FocusedValueKey {
-    typealias Value = Bool
-}
-
-/// Toolbar folder label visibility animation — mirrored from `NoteEditorView` to the window toolbar chip on macOS.
-struct ShowFolderToolbarTextKey: FocusedValueKey {
-    typealias Value = Bool
-}
-
 extension FocusedValues {
     var newNoteAction: (() -> Void)? {
         get { self[NewNoteActionKey.self] }
@@ -165,16 +156,6 @@ extension FocusedValues {
         get { self[PinSelectedNoteStateKey.self] }
         set { self[PinSelectedNoteStateKey.self] = newValue }
     }
-
-    var folderContextUpdating: Bool? {
-        get { self[FolderContextUpdatingKey.self] }
-        set { self[FolderContextUpdatingKey.self] = newValue }
-    }
-
-    var showFolderToolbarText: Bool? {
-        get { self[ShowFolderToolbarTextKey.self] }
-        set { self[ShowFolderToolbarTextKey.self] = newValue }
-    }
 }
 
 // MARK: - App-level menu commands
@@ -216,24 +197,20 @@ struct HarvousCommands: Commands {
         #if os(macOS)
         CommandGroup(replacing: .newItem) {
             Button("New Note") { newNoteAction?() }
-                .keyboardShortcut("n", modifiers: .command)
                 .disabled(newNoteAction == nil)
 
             Button("Search") { showSearchAction?() }
-                .keyboardShortcut("k", modifiers: .command)
                 .disabled(showSearchAction == nil)
 
             Button("Focus Note List") { focusNoteListAction?() }
-                .keyboardShortcut("0", modifiers: .command)
                 .disabled(focusNoteListAction == nil)
         }
 
-        // Preferences use a `Window` scene (not `Settings`) so chrome matches the main window; wire ⌘, here.
+        // Preferences use a `Window` scene (not `Settings`) so chrome matches the main window.
         CommandGroup(replacing: .appSettings) {
             Button("Settings…") {
                 NotificationCenter.default.post(name: .harvousOpenMacPreferences, object: nil)
             }
-            .keyboardShortcut(",", modifiers: .command)
         }
 
         CommandMenu("Format") {
@@ -292,11 +269,9 @@ struct HarvousCommands: Commands {
         #else
         CommandGroup(after: .newItem) {
             Button("New Note") { newNoteAction?() }
-                .keyboardShortcut("n", modifiers: .command)
                 .disabled(newNoteAction == nil)
 
             Button("Search") { showSearchAction?() }
-                .keyboardShortcut("k", modifiers: .command)
                 .disabled(showSearchAction == nil)
         }
         #endif
@@ -341,7 +316,6 @@ struct HarvousCommands: Commands {
                 .disabled(deleteNoteAction == nil)
 
             Button("Toggle Note Details") { toggleInspectorAction?() }
-                .keyboardShortcut("i", modifiers: [.command, .option])
                 .disabled(toggleInspectorAction == nil)
 
             Button("Next Note") { nextNoteAction?() }

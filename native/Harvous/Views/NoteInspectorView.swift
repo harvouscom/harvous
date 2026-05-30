@@ -8,7 +8,7 @@ import UIKit
 #endif
 
 /// Right-side inspector panel — shown via `.inspector(isPresented:)`.
-/// Displays tags and note metadata. Passage text is edited via the note action bar.
+/// Displays tags, connections, and note metadata.
 /// Folder edits use the toolbar folder chip popover.
 struct NoteInspectorView: View {
     private enum FieldMetrics {
@@ -59,8 +59,8 @@ struct NoteInspectorView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
-                sectionHeader("Connections")
-                connectionsSection
+                sectionHeader("Info")
+                infoSection
 
                 Divider().padding(.vertical, 12)
 
@@ -81,31 +81,14 @@ struct NoteInspectorView: View {
 
                 Divider().padding(.vertical, 12)
 
-                sectionHeader("Info")
-                infoSection
+                sectionHeader("Connections")
+                connectionsSection
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 20)
         }
         .task(id: note.id) { loadResourceLines() }
-        #if os(macOS)
-        .popover(isPresented: $showConnectPicker, arrowEdge: .leading) {
-            ConnectNotePicker(
-                spaceId: note.resolvedSpaceId(),
-                parentNoteId: note.id,
-                onPick: { picked in
-                    _ = ThreadStore.createUnanchoredConnection(
-                        parent: note,
-                        linked: picked,
-                        modelContext: modelContext
-                    )
-                    showConnectPicker = false
-                    onConnectionsChanged?()
-                },
-                onCancel: { showConnectPicker = false }
-            )
-        }
-        #else
+        #if !os(macOS)
         .sheet(isPresented: $showConnectPicker) {
             NavigationStack {
                 ConnectNotePicker(
@@ -230,6 +213,24 @@ struct NoteInspectorView: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel("Connect note")
+        #if os(macOS)
+        .popover(isPresented: $showConnectPicker, arrowEdge: .leading) {
+            ConnectNotePicker(
+                spaceId: note.resolvedSpaceId(),
+                parentNoteId: note.id,
+                onPick: { picked in
+                    _ = ThreadStore.createUnanchoredConnection(
+                        parent: note,
+                        linked: picked,
+                        modelContext: modelContext
+                    )
+                    showConnectPicker = false
+                    onConnectionsChanged?()
+                },
+                onCancel: { showConnectPicker = false }
+            )
+        }
+        #endif
     }
 
     private func resolvedIncomingTitle(_ marker: StudyThread) -> String {
@@ -301,11 +302,7 @@ struct NoteInspectorView: View {
             TextField("Add tag", text: $draftTag)
                 .textFieldStyle(.plain)
                 .font(FieldMetrics.bodyFont)
-                .frame(
-                    maxWidth: .infinity,
-                    minHeight: FieldMetrics.rowHeight,
-                    maxHeight: FieldMetrics.rowHeight
-                )
+                .frame(maxWidth: .infinity)
                 .padding(.leading, 16)
                 .padding(.trailing, FieldMetrics.trailingReserve)
                 .onSubmit { addDraftTag() }

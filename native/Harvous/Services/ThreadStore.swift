@@ -73,6 +73,26 @@ enum ThreadStore {
         return (try? modelContext.fetch(fd)) ?? []
     }
 
+    /// Space-validated thread list for a note; falls back to parent-only when space-scoped fetch is empty
+    /// (orphan threads from cross-environment drift still surface on open).
+    @MainActor
+    static func activeThreads(for note: Note, modelContext: ModelContext) -> [StudyThread] {
+        let spaceId = note.resolvedSpaceId(in: modelContext)
+        let scoped = activeThreads(parentNoteId: note.id, spaceId: spaceId, modelContext: modelContext)
+        if !scoped.isEmpty { return scoped }
+        return activeThreadsUnscoped(parentNoteId: note.id, modelContext: modelContext)
+    }
+
+    @MainActor
+    static func activeThreadsUnscoped(parentNoteId: UUID, modelContext: ModelContext) -> [StudyThread] {
+        let nid = parentNoteId
+        let fd = FetchDescriptor<StudyThread>(
+            predicate: #Predicate { t in t.parentNoteId == nid && !t.isArchived },
+            sortBy: [SortDescriptor(\StudyThread.updatedAt, order: .reverse)]
+        )
+        return (try? modelContext.fetch(fd)) ?? []
+    }
+
     @MainActor
     @discardableResult
     static func create(
@@ -160,6 +180,7 @@ enum ThreadStore {
         )
         modelContext.insert(linked)
         NoteSimpleIDAssigner.assignIfMissing(linked, in: modelContext)
+        linked.markDirty()
 
         let marker = StudyThread(
             spaceId: spaceId,
@@ -177,6 +198,7 @@ enum ThreadStore {
             applyAnchoredExpandedRange(rr, expandedPlain: plain, to: marker)
         }
         modelContext.insert(marker)
+        marker.markDirty()
         try? modelContext.saveWithLogging()
         return marker
     }
@@ -430,7 +452,7 @@ enum ThreadStore {
     @MainActor
     static func trailSnapshot(for note: Note, modelContext: ModelContext) -> TrailSnapshot {
         let noteId = note.id
-        let sid = note.resolvedSpaceId()
+        let sid = note.resolvedSpaceId(in: modelContext)
         let linkedKindRaw = "linkedNote"
         let incomingDescriptor = FetchDescriptor<StudyThread>(
             predicate: #Predicate { t in
@@ -450,8 +472,28 @@ enum ThreadStore {
             },
             sortBy: [SortDescriptor(\StudyThread.updatedAt, order: .reverse)]
         )
-        let incoming = (try? modelContext.fetch(incomingDescriptor)) ?? []
-        let outgoing = (try? modelContext.fetch(outgoingDescriptor)) ?? []
+        var incoming = (try? modelContext.fetch(incomingDescriptor)) ?? []
+        var outgoing = (try? modelContext.fetch(outgoingDescriptor)) ?? []
+        if incoming.isEmpty, outgoing.isEmpty {
+            let incomingUnscoped = FetchDescriptor<StudyThread>(
+                predicate: #Predicate { t in
+                    t.entryKindRaw == linkedKindRaw
+                        && t.linkedNoteId == noteId
+                        && !t.isArchived
+                },
+                sortBy: [SortDescriptor(\StudyThread.updatedAt, order: .reverse)]
+            )
+            let outgoingUnscoped = FetchDescriptor<StudyThread>(
+                predicate: #Predicate { t in
+                    t.parentNoteId == noteId
+                        && t.entryKindRaw == linkedKindRaw
+                        && !t.isArchived
+                },
+                sortBy: [SortDescriptor(\StudyThread.updatedAt, order: .reverse)]
+            )
+            incoming = (try? modelContext.fetch(incomingUnscoped)) ?? []
+            outgoing = (try? modelContext.fetch(outgoingUnscoped)) ?? []
+        }
         return TrailSnapshot(incoming: incoming, outgoing: outgoing)
     }
 
@@ -482,7 +524,7 @@ enum ThreadStore {
     static func deleteLinkedNoteMarker(_ thread: StudyThread, modelContext: ModelContext) {
         guard StudyThread.EntryKind(rawValue: thread.entryKindRaw) == .linkedNote else { return }
         touchParentNoteIfNeeded(thread, modelContext: modelContext)
-        modelContext.delete(thread)
+        HarvousSyncingDelete.delete(thread: thread, context: modelContext)
         try? modelContext.saveWithLogging()
     }
 
@@ -506,7 +548,7 @@ enum ThreadStore {
         var touchedParents = Set<UUID>()
         for t in orphans {
             if t.parentNoteId != nid { touchedParents.insert(t.parentNoteId) }
-            modelContext.delete(t)
+            HarvousSyncingDelete.delete(thread: t, context: modelContext)
         }
         try? modelContext.saveWithLogging()
         return touchedParents
@@ -531,14 +573,14 @@ enum ThreadStore {
         var deletedAny = false
         for t in candidates {
             guard let linkedId = t.linkedNoteId else {
-                modelContext.delete(t)
+                HarvousSyncingDelete.delete(thread: t, context: modelContext)
                 deletedAny = true
                 continue
             }
             let fd = FetchDescriptor<Note>(predicate: #Predicate { $0.id == linkedId })
             let exists = ((try? modelContext.fetch(fd))?.first) != nil
             if !exists {
-                modelContext.delete(t)
+                HarvousSyncingDelete.delete(thread: t, context: modelContext)
                 deletedAny = true
             }
         }
@@ -567,7 +609,7 @@ enum ThreadStore {
         for t in all {
             let linkedId = t.linkedNoteId
             if linkedId == nil || !liveIds.contains(linkedId!) {
-                modelContext.delete(t)
+                HarvousSyncingDelete.delete(thread: t, context: modelContext)
                 deleted += 1
             }
         }

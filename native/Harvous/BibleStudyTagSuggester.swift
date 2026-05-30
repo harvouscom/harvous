@@ -176,11 +176,16 @@ enum BibleStudyTagSuggester {
     private static let minimumBodyWordsForAutoFolder = 25
     private static let shortDraftStrongTitleThreshold = 1.02
     private static let autoFolderCooldown: TimeInterval = 25
+    /// Skip pathological bodies that would block the main thread during note open.
+    private static let maximumAnalyzeBodyLength = ScriptureDetector.maximumDetectLength
 
     private static func analyze(title: String, body: String) -> Analysis {
-        let fullText = "\(title) \(body)"
+        let cappedBody = body.count > maximumAnalyzeBodyLength
+            ? String(body.prefix(maximumAnalyzeBodyLength))
+            : body
+        let fullText = "\(title) \(cappedBody)"
         let titleLower = title.lowercased()
-        let contentLower = body.lowercased()
+        let contentLower = cappedBody.lowercased()
         let textLower = fullText.lowercased()
 
         var raw: [Scored] = []
@@ -221,8 +226,13 @@ enum BibleStudyTagSuggester {
         }
 
         picked.sort { $0.confidence > $1.confidence }
-        let top = Array(picked.prefix(12))
-        let tags = top.map(\.name)
+        var top = Array(picked.prefix(12))
+        var tagNames = top.map(\.name)
+        for personTag in detectPersonTags(in: fullText) {
+            if tagNames.contains(where: { $0.caseInsensitiveCompare(personTag) == .orderedSame }) { continue }
+            tagNames.append(personTag)
+            if tagNames.count > 12 { tagNames = Array(tagNames.prefix(12)); break }
+        }
 
         let primary: String?
         if let first = picked.first {
@@ -232,7 +242,31 @@ enum BibleStudyTagSuggester {
             primary = nil
         }
 
-        return Analysis(picked: picked, tags: tags, primaryCandidate: primary)
+        return Analysis(picked: picked, tags: tagNames, primaryCandidate: primary)
+    }
+
+    /// "Pastor Tim" / "Ps Johnson" — not "Psalm 23".
+    private static func detectPersonTags(in text: String) -> [String] {
+        guard let regex = try? NSRegularExpression(
+            pattern: #"\b(?:Pastor|Ps\.?)\s+([A-Z][\w'-]+(?:\s+[A-Z][\w'-]+)?)\b"#,
+            options: []
+        ) else { return [] }
+        let ns = text as NSString
+        let range = NSRange(location: 0, length: ns.length)
+        var out: [String] = []
+        var seen = Set<String>()
+        for m in regex.matches(in: text, range: range) {
+            guard m.numberOfRanges >= 2 else { continue }
+            let full = ns.substring(with: m.range).trimmingCharacters(in: .whitespacesAndNewlines)
+            let prefixRaw = full.split(separator: " ").first.map(String.init) ?? "Ps"
+            let prefix = prefixRaw.lowercased().hasPrefix("pastor") ? "Pastor" : "Ps"
+            let name = ns.substring(with: m.range(at: 1)).trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !name.isEmpty else { continue }
+            let tag = "\(prefix) \(name)"
+            let key = tag.lowercased()
+            if seen.insert(key).inserted { out.append(tag) }
+        }
+        return out
     }
 
     /// Maps a keyword candidate to an existing folder name when there is a clear, unambiguous match.

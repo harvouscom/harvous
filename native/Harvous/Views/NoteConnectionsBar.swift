@@ -257,7 +257,7 @@ private struct RemovableConnectionsTrailPill: View {
                 onRemove()
             } label: {
                 Image(systemName: "xmark")
-                    .font(.system(size: 9, weight: .bold))
+                    .font(HarvousFonts.font(size: 9, weight: .bold, design: .default))
                     .symbolRenderingMode(.monochrome)
                     .foregroundStyle(Color.secondary.opacity(0.9))
                     .frame(width: 16, height: 16)

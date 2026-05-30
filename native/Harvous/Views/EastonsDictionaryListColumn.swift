@@ -163,15 +163,12 @@ struct EastonsDictionaryListColumn: View {
                 Spacer()
             }
         case .failed:
-            ContentUnavailableView {
-                Label {
-                    Text("Couldn't Load Dictionary")
-                } icon: {
-                    HarvousFAGlyph(assetName: "Harvous.LinesLeaning", edgePt: 28)
-                }
-            } description: {
-                Text("Check your connection and reopen the sidebar.")
-            }
+            HarvousEmptyStateView(
+                iconAsset: "Harvous.LinesLeaning",
+                title: "Couldn't Load Dictionary",
+                description: "Check your connection and reopen the sidebar.",
+                scale: .compact
+            )
         case .loaded:
             // Single-pass filter+sort: previously `filteredEntries` ran twice (empty check + List source) on
             // every render, which under category-switch animation became a perceptible main-thread cost while
@@ -225,6 +222,8 @@ struct EastonsDictionaryListColumn: View {
                 .scrollContentBackground(.hidden)
                 #if os(iOS)
                 .modifier(IPadAwareListBottomChromeReserve(skip: isIPadSplitLayout))
+                #elseif os(macOS)
+                .harvousListDailyPassagePillScrollReserve()
                 #endif
             }
         }

@@ -40,7 +40,7 @@ struct VotdPassageSheet: View {
                         .font(HarvousTypography.noteListPreview)
                         .foregroundStyle(.secondary)
                     Text(votd.reference)
-                        .font(.system(size: 17, weight: .semibold))
+                        .font(HarvousFonts.font(size: 17, weight: .semibold, design: .default))
                 }
                 Spacer(minLength: 0)
                 Button {
@@ -64,6 +64,7 @@ struct VotdPassageSheet: View {
                         translation: votd.translation,
                         showHeader: false,
                         useReadingTypography: true,
+                        useRegularPassageWeight: true,
                         showAttribution: false
                     )
                     .padding(.horizontal, Metrics.sheetHorizontalPadding)
@@ -94,7 +95,7 @@ struct VotdPassageSheet: View {
                     HarvousFAGlyph(assetName: "Harvous.CircleInfo", edgePt: 9)
                         .foregroundStyle(.secondary)
                     Text(attribution.copyright)
-                        .font(.system(size: 10, weight: .medium))
+                        .font(HarvousFonts.font(size: 10, weight: .medium, design: .default))
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
                         .truncationMode(.tail)
@@ -103,7 +104,7 @@ struct VotdPassageSheet: View {
                         Link(destination: url) {
                             HStack(spacing: 3) {
                                 Text(ScriptureReference.displayTranslationLabel(votd.translation))
-                                    .font(.system(size: 9, weight: .semibold))
+                                    .font(HarvousFonts.font(size: 9, weight: .semibold, design: .default))
                                 HarvousFAGlyph(assetName: "Harvous.ArrowUpRight", edgePt: 7)
                             }
                             .foregroundStyle(.secondary)

@@ -137,11 +137,7 @@ struct FolderChipPopover: View {
                 TextField(placeholder, text: $text)
                     .textFieldStyle(.plain)
                     .font(Self.rowBodyFontStatic)
-                    .frame(
-                        maxWidth: .infinity,
-                        minHeight: Metrics.fieldRowHeight,
-                        maxHeight: Metrics.fieldRowHeight
-                    )
+                    .frame(maxWidth: .infinity)
                     .padding(.leading, 16)
                     .padding(.trailing, Metrics.primaryFieldTrailingReserve)
                     .onSubmit { onSubmitEditing() }

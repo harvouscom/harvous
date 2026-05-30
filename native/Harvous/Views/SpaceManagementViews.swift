@@ -33,7 +33,7 @@ struct CreateSpaceSheet: View {
                         spaceMacCaption("Space name")
                         TextField("My study space", text: $name)
                         .textFieldStyle(.plain)
-                        .font(.system(size: 14))
+                        .font(HarvousFonts.font(size: 14, weight: .regular, design: .default))
                         .focused($nameFieldFocused)
                         .padding(10)
                         .background(macFieldFill)
@@ -63,7 +63,7 @@ struct CreateSpaceSheet: View {
                     Text(visibility == .privateShared
                         ? "Only people you invite can join this space."
                         : "Anyone with the link can join and edit notes in this space.")
-                        .font(.system(size: 12))
+                        .font(HarvousFonts.font(size: 12, weight: .regular, design: .default))
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
@@ -167,7 +167,7 @@ struct CreateSpaceSheet: View {
 
     private func spaceMacCaption(_ title: String) -> some View {
         Text(title)
-            .font(.system(size: 11, weight: .medium))
+            .font(HarvousFonts.font(size: 11, weight: .medium, design: .default))
             .foregroundStyle(.secondary)
             .padding(.bottom, 3)
     }
@@ -200,7 +200,7 @@ struct JoinSpaceSheet: View {
                         joinMacCaption("Invite token or link")
                         TextField("Paste token or harvous:// URL", text: $token)
                         .textFieldStyle(.plain)
-                        .font(.system(size: 14))
+                        .font(HarvousFonts.font(size: 14, weight: .regular, design: .default))
                         .focused($tokenFieldFocused)
                         .padding(10)
                         .background(joinMacFieldFill)
@@ -210,13 +210,13 @@ struct JoinSpaceSheet: View {
                         )
 
                     Text("Paste the token from a private invite, or a harvous:// link from a public space.")
-                        .font(.system(size: 12))
+                        .font(HarvousFonts.font(size: 12, weight: .regular, design: .default))
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
 
                     if joinFailed {
                         Text("Could not join with that token. Check for typos and try again.")
-                            .font(.system(size: 12))
+                            .font(HarvousFonts.font(size: 12, weight: .regular, design: .default))
                             .foregroundStyle(.red)
                             .fixedSize(horizontal: false, vertical: true)
                     }
@@ -316,7 +316,7 @@ struct JoinSpaceSheet: View {
 
     private func joinMacCaption(_ title: String) -> some View {
         Text(title)
-            .font(.system(size: 11, weight: .medium))
+            .font(HarvousFonts.font(size: 11, weight: .medium, design: .default))
             .foregroundStyle(.secondary)
             .padding(.bottom, 3)
     }
@@ -645,12 +645,12 @@ extension ManageSpaceSheet {
 
     private func manageMacSectionHeader(_ title: String) -> some View {
         Text(title)
-            .font(.system(size: 13, weight: .semibold))
+            .font(HarvousFonts.font(size: 13, weight: .semibold, design: .default))
     }
 
     private func manageMacCaption(_ title: String) -> some View {
         Text(title)
-            .font(.system(size: 11, weight: .medium))
+            .font(HarvousFonts.font(size: 11, weight: .medium, design: .default))
             .foregroundStyle(.secondary)
             .padding(.bottom, 3)
     }
@@ -672,7 +672,7 @@ extension ManageSpaceSheet {
                     manageMacCaption("Space name")
                     TextField("Space name", text: $renameText)
                         .textFieldStyle(.plain)
-                        .font(.system(size: 14))
+                        .font(HarvousFonts.font(size: 14, weight: .regular, design: .default))
                         .focused($renameFieldFocused)
                         .padding(10)
                         .background(manageMacFieldFill)
@@ -756,7 +756,7 @@ extension ManageSpaceSheet {
                     .accessibilityHidden(true)
 
                     Text("Scripture pills, list chips, and the scripture bar use this accent while this space is active.")
-                        .font(.system(size: 12))
+                        .font(HarvousFonts.font(size: 12, weight: .regular, design: .default))
                         .foregroundStyle(.secondary)
                 } else {
                     LabeledContent("Scripture accent", value: space.scriptureTheme.pickerLabel)
@@ -780,7 +780,7 @@ extension ManageSpaceSheet {
                     Label("Copy new invite link", image: "Harvous.UserPlus")
                 }
                 Text("Send the link to someone so they can join this space on their device.")
-                    .font(.system(size: 12))
+                    .font(HarvousFonts.font(size: 12, weight: .regular, design: .default))
                     .foregroundStyle(.secondary)
             }
         }
@@ -794,7 +794,7 @@ extension ManageSpaceSheet {
                 if let url = joinURL {
                     manageMacCaption("Link")
                     Text(url.absoluteString)
-                        .font(.system(size: 12))
+                        .font(HarvousFonts.font(size: 12, weight: .regular, design: .default))
                         .lineLimit(4)
                         .textSelection(.enabled)
                 }
@@ -875,7 +875,7 @@ private struct CompactModalToolbarButtonStyle: ButtonStyle {
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(.system(size: 13, weight: .semibold))
+            .font(HarvousFonts.font(size: 13, weight: .semibold, design: .default))
             .padding(.horizontal, 14)
             .padding(.vertical, 6)
             .background(

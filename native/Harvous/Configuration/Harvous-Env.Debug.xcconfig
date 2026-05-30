@@ -1,8 +1,0 @@
-// Debug environment — dev/test keys, points at localhost by default.
-// Safe to commit (publishable keys are not secret).
-// Change HARVOUS_API_BASE_URL to your machine's LAN IP if testing on a
-// physical device (e.g. http:/$()/192.168.1.x:4321).
-#include "Harvous-Env.xcconfig"
-
-CLERK_PUBLISHABLE_KEY = pk_test_REPLACE_ME
-HARVOUS_API_BASE_URL = http:/$()/192.168.1.130:4321

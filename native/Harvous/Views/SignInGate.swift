@@ -9,10 +9,16 @@ import ClerkKit
 /// the current session state. Loading Clerk is awaited once; thereafter the
 /// `Observable` bridge drives view updates as the user signs in / out.
 /// On every authenticated entry we also kick a background pull-then-flush.
+///
+/// Once authenticated, `content()` stays in the view tree even after session
+/// expiry to prevent SwiftUI from tearing down NavigationStacks with active
+/// paths — that teardown triggers a fatal `AnyNavigationPath.Error
+/// .comparisonTypeMismatch` crash in NavigationColumnState.
 struct SignInGate<Content: View>: View {
     @ViewBuilder var content: () -> Content
     @State private var bridge = HarvousClerkBridge.shared
     @State private var sync = HarvousSyncService.shared
+    @State private var hasEverAuthenticated = false
     @Environment(\.modelContext) private var modelContext
     @Environment(\.scenePhase) private var scenePhase
 
@@ -21,9 +27,6 @@ struct SignInGate<Content: View>: View {
             .task {
                 await bridge.load()
             }
-            // Clerk's SwiftUI components read `@Environment(Clerk.self)`.
-            // Inject the shared instance once at the root so both `AuthView()`
-            // and any descendant `UserProfileView()` resolve correctly.
             #if canImport(ClerkKit)
             .environment(Clerk.shared)
             #endif
@@ -35,22 +38,48 @@ struct SignInGate<Content: View>: View {
             ProgressView()
                 .controlSize(.large)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-        } else if bridge.isAuthenticated {
-            content()
-                .task(id: bridge.userId) {
-                    bridge.refreshProfile()
-                    await sync.flushPending(context: modelContext)
-                    await sync.pullAll(context: modelContext)
-                }
-                .onChange(of: scenePhase) { _, phase in
-                    guard phase == .active else { return }
-                    Task {
+        } else if hasEverAuthenticated {
+            ZStack {
+                content()
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .task(id: bridge.userId) {
+                        guard bridge.isAuthenticated else { return }
+                        HarvousSyncScheduler.registerContext(modelContext)
+                        HarvousSyncScheduler.cancelPendingScheduledSync()
+                        sync.resetIfUserChanged(currentUserId: bridge.userId)
+                        bridge.refreshProfile()
                         await sync.flushPending(context: modelContext)
                         await sync.pullAll(context: modelContext)
+                        await sync.flushPending(context: modelContext)
                     }
+                    .onChange(of: scenePhase) { _, phase in
+                        guard phase == .active, bridge.isAuthenticated else { return }
+                        HarvousSyncScheduler.registerContext(modelContext)
+                        HarvousSyncScheduler.cancelPendingScheduledSync()
+                        Task {
+                            await sync.flushPending(context: modelContext)
+                            await sync.pullAll(context: modelContext)
+                            await sync.flushPending(context: modelContext)
+                        }
+                    }
+                    .allowsHitTesting(bridge.isAuthenticated)
+
+                if !bridge.isAuthenticated {
+                    SignInPlaceholder()
+                        .transition(.opacity)
                 }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .animation(.easeInOut(duration: 0.25), value: bridge.isAuthenticated)
         } else {
             SignInPlaceholder()
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .onAppear {
+                    if bridge.isAuthenticated { hasEverAuthenticated = true }
+                }
+                .onChange(of: bridge.isAuthenticated) { _, isAuth in
+                    if isAuth { hasEverAuthenticated = true }
+                }
         }
     }
 }

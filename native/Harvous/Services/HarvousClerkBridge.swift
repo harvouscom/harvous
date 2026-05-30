@@ -28,6 +28,17 @@ enum HarvousEnvironment {
         if let url = URL(string: trimmed), url.scheme != nil { return url }
         return URL(string: "https://app.harvous.com")!
     }()
+
+    /// Distinguishes the Clerk environment (test vs live) from the publishable key
+    /// prefix. Used to give dev (`pk_test_…`) and prod (`pk_live_…`) builds *separate*
+    /// local SwiftData stores so notes synced under one environment never appear under
+    /// the other (which renders unresolvable cross-environment data and can hang the UI).
+    static let storeEnvironmentSlug: String = {
+        let key = publishableKey.lowercased()
+        if key.hasPrefix("pk_live_") { return "live" }
+        if key.hasPrefix("pk_test_") { return "test" }
+        return "default"
+    }()
 }
 
 /// Thin wrapper over the Clerk Swift SDK so that Swift files outside of
@@ -164,6 +175,48 @@ final class HarvousClerkBridge {
         #else
         throw HarvousProfileError.notSignedIn
         #endif
+    }
+
+    /// Clerk Account Portal URL for the signed-in user's profile page (macOS fallback when
+    /// `UserProfileView` is unavailable). Derived from the publishable key's Frontend API host.
+    static func clerkAccountPortalUserURL() -> URL? {
+        guard let frontend = clerkFrontendAPIURL(from: HarvousEnvironment.publishableKey),
+              var components = URLComponents(url: frontend, resolvingAgainstBaseURL: false),
+              let host = components.host
+        else { return nil }
+
+        let portalHost: String
+        if host.hasSuffix(".clerk.accounts.dev") {
+            portalHost = host.replacingOccurrences(of: ".clerk.accounts.dev", with: ".accounts.dev")
+        } else if host.hasPrefix("clerk.") {
+            portalHost = "accounts." + host.dropFirst("clerk.".count)
+        } else {
+            portalHost = "accounts." + host
+        }
+
+        components.host = portalHost
+        components.path = "/user"
+        components.query = nil
+        components.fragment = nil
+        return components.url
+    }
+
+    /// Decode `pk_*_<base64>` → Frontend API URL (mirrors ClerkKit `ConfigurationManager`).
+    private static func clerkFrontendAPIURL(from publishableKey: String) -> URL? {
+        let trimmed = publishableKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.hasPrefix("pk_live_") || trimmed.hasPrefix("pk_test_") else { return nil }
+        let encoded = trimmed
+            .replacingOccurrences(of: "pk_live_", with: "")
+            .replacingOccurrences(of: "pk_test_", with: "")
+            .trimmingCharacters(in: CharacterSet(charactersIn: "$"))
+        guard let data = Data(base64Encoded: encoded),
+              var host = String(data: data, encoding: .utf8)?
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+              !host.isEmpty
+        else { return nil }
+        if host.hasSuffix("$") { host.removeLast() }
+        guard !host.isEmpty else { return nil }
+        return URL(string: "https://\(host)")
     }
 }
 

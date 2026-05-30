@@ -1,4 +1,9 @@
 import SwiftUI
+#if os(macOS)
+import AppKit
+#elseif os(iOS)
+import UIKit
+#endif
 
 // MARK: - Shared binding type
 
@@ -37,28 +42,20 @@ func harvousExpandedPlainText(in storage: NSTextStorage) -> String {
                     out += urlPill.href
                 }
                 i = NSMaxRange(eff)
-            } else {
-#if os(macOS)
-                if att is HorizontalRuleAttachment {
-                    out += "\n---\n"
-                    i = NSMaxRange(eff)
-                } else if let imgAtt = att as? NoteInlineImageAttachment {
-                    if let png = pngDataForInlineImageAttachment(imgAtt) {
-                        out += "\n[Image:\(png.base64EncodedString())]\n"
-                    } else {
-                        out += "\n[Image]\n"
-                    }
-                    i = NSMaxRange(eff)
+            } else if att is HorizontalRuleAttachment {
+                out += "\n---\n"
+                i = NSMaxRange(eff)
+            } else if let imgAtt = att as? NoteInlineImageAttachment {
+                if let payload = NoteInlineImageSerialization.inlineImagePayload(from: imgAtt) {
+                    out += NoteInlineImageSerialization.inlineImageMarker(forPayload: payload)
                 } else {
-                    let r = ns.rangeOfComposedCharacterSequence(at: i)
-                    out += ns.substring(with: r)
-                    i = NSMaxRange(r)
+                    out += NoteInlineImageSerialization.legacyPlaceholder
                 }
-#else
+                i = NSMaxRange(eff)
+            } else {
                 let r = ns.rangeOfComposedCharacterSequence(at: i)
                 out += ns.substring(with: r)
                 i = NSMaxRange(r)
-#endif
             }
         } else {
             let r = ns.rangeOfComposedCharacterSequence(at: i)
@@ -69,14 +66,225 @@ func harvousExpandedPlainText(in storage: NSTextStorage) -> String {
     return out
 }
 
-/// Returns the body paragraph style.  Line spacing is NOT set here — it is provided by
-/// `HarvousLayoutManager` via the `NSLayoutManagerDelegate` method `lineSpacingAfterGlyphAt`,
-/// which adds 0.6x natural-height space BETWEEN stored line fragment rects rather than inside
-/// them.  Keeping `lineSpacing = 0` in the paragraph style means every stored fragment rect
-/// stays at natural glyph height, so the caret, selection highlight, and spell-check /
-/// autocorrect indicators all position themselves correctly.
+/// Returns the body paragraph style.
 private func noteBodyParagraphStyle() -> NSParagraphStyle {
     NSMutableParagraphStyle()
+}
+
+private func noteBodyTypingAttributes() -> [NSAttributedString.Key: Any] {
+    let para = noteBodyParagraphStyle()
+#if os(macOS)
+    return [
+        .font: HarvousFonts.noteComposeBodyPlatformFont(),
+        .foregroundColor: NSColor.labelColor,
+        .paragraphStyle: para
+    ]
+#else
+    return [
+        .font: HarvousFonts.noteComposeBodyPlatformFont(),
+        .foregroundColor: UIColor.label,
+        .paragraphStyle: para
+    ]
+#endif
+}
+
+/// Horizontal rules only — safe to run synchronously on note open.
+@MainActor
+fileprivate func rehydrateHorizontalRules(in storage: NSTextStorage) {
+    let bodyAttrs = noteBodyTypingAttributes()
+    storage.beginEditing()
+    defer { storage.endEditing() }
+
+    let patterns = ["\n---\n", "\r\n---\r\n"]
+    for p in patterns {
+        while true {
+            let rr = (storage.string as NSString).range(of: p)
+            if rr.location == NSNotFound { break }
+            let full = NSMutableAttributedString()
+            full.append(NSAttributedString(string: "\n", attributes: bodyAttrs))
+            full.append(NSAttributedString(attachment: HorizontalRuleAttachment()))
+            full.append(NSAttributedString(string: "\n", attributes: bodyAttrs))
+            storage.replaceCharacters(in: rr, with: full)
+        }
+    }
+
+    let head = storage.string as NSString
+    if head.length >= 4 {
+        let prefix = head.substring(with: NSRange(location: 0, length: 4))
+        if prefix == "---\n" {
+            let full = NSMutableAttributedString()
+            full.append(NSAttributedString(attachment: HorizontalRuleAttachment()))
+            full.append(NSAttributedString(string: "\n", attributes: bodyAttrs))
+            storage.replaceCharacters(in: NSRange(location: 0, length: 4), with: full)
+        }
+    }
+
+    if storage.string == "---" {
+        let full = NSMutableAttributedString(attachment: HorizontalRuleAttachment())
+        storage.replaceCharacters(in: NSRange(location: 0, length: 3), with: full)
+    }
+}
+
+/// Swap `\n[Image]\n` placeholders with decoded attachments (main actor, after async decode).
+@MainActor
+fileprivate func applyInlineImagePlaceholders(in storage: NSTextStorage, payloads: [Data]) {
+    guard !payloads.isEmpty else { return }
+    let bodyAttrs = noteBodyTypingAttributes()
+    let placeholder = NoteInlineImageSerialization.legacyPlaceholder
+    storage.beginEditing()
+    defer { storage.endEditing() }
+
+    var payloadIndex = 0
+    while payloadIndex < payloads.count {
+        let ns = storage.string as NSString
+        let r = ns.range(of: placeholder)
+        if r.location == NSNotFound { break }
+#if os(macOS)
+        if let img = NoteInlineImageSerialization.imageFromInlinePayload(payloads[payloadIndex]) {
+            let attach = NSAttributedString(attachment: NoteInlineImageAttachment(image: img))
+            storage.replaceCharacters(in: r, with: attach)
+        } else {
+            storage.replaceCharacters(in: r, with: NSAttributedString(string: "", attributes: bodyAttrs))
+        }
+#else
+        if let img = NoteInlineImageSerialization.imageFromInlinePayload(payloads[payloadIndex]) {
+            let attach = NSAttributedString(attachment: NoteInlineImageAttachment(image: img))
+            storage.replaceCharacters(in: r, with: attach)
+        } else {
+            storage.replaceCharacters(in: r, with: NSAttributedString(string: "", attributes: bodyAttrs))
+        }
+#endif
+        payloadIndex += 1
+    }
+
+    // Strip orphan placeholders left from failed decodes.
+    while true {
+        let ns = storage.string as NSString
+        let legacy = ns.range(of: placeholder)
+        if legacy.location == NSNotFound { break }
+        storage.replaceCharacters(in: legacy, with: "\n")
+    }
+}
+
+/// Synchronous image marker decode — used only when the body has no payload markers to strip.
+@MainActor
+fileprivate func rehydrateInlineImagesSync(in storage: NSTextStorage) {
+    let bodyAttrs = noteBodyTypingAttributes()
+    let marker = "[Image:"
+    storage.beginEditing()
+    defer { storage.endEditing() }
+
+    while true {
+        let ns = storage.string as NSString
+        let legacy = ns.range(of: NoteInlineImageSerialization.legacyPlaceholder)
+        if legacy.location == NSNotFound { break }
+        storage.replaceCharacters(in: legacy, with: "\n")
+    }
+
+    var guardCount = 0
+    while guardCount < 5_000 {
+        guardCount += 1
+        let fullStr = storage.string as NSString
+        let r = fullStr.range(of: marker, options: .backwards)
+        if r.location == NSNotFound { break }
+        let after = NSMaxRange(r)
+        if after >= fullStr.length { break }
+        let tail = fullStr.range(of: "]", options: [], range: NSRange(location: after, length: fullStr.length - after))
+        if tail.location == NSNotFound { break }
+        let b64 = fullStr.substring(with: NSRange(location: after, length: tail.location - after))
+        let tokenRange = NSRange(location: r.location, length: tail.location + 1 - r.location)
+        if b64.isEmpty || b64.count >= 25_000_000 {
+            storage.replaceCharacters(in: tokenRange, with: NSAttributedString(string: "", attributes: bodyAttrs))
+            continue
+        }
+#if os(macOS)
+        if let data = Data(base64Encoded: b64), let img = NoteInlineImageSerialization.imageFromInlinePayload(data) {
+            let attach = NSAttributedString(attachment: NoteInlineImageAttachment(image: img))
+            storage.replaceCharacters(in: tokenRange, with: attach)
+        } else {
+            storage.replaceCharacters(in: tokenRange, with: NSAttributedString(string: "", attributes: bodyAttrs))
+        }
+#else
+        if let data = Data(base64Encoded: b64), let img = NoteInlineImageSerialization.imageFromInlinePayload(data) {
+            let attach = NSAttributedString(attachment: NoteInlineImageAttachment(image: img))
+            storage.replaceCharacters(in: tokenRange, with: attach)
+        } else {
+            storage.replaceCharacters(in: tokenRange, with: NSAttributedString(string: "", attributes: bodyAttrs))
+        }
+#endif
+    }
+}
+
+/// Restores inline blocks after loading `note.body` as plain text.
+/// - `asyncImagePayloads == nil`: decode any `[Image:…]` markers synchronously (legacy / no async path).
+/// - `asyncImagePayloads == []`: placeholders already in storage; async decode will swap them in.
+/// - `asyncImagePayloads` non-empty: apply pre-validated payloads synchronously.
+@MainActor
+fileprivate func rehydrateNativeInlineBlocks(in storage: NSTextStorage, asyncImagePayloads: [Data]? = nil) {
+    rehydrateHorizontalRules(in: storage)
+    if let payloads = asyncImagePayloads {
+        if !payloads.isEmpty {
+            applyInlineImagePlaceholders(in: storage, payloads: payloads)
+        }
+    } else {
+        rehydrateInlineImagesSync(in: storage)
+    }
+}
+
+#if os(macOS)
+@MainActor
+fileprivate func rehydrateNativeInlineBlocks(in textView: NSTextView, asyncImagePayloads: [Data]? = nil) {
+    guard let storage = textView.textStorage else { return }
+    rehydrateNativeInlineBlocks(in: storage, asyncImagePayloads: asyncImagePayloads)
+}
+#else
+@MainActor
+fileprivate func rehydrateNativeInlineBlocks(in textView: UITextView, asyncImagePayloads: [Data]? = nil) {
+    rehydrateNativeInlineBlocks(in: textView.textStorage, asyncImagePayloads: asyncImagePayloads)
+}
+#endif
+
+/// Loads persisted body: strip base64 markers synchronously, decode images on a background task.
+@MainActor
+fileprivate func assignDocumentBody<Coordinator: InlineImageRehydrateScheduling>(
+    to textView: HVTextView,
+    body: String,
+    coordinator: Coordinator,
+    withProgrammaticMutation: (_ work: () -> Void) -> Void
+) {
+    let payloads = NoteInlineImageSerialization.orderedPayloads(from: body)
+    let displayBody = payloads.isEmpty ? body : NoteInlineImageSerialization.stripPayloadMarkersForPlainLoad(body)
+
+    withProgrammaticMutation {
+#if os(macOS)
+        if let tv = textView as? NSTextView {
+            tv.string = displayBody
+            tv.textColor = NSColor.labelColor
+            tv.font = HarvousFonts.noteComposeBodyPlatformFont()
+            applyBodyParagraphStyleToFullStorage(tv)
+            rehydrateNativeInlineBlocks(in: tv, asyncImagePayloads: payloads.isEmpty ? nil : [])
+        }
+#else
+        if let tv = textView as? UITextView {
+            tv.text = displayBody
+            tv.textColor = .label
+            applyBodyParagraphStyleToFullStorage(tv)
+            rehydrateNativeInlineBlocks(in: tv, asyncImagePayloads: payloads.isEmpty ? nil : [])
+        }
+#endif
+    }
+
+    if !payloads.isEmpty {
+        coordinator.scheduleAsyncInlineImageRehydrate(on: textView, payloads: payloads)
+    }
+}
+
+/// Coordinator types that can schedule deferred inline-image decode (Mac + iOS editors).
+@MainActor
+protocol InlineImageRehydrateScheduling: AnyObject {
+    var noteBindingGeneration: UInt64 { get }
+    func withProgrammaticBodyMutation(_ work: () -> Void)
+    func scheduleAsyncInlineImageRehydrate(on textView: HVTextView, payloads: [Data])
 }
 
 /// Stamps `noteBodyParagraphStyle()` on the entire storage so notes written before the 1.6
@@ -1092,93 +1300,6 @@ private func activeScripturePillFromNSTextViewSelection(_ tv: NSTextView) -> Act
     return nil
 }
 
-fileprivate func pngDataForInlineImageAttachment(_ attachment: NoteInlineImageAttachment) -> Data? {
-    guard let img = attachment.image else { return nil }
-    guard let tiff = img.tiffRepresentation, let rep = NSBitmapImageRep(data: tiff) else { return nil }
-    return rep.representation(using: .png, properties: [:])
-}
-
-/// Restores `HorizontalRuleAttachment` and `NoteInlineImageAttachment` after loading `note.body` as plain text.
-@MainActor
-fileprivate func rehydrateNativeInlineBlocks(in textView: NSTextView) {
-    guard let storage = textView.textStorage else { return }
-    let para = noteBodyParagraphStyle()
-    let bodyAttrs: [NSAttributedString.Key: Any] = [
-        .font: HarvousFonts.noteComposeBodyPlatformFont(),
-        .foregroundColor: NSColor.labelColor,
-        .paragraphStyle: para
-    ]
-
-    storage.beginEditing()
-    defer { storage.endEditing() }
-
-    // 0. Legacy image placeholder (no payload) from older builds — strip so it doesn’t sit as raw text.
-    while true {
-        let ns = storage.string as NSString
-        let legacy = ns.range(of: "\n[Image]\n")
-        if legacy.location == NSNotFound { break }
-        storage.replaceCharacters(in: legacy, with: "\n")
-    }
-
-    // 1. [Image:base64] markers (reverse search; remove invalid tokens so we don’t loop forever).
-    let marker = "[Image:"
-    var guardCount = 0
-    while guardCount < 5_000 {
-        guardCount += 1
-        let fullStr = storage.string as NSString
-        let r = fullStr.range(of: marker, options: .backwards)
-        if r.location == NSNotFound { break }
-        let after = NSMaxRange(r)
-        if after >= fullStr.length { break }
-        let tail = fullStr.range(of: "]", options: [], range: NSRange(location: after, length: fullStr.length - after))
-        if tail.location == NSNotFound { break }
-        let b64 = fullStr.substring(with: NSRange(location: after, length: tail.location - after))
-        let tokenRange = NSRange(location: r.location, length: tail.location + 1 - r.location)
-        if b64.isEmpty || b64.count >= 25_000_000 {
-            storage.replaceCharacters(in: tokenRange, with: NSAttributedString(string: "", attributes: bodyAttrs))
-            continue
-        }
-        if let data = Data(base64Encoded: b64), let img = NSImage(data: data) {
-            let attach = NSAttributedString(attachment: NoteInlineImageAttachment(image: img))
-            storage.replaceCharacters(in: tokenRange, with: attach)
-        } else {
-            storage.replaceCharacters(in: tokenRange, with: NSAttributedString(string: "", attributes: bodyAttrs))
-        }
-    }
-
-    // 2. Horizontal rules (serialized as `\n---\n`).
-    let patterns = ["\n---\n", "\r\n---\r\n"]
-    for p in patterns {
-        while true {
-            let rr = (storage.string as NSString).range(of: p)
-            if rr.location == NSNotFound { break }
-            let full = NSMutableAttributedString()
-            full.append(NSAttributedString(string: "\n", attributes: bodyAttrs))
-            full.append(NSAttributedString(attachment: HorizontalRuleAttachment()))
-            full.append(NSAttributedString(string: "\n", attributes: bodyAttrs))
-            storage.replaceCharacters(in: rr, with: full)
-        }
-    }
-
-    // Document begins with "---\n" (divider first).
-    let head = storage.string as NSString
-    if head.length >= 4 {
-        let prefix = head.substring(with: NSRange(location: 0, length: 4))
-        if prefix == "---\n" {
-            let full = NSMutableAttributedString()
-            full.append(NSAttributedString(attachment: HorizontalRuleAttachment()))
-            full.append(NSAttributedString(string: "\n", attributes: bodyAttrs))
-            storage.replaceCharacters(in: NSRange(location: 0, length: 4), with: full)
-        }
-    }
-
-    // Only a divider, no surrounding newlines (older round-trips).
-    if storage.string == "---" {
-        let full = NSMutableAttributedString(attachment: HorizontalRuleAttachment())
-        storage.replaceCharacters(in: NSRange(location: 0, length: 3), with: full)
-    }
-}
-
 final class HarvousEditorScrollView: NSScrollView {
     /// Coalesces rapid invalidations into one deferred measurement pass.
     private var bodyHeightPublishCoalesced = false
@@ -1485,39 +1606,41 @@ struct HarvousEditor: NSViewRepresentable {
 
     /// Replace the text view contents from `state` (plain string + placeholder when empty).
     private func syncTextViewDocument(_ textView: NSTextView, context: Context) {
-        context.coordinator.withProgrammaticBodyMutation {
-            if state.plainText.isEmpty {
+        if state.plainText.isEmpty {
+            context.coordinator.withProgrammaticBodyMutation {
                 textView.string = ""
                 context.coordinator.showPlaceholder(in: textView, text: placeholder)
-            } else {
-                context.coordinator.markNotPlaceholder()
-                textView.string = state.plainText
-                textView.textColor = NSColor.labelColor
-                textView.font = HarvousFonts.noteComposeBodyPlatformFont()
-                applyBodyParagraphStyleToFullStorage(textView)
-                rehydrateNativeInlineBlocks(in: textView)
             }
+            return
         }
+        context.coordinator.markNotPlaceholder()
+        assignDocumentBody(
+            to: textView,
+            body: state.plainText,
+            coordinator: context.coordinator,
+            withProgrammaticMutation: context.coordinator.withProgrammaticBodyMutation
+        )
     }
 
     private func syncTextViewToDocumentBody(_ textView: NSTextView, body: String, context: Context) {
-        context.coordinator.withProgrammaticBodyMutation {
-            if body.isEmpty {
+        if body.isEmpty {
+            context.coordinator.withProgrammaticBodyMutation {
                 textView.string = ""
                 context.coordinator.showPlaceholder(in: textView, text: placeholder)
-            } else {
-                context.coordinator.markNotPlaceholder()
-                textView.string = body
-                textView.textColor = NSColor.labelColor
-                textView.font = HarvousFonts.noteComposeBodyPlatformFont()
-                applyBodyParagraphStyleToFullStorage(textView)
-                rehydrateNativeInlineBlocks(in: textView)
             }
+            return
         }
+        context.coordinator.markNotPlaceholder()
+        assignDocumentBody(
+            to: textView,
+            body: body,
+            coordinator: context.coordinator,
+            withProgrammaticMutation: context.coordinator.withProgrammaticBodyMutation
+        )
     }
 
     @MainActor
-    final class Coordinator: NSObject, NSTextViewDelegate {
+    final class Coordinator: NSObject, NSTextViewDelegate, InlineImageRehydrateScheduling {
         @Binding var state: EditorState
         weak var textView: NSTextView?
         var proxy: EditorProxy?
@@ -1540,8 +1663,9 @@ struct HarvousEditor: NSViewRepresentable {
         private var isDisplayingPlaceholder: Bool = false
         private var debounceTask: Task<Void, Never>?
         private var formatBarHideTask: Task<Void, Never>?
+        private var inlineImageRehydrateTask: Task<Void, Never>?
         /// Bumped on note switch so deferred `Task`s from the previous note cannot write `state.plainText`.
-        fileprivate var noteBindingGeneration: UInt64 = 0
+        var noteBindingGeneration: UInt64 = 0
         /// Dismisses a stray caret `selectionUpdate` after we replace the document (note switch) so the bar does not show until the user changes selection again.
         /// `fileprivate` so `HarvousEditor.updateNSView` can set it when `boundNoteID` changes (nested `private` is not visible to the outer type).
         fileprivate var suppressFormatBarOnNextBodyCaretUpdate: Bool = false
@@ -1554,7 +1678,31 @@ struct HarvousEditor: NSViewRepresentable {
             noteBindingGeneration &+= 1
             debounceTask?.cancel()
             debounceTask = nil
+            inlineImageRehydrateTask?.cancel()
+            inlineImageRehydrateTask = nil
             cancelFormatBarHide()
+        }
+
+        func scheduleAsyncInlineImageRehydrate(on textView: HVTextView, payloads: [Data]) {
+            inlineImageRehydrateTask?.cancel()
+            let generation = noteBindingGeneration
+            let payloadsCopy = payloads
+            inlineImageRehydrateTask = Task { @MainActor [weak self, weak textView] in
+                let validated: [Data] = await Task.detached(priority: .userInitiated) {
+                    payloadsCopy.filter { payload in
+                        NoteInlineImageSerialization.imageFromInlinePayload(payload) != nil
+                    }
+                }.value
+                guard let self, !Task.isCancelled, generation == self.noteBindingGeneration else { return }
+                guard let textView, textView === self.textView else { return }
+                guard let tv = textView as? NSTextView, let storage = tv.textStorage else { return }
+                self.withProgrammaticBodyMutation {
+                    applyInlineImagePlaceholders(in: storage, payloads: validated)
+                }
+                if let scrollView = tv.enclosingScrollView as? HarvousEditorScrollView {
+                    scrollView.scheduleBodyLayoutHeightPublish(to: self.proxy)
+                }
+            }
         }
 
         init(state: Binding<EditorState>) {
@@ -1600,7 +1748,7 @@ struct HarvousEditor: NSViewRepresentable {
             }
         }
 
-        fileprivate func withProgrammaticBodyMutation(_ work: () -> Void) {
+        func withProgrammaticBodyMutation(_ work: () -> Void) {
             programmaticBodyMutationDepth += 1
             work()
             programmaticBodyMutationDepth -= 1
@@ -2641,19 +2789,23 @@ struct HarvousEditor: UIViewRepresentable {
             context.coordinator.invalidateDeferredNoteBindingWork()
             context.coordinator.isEditing = false
             context.coordinator.withProgrammaticBodyMutation {
-            if documentBody.isEmpty {
-                textView.text = placeholder
-                textView.textColor = .tertiaryLabel
-                textView.selectedTextRange = textView.textRange(from: textView.beginningOfDocument, to: textView.beginningOfDocument)
-            } else {
-                textView.text = documentBody
-                textView.textColor = .label
-                applyBodyParagraphStyleToFullStorage(textView)
-            }
-            if !documentBody.isEmpty {
-                context.coordinator.reapplyScripturePillsToBody(in: textView)
-            }
-            context.coordinator.paintStudyHighlights(on: textView)
+                textView.textStorage.setAttributedString(NSAttributedString(string: ""))
+                if documentBody.isEmpty {
+                    textView.text = placeholder
+                    textView.textColor = .tertiaryLabel
+                    textView.selectedTextRange = textView.textRange(from: textView.beginningOfDocument, to: textView.beginningOfDocument)
+                } else {
+                    assignDocumentBody(
+                        to: textView,
+                        body: documentBody,
+                        coordinator: context.coordinator,
+                        withProgrammaticMutation: context.coordinator.withProgrammaticBodyMutation
+                    )
+                }
+                if !documentBody.isEmpty {
+                    context.coordinator.reapplyScripturePillsToBody(in: textView)
+                }
+                context.coordinator.paintStudyHighlights(on: textView)
             }
             if let p = proxy {
                 DispatchQueue.main.async {
@@ -2671,8 +2823,13 @@ struct HarvousEditor: UIViewRepresentable {
                 if storageMatchesModel, bindingBehindModel {
                     didSyncBodyFromState = false
                 } else {
-                    textView.text = state.plainText
-                    if !state.plainText.isEmpty { textView.textColor = .label }
+                    context.coordinator.markNotPlaceholder()
+                    assignDocumentBody(
+                        to: textView,
+                        body: state.plainText,
+                        coordinator: context.coordinator,
+                        withProgrammaticMutation: context.coordinator.withProgrammaticBodyMutation
+                    )
                     didSyncBodyFromState = !state.plainText.isEmpty
                 }
             }
@@ -2719,7 +2876,7 @@ struct HarvousEditor: UIViewRepresentable {
     }
 
     @MainActor
-    final class Coordinator: NSObject, UITextViewDelegate, UIGestureRecognizerDelegate {
+    final class Coordinator: NSObject, UITextViewDelegate, UIGestureRecognizerDelegate, InlineImageRehydrateScheduling {
         @Binding var state: EditorState
         weak var textView: UITextView?
         weak var proxy: EditorProxy?
@@ -2741,24 +2898,57 @@ struct HarvousEditor: UIViewRepresentable {
         var onRemoveStudyHighlightThreadIds: (([UUID]) -> Void)?
         private var debounceTask: Task<Void, Never>?
         private var formatBarHideTask: Task<Void, Never>?
+        private var inlineImageRehydrateTask: Task<Void, Never>?
         /// Bumped on note switch so deferred `Task`s from the previous note cannot write `state.plainText`.
-        fileprivate var noteBindingGeneration: UInt64 = 0
+        var noteBindingGeneration: UInt64 = 0
         /// Pauses scripture pill detection while Apple Writing Tools mutates the document (iOS 18+).
         private var isWritingToolsActive = false
         private var programmaticBodyMutationDepth: Int = 0
         private var isProgrammaticBodyMutation: Bool { programmaticBodyMutationDepth > 0 }
 
-        fileprivate func withProgrammaticBodyMutation(_ work: () -> Void) {
+        func withProgrammaticBodyMutation(_ work: () -> Void) {
             programmaticBodyMutationDepth += 1
             work()
             programmaticBodyMutationDepth -= 1
+        }
+
+        /// Call when the document is real body text, not the placeholder string.
+        func markNotPlaceholder() {
+            guard let tv = textView, tv.textColor == .tertiaryLabel else { return }
+            if tv.text == placeholderText {
+                tv.text = ""
+            }
+            tv.textColor = .label
+            applyDefaultBodyTypingAttributes(to: tv)
         }
 
         fileprivate func invalidateDeferredNoteBindingWork() {
             noteBindingGeneration &+= 1
             debounceTask?.cancel()
             debounceTask = nil
+            inlineImageRehydrateTask?.cancel()
+            inlineImageRehydrateTask = nil
             cancelFormatBarHide()
+        }
+
+        func scheduleAsyncInlineImageRehydrate(on textView: HVTextView, payloads: [Data]) {
+            inlineImageRehydrateTask?.cancel()
+            let generation = noteBindingGeneration
+            let payloadsCopy = payloads
+            inlineImageRehydrateTask = Task { @MainActor [weak self, weak textView] in
+                let validated: [Data] = await Task.detached(priority: .userInitiated) {
+                    payloadsCopy.filter { payload in
+                        NoteInlineImageSerialization.imageFromInlinePayload(payload) != nil
+                    }
+                }.value
+                guard let self, !Task.isCancelled, generation == self.noteBindingGeneration else { return }
+                guard let textView, textView === self.textView else { return }
+                guard let tv = textView as? UITextView else { return }
+                self.withProgrammaticBodyMutation {
+                    applyInlineImagePlaceholders(in: tv.textStorage, payloads: validated)
+                }
+                tv.invalidateIntrinsicContentSize()
+            }
         }
 
         /// Updates body / placeholder fonts when the user changes Larger Text.

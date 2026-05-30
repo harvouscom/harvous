@@ -4,7 +4,7 @@ import SwiftUI
 
 /// Home tab: system navigation + searchable feed; space and account in the nav bar.
 struct HomeHubView: View {
-    @Binding var iosNoteNavigationPath: [UUID]
+    @Binding var iosSelectedNoteId: UUID?
 
     @EnvironmentObject private var appRouter: HarvousAppRouter
     @EnvironmentObject private var spaceStore: SpaceStore
@@ -15,7 +15,7 @@ struct HomeHubView: View {
             selectedNote: .constant(nil),
             externalSearchText: $appRouter.iosInlineSearchText,
             columnStyle: .iOSTabNoteList,
-            iosNoteNavPath: $iosNoteNavigationPath,
+            iosSelectedNoteId: $iosSelectedNoteId,
             onNewNote: {}
         )
         .toolbar {
@@ -67,9 +67,7 @@ struct HomeHubView: View {
 
     private func pushNoteOntoIOSStack(_ id: UUID) {
         Task { @MainActor in
-            if iosNoteNavigationPath.last != id {
-                iosNoteNavigationPath.append(id)
-            }
+            iosSelectedNoteId = id
         }
     }
 

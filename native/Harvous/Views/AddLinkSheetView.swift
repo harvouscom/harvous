@@ -65,18 +65,18 @@ struct AddLinkSheetView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             Text("Add Link")
-                .font(.system(size: 15, weight: .semibold))
+                .font(HarvousFonts.font(size: 15, weight: .semibold, design: .default))
                 .frame(maxWidth: .infinity)
                 .padding(.bottom, 10)
 
             Text("Link To")
-                .font(.system(size: 11, weight: .medium))
+                .font(HarvousFonts.font(size: 11, weight: .medium, design: .default))
                 .foregroundStyle(.secondary)
                 .padding(.bottom, 3)
 
             TextField("Enter a URL or note title", text: $proxy.addLinkTargetURL)
                 .textFieldStyle(.plain)
-                .font(.system(size: 14))
+                .font(HarvousFonts.font(size: 14, weight: .regular, design: .default))
                 .autocorrectionDisabled()
 #if os(iOS)
                 .textInputAutocapitalization(.never)
@@ -100,14 +100,14 @@ struct AddLinkSheetView: View {
                 .padding(.bottom, 8)
 
             Text("Name")
-                .font(.system(size: 11, weight: .medium))
+                .font(HarvousFonts.font(size: 11, weight: .medium, design: .default))
                 .foregroundStyle(.secondary)
                 .padding(.bottom, 3)
 
             HStack(spacing: 6) {
                 TextField("Visible label", text: $proxy.addLinkDisplayName)
                     .textFieldStyle(.plain)
-                    .font(.system(size: 14))
+                    .font(HarvousFonts.font(size: 14, weight: .regular, design: .default))
                     .padding(.horizontal, 10)
                     .padding(.vertical, 7)
                     .background(
@@ -143,7 +143,7 @@ struct AddLinkSheetView: View {
                     Button("Remove link") {
                         proxy.removeLinkFromAddLinkSheet()
                     }
-                    .font(.system(size: 12, weight: .medium))
+                    .font(HarvousFonts.font(size: 12, weight: .medium, design: .default))
                     .buttonStyle(.plain)
                     .foregroundStyle(.secondary)
                 }
@@ -192,7 +192,7 @@ private struct CondensedAddLinkButtonStyle: ButtonStyle {
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(.system(size: 13, weight: .semibold))
+            .font(HarvousFonts.font(size: 13, weight: .semibold, design: .default))
             .padding(.horizontal, 14)
             .padding(.vertical, 6)
             .background(

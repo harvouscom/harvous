@@ -6,7 +6,7 @@ import UIKit
 
 /// iPhone folders: flat Mac-style list, drill-in to `NoteListColumn`, search from bottom chrome only.
 struct LibraryView: View {
-    @Binding var iosNoteNavigationPath: [UUID]
+    @Binding var iosSelectedNoteId: UUID?
     var externalSearchText: Binding<String>? = nil
     @State private var fallbackSearchText = ""
 
@@ -86,7 +86,7 @@ struct LibraryView: View {
                     columnStyle: .iOSTabNoteList,
                     navigationTitleOverride: nil,
                     searchPresentationBinding: nil,
-                    iosNoteNavPath: $iosNoteNavigationPath,
+                    iosSelectedNoteId: $iosSelectedNoteId,
                     onNewNote: {}
                 )
             }
@@ -319,15 +319,12 @@ struct LibraryView: View {
         if notesInActiveSpace.isEmpty {
             emptyState
         } else if folderRows.isEmpty {
-            ContentUnavailableView {
-                Label {
-                    Text("No Folders")
-                } icon: {
-                    HarvousFAGlyph(assetName: "Harvous.Folder", edgePt: 28)
-                }
-            } description: {
-                Text("Folders created from your notes will appear here.")
-            }
+            HarvousEmptyStateView(
+                iconAsset: "Harvous.Folder",
+                title: "No Folders",
+                description: "Folders created from your notes will appear here.",
+                scale: .compact
+            )
         } else if !activeSearchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && filteredFolderRows.isEmpty {
             ContentUnavailableView.search(text: activeSearchQuery)
         } else {
@@ -355,14 +352,11 @@ struct LibraryView: View {
     }
 
     private var emptyState: some View {
-        VStack(spacing: 12) {
-            HarvousFAGlyph(assetName: "Harvous.Folder", edgePt: 40)
-                .foregroundStyle(.quaternary)
-            Text("Your notes will organize here")
-                .font(HarvousTypography.body)
-                .foregroundStyle(.secondary)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        HarvousEmptyStateView(
+            iconAsset: "Harvous.Folder",
+            title: "Your notes will organize here",
+            scale: .compact
+        )
     }
 }
 
@@ -380,7 +374,7 @@ struct LibraryView: View {
 #if os(iOS)
 #Preview {
     NavigationStack {
-        LibraryView(iosNoteNavigationPath: .constant([]))
+        LibraryView(iosSelectedNoteId: .constant(nil))
             .environmentObject(HarvousAppRouter())
             .environmentObject(SpaceStore())
             .modelContainer(for: [Note.self, Space.self, SpaceMember.self, SpaceInvite.self, SpaceJoinLink.self], inMemory: true)

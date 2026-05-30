@@ -50,7 +50,7 @@ struct ScriptureComparePassageBlock: View {
                 .accessibilityLabel("Compare translation")
             } else {
                 Text(ScriptureReference.displayTranslationLabel(translation))
-                    .font(.system(size: 10, weight: .semibold))
+                    .font(HarvousFonts.font(size: 10, weight: .semibold, design: .default))
                     .textCase(.uppercase)
                     .foregroundStyle(.secondary)
             }

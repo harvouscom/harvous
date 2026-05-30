@@ -1,6 +1,0 @@
-// Release environment — production keys, points at app.harvous.com.
-// Safe to commit (publishable keys are not secret).
-#include "Harvous-Env.xcconfig"
-
-CLERK_PUBLISHABLE_KEY = pk_live_REPLACE_ME
-HARVOUS_API_BASE_URL = https:/$()/app.harvous.com

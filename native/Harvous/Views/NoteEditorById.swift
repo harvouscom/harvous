@@ -16,16 +16,12 @@ struct NoteEditorById: View {
         if let note = candidates.first {
             StatefulNoteEditorView(note: note)
         } else {
-            VStack(spacing: 8) {
-                HarvousFAGlyph(assetName: "Harvous.Note", edgePt: 28)
-                    .foregroundStyle(.secondary)
-                Text("Note unavailable")
-                    .font(HarvousTypography.body)
-                Text("This note may have been deleted.")
-                    .font(HarvousTypography.caption)
-                    .foregroundStyle(.secondary)
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            HarvousEmptyStateView(
+                iconAsset: "Harvous.Note",
+                title: "Note unavailable",
+                description: "This note may have been deleted.",
+                scale: .compact
+            )
         }
     }
 }

@@ -103,7 +103,11 @@ enum HarvousVaultImporter {
                                 report: &report,
                                 sourceLabel: file.path
                             )
-                            try restoreHighlightsIfPresent(noteId: note.id, root: root, modelContext: modelContext)
+                            if !doc.highlights.isEmpty {
+                                applyPortableHighlights(doc.highlights, to: note, modelContext: modelContext)
+                            } else {
+                                try restoreHighlightsIfPresent(noteId: note.id, root: root, modelContext: modelContext)
+                            }
                         } catch {
                             report.logLines.append("rebuild read error \(file.lastPathComponent): \(error)")
                         }
@@ -171,7 +175,7 @@ enum HarvousVaultImporter {
         case "rtf":
             importAttributedTry(url: url, loader: HarvousVaultImportFormats.loadRTFAttributed, titleFallback: url.deletingPathExtension().lastPathComponent, targetSpaceId: targetSpaceId, modelContext: modelContext, report: &report)
         case "docx":
-            importAttributedTry(url: url, loader: HarvousVaultImportFormats.loadOfficeDocAttributed, titleFallback: url.deletingPathExtension().lastPathComponent, targetSpaceId: targetSpaceId, modelContext: modelContext, report: &report)
+            importDocx(url: url, titleFallback: url.deletingPathExtension().lastPathComponent, targetSpaceId: targetSpaceId, modelContext: modelContext, report: &report)
         case "csv":
             importCSV(url: url, targetSpaceId: targetSpaceId, modelContext: modelContext, report: &report)
         case "zip":
@@ -239,9 +243,12 @@ enum HarvousVaultImporter {
     ) {
         do {
             let raw = try HarvousVaultImportFormats.loadPlainText(from: url)
-            let doc = HarvousVaultMarkdown.parseDocument(raw)
             let baseTitle = HarvousVaultImportFormats.notionStrippedBasename(url.lastPathComponent)
-            _ = applyVaultMirrorDoc(doc: doc, fallbackTitle: baseTitle, targetSpaceId: targetSpaceId, modelContext: modelContext, report: &report, sourceLabel: url.lastPathComponent)
+            let doc = HarvousVaultPortableIngest.parseExternalMarkdown(raw, titleFallback: baseTitle)
+            let (note, _) = applyVaultMirrorDoc(doc: doc, fallbackTitle: baseTitle, targetSpaceId: targetSpaceId, modelContext: modelContext, report: &report, sourceLabel: url.lastPathComponent)
+            if !doc.highlights.isEmpty {
+                applyPortableHighlights(doc.highlights, to: note, modelContext: modelContext)
+            }
         } catch {
             report.skipped.append((url, error.localizedDescription))
             report.logLines.append("md error \(url.lastPathComponent): \(error)")
@@ -290,12 +297,34 @@ enum HarvousVaultImporter {
         report: inout HarvousImportReport
     ) {
         do {
-            let a = try HarvousVaultImportFormats.loadHTMLAttributed(from: url)
-            let doc = HarvousVaultParsedDocument(body: a.string)
-            _ = applyVaultMirrorDoc(doc: doc, fallbackTitle: title, targetSpaceId: targetSpaceId, modelContext: modelContext, report: &report, sourceLabel: url.lastPathComponent)
+            let html = try HarvousVaultImportFormats.loadPlainText(from: url)
+            let doc = HarvousVaultPortableIngest.parseHTML(html, titleFallback: title)
+            let (note, _) = applyVaultMirrorDoc(doc: doc, fallbackTitle: title, targetSpaceId: targetSpaceId, modelContext: modelContext, report: &report, sourceLabel: url.lastPathComponent)
+            if !doc.highlights.isEmpty {
+                applyPortableHighlights(doc.highlights, to: note, modelContext: modelContext)
+            }
         } catch {
             report.skipped.append((url, error.localizedDescription))
         }
+    }
+
+    private static func importDocx(
+        url: URL,
+        titleFallback: String,
+        targetSpaceId: UUID,
+        modelContext: ModelContext,
+        report: inout HarvousImportReport
+    ) {
+        #if os(macOS)
+        if let doc = HarvousVaultPortableIngest.parseDocx(at: url, titleFallback: titleFallback) {
+            let (note, _) = applyVaultMirrorDoc(doc: doc, fallbackTitle: titleFallback, targetSpaceId: targetSpaceId, modelContext: modelContext, report: &report, sourceLabel: url.lastPathComponent)
+            if !doc.highlights.isEmpty {
+                applyPortableHighlights(doc.highlights, to: note, modelContext: modelContext)
+            }
+            return
+        }
+        #endif
+        importAttributedTry(url: url, loader: HarvousVaultImportFormats.loadOfficeDocAttributed, titleFallback: titleFallback, targetSpaceId: targetSpaceId, modelContext: modelContext, report: &report)
     }
 
     private static func importAttributedTry(
@@ -447,6 +476,7 @@ enum HarvousVaultImporter {
     ) -> (Note, Bool) {
         let heading = firstHeadingTitle(from: doc.body)
         let title: String = {
+            if let t = doc.title?.trimmingCharacters(in: .whitespacesAndNewlines), !t.isEmpty { return t }
             if !heading.isEmpty { return heading }
             return fallbackTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "Imported note" : fallbackTitle
         }()
@@ -499,6 +529,12 @@ enum HarvousVaultImporter {
         if let r = doc.rating, (1...7).contains(r) { note.rating = r }
         note.isPinned = doc.pinned
         if let acc = doc.accentJSON, !acc.isEmpty { note.scripturePillAccentsJSON = acc }
+        if let tr = doc.threadName?.trimmingCharacters(in: .whitespacesAndNewlines), !tr.isEmpty {
+            note.threadName = tr
+        }
+        if let tc = doc.threadColor?.trimmingCharacters(in: .whitespacesAndNewlines), !tc.isEmpty {
+            note.threadColor = tc
+        }
         if let ca = doc.createdAt { note.createdAt = ca }
         if let ua = doc.updatedAt { note.updatedAt = ua }
         var dedupedExplicitRefs: [String] = []
@@ -519,6 +555,22 @@ enum HarvousVaultImporter {
         }
         report.logLines.append("ok \(isUpdate ? "update" : "import"): \(sourceLabel) → \(note.id.uuidString)")
         return (note, isUpdate)
+    }
+
+    private static func applyPortableHighlights(
+        _ highlights: [HarvousVaultPortableHighlight],
+        to note: Note,
+        modelContext: ModelContext
+    ) {
+        guard !highlights.isEmpty else { return }
+        for t in note.studyThreads {
+            modelContext.delete(t)
+        }
+        note.studyThreads.removeAll()
+        for h in highlights {
+            let st = HarvousVaultMarkdown.makeStudyThread(from: h, parent: note)
+            modelContext.insert(st)
+        }
     }
 }
 

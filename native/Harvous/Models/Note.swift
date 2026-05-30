@@ -36,12 +36,25 @@ final class Note {
     /// Tracks rows pending upload to the cloud. Set on local mutations; cleared
     /// once `HarvousSyncService` flushes the change.
     var needsSync: Bool = false
+    /// Last permanent (4xx) sync rejection message for this note, or `nil` when the
+    /// last flush succeeded / hasn't permanently failed. Set when the flush gives up
+    /// on a non-retryable error (e.g. content too long) so we stop re-sending a doomed
+    /// payload every sync cycle. Currently surfaced silently (no user alert); cleared
+    /// on the next successful flush or when the note is edited again.
+    var syncError: String? = nil
     /// Whether a public share link is currently active for this note. Mirrors
     /// `Notes.isPublic` on the server — set by `POST /api/notes/:id/share`.
     var isPublic: Bool = false
     /// Active share-link token (e.g. `abc123def456…`) when `isPublic == true`.
     /// The public viewer URL is `harvous.com/shared/note/<shareToken>`.
     var shareToken: String? = nil
+    /// Server flag — note body is encrypted at rest (`Notes.contentEncrypted`).
+    var contentEncrypted: Bool = false
+    /// Last TipTap HTML received from the server for this note. Retained so an
+    /// unchanged note flushes back the original rich HTML verbatim (preserving
+    /// web-authored formatting the plain-text `body` cannot represent) instead of
+    /// a lossy regeneration. Regeneration only kicks in when `body` actually changed.
+    var serverContentHTML: String? = nil
     /// Cached filename (no path) last written under the space folder in the Markdown vault mirror.
     var vaultFilename: String?
     /// Optional 1–7 “stickiness” score (Steph-style rating); `nil` means unset.
@@ -138,6 +151,18 @@ final class Note {
     /// Raw accent token value for a given reference, or `nil` if none set (use neutral default).
     func scripturePillAccentRaw(forReference reference: String) -> String? {
         decodedScripturePillAccents[reference]
+    }
+
+    /// Full reference→accent map (e.g. `["John 3:16": "warmAmber"]`). Read at sync
+    /// time so the upload path can stamp accents onto regenerated pill markup.
+    var scripturePillAccentMap: [String: String] { decodedScripturePillAccents }
+
+    /// Replace the whole accent map from a server pull **without** flagging the note
+    /// dirty (ingest must not re-queue the row it just reconciled). Only writes when
+    /// the map actually differs to avoid spurious SwiftData churn.
+    func applyServerScripturePillAccents(_ map: [String: String]) {
+        guard decodedScripturePillAccents != map else { return }
+        encodeScripturePillAccents(map)
     }
 
     /// Persist or clear a reference's accent. Pass `nil` to fall back to the neutral default.

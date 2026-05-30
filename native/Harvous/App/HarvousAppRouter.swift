@@ -47,18 +47,12 @@ enum HarvousIOSFoldersDrill: Equatable {
     case bucket(String?)
 }
 
-/// Data for `NoteConnectionsBar` + scripture-bar gating while the note editor owns the bottom safe-area chrome.
+/// Gating for the note editor bottom safe-area chrome while the note editor owns the morphing footer row.
 struct HarvousIOSNoteFooterSupplement {
-    let note: Note
-    var trailSnapshot: ThreadStore.TrailSnapshot
-    var connectionsTitleLine: String
-    var suppressScripturePillActionBar: Bool
     /// When a **pinned** highlight or scripture **overlay** dock is visible (`activePillDock` / pinned highlight),
     /// or the inline highlight-annotation panel is open (selection → Highlight), hide the bottom morphing row so
     /// that UI is not stacked above the footer capsule / compose row.
     var suppressesBottomMorphingChromeContent: Bool
-    var onRefreshConnections: () -> Void
-    var onOpenLinkedNote: (UUID) -> Void
 }
 #endif
 
@@ -133,7 +127,7 @@ final class HarvousAppRouter: ObservableObject {
     @Published var iosTextCaptureFlowPresented = false
     /// Second compose orb (camera) visible above the pencil — tap outside dismisses via `dismissIOSComposeCameraOrbIfPresented()`.
     @Published var iosComposeCameraOrbPresented = false
-    /// When set, the root bottom inset shows the note editor chrome (formatting / scripture / connections) instead of list + search.
+    /// When set, the root bottom inset shows the note editor formatting chrome instead of list + search.
     @Published private(set) var iosActiveNoteEditorChromeProxy: EditorProxy?
     /// Linked-note trail + callbacks for `NoteConnectionsBar` in the bottom inset (cleared with proxy).
     @Published var iosNoteFooterSupplement: HarvousIOSNoteFooterSupplement?
@@ -145,6 +139,7 @@ final class HarvousAppRouter: ObservableObject {
             self?.objectWillChange.send()
         }
         iosActiveNoteEditorChromeProxy = proxy
+        noteEditorChromeGeneration += 1
     }
 
     func iosUnregisterNoteEditorChrome(proxy: EditorProxy) {
@@ -153,13 +148,46 @@ final class HarvousAppRouter: ObservableObject {
         iosNoteChromeCancellable = nil
         iosActiveNoteEditorChromeProxy = nil
         iosNoteFooterSupplement = nil
+        noteEditorChromeGeneration += 1
     }
 
     #endif
     @Published var youNavigationStack: [HarvousYouNavigation] = []
 
+    /// Set by ⇧F before the note editor proxy may be registered; `NoteFindToolbarButton` opens when ready.
+    @Published var findInNoteRequestToken: UUID?
+    /// Bumps when the active note editor proxy registers or unregisters (`EditorProxy` is not `Equatable`).
+    @Published private(set) var noteEditorChromeGeneration = 0
+
+    func requestFindInNote() {
+        findInNoteRequestToken = UUID()
+    }
+
+    func consumeFindInNoteRequest() {
+        findInNoteRequestToken = nil
+    }
+
     #if os(macOS)
     @Published var macSettingsDeepLink: HarvousSettingsSidebarItem?
+    @Published private(set) var macActiveNoteEditorChromeProxy: EditorProxy?
+    private var macNoteChromeCancellable: AnyCancellable?
+
+    func macRegisterNoteEditorChrome(proxy: EditorProxy) {
+        macNoteChromeCancellable?.cancel()
+        macNoteChromeCancellable = proxy.objectWillChange.sink { [weak self] _ in
+            self?.objectWillChange.send()
+        }
+        macActiveNoteEditorChromeProxy = proxy
+        noteEditorChromeGeneration += 1
+    }
+
+    func macUnregisterNoteEditorChrome(proxy: EditorProxy) {
+        guard macActiveNoteEditorChromeProxy === proxy else { return }
+        macNoteChromeCancellable?.cancel()
+        macNoteChromeCancellable = nil
+        macActiveNoteEditorChromeProxy = nil
+        noteEditorChromeGeneration += 1
+    }
     #endif
 
     @Published private(set) var pendingStudyHighlightActivation: PendingStudyHighlightActivation?
@@ -378,6 +406,14 @@ extension Notification.Name {
     static let requestRandomRevisit = Notification.Name("Harvous.requestRandomRevisit")
     /// macOS: toggle expand/collapse on `ActiveScripturePillDock` when a pill dock is visible.
     static let harvousToggleActivePillDockExpanded = Notification.Name("Harvous.toggleActivePillDockExpanded")
+    /// Open in-note find bar (⇧F).
+    static let harvousOpenFindInNote = Notification.Name("Harvous.openFindInNote")
+    /// Open note lock / unlock PIN flow for the note id in `object` (⇧L).
+    static let harvousFocusLockNote = Notification.Name("Harvous.focusLockNote")
+    /// Open folder chip popover.
+    static let harvousOpenFolderChipPopover = Notification.Name("Harvous.openFolderChipPopover")
+    /// Cycle sidebar list mode (⇧← / ⇧→). userInfo `step`: Int (-1 or 1).
+    static let harvousCycleSidebarMode = Notification.Name("Harvous.cycleSidebarMode")
 }
 
 enum HarvousOpenNoteIdPayload {

@@ -1,5 +1,51 @@
-#if os(iOS)
 import SwiftUI
+
+// MARK: - Daily passage pill list scroll reserve (macOS sidebar + iOS lists)
+
+enum HarvousDailyPassagePillListLayout {
+    /// Pill card (~75pt) + 8pt bottom padding — used when the pill is pinned below a `List` but does not
+    /// propagate into scroll content insets (macOS sidebar `Spacer` layout, iOS floating chrome, etc.).
+    static let bottomScrollReserve: CGFloat = 76
+}
+
+/// Adds bottom scroll-content inset so the last `List` row clears the daily-passage pill when visible.
+/// Apply directly on the `List`, not on a parent `VStack` (avoids insetting horizontal chip bars).
+struct HarvousListDailyPassagePillScrollReserveModifier: ViewModifier {
+    @AppStorage(VotdService.passageCardDismissedDayUserDefaultsKey) private var dismissedDay: String = ""
+
+    private var bottomReserve: CGFloat {
+        dismissedDay != VotdService.todayCalendarDayKey()
+            ? HarvousDailyPassagePillListLayout.bottomScrollReserve
+            : 0
+    }
+
+    func body(content: Content) -> some View {
+        content.contentMargins(.bottom, bottomReserve, for: .scrollContent)
+    }
+}
+
+extension View {
+    func harvousListDailyPassagePillScrollReserve() -> some View {
+        modifier(HarvousListDailyPassagePillScrollReserveModifier())
+    }
+}
+
+#if os(macOS)
+/// Applies pill scroll reserve only for lists embedded in the macOS sidebar (pinned pill below via `Spacer`).
+struct MacOSSidebarDailyPassagePillListReserve: ViewModifier {
+    let enabled: Bool
+
+    func body(content: Content) -> some View {
+        if enabled {
+            content.modifier(HarvousListDailyPassagePillScrollReserveModifier())
+        } else {
+            content
+        }
+    }
+}
+#endif
+
+#if os(iOS)
 import UIKit
 
 /// Single implementation for floating bottom chrome (compose orb, search capsule, format bar, etc.).
@@ -36,7 +82,7 @@ enum HarvousIOSFloatingChromeBackdrop {
 
 /// Layout metrics for the root `MorphingChromeBar` and paired editor chrome (study docks, etc.).
 enum HarvousIOSMorphingChromeLayout {
-    /// Gap between floating controls in the bottom row (list orb, search pill, compose, connections capsule…).
+    /// Gap between floating controls in the bottom row (list orb, search pill, compose, format toolbar…).
     static let interChromeSpacing: CGFloat = 12
     /// Padding under the morphing chrome when the keyboard is up (`safeAreaInset` `spacing:` only separates main content from chrome—not chrome from keyboard).
     static let keyboardBreathingPadding: CGFloat = interChromeSpacing
@@ -68,11 +114,9 @@ enum HarvousIOSMorphingChromeLayout {
         chromeControlsHeight * 2 + 10 + chromeRowBottomPadding + interChromeSpacing + 12
     }
 
-    /// Extra bottom inset reserved above the chrome row when the daily-passage pill is visible:
-    /// pill card (~75pt) + its 8pt bottom padding — accounts for the fact that iOS 17 does
-    /// not propagate the pill's height (rendered inside the chrome bar's `safeAreaInset` VStack)
-    /// into List scroll content insets, so we must add it explicitly.
-    static let dailyPassagePillBottomScrollReserve: CGFloat = 76
+    /// Extra bottom inset reserved above the chrome row when the daily-passage pill is visible.
+    /// See `HarvousDailyPassagePillListLayout.bottomScrollReserve` for the shared constant.
+    static let dailyPassagePillBottomScrollReserve: CGFloat = HarvousDailyPassagePillListLayout.bottomScrollReserve
 }
 
 /// Adds the right amount of bottom scroll-content inset to a vertical `List` so its last
@@ -88,7 +132,7 @@ struct IOSListBottomChromeReserveModifier: ViewModifier {
 
     private var bottomReserve: CGFloat {
         let chromeReserve = HarvousIOSMorphingChromeLayout.morphingChromeFooterOccupiedHeightAboveMainColumnBottom
-        let pillReserve: CGFloat = pillVisible ? HarvousIOSMorphingChromeLayout.dailyPassagePillBottomScrollReserve : 0
+        let pillReserve: CGFloat = pillVisible ? HarvousDailyPassagePillListLayout.bottomScrollReserve : 0
         return chromeReserve + pillReserve
     }
 
@@ -112,7 +156,7 @@ struct IPadAwareListBottomChromeReserve: ViewModifier {
 
     func body(content: Content) -> some View {
         if skip {
-            content
+            content.modifier(HarvousListDailyPassagePillScrollReserveModifier())
         } else {
             content.iosListBottomChromeReserve()
         }
@@ -290,25 +334,14 @@ struct MorphingChromeBar: View {
     }
 }
 
-/// Bottom safe-area row on note routes: editor footer (format / scripture / connections) replaces list + search; compose orb stays.
+/// Bottom safe-area row on note routes: formatting toolbar when body is focused; compose orb stays.
 struct IOSNoteFooterHybridRow: View {
     @EnvironmentObject private var appRouter: HarvousAppRouter
     @Environment(\.colorScheme) private var colorScheme
-    @AppStorage("harvous.iosNoteFooterCollapsed") private var iosNoteFooterCollapsed: Bool = false
-
-    /// Show the collapse orb only when the editor is active, no dock is suppressing chrome, and the format toolbar isn't showing.
-    private var collapseOrbVisible: Bool {
-        guard let proxy = appRouter.iosActiveNoteEditorChromeProxy else { return false }
-        guard !(appRouter.iosNoteFooterSupplement?.suppressesBottomMorphingChromeContent ?? false) else { return false }
-        return !proxy.shouldShowNoteToolbar
-    }
 
     var body: some View {
         // Match hub row: bottom-align so the pencil compose orb stays on one baseline when the camera orb stacks above.
         HStack(alignment: .bottom, spacing: HarvousIOSMorphingChromeLayout.interChromeSpacing) {
-            if collapseOrbVisible {
-                collapseOrb
-            }
             Group {
                 if let proxy = appRouter.iosActiveNoteEditorChromeProxy, let supplement = appRouter.iosNoteFooterSupplement {
                     IOSNoteEditorFooterSlot(proxy: proxy, supplement: supplement)
@@ -316,7 +349,7 @@ struct IOSNoteFooterHybridRow: View {
                 } else {
                     Color.clear
                         .frame(maxWidth: .infinity)
-                        .frame(height: 44)
+                        .frame(height: HarvousIOSMorphingChromeLayout.chromeControlsHeight)
                 }
             }
             .simultaneousGesture(
@@ -328,29 +361,6 @@ struct IOSNoteFooterHybridRow: View {
         }
         .padding(.horizontal, 12)
         .padding(.bottom, 4)
-        .animation(HarvousAnimation.spring, value: collapseOrbVisible)
-    }
-
-    private var collapseOrb: some View {
-        Button {
-            UIImpactFeedbackGenerator(style: .light).impactOccurred()
-            withAnimation(HarvousAnimation.spring) {
-                iosNoteFooterCollapsed.toggle()
-            }
-        } label: {
-            HarvousFAGlyph(
-                assetName: iosNoteFooterCollapsed ? "Harvous.ChevronRight" : "Harvous.ChevronLeft",
-                edgePt: 17
-            )
-            .foregroundStyle(.primary)
-            .frame(width: HarvousIOSMorphingChromeLayout.chromeControlsHeight, height: HarvousIOSMorphingChromeLayout.chromeControlsHeight)
-            .background {
-                HarvousIOSFloatingChromeBackdrop.material(Circle(), colorScheme: colorScheme)
-            }
-            .contentShape(Circle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(iosNoteFooterCollapsed ? "Show note actions" : "Hide note actions")
     }
 
     private var composeOrb: some View {
@@ -361,96 +371,30 @@ struct IOSNoteFooterHybridRow: View {
     }
 }
 
-/// Mirrors `NoteEditorView` footer branching; format + scripture share one inset glass capsule (connections stays separate).
+/// Mirrors Mac `NoteEditorView` footer branching — formatting toolbar only when the body is first responder.
 private struct IOSNoteEditorFooterSlot: View {
     @ObservedObject var proxy: EditorProxy
     let supplement: HarvousIOSNoteFooterSupplement
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.colorScheme) private var colorScheme
-    @AppStorage("harvous.iosNoteFooterCollapsed") private var iosNoteFooterCollapsed: Bool = false
-
-    @StateObject private var scriptureInsetCoordinator = ScripturePillActionBarCoordinator()
 
     private let spring = HarvousAnimation.spring
 
-    private var showsUnifiedFormattingScriptureCapsule: Bool {
-        // Scripture toolbar + passage preview only belong in the tapped-pill dock, not the footer capsule.
-        proxy.shouldShowNoteToolbar
+    /// Same gate as Mac `shouldShowFormatToolbarInline` in `NoteEditorView`.
+    private var showsFormattingToolbar: Bool {
+        proxy.isBodyFirstResponder
     }
 
-    private enum IOSInsetUnifiedLane: Equatable {
-        case formatting
-        case scriptureEditing
-    }
-
-    private var iosInsetUnifiedLane: IOSInsetUnifiedLane {
-        proxy.shouldShowNoteToolbar ? .formatting : .scriptureEditing
-    }
-
-    private var laneContentSwapAnimation: Animation {
-        reduceMotion ? .easeInOut(duration: 0.22) : .spring(response: 0.34, dampingFraction: 0.86)
-    }
-
-    /// Toolbar band: incoming slides from trailing, outgoing toward leading (invert for formatting toolbar).
-    private var scriptureToolbarInShellTransition: AnyTransition {
-        if reduceMotion {
-            AnyTransition.opacity
-        } else {
-            .asymmetric(
-                insertion: .opacity.combined(with: .offset(x: 16)),
-                removal: .opacity.combined(with: .offset(x: -16))
-            )
-        }
-    }
-
-    private var formattingToolbarInShellTransition: AnyTransition {
-        if reduceMotion {
-            AnyTransition.opacity
-        } else {
-            .asymmetric(
-                insertion: .opacity.combined(with: .offset(x: -16)),
-                removal: .opacity.combined(with: .offset(x: 16))
-            )
-        }
-    }
-
-    private var scripturePassageInShellTransition: AnyTransition {
-        reduceMotion ? .opacity : .opacity.combined(with: .offset(y: -6))
-    }
-
-    /// Top 44pt band swaps views with asymmetric transitions inside the clipped shell; passage fades in underneath.
-    private var iosUnifiedFormatScriptureEditingChrome: some View {
-        let lane = iosInsetUnifiedLane
+    private var formattingToolbarChrome: some View {
         let shell = RoundedRectangle(cornerRadius: 22, style: .continuous)
-        return VStack(spacing: 0) {
-            ZStack(alignment: .leading) {
-                if lane == .formatting {
-                    NoteToolbar(proxy: proxy)
-                        .environment(\.harvousIOSNoteToolbarEmbeddedInUnifiedShell, true)
-                        .transition(formattingToolbarInShellTransition)
-                } else {
-                    ScripturePillToolbarLane(
-                        coordinator: scriptureInsetCoordinator,
-                        proxy: proxy,
-                        horizontalPadding: 14
-                    )
-                    .transition(scriptureToolbarInShellTransition)
-                }
+        return NoteToolbar(proxy: proxy)
+            .environment(\.harvousIOSNoteToolbarEmbeddedInUnifiedShell, true)
+            .frame(height: HarvousIOSMorphingChromeLayout.chromeControlsHeight)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background {
+                HarvousIOSFloatingChromeBackdrop.material(shell, colorScheme: colorScheme)
             }
-            .frame(height: 44)
-            .clipped()
-
-            if lane == .scriptureEditing {
-                ScripturePillPassagePanel(coordinator: scriptureInsetCoordinator)
-                    .transition(scripturePassageInShellTransition)
-            }
-        }
-        .animation(laneContentSwapAnimation, value: lane)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background {
-            HarvousIOSFloatingChromeBackdrop.material(shell, colorScheme: colorScheme)
-        }
-        .clipShape(shell)
+            .clipShape(shell)
     }
 
     var body: some View {
@@ -459,45 +403,18 @@ private struct IOSNoteEditorFooterSlot: View {
                 Color.clear
                     .frame(maxWidth: .infinity)
                     .frame(height: HarvousIOSMorphingChromeLayout.chromeControlsHeight)
-            } else if showsUnifiedFormattingScriptureCapsule {
-                iosUnifiedFormatScriptureEditingChrome
-                    .id("iosInsetUnifiedFormatScriptureCapsule")
+            } else if showsFormattingToolbar {
+                formattingToolbarChrome
+                    .id("iosInsetFormattingToolbar")
                     .transition(.opacity)
-            } else if iosNoteFooterCollapsed {
+            } else {
                 Color.clear
                     .frame(maxWidth: .infinity)
                     .frame(height: HarvousIOSMorphingChromeLayout.chromeControlsHeight)
-                    .id("iosInsetCollapsedPeek")
-                    .transition(.opacity)
-            } else {
-                NoteConnectionsBar(
-                    note: supplement.note,
-                    snapshot: supplement.trailSnapshot,
-                    currentNoteTitle: supplement.connectionsTitleLine,
-                    onOpenLinkedNote: supplement.onOpenLinkedNote,
-                    onConnectionsChanged: supplement.onRefreshConnections,
-                    horizontalEdgePadding: 14
-                )
-                .frame(height: 44)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background { HarvousIOSFloatingChromeBackdrop.material(Capsule(style: .continuous), colorScheme: colorScheme) }
-                .clipShape(Capsule(style: .continuous))
-                .id("iosInsetConnectionsBar")
-                .transition(.opacity)
             }
         }
-        .animation(reduceMotion ? .easeInOut(duration: 0.2) : spring, value: showsUnifiedFormattingScriptureCapsule)
+        .animation(reduceMotion ? .easeInOut(duration: 0.2) : spring, value: showsFormattingToolbar)
         .animation(reduceMotion ? .easeInOut(duration: 0.2) : spring, value: supplement.suppressesBottomMorphingChromeContent)
-        .animation(reduceMotion ? .easeInOut(duration: 0.2) : spring, value: iosNoteFooterCollapsed)
-        .onAppear {
-            scriptureInsetCoordinator.bind(proxy: proxy)
-        }
-        .onChange(of: proxy.activeScripturePill) { _, _ in
-            scriptureInsetCoordinator.bind(proxy: proxy)
-        }
-        .onChange(of: supplement.suppressScripturePillActionBar) { _, _ in
-            scriptureInsetCoordinator.bind(proxy: proxy)
-        }
     }
 }
 

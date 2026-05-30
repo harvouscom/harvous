@@ -1,0 +1,9 @@
+// Debug-Prod — production Clerk + production API for on-device debugging.
+// Use the "Harvous_iOS (Debug-Prod)" / "Harvous_macOS (Debug-Prod)" scheme
+// to reproduce real-data issues on device. Acts on real prod data — be careful
+// with destructive operations.
+// Safe to commit (publishable keys are not secret).
+#include "Harvous-Signing.xcconfig"
+
+CLERK_PUBLISHABLE_KEY = pk_live_Y2xlcmsuaGFydm91cy5jb20k
+HARVOUS_API_BASE_URL = https:/$()/app.harvous.com

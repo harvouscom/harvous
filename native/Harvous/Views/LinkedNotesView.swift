@@ -13,11 +13,12 @@ struct LinkedNotesView: View {
             if let entry {
                 LinkedNotesLoadedView(entry: entry)
             } else {
-                ContentUnavailableView {
-                    Label("Linked notes not found", image: "Harvous.Link")
-                } description: {
-                    Text("They may have been removed from this note.")
-                }
+                HarvousEmptyStateView(
+                    iconAsset: "Harvous.Link",
+                    title: "Linked notes not found",
+                    description: "They may have been removed from this note.",
+                    scale: .compact
+                )
             }
         }
         .navigationTitle("Linked notes")

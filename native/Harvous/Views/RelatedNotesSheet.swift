@@ -16,13 +16,12 @@ struct RelatedNotesSheet: View {
         NavigationStack {
             Group {
                 if markers.isEmpty {
-                    ContentUnavailableView {
-                        Label("No related notes", image: "Harvous.Link")
-                    } description: {
-                        Text("Other notes that link here will appear here.")
-                            .font(HarvousTypography.caption)
-                            .foregroundStyle(.secondary)
-                    }
+                    HarvousEmptyStateView(
+                        iconAsset: "Harvous.Link",
+                        title: "No related notes",
+                        description: "Other notes that link here will appear here.",
+                        scale: .compact
+                    )
                 } else {
                     List {
                         ForEach(markers, id: \.id) { thread in

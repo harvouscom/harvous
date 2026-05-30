@@ -39,13 +39,14 @@ struct NoteSharePopoverView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Share note").font(.headline)
+        VStack(alignment: .leading, spacing: 14) {
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Share note")
+                    .font(HarvousTypography.sharePopoverTitle)
                 Text(note.isPublic
                      ? "Anyone with the link can view this note."
                      : "Only you can see this note. Enable sharing to get a link.")
-                .font(.footnote)
+                .font(HarvousTypography.sharePopoverBody)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
             }
@@ -55,8 +56,8 @@ struct NoteSharePopoverView: View {
                     HStack(spacing: 6) {
                         if isBusy { ProgressView().controlSize(.small) }
                         Text(isBusy ? "Creating link…" : "Create share link")
-                            .fontWeight(.semibold)
                     }
+                    .font(HarvousTypography.sharePopoverPrimaryButton)
                     .frame(maxWidth: .infinity)
                 }
                 .controlSize(.large)
@@ -64,13 +65,13 @@ struct NoteSharePopoverView: View {
                 .disabled(isBusy || !canShare)
                 if !canShare {
                     Text("Sync this note to the cloud before sharing.")
-                        .font(.caption)
+                        .font(HarvousTypography.sharePopoverBody)
                         .foregroundStyle(.secondary)
                 }
             } else {
                 HStack(spacing: 6) {
                     Text(shareURL ?? "")
-                        .font(.system(.footnote, design: .monospaced))
+                        .font(.system(size: 12, weight: .regular, design: .monospaced))
                         .lineLimit(1)
                         .truncationMode(.middle)
                         .padding(.horizontal, 10)
@@ -87,7 +88,7 @@ struct NoteSharePopoverView: View {
                             Image(systemName: copied ? "checkmark" : "doc.on.doc")
                             Text(copied ? "Copied" : "Copy")
                         }
-                        .fontWeight(.semibold)
+                        .font(HarvousTypography.sharePopoverAction)
                     }
                     .buttonStyle(.bordered)
                     .disabled(shareURL == nil)
@@ -100,12 +101,12 @@ struct NoteSharePopoverView: View {
                     Button("Stop sharing", role: .destructive) { Task { await runShare(.disable) } }
                         .disabled(isBusy)
                 }
-                .font(.callout)
+                .font(HarvousTypography.sharePopoverAction)
             }
 
             if let msg = errorMessage {
                 Text(msg)
-                    .font(.footnote)
+                    .font(HarvousTypography.sharePopoverBody)
                     .foregroundStyle(.red)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -116,20 +117,30 @@ struct NoteSharePopoverView: View {
             if !shareText.isEmpty {
                 Divider()
                 ShareLink(item: shareText) {
-                    HStack(spacing: 6) {
-                        Image(systemName: "square.and.arrow.up")
+                    HStack(spacing: 8) {
+                        HarvousFAGlyph(
+                            assetName: "Harvous.ShareSquare",
+                            edgePt: HarvousFAIconMetrics.menuRowLeadingGlyphPt
+                        )
                         Text("Share as text…")
                     }
+                    .font(HarvousTypography.sharePopoverAction)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .font(.callout)
                 .foregroundStyle(.primary)
             }
         }
-        .padding(14)
-        .frame(minWidth: 280, idealWidth: 320, maxWidth: 360)
+        .harvousListMenuTypography()
+        .padding(.horizontal, 16)
+        .padding(.vertical, 14)
+        .frame(minWidth: 300, idealWidth: 340, maxWidth: 380)
+        #if os(iOS)
+        // Present as a compact anchored popover (a tidy card by the button) instead of the
+        // default large sheet — the content is small, mirroring the folder chip's clean popover.
+        .presentationCompactAdaptation(.popover)
+        #endif
     }
 
     /// Sharing requires the note to exist on the server. Brand-new local notes

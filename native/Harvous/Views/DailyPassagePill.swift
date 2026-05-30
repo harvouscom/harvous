@@ -9,8 +9,7 @@ private extension Note {
 }
 
 /// Floating verse-of-the-day card. Pinned to the bottom of the sidebar (macOS) /
-/// above the compose orb (iOS). Renders without its own background material —
-/// sits over whatever the host surface paints, View/Add orbs handle interaction.
+/// above the compose orb (iOS). Uses the same liquid-glass card chrome as dock pills.
 struct DailyPassagePill: View {
     @EnvironmentObject private var spaceStore: SpaceStore
     @Environment(\.modelContext) private var modelContext
@@ -275,16 +274,28 @@ struct DailyPassagePill: View {
         .padding(.horizontal, HarvousFeedListLayout.interiorContentHPadding)
         .padding(.top, 9)
         .padding(.bottom, 8)
-        .background(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .fill(.thinMaterial)
-        )
+        .background(cardChrome)
         .overlay(
             RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .strokeBorder(Color.primary.opacity(0.08), lineWidth: 0.5)
         )
         .shadow(color: Color.black.opacity(0.08), radius: 16, x: 0, y: 6)
         .shadow(color: Color.black.opacity(0.05), radius: 4, x: 0, y: 2)
+    }
+
+    private var cardChrome: some View {
+        let shape = RoundedRectangle(cornerRadius: 14, style: .continuous)
+        return ZStack {
+            // Stable base so the system material doesn't go dark gray when the window loses focus.
+            shape.fill(.background)
+            if #available(macOS 26.0, iOS 26.0, *) {
+                shape
+                    .fill(.clear)
+                    .glassEffect(in: shape)
+            } else {
+                shape.fill(.thinMaterial)
+            }
+        }
     }
 
     private func orbButton(assetName: String, action: @escaping () -> Void) -> some View {

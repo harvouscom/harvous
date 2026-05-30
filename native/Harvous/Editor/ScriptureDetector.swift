@@ -4,6 +4,11 @@ import Foundation
 /// Detects scripture references in plain text and returns their ranges.
 struct ScriptureDetector {
 
+    /// Matches the server-side guard in `process-scripture-references.ts` — skip regex on pathological bodies.
+    static let maximumDetectLength = 500_000
+
+    private static let dashPattern = "[-–—]"
+
     // Books of the Bible with common abbreviations
     private static let bookPattern: String = {
         let books = [
@@ -39,8 +44,19 @@ struct ScriptureDetector {
     }()
 
     private static let referenceRegex: NSRegularExpression? = {
-        // Matches: "John 3:16", "John 3:16-17", "1 John 3:16", "Phil 4:13"
-        let pattern = "\\b(\(bookPattern))\\.?\\s+(\\d{1,3}):(\\d{1,3})(?:[-–](\\d{1,3}))?\\b"
+        let pattern = "\\b(\(bookPattern))\\.?\\s+(\\d{1,3}):(\\d{1,3})(?:\\s*\(dashPattern)\\s*(\\d{1,3}))?\\b"
+        return try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive])
+    }()
+
+    /// Chapter range without colon: "Matthew 5-7"
+    private static let chapterRangeRegex: NSRegularExpression? = {
+        let pattern = "\\b(\(bookPattern))\\.?\\s+(\\d{1,3})\\s*\(dashPattern)\\s*(\\d{1,3})(?!\\s*:)(?=\\s|$|[^\\d\\w-])"
+        return try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive])
+    }()
+
+    /// Chapter-only: "John 3", "Psalm 23"
+    private static let chapterOnlyRegex: NSRegularExpression? = {
+        let pattern = "\\b(\(bookPattern))\\.?\\s+(\\d{1,3})(?!\\s*:)(?!\\s*\(dashPattern)\\s*\\d)(?=\\s|$|[^\\d\\w])"
         return try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive])
     }()
 
@@ -57,10 +73,28 @@ struct ScriptureDetector {
         let verseEnd: Int?
     }
 
-    /// First reference match in `text`; `text` is usually one pill’s reference line.
+    /// Expanded canonical reference for API/sync (e.g. "Exodus 3" → "Exodus 3:1-22").
+    static func normalizeChapterReference(bookIndex: Int, chapter: Int) -> String? {
+        guard bookIndex >= 0, bookIndex < ScriptureCanonicalBooks.titles.count else { return nil }
+        let ch = ScriptureCanon.clampChapter(chapter, bookIndex: bookIndex)
+        let endVerse = ScriptureCanon.verseCount(bookIndex: bookIndex, chapter: ch)
+        let book = ScriptureCanonicalBooks.titles[bookIndex]
+        return "\(book) \(ch):1-\(endVerse)"
+    }
+
+    /// First reference match in `text`; `text` is usually one pill's reference line.
     static func parseReferenceFields(in text: String) -> ParsedReferenceFields? {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        if let verse = parseVerseReferenceFields(in: trimmed) { return verse }
+        if let range = parseChapterRangeFields(in: trimmed) { return range }
+        return parseChapterOnlyFields(in: trimmed)
+    }
+
+    private static func parseVerseReferenceFields(in text: String) -> ParsedReferenceFields? {
         guard let regex = referenceRegex else { return nil }
         let nsText = text as NSString
+        guard nsText.length > 0, nsText.length <= maximumDetectLength else { return nil }
         let full = NSRange(location: 0, length: nsText.length)
         guard let result = regex.firstMatch(in: text, options: [], range: full), result.numberOfRanges >= 4 else { return nil }
         let bookRaw = nsText.substring(with: result.range(at: 1))
@@ -75,26 +109,144 @@ struct ScriptureDetector {
         return ParsedReferenceFields(bookRaw: bookRaw, chapter: chapter, verseStart: verseStart, verseEnd: verseEnd)
     }
 
-    static func detect(in text: String) -> [Match] {
-        guard let regex = referenceRegex else { return [] }
+    private static func parseChapterRangeFields(in text: String) -> ParsedReferenceFields? {
+        guard let regex = chapterRangeRegex else { return nil }
         let nsText = text as NSString
-        let results = regex.matches(in: text, range: NSRange(location: 0, length: nsText.length))
-        return results.map { result in
-            let matchText = nsText.substring(with: result.range)
-            return Match(displayText: matchText, range: result.range)
+        guard nsText.length > 0, nsText.length <= maximumDetectLength else { return nil }
+        let full = NSRange(location: 0, length: nsText.length)
+        guard let result = regex.firstMatch(in: text, options: [], range: full), result.numberOfRanges >= 4 else { return nil }
+        let bookRaw = nsText.substring(with: result.range(at: 1))
+        guard let startCh = Int(nsText.substring(with: result.range(at: 2))),
+              let endCh = Int(nsText.substring(with: result.range(at: 3))),
+              endCh > startCh,
+              let bookIndex = ScriptureCanonicalBooks.bookIndex(matchingRaw: bookRaw) else { return nil }
+        let clampedStart = ScriptureCanon.clampChapter(startCh, bookIndex: bookIndex)
+        let clampedEnd = ScriptureCanon.clampChapter(endCh, bookIndex: bookIndex)
+        return ParsedReferenceFields(
+            bookRaw: bookRaw,
+            chapter: clampedStart,
+            verseStart: 1,
+            verseEnd: ScriptureCanon.verseCount(bookIndex: bookIndex, chapter: clampedEnd)
+        )
+    }
+
+    private static func parseChapterOnlyFields(in text: String) -> ParsedReferenceFields? {
+        guard let regex = chapterOnlyRegex else { return nil }
+        let nsText = text as NSString
+        guard nsText.length > 0, nsText.length <= maximumDetectLength else { return nil }
+        let full = NSRange(location: 0, length: nsText.length)
+        guard let result = regex.firstMatch(in: text, options: [], range: full), result.numberOfRanges >= 3 else { return nil }
+        let bookRaw = nsText.substring(with: result.range(at: 1))
+        guard let chapter = Int(nsText.substring(with: result.range(at: 2))),
+              let bookIndex = ScriptureCanonicalBooks.bookIndex(matchingRaw: bookRaw) else { return nil }
+        let ch = ScriptureCanon.clampChapter(chapter, bookIndex: bookIndex)
+        let endVerse = ScriptureCanon.verseCount(bookIndex: bookIndex, chapter: ch)
+        return ParsedReferenceFields(bookRaw: bookRaw, chapter: ch, verseStart: 1, verseEnd: endVerse)
+    }
+
+    static func detect(in text: String) -> [Match] {
+        let nsText = text as NSString
+        let length = nsText.length
+        guard length > 0, length <= maximumDetectLength else { return [] }
+
+        var collected: [(range: NSRange, displayText: String, hasColon: Bool)] = []
+
+        func appendMatches(from regex: NSRegularExpression?, hasColon: Bool) {
+            guard let regex else { return }
+            for result in regex.matches(in: text, range: NSRange(location: 0, length: length)) {
+                let matchText = nsText.substring(with: result.range)
+                if !isValidScriptureContext(text: text, matchIndex: result.range.location, matchLength: result.range.length) {
+                    continue
+                }
+                collected.append((result.range, matchText, hasColon))
+            }
         }
+
+        appendMatches(from: referenceRegex, hasColon: true)
+        appendMatches(from: chapterRangeRegex, hasColon: false)
+        appendMatches(from: chapterOnlyRegex, hasColon: false)
+
+        collected.sort { $0.range.location < $1.range.location }
+
+        var out: [Match] = []
+        var seenDisplay = Set<String>()
+        var verseLevelChapters = Set<String>()
+
+        for item in collected {
+            let key = item.displayText.lowercased()
+            if seenDisplay.contains(key) { continue }
+
+            if item.hasColon {
+                if let fields = parseVerseReferenceFields(in: item.displayText.trimmingCharacters(in: .whitespacesAndNewlines)),
+                   let bookIndex = ScriptureCanonicalBooks.bookIndex(matchingRaw: fields.bookRaw) {
+                    let book = ScriptureCanonicalBooks.titles[bookIndex]
+                    verseLevelChapters.insert("\(book.lowercased())|\(fields.chapter)")
+                }
+                seenDisplay.insert(key)
+                out.append(Match(displayText: item.displayText, range: item.range))
+                continue
+            }
+
+            if let fields = parseReferenceFields(in: item.displayText.trimmingCharacters(in: .whitespacesAndNewlines)),
+               let bookIndex = ScriptureCanonicalBooks.bookIndex(matchingRaw: fields.bookRaw) {
+                let book = ScriptureCanonicalBooks.titles[bookIndex]
+                let chapterKey = "\(book.lowercased())|\(fields.chapter)"
+                if verseLevelChapters.contains(chapterKey) { continue }
+            }
+
+            seenDisplay.insert(key)
+            out.append(Match(displayText: item.displayText, range: item.range))
+        }
+
+        return out
+    }
+
+    /// Conservative false-positive guard (mirrors scripture-detector.ts).
+    private static func isValidScriptureContext(text: String, matchIndex: Int, matchLength: Int) -> Bool {
+        let nsText = text as NSString
+        let beforeStart = max(0, matchIndex - 30)
+        let before = nsText.substring(with: NSRange(location: beforeStart, length: matchIndex - beforeStart)).trimmingCharacters(in: .whitespacesAndNewlines)
+        let afterStart = matchIndex + matchLength
+        let afterEnd = min(nsText.length, afterStart + 30)
+        let after = nsText.substring(with: NSRange(location: afterStart, length: afterEnd - afterStart)).trimmingCharacters(in: .whitespacesAndNewlines)
+
+        let invalidAfterPattern = try? NSRegularExpression(
+            pattern: "\\b(years?|months?|days?|dollars?|people|times?|hours?|minutes?|seconds?|weeks?)\\s+(ago|later|before|after)\\b",
+            options: [.caseInsensitive]
+        )
+        if let invalidAfterPattern, invalidAfterPattern.firstMatch(in: after, range: NSRange(location: 0, length: (after as NSString).length)) != nil {
+            return false
+        }
+
+        let falsePositiveAfter = try? NSRegularExpression(
+            pattern: "^\\s*(years?|months?|days?|dollars?|people|times?|hours?|minutes?|seconds?|weeks?)\\b",
+            options: [.caseInsensitive]
+        )
+        if let falsePositiveAfter, falsePositiveAfter.firstMatch(in: after, range: NSRange(location: 0, length: (after as NSString).length)) != nil {
+            let refText = nsText.substring(with: NSRange(location: matchIndex, length: matchLength))
+            if !refText.contains(":") {
+                return false
+            }
+        }
+
+        if after.isEmpty { return true }
+        let first = after.first!
+        if first.isWhitespace || ".,;:!?\n".contains(first) { return true }
+
+        let invalidBefore = try? NSRegularExpression(pattern: "\\b(about|around|over|under|near|from|to|at|in|on|for|with|by)\\s+$", options: [.caseInsensitive])
+        if let invalidBefore, invalidBefore.firstMatch(in: before, range: NSRange(location: 0, length: (before as NSString).length)) != nil {
+            return false
+        }
+
+        return true
     }
 
     /// Display refs in order of first occurrence, with duplicates removed.
-    /// `Note.detectedRefs` is consumed by SwiftUI ForEach using `id: \.self` — duplicates would
-    /// trigger SwiftUI's "the ID X occurs multiple times within the collection" failure mode.
     static func uniqueDisplayRefs(in text: String) -> [String] {
         var seen = Set<String>()
         return detect(in: text).map(\.displayText).filter { seen.insert($0).inserted }
     }
 
-    /// Persists note-level scripture references from both title and body: title matches first (document order),
-    /// then body refs not already present (case-insensitive dedupe).
     static func mergedDetectedRefs(title: String, bodyRefs: [String]) -> [String] {
         let titleRefs = uniqueDisplayRefs(in: title)
         var seenLC = Set(titleRefs.map { $0.lowercased() })

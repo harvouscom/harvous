@@ -8,6 +8,11 @@ options:
   defaultConfig: Debug
   xcodeVersion: "16.0"
 
+configs:
+  Debug: debug
+  Debug-Prod: debug
+  Release: release
+
 packages:
   ClerkiOS:
     url: https://github.com/clerk/clerk-ios
@@ -16,8 +21,8 @@ packages:
 settings:
   base:
     SWIFT_VERSION: "6.0"
-    MARKETING_VERSION: "0.3.2"
-    CURRENT_PROJECT_VERSION: "0.3.2"
+    MARKETING_VERSION: "0.4.1"
+    CURRENT_PROJECT_VERSION: "0.4.1"
 
 targets:
   Harvous:
@@ -25,6 +30,7 @@ targets:
     platform: [macOS, iOS]
     configFiles:
       Debug: Configuration/Harvous-Signing.Debug.xcconfig
+      Debug-Prod: Configuration/Harvous-Signing.Debug-Prod.xcconfig
       Release: Configuration/Harvous-Signing.Release.xcconfig
     sources:
       - path: .
@@ -57,6 +63,8 @@ targets:
         PROVISIONING_PROFILE_SPECIFIER: ""
       configs:
         Debug:
+          DEBUG_INFORMATION_FORMAT: dwarf
+        Debug-Prod:
           DEBUG_INFORMATION_FORMAT: dwarf
         Release:
           DEBUG_INFORMATION_FORMAT: dwarf-with-dsym
@@ -151,3 +159,17 @@ schemes:
           randomExecutionOrder: false
       testPlans:
         - path: Harvous_iOS.xctestplan
+  "Harvous_macOS (Debug-Prod)":
+    build:
+      targets:
+        Harvous_macOS: all
+    run:
+      config: Debug-Prod
+      executable: Harvous_macOS
+  "Harvous_iOS (Debug-Prod)":
+    build:
+      targets:
+        Harvous_iOS: all
+    run:
+      config: Debug-Prod
+      executable: Harvous_iOS

@@ -29,6 +29,7 @@ struct ContentView: View {
             }
             #endif
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .accessibilityIdentifier(HarvousAccessibilityID.rootContent)
         .environment(\.harvousScriptureTheme, spaceStore.scriptureTheme)
         .task {
@@ -74,12 +75,20 @@ struct MacRootView: View {
     @State private var splitColumnVisibility: NavigationSplitViewVisibility = .all
     @State private var showSearch = false
     @State private var showInspector = false
-    @State private var threadNavPath = NavigationPath()
+    @State private var threadNavPath: [UUID] = []
     @State private var importSummaryPayload: HarvousVaultImportSummaryPayload?
+    @State private var bridge = HarvousClerkBridge.shared
+    /// Stable mirror of `bridge.isAuthenticated`, flipped only on real sign-in/out
+    /// transitions. The window-toolbar visibility modifier reads THIS, not the inline
+    /// `bridge.isAuthenticated` (which subscribes to `Clerk.shared`'s high-frequency
+    /// observable) — otherwise the unified window toolbar is re-applied on every render
+    /// and re-enters the window update-constraints pass → recursion/crash on note open.
+    @State private var isAuthed = false
     @Environment(\.modelContext) private var context
     @EnvironmentObject private var appRouter: HarvousAppRouter
     @EnvironmentObject private var spaceStore: SpaceStore
     @EnvironmentObject private var macNoteListSelectionCoordinator: MacNoteListSelectionCoordinator
+    @EnvironmentObject private var shiftHints: HarvousShiftHintsMonitor
     @Environment(\.openWindow) private var openWindow
 
     var body: some View {
@@ -129,134 +138,150 @@ struct MacRootView: View {
                         .transition(.opacity)
                     }
                 }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .onPreferenceChange(NoteShareSnapshotPreferenceKey.self) { liveShareSnapshot = $0 }
                     .toolbar(removing: .sidebarToggle)
                     .toolbar {
-                        // Sidebar scope uses `.automatic` so these stay paired; keep Show sidebar (.detailOnly)
-                        // and Compose as separate toolbar items—otherwise AppKit nests them in one cluster.
-                        if splitColumnVisibility == .detailOnly {
+                        if isAuthed {
+                            // Sidebar scope uses `.automatic` so these stay paired; keep Show sidebar (.detailOnly)
+                            // and Compose as separate toolbar items—otherwise AppKit nests them in one cluster.
+                            if splitColumnVisibility == .detailOnly {
+                                ToolbarItem(placement: .navigation) {
+                                    Button {
+                                        animatedSplitVisibility.wrappedValue = .all
+                                    } label: {
+                                        Label {
+                                            Text("Show sidebar")
+                                        } icon: {
+                                            HarvousFAGlyph(
+                                                assetName: "Harvous.LayoutSidebarRight",
+                                                edgePt: HarvousFAIconMetrics.catalogGlyphBoxPt
+                                            )
+                                            .frame(
+                                                width: HarvousFAIconMetrics.catalogGlyphBoxPt,
+                                                height: HarvousFAIconMetrics.catalogGlyphBoxPt
+                                            )
+                                            .harvousToolbarShortcutHint("B")
+                                        }
+                                    }
+                                    .labelStyle(.iconOnly)
+                                    .buttonStyle(.bordered)
+                                    .help("Show sidebar (⇧B)")
+                                    .accessibilityLabel("Show sidebar")
+                                }
+                            }
+
                             ToolbarItem(placement: .navigation) {
+                                Button(action: createNewNote) {
+                                    HarvousFAGlyph(assetName: "Harvous.Pencil")
+                                        .fixedSize(horizontal: true, vertical: true)
+                                        .harvousToolbarShortcutHint("N")
+                                }
+                                .buttonStyle(.bordered)
+                                .help("New Note (⇧N)")
+                            }
+
+                            if #available(macOS 26, *) { ToolbarSpacer(.fixed) }
+
+                            ToolbarItem(placement: .cancellationAction) {
+                                if let note = selectedNote {
+                                    NoteFolderChip(
+                                        note: note,
+                                        isFolderContextUpdating: false,
+                                        showFolderToolbarText: true,
+                                        scriptureTheme: spaceStore.scriptureTheme
+                                    )
+                                }
+                            }
+
+                            // Flexible spacer absorbs extra width between the folder chip and the
+                            // share/more group. Two fixed spacers before share/more match the
+                            // perceived leading inset of the trailing `confirmationAction` cluster
+                            // (`.primaryAction` sits in a tighter column than the trailing slot).
+                            if #available(macOS 26, *) { ToolbarSpacer(.flexible) }
+                            if #available(macOS 26, *) { ToolbarSpacer(.fixed) }
+                            if #available(macOS 26, *) { ToolbarSpacer(.fixed) }
+
+                            if let note = selectedNote {
+                                MacNoteShareMoreToolbar(
+                                    note: note,
+                                    liveShareSnapshot: liveShareSnapshot,
+                                    onDeleteConfirmed: {
+                                        let nid = note.id
+                                        HarvousVaultExporter.removeMirrorFiles(for: note, modelContext: context)
+                                        HarvousNoteSpotlightIndexer.removeNote(id: nid)
+                                        ThreadStore.purgeLinkedNoteMarkers(referencingDeletedNote: nid, modelContext: context)
+                                        selectedNote = nil
+                                        HarvousSyncingDelete.delete(note: note, context: context)
+                                        try? context.saveWithLogging()
+                                    }
+                                )
+                            }
+
+                            if #available(macOS 26, *) { ToolbarSpacer(.fixed) }
+
+                            ToolbarItemGroup(placement: .confirmationAction) {
                                 Button {
-                                    animatedSplitVisibility.wrappedValue = .all
+                                    showInspector.toggle()
                                 } label: {
-                                    Label {
-                                        Text("Show sidebar")
-                                    } icon: {
-                                        HarvousFAGlyph(
-                                            assetName: "Harvous.LayoutSidebarRight",
-                                            edgePt: HarvousFAIconMetrics.catalogGlyphBoxPt
-                                        )
-                                        .frame(
-                                            width: HarvousFAIconMetrics.catalogGlyphBoxPt,
-                                            height: HarvousFAIconMetrics.catalogGlyphBoxPt
-                                        )
+                                    if showInspector {
+                                        Label {
+                                            Text("Hide note details")
+                                        } icon: {
+                                            HarvousFAGlyph(
+                                                assetName: "Harvous.LayoutSidebarLeft",
+                                                edgePt: HarvousFAIconMetrics.catalogGlyphBoxPt
+                                            )
+                                            .frame(
+                                                width: HarvousFAIconMetrics.catalogGlyphBoxPt,
+                                                height: HarvousFAIconMetrics.catalogGlyphBoxPt
+                                            )
+                                            .harvousToolbarShortcutHint("D")
+                                        }
+                                    } else {
+                                        Label {
+                                            Text("Note details")
+                                        } icon: {
+                                            HarvousFAGlyph(
+                                                assetName: "Harvous.LayoutSidebarRight",
+                                                edgePt: HarvousFAIconMetrics.catalogGlyphBoxPt
+                                            )
+                                            .frame(
+                                                width: HarvousFAIconMetrics.catalogGlyphBoxPt,
+                                                height: HarvousFAIconMetrics.catalogGlyphBoxPt
+                                            )
+                                            .harvousToolbarShortcutHint("D")
+                                        }
                                     }
                                 }
                                 .labelStyle(.iconOnly)
                                 .buttonStyle(.bordered)
-                                .help("Show sidebar")
-                                .accessibilityLabel("Show sidebar")
+                                .help(showInspector ? "Hide note details (⇧D)" : "Show note details (⇧D)")
+                                .disabled(selectedNote == nil)
+
+                                HarvousMacProfileToolbarMenu()
                             }
-                        }
-
-                        ToolbarItem(placement: .navigation) {
-                            Button(action: createNewNote) {
-                                HarvousFAGlyph(assetName: "Harvous.Pencil")
-                                    .fixedSize(horizontal: true, vertical: true)
-                            }
-                            .buttonStyle(.bordered)
-                            .help("New Note (⌘N)")
-                        }
-
-                        if #available(macOS 26, *) { ToolbarSpacer(.fixed) }
-
-                        ToolbarItem(placement: .cancellationAction) {
-                            if let note = selectedNote {
-                                NoteFolderChip(
-                                    note: note,
-                                    isFolderContextUpdating: false,
-                                    showFolderToolbarText: true,
-                                    scriptureTheme: spaceStore.scriptureTheme
-                                )
-                            }
-                        }
-
-                        // Flexible spacer absorbs extra width between the folder chip and the
-                        // share/more group. Two fixed spacers before share/more match the
-                        // perceived leading inset of the trailing `confirmationAction` cluster
-                        // (`.primaryAction` sits in a tighter column than the trailing slot).
-                        if #available(macOS 26, *) { ToolbarSpacer(.flexible) }
-                        if #available(macOS 26, *) { ToolbarSpacer(.fixed) }
-                        if #available(macOS 26, *) { ToolbarSpacer(.fixed) }
-
-                        if let note = selectedNote {
-                            MacNoteShareMoreToolbar(
-                                note: note,
-                                liveShareSnapshot: liveShareSnapshot,
-                                onDeleteConfirmed: {
-                                    let nid = note.id
-                                    HarvousVaultExporter.removeMirrorFiles(for: note, modelContext: context)
-                                    HarvousNoteSpotlightIndexer.removeNote(id: nid)
-                                    ThreadStore.purgeLinkedNoteMarkers(referencingDeletedNote: nid, modelContext: context)
-                                    selectedNote = nil
-                                    HarvousSyncingDelete.delete(note: note, context: context)
-                                    try? context.saveWithLogging()
-                                }
-                            )
-                        }
-
-                        if #available(macOS 26, *) { ToolbarSpacer(.fixed) }
-
-                        ToolbarItemGroup(placement: .confirmationAction) {
-                            Button {
-                                showInspector.toggle()
-                            } label: {
-                                if showInspector {
-                                    Label {
-                                        Text("Hide note details")
-                                    } icon: {
-                                        HarvousFAGlyph(
-                                            assetName: "Harvous.LayoutSidebarLeft",
-                                            edgePt: HarvousFAIconMetrics.catalogGlyphBoxPt
-                                        )
-                                        .frame(
-                                            width: HarvousFAIconMetrics.catalogGlyphBoxPt,
-                                            height: HarvousFAIconMetrics.catalogGlyphBoxPt
-                                        )
-                                    }
-                                } else {
-                                    Label {
-                                        Text("Note details")
-                                    } icon: {
-                                        HarvousFAGlyph(
-                                            assetName: "Harvous.LayoutSidebarRight",
-                                            edgePt: HarvousFAIconMetrics.catalogGlyphBoxPt
-                                        )
-                                        .frame(
-                                            width: HarvousFAIconMetrics.catalogGlyphBoxPt,
-                                            height: HarvousFAIconMetrics.catalogGlyphBoxPt
-                                        )
-                                    }
-                                }
-                            }
-                            .labelStyle(.iconOnly)
-                            .buttonStyle(.bordered)
-                            .help(showInspector ? "Hide note details" : "Show note details")
-                            .disabled(selectedNote == nil)
-
-                            HarvousMacProfileToolbarMenu()
                         }
                     }
-                    .navigationDestination(for: UUID.self) { threadID in
-                        LinkedNotesView(linkedNoteMarkerId: threadID)
-                    }
+                .navigationDestination(for: UUID.self) { threadID in
+                    LinkedNotesView(linkedNoteMarkerId: threadID)
+                }
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .id(navStackResetToken)
         }
     }
 
     private var macSplitStyled: some View {
         macNavigationSplit
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
             .navigationSplitViewStyle(.balanced)
+            // When signed out, SignInGate keeps this NavigationSplitView in the
+            // tree under the sign-in overlay. Its unified toolbar's vibrancy
+            // material re-activates to white on every focus cycle. Removing the
+            // whole window toolbar (not just its items) leaves no material to
+            // redraw, so HarvousPaperWindowChrome's paper title bar stays clean.
+            .toolbar(isAuthed ? .automatic : .hidden, for: .windowToolbar)
             // The .inspector modifier's built-in animation propagates up into the NSSplitView
             // backing NavigationSplitView, causing the sidebar divider to slide when the
             // inspector opens. Committing the layout in a single pass (same pattern as
@@ -300,8 +325,13 @@ struct MacRootView: View {
 
     private var macRootChrome: some View {
         macWithInspectorAndListFocus
+            // Seed + track auth as plain state so the window-toolbar visibility modifier
+            // doesn't read the churning `Clerk.shared` observable on every render.
+            .task { isAuthed = bridge.isAuthenticated }
+            .onChange(of: bridge.isAuthenticated) { _, authed in isAuthed = authed }
             .onChange(of: selectedNote?.id) { _, _ in
-                threadNavPath = NavigationPath()
+                shiftHints.isNoteRouteActive = selectedNote != nil
+                threadNavPath.removeAll()
                 let newNote = selectedNote
                 let previous = lastSelectedNote
                 Task { @MainActor in
@@ -349,6 +379,7 @@ struct MacRootView: View {
             }
             .onAppear {
                 HarvousMacSidebarSearchFieldGlyph.scheduleBrandMagnifyingGlassPatch()
+                wireShiftHints()
             }
             .onReceive(NotificationCenter.default.publisher(for: NSWindow.didBecomeKeyNotification)) { _ in
                 HarvousMacSidebarSearchFieldGlyph.scheduleBrandMagnifyingGlassPatch()
@@ -405,10 +436,45 @@ struct MacRootView: View {
         }
     }
 
+    private func wireShiftHints() {
+        shiftHints.isNoteRouteActive = selectedNote != nil
+        shiftHints.onShortcut = { shortcut in
+            handleShiftShortcut(shortcut)
+        }
+    }
+
+    private func handleShiftShortcut(_ shortcut: HarvousShiftShortcut) {
+        switch shortcut {
+        case .newNote:
+            createNewNote()
+        case .search:
+            showSearch = true
+        case .settings:
+            openWindow(id: HarvousMacPreferencesWindow.sceneID)
+        case .toggleSidebar:
+            splitColumnVisibility = splitColumnVisibility == .detailOnly ? .all : .detailOnly
+        case .focusNoteList:
+            selectedNote = nil
+        case .findInNote:
+            appRouter.requestFindInNote()
+        case .lockNote:
+            break // Note lock temporarily disabled.
+        case .toggleInspector:
+            if selectedNote != nil { showInspector.toggle() }
+        case .cycleListMode(let step):
+            NotificationCenter.default.post(
+                name: .harvousCycleSidebarMode,
+                object: nil,
+                userInfo: ["step": step]
+            )
+        }
+    }
+
     private func createNewNote() {
         let note = Note(spaceId: spaceStore.activeSpaceUUID())
         context.insert(note)
         NoteSimpleIDAssigner.assignIfMissing(note, in: context)
+        note.markDirty()
         try? context.saveWithLogging()
         HarvousNoteSpotlightIndexer.reindex(note: note)
         HarvousVaultExporter.scheduleWrite(note: note, modelContext: context)
@@ -430,6 +496,7 @@ struct MacRootView: View {
         let note = Note(title: key, body: "", spaceId: sid)
         context.insert(note)
         NoteSimpleIDAssigner.assignIfMissing(note, in: context)
+        note.markDirty()
         try? context.saveWithLogging()
         HarvousNoteSpotlightIndexer.reindex(note: note)
         HarvousVaultExporter.scheduleWrite(note: note, modelContext: context)
@@ -482,9 +549,9 @@ private struct HarvousMacProfileToolbarMenu: View {
     var body: some View {
         Menu {
             if let profile = bridge.currentProfile {
-                Text(profile.compactDisplayName)
-                    .font(.system(size: 15, weight: .semibold, design: .default))
-                if let email = profile.primaryEmail, !email.isEmpty, email != profile.compactDisplayName {
+                Text(profile.displayName)
+                    .font(HarvousFonts.font(size: 15, weight: .semibold, design: .default))
+                if let email = profile.primaryEmail, !email.isEmpty, email != profile.displayName {
                     Text(email)
                         .font(HarvousTypography.caption)
                         .foregroundStyle(.secondary)
@@ -495,32 +562,43 @@ private struct HarvousMacProfileToolbarMenu: View {
             Button {
                 openWindow(id: HarvousMacPreferencesWindow.sceneID)
             } label: {
-                Label {
-                    Text("Settings…")
-                } icon: {
+                HStack(spacing: 8) {
                     HarvousFAGlyph(assetName: "Harvous.Gear", edgePt: HarvousFAIconMetrics.menuRowLeadingGlyphPt)
+                    Text("Settings…")
+                        .font(HarvousTypography.profileMenuAction)
+                    Spacer(minLength: 0)
                 }
             }
+            .font(HarvousTypography.profileMenuAction)
         } label: {
-            ZStack {
-                Circle()
-                    .fill(avatarFill)
-                    .frame(width: 28, height: 28)
-                HarvousFAGlyph(assetName: "Harvous.UserFilled")
-                    .foregroundStyle(iconTint)
-            }
-            .overlay {
-                Circle()
-                    .strokeBorder(Color.primary.opacity(colorScheme == .dark ? 0.12 : 0.18), lineWidth: 0.75)
-            }
-            .accessibilityLabel("Account, profile, and settings")
+            profileOrbLabel
         }
         .menuIndicator(.hidden)
         .buttonStyle(.bordered)
         .help("Account, profile, and settings")
     }
+
+    private var profileOrbLabel: some View {
+        ZStack {
+            Circle()
+                .fill(avatarFill)
+                .frame(width: 28, height: 28)
+            HarvousFAGlyph(assetName: "Harvous.UserFilled")
+                .foregroundStyle(iconTint)
+        }
+        .overlay {
+            Circle()
+                .strokeBorder(Color.primary.opacity(colorScheme == .dark ? 0.12 : 0.18), lineWidth: 0.75)
+        }
+        .accessibilityLabel("Account, profile, and settings")
+    }
 }
 #endif
+
+/// Unique per app launch — forces every NavigationStack to discard persisted
+/// scene state from a previous session, preventing comparisonTypeMismatch crashes.
+/// File-level so it's created once per process and shared across iOS/macOS roots.
+let navStackResetToken = UUID()
 
 // MARK: - iOS: Single-column shell + bottom row actions
 
@@ -530,9 +608,10 @@ struct iOSRootView: View {
     @EnvironmentObject private var spaceStore: SpaceStore
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.modelContext) private var modelContext
-    @State private var iosNoteNavigationPath: [UUID] = []
+    @State private var iosSelectedNoteId: UUID?
     @State private var importSummaryPayload: HarvousVaultImportSummaryPayload?
     @State private var iosKeyboardOccupiesBottom = false
+    @State private var bridge = HarvousClerkBridge.shared
 
     var body: some View {
         let chrome = iosNavigationStack
@@ -540,7 +619,7 @@ struct iOSRootView: View {
                 // Detail screens (drilled in via NavigationStack) own a system back button — never let the
                 // dismiss tap-catcher cover its hit area. The overlay also reserves the top safe area so the
                 // back button stays tappable even at the root list level if the orb somehow stays presented.
-                if appRouter.iosComposeCameraOrbPresented && iosNoteNavigationPath.isEmpty {
+                if appRouter.iosComposeCameraOrbPresented && iosSelectedNoteId == nil {
                     GeometryReader { geo in
                         let bottomReserve = HarvousIOSMorphingChromeLayout.composeCameraOrbDismissTapCatcherBottomReserve
                             + geo.safeAreaInsets.bottom
@@ -588,14 +667,12 @@ struct iOSRootView: View {
                     return
                 }
                 appRouter.dismissStandaloneScripturePassageDock()
-                Task { @MainActor in
-                    iosNoteNavigationPath.removeAll()
-                }
+                iosSelectedNoteId = nil
             }
-            .onChange(of: iosNoteNavigationPath) { _, newPath in
+            .onChange(of: iosSelectedNoteId) { _, newId in
                 // Drilling into a detail screen must hide the compose orb so the system back button is never
                 // shadowed by its dismiss tap-catcher (back-button unresponsive bug).
-                if !newPath.isEmpty {
+                if newId != nil {
                     appRouter.dismissIOSComposeCameraOrbIfPresented()
                 }
             }
@@ -650,15 +727,17 @@ struct iOSRootView: View {
                 iosStandaloneScriptureDockSheet
             }
             .onAppear {
+                iosSelectedNoteId = nil
+                appRouter.youNavigationStack.removeAll()
                 HarvousCalendarStudyNotifier.requestAccessAndPrewarm(modelContext: modelContext)
                 appRouter.applyPendingDeepLink()
             }
     }
 
     private var iosNavigationStack: some View {
-        NavigationStack(path: $iosNoteNavigationPath) {
+        NavigationStack {
             iosListSurfaceGroup
-                .navigationDestination(for: UUID.self) { noteId in
+                .navigationDestination(item: $iosSelectedNoteId) { noteId in
                     NoteEditorById(noteId: noteId)
                 }
         }
@@ -669,24 +748,24 @@ struct iOSRootView: View {
         Group {
             switch appRouter.iosListSurface {
             case .notes:
-                HomeHubView(iosNoteNavigationPath: $iosNoteNavigationPath)
+                HomeHubView(iosSelectedNoteId: $iosSelectedNoteId)
             case .folders:
                 LibraryView(
-                    iosNoteNavigationPath: $iosNoteNavigationPath,
+                    iosSelectedNoteId: $iosSelectedNoteId,
                     externalSearchText: $appRouter.iosInlineSearchText
                 )
             case .highlights:
-                HighlightsHubView(iosNoteNavigationPath: $iosNoteNavigationPath)
+                HighlightsHubView(iosSelectedNoteId: $iosSelectedNoteId)
             case .scripture:
                 ScriptureHubView(
-                    iosNoteNavigationPath: $iosNoteNavigationPath,
+                    iosSelectedNoteId: $iosSelectedNoteId,
                     externalSearchText: $appRouter.iosInlineSearchText
                 )
             case .dictionary:
                 IOSDictionaryHubView(externalSearchText: $appRouter.iosInlineSearchText)
             case .more:
                 // `.more` is presented as a sheet; fallback only.
-                HomeHubView(iosNoteNavigationPath: $iosNoteNavigationPath)
+                HomeHubView(iosSelectedNoteId: $iosSelectedNoteId)
             }
         }
         // Note: bottom scroll-content inset is applied directly inside each vertical `List`
@@ -699,9 +778,11 @@ struct iOSRootView: View {
     /// `HarvousIOSInlineBottomChromeRow`'s `@FocusState` survives keyboard show/hide.
     @ViewBuilder
     private var iosMorphingChromeInset: some View {
-        MorphingChromeBar()
-            .environmentObject(appRouter)
-            .padding(.bottom, iosKeyboardOccupiesBottom ? 0 : -4)
+        if bridge.isAuthenticated {
+            MorphingChromeBar()
+                .environmentObject(appRouter)
+                .padding(.bottom, iosKeyboardOccupiesBottom ? 0 : -4)
+        }
     }
 
     private var iosYouRootSheet: some View {
@@ -723,6 +804,8 @@ struct iOSRootView: View {
                     }
                 }
         }
+        .harvousListMenuTypography()
+        .id(navStackResetToken)
         .environmentObject(appRouter)
         .environmentObject(spaceStore)
         .presentationDetents([.large])
@@ -857,6 +940,20 @@ struct IOSListSurfaceChip: View {
         .accessibilityLabel("List: \(appRouter.iosListSurface.listChromeMenuTitle)")
     }
 
+    @ViewBuilder
+    private func chipMenuButton(_ surface: HarvousIOSListSurface, label: String, icon: String) -> some View {
+        Button {
+            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+            appRouter.selectIOSListSurface(surface)
+        } label: {
+            Label {
+                Text(label)
+            } icon: {
+                HarvousFAGlyph(assetName: icon, edgePt: HarvousFAIconMetrics.compactMenuRowLeadingGlyphPt)
+            }
+        }
+    }
+
     private func drilledChip(folderLabel: String) -> some View {
         Button {
             UIImpactFeedbackGenerator(style: .light).impactOccurred()
@@ -882,27 +979,6 @@ struct IOSListSurfaceChip: View {
         .buttonStyle(.plain)
         .tint(.primary)
         .accessibilityLabel("Back to folders, currently viewing \(folderLabel)")
-    }
-
-    @ViewBuilder
-    private func chipMenuButton(_ surface: HarvousIOSListSurface, label: String, icon: String) -> some View {
-        Button {
-            UIImpactFeedbackGenerator(style: .light).impactOccurred()
-            appRouter.selectIOSListSurface(surface)
-        } label: {
-            HStack {
-                Label {
-                    Text(label)
-                } icon: {
-                    HarvousFAGlyph(assetName: icon, edgePt: HarvousFAIconMetrics.compactMenuRowLeadingGlyphPt)
-                }
-                Spacer(minLength: 8)
-                if appRouter.iosListSurface == surface {
-                    HarvousFAGlyph(assetName: "Harvous.Check", edgePt: HarvousFAIconMetrics.menuRowCheckGlyphPt)
-                        .foregroundStyle(.secondary)
-                }
-            }
-        }
     }
 }
 
@@ -965,7 +1041,7 @@ struct HarvousIOSInlineBottomChromeRow: View {
             HarvousFAGlyph(assetName: "Harvous.MagnifyingGlass", edgePt: 16)
                 .foregroundStyle(Color.primary.opacity(0.6))
             TextField("Search", text: $appRouter.iosInlineSearchText)
-                .font(.system(size: 17, weight: .regular))
+                .font(HarvousTypography.searchField)
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled(true)
                 .submitLabel(.search)
@@ -986,7 +1062,7 @@ struct HarvousIOSInlineBottomChromeRow: View {
             }
         }
         .padding(.horizontal, 14)
-        .frame(height: 44)
+        .frame(minHeight: HarvousIOSMorphingChromeLayout.chromeControlsHeight)
         .frame(maxWidth: .infinity)
         .background { floatingChromeBackground(shape: Capsule(style: .continuous)) }
         .contentShape(Capsule(style: .continuous))

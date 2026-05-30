@@ -165,7 +165,7 @@ struct SidebarPanelView: View {
                 .foregroundStyle(.secondary)
             TextField("Search", text: $folderListSearchText)
                 .textFieldStyle(.plain)
-                .font(.system(size: 15))
+                .font(HarvousFonts.font(size: 15, weight: .regular, design: .default))
                 .focused($searchFieldFocused)
             if !folderListSearchText.isEmpty {
                 Button {
@@ -230,7 +230,7 @@ struct SidebarPanelView: View {
                         HStack(spacing: 5) {
                             HarvousFAGlyph(assetName: "Harvous.ChevronLeft", edgePt: 13)
                             Text(NoteFilter.folder(key).displayName)
-                                .font(.system(size: 12, weight: .medium))
+                                .font(HarvousFonts.font(size: 12, weight: .medium, design: .default))
                                 .lineLimit(1)
                                 .fixedSize(horizontal: true, vertical: false)
                         }
@@ -311,7 +311,7 @@ struct SidebarPanelView: View {
                             HarvousFAGlyph(assetName: "Harvous.ChevronLeft", edgePt: 13)
                                 .foregroundStyle(.primary)
                             Text(NoteFilter.folder(key).displayName)
-                                .font(.system(size: 14, weight: .medium))
+                                .font(HarvousFonts.font(size: 14, weight: .medium, design: .default))
                                 .lineLimit(1)
                         }
                     }
@@ -373,6 +373,13 @@ struct SidebarPanelView: View {
         }
     }
     #endif
+
+    private func cycleSidebarMode(step: Int) {
+        let modes = SidebarMode.allCases
+        guard let idx = modes.firstIndex(of: mode) else { return }
+        let next = (idx + step + modes.count) % modes.count
+        mode = modes[next]
+    }
 
     var body: some View {
         NavigationStack {
@@ -508,6 +515,10 @@ struct SidebarPanelView: View {
                 }
             }
             #endif
+            .onReceive(NotificationCenter.default.publisher(for: .harvousCycleSidebarMode)) { notification in
+                let step = notification.userInfo?["step"] as? Int ?? 1
+                cycleSidebarMode(step: step)
+            }
             .onChange(of: mode) { _, newMode in
                 if newMode == .notes {
                     foldersDrill = .root
@@ -554,6 +565,7 @@ struct SidebarPanelView: View {
             } message: {
                 Text("Notes are kept; only the folder label is removed from them.")
             }
+            .harvousListMenuTypography()
         }
         #if os(macOS)
         .toolbarBackground(.clear, for: .automatic)
@@ -739,6 +751,7 @@ struct SidebarPanelView: View {
                     HStack {
                         Label {
                             Text(item.title)
+                                .font(HarvousTypography.settingsListRow)
                         } icon: {
                             HarvousFAGlyph(assetName: item.icon, edgePt: HarvousFAIconMetrics.compactMenuRowLeadingGlyphPt)
                         }
@@ -762,15 +775,12 @@ struct SidebarPanelView: View {
     private var scriptureBooksList: some View {
         Group {
             if scriptureBookRows.isEmpty {
-                ContentUnavailableView {
-                    Label {
-                        Text("No Scripture References")
-                    } icon: {
-                        HarvousFAGlyph(assetName: "Harvous.BookOpen", edgePt: 18)
-                    }
-                } description: {
-                    Text("Add scripture references in your notes to build your index.")
-                }
+                HarvousEmptyStateView(
+                    iconAsset: "Harvous.BookOpen",
+                    title: "No Scripture References",
+                    description: "Add scripture references in your notes to build your index.",
+                    scale: .compact
+                )
             } else if filteredScriptureBookRows.isEmpty {
                 ContentUnavailableView.search(text: folderListSearchText)
             } else {
@@ -784,8 +794,12 @@ struct SidebarPanelView: View {
                 }
                 .listStyle(.plain)
                 .scrollContentBackground(.hidden)
+                #if os(macOS)
+                .harvousListDailyPassagePillScrollReserve()
+                #endif
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
     }
 
     @ViewBuilder
@@ -811,15 +825,12 @@ struct SidebarPanelView: View {
             if !folderListSearchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && filteredScriptureReferenceRows.isEmpty {
                 ContentUnavailableView.search(text: folderListSearchText)
             } else if scriptureReferenceRowsForBookDrill.isEmpty {
-                ContentUnavailableView {
-                    Label {
-                        Text("No passages")
-                    } icon: {
-                        HarvousFAGlyph(assetName: "Harvous.BookOpen", edgePt: 18)
-                    }
-                } description: {
-                    Text("No parsed references for this book in the active space.")
-                }
+                HarvousEmptyStateView(
+                    iconAsset: "Harvous.BookOpen",
+                    title: "No passages",
+                    description: "No parsed references for this book in the active space.",
+                    scale: .compact
+                )
             } else {
                 List {
                     ForEach(filteredScriptureReferenceRows) { row in
@@ -843,22 +854,23 @@ struct SidebarPanelView: View {
                 }
                 .listStyle(.plain)
                 .scrollContentBackground(.hidden)
+                #if os(macOS)
+                .harvousListDailyPassagePillScrollReserve()
+                #endif
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
     }
 
     private var foldersList: some View {
         Group {
             if folderRows.isEmpty {
-                ContentUnavailableView {
-                    Label {
-                        Text("No Folders")
-                    } icon: {
-                        HarvousFAGlyph(assetName: "Harvous.Folder", edgePt: 18)
-                    }
-                } description: {
-                    Text("Folders created from your notes will appear here.")
-                }
+                HarvousEmptyStateView(
+                    iconAsset: "Harvous.Folder",
+                    title: "No Folders",
+                    description: "Folders created from your notes will appear here.",
+                    scale: .compact
+                )
             } else if orderedFilteredFolderRows.isEmpty {
                 ContentUnavailableView.search(text: folderListSearchText)
             } else {
@@ -872,8 +884,12 @@ struct SidebarPanelView: View {
                 }
                 .listStyle(.plain)
                 .scrollContentBackground(.hidden)
+                #if os(macOS)
+                .harvousListDailyPassagePillScrollReserve()
+                #endif
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
     }
 
     private func macSelectNoteWithoutListAnimation(_ note: Note) {

@@ -40,6 +40,10 @@ enum HarvousTombstoneQueue {
         return (try? JSONDecoder().decode([HarvousTombstone].self, from: data)) ?? []
     }
 
+    static func clearAll() {
+        UserDefaults.standard.removeObject(forKey: storageKey)
+    }
+
     private static func write(_ list: [HarvousTombstone]) {
         if let data = try? JSONEncoder().encode(list) {
             UserDefaults.standard.set(data, forKey: storageKey)
@@ -58,6 +62,7 @@ enum HarvousSyncingDelete {
             )
         }
         context.delete(note)
+        HarvousSyncScheduler.scheduleFullSync()
     }
 
     @MainActor
@@ -68,5 +73,6 @@ enum HarvousSyncingDelete {
             )
         }
         context.delete(thread)
+        HarvousSyncScheduler.scheduleFullSync()
     }
 }

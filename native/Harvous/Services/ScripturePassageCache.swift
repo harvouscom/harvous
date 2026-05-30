@@ -40,12 +40,12 @@ private func scriptureBaselineOffset(from attributes: [NSAttributedString.Key: A
 
 /// Shared HTML → `NSAttributedString` for passage views and prefetch.
 /// **Important:** SwiftUI `Text(AttributedString)` does not reliably honor `baselineOffset`, so UI uses `NSTextView` / `UITextView`.
-/// Post-processes WebKit HTML import into dictionary-style reading typography (serif body, verse numerals, spacing).
+/// Post-processes WebKit HTML import into dictionary-style reading typography (body, verse numerals, spacing).
 enum ScripturePassageHTMLParser {
-    /// Dictionary-style reading sizes (serif). Slightly below typical book body so long passages fit comfortably in panels.
-    private static let passageSerifBodyPointSize: CGFloat = 17
-    private static let passageSerifLabelPointSize: CGFloat = 14
-    private static let passageSerifItalicPointSize: CGFloat = 16
+    /// Reading sizes — slightly below typical body so long passages fit comfortably in panels.
+    private static let passageBodyPointSize: CGFloat = 17
+    private static let passageLabelPointSize: CGFloat = 14
+    private static let passageItalicPointSize: CGFloat = 16
 
     /// Verse numerals use a **much** smaller point size than body so they read clearly as superscript, not mini-body.
     private static let verseNumeralToBodyScale: CGFloat = 0.64
@@ -261,7 +261,7 @@ enum ScripturePassageHTMLParser {
     static func enforceVerseNumeralDisplaySizing(_ attributed: NSAttributedString) -> NSAttributedString {
         let m = NSMutableAttributedString(attributedString: attributed)
         #if os(macOS)
-        let bodyFont = serifSystem(size: passageSerifBodyPointSize, weight: .regular)
+        let bodyFont = NSFont.systemFont(ofSize: passageBodyPointSize, weight: .regular)
         let numFont = macVerseNumeralFont(fromBody: bodyFont)
         let bo = numeralBaselineOffset(bodyPointSize: bodyFont.pointSize)
         let full = NSRange(location: 0, length: m.length)
@@ -289,7 +289,7 @@ enum ScripturePassageHTMLParser {
             ], range: r)
         }
         #elseif os(iOS)
-        let bodyFont = serifSystem(size: passageSerifBodyPointSize, weight: .regular)
+        let bodyFont = UIFont.systemFont(ofSize: passageBodyPointSize, weight: .regular)
         let numFont = iosVerseNumeralFont(fromBody: bodyFont)
         let bo = numeralBaselineOffset(bodyPointSize: bodyFont.pointSize)
         let full = NSRange(location: 0, length: m.length)
@@ -320,21 +320,47 @@ enum ScripturePassageHTMLParser {
         return NSAttributedString(attributedString: m)
     }
 
-    #if os(macOS)
-    private static func serifSystem(size: CGFloat, weight: NSFont.Weight) -> NSFont {
-        let base = NSFont.systemFont(ofSize: size, weight: weight)
-        if let d = base.fontDescriptor.withDesign(.serif) {
-            return NSFont(descriptor: d, size: size) ?? base
+    /// VOTD sheet: body and labels at regular weight; verse numerals and italics unchanged.
+    static func enforceRegularPassageWeight(_ attributed: NSAttributedString) -> NSAttributedString {
+        let m = NSMutableAttributedString(attributedString: attributed)
+        let full = NSRange(location: 0, length: m.length)
+        var i = full.location
+        let end = NSMaxRange(full)
+        while i < end {
+            var eff = NSRange()
+            let attrs = m.attributes(at: i, effectiveRange: &eff)
+            let isVerseNumeral = scriptureBaselineOffset(from: attrs) > 0.1
+                || scriptureSuperscriptLevel(from: attrs) != 0
+            #if os(macOS)
+            let font = attrs[.font] as? NSFont
+            let isItalic = font.map { NSFontManager.shared.traits(of: $0).contains(.italicFontMask) } ?? false
+                || ((attrs[.obliqueness] as? CGFloat).map { abs($0) > 0.01 } ?? false)
+            #else
+            let font = attrs[.font] as? UIFont
+            let isItalic = font?.fontDescriptor.symbolicTraits.contains(.traitItalic) ?? false
+                || ((attrs[.obliqueness] as? CGFloat).map { abs($0) > 0.01 } ?? false)
+            #endif
+
+            if !isVerseNumeral && !isItalic {
+                let size = font?.pointSize ?? passageBodyPointSize
+                let regular = HarvousFonts.system(size: size, weight: 400, design: .default)
+                m.addAttribute(.font, value: regular, range: eff)
+            }
+
+            let next = NSMaxRange(eff)
+            if next <= i { break }
+            i = next
         }
-        return base
+        return NSAttributedString(attributedString: m)
     }
 
+    #if os(macOS)
     private static func macVerseNumeralFont(fromBody body: NSFont) -> NSFont {
         let s = max(verseNumeralMinSize, (body.pointSize * verseNumeralToBodyScale).rounded())
         return NSFontManager.shared.convert(body, toSize: s)
     }
 
-    /// macOS: serif body; verse numerals use **small font + positive baselineOffset** (SwiftUI-reliable superscript).
+    /// macOS: verse numerals use **small font + positive baselineOffset** (SwiftUI-reliable superscript).
     private static func applyMacDictionaryPassageStyle(to m: NSMutableAttributedString) {
         let full = NSRange(location: 0, length: m.length)
         guard full.length > 0 else { return }
@@ -343,7 +369,7 @@ enum ScripturePassageHTMLParser {
             m.removeAttribute(.link, range: range)
         }
 
-        let bodyFont = serifSystem(size: passageSerifBodyPointSize, weight: .regular)
+        let bodyFont = NSFont.systemFont(ofSize: passageBodyPointSize, weight: .regular)
         let naturalLine = bodyFont.ascender + abs(bodyFont.descender) + bodyFont.leading
         let lineHeight = max(ceil(naturalLine * 1.36), naturalLine + 5)
 
@@ -381,13 +407,13 @@ enum ScripturePassageHTMLParser {
                     .baselineOffset: bo,
                 ], range: eff)
             } else if isBold && !isItalic {
-                let labelFont = serifSystem(size: passageSerifLabelPointSize, weight: .medium)
+                let labelFont = NSFont.systemFont(ofSize: passageLabelPointSize, weight: .medium)
                 m.addAttributes([
                     .font: labelFont,
                     .foregroundColor: NSColor.labelColor,
                 ], range: eff)
             } else if isItalic {
-                let body = serifSystem(size: passageSerifItalicPointSize, weight: .regular)
+                let body = NSFont.systemFont(ofSize: passageItalicPointSize, weight: .regular)
                 let ob = mgr.convert(body, toHaveTrait: .italicFontMask)
                 m.addAttributes([
                     .font: ob,
@@ -423,14 +449,6 @@ enum ScripturePassageHTMLParser {
     }
 
     #elseif os(iOS)
-    private static func serifSystem(size: CGFloat, weight: UIFont.Weight) -> UIFont {
-        let base = UIFont.systemFont(ofSize: size, weight: weight)
-        if let d = base.fontDescriptor.withDesign(.serif) {
-            return UIFont(descriptor: d, size: size)
-        }
-        return base
-    }
-
     private static func iosVerseNumeralFont(fromBody body: UIFont) -> UIFont {
         let s = max(verseNumeralMinSize, (body.pointSize * verseNumeralToBodyScale).rounded())
         return UIFont(descriptor: body.fontDescriptor, size: s)
@@ -444,7 +462,7 @@ enum ScripturePassageHTMLParser {
             m.removeAttribute(.link, range: range)
         }
 
-        let bodyFont = serifSystem(size: passageSerifBodyPointSize, weight: .regular)
+        let bodyFont = UIFont.systemFont(ofSize: passageBodyPointSize, weight: .regular)
         let lineHeight = max(ceil(bodyFont.lineHeight * 1.36), bodyFont.lineHeight + 5)
 
         let para = NSMutableParagraphStyle()
@@ -479,18 +497,18 @@ enum ScripturePassageHTMLParser {
                     .baselineOffset: bo,
                 ], range: eff)
             } else if isBold && !isItalic {
-                let labelFont = serifSystem(size: passageSerifLabelPointSize, weight: .medium)
+                let labelFont = UIFont.systemFont(ofSize: passageLabelPointSize, weight: .medium)
                 m.addAttributes([
                     .font: labelFont,
                     .foregroundColor: UIColor.label,
                 ], range: eff)
             } else if isItalic {
-                let base = serifSystem(size: passageSerifItalicPointSize, weight: .regular)
+                let base = UIFont.systemFont(ofSize: passageItalicPointSize, weight: .regular)
                 let d = base.fontDescriptor
                 let merged = d.symbolicTraits.union(.traitItalic)
                 let ob: UIFont = {
                     guard let nd = d.withSymbolicTraits(merged) else { return base }
-                    return UIFont(descriptor: nd, size: passageSerifItalicPointSize)
+                    return UIFont(descriptor: nd, size: passageItalicPointSize)
                 }()
                 m.addAttributes([
                     .font: ob,
@@ -554,7 +572,7 @@ final class ScripturePassageCache {
     private nonisolated static func cacheKey(reference: String, translation: String) -> String {
         let r = reference.trimmingCharacters(in: .whitespacesAndNewlines)
         let t = translation.trimmingCharacters(in: .whitespacesAndNewlines)
-        return "v18|\(r)|\(t)"
+        return "v19|\(r)|\(t)"
     }
 
     func value(reference: String, translation: String) -> NSAttributedString? {

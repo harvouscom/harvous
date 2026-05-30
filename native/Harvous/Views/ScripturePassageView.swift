@@ -29,6 +29,8 @@ struct ScripturePassageView: View {
     var showHeader: Bool = true
     /// Larger body for reading surfaces (e.g. scripture bar passage strip).
     var useReadingTypography: Bool = false
+    /// When true, passage body and labels render at regular weight (e.g. VOTD sheet).
+    var useRegularPassageWeight: Bool = false
     /// When false, suppresses the translation attribution footer (caller renders it separately).
     var showAttribution: Bool = true
     /// Dock: paint saved passage highlights (under-note-body; cross-note).
@@ -119,6 +121,7 @@ struct ScripturePassageView: View {
                     let painted = Self.mergedDisplayAttributed(
                         from: passageAttributed,
                         useReadingTypography: useReadingTypography,
+                        useRegularPassageWeight: useRegularPassageWeight,
                         paints: passageHighlightPaints,
                         isDark: colorScheme == .dark,
                         focusedThreadId: passageHighlightFocusedThreadId
@@ -129,7 +132,7 @@ struct ScripturePassageView: View {
                     )
                     ScripturePassageFittingTextView(
                         attributed: painted,
-                        contentDigest: passageAttributed.string.hashValue &+ useReadingTypography.hashValue &+ passagePaintsDigest &+ (colorScheme == .dark ? 1 : 0),
+                        contentDigest: passageAttributed.string.hashValue &+ useReadingTypography.hashValue &+ useRegularPassageWeight.hashValue &+ passagePaintsDigest &+ (colorScheme == .dark ? 1 : 0),
                         paintRanges: paintRanges,
                         onSelectionChange: onPassageSelectionChange,
                         onSelectionRectChange: onPassageSelectionRectChange,
@@ -169,7 +172,11 @@ struct ScripturePassageView: View {
 
         if let cached = ScripturePassageCache.shared.value(reference: ref, translation: trans) {
             withAnimation(passageLoadAnimation) {
-                passageAttributed = Self.displayedPassage(from: cached, useReadingTypography: useReadingTypography)
+                passageAttributed = Self.displayedPassage(
+                    from: cached,
+                    useReadingTypography: useReadingTypography,
+                    useRegularPassageWeight: useRegularPassageWeight
+                )
             }
             return
         }
@@ -186,7 +193,11 @@ struct ScripturePassageView: View {
                 guard ref == reference, trans == translation else { return }
                 ScripturePassageCache.shared.insert(parsed, reference: ref, translation: trans, persistHTML: nil)
                 withAnimation(passageLoadAnimation) {
-                    passageAttributed = Self.displayedPassage(from: parsed, useReadingTypography: useReadingTypography)
+                    passageAttributed = Self.displayedPassage(
+                        from: parsed,
+                        useReadingTypography: useReadingTypography,
+                        useRegularPassageWeight: useRegularPassageWeight
+                    )
                     loadError = nil
                 }
                 return
@@ -208,7 +219,11 @@ struct ScripturePassageView: View {
 
             ScripturePassageCache.shared.insert(parsed, reference: ref, translation: trans, persistHTML: html)
             withAnimation(passageLoadAnimation) {
-                passageAttributed = Self.displayedPassage(from: parsed, useReadingTypography: useReadingTypography)
+                passageAttributed = Self.displayedPassage(
+                    from: parsed,
+                    useReadingTypography: useReadingTypography,
+                    useRegularPassageWeight: useRegularPassageWeight
+                )
                 loadError = nil
             }
         } catch is CancellationError {
@@ -241,19 +256,32 @@ struct ScripturePassageView: View {
         return false
     }
 
-    private static func displayedPassage(from base: NSAttributedString, useReadingTypography: Bool) -> NSAttributedString {
+    private static func displayedPassage(
+        from base: NSAttributedString,
+        useReadingTypography: Bool,
+        useRegularPassageWeight: Bool
+    ) -> NSAttributedString {
         let sized = ScripturePassageHTMLParser.enforceVerseNumeralDisplaySizing(base)
-        return useReadingTypography ? sized.withLineSpacingExtra(4) : sized
+        var displayed = useReadingTypography ? sized.withLineSpacingExtra(4) : sized
+        if useRegularPassageWeight {
+            displayed = ScripturePassageHTMLParser.enforceRegularPassageWeight(displayed)
+        }
+        return displayed
     }
 
     private static func mergedDisplayAttributed(
         from base: NSAttributedString,
         useReadingTypography: Bool,
+        useRegularPassageWeight: Bool,
         paints: [ScripturePassageHighlightPaint],
         isDark: Bool,
         focusedThreadId: UUID?
     ) -> NSAttributedString {
-        let displayed = displayedPassage(from: base, useReadingTypography: useReadingTypography)
+        let displayed = displayedPassage(
+            from: base,
+            useReadingTypography: useReadingTypography,
+            useRegularPassageWeight: useRegularPassageWeight
+        )
         return applyPassageHighlightPainting(to: displayed, paints: paints, isDark: isDark, focusedThreadId: focusedThreadId)
     }
 
@@ -340,7 +368,7 @@ struct ScripturePassageView: View {
                 .accessibilityLabel("Translation attribution")
 
             Text(attribution.copyright)
-                .font(.system(size: 10, weight: .medium))
+                .font(HarvousFonts.font(size: 10, weight: .medium, design: .default))
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
                 .truncationMode(.tail)
@@ -351,7 +379,7 @@ struct ScripturePassageView: View {
                 Link(destination: websiteURL) {
                     HStack(spacing: 3) {
                         Text(ScriptureReference.displayTranslationLabel(translation))
-                            .font(.system(size: 9, weight: .semibold))
+                            .font(HarvousFonts.font(size: 9, weight: .semibold, design: .default))
                         HarvousFAGlyph(assetName: "Harvous.ArrowUpRight", edgePt: 7)
                     }
                     .foregroundStyle(.secondary)
@@ -517,13 +545,20 @@ private struct ScripturePassageFittingTextView: NSViewRepresentable {
     func sizeThatFits(_ proposal: ProposedViewSize, nsView: ScripturePassageNSTextView, context: Context) -> CGSize? {
         let w = proposal.width ?? 400
         guard w.isFinite, w > 1 else { return nil }
-        nsView.textContainer?.containerSize = NSSize(width: w, height: CGFloat.greatestFiniteMagnitude)
-        nsView.frame = NSRect(x: 0, y: 0, width: w, height: 10_000)
-        guard let tc = nsView.textContainer, let lm = nsView.layoutManager else {
-            return CGSize(width: w, height: 1)
-        }
-        lm.ensureLayout(for: tc)
-        let used = lm.usedRect(for: tc)
+        // Measure against a detached TextKit stack rather than the hosted text
+        // view. Mutating `nsView`'s container/frame and calling `ensureLayout`
+        // here runs synchronously inside SwiftUI's layout pass, which trips
+        // AppKit's "layoutSubtreeIfNeeded ... already being laid out"
+        // (`_NSDetectedLayoutRecursion`) warning. A standalone stack with the
+        // same attributed string + width yields the same height without it.
+        let textStorage = NSTextStorage(attributedString: attributed)
+        let layoutManager = NSLayoutManager()
+        let textContainer = NSTextContainer(size: NSSize(width: w, height: .greatestFiniteMagnitude))
+        textContainer.lineFragmentPadding = 0
+        layoutManager.addTextContainer(textContainer)
+        textStorage.addLayoutManager(layoutManager)
+        layoutManager.ensureLayout(for: textContainer)
+        let used = layoutManager.usedRect(for: textContainer)
         let h = used.height + nsView.textContainerInset.height * 2
         return CGSize(width: w, height: max(1, ceil(h)))
     }

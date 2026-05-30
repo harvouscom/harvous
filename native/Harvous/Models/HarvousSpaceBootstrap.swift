@@ -48,6 +48,34 @@ enum HarvousSpaceBootstrap {
         }
     }
 
+    /// Returns `note.spaceId` when that space row exists locally; otherwise personal home.
+    /// Cross-environment sync (prod notes in a dev store) can leave orphan space UUIDs that
+    /// make space-scoped thread fetches miss data and, in worst cases, stall note open.
+    @MainActor
+    static func validatedSpaceId(
+        for note: Note,
+        in context: ModelContext,
+        defaultHome: UUID = personalHomeSpaceId
+    ) -> UUID {
+        let candidate = note.spaceId ?? defaultHome
+        let sid = candidate
+        let descriptor = FetchDescriptor<Space>(predicate: #Predicate { $0.id == sid })
+        if (try? context.fetch(descriptor).first) != nil {
+            return candidate
+        }
+        return defaultHome
+    }
+
+    /// Repairs notes whose `spaceId` points at a missing `Space` row (legacy drift / cross-env).
+    @MainActor
+    static func healNoteSpaceIfNeeded(_ note: Note, in context: ModelContext) {
+        guard let sid = note.spaceId else { return }
+        let descriptor = FetchDescriptor<Space>(predicate: #Predicate { $0.id == sid })
+        if (try? context.fetch(descriptor).first) == nil {
+            note.spaceId = personalHomeSpaceId
+        }
+    }
+
     private static func migrateSelectedSpaceIdIfNeeded(homeId: UUID) {
         let raw = UserDefaults.standard.string(forKey: selectedSpaceKey) ?? ""
         if raw.isEmpty || raw == legacyMyHomeAppStorageId {
@@ -61,8 +89,17 @@ enum HarvousSpaceBootstrap {
 }
 
 extension Note {
-    /// Resolves note scope for display and filtering.
+    /// Resolves note scope for display and filtering (no SwiftData lookup).
     func resolvedSpaceId(defaultHome: UUID = HarvousSpaceBootstrap.personalHomeSpaceId) -> UUID {
         spaceId ?? defaultHome
+    }
+
+    /// Like `resolvedSpaceId()`, but verifies the space row exists in the local store.
+    @MainActor
+    func resolvedSpaceId(
+        in context: ModelContext,
+        defaultHome: UUID = HarvousSpaceBootstrap.personalHomeSpaceId
+    ) -> UUID {
+        HarvousSpaceBootstrap.validatedSpaceId(for: self, in: context, defaultHome: defaultHome)
     }
 }

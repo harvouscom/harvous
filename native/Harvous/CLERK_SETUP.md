@@ -59,6 +59,11 @@ first successful sync (`HarvousSyncService.pullAll`) populates them.
 
 - On sign-in (`task(id: userId)`) → `flushPending` then `pullAll`.
 - On app entering foreground → same.
+- On `markDirty()` → `HarvousSyncScheduler` debounces upload (~1.5s); pull (~10s) runs only after a successful upload, not on every keystroke.
+- Sign-in / foreground cancel pending scheduler work, then run explicit flush → pull → flush.
+- Ingest from pulls is chunked with `Task.yield()` so large libraries do not freeze the UI.
+
+**Cross-device testing:** use the **Debug-Prod** scheme so Mac/iOS talk to `https://app.harvous.com`. The default **Debug** scheme targets localhost only; production web (`/prototype`) will not see those notes. See [docs/troubleshooting/CROSS_PLATFORM_SYNC.md](../../docs/troubleshooting/CROSS_PLATFORM_SYNC.md).
 
 Edits made offline flag rows with `needsSync = true` (see `markDirty()` on
 each model). The next flush uploads them; on success `serverId` is written

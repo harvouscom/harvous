@@ -52,17 +52,17 @@ struct EastonsEntryView: View {
             HStack(spacing: 8) {
                 ProgressView().scaleEffect(0.7)
                 Text("Looking up…")
-                    .font(.system(size: 13))
+                    .font(HarvousFonts.font(size: 13, weight: .regular, design: .default))
                     .foregroundStyle(Color.primary.opacity(0.65))
             }
             .padding(.vertical, 4)
         case .notFound:
             Text("No Easton's entry found.")
-                .font(.system(size: 13))
+                .font(HarvousFonts.font(size: 13, weight: .regular, design: .default))
                 .foregroundStyle(Color.primary.opacity(0.65))
         case .failed:
             Text("Couldn't load entry. Check your connection and try again.")
-                .font(.system(size: 13))
+                .font(HarvousFonts.font(size: 13, weight: .regular, design: .default))
                 .foregroundStyle(Color.primary.opacity(0.65))
         case .loaded:
             if let entry { entryBody(entry) }
@@ -74,14 +74,14 @@ struct EastonsEntryView: View {
         if showHeadword {
             HStack(alignment: .center, spacing: 8) {
                 Text(entry.headword)
-                    .font(.system(size: 17, weight: .semibold))
+                    .font(HarvousFonts.font(size: 17, weight: .semibold, design: .default))
                     .foregroundStyle(Color.primary)
                 if let iconAsset = EastonsSlugIndexEntry.categoryIconAsset(for: entry.category),
                    let category = entry.category {
                     HStack(spacing: 4) {
                         HarvousFAGlyph(assetName: iconAsset, edgePt: 11)
                         Text(category.capitalized)
-                            .font(.system(size: 11, weight: .medium))
+                            .font(HarvousFonts.font(size: 11, weight: .medium, design: .default))
                     }
                     .foregroundStyle(Color.primary.opacity(0.45))
                     .padding(.horizontal, 8)
@@ -92,7 +92,7 @@ struct EastonsEntryView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         Text(entry.body)
-            .font(.system(size: 15))
+            .font(HarvousFonts.font(size: 15, weight: .regular, design: .default))
             .lineSpacing(4)
             .foregroundStyle(Color.primary.opacity(0.9))
             .fixedSize(horizontal: false, vertical: true)
@@ -105,7 +105,7 @@ struct EastonsEntryView: View {
     private func seeAlsoRow(_ items: [String]) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             Text("See also")
-                .font(.system(size: 12, weight: .medium))
+                .font(HarvousFonts.font(size: 12, weight: .medium, design: .default))
                 .foregroundStyle(Color.primary.opacity(0.55))
             EastonsChipFlowLayout(spacing: 6) {
                 ForEach(items, id: \.self) { item in
@@ -123,7 +123,7 @@ struct EastonsEntryView: View {
             if let matched { slug = matched }
         } label: {
             Text(item)
-                .font(.system(size: 13, weight: .medium))
+                .font(HarvousFonts.font(size: 13, weight: .medium, design: .default))
                 .foregroundStyle(matched != nil ? Color.accentColor : Color.primary.opacity(0.45))
                 .padding(.horizontal, 8)
                 .padding(.vertical, 4)
@@ -139,7 +139,7 @@ struct EastonsEntryView: View {
 
     private var disclaimerRow: some View {
         Text("Easton's Bible Dictionary, 1897 · Public domain")
-            .font(.system(size: 10))
+            .font(HarvousFonts.font(size: 10, weight: .regular, design: .default))
             .foregroundStyle(Color.primary.opacity(0.45))
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.top, 4)

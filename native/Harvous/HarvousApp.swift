@@ -5,6 +5,9 @@ import os
 #if os(iOS)
 import UIKit
 #endif
+#if canImport(ClerkKit)
+import ClerkKit
+#endif
 
 extension Logger {
     private static let subsystem = Bundle.main.bundleIdentifier ?? "com.harvous.app"
@@ -31,6 +34,7 @@ struct HarvousApp: App {
     #if os(macOS)
     @StateObject private var macNoteListSelectionCoordinator = MacNoteListSelectionCoordinator()
     #endif
+    @StateObject private var shiftHints = HarvousShiftHintsMonitor()
 
     /// Built once, explicitly, so we can log migration failures instead of silently
     /// falling back to an in-memory store (which is what `.modelContainer(for:)` does
@@ -50,7 +54,10 @@ struct HarvousApp: App {
         ])
 
         // Pin the store to a stable Application Support URL so the location can't
-        // move between build configs or Xcode versions.
+        // move between build configs or Xcode versions. The filename is keyed by the
+        // Clerk environment (test vs live) so dev and prod builds use *separate* stores
+        // and never cross-contaminate synced notes (prod data in a dev store renders
+        // unresolvable cross-environment references and can hang the UI on open).
         let storeURL: URL? = {
             let fm = FileManager.default
             guard let dir = try? fm.url(
@@ -61,7 +68,7 @@ struct HarvousApp: App {
             ) else { return nil }
             let appDir = dir.appendingPathComponent("Harvous", isDirectory: true)
             try? fm.createDirectory(at: appDir, withIntermediateDirectories: true)
-            return appDir.appendingPathComponent("Harvous.store")
+            return appDir.appendingPathComponent("Harvous-\(HarvousEnvironment.storeEnvironmentSlug).store")
         }()
 
         let config: ModelConfiguration
@@ -137,17 +144,33 @@ struct HarvousApp: App {
                 ContentView()
                     .environmentObject(appRouter)
                     .environmentObject(spaceStore)
+                    .environmentObject(shiftHints)
                     #if os(macOS)
                     .environmentObject(macNoteListSelectionCoordinator)
-                    .frame(minWidth: 980)
+                    // Explicit floor only — do not use `.windowResizability(.contentMinSize)` here:
+                    // the note editor's scroll content height tracks document length and would pin the
+                    // window to the full note height (non-resizable giant window).
+                    .frame(minWidth: 980, minHeight: 560)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
                     #endif
+            }
+            .onAppear {
+                #if os(macOS)
+                shiftHints.isEnabled = true
+                shiftHints.install()
+                #elseif os(iOS)
+                shiftHints.isEnabled = UIDevice.current.userInterfaceIdiom != .phone
+                if shiftHints.isEnabled { shiftHints.install() }
+                #endif
+            }
+            .onDisappear {
+                shiftHints.uninstall()
             }
         }
         #if os(macOS)
         // Unified title bar + traffic lights: same as document window (glass reads under the toolbar).
         .windowToolbarStyle(.unified(showsTitle: false))
         .defaultSize(width: 1100, height: 720)
-        .windowResizability(.contentMinSize)
         #endif
         .modelContainer(modelContainer)
         #if os(macOS)
@@ -167,12 +190,14 @@ struct HarvousApp: App {
                 .environmentObject(appRouter)
                 .environmentObject(spaceStore)
                 .environment(\.harvousScriptureTheme, spaceStore.scriptureTheme)
+                #if canImport(ClerkKit)
+                .environment(Clerk.shared)
+                #endif
         }
         .modelContainer(modelContainer)
         // Pane name from `navigationTitle` lives in the title bar next to traffic lights + toolbar (not a second row).
         .windowToolbarStyle(.unified(showsTitle: true))
         .defaultSize(width: 800, height: 560)
-        .windowResizability(.contentMinSize)
         #endif
     }
 }

@@ -174,7 +174,7 @@ struct ActiveHighlightDock: View {
         HStack(spacing: 3) {
             HarvousFAGlyph(assetName: iconAsset, edgePt: 10)
             Text(label)
-                .font(.system(size: 11, weight: .medium))
+                .font(HarvousFonts.font(size: 11, weight: .medium, design: .default))
         }
         .foregroundStyle(Color.primary.opacity(0.5))
         .padding(.horizontal, 6)
@@ -194,7 +194,7 @@ struct ActiveHighlightDock: View {
             // remaining space so long titles can truncate cleanly instead of overflowing the frame.
             let hasReferenceBadge = referenceCategoryMeta != nil
             TextField("", text: $thread.focusTitle, prompt: Text(defaultHighlightTitle).foregroundStyle(.secondary))
-                .font(.system(size: 14, weight: .semibold))
+                .font(HarvousFonts.font(size: 14, weight: .semibold, design: .default))
                 .foregroundStyle(.primary)
                 .textFieldStyle(.plain)
                 .lineLimit(1)
@@ -322,7 +322,7 @@ struct ActiveHighlightDock: View {
                 VStack(alignment: .leading, spacing: 10) {
                     if thread.entryKind == .miniNote {
                         TextField("Note (optional)…", text: $thread.miniNoteBody, axis: .vertical)
-                            .font(.system(size: 14, weight: .regular))
+                            .font(HarvousFonts.font(size: 14, weight: .regular, design: .default))
                             .foregroundStyle(.secondary)
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .textFieldStyle(.plain)
@@ -341,14 +341,14 @@ struct ActiveHighlightDock: View {
                               !ex.isEmpty {
                         if !hideExcerptDisplay {
                             Text(ex)
-                                .font(.system(size: 14, weight: .regular))
+                                .font(HarvousFonts.font(size: 14, weight: .regular, design: .default))
                                 .foregroundStyle(.primary)
                                 .frame(maxWidth: .infinity, alignment: .leading)
                                 .fixedSize(horizontal: false, vertical: true)
                         }
 
                         TextField("Note (optional)…", text: $thread.miniNoteBody, axis: .vertical)
-                            .font(.system(size: 14, weight: .regular))
+                            .font(HarvousFonts.font(size: 14, weight: .regular, design: .default))
                             .foregroundStyle(.secondary)
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .textFieldStyle(.plain)
@@ -368,7 +368,7 @@ struct ActiveHighlightDock: View {
                             .fixedSize(horizontal: false, vertical: true)
                     } else {
                         Text(DockHighlightCopy.detail(thread, modelContext: modelContext))
-                            .font(.system(size: 14, weight: .regular))
+                            .font(HarvousFonts.font(size: 14, weight: .regular, design: .default))
                             .foregroundStyle(.secondary)
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .fixedSize(horizontal: false, vertical: true)
@@ -414,7 +414,7 @@ struct ActiveHighlightDock: View {
                     HarvousFAGlyph(assetName: "Harvous.Reply", edgePt: 10)
                         .foregroundStyle(.tertiary)
                     Text("Respond")
-                        .font(.system(size: 11, weight: .medium))
+                        .font(HarvousFonts.font(size: 11, weight: .medium, design: .default))
                         .foregroundStyle(.tertiary)
                     Spacer()
                     HarvousFAGlyph(assetName: "Harvous.ChevronDown", edgePt: 9)
@@ -439,7 +439,7 @@ struct ActiveHighlightDock: View {
                                 try? modelContext.saveWithLogging()
                             } label: {
                                 Text(prompt)
-                                    .font(.system(size: 12))
+                                    .font(HarvousFonts.font(size: 12, weight: .regular, design: .default))
                                     .foregroundStyle(.secondary)
                                     .fixedSize()
                                     .padding(.horizontal, 8)
@@ -478,7 +478,7 @@ struct ActiveHighlightDock: View {
                     HStack(spacing: 5) {
                         HarvousFAGlyph(assetName: "Harvous.ArrowRightArrowLeft", edgePt: 12)
                         Text("View connected note")
-                            .font(.system(size: 13, weight: .medium))
+                            .font(HarvousFonts.font(size: 13, weight: .medium, design: .default))
                     }
                 }
                 .buttonStyle(.plain)
@@ -496,7 +496,7 @@ struct ActiveHighlightDock: View {
                     onReadPassage?(trimmed, trans)
                 } label: {
                     Label("Read passage", image: "Harvous.BookOpen")
-                        .font(.system(size: 13, weight: .medium))
+                        .font(HarvousFonts.font(size: 13, weight: .medium, design: .default))
                 }
                 .buttonStyle(.plain)
                 .foregroundStyle(accentTint)

@@ -69,6 +69,7 @@
 		<string>Scorekard-Regular.otf</string>
 		<string>Scorekard-Semibold.otf</string>
 		<string>Scorekard-Bold.otf</string>
+		<string>GoogleSansFlex-Variable.ttf</string>
 	</array>
 	<key>ATSApplicationFontsPath</key>
 	<string>.</string>

@@ -23,8 +23,8 @@ struct NoteListColumn: View {
     /// On iOS: typically forwarded to `HarvousAppRouter.requestComposeNewNote()` from the FAB.
     var onNewNote: () -> Void = {}
     #if os(iOS)
-    /// When set on iPhone home / Notes tab, drives `NavigationLink(value: UUID)` destinations from the ancestor stack.
-    var iosNoteNavPath: Binding<[UUID]>?
+    /// When set on iPhone home / Notes tab, drives note editor push from the ancestor stack.
+    var iosSelectedNoteId: Binding<UUID?>?
     #endif
     /// When set on iOS, overrides `NoteFilter.displayName` for the navigation title (Notes tab).
     var navigationTitleOverride: String? = nil
@@ -66,7 +66,7 @@ struct NoteListColumn: View {
         navigationTitleOverride: String? = nil,
         ownsSidebarChrome: Bool = true,
         searchPresentationBinding: Binding<Bool>? = nil,
-        iosNoteNavPath: Binding<[UUID]>? = nil,
+        iosSelectedNoteId: Binding<UUID?>? = nil,
         onNewNote: @escaping () -> Void = {}
     ) {
         self.filter = filter
@@ -76,7 +76,7 @@ struct NoteListColumn: View {
         self.navigationTitleOverride = navigationTitleOverride
         self.ownsSidebarChrome = ownsSidebarChrome
         self.searchPresentationBinding = searchPresentationBinding
-        self.iosNoteNavPath = iosNoteNavPath
+        self.iosSelectedNoteId = iosSelectedNoteId
         self.onNewNote = onNewNote
     }
     #endif
@@ -313,6 +313,7 @@ struct NoteListColumn: View {
                 noteList(rows: rows)
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
     }
 
     // MARK: - macOS sidebar chrome
@@ -403,6 +404,8 @@ struct NoteListColumn: View {
         .scrollContentBackground(.hidden)
         #if os(iOS)
         .modifier(IPadAwareListBottomChromeReserve(skip: isIPadSplitLayout))
+        #elseif os(macOS)
+        .modifier(MacOSSidebarDailyPassagePillListReserve(enabled: columnStyle == .macOSSidebar))
         #endif
     }
 
@@ -421,9 +424,9 @@ struct NoteListColumn: View {
     private func noteRowContent(for note: Note) -> some View {
         #if os(iOS)
         if columnStyle == .iOSHomeFeed || columnStyle == .iOSTabNoteList {
-            if let iosNoteNavPath {
+            if let iosSelectedNoteId {
                 Button {
-                    iosNoteNavPath.wrappedValue.append(note.id)
+                    iosSelectedNoteId.wrappedValue = note.id
                 } label: {
                     NoteFeedRow(note: note, variant: .conversation)
                 }
@@ -432,7 +435,7 @@ struct NoteListColumn: View {
                     noteRowTogglePinSwipe(note: note)
                 }
                 .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                    noteRowDeleteSwipe(note: note, iosNavPath: iosNoteNavPath)
+                    noteRowDeleteSwipe(note: note, iosSelectedNoteId: iosSelectedNoteId)
                 }
                 .listRowInsets(EdgeInsets(top: 4, leading: HarvousFeedListLayout.listRowHorizontalInset, bottom: 4, trailing: HarvousFeedListLayout.listRowHorizontalInset))
                 .listRowBackground(Color.clear)
@@ -448,7 +451,7 @@ struct NoteListColumn: View {
                     noteRowTogglePinSwipe(note: note)
                 }
                 .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                    noteRowDeleteSwipe(note: note, iosNavPath: nil)
+                    noteRowDeleteSwipe(note: note, iosSelectedNoteId: nil)
                 }
                 .listRowInsets(EdgeInsets(top: 4, leading: HarvousFeedListLayout.listRowHorizontalInset, bottom: 4, trailing: HarvousFeedListLayout.listRowHorizontalInset))
                 .listRowBackground(Color.clear)
@@ -490,12 +493,12 @@ struct NoteListColumn: View {
                 noteRowTogglePinSwipe(note: note)
             }
             .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                noteRowDeleteSwipe(note: note, iosNavPath: nil)
+                noteRowDeleteSwipe(note: note, iosSelectedNoteId: nil)
             }
     }
 
     @ViewBuilder
-    private func noteRowDeleteSwipe(note: Note, iosNavPath: Binding<[UUID]>?) -> some View {
+    private func noteRowDeleteSwipe(note: Note, iosSelectedNoteId: Binding<UUID?>?) -> some View {
         Button(role: .destructive) {
             let doomedId = note.id
             withAnimation {
@@ -506,9 +509,11 @@ struct NoteListColumn: View {
                 HarvousSyncingDelete.delete(note: note, context: context)
                 try? context.save()
             }
-            guard let iosNavPath else { return }
+            guard let iosSelectedNoteId else { return }
             Task { @MainActor in
-                iosNavPath.wrappedValue.removeAll { $0 == doomedId }
+                if iosSelectedNoteId.wrappedValue == doomedId {
+                    iosSelectedNoteId.wrappedValue = nil
+                }
             }
         } label: {
             Label {
@@ -523,13 +528,13 @@ struct NoteListColumn: View {
 #endif
     }
 
-    /// Leading swipe — same persistence as `NoteShareMoreBar` pin in `NoteTopBar`.
+    /// Leading swipe — same persistence as `NoteMoreToolbarMenu` pin in `NoteTopBar`.
     @ViewBuilder
     private func noteRowTogglePinSwipe(note: Note) -> some View {
         Button {
             withAnimation {
                 note.isPinned.toggle()
-                note.markDirty()
+                note.markDirtyMetadata()
                 try? context.saveWithLogging()
             }
             HarvousNoteSpotlightIndexer.reindex(note: note)
@@ -550,19 +555,12 @@ struct NoteListColumn: View {
     // MARK: - Empty state
 
     private var emptyState: some View {
-        VStack(spacing: 8) {
-            HarvousFAGlyph(assetName: "Harvous.Note", edgePt: 16)
-                .foregroundStyle(.tertiary)
-            Text("No Notes")
-                .font(HarvousTypography.body)
-                .fontWeight(.semibold)
-                .foregroundStyle(.secondary)
-            Text("Create your first note to get started.")
-                .font(HarvousTypography.caption)
-                .foregroundStyle(.tertiary)
-                .multilineTextAlignment(.center)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+        HarvousEmptyStateView(
+            iconAsset: "Harvous.Note",
+            title: "No Notes",
+            description: "Create your first note to get started.",
+            scale: .compact
+        )
     }
 }
 

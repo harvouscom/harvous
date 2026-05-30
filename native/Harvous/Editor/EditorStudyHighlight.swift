@@ -263,14 +263,6 @@ enum HarvousStudyHighlightMapper {
         case partialAttachmentOverlap
     }
 
-#if os(macOS)
-    private static func pngDataInline(_ attachment: NoteInlineImageAttachment) -> Data? {
-        guard let img = attachment.image else { return nil }
-        guard let tiff = img.tiffRepresentation, let rep = NSBitmapImageRep(data: tiff) else { return nil }
-        return rep.representation(using: .png, properties: [:])
-    }
-#endif
-
     private struct Piece {
         var storageRange: NSRange
         var expandedSnippet: String
@@ -295,24 +287,21 @@ enum HarvousStudyHighlightMapper {
                     i = NSMaxRange(eff)
                     continue
                 }
-#if os(macOS)
                 if attAny is HorizontalRuleAttachment {
                     out.append(Piece(storageRange: eff, expandedSnippet: "\n---\n", isAtomicAttachment: true))
                     i = NSMaxRange(eff)
                     continue
                 }
                 if let imgAtt = attAny as? NoteInlineImageAttachment {
-                    if let png = pngDataInline(imgAtt) {
-                        let snip = "\n[Image:\(png.base64EncodedString())]\n"
+                    if let payload = NoteInlineImageSerialization.inlineImagePayload(from: imgAtt) {
+                        let snip = NoteInlineImageSerialization.inlineImageMarker(forPayload: payload)
                         out.append(Piece(storageRange: eff, expandedSnippet: snip, isAtomicAttachment: true))
                     } else {
-                        out.append(Piece(storageRange: eff, expandedSnippet: "\n[Image]\n", isAtomicAttachment: true))
+                        out.append(Piece(storageRange: eff, expandedSnippet: NoteInlineImageSerialization.legacyPlaceholder, isAtomicAttachment: true))
                     }
                     i = NSMaxRange(eff)
                     continue
                 }
-#else
-#endif
                 let r = ns.rangeOfComposedCharacterSequence(at: i)
                 let sub = ns.substring(with: r)
                 out.append(Piece(storageRange: r, expandedSnippet: sub, isAtomicAttachment: true))

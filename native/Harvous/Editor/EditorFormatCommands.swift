@@ -490,7 +490,8 @@ extension EditorProxy {
     }
 
     private func insertInlineUIImageAttachment(image picked: UIImage, tv: UITextView, storage: NSTextStorage) {
-        let att = NSAttributedString(attachment: NoteInlineImageAttachment(image: picked))
+        let scaled = NoteInlineImageSerialization.downscaledForInlineInsert(picked)
+        let att = NSAttributedString(attachment: NoteInlineImageAttachment(image: scaled))
         let range = caretRange(for: tv)
         storage.beginEditing()
         storage.replaceCharacters(in: range, with: att)
@@ -505,7 +506,8 @@ extension EditorProxy {
 
 #if os(macOS)
     private func insertInlineNSImageAttachment(image picked: NSImage, tv: NSTextView, storage: NSTextStorage) {
-        let att = NSAttributedString(attachment: NoteInlineImageAttachment(image: picked))
+        let scaled = NoteInlineImageSerialization.downscaledForInlineInsert(picked)
+        let att = NSAttributedString(attachment: NoteInlineImageAttachment(image: scaled))
         let range = caretRange(for: tv)
         storage.beginEditing()
         storage.replaceCharacters(in: range, with: att)

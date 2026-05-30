@@ -7,7 +7,7 @@ struct StudyHighlightListColumn: View {
     var externalSearchText: Binding<String>? = nil
     var columnStyle: NoteListColumnStyle
     #if os(iOS)
-    var iosNoteNavPath: Binding<[UUID]>?
+    var iosSelectedNoteId: Binding<UUID?>?
     #endif
 
     var ownsSidebarChrome: Bool = true
@@ -30,13 +30,13 @@ struct StudyHighlightListColumn: View {
         externalSearchText: Binding<String>? = nil,
         columnStyle: NoteListColumnStyle = .iOSTabNoteList,
         ownsSidebarChrome: Bool = true,
-        iosNoteNavPath: Binding<[UUID]>? = nil
+        iosSelectedNoteId: Binding<UUID?>? = nil
     ) {
         _selectedNote = selectedNote
         self.externalSearchText = externalSearchText
         self.columnStyle = columnStyle
         self.ownsSidebarChrome = ownsSidebarChrome
-        self.iosNoteNavPath = iosNoteNavPath
+        self.iosSelectedNoteId = iosSelectedNoteId
     }
     #endif
 
@@ -275,7 +275,9 @@ struct StudyHighlightListColumn: View {
                     highlightList
                 }
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
     }
 
     private var kindChipBar: some View {
@@ -310,7 +312,7 @@ struct StudyHighlightListColumn: View {
         let vPad: CGFloat = 8
         #else
         let iconPt: CGFloat = 10
-        let labelFont: Font = .system(size: 12, weight: .medium)
+        let labelFont: Font = HarvousFonts.font(size: 12, weight: 500, design: .default)
         let hStackSpacing: CGFloat = 4
         let hPad: CGFloat = 10
         let vPad: CGFloat = 5
@@ -386,6 +388,8 @@ struct StudyHighlightListColumn: View {
         .scrollContentBackground(.hidden)
         #if os(iOS)
         .modifier(IPadAwareListBottomChromeReserve(skip: isIPadSplitLayout))
+        #elseif os(macOS)
+        .modifier(MacOSSidebarDailyPassagePillListReserve(enabled: columnStyle == .macOSSidebar))
         #endif
     }
 
@@ -405,9 +409,9 @@ struct StudyHighlightListColumn: View {
         let subtitle = StudyHighlightListIndex.subtitlePreview(for: thread, parentNoteTitle: parentTitle)
         #if os(iOS)
         if columnStyle == .iOSHomeFeed || columnStyle == .iOSTabNoteList {
-            if let iosNoteNavPath {
+            if let iosSelectedNoteId {
                 Button {
-                    openHighlight(thread, iosNavPath: iosNoteNavPath)
+                    openHighlight(thread, iosSelectedNoteId: iosSelectedNoteId)
                 } label: {
                     StudyHighlightFeedRow(
                         focusTitle: thread.focusTitle,
@@ -498,7 +502,7 @@ struct StudyHighlightListColumn: View {
     }
 
     #if os(iOS)
-    private func openHighlight(_ thread: StudyThread, iosNavPath: Binding<[UUID]>) {
+    private func openHighlight(_ thread: StudyThread, iosSelectedNoteId: Binding<UUID?>) {
         if let query = scripturePassageHighlightStandaloneQuery(for: thread) {
             sidebarSelectedThreadId = thread.id
             appRouter.presentStandaloneScripturePassageDock(
@@ -510,7 +514,7 @@ struct StudyHighlightListColumn: View {
         }
         guard let parent = ThreadStore.fetchNote(id: thread.parentNoteId, modelContext: context) else { return }
         sidebarSelectedThreadId = thread.id
-        iosNavPath.wrappedValue.append(parent.id)
+        iosSelectedNoteId.wrappedValue = parent.id
         Task { @MainActor in
             appRouter.enqueueStudyHighlightListActivation(noteId: parent.id, threadId: thread.id)
         }
@@ -653,26 +657,19 @@ struct StudyHighlightListColumn: View {
     }
 
     private var emptyState: some View {
-        VStack(spacing: 8) {
-            HarvousFAGlyph(assetName: "Harvous.Highlight", edgePt: 16)
-                .foregroundStyle(.tertiary)
-            Text("No Highlights")
-                .font(HarvousTypography.body)
-                .fontWeight(.semibold)
-                .foregroundStyle(.secondary)
-            Text("Selections and passage highlights from your notes appear here.")
-                .font(HarvousTypography.caption)
-                .foregroundStyle(.tertiary)
-                .multilineTextAlignment(.center)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+        HarvousEmptyStateView(
+            iconAsset: "Harvous.Highlight",
+            title: "No Highlights",
+            description: "Selections and passage highlights from your notes appear here.",
+            scale: .compact
+        )
     }
 }
 
 #if os(iOS)
 /// iPhone highlights hub — mirrors `HomeHubView` chrome; list uses bottom inline search.
 struct HighlightsHubView: View {
-    @Binding var iosNoteNavigationPath: [UUID]
+    @Binding var iosSelectedNoteId: UUID?
     @EnvironmentObject private var appRouter: HarvousAppRouter
 
     var body: some View {
@@ -680,7 +677,7 @@ struct HighlightsHubView: View {
             selectedNote: .constant(nil),
             externalSearchText: $appRouter.iosInlineSearchText,
             columnStyle: .iOSTabNoteList,
-            iosNoteNavPath: $iosNoteNavigationPath
+            iosSelectedNoteId: $iosSelectedNoteId
         )
         .toolbar {
             ToolbarItem(placement: .topBarLeading) {

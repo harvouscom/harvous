@@ -85,7 +85,7 @@ struct MacSignInView: View {
                 .frame(width: 22, height: 22)
                 .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
             Text("Harvous")
-                .font(.system(size: 15, weight: .semibold))
+                .font(HarvousFonts.font(size: 15, weight: .semibold, design: .default))
                 .tracking(-0.2)
                 .foregroundStyle(HarvousSitePalette.ink)
         }
@@ -142,7 +142,7 @@ struct MacSignInView: View {
     private func displayWord(_ text: String, marked: Bool = false) -> some View {
         let fontSize: CGFloat = {
             #if os(iOS)
-            return UIScreen.main.bounds.width * 0.105
+            return min(UIScreen.main.bounds.width * 0.105, 52)
             #else
             return 44
             #endif
@@ -223,7 +223,7 @@ struct MacSignInView: View {
         HStack(spacing: 12) {
             Rectangle().fill(HarvousSitePalette.rule).frame(height: 0.5)
             Text("or")
-                .font(.system(size: 12))
+                .font(HarvousFonts.font(size: 12, weight: .regular, design: .default))
                 .foregroundStyle(HarvousSitePalette.inkFaint)
             Rectangle().fill(HarvousSitePalette.rule).frame(height: 0.5)
         }
@@ -247,7 +247,8 @@ struct MacSignInView: View {
     ) -> some View {
         let base = TextField("", text: text, prompt: Text(prompt).foregroundColor(HarvousSitePalette.inkFaint))
             .textFieldStyle(.plain)
-            .font(.system(size: 15))
+            .font(HarvousFonts.font(size: 15, weight: .regular, design: .default))
+            .foregroundColor(HarvousSitePalette.ink)
             .padding(.horizontal, 20)
             .padding(.vertical, 13)
             .background(
@@ -300,7 +301,7 @@ struct MacSignInView: View {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { focusedField = .email }
             }
             .buttonStyle(.plain)
-            .font(.system(size: 13))
+            .font(HarvousFonts.font(size: 13, weight: .regular, design: .default))
             .foregroundStyle(HarvousSitePalette.accent)
         }
     }
@@ -343,7 +344,7 @@ struct MacSignInView: View {
                 ProgressView().controlSize(.small).tint(.white)
             } else {
                 Text(title)
-                    .font(.system(size: 15, weight: .semibold))
+                    .font(HarvousFonts.font(size: 15, weight: .semibold, design: .default))
                     .foregroundStyle(.white)
             }
         }
@@ -354,21 +355,21 @@ struct MacSignInView: View {
     private var switcherLine: some View {
         HStack(spacing: 4) {
             Text(mode == .signIn ? "Don't have an account?" : "Already have an account?")
-                .font(.system(size: 13))
+                .font(HarvousFonts.font(size: 13, weight: .regular, design: .default))
                 .foregroundStyle(HarvousSitePalette.inkSoft)
             Button(mode == .signIn ? "Sign up" : "Sign in") {
                 mode = mode == .signIn ? .signUp : .signIn
                 errorMessage = nil
             }
             .buttonStyle(.plain)
-            .font(.system(size: 13, weight: .semibold))
+            .font(HarvousFonts.font(size: 13, weight: .semibold, design: .default))
             .foregroundStyle(HarvousSitePalette.accent)
         }
     }
 
     private var footerLine: some View {
         Text("Secured by Clerk")
-            .font(.system(size: 11))
+            .font(HarvousFonts.font(size: 11, weight: .regular, design: .default))
             .foregroundStyle(HarvousSitePalette.inkFaint)
     }
 
@@ -563,6 +564,7 @@ struct HarvousPaperWindowChrome: NSViewRepresentable {
         coordinator.restore()
     }
 
+    @MainActor
     final class Coordinator {
         private weak var window: NSWindow?
         private var paperColor: NSColor?
@@ -570,6 +572,8 @@ struct HarvousPaperWindowChrome: NSViewRepresentable {
         private var savedStyleMask: NSWindow.StyleMask?
         private var savedTitlebarAppearsTransparent: Bool?
         private var savedTitleVisibility: NSWindow.TitleVisibility?
+        private var savedSeparatorStyle: NSTitlebarSeparatorStyle?
+        private var savedToolbarVisible: Bool?
         private var observers: [NSObjectProtocol] = []
 
         func attach(to window: NSWindow, paper: Color) {
@@ -579,6 +583,8 @@ struct HarvousPaperWindowChrome: NSViewRepresentable {
             savedStyleMask = window.styleMask
             savedTitlebarAppearsTransparent = window.titlebarAppearsTransparent
             savedTitleVisibility = window.titleVisibility
+            savedSeparatorStyle = window.titlebarSeparatorStyle
+            savedToolbarVisible = window.toolbar?.isVisible
 
             applyChrome()
 
@@ -602,15 +608,117 @@ struct HarvousPaperWindowChrome: NSViewRepresentable {
                 object: nil,
                 queue: .main
             ) { [weak self] _ in self?.applyChrome() })
+            // The focus events above fire *before* AppKit rebuilds the titlebar
+            // material, so re-stamping there is too early. `didUpdate` fires on
+            // every window display pass — including the one that swaps in the
+            // fresh material — so re-asserting here catches the rebuild exactly
+            // when it happens, with no timing guesswork. Idempotent + only
+            // active while the sign-in screen is mounted.
+            observers.append(nc.addObserver(
+                forName: NSWindow.didUpdateNotification,
+                object: window,
+                queue: .main
+            ) { [weak self] _ in self?.hideTitlebarBackground() })
         }
 
         private func applyChrome() {
             guard let window, let paperColor else { return }
             window.titlebarAppearsTransparent = true
             window.titleVisibility = .hidden
+            window.titlebarSeparatorStyle = .none
             window.styleMask.insert(.fullSizeContentView)
             window.backgroundColor = paperColor
             window.isOpaque = false
+
+            // The real culprit (confirmed by dumping the titlebar tree): on a
+            // focus cycle AppKit un-hides `NSTitlebarBackgroundView` and paints
+            // its layer white, and re-adds the scroll-pocket whose 1px fill is
+            // the hairline border. It is NOT an NSVisualEffectView, so window
+            // background / transparency settings never reach it. The traffic
+            // lights are *siblings* of it under NSTitlebarView, so we can simply
+            // re-hide it (which also hides its border child) without disturbing
+            // them. `didUpdate` re-runs this on the exact pass that un-hides it.
+            hideTitlebarBackground()
+        }
+
+        /// Re-hides `NSTitlebarBackgroundView` so the transparent titlebar shows
+        /// the paper window background instead of AppKit's white fill (and its
+        /// scroll-pocket separator). Traffic lights are untouched — they live in
+        /// a sibling subtree, not inside the background view.
+        private func hideTitlebarBackground() {
+            guard let window, let root = window.contentView?.superview else { return }
+            // Re-assert here too: the separator hairline at the bottom of the
+            // titlebar creeps back on the same rebuild pass that un-hides the
+            // background view, and didUpdate is the only hook that fires then.
+            window.titlebarSeparatorStyle = .none
+            // Scope strictly to the titlebar container. Walking from the window
+            // root descends into the SwiftUI content tree too, where recoloring
+            // a `_NSLayerBasedFillColorView` blanked out the email field.
+            guard let titlebar = firstSubview(in: root, classContains: "NSTitlebarContainerView") else { return }
+            neutralizeTitlebarArtifacts(in: titlebar)
+        }
+
+        private func firstSubview(in view: NSView, classContains needle: String) -> NSView? {
+            for sub in view.subviews {
+                if sub.className.contains(needle) { return sub }
+                if let hit = firstSubview(in: sub, classContains: needle) { return hit }
+            }
+            return nil
+        }
+
+        /// Walks the *full* titlebar subtree (no early return) and neutralizes
+        /// the artifacts AppKit rebuilds on a focus cycle:
+        ///   - `NSTitlebarBackgroundView` (the white fill) → hidden.
+        ///   - `NSScrollPocket` / `NSHardPocketView` → hidden (the pocket that
+        ///     carries the separator material).
+        ///   - `_NSLayerBasedFillColorView` (the 1px gray separator hairline) →
+        ///     hidden *and* its own layer repainted to paper. The separator
+        ///     renders via the `NSScrollPocket` portal layers, which reparent
+        ///     into a visible layer tree and so ignore an ancestor's `isHidden`;
+        ///     recoloring/hiding the leaf's source layer is the robust fix.
+        private func neutralizeTitlebarArtifacts(in view: NSView) {
+            guard let paperColor else { return }
+            for sub in Array(view.subviews) {
+                let name = sub.className
+                // The scroll pocket renders its separator material through
+                // *portal* layers that reparent into a visible layer tree, so
+                // `isHidden` on the pocket (or any ancestor) is ignored. The
+                // only thing that reliably suppresses it is removing the source
+                // view entirely — no source, nothing for the portal to draw.
+                // AppKit re-adds it on the next focus rebuild; `didUpdate`
+                // catches that pass and we remove it again.
+                if name.contains("NSScrollPocket") {
+                    sub.removeFromSuperview()
+                    continue
+                }
+                if name.contains("NSTitlebarBackgroundView") {
+                    sub.isHidden = true
+                } else if name.contains("_NSLayerBasedFillColorView") {
+                    sub.isHidden = true
+                    sub.wantsLayer = true
+                    sub.layer?.backgroundColor = paperColor.cgColor
+                }
+                // Always descend — the line view lives deep inside the pocket
+                // subtree, past views we don't want to short-circuit on.
+                neutralizeTitlebarArtifacts(in: sub)
+            }
+        }
+
+        /// Un-hides the titlebar artifacts on restore so the signed-in window
+        /// keeps its normal chrome. The recolored fill views don't need their
+        /// color reverted — the signed-in window rebuilds fresh pocket/fill
+        /// views — but un-hiding is cheap insurance against a reused instance.
+        private func unhideTitlebarBackground(in view: NSView) {
+            for sub in view.subviews {
+                let name = sub.className
+                if name.contains("NSTitlebarBackgroundView")
+                    || name.contains("NSScrollPocket")
+                    || name.contains("NSHardPocketView")
+                    || name.contains("_NSLayerBasedFillColorView") {
+                    sub.isHidden = false
+                }
+                unhideTitlebarBackground(in: sub)
+            }
         }
 
         func restore() {
@@ -621,9 +729,20 @@ struct HarvousPaperWindowChrome: NSViewRepresentable {
             guard let window else { return }
             if let v = savedTitlebarAppearsTransparent { window.titlebarAppearsTransparent = v }
             if let v = savedTitleVisibility { window.titleVisibility = v }
-            if let v = savedStyleMask { window.styleMask = v }
+            if let v = savedSeparatorStyle { window.titlebarSeparatorStyle = v }
+            if let v = savedStyleMask {
+                window.styleMask = v
+                window.styleMask.insert(.resizable)
+            }
             if let v = savedBackground { window.backgroundColor = v }
+            if let v = savedToolbarVisible { window.toolbar?.isVisible = v }
             window.isOpaque = true
+            // Un-hide the titlebar background so the signed-in window keeps its
+            // normal chrome (we hid the same instance while signed out).
+            if let root = window.contentView?.superview,
+               let titlebar = firstSubview(in: root, classContains: "NSTitlebarContainerView") {
+                unhideTitlebarBackground(in: titlebar)
+            }
             self.window = nil
         }
     }

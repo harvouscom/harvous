@@ -20,6 +20,11 @@ private final class EditorAutosaveDebouncer {
         task = nil
     }
 
+    /// True while a debounced autosave is scheduled or in flight.
+    var hasPendingAutosave: Bool {
+        task != nil
+    }
+
     func updateSnapshot(title: String, body: String, refs: [String]) {
         latestTitle = title
         latestBody = body
@@ -219,8 +224,6 @@ struct NoteEditorView: View {
             toggleHighlightDockAction: toggleHighlightDockAction,
             removeHighlightAction: removeHighlightAction
         )
-        .focusedSceneValue(\.folderContextUpdating, isFolderContextUpdating)
-        .focusedSceneValue(\.showFolderToolbarText, showFolderToolbarText)
         .onAppear {
             proxy.onScripturePillKeyboardFocus = { ref, trans, range in
                 scripturePillTapped(reference: ref, translation: trans, range: range)
@@ -261,6 +264,7 @@ struct NoteEditorView: View {
                 emptyDetail
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .preference(
             key: NoteShareSnapshotPreferenceKey.self,
             value: NoteShareSnapshot(title: note != nil ? title : "", body: note != nil ? editorState.plainText : "")
@@ -307,6 +311,14 @@ struct NoteEditorView: View {
             Task { @MainActor in
                 isNoteTransition = false
             }
+        }
+        .onChange(of: note?.updatedAt) { _, _ in
+            guard let current = note else { return }
+            guard !isNoteTransition else { return }
+            guard !autosave.hasPendingAutosave else { return }
+            // Don't clobber active local edits; this path is for remote refreshes.
+            guard !current.needsSync else { return }
+            syncFromNote()
         }
         .onChange(of: scenePhase) { _, phase in
             if phase == .active {
@@ -434,6 +446,11 @@ struct NoteEditorView: View {
                 }
                 if let n = note { scheduleRefreshThreads(note: n) }
             }
+            .onReceive(NotificationCenter.default.publisher(for: .harvousNoteConnectionsChanged)) { notification in
+                guard isCurrentForStandaloneSelection else { return }
+                if let targetId = notification.object as? UUID, note?.id != targetId { return }
+                if let n = note { scheduleRefreshThreads(note: n) }
+            }
             .onAppear {
                 proxy.onScripturePillAttachmentRemoved = { ranges in
                     Task { @MainActor in
@@ -457,7 +474,7 @@ struct NoteEditorView: View {
         #if os(iOS)
         return appRouter.iosActiveNoteEditorChromeProxy === proxy
         #else
-        return true
+        return appRouter.macActiveNoteEditorChromeProxy === proxy
         #endif
     }
 
@@ -731,7 +748,7 @@ struct NoteEditorView: View {
     private var scripturePillDeletionConfirmBar: some View {
         HStack(spacing: 0) {
             Text("Remove this scripture pill?")
-                .font(.system(size: 13, weight: .semibold))
+                .font(HarvousFonts.font(size: 13, weight: .semibold, design: .default))
                 .foregroundStyle(.primary)
                 .lineLimit(1)
                 .minimumScaleFactor(0.88)
@@ -864,29 +881,41 @@ struct NoteEditorView: View {
     // MARK: - Empty state
 
     private var emptyDetail: some View {
-        VStack(spacing: 12) {
-            HarvousFAGlyph(assetName: "Harvous.Note", edgePt: 40)
-                .foregroundStyle(.quaternary)
-            Text("Pick a note to open")
-                .font(HarvousTypography.title)
-                .foregroundStyle(.secondary)
-            #if os(macOS)
-            Text("Choose a note in the sidebar, or press ⌘N to start writing.")
-                .font(HarvousTypography.body)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-            #else
-            // iPad split layout has a sidebar and hardware-keyboard ⌘N support — use Mac wording.
-            Text(isIPadSplitLayout
-                 ? "Choose a note in the sidebar, or press ⌘N to start writing."
-                 : "Choose a note in the list to open it.")
-                .font(HarvousTypography.body)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-            #endif
+        #if os(macOS)
+        HarvousEmptyStateView(
+            iconAsset: "Harvous.Note",
+            title: "Pick a note to open",
+            descriptionView: {
+                HarvousEmptyStateShortcutLine(
+                    firstLine: "Choose a note in the sidebar,",
+                    prefix: "or press ",
+                    keys: "⇧N",
+                    suffix: " to start writing."
+                )
+            }
+        )
+        #else
+        if isIPadSplitLayout {
+            HarvousEmptyStateView(
+                iconAsset: "Harvous.Note",
+                title: "Pick a note to open",
+                descriptionView: {
+                    HarvousEmptyStateShortcutLine(
+                        firstLine: "Choose a note in the sidebar,",
+                        prefix: "or press ",
+                        keys: "⇧N",
+                        suffix: " to start writing."
+                    )
+                }
+            )
+        } else {
+            HarvousEmptyStateView(
+                iconAsset: "Harvous.Note",
+                title: "Pick a note to open",
+                description: "Choose a note in the list to open it."
+            )
         }
-        .padding(.horizontal, 28)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        #endif
     }
 
     // MARK: - Editor canvas
@@ -894,8 +923,7 @@ struct NoteEditorView: View {
     /// Capped width of the scrollable title + body column (centered in the window via leading/trailing `Spacer`s).
     private static let editorScrollSurfaceMaxWidthPoints: CGFloat = 794
 
-    /// Mac shows formatting toolbar + connections bar at the bottom of the editor; iPhone uses the
-    /// floating `MorphingChromeBar` instead; iPad reuses the Mac chrome when hosted in `iPadRootView`.
+    /// Mac and iPad split show a formatting-only bottom toolbar inline; iPhone uses `MorphingChromeBar` with the same gate.
     private var shouldShowMacStyleBottomChrome: Bool {
         #if os(macOS)
         return true
@@ -953,11 +981,15 @@ struct NoteEditorView: View {
                             .padding(.bottom, 12)
                             .onChange(of: title) { _, newValue in
                                 if newValue.contains("\n") {
-                                    title = newValue.replacingOccurrences(of: "\n", with: "")
-                                    titleFocused = false
-                                    DispatchQueue.main.async { proxy.refocusTextView() }
+                                    let cleaned = newValue.replacingOccurrences(of: "\n", with: "")
+                                    DispatchQueue.main.async {
+                                        title = cleaned
+                                        titleFocused = false
+                                        proxy.refocusTextView()
+                                    }
+                                } else {
+                                    scheduleAutosave(note)
                                 }
-                                scheduleAutosave(note)
                             }
 
                         titleScripturePillsRow(note: note)
@@ -1106,6 +1138,12 @@ struct NoteEditorView: View {
             shiftHints.isTitleFieldFocused = titleFocused
         }
         #if os(macOS)
+        .onAppear {
+            appRouter.macRegisterNoteEditorChrome(proxy: proxy)
+        }
+        .onDisappear {
+            appRouter.macUnregisterNoteEditorChrome(proxy: proxy)
+        }
         .sheet(isPresented: $proxy.showAddLinkSheet) {
             AddLinkSheetView(proxy: proxy)
         }
@@ -1137,10 +1175,8 @@ struct NoteEditorView: View {
         .onDisappear {
             appRouter.iosUnregisterNoteEditorChrome(proxy: proxy)
         }
-        .sheet(isPresented: $proxy.showIOSInlineImageImporter) {
-            IOSInlineImagePickSheet(isPresented: $proxy.showIOSInlineImageImporter) { img in
-                proxy.insertPhotoLibraryImage(img)
-            }
+        .iosInlineImagePicker(isPresented: $proxy.showIOSInlineImageImporter) { img in
+            proxy.insertPhotoLibraryImage(img)
         }
         .sheet(isPresented: $proxy.showAddLinkSheet) {
             AddLinkSheetView(proxy: proxy)
@@ -1175,15 +1211,27 @@ struct NoteEditorView: View {
                         scriptureTheme: scriptureTheme
                     )
                 }
+                // Single item hosting both controls in a tight HStack so iOS 26 wraps them in ONE glass
+                // capsule (like macOS) with our own spacing — `ToolbarItemGroup` inserts a wide system gap.
+                // Each control is a full-size Button/Menu with its own `contentShape`, so both stay tappable.
                 ToolbarItem(placement: .topBarTrailing) {
-                    NoteShareDeleteBar(
-                        note: note,
-                        onDeleteConfirmed: { deleteCurrentNoteIfPossible() },
-                        onOpenNoteDetails: {
-                            withAnimation(HarvousAnimation.spring) { showInspectorIOS = true }
-                        },
-                        shareSnapshot: { NoteShareSnapshot(title: title, body: editorState.plainText) }
-                    )
+                    HStack(spacing: 2) {
+                        NoteFindToolbarButton()
+                        NoteShareToolbarButton(
+                            note: note,
+                            shareSnapshot: { NoteShareSnapshot(title: title, body: editorState.plainText) }
+                        )
+                        NoteMoreToolbarMenu(
+                            note: note,
+                            onDeleteConfirmed: { deleteCurrentNoteIfPossible() },
+                            onOpenNoteDetails: {
+                                withAnimation(HarvousAnimation.spring) { showInspectorIOS = true }
+                            },
+                            onConnectionsChanged: {
+                                scheduleRefreshThreads(note: note)
+                            }
+                        )
+                    }
                 }
             }
         }
@@ -1198,9 +1246,14 @@ struct NoteEditorView: View {
         #endif
         // Inspector pane — Mac always, iPad when hosted in `iPadRootView`, iPhone never (showInspector
         // stays `.constant(false)` and the in-editor "Note Details" button opens the `.sheet` above instead).
-        .inspector(isPresented: showInspector) {
+        // Do not attach `.inspector` on iPhone: `inspectorContent` sets `.navigationTitle("Note Details")`
+        // and iOS 26 can leak that title into the pushed note nav bar even when `isPresented` is false.
+        .modifier(NoteEditorSplitInspectorModifier(
+            isPresented: showInspector,
+            isEnabled: shouldShowMacStyleBottomChrome
+        ) {
             inspectorContent(note: note)
-        }
+        })
         .sheet(item: $highlightDetailThreadId) { item in
             highlightDetailSheet(for: item.threadId)
         }
@@ -1340,24 +1393,17 @@ struct NoteEditorView: View {
     // MARK: - Study threads
 
     #if os(iOS)
-    /// Publishes linked-note trail + callbacks for the root bottom chrome (`IOSNoteFooterHybridRow`).
+    /// Publishes footer suppress flags for the root bottom chrome (`IOSNoteFooterHybridRow`).
     private func syncIOSNoteFooterSupplement() {
         guard appRouter.iosActiveNoteEditorChromeProxy === proxy else { return }
-        guard let n = note else {
+        guard note != nil else {
             appRouter.iosNoteFooterSupplement = nil
             return
         }
-        let titleLine = title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "Current note" : title
         let suppressBottomChromeForOverlay =
             activePillDock != nil || activeUrlPillDock != nil || dockPinnedHighlightThreadId != nil || highlightCaptureSession != nil
         appRouter.iosNoteFooterSupplement = HarvousIOSNoteFooterSupplement(
-            note: n,
-            trailSnapshot: trailSnapshot,
-            connectionsTitleLine: titleLine,
-            suppressScripturePillActionBar: suppressBottomChromeForOverlay,
-            suppressesBottomMorphingChromeContent: suppressBottomChromeForOverlay,
-            onRefreshConnections: { iosFooterRefreshConnectionsFromSupplement() },
-            onOpenLinkedNote: { iosFooterOpenLinkedNoteFromSupplement($0) }
+            suppressesBottomMorphingChromeContent: suppressBottomChromeForOverlay
         )
     }
 
@@ -1368,27 +1414,14 @@ struct NoteEditorView: View {
             syncIOSNoteFooterSupplement()
         }
     }
-
-    private func iosFooterRefreshConnectionsFromSupplement() {
-        guard let n = note else { return }
-        scheduleRefreshThreads(note: n)
-    }
-
-    private func iosFooterOpenLinkedNoteFromSupplement(_ id: UUID) {
-        openNoteInPlace(id: id)
-    }
     #endif
 
     private func refreshThreads(note: Note) {
+        HarvousSpaceBootstrap.healNoteSpaceIfNeeded(note, in: context)
         // Heal legacy orphans first — any `linkedNote` thread whose target Note no longer exists.
         // Otherwise stale pills + inline underlines persist on notes that pre-date the deletion fix.
         ThreadStore.purgeDanglingLinkedNoteMarkers(parentNoteId: note.id, modelContext: context)
-        let active = ThreadStore.activeThreads(
-            parentNoteId: note.id,
-            spaceId: note.resolvedSpaceId(),
-            modelContext: context
-        )
-        threadsForNote = active
+        threadsForNote = ThreadStore.activeThreads(for: note, modelContext: context)
         scheduleEastonsEntryPrefetch(note: note)
         trailSnapshot = ThreadStore.trailSnapshot(for: note, modelContext: context)
         reconcileStudyHighlightsPainting(for: note)
@@ -2330,6 +2363,7 @@ struct NoteEditorView: View {
 
     private func syncFromNote() {
         if let note {
+            HarvousSpaceBootstrap.healNoteSpaceIfNeeded(note, in: context)
             title = note.title
             let bodyRefs = ScriptureDetector.uniqueDisplayRefs(in: note.body)
             editorState = EditorState(plainText: note.body, detectedRefs: bodyRefs)
@@ -2533,6 +2567,8 @@ extension Notification.Name {
     /// Posted after a global cleanup of orphan study threads (e.g. dangling linked-note markers).
     /// Mounted editors observe this to drop stale paint + trail state without waiting for a note switch.
     static let harvousStudyThreadsPurged = Notification.Name("harvousStudyThreadsPurged")
+    /// Posted when a linked note is connected from toolbar chrome outside `NoteEditorView` (e.g. iPad split toolbar).
+    static let harvousNoteConnectionsChanged = Notification.Name("harvousNoteConnectionsChanged")
 }
 
 #Preview {
@@ -2604,12 +2640,12 @@ struct ActiveURLPillDock: View {
 
             VStack(alignment: .leading, spacing: 1) {
                 Text(headline)
-                    .font(.system(size: 14, weight: .semibold))
+                    .font(HarvousFonts.font(size: 14, weight: .semibold, design: .default))
                     .lineLimit(1)
                     .truncationMode(.tail)
                 if let subline {
                     Text(subline)
-                        .font(.system(size: 11))
+                        .font(HarvousFonts.font(size: 11, weight: .regular, design: .default))
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
                         .truncationMode(.middle)
@@ -2720,18 +2756,18 @@ struct EditURLLinkSheetView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             Text("Edit Link")
-                .font(.system(size: 15, weight: .semibold))
+                .font(HarvousFonts.font(size: 15, weight: .semibold, design: .default))
                 .frame(maxWidth: .infinity)
                 .padding(.bottom, 10)
 
             Text("URL")
-                .font(.system(size: 11, weight: .medium))
+                .font(HarvousFonts.font(size: 11, weight: .medium, design: .default))
                 .foregroundStyle(.secondary)
                 .padding(.bottom, 3)
 
             TextField("https://…", text: $href)
                 .textFieldStyle(.plain)
-                .font(.system(size: 14))
+                .font(HarvousFonts.font(size: 14, weight: .regular, design: .default))
                 .autocorrectionDisabled()
                 #if os(iOS)
                 .textInputAutocapitalization(.never)
@@ -2814,13 +2850,31 @@ struct EditURLLinkSheetView: View {
     }
 }
 
+/// Applies `.inspector` only on Mac and iPad split — skipped on iPhone so the inspector's
+/// `navigationTitle("Note Details")` does not leak into the pushed note navigation bar.
+private struct NoteEditorSplitInspectorModifier<InspectorContent: View>: ViewModifier {
+    @Binding var isPresented: Bool
+    var isEnabled: Bool
+    @ViewBuilder var inspectorContent: () -> InspectorContent
+
+    func body(content: Content) -> some View {
+        if isEnabled {
+            content.inspector(isPresented: $isPresented) {
+                inspectorContent()
+            }
+        } else {
+            content
+        }
+    }
+}
+
 private struct EditLinkSheetButtonStyle: ButtonStyle {
     enum Role { case cancel, ok }
     var role: Role
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(.system(size: 13, weight: .semibold))
+            .font(HarvousFonts.font(size: 13, weight: .semibold, design: .default))
             .padding(.horizontal, 14)
             .padding(.vertical, 6)
             .background(

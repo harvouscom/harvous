@@ -254,7 +254,7 @@ struct NoteVersionDiffView: View {
             showRestoreConfirm = true
         } label: {
             Text("Restore to This Version")
-                .font(.system(.body, weight: .semibold))
+                .font(HarvousFonts.font(size: 16, weight: .semibold, design: .default))
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 13)
                 .background(
