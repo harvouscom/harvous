@@ -98,8 +98,13 @@ export async function generateUserExport(
 
   if (format === 'csv-threads') {
     const rows: string[][] = [['Thread Title', 'Thread Color', 'Note Title', 'Note Content', 'Created Date', 'Tags']];
-    const escapeCSV = (str: string) =>
-      str.includes(',') || str.includes('"') || str.includes('\n') ? `"${str.replace(/"/g, '""')}"` : str;
+    const escapeCSV = (value: unknown) => {
+      const str =
+        value instanceof Date ? value.toISOString() : value == null ? '' : String(value);
+      return str.includes(',') || str.includes('"') || str.includes('\n')
+        ? `"${str.replace(/"/g, '""')}"`
+        : str;
+    };
     for (const note of allNotes) {
       const noteThreadIds = noteThreadMap.get(note.id) || [];
       const primaryThreadId = noteThreadIds[0] || note.threadId;
