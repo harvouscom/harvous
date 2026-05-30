@@ -116,11 +116,12 @@ async function findUnorganizedThread(userId: string) {
  * Get the member count for a space (inlined from tier-limits.ts).
  */
 async function getSpaceMemberCount(spaceId: string): Promise<number> {
-  const members = await db.select()
-    .from(Members)
-    .where(eq(Members.spaceId, spaceId))
-    ;
-  return members.length;
+  const row = first(
+    await db.select({ cnt: count() })
+      .from(Members)
+      .where(eq(Members.spaceId, spaceId)),
+  );
+  return row?.cnt ?? 0;
 }
 
 // ─── Exported functions ─────────────────────────────────────────────────────────
@@ -439,20 +440,43 @@ export async function getThreadsWithCountsLimited(userId: string, limit?: number
         .groupBy(NoteThreads.threadId);
       noteCountsMap = new Map(noteCounts.map(item => [item.threadId, item.count]));
 
-      // Add referenced scripture notes to counts (matches getThreadNoteTypeCounts logic)
-      for (const threadId of threadIds) {
-        const junctionNotes = await db.select({ id: Notes.id })
-          .from(Notes).innerJoin(NoteThreads, eq(NoteThreads.noteId, Notes.id))
-          .where(and(eq(NoteThreads.threadId, threadId), eq(Notes.userId, userId)));
-        const noteIds = junctionNotes.map(n => n.id).filter(Boolean);
-        if (noteIds.length > 0) {
-          const refs = await db.select({ scriptureNoteId: NoteScriptureReferences.scriptureNoteId })
-            .from(NoteScriptureReferences).innerJoin(Notes, eq(NoteScriptureReferences.scriptureNoteId, Notes.id))
-            .where(and(inArray(NoteScriptureReferences.noteId, noteIds), eq(Notes.userId, userId), eq(Notes.noteType, 'scripture')));
-          const alreadyIds = new Set(junctionNotes.map(n => n.id));
-          const additionalCount = new Set(refs.map(r => r.scriptureNoteId).filter(id => !alreadyIds.has(id))).size;
-          if (additionalCount > 0) {
-            noteCountsMap.set(threadId, (noteCountsMap.get(threadId) || 0) + additionalCount);
+      // Add referenced scripture notes to counts (matches getThreadNoteTypeCounts logic).
+      // Batched: one query for all (threadId, noteId) pairs, one query for all scripture
+      // refs, then computed in memory — avoids the previous O(threads) N+1 loop.
+      const threadNoteRows = await db.select({ threadId: NoteThreads.threadId, noteId: NoteThreads.noteId })
+        .from(NoteThreads)
+        .innerJoin(Notes, eq(Notes.id, NoteThreads.noteId))
+        .where(and(inArray(NoteThreads.threadId, threadIds), eq(Notes.userId, userId)));
+
+      const allNoteIds = threadNoteRows.map(r => r.noteId).filter(Boolean) as string[];
+      if (allNoteIds.length > 0) {
+        const refs = await db.select({
+          noteId: NoteScriptureReferences.noteId,
+          scriptureNoteId: NoteScriptureReferences.scriptureNoteId,
+        })
+          .from(NoteScriptureReferences)
+          .innerJoin(Notes, eq(NoteScriptureReferences.scriptureNoteId, Notes.id))
+          .where(and(inArray(NoteScriptureReferences.noteId, allNoteIds), eq(Notes.userId, userId), eq(Notes.noteType, 'scripture')));
+
+        const noteToRefs = new Map<string, Set<string>>();
+        for (const ref of refs) {
+          if (!noteToRefs.has(ref.noteId)) noteToRefs.set(ref.noteId, new Set());
+          noteToRefs.get(ref.noteId)!.add(ref.scriptureNoteId);
+        }
+
+        for (const threadId of threadIds) {
+          const threadNoteIds = new Set(threadNoteRows.filter(r => r.threadId === threadId).map(r => r.noteId));
+          const additionalScriptureIds = new Set<string>();
+          for (const noteId of threadNoteIds) {
+            const scriptureRefs = noteToRefs.get(noteId as string);
+            if (scriptureRefs) {
+              for (const sid of scriptureRefs) {
+                if (!threadNoteIds.has(sid)) additionalScriptureIds.add(sid);
+              }
+            }
+          }
+          if (additionalScriptureIds.size > 0) {
+            noteCountsMap.set(threadId, (noteCountsMap.get(threadId) || 0) + additionalScriptureIds.size);
           }
         }
       }
@@ -614,13 +638,29 @@ const NOTE_SELECT_COLUMNS = {
   collectionUserOverride: Notes.collectionUserOverride,
 } as const;
 
+/**
+ * Max characters of note HTML returned in *list* responses (thread/space note
+ * lists, sidebar). List/preview surfaces only render a short stripped preview;
+ * the full note body is loaded on open via GET /api/notes/:id/details. Capping
+ * content here keeps list payloads small for long notes. The cap is generous so
+ * that typical-length notes are still returned in full. Offline reads are served
+ * from IndexedDB (sync bootstrap), so this truncation does not affect them.
+ */
+const NOTE_LIST_CONTENT_MAX_CHARS = 20000;
+
+/** List-payload column set: same as NOTE_SELECT_COLUMNS but content is truncated. */
+const NOTE_LIST_SELECT = {
+  ...NOTE_SELECT_COLUMNS,
+  content: sql<string>`left(${Notes.content}, ${NOTE_LIST_CONTENT_MAX_CHARS})`,
+} as const;
+
 export async function getNotesForThread(threadId: string, userId: string, limit = 20, offset = 0) {
   try {
     const fetchLimit = limit + offset + 1;
     let allNotes: any[] = [];
 
     if (threadId === 'thread_unorganized') {
-      const unorganizedNotes = await db.select(NOTE_SELECT_COLUMNS)
+      const unorganizedNotes = await db.select(NOTE_LIST_SELECT)
         .from(Notes).leftJoin(NoteThreads, eq(NoteThreads.noteId, Notes.id))
         .where(and(eq(Notes.userId, userId), isNull(NoteThreads.id)))
         .orderBy(
@@ -640,7 +680,7 @@ export async function getNotesForThread(threadId: string, userId: string, limit 
         const alreadyIds = new Set(unorganizedNotes.filter(n => n.noteType === 'scripture').map(n => n.id));
         const additionalIds = uniqueIds.filter(id => !alreadyIds.has(id));
         if (additionalIds.length > 0) {
-          referencedScriptureNotes = await db.select(NOTE_SELECT_COLUMNS)
+          referencedScriptureNotes = await db.select(NOTE_LIST_SELECT)
             .from(Notes).where(and(inArray(Notes.id, additionalIds), eq(Notes.userId, userId), eq(Notes.noteType, 'scripture')));
         }
       }
@@ -666,7 +706,7 @@ export async function getNotesForThread(threadId: string, userId: string, limit 
             asc(sql`CASE WHEN ${Notes.lastVisited} IS NOT NULL THEN 0 ELSE 1 END`),
             desc(Notes.lastVisited), desc(Notes.updatedAt), desc(Notes.createdAt), asc(Notes.id),
           ];
-      const junctionNotes = await db.select(NOTE_SELECT_COLUMNS)
+      const junctionNotes = await db.select(NOTE_LIST_SELECT)
         .from(Notes).innerJoin(NoteThreads, eq(NoteThreads.noteId, Notes.id))
         .where(and(eq(NoteThreads.threadId, threadId), eq(Notes.userId, userId)))
         .orderBy(...threadOrderBy)
@@ -683,7 +723,7 @@ export async function getNotesForThread(threadId: string, userId: string, limit 
         const alreadyIds = new Set(junctionNotes.filter(n => n.noteType === 'scripture').map(n => n.id));
         const additionalIds = uniqueIds.filter(id => !alreadyIds.has(id));
         if (additionalIds.length > 0) {
-          referencedScriptureNotes = await db.select(NOTE_SELECT_COLUMNS)
+          referencedScriptureNotes = await db.select(NOTE_LIST_SELECT)
             .from(Notes).where(and(inArray(Notes.id, additionalIds), eq(Notes.userId, userId), eq(Notes.noteType, 'scripture')));
         }
       }
@@ -777,7 +817,7 @@ export async function getNotesForThreadForMember(
           asc(sql`CASE WHEN ${Notes.lastVisited} IS NOT NULL THEN 0 ELSE 1 END`),
           desc(Notes.lastVisited), desc(Notes.updatedAt), desc(Notes.createdAt), asc(Notes.id),
         ];
-    const junctionNotes = await db.select(NOTE_SELECT_COLUMNS)
+    const junctionNotes = await db.select(NOTE_LIST_SELECT)
       .from(Notes)
       .innerJoin(NoteThreads, eq(NoteThreads.noteId, Notes.id))
       .where(and(eq(NoteThreads.threadId, threadId), eq(Notes.contentEncrypted, false)))
@@ -854,25 +894,13 @@ export async function getNotesForThreadForMember(
 
 export async function getUnorganizedNotesForDashboard(userId: string, limit = 10) {
   try {
-    let notes = await db.select(NOTE_SELECT_COLUMNS)
+    const notes = await db.select(NOTE_SELECT_COLUMNS)
       .from(Notes).leftJoin(NoteThreads, eq(NoteThreads.noteId, Notes.id))
-      .where(and(eq(Notes.userId, userId), isNull(NoteThreads.id)))
+      .where(and(eq(Notes.userId, userId), ne(Notes.noteType, 'scripture'), isNull(NoteThreads.id)))
       .orderBy(
         asc(sql`CASE WHEN ${Notes.lastVisited} IS NOT NULL THEN 0 ELSE 1 END`),
         desc(Notes.lastVisited), desc(Notes.updatedAt), desc(Notes.createdAt), asc(Notes.id)
       ).limit(limit);
-
-    // Filter out scripture notes whose parent is in a real thread
-    const scriptureIds = notes.filter(n => n.noteType === 'scripture').map(n => n.id).filter(Boolean) as string[];
-    let organizedScriptureIds = new Set<string>();
-    if (scriptureIds.length > 0) {
-      const rows = await db.select({ scriptureNoteId: NoteScriptureReferences.scriptureNoteId })
-        .from(NoteScriptureReferences)
-        .innerJoin(NoteThreads, eq(NoteThreads.noteId, NoteScriptureReferences.noteId))
-        .where(inArray(NoteScriptureReferences.scriptureNoteId, scriptureIds));
-      organizedScriptureIds = new Set(rows.map(r => r.scriptureNoteId));
-    }
-    notes = notes.filter(n => n.noteType !== 'scripture' || !organizedScriptureIds.has(n.id ?? ''));
 
     const noteIds = notes.map(n => n.id).filter(Boolean) as string[];
     const threadColorsMap = await getThreadColorsForNotesBatch(noteIds, userId);
@@ -891,8 +919,8 @@ export async function getAssignedNotesForDashboard(userId: string, limit = 10) {
   try {
     const unorganizedThread = await findUnorganizedThread(userId);
     const whereClause = unorganizedThread
-      ? and(eq(Notes.userId, userId), ne(Notes.threadId, unorganizedThread.id))
-      : eq(Notes.userId, userId);
+      ? and(eq(Notes.userId, userId), ne(Notes.noteType, 'scripture'), ne(Notes.threadId, unorganizedThread.id))
+      : and(eq(Notes.userId, userId), ne(Notes.noteType, 'scripture'));
 
     const notes = await db.select(NOTE_SELECT_COLUMNS)
       .from(Notes).where(whereClause)
@@ -1035,18 +1063,7 @@ export async function getContentItems(userId: string, limit = 20, offset = 0, fi
       }
     }
 
-    // Exclude all unvisited scripture notes from the list when filter is "all" so they never show as cards on initial load
-    // (they still appear inside parent notes via scriptureReferencesMap). Does not depend on junction timing.
-    if (filterExcludeReferencedScripture) {
-      assignedNotes = assignedNotes.filter(note => {
-        if (note.noteType !== 'scripture') return true;
-        return note.lastVisited != null;
-      });
-      unorganizedNotes = unorganizedNotes.filter(note => {
-        if (note.noteType !== 'scripture') return true;
-        return note.lastVisited != null;
-      });
-    }
+    // Scripture notes are excluded at the query level (getAssignedNotesForDashboard / getUnorganizedNotesForDashboard)
 
     const mapNote = (note: any) => {
       const cleanContent = stripHtmlForCard(note.content || "");
@@ -1326,13 +1343,13 @@ export async function getNotesForSpace(spaceId: string, userId: string, limit = 
     const chronological = await spaceUsesChronologicalOrdering(spaceId);
     const allNotes = chronological
       ? await db
-          .select(NOTE_SELECT_COLUMNS)
+          .select(NOTE_LIST_SELECT)
           .from(Notes)
           .where(and(eq(Notes.spaceId, spaceId), eq(Notes.userId, userId)))
           .orderBy(desc(Notes.isPinned), asc(Notes.createdAt), asc(Notes.id))
           .limit(fetchLimit)
       : await db
-          .select(NOTE_SELECT_COLUMNS)
+          .select(NOTE_LIST_SELECT)
           .from(Notes)
           .where(and(eq(Notes.spaceId, spaceId), eq(Notes.userId, userId)))
           .orderBy(
@@ -1417,13 +1434,13 @@ export async function getNotesForSpaceForMember(
     const chronological = await spaceUsesChronologicalOrdering(spaceId);
     const allNotes = chronological
       ? await db
-          .select({ ...NOTE_SELECT_COLUMNS, userId: Notes.userId })
+          .select({ ...NOTE_LIST_SELECT, userId: Notes.userId })
           .from(Notes)
           .where(and(eq(Notes.spaceId, spaceId), eq(Notes.contentEncrypted, false)))
           .orderBy(desc(Notes.isPinned), asc(Notes.createdAt), asc(Notes.id))
           .limit(fetchLimit)
       : await db
-          .select({ ...NOTE_SELECT_COLUMNS, userId: Notes.userId })
+          .select({ ...NOTE_LIST_SELECT, userId: Notes.userId })
           .from(Notes)
           .where(and(eq(Notes.spaceId, spaceId), eq(Notes.contentEncrypted, false)))
           .orderBy(

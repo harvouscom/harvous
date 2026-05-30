@@ -37,7 +37,6 @@ import { validateContent, validateNoteType, validateThreadId, validateSpaceId, n
 import { rateLimit, rateLimitNoteCreate } from '@/utils/rate-limit';
 import { parseScriptureReference, normalizeScriptureReference } from '@/utils/scripture-detector';
 import { debug } from '@/utils/logger';
-import { stripNoteLinksToNoteId } from '@/utils/tiptap-helpers';
 import { getCurrentSeason } from '@/utils/season-helpers';
 import { getThreadGradientCSS } from '@/utils/colors';
 import { awardCreationBonusXP, revokeXPOnDeletion, revokeAllXPForItem } from '../utils/xp-system';
@@ -54,6 +53,8 @@ import { getEffectiveHighestSimpleNoteId } from '../utils/highest-simple-note-id
 import { extractArticleContent } from '@/utils/content-extractor';
 import { sortByLastVisited } from '@/utils/sorting';
 import { stripHtml } from '@/utils/html-stripper';
+import { deleteNotesCascadeForUser, deleteSingleNoteCascadeForUser } from '../utils/delete-note-cascade';
+import { recordDeletedEntities } from '../utils/sync-deletion-log';
 import {
   normalizeSecondaryLabels,
   parseNoteSecondaryCollections,
@@ -406,6 +407,7 @@ route.put('/api/notes/update', requireAuth, rateLimit('write'), async (c) => {
       resourceImage,
       contentEncrypted,
       scriptureVersion,
+      isPinned: isPinnedRaw,
       primaryCollection: primaryCollectionRaw,
       secondaryCollections: secondaryCollectionsRaw,
       collectionPinned: collectionPinnedRaw,
@@ -447,6 +449,9 @@ route.put('/api/notes/update', requireAuth, rateLimit('write'), async (c) => {
       updateData.secondaryCollections = serializeNoteSecondaryCollections(
         normalizeSecondaryLabels(parsed, nextPrimaryForSecondaries),
       );
+    }
+    if (isPinnedRaw !== undefined) {
+      updateData.isPinned = Boolean(isPinnedRaw);
     }
     if (collectionPinnedRaw !== undefined) {
       updateData.collectionPinned = Boolean(collectionPinnedRaw);
@@ -607,28 +612,12 @@ route.delete('/api/notes/delete', requireAuth, rateLimit('write'), async (c) => 
     const threadId = existingNote.threadId;
     const noteCreatedAt = existingNote.createdAt;
 
-    await db.update(Notes).set({ linkedFromNoteId: null, updatedAt: nowISO() }).where(eq(Notes.linkedFromNoteId, noteId));
-
-    await db.delete(NoteThreads).where(eq(NoteThreads.noteId, noteId));
-    await db.delete(NoteScriptureReferences).where(or(eq(NoteScriptureReferences.noteId, noteId), eq(NoteScriptureReferences.scriptureNoteId, noteId)));
-    await db.delete(ScriptureMetadata).where(eq(ScriptureMetadata.noteId, noteId));
-    await db.delete(NoteTags).where(eq(NoteTags.noteId, noteId));
-    await db.delete(Comments).where(eq(Comments.noteId, noteId));
-    await db.delete(ResourceMetadata).where(eq(ResourceMetadata.noteId, noteId));
-    await db.delete(Notes).where(and(eq(Notes.id, noteId), eq(Notes.userId, auth.userId)));
-
-    // Strip note links (non-critical)
-    try {
-      const notesWithLinks = await db.select({ id: Notes.id, content: Notes.content }).from(Notes)
-        .where(and(eq(Notes.userId, auth.userId), not(eq(Notes.contentEncrypted, true)), like(Notes.content, '%data-note-id=%')));
-      for (const note of notesWithLinks) {
-        if (!note.content?.includes('data-note-id')) continue;
-        const stripped = stripNoteLinksToNoteId(note.content, noteId);
-        if (stripped !== note.content) {
-          await db.update(Notes).set({ content: stripped, updatedAt: nowISO() }).where(and(eq(Notes.id, note.id), eq(Notes.userId, auth.userId)));
-        }
-      }
-    } catch {}
+    const deleted = await deleteSingleNoteCascadeForUser(auth.userId, noteId);
+    if (deleted.deletedNoteIds.length === 0) {
+      return c.json({ error: 'Note not found or access denied' }, 404);
+    }
+    await recordDeletedEntities(auth.userId, 'note', deleted.deletedNoteIds);
+    await recordDeletedEntities(auth.userId, 'studyThread', deleted.deletedStudyThreadIds);
 
     // Revoke XP (fire-and-forget)
     (async () => {
@@ -638,7 +627,7 @@ route.delete('/api/notes/delete', requireAuth, rateLimit('write'), async (c) => 
       } catch {}
     })().catch(() => {});
 
-    return c.json({ success: 'Note erased!', noteId, threadId });
+    return c.json({ success: true, deletedId: noteId, noteId, threadId });
   } catch (error: any) {
     const standardError = handleAPIError(error, { endpoint: '/api/notes/delete', action: 'delete_note' });
     return c.json({ error: standardError.message, code: standardError.code }, 500);
@@ -754,19 +743,15 @@ route.post('/api/notes/cleanup-upgrade-note', requireAuth, rateLimit('write'), a
 
     const noteCreatedAt = existingNote.createdAt;
 
-    await db.update(Notes).set({ linkedFromNoteId: null, updatedAt: nowISO() }).where(eq(Notes.linkedFromNoteId, noteId));
-
-    await db.delete(NoteThreads).where(eq(NoteThreads.noteId, noteId));
-    await db.delete(NoteScriptureReferences).where(or(eq(NoteScriptureReferences.noteId, noteId), eq(NoteScriptureReferences.scriptureNoteId, noteId)));
-    await db.delete(NoteTags).where(eq(NoteTags.noteId, noteId));
-    await db.delete(Comments).where(eq(Comments.noteId, noteId));
-    await db.delete(ScriptureMetadata).where(eq(ScriptureMetadata.noteId, noteId));
-    await db.delete(ResourceMetadata).where(eq(ResourceMetadata.noteId, noteId));
+    const deleted = await deleteSingleNoteCascadeForUser(auth.userId, noteId);
+    if (deleted.deletedNoteIds.length === 0) {
+      return c.json({ error: 'Note not found or access denied' }, 404);
+    }
+    await recordDeletedEntities(auth.userId, 'note', deleted.deletedNoteIds);
+    await recordDeletedEntities(auth.userId, 'studyThread', deleted.deletedStudyThreadIds);
 
     await revokeXPOnDeletion(auth.userId, noteId, new Date(noteCreatedAt as string));
     await revokeAllXPForItem(auth.userId, noteId);
-
-    await db.delete(Notes).where(and(eq(Notes.id, noteId), eq(Notes.userId, auth.userId)));
 
     const userMetadata = first(await db.select().from(UserMetadata).where(eq(UserMetadata.userId, auth.userId)).limit(1));
     if (userMetadata) {
@@ -798,14 +783,11 @@ route.delete('/api/notes/delete-all-unorganized', requireAuth, rateLimit('write'
     const noteIds = unorgNotes.map(n => n.id);
 
     if (noteIds.length > 0) {
-      await db.update(Notes).set({ linkedFromNoteId: null, updatedAt: nowISO() }).where(and(eq(Notes.userId, auth.userId), inArray(Notes.linkedFromNoteId, noteIds)));
+      const deleted = await deleteNotesCascadeForUser(auth.userId, noteIds);
+      await recordDeletedEntities(auth.userId, 'note', deleted.deletedNoteIds);
+      await recordDeletedEntities(auth.userId, 'studyThread', deleted.deletedStudyThreadIds);
       for (const note of unorgNotes) {
-        await db.delete(NoteThreads).where(eq(NoteThreads.noteId, note.id));
-        await db.delete(NoteScriptureReferences).where(or(eq(NoteScriptureReferences.noteId, note.id), eq(NoteScriptureReferences.scriptureNoteId, note.id)));
-        await db.delete(ScriptureMetadata).where(eq(ScriptureMetadata.noteId, note.id));
-        await db.delete(NoteTags).where(eq(NoteTags.noteId, note.id));
-        await db.delete(Comments).where(eq(Comments.noteId, note.id));
-        await db.delete(ResourceMetadata).where(eq(ResourceMetadata.noteId, note.id));
+        if (!deleted.deletedNoteIds.includes(note.id)) continue;
         // Revoke XP (fire-and-forget to match main delete pattern)
         (async () => {
           try {
@@ -814,7 +796,6 @@ route.delete('/api/notes/delete-all-unorganized', requireAuth, rateLimit('write'
           } catch {}
         })().catch(() => {});
       }
-      await db.delete(Notes).where(and(eq(Notes.userId, auth.userId), eq(Notes.threadId, 'thread_unorganized')));
     }
 
     return c.json({ success: true, message: 'All notes deleted from unorganized thread' });
@@ -1097,32 +1078,58 @@ route.get('/api/notes/:id/details', requireAuth, async (c) => {
       }
     }
 
-    // Format threads with counts and backgroundGradient for nav/NotePage
-    const formattedThreads = await Promise.all(allThreads.map(async (thread: any) => {
-      let threadCount = 0;
-      if (thread.id === 'thread_unorganized') {
-        const unorganizedCountResult = first(await db.select({ count: count() })
-          .from(Notes)
-          .leftJoin(NoteThreads, eq(NoteThreads.noteId, Notes.id))
-          .where(and(eq(Notes.userId, auth.userId), isNull(NoteThreads.id)))
-          .limit(1));
-        threadCount = unorganizedCountResult?.count || 0;
-      } else {
-        const useTotalCount = isMemberView && thread.spaceId;
-        const junctionCountResult = useTotalCount
-          ? first(await db.select({ count: count() }).from(NoteThreads).where(eq(NoteThreads.threadId, thread.id)).limit(1))
-          : first(await db.select({ count: count() }).from(Notes)
-              .innerJoin(NoteThreads, eq(NoteThreads.noteId, Notes.id))
-              .where(and(eq(NoteThreads.threadId, thread.id), eq(Notes.userId, auth.userId))).limit(1));
-        threadCount = junctionCountResult?.count || 0;
-      }
+    // Format threads with counts and backgroundGradient for nav/NotePage.
+    // Counts are batched into at most three grouped queries (instead of one query
+    // per thread) keyed by threadId: total junction counts for member-space threads,
+    // owner-scoped counts for regular threads, and a single count for unorganized.
+    const regularThreadIds = allThreads
+      .filter((t: any) => t.id !== 'thread_unorganized' && !(isMemberView && t.spaceId))
+      .map((t: any) => t.id);
+    const memberTotalThreadIds = allThreads
+      .filter((t: any) => t.id !== 'thread_unorganized' && isMemberView && t.spaceId)
+      .map((t: any) => t.id);
+    const hasUnorganized = allThreads.some((t: any) => t.id === 'thread_unorganized');
+
+    const [regularCountRows, memberTotalCountRows, unorganizedCountResult] = await Promise.all([
+      regularThreadIds.length > 0
+        ? db.select({ threadId: NoteThreads.threadId, count: count() })
+            .from(Notes)
+            .innerJoin(NoteThreads, eq(NoteThreads.noteId, Notes.id))
+            .where(and(inArray(NoteThreads.threadId, regularThreadIds), eq(Notes.userId, auth.userId)))
+            .groupBy(NoteThreads.threadId)
+        : Promise.resolve([] as Array<{ threadId: string; count: number }>),
+      memberTotalThreadIds.length > 0
+        ? db.select({ threadId: NoteThreads.threadId, count: count() })
+            .from(NoteThreads)
+            .where(inArray(NoteThreads.threadId, memberTotalThreadIds))
+            .groupBy(NoteThreads.threadId)
+        : Promise.resolve([] as Array<{ threadId: string; count: number }>),
+      hasUnorganized
+        ? db.select({ count: count() })
+            .from(Notes)
+            .leftJoin(NoteThreads, eq(NoteThreads.noteId, Notes.id))
+            .where(and(eq(Notes.userId, auth.userId), isNull(NoteThreads.id)))
+            .limit(1)
+            .then(rows => first(rows))
+        : Promise.resolve(undefined),
+    ]);
+
+    const threadCountMap = new Map<string, number>();
+    for (const row of regularCountRows) threadCountMap.set(row.threadId, row.count);
+    for (const row of memberTotalCountRows) threadCountMap.set(row.threadId, row.count);
+    const unorganizedCount = unorganizedCountResult?.count || 0;
+
+    const formattedThreads = allThreads.map((thread: any) => {
+      const threadCount = thread.id === 'thread_unorganized'
+        ? unorganizedCount
+        : (threadCountMap.get(thread.id) || 0);
       return {
         ...thread,
         subtitle: thread.subtitle || 'Thread',
         count: thread.count != null ? thread.count : threadCount,
         backgroundGradient: thread.backgroundGradient || getThreadGradientCSS(thread.color),
       };
-    }));
+    });
 
     // Comments
     const comments = await db.select({ id: Comments.id, content: Comments.content, createdAt: Comments.createdAt, updatedAt: Comments.updatedAt })

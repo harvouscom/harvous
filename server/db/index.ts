@@ -15,6 +15,7 @@ export {
   Notes,
   NoteThreads,
   StudyThreadEntries,
+  SyncDeletedEntities,
   Comments,
   Members,
   SpaceInvitations,

@@ -38,3 +38,7 @@ export function isPgUndefinedRelation(error: unknown, relationName: string): boo
 export function isStudyThreadEntriesTableMissing(error: unknown): boolean {
   return isPgUndefinedRelation(error, 'StudyThreadEntries');
 }
+
+export function isSyncDeletedEntitiesTableMissing(error: unknown): boolean {
+  return isPgUndefinedRelation(error, 'SyncDeletedEntities');
+}

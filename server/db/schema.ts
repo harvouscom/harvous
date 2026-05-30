@@ -12,23 +12,30 @@ const ts = (name: string) => timestamp(name, { withTimezone: true, mode: 'date' 
 
 // ─── Spaces ────────────────────────────────────────────────────────────────────
 
-export const Spaces = pgTable('Spaces', {
-  id: text('id').primaryKey(),
-  title: text('title').notNull(),
-  description: text('description'),
-  color: text('color'),
-  backgroundGradient: text('backgroundGradient'),
-  createdAt: ts('createdAt').notNull(),
-  updatedAt: ts('updatedAt'),
-  lastVisited: ts('lastVisited'),
-  userId: text('userId').notNull(),
-  isPublic: boolean('isPublic').notNull().default(false),
-  isFeatured: boolean('isFeatured').notNull().default(false),
-  isActive: boolean('isActive').notNull().default(true),
-  order: integer('order').notNull().default(0),
-  shareToken: text('shareToken'),
-  shareTokenCreatedAt: ts('shareTokenCreatedAt'),
-});
+export const Spaces = pgTable(
+  'Spaces',
+  {
+    id: text('id').primaryKey(),
+    title: text('title').notNull(),
+    description: text('description'),
+    color: text('color'),
+    backgroundGradient: text('backgroundGradient'),
+    createdAt: ts('createdAt').notNull(),
+    updatedAt: ts('updatedAt'),
+    lastVisited: ts('lastVisited'),
+    userId: text('userId').notNull(),
+    isPublic: boolean('isPublic').notNull().default(false),
+    isFeatured: boolean('isFeatured').notNull().default(false),
+    isActive: boolean('isActive').notNull().default(true),
+    order: integer('order').notNull().default(0),
+    shareToken: text('shareToken'),
+    shareTokenCreatedAt: ts('shareTokenCreatedAt'),
+  },
+  (table) => [
+    index('Spaces_userIdIndex').on(table.userId),
+    index('Spaces_userId_updatedAtIndex').on(table.userId, table.updatedAt),
+  ],
+);
 
 // ─── Threads ───────────────────────────────────────────────────────────────────
 
@@ -50,7 +57,11 @@ export const Threads = pgTable(
     shareToken: text('shareToken'),
     shareTokenCreatedAt: ts('shareTokenCreatedAt'),
   },
-  (table) => [index('Threads_userIdIndex').on(table.userId)],
+  (table) => [
+    index('Threads_userIdIndex').on(table.userId),
+    index('Threads_userId_updatedAtIndex').on(table.userId, table.updatedAt),
+    index('Threads_spaceIdIndex').on(table.spaceId),
+  ],
 );
 
 // ─── Notes ─────────────────────────────────────────────────────────────────────
@@ -90,6 +101,9 @@ export const Notes = pgTable(
   (table) => [
     index('Notes_userIdIndex').on(table.userId),
     index('Notes_linkedFromNoteIdIndex').on(table.linkedFromNoteId),
+    index('Notes_userId_updatedAtIndex').on(table.userId, table.updatedAt),
+    index('Notes_spaceIdIndex').on(table.spaceId),
+    index('Notes_threadIdIndex').on(table.threadId),
   ],
 );
 
@@ -102,6 +116,7 @@ export const NoteThreads = pgTable('NoteThreads', {
   createdAt: ts('createdAt').notNull(),
 }, (table) => [
   uniqueIndex('NoteThreads_uniqueNoteThread').on(table.noteId, table.threadId),
+  index('NoteThreads_threadIdIndex').on(table.threadId),
 ]);
 
 // ─── StudyThreadEntries (native `StudyThread` — anchored study branches on a note) ─
@@ -135,6 +150,23 @@ export const StudyThreadEntries = pgTable(
   (table) => [
     index('StudyThreadEntries_parentNoteIdIndex').on(table.parentNoteId),
     index('StudyThreadEntries_userIdIndex').on(table.userId),
+  ],
+);
+
+// ─── SyncDeletedEntities (tombstone feed for incremental sync) ──────────────────
+
+export const SyncDeletedEntities = pgTable(
+  'SyncDeletedEntities',
+  {
+    id: text('id').primaryKey(),
+    userId: text('userId').notNull(),
+    entityType: text('entityType').notNull(), // note | studyThread | thread
+    entityId: text('entityId').notNull(),
+    deletedAt: ts('deletedAt').notNull(),
+  },
+  (table) => [
+    index('SyncDeletedEntities_userDeletedAtIndex').on(table.userId, table.deletedAt),
+    index('SyncDeletedEntities_userEntityDeletedAtIndex').on(table.userId, table.entityType, table.deletedAt),
   ],
 );
 
@@ -314,7 +346,9 @@ export const ScriptureMetadata = pgTable('ScriptureMetadata', {
   translation: text('translation').notNull(),
   originalText: text('originalText').notNull(),
   createdAt: ts('createdAt').notNull(),
-});
+}, (table) => [
+  index('ScriptureMetadata_noteIdIndex').on(table.noteId),
+]);
 
 // ─── NoteScriptureReferences (junction table) ──────────────────────────────────
 

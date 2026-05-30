@@ -35,10 +35,9 @@ route.get('/api/content/load-more', async (c) => {
       await ensureOnboardingThreadIfMissing(auth.userId);
     }
 
-    // Optimized path for scripture filter - query directly from database
+    // Scripture notes are no longer surfaced — return empty for the scripture filter
     if (filter === 'scripture') {
-      const { items, hasMore } = await getScriptureNotesForDashboard(auth.userId, limit, offset);
-      return c.json({ items, hasMore, offset, limit });
+      return c.json({ items: [], hasMore: false, offset, limit });
     }
 
     // For other filters, use the existing getContentItems function

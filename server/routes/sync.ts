@@ -21,9 +21,14 @@ import {
   NoteTags,
   UserMetadata,
   eq,
+  ne,
   and,
   gt,
   or,
+  inArray,
+  asc,
+  desc,
+  sql,
 } from '../db';
 import { nowISO } from '../db/dates';
 import { getCurrentSeason } from '@/utils/season-helpers';
@@ -41,6 +46,8 @@ import { ensureUnorganizedThread } from '../utils/unorganized-thread';
 import { detectScripture, getPrimaryReference, normalizeScriptureReference } from '@/utils/scripture-detector';
 import { fetchVerseText } from '../utils/fetch-verse-text';
 import { isStudyThreadEntriesTableMissing } from '../utils/pg-undefined-relation';
+import { deleteSingleNoteCascadeForUser } from '../utils/delete-note-cascade';
+import { loadDeletedEntitiesSince, recordDeletedEntities } from '../utils/sync-deletion-log';
 
 const app = new Hono();
 
@@ -163,6 +170,49 @@ async function processThreadMutation(userId: string, operation: string, entityId
     }).where(eq(Threads.id, entityId));
     return { success: true, entityId, serverId: entityId, data: { color: data.color } };
   } else if (operation === 'delete') {
+    if (entityId === 'thread_unorganized') {
+      return { success: false, error: 'Cannot delete unorganized thread' };
+    }
+    const existing = first(await db.select().from(Threads).where(and(eq(Threads.id, entityId), eq(Threads.userId, userId))).limit(1));
+    if (!existing) return { success: false, error: 'Thread not found' };
+
+    const affectedNotes = await db.select({ noteId: NoteThreads.noteId }).from(NoteThreads).where(eq(NoteThreads.threadId, entityId));
+    await db.delete(NoteThreads).where(eq(NoteThreads.threadId, entityId));
+
+    if (affectedNotes.length > 0) {
+      const affectedNoteIds = affectedNotes.map(n => n.noteId);
+
+      // One query for the remaining thread relations across all affected notes
+      // (the deleted thread's junction rows were already removed above).
+      const remaining = await db.select({ noteId: NoteThreads.noteId, threadId: NoteThreads.threadId })
+        .from(NoteThreads)
+        .where(inArray(NoteThreads.noteId, affectedNoteIds));
+
+      const firstRemainingByNote = new Map<string, string>();
+      for (const rel of remaining) {
+        if (!firstRemainingByNote.has(rel.noteId)) firstRemainingByNote.set(rel.noteId, rel.threadId);
+      }
+
+      // Group notes by destination thread (first remaining thread, else unorganized)
+      // so we issue one UPDATE per distinct destination instead of one per note.
+      const notesByDestination = new Map<string, string[]>();
+      for (const noteId of affectedNoteIds) {
+        const dest = firstRemainingByNote.get(noteId) ?? 'thread_unorganized';
+        if (!notesByDestination.has(dest)) notesByDestination.set(dest, []);
+        notesByDestination.get(dest)!.push(noteId);
+      }
+
+      const updatedAt = nowISO();
+      await Promise.all(
+        Array.from(notesByDestination.entries()).map(([dest, ids]) =>
+          db.update(Notes).set({ threadId: dest, spaceId: null, updatedAt })
+            .where(and(inArray(Notes.id, ids), eq(Notes.userId, userId))),
+        ),
+      );
+    }
+
+    await db.delete(Threads).where(and(eq(Threads.id, entityId), eq(Threads.userId, userId)));
+    await recordDeletedEntities(userId, 'thread', [entityId]);
     return { success: true, entityId, serverId: entityId };
   }
   return { success: false, error: `Unknown operation: ${operation}` };
@@ -334,6 +384,12 @@ async function processNoteMutation(userId: string, operation: string, entityId: 
     await db.update(Notes).set(updatePayload as any).where(eq(Notes.id, entityId));
     return { success: true, entityId, serverId: entityId };
   } else if (operation === 'delete') {
+    const deleted = await deleteSingleNoteCascadeForUser(userId, entityId);
+    if (deleted.deletedNoteIds.length === 0) {
+      return { success: false, error: 'Note not found' };
+    }
+    await recordDeletedEntities(userId, 'note', deleted.deletedNoteIds);
+    await recordDeletedEntities(userId, 'studyThread', deleted.deletedStudyThreadIds);
     return { success: true, entityId, serverId: entityId };
   }
   return { success: false, error: `Unknown operation: ${operation}` };
@@ -562,6 +618,15 @@ app.post('/api/sync/push', requireAuth, async (c) => {
   }
 });
 
+/**
+ * Max non-scripture notes returned in a single bootstrap / changes page. Bounds
+ * worst-case payload (e.g. a huge backlog after long offline). The changes
+ * endpoint resumes from the last returned note via the cursor, so a capped page
+ * is not data loss — subsequent syncs catch up. Set high enough that typical
+ * deltas are never capped.
+ */
+const SYNC_NOTE_PAGE_LIMIT = 1000;
+
 // ─── GET /api/sync/bootstrap ──────────────────────────────────────────
 
 app.get('/api/sync/bootstrap', requireAuth, async (c) => {
@@ -584,7 +649,7 @@ app.get('/api/sync/bootstrap', requireAuth, async (c) => {
       db.select({
         id: Notes.id, title: Notes.title, content: Notes.content, threadId: Notes.threadId,
         spaceId: Notes.spaceId, simpleNoteId: Notes.simpleNoteId, noteType: Notes.noteType,
-        addedBy: Notes.addedBy, isPublic: Notes.isPublic, isFeatured: Notes.isFeatured,
+        addedBy: Notes.addedBy, isPublic: Notes.isPublic, isPinned: Notes.isPinned, isFeatured: Notes.isFeatured,
         order: Notes.order, lastVisited: Notes.lastVisited, createdAt: Notes.createdAt,
         updatedAt: Notes.updatedAt, contentEncrypted: Notes.contentEncrypted,
         linkedFromNoteId: Notes.linkedFromNoteId,
@@ -593,7 +658,11 @@ app.get('/api/sync/bootstrap', requireAuth, async (c) => {
         collectionPinned: Notes.collectionPinned,
         collectionUserOverride: Notes.collectionUserOverride,
         collectionLastAutoUpdatedAt: Notes.collectionLastAutoUpdatedAt,
-      }).from(Notes).where(eq(Notes.userId, auth.userId)).limit(1000),
+      }).from(Notes).where(and(eq(Notes.userId, auth.userId), ne(Notes.noteType, 'scripture')))
+        // Newest-first so the most relevant notes are included when a user has more
+        // than the cap; fetch one extra to detect truncation.
+        .orderBy(desc(sql`coalesce(${Notes.updatedAt}, ${Notes.createdAt})`))
+        .limit(SYNC_NOTE_PAGE_LIMIT + 1),
 
       db.select({
         id: NoteThreads.id, noteId: NoteThreads.noteId, threadId: NoteThreads.threadId,
@@ -642,6 +711,10 @@ app.get('/api/sync/bootstrap', requireAuth, async (c) => {
 
     const userMetadata = first(userMetadataRows);
 
+    // Cap the notes page and signal truncation so clients can later page if needed.
+    const notesTruncated = notes.length > SYNC_NOTE_PAGE_LIMIT;
+    const notesPage = notesTruncated ? notes.slice(0, SYNC_NOTE_PAGE_LIMIT) : notes;
+
     const effectiveHighest = await getEffectiveHighestSimpleNoteId(auth.userId);
     const highestSimpleNoteId = effectiveHighest;
     const reservedRange = { start: highestSimpleNoteId + 1, end: highestSimpleNoteId + 200 };
@@ -665,9 +738,10 @@ app.get('/api/sync/bootstrap', requireAuth, async (c) => {
     const bootstrapData = {
       timestamp: new Date().toISOString(),
       cursor: `bootstrap_${Date.now()}`,
+      notesTruncated,
       spaces,
       threads,
-      notes: notes.map((n) => ({ ...n, secondaryCollections: parseNoteSecondaryCollections(n.secondaryCollections) })),
+      notes: notesPage.map((n) => ({ ...n, secondaryCollections: parseNoteSecondaryCollections(n.secondaryCollections) })),
       noteThreads,
       tags,
       noteTags,
@@ -709,7 +783,7 @@ app.get('/api/sync/changes', requireAuth, async (c) => {
 
     const sinceDate = new Date(sinceTimestamp);
 
-    const [changedSpaces, changedThreads, changedNotes, changedNoteThreads, changedTags, changedNoteTags, changedStudyThreadEntries, changedUserMetadataRows] = await Promise.all([
+    const [changedSpaces, changedThreads, changedNotes, changedNoteThreads, changedTags, changedNoteTags, changedStudyThreadEntries, changedUserMetadataRows, deletedFeed] = await Promise.all([
       db.select({
         id: Spaces.id, title: Spaces.title, description: Spaces.description, color: Spaces.color,
         backgroundGradient: Spaces.backgroundGradient, isPublic: Spaces.isPublic, isActive: Spaces.isActive,
@@ -725,7 +799,7 @@ app.get('/api/sync/changes', requireAuth, async (c) => {
       db.select({
         id: Notes.id, title: Notes.title, content: Notes.content, threadId: Notes.threadId,
         spaceId: Notes.spaceId, simpleNoteId: Notes.simpleNoteId, noteType: Notes.noteType,
-        addedBy: Notes.addedBy, isPublic: Notes.isPublic, isFeatured: Notes.isFeatured,
+        addedBy: Notes.addedBy, isPublic: Notes.isPublic, isPinned: Notes.isPinned, isFeatured: Notes.isFeatured,
         order: Notes.order, lastVisited: Notes.lastVisited, createdAt: Notes.createdAt,
         updatedAt: Notes.updatedAt, contentEncrypted: Notes.contentEncrypted,
         linkedFromNoteId: Notes.linkedFromNoteId,
@@ -734,7 +808,11 @@ app.get('/api/sync/changes', requireAuth, async (c) => {
         collectionPinned: Notes.collectionPinned,
         collectionUserOverride: Notes.collectionUserOverride,
         collectionLastAutoUpdatedAt: Notes.collectionLastAutoUpdatedAt,
-      }).from(Notes).where(and(eq(Notes.userId, auth.userId), or(gt(Notes.updatedAt, sinceDate), gt(Notes.createdAt, sinceDate), gt(Notes.lastVisited, sinceDate)))),
+      }).from(Notes).where(and(eq(Notes.userId, auth.userId), ne(Notes.noteType, 'scripture'), or(gt(Notes.updatedAt, sinceDate), gt(Notes.createdAt, sinceDate), gt(Notes.lastVisited, sinceDate))))
+        // Oldest-first + cap so a large backlog is paged: the cursor below resumes
+        // from the last returned note's timestamp (no data loss; next sync catches up).
+        .orderBy(asc(sql`coalesce(${Notes.updatedAt}, ${Notes.createdAt})`))
+        .limit(SYNC_NOTE_PAGE_LIMIT + 1),
 
       db.select({
         id: NoteThreads.id, noteId: NoteThreads.noteId, threadId: NoteThreads.threadId, createdAt: NoteThreads.createdAt,
@@ -783,9 +861,25 @@ app.get('/api/sync/changes', requireAuth, async (c) => {
         createdAt: UserMetadata.createdAt, updatedAt: UserMetadata.updatedAt,
         lockPinHash: UserMetadata.lockPinHash,
       }).from(UserMetadata).where(and(eq(UserMetadata.userId, auth.userId), or(gt(UserMetadata.updatedAt, sinceDate), gt(UserMetadata.createdAt, sinceDate)))).limit(1),
+
+      loadDeletedEntitiesSince(auth.userId, sinceDate),
     ]);
 
     const changedUserMetadata = first(changedUserMetadataRows);
+
+    // Cap the notes page. When capped, resume the cursor from the last returned
+    // note's timestamp (oldest-first ordering) so the next sync continues from there
+    // instead of skipping the remainder. Other entity types are small and returned
+    // in full; re-applying them next round is idempotent (upsert).
+    const notesPageTruncated = changedNotes.length > SYNC_NOTE_PAGE_LIMIT;
+    const changedNotesPage = notesPageTruncated ? changedNotes.slice(0, SYNC_NOTE_PAGE_LIMIT) : changedNotes;
+    let nextCursor = `timestamp_${Date.now()}`;
+    if (notesPageTruncated && changedNotesPage.length > 0) {
+      const lastNote = changedNotesPage[changedNotesPage.length - 1];
+      const lastTs = lastNote.updatedAt ?? lastNote.createdAt;
+      const lastMs = lastTs instanceof Date ? lastTs.getTime() : new Date(lastTs as unknown as string).getTime();
+      if (Number.isFinite(lastMs)) nextCursor = `timestamp_${lastMs}`;
+    }
 
     // Backfill currentSeason if null
     let userMetaForResponse = changedUserMetadata;
@@ -809,18 +903,25 @@ app.get('/api/sync/changes', requireAuth, async (c) => {
 
     const changes = {
       timestamp: new Date().toISOString(),
-      cursor: `timestamp_${Date.now()}`,
-      hasChanges: changedSpaces.length > 0 || changedThreads.length > 0 || changedNotes.length > 0 ||
+      cursor: nextCursor,
+      hasMore: notesPageTruncated,
+      hasChanges: changedSpaces.length > 0 || changedThreads.length > 0 || changedNotesPage.length > 0 ||
                   changedNoteThreads.length > 0 || changedTags.length > 0 || changedNoteTags.length > 0 ||
                   changedStudyThreadEntries.length > 0 ||
+                  deletedFeed.deletedNoteIds.length > 0 ||
+                  deletedFeed.deletedStudyThreadIds.length > 0 ||
+                  deletedFeed.deletedThreadIds.length > 0 ||
                   changedUserMetadata !== null && changedUserMetadata !== undefined,
       spaces: changedSpaces,
       threads: changedThreads,
-      notes: changedNotes.map((n) => ({ ...n, secondaryCollections: parseNoteSecondaryCollections(n.secondaryCollections) })),
+      notes: changedNotesPage.map((n) => ({ ...n, secondaryCollections: parseNoteSecondaryCollections(n.secondaryCollections) })),
       noteThreads: changedNoteThreads,
       tags: changedTags,
       noteTags: changedNoteTags,
       studyThreadEntries: changedStudyThreadEntries,
+      deletedNoteIds: deletedFeed.deletedNoteIds,
+      deletedStudyThreadIds: deletedFeed.deletedStudyThreadIds,
+      deletedThreadIds: deletedFeed.deletedThreadIds,
       userMetadata: userMetaForResponse ? (() => {
         const { lockPinHash, ...rest } = userMetaForResponse;
         return { ...rest, highestSimpleNoteId: effectiveHighestForChanges, hasLockPinSet: !!lockPinHash };
