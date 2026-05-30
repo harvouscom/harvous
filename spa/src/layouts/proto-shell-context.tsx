@@ -1,7 +1,28 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 
 /** Breakpoint sync with prototype-shell.css (899px drawer). */
 const MOBILE_MQ = '(max-width: 899px)';
+const PROTO_SIDEBAR_WIDTH_STORAGE_KEY = 'harvous-prototype-sidebar-width';
+export const PROTO_SIDEBAR_WIDTH_DEFAULT = 280;
+export const PROTO_SIDEBAR_WIDTH_MIN = 250;
+export const PROTO_SIDEBAR_WIDTH_MAX = 420;
+
+function clampSidebarWidth(width: number) {
+  return Math.min(PROTO_SIDEBAR_WIDTH_MAX, Math.max(PROTO_SIDEBAR_WIDTH_MIN, width));
+}
+
+function readStoredSidebarWidth() {
+  if (typeof window === 'undefined') return PROTO_SIDEBAR_WIDTH_DEFAULT;
+  try {
+    const raw = localStorage.getItem(PROTO_SIDEBAR_WIDTH_STORAGE_KEY);
+    if (!raw) return PROTO_SIDEBAR_WIDTH_DEFAULT;
+    const parsed = Number.parseFloat(raw);
+    if (!Number.isFinite(parsed)) return PROTO_SIDEBAR_WIDTH_DEFAULT;
+    return clampSidebarWidth(parsed);
+  } catch {
+    return PROTO_SIDEBAR_WIDTH_DEFAULT;
+  }
+}
 
 export type SidebarListMode = 'notes' | 'folders' | 'highlights' | 'scripture' | 'dictionary';
 
@@ -18,6 +39,15 @@ export type StandaloneScripturePassageState = {
   focusedHighlightThreadId: string;
 };
 
+/** Bottom chrome on note routes — format bar, scripture dock, etc. */
+export type PrototypeEditorChromeMode =
+  | 'format'
+  | 'scripture'
+  | 'highlight'
+  | 'reference'
+  | 'noteActions'
+  | 'hidden';
+
 type ProtoShellContextValue = {
   /** Desktop: pinned open. Mobile drawer: overlay open flag. */
   drawerOpen: boolean;
@@ -28,6 +58,12 @@ type ProtoShellContextValue = {
   /** Desktop only: hides the pinned sidebar column (toolbar toggle ⌘\ equivalent). */
   desktopSidebarCollapsed: boolean;
   toggleDesktopSidebar: () => void;
+  /** Desktop sidebar width in px, clamped to Mac-like bounds. */
+  sidebarWidth: number;
+  setSidebarWidth: (width: number) => void;
+  persistSidebarWidth: (width?: number) => void;
+  sidebarWidthMin: number;
+  sidebarWidthMax: number;
   /** Notes / folders / highlights / scripture sidebar list mode. */
   sidebarListMode: SidebarListMode;
   setSidebarListMode: (mode: SidebarListMode) => void;
@@ -40,6 +76,8 @@ type ProtoShellContextValue = {
   ensureSidebarExpanded: () => void;
   /** Inspector pane — desktop: inline column; mobile: slide-over on note page. */
   inspectorOpen: boolean;
+  /** True during the exit animation window — keep the panel mounted while this is true. */
+  inspectorExiting: boolean;
   toggleInspector: () => void;
   openInspector: () => void;
   closeInspector: () => void;
@@ -48,6 +86,20 @@ type ProtoShellContextValue = {
   standaloneScripturePassage: StandaloneScripturePassageState | null;
   openStandaloneScripturePassage: (value: StandaloneScripturePassageState) => void;
   dismissStandaloneScripturePassage: () => void;
+  /** Note editor bottom chrome (shell grid row — spans sidebar + main). */
+  editorChromeMode: PrototypeEditorChromeMode;
+  setEditorChromeMode: (mode: PrototypeEditorChromeMode) => void;
+  formatToolbarHostEl: HTMLDivElement | null;
+  setFormatToolbarHostEl: (el: HTMLDivElement | null) => void;
+  scriptureChromeHostEl: HTMLDivElement | null;
+  setScriptureChromeHostEl: (el: HTMLDivElement | null) => void;
+  highlightChromeHostEl: HTMLDivElement | null;
+  setHighlightChromeHostEl: (el: HTMLDivElement | null) => void;
+  referenceChromeHostEl: HTMLDivElement | null;
+  setReferenceChromeHostEl: (el: HTMLDivElement | null) => void;
+  /** Search route hides sidebar — chrome row skips the sidebar gutter pad. */
+  hideSidebar: boolean;
+  setHideSidebar: (hide: boolean) => void;
 };
 
 const ProtoShellContext = createContext<ProtoShellContextValue | null>(null);
@@ -63,7 +115,10 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
     return !window.matchMedia(MOBILE_MQ).matches;
   });
   const [desktopSidebarCollapsed, setDesktopSidebarCollapsed] = useState(false);
+  const [sidebarWidth, setSidebarWidthState] = useState(readStoredSidebarWidth);
   const [inspectorOpen, setInspectorOpen] = useState(false);
+  const [inspectorExiting, setInspectorExiting] = useState(false);
+  const inspectorExitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [sidebarListMode, setSidebarListModeState] = useState<SidebarListMode>('notes');
   const [sidebarFolderDrilldown, setSidebarFolderDrilldown] = useState<SidebarFolderDrilldown>(undefined);
   const [sidebarDictionarySlug, setSidebarDictionarySlug] = useState<string | undefined>(undefined);
@@ -71,6 +126,12 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
   const [standaloneScripturePassage, setStandaloneScripturePassage] = useState<StandaloneScripturePassageState | null>(
     null,
   );
+  const [editorChromeMode, setEditorChromeMode] = useState<PrototypeEditorChromeMode>('hidden');
+  const [formatToolbarHostEl, setFormatToolbarHostEl] = useState<HTMLDivElement | null>(null);
+  const [scriptureChromeHostEl, setScriptureChromeHostEl] = useState<HTMLDivElement | null>(null);
+  const [highlightChromeHostEl, setHighlightChromeHostEl] = useState<HTMLDivElement | null>(null);
+  const [referenceChromeHostEl, setReferenceChromeHostEl] = useState<HTMLDivElement | null>(null);
+  const [hideSidebar, setHideSidebar] = useState(false);
 
   useEffect(() => {
     if (typeof window === 'undefined') return undefined;
@@ -90,6 +151,18 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
   const openDrawer = useCallback(() => setDrawerOpen(true), []);
   const closeDrawer = useCallback(() => setDrawerOpen(false), []);
   const toggleDesktopSidebar = useCallback(() => setDesktopSidebarCollapsed((x) => !x), []);
+  const setSidebarWidth = useCallback((width: number) => {
+    setSidebarWidthState(clampSidebarWidth(width));
+  }, []);
+  const persistSidebarWidth = useCallback((width?: number) => {
+    if (typeof window === 'undefined') return;
+    try {
+      const clamped = clampSidebarWidth(width ?? sidebarWidth);
+      localStorage.setItem(PROTO_SIDEBAR_WIDTH_STORAGE_KEY, String(clamped));
+    } catch {
+      /* ignore */
+    }
+  }, [sidebarWidth]);
   const setSidebarListMode = useCallback((mode: SidebarListMode) => {
     setSidebarListModeState(mode);
     if (mode !== 'folders') setSidebarFolderDrilldown(undefined);
@@ -99,9 +172,43 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
     if (isMobileSidebar) openDrawer();
     else setDesktopSidebarCollapsed(false);
   }, [isMobileSidebar, openDrawer]);
-  const toggleInspector = useCallback(() => setInspectorOpen((x) => !x), []);
-  const openInspector = useCallback(() => setInspectorOpen(true), []);
-  const closeInspector = useCallback(() => setInspectorOpen(false), []);
+  /** Duration must match the CSS exit animation length (260ms). */
+  const INSPECTOR_EXIT_MS = 260;
+
+  const closeInspector = useCallback(() => {
+    if (inspectorExitTimerRef.current) clearTimeout(inspectorExitTimerRef.current);
+    setInspectorExiting(true);
+    inspectorExitTimerRef.current = setTimeout(() => {
+      setInspectorOpen(false);
+      setInspectorExiting(false);
+    }, INSPECTOR_EXIT_MS);
+  }, []);
+
+  const openInspector = useCallback(() => {
+    if (inspectorExitTimerRef.current) clearTimeout(inspectorExitTimerRef.current);
+    setInspectorExiting(false);
+    setInspectorOpen(true);
+  }, []);
+
+  const toggleInspector = useCallback(() => {
+    setInspectorOpen((prev) => {
+      if (prev) {
+        // Closing — trigger exit animation
+        if (inspectorExitTimerRef.current) clearTimeout(inspectorExitTimerRef.current);
+        setInspectorExiting(true);
+        inspectorExitTimerRef.current = setTimeout(() => {
+          setInspectorOpen(false);
+          setInspectorExiting(false);
+        }, INSPECTOR_EXIT_MS);
+        // Return true to keep open until timer fires
+        return true;
+      }
+      // Opening — cancel any in-progress exit
+      if (inspectorExitTimerRef.current) clearTimeout(inspectorExitTimerRef.current);
+      setInspectorExiting(false);
+      return true;
+    });
+  }, []);
   const setPrototypeFolderChip = useCallback((value: PrototypeFolderChip | null) => {
     setPrototypeFolderChipState(value);
   }, []);
@@ -121,6 +228,11 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
       isMobileSidebar,
       desktopSidebarCollapsed,
       toggleDesktopSidebar,
+      sidebarWidth,
+      setSidebarWidth,
+      persistSidebarWidth,
+      sidebarWidthMin: PROTO_SIDEBAR_WIDTH_MIN,
+      sidebarWidthMax: PROTO_SIDEBAR_WIDTH_MAX,
       sidebarListMode,
       setSidebarListMode,
       sidebarFolderDrilldown,
@@ -129,6 +241,7 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
       setSidebarDictionarySlug,
       ensureSidebarExpanded,
       inspectorOpen,
+      inspectorExiting,
       toggleInspector,
       openInspector,
       closeInspector,
@@ -137,6 +250,18 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
       standaloneScripturePassage,
       openStandaloneScripturePassage,
       dismissStandaloneScripturePassage,
+      editorChromeMode,
+      setEditorChromeMode,
+      formatToolbarHostEl,
+      setFormatToolbarHostEl,
+      scriptureChromeHostEl,
+      setScriptureChromeHostEl,
+      highlightChromeHostEl,
+      setHighlightChromeHostEl,
+      referenceChromeHostEl,
+      setReferenceChromeHostEl,
+      hideSidebar,
+      setHideSidebar,
     }),
     [
       drawerOpen,
@@ -146,6 +271,9 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
       isMobileSidebar,
       desktopSidebarCollapsed,
       toggleDesktopSidebar,
+      sidebarWidth,
+      setSidebarWidth,
+      persistSidebarWidth,
       sidebarListMode,
       setSidebarListMode,
       sidebarFolderDrilldown,
@@ -154,6 +282,7 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
       setSidebarDictionarySlug,
       ensureSidebarExpanded,
       inspectorOpen,
+      inspectorExiting,
       toggleInspector,
       openInspector,
       closeInspector,
@@ -162,6 +291,12 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
       standaloneScripturePassage,
       openStandaloneScripturePassage,
       dismissStandaloneScripturePassage,
+      editorChromeMode,
+      formatToolbarHostEl,
+      scriptureChromeHostEl,
+      highlightChromeHostEl,
+      referenceChromeHostEl,
+      hideSidebar,
     ],
   );
 

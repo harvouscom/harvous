@@ -889,7 +889,7 @@ export default function AppLayout() {
       {/* iOS PWA mobile: dimmer lives in layout so it respects --sheet-overlay-top; portaled sheet-overlay stays transparent for taps */}
       <div className="layout-root-sheet-backdrop" aria-hidden="true" />
       <NavigationProvider>
-        {isLoaded && isSignedIn && user?.id && <SyncManagerIsland userId={user.id} />}
+        {isLoaded && isSignedIn && user?.id && <SyncManagerIsland userId={user.id} deferSyncInit />}
         <ReferralCreditInit userId={user?.id} />
 
         {/* ── Desktop: three-column grid (hidden on mobile) ── */}

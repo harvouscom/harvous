@@ -10,10 +10,12 @@
   height: calc(100vh - 2 * var(--pds-shell-frame-inset));
   height: calc(100dvh - 2 * var(--pds-shell-frame-inset));
   border-radius: var(--pds-shell-frame-radius);
-  border: 1px solid var(--pds-border);
+  border: none;
   overflow: hidden;
-  /* Containing block for `position: fixed` drawer / inspector inside the shell */
-  transform: translateZ(0);
+  box-shadow: var(--pds-shadow-shell);
+  /* Containing block for `position: fixed` drawer / inspector inside the shell.
+     Avoid translateZ(0): extra compositor layers over a colored html canvas correlated with GPU tab kills. */
+  isolation: isolate;
 }
 
 .proto-shell-frame > .proto-shell {
@@ -23,20 +25,65 @@
 
 /* ─── Root grid ──────────────────────────────────────────────────────────── */
 .proto-shell {
-  background: var(--pds-bg-page);
+  --proto-sidebar-w-clamped: clamp(
+    var(--pds-sidebar-min-w),
+    var(--proto-sidebar-w, var(--pds-sidebar-w)),
+    var(--pds-sidebar-max-w)
+  );
+  /* One uniform glass layer for the whole interior (cells are transparent) so the
+     area behind the sidebar reads as a single surface — no per-cell seams/bands. */
+  background: var(--pds-glass-shell);
   display: grid;
-  grid-template-rows: var(--pds-toolbar-h) minmax(0, 1fr) var(--pds-footer-h);
-  grid-template-columns: var(--pds-sidebar-w) minmax(0, 1fr);
+  grid-template-rows: var(--pds-toolbar-h) minmax(0, 1fr);
+  grid-template-columns: var(--proto-sidebar-w-clamped) minmax(0, 1fr);
   overflow: hidden;
+}
+
+/* Note routes: shell-level editor chrome row (format bar, docks) under sidebar + main. */
+.proto-shell--note-chrome {
+  grid-template-rows: var(--pds-toolbar-h) minmax(0, 1fr) auto;
+}
+
+.proto-shell__editor-chrome-row {
+  grid-column: 1 / -1;
+  grid-row: 3;
+  min-height: 0;
+  /* Sits behind the sidebar card (see .proto-shell__sidebar-cell z-index). */
+  position: relative;
+  z-index: 1;
+  background: var(--pds-glass-shell);
+}
+
+/* Full-width bar; toolbar content is offset right so it clears the floating sidebar. */
+.proto-shell__editor-chrome-row .proto-editor-bottom-bar {
+  width: 100%;
+}
+
+.proto-shell__editor-chrome-row .proto-editor-bottom-bar__format,
+.proto-shell__editor-chrome-row .proto-editor-bottom-bar__scripture,
+.proto-shell__editor-chrome-row .proto-editor-bottom-bar__highlight,
+.proto-shell__editor-chrome-row .proto-editor-bottom-bar__reference {
+  padding-left: var(--proto-sidebar-w-clamped);
+}
+
+.proto-shell--no-sidebar .proto-shell__editor-chrome-row .proto-editor-bottom-bar__format,
+.proto-shell--no-sidebar .proto-shell__editor-chrome-row .proto-editor-bottom-bar__scripture,
+.proto-shell--no-sidebar .proto-shell__editor-chrome-row .proto-editor-bottom-bar__highlight,
+.proto-shell--no-sidebar .proto-shell__editor-chrome-row .proto-editor-bottom-bar__reference,
+.proto-shell--sidebar-collapsed .proto-shell__editor-chrome-row .proto-editor-bottom-bar__format,
+.proto-shell--sidebar-collapsed .proto-shell__editor-chrome-row .proto-editor-bottom-bar__scripture,
+.proto-shell--sidebar-collapsed .proto-shell__editor-chrome-row .proto-editor-bottom-bar__highlight,
+.proto-shell--sidebar-collapsed .proto-shell__editor-chrome-row .proto-editor-bottom-bar__reference {
+  padding-left: 0;
 }
 
 /* Inspector column (when open on desktop) */
 .proto-shell--inspector-open {
-  grid-template-columns: var(--pds-sidebar-w) minmax(0, 1fr) var(--pds-inspector-w);
+  grid-template-columns: var(--proto-sidebar-w-clamped) minmax(0, 1fr) var(--pds-inspector-w);
 }
 
-/* No footer (search route) */
-.proto-shell--no-footer {
+/* No footer (search route) — note routes add a chrome row via --note-chrome instead. */
+.proto-shell--no-footer:not(.proto-shell--note-chrome) {
   grid-template-rows: var(--pds-toolbar-h) minmax(0, 1fr);
 }
 
@@ -56,10 +103,10 @@
   width: 0;
   min-width: 0;
   padding: 0;
-  opacity: 0;
-  visibility: hidden;
+  /* Stay opaque while the grid column animates — opacity:0 reveals white html canvas. */
   border-right: none;
   overflow: hidden;
+  pointer-events: none;
 }
 .proto-shell--sidebar-collapsed:not(.proto-shell--no-sidebar) {
   grid-template-columns: 0 minmax(0, 1fr);
@@ -75,25 +122,57 @@
   display: flex;
   align-items: center;
   position: relative;
-  z-index: 1200;
+  /* Keep toolbar popovers above sidebar so they capture hover/click (no click-through). */
+  z-index: 1300;
   isolation: isolate;
+  border-top: none;
   border-bottom: 1px solid var(--pds-border);
-  background: var(--pds-bg-toolbar);
-  backdrop-filter: saturate(150%) blur(20px);
-  -webkit-backdrop-filter: saturate(150%) blur(20px);
+  /* Transparent — sits on the shell's uniform glass; border + sheen give definition. */
+  background: transparent;
+  box-shadow: none;
+}
+
+.proto-shell__toolbar-cell::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--pds-glass-sheen);
+  pointer-events: none;
+  z-index: 0;
+}
+
+html.harvous-prototype-route .proto-shell__toolbar-cell::after {
+  display: none;
+}
+
+.proto-shell__toolbar-cell > * {
+  position: relative;
+  z-index: 1;
 }
 
 .proto-shell__sidebar-cell {
   grid-column: 1;
   grid-row: 2;
   min-height: 0;
-  overflow: hidden;
-  border-right: 1px solid var(--pds-border);
-  background: var(--pds-bg-sidebar);
-  backdrop-filter: saturate(150%) blur(20px);
-  -webkit-backdrop-filter: saturate(150%) blur(20px);
+  /* Core shell tint fills the column; the floating panel is .proto-sidebar-root. */
+  margin: 0;
+  padding: 8px;
+  overflow: visible;
+  border-radius: 0;
+  /* Transparent — the shell's uniform glass shows through; only the card is frosted. */
+  background: transparent;
+  box-shadow: none;
   display: flex;
   flex-direction: column;
+  /* Float above the full-width editor chrome bar so it reads as the bar passing behind. */
+  position: relative;
+  z-index: 2;
+}
+
+/* Note routes: sidebar spans the chrome row so the bar slides behind it
+   and the sidebar height stays fixed when the format bar toggles. */
+.proto-shell--note-chrome .proto-shell__sidebar-cell {
+  grid-row: 2 / 4;
 }
 
 .proto-shell__main-cell {
@@ -103,7 +182,17 @@
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  background: var(--pds-bg-main);
+  /* Transparent — shell carries the uniform glass; paper is the only distinct surface. */
+  background: transparent;
+  /* Sit above the sidebar's stacking context (its `backdrop-filter` glass lifts it
+     above static siblings). Otherwise the sidebar's shadow bleeds rightward over the
+     editor's translucent formatting toolbar and reads as a clipped overlap. */
+  position: relative;
+  z-index: 1;
+}
+
+.proto-shell__sidebar-resize-handle {
+  display: none;
 }
 
 .proto-shell__inspector-cell {
@@ -113,8 +202,6 @@
   overflow: hidden;
   border-left: 1px solid var(--pds-border);
   background: var(--pds-bg-sidebar);
-  backdrop-filter: saturate(150%) blur(20px);
-  -webkit-backdrop-filter: saturate(150%) blur(20px);
   display: flex;
   flex-direction: column;
 }
@@ -133,12 +220,26 @@
   grid-column: 1 / -1;
   grid-row: 3;
   border-top: 1px solid var(--pds-border);
-  background: var(--pds-bg-footer);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
+  background: transparent;
+  box-shadow: var(--pds-glass-rim);
   display: flex;
   align-items: center;
   padding: 0 14px;
+  position: relative;
+}
+
+.proto-shell__footer-cell::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--pds-glass-sheen);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.proto-shell__footer-cell > * {
+  position: relative;
+  z-index: 1;
 }
 
 /* ─── Sidebar root ───────────────────────────────────────────────────────── */
@@ -147,14 +248,44 @@
   min-height: 0;
   display: flex;
   flex-direction: column;
-  background: var(--pds-bg-sidebar);
+  position: relative;
+  isolation: isolate;
+  border-radius: var(--pds-shell-frame-radius);
+  background: var(--pds-glass-shell);
+  box-shadow: var(--pds-paper-shadow-subtle), var(--pds-glass-rim);
+  overflow: hidden;
+}
+
+.proto-sidebar-root::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--pds-glass-panel-frost);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.proto-sidebar-root::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--pds-glass-sheen);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.proto-sidebar-root > * {
+  position: relative;
+  z-index: 1;
 }
 
 .proto-sidebar-scroll {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  background: var(--pds-bg-sidebar);
+  background: transparent;
 }
 
 /* ─── Main pane ──────────────────────────────────────────────────────────── */
@@ -186,7 +317,18 @@
 @media (max-width: 899px) {
   .proto-shell {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  .proto-shell:not(.proto-shell--note-chrome) {
     grid-template-rows: var(--pds-toolbar-h) minmax(0, 1fr);
+  }
+
+  .proto-shell--note-chrome {
+    grid-template-rows: var(--pds-toolbar-h) minmax(0, 1fr) auto;
+  }
+
+  .proto-shell__editor-chrome-row {
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .proto-shell--inspector-open {
@@ -203,18 +345,34 @@
 
   .proto-shell__sidebar-cell.proto-shell-drawer-sidebar {
     position: fixed;
-    top: var(--pds-toolbar-h);
-    left: 0;
-    bottom: 0;
-    width: min(300px, 88vw);
+    top: calc(var(--pds-toolbar-h) + 8px);
+    left: 8px;
+    bottom: 8px;
+    width: min(300px, calc(88vw - 16px));
     z-index: 150;
-    transform: translateX(-100%);
+    /* Off-screen offset must clear the 8px inset so the panel slides fully out of view. */
+    transform: translateX(calc(-100% - 16px));
     transition: transform 0.26s cubic-bezier(0.32, 0.72, 0.24, 1);
-    border-right: 1px solid var(--pds-border);
-    box-shadow: 6px 0 24px rgba(0, 0, 0, 0.08);
-    background: var(--pds-bg-sidebar);
-    backdrop-filter: saturate(150%) blur(20px);
-    -webkit-backdrop-filter: saturate(150%) blur(20px);
+    margin: 0;
+    padding: 0;
+    border-radius: var(--pds-shell-frame-radius);
+    box-shadow: var(--pds-shadow-drawer), var(--pds-glass-rim);
+    background: var(--pds-glass-shell);
+  }
+
+  .proto-shell__sidebar-resize-handle {
+    display: none !important;
+  }
+
+  /* Drawer cell is the glass card on mobile — inner root stays transparent. */
+  .proto-shell__sidebar-cell.proto-shell-drawer-sidebar .proto-sidebar-root {
+    background: transparent;
+    box-shadow: none;
+    border-radius: 0;
+  }
+
+  .proto-shell__sidebar-cell.proto-shell-drawer-sidebar .proto-sidebar-root::after {
+    display: none;
   }
 
   .proto-shell-drawer-overlay {
@@ -222,7 +380,7 @@
     pointer-events: none;
     position: fixed;
     inset: var(--pds-toolbar-h) 0 0 0;
-    background: rgba(0, 0, 0, 0.18);
+    background: transparent;
     z-index: 140;
   }
 
@@ -260,22 +418,20 @@
     position: fixed;
     inset: var(--pds-toolbar-h) 0 0 0;
     z-index: 155;
-    background: rgba(0, 0, 0, 0.18);
+    background: transparent;
     pointer-events: auto;
   }
 
   .proto-inspector-mobile-panel {
     position: fixed;
-    top: var(--pds-toolbar-h);
-    right: 0;
-    bottom: 0;
-    width: min(340px, 92vw);
+    top: calc(var(--pds-toolbar-h) + 8px);
+    right: 8px;
+    bottom: 8px;
+    width: min(340px, calc(92vw - 16px));
     z-index: 160;
-    border-left: 1px solid var(--pds-border);
+    border-radius: var(--pds-shell-frame-radius);
     background: var(--pds-bg-sidebar);
-    backdrop-filter: saturate(150%) blur(20px);
-    -webkit-backdrop-filter: saturate(150%) blur(20px);
-    box-shadow: -6px 0 24px rgba(0, 0, 0, 0.08);
+    box-shadow: var(--pds-shadow-drawer);
     overflow-y: auto;
     display: flex;
     flex-direction: column;
@@ -283,16 +439,49 @@
   }
 
   @keyframes proto-inspector-mobile-in {
-    from {
-      transform: translateX(100%);
-    }
-    to {
-      transform: translateX(0);
+    from { transform: translateX(100%); opacity: 0; }
+    to   { transform: translateX(0);    opacity: 1; }
+  }
+
+  .proto-inspector-mobile-panel--exiting {
+    animation: proto-inspector-mobile-out 200ms cubic-bezier(0.32, 0.72, 0.24, 1) both;
+  }
+
+  @keyframes proto-inspector-mobile-out {
+    from { transform: translateX(0);    opacity: 1; }
+    to   { transform: translateX(100%); opacity: 0; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .proto-inspector-mobile-panel,
+    .proto-inspector-mobile-panel--exiting {
+      animation: none;
     }
   }
 }
 
 @media (min-width: 900px) {
+  /* Animate expand only — collapsing snaps the grid so the gutter never shows html canvas. */
+  .proto-shell {
+    transition: grid-template-columns 0.26s cubic-bezier(0.32, 0.72, 0.24, 1);
+  }
+
+  .proto-shell--sidebar-collapsed {
+    transition: none;
+  }
+
+  /* Drag resize must track the pointer instantly — no column or toolbar inset transition. */
+  .proto-shell--sidebar-resizing {
+    transition: none;
+  }
+
+  .proto-shell--sidebar-resizing .proto-shell__editor-chrome-row .proto-editor-bottom-bar__format,
+  .proto-shell--sidebar-resizing .proto-shell__editor-chrome-row .proto-editor-bottom-bar__scripture,
+  .proto-shell--sidebar-resizing .proto-shell__editor-chrome-row .proto-editor-bottom-bar__highlight,
+  .proto-shell--sidebar-resizing .proto-shell__editor-chrome-row .proto-editor-bottom-bar__reference {
+    transition: none;
+  }
+
   .proto-shell__sidebar-cell.proto-shell-drawer-sidebar {
     position: relative;
     transform: none !important;
@@ -308,4 +497,200 @@
   .proto-shell-drawer-overlay {
     display: none !important;
   }
+
+  .proto-shell__sidebar-resize-handle {
+    display: block;
+    grid-column: 1;
+    grid-row: 2;
+    justify-self: end;
+    align-self: stretch;
+    width: 12px;
+    margin-right: -6px;
+    z-index: 1250;
+    cursor: col-resize;
+    touch-action: none;
+    position: relative;
+    border: none;
+    padding: 0;
+    background: transparent;
+  }
+
+  .proto-shell__sidebar-resize-handle::before {
+    content: '';
+    position: absolute;
+    top: 14px;
+    bottom: 14px;
+    left: 50%;
+    width: 2px;
+    transform: translateX(-50%);
+    border-radius: 999px;
+    background: var(--pds-fill-resize-handle);
+    opacity: 0;
+    transition: opacity 120ms ease, background-color 120ms ease;
+  }
+
+  .proto-shell__sidebar-resize-handle:hover::before,
+  .proto-shell__sidebar-resize-handle:focus-visible::before,
+  .proto-shell--sidebar-resizing .proto-shell__sidebar-resize-handle::before {
+    opacity: 1;
+    background: var(--pds-fill-resize-handle-active);
+  }
+
+  .proto-shell__sidebar-resize-handle:focus-visible {
+    outline: none;
+  }
+
+  .proto-shell__editor-chrome-row .proto-editor-bottom-bar__format,
+  .proto-shell__editor-chrome-row .proto-editor-bottom-bar__scripture,
+  .proto-shell__editor-chrome-row .proto-editor-bottom-bar__highlight,
+  .proto-shell__editor-chrome-row .proto-editor-bottom-bar__reference {
+    transition: padding-left 0.26s cubic-bezier(0.32, 0.72, 0.24, 1);
+  }
+
+  .proto-shell--sidebar-collapsed .proto-shell__editor-chrome-row .proto-editor-bottom-bar__format,
+  .proto-shell--sidebar-collapsed .proto-shell__editor-chrome-row .proto-editor-bottom-bar__scripture,
+  .proto-shell--sidebar-collapsed .proto-shell__editor-chrome-row .proto-editor-bottom-bar__highlight,
+  .proto-shell--sidebar-collapsed .proto-shell__editor-chrome-row .proto-editor-bottom-bar__reference {
+    transition: none;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .proto-shell,
+    .proto-shell__editor-chrome-row .proto-editor-bottom-bar__format,
+    .proto-shell__editor-chrome-row .proto-editor-bottom-bar__scripture,
+    .proto-shell__editor-chrome-row .proto-editor-bottom-bar__highlight,
+    .proto-shell__editor-chrome-row .proto-editor-bottom-bar__reference {
+      transition: none;
+    }
+  }
+}
+
+/* Custom canvas (color or image) — shell card stacks above html wallpaper. */
+html.harvous-proto-wallpaper-color .proto-shell-frame,
+html.harvous-proto-wallpaper-image .proto-shell-frame {
+  position: relative;
+  z-index: 1;
+}
+
+/*
+ * Image wallpaper: blur the html canvas on the frame (one layer). Inner grid stays
+ * transparent so we do not stack backdrop-filters (GPU — see PROTOTYPE_AW_SNAP_ERROR_5).
+ */
+html.harvous-proto-wallpaper-image .proto-shell-frame {
+  isolation: auto;
+  background: var(--pds-glass-shell);
+  backdrop-filter: var(--pds-glass-blur);
+  -webkit-backdrop-filter: var(--pds-glass-blur);
+}
+
+html.harvous-proto-wallpaper-image .proto-shell {
+  background: transparent;
+}
+
+html.harvous-proto-wallpaper-image .proto-sidebar-root {
+  background: transparent;
+  box-shadow: var(--pds-paper-shadow-subtle);
+}
+
+html.harvous-proto-wallpaper-image .proto-sidebar-root::before {
+  background: var(--pds-glass-panel-frost);
+}
+
+html.harvous-proto-wallpaper-image .proto-shell__toolbar-cell,
+html.harvous-proto-wallpaper-image .proto-shell__footer-cell {
+  background: transparent;
+}
+
+html.harvous-proto-wallpaper-image .proto-shell__editor-chrome-row {
+  background: transparent;
+}
+
+html.harvous-proto-wallpaper-image .proto-editor-bottom-bar {
+  background-color: var(--pds-glass-shell);
+  background-image: none;
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  html.harvous-proto-wallpaper-image .proto-shell-frame {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+}
+
+.proto-popover-shell__content {
+  position: relative;
+  z-index: 1;
+}
+
+/* Keep menu/popup labels readable over busy note-list content. */
+html.harvous-proto-wallpaper-image .proto-menu-item,
+html.harvous-proto-wallpaper-image .proto-menu-item__icon,
+html.harvous-proto-wallpaper-image .proto-menu-item__check,
+html.harvous-proto-wallpaper-color .proto-menu-item,
+html.harvous-proto-wallpaper-color .proto-menu-item__icon,
+html.harvous-proto-wallpaper-color .proto-menu-item__check {
+  color: var(--pds-text-on-chrome);
+}
+
+html.harvous-proto-wallpaper-image .proto-menu-item:hover,
+html.harvous-proto-wallpaper-color .proto-menu-item:hover {
+  background: var(--pds-bg-row-selected);
+}
+
+html.harvous-proto-wallpaper-image .proto-menu-item:focus-visible,
+html.harvous-proto-wallpaper-color .proto-menu-item:focus-visible {
+  background: var(--pds-bg-control-strong);
+}
+
+html.harvous-proto-wallpaper-image .proto-menu-item--destructive,
+html.harvous-proto-wallpaper-image .proto-menu-item--destructive *,
+html.harvous-proto-wallpaper-image .proto-menu-item--destructive span,
+html.harvous-proto-wallpaper-image .proto-menu-item--destructive .proto-menu-item__icon,
+html.harvous-proto-wallpaper-color .proto-menu-item--destructive,
+html.harvous-proto-wallpaper-color .proto-menu-item--destructive *,
+html.harvous-proto-wallpaper-color .proto-menu-item--destructive span,
+html.harvous-proto-wallpaper-color .proto-menu-item--destructive .proto-menu-item__icon {
+  color: var(--pds-destructive) !important;
+}
+
+/* Match share/folder popover text readability to menu treatment. */
+html.harvous-proto-wallpaper-image .proto-share-popover,
+html.harvous-proto-wallpaper-image .proto-folder-popover,
+html.harvous-proto-wallpaper-color .proto-share-popover,
+html.harvous-proto-wallpaper-color .proto-folder-popover {
+  color: var(--pds-text-on-chrome);
+}
+
+html.harvous-proto-wallpaper-image .proto-share-popover__title,
+html.harvous-proto-wallpaper-image .proto-fte-section__label,
+html.harvous-proto-wallpaper-image .proto-fte-source__badge,
+html.harvous-proto-wallpaper-color .proto-share-popover__title,
+html.harvous-proto-wallpaper-color .proto-fte-section__label,
+html.harvous-proto-wallpaper-color .proto-fte-source__badge {
+  color: var(--pds-text-on-chrome);
+}
+
+html.harvous-proto-wallpaper-image .proto-share-popover__subtitle,
+html.harvous-proto-wallpaper-image .proto-fte-section__label--plain,
+html.harvous-proto-wallpaper-color .proto-share-popover__subtitle,
+html.harvous-proto-wallpaper-color .proto-fte-section__label--plain {
+  color: var(--pds-text-on-chrome-muted);
+}
+
+/* /prototype: no backdrop-filter except single shell layer on image wallpaper. */
+html.harvous-prototype-route [class*='proto-'],
+html.harvous-prototype-route .pds-native-selection-bar {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+html.harvous-prototype-route.harvous-proto-wallpaper-image .proto-shell-frame {
+  backdrop-filter: var(--pds-glass-blur) !important;
+  -webkit-backdrop-filter: var(--pds-glass-blur) !important;
+}
+
+html.harvous-prototype-route .proto-editor-bottom-bar {
+  background-color: var(--pds-glass-shell);
+  background-image: linear-gradient(var(--pds-glass-bar-frost), var(--pds-glass-bar-frost));
+  box-shadow: var(--pds-glass-rim);
 }

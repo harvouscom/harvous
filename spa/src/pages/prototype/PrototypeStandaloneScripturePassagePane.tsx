@@ -68,7 +68,7 @@ export default function PrototypeStandaloneScripturePassagePane({
           border: '0.5px solid var(--pds-border)',
           padding: 16,
           marginBottom: 20,
-          background: 'rgba(255,255,255,0.45)',
+          background: 'var(--pds-bg-glass-light)',
           minHeight: 120,
         }}
       >

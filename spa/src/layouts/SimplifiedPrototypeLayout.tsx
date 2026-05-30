@@ -1,13 +1,16 @@
+import PrototypePinPanels from '../pages/prototype/PrototypePinPanels';
 import ReferralCreditInit from '../../../src/components/react/ReferralCreditInit';
+import KeyboardShortcutsInit from '../../../src/components/react/KeyboardShortcutsInit';
 import SyncManagerIsland from '../../../src/components/react/SyncManagerIsland';
 import { useAuth, useUser } from '@clerk/clerk-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { HARVOUS_REMOTE_SYNC_COMPLETED } from '@/utils/harvous-remote-sync-event';
 import { refreshPrototypeLists } from '../lib/refresh-client-data';
 import { Outlet, useRouter, useRouterState } from '@tanstack/react-router';
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type PointerEvent } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, type CSSProperties, type KeyboardEvent, type PointerEvent } from 'react';
 import NativeToolbar from '../pages/prototype/NativeToolbar';
 import PrototypeSidebar from '../pages/prototype/PrototypeSidebar';
+import PrototypeEditorChromeBar from '../pages/prototype/PrototypeEditorChromeBar';
 import '../styles/prototype-tokens.css';
 import '../styles/prototype-shell.css';
 import '../styles/prototype-components.css';
@@ -19,7 +22,7 @@ import { getNoteIdFromCreateResponse, seedNoteFromCreateResponse } from '../hook
 import { PROTO_LAST_SPACE_KEY } from './proto-session-keys';
 import { ProtoShellProvider, useProtoShell } from './proto-shell-context';
 import {
-  applyBackground,
+  applyBackgroundWithImageTint,
   clearBackgroundVars,
   PROTO_ROUTE_CLASS,
   readBackground,
@@ -50,7 +53,7 @@ export default function SimplifiedPrototypeLayout() {
   useLayoutEffect(() => {
     const el = document.documentElement;
     el.classList.add(PROTO_ROUTE_CLASS);
-    applyBackground(readBackground());
+    void applyBackgroundWithImageTint(readBackground());
     return () => {
       el.classList.remove(PROTO_ROUTE_CLASS);
       clearBackgroundVars();
@@ -113,15 +116,21 @@ function PrototypeAuthenticatedChrome({ userId }: { userId?: string }) {
     persistSidebarWidth,
     sidebarWidthMin,
     sidebarWidthMax,
-    inspectorOpen
+    inspectorOpen,
+    setHideSidebar,
   } = useProtoShell();
-  const [isResizingSidebar, setIsResizingSidebar] = useState(false);
   const shellRef = useRef<HTMLDivElement | null>(null);
+  const resizeHandleRef = useRef<HTMLDivElement | null>(null);
   const widthRef = useRef(sidebarWidth);
 
   const hideSidebar = pathname.startsWith('/prototype/search');
+  const isNoteRoute = pathname.startsWith('/prototype/n/');
   // inspector is rendered inline in PrototypeNotePage (flex-row), no extra grid column needed
   void inspectorOpen;
+
+  useEffect(() => {
+    setHideSidebar(hideSidebar);
+  }, [hideSidebar, setHideSidebar]);
 
   useEffect(() => {
     widthRef.current = sidebarWidth;
@@ -168,6 +177,11 @@ function PrototypeAuthenticatedChrome({ userId }: { userId?: string }) {
     [sidebarWidthMax, sidebarWidthMin],
   );
 
+  const applySidebarWidthToShell = useCallback((width: number) => {
+    shellRef.current?.style.setProperty('--proto-sidebar-w', `${width}px`);
+    resizeHandleRef.current?.setAttribute('aria-valuenow', String(Math.round(width)));
+  }, []);
+
   const updateWidthFromClientX = useCallback(
     (clientX: number) => {
       const shellEl = shellRef.current;
@@ -175,9 +189,9 @@ function PrototypeAuthenticatedChrome({ userId }: { userId?: string }) {
       const shellRect = shellEl.getBoundingClientRect();
       const nextWidth = clampSidebarWidth(clientX - shellRect.left);
       widthRef.current = nextWidth;
-      setSidebarWidth(nextWidth);
+      applySidebarWidthToShell(nextWidth);
     },
-    [clampSidebarWidth, setSidebarWidth],
+    [applySidebarWidthToShell, clampSidebarWidth],
   );
 
   const handleSidebarResizePointerDown = useCallback(
@@ -185,7 +199,7 @@ function PrototypeAuthenticatedChrome({ userId }: { userId?: string }) {
       if (event.button !== 0 || hideSidebar || isMobileSidebar || desktopSidebarCollapsed) return;
       event.preventDefault();
       updateWidthFromClientX(event.clientX);
-      setIsResizingSidebar(true);
+      shellRef.current?.classList.add('proto-shell--sidebar-resizing');
 
       const previousCursor = document.body.style.cursor;
       const previousUserSelect = document.body.style.userSelect;
@@ -193,7 +207,7 @@ function PrototypeAuthenticatedChrome({ userId }: { userId?: string }) {
       document.body.style.userSelect = 'none';
 
       const cleanup = () => {
-        setIsResizingSidebar(false);
+        shellRef.current?.classList.remove('proto-shell--sidebar-resizing');
         document.body.style.cursor = previousCursor;
         document.body.style.userSelect = previousUserSelect;
         window.removeEventListener('pointermove', handlePointerMove);
@@ -207,6 +221,7 @@ function PrototypeAuthenticatedChrome({ userId }: { userId?: string }) {
 
       const finishResize = (upEvent: globalThis.PointerEvent) => {
         updateWidthFromClientX(upEvent.clientX);
+        setSidebarWidth(widthRef.current);
         persistSidebarWidth(widthRef.current);
         cleanup();
       };
@@ -220,6 +235,7 @@ function PrototypeAuthenticatedChrome({ userId }: { userId?: string }) {
       hideSidebar,
       isMobileSidebar,
       persistSidebarWidth,
+      setSidebarWidth,
       updateWidthFromClientX
     ],
   );
@@ -259,9 +275,9 @@ function PrototypeAuthenticatedChrome({ userId }: { userId?: string }) {
     'proto-theme',
     hideSidebar ? 'proto-shell--no-sidebar' : '',
     'proto-shell--no-footer',
+    isNoteRoute ? 'proto-shell--note-chrome' : '',
     isMobileSidebar && drawerOpen && !hideSidebar ? 'proto-shell--drawer-open' : '',
     !hideSidebar && desktopSidebarCollapsed ? 'proto-shell--sidebar-collapsed' : '',
-    isResizingSidebar ? 'proto-shell--sidebar-resizing' : '',
   ]
     .filter(Boolean)
     .join(' ');
@@ -274,6 +290,8 @@ function PrototypeAuthenticatedChrome({ userId }: { userId?: string }) {
           <SyncManagerIsland userId={userId} hideOfflineIndicator deferSyncInit />
         ) : null}
         <PrototypeShortcutBridge />
+        <KeyboardShortcutsInit />
+        <PrototypePinPanels />
         <ReferralCreditInit userId={userId} />
 
         <header className="proto-shell__toolbar-cell">
@@ -291,6 +309,7 @@ function PrototypeAuthenticatedChrome({ userId }: { userId?: string }) {
         ) : null}
         {!hideSidebar && !isMobileSidebar && !desktopSidebarCollapsed ? (
           <div
+            ref={resizeHandleRef}
             className="proto-shell__sidebar-resize-handle"
             role="separator"
             aria-label="Resize sidebar"
@@ -307,6 +326,8 @@ function PrototypeAuthenticatedChrome({ userId }: { userId?: string }) {
         <main className="proto-shell__main-cell">
           <Outlet />
         </main>
+
+        {isNoteRoute ? <PrototypeEditorChromeBar /> : null}
         </div>
       </div>
     </>

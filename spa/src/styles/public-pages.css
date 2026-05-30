@@ -6,6 +6,15 @@
    font for titles, and a gradient-blue pill CTA inside cards.
    ========================================================================== */
 
+@font-face {
+  font-family: "Google Sans";
+  src: url("/fonts/google-sans-flex/GoogleSansFlex-Variable.woff2")
+    format("woff2-variations");
+  font-weight: 1 1000;
+  font-style: normal;
+  font-display: swap;
+}
+
 /* Local design tokens — mirror `/site/src/styles/global.css`. Scoped to
    `.public-page` so they don't bleed into the rest of the app. */
 
@@ -683,11 +692,11 @@
   color: var(--site-ink) !important;
 }
 
-/* Body copy inside the note — system font stack (no Reddit Sans). */
+/* Body copy inside the note — site brand sans for public-facing reading text. */
 .public-note-card .card-full-editable__content-html {
   font-family:
-    -apple-system, BlinkMacSystemFont, "SF Pro Text",
-    ui-sans-serif, system-ui, sans-serif !important;
+    "Google Sans", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+    "Segoe UI", sans-serif !important;
   font-size: 1.0625rem !important;
   line-height: 1.65 !important;
   color: var(--site-ink) !important;

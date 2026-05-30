@@ -1,4 +1,4 @@
-import { Link, useNavigate } from '@tanstack/react-router';
+import { useNavigate } from '@tanstack/react-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { usePrototypeHomeSpaceId } from '../../hooks/usePrototypeHomeSpaceId';
 import {
@@ -61,20 +61,8 @@ export default function PrototypeHomePage() {
 
   if (!homeSpaceId) {
     return (
-      <div className="proto-main-pane proto-main-empty" style={{ maxWidth: 440 }}>
-        <h1 className="proto-title-md" style={{ marginBottom: 8 }}>
-          No home space yet
-        </h1>
-        <p className="proto-body" style={{ color: 'var(--proto-text-secondary)', marginBottom: 20 }}>
-          Open the classic app to finish setup; My Home should appear for your account.
-        </p>
-        <Link
-          to="/"
-          className="proto-caption"
-          style={{ color: 'var(--proto-accent)', fontWeight: 600, textDecoration: 'none' }}
-        >
-          Classic app →
-        </Link>
+      <div className="proto-main-pane proto-main-empty">
+        <p className="proto-caption">Loading My Home…</p>
       </div>
     );
   }
@@ -98,7 +86,8 @@ export default function PrototypeHomePage() {
           flexDirection: 'column',
           alignItems: 'center',
           justifyContent: 'center',
-          minHeight: 200,
+          flex: 1,
+          minHeight: 0,
           padding: 32,
           textAlign: 'center',
         }}
@@ -111,15 +100,8 @@ export default function PrototypeHomePage() {
         </p>
         <button
           type="button"
-          className="proto-toolbar-icon-btn"
-          style={{
-            width: 'auto',
-            height: 'auto',
-            padding: '8px 16px',
-            fontSize: 14,
-            fontWeight: 600,
-            gap: 8,
-          }}
+          className="proto-settings-btn"
+          style={{ width: 'auto', paddingLeft: 24, paddingRight: 24 }}
           disabled={createNote.isPending}
           onClick={onNewNote}
         >

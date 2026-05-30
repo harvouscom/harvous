@@ -138,6 +138,7 @@ export default function PrototypeNoteActionBar({
 }: PrototypeNoteActionBarProps) {
   const hasTrail = linkedFromNotes.length > 0 || linkedToNotes.length > 0;
   const [connectOpen, setConnectOpen] = useState(false);
+  const [connectAnchorRect, setConnectAnchorRect] = useState<DOMRect | null>(null);
   const showConnect = !connectDisabled;
   const showShare = !shareDisabled;
 
@@ -147,7 +148,10 @@ export default function PrototypeNoteActionBar({
       className="proto-note-action-bar__pill proto-note-action-bar__pill--connect"
       title="Pick another note in this space to connect"
       onMouseDown={(e) => e.preventDefault()}
-      onClick={() => setConnectOpen(true)}
+      onClick={(e) => {
+        setConnectAnchorRect(e.currentTarget.getBoundingClientRect());
+        setConnectOpen(true);
+      }}
     >
       <Icon name="arrow-right-arrow-left" size={14} className="proto-note-action-bar__pill-git" aria-hidden />
       <span>Connect note</span>
@@ -168,6 +172,7 @@ export default function PrototypeNoteActionBar({
       onOpenChange={setConnectOpen}
       spaceId={spaceId}
       parentNoteId={noteId}
+      anchorRect={connectAnchorRect}
     />
   ) : null;
 

@@ -16,6 +16,8 @@ import { useProtoShell } from '../../layouts/proto-shell-context';
 import { usePrototypeHomeSpaceId } from '../../hooks/usePrototypeHomeSpaceId';
 import { protoRelativeCaption } from './proto-time';
 import { PROTO_TOOLBAR_ICON_SIZE } from './proto-toolbar-tokens';
+import ProtoConfirmDialog from './ProtoConfirmDialog';
+import ProtoPopoverShell from './ProtoPopoverShell';
 import type { PrototypeHighlightStudyThreadRow } from '../../hooks/queries/usePrototypeSpaceStudyThreadHighlights';
 import { usePrototypeSpaceStudyThreadHighlights } from '../../hooks/queries/usePrototypeSpaceStudyThreadHighlights';
 import { usePrototypeSpaceScriptureIndex } from '../../hooks/queries/usePrototypeSpaceScriptureIndex';
@@ -27,6 +29,7 @@ import {
 } from './proto-highlight-subtitle';
 import PrototypeDictionaryColumn from './PrototypeDictionaryColumn';
 import PrototypeDictionaryEntry from './PrototypeDictionaryEntry';
+import PrototypeDailyPassagePill from './PrototypeDailyPassagePill';
 import {
   loadPinnedHighlightIds,
   togglePinnedHighlightId,
@@ -194,7 +197,7 @@ function HighlightRow({
           <Icon name="ellipsis-vertical" size={14} />
         </button>
         {menuOpen ? (
-          <div className="proto-menu__popover proto-menu__popover--right" role="menu" aria-label="Highlight actions">
+          <ProtoPopoverShell className="proto-menu__popover proto-menu__popover--right" role="menu" aria-label="Highlight actions">
             <div className="proto-menu-section" role="group">
               <button
                 type="button"
@@ -235,7 +238,9 @@ function HighlightRow({
                         width: 16,
                         height: 16,
                         borderRadius: '50%',
-                        border: selected ? '2px solid var(--pds-fg-primary, #111)' : '1px solid rgba(0,0,0,0.15)',
+                        border: selected
+                          ? '2px solid var(--pds-text-primary)'
+                          : '1px solid var(--pds-border-control-medium)',
                         background: `var(${s.cssVar})`,
                         padding: 0,
                         cursor: 'pointer',
@@ -261,7 +266,7 @@ function HighlightRow({
                 <span style={{ flex: 1, minWidth: 0 }}>Delete highlight</span>
               </button>
             </div>
-          </div>
+          </ProtoPopoverShell>
         ) : null}
       </div>
     </li>
@@ -277,11 +282,28 @@ function PrototypeSidebarNoteRow({
   onOpenNote,
 }: PrototypeSidebarNoteRowProps) {
   const [menuOpen, setMenuOpen] = useState(false);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const menuRootRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
   const { closeDrawer, isMobileSidebar } = useProtoShell();
   const pinNote = usePinSpaceNote();
   const deleteNote = useDeleteNote();
+
+  const hoverPrefetchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const cancelHoverPrefetch = useCallback(() => {
+    if (hoverPrefetchTimerRef.current !== null) {
+      clearTimeout(hoverPrefetchTimerRef.current);
+      hoverPrefetchTimerRef.current = null;
+    }
+  }, []);
+  const scheduleHoverPrefetch = useCallback(() => {
+    cancelHoverPrefetch();
+    hoverPrefetchTimerRef.current = setTimeout(() => {
+      hoverPrefetchTimerRef.current = null;
+      prefetchNote(row);
+    }, 150);
+  }, [cancelHoverPrefetch, prefetchNote, row]);
+  useEffect(() => cancelHoverPrefetch, [cancelHoverPrefetch]);
 
   useEffect(() => {
     if (!menuOpen) return undefined;
@@ -321,19 +343,24 @@ function PrototypeSidebarNoteRow({
     );
   };
 
-  const onDelete = () => {
+  const onDeleteRequest = () => {
     setMenuOpen(false);
-    if (!window.confirm('Delete this note permanently? This cannot be undone.')) return;
+    setDeleteConfirmOpen(true);
+  };
+
+  const onDeleteConfirm = () => {
     deleteNote.mutate(
       { noteId: row.id, spaceId: homeSpaceId },
       {
         onSuccess: () => {
+          setDeleteConfirmOpen(false);
           if (activeNoteFullId && row.id === activeNoteFullId) {
             navigate({ to: '/prototype/' });
             if (isMobileSidebar) closeDrawer();
           }
         },
         onError: (err) => {
+          setDeleteConfirmOpen(false);
           const msg = err instanceof APIError ? err.message : err instanceof Error ? err.message : 'Could not delete note';
           toast.error(msg);
         },
@@ -346,9 +373,14 @@ function PrototypeSidebarNoteRow({
       <button
         type="button"
         className="proto-note-row__main"
-        onClick={() => onOpenNote(row)}
-        onMouseEnter={() => prefetchNote(row)}
-        onFocus={() => prefetchNote(row)}
+        onClick={() => {
+          cancelHoverPrefetch();
+          onOpenNote(row);
+        }}
+        onMouseEnter={scheduleHoverPrefetch}
+        onMouseLeave={cancelHoverPrefetch}
+        onFocus={scheduleHoverPrefetch}
+        onBlur={cancelHoverPrefetch}
       >
         <div className="proto-note-row__title-line">
           {pinned ? (
@@ -380,7 +412,7 @@ function PrototypeSidebarNoteRow({
           <Icon name="ellipsis-vertical" size={14} />
         </button>
         {menuOpen ? (
-          <div className="proto-menu__popover proto-menu__popover--right" role="menu" aria-label="Note actions">
+          <ProtoPopoverShell className="proto-menu__popover proto-menu__popover--right" role="menu" aria-label="Note actions">
             <div className="proto-menu-section" role="group">
               <button
                 type="button"
@@ -404,7 +436,7 @@ function PrototypeSidebarNoteRow({
                 disabled={deleteNote.isPending}
                 onClick={(e) => {
                   e.stopPropagation();
-                  onDelete();
+                  onDeleteRequest();
                 }}
               >
                 <span className="proto-menu-item__icon" aria-hidden>
@@ -413,9 +445,20 @@ function PrototypeSidebarNoteRow({
                 <span style={{ flex: 1, minWidth: 0 }}>Delete note</span>
               </button>
             </div>
-          </div>
+          </ProtoPopoverShell>
         ) : null}
       </div>
+      {deleteConfirmOpen ? (
+        <ProtoConfirmDialog
+          title="Delete this note? This cannot be undone."
+          confirmLabel="Delete"
+          busy={deleteNote.isPending}
+          onConfirm={onDeleteConfirm}
+          onCancel={() => {
+            if (!deleteNote.isPending) setDeleteConfirmOpen(false);
+          }}
+        />
+      ) : null}
     </li>
   );
 }
@@ -485,6 +528,7 @@ export default function PrototypeSidebar() {
   const [scriptureDrill, setScriptureDrill] = useState<ScriptureDrill>({ level: 'books' });
   const [highlightKindFilter, setHighlightKindFilter] = useState<HighlightKindFilter>('all');
   const [pinnedHighlightIds, setPinnedHighlightIds] = useState<string[]>([]);
+  const [highlightDeleteTarget, setHighlightDeleteTarget] = useState<PrototypeHighlightStudyThreadRow | null>(null);
 
   useEffect(() => {
     setPinnedHighlightIds(loadPinnedHighlightIds(homeSpaceId ?? undefined));
@@ -623,6 +667,15 @@ export default function PrototypeSidebar() {
   const prefetchNote = useCallback(
     (row: SpaceNoteRow, opts?: { seedFromList?: boolean }) => {
       if (!homeSpaceId) return;
+      // Skip the seed + /details prefetch entirely when we already hold a fresh,
+      // full (non-preview) detail in cache — avoids a hover refetch storm.
+      const noteQueryKey = getNoteQueryOptions(row.id).queryKey;
+      const cachedDetail = queryClient.getQueryData(noteQueryKey) as
+        | { __contentIsPreview?: boolean }
+        | undefined;
+      const state = queryClient.getQueryState(noteQueryKey);
+      const isFresh = state ? Date.now() - state.dataUpdatedAt < 30_000 : false;
+      if (cachedDetail && cachedDetail.__contentIsPreview === false && isFresh) return;
       const seedFromList = opts?.seedFromList !== false;
       const listSeed: ListNoteForSeed = {
         id: row.id,
@@ -695,13 +748,18 @@ export default function PrototypeSidebar() {
     );
   };
 
-  const onDeleteHighlight = (r: PrototypeHighlightStudyThreadRow) => {
-    if (!homeSpaceId) return;
-    if (!window.confirm('Delete this highlight? This cannot be undone.')) return;
+  const onRequestDeleteHighlight = (r: PrototypeHighlightStudyThreadRow) => {
+    setHighlightDeleteTarget(r);
+  };
+
+  const onConfirmDeleteHighlight = () => {
+    if (!homeSpaceId || !highlightDeleteTarget) return;
     deleteHighlight.mutate(
-      { id: r.id, spaceId: homeSpaceId, parentNoteId: r.parentNoteId },
+      { id: highlightDeleteTarget.id, spaceId: homeSpaceId, parentNoteId: highlightDeleteTarget.parentNoteId },
       {
+        onSuccess: () => setHighlightDeleteTarget(null),
         onError: (err) => {
+          setHighlightDeleteTarget(null);
           const msg =
             err instanceof APIError ? err.message : err instanceof Error ? err.message : 'Could not delete highlight';
           toast.error(msg);
@@ -788,7 +846,7 @@ export default function PrototypeSidebar() {
           </p>
         ) : !homeSpaceId ? (
           <p className="proto-caption" style={{ padding: '14px 18px' }}>
-            My Home isn’t available yet — open the classic app to finish setup.
+            Loading My Home…
           </p>
         ) : (
           <>
@@ -828,7 +886,7 @@ export default function PrototypeSidebar() {
                         border: '0.5px solid var(--pds-border)',
                         borderRadius: 8,
                         padding: '7px 14px',
-                        background: 'rgba(255,255,255,0.6)',
+                        background: 'var(--pds-bg-glass-medium)',
                         cursor: 'pointer',
                         fontFamily: 'inherit',
                       }}
@@ -976,7 +1034,7 @@ export default function PrototypeSidebar() {
                           onOpen={() => onHighlightRow(r)}
                           onTogglePin={() => togglePinnedHighlight(r.id)}
                           onSetAccent={(token) => onSetHighlightAccent(r, token)}
-                          onDelete={() => onDeleteHighlight(r)}
+                          onDelete={() => onRequestDeleteHighlight(r)}
                           isDeleting={
                             deleteHighlight.isPending &&
                             deleteHighlight.variables?.id === r.id
@@ -1145,6 +1203,21 @@ export default function PrototypeSidebar() {
           </>
         )}
       </div>
+
+      <PrototypeDailyPassagePill homeSpaceId={homeSpaceId ?? null} notes={notes} />
+
+      {highlightDeleteTarget ? (
+        <ProtoConfirmDialog
+          title="Delete highlight?"
+          message="The highlight is removed from the source note. The note itself is kept."
+          confirmLabel="Delete highlight"
+          busy={deleteHighlight.isPending}
+          onConfirm={onConfirmDeleteHighlight}
+          onCancel={() => {
+            if (!deleteHighlight.isPending) setHighlightDeleteTarget(null);
+          }}
+        />
+      ) : null}
     </div>
   );
 }

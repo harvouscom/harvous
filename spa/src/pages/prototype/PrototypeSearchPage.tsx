@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Link, useRouterState } from '@tanstack/react-router';
+import { useRouterState } from '@tanstack/react-router';
 import { MIN_SEARCH_QUERY_LENGTH } from '@/utils/search-query';
 import { fetchSearchResults, searchQueryKey } from '../../../../src/hooks/useSearch';
 import { usePrototypeHomeSpaceId } from '../../hooks/usePrototypeHomeSpaceId';
@@ -51,15 +51,7 @@ export default function PrototypeSearchPage() {
   if (!homeSpaceId) {
     return (
       <div className="proto-search-container">
-        <h1 className="pds-title" style={{ marginBottom: 6 }}>
-          Search
-        </h1>
-        <p className="proto-caption" style={{ marginBottom: 20 }}>
-          My Home isn’t available yet. Finish setup in the classic app first.
-        </p>
-        <Link to="/prototype" className="proto-link-quiet" style={{ display: 'inline-block', marginBottom: 10 }}>
-          ← Prototype home
-        </Link>
+        <p className="proto-caption">Loading My Home…</p>
       </div>
     );
   }

@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from 'react';
 import Icon from '@/components/react/Icon';
 import { useProtoShell, type SidebarListMode } from '../../layouts/proto-shell-context';
 import { PROTO_LIST_VIEW_ICON_SIZE, PROTO_TOOLBAR_ICON_SIZE } from './proto-toolbar-tokens';
+import ProtoPopoverShell from './ProtoPopoverShell';
 
 function listModeTitle(mode: SidebarListMode): string {
   switch (mode) {
@@ -89,85 +90,37 @@ export default function ListViewMenu({ disabled }: { disabled?: boolean }) {
       </button>
 
       {open ? (
-        <div className="proto-menu__popover" role="menu" aria-label="List view">
+        <ProtoPopoverShell
+          className="proto-menu__popover proto-menu__popover--list-view"
+          role="menu"
+          aria-label="List view"
+        >
           <div className="proto-menu-section" role="group">
-            <button
-              type="button"
-              role="menuitemradio"
-              aria-checked={sidebarListMode === 'notes'}
-              className="proto-menu-item"
-              onClick={() => pick('notes')}
-            >
-              <span className="proto-menu-item__check" aria-hidden>
-                {sidebarListMode === 'notes' ? '✓' : ''}
-              </span>
-              <span className="proto-menu-item__icon" aria-hidden>
-                <Icon name="note-sticky" size={PROTO_TOOLBAR_ICON_SIZE} />
-              </span>
-              <span style={{ flex: 1, minWidth: 0 }}>Notes</span>
-            </button>
-            <button
-              type="button"
-              role="menuitemradio"
-              aria-checked={sidebarListMode === 'folders'}
-              className="proto-menu-item"
-              onClick={() => pick('folders')}
-            >
-              <span className="proto-menu-item__check" aria-hidden>
-                {sidebarListMode === 'folders' ? '✓' : ''}
-              </span>
-              <span className="proto-menu-item__icon" aria-hidden>
-                <Icon name="folder" size={PROTO_TOOLBAR_ICON_SIZE} />
-              </span>
-              <span style={{ flex: 1, minWidth: 0 }}>Folders</span>
-            </button>
-            <button
-              type="button"
-              role="menuitemradio"
-              aria-checked={sidebarListMode === 'scripture'}
-              className="proto-menu-item"
-              onClick={() => pick('scripture')}
-            >
-              <span className="proto-menu-item__check" aria-hidden>
-                {sidebarListMode === 'scripture' ? '✓' : ''}
-              </span>
-              <span className="proto-menu-item__icon" aria-hidden>
-                <Icon name="book" size={PROTO_TOOLBAR_ICON_SIZE} />
-              </span>
-              <span style={{ flex: 1, minWidth: 0 }}>Scripture</span>
-            </button>
-            <button
-              type="button"
-              role="menuitemradio"
-              aria-checked={sidebarListMode === 'highlights'}
-              className="proto-menu-item"
-              onClick={() => pick('highlights')}
-            >
-              <span className="proto-menu-item__check" aria-hidden>
-                {sidebarListMode === 'highlights' ? '✓' : ''}
-              </span>
-              <span className="proto-menu-item__icon" aria-hidden>
-                <Icon name="highlighter" size={PROTO_TOOLBAR_ICON_SIZE} />
-              </span>
-              <span style={{ flex: 1, minWidth: 0 }}>Highlights</span>
-            </button>
-            <button
-              type="button"
-              role="menuitemradio"
-              aria-checked={sidebarListMode === 'dictionary'}
-              className="proto-menu-item"
-              onClick={() => pick('dictionary')}
-            >
-              <span className="proto-menu-item__check" aria-hidden>
-                {sidebarListMode === 'dictionary' ? '✓' : ''}
-              </span>
-              <span className="proto-menu-item__icon" aria-hidden>
-                <Icon name="book-open" size={PROTO_TOOLBAR_ICON_SIZE} />
-              </span>
-              <span style={{ flex: 1, minWidth: 0 }}>Dictionary</span>
-            </button>
+            {(
+              [
+                ['notes', 'note-sticky', 'Notes'],
+                ['folders', 'folder', 'Folders'],
+                ['scripture', 'book', 'Scripture'],
+                ['highlights', 'highlighter', 'Highlights'],
+                ['dictionary', 'book-open', 'Dictionary'],
+              ] as const
+            ).map(([mode, icon, label]) => (
+              <button
+                key={mode}
+                type="button"
+                role="menuitemradio"
+                aria-checked={sidebarListMode === mode}
+                className="proto-menu-item"
+                onClick={() => pick(mode)}
+              >
+                <span className="proto-menu-item__icon" aria-hidden>
+                  <Icon name={icon} size={PROTO_TOOLBAR_ICON_SIZE} />
+                </span>
+                <span className="proto-menu-item__label">{label}</span>
+              </button>
+            ))}
           </div>
-        </div>
+        </ProtoPopoverShell>
       ) : null}
     </div>
   );

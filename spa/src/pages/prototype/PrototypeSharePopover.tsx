@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import Icon from '@/components/react/Icon';
 import { useShareNote } from '../../hooks/mutations/useShareNote';
+import ProtoPopoverShell from './ProtoPopoverShell';
 
 /**
  * Floating share popover anchored under the prototype's share pill. Mirrors
@@ -148,7 +149,7 @@ export default function PrototypeSharePopover({
   }
 
   return createPortal(
-    <div
+    <ProtoPopoverShell
       ref={cardRef}
       role="dialog"
       aria-label="Share note"
@@ -158,7 +159,7 @@ export default function PrototypeSharePopover({
         top: pos?.top ?? -9999,
         left: pos?.left ?? -9999,
         width: CARD_WIDTH,
-        zIndex: 200,
+        zIndex: 6000,
       }}
     >
       <div className="proto-share-popover__header">
@@ -235,7 +236,7 @@ export default function PrototypeSharePopover({
       {errorMessage ? (
         <div className="proto-share-popover__error" role="alert">{errorMessage}</div>
       ) : null}
-    </div>,
+    </ProtoPopoverShell>,
     document.body,
   );
 }

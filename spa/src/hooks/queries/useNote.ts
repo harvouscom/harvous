@@ -106,6 +106,13 @@ export interface NoteDetail {
   linkedFromNotes?: LinkedNoteRef[];
   linkedToNotes?: LinkedNoteRef[];
   studyThreads?: StudyThreadEntryDetail[];
+  /**
+   * Internal: set when `content` was seeded from a list payload (server
+   * NOTE_LIST_SELECT), which may be a truncated preview. Signals `useNote` to
+   * treat the cached entry as stale so the full body is fetched on open. Cleared
+   * once GET /api/notes/:id/details has populated the full detail.
+   */
+  __contentIsPreview?: boolean;
 }
 
 interface NoteDetailResponse {
@@ -267,6 +274,7 @@ export function listNoteToNoteDetail(
     linkedFromNotes: [],
     linkedToNotes: [],
     studyThreads: [],
+    __contentIsPreview: true,
   };
 }
 
@@ -290,9 +298,30 @@ export function seedNoteFromList(
     if (prev.linkedFromNotes?.length) merged.linkedFromNotes = prev.linkedFromNotes;
     if (prev.linkedToNotes?.length) merged.linkedToNotes = prev.linkedToNotes;
     if (prev.simpleNoteId != null && merged.simpleNoteId == null) merged.simpleNoteId = prev.simpleNoteId;
+    // List `content` is a truncated preview (server NOTE_LIST_SELECT). If we already
+    // have a fuller body cached (e.g. from GET …/details), keep it rather than
+    // downgrading to the preview, and inherit its (non-preview) status.
+    if (typeof prev.content === 'string' && prev.content.length >= (merged.content?.length ?? 0)) {
+      merged.content = prev.content;
+      merged.__contentIsPreview = prev.__contentIsPreview ?? false;
+    }
+    // Collection fields: detail cache (incl. optimistic patches from useUpdateNote.onSuccess)
+    // is the source of truth. Never clobber with stale list-seed values that may lag a
+    // just-completed folder update by the list-refetch round trip.
+    if ('primaryCollection' in prev) merged.primaryCollection = prev.primaryCollection ?? null;
+    if ('secondaryCollections' in prev) {
+      merged.secondaryCollections = prev.secondaryCollections ?? [];
+    }
+    if ('collectionPinned' in prev) merged.collectionPinned = !!prev.collectionPinned;
+    if ('collectionUserOverride' in prev) merged.collectionUserOverride = !!prev.collectionUserOverride;
   }
   queryClient.setQueryData(['note', listNote.id], merged);
   setCachedNoteDetail(listNote.id, merged);
+  // List content is a truncated preview, so mark the note query stale (without an
+  // immediate refetch) to ensure opening the note loads the full body via
+  // GET /api/notes/:id/details. The preview shows instantly meanwhile, and the
+  // sidebar's prefetchQuery will now actually fetch (rather than skip on fresh data).
+  queryClient.invalidateQueries({ queryKey: ['note', listNote.id], refetchType: 'none' });
 }
 
 /** Parse `note.id` from POST /api/notes/create JSON (handles odd types conservatively). */
@@ -394,11 +423,13 @@ export function useNote(noteId: string) {
   const initialDataUpdatedAt =
     cachedDetail == null
       ? undefined
-      : typeof cachedDetail.simpleNoteId === 'number'
-        ? Date.now() - 5_000
-        : 'simpleNoteId' in cachedDetail
+      : cachedDetail.__contentIsPreview
+        ? 0 // content is a truncated list preview — force GET …/details for the full body
+        : typeof cachedDetail.simpleNoteId === 'number'
           ? Date.now() - 5_000
-          : 0;
+          : 'simpleNoteId' in cachedDetail
+            ? Date.now() - 5_000
+            : 0;
   return useQuery({
     ...options,
     enabled: !!noteId,

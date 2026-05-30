@@ -208,6 +208,74 @@ const prototypeNoteFlatRoute = createRoute({
   }),
 });
 
+// Settings is a layout route (macOS System Settings-style two-pane shell on wide
+// screens, drilldown on narrow). The category pages render in its <Outlet/>.
+const prototypeSettingsRoute = createRoute({
+  getParentRoute: () => simplifiedPrototypeRoute,
+  path: 'settings',
+  component: lazyRouteComponent(() => import('./pages/prototype/settings/PrototypeSettingsLayout')),
+});
+
+const prototypeSettingsIndexRoute = createRoute({
+  getParentRoute: () => prototypeSettingsRoute,
+  path: '/',
+  component: lazyRouteComponent(() => import('./pages/prototype/settings/PrototypeSettingsIndex')),
+});
+
+const prototypeSettingsAccountRoute = createRoute({
+  getParentRoute: () => prototypeSettingsRoute,
+  path: 'account',
+  component: lazyRouteComponent(() => import('./pages/prototype/settings/PrototypeAccountPage')),
+});
+
+const prototypeSettingsTranslationRoute = createRoute({
+  getParentRoute: () => prototypeSettingsRoute,
+  path: 'translation',
+  component: lazyRouteComponent(() => import('./pages/prototype/settings/PrototypeTranslationPage')),
+});
+
+const prototypeSettingsAppearanceRoute = createRoute({
+  getParentRoute: () => prototypeSettingsRoute,
+  path: 'appearance',
+  component: lazyRouteComponent(() => import('./pages/prototype/settings/PrototypeAppearancePage')),
+});
+
+const prototypeSettingsChurchRoute = createRoute({
+  getParentRoute: () => prototypeSettingsRoute,
+  path: 'church',
+  component: lazyRouteComponent(() => import('./pages/prototype/settings/PrototypeChurchPage')),
+});
+
+const prototypeSettingsLockPinRoute = createRoute({
+  getParentRoute: () => prototypeSettingsRoute,
+  path: 'lock-pin',
+  component: lazyRouteComponent(() => import('./pages/prototype/settings/PrototypeLockPinPage')),
+});
+
+const prototypeSettingsSharingRoute = createRoute({
+  getParentRoute: () => prototypeSettingsRoute,
+  path: 'sharing',
+  component: lazyRouteComponent(() => import('./pages/prototype/settings/PrototypeSharingPage')),
+});
+
+const prototypeSettingsDataRoute = createRoute({
+  getParentRoute: () => prototypeSettingsRoute,
+  path: 'data',
+  component: lazyRouteComponent(() => import('./pages/prototype/settings/PrototypeDataPage')),
+});
+
+const prototypeSettingsSupportRoute = createRoute({
+  getParentRoute: () => prototypeSettingsRoute,
+  path: 'support',
+  component: lazyRouteComponent(() => import('./pages/prototype/settings/PrototypeSupportPage')),
+});
+
+const prototypeSettingsKeyboardShortcutsRoute = createRoute({
+  getParentRoute: () => prototypeSettingsRoute,
+  path: 'keyboard-shortcuts',
+  component: lazyRouteComponent(() => import('./pages/prototype/settings/PrototypeKeyboardShortcutsPage')),
+});
+
 // 404 catch-all — must be last
 const notFoundRoute = createRoute({
   getParentRoute: () => rootRoute,
@@ -243,6 +311,18 @@ const routeTree = rootRoute.addChildren([
     prototypeHomeRoute,
     prototypeSearchRoute,
     prototypeNoteFlatRoute,
+    prototypeSettingsRoute.addChildren([
+      prototypeSettingsIndexRoute,
+      prototypeSettingsAccountRoute,
+      prototypeSettingsTranslationRoute,
+      prototypeSettingsAppearanceRoute,
+      prototypeSettingsChurchRoute,
+      prototypeSettingsLockPinRoute,
+      prototypeSettingsSharingRoute,
+      prototypeSettingsDataRoute,
+      prototypeSettingsSupportRoute,
+      prototypeSettingsKeyboardShortcutsRoute,
+    ]),
   ]),
   notFoundRoute,
 ]);

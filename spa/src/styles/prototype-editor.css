@@ -4,13 +4,40 @@
  * Scoped under .proto-editor to isolate from SPA TipTap styles.
  */
 
+/* ─── Note pane row (editor + sliding inspector) ─────────────────────────── */
+.proto-note-pane-row {
+  display: flex;
+  flex-direction: row;
+  position: relative;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+
 /* ─── Editor outer container ─────────────────────────────────────────────── */
+.proto-note-pane-row .proto-editor-surface {
+  flex: 1;
+  min-width: 0;
+  margin-right: 0;
+  transition: margin-right var(--pds-inspector-transition-duration) var(--pds-inspector-transition-ease);
+}
+
+.proto-note-pane-row--inspector-open .proto-editor-surface {
+  margin-right: var(--pds-inspector-reserve-w);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .proto-note-pane-row .proto-editor-surface {
+    transition: none;
+  }
+}
+
 .proto-editor-surface {
   flex: 1;
   min-height: 0;
   display: flex;
   flex-direction: column;
-  background: var(--pds-bg-main);
+  background: transparent;
   overflow: hidden;
   font-family: var(--pds-font-body);
 }
@@ -22,6 +49,8 @@
   overflow-x: hidden;
   display: flex;
   flex-direction: column;
+  container-type: inline-size;
+  container-name: proto-editor-scroll;
 }
 
 /* SubtleContentMount (variant="fade") wraps the card — make its inner div a flex
@@ -30,23 +59,53 @@
   display: flex;
   flex-direction: column;
   flex: 1;
-  min-height: 0;
+  min-height: 100%;
 }
 
 .proto-editor-content-wrap {
   flex: 1;
-  min-height: 0;
+  min-height: 100%;
   display: flex;
   flex-direction: column;
   box-sizing: border-box;
   max-width: 720px;
   margin: 0 auto;
   width: 100%;
+  /* Lined up with sidebar search (see --pds-editor-paper-inset-top) */
+  padding: var(--pds-editor-paper-inset-top) var(--pds-editor-paper-inset-x) 0;
+}
+
+/* Keep paper off the column edges when the editor pane is narrow (mobile, inspector open, etc.) */
+@container proto-editor-scroll (max-width: 760px) {
+  .proto-editor-content-wrap,
+  .proto-editor-loading-wrap {
+    --pds-editor-paper-inset-x: 12px;
+  }
+}
+
+@container proto-editor-scroll (max-width: 480px) {
+  .proto-editor-content-wrap,
+  .proto-editor-loading-wrap {
+    --pds-editor-paper-inset-x: 16px;
+  }
+}
+
+/*
+ * Editor sheet — white page separated from the column by a subtle shadow only.
+ * Extends down past the viewport; sharp corners.
+ */
+.proto-editor-paper {
+  position: relative;
+  flex: 1;
+  background-color: var(--pds-paper-sheet);
+  border: none;
+  border-radius: 0;
+  box-shadow: var(--pds-paper-shadow-subtle);
   padding: 32px 32px 80px;
 }
 
 @media (max-width: 640px) {
-  .proto-editor-content-wrap {
+  .proto-editor-paper {
     padding: 20px 16px 80px;
   }
 }
@@ -67,22 +126,42 @@
   flex: 1;
   min-height: 0;
   display: flex;
-  align-items: flex-start;
-  padding: 32px;
+  flex-direction: column;
+  container-type: inline-size;
+  container-name: proto-editor-scroll;
+}
+
+.proto-editor-loading-wrap {
+  flex: 1;
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  max-width: 720px;
+  margin: 0 auto;
+  width: 100%;
+  padding: var(--pds-editor-paper-inset-top) var(--pds-editor-paper-inset-x) 0;
 }
 
 .proto-editor-loading-inner {
-  max-width: 720px;
-  width: 100%;
+  flex: 1;
   display: flex;
   flex-direction: column;
   gap: 12px;
+  box-sizing: border-box;
+  padding: 32px;
+}
+
+@media (max-width: 640px) {
+  .proto-editor-loading-inner {
+    padding: 20px 16px;
+  }
 }
 
 .proto-editor-loading-line {
   height: 16px;
   border-radius: 4px;
-  background: rgba(0, 0, 0, 0.06);
+  background: var(--pds-bg-chip);
   animation: proto-shimmer 1.4s ease-in-out infinite;
 }
 
@@ -178,7 +257,7 @@
   font-family: var(--pds-font-body) !important;
   font-size: 16px;
   line-height: 1.6;
-  color: var(--pds-text-primary);
+  color: var(--pds-text-primary) !important;
   caret-color: var(--pds-accent);
   word-break: break-word;
 }
@@ -190,11 +269,12 @@
   font-family: var(--pds-font-body) !important;
 }
 
-/* Note title should use SF Rounded (native compose title field). */
+/* Note title should use rounded terminals (native compose title field). */
 .proto-editor-surface .card-full-editable__title,
 .proto-editor-surface .card-full-editable__title-input,
 .proto-editor-surface [data-proto-note-title] {
   font-family: var(--pds-font-display) !important;
+  font-variation-settings: var(--pds-font-display-variation) !important;
 }
 
 .proto-editor-surface .ProseMirror p {
@@ -206,7 +286,7 @@
   font-size: 1.1875rem;
   font-weight: 600;
   margin: 1.4em 0 0.4em;
-  color: var(--pds-text-primary);
+  color: var(--pds-text-primary) !important;
 }
 
 .proto-editor-surface .ProseMirror h3 {
@@ -214,7 +294,7 @@
   font-size: 1.0625rem;
   font-weight: 560;
   margin: 1.2em 0 0.35em;
-  color: var(--pds-text-primary);
+  color: var(--pds-text-primary) !important;
 }
 
 .proto-editor-surface .ProseMirror h4 {
@@ -222,10 +302,10 @@
   font-size: 0.9375rem;
   font-weight: 520;
   margin: 1.1em 0 0.3em;
-  color: var(--pds-text-primary);
+  color: var(--pds-text-primary) !important;
 }
 
-/* Rendered note mode (non-ProseMirror HTML) headings should also be SF Rounded. */
+/* Rendered note mode (non-ProseMirror HTML) headings should also be rounded. */
 .proto-editor-surface .card-full-editable__content-html h1,
 .proto-editor-surface .card-full-editable__content-html h2,
 .proto-editor-surface .card-full-editable__content-html h3,
@@ -311,7 +391,7 @@
 
 /* Selection */
 .proto-editor-surface .ProseMirror ::selection {
-  background: rgba(56, 105, 230, 0.15);
+  background: var(--pds-selection-bg);
 }
 
 /* ─── Card title field (native composeTitleField — 22pt/600/rounded) ──────── */
@@ -343,9 +423,10 @@
   flex-shrink: 0;
   width: 100%;
   border-top: 0.5px solid var(--pds-border);
-  background: rgba(255, 255, 255, 0.78);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
+  /* Frosted: white frost layer over the shell tint (no hue shift). */
+  background-color: var(--pds-glass-shell);
+  background-image: linear-gradient(var(--pds-glass-bar-frost), var(--pds-glass-bar-frost));
+  box-shadow: var(--pds-glass-rim);
   font-family: var(--pds-font-body);
   z-index: 5;
 }
@@ -404,14 +485,13 @@
   display: flex;
 }
 
-/* Legacy in-tree fallback (when no portal target) — keep prior glass treatment. */
+/* Legacy in-tree fallback (when no portal target) — match chrome glass (no blur). */
 .proto-editor-surface .tiptap-toolbar--prototype-native:not(.tiptap-toolbar--portal) {
   border-radius: 0 !important;
   border: none !important;
   border-top: 0.5px solid var(--pds-border) !important;
-  background: rgba(255, 255, 255, 0.72) !important;
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
+  background: var(--pds-glass-shell) !important;
+  box-shadow: var(--pds-glass-rim);
   padding: 0 8px !important;
   min-height: 44px;
   align-items: center;
@@ -459,14 +539,14 @@
 }
 
 .proto-editor-surface .tiptap-toolbar--prototype-native button:hover:not(:disabled) {
-  background: rgba(0, 0, 0, 0.05);
+  background: var(--pds-bg-control);
   color: var(--pds-text-primary);
 }
 
 .proto-editor-surface .tiptap-toolbar--prototype-native button[aria-pressed='true'],
 .proto-editor-surface .tiptap-toolbar--prototype-native button.is-active {
   color: var(--pds-text-primary);
-  background: rgba(0, 0, 0, 0.06);
+  background: var(--pds-bg-chip);
 }
 
 .proto-note-action-bar {
@@ -519,7 +599,7 @@
   max-width: 200px;
   padding: 6px 10px;
   border-radius: var(--pds-radius-pill);
-  background: rgba(0, 0, 0, 0.09);
+  background: var(--pds-bg-control-hover);
   font-size: 13px;
   font-weight: 500;
   line-height: 1.2;
@@ -544,12 +624,12 @@
   cursor: pointer;
   font-family: var(--pds-font-body) !important;
   color: var(--pds-text-secondary);
-  background: rgba(0, 0, 0, 0.05);
+  background: var(--pds-bg-control);
   transition: background 0.1s, color 0.1s;
 }
 
 .proto-note-action-bar__pill:hover {
-  background: rgba(0, 0, 0, 0.08);
+  background: var(--pds-bg-control-strong);
   color: var(--pds-text-primary);
 }
 
@@ -565,29 +645,91 @@
    a glance that the current note is public. The neutral pill is identical to
    `--connect` so the action bar stays visually consistent. */
 .proto-note-action-bar__pill--share-active {
-  color: #fff;
+  color: var(--pds-on-accent);
   background: var(--pds-accent, #3869e6);
 }
 .proto-note-action-bar__pill--share-active:hover {
   background: #2a5ad8;
-  color: #fff;
+  color: var(--pds-on-accent);
+}
+
+/* ─── Find in note popover (createPortal'd to document.body) ───────────── */
+.proto-find-popover {
+  background: var(--pds-bg-popover-solid);
+  color: var(--pds-text-primary);
+  border: 0.5px solid var(--pds-border-control-strong);
+  border-radius: 14px;
+  box-shadow: var(--pds-shadow-popover);
+  padding: 8px 10px;
+  font-family: var(--pds-font-body);
+}
+
+.proto-find-popover > .proto-popover-shell__content {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.proto-find-popover__input {
+  flex: 1;
+  min-width: 0;
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 0.5px solid var(--pds-border-control);
+  background: var(--pds-bg-main);
+  color: var(--pds-text-primary);
+  font-size: 14px;
+}
+
+.proto-find-popover__input:focus {
+  outline: none;
+  border-color: var(--pds-border-control-strong);
+}
+
+.proto-find-popover__count {
+  font-size: 12px;
+  color: var(--pds-text-secondary);
+  min-width: 40px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+}
+
+.proto-find-popover__btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border-radius: 8px;
+  border: 0.5px solid var(--pds-border-control);
+  background: transparent;
+  color: var(--pds-text-secondary);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.proto-find-popover__btn:hover {
+  background: var(--pds-bg-hover);
+  color: var(--pds-text-primary);
 }
 
 /* ─── Share popover (createPortal'd to document.body) ──────────────────── */
 .proto-share-popover {
-  background: #ffffff;
+  background: var(--pds-bg-popover-solid);
   color: var(--pds-text-primary);
-  border: 1px solid var(--pds-border, rgba(20, 18, 12, 0.10));
+  border: 0.5px solid var(--pds-border-control-strong);
   border-radius: 14px;
-  box-shadow:
-    0 1px 2px rgba(20, 18, 12, 0.04),
-    0 12px 32px -12px rgba(20, 18, 12, 0.18),
-    0 24px 56px -24px rgba(20, 18, 12, 0.22);
+  box-shadow: var(--pds-shadow-popover);
   padding: 14px;
+  font-family: var(--pds-font-body);
+}
+
+.proto-share-popover > .proto-popover-shell__content {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  font-family: var(--pds-font-body);
 }
 
 .proto-share-popover__header {
@@ -612,16 +754,14 @@
 .proto-share-popover__primary {
   appearance: none;
   background: linear-gradient(180deg, #5a92ff 0%, #3869e6 55%, #2456d9 100%);
-  color: #ffffff !important;
+  color: var(--pds-on-accent) !important;
   border: 0;
   border-radius: 999px;
   padding: 10px 14px;
   font-size: 13.5px;
   font-weight: 600;
   cursor: pointer;
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.35),
-    0 4px 12px -6px rgba(56, 105, 230, 0.45);
+  box-shadow: var(--pds-shadow-accent-button);
 }
 .proto-share-popover__primary:hover:not(:disabled) {
   filter: brightness(1.05);
@@ -641,17 +781,17 @@
   flex: 1;
   min-width: 0;
   padding: 8px 10px;
-  border: 1px solid var(--pds-border, rgba(20, 18, 12, 0.10));
+  border: 1px solid var(--pds-border);
   border-radius: 8px;
-  background: rgba(20, 18, 12, 0.03);
+  background: var(--pds-bg-ghost);
   font-family: ui-monospace, "SF Mono", Menlo, monospace;
   font-size: 12px;
   color: var(--pds-text-primary);
   outline: none;
 }
 .proto-share-popover__url-input:focus {
-  border-color: var(--pds-accent, #3869e6);
-  background: #fff;
+  border-color: var(--pds-accent);
+  background: var(--pds-bg-page);
 }
 
 .proto-share-popover__copy {
@@ -659,9 +799,9 @@
   align-items: center;
   gap: 4px;
   padding: 0 12px;
-  border: 1px solid var(--pds-border, rgba(20, 18, 12, 0.10));
+  border: 1px solid var(--pds-border);
   border-radius: 8px;
-  background: #fff;
+  background: var(--pds-bg-page);
   font-size: 12.5px;
   font-weight: 600;
   color: var(--pds-text-primary);
@@ -669,7 +809,7 @@
   white-space: nowrap;
 }
 .proto-share-popover__copy:hover:not(:disabled) {
-  background: rgba(20, 18, 12, 0.04);
+  background: var(--pds-bg-subtle);
 }
 .proto-share-popover__copy:disabled {
   opacity: 0.6;
@@ -698,7 +838,7 @@
   text-decoration: underline;
 }
 .proto-share-popover__link-action--danger {
-  color: #b03030;
+  color: var(--pds-destructive);
 }
 .proto-share-popover__link-action:disabled {
   opacity: 0.55;
@@ -707,8 +847,8 @@
 
 .proto-share-popover__error {
   font-size: 12.5px;
-  color: #b03030;
-  background: rgba(176, 48, 48, 0.08);
+  color: var(--pds-destructive);
+  background: var(--pds-destructive-bg);
   padding: 6px 10px;
   border-radius: 8px;
   line-height: 1.4;
@@ -744,9 +884,7 @@
   backdrop-filter: saturate(180%) blur(20px);
   -webkit-backdrop-filter: saturate(180%) blur(20px);
   border: 1px solid var(--pds-border);
-  box-shadow:
-    0 8px 24px rgba(0, 0, 0, 0.12),
-    0 1px 2px rgba(0, 0, 0, 0.05);
+  box-shadow: var(--pds-shadow-toolbar);
   color: var(--pds-text-primary);
   transform-origin: 50% 0;
 }
@@ -783,4 +921,39 @@
   background: var(--pds-text-primary);
   opacity: 0.14;
   flex-shrink: 0;
+}
+
+/*
+ * Beat main-bundle tiptap-editor.css + card-full-editable.css
+ * `color: var(--color-deep-grey) !important` on ProseMirror / list / heading nodes.
+ */
+html.harvous-prototype-route .proto-editor-surface .tiptap-content .ProseMirror,
+html.harvous-prototype-route .proto-editor-surface .ProseMirror,
+html.harvous-prototype-route .proto-editor-surface .tiptap-content .ProseMirror li,
+html.harvous-prototype-route .proto-editor-surface .tiptap-content .ProseMirror h2,
+html.harvous-prototype-route .proto-editor-surface .tiptap-content .ProseMirror h3,
+html.harvous-prototype-route .proto-editor-surface .tiptap-content .ProseMirror h4 {
+  color: var(--pds-text-primary) !important;
+  font-family: var(--pds-font-body) !important;
+}
+
+html.harvous-prototype-route .proto-editor-surface .tiptap-content .ProseMirror blockquote {
+  color: var(--pds-text-secondary) !important;
+}
+
+html.harvous-prototype-route .proto-editor-surface .tiptap-content .ProseMirror p.is-editor-empty:first-child::before,
+html.harvous-prototype-route .proto-editor-surface .ProseMirror p.is-empty:first-child::before {
+  color: var(--pds-text-tertiary) !important;
+}
+
+html.harvous-prototype-route .proto-editor-surface .card-full-editable__content-html,
+html.harvous-prototype-route .proto-editor-surface .card-full-editable__content-html p,
+html.harvous-prototype-route .proto-editor-surface .card-full-editable .flex-1.overflow-auto li,
+html.harvous-prototype-route .proto-editor-surface .card-full-editable .flex-1.overflow-auto h1,
+html.harvous-prototype-route .proto-editor-surface .card-full-editable .flex-1.overflow-auto h2,
+html.harvous-prototype-route .proto-editor-surface .card-full-editable .flex-1.overflow-auto h3,
+html.harvous-prototype-route .proto-editor-surface .card-full-editable .flex-1.overflow-auto h4,
+html.harvous-prototype-route .proto-editor-surface .card-full-editable .flex-1.overflow-auto h5,
+html.harvous-prototype-route .proto-editor-surface .card-full-editable .flex-1.overflow-auto h6 {
+  color: var(--pds-text-primary) !important;
 }

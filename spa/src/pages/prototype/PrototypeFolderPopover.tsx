@@ -6,6 +6,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { NoteDetail } from '../../hooks/queries/useNote';
 import PrototypeFolderTagEditor from './PrototypeFolderTagEditor';
+import ProtoPopoverShell from './ProtoPopoverShell';
 
 const CARD_WIDTH = 340;
 const VIEWPORT_MARGIN = 12;
@@ -72,7 +73,7 @@ export default function PrototypeFolderPopover({
   if (!anchorRect || typeof document === 'undefined') return null;
 
   return createPortal(
-    <div
+    <ProtoPopoverShell
       ref={cardRef}
       role="dialog"
       aria-label="Edit folder"
@@ -82,11 +83,11 @@ export default function PrototypeFolderPopover({
         top: pos?.top ?? -9999,
         left: pos?.left ?? -9999,
         width: CARD_WIDTH,
-        zIndex: 200,
+        zIndex: 6000,
       }}
     >
       <PrototypeFolderTagEditor note={note} folderOnly />
-    </div>,
+    </ProtoPopoverShell>,
     document.body,
   );
 }

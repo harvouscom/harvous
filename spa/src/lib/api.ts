@@ -45,6 +45,14 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   return res.json() as Promise<T>;
 }
 
+/**
+ * Resolve a same-origin-or-configured API URL for raw `fetch` calls that the typed
+ * `api` helpers can't express (file downloads, multipart/FormData uploads).
+ */
+export function apiUrl(path: string): string {
+  return `${BASE_URL}${path}`;
+}
+
 export const api = {
   get: <T>(path: string, params?: Record<string, string | number>) => {
     const url = params

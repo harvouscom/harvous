@@ -131,6 +131,13 @@ export interface UserProfile {
   displayName: string;
   userColor: string;
   church: string | null;
+  /** Structured church fields from UserMetadata via get-profile. */
+  churchName?: string | null;
+  churchCity?: string | null;
+  churchState?: string | null;
+  churchCountry?: string | null;
+  /** Whether an account lock PIN is set (the hash itself is never sent to clients). */
+  hasLockPinSet?: boolean;
   /** Preferred Bible translation (e.g. ESV, NET); from UserMetadata via get-profile */
   defaultTranslation?: string;
 }
@@ -165,6 +172,7 @@ export function useProfile() {
             churchName?: string | null;
             churchCity?: string | null;
             churchState?: string | null;
+            churchCountry?: string | null;
             hasLockPinSet?: boolean;
             defaultTranslation?: string;
           }

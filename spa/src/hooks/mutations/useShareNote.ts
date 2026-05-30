@@ -1,5 +1,6 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../lib/api';
+import { mySharingQueryKey } from '../queries/useMySharing';
 import { navigationQueryKeyPrefix } from '../queries/useNavigation';
 
 export type ShareNoteAction = 'enable' | 'disable' | 'refresh';
@@ -59,6 +60,7 @@ export function useShareNote() {
       queryClient.invalidateQueries({ queryKey: ['space'] });
       queryClient.invalidateQueries({ queryKey: [...navigationQueryKeyPrefix] });
       queryClient.invalidateQueries({ queryKey: ['thread'] });
+      queryClient.invalidateQueries({ queryKey: mySharingQueryKey });
     },
   });
 }

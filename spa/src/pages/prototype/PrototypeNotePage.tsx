@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { useParams, useSearch } from '@tanstack/react-router';
 import { useQueryClient } from '@tanstack/react-query';
 import CardFullEditable from '../../../../src/components/react/CardFullEditable';
@@ -29,8 +29,19 @@ export default function PrototypeNotePage() {
   const updateNoteMutationRef = useRef(updateNoteMutation);
   updateNoteMutationRef.current = updateNoteMutation;
   const processScriptureMutation = useProcessScriptureRefs();
-  const { inspectorOpen, isMobileSidebar, closeInspector, setPrototypeFolderChip, dismissStandaloneScripturePassage } =
-    useProtoShell();
+  const {
+    inspectorOpen,
+    inspectorExiting,
+    isMobileSidebar,
+    closeInspector,
+    setPrototypeFolderChip,
+    dismissStandaloneScripturePassage,
+    formatToolbarHostEl,
+    scriptureChromeHostEl,
+    highlightChromeHostEl,
+    referenceChromeHostEl,
+    setEditorChromeMode,
+  } = useProtoShell();
 
   useEffect(() => {
     dismissStandaloneScripturePassage();
@@ -72,16 +83,11 @@ export default function PrototypeNotePage() {
     };
   }, [setPrototypeFolderChip]);
 
-  // Column-level bottom bar host. The format toolbar is portaled into this
-  // element so it pins to the bottom of the editor column (sibling of the
-  // scroll container) regardless of content height.
-  const [formatToolbarHostEl, setFormatToolbarHostEl] = useState<HTMLDivElement | null>(null);
-  const [scriptureChromeHostEl, setScriptureChromeHostEl] = useState<HTMLDivElement | null>(null);
-  const [highlightChromeHostEl, setHighlightChromeHostEl] = useState<HTMLDivElement | null>(null);
-  const [referenceChromeHostEl, setReferenceChromeHostEl] = useState<HTMLDivElement | null>(null);
-  const [chromeMode, setChromeMode] = useState<
-    'format' | 'scripture' | 'highlight' | 'reference' | 'noteActions' | 'hidden'
-  >('hidden');
+  useEffect(() => {
+    return () => {
+      setEditorChromeMode('hidden');
+    };
+  }, [setEditorChromeMode]);
 
   useEffect(() => {
     const handler = (e: Event) => {
@@ -227,11 +233,13 @@ export default function PrototypeNotePage() {
       <PrototypeMainPaneShell>
         <div className="proto-editor-surface">
           <div className="proto-editor-loading">
-            <div className="proto-editor-loading-inner">
+            <div className="proto-editor-loading-wrap">
+              <div className="proto-editor-loading-inner proto-editor-paper">
               <div className="proto-editor-loading-line proto-editor-loading-line--title" />
               <div className="proto-editor-loading-line" style={{ width: '90%' }} />
               <div className="proto-editor-loading-line" style={{ width: '75%' }} />
               <div className="proto-editor-loading-line proto-editor-loading-line--short" />
+              </div>
             </div>
           </div>
         </div>
@@ -260,13 +268,14 @@ export default function PrototypeNotePage() {
 
   const prototypeDisplayTitle = stripServerAutoUntitledNoteTitleForDisplay(note.title);
 
-  const showInspectorDesktop = inspectorOpen && !isMobileSidebar;
-  const showInspectorMobile = inspectorOpen && isMobileSidebar;
+  const showInspectorDesktop = (inspectorOpen || inspectorExiting) && !isMobileSidebar;
+  const showInspectorMobile = (inspectorOpen || inspectorExiting) && isMobileSidebar;
+  const inspectorReservesEditorSpace = inspectorOpen && !inspectorExiting;
 
   return (
     <PrototypeMainPaneShell>
     <div
-      style={{ display: 'flex', flexDirection: 'row', height: '100%', minHeight: 0, overflow: 'hidden' }}
+      className={`proto-note-pane-row${inspectorReservesEditorSpace ? ' proto-note-pane-row--inspector-open' : ''}`}
       data-note-id={noteId}
       data-parent-thread-id={parentThreadId}
       data-parent-thread-title={parentThread?.title ?? ''}
@@ -275,10 +284,11 @@ export default function PrototypeNotePage() {
       data-parent-thread-space-id={(parentThread as { spaceId?: string | null })?.spaceId ?? effectiveSpaceId}
     >
       {/* Editor column */}
-      <div className="proto-editor-surface" style={{ flex: 1, minWidth: 0 }}>
+      <div className="proto-editor-surface">
         <div className="proto-editor-scroll">
           <SubtleContentMount key={noteId} variant="fade">
             <div className="proto-editor-content-wrap">
+              <div className="proto-editor-paper">
               <CardFullEditable
                 title={prototypeDisplayTitle}
                 content={note.content ?? ''}
@@ -299,7 +309,7 @@ export default function PrototypeNotePage() {
                 highlightChromePortalTarget={highlightChromeHostEl}
                 referenceChromePortalTarget={referenceChromeHostEl}
                 initialReferenceWord={initialReferenceWord || null}
-                onPrototypeChromeModeChange={setChromeMode}
+                onPrototypeChromeModeChange={setEditorChromeMode}
                 initialPrimaryCollection={note.primaryCollection ?? null}
                 initialSecondaryCollections={note.secondaryCollections ?? []}
                 initialCollectionPinned={note.collectionPinned ?? false}
@@ -309,58 +319,15 @@ export default function PrototypeNotePage() {
                 prototypeNoteActionsChrome={true}
                 alwaysEditing
               />
+              </div>
             </div>
           </SubtleContentMount>
-        </div>
-
-        {/* Column-level bottom bar — sibling of the scroll, pinned to viewport bottom.
-            Keep in DOM (never display:none) so portal-target refs stay alive for TipTap.
-            Use height:0/overflow:hidden to visually collapse it when not needed. */}
-        <div
-          className="proto-editor-bottom-bar"
-          data-mode={chromeMode}
-          style={
-            chromeMode === 'hidden' || chromeMode === 'noteActions'
-              ? { height: 0, overflow: 'hidden', borderTop: 'none' }
-              : undefined
-          }
-        >
-          <div
-            ref={setHighlightChromeHostEl}
-            className="proto-editor-bottom-bar__highlight"
-            style={{ display: chromeMode === 'highlight' ? 'block' : 'none' }}
-          />
-          <div
-            ref={setScriptureChromeHostEl}
-            className="proto-editor-bottom-bar__scripture"
-            style={{ display: chromeMode === 'scripture' ? 'block' : 'none' }}
-          />
-          <div
-            ref={setReferenceChromeHostEl}
-            className="proto-editor-bottom-bar__reference"
-            style={{ display: chromeMode === 'reference' ? 'block' : 'none' }}
-          />
-          <div
-            ref={setFormatToolbarHostEl}
-            className="proto-editor-bottom-bar__format"
-            style={{ display: chromeMode === 'format' ? 'flex' : 'none' }}
-          />
         </div>
       </div>
 
       {/* Inspector — desktop: flex column; mobile: fixed slide-over + backdrop */}
       {showInspectorDesktop ? (
-        <div
-          style={{
-            width: 'var(--pds-inspector-w)',
-            flexShrink: 0,
-            borderLeft: '1px solid var(--pds-border)',
-            background: 'var(--pds-bg-sidebar)',
-            overflowY: 'auto',
-            display: 'flex',
-            flexDirection: 'column',
-          }}
-        >
+        <div className={`proto-inspector-desktop${inspectorExiting ? ' proto-inspector-desktop--exiting' : ''}`}>
           <PrototypeInspectorPane note={note} spaceId={effectiveSpaceId} />
         </div>
       ) : null}
@@ -373,7 +340,11 @@ export default function PrototypeNotePage() {
             tabIndex={-1}
             onClick={closeInspector}
           />
-          <div className="proto-inspector-mobile-panel" role="dialog" aria-label="Note details">
+          <div
+            className={`proto-inspector-mobile-panel${inspectorExiting ? ' proto-inspector-mobile-panel--exiting' : ''}`}
+            role="dialog"
+            aria-label="Note details"
+          >
             <PrototypeInspectorPane note={note} spaceId={effectiveSpaceId} />
           </div>
         </>

@@ -16,6 +16,7 @@ import {
   togglePinnedDictionarySlug,
 } from './proto-pinned-stores';
 import { PROTO_TOOLBAR_ICON_SIZE } from './proto-toolbar-tokens';
+import ProtoPopoverShell from './ProtoPopoverShell';
 
 type CategoryFilter = 'all' | EastonCategory;
 
@@ -180,7 +181,7 @@ function DictionaryRow({
           <Icon name="ellipsis-vertical" size={14} />
         </button>
         {menuOpen ? (
-          <div className="proto-menu__popover proto-menu__popover--right" role="menu" aria-label="Entry actions">
+          <ProtoPopoverShell className="proto-menu__popover proto-menu__popover--right" role="menu" aria-label="Entry actions">
             <div className="proto-menu-section" role="group">
               <button
                 type="button"
@@ -198,7 +199,7 @@ function DictionaryRow({
                 <span style={{ flex: 1, minWidth: 0 }}>{isPinned ? 'Unpin entry' : 'Pin entry'}</span>
               </button>
             </div>
-          </div>
+          </ProtoPopoverShell>
         ) : null}
       </div>
     </li>

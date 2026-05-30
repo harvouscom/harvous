@@ -1,16 +1,21 @@
 /**
  * Prototype inspector pane — mirrors native NoteInspectorView.
- * Sections: Connected Notes · Folder · Tags · Info
+ * Sections: Info · Folder · Tags · Connected Notes
  * Standalone — no SPA CSS variables or shared styles.
  */
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { Link } from '@tanstack/react-router';
+import { useCallback, useEffect, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react';
+import { Link, useNavigate } from '@tanstack/react-router';
 import type { NoteDetail, LinkedNoteRef } from '../../hooks/queries/useNote';
 import { formatNoteAddedBySource } from '@/utils/note-added-by-display';
 import { stripServerAutoUntitledNoteTitleForDisplay } from '@/utils/server-auto-untitled-note-display';
 import Icon from '@/components/react/Icon';
+import { toast } from '@/utils/toast';
+import { APIError } from '../../lib/api';
+import { useDeleteNote } from '../../hooks/mutations/useDeleteNote';
+import { useProtoShell } from '../../layouts/proto-shell-context';
 import PrototypeConnectNoteSheet from './PrototypeConnectNoteSheet';
 import PrototypeFolderTagEditor from './PrototypeFolderTagEditor';
+import ProtoConfirmDialog from './ProtoConfirmDialog';
 import { noteParamSlug } from './proto-route-slugs';
 
 interface PrototypeInspectorPaneProps {
@@ -20,6 +25,31 @@ interface PrototypeInspectorPaneProps {
 
 export default function PrototypeInspectorPane({ note, spaceId = '' }: PrototypeInspectorPaneProps) {
   const [connectOpen, setConnectOpen] = useState(false);
+  const [connectAnchorRect, setConnectAnchorRect] = useState<DOMRect | null>(null);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const navigate = useNavigate();
+  const { closeInspector, closeDrawer, isMobileSidebar } = useProtoShell();
+  const deleteNote = useDeleteNote();
+
+  const onDeleteConfirm = () => {
+    if (!spaceId) return;
+    deleteNote.mutate(
+      { noteId: note.id, spaceId },
+      {
+        onSuccess: () => {
+          setDeleteConfirmOpen(false);
+          closeInspector();
+          navigate({ to: '/prototype/' });
+          if (isMobileSidebar) closeDrawer();
+        },
+        onError: (err) => {
+          setDeleteConfirmOpen(false);
+          const msg = err instanceof APIError ? err.message : err instanceof Error ? err.message : 'Could not delete note';
+          toast.error(msg);
+        },
+      },
+    );
+  };
 
   const createdStr = note.createdAt ? formatDate(new Date(note.createdAt)) : '—';
   const updatedStr = note.updatedAt ? formatDate(new Date(note.updatedAt)) : '—';
@@ -32,6 +62,37 @@ export default function PrototypeInspectorPane({ note, spaceId = '' }: Prototype
 
   return (
     <div className="proto-inspector">
+      {/* Info section */}
+      <section className="proto-inspector-section">
+        <p className="proto-inspector-section-title">Info</p>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {note.simpleNoteId != null ? (
+            <InspectorSimpleNoteIdRow simpleNoteId={note.simpleNoteId} />
+          ) : null}
+          <InspectorRow label="Created" value={createdStr} />
+          <InspectorRow label="Added by" value={formatNoteAddedBySource(note.addedBy)} />
+          <InspectorRow label="Modified" value={updatedStr} />
+          <InspectorRow label="Words" value={String(wordCount)} />
+          {note.noteType && note.noteType !== 'default' ? (
+            <InspectorRow label="Type" value={capitalize(note.noteType)} />
+          ) : null}
+          {note.isPublic ? (
+            <InspectorRow label="Sharing" value="Public" />
+          ) : null}
+        </div>
+      </section>
+
+      {/* Folder + Tags */}
+      <section className="proto-inspector-section">
+        <p className="proto-inspector-section-title">Folder</p>
+        <PrototypeFolderTagEditor note={note} folderOnly />
+      </section>
+
+      <section className="proto-inspector-section">
+        <p className="proto-inspector-section-title">Tags</p>
+        <PrototypeFolderTagEditor note={note} tagsOnly />
+      </section>
+
       {/* Connected Notes section */}
       <section className="proto-inspector-section">
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
@@ -42,7 +103,10 @@ export default function PrototypeInspectorPane({ note, spaceId = '' }: Prototype
               className="proto-inspector-connect-btn"
               title="Connect another note"
               aria-label="Connect another note"
-              onClick={() => setConnectOpen(true)}
+              onClick={(e: ReactMouseEvent<HTMLButtonElement>) => {
+                setConnectAnchorRect(e.currentTarget.getBoundingClientRect());
+                setConnectOpen(true);
+              }}
             >
               <Icon name="plus" size={12} aria-hidden />
               Connect
@@ -69,39 +133,35 @@ export default function PrototypeInspectorPane({ note, spaceId = '' }: Prototype
           onOpenChange={setConnectOpen}
           spaceId={spaceId}
           parentNoteId={note.id}
+          anchorRect={connectAnchorRect}
         />
       ) : null}
 
-      {/* Folder + Tags */}
-      <section className="proto-inspector-section">
-        <p className="proto-inspector-section-title">Folder</p>
-        <PrototypeFolderTagEditor note={note} folderOnly />
-      </section>
-
-      <section className="proto-inspector-section">
-        <p className="proto-inspector-section-title">Tags</p>
-        <PrototypeFolderTagEditor note={note} tagsOnly />
-      </section>
-
-      {/* Info section */}
-      <section className="proto-inspector-section">
-        <p className="proto-inspector-section-title">Info</p>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-          {note.simpleNoteId != null ? (
-            <InspectorSimpleNoteIdRow simpleNoteId={note.simpleNoteId} />
-          ) : null}
-          <InspectorRow label="Created" value={createdStr} />
-          <InspectorRow label="Added by" value={formatNoteAddedBySource(note.addedBy)} />
-          <InspectorRow label="Modified" value={updatedStr} />
-          <InspectorRow label="Words" value={String(wordCount)} />
-          {note.noteType && note.noteType !== 'default' ? (
-            <InspectorRow label="Type" value={capitalize(note.noteType)} />
-          ) : null}
-          {note.isPublic ? (
-            <InspectorRow label="Sharing" value="Public" />
-          ) : null}
+      {spaceId ? (
+        <div className="proto-inspector-delete">
+          <button
+            type="button"
+            className="proto-inspector-delete-btn"
+            disabled={deleteNote.isPending}
+            onClick={() => setDeleteConfirmOpen(true)}
+          >
+            <Icon name="trash-can" size={12} aria-hidden />
+            Delete note
+          </button>
         </div>
-      </section>
+      ) : null}
+
+      {deleteConfirmOpen ? (
+        <ProtoConfirmDialog
+          title="Delete this note? This cannot be undone."
+          confirmLabel="Delete"
+          busy={deleteNote.isPending}
+          onConfirm={onDeleteConfirm}
+          onCancel={() => {
+            if (!deleteNote.isPending) setDeleteConfirmOpen(false);
+          }}
+        />
+      ) : null}
     </div>
   );
 }
