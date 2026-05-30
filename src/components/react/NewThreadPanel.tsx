@@ -18,6 +18,7 @@ import { invalidateNoteDetailsCache } from '@/utils/note-details-cache';
 import { invalidatePanelDataCache, PANEL_CACHE_KEYS } from '@/utils/panel-data-cache';
 import { isNetworkError } from '@/utils/network';
 import { useNewThreadPanelContext } from './contexts/NewThreadPanelContext';
+import { isClassicAppSurface } from '@/lib/prototype-path';
 import ThreadVisibilityDropdown from './ThreadVisibilityDropdown';
 
 interface Note {
@@ -252,7 +253,10 @@ export default function NewThreadPanel({
       const formData = new FormData();
       formData.append('title', title.trim());
       formData.append('color', selectedColor);
-      formData.append('isPublic', selectedType === 'Shared' ? 'true' : 'false');
+      formData.append(
+        'isPublic',
+        !isClassicAppSurface() && selectedType === 'Shared' ? 'true' : 'false',
+      );
 
       if (isEditMode) {
         formData.append('threadId', threadId!);
@@ -325,7 +329,7 @@ export default function NewThreadPanel({
               title: title.trim(),
               color: selectedColor,
               spaceId: addToSpace && currentSpace?.id ? currentSpace.id : undefined,
-              isPublic: selectedType === 'Shared',
+              isPublic: !isClassicAppSurface() && selectedType === 'Shared',
             });
 
             if (window.toast) {
@@ -386,7 +390,7 @@ export default function NewThreadPanel({
                 title: title.trim(),
                 color: selectedColor,
                 spaceId: addToSpace && currentSpace?.id ? currentSpace.id : undefined,
-                isPublic: selectedType === 'Shared',
+                isPublic: !isClassicAppSurface() && selectedType === 'Shared',
               });
 
               if (window.toast) {
@@ -800,16 +804,18 @@ export default function NewThreadPanel({
                   </div>
                 )}
                 
-                {/* Thread visibility dropdown */}
-                <ThreadVisibilityDropdown
-                  isShared={selectedType === 'Shared'}
-                  shareUrl={null}
-                  onToggle={async (enabled) => {
-                    setSelectedType(enabled ? 'Shared' : 'Private');
-                  }}
-                  isLoading={isSubmitting}
-                  isEditMode={false}
-                />
+                {/* Thread visibility dropdown — disabled on classic app (app.harvous.com) */}
+                {!isClassicAppSurface() ? (
+                  <ThreadVisibilityDropdown
+                    isShared={selectedType === 'Shared'}
+                    shareUrl={null}
+                    onToggle={async (enabled) => {
+                      setSelectedType(enabled ? 'Shared' : 'Private');
+                    }}
+                    isLoading={isSubmitting}
+                    isEditMode={false}
+                  />
+                ) : null}
 
                 {/* Selected Notes - displayed above AddToSpaceSection (create mode only) */}
                 {!isEditMode && selectedItems.length > 0 && !isLoadingItems && (

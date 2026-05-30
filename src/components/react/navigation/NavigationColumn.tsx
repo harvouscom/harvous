@@ -10,6 +10,7 @@ import { shouldForceRefresh, refreshBadgeCountsWithVerification } from '@/utils/
 import { useNavigation } from './NavigationContext';
 import { idToUrl, extractIdFromPath } from '@/utils/url-helpers';
 import { getBackTarget, popNavStack } from '@/utils/nav-stack';
+import { isClassicAppSurface } from '@/lib/prototype-path';
 import { safeNavigate } from '@/utils/safe-navigate';
 import { MY_PILE_THREAD_TITLE } from '@/utils/my-pile-thread';
 
@@ -1341,15 +1342,17 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
                     </>
                   )}
                   </div>
-                  <div className="space-switcher-dropdown__footer">
-                    <div className="space-switcher-dropdown__divider" />
-                    <a href="/new-space" className="space-switcher-dropdown__item space-switcher-dropdown__new-space">
-                      <span className="space-switcher-dropdown__label">New Space</span>
-                      <span className="space-switcher-dropdown__check" aria-hidden="true">
-                        <Icon name="plus" size={20} style={{ color: 'var(--color-deep-grey)' }} />
-                      </span>
-                    </a>
-                  </div>
+                  {!isClassicAppSurface() ? (
+                    <div className="space-switcher-dropdown__footer">
+                      <div className="space-switcher-dropdown__divider" />
+                      <a href="/new-space" className="space-switcher-dropdown__item space-switcher-dropdown__new-space">
+                        <span className="space-switcher-dropdown__label">New Space</span>
+                        <span className="space-switcher-dropdown__check" aria-hidden="true">
+                          <Icon name="plus" size={20} style={{ color: 'var(--color-deep-grey)' }} />
+                        </span>
+                      </a>
+                    </div>
+                  ) : null}
                 </div>
               </details>
             </div>

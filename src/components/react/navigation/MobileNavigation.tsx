@@ -12,6 +12,7 @@ import { idToUrl, extractIdFromPath } from '@/utils/url-helpers';
 import { appendSpaceQueryParam, getSpaceIdForPersistentNavLinks } from '@/utils/current-space-for-links';
 import { safeNavigateSync, preloadSafeNavigate } from '@/utils/safe-navigate';
 import { getBackTarget, popNavStack } from '@/utils/nav-stack';
+import { isClassicAppSurface } from '@/lib/prototype-path';
 import { isMyPileDisplayTitle, MY_PILE_THREAD_TITLE } from '@/utils/my-pile-thread';
 import { prefetchThreadRouteIntent } from '../../../../spa/src/utils/prefetch-route-intent';
 
@@ -1755,29 +1756,33 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
                       </>
                     )}
                     </div>
-                    <div className="mobile-nav__space-panel-divider" />
-                    <div
-                      className="mobile-nav__space-panel-item mobile-nav__space-panel-new-space"
-                      style={{ cursor: 'pointer' }}
-                      onClick={(e) => {
-                        const targetEl = e.target as HTMLElement | null;
-                        if (targetEl?.closest?.('.space-switcher-anchor__toggle')) {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          return;
-                        }
-                        if (!e.currentTarget.contains(targetEl as Node)) {
-                          return;
-                        }
-                        navigate('/new-space');
-                        closeSheet();
-                      }}
-                    >
-                      <span className="mobile-nav__space-panel-label">New Space</span>
-                      <span className="mobile-nav__space-panel-check" aria-hidden="true">
-                        <Icon name="plus" size={20} style={{ color: 'var(--color-deep-grey)' }} />
-                      </span>
-                    </div>
+                    {!isClassicAppSurface() ? (
+                      <>
+                        <div className="mobile-nav__space-panel-divider" />
+                        <div
+                          className="mobile-nav__space-panel-item mobile-nav__space-panel-new-space"
+                          style={{ cursor: 'pointer' }}
+                          onClick={(e) => {
+                            const targetEl = e.target as HTMLElement | null;
+                            if (targetEl?.closest?.('.space-switcher-anchor__toggle')) {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              return;
+                            }
+                            if (!e.currentTarget.contains(targetEl as Node)) {
+                              return;
+                            }
+                            navigate('/new-space');
+                            closeSheet();
+                          }}
+                        >
+                          <span className="mobile-nav__space-panel-label">New Space</span>
+                          <span className="mobile-nav__space-panel-check" aria-hidden="true">
+                            <Icon name="plus" size={20} style={{ color: 'var(--color-deep-grey)' }} />
+                          </span>
+                        </div>
+                      </>
+                    ) : null}
                   </div>
                 )}
               </div>

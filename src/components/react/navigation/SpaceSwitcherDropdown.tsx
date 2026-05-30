@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import Icon from '../Icon';
+import { isClassicAppSurface } from '@/lib/prototype-path';
 import { idToUrl } from '@/utils/url-helpers';
 import { setSelectedSpaceId } from './selectedSpace';
 
@@ -164,19 +165,21 @@ const SpaceSwitcherDropdown: React.FC<SpaceSwitcherDropdownProps> = ({
               );
             })}
             </div>
-            <div className="space-switcher-dropdown__footer">
-              <div className="space-switcher-dropdown__divider" />
-              <a
-                href="/new-space"
-                className="space-switcher-dropdown__item space-switcher-dropdown__new-space"
-                onClick={() => onClose()}
-              >
-                <span className="space-switcher-dropdown__label">New Space</span>
-                <span className="space-switcher-dropdown__check" aria-hidden="true">
-                  <Icon name="plus" size={20} style={{ color: 'var(--color-deep-grey)' }} />
-                </span>
-              </a>
-            </div>
+            {!isClassicAppSurface() ? (
+              <div className="space-switcher-dropdown__footer">
+                <div className="space-switcher-dropdown__divider" />
+                <a
+                  href="/new-space"
+                  className="space-switcher-dropdown__item space-switcher-dropdown__new-space"
+                  onClick={() => onClose()}
+                >
+                  <span className="space-switcher-dropdown__label">New Space</span>
+                  <span className="space-switcher-dropdown__check" aria-hidden="true">
+                    <Icon name="plus" size={20} style={{ color: 'var(--color-deep-grey)' }} />
+                  </span>
+                </a>
+              </div>
+            ) : null}
           </div>
         </div>,
         document.body,
