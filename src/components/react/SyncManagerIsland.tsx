@@ -11,6 +11,8 @@ interface SyncManagerIslandProps {
   userId?: string | null;
   /** When true, sync still runs but the offline / sync-error floating UI is not shown (e.g. `/prototype/`). */
   hideOfflineIndicator?: boolean;
+  /** When true, bootstrap / incremental sync waits until idle so shell paint is not competing. */
+  deferSyncInit?: boolean;
 }
 
 /**
@@ -26,6 +28,7 @@ interface SyncManagerIslandProps {
 export default function SyncManagerIsland({
   userId: serverUserId,
   hideOfflineIndicator = false,
+  deferSyncInit = false,
 }: SyncManagerIslandProps = {}) {
   // Initialize from server prop (fastest), then localStorage, then set window variable
   // This ensures window.__harvous_userId is available synchronously for all components
@@ -69,7 +72,7 @@ export default function SyncManagerIsland({
 
     let syncCleanup: (() => void) | undefined;
 
-    initializeSync(userId)
+    initializeSync(userId, { deferInitialWork: deferSyncInit })
       .then(cleanup => { syncCleanup = cleanup; })
       .catch(err => {
         const errorMessage = err?.message || String(err);
@@ -82,7 +85,7 @@ export default function SyncManagerIsland({
     setHasInitialized(true);
 
     return () => { syncCleanup?.(); };
-  }, [userId, hasInitialized]);
+  }, [userId, hasInitialized, deferSyncInit]);
 
   // Coordinate online recovery - single point of handling 'online' events
   useEffect(() => {
