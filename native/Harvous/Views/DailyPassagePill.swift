@@ -115,7 +115,7 @@ struct DailyPassagePill: View {
                             } label: {
                                 HStack(spacing: 4) {
                                     HarvousFAGlyph(assetName: "Harvous.CircleXmark", edgePt: 10)
-                                    Text("Dismiss").font(.system(size: 11, weight: .medium))
+                                    Text("Dismiss").font(HarvousFonts.font(size: 11, weight: .medium, design: .default))
                                 }
                                 .foregroundStyle(.secondary)
                                 .padding(.horizontal, 8)
@@ -166,7 +166,7 @@ struct DailyPassagePill: View {
                 VStack(spacing: 4) {
                     HarvousFAGlyph(assetName: "Harvous.CircleXmark", edgePt: 18)
                     Text("Dismiss")
-                        .font(.system(size: 12, weight: .semibold))
+                        .font(HarvousFonts.font(size: 12, weight: .semibold, design: .default))
                 }
                 .foregroundStyle(.white)
                 .padding(.horizontal, 18)
@@ -245,11 +245,14 @@ struct DailyPassagePill: View {
     private func cardContent(votd: VotdToday) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             Text("Today's Passage")
-                .font(HarvousTypography.noteListPreview)
+                // Use 12pt on both platforms — matches the Mac sidebar pill; noteListPreview
+                // intentionally upsizes to 14pt on iOS for list rows but the pill is a compact
+                // widget that should stay tight regardless of platform.
+                .font(HarvousFonts.font(size: 12, weight: 400, design: .default))
                 .foregroundStyle(.secondary)
 
             Text(votd.reference)
-                .font(.system(size: 15, weight: .semibold))
+                .font(HarvousFonts.font(size: 14, weight: .semibold, design: .default))
                 .foregroundStyle(.primary)
                 .lineLimit(2)
                 .multilineTextAlignment(.leading)
@@ -270,7 +273,7 @@ struct DailyPassagePill: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, HarvousFeedListLayout.interiorContentHPadding)
-        .padding(.top, 10)
+        .padding(.top, 9)
         .padding(.bottom, 8)
         .background(
             RoundedRectangle(cornerRadius: 14, style: .continuous)

@@ -10,50 +10,215 @@
  * `--font-mono` to `--pds-*` stacks so embedded React surfaces never resolve Reddit Sans.
  */
 
+@font-face {
+  font-family: "Google Sans Flex";
+  src: url("/fonts/google-sans-flex/GoogleSansFlex-Variable.woff2")
+    format("woff2-variations");
+  font-weight: 1 1000;
+  font-style: normal;
+  font-display: swap;
+}
+
 /* ─── Design tokens ──────────────────────────────────────────────────────── */
 :root {
+  /* OKLCH primitives — lightness chroma hue [/ alpha] */
+  --pds-lch-accent: 52% 0.18 265;
+  --pds-lch-accent-pressed: 45% 0.18 265;
+  --pds-lch-scripture-fg: 48% 0.18 255;
+  --pds-lch-scripture-accent: 58% 0.22 255;
+
+  --pds-lch-bg-page: 100% 0 0;
+  --pds-lch-bg-main: 100% 0 0;
+  --pds-lch-bg-toolbar: 100% 0 0 / 0.78;
+  --pds-lch-bg-footer: 98.5% 0.005 90 / 0.97;
+  --pds-lch-bg-popover: 99% 0.005 90 / 0.98;
+  --pds-lch-canvas-default: 100% 0 0;
+
+  --pds-lch-text-primary: 24% 0.01 285;
+  --pds-lch-text-secondary: 24% 0.01 285 / 0.5;
+  --pds-lch-text-tertiary: 24% 0.01 285 / 0.32;
+  --pds-lch-text-muted: 0% 0 0 / 0.5;
+  --pds-lch-text-muted-strong: 0% 0 0 / 0.75;
+  --pds-lch-text-muted-soft: 0% 0 0 / 0.55;
+  --pds-lch-text-muted-faint: 0% 0 0 / 0.45;
+  --pds-lch-text-muted-ghost: 0% 0 0 / 0.4;
+
+  --pds-lch-fill-input: 0% 0 0 / 0.055;
+  --pds-lch-fill-input-hover: 0% 0 0 / 0.07;
+  --pds-lch-fill-row-hover: 0% 0 0 / 0.038;
+  --pds-lch-fill-row-selected: 0% 0 0 / 0.065;
+  --pds-lch-fill-section: 0% 0 0 / 0.038;
+  --pds-lch-fill-control: 0% 0 0 / 0.05;
+  --pds-lch-fill-control-hover: 0% 0 0 / 0.09;
+  --pds-lch-fill-control-pressed: 0% 0 0 / 0.082;
+  --pds-lch-fill-control-strong: 0% 0 0 / 0.08;
+  --pds-lch-fill-control-strong-hover: 0% 0 0 / 0.12;
+  --pds-lch-fill-chip: 0% 0 0 / 0.06;
+  --pds-lch-fill-chip-hover: 0% 0 0 / 0.07;
+  --pds-lch-fill-subtle: 0% 0 0 / 0.045;
+  --pds-lch-fill-faint: 0% 0 0 / 0.04;
+  --pds-lch-fill-ghost: 0% 0 0 / 0.025;
+  --pds-lch-fill-track: 0% 0 0 / 0.18;
+
+  --pds-lch-border: 0% 0 0 / 0.072;
+  --pds-lch-border-soft: 0% 0 0 / 0.04;
+  --pds-lch-border-control: 0% 0 0 / 0.08;
+  --pds-lch-border-control-soft: 0% 0 0 / 0.05;
+  --pds-lch-border-control-medium: 0% 0 0 / 0.1;
+  --pds-lch-border-control-strong: 0% 0 0 / 0.12;
+
+  --pds-lch-overlay-light: 0% 0 0 / 0.15;
+  --pds-lch-overlay-medium: 0% 0 0 / 0.28;
+  --pds-lch-overlay-heavy: 0% 0 0 / 0.35;
+
+  --pds-lch-shadow-card-a: 0% 0 0 / 0.06;
+  --pds-lch-shadow-card-b: 0% 0 0 / 0.03;
+  --pds-lch-shadow-card-elevated: 0% 0 0 / 0.05;
+  --pds-lch-shadow-popover-a: 0% 0 0 / 0.12;
+  --pds-lch-shadow-popover-b: 0% 0 0 / 0.05;
+  --pds-lch-shadow-popover-ring: 0% 0 0 / 0.04;
+  --pds-lch-shadow-drawer-a: 0% 0 0 / 0.18;
+  --pds-lch-shadow-drawer-b: 0% 0 0 / 0.08;
+  --pds-lch-shadow-fab: 0% 0 0 / 0.18;
+  --pds-lch-shadow-track: 0% 0 0 / 0.18;
+  --pds-lch-shadow-shell-a: 0% 0 0 / 0.02;
+  --pds-lch-shadow-shell-b: 0% 0 0 / 0.01;
+  --pds-lch-border-modal-highlight: 100% 0 0 / 0.75;
+  --pds-lch-modal-inset: 100% 0 0 / 0.9;
+  --pds-lch-modal-wash: 100% 0 0 / 0.42;
+  --pds-lch-bg-glass-medium: 100% 0 0 / 0.65;
+  --pds-lch-bg-glass-light: 100% 0 0 / 0.45;
+  --pds-lch-bg-glass-strong: 100% 0 0 / 0.9;
+  --pds-lch-bg-glass-toolbar: 100% 0 0 / 0.72;
+
+  --pds-lch-thread-blue: 88% 0.08 235;
+  --pds-lch-thread-yellow: 91% 0.11 90;
+  --pds-lch-thread-green: 83% 0.08 145;
+  --pds-lch-thread-pink: 86% 0.1 330;
+  --pds-lch-thread-orange: 88.5% 0.08 70;
+  --pds-lch-thread-purple: 81% 0.12 310;
+
+  --pds-lch-destructive: 55% 0.2 25;
+
   /* Brand accent — Color(red:0.22, green:0.41, blue:0.90) */
-  --pds-accent:         rgb(56, 105, 230);
-  --pds-accent-pressed: rgb(42, 88, 200);
-  --pds-accent-active-bg:  rgba(56, 105, 230, 0.12);
-  --pds-accent-pressed-bg: rgba(56, 105, 230, 0.18);
+  --pds-accent: oklch(var(--pds-lch-accent));
+  --pds-accent-pressed: oklch(var(--pds-lch-accent-pressed));
+  --pds-accent-active-bg: oklch(var(--pds-lch-accent) / 0.12);
+  --pds-accent-pressed-bg: oklch(var(--pds-lch-accent) / 0.18);
+  --pds-on-accent: #ffffff;
 
   /* Scripture chip colors (blue theme — default) */
-  --pds-scripture-fg:     rgb(0, 78, 203);
-  --pds-scripture-bg:     rgba(0, 122, 255, 0.075);
-  --pds-scripture-border: rgba(0, 122, 255, 0.20);
+  --pds-scripture-fg: oklch(var(--pds-lch-scripture-fg));
+  --pds-scripture-bg: oklch(var(--pds-lch-scripture-accent) / 0.075);
+  --pds-scripture-border: oklch(var(--pds-lch-scripture-accent) / 0.2);
 
   /* Thread pastel fills */
-  --pds-thread-blue:   rgb(194, 227, 255);
-  --pds-thread-yellow: rgb(250, 222, 120);
-  --pds-thread-green:  rgb(199, 237, 186);
-  --pds-thread-pink:   rgb(247, 207, 237);
-  --pds-thread-orange: rgb(252, 217, 161);
-  --pds-thread-purple: rgb(232, 201, 255);
+  --pds-thread-blue: oklch(var(--pds-lch-thread-blue));
+  --pds-thread-yellow: oklch(var(--pds-lch-thread-yellow));
+  --pds-thread-green: oklch(var(--pds-lch-thread-green));
+  --pds-thread-pink: oklch(var(--pds-lch-thread-pink));
+  --pds-thread-orange: oklch(var(--pds-lch-thread-orange));
+  --pds-thread-purple: oklch(var(--pds-lch-thread-purple));
 
   /* Page / surface backgrounds */
-  --pds-bg-page:    #f7f6f3;
-  --pds-bg-toolbar: rgba(255, 255, 255, 0.78);
-  /* Sidebar + slide-over panels: match chrome strip (same as toolbar) */
+  --pds-bg-page: oklch(var(--pds-lch-bg-page));
+  --pds-bg-toolbar: oklch(var(--pds-lch-bg-toolbar));
   --pds-bg-sidebar: var(--pds-bg-toolbar);
-  --pds-bg-main:    #ffffff;
-  --pds-bg-footer:  rgba(250, 250, 248, 0.97);
-  --pds-bg-popover: rgba(252, 252, 250, 0.98);
-  --pds-bg-input:   rgba(0, 0, 0, 0.055);
-  --pds-bg-input-hover: rgba(0, 0, 0, 0.07);
-  --pds-bg-row-hover: rgba(0, 0, 0, 0.038);
-  --pds-bg-row-selected: rgba(0, 0, 0, 0.065);
-  --pds-bg-section:  rgba(0, 0, 0, 0.038);
+  --pds-bg-main: oklch(var(--pds-lch-bg-main));
+  --pds-bg-footer: oklch(var(--pds-lch-bg-footer));
+  --pds-bg-popover: oklch(var(--pds-lch-bg-popover));
+  --pds-bg-input: oklch(var(--pds-lch-fill-input));
+  --pds-bg-input-hover: oklch(var(--pds-lch-fill-input-hover));
+  --pds-bg-row-hover: oklch(var(--pds-lch-fill-row-hover));
+  --pds-bg-row-selected: oklch(var(--pds-lch-fill-row-selected));
+  --pds-bg-section: oklch(var(--pds-lch-fill-section));
+  --pds-bg-control: oklch(var(--pds-lch-fill-control));
+  --pds-bg-control-hover: oklch(var(--pds-lch-fill-control-hover));
+  --pds-bg-control-pressed: oklch(var(--pds-lch-fill-control-pressed));
+  --pds-bg-control-strong: oklch(var(--pds-lch-fill-control-strong));
+  --pds-bg-control-strong-hover: oklch(var(--pds-lch-fill-control-strong-hover));
+  --pds-bg-chip: oklch(var(--pds-lch-fill-chip));
+  --pds-bg-chip-hover: oklch(var(--pds-lch-fill-chip-hover));
+  --pds-bg-subtle: oklch(var(--pds-lch-fill-subtle));
+  --pds-bg-faint: oklch(var(--pds-lch-fill-faint));
+  --pds-bg-ghost: oklch(var(--pds-lch-fill-ghost));
+  --pds-bg-track: oklch(var(--pds-lch-fill-track));
+  --pds-canvas-default: oklch(var(--pds-lch-canvas-default));
+  --pds-bg-chrome-opaque: oklch(var(--pds-lch-bg-page) / 0.92);
+  --pds-bg-sidebar-gradient-start: oklch(var(--pds-lch-bg-popover) / 0.9);
+  --pds-bg-sidebar-gradient-end: oklch(var(--pds-lch-bg-popover) / 0.84);
+  --pds-bg-popover-wash: oklch(var(--pds-lch-bg-page) / 0.28);
+  --pds-text-on-chrome: oklch(var(--pds-lch-text-primary) / 0.92);
+  --pds-text-on-chrome-muted: oklch(var(--pds-lch-text-primary) / 0.68);
+  --pds-fill-resize-handle: oklch(var(--pds-lch-overlay-light));
+  --pds-fill-resize-handle-active: oklch(var(--pds-lch-overlay-medium));
+  --pds-bg-modal: linear-gradient(
+    180deg,
+    oklch(var(--pds-lch-bg-popover) / 0.98),
+    oklch(var(--pds-lch-bg-popover) / 0.96)
+  );
+  --pds-bg-modal-wallpaper: linear-gradient(
+    180deg,
+    oklch(var(--pds-lch-bg-popover) / 0.97),
+    oklch(var(--pds-lch-bg-popover) / 0.93)
+  );
+  --pds-border-modal-highlight: oklch(var(--pds-lch-border-modal-highlight));
+  --pds-bg-modal-inset-highlight: oklch(var(--pds-lch-modal-inset));
+  --pds-bg-modal-wash: oklch(var(--pds-lch-modal-wash));
+  --pds-bg-surface-glass: oklch(var(--pds-lch-bg-page) / 0.8);
+  --pds-bg-surface-glass-strong: oklch(var(--pds-lch-bg-page) / 0.7);
+  --pds-accent-focus-border: oklch(var(--pds-lch-accent) / 0.35);
+  --pds-accent-focus-ring: oklch(var(--pds-lch-accent) / 0.15);
+  --pds-accent-subtle-bg: oklch(var(--pds-lch-accent) / 0.06);
+  --pds-accent-subtle-border: oklch(var(--pds-lch-accent) / 0.2);
+  --pds-shadow-chip-selected: 0 1px 2px oklch(var(--pds-lch-shadow-popover-b));
+  --pds-shadow-track-knob: 0 1px 2px oklch(var(--pds-lch-shadow-fab));
+  --pds-bg-glass-medium: oklch(var(--pds-lch-bg-glass-medium));
+  --pds-bg-glass-light: oklch(var(--pds-lch-bg-glass-light));
+  --pds-bg-glass-strong: oklch(var(--pds-lch-bg-glass-strong));
+  --pds-bg-glass-toolbar: oklch(var(--pds-lch-bg-glass-toolbar));
+  --pds-accent-focus-outline: oklch(var(--pds-lch-accent) / 0.45);
+  --pds-accent-focus-outline-soft: oklch(var(--pds-lch-accent) / 0.4);
+  --pds-accent-focus-outline-row: oklch(var(--pds-lch-accent) / 0.2);
+  --pds-accent-active-bg-strong: oklch(var(--pds-lch-accent) / 0.1);
+  --pds-accent-active-border: oklch(var(--pds-lch-accent) / 0.4);
+  --pds-accent-active-ring: oklch(var(--pds-lch-accent) / 0.12);
+  --pds-accent-active-border-soft: oklch(var(--pds-lch-accent) / 0.3);
+  --pds-accent-active-border-medium: oklch(var(--pds-lch-accent) / 0.25);
+  --pds-accent-toolbar-bg: oklch(var(--pds-lch-accent) / 0.07);
+  --pds-selection-bg: oklch(var(--pds-lch-accent) / 0.15);
+  --pds-destructive-bg: oklch(var(--pds-lch-destructive) / 0.08);
+  --pds-destructive-bg-strong: oklch(var(--pds-lch-destructive) / 0.15);
+  --pds-shadow-accent-button:
+    inset 0 1px 0 oklch(100% 0 0 / 0.35),
+    0 4px 12px -6px oklch(var(--pds-lch-accent) / 0.45);
+  --pds-shadow-destructive-button:
+    inset 0 1px 0 oklch(100% 0 0 / 0.25),
+    0 4px 12px -6px oklch(var(--pds-lch-destructive) / 0.45);
 
   /* Text */
-  --pds-text-primary:   #1d1d1f;
-  --pds-text-secondary: rgba(29, 29, 31, 0.50);
-  --pds-text-tertiary:  rgba(29, 29, 31, 0.32);
-  --pds-text-link:      var(--pds-accent);
+  --pds-text-primary: oklch(var(--pds-lch-text-primary));
+  --pds-text-secondary: oklch(var(--pds-lch-text-secondary));
+  --pds-text-tertiary: oklch(var(--pds-lch-text-tertiary));
+  --pds-text-muted: oklch(var(--pds-lch-text-muted));
+  --pds-text-muted-strong: oklch(var(--pds-lch-text-muted-strong));
+  --pds-text-muted-soft: oklch(var(--pds-lch-text-muted-soft));
+  --pds-text-muted-faint: oklch(var(--pds-lch-text-muted-faint));
+  --pds-text-muted-ghost: oklch(var(--pds-lch-text-muted-ghost));
+  --pds-text-link: var(--pds-accent);
 
   /* Borders / separators */
-  --pds-border:      rgba(0, 0, 0, 0.072);
-  --pds-border-soft: rgba(0, 0, 0, 0.040);
+  --pds-border: oklch(var(--pds-lch-border));
+  --pds-border-soft: oklch(var(--pds-lch-border-soft));
+  --pds-border-control: oklch(var(--pds-lch-border-control));
+  --pds-border-control-soft: oklch(var(--pds-lch-border-control-soft));
+  --pds-border-control-medium: oklch(var(--pds-lch-border-control-medium));
+  --pds-border-control-strong: oklch(var(--pds-lch-border-control-strong));
+
+  /* Overlays (drawer scrims, modal backdrops) */
+  --pds-overlay-light: oklch(var(--pds-lch-overlay-light));
+  --pds-overlay-medium: oklch(var(--pds-lch-overlay-medium));
+  --pds-overlay-heavy: oklch(var(--pds-lch-overlay-heavy));
 
   /* Radii — HarvousShape */
   --pds-radius-card:     20px;
@@ -62,26 +227,56 @@
   --pds-radius-pill:     999px;
   --pds-radius-row:      10px;
   --pds-radius-format:    8px;
-  --pds-radius-menu:     10px;
+  --pds-radius-menu:     12px;
+  --pds-radius-menu-item: 6px;
   --pds-radius-scripture: 7px;
+
+  /* Destructive (delete-style) tints */
+  --pds-destructive: oklch(var(--pds-lch-destructive));
+  --pds-destructive-bg-hover: oklch(var(--pds-lch-destructive) / 0.08);
 
   /* Shadows — CardShadow (6%/8 + 3%/2) */
   --pds-shadow-card:
-    0 2px  8px rgba(0, 0, 0, 0.06),
-    0 1px  2px rgba(0, 0, 0, 0.03);
+    0 2px 8px oklch(var(--pds-lch-shadow-card-a)),
+    0 1px 2px oklch(var(--pds-lch-shadow-card-b));
+  --pds-shadow-card-elevated: 0 4px 16px oklch(var(--pds-lch-shadow-card-elevated));
+  --pds-shadow-shell:
+    0 2px 12px oklch(var(--pds-lch-shadow-shell-a)),
+    0 1px 3px oklch(var(--pds-lch-shadow-shell-b));
+  --pds-shadow-drawer:
+    0 10px 32px oklch(var(--pds-lch-shadow-drawer-a)),
+    0 2px 8px oklch(var(--pds-lch-shadow-drawer-b));
+  --pds-shadow-fab: 0 4px 14px oklch(var(--pds-lch-shadow-fab));
+  --pds-shadow-track: 0 1px 2px oklch(var(--pds-lch-shadow-track));
+  /* Popover — softer, deeper bloom + inner 0.5px ring for macOS-native hairline glow */
   --pds-shadow-popover:
-    0 10px 32px rgba(0, 0, 0, 0.10),
-    0  3px  8px rgba(0, 0, 0, 0.04);
+    0 16px 40px oklch(var(--pds-lch-shadow-popover-a)),
+    0 4px 12px oklch(var(--pds-lch-shadow-popover-b)),
+    0 0 0 0.5px oklch(var(--pds-lch-shadow-popover-ring));
+  --pds-shadow-sheet:
+    0 12px 40px oklch(var(--pds-lch-shadow-popover-a)),
+    0 4px 12px oklch(var(--pds-lch-shadow-popover-b)),
+    0 0 0 0.5px oklch(var(--pds-lch-shadow-popover-ring));
+  --pds-shadow-menu:
+    0 6px 16px oklch(var(--pds-lch-shadow-card-a)),
+    0 2px 4px oklch(var(--pds-lch-shadow-popover-b));
+  --pds-shadow-toolbar:
+    0 8px 24px oklch(var(--pds-lch-shadow-popover-a)),
+    0 1px 2px oklch(var(--pds-lch-shadow-popover-b));
 
-  /* Font stacks — system UI sans (explicit Segoe/Roboto for parity with native-adjacent web shells) */
-  --pds-font-body:    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  --pds-font-display: -apple-system, BlinkMacSystemFont, "SF Pro Rounded", ui-rounded, "Helvetica Neue", Arial, sans-serif;
+  /* Font stacks — Google Sans Flex (text = non-rounded terminals, display = rounded terminals). */
+  --pds-font-body:    "Google Sans Flex", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --pds-font-display: "Google Sans Flex", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --pds-font-body-variation: "ROND" 0;
+  --pds-font-display-variation: "ROND" 100;
   --pds-font-mono:    ui-monospace, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
 
   /* Chrome dimensions */
   --pds-toolbar-h: 44px;
   --pds-footer-h:  36px;
   --pds-sidebar-w: 280px;
+  --pds-sidebar-min-w: 220px;
+  --pds-sidebar-max-w: 420px;
   --pds-inspector-w: 260px;
 
   /* Prototype shell viewport frame (web — Figma outer padding + shell radius) */
@@ -97,11 +292,109 @@
   --pds-highlight-coral-rose: #e0409a;
 }
 
+@media (prefers-color-scheme: dark) {
+  :root {
+    --pds-lch-accent: 62% 0.16 265;
+    --pds-lch-accent-pressed: 56% 0.16 265;
+    --pds-lch-scripture-fg: 72% 0.14 255;
+    --pds-lch-scripture-accent: 62% 0.18 255;
+
+    --pds-lch-bg-page: 18% 0.01 285;
+    --pds-lch-bg-main: 18% 0.01 285;
+    --pds-lch-bg-toolbar: 20% 0.01 285 / 0.82;
+    --pds-lch-bg-footer: 17% 0.01 285 / 0.97;
+    --pds-lch-bg-popover: 22% 0.012 285 / 0.98;
+    --pds-lch-canvas-default: 12% 0.01 285;
+
+    --pds-lch-text-primary: 96% 0 0;
+    --pds-lch-text-secondary: 96% 0 0 / 0.55;
+    --pds-lch-text-tertiary: 96% 0 0 / 0.38;
+    --pds-lch-text-muted: 100% 0 0 / 0.55;
+    --pds-lch-text-muted-strong: 100% 0 0 / 0.78;
+    --pds-lch-text-muted-soft: 100% 0 0 / 0.62;
+    --pds-lch-text-muted-faint: 100% 0 0 / 0.5;
+    --pds-lch-text-muted-ghost: 100% 0 0 / 0.42;
+
+    --pds-lch-fill-input: 100% 0 0 / 0.08;
+    --pds-lch-fill-input-hover: 100% 0 0 / 0.11;
+    --pds-lch-fill-row-hover: 100% 0 0 / 0.06;
+    --pds-lch-fill-row-selected: 100% 0 0 / 0.1;
+    --pds-lch-fill-section: 100% 0 0 / 0.06;
+    --pds-lch-fill-control: 100% 0 0 / 0.08;
+    --pds-lch-fill-control-hover: 100% 0 0 / 0.12;
+    --pds-lch-fill-control-pressed: 100% 0 0 / 0.14;
+    --pds-lch-fill-control-strong: 100% 0 0 / 0.1;
+    --pds-lch-fill-control-strong-hover: 100% 0 0 / 0.14;
+    --pds-lch-fill-chip: 100% 0 0 / 0.1;
+    --pds-lch-fill-chip-hover: 100% 0 0 / 0.12;
+    --pds-lch-fill-subtle: 100% 0 0 / 0.07;
+    --pds-lch-fill-faint: 100% 0 0 / 0.06;
+    --pds-lch-fill-ghost: 100% 0 0 / 0.04;
+    --pds-lch-fill-track: 100% 0 0 / 0.22;
+
+    --pds-lch-border: 100% 0 0 / 0.1;
+    --pds-lch-border-soft: 100% 0 0 / 0.06;
+    --pds-lch-border-control: 100% 0 0 / 0.12;
+    --pds-lch-border-control-soft: 100% 0 0 / 0.08;
+    --pds-lch-border-control-medium: 100% 0 0 / 0.14;
+    --pds-lch-border-control-strong: 100% 0 0 / 0.18;
+
+    --pds-lch-overlay-light: 0% 0 0 / 0.45;
+    --pds-lch-overlay-medium: 0% 0 0 / 0.62;
+    --pds-lch-overlay-heavy: 0% 0 0 / 0.72;
+
+    --pds-lch-shadow-card-a: 0% 0 0 / 0.35;
+    --pds-lch-shadow-card-b: 0% 0 0 / 0.2;
+    --pds-lch-shadow-card-elevated: 0% 0 0 / 0.4;
+    --pds-lch-shadow-popover-a: 0% 0 0 / 0.5;
+    --pds-lch-shadow-popover-b: 0% 0 0 / 0.28;
+    --pds-lch-shadow-popover-ring: 100% 0 0 / 0.08;
+    --pds-lch-shadow-drawer-a: 0% 0 0 / 0.55;
+    --pds-lch-shadow-drawer-b: 0% 0 0 / 0.32;
+    --pds-lch-shadow-fab: 0% 0 0 / 0.45;
+    --pds-lch-shadow-track: 0% 0 0 / 0.4;
+    --pds-lch-shadow-shell-a: 0% 0 0 / 0.35;
+    --pds-lch-shadow-shell-b: 0% 0 0 / 0.2;
+    --pds-lch-border-modal-highlight: 100% 0 0 / 0.1;
+    --pds-lch-modal-inset: 100% 0 0 / 0.06;
+    --pds-lch-modal-wash: 100% 0 0 / 0.08;
+    --pds-lch-bg-glass-medium: 18% 0.01 285 / 0.72;
+    --pds-lch-bg-glass-light: 18% 0.01 285 / 0.55;
+    --pds-lch-bg-glass-strong: 20% 0.01 285 / 0.92;
+    --pds-lch-bg-glass-toolbar: 20% 0.01 285 / 0.82;
+
+    /* --pds-lch-bg-popover already carries / 0.98 in dark mode, making the shared
+       oklch(var(--pds-lch-bg-popover) / 0.98) expansion produce a double-alpha
+       which browsers treat as invalid (transparent). Override with explicit values. */
+    --pds-bg-modal: linear-gradient(
+      180deg,
+      oklch(22% 0.012 285 / 0.98),
+      oklch(21% 0.012 285 / 0.97)
+    );
+    --pds-bg-modal-wallpaper: linear-gradient(
+      180deg,
+      oklch(22% 0.012 285 / 0.97),
+      oklch(21% 0.012 285 / 0.94)
+    );
+
+    --pds-lch-thread-blue: 42% 0.08 235;
+    --pds-lch-thread-yellow: 48% 0.09 90;
+    --pds-lch-thread-green: 40% 0.07 145;
+    --pds-lch-thread-pink: 44% 0.09 330;
+    --pds-lch-thread-orange: 46% 0.08 70;
+    --pds-lch-thread-purple: 38% 0.1 310;
+
+    --pds-lch-destructive: 65% 0.18 25;
+  }
+}
+
 /* ─── Shell reset / base ─────────────────────────────────────────────────── */
 .proto-shell,
 .proto-shell * {
   box-sizing: border-box;
   font-family: var(--pds-font-body);
+  font-variation-settings: var(--pds-font-body-variation);
+  font-optical-sizing: auto;
 }
 
 /* Override SPA :root font on the shell root */
@@ -109,6 +402,7 @@
   /* Remap app-wide tokens so var(--font-sans) never resolves to Reddit Sans under /prototype */
   --font-sans: var(--pds-font-body);
   --font-mono: var(--pds-font-mono);
+  color-scheme: light dark;
   font-family: var(--pds-font-body);
   font-size: 16px;
   line-height: 1.45;
@@ -122,6 +416,7 @@
 .proto-shell .card-image-link__title p,
 .proto-shell .card-image-link__title textarea {
   font-family: var(--pds-font-display);
+  font-variation-settings: var(--pds-font-display-variation);
 }
 
 /*
@@ -129,12 +424,39 @@
  * Class is toggled from SimplifiedPrototypeLayout while /prototype/* is mounted.
  * Must beat global.css html/body !important and SPA index.html #root inline cream.
  */
-html.harvous-prototype-route,
+html.harvous-prototype-route {
+  --font-sans: var(--pds-font-body);
+  --font-mono: var(--pds-font-mono);
+  color-scheme: light dark;
+  /* User-customizable canvas behind the shell card (see lib/prototype-background.ts).
+     Vars unset → falls back to theme default. */
+  background-color: var(--pds-canvas-bg, var(--pds-canvas-default)) !important;
+  background-image: var(--pds-canvas-image, none) !important;
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-attachment: fixed;
+}
 html.harvous-prototype-route body,
 html.harvous-prototype-route #root {
   --font-sans: var(--pds-font-body);
   --font-mono: var(--pds-font-mono);
-  background-color: #ffffff !important;
+  /* Transparent so the html canvas above shows through the 14px shell gutter. */
+  background-color: transparent !important;
+}
+
+/* Portaled Sonner toasts — match prototype surfaces in light and dark mode. */
+html.harvous-prototype-route [data-sonner-toast] {
+  background: var(--pds-bg-popover) !important;
+  background-image: none !important;
+  color: var(--pds-text-primary) !important;
+  font-family: var(--pds-font-body) !important;
+  box-shadow: var(--pds-shadow-popover) !important;
+}
+
+html.harvous-prototype-route [data-sonner-toast] [data-title],
+html.harvous-prototype-route [data-sonner-toast] [data-description] {
+  color: var(--pds-text-primary) !important;
 }
 
 /*
@@ -147,6 +469,11 @@ html.harvous-prototype-route #root {
 .proto-shell button p,
 .proto-shell button * {
   font-family: var(--pds-font-body) !important;
+}
+
+.proto-shell button svg,
+.proto-shell button path {
+  fill: currentColor !important;
 }
 
 .proto-shell h1,
@@ -210,6 +537,7 @@ html.harvous-prototype-route #root {
 /* HarvousTypography.largeTitle — 34pt / 620 / rounded */
 .pds-title-xl {
   font-family: var(--pds-font-display);
+  font-variation-settings: var(--pds-font-display-variation);
   font-size: 2.125rem;
   font-weight: 620;
   letter-spacing: -0.025em;
@@ -220,6 +548,7 @@ html.harvous-prototype-route #root {
 /* HarvousTypography.title — 20pt / 580 / rounded (section headers) */
 .pds-title {
   font-family: var(--pds-font-display);
+  font-variation-settings: var(--pds-font-display-variation);
   font-size: 1.25rem;
   font-weight: 580;
   letter-spacing: -0.018em;
@@ -230,6 +559,7 @@ html.harvous-prototype-route #root {
 /* HarvousTypography.composeTitleField — 22pt / 600 / rounded */
 .pds-compose-title {
   font-family: var(--pds-font-display);
+  font-variation-settings: var(--pds-font-display-variation);
   font-size: 1.375rem;
   font-weight: 600;
   line-height: 1.25;
@@ -337,10 +667,14 @@ html.harvous-prototype-route #root {
   -webkit-font-smoothing: antialiased;
 }
 
-.proto-display { font-family: var(--pds-font-display); }
+.proto-display {
+  font-family: var(--pds-font-display);
+  font-variation-settings: var(--pds-font-display-variation);
+}
 
 .proto-title-lg {
   font-family: var(--pds-font-display);
+  font-variation-settings: var(--pds-font-display-variation);
   font-size: 1.25rem;
   font-weight: 580;
   letter-spacing: -0.018em;
@@ -349,6 +683,7 @@ html.harvous-prototype-route #root {
 
 .proto-title-md {
   font-family: var(--pds-font-display);
+  font-variation-settings: var(--pds-font-display-variation);
   font-size: 0.9375rem;
   font-weight: 600;
   line-height: 1.25;
