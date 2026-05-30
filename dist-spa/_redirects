@@ -1,6 +1,0 @@
-# API routes → Hono Netlify Function
-/api/*  /.netlify/functions/api/:splat  200
-
-# SPA catch-all — everything else serves index.html (React Router handles routing)
-# Static assets (JS, CSS, images, fonts) are served directly by Netlify before this rule applies.
-/*  /index.html  200
