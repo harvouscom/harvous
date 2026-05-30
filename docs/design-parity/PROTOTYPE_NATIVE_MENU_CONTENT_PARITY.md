@@ -14,7 +14,7 @@ This document maps every native macOS Harvous surface, menu item, and action to 
 | Sidebar (glass, left column) | `PrototypeSidebar` — 280px, backdrop-filter | ✅ implemented |
 | Editor / detail column | `PrototypeNotePage` — `proto-editor-surface` | ✅ implemented |
 | Inspector pane (right) | `PrototypeInspectorPane` — inline flex in note page | ✅ implemented |
-| Active-space footer identity | `SpacePillFooter` — space name + color tile | ✅ implemented |
+| Active-space footer identity | `SpacePillFooter` — space name + color tile (component exists; not mounted in shell) | ⏳ deferred |
 | `⌘\` sidebar collapse | Toolbar sidebar-toggle button | ✅ implemented |
 
 ---
@@ -59,6 +59,7 @@ Matches native `NoteListColumn` (macOS sidebar variant).
 | Row selection highlight (glass) | `proto-note-row[data-active]` background | ✅ implemented |
 | Load more (pagination) | "Load more" button | ✅ implemented |
 | Back to spaces button | `proto-sidebar-back-btn` with chevron | ✅ implemented |
+| Daily passage pill (pinned below list) | `PrototypeDailyPassagePill` + `PrototypeVotdPassageSheet`; `GET /api/votd/today` | ✅ implemented |
 | Delete swipe (mobile) | ⏳ Not implemented in prototype | ⏳ deferred |
 
 ---
