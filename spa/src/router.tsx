@@ -1,5 +1,6 @@
-import { createRouter, createRoute, createRootRoute, redirect, lazyRouteComponent } from '@tanstack/react-router';
+import { createRouter, createRoute, createRootRoute, redirect, lazyRouteComponent, Outlet } from '@tanstack/react-router';
 import {
+  isClassicAppSurface,
   isDedicatedPrototypeHost,
   prototypeHomeRouteTo,
   prototypeNoteRouteTo,
@@ -17,13 +18,16 @@ import PrototypeHomePage from './pages/prototype/PrototypeHomePage';
 import PrototypeNotePage from './pages/prototype/PrototypeNotePage';
 import PrototypeSearchPage from './pages/prototype/PrototypeSearchPage';
 
-// Root route
+// Root route — must render Outlet so child routes paint (pathless layouts included).
 const rootRoute = createRootRoute({
+  component: () => <Outlet />,
   beforeLoad: ({ location }) => {
     if (!isDedicatedPrototypeHost() || !location.pathname.startsWith('/prototype')) return;
     const rest = location.pathname.replace(/^\/prototype\/?/, '');
-    const target = rest ? `/${rest}` : '/';
-    throw redirect({ href: `${target}${location.searchStr}`, replace: true });
+    throw redirect({
+      to: rest ? `/${rest}` : '/',
+      replace: true,
+    });
   },
 });
 
@@ -95,6 +99,11 @@ const profileRoute = createRoute({
 const newSpaceRoute = createRoute({
   getParentRoute: () => appLayoutRoute,
   path: '/new-space',
+  beforeLoad: () => {
+    if (isClassicAppSurface()) {
+      throw redirect({ to: '/', replace: true });
+    }
+  },
   component: lazyRouteComponent(() => import('./pages/NewSpacePage')),
 });
 
@@ -163,132 +172,150 @@ const invitationRoute = createRoute({
   component: lazyRouteComponent(() => import('./pages/public/PublicInvitationPage')),
 });
 
-const dedicatedPrototypeHost = isDedicatedPrototypeHost();
+/** Prototype branch — pathless layout on new.harvous.com (/), /prototype on app.harvous.com. */
+function buildPrototypeRouteBranch() {
+  const onDedicatedHost = isDedicatedPrototypeHost();
 
-/** Simplified prototype — parallel shell, no threads in UI (see docs/SIMPLIFIED_WEB_PROTOTYPE.md). */
-const simplifiedPrototypeRoute = createRoute({
-  getParentRoute: () => rootRoute,
-  path: dedicatedPrototypeHost ? '/' : '/prototype',
-  component: SimplifiedPrototypeLayout,
-});
+  const simplifiedPrototypeRoute = createRoute({
+    getParentRoute: () => rootRoute,
+    ...(onDedicatedHost ? { id: 'prototype-shell' } : { path: '/prototype' }),
+    component: SimplifiedPrototypeLayout,
+  });
 
-const prototypeHomeRoute = createRoute({
-  getParentRoute: () => simplifiedPrototypeRoute,
-  path: '/',
-  component: PrototypeHomePage,
-});
+  const prototypeHomeRoute = createRoute({
+    getParentRoute: () => simplifiedPrototypeRoute,
+    path: '/',
+    component: PrototypeHomePage,
+  });
 
-const prototypeSearchRoute = createRoute({
-  getParentRoute: () => simplifiedPrototypeRoute,
-  path: 'search',
-  component: PrototypeSearchPage,
-  validateSearch: (search: Record<string, unknown>) => ({
-    space: typeof search.space === 'string' ? search.space : undefined,
-  }),
-});
+  const prototypeSearchRoute = createRoute({
+    getParentRoute: () => simplifiedPrototypeRoute,
+    path: 'search',
+    component: PrototypeSearchPage,
+    validateSearch: (search: Record<string, unknown>) => ({
+      space: typeof search.space === 'string' ? search.space : undefined,
+    }),
+  });
 
-/** Legacy bookmarks: `/prototype/space/{id}/n/{note}` → flat note URL. */
-const prototypeLegacySpaceNoteRedirectRoute = createRoute({
-  getParentRoute: () => simplifiedPrototypeRoute,
-  path: 'space/$spaceId/n/$noteId',
-  beforeLoad: ({ params }) => {
-    throw redirect({
-      to: prototypeNoteRouteTo(),
-      params: { noteId: params.noteId },
-      replace: true,
-    });
-  },
-});
+  const prototypeLegacySpaceNoteRedirectRoute = createRoute({
+    getParentRoute: () => simplifiedPrototypeRoute,
+    path: 'space/$spaceId/n/$noteId',
+    beforeLoad: ({ params }) => {
+      throw redirect({
+        to: prototypeNoteRouteTo(),
+        params: { noteId: params.noteId },
+        replace: true,
+      });
+    },
+  });
 
-/** Legacy bookmarks: `/prototype/space/{id}` → inbox. */
-const prototypeLegacySpaceRedirectRoute = createRoute({
-  getParentRoute: () => simplifiedPrototypeRoute,
-  path: 'space/$spaceId',
-  beforeLoad: () => {
-    throw redirect({
-      to: prototypeHomeRouteTo(),
-      replace: true,
-    });
-  },
-});
+  const prototypeLegacySpaceRedirectRoute = createRoute({
+    getParentRoute: () => simplifiedPrototypeRoute,
+    path: 'space/$spaceId',
+    beforeLoad: () => {
+      throw redirect({
+        to: prototypeHomeRouteTo(),
+        replace: true,
+      });
+    },
+  });
 
-const prototypeNoteFlatRoute = createRoute({
-  getParentRoute: () => simplifiedPrototypeRoute,
-  path: 'n/$noteId',
-  component: PrototypeNotePage,
-  validateSearch: (search: Record<string, unknown>) => ({
-    studyThread: typeof search.studyThread === 'string' ? search.studyThread : undefined,
-    reference: typeof search.reference === 'string' ? search.reference : undefined,
-  }),
-});
+  const prototypeNoteFlatRoute = createRoute({
+    getParentRoute: () => simplifiedPrototypeRoute,
+    path: 'n/$noteId',
+    component: PrototypeNotePage,
+    validateSearch: (search: Record<string, unknown>) => ({
+      studyThread: typeof search.studyThread === 'string' ? search.studyThread : undefined,
+      reference: typeof search.reference === 'string' ? search.reference : undefined,
+    }),
+  });
 
-// Settings is a layout route (macOS System Settings-style two-pane shell on wide
-// screens, drilldown on narrow). The category pages render in its <Outlet/>.
-const prototypeSettingsRoute = createRoute({
-  getParentRoute: () => simplifiedPrototypeRoute,
-  path: 'settings',
-  component: lazyRouteComponent(() => import('./pages/prototype/settings/PrototypeSettingsLayout')),
-});
+  const prototypeSettingsRoute = createRoute({
+    getParentRoute: () => simplifiedPrototypeRoute,
+    path: 'settings',
+    component: lazyRouteComponent(() => import('./pages/prototype/settings/PrototypeSettingsLayout')),
+  });
 
-const prototypeSettingsIndexRoute = createRoute({
-  getParentRoute: () => prototypeSettingsRoute,
-  path: '/',
-  component: lazyRouteComponent(() => import('./pages/prototype/settings/PrototypeSettingsIndex')),
-});
+  const prototypeSettingsIndexRoute = createRoute({
+    getParentRoute: () => prototypeSettingsRoute,
+    path: '/',
+    component: lazyRouteComponent(() => import('./pages/prototype/settings/PrototypeSettingsIndex')),
+  });
 
-const prototypeSettingsAccountRoute = createRoute({
-  getParentRoute: () => prototypeSettingsRoute,
-  path: 'account',
-  component: lazyRouteComponent(() => import('./pages/prototype/settings/PrototypeAccountPage')),
-});
+  const prototypeSettingsAccountRoute = createRoute({
+    getParentRoute: () => prototypeSettingsRoute,
+    path: 'account',
+    component: lazyRouteComponent(() => import('./pages/prototype/settings/PrototypeAccountPage')),
+  });
 
-const prototypeSettingsTranslationRoute = createRoute({
-  getParentRoute: () => prototypeSettingsRoute,
-  path: 'translation',
-  component: lazyRouteComponent(() => import('./pages/prototype/settings/PrototypeTranslationPage')),
-});
+  const prototypeSettingsTranslationRoute = createRoute({
+    getParentRoute: () => prototypeSettingsRoute,
+    path: 'translation',
+    component: lazyRouteComponent(() => import('./pages/prototype/settings/PrototypeTranslationPage')),
+  });
 
-const prototypeSettingsAppearanceRoute = createRoute({
-  getParentRoute: () => prototypeSettingsRoute,
-  path: 'appearance',
-  component: lazyRouteComponent(() => import('./pages/prototype/settings/PrototypeAppearancePage')),
-});
+  const prototypeSettingsAppearanceRoute = createRoute({
+    getParentRoute: () => prototypeSettingsRoute,
+    path: 'appearance',
+    component: lazyRouteComponent(() => import('./pages/prototype/settings/PrototypeAppearancePage')),
+  });
 
-const prototypeSettingsChurchRoute = createRoute({
-  getParentRoute: () => prototypeSettingsRoute,
-  path: 'church',
-  component: lazyRouteComponent(() => import('./pages/prototype/settings/PrototypeChurchPage')),
-});
+  const prototypeSettingsChurchRoute = createRoute({
+    getParentRoute: () => prototypeSettingsRoute,
+    path: 'church',
+    component: lazyRouteComponent(() => import('./pages/prototype/settings/PrototypeChurchPage')),
+  });
 
-const prototypeSettingsLockPinRoute = createRoute({
-  getParentRoute: () => prototypeSettingsRoute,
-  path: 'lock-pin',
-  component: lazyRouteComponent(() => import('./pages/prototype/settings/PrototypeLockPinPage')),
-});
+  const prototypeSettingsLockPinRoute = createRoute({
+    getParentRoute: () => prototypeSettingsRoute,
+    path: 'lock-pin',
+    component: lazyRouteComponent(() => import('./pages/prototype/settings/PrototypeLockPinPage')),
+  });
 
-const prototypeSettingsSharingRoute = createRoute({
-  getParentRoute: () => prototypeSettingsRoute,
-  path: 'sharing',
-  component: lazyRouteComponent(() => import('./pages/prototype/settings/PrototypeSharingPage')),
-});
+  const prototypeSettingsSharingRoute = createRoute({
+    getParentRoute: () => prototypeSettingsRoute,
+    path: 'sharing',
+    component: lazyRouteComponent(() => import('./pages/prototype/settings/PrototypeSharingPage')),
+  });
 
-const prototypeSettingsDataRoute = createRoute({
-  getParentRoute: () => prototypeSettingsRoute,
-  path: 'data',
-  component: lazyRouteComponent(() => import('./pages/prototype/settings/PrototypeDataPage')),
-});
+  const prototypeSettingsDataRoute = createRoute({
+    getParentRoute: () => prototypeSettingsRoute,
+    path: 'data',
+    component: lazyRouteComponent(() => import('./pages/prototype/settings/PrototypeDataPage')),
+  });
 
-const prototypeSettingsSupportRoute = createRoute({
-  getParentRoute: () => prototypeSettingsRoute,
-  path: 'support',
-  component: lazyRouteComponent(() => import('./pages/prototype/settings/PrototypeSupportPage')),
-});
+  const prototypeSettingsSupportRoute = createRoute({
+    getParentRoute: () => prototypeSettingsRoute,
+    path: 'support',
+    component: lazyRouteComponent(() => import('./pages/prototype/settings/PrototypeSupportPage')),
+  });
 
-const prototypeSettingsKeyboardShortcutsRoute = createRoute({
-  getParentRoute: () => prototypeSettingsRoute,
-  path: 'keyboard-shortcuts',
-  component: lazyRouteComponent(() => import('./pages/prototype/settings/PrototypeKeyboardShortcutsPage')),
-});
+  const prototypeSettingsKeyboardShortcutsRoute = createRoute({
+    getParentRoute: () => prototypeSettingsRoute,
+    path: 'keyboard-shortcuts',
+    component: lazyRouteComponent(() => import('./pages/prototype/settings/PrototypeKeyboardShortcutsPage')),
+  });
+
+  return simplifiedPrototypeRoute.addChildren([
+    prototypeLegacySpaceNoteRedirectRoute,
+    prototypeLegacySpaceRedirectRoute,
+    prototypeHomeRoute,
+    prototypeSearchRoute,
+    prototypeNoteFlatRoute,
+    prototypeSettingsRoute.addChildren([
+      prototypeSettingsIndexRoute,
+      prototypeSettingsAccountRoute,
+      prototypeSettingsTranslationRoute,
+      prototypeSettingsAppearanceRoute,
+      prototypeSettingsChurchRoute,
+      prototypeSettingsLockPinRoute,
+      prototypeSettingsSharingRoute,
+      prototypeSettingsDataRoute,
+      prototypeSettingsSupportRoute,
+      prototypeSettingsKeyboardShortcutsRoute,
+    ]),
+  ]);
+}
 
 const dedicatedDashboardRedirectRoute = createRoute({
   getParentRoute: () => rootRoute,
@@ -317,41 +344,26 @@ const classicAppRoutes = appLayoutRoute.addChildren([
   adminVotdRoute,
 ]);
 
-// Route tree
-const routeTree = rootRoute.addChildren([
-  authLayoutRoute.addChildren([
-    signInRoute.addChildren([signInSplatRoute]),
-    signUpRoute.addChildren([signUpSplatRoute]),
-  ]),
-  ...(dedicatedPrototypeHost ? [dedicatedDashboardRedirectRoute] : [classicAppRoutes]),
-  upgradeRoute,
-  joinSpaceRoute,
-  sharedNoteRoute,
-  sharedThreadRoute,
-  invitationRoute,
-  simplifiedPrototypeRoute.addChildren([
-    prototypeLegacySpaceNoteRedirectRoute,
-    prototypeLegacySpaceRedirectRoute,
-    prototypeHomeRoute,
-    prototypeSearchRoute,
-    prototypeNoteFlatRoute,
-    prototypeSettingsRoute.addChildren([
-      prototypeSettingsIndexRoute,
-      prototypeSettingsAccountRoute,
-      prototypeSettingsTranslationRoute,
-      prototypeSettingsAppearanceRoute,
-      prototypeSettingsChurchRoute,
-      prototypeSettingsLockPinRoute,
-      prototypeSettingsSharingRoute,
-      prototypeSettingsDataRoute,
-      prototypeSettingsSupportRoute,
-      prototypeSettingsKeyboardShortcutsRoute,
-    ]),
-  ]),
-  notFoundRoute,
-]);
+function buildRouteTree() {
+  const onDedicatedHost = isDedicatedPrototypeHost();
 
-export const router = createRouter({ routeTree });
+  return rootRoute.addChildren([
+    authLayoutRoute.addChildren([
+      signInRoute.addChildren([signInSplatRoute]),
+      signUpRoute.addChildren([signUpSplatRoute]),
+    ]),
+    ...(onDedicatedHost ? [dedicatedDashboardRedirectRoute] : [classicAppRoutes]),
+    upgradeRoute,
+    joinSpaceRoute,
+    sharedNoteRoute,
+    sharedThreadRoute,
+    invitationRoute,
+    buildPrototypeRouteBranch(),
+    notFoundRoute,
+  ]);
+}
+
+export const router = createRouter({ routeTree: buildRouteTree() });
 
 declare module '@tanstack/react-router' {
   interface Register {
