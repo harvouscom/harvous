@@ -59,6 +59,22 @@ function looksLikeEncryptedBlob(s: string): boolean {
   return t.length >= 40 && /^[A-Za-z0-9+/]+=*$/.test(t);
 }
 
+/** Server-locked note that is not unlocked in this session — show PIN gate, never ciphertext in the editor. */
+function noteBodyRequiresPinUnlock(
+  noteId: string | undefined,
+  serverEncrypted: boolean,
+  lockStateOverride: boolean | null,
+  body: string
+): boolean {
+  if (lockStateOverride === false) return false;
+  const serverLocked = lockStateOverride === true || serverEncrypted;
+  if (!serverLocked) {
+    return !!noteId && looksLikeEncryptedBlob(body) && !isNoteUnlocked(noteId);
+  }
+  if (!noteId) return true;
+  return !isNoteUnlocked(noteId);
+}
+
 /** Native parity: empty TipTap/HTML body (including `<p></p>`). */
 function isTiptapBodyEmpty(html: string | undefined | null): boolean {
   if (html == null || html === '') return true;
@@ -173,7 +189,7 @@ export default function CardFullEditable({
   readOnlyLikeScripture = false,
   editorChromeMode = 'default',
   prototypeNoteActionBar,
-  formatToolbarPortalTarget = null,
+  formatToolbarPortalTarget,
   onPrototypeChromeModeChange,
   onPrototypeFolderDisplayChange,
   prototypeNoteActionsChrome,
@@ -235,7 +251,7 @@ export default function CardFullEditable({
   editorChromeModeRef.current = editorChromeMode;
 
   // Prototype-specific save state — entirely ref-based, bypasses hasChanges state machine
-  const protoLastSavedRef = useRef<{ title: string; content: string } | null>(null);
+  const protoLastSavedRef = useRef<{ title: string; content: string; collectionKey: string } | null>(null);
   const protoIsSavingRef = useRef(false);
   // Set when a save attempt is dropped because another save is in flight. The
   // in-flight save's `finally` block checks this and re-fires protoSaveAsync so
@@ -280,6 +296,13 @@ export default function CardFullEditable({
     collectionLastAutoUpdatedAtIso: initialCollectionLastAutoUpdatedAtIso ?? null,
   });
   const [addSecondaryDraft, setAddSecondaryDraft] = useState('');
+
+  // Mirror collection state in a ref so the ref-based prototype saver (protoSaveAsync)
+  // can read the live value without being recreated on every change.
+  const collectionChromeRef = useRef(collectionChrome);
+  useEffect(() => {
+    collectionChromeRef.current = collectionChrome;
+  }, [collectionChrome]);
 
   useEffect(() => {
     setCollectionChrome({
@@ -382,8 +405,27 @@ export default function CardFullEditable({
   // Local lock state override when user locks/unlocks via dialog (avoids full page refresh)
   const [lockStateOverride, setLockStateOverride] = useState<boolean | null>(null);
   const [serverEncryptedOverride, setServerEncryptedOverride] = useState<boolean | null>(null);
+  /** Bumped on lock/unlock so effects re-read `isNoteUnlocked` (in-memory, not reactive). */
+  const [unlockRevision, setUnlockRevision] = useState(0);
   const effectiveEncrypted = lockStateOverride ?? contentEncrypted;
   const effectiveServerEncrypted = serverEncryptedOverride ?? contentEncrypted;
+  const needsPinUnlock = useMemo(
+    () =>
+      noteBodyRequiresPinUnlock(
+        noteId,
+        effectiveServerEncrypted,
+        lockStateOverride,
+        displayContent ?? content ?? ''
+      ),
+    [
+      noteId,
+      effectiveServerEncrypted,
+      lockStateOverride,
+      displayContent,
+      content,
+      unlockRevision,
+    ]
+  );
   const cardRootRef = useRef<HTMLDivElement>(null);
   /** iOS: focus synchronously on tap so keyboard opens; Tiptap focus in onEditorReady is too late for user-gesture chain */
   const keyboardProxyRef = useRef<HTMLTextAreaElement>(null);
@@ -537,12 +579,19 @@ export default function CardFullEditable({
     }
   }, [title, content, contentEncrypted, lockStateOverride, noteId, editorChromeMode, noteType]);
 
+  // Leave edit mode when locked so ciphertext never appears in TipTap (prototype alwaysEditing).
+  useEffect(() => {
+    if (!needsPinUnlock) return;
+    setIsTitleEditing(false);
+    setIsContentEditing(false);
+  }, [needsPinUnlock]);
+
   // Prototype route: start in title+body edit (native parity) on note open / unlock — do not depend on title/content
   // props after mount or edits reset on every server refresh.
   useEffect(() => {
     if (editorChromeMode !== 'prototypeNative' || !alwaysEditing || !effectiveIsEditable) return;
     if (readOnlyLikeScripture || noteType === 'scripture') return;
-    if (contentEncrypted && !isNoteUnlocked(noteId ?? '')) return;
+    if (needsPinUnlock) return;
 
     const initialTitle =
       noteType === 'resource'
@@ -567,14 +616,18 @@ export default function CardFullEditable({
     effectiveIsEditable,
     noteType,
     readOnlyLikeScripture,
-    contentEncrypted,
+    needsPinUnlock,
+    title,
+    content,
+    resourceTitle,
+    resourceDescription,
   ]);
 
   // Brand-new empty note: focus title field (Native NoteEditorView ~80ms delay).
   useEffect(() => {
     if (editorChromeMode !== 'prototypeNative' || !alwaysEditing || !effectiveIsEditable) return;
     if (readOnlyLikeScripture || noteType === 'scripture') return;
-    if (contentEncrypted && !isNoteUnlocked(noteId ?? '')) return;
+    if (needsPinUnlock) return;
 
     const t =
       noteType === 'default'
@@ -594,7 +647,7 @@ export default function CardFullEditable({
     effectiveIsEditable,
     noteType,
     readOnlyLikeScripture,
-    contentEncrypted,
+    needsPinUnlock,
     title,
     content,
   ]);
@@ -614,8 +667,17 @@ export default function CardFullEditable({
         setDisplayContent(detail.newContent);
         setLockStateOverride(detail.encrypted === true);
         setServerEncryptedOverride(detail.contentEncryptedServer ?? (detail.encrypted === true));
+        setUnlockRevision((v) => v + 1);
         if (detail.encrypted === true && noteId != null) {
           lockNote(String(noteId));
+          setIsTitleEditing(false);
+          setIsContentEditing(false);
+        } else {
+          setEditContent(detail.newContent);
+          if (editorChromeMode === 'prototypeNative' && alwaysEditing && effectiveIsEditable) {
+            setIsTitleEditing(true);
+            setIsContentEditing(true);
+          }
         }
         window.dispatchEvent(new CustomEvent('noteLockStateChanged', {
           detail: {
@@ -628,7 +690,7 @@ export default function CardFullEditable({
     };
     window.addEventListener('pinEntryComplete', handler);
     return () => window.removeEventListener('pinEntryComplete', handler);
-  }, [noteId]);
+  }, [noteId, editorChromeMode, alwaysEditing, effectiveIsEditable]);
 
   // Notify layout (e.g. ActionStrip dock) to hide when in edit mode (content or title)
   useEffect(() => {
@@ -648,10 +710,11 @@ export default function CardFullEditable({
     .join(' ');
 
   /** Injected before dangerouslySetInnerHTML so labels survive re-renders (DOM-only hydration flickers). */
-  const viewContentHtml = useMemo(
-    () => safeRenderHtml(withScripturePillDisplayLabels(displayContent ?? '')),
-    [displayContent],
-  );
+  const viewContentHtml = useMemo(() => {
+    const raw = displayContent ?? '';
+    if (looksLikeEncryptedBlob(raw)) return '';
+    return safeRenderHtml(withScripturePillDisplayLabels(raw));
+  }, [displayContent]);
 
   useEffect(() => {
     if (isContentEditing) {
@@ -711,6 +774,7 @@ export default function CardFullEditable({
   // Listen for keyboard shortcut to start editing
   useEffect(() => {
     const handleEditNote = () => {
+      if (needsPinUnlock) return;
       if (!isContentEditing && !isTitleEditing && effectiveIsEditable) {
         // Save current scroll position
         if (contentDisplayRef.current) {
@@ -732,7 +796,7 @@ export default function CardFullEditable({
     return () => {
       window.removeEventListener('editNote', handleEditNote);
     };
-  }, [isContentEditing, isTitleEditing, effectiveIsEditable, displayTitle, displayContent]);
+  }, [isContentEditing, isTitleEditing, effectiveIsEditable, displayTitle, displayContent, needsPinUnlock]);
 
   // Listen for hyperlink creation event
   useEffect(() => {
@@ -1146,7 +1210,7 @@ export default function CardFullEditable({
       return;
     }
     // Don't open editor when note is locked (would show encrypted content)
-    if (contentEncrypted && !isNoteUnlocked(noteId ?? '')) {
+    if (needsPinUnlock) {
       return;
     }
 
@@ -1501,8 +1565,27 @@ export default function CardFullEditable({
       return editContentRef.current;
     })();
 
+    // Recompute the auto collection from the live text so the suggested folder is
+    // persisted alongside the autosave (otherwise it shows transiently then gets
+    // wiped by the post-save refetch). Prototype-only; mirrors flushEdits.
+    const isProto = editorChromeModeRef.current === 'prototypeNative';
+    const chromeForSave = isProto
+      ? applyAutoCollectionAfterEdit(collectionChromeRef.current, currentTitle, currentContent, new Date())
+      : collectionChromeRef.current;
+    const collectionExtras = isProto
+      ? {
+          primaryCollection: chromeForSave.primaryCollection,
+          secondaryCollections: chromeForSave.secondaryCollections,
+          collectionPinned: chromeForSave.collectionPinned,
+          collectionUserOverride: chromeForSave.collectionUserOverride,
+        }
+      : undefined;
+    const collectionKey = collectionExtras
+      ? `${collectionExtras.primaryCollection ?? ''}|${collectionExtras.secondaryCollections.join(',')}|${collectionExtras.collectionPinned ? 1 : 0}|${collectionExtras.collectionUserOverride ? 1 : 0}`
+      : '';
+
     const last = protoLastSavedRef.current;
-    if (last && last.title === currentTitle && last.content === currentContent) {
+    if (last && last.title === currentTitle && last.content === currentContent && last.collectionKey === collectionKey) {
       // Natural termination of the recursion chain — nothing new to save.
       return;
     }
@@ -1512,10 +1595,11 @@ export default function CardFullEditable({
 
     protoIsSavingRef.current = true;
     const prevLast = protoLastSavedRef.current;
-    protoLastSavedRef.current = { title: currentTitle, content: currentContent };
+    protoLastSavedRef.current = { title: currentTitle, content: currentContent, collectionKey };
 
     try {
-      const saveResult: any = await globalCallback(currentTitle, currentContent);
+      const saveResult: any = await globalCallback(currentTitle, currentContent, collectionExtras);
+      if (collectionExtras) setCollectionChrome(chromeForSave);
 
       if (saveResult?.processedContent && editorInstanceRef.current && !editorInstanceRef.current.isDestroyed) {
         const editor = editorInstanceRef.current;
@@ -1529,7 +1613,7 @@ export default function CardFullEditable({
             const { convertNoteLinksToScripturePills } = await import('./TiptapEditor');
             await convertNoteLinksToScripturePills(editorInstanceRef.current);
             const finalContent = editorInstanceRef.current.getHTML();
-            protoLastSavedRef.current = { title: currentTitle, content: finalContent };
+            protoLastSavedRef.current = { title: currentTitle, content: finalContent, collectionKey };
             setDisplayTitle(currentTitle);
             setDisplayContent(finalContent);
             setHasChanges(false);
@@ -2110,7 +2194,7 @@ export default function CardFullEditable({
                         editorChromeMode === 'prototypeNative' ? setPrototypeBottomChromeMode : undefined
                       }
                       formatToolbarPortalTarget={
-                        editorChromeMode === 'prototypeNative' ? formatToolbarPortalTarget : null
+                        editorChromeMode === 'prototypeNative' ? formatToolbarPortalTarget : undefined
                       }
                       scriptureChromePortalTarget={
                         editorChromeMode === 'prototypeNative' ? scriptureChromePortalTarget : null
@@ -2259,6 +2343,8 @@ export default function CardFullEditable({
 
   const noteTitleFontFamily =
     editorChromeMode === 'prototypeNative' ? 'var(--pds-font-display)' : 'var(--font-sans)';
+  const noteTitleFontVariationSettings =
+    editorChromeMode === 'prototypeNative' ? 'var(--pds-font-display-variation)' : undefined;
 
   // Default and Scripture notes - original editable layout
   return (
@@ -2271,7 +2357,14 @@ export default function CardFullEditable({
           serverContentEncrypted={effectiveServerEncrypted}
           serverNoteContent={effectiveServerEncrypted ? content : undefined}
           onContentChange={(newContent) => setDisplayContent(newContent)}
-          onLockStateChange={(isLocked) => setLockStateOverride(isLocked)}
+          onLockStateChange={(isLocked) => {
+            setLockStateOverride(isLocked);
+            if (isLocked) {
+              setUnlockRevision((v) => v + 1);
+              setIsTitleEditing(false);
+              setIsContentEditing(false);
+            }
+          }}
           hideButton={true}
         />
       )}
@@ -2295,21 +2388,6 @@ export default function CardFullEditable({
         autoComplete="off"
         className="card-full-editable__keyboard-proxy"
       />
-      {editorChromeMode === 'prototypeNative' && noteType === 'default' ? (() => {
-        const b = collectionContextBannerText(
-          collectionChrome.primaryCollection,
-          collectionChrome.secondaryCollections,
-          collectionNavContext,
-        );
-        return b ? (
-          <div
-            className="px-3 pt-2"
-            style={{ fontSize: 14, color: 'var(--color-pebble-grey)', fontWeight: 500 }}
-          >
-            {b}
-          </div>
-        ) : null;
-      })() : null}
       {/* Header with title, version (scripture only), and bookmark icon */}
       <div className="flex gap-3 items-center justify-center relative shrink-0 w-full px-3">
         <div
@@ -2319,8 +2397,31 @@ export default function CardFullEditable({
               : 'basis-0 font-sans font-semibold grow leading-[0] min-h-px min-w-px not-italic relative shrink-0 text-[var(--color-deep-grey)] text-[24px]'
           }
         >
-          {/* Display mode */}
-          {!isTitleEditing ? (
+          {/* Display mode — title stays read-only while body awaits PIN */}
+          {needsPinUnlock ? (
+            <p
+              className="rounded"
+              style={{
+                lineHeight: '1.2',
+                margin: '-4px -8px',
+                padding: '4px 8px',
+                display: 'block',
+                width: '100%',
+                fontSize: '24px',
+                fontWeight: '700',
+                fontFamily: noteTitleFontFamily,
+                fontVariationSettings: noteTitleFontVariationSettings,
+                color:
+                  editorChromeMode === 'prototypeNative'
+                    ? 'var(--pds-text-primary)'
+                    : 'var(--color-deep-grey)',
+                boxSizing: 'border-box',
+                minHeight: '28.8px',
+              }}
+            >
+              {displayTitle?.trim() ? displayTitle : 'Locked note'}
+            </p>
+          ) : !isTitleEditing ? (
             <p 
               className="rounded"
               style={{
@@ -2332,6 +2433,7 @@ export default function CardFullEditable({
                 fontSize: '24px',
                 fontWeight: '700',
                 fontFamily: noteTitleFontFamily,
+                fontVariationSettings: noteTitleFontVariationSettings,
                 color:
                   editorChromeMode === 'prototypeNative'
                     ? 'var(--pds-text-primary)'
@@ -2362,6 +2464,7 @@ export default function CardFullEditable({
                   fontSize: '24px',
                   fontWeight: '700',
                   fontFamily: noteTitleFontFamily,
+                  fontVariationSettings: noteTitleFontVariationSettings,
                   color:
                     editorChromeMode === 'prototypeNative'
                       ? 'var(--pds-text-primary)'
@@ -2395,19 +2498,30 @@ export default function CardFullEditable({
       {/* Content */}
       <div className="flex-1 flex flex-col min-h-0 w-full" style={{ maxHeight: '100%', overflow: 'hidden', marginTop: '12px' }}>
         <div className="flex-1 flex flex-col font-sans font-medium min-h-0 not-italic text-[var(--color-deep-grey)] text-[16px]">
-          {/* Display mode */}
-          {!isContentEditing ? (
+          {/* Display mode — PIN gate takes precedence over alwaysEditing editor */}
+          {needsPinUnlock ? (
+            <div className="flex-fill flex-stack" style={{ gap: 0, maxHeight: '100%' }}>
+              <div className="flex-1 flex flex-col min-h-0 px-3 relative" style={{ minHeight: 0, overflow: 'hidden' }}>
+                <div ref={contentDisplayRef} className="flex flex-col shrink-0">
+                  {noteId != null ? (
+                    <InlinePinUnlock
+                      noteId={String(noteId)}
+                      encryptedContent={
+                        looksLikeEncryptedBlob(displayContent ?? '')
+                          ? (displayContent ?? '')
+                          : (content ?? displayContent ?? '')
+                      }
+                    />
+                  ) : (
+                    <p>This note is locked. Tap Unlock to view.</p>
+                  )}
+                </div>
+              </div>
+            </div>
+          ) : !isContentEditing ? (
               <div className="flex-fill flex-stack" style={{ gap: 0, maxHeight: '100%' }}>
               <div className="flex-1 flex flex-col min-h-0 px-3 relative" style={{ minHeight: 0, overflow: 'hidden' }}>
-                {(effectiveEncrypted && !isNoteUnlocked(noteId ?? '')) || (contentEncrypted && looksLikeEncryptedBlob(displayContent ?? '')) ? (
-                  <div ref={contentDisplayRef} className="flex flex-col shrink-0">
-                    {noteId != null ? (
-                      <InlinePinUnlock noteId={String(noteId)} encryptedContent={displayContent ?? ''} />
-                    ) : (
-                      <p>This note is locked. Tap Unlock to view.</p>
-                    )}
-                  </div>
-                ) : displayContent && displayContent.trim() ? (
+                {displayContent && displayContent.trim() ? (
                   <div 
                     ref={contentDisplayRef}
                     className={`card-full-editable__content-html flex-1 overflow-auto rounded${viewScrollMaskClasses ? ` ${viewScrollMaskClasses}` : ''}`}
@@ -2452,7 +2566,7 @@ export default function CardFullEditable({
                       editorChromeMode === 'prototypeNative' ? setPrototypeBottomChromeMode : undefined
                     }
                     formatToolbarPortalTarget={
-                      editorChromeMode === 'prototypeNative' ? formatToolbarPortalTarget : null
+                      editorChromeMode === 'prototypeNative' ? formatToolbarPortalTarget : undefined
                     }
                     scriptureChromePortalTarget={
                       editorChromeMode === 'prototypeNative' ? scriptureChromePortalTarget : null

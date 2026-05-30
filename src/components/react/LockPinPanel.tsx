@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import SquareButton from './SquareButton';
+import Icon from './Icon';
 import { validatePin, encryptContent, decryptContent } from '@/utils/note-encryption';
 import { getCachedProfileData, updateCachedProfileData } from '@/utils/profile-cache';
 import { toast } from '@/utils/toast';
@@ -8,6 +9,9 @@ interface LockPinPanelProps {
   onClose?: () => void;
   inBottomSheet?: boolean;
   backIconDirection?: "auto" | "left" | "down";
+  /** Embedded in prototype Settings — stay on page after set/change. */
+  inline?: boolean;
+  appearance?: 'classic' | 'prototype';
 }
 
 type Step = 'set' | 'confirm' | 'changeCurrent' | 'changeNew' | 'changeConfirm' | 'reencrypting';
@@ -15,7 +19,9 @@ type Step = 'set' | 'confirm' | 'changeCurrent' | 'changeNew' | 'changeConfirm' 
 export default function LockPinPanel({
   onClose,
   inBottomSheet = false,
-  backIconDirection = "auto"
+  backIconDirection = "auto",
+  inline = false,
+  appearance = 'classic',
 }: LockPinPanelProps) {
   const [hasLockPinSet, setHasLockPinSet] = useState<boolean | null>(null);
   const [step, setStep] = useState<Step>('set');
@@ -116,7 +122,11 @@ export default function LockPinPanel({
       const existing = getCachedProfileData();
       if (existing) updateCachedProfileData({ ...existing, hasLockPinSet: true });
       toast.success('Lock PIN set');
-      if (onClose) onClose();
+      if (inline) {
+        setStep('changeCurrent');
+        setPendingPin(null);
+        clearPin();
+      } else if (onClose) onClose();
       else window.dispatchEvent(new CustomEvent('closeProfilePanel'));
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to set PIN');
@@ -168,7 +178,12 @@ export default function LockPinPanel({
 
   const dismissWithToast = () => {
     toast.success('Lock PIN changed');
-    if (onClose) onClose();
+    if (inline) {
+      setStep('changeCurrent');
+      setPendingPin(null);
+      verifiedCurrentPinRef.current = null;
+      clearPin();
+    } else if (onClose) onClose();
     else window.dispatchEvent(new CustomEvent('closeProfilePanel'));
   };
 
@@ -264,9 +279,184 @@ export default function LockPinPanel({
   };
 
   const handleBack = () => {
+    if (inline) {
+      setStep(hasLockPinSet ? 'changeCurrent' : 'set');
+      setPendingPin(null);
+      verifiedCurrentPinRef.current = null;
+      clearPin();
+      return;
+    }
     if (onClose) onClose();
     else window.dispatchEvent(new CustomEvent('closeProfilePanel'));
   };
+
+  const isSetFlow = hasLockPinSet === null ? false : !hasLockPinSet;
+  const title =
+    hasLockPinSet === null
+      ? 'Lock PIN'
+      : step === 'reencrypting'
+        ? 'Updating locked notes…'
+        : isSetFlow && step === 'set'
+          ? 'Set your Harvous lock PIN'
+          : isSetFlow && step === 'confirm'
+            ? 'Confirm your PIN'
+            : step === 'changeCurrent'
+              ? 'Change lock PIN'
+              : step === 'changeNew'
+                ? 'Enter new PIN'
+                : step === 'changeConfirm'
+                  ? 'Confirm new PIN'
+                  : 'Lock PIN';
+  const subtitle =
+    hasLockPinSet === null
+      ? ''
+      : step === 'reencrypting'
+        ? 'Re-encrypting your locked notes with the new PIN.'
+        : isSetFlow && step === 'set'
+          ? 'This PIN is for your entire Harvous account. You will use it to lock and unlock notes.'
+          : isSetFlow && step === 'confirm'
+            ? 'Enter your PIN again to confirm.'
+            : step === 'changeCurrent'
+              ? 'Enter your current PIN, then set a new one.'
+              : step === 'changeNew'
+                ? 'Enter a new 4-digit PIN.'
+                : step === 'changeConfirm'
+                  ? 'Enter your new PIN again to confirm.'
+                  : '';
+
+  const inlineLead =
+    inline && appearance === 'prototype'
+      ? step === 'reencrypting'
+        ? subtitle
+        : step === 'set'
+          ? 'Choose a 4-digit PIN for your account.'
+          : step === 'confirm'
+            ? 'Enter it again to confirm.'
+            : step === 'changeCurrent'
+              ? 'Enter your current PIN to continue.'
+              : step === 'changeNew'
+                ? 'Choose a new 4-digit PIN.'
+                : step === 'changeConfirm'
+                  ? 'Enter your new PIN again to confirm.'
+                  : subtitle
+      : subtitle;
+
+  const showRecoveryHint = step === 'set' || step === 'changeNew';
+  const showPinInputs = step !== 'reencrypting';
+  const backLabel =
+    step === 'reencrypting' || (inline && (step === 'set' || step === 'changeCurrent'))
+      ? null
+      : step === 'set' || step === 'changeCurrent'
+        ? inline
+          ? null
+          : 'Back'
+        : 'Cancel';
+
+  const pinInputs = showPinInputs ? (
+    <>
+      <div className={appearance === 'prototype' ? 'proto-pin-entry__digits' : undefined} style={appearance === 'prototype' ? undefined : { display: 'flex', justifyContent: 'center', gap: '0.5rem', marginTop: '1rem' }}>
+        {pin.map((digit, index) => (
+          <input
+            key={index}
+            ref={(el) => {
+              inputRefs.current[index] = el;
+            }}
+            type="text"
+            inputMode="numeric"
+            pattern="[0-9]*"
+            autoComplete="one-time-code"
+            maxLength={1}
+            value={digit ? '\u2022' : ''}
+            onChange={(e) => handleInputChange(index, e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Backspace' && !digit && index > 0) inputRefs.current[index - 1]?.focus();
+              if (e.key === 'Escape') handleCancel();
+              if (!/^[0-9]$/.test(e.key) && e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) e.preventDefault();
+            }}
+            disabled={isProcessing}
+            className={appearance === 'prototype' ? 'proto-pin-entry__digit' : 'pin-digit-input'}
+            style={
+              appearance === 'prototype'
+                ? undefined
+                : {
+                    width: 56,
+                    height: 64,
+                    textAlign: 'center',
+                    fontSize: 24,
+                    fontWeight: 700,
+                    border: `2px solid ${error ? 'var(--color-error-red, #ef4444)' : 'var(--color-soft-gray)'}`,
+                    borderRadius: 12,
+                    outline: 'none',
+                    backgroundColor: 'white',
+                  }
+            }
+          />
+        ))}
+      </div>
+      {error ? (
+        <p className={appearance === 'prototype' ? 'proto-pin-entry__error' : undefined} style={appearance === 'prototype' ? undefined : { textAlign: 'center', color: 'var(--color-error-red, #ef4444)', fontSize: 14, margin: '0.75rem 0 0' }}>
+          {error}
+        </p>
+      ) : null}
+      {showRecoveryHint ? (
+        <p
+          className={appearance === 'prototype' ? 'proto-pin-entry__hint' : 'text-center px-4 pt-3 pb-2'}
+          style={
+            appearance === 'prototype'
+              ? undefined
+              : { color: 'var(--color-pebble-grey)', fontSize: '0.75rem', textWrap: 'balance', marginTop: '1rem', minWidth: 0, maxWidth: '100%' }
+          }
+        >
+          If you forget your PIN, locked note content cannot be recovered.
+        </p>
+      ) : null}
+    </>
+  ) : null;
+
+  if (appearance === 'prototype') {
+    if (hasLockPinSet === null) {
+      return (
+        <div className="proto-lock-pin-settings">
+          <p className="pds-caption" style={{ color: 'var(--pds-text-secondary)' }}>Loading…</p>
+        </div>
+      );
+    }
+
+    return (
+      <div className={`proto-lock-pin-settings${inline ? ' proto-lock-pin-settings--inline' : ''}`}>
+        <div className="proto-pin-entry proto-pin-entry--settings" role="group" aria-label={title}>
+          {inline ? (
+            inlineLead ? <p className="proto-lock-pin-settings__lead">{inlineLead}</p> : null
+          ) : (
+            <>
+              <div className="proto-pin-entry__icon-wrap" aria-hidden>
+                <Icon name="lock" size={22} />
+              </div>
+              <p className="proto-pin-entry__title">{title}</p>
+              {subtitle ? <p className="proto-pin-entry__subtitle">{subtitle}</p> : null}
+            </>
+          )}
+          {pinInputs}
+          {backLabel ? (
+            <div className="proto-pin-entry__footer proto-pin-entry__footer--inline">
+              <button
+                type="button"
+                className={
+                  inline
+                    ? 'proto-lock-pin-settings__text-btn'
+                    : 'proto-pin-entry__action proto-pin-entry__action--inline'
+                }
+                disabled={step === 'reencrypting'}
+                onClick={step === 'reencrypting' ? () => {} : handleCancel}
+              >
+                {backLabel}
+              </button>
+            </div>
+          ) : null}
+        </div>
+      </div>
+    );
+  }
 
   if (hasLockPinSet === null) {
     return (
@@ -298,37 +488,6 @@ export default function LockPinPanel({
       </div>
     );
   }
-
-  const isSetFlow = !hasLockPinSet;
-  const isChangeFlow = hasLockPinSet && (step === 'changeCurrent' || step === 'changeNew' || step === 'changeConfirm');
-  const title =
-    step === 'reencrypting'
-      ? 'Updating locked notes…'
-      : isSetFlow && step === 'set'
-        ? 'Set your Harvous lock PIN'
-        : isSetFlow && step === 'confirm'
-          ? 'Confirm your PIN'
-          : step === 'changeCurrent'
-            ? 'Change lock PIN'
-            : step === 'changeNew'
-              ? 'Enter new PIN'
-              : step === 'changeConfirm'
-                ? 'Confirm new PIN'
-                : 'Lock PIN';
-  const subtitle =
-    step === 'reencrypting'
-      ? 'Re-encrypting your locked notes with the new PIN.'
-      : isSetFlow && step === 'set'
-        ? 'This PIN will lock and unlock notes across Harvous.'
-        : isSetFlow && step === 'confirm'
-          ? 'Enter your PIN again to confirm.'
-          : step === 'changeCurrent'
-            ? 'Enter your current PIN, then set a new one.'
-            : step === 'changeNew'
-              ? 'Enter a new 4-digit PIN.'
-              : step === 'changeConfirm'
-                ? 'Enter your new PIN again to confirm.'
-                : '';
 
   return (
     <div className={`panel-wrapper ${inBottomSheet ? 'panel-wrapper--bottom-sheet' : ''} w-full`}>
@@ -365,51 +524,7 @@ export default function LockPinPanel({
                 )}
               </div>
 
-              {step !== 'reencrypting' && (
-                <>
-                  <div style={{ display: 'flex', justifyContent: 'center', gap: '0.5rem', marginTop: '1rem' }}>
-                    {pin.map((digit, index) => (
-                      <input
-                        key={index}
-                        ref={(el) => { inputRefs.current[index] = el; }}
-                        type="text"
-                        inputMode="numeric"
-                        pattern="[0-9]*"
-                        autoComplete="one-time-code"
-                        maxLength={1}
-                        value={digit ? '\u2022' : ''}
-                        onChange={(e) => handleInputChange(index, e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Backspace' && !digit && index > 0) inputRefs.current[index - 1]?.focus();
-                          if (e.key === 'Escape') handleCancel();
-                          if (!/^[0-9]$/.test(e.key) && e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) e.preventDefault();
-                        }}
-                        disabled={isProcessing}
-                        className="pin-digit-input"
-                        style={{
-                          width: 56,
-                          height: 64,
-                          textAlign: 'center',
-                          fontSize: 24,
-                          fontWeight: 700,
-                          border: `2px solid ${error ? 'var(--color-error-red, #ef4444)' : 'var(--color-soft-gray)'}`,
-                          borderRadius: 12,
-                          outline: 'none',
-                          backgroundColor: 'white'
-                        }}
-                      />
-                    ))}
-                  </div>
-                  {error && (
-                    <p style={{ textAlign: 'center', color: 'var(--color-error-red, #ef4444)', fontSize: 14, margin: '0.75rem 0 0' }}>{error}</p>
-                  )}
-                  {(step === 'set' || step === 'changeNew') && (
-                    <div className="text-center px-4 pt-3 pb-2" style={{ color: 'var(--color-pebble-grey)', fontSize: '0.75rem', textWrap: 'balance', marginTop: '1rem', minWidth: 0, maxWidth: '100%' }}>
-                      If you forget your PIN, locked note content cannot be recovered.
-                    </div>
-                  )}
-                </>
-              )}
+              {pinInputs}
               </div>
             </div>
           </div>

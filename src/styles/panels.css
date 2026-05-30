@@ -1881,7 +1881,7 @@ form.new-note-panel {
   min-width: 18px;
   height: 18px;
   padding: 0 4px;
-  border-radius: 4px;
+  border-radius: 8px;
   background: rgba(0, 0, 0, 0.08);
   font-family: var(--font-sans);
   font-size: 11px;

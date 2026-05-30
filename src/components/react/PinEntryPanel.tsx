@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import SquareButton from './SquareButton';
+import Icon from './Icon';
 import { encryptContent, decryptContent, validatePin, deriveKey, decodeBlob } from '@/utils/note-encryption';
 import { setNoteUnlocked, lockNote } from '@/utils/note-unlock-state';
 import { toast } from '@/utils/toast';
@@ -13,9 +14,25 @@ interface PinEntryPanelProps {
   isEncrypted: boolean;
   onClose?: () => void;
   inBottomSheet?: boolean;
+  /** Prototype shell uses native-style PIN UI instead of classic panel chrome. */
+  appearance?: 'classic' | 'prototype';
 }
 
 type Step = 'set' | 'confirm' | 'unlock' | 'unlocked';
+
+function ProtoPinEntryHeaderIcon({ name }: { name: 'lock' | 'unlock' }) {
+  return (
+    <div className="proto-pin-entry__icon-wrap" aria-hidden>
+      <Icon name={name} size={22} />
+    </div>
+  );
+}
+
+function protoPinEntryIconName(step: Step, initialMode: PinEntryPanelInitialMode): 'lock' | 'unlock' {
+  if (step === 'unlocked') return 'unlock';
+  if ((initialMode === 'unlock' || initialMode === 'removeLock') && step === 'unlock') return 'unlock';
+  return 'lock';
+}
 
 export default function PinEntryPanel({
   noteId,
@@ -23,7 +40,8 @@ export default function PinEntryPanel({
   noteContent,
   isEncrypted,
   onClose,
-  inBottomSheet = false
+  inBottomSheet = false,
+  appearance = 'classic',
 }: PinEntryPanelProps) {
   // changeLock/setForAccount: set starts at set; lockWithAccountPin starts at unlock (enter PIN to lock)
   const [step, setStep] = useState<Step>(
@@ -351,6 +369,89 @@ export default function PinEntryPanel({
     return 'Enter your PIN to view this note';
   };
 
+  const pinDigitInputs = (
+    <div className={appearance === 'prototype' ? 'proto-pin-entry__digits' : undefined} style={appearance === 'prototype' ? undefined : { display: 'flex', justifyContent: 'center', gap: '0.5rem', marginTop: '1rem' }}>
+      {pin.map((digit, index) => (
+        <input
+          key={index}
+          ref={(el) => {
+            inputRefs.current[index] = el;
+          }}
+          type="text"
+          inputMode="numeric"
+          pattern="[0-9]*"
+          autoComplete="one-time-code"
+          maxLength={1}
+          value={digit ? '\u2022' : ''}
+          onChange={(e) => handleInputChange(index, e.target.value)}
+          onKeyDown={(e) => handleKeyDown(index, e)}
+          onPaste={handlePaste}
+          disabled={isProcessing}
+          className={appearance === 'prototype' ? 'proto-pin-entry__digit' : 'pin-digit-input'}
+          style={
+            appearance === 'prototype'
+              ? undefined
+              : {
+                  width: 56,
+                  height: 64,
+                  textAlign: 'center',
+                  fontSize: 24,
+                  fontWeight: 700,
+                  border: `2px solid ${error ? 'var(--color-error-red, #ef4444)' : 'var(--color-soft-gray)'}`,
+                  borderRadius: 12,
+                  outline: 'none',
+                  backgroundColor: 'white',
+                }
+          }
+        />
+      ))}
+    </div>
+  );
+
+  if (appearance === 'prototype') {
+    return (
+      <div className="proto-pin-entry" role="dialog" aria-modal="true" aria-label={getTitle()}>
+        <ProtoPinEntryHeaderIcon name={protoPinEntryIconName(step, initialMode)} />
+        <p className="proto-pin-entry__title">{getTitle()}</p>
+        <p className="proto-pin-entry__subtitle">{getSubtitle()}</p>
+
+        {step === 'unlocked' ? (
+          <>
+            <button
+              type="button"
+              className="proto-pin-entry__action"
+              onClick={handleRemoveLock}
+              disabled={isProcessing}
+            >
+              {isProcessing ? 'Removing…' : 'Remove lock'}
+            </button>
+            {error ? <p className="proto-pin-entry__error">{error}</p> : null}
+          </>
+        ) : (
+          <>
+            {pinDigitInputs}
+            {error ? <p className="proto-pin-entry__error">{error}</p> : null}
+            {step === 'set' && initialMode !== 'removeLock' ? (
+              <p className="proto-pin-entry__hint">
+                If you forget your PIN, there is no way to recover the note content. Make sure to remember it.
+              </p>
+            ) : null}
+          </>
+        )}
+
+        <div className="proto-pin-entry__footer">
+          <button
+            type="button"
+            className="proto-pin-entry__action proto-pin-entry__action--inline"
+            onClick={step === 'unlocked' ? handleClose : handleCancel}
+          >
+            {step === 'unlocked' ? 'Done' : 'Cancel'}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className={`panel-wrapper ${inBottomSheet ? 'panel-wrapper--bottom-sheet' : ''} w-full`}>
       <div className={inBottomSheet ? 'flex-1 flex flex-col min-h-0' : 'flex flex-col'}>
@@ -401,36 +502,7 @@ export default function PinEntryPanel({
                 </div>
               ) : (
                 <>
-                  <div style={{ display: 'flex', justifyContent: 'center', gap: '0.5rem', marginTop: '1rem' }}>
-                    {pin.map((digit, index) => (
-                      <input
-                        key={index}
-                        ref={(el) => { inputRefs.current[index] = el; }}
-                        type="text"
-                        inputMode="numeric"
-                        pattern="[0-9]*"
-                        autoComplete="one-time-code"
-                        maxLength={1}
-                        value={digit ? '\u2022' : ''}
-                        onChange={(e) => handleInputChange(index, e.target.value)}
-                        onKeyDown={(e) => handleKeyDown(index, e)}
-                        onPaste={handlePaste}
-                        disabled={isProcessing}
-                        className="pin-digit-input"
-                        style={{
-                          width: 56,
-                          height: 64,
-                          textAlign: 'center',
-                          fontSize: 24,
-                          fontWeight: 700,
-                          border: `2px solid ${error ? 'var(--color-error-red, #ef4444)' : 'var(--color-soft-gray)'}`,
-                          borderRadius: 12,
-                          outline: 'none',
-                          backgroundColor: 'white'
-                        }}
-                      />
-                    ))}
-                  </div>
+                  {pinDigitInputs}
 
                   {error && (
                     <p style={{ textAlign: 'center', color: 'var(--color-error-red, #ef4444)', fontSize: 14, margin: '0.75rem 0 0' }}>{error}</p>

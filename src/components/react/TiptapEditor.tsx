@@ -37,19 +37,9 @@ import '@/styles/tiptap-editor.css';
 
 // Icon component for inline SVGs (allows CSS styling)
 import Icon from './Icon';
-import {
-  IconArrowBackUp as ProtoUndoIcon,
-  IconArrowForwardUp as ProtoRedoIcon,
-  IconBold as ProtoBoldIcon,
-  IconIndentDecrease as ProtoOutdentIcon,
-  IconIndentIncrease as ProtoIndentIcon,
-  IconItalic as ProtoItalicIcon,
-  IconLink as ProtoLinkIcon,
-  IconList as ProtoListBulletsIcon,
-  IconListNumbers as ProtoListNumbersIcon,
-  IconMinus as ProtoHorizontalRuleIcon,
-  IconStrikethrough as ProtoStrikethroughIcon,
-} from '@tabler/icons-react';
+
+/** Prototype format toolbar — Font Awesome fill icons (matches proto chrome; not Tabler stroke). */
+const PROTO_FORMAT_ICON_SIZE = 18;
 
 // Track pending pill creation to prevent duplicates from concurrent calls
 // This is a module-level Set to track references currently being processed
@@ -2864,7 +2854,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
   editorChromeMode = 'default',
   onPrototypeChromeModeChange,
   prototypeNoteActionsChrome = false,
-  formatToolbarPortalTarget = null,
+  formatToolbarPortalTarget,
   scriptureChromePortalTarget = null,
   highlightChromePortalTarget = null,
   referenceChromePortalTarget = null,
@@ -4834,6 +4824,36 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     };
   }, [editor, toolbarAtBottom, editorChromeMode, bumpFormatToolbarActivity]);
 
+  useEffect(() => {
+    if (!editor || !sourceNoteId) return;
+    const handler = (e: Event) => {
+      const d = (e as CustomEvent).detail;
+      if (!d || String(d.noteId) !== String(sourceNoteId)) return;
+      const query = String(d.query ?? '').trim();
+      if (!query || !isEditorValid(editor)) return;
+      const all = findAllTextPositions(editor.state.doc, query, false);
+      if (all.length === 0) {
+        window.dispatchEvent(
+          new CustomEvent('prototypeFindInNoteResult', {
+            detail: { noteId: sourceNoteId, count: 0, index: 0 },
+          }),
+        );
+        return;
+      }
+      const idx =
+        typeof d.matchIndex === 'number' ? ((d.matchIndex % all.length) + all.length) % all.length : 0;
+      const match = all[idx];
+      editor.chain().focus().setTextSelection({ from: match.from, to: match.to }).scrollIntoView().run();
+      window.dispatchEvent(
+        new CustomEvent('prototypeFindInNoteResult', {
+          detail: { noteId: sourceNoteId, count: all.length, index: idx },
+        }),
+      );
+    };
+    window.addEventListener('prototypeFindInNote', handler as EventListener);
+    return () => window.removeEventListener('prototypeFindInNote', handler as EventListener);
+  }, [editor, sourceNoteId]);
+
   /** macOS-parity format bar: idle-hide + selection-visible + typing activity. */
   useEffect(() => {
     if (!editor || editorChromeMode !== 'prototypeNative') {
@@ -4941,6 +4961,9 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     !scriptureChromeActive &&
     !highlightChromeActive &&
     !referenceChromeActive;
+
+  /* Prototype column bar: undefined = inline fallback; null = host pending; element = portal target. */
+  const columnFormatToolbarPortal = formatToolbarPortalTarget !== undefined;
 
   useEffect(() => {
     if (editorChromeMode !== 'prototypeNative' || !onPrototypeChromeModeChange) return;
@@ -5238,7 +5261,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
               title="Undo"
               ariaLabel="Undo"
             >
-              <ProtoUndoIcon className="proto-toolbar-icon" aria-hidden />
+              <Icon name="arrow-rotate-left" size={PROTO_FORMAT_ICON_SIZE} className="proto-toolbar-icon" />
             </ToolbarButton>
             <ToolbarButton
               onClick={() => editor.chain().focus().redo().run()}
@@ -5247,7 +5270,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
               title="Redo"
               ariaLabel="Redo"
             >
-              <ProtoRedoIcon className="proto-toolbar-icon" aria-hidden />
+              <Icon name="arrow-rotate-right" size={PROTO_FORMAT_ICON_SIZE} className="proto-toolbar-icon" />
             </ToolbarButton>
             <span className="tiptap-toolbar__group-divider tiptap-toolbar__group-divider--prototype" aria-hidden />
             <ToolbarButton
@@ -5256,7 +5279,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
               title="Bold"
               ariaLabel="Toggle bold"
             >
-              <ProtoBoldIcon className="proto-toolbar-icon" aria-hidden />
+              <Icon name="bold" size={PROTO_FORMAT_ICON_SIZE} className="proto-toolbar-icon" />
             </ToolbarButton>
             <ToolbarButton
               onClick={() => editor.chain().focus().toggleItalic().run()}
@@ -5264,7 +5287,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
               title="Italic"
               ariaLabel="Toggle italic"
             >
-              <ProtoItalicIcon className="proto-toolbar-icon" aria-hidden />
+              <Icon name="italic" size={PROTO_FORMAT_ICON_SIZE} className="proto-toolbar-icon" />
             </ToolbarButton>
             <ToolbarButton
               onClick={() => editor.chain().focus().toggleStrike().run()}
@@ -5272,7 +5295,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
               title="Strikethrough"
               ariaLabel="Toggle strikethrough"
             >
-              <ProtoStrikethroughIcon className="proto-toolbar-icon" aria-hidden />
+              <Icon name="strikethrough" size={PROTO_FORMAT_ICON_SIZE} className="proto-toolbar-icon" />
             </ToolbarButton>
             <span className="tiptap-toolbar__group-divider tiptap-toolbar__group-divider--prototype" aria-hidden />
             <ToolbarButton
@@ -5306,7 +5329,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
               title="Bullet list"
               ariaLabel="Toggle bullet list"
             >
-              <ProtoListBulletsIcon className="proto-toolbar-icon" aria-hidden />
+              <Icon name="list" size={PROTO_FORMAT_ICON_SIZE} className="proto-toolbar-icon" />
             </ToolbarButton>
             <ToolbarButton
               onClick={() => editor.chain().focus().toggleOrderedList().run()}
@@ -5314,7 +5337,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
               title="Numbered list"
               ariaLabel="Toggle numbered list"
             >
-              <ProtoListNumbersIcon className="proto-toolbar-icon" aria-hidden />
+              <Icon name="list-ol" size={PROTO_FORMAT_ICON_SIZE} className="proto-toolbar-icon" />
             </ToolbarButton>
             <ToolbarButton
               onClick={() =>
@@ -5327,7 +5350,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
               title="Outdent"
               ariaLabel="Outdent"
             >
-              <ProtoOutdentIcon className="proto-toolbar-icon" aria-hidden />
+              <Icon name="outdent" size={PROTO_FORMAT_ICON_SIZE} className="proto-toolbar-icon" />
             </ToolbarButton>
             <ToolbarButton
               onClick={() =>
@@ -5340,7 +5363,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
               title="Indent"
               ariaLabel="Indent"
             >
-              <ProtoIndentIcon className="proto-toolbar-icon" aria-hidden />
+              <Icon name="indent" size={PROTO_FORMAT_ICON_SIZE} className="proto-toolbar-icon" />
             </ToolbarButton>
             <span className="tiptap-toolbar__group-divider tiptap-toolbar__group-divider--prototype" aria-hidden />
             <ToolbarButton
@@ -5349,7 +5372,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
               title="Horizontal rule"
               ariaLabel="Insert horizontal rule"
             >
-              <ProtoHorizontalRuleIcon className="proto-toolbar-icon" aria-hidden />
+              <Icon name="horizontal-rule" size={PROTO_FORMAT_ICON_SIZE} className="proto-toolbar-icon" />
             </ToolbarButton>
             <ToolbarButton
               onClick={() => {
@@ -5360,7 +5383,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
               title="Add link to selection"
               ariaLabel="Add link to selection"
             >
-              <ProtoLinkIcon className="proto-toolbar-icon" aria-hidden />
+              <Icon name="link" size={PROTO_FORMAT_ICON_SIZE} className="proto-toolbar-icon" />
             </ToolbarButton>
           </TiptapToolbarTrack>
         </div>
@@ -5524,6 +5547,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       )}
       {!minimalToolbar &&
         editorChromeMode === 'prototypeNative' &&
+        !columnFormatToolbarPortal &&
         !formatToolbarPortalTarget &&
         shouldShowPrototypeFormatToolbar &&
         !toolbarAtBottom &&
@@ -6426,12 +6450,14 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       )}
       {!minimalToolbar &&
         editorChromeMode === 'prototypeNative' &&
+        !columnFormatToolbarPortal &&
         !formatToolbarPortalTarget &&
         shouldShowPrototypeFormatToolbar &&
         toolbarAtBottom &&
         renderPrototypeNativeFormatToolbar('bottom')}
       {!minimalToolbar &&
         editorChromeMode === 'prototypeNative' &&
+        columnFormatToolbarPortal &&
         formatToolbarPortalTarget &&
         shouldShowPrototypeFormatToolbar &&
         createPortal(renderPrototypeNativeFormatToolbar('portal'), formatToolbarPortalTarget)}

@@ -1,9 +1,13 @@
 /**
  * Parses markdown export format from Harvous
- * Format: Note sections separated by --- metadata blocks
- * @param markdownContent - Raw markdown string content
- * @returns Array of parsed note objects
+ * Supports portable YAML-frontmatter exports and legacy footer metadata exports.
  */
+import {
+  isPortableMarkdownExport,
+  parsePortableMarkdownExport,
+  type PortableNoteDocument,
+} from '@/utils/portable-markdown';
+
 export interface ParsedMarkdownNote {
   title: string;
   content: string;
@@ -14,9 +18,33 @@ export interface ParsedMarkdownNote {
   tags: string[];
   scriptureReference: string | null;
   scriptureTranslation: string | null;
+  /** Present for portable imports — full highlight payload. */
+  portable?: PortableNoteDocument;
 }
 
 export function parseMarkdownExport(markdownContent: string): ParsedMarkdownNote[] {
+  if (isPortableMarkdownExport(markdownContent)) {
+    return parsePortableMarkdownExport(markdownContent).map(portableDocToParsedNote);
+  }
+  return parseLegacyMarkdownExport(markdownContent);
+}
+
+function portableDocToParsedNote(doc: PortableNoteDocument): ParsedMarkdownNote {
+  return {
+    title: doc.meta.title?.trim() || 'Untitled',
+    content: doc.body,
+    createdDate: doc.meta.created || null,
+    updatedDate: doc.meta.updated || null,
+    threadName: doc.meta.thread || null,
+    threadColor: doc.meta.threadColor || null,
+    tags: doc.meta.tags || [],
+    scriptureReference: doc.meta.scriptureReference || null,
+    scriptureTranslation: doc.meta.scriptureTranslation || null,
+    portable: doc,
+  };
+}
+
+function parseLegacyMarkdownExport(markdownContent: string): ParsedMarkdownNote[] {
   const notes: ParsedMarkdownNote[] = [];
   
   // Split by metadata separators (---)

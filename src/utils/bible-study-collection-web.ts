@@ -10,7 +10,7 @@ import {
 } from '@/utils/bible-study-keywords';
 
 const MIN_BODY_WORDS = 25;
-const SHORT_NOTE_CONFIDENCE_FLOOR = 1.02;
+const SHORT_NOTE_CONFIDENCE_FLOOR = 0.9;
 const AUTO_REPLACE_COOLDOWN_MS = 25_000;
 
 /** When two folder scores are within this band, prefer title hit and category rank. */
@@ -320,7 +320,6 @@ function meetsMinimumContext(title: string, plainBody: string, candidate: string
   if (!candidate) return false;
   const words = plainBody.split(/\s+/).filter(Boolean);
   if (words.length >= MIN_BODY_WORDS) return true;
-  if (candidateAppearsInTitle(title, candidate)) return true;
   return scoreForName(candidate, rows, title, plainBody) >= SHORT_NOTE_CONFIDENCE_FLOOR;
 }
 

@@ -4,6 +4,7 @@ import {
   HARVOUS_FEATURED_DISMISSED_CACHE_KEY,
   HARVOUS_NAV_CACHE_KEY,
   HARVOUS_PROFILE_CACHE_KEY,
+  HARVOUS_SPACE_NOTES_CACHE_PREFIX,
   HARVOUS_USER_COLOR_KEY,
   HARVOUS_XP_CACHE_KEY,
 } from '@/utils/user-cache-keys';
@@ -37,6 +38,17 @@ export function clearUserClientStorageCaches() {
   }
   try {
     sessionStorage.removeItem(HARVOUS_FEATURED_DISMISSED_CACHE_KEY);
+  } catch {
+    /* ignore */
+  }
+  // Per-space sidebar notes snapshots (keyed by space id) — remove all by prefix.
+  try {
+    const keys: string[] = [];
+    for (let i = 0; i < sessionStorage.length; i++) {
+      const key = sessionStorage.key(i);
+      if (key && key.startsWith(HARVOUS_SPACE_NOTES_CACHE_PREFIX)) keys.push(key);
+    }
+    keys.forEach((k) => sessionStorage.removeItem(k));
   } catch {
     /* ignore */
   }
