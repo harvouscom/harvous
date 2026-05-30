@@ -1,0 +1,96 @@
+---
+import BaseLayout from "../../layouts/BaseLayout.astro";
+import DownloadCTA from "../../components/DownloadCTA.astro";
+import { Icon } from "astro-icon/components";
+
+const accent = { bg: "var(--color-sky)", ink: "var(--color-sky-ink)" };
+
+const moments = [
+  {
+    icon: "fa6-solid:pen",
+    heading: "Capture the thought, right then",
+    body: "A note next to the passage before the moment passes. Takes five seconds. No formatting, no filing — just the thought and where it belongs.",
+  },
+  {
+    icon: "fa6-solid:book-bible",
+    heading: "Scripture pills keep it connected",
+    body: "Type \"Romans 8:1\" and it becomes a tap-able link across all 7 translations. The verse text is there whenever you need it — no app-switching, no losing your place.",
+  },
+  {
+    icon: "fa6-solid:layer-group",
+    heading: "A thread for whatever you're studying",
+    body: "Whether you're working through a chapter a day or a whole book in a week, a thread collects all your thoughts on the same topic. The thread becomes your record.",
+  },
+  {
+    icon: "fa6-solid:calendar-days",
+    heading: "The daily passage",
+    body: "A reading for each day of the year, with space to add what stays with you. Start there if you're not sure where to begin.",
+  },
+];
+---
+
+<BaseLayout
+  title="For daily journalers — Harvous"
+  description="You study most mornings. Harvous is where the thoughts go — notes linked to scripture, organized by what they're about, findable when you need them."
+>
+  <!-- Hero -->
+  <section class="border-b border-[var(--color-rule)]">
+    <div class="mx-auto max-w-3xl px-5 py-16 md:py-24">
+      <a
+        href="/use-cases"
+        class="inline-flex items-center gap-1.5 text-sm text-[var(--color-ink-soft)] hover:text-[var(--color-ink)]"
+      >
+        <svg class="h-3.5 w-3.5" viewBox="0 0 16 16" fill="currentColor">
+          <path fill-rule="evenodd" d="M14 8a.75.75 0 0 1-.75.75H3.56l3.22 3.22a.75.75 0 1 1-1.06 1.06l-4.5-4.5a.75.75 0 0 1 0-1.06l4.5-4.5a.75.75 0 0 1 1.06 1.06L3.56 7.25H13.25A.75.75 0 0 1 14 8Z" clip-rule="evenodd"/>
+        </svg>
+        Use cases
+      </a>
+      <div class="mt-6">
+        <span
+          class="rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-wider"
+          style={`background: ${accent.bg}; color: ${accent.ink};`}
+        >
+          Daily journal
+        </span>
+      </div>
+      <h1 class="mt-5 font-display text-4xl leading-[1.05] md:text-6xl">
+        For the person who studies every day and wants to hold onto what they find.
+      </h1>
+      <p class="mt-6 max-w-xl text-lg leading-relaxed text-[var(--color-ink-soft)]">
+        You study most mornings. Or evenings, or whenever you can find time. You add a verse you're sitting with, write what comes to mind, connect it to something else you've been thinking about. But by Thursday, most of it is gone. Not lost exactly. Just... nowhere.
+      </p>
+    </div>
+  </section>
+
+  <!-- Feature moments -->
+  <section class="mx-auto max-w-5xl px-5 py-20">
+    <div class="grid gap-10 sm:grid-cols-2">
+      {moments.map((m) => (
+        <div class="flex flex-col gap-4">
+          <div
+            class="flex h-11 w-11 items-center justify-center rounded-xl"
+            style={`background: ${accent.bg};`}
+          >
+            <Icon name={m.icon} class="h-5 w-5" style={`color: ${accent.ink};`} />
+          </div>
+          <div>
+            <h3 class="text-lg font-semibold text-[var(--color-ink)]">{m.heading}</h3>
+            <p class="mt-2 text-[var(--color-ink-soft)] leading-relaxed">{m.body}</p>
+          </div>
+        </div>
+      ))}
+    </div>
+  </section>
+
+  <!-- Quote -->
+  <section class="fade-rule-y">
+    <div class="mx-auto max-w-2xl px-5 py-16 text-center">
+      <blockquote class="font-display text-3xl leading-snug md:text-4xl">
+        "Looking forward to continuing to use it to <mark>help in my study</mark>."
+      </blockquote>
+      <figcaption class="mt-6 text-sm italic text-[var(--color-ink-soft)]">&mdash;Theo, Nov 2025</figcaption>
+    </div>
+  </section>
+
+  <DownloadCTA />
+</BaseLayout>

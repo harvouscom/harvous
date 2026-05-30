@@ -16,8 +16,7 @@
 import { Hono } from 'hono';
 import { getAuthenticatedAuth, requireAuth, requireParam } from '../middleware/auth';
 import {
-  db, Threads, Notes, NoteThreads, NoteTags, Comments, Spaces, Members,
-  ScriptureMetadata, NoteScriptureReferences, ResourceMetadata,
+  db, Threads, Notes, NoteThreads, Spaces, Members,
   eq, and, or, inArray, isNull,
   first,
 } from '../db';
@@ -40,6 +39,9 @@ import { validateTitle, validateColor, validateSpaceId } from '@/utils/validatio
 import { rateLimit } from '@/utils/rate-limit';
 import { generateThreadId, generateShareToken } from '@/utils/ids';
 import { MY_PILE_THREAD_TITLE } from '@/utils/my-pile-thread';
+import { deleteNotesCascadeForUser } from '../utils/delete-note-cascade';
+import { recordDeletedEntities } from '../utils/sync-deletion-log';
+import { broadcastInvalidation } from '../utils/realtime';
 
 const route = new Hono();
 
@@ -65,33 +67,63 @@ async function addNotesToThread(
   threadId: string,
   userId: string,
 ): Promise<void> {
-  for (const noteId of noteIds) {
-    try {
-      const note = first(await db.select().from(Notes)
-        .where(and(eq(Notes.id, noteId), eq(Notes.userId, userId))).limit(1));
+  if (noteIds.length === 0) return;
+  try {
+    // Batch the upfront reads instead of querying per note:
+    //   1) which of the requested notes the user actually owns (+ their threadId)
+    //   2) all existing junction rows for those notes (to skip dupes and to know
+    //      whether the note currently lives only in unorganized)
+    const [validNotes, existingRelations] = await Promise.all([
+      db.select({ id: Notes.id, threadId: Notes.threadId }).from(Notes)
+        .where(and(inArray(Notes.id, noteIds), eq(Notes.userId, userId))),
+      db.select({ noteId: NoteThreads.noteId, threadId: NoteThreads.threadId }).from(NoteThreads)
+        .where(inArray(NoteThreads.noteId, noteIds)),
+    ]);
+
+    const validNoteMap = new Map(validNotes.map(n => [n.id, n]));
+    const relationsByNote = new Map<string, Set<string>>();
+    for (const rel of existingRelations) {
+      if (!relationsByNote.has(rel.noteId)) relationsByNote.set(rel.noteId, new Set());
+      relationsByNote.get(rel.noteId)!.add(rel.threadId);
+    }
+
+    const now = nowISO();
+    const rowsToInsert: Array<{ id: string; noteId: string; threadId: string; createdAt: typeof now }> = [];
+    const notesToReparent: string[] = [];
+    let i = 0;
+    for (const noteId of noteIds) {
+      const note = validNoteMap.get(noteId);
       if (!note) continue;
+      const threadsForNote = relationsByNote.get(noteId);
+      if (threadsForNote?.has(threadId)) continue; // relation already exists
+      const isInUnorganized = !threadsForNote || threadsForNote.size === 0 || note.threadId === 'thread_unorganized';
+      rowsToInsert.push({
+        id: `note-thread-${Date.now()}-${i}-${Math.random().toString(36).slice(2, 11)}`,
+        noteId,
+        threadId,
+        createdAt: now,
+      });
+      if (isInUnorganized && threadId !== 'thread_unorganized') notesToReparent.push(noteId);
+      i++;
+    }
 
-      const existingRelation = first(await db.select().from(NoteThreads)
-        .where(and(eq(NoteThreads.noteId, noteId), eq(NoteThreads.threadId, threadId))).limit(1));
-      if (existingRelation) continue;
+    if (rowsToInsert.length > 0) {
+      // onConflictDoNothing guards against a concurrent insert racing the read above.
+      await db.insert(NoteThreads).values(rowsToInsert).onConflictDoNothing();
+    }
+    if (notesToReparent.length > 0) {
+      await db.update(Notes).set({ threadId })
+        .where(and(inArray(Notes.id, notesToReparent), eq(Notes.userId, userId)));
+    }
 
-      const existingThreadRelations = await db.select().from(NoteThreads)
-        .where(eq(NoteThreads.noteId, noteId));
-      const isInUnorganized = existingThreadRelations.length === 0 || note.threadId === 'thread_unorganized';
-
-      const noteThreadId = `note-thread-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-      await db.insert(NoteThreads).values({ id: noteThreadId, noteId, threadId, createdAt: nowISO() });
-
-      if (isInUnorganized && threadId !== 'thread_unorganized') {
-        await db.update(Notes).set({ threadId }).where(eq(Notes.id, noteId));
-      }
-
+    // Non-blocking per-note scripture reparenting (unchanged behavior).
+    for (const { noteId } of rowsToInsert) {
       moveScriptureNotesToThread(noteId, threadId, userId).catch((error) => {
         console.error(`Error moving scripture notes for note ${noteId} (non-blocking):`, error);
       });
-    } catch (error) {
-      console.error(`Error adding note ${noteId} to thread:`, error);
     }
+  } catch (error) {
+    console.error('Error adding notes to thread:', error);
   }
 }
 
@@ -199,6 +231,7 @@ route.post('/api/threads/create', requireAuth, rateLimit('write'), async (c) => 
 
     awardCreationBonusXP(auth.userId, 'thread').catch(() => {});
 
+    broadcastInvalidation(auth.userId, { type: 'thread:updated', id: newThread.id });
     return c.json({ success: 'Thread created!', thread: newThread });
   } catch (error: any) {
     const standardError = handleAPIError(error, { endpoint: '/api/threads/create', action: 'create_thread' });
@@ -261,6 +294,7 @@ route.post('/api/threads/update', requireAuth, rateLimit('write'), async (c) => 
         .where(and(eq(Threads.id, threadId), eq(Threads.userId, auth.userId)));
     }
 
+    broadcastInvalidation(auth.userId, { type: 'thread:updated', id: threadId });
     return c.json({ success: 'Thread updated!', thread: updatedThread });
   } catch (error: any) {
     const standardError = handleAPIError(error, { endpoint: '/api/threads/update', action: 'update_thread' });
@@ -292,27 +326,40 @@ route.delete('/api/threads/delete', requireAuth, rateLimit('write'), async (c) =
     await db.delete(NoteThreads).where(eq(NoteThreads.threadId, threadId));
 
     if (affectedNotes.length > 0) {
-      for (const { noteId } of affectedNotes) {
-        // Check if note still belongs to other threads
-        const remainingThreads = await db.select({ threadId: NoteThreads.threadId })
-          .from(NoteThreads)
-          .where(eq(NoteThreads.noteId, noteId))
-          .limit(1);
-        
-        if (remainingThreads.length > 0) {
-          // Set to first remaining thread and clear spaceId
-          await db.update(Notes).set({ threadId: remainingThreads[0].threadId, spaceId: null })
-            .where(and(eq(Notes.id, noteId), eq(Notes.userId, auth.userId)));
-        } else {
-          // Move to unorganized and clear spaceId
-          await db.update(Notes).set({ threadId: 'thread_unorganized', spaceId: null })
-            .where(and(eq(Notes.id, noteId), eq(Notes.userId, auth.userId)));
-        }
+      const affectedNoteIds = affectedNotes.map(n => n.noteId);
+
+      // One query for the remaining thread relations across all affected notes
+      // (the deleted thread's junction rows were already removed above).
+      const remaining = await db.select({ noteId: NoteThreads.noteId, threadId: NoteThreads.threadId })
+        .from(NoteThreads)
+        .where(inArray(NoteThreads.noteId, affectedNoteIds));
+
+      const firstRemainingByNote = new Map<string, string>();
+      for (const rel of remaining) {
+        if (!firstRemainingByNote.has(rel.noteId)) firstRemainingByNote.set(rel.noteId, rel.threadId);
       }
+
+      // Group notes by destination thread (first remaining thread, else unorganized)
+      // so we issue one UPDATE per distinct destination instead of one per note.
+      const notesByDestination = new Map<string, string[]>();
+      for (const noteId of affectedNoteIds) {
+        const dest = firstRemainingByNote.get(noteId) ?? 'thread_unorganized';
+        if (!notesByDestination.has(dest)) notesByDestination.set(dest, []);
+        notesByDestination.get(dest)!.push(noteId);
+      }
+
+      await Promise.all(
+        Array.from(notesByDestination.entries()).map(([dest, ids]) =>
+          db.update(Notes).set({ threadId: dest, spaceId: null })
+            .where(and(inArray(Notes.id, ids), eq(Notes.userId, auth.userId))),
+        ),
+      );
     }
 
     await db.delete(Threads).where(and(eq(Threads.id, threadId), eq(Threads.userId, auth.userId)));
+    await recordDeletedEntities(auth.userId, 'thread', [threadId]);
 
+    broadcastInvalidation(auth.userId, { type: 'thread:deleted', id: threadId });
     return c.json({ success: `Thread erased! Notes have been moved to the ${MY_PILE_THREAD_TITLE} thread.`, threadId });
   } catch (error: any) {
     const standardError = handleAPIError(error, { endpoint: '/api/threads/delete', action: 'delete_thread' });
@@ -391,25 +438,13 @@ route.delete('/api/threads/erase-with-notes', requireAuth, rateLimit('write'), a
 
     await deleteAllXpForRelatedIds(auth.userId, [...ownedNoteIds, threadId]);
 
-    for (let i = 0; i < ownedNoteIds.length; i += ERASE_NOTE_CHUNK) {
-      const chunk = ownedNoteIds.slice(i, i + ERASE_NOTE_CHUNK);
-      await db.delete(NoteTags).where(inArray(NoteTags.noteId, chunk));
-      await db.delete(Comments).where(inArray(Comments.noteId, chunk));
-      await db.delete(ScriptureMetadata).where(inArray(ScriptureMetadata.noteId, chunk));
-      await db.delete(ResourceMetadata).where(inArray(ResourceMetadata.noteId, chunk));
-      await db.delete(NoteScriptureReferences).where(
-        or(inArray(NoteScriptureReferences.noteId, chunk), inArray(NoteScriptureReferences.scriptureNoteId, chunk)),
-      );
-    }
-
+    const deleted = await deleteNotesCascadeForUser(auth.userId, ownedNoteIds);
     await db.delete(NoteThreads).where(eq(NoteThreads.threadId, threadId));
-
-    for (let i = 0; i < ownedNoteIds.length; i += ERASE_NOTE_CHUNK) {
-      const chunk = ownedNoteIds.slice(i, i + ERASE_NOTE_CHUNK);
-      await db.delete(Notes).where(and(eq(Notes.userId, auth.userId), inArray(Notes.id, chunk)));
-    }
+    await recordDeletedEntities(auth.userId, 'note', deleted.deletedNoteIds);
+    await recordDeletedEntities(auth.userId, 'studyThread', deleted.deletedStudyThreadIds);
 
     await db.delete(Threads).where(and(eq(Threads.id, threadId), eq(Threads.userId, auth.userId)));
+    await recordDeletedEntities(auth.userId, 'thread', [threadId]);
 
     return c.json({ success: 'Thread and all notes erased!', threadId, notesDeleted: ownedNoteIds.length });
   } catch (error: any) {

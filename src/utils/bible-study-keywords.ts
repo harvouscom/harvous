@@ -231,6 +231,26 @@ function getKeywordTrie() {
   return keywordTrie;
 }
 
+function escapeRegexToken(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/**
+ * Count occurrences of a keyword name or synonym in already-lowercased text.
+ * Single-token needles use `\\b` word boundaries so "hello" does not match "hell".
+ * Multi-word needles use bounded phrase regex (normalized whitespace).
+ */
+function keywordNeedleOccursInLowerText(textLower: string, needleRaw: string): number {
+  const needle = needleRaw.toLowerCase().trim();
+  if (!needle || !textLower) return 0;
+  const tokens = needle.split(/\s+/).filter(Boolean);
+  const pattern =
+    tokens.length === 1 ? `\\b${escapeRegexToken(tokens[0]!)}\\b` : `\\b(?:${tokens.map(escapeRegexToken).join('\\s+')})\\b`;
+  const re = new RegExp(pattern, 'giu');
+  const matches = textLower.matchAll(re);
+  return Array.from(matches).length;
+}
+
 // Helper function to find keywords in text
 export function findKeywordsInText(text: string): Array<{ keyword: BibleStudyKeyword; confidence: number }> {
   const foundKeywords: Array<{ keyword: BibleStudyKeyword; confidence: number }> = [];
@@ -248,18 +268,17 @@ export function findKeywordsInText(text: string): Array<{ keyword: BibleStudyKey
     });
   }
 
-  // Other categories: simple includes
+  // Other categories: whole-word / phrase-boundary matching (not raw substring includes)
   for (const keyword of BIBLE_STUDY_KEYWORDS) {
     if (keyword.category === 'book' || keyword.category === 'character') continue;
     let found = false;
     let confidence = keyword.confidence;
-    const keywordLower = keyword.name.toLowerCase();
-    if (textLower.includes(keywordLower)) {
+    if (keywordNeedleOccursInLowerText(textLower, keyword.name) > 0) {
       found = true;
       confidence = keyword.confidence;
     }
     for (const synonym of keyword.synonyms) {
-      if (textLower.includes(synonym.toLowerCase())) {
+      if (keywordNeedleOccursInLowerText(textLower, synonym) > 0) {
         found = true;
         confidence = Math.max(confidence, keyword.confidence * 0.8);
       }
@@ -292,7 +311,7 @@ export function findKeywordsInTextWithPriority(
     });
   }
 
-  // Other categories (spiritual, biblical, theme, life, place): simple includes
+  // Other categories (spiritual, biblical, theme, life, place): whole-word / phrase-boundary matching
   for (const keyword of BIBLE_STUDY_KEYWORDS) {
     if (keyword.category === 'book' || keyword.category === 'character') continue;
     let found = false;
@@ -300,32 +319,34 @@ export function findKeywordsInTextWithPriority(
     let foundInTitle = false;
     let foundInContent = false;
     let frequency = 0;
-    const keywordLower = keyword.name.toLowerCase();
-    if (titleLower?.includes(keywordLower)) {
+    const tn = keywordNeedleOccursInLowerText(titleLower ?? '', keyword.name);
+    if (tn > 0) {
       foundInTitle = true;
       found = true;
       confidence = keyword.confidence;
-      frequency += titleLower.split(keywordLower).length - 1;
+      frequency += tn;
     }
-    if (contentLower?.includes(keywordLower)) {
+    const cn = keywordNeedleOccursInLowerText(contentLower ?? '', keyword.name);
+    if (cn > 0) {
       foundInContent = true;
       found = true;
       confidence = keyword.confidence;
-      frequency += contentLower.split(keywordLower).length - 1;
+      frequency += cn;
     }
     for (const synonym of keyword.synonyms) {
-      const synonymLower = synonym.toLowerCase();
-      if (titleLower?.includes(synonymLower)) {
+      const st = keywordNeedleOccursInLowerText(titleLower ?? '', synonym);
+      if (st > 0) {
         foundInTitle = true;
         found = true;
         confidence = Math.max(confidence, keyword.confidence * 0.8);
-        frequency += titleLower.split(synonymLower).length - 1;
+        frequency += st;
       }
-      if (contentLower?.includes(synonymLower)) {
+      const sc = keywordNeedleOccursInLowerText(contentLower ?? '', synonym);
+      if (sc > 0) {
         foundInContent = true;
         found = true;
         confidence = Math.max(confidence, keyword.confidence * 0.8);
-        frequency += contentLower.split(synonymLower).length - 1;
+        frequency += sc;
       }
     }
     if (found) {

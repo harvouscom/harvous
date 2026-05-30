@@ -1,0 +1,14 @@
+---
+interface Props {
+  question: string;
+}
+
+const { question } = Astro.props;
+---
+
+<div class="border-t border-[var(--color-rule)] pt-6 pb-8">
+  <h3 class="text-base font-semibold leading-snug text-[var(--color-ink)]">{question}</h3>
+  <div class="mt-2 text-base leading-relaxed text-[var(--color-ink-soft)]">
+    <slot />
+  </div>
+</div>

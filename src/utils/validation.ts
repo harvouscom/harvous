@@ -187,7 +187,13 @@ export function validateTitle(title: string | null | undefined, required: boolea
 
 /**
  * Validate content input
- * Rules: 1-50,000 characters, required
+ * Rules: 1-500,000 characters, required
+ *
+ * Note: this cap is measured on the stored HTML, not the user's plain text.
+ * Rich notes (scripture pills, links, formatting) inflate the HTML well beyond
+ * the visible writing, so the limit is intentionally generous. The DB column is
+ * Postgres `text` (unbounded), so this is purely a sanity guard against runaway
+ * payloads, not a storage constraint.
  */
 export function validateContent(content: string | null | undefined, required: boolean = true): ValidationResult {
   if (!content || !content.trim()) {
@@ -213,10 +219,10 @@ export function validateContent(content: string | null | undefined, required: bo
     return { isValid: true };
   }
 
-  if (trimmed.length > 50000) {
+  if (trimmed.length > 500000) {
     return {
       isValid: false,
-      error: 'Content must be 50,000 characters or less',
+      error: 'Content must be 500,000 characters or less',
       code: 'CONTENT_TOO_LONG'
     };
   }

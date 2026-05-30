@@ -50,7 +50,7 @@ export default defineConfig({
     proxy: {
       // All API calls → Hono dev server (port 3001). If the API is not running, you get 500 — use npm run dev:all to run both.
       '/api': {
-        target: 'http://localhost:3001',
+        target: process.env.VITE_API_PROXY_TARGET || 'http://localhost:3001',
         changeOrigin: true,
         configure: (proxy) => {
           proxy.on('error', (err, req, res) => {

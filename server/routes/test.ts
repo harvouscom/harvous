@@ -3,7 +3,7 @@
  *
  * Endpoints:
  *   POST /api/test/reset-to-new-user — Clear all current user data + UserMetadata so
- *        on refresh the app treats them as new and creates only the onboarding thread.
+ *        on refresh the app treats them as new (empty content).
  *        Dev only. No auth required: pass { "userId": "user_xxx" } in body, or omit to use session.
  *   POST /api/test/seed-sample-votd — Localhost only; sample VOTD row for today (UTC).
  *   POST /api/test/seed-sample-featured — Localhost only; VOTD plus sample carousel cards. Response includes featuredItemIds
@@ -53,7 +53,7 @@ app.post('/api/test/reset-to-new-user', async (c) => {
 
     return c.json({
       success: true,
-      message: 'All your data was cleared. Refresh the page to see the onboarding experience (like a new user).'
+      message: 'All your data was cleared. Refresh the page to start fresh (like a new user).'
     });
   } catch (error: any) {
     console.error('Reset to new user error:', error);

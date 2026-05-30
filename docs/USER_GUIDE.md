@@ -25,7 +25,7 @@ When you first open Harvous, you'll see:
 ## Core Concepts
 
 ### Spaces
-Think of **Spaces** as your main organizational folders:
+Think of **Spaces** as your main organizational collections:
 - **"Bible Study"** - for your regular study notes
 - **"Prayer Journal"** - for prayer requests and reflections
 - **"Sermon Notes"** - for church service notes

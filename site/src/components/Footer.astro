@@ -1,0 +1,35 @@
+---
+const year = new Date().getFullYear();
+
+const productLinks = [
+  { label: "Features", href: "/features" },
+  { label: "Use cases", href: "/use-cases" },
+  { label: "Blog", href: "/blog" },
+];
+
+const links = [
+  { label: "Help", href: "mailto:derek@harvous.com?subject=Harvous%20Help" },
+  { label: "Status", href: "https://status.harvous.com/" },
+  { label: "About", href: "/about" },
+  { label: "Privacy", href: "/privacy" },
+  { label: "Terms", href: "/terms" },
+];
+---
+
+<footer class="mx-auto max-w-6xl px-5 py-8">
+  <div class="border-t border-[var(--color-rule)] pt-8 text-xs text-[var(--color-ink-faint)]">
+    <nav class="flex flex-wrap items-center justify-center gap-x-5 gap-y-2 sm:justify-start">
+      {productLinks.map((l) => (
+        <a href={l.href} class="transition hover:text-[var(--color-ink)]">{l.label}</a>
+      ))}
+    </nav>
+    <div class="mt-4 flex flex-col items-center justify-between gap-4 sm:flex-row">
+      <p>© {year} Testament Made LLC. All rights reserved.</p>
+      <nav class="flex flex-wrap items-center gap-x-5 gap-y-2">
+        {links.map((l) => (
+          <a href={l.href} class="transition hover:text-[var(--color-ink)]">{l.label}</a>
+        ))}
+      </nav>
+    </div>
+  </div>
+</footer>

@@ -1,0 +1,13 @@
+---
+description: Keep shared macOS and iOS styling in parity; macOS is default source of truth.
+globs: native/Harvous/**/*.swift
+alwaysApply: false
+---
+
+# Native Style Parity (macOS -> iOS)
+
+- For shared Harvous surfaces (notes list, collections list, chips, row metadata), match typography tokens across macOS and iOS unless platform constraints require divergence.
+- Use existing `HarvousTypography` tokens first; avoid ad-hoc `.font(.system(...))` values when a matching token exists.
+- Default source of truth for shared visual specs is macOS implementation (sizes, weights, spacing, and animation offsets).
+- If iOS must diverge for platform behavior (navigation bars, compact width, system toolbar rendering), keep divergence minimal and document the reason in a brief inline comment near the override.
+- Before shipping UI changes to a shared surface, verify parity in both platforms by checking corresponding views and style tokens.

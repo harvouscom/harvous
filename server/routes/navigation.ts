@@ -14,6 +14,7 @@ import { getAllThreadsWithCounts, getSpacesWithCounts, getInboxDisplayCount, get
 import { getThreadGradientCSS } from '@/utils/colors';
 import { handleAPIError } from '@/utils/error-handling';
 import { ensureUnorganizedThread } from '../utils/unorganized-thread';
+import { ensurePersonalHomeSpace } from '../utils/ensure-personal-home-space';
 import { MY_PILE_THREAD_TITLE } from '@/utils/my-pile-thread';
 
 const route = new Hono();
@@ -27,9 +28,9 @@ route.get('/api/navigation/data', async (c) => {
       return c.json({ error: 'Unauthorized' }, 401);
     }
 
-    // Ensure user cache (and onboarding thread for new users) exists before reading thread list,
-    // so the first load shows onboarding without a refresh.
+    // Ensure user cache exists before reading thread list.
     await getCachedUserData(userId);
+    await ensurePersonalHomeSpace(userId);
 
     // Fetch navigation data in parallel
     const [threads, spaces, inboxCount, unorganizedThreadData, unorganizedTypeCounts, memberSpaces] = await Promise.all([

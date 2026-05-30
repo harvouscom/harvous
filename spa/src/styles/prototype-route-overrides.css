@@ -1,0 +1,136 @@
+/**
+ * Prototype route — beat global.css late `button` / `button *` deep-grey rules.
+ *
+ * Loaded last in spa/src/main.tsx (after prototype-tokens.css) so it wins over
+ * global.css in the main bundle. Scoped to html.harvous-prototype-route only.
+ */
+
+/* ─── Prototype buttons + all descendants ─────────────────────────────────── */
+html.harvous-prototype-route button[class*='proto-'],
+html.harvous-prototype-route [class*='proto-'] button,
+html.harvous-prototype-route button[class*='proto-'] span,
+html.harvous-prototype-route button[class*='proto-'] div,
+html.harvous-prototype-route button[class*='proto-'] p,
+html.harvous-prototype-route button[class*='proto-'] *,
+html.harvous-prototype-route [class*='proto-'] button span,
+html.harvous-prototype-route [class*='proto-'] button div,
+html.harvous-prototype-route [class*='proto-'] button p,
+html.harvous-prototype-route [class*='proto-'] button * {
+  color: var(--pds-text-primary) !important;
+  font-family: var(--pds-font-body) !important;
+}
+
+/* Popover menu rows — beat global `button * { font-weight: 700 !important }` */
+html.harvous-prototype-route button.proto-menu-item,
+html.harvous-prototype-route button.proto-menu-item span,
+html.harvous-prototype-route button.proto-menu-item * {
+  font-weight: 400 !important;
+}
+
+html.harvous-prototype-route .proto-menu__popover--list-view button.proto-menu-item[aria-checked='true'],
+html.harvous-prototype-route .proto-menu__popover--list-view button.proto-menu-item[aria-checked='true'] span,
+html.harvous-prototype-route .proto-menu__popover--list-view button.proto-menu-item[aria-checked='true'] * {
+  font-weight: 500 !important;
+}
+
+html.harvous-prototype-route [class*='proto-'] button svg,
+html.harvous-prototype-route [class*='proto-'] button path {
+  fill: currentColor !important;
+}
+
+/* Secondary copy inside buttons */
+html.harvous-prototype-route [class*='proto-'] button .pds-list-preview,
+html.harvous-prototype-route [class*='proto-'] button .pds-caption,
+html.harvous-prototype-route [class*='proto-'] button .proto-caption,
+html.harvous-prototype-route [class*='proto-'] button .proto-settings__nav-footnote,
+html.harvous-prototype-route [class*='proto-'] button .proto-footnote {
+  color: var(--pds-text-secondary) !important;
+}
+
+/* Settings nav icons — explicit colors (never inherit from button) */
+html.harvous-prototype-route .proto-settings__nav-item .proto-settings__nav-icon,
+html.harvous-prototype-route .proto-settings__nav-item .proto-settings__nav-icon span,
+html.harvous-prototype-route .proto-settings__nav-item .proto-settings__nav-icon svg,
+html.harvous-prototype-route .proto-settings__nav-item .proto-settings__nav-icon path {
+  color: var(--pds-text-secondary) !important;
+  fill: currentColor !important;
+}
+
+html.harvous-prototype-route .proto-settings__nav-item[data-active='true'] .proto-settings__nav-icon,
+html.harvous-prototype-route .proto-settings__nav-item[data-active='true'] .proto-settings__nav-icon span,
+html.harvous-prototype-route .proto-settings__nav-item[data-active='true'] .proto-settings__nav-icon svg,
+html.harvous-prototype-route .proto-settings__nav-item[data-active='true'] .proto-settings__nav-icon path {
+  color: var(--pds-text-primary) !important;
+  fill: currentColor !important;
+}
+
+/* On-accent controls — must beat blanket `[class*='proto-'] button` rule above */
+html.harvous-prototype-route button[class*='proto-'].proto-settings-btn:not(.proto-settings-btn--secondary),
+html.harvous-prototype-route button[class*='proto-'].proto-settings-btn:not(.proto-settings-btn--secondary) *,
+html.harvous-prototype-route button[class*='proto-'].proto-settings-btn--destructive,
+html.harvous-prototype-route button[class*='proto-'].proto-settings-btn--destructive *,
+html.harvous-prototype-route button.proto-votd-sheet__fab,
+html.harvous-prototype-route button.proto-votd-sheet__fab *,
+html.harvous-prototype-route button.proto-fte-field__btn--apply,
+html.harvous-prototype-route button.proto-fte-field__btn--apply *,
+html.harvous-prototype-route button.proto-share-popover__primary,
+html.harvous-prototype-route button.proto-share-popover__primary *,
+html.harvous-prototype-route button.proto-note-action-bar__pill--share-active,
+html.harvous-prototype-route button.proto-note-action-bar__pill--share-active * {
+  color: var(--pds-on-accent) !important;
+  fill: var(--pds-on-accent) !important;
+}
+
+/* Secondary pill buttons stay theme-aware (not on-accent) */
+html.harvous-prototype-route button[class*='proto-'].proto-settings-btn--secondary,
+html.harvous-prototype-route button[class*='proto-'].proto-settings-btn--secondary * {
+  color: var(--pds-text-primary) !important;
+}
+
+/* Destructive rows / actions */
+html.harvous-prototype-route .proto-note-row--destructive,
+html.harvous-prototype-route .proto-note-row--destructive *,
+html.harvous-prototype-route .proto-fte-row__btn--danger,
+html.harvous-prototype-route .proto-fte-row__btn--danger *,
+html.harvous-prototype-route button.proto-menu-item--destructive,
+html.harvous-prototype-route button.proto-menu-item--destructive *,
+html.harvous-prototype-route button.proto-menu-item--destructive span,
+html.harvous-prototype-route button.proto-menu-item--destructive svg,
+html.harvous-prototype-route button.proto-menu-item--destructive path {
+  color: var(--pds-destructive) !important;
+  fill: currentColor !important;
+}
+
+html.harvous-prototype-route button.proto-inspector-delete-btn,
+html.harvous-prototype-route button.proto-inspector-delete-btn *,
+html.harvous-prototype-route button.proto-inspector-delete-btn svg,
+html.harvous-prototype-route button.proto-inspector-delete-btn path {
+  color: var(--pds-destructive) !important;
+  fill: currentColor !important;
+}
+
+/* Share popover text actions — accent / destructive link buttons */
+html.harvous-prototype-route button.proto-share-popover__link-action,
+html.harvous-prototype-route button.proto-share-popover__link-action span {
+  color: var(--pds-accent) !important;
+}
+
+html.harvous-prototype-route button.proto-share-popover__link-action--danger,
+html.harvous-prototype-route button.proto-share-popover__link-action--danger span {
+  color: var(--pds-destructive) !important;
+}
+
+/* Headings inside prototype surfaces (portaled modals included) */
+html.harvous-prototype-route [class*='proto-'] h1,
+html.harvous-prototype-route [class*='proto-'] h2,
+html.harvous-prototype-route [class*='proto-'] h3,
+html.harvous-prototype-route [class*='proto-'] h4,
+html.harvous-prototype-route [class*='proto-'] h5,
+html.harvous-prototype-route [class*='proto-'] h6 {
+  color: var(--pds-text-primary) !important;
+  font-family: var(--pds-font-body) !important;
+}
+
+html.harvous-prototype-route .proto-settings-modal__title {
+  color: var(--pds-text-primary) !important;
+}

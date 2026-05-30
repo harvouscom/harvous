@@ -256,7 +256,7 @@ Imported content must map cleanly to Harvous's structure:
 | Source concept | Harvous target |
 |---------------|----------------|
 | Individual note/document | `Note` (type: `default`) |
-| Folder/notebook/category | `Thread` (created if needed) |
+| Collection/notebook/category | `Thread` (created if needed) |
 | Any detected scripture references | Linked `ScriptureMetadata` + scripture pills in content |
 | Bold, italic, lists, headings | Preserved as Tiptap HTML |
 | Images | Stripped initially (until image embed support ships) |

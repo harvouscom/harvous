@@ -31,7 +31,7 @@ Creates a new note. Notes are always created in the "My Pile" thread initially, 
 
 **Request Body** (FormData):
 ```
-content: string (required, 1-50,000 characters)
+content: string (required, 1-500,000 characters)
 title?: string (optional)
 threadId?: string (optional, format: "thread_*")
 noteType?: "default" | "scripture" | "resource" (default: "default")
@@ -60,7 +60,7 @@ spaceId?: string (optional, format: "space_*")
 - `400 Bad Request`: Invalid input (validation failed)
   - `CONTENT_REQUIRED`: Content is required
   - `CONTENT_EMPTY`: Content cannot be empty
-  - `CONTENT_TOO_LONG`: Content exceeds 50,000 characters
+  - `CONTENT_TOO_LONG`: Content exceeds 500,000 characters
   - `INVALID_NOTE_TYPE`: Invalid note type
   - `INVALID_THREAD_ID`: Invalid thread ID format
   - `INVALID_SPACE_ID`: Invalid space ID format
@@ -103,7 +103,7 @@ Updates an existing note's content.
 - `400 Bad Request`: Invalid input
   - `CONTENT_REQUIRED`: Content is required
   - `CONTENT_EMPTY`: Content cannot be empty
-  - `CONTENT_TOO_LONG`: Content exceeds 50,000 characters
+  - `CONTENT_TOO_LONG`: Content exceeds 500,000 characters
 - `401 Unauthorized`: Authentication required
 - `404 Not Found`: Note not found or doesn't belong to user
 - `429 Too Many Requests`: Rate limit exceeded
@@ -1424,7 +1424,7 @@ All error responses follow this format:
 #### Validation Errors
 - `CONTENT_REQUIRED`: Content is required
 - `CONTENT_EMPTY`: Content cannot be empty
-- `CONTENT_TOO_LONG`: Content exceeds maximum length (50,000 characters)
+- `CONTENT_TOO_LONG`: Content exceeds maximum length (500,000 characters)
 - `TITLE_REQUIRED`: Title is required
 - `TITLE_EMPTY`: Title cannot be empty
 - `TITLE_TOO_LONG`: Title exceeds maximum length (200 characters)

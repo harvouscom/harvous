@@ -84,6 +84,38 @@ function getPageContext(): { isNote: boolean; isThread: boolean; isSpace: boolea
   return { isNote, isThread, isSpace, path };
 }
 
+function isPrototypeRoute(path: string): boolean {
+  return path === '/prototype' || path.startsWith('/prototype/');
+}
+
+function isPrototypeNoteRoute(path: string): boolean {
+  return /^\/prototype\/n\/[^/]+/.test(path);
+}
+
+function isElementInEditorContext(activeElement: HTMLElement | null): boolean {
+  if (!activeElement) return false;
+  return (
+    activeElement.contentEditable === 'true' ||
+    activeElement.closest('.ProseMirror') !== null ||
+    activeElement.closest('.tiptap-editor-container') !== null ||
+    activeElement.closest('form') !== null
+  );
+}
+
+/** Prototype Shift+key shortcuts defer to any active text field (title, body, search, etc.). */
+function isPrototypeTypingContext(event: KeyboardEvent): boolean {
+  if (isTypingInInput()) return true;
+  const activeElement = document.activeElement as HTMLElement | null;
+  if (isElementInEditorContext(activeElement)) return true;
+  const target = event.target as HTMLElement | null;
+  if (!target) return false;
+  return (
+    target.closest('.ProseMirror') !== null ||
+    target.closest('.tiptap-editor-container') !== null ||
+    target.closest('[data-card-full-editable][data-editing]') !== null
+  );
+}
+
 /**
  * Check if any panel is currently open
  */
@@ -263,6 +295,129 @@ function tryHierarchyNavigateBack(): boolean {
   return false;
 }
 
+function extractPrototypeNoteId(path: string): string | null {
+  const m = path.match(/^\/prototype\/n\/([^/]+)/);
+  if (!m) return null;
+  const slug = m[1];
+  return slug.startsWith('note_') ? slug : `note_${slug}`;
+}
+
+/** Hold Shift alone this long (ms) to show toolbar key hints without firing a shortcut. */
+export const PROTOTYPE_SHIFT_HINT_HOLD_MS = 400;
+
+function isPrototypeShiftChord(event: KeyboardEvent): boolean {
+  return event.shiftKey && !event.metaKey && !event.ctrlKey && !event.altKey && event.key !== 'Shift';
+}
+
+function handlePrototypeKeyboardShortcut(event: KeyboardEvent): boolean {
+  if (typeof window === 'undefined') return false;
+
+  const modifier = isModifierPressed(event);
+  const key = event.key ? event.key.toLowerCase() : '';
+  const code = event.code;
+  const path = window.location.pathname;
+  const activeElement = document.activeElement as HTMLElement | null;
+  const inEditor = isElementInEditorContext(activeElement);
+
+  // Shift + letter/symbol — prototype power shortcuts (typing contexts keep Shift for capitals).
+  if (isPrototypeShiftChord(event)) {
+    if (isPrototypeTypingContext(event)) return false;
+
+    if (key === 'n') {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      window.dispatchEvent(new CustomEvent('prototypeShortcutNewNote'));
+      return true;
+    }
+    if (key === 'k') {
+      event.preventDefault();
+      navigateTo('/prototype/search');
+      return true;
+    }
+    if (event.key === ',') {
+      event.preventDefault();
+      navigateTo('/prototype/settings');
+      return true;
+    }
+    if (key === 'b') {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      window.dispatchEvent(new CustomEvent('prototypeShortcutToggleSidebar'));
+      return true;
+    }
+    if (key === 'j') {
+      event.preventDefault();
+      window.dispatchEvent(new CustomEvent('prototypeShortcutFocusNoteList'));
+      return true;
+    }
+    if (isPrototypeNoteRoute(path)) {
+      const noteId = extractPrototypeNoteId(path);
+      if (key === 'f' && noteId) {
+        event.preventDefault();
+        window.dispatchEvent(new CustomEvent('prototypeOpenFindInNote', { detail: { noteId } }));
+        return true;
+      }
+      if (key === 'd') {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        window.dispatchEvent(new CustomEvent('prototypeShortcutToggleInspector'));
+        return true;
+      }
+    }
+    if (code === 'ArrowLeft') {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      window.dispatchEvent(new CustomEvent('prototypeShortcutCycleListMode', { detail: { step: -1 } }));
+      return true;
+    }
+    if (code === 'ArrowRight') {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      window.dispatchEvent(new CustomEvent('prototypeShortcutCycleListMode', { detail: { step: 1 } }));
+      return true;
+    }
+  }
+
+  // Cmd/Ctrl + S — save in editor/forms.
+  if (modifier && key === 's' && !event.altKey && !event.shiftKey) {
+    const activeElement = document.activeElement as HTMLElement | null;
+    if (isElementInEditorContext(activeElement) || isPanelOpen()) {
+      if (shouldPassThroughToBrowser(event, 'prototype-mod-s')) return true;
+      event.preventDefault();
+      window.dispatchEvent(new CustomEvent('saveContent'));
+    }
+    return true;
+  }
+
+  // Cmd/Ctrl + Left Arrow — back navigation (not Shift — keeps Shift free for shortcuts/hints).
+  if (modifier && !event.altKey && !event.shiftKey && (key === 'arrowleft' || code === 'ArrowLeft')) {
+    if (shouldPassThroughToBrowser(event, 'prototype-mod-arrowleft')) return true;
+    event.preventDefault();
+
+    if (path.startsWith('/prototype/settings/')) {
+      navigateTo('/prototype/settings');
+      return true;
+    }
+    if (path === '/prototype/settings' || path === '/prototype/settings/') {
+      navigateTo('/prototype/');
+      return true;
+    }
+    if (path.startsWith('/prototype/n/') || path.startsWith('/prototype/search')) {
+      navigateTo('/prototype/');
+      return true;
+    }
+    if (window.history.length > 1) {
+      window.history.back();
+    } else {
+      navigateTo('/prototype/');
+    }
+    return true;
+  }
+
+  // Let Esc and all remaining keys fall through to local prototype handlers.
+  return false;
+}
+
 /**
  * Handle keyboard shortcut events
  */
@@ -275,6 +430,13 @@ function handleKeyboardShortcut(event: KeyboardEvent): void {
   const modifier = isModifierPressed(event);
   const key = event.key ? event.key.toLowerCase() : '';
   const code = event.code;
+  const path = typeof window !== 'undefined' ? window.location.pathname : '';
+
+  if (isPrototypeRoute(path)) {
+    if (handlePrototypeKeyboardShortcut(event)) return;
+    // Prototype uses Shift+key shortcuts; suppress production Cmd+Shift chords here.
+    if (isModifierPressed(event) && event.shiftKey) return;
+  }
   
   // Cmd/Ctrl + K — Spotlight search (handle before isTypingInInput so it works in editors, like other apps)
   if (modifier && key === 'k' && !event.altKey) {
@@ -291,12 +453,7 @@ function handleKeyboardShortcut(event: KeyboardEvent): void {
     // Only prevent default if we're actually in an editing context
     // We'll check if there's an active editor or form
     const activeElement = document.activeElement as HTMLElement | null;
-    const isInEditor = activeElement && (
-      activeElement.contentEditable === 'true' ||
-      activeElement.closest('.ProseMirror') !== null ||
-      activeElement.closest('.tiptap-editor-container') !== null ||
-      activeElement.closest('form') !== null
-    );
+    const isInEditor = isElementInEditorContext(activeElement);
     
     if (isInEditor || isPanelOpen()) {
       if (shouldPassThroughToBrowser(event, 'mod-s')) return;
@@ -546,6 +703,43 @@ export type KeyboardShortcutReferenceGroup = {
   heading: string;
   items: KeyboardShortcutReferenceItem[];
 };
+
+/**
+ * Prototype-specific shortcuts shown in `/prototype/settings/keyboard-shortcuts`.
+ * Keep in sync with `handlePrototypeKeyboardShortcut`.
+ */
+export function getPrototypeKeyboardShortcutsReference(): KeyboardShortcutReferenceGroup[] {
+  const shift = '⇧';
+
+  return [
+    {
+      heading: 'Shell',
+      items: [
+        { action: 'New note', keyParts: [shift, 'N'] },
+        { action: 'Search', keyParts: [shift, 'K'] },
+        { action: 'Settings', keyParts: [shift, ','] },
+        { action: 'Toggle sidebar', keyParts: [shift, 'B'] },
+        { action: 'Focus note list', keyParts: [shift, 'J'] },
+        { action: 'Dismiss', keyParts: ['Esc'] },
+      ],
+    },
+    {
+      heading: 'Note',
+      items: [
+        { action: 'Find in note', keyParts: [shift, 'F'] },
+        { action: 'Note details', keyParts: [shift, 'D'] },
+        { action: 'Save', keyParts: [getKeyboardShortcutModifierLabel(), 'S'] },
+      ],
+    },
+    {
+      heading: 'Sidebar',
+      items: [
+        { action: 'Cycle list mode', keyParts: [shift, '← / →'] },
+        { action: 'Move in list', keyParts: ['↑', '↓'] },
+      ],
+    },
+  ];
+}
 
 /**
  * Grouped shortcuts for preferences / help UI (keep in sync with handleKeyboardShortcut and editor/panel handlers).

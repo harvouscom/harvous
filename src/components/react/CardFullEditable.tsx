@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useMemo, useRef, lazy, Suspense } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback, lazy, Suspense } from 'react';
+import { createPortal } from 'react-dom';
 import { TextSelection } from '@tiptap/pm/state';
 import ButtonSmall from './ButtonSmall';
 import ActionButton from './ActionButton';
@@ -19,9 +20,37 @@ import Icon from './Icon';
 import SharedNoteCTAFooter from './SharedNoteCTAFooter';
 import LockNoteButton from './LockNoteButton';
 import InlinePinUnlock from './InlinePinUnlock';
+/** Collection-only inline bar (`prototypeNative`); tags are edited in Note Details — same on mobile new-note sheet and Mac web. */
+import NoteProductionActionBar from './NoteProductionActionBar';
+import {
+  applyAutoCollectionAfterEdit,
+  collectionContextBannerText,
+  type CollectionChromeState,
+  type WebCollectionNavSource,
+  suggestPrimaryCollectionFromNote,
+  suggestSecondaryCollectionsFromNote,
+} from '@/utils/bible-study-collection-web';
+import { effectiveNoteFolderLabel } from '@/utils/note-folder-display';
+import { stripServerAutoUntitledNoteTitleForDisplay } from '@/utils/server-auto-untitled-note-display';
 
 // Lazy load TiptapEditor to reduce initial bundle size - only loads when user enters edit mode
 const TiptapEditor = lazy(() => import('./TiptapEditor'));
+
+/**
+ * Stable references for default values of array/object props.
+ *
+ * Without these, a default like `initialSecondaryCollections = [] as string[]`
+ * in the destructure creates a fresh `[]` on every render whenever the caller
+ * doesn't pass the prop. That fresh array then lands in the dep list of the
+ * `setCollectionChrome` effect (~line 279), and `Object.is(prevArr, nextArr)`
+ * is `false` → effect fires → setState → re-render → new `[]` → loop, which
+ * is the "Maximum update depth exceeded" error every shared-note viewer hits.
+ *
+ * Module-level constants are referentially stable across renders, so callers
+ * that omit the prop will land on the same array each render.
+ */
+const EMPTY_SECONDARY_COLLECTIONS: ReadonlyArray<string> = Object.freeze([]);
+const DEFAULT_COLLECTION_NAV_CONTEXT: WebCollectionNavSource = Object.freeze({ type: 'home' }) as WebCollectionNavSource;
 
 /** Heuristic: avoid ever rendering encrypted blob as HTML (e.g. race where content branch would show it). */
 function looksLikeEncryptedBlob(s: string): boolean {
@@ -30,10 +59,34 @@ function looksLikeEncryptedBlob(s: string): boolean {
   return t.length >= 40 && /^[A-Za-z0-9+/]+=*$/.test(t);
 }
 
+/** Server-locked note that is not unlocked in this session — show PIN gate, never ciphertext in the editor. */
+function noteBodyRequiresPinUnlock(
+  noteId: string | undefined,
+  serverEncrypted: boolean,
+  lockStateOverride: boolean | null,
+  body: string
+): boolean {
+  if (lockStateOverride === false) return false;
+  const serverLocked = lockStateOverride === true || serverEncrypted;
+  if (!serverLocked) {
+    return !!noteId && looksLikeEncryptedBlob(body) && !isNoteUnlocked(noteId);
+  }
+  if (!noteId) return true;
+  return !isNoteUnlocked(noteId);
+}
+
+/** Native parity: empty TipTap/HTML body (including `<p></p>`). */
+function isTiptapBodyEmpty(html: string | undefined | null): boolean {
+  if (html == null || html === '') return true;
+  const text = html.replace(/<[^>]+>/g, ' ').replace(/&nbsp;/gi, ' ').replace(/\s+/g, ' ').trim();
+  return text.length === 0;
+}
+
 // Title character limits
 const TITLE_SOFT_LIMIT = 30;  // Show counter when >= 30
 const TITLE_WARNING_LIMIT = 45;  // Red text when >= 45 (within 5 of limit)
 const TITLE_HARD_LIMIT = 50;  // Maximum allowed
+const TITLE_SINGLE_ROW_MIN_HEIGHT_PX = 36;
 
 interface CardFullEditableProps {
   title: string;
@@ -49,7 +102,16 @@ interface CardFullEditableProps {
   contentEncrypted?: boolean;
   className?: string;
   isEditable?: boolean;
-  onSave?: (title: string, content: string) => Promise<any>;
+  onSave?: (
+    title: string,
+    content: string,
+    collectionExtras?: {
+      primaryCollection?: string | null;
+      secondaryCollections?: string[];
+      collectionPinned?: boolean;
+      collectionUserOverride?: boolean;
+    },
+  ) => Promise<any>;
   footer?: React.ReactNode;
   // Props for shared note CTA footer
   shareToken?: string;
@@ -58,6 +120,51 @@ interface CardFullEditableProps {
   inBottomSheet?: boolean;
   /** Welcome-thread pack notes (system): same as scripture — no title/body editing in the card. */
   readOnlyLikeScripture?: boolean;
+  /** Prototype-only: native-like editor chrome (format vs scripture vs note action bar). */
+  editorChromeMode?: 'default' | 'prototypeNative';
+  /** Shown when prototype bottom mode is `noteActions` (below editor, above save/cancel).
+   *  Ignored when `formatToolbarPortalTarget` is set — parent renders the bar at column level.
+   */
+  prototypeNoteActionBar?: React.ReactNode;
+  /** Prototype-only: when set, the format toolbar is portaled into this element so the
+   *  parent can render bars (format / note actions) as siblings of the scroll container,
+   *  pinned to the bottom of the editor column. */
+  formatToolbarPortalTarget?: HTMLElement | null;
+  /** Prototype-only: bubbles up the current bottom chrome mode (format / scripture / highlight / search / noteActions / hidden). */
+  onPrototypeChromeModeChange?: (mode: 'format' | 'scripture' | 'highlight' | 'reference' | 'noteActions' | 'hidden') => void;
+  /**
+   * Prototype-only: when set, overrides whether the editor switches to note-actions chrome on blur /
+   * when the format toolbar is inactive. Omit to derive from `noteActionsPortalTarget` or `prototypeNoteActionBar`.
+   */
+  prototypeNoteActionsChrome?: boolean;
+  /** Prototype-only: folder chip label derived from local collection chrome (keeps toolbar in sync while editing). */
+  onPrototypeFolderDisplayChange?: (label: string | null) => void;
+  /**
+   * Prototype-only: when set, the highlight dock is portaled into this element (column-level bottom bar).
+   */
+  highlightChromePortalTarget?: HTMLElement | null;
+  /**
+   * Prototype-only: when set, the Search dock is portaled into this element (column-level bottom bar).
+   */
+  referenceChromePortalTarget?: HTMLElement | null;
+  /** Prototype-only: when set, auto-opens the reference dock for this word once the editor is ready. */
+  initialReferenceWord?: string | null;
+  /** When set with prototype chrome + column shell, portals the native-like note actions bar here. */
+  noteActionsPortalTarget?: HTMLElement | null;
+  /** Server-stored Bible study collection (native parity). */
+  initialPrimaryCollection?: string | null;
+  initialSecondaryCollections?: string[];
+  initialCollectionPinned?: boolean;
+  initialCollectionUserOverride?: boolean;
+  initialCollectionLastAutoUpdatedAtIso?: string | null;
+  scriptureChromePortalTarget?: HTMLElement | null;
+  /** Optional: URL/search-driven collection context for the multi-collection banner. */
+  collectionNavContext?: WebCollectionNavSource;
+  /**
+   * With `editorChromeMode="prototypeNative"`, keep title + body in edit mode (prototype route only).
+   * Production note pages omit this so users still get view-then-edit.
+   */
+  alwaysEditing?: boolean;
 }
 
 export default function CardFullEditable({ 
@@ -80,7 +187,30 @@ export default function CardFullEditable({
   isAuthenticated,
   inBottomSheet = false,
   readOnlyLikeScripture = false,
+  editorChromeMode = 'default',
+  prototypeNoteActionBar,
+  formatToolbarPortalTarget,
+  onPrototypeChromeModeChange,
+  onPrototypeFolderDisplayChange,
+  prototypeNoteActionsChrome,
+  noteActionsPortalTarget = null,
+  initialPrimaryCollection = null,
+  initialSecondaryCollections = EMPTY_SECONDARY_COLLECTIONS as unknown as string[],
+  initialCollectionPinned = false,
+  initialCollectionUserOverride = false,
+  initialCollectionLastAutoUpdatedAtIso = null,
+  scriptureChromePortalTarget = null,
+  highlightChromePortalTarget = null,
+  referenceChromePortalTarget = null,
+  initialReferenceWord = null,
+  collectionNavContext = DEFAULT_COLLECTION_NAV_CONTEXT,
+  alwaysEditing = false,
 }: CardFullEditableProps) {
+  const effectivePrototypeNoteActionsChrome =
+    editorChromeMode === 'prototypeNative'
+      ? (prototypeNoteActionsChrome ?? !!(noteActionsPortalTarget || prototypeNoteActionBar))
+      : false;
+
   // Override isEditable for scripture notes, onboarding pack notes, and offline (create-only mode)
   const isCurrentlyOffline = useIsOffline();
   const effectiveIsEditable =
@@ -108,8 +238,166 @@ export default function CardFullEditable({
   const shouldFocusEditorRef = useRef(false);
   const contentClickCoordsRef = useRef<{ contentX: number; contentY: number } | null>(null);
   const saveChangesRef = useRef<() => void>(() => {});
+  const flushEditsRef = useRef<(closeAfter: boolean) => Promise<void>>(async () => {});
+  const editTitleRef = useRef(editTitle);
+  const editContentRef = useRef(editContent);
+  editTitleRef.current = editTitle;
+  editContentRef.current = editContent;
+  // Mirror hasChanges in a ref so the unmount cleanup can read the live value
+  const hasChangesRef = useRef(hasChanges);
+  hasChangesRef.current = hasChanges;
+  // Mirror editorChromeMode so unmount cleanup isn't a stale closure
+  const editorChromeModeRef = useRef(editorChromeMode);
+  editorChromeModeRef.current = editorChromeMode;
+
+  // Prototype-specific save state — entirely ref-based, bypasses hasChanges state machine
+  const protoLastSavedRef = useRef<{ title: string; content: string; collectionKey: string } | null>(null);
+  const protoIsSavingRef = useRef(false);
+  // Set when a save attempt is dropped because another save is in flight. The
+  // in-flight save's `finally` block checks this and re-fires protoSaveAsync so
+  // trailing edits (typed during a save, or captured by unmount cleanup) aren't lost.
+  const protoPendingFlushRef = useRef(false);
   const [scrollPosition, setScrollPosition] = useState(0);
   const [parentThreadId, setParentThreadId] = useState<string | undefined>(undefined);
+  const [prototypeBottomChromeMode, setPrototypeBottomChromeModeInternal] = useState<
+    'format' | 'scripture' | 'highlight' | 'reference' | 'noteActions' | 'hidden'
+  >('noteActions');
+  const [prototypeScripturePillOpenRequest, setPrototypeScripturePillOpenRequest] = useState<{
+    reference: string;
+    translation: string | null;
+    noteId: string | null;
+    pillAccent: string | null;
+  } | null>(null);
+  const onPrototypeChromeModeChangeRef = useRef(onPrototypeChromeModeChange);
+  useEffect(() => {
+    onPrototypeChromeModeChangeRef.current = onPrototypeChromeModeChange;
+  }, [onPrototypeChromeModeChange]);
+  const setPrototypeBottomChromeMode = useCallback(
+    (mode: 'format' | 'scripture' | 'highlight' | 'reference' | 'noteActions' | 'hidden') => {
+      setPrototypeBottomChromeModeInternal(mode);
+      onPrototypeChromeModeChangeRef.current?.(mode);
+    },
+    [],
+  );
+
+  useEffect(() => {
+    if (!isContentEditing) {
+      setPrototypeBottomChromeMode(
+        effectivePrototypeNoteActionsChrome ? 'noteActions' : 'hidden',
+      );
+    }
+  }, [isContentEditing, effectivePrototypeNoteActionsChrome, setPrototypeBottomChromeMode]);
+
+  const [collectionChrome, setCollectionChrome] = useState<CollectionChromeState>({
+    primaryCollection: initialPrimaryCollection ?? null,
+    secondaryCollections: initialSecondaryCollections?.length ? [...initialSecondaryCollections] : [],
+    collectionPinned: !!initialCollectionPinned,
+    collectionUserOverride: !!initialCollectionUserOverride,
+    collectionLastAutoUpdatedAtIso: initialCollectionLastAutoUpdatedAtIso ?? null,
+  });
+  const [addSecondaryDraft, setAddSecondaryDraft] = useState('');
+
+  // Mirror collection state in a ref so the ref-based prototype saver (protoSaveAsync)
+  // can read the live value without being recreated on every change.
+  const collectionChromeRef = useRef(collectionChrome);
+  useEffect(() => {
+    collectionChromeRef.current = collectionChrome;
+  }, [collectionChrome]);
+
+  useEffect(() => {
+    setCollectionChrome({
+      primaryCollection: initialPrimaryCollection ?? null,
+      secondaryCollections: initialSecondaryCollections?.length ? [...initialSecondaryCollections] : [],
+      collectionPinned: !!initialCollectionPinned,
+      collectionUserOverride: !!initialCollectionUserOverride,
+      collectionLastAutoUpdatedAtIso: initialCollectionLastAutoUpdatedAtIso ?? null,
+    });
+  }, [
+    noteId,
+    initialPrimaryCollection,
+    initialSecondaryCollections,
+    initialCollectionPinned,
+    initialCollectionUserOverride,
+    initialCollectionLastAutoUpdatedAtIso,
+  ]);
+
+  useEffect(() => {
+    setPrototypeScripturePillOpenRequest(null);
+  }, [noteId]);
+
+  // Reset proto save tracking on note switch so first edit always triggers a save
+  useEffect(() => {
+    protoLastSavedRef.current = null;
+    protoIsSavingRef.current = false;
+    protoPendingFlushRef.current = false;
+  }, [noteId]);
+
+  const onPrototypeScripturePillOpenRequestConsumed = useCallback(() => {
+    setPrototypeScripturePillOpenRequest(null);
+  }, []);
+
+  useEffect(() => {
+    if (editorChromeMode !== 'prototypeNative') return;
+    const timer = window.setTimeout(() => {
+      setCollectionChrome(prev => {
+        if (prev.collectionUserOverride && !prev.collectionPinned) return prev;
+        const editing = isTitleEditing || isContentEditing;
+        const titleForSuggest = editing ? editTitle : displayTitle;
+        let bodyForSuggest: string;
+        if (isContentEditing && editorInstanceRef.current && !editorInstanceRef.current.isDestroyed) {
+          try {
+            bodyForSuggest = editorInstanceRef.current.getHTML();
+          } catch {
+            bodyForSuggest = editing ? editContent : displayContent;
+          }
+        } else {
+          bodyForSuggest = editing ? editContent : displayContent;
+        }
+        return applyAutoCollectionAfterEdit(prev, titleForSuggest, bodyForSuggest, new Date());
+      });
+    }, 400);
+    return () => window.clearTimeout(timer);
+  }, [
+    editTitle,
+    editContent,
+    displayTitle,
+    displayContent,
+    editorChromeMode,
+    isTitleEditing,
+    isContentEditing,
+  ]);
+
+  useEffect(() => {
+    if (editorChromeMode !== 'prototypeNative' || !onPrototypeFolderDisplayChange) return;
+    onPrototypeFolderDisplayChange(
+      effectiveNoteFolderLabel({
+        primaryCollection: collectionChrome.primaryCollection,
+        secondaryCollections: collectionChrome.secondaryCollections,
+      }),
+    );
+  }, [
+    editorChromeMode,
+    onPrototypeFolderDisplayChange,
+    collectionChrome.primaryCollection,
+    collectionChrome.secondaryCollections,
+  ]);
+
+  // Flush any unsaved changes when the component unmounts (e.g. user navigates to a different note
+  // before the 700ms debounce fires). React state updates are silently dropped after unmount,
+  // but the network request still goes through.
+  useEffect(() => {
+    return () => {
+      // Prototype path: use ref-based saver (doesn't depend on hasChanges state).
+      // protoSaveAsync bails early if noteSaveCallback isn't registered (non-prototype route).
+      if (editorChromeModeRef.current === 'prototypeNative') {
+        void protoSaveAsync();
+      } else if (hasChangesRef.current) {
+        void flushEditsRef.current(false);
+      }
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // intentionally empty — cleanup only, refs hold live values
+
   // Track if we've updated content locally (e.g., with a highlight)
   const hasLocalContentUpdate = useRef(false);
   // Skip next init-effect overwrite when we just set decrypted content from pinEntryComplete (avoids race where effect runs with stale lockStateOverride and overwrites with encrypted content)
@@ -117,8 +405,27 @@ export default function CardFullEditable({
   // Local lock state override when user locks/unlocks via dialog (avoids full page refresh)
   const [lockStateOverride, setLockStateOverride] = useState<boolean | null>(null);
   const [serverEncryptedOverride, setServerEncryptedOverride] = useState<boolean | null>(null);
+  /** Bumped on lock/unlock so effects re-read `isNoteUnlocked` (in-memory, not reactive). */
+  const [unlockRevision, setUnlockRevision] = useState(0);
   const effectiveEncrypted = lockStateOverride ?? contentEncrypted;
   const effectiveServerEncrypted = serverEncryptedOverride ?? contentEncrypted;
+  const needsPinUnlock = useMemo(
+    () =>
+      noteBodyRequiresPinUnlock(
+        noteId,
+        effectiveServerEncrypted,
+        lockStateOverride,
+        displayContent ?? content ?? ''
+      ),
+    [
+      noteId,
+      effectiveServerEncrypted,
+      lockStateOverride,
+      displayContent,
+      content,
+      unlockRevision,
+    ]
+  );
   const cardRootRef = useRef<HTMLDivElement>(null);
   /** iOS: focus synchronously on tap so keyboard opens; Tiptap focus in onEditorReady is too late for user-gesture chain */
   const keyboardProxyRef = useRef<HTMLTextAreaElement>(null);
@@ -231,7 +538,11 @@ export default function CardFullEditable({
 
   // Initialize display content (and apply any pending sessionStorage update from createHyperlink when card wasn't mounted)
   useEffect(() => {
-    setDisplayTitle(title);
+    const nextDisplayTitle =
+      editorChromeMode === 'prototypeNative' && noteType === 'default'
+        ? stripServerAutoUntitledNoteTitleForDisplay(title)
+        : title;
+    setDisplayTitle(nextDisplayTitle ?? '');
     if (skipNextContentSyncRef.current) {
       skipNextContentSyncRef.current = false;
       return;
@@ -266,7 +577,80 @@ export default function CardFullEditable({
     if (!hasLocalContentUpdate.current) {
       setDisplayContent(content);
     }
-  }, [title, content, contentEncrypted, lockStateOverride, noteId]);
+  }, [title, content, contentEncrypted, lockStateOverride, noteId, editorChromeMode, noteType]);
+
+  // Leave edit mode when locked so ciphertext never appears in TipTap (prototype alwaysEditing).
+  useEffect(() => {
+    if (!needsPinUnlock) return;
+    setIsTitleEditing(false);
+    setIsContentEditing(false);
+  }, [needsPinUnlock]);
+
+  // Prototype route: start in title+body edit (native parity) on note open / unlock — do not depend on title/content
+  // props after mount or edits reset on every server refresh.
+  useEffect(() => {
+    if (editorChromeMode !== 'prototypeNative' || !alwaysEditing || !effectiveIsEditable) return;
+    if (readOnlyLikeScripture || noteType === 'scripture') return;
+    if (needsPinUnlock) return;
+
+    const initialTitle =
+      noteType === 'resource'
+        ? (title || resourceTitle || '')
+        : editorChromeMode === 'prototypeNative'
+          ? stripServerAutoUntitledNoteTitleForDisplay(title)
+          : title;
+    const c = content ?? '';
+    const initialContent =
+      noteType === 'resource' && !c.trim() && resourceDescription ? resourceDescription : c;
+
+    setEditTitle(initialTitle);
+    setEditContent(initialContent);
+    setIsTitleEditing(true);
+    setIsContentEditing(true);
+    setHasChanges(false);
+  }, [
+    noteId,
+    lockStateOverride,
+    editorChromeMode,
+    alwaysEditing,
+    effectiveIsEditable,
+    noteType,
+    readOnlyLikeScripture,
+    needsPinUnlock,
+    title,
+    content,
+    resourceTitle,
+    resourceDescription,
+  ]);
+
+  // Brand-new empty note: focus title field (Native NoteEditorView ~80ms delay).
+  useEffect(() => {
+    if (editorChromeMode !== 'prototypeNative' || !alwaysEditing || !effectiveIsEditable) return;
+    if (readOnlyLikeScripture || noteType === 'scripture') return;
+    if (needsPinUnlock) return;
+
+    const t =
+      noteType === 'default'
+        ? stripServerAutoUntitledNoteTitleForDisplay(title).trim()
+        : (title ?? '').trim();
+    if (t.length > 0 || !isTiptapBodyEmpty(content ?? '')) return;
+
+    const id = window.setTimeout(() => {
+      titleInputRef.current?.focus();
+    }, 80);
+    return () => window.clearTimeout(id);
+  }, [
+    noteId,
+    lockStateOverride,
+    editorChromeMode,
+    alwaysEditing,
+    effectiveIsEditable,
+    noteType,
+    readOnlyLikeScripture,
+    needsPinUnlock,
+    title,
+    content,
+  ]);
 
   // Reset lock state overrides when contentEncrypted prop changes (e.g. from server)
   useEffect(() => {
@@ -283,8 +667,17 @@ export default function CardFullEditable({
         setDisplayContent(detail.newContent);
         setLockStateOverride(detail.encrypted === true);
         setServerEncryptedOverride(detail.contentEncryptedServer ?? (detail.encrypted === true));
+        setUnlockRevision((v) => v + 1);
         if (detail.encrypted === true && noteId != null) {
           lockNote(String(noteId));
+          setIsTitleEditing(false);
+          setIsContentEditing(false);
+        } else {
+          setEditContent(detail.newContent);
+          if (editorChromeMode === 'prototypeNative' && alwaysEditing && effectiveIsEditable) {
+            setIsTitleEditing(true);
+            setIsContentEditing(true);
+          }
         }
         window.dispatchEvent(new CustomEvent('noteLockStateChanged', {
           detail: {
@@ -297,7 +690,7 @@ export default function CardFullEditable({
     };
     window.addEventListener('pinEntryComplete', handler);
     return () => window.removeEventListener('pinEntryComplete', handler);
-  }, [noteId]);
+  }, [noteId, editorChromeMode, alwaysEditing, effectiveIsEditable]);
 
   // Notify layout (e.g. ActionStrip dock) to hide when in edit mode (content or title)
   useEffect(() => {
@@ -317,10 +710,11 @@ export default function CardFullEditable({
     .join(' ');
 
   /** Injected before dangerouslySetInnerHTML so labels survive re-renders (DOM-only hydration flickers). */
-  const viewContentHtml = useMemo(
-    () => safeRenderHtml(withScripturePillDisplayLabels(displayContent ?? '')),
-    [displayContent],
-  );
+  const viewContentHtml = useMemo(() => {
+    const raw = displayContent ?? '';
+    if (looksLikeEncryptedBlob(raw)) return '';
+    return safeRenderHtml(withScripturePillDisplayLabels(raw));
+  }, [displayContent]);
 
   useEffect(() => {
     if (isContentEditing) {
@@ -380,6 +774,7 @@ export default function CardFullEditable({
   // Listen for keyboard shortcut to start editing
   useEffect(() => {
     const handleEditNote = () => {
+      if (needsPinUnlock) return;
       if (!isContentEditing && !isTitleEditing && effectiveIsEditable) {
         // Save current scroll position
         if (contentDisplayRef.current) {
@@ -401,7 +796,7 @@ export default function CardFullEditable({
     return () => {
       window.removeEventListener('editNote', handleEditNote);
     };
-  }, [isContentEditing, isTitleEditing, effectiveIsEditable, displayTitle, displayContent]);
+  }, [isContentEditing, isTitleEditing, effectiveIsEditable, displayTitle, displayContent, needsPinUnlock]);
 
   // Listen for hyperlink creation event
   useEffect(() => {
@@ -815,7 +1210,7 @@ export default function CardFullEditable({
       return;
     }
     // Don't open editor when note is locked (would show encrypted content)
-    if (contentEncrypted && !isNoteUnlocked(noteId ?? '')) {
+    if (needsPinUnlock) {
       return;
     }
 
@@ -941,8 +1336,10 @@ export default function CardFullEditable({
 
   const cancelEdit = () => {
     keyboardProxyRef.current?.blur();
-    setIsTitleEditing(false);
-    setIsContentEditing(false);
+    if (!alwaysEditing) {
+      setIsTitleEditing(false);
+      setIsContentEditing(false);
+    }
     setEditTitle(displayTitle);
     setEditContent(displayContent);
     setHasChanges(false);
@@ -985,124 +1382,288 @@ export default function CardFullEditable({
   );
 
   const saveChanges = async () => {
-    if (!hasChanges) {
-      setIsTitleEditing(false);
-      setIsContentEditing(false);
-      return;
-    }
+    await flushEditsRef.current(true);
+  };
 
-    setIsSaving(true);
-
-    try {
-      // Get content directly from Tiptap editor to ensure all marks (including scripture pills) are preserved
-      let editorContent = editContent;
-      
-      // First, try to get content from editor instance (most reliable)
-      if (editorInstanceRef.current) {
-        editorContent = editorInstanceRef.current.getHTML();
-      } else {
-        // Fallback to hidden input or state
-        const hiddenInput = document.querySelector('#edit-note-content') as HTMLInputElement;
-        if (hiddenInput && hiddenInput.value) {
-          editorContent = hiddenInput.value;
+  useEffect(() => {
+    flushEditsRef.current = async (closeAfter: boolean) => {
+      const shouldCloseEditMode = closeAfter && !alwaysEditing;
+      if (!hasChanges) {
+        if (shouldCloseEditMode) {
+          setIsTitleEditing(false);
+          setIsContentEditing(false);
         }
+        return;
       }
 
-      let saveResult: any = null;
-      if (onSave) {
-        saveResult = await onSave(editTitle, editorContent);
-      } else {
-        // Fallback to global save callback
-        const globalCallback = (window as any).noteSaveCallback;
-        if (globalCallback) {
-          saveResult = await globalCallback(editTitle, editorContent);
-        }
-      }
+      setIsSaving(true);
 
-      // Handle scripture results from the update endpoint (scriptureDeferred when create/update defers processing)
-      if (saveResult && window.toast) {
-        if (saveResult.scriptureDeferred) {
-          window.toast.info('Note saved.');
-        } else if (saveResult.scriptureProcessingError) {
-          window.toast.warning('Note saved. Some scripture links couldn\'t be created.');
-        } else if (saveResult.scriptureResults && saveResult.scriptureResults.length > 0) {
-          const createdScriptures = saveResult.scriptureResults.filter(
-            (r: any) => r.action === 'created'
-          );
-          const linkedScriptures = saveResult.scriptureResults.filter(
-            (r: any) => r.action === 'added'
-          );
-          if (createdScriptures.length > 0) {
-            const message = createdScriptures.length === 1
-              ? `Created scripture note: ${createdScriptures[0].reference}`
-              : `Created ${createdScriptures.length} scripture notes`;
-            window.toast.info(message);
-          } else if (linkedScriptures.length > 0) {
-            const message = linkedScriptures.length === 1
-              ? `Linked to scripture: ${linkedScriptures[0].reference}`
-              : `Linked to ${linkedScriptures.length} scripture notes`;
-            window.toast.info(message);
-          }
-          // Notify lists to refetch (e.g. thread notes, dashboard) when scripture was created or linked
-          const hasCreatedOrAdded = createdScriptures.length > 0 || linkedScriptures.length > 0;
-          if (hasCreatedOrAdded && typeof window !== 'undefined') {
-            const wrapper = document.querySelector(`[data-note-id="${noteId}"]`);
-            const parentThreadId = wrapper?.getAttribute('data-parent-thread-id') ?? undefined;
-            window.dispatchEvent(new CustomEvent('scriptureNotesUpdated', {
-              detail: { noteId, threadId: parentThreadId || undefined, results: saveResult.scriptureResults }
-            }));
+      try {
+        let editorContent = editContent;
+
+        if (editorInstanceRef.current) {
+          editorContent = editorInstanceRef.current.getHTML();
+        } else {
+          const hiddenInput = document.querySelector('#edit-note-content') as HTMLInputElement;
+          if (hiddenInput && hiddenInput.value) {
+            editorContent = hiddenInput.value;
           }
         }
-      }
 
-      // After save, update editor with processedContent (which has all pills as HTML spans)
-      // Then convert those HTML spans to marks so they display correctly
-      if (saveResult.processedContent && editorInstanceRef.current) {
-        const editor = editorInstanceRef.current;
-        editor.commands.setContent(saveResult.processedContent, { emitUpdate: false });
-        // Run conversion after the editor has applied content (next frame)
-        requestAnimationFrame(async () => {
-          if (editorInstanceRef.current) {
-            const { convertNoteLinksToScripturePills } = await import('./TiptapEditor');
-            await convertNoteLinksToScripturePills(editorInstanceRef.current);
-            const finalContent = editorInstanceRef.current.getHTML();
-            setDisplayTitle(editTitle);
-            setDisplayContent(finalContent);
+        const chromeForSave =
+          editorChromeMode === 'prototypeNative' && effectiveIsEditable
+            ? applyAutoCollectionAfterEdit(collectionChrome, editTitle, editorContent, new Date())
+            : collectionChrome;
+
+        const collectionExtras =
+          editorChromeMode === 'prototypeNative' && effectiveIsEditable
+            ? {
+                primaryCollection: chromeForSave.primaryCollection,
+                secondaryCollections: chromeForSave.secondaryCollections,
+                collectionPinned: chromeForSave.collectionPinned,
+                collectionUserOverride: chromeForSave.collectionUserOverride,
+              }
+            : undefined;
+
+        let saveResult: any = null;
+        if (onSave) {
+          saveResult = await onSave(editTitle, editorContent, collectionExtras);
+        } else {
+          const globalCallback = (window as any).noteSaveCallback;
+          if (globalCallback) {
+            saveResult = await globalCallback(editTitle, editorContent, collectionExtras);
+          }
+        }
+
+        const didCallSave = Boolean(onSave || (typeof window !== 'undefined' && (window as any).noteSaveCallback));
+        if (collectionExtras && didCallSave) {
+          setCollectionChrome(chromeForSave);
+        }
+
+        const applyAfterPersist = (finalTitle: string, finalHtml: string) => {
+          setDisplayTitle(finalTitle);
+          setDisplayContent(finalHtml);
+          if (shouldCloseEditMode) {
             setIsTitleEditing(false);
             setIsContentEditing(false);
             setHasChanges(false);
+          } else {
+            const curTitle = editTitleRef.current;
+            let curHtml = editContentRef.current;
+            if (editorInstanceRef.current && !editorInstanceRef.current.isDestroyed) {
+              try {
+                curHtml = editorInstanceRef.current.getHTML();
+              } catch {
+                /* keep ref */
+              }
+            }
+            setHasChanges(curTitle !== finalTitle || curHtml !== finalHtml);
           }
-        });
-      } else {
-        // No processed content, just use editor's current HTML
-        if (editorInstanceRef.current) {
-          editorContent = editorInstanceRef.current.getHTML();
-        }
-        
-        // Update display content
-        setDisplayTitle(editTitle);
-        setDisplayContent(editorContent);
-        setIsTitleEditing(false);
-        setIsContentEditing(false);
-        setHasChanges(false);
-      }
-    } catch (error) {
-      // Show error toast
-      window.dispatchEvent(new CustomEvent('toast', {
-        detail: {
-          message: 'Error saving note. Please try again.',
-          type: 'error'
-        }
-      }));
-    } finally {
-      setIsSaving(false);
-    }
-  };
+        };
 
-  // Keep saveChangesRef up to date with the latest saveChanges function
-  useEffect(() => {
+        if (saveResult && window.toast) {
+          if (closeAfter && saveResult.scriptureDeferred) {
+            window.toast.info('Note saved.');
+          } else if (saveResult.scriptureProcessingError) {
+            window.toast.warning('Note saved. Some scripture links couldn\'t be created.');
+          } else if (saveResult.scriptureResults && saveResult.scriptureResults.length > 0) {
+            const createdScriptures = saveResult.scriptureResults.filter(
+              (r: any) => r.action === 'created'
+            );
+            const linkedScriptures = saveResult.scriptureResults.filter(
+              (r: any) => r.action === 'added'
+            );
+            if (createdScriptures.length > 0) {
+              const message = createdScriptures.length === 1
+                ? `Created scripture note: ${createdScriptures[0].reference}`
+                : `Created ${createdScriptures.length} scripture notes`;
+              window.toast.info(message);
+            } else if (linkedScriptures.length > 0) {
+              const message = linkedScriptures.length === 1
+                ? `Linked to scripture: ${linkedScriptures[0].reference}`
+                : `Linked to ${linkedScriptures.length} scripture notes`;
+              window.toast.info(message);
+            }
+            const hasCreatedOrAdded = createdScriptures.length > 0 || linkedScriptures.length > 0;
+            if (hasCreatedOrAdded && typeof window !== 'undefined') {
+              const wrapper = document.querySelector(`[data-note-id="${noteId}"]`);
+              const parentThreadId = wrapper?.getAttribute('data-parent-thread-id') ?? undefined;
+              window.dispatchEvent(new CustomEvent('scriptureNotesUpdated', {
+                detail: { noteId, threadId: parentThreadId || undefined, results: saveResult.scriptureResults }
+              }));
+            }
+          }
+        }
+
+        if (saveResult.processedContent && editorInstanceRef.current) {
+          const editor = editorInstanceRef.current;
+          let liveHtml: string | null = null;
+          if (!editor.isDestroyed) {
+            try {
+              liveHtml = editor.getHTML();
+            } catch {
+              liveHtml = null;
+            }
+          }
+          const userTypedDuringSave = liveHtml != null && liveHtml !== editorContent;
+
+          if (userTypedDuringSave) {
+            // Skip the pill-injection override; the next debounced save will reprocess the newer content.
+            // Pass editorContent (what was actually saved) as finalHtml so applyAfterPersist computes
+            // hasChanges = (liveHtml !== editorContent) = true — keeping the follow-up save alive.
+            applyAfterPersist(editTitle, editorContent);
+          } else {
+            editor.commands.setContent(saveResult.processedContent, { emitUpdate: false });
+            requestAnimationFrame(async () => {
+              if (editorInstanceRef.current) {
+                const { convertNoteLinksToScripturePills } = await import('./TiptapEditor');
+                await convertNoteLinksToScripturePills(editorInstanceRef.current);
+                const finalContent = editorInstanceRef.current.getHTML();
+                applyAfterPersist(editTitle, finalContent);
+              }
+            });
+          }
+        } else {
+          if (editorInstanceRef.current) {
+            editorContent = editorInstanceRef.current.getHTML();
+          }
+          applyAfterPersist(editTitle, editorContent);
+        }
+      } catch {
+        window.dispatchEvent(new CustomEvent('toast', {
+          detail: {
+            message: 'Error saving note. Please try again.',
+            type: 'error'
+          }
+        }));
+      } finally {
+        setIsSaving(false);
+      }
+    };
+
     saveChangesRef.current = saveChanges;
   });
+
+  // Prototype auto-save: purely ref-based, never depends on hasChanges state so it can't be
+  // silently wiped by init-effect re-fires or applyAfterPersist. Fires 700ms after the last
+  // editTitle / editContent change, reads live content from the editor ref, and calls
+  // noteSaveCallback directly.
+  const protoSaveAsync = useCallback(async () => {
+    if (protoIsSavingRef.current) {
+      // A save is in flight. Remember that a flush was requested so we re-fire
+      // when it returns — otherwise trailing edits typed during the in-flight
+      // save (or content captured by an unmount cleanup) are silently dropped.
+      protoPendingFlushRef.current = true;
+      return;
+    }
+
+    const currentTitle = editTitleRef.current;
+    const currentContent = (() => {
+      if (editorInstanceRef.current && !editorInstanceRef.current.isDestroyed) {
+        try { return editorInstanceRef.current.getHTML(); } catch { /* */ }
+      }
+      return editContentRef.current;
+    })();
+
+    // Recompute the auto collection from the live text so the suggested folder is
+    // persisted alongside the autosave (otherwise it shows transiently then gets
+    // wiped by the post-save refetch). Prototype-only; mirrors flushEdits.
+    const isProto = editorChromeModeRef.current === 'prototypeNative';
+    const chromeForSave = isProto
+      ? applyAutoCollectionAfterEdit(collectionChromeRef.current, currentTitle, currentContent, new Date())
+      : collectionChromeRef.current;
+    const collectionExtras = isProto
+      ? {
+          primaryCollection: chromeForSave.primaryCollection,
+          secondaryCollections: chromeForSave.secondaryCollections,
+          collectionPinned: chromeForSave.collectionPinned,
+          collectionUserOverride: chromeForSave.collectionUserOverride,
+        }
+      : undefined;
+    const collectionKey = collectionExtras
+      ? `${collectionExtras.primaryCollection ?? ''}|${collectionExtras.secondaryCollections.join(',')}|${collectionExtras.collectionPinned ? 1 : 0}|${collectionExtras.collectionUserOverride ? 1 : 0}`
+      : '';
+
+    const last = protoLastSavedRef.current;
+    if (last && last.title === currentTitle && last.content === currentContent && last.collectionKey === collectionKey) {
+      // Natural termination of the recursion chain — nothing new to save.
+      return;
+    }
+
+    const globalCallback = (window as any).noteSaveCallback;
+    if (!globalCallback) return;
+
+    protoIsSavingRef.current = true;
+    const prevLast = protoLastSavedRef.current;
+    protoLastSavedRef.current = { title: currentTitle, content: currentContent, collectionKey };
+
+    try {
+      const saveResult: any = await globalCallback(currentTitle, currentContent, collectionExtras);
+      if (collectionExtras) setCollectionChrome(chromeForSave);
+
+      if (saveResult?.processedContent && editorInstanceRef.current && !editorInstanceRef.current.isDestroyed) {
+        const editor = editorInstanceRef.current;
+        let liveHtml: string | null = null;
+        try { liveHtml = editor.getHTML(); } catch { /* */ }
+        if (liveHtml != null && liveHtml === currentContent) {
+          // Safe to inject pills — user hasn't typed since save started
+          editor.commands.setContent(saveResult.processedContent, { emitUpdate: false });
+          requestAnimationFrame(async () => {
+            if (!editorInstanceRef.current || editorInstanceRef.current.isDestroyed) return;
+            const { convertNoteLinksToScripturePills } = await import('./TiptapEditor');
+            await convertNoteLinksToScripturePills(editorInstanceRef.current);
+            const finalContent = editorInstanceRef.current.getHTML();
+            protoLastSavedRef.current = { title: currentTitle, content: finalContent, collectionKey };
+            setDisplayTitle(currentTitle);
+            setDisplayContent(finalContent);
+            setHasChanges(false);
+          });
+        } else {
+          // User typed during save — we did NOT update protoLastSavedRef to the
+          // live content, so the chained re-fire below will see a mismatch and
+          // save the trailing characters.
+          setDisplayTitle(currentTitle);
+          setDisplayContent(currentContent);
+          protoPendingFlushRef.current = true;
+        }
+      } else {
+        setDisplayTitle(currentTitle);
+        setDisplayContent(currentContent);
+        setHasChanges(false);
+      }
+    } catch {
+      // Restore last-saved so the next attempt retries the full content
+      protoLastSavedRef.current = prevLast;
+      protoPendingFlushRef.current = true;
+    } finally {
+      protoIsSavingRef.current = false;
+      if (protoPendingFlushRef.current) {
+        protoPendingFlushRef.current = false;
+        // Re-fire after releasing the lock. The equality-check guard above
+        // prevents infinite loops when content is unchanged.
+        void protoSaveAsync();
+      }
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // intentionally empty — reads everything from refs
+
+  // Prototype mode is alwaysEditing — the editor is conceptually always in edit
+  // mode, so we don't gate on isTitleEditing/isContentEditing here. Gating on those
+  // states created a window during note transitions (init effect hasn't flipped them
+  // to true yet) where keystrokes wouldn't schedule a save.
+  useEffect(() => {
+    if (editorChromeMode !== 'prototypeNative') return;
+    if (!effectiveIsEditable) return;
+
+    const timerId = window.setTimeout(() => { void protoSaveAsync(); }, 700);
+    return () => window.clearTimeout(timerId);
+  }, [
+    editorChromeMode,
+    effectiveIsEditable,
+    editTitle,
+    editContent,
+    protoSaveAsync,
+  ]);
 
   // Listen for keyboard shortcut to save when editing (Cmd+S)
   useEffect(() => {
@@ -1144,6 +1705,15 @@ export default function CardFullEditable({
       // Handle Select All for title textarea (Cmd+A on Mac, Ctrl+A on Windows/Linux)
       const target = e.target as HTMLTextAreaElement;
       if (target === titleInputRef.current) {
+        // Tab from title → focus content editor
+        if (e.key === 'Tab' && !e.shiftKey) {
+          e.preventDefault();
+          if (editorInstanceRef.current && !editorInstanceRef.current.isDestroyed) {
+            editorInstanceRef.current.commands.focus('end');
+          }
+          return;
+        }
+
         if ((e.metaKey || e.ctrlKey) && e.key === 'a') {
           e.preventDefault();
           target.select();
@@ -1213,9 +1783,18 @@ export default function CardFullEditable({
 
   const handleTitleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const newValue = e.target.value.slice(0, TITLE_HARD_LIMIT); // Enforce hard limit
+    e.target.style.height = '0px';
+    e.target.style.height = `${Math.max(TITLE_SINGLE_ROW_MIN_HEIGHT_PX, e.target.scrollHeight)}px`;
     setEditTitle(newValue);
     setHasChanges(newValue !== displayTitle || editContent !== displayContent);
   };
+
+  useEffect(() => {
+    if (!isTitleEditing || !titleInputRef.current) return;
+    const el = titleInputRef.current;
+    el.style.height = '0px';
+    el.style.height = `${Math.max(TITLE_SINGLE_ROW_MIN_HEIGHT_PX, el.scrollHeight)}px`;
+  }, [isTitleEditing, editTitle]);
 
   // Prefetch scripture note page on hover for faster navigation
   const prefetchedUrls = useRef(new Set<string>());
@@ -1264,6 +1843,22 @@ export default function CardFullEditable({
       const noteId = pillElement.getAttribute('data-note-id');
       const reference = pillElement.getAttribute('data-scripture-reference');
       const pillTranslation = pillElement.getAttribute('data-scripture-translation') || getCachedProfileData()?.defaultTranslation || 'NET';
+
+      // Prototype web shell: from read-only HTML preview, open TipTap + scripture dock — do not navigate away.
+      if (editorChromeMode === 'prototypeNative' && effectiveIsEditable && reference) {
+        e.preventDefault();
+        e.stopPropagation();
+        setPrototypeScripturePillOpenRequest({
+          reference,
+          translation: pillElement.getAttribute('data-scripture-translation'),
+          noteId,
+          pillAccent: pillElement.getAttribute('data-pill-accent'),
+        });
+        if (!isContentEditing) {
+          startEditing('content');
+        }
+        return;
+      }
 
       e.preventDefault();
       e.stopPropagation();
@@ -1384,6 +1979,7 @@ export default function CardFullEditable({
     const effectiveContent = displayContent || resourceDescription || '';
 
     return (
+      <>
       <div
         ref={cardRootRef}
         className={`card-full-editable ${className}`}
@@ -1524,7 +2120,7 @@ export default function CardFullEditable({
                     value={editTitle}
                     onChange={handleTitleChange}
                     maxLength={TITLE_HARD_LIMIT}
-                    rows={2}
+                    rows={1}
                     className="w-full bg-transparent border-0 rounded focus:outline-none font-bold"
                     style={{
                       lineHeight: '1.2',
@@ -1540,7 +2136,7 @@ export default function CardFullEditable({
                       width: 'calc(100% + 16px)',
                       resize: 'none',
                     }}
-                    placeholder="Resource title"
+                    placeholder={alwaysEditing ? 'Title' : 'Resource title'}
                     onKeyDown={handleKeyDown}
                     onFocus={() => setIsTitleFocused(true)}
                     onBlur={() => setIsTitleFocused(false)}
@@ -1593,12 +2189,34 @@ export default function CardFullEditable({
                       parentThreadId={parentThreadId}
                       sourceNoteId={noteId}
                       onEditorReady={handleEditorReady}
+                      editorChromeMode={editorChromeMode}
+                      onPrototypeChromeModeChange={
+                        editorChromeMode === 'prototypeNative' ? setPrototypeBottomChromeMode : undefined
+                      }
+                      formatToolbarPortalTarget={
+                        editorChromeMode === 'prototypeNative' ? formatToolbarPortalTarget : undefined
+                      }
+                      scriptureChromePortalTarget={
+                        editorChromeMode === 'prototypeNative' ? scriptureChromePortalTarget : null
+                      }
+                      highlightChromePortalTarget={
+                        editorChromeMode === 'prototypeNative' ? highlightChromePortalTarget : null
+                      }
+                      referenceChromePortalTarget={
+                        editorChromeMode === 'prototypeNative' ? referenceChromePortalTarget : null
+                      }
+                      initialReferenceWord={editorChromeMode === 'prototypeNative' ? initialReferenceWord : null}
+                      prototypeScripturePillOpenRequest={
+                        editorChromeMode === 'prototypeNative' ? prototypeScripturePillOpenRequest : null
+                      }
+                      onPrototypeScripturePillOpenRequestConsumed={onPrototypeScripturePillOpenRequestConsumed}
+                      prototypeNoteActionsChrome={effectivePrototypeNoteActionsChrome}
                     />
                   </Suspense>
                 </div>
                 
                 {/* Save/Cancel buttons */}
-                {isContentEditing && renderSaveCancelButtons('px-3')}
+                {editorChromeMode !== 'prototypeNative' && isContentEditing && renderSaveCancelButtons('px-3')}
               </div>
             )}
           </div>
@@ -1627,11 +2245,106 @@ export default function CardFullEditable({
           )}
 
           {/* Save/Cancel buttons when only title is being edited - shown at bottom */}
-          {isTitleEditing && !isContentEditing && renderSaveCancelButtons('px-3')}
+          {editorChromeMode !== 'prototypeNative' &&
+            isTitleEditing &&
+            !isContentEditing &&
+            renderSaveCancelButtons('px-3')}
+
+          {editorChromeMode === 'prototypeNative' &&
+            !formatToolbarPortalTarget &&
+            !noteActionsPortalTarget &&
+            prototypeBottomChromeMode === 'noteActions' &&
+            prototypeNoteActionBar ? (
+            <div className="w-full shrink-0 px-3">{prototypeNoteActionBar}</div>
+          ) : null}
         </div>
       </div>
+      {editorChromeMode === 'prototypeNative' &&
+        noteActionsPortalTarget &&
+        createPortal(
+          <NoteProductionActionBar
+            collectionDraft={collectionChrome.primaryCollection ?? ''}
+            onDraftChange={(v) => {
+              const t = v.trim();
+              const nextPrimary = t.length ? t : null;
+              const pLow = nextPrimary?.toLowerCase() ?? '';
+              setCollectionChrome(c => ({
+                ...c,
+                primaryCollection: nextPrimary,
+                secondaryCollections: c.secondaryCollections.filter(
+                  (s) => s.trim().length > 0 && s.trim().toLowerCase() !== pLow,
+                ),
+                collectionUserOverride: true,
+              }));
+            }}
+            secondaryCollections={collectionChrome.secondaryCollections}
+            onRemoveSecondary={(name) => {
+              const low = name.toLowerCase();
+              setCollectionChrome(c => ({
+                ...c,
+                secondaryCollections: c.secondaryCollections.filter((s) => s.toLowerCase() !== low),
+                collectionUserOverride: true,
+              }));
+            }}
+            addSecondaryDraft={addSecondaryDraft}
+            onAddSecondaryDraftChange={setAddSecondaryDraft}
+            onCommitAddSecondary={() => {
+              const t = addSecondaryDraft.trim();
+              if (!t.length) return;
+              const pLow = (collectionChrome.primaryCollection ?? '').trim().toLowerCase();
+              if (pLow && t.toLowerCase() === pLow) {
+                setAddSecondaryDraft('');
+                return;
+              }
+              setCollectionChrome(c => {
+                if (c.secondaryCollections.some((s) => s.toLowerCase() === t.toLowerCase())) {
+                  return c;
+                }
+                return {
+                  ...c,
+                  secondaryCollections: [...c.secondaryCollections, t],
+                  collectionUserOverride: true,
+                };
+              });
+              setAddSecondaryDraft('');
+            }}
+            collectionPinned={collectionChrome.collectionPinned}
+            collectionUserOverride={collectionChrome.collectionUserOverride}
+            onTogglePinned={() =>
+              setCollectionChrome(c => ({ ...c, collectionPinned: !c.collectionPinned }))
+            }
+            onRestoreAuto={() => {
+              let body = editContent;
+              if (editorInstanceRef.current && !editorInstanceRef.current.isDestroyed) {
+                try {
+                  body = editorInstanceRef.current.getHTML();
+                } catch {
+                  /* keep editContent */
+                }
+              }
+              const sug = suggestPrimaryCollectionFromNote(editTitle, body);
+              const secs = suggestSecondaryCollectionsFromNote(editTitle, body, sug);
+              setCollectionChrome(c => ({
+                ...c,
+                primaryCollection: sug,
+                secondaryCollections: secs,
+                collectionUserOverride: false,
+                collectionPinned: false,
+                collectionLastAutoUpdatedAtIso: new Date().toISOString(),
+              }));
+            }}
+            disabled={!effectiveIsEditable}
+          />,
+          noteActionsPortalTarget,
+        )}
+      </>
     );
   }
+
+  const noteTitleFontFamily =
+    editorChromeMode === 'prototypeNative' ? 'var(--pds-font-display)' : 'var(--font-sans)';
+  const noteTitleFontVariationSettings =
+    editorChromeMode === 'prototypeNative' ? 'var(--pds-font-display-variation)' : undefined;
 
   // Default and Scripture notes - original editable layout
   return (
@@ -1644,7 +2357,14 @@ export default function CardFullEditable({
           serverContentEncrypted={effectiveServerEncrypted}
           serverNoteContent={effectiveServerEncrypted ? content : undefined}
           onContentChange={(newContent) => setDisplayContent(newContent)}
-          onLockStateChange={(isLocked) => setLockStateOverride(isLocked)}
+          onLockStateChange={(isLocked) => {
+            setLockStateOverride(isLocked);
+            if (isLocked) {
+              setUnlockRevision((v) => v + 1);
+              setIsTitleEditing(false);
+              setIsContentEditing(false);
+            }
+          }}
           hideButton={true}
         />
       )}
@@ -1670,9 +2390,38 @@ export default function CardFullEditable({
       />
       {/* Header with title, version (scripture only), and bookmark icon */}
       <div className="flex gap-3 items-center justify-center relative shrink-0 w-full px-3">
-        <div className="basis-0 font-sans font-semibold grow leading-[0] min-h-px min-w-px not-italic relative shrink-0 text-[var(--color-deep-grey)] text-[24px]">
-          {/* Display mode */}
-          {!isTitleEditing ? (
+        <div
+          className={
+            editorChromeMode === 'prototypeNative'
+              ? 'basis-0 grow leading-[0] min-h-px min-w-px not-italic relative shrink-0 text-[24px] text-[var(--pds-text-primary)]'
+              : 'basis-0 font-sans font-semibold grow leading-[0] min-h-px min-w-px not-italic relative shrink-0 text-[var(--color-deep-grey)] text-[24px]'
+          }
+        >
+          {/* Display mode — title stays read-only while body awaits PIN */}
+          {needsPinUnlock ? (
+            <p
+              className="rounded"
+              style={{
+                lineHeight: '1.2',
+                margin: '-4px -8px',
+                padding: '4px 8px',
+                display: 'block',
+                width: '100%',
+                fontSize: '24px',
+                fontWeight: '700',
+                fontFamily: noteTitleFontFamily,
+                fontVariationSettings: noteTitleFontVariationSettings,
+                color:
+                  editorChromeMode === 'prototypeNative'
+                    ? 'var(--pds-text-primary)'
+                    : 'var(--color-deep-grey)',
+                boxSizing: 'border-box',
+                minHeight: '28.8px',
+              }}
+            >
+              {displayTitle?.trim() ? displayTitle : 'Locked note'}
+            </p>
+          ) : !isTitleEditing ? (
             <p 
               className="rounded"
               style={{
@@ -1683,8 +2432,12 @@ export default function CardFullEditable({
                 width: '100%',
                 fontSize: '24px',
                 fontWeight: '700',
-                fontFamily: 'var(--font-sans)',
-                color: 'var(--color-deep-grey)',
+                fontFamily: noteTitleFontFamily,
+                fontVariationSettings: noteTitleFontVariationSettings,
+                color:
+                  editorChromeMode === 'prototypeNative'
+                    ? 'var(--pds-text-primary)'
+                    : 'var(--color-deep-grey)',
                 boxSizing: 'border-box',
                 minHeight: '28.8px',
                 height: 'auto',
@@ -1702,7 +2455,7 @@ export default function CardFullEditable({
                 value={editTitle}
                 onChange={handleTitleChange}
                 maxLength={TITLE_HARD_LIMIT}
-                rows={2}
+                rows={1}
                 className="w-full bg-transparent border-0 rounded focus:outline-none font-bold"
                 style={{
                   lineHeight: '1.2',
@@ -1710,12 +2463,16 @@ export default function CardFullEditable({
                   padding: '4px 8px',
                   fontSize: '24px',
                   fontWeight: '700',
-                  fontFamily: 'var(--font-sans)',
-                  color: 'var(--color-deep-grey)',
+                  fontFamily: noteTitleFontFamily,
+                  fontVariationSettings: noteTitleFontVariationSettings,
+                  color:
+                    editorChromeMode === 'prototypeNative'
+                      ? 'var(--pds-text-primary)'
+                      : 'var(--color-deep-grey)',
                   boxSizing: 'border-box',
                   resize: 'none',
                 }}
-                placeholder="Note title"
+                placeholder={alwaysEditing ? 'Title' : 'Note title'}
                 onKeyDown={handleKeyDown}
                 onFocus={() => setIsTitleFocused(true)}
                 onBlur={() => setIsTitleFocused(false)}
@@ -1723,68 +2480,48 @@ export default function CardFullEditable({
             </div>
           )}
         </div>
-        {noteType === 'scripture' ? (
-          <>
-            {displayScriptureVersion && (
-              <span
-                style={{
-                  fontFamily: 'var(--font-sans)',
-                  fontSize: '12px',
-                  fontWeight: 'normal',
-                  color: 'var(--color-stone-grey)',
-                  flexShrink: 0,
-                }}
-              >
-                {getTranslationAbbreviationDisplay(displayScriptureVersion)}
-              </span>
-            )}
-            <div className="relative shrink-0 size-5" title="Note type switching disabled until designs are ready">
-              <Icon name="scroll" size={20} style={{ color: 'var(--color-deep-grey)' }} />
-            </div>
-          </>
-        ) : (
-          /* Icon only for non-scripture notes */
-          (() => {
-            const noteTypeConfig: Record<'resource' | 'default', { label: string; icon: React.ReactElement }> = {
-              resource: {
-                label: 'Resource',
-                icon: <Icon name="newspaper" size={20} style={{ color: 'var(--color-deep-grey)' }} />
-              },
-              default: {
-                label: 'Note',
-                icon: (
-                  <svg className="block max-w-none size-full text-[var(--color-deep-grey)]" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M17 3H7c-1.1 0-2 .9-2 2v16l7-3 7 3V5c0-1.1-.9-2-2-2z"/>
-                  </svg>
-                )
-              }
-            };
-            const config = noteTypeConfig[noteType];
-            return (
-              <div className="relative shrink-0 size-5" title={`${config.label} type`} style={{ marginTop: '4px' }}>
-                {config.icon}
-              </div>
-            );
-          })()
-        )}
+        {noteType === 'scripture' && displayScriptureVersion ? (
+          <span
+            style={{
+              fontFamily: 'var(--font-sans)',
+              fontSize: '12px',
+              fontWeight: 'normal',
+              color: 'var(--color-stone-grey)',
+              flexShrink: 0,
+            }}
+          >
+            {getTranslationAbbreviationDisplay(displayScriptureVersion)}
+          </span>
+        ) : null}
       </div>
       
       {/* Content */}
       <div className="flex-1 flex flex-col min-h-0 w-full" style={{ maxHeight: '100%', overflow: 'hidden', marginTop: '12px' }}>
         <div className="flex-1 flex flex-col font-sans font-medium min-h-0 not-italic text-[var(--color-deep-grey)] text-[16px]">
-          {/* Display mode */}
-          {!isContentEditing ? (
+          {/* Display mode — PIN gate takes precedence over alwaysEditing editor */}
+          {needsPinUnlock ? (
+            <div className="flex-fill flex-stack" style={{ gap: 0, maxHeight: '100%' }}>
+              <div className="flex-1 flex flex-col min-h-0 px-3 relative" style={{ minHeight: 0, overflow: 'hidden' }}>
+                <div ref={contentDisplayRef} className="flex flex-col shrink-0">
+                  {noteId != null ? (
+                    <InlinePinUnlock
+                      noteId={String(noteId)}
+                      encryptedContent={
+                        looksLikeEncryptedBlob(displayContent ?? '')
+                          ? (displayContent ?? '')
+                          : (content ?? displayContent ?? '')
+                      }
+                    />
+                  ) : (
+                    <p>This note is locked. Tap Unlock to view.</p>
+                  )}
+                </div>
+              </div>
+            </div>
+          ) : !isContentEditing ? (
               <div className="flex-fill flex-stack" style={{ gap: 0, maxHeight: '100%' }}>
               <div className="flex-1 flex flex-col min-h-0 px-3 relative" style={{ minHeight: 0, overflow: 'hidden' }}>
-                {(effectiveEncrypted && !isNoteUnlocked(noteId ?? '')) || (contentEncrypted && looksLikeEncryptedBlob(displayContent ?? '')) ? (
-                  <div ref={contentDisplayRef} className="flex flex-col shrink-0">
-                    {noteId != null ? (
-                      <InlinePinUnlock noteId={String(noteId)} encryptedContent={displayContent ?? ''} />
-                    ) : (
-                      <p>This note is locked. Tap Unlock to view.</p>
-                    )}
-                  </div>
-                ) : displayContent && displayContent.trim() ? (
+                {displayContent && displayContent.trim() ? (
                   <div 
                     ref={contentDisplayRef}
                     className={`card-full-editable__content-html flex-1 overflow-auto rounded${viewScrollMaskClasses ? ` ${viewScrollMaskClasses}` : ''}`}
@@ -1824,18 +2561,43 @@ export default function CardFullEditable({
                     parentThreadId={parentThreadId}
                     sourceNoteId={noteId}
                     onEditorReady={handleEditorReady}
+                    editorChromeMode={editorChromeMode}
+                    onPrototypeChromeModeChange={
+                      editorChromeMode === 'prototypeNative' ? setPrototypeBottomChromeMode : undefined
+                    }
+                    formatToolbarPortalTarget={
+                      editorChromeMode === 'prototypeNative' ? formatToolbarPortalTarget : undefined
+                    }
+                    scriptureChromePortalTarget={
+                      editorChromeMode === 'prototypeNative' ? scriptureChromePortalTarget : null
+                    }
+                    highlightChromePortalTarget={
+                      editorChromeMode === 'prototypeNative' ? highlightChromePortalTarget : null
+                    }
+                    referenceChromePortalTarget={
+                      editorChromeMode === 'prototypeNative' ? referenceChromePortalTarget : null
+                    }
+                    initialReferenceWord={editorChromeMode === 'prototypeNative' ? initialReferenceWord : null}
+                    prototypeScripturePillOpenRequest={
+                      editorChromeMode === 'prototypeNative' ? prototypeScripturePillOpenRequest : null
+                    }
+                    onPrototypeScripturePillOpenRequestConsumed={onPrototypeScripturePillOpenRequestConsumed}
+                    prototypeNoteActionsChrome={effectivePrototypeNoteActionsChrome}
                   />
                 </Suspense>
               </div>
               
               {/* Save/Cancel buttons */}
-              {isContentEditing && renderSaveCancelButtons('px-3')}
+              {editorChromeMode !== 'prototypeNative' && isContentEditing && renderSaveCancelButtons('px-3')}
             </div>
           )}
         </div>
 
         {/* Save/Cancel buttons when only title is being edited - shown at bottom like content editing */}
-        {isTitleEditing && !isContentEditing && renderSaveCancelButtons('px-3')}
+        {editorChromeMode !== 'prototypeNative' &&
+          isTitleEditing &&
+          !isContentEditing &&
+          renderSaveCancelButtons('px-3')}
 
         {/* Bible Translation Attribution — same footer structure as ScriptureComparePanel (border + top padding); px-3 matches main column shell; p keeps right inset for FAB */}
         {noteType === 'scripture' && displayScriptureVersion && (() => {
@@ -1909,8 +2671,94 @@ export default function CardFullEditable({
             />
           </div>
         ) : null}
+
+        {editorChromeMode === 'prototypeNative' &&
+          !formatToolbarPortalTarget &&
+          !noteActionsPortalTarget &&
+          prototypeBottomChromeMode === 'noteActions' &&
+          prototypeNoteActionBar ? (
+          <div className="w-full shrink-0 px-3">{prototypeNoteActionBar}</div>
+        ) : null}
       </div>
       </div>
+      {editorChromeMode === 'prototypeNative' &&
+        noteActionsPortalTarget &&
+        createPortal(
+          <NoteProductionActionBar
+            collectionDraft={collectionChrome.primaryCollection ?? ''}
+            onDraftChange={(v) => {
+              const t = v.trim();
+              const nextPrimary = t.length ? t : null;
+              const pLow = nextPrimary?.toLowerCase() ?? '';
+              setCollectionChrome(c => ({
+                ...c,
+                primaryCollection: nextPrimary,
+                secondaryCollections: c.secondaryCollections.filter(
+                  (s) => s.trim().length > 0 && s.trim().toLowerCase() !== pLow,
+                ),
+                collectionUserOverride: true,
+              }));
+            }}
+            secondaryCollections={collectionChrome.secondaryCollections}
+            onRemoveSecondary={(name) => {
+              const low = name.toLowerCase();
+              setCollectionChrome(c => ({
+                ...c,
+                secondaryCollections: c.secondaryCollections.filter((s) => s.toLowerCase() !== low),
+                collectionUserOverride: true,
+              }));
+            }}
+            addSecondaryDraft={addSecondaryDraft}
+            onAddSecondaryDraftChange={setAddSecondaryDraft}
+            onCommitAddSecondary={() => {
+              const t = addSecondaryDraft.trim();
+              if (!t.length) return;
+              const pLow = (collectionChrome.primaryCollection ?? '').trim().toLowerCase();
+              if (pLow && t.toLowerCase() === pLow) {
+                setAddSecondaryDraft('');
+                return;
+              }
+              setCollectionChrome(c => {
+                if (c.secondaryCollections.some((s) => s.toLowerCase() === t.toLowerCase())) {
+                  return c;
+                }
+                return {
+                  ...c,
+                  secondaryCollections: [...c.secondaryCollections, t],
+                  collectionUserOverride: true,
+                };
+              });
+              setAddSecondaryDraft('');
+            }}
+            collectionPinned={collectionChrome.collectionPinned}
+            collectionUserOverride={collectionChrome.collectionUserOverride}
+            onTogglePinned={() =>
+              setCollectionChrome(c => ({ ...c, collectionPinned: !c.collectionPinned }))
+            }
+            onRestoreAuto={() => {
+              let body = editContent;
+              if (editorInstanceRef.current && !editorInstanceRef.current.isDestroyed) {
+                try {
+                  body = editorInstanceRef.current.getHTML();
+                } catch {
+                  /* keep editContent */
+                }
+              }
+              const sug = suggestPrimaryCollectionFromNote(editTitle, body);
+              const secs = suggestSecondaryCollectionsFromNote(editTitle, body, sug);
+              setCollectionChrome(c => ({
+                ...c,
+                primaryCollection: sug,
+                secondaryCollections: secs,
+                collectionUserOverride: false,
+                collectionPinned: false,
+                collectionLastAutoUpdatedAtIso: new Date().toISOString(),
+              }));
+            }}
+            disabled={!effectiveIsEditable}
+          />,
+          noteActionsPortalTarget,
+        )}
     </>
   );
 }

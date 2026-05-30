@@ -16,24 +16,39 @@ import {
   Threads,
   Notes,
   NoteThreads,
+  StudyThreadEntries,
   Tags,
   NoteTags,
   UserMetadata,
   eq,
+  ne,
   and,
   gt,
   or,
+  inArray,
+  asc,
+  desc,
+  sql,
 } from '../db';
 import { nowISO } from '../db/dates';
 import { getCurrentSeason } from '@/utils/season-helpers';
 import { awardNewSeasonBonus } from '../utils/xp-system';
 import { getEffectiveHighestSimpleNoteId } from '../utils/highest-simple-note-id';
+import {
+  normalizeSecondaryLabels,
+  parseNoteSecondaryCollections,
+  serializeNoteSecondaryCollections,
+} from '../utils/note-secondary-collections';
 import { handleAPIError } from '@/utils/error-handling';
 import { tryConsumeNoteCreates, MAX_NOTE_CREATES_PER_SYNC_PUSH, getClientIP } from '@/utils/rate-limit';
-import { generateNoteId, generateThreadId, generateSpaceId } from '@/utils/ids';
+import { generateNoteId, generateThreadId, generateSpaceId, generateStudyThreadEntryId } from '@/utils/ids';
 import { ensureUnorganizedThread } from '../utils/unorganized-thread';
-import { detectScripture, getPrimaryReference } from '@/utils/scripture-detector';
+import { detectScripture, getPrimaryReference, normalizeScriptureReference } from '@/utils/scripture-detector';
 import { fetchVerseText } from '../utils/fetch-verse-text';
+import { isStudyThreadEntriesTableMissing } from '../utils/pg-undefined-relation';
+import { deleteSingleNoteCascadeForUser } from '../utils/delete-note-cascade';
+import { loadDeletedEntitiesSince, recordDeletedEntities } from '../utils/sync-deletion-log';
+import { broadcastInvalidationForSyncPush } from '../utils/realtime';
 
 const app = new Hono();
 
@@ -50,6 +65,24 @@ setInterval(() => {
     }
   }
 }, 60_000);
+
+/** Persist secondaryCollections JSON text from sync clients (array or JSON string). */
+function secondaryCollectionsFromSyncPayload(raw: unknown, primary: string | null): string | null {
+  if (Array.isArray(raw)) {
+    return serializeNoteSecondaryCollections(
+      normalizeSecondaryLabels(
+        raw.filter((x): x is string => typeof x === 'string'),
+        primary,
+      ),
+    );
+  }
+  if (typeof raw === 'string') {
+    return serializeNoteSecondaryCollections(
+      normalizeSecondaryLabels(parseNoteSecondaryCollections(raw), primary),
+    );
+  }
+  return null;
+}
 
 // ─── Mutation helpers for push endpoint ───────────────────────────────
 
@@ -138,6 +171,49 @@ async function processThreadMutation(userId: string, operation: string, entityId
     }).where(eq(Threads.id, entityId));
     return { success: true, entityId, serverId: entityId, data: { color: data.color } };
   } else if (operation === 'delete') {
+    if (entityId === 'thread_unorganized') {
+      return { success: false, error: 'Cannot delete unorganized thread' };
+    }
+    const existing = first(await db.select().from(Threads).where(and(eq(Threads.id, entityId), eq(Threads.userId, userId))).limit(1));
+    if (!existing) return { success: false, error: 'Thread not found' };
+
+    const affectedNotes = await db.select({ noteId: NoteThreads.noteId }).from(NoteThreads).where(eq(NoteThreads.threadId, entityId));
+    await db.delete(NoteThreads).where(eq(NoteThreads.threadId, entityId));
+
+    if (affectedNotes.length > 0) {
+      const affectedNoteIds = affectedNotes.map(n => n.noteId);
+
+      // One query for the remaining thread relations across all affected notes
+      // (the deleted thread's junction rows were already removed above).
+      const remaining = await db.select({ noteId: NoteThreads.noteId, threadId: NoteThreads.threadId })
+        .from(NoteThreads)
+        .where(inArray(NoteThreads.noteId, affectedNoteIds));
+
+      const firstRemainingByNote = new Map<string, string>();
+      for (const rel of remaining) {
+        if (!firstRemainingByNote.has(rel.noteId)) firstRemainingByNote.set(rel.noteId, rel.threadId);
+      }
+
+      // Group notes by destination thread (first remaining thread, else unorganized)
+      // so we issue one UPDATE per distinct destination instead of one per note.
+      const notesByDestination = new Map<string, string[]>();
+      for (const noteId of affectedNoteIds) {
+        const dest = firstRemainingByNote.get(noteId) ?? 'thread_unorganized';
+        if (!notesByDestination.has(dest)) notesByDestination.set(dest, []);
+        notesByDestination.get(dest)!.push(noteId);
+      }
+
+      const updatedAt = nowISO();
+      await Promise.all(
+        Array.from(notesByDestination.entries()).map(([dest, ids]) =>
+          db.update(Notes).set({ threadId: dest, spaceId: null, updatedAt })
+            .where(and(inArray(Notes.id, ids), eq(Notes.userId, userId))),
+        ),
+      );
+    }
+
+    await db.delete(Threads).where(and(eq(Threads.id, entityId), eq(Threads.userId, userId)));
+    await recordDeletedEntities(userId, 'thread', [entityId]);
     return { success: true, entityId, serverId: entityId };
   }
   return { success: false, error: `Unknown operation: ${operation}` };
@@ -202,6 +278,17 @@ async function processNoteMutation(userId: string, operation: string, entityId: 
     }
 
     const now = nowISO();
+    const createPrimary =
+      typeof data.primaryCollection === 'string' && data.primaryCollection.trim()
+        ? data.primaryCollection.trim()
+        : null;
+    const createSecondaryStored = secondaryCollectionsFromSyncPayload(data.secondaryCollections, createPrimary);
+    let collectionLastAutoCreate: Date | null = null;
+    if (data.collectionLastAutoUpdatedAt) {
+      const d = new Date(data.collectionLastAutoUpdatedAt);
+      if (!Number.isNaN(d.getTime())) collectionLastAutoCreate = d;
+    }
+
     const newNote = first(await db.insert(Notes).values({
       id: entityId.startsWith('local_') ? generateNoteId() : entityId,
       title: noteTitle || null,
@@ -220,6 +307,11 @@ async function processNoteMutation(userId: string, operation: string, entityId: 
       lastVisited: data.lastVisited ? new Date(data.lastVisited) : now,
       contentEncrypted: data.contentEncrypted || false,
       linkedFromNoteId: resolvedLinkedFromNoteId,
+      primaryCollection: createPrimary,
+      secondaryCollections: createSecondaryStored,
+      collectionPinned: typeof data.collectionPinned === 'boolean' ? data.collectionPinned : false,
+      collectionUserOverride: typeof data.collectionUserOverride === 'boolean' ? data.collectionUserOverride : false,
+      collectionLastAutoUpdatedAt: collectionLastAutoCreate,
     }).returning())!;
 
     const newHighest = Math.max(assignedSimpleNoteId, effectiveHighest);
@@ -238,7 +330,16 @@ async function processNoteMutation(userId: string, operation: string, entityId: 
   } else if (operation === 'update') {
     const existing = first(await db.select().from(Notes).where(and(eq(Notes.id, entityId), eq(Notes.userId, userId))).limit(1));
     if (!existing) return { success: false, error: 'Note not found' };
-    await db.update(Notes).set({
+
+    let nextPrimary: string | null = existing.primaryCollection ?? null;
+    if (data.primaryCollection !== undefined) {
+      nextPrimary =
+        typeof data.primaryCollection === 'string' && data.primaryCollection.trim()
+          ? data.primaryCollection.trim()
+          : null;
+    }
+
+    const updatePayload: Record<string, unknown> = {
       title: data.title,
       content: data.content,
       spaceId: data.spaceId,
@@ -246,12 +347,50 @@ async function processNoteMutation(userId: string, operation: string, entityId: 
       isFeatured: data.isFeatured,
       order: data.order,
       updatedAt: nowISO(),
-      ...(data.lastVisited && { lastVisited: new Date(data.lastVisited) }),
-      ...(typeof data.contentEncrypted === 'boolean' && { contentEncrypted: data.contentEncrypted }),
-      ...(data.contentEncrypted === true && { isPublic: false, shareToken: null, shareTokenCreatedAt: null }),
-    }).where(eq(Notes.id, entityId));
+    };
+    if (data.lastVisited) {
+      updatePayload.lastVisited = new Date(data.lastVisited);
+    }
+    if (typeof data.contentEncrypted === 'boolean') {
+      updatePayload.contentEncrypted = data.contentEncrypted;
+      if (data.contentEncrypted === true) {
+        updatePayload.isPublic = false;
+        updatePayload.shareToken = null;
+        updatePayload.shareTokenCreatedAt = null;
+      }
+    }
+    if (data.primaryCollection !== undefined) {
+      updatePayload.primaryCollection = nextPrimary;
+    }
+    if (data.secondaryCollections !== undefined) {
+      updatePayload.secondaryCollections = secondaryCollectionsFromSyncPayload(data.secondaryCollections, nextPrimary);
+    } else if (data.primaryCollection !== undefined) {
+      updatePayload.secondaryCollections = serializeNoteSecondaryCollections(
+        normalizeSecondaryLabels(parseNoteSecondaryCollections(existing.secondaryCollections), nextPrimary),
+      );
+    }
+    if (data.collectionPinned !== undefined) {
+      updatePayload.collectionPinned = Boolean(data.collectionPinned);
+    }
+    if (data.collectionUserOverride !== undefined) {
+      updatePayload.collectionUserOverride = Boolean(data.collectionUserOverride);
+    }
+    if (data.collectionLastAutoUpdatedAt !== undefined) {
+      updatePayload.collectionLastAutoUpdatedAt =
+        data.collectionLastAutoUpdatedAt == null || data.collectionLastAutoUpdatedAt === ''
+          ? null
+          : new Date(data.collectionLastAutoUpdatedAt);
+    }
+
+    await db.update(Notes).set(updatePayload as any).where(eq(Notes.id, entityId));
     return { success: true, entityId, serverId: entityId };
   } else if (operation === 'delete') {
+    const deleted = await deleteSingleNoteCascadeForUser(userId, entityId);
+    if (deleted.deletedNoteIds.length === 0) {
+      return { success: false, error: 'Note not found' };
+    }
+    await recordDeletedEntities(userId, 'note', deleted.deletedNoteIds);
+    await recordDeletedEntities(userId, 'studyThread', deleted.deletedStudyThreadIds);
     return { success: true, entityId, serverId: entityId };
   }
   return { success: false, error: `Unknown operation: ${operation}` };
@@ -332,6 +471,87 @@ async function processNoteTagMutation(userId: string, operation: string, entityI
   return { success: false, error: `Unknown operation: ${operation}` };
 }
 
+async function processStudyThreadEntryMutation(userId: string, operation: string, entityId: string, data: any) {
+  const ENTRY_KINDS = new Set(['workspace', 'miniNote', 'linkedNote', 'scriptureLink']);
+  if (operation === 'create') {
+    const parentNoteId = data?.parentNoteId as string | undefined;
+    if (!parentNoteId) return { success: false, error: 'parentNoteId required' };
+    const note = first(await db.select().from(Notes).where(and(eq(Notes.id, parentNoteId), eq(Notes.userId, userId))).limit(1));
+    if (!note) return { success: false, error: 'Note not found' };
+    const id = entityId.startsWith('local_') ? generateStudyThreadEntryId() : entityId;
+    const entryKind =
+      typeof data.entryKind === 'string' && ENTRY_KINDS.has(data.entryKind) ? data.entryKind : 'miniNote';
+    const now = nowISO();
+    const spaceId = typeof note.spaceId === 'string' && note.spaceId ? note.spaceId : null;
+    await db.insert(StudyThreadEntries).values({
+      id,
+      userId,
+      parentNoteId,
+      spaceId,
+      entryKindRaw: entryKind,
+      highlightAccentRaw: typeof data.highlightAccentRaw === 'string' ? data.highlightAccentRaw : 'warmAmber',
+      sourceSnippet: typeof data.sourceSnippet === 'string' ? data.sourceSnippet : '',
+      focusTitle: typeof data.focusTitle === 'string' ? data.focusTitle : '',
+      notesBody: typeof data.notesBody === 'string' ? data.notesBody : '',
+      miniNoteBody: typeof data.miniNoteBody === 'string' ? data.miniNoteBody : '',
+      linkedNoteId: typeof data.linkedNoteId === 'string' ? data.linkedNoteId : null,
+      linkedNoteTitle: typeof data.linkedNoteTitle === 'string' ? data.linkedNoteTitle : null,
+      anchorLocation: typeof data.anchorLocation === 'number' ? data.anchorLocation : null,
+      anchorLength: typeof data.anchorLength === 'number' ? data.anchorLength : null,
+      anchorTextSnapshot: typeof data.anchorTextSnapshot === 'string' ? data.anchorTextSnapshot : null,
+      scriptureReference:
+        typeof data.scriptureReference === 'string'
+          ? normalizeScriptureReference(data.scriptureReference.trim()) ?? data.scriptureReference
+          : null,
+      scripturePassageTranslation: typeof data.scripturePassageTranslation === 'string' ? data.scripturePassageTranslation : null,
+      scripturePassageExcerpt: typeof data.scripturePassageExcerpt === 'string' ? data.scripturePassageExcerpt : null,
+      isArchived: false,
+      highlightListEditedAt: now,
+      createdAt: now,
+      updatedAt: now,
+    });
+    return { success: true, entityId, serverId: id };
+  }
+  if (operation === 'update') {
+    const existing = first(
+      await db.select().from(StudyThreadEntries).where(and(eq(StudyThreadEntries.id, entityId), eq(StudyThreadEntries.userId, userId))).limit(1),
+    );
+    if (!existing) return { success: false, error: 'Study thread entry not found' };
+    const patch: Record<string, unknown> = { updatedAt: nowISO() };
+    if (typeof data.highlightAccentRaw === 'string') {
+      patch.highlightAccentRaw = data.highlightAccentRaw;
+      patch.highlightListEditedAt = nowISO();
+    }
+    if (typeof data.sourceSnippet === 'string') patch.sourceSnippet = data.sourceSnippet;
+    if (typeof data.focusTitle === 'string') patch.focusTitle = data.focusTitle;
+    if (typeof data.notesBody === 'string') patch.notesBody = data.notesBody;
+    if (typeof data.miniNoteBody === 'string') patch.miniNoteBody = data.miniNoteBody;
+    if (typeof data.linkedNoteId === 'string' || data.linkedNoteId === null) patch.linkedNoteId = data.linkedNoteId;
+    if (typeof data.linkedNoteTitle === 'string') patch.linkedNoteTitle = data.linkedNoteTitle;
+    if (typeof data.anchorLocation === 'number' || data.anchorLocation === null) patch.anchorLocation = data.anchorLocation;
+    if (typeof data.anchorLength === 'number' || data.anchorLength === null) patch.anchorLength = data.anchorLength;
+    if (typeof data.anchorTextSnapshot === 'string' || data.anchorTextSnapshot === null) patch.anchorTextSnapshot = data.anchorTextSnapshot;
+    if (typeof data.scriptureReference === 'string') {
+      patch.scriptureReference = normalizeScriptureReference(data.scriptureReference.trim()) ?? data.scriptureReference;
+    }
+    if (typeof data.scripturePassageTranslation === 'string') patch.scripturePassageTranslation = data.scripturePassageTranslation;
+    if (typeof data.scripturePassageExcerpt === 'string') patch.scripturePassageExcerpt = data.scripturePassageExcerpt;
+    if (typeof data.isArchived === 'boolean') patch.isArchived = data.isArchived;
+    if (typeof data.entryKind === 'string' && ENTRY_KINDS.has(data.entryKind)) patch.entryKindRaw = data.entryKind;
+    await db.update(StudyThreadEntries).set(patch as any).where(and(eq(StudyThreadEntries.id, entityId), eq(StudyThreadEntries.userId, userId)));
+    return { success: true, entityId, serverId: entityId };
+  }
+  if (operation === 'delete') {
+    const existing = first(
+      await db.select().from(StudyThreadEntries).where(and(eq(StudyThreadEntries.id, entityId), eq(StudyThreadEntries.userId, userId))).limit(1),
+    );
+    if (!existing) return { success: false, error: 'Study thread entry not found' };
+    await db.delete(StudyThreadEntries).where(and(eq(StudyThreadEntries.id, entityId), eq(StudyThreadEntries.userId, userId)));
+    return { success: true, entityId, serverId: entityId };
+  }
+  return { success: false, error: `Unknown operation: ${operation}` };
+}
+
 // ─── POST /api/sync/push ─────────────────────────────────────────────
 
 app.post('/api/sync/push', requireAuth, async (c) => {
@@ -383,6 +603,7 @@ app.post('/api/sync/push', requireAuth, async (c) => {
           case 'noteThread': result = await processNoteThreadMutation(auth.userId, operation, entityId, data); break;
           case 'tag': result = await processTagMutation(auth.userId, operation, entityId, data); break;
           case 'noteTag': result = await processNoteTagMutation(auth.userId, operation, entityId, data); break;
+          case 'studyThreadEntry': result = await processStudyThreadEntryMutation(auth.userId, operation, entityId, data); break;
           default: result = { success: false, error: `Unknown entity type: ${entityType}` };
         }
         results.push({ ...result, operationId });
@@ -391,6 +612,8 @@ app.post('/api/sync/push', requireAuth, async (c) => {
       }
     }
 
+    broadcastInvalidationForSyncPush(auth.userId, mutations, results);
+
     return c.json({ results }, 200, { 'Cache-Control': 'private, no-cache' });
   } catch (error) {
     const standardError = handleAPIError(error, { endpoint: '/api/sync/push', action: 'push_sync' });
@@ -398,13 +621,22 @@ app.post('/api/sync/push', requireAuth, async (c) => {
   }
 });
 
+/**
+ * Max non-scripture notes returned in a single bootstrap / changes page. Bounds
+ * worst-case payload (e.g. a huge backlog after long offline). The changes
+ * endpoint resumes from the last returned note via the cursor, so a capped page
+ * is not data loss — subsequent syncs catch up. Set high enough that typical
+ * deltas are never capped.
+ */
+const SYNC_NOTE_PAGE_LIMIT = 1000;
+
 // ─── GET /api/sync/bootstrap ──────────────────────────────────────────
 
 app.get('/api/sync/bootstrap', requireAuth, async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
 
-    const [spaces, threads, notes, noteThreads, tags, noteTags, userMetadataRows] = await Promise.all([
+    const [spaces, threads, notes, noteThreads, tags, noteTags, studyThreadEntries, userMetadataRows] = await Promise.all([
       db.select({
         id: Spaces.id, title: Spaces.title, description: Spaces.description, color: Spaces.color,
         backgroundGradient: Spaces.backgroundGradient, isPublic: Spaces.isPublic, isActive: Spaces.isActive,
@@ -420,11 +652,20 @@ app.get('/api/sync/bootstrap', requireAuth, async (c) => {
       db.select({
         id: Notes.id, title: Notes.title, content: Notes.content, threadId: Notes.threadId,
         spaceId: Notes.spaceId, simpleNoteId: Notes.simpleNoteId, noteType: Notes.noteType,
-        addedBy: Notes.addedBy, isPublic: Notes.isPublic, isFeatured: Notes.isFeatured,
+        addedBy: Notes.addedBy, isPublic: Notes.isPublic, isPinned: Notes.isPinned, isFeatured: Notes.isFeatured,
         order: Notes.order, lastVisited: Notes.lastVisited, createdAt: Notes.createdAt,
         updatedAt: Notes.updatedAt, contentEncrypted: Notes.contentEncrypted,
         linkedFromNoteId: Notes.linkedFromNoteId,
-      }).from(Notes).where(eq(Notes.userId, auth.userId)).limit(1000),
+        primaryCollection: Notes.primaryCollection,
+        secondaryCollections: Notes.secondaryCollections,
+        collectionPinned: Notes.collectionPinned,
+        collectionUserOverride: Notes.collectionUserOverride,
+        collectionLastAutoUpdatedAt: Notes.collectionLastAutoUpdatedAt,
+      }).from(Notes).where(and(eq(Notes.userId, auth.userId), ne(Notes.noteType, 'scripture')))
+        // Newest-first so the most relevant notes are included when a user has more
+        // than the cap; fetch one extra to detect truncation.
+        .orderBy(desc(sql`coalesce(${Notes.updatedAt}, ${Notes.createdAt})`))
+        .limit(SYNC_NOTE_PAGE_LIMIT + 1),
 
       db.select({
         id: NoteThreads.id, noteId: NoteThreads.noteId, threadId: NoteThreads.threadId,
@@ -444,6 +685,20 @@ app.get('/api/sync/bootstrap', requireAuth, async (c) => {
       }).from(NoteTags).innerJoin(Notes, eq(Notes.id, NoteTags.noteId))
         .where(eq(Notes.userId, auth.userId)),
 
+      (async () => {
+        try {
+          return await db.select().from(StudyThreadEntries).where(eq(StudyThreadEntries.userId, auth.userId));
+        } catch (e) {
+          if (isStudyThreadEntriesTableMissing(e)) {
+            console.warn(
+              '[sync/bootstrap] StudyThreadEntries table missing; returning empty study threads. Run `npm run db:push` or apply server/db/manual/create-study-thread-entries.sql.',
+            );
+            return [];
+          }
+          throw e;
+        }
+      })(),
+
       db.select({
         id: UserMetadata.id, userId: UserMetadata.userId, highestSimpleNoteId: UserMetadata.highestSimpleNoteId,
         userColor: UserMetadata.userColor, firstName: UserMetadata.firstName, lastName: UserMetadata.lastName,
@@ -458,6 +713,10 @@ app.get('/api/sync/bootstrap', requireAuth, async (c) => {
     ]);
 
     const userMetadata = first(userMetadataRows);
+
+    // Cap the notes page and signal truncation so clients can later page if needed.
+    const notesTruncated = notes.length > SYNC_NOTE_PAGE_LIMIT;
+    const notesPage = notesTruncated ? notes.slice(0, SYNC_NOTE_PAGE_LIMIT) : notes;
 
     const effectiveHighest = await getEffectiveHighestSimpleNoteId(auth.userId);
     const highestSimpleNoteId = effectiveHighest;
@@ -482,12 +741,14 @@ app.get('/api/sync/bootstrap', requireAuth, async (c) => {
     const bootstrapData = {
       timestamp: new Date().toISOString(),
       cursor: `bootstrap_${Date.now()}`,
+      notesTruncated,
       spaces,
       threads,
-      notes,
+      notes: notesPage.map((n) => ({ ...n, secondaryCollections: parseNoteSecondaryCollections(n.secondaryCollections) })),
       noteThreads,
       tags,
       noteTags,
+      studyThreadEntries,
       userMetadata: userMetaForResponse ? (() => {
         const { lockPinHash, ...rest } = userMetaForResponse;
         return {
@@ -525,7 +786,7 @@ app.get('/api/sync/changes', requireAuth, async (c) => {
 
     const sinceDate = new Date(sinceTimestamp);
 
-    const [changedSpaces, changedThreads, changedNotes, changedNoteThreads, changedTags, changedNoteTags, changedUserMetadataRows] = await Promise.all([
+    const [changedSpaces, changedThreads, changedNotes, changedNoteThreads, changedTags, changedNoteTags, changedStudyThreadEntries, changedUserMetadataRows, deletedFeed] = await Promise.all([
       db.select({
         id: Spaces.id, title: Spaces.title, description: Spaces.description, color: Spaces.color,
         backgroundGradient: Spaces.backgroundGradient, isPublic: Spaces.isPublic, isActive: Spaces.isActive,
@@ -541,11 +802,20 @@ app.get('/api/sync/changes', requireAuth, async (c) => {
       db.select({
         id: Notes.id, title: Notes.title, content: Notes.content, threadId: Notes.threadId,
         spaceId: Notes.spaceId, simpleNoteId: Notes.simpleNoteId, noteType: Notes.noteType,
-        addedBy: Notes.addedBy, isPublic: Notes.isPublic, isFeatured: Notes.isFeatured,
+        addedBy: Notes.addedBy, isPublic: Notes.isPublic, isPinned: Notes.isPinned, isFeatured: Notes.isFeatured,
         order: Notes.order, lastVisited: Notes.lastVisited, createdAt: Notes.createdAt,
         updatedAt: Notes.updatedAt, contentEncrypted: Notes.contentEncrypted,
         linkedFromNoteId: Notes.linkedFromNoteId,
-      }).from(Notes).where(and(eq(Notes.userId, auth.userId), or(gt(Notes.updatedAt, sinceDate), gt(Notes.createdAt, sinceDate), gt(Notes.lastVisited, sinceDate)))),
+        primaryCollection: Notes.primaryCollection,
+        secondaryCollections: Notes.secondaryCollections,
+        collectionPinned: Notes.collectionPinned,
+        collectionUserOverride: Notes.collectionUserOverride,
+        collectionLastAutoUpdatedAt: Notes.collectionLastAutoUpdatedAt,
+      }).from(Notes).where(and(eq(Notes.userId, auth.userId), ne(Notes.noteType, 'scripture'), or(gt(Notes.updatedAt, sinceDate), gt(Notes.createdAt, sinceDate), gt(Notes.lastVisited, sinceDate))))
+        // Oldest-first + cap so a large backlog is paged: the cursor below resumes
+        // from the last returned note's timestamp (no data loss; next sync catches up).
+        .orderBy(asc(sql`coalesce(${Notes.updatedAt}, ${Notes.createdAt})`))
+        .limit(SYNC_NOTE_PAGE_LIMIT + 1),
 
       db.select({
         id: NoteThreads.id, noteId: NoteThreads.noteId, threadId: NoteThreads.threadId, createdAt: NoteThreads.createdAt,
@@ -563,6 +833,26 @@ app.get('/api/sync/changes', requireAuth, async (c) => {
       }).from(NoteTags).innerJoin(Notes, eq(Notes.id, NoteTags.noteId))
         .where(and(eq(Notes.userId, auth.userId), gt(NoteTags.createdAt, sinceDate))),
 
+      (async () => {
+        try {
+          return await db
+            .select()
+            .from(StudyThreadEntries)
+            .where(
+              and(
+                eq(StudyThreadEntries.userId, auth.userId),
+                or(gt(StudyThreadEntries.updatedAt, sinceDate), gt(StudyThreadEntries.createdAt, sinceDate)),
+              ),
+            );
+        } catch (e) {
+          if (isStudyThreadEntriesTableMissing(e)) {
+            console.warn('[sync/changes] StudyThreadEntries table missing; returning empty study-thread delta.');
+            return [];
+          }
+          throw e;
+        }
+      })(),
+
       db.select({
         id: UserMetadata.id, userId: UserMetadata.userId, highestSimpleNoteId: UserMetadata.highestSimpleNoteId,
         userColor: UserMetadata.userColor, firstName: UserMetadata.firstName, lastName: UserMetadata.lastName,
@@ -574,9 +864,25 @@ app.get('/api/sync/changes', requireAuth, async (c) => {
         createdAt: UserMetadata.createdAt, updatedAt: UserMetadata.updatedAt,
         lockPinHash: UserMetadata.lockPinHash,
       }).from(UserMetadata).where(and(eq(UserMetadata.userId, auth.userId), or(gt(UserMetadata.updatedAt, sinceDate), gt(UserMetadata.createdAt, sinceDate)))).limit(1),
+
+      loadDeletedEntitiesSince(auth.userId, sinceDate),
     ]);
 
     const changedUserMetadata = first(changedUserMetadataRows);
+
+    // Cap the notes page. When capped, resume the cursor from the last returned
+    // note's timestamp (oldest-first ordering) so the next sync continues from there
+    // instead of skipping the remainder. Other entity types are small and returned
+    // in full; re-applying them next round is idempotent (upsert).
+    const notesPageTruncated = changedNotes.length > SYNC_NOTE_PAGE_LIMIT;
+    const changedNotesPage = notesPageTruncated ? changedNotes.slice(0, SYNC_NOTE_PAGE_LIMIT) : changedNotes;
+    let nextCursor = `timestamp_${Date.now()}`;
+    if (notesPageTruncated && changedNotesPage.length > 0) {
+      const lastNote = changedNotesPage[changedNotesPage.length - 1];
+      const lastTs = lastNote.updatedAt ?? lastNote.createdAt;
+      const lastMs = lastTs instanceof Date ? lastTs.getTime() : new Date(lastTs as unknown as string).getTime();
+      if (Number.isFinite(lastMs)) nextCursor = `timestamp_${lastMs}`;
+    }
 
     // Backfill currentSeason if null
     let userMetaForResponse = changedUserMetadata;
@@ -600,16 +906,25 @@ app.get('/api/sync/changes', requireAuth, async (c) => {
 
     const changes = {
       timestamp: new Date().toISOString(),
-      cursor: `timestamp_${Date.now()}`,
-      hasChanges: changedSpaces.length > 0 || changedThreads.length > 0 || changedNotes.length > 0 ||
+      cursor: nextCursor,
+      hasMore: notesPageTruncated,
+      hasChanges: changedSpaces.length > 0 || changedThreads.length > 0 || changedNotesPage.length > 0 ||
                   changedNoteThreads.length > 0 || changedTags.length > 0 || changedNoteTags.length > 0 ||
+                  changedStudyThreadEntries.length > 0 ||
+                  deletedFeed.deletedNoteIds.length > 0 ||
+                  deletedFeed.deletedStudyThreadIds.length > 0 ||
+                  deletedFeed.deletedThreadIds.length > 0 ||
                   changedUserMetadata !== null && changedUserMetadata !== undefined,
       spaces: changedSpaces,
       threads: changedThreads,
-      notes: changedNotes,
+      notes: changedNotesPage.map((n) => ({ ...n, secondaryCollections: parseNoteSecondaryCollections(n.secondaryCollections) })),
       noteThreads: changedNoteThreads,
       tags: changedTags,
       noteTags: changedNoteTags,
+      studyThreadEntries: changedStudyThreadEntries,
+      deletedNoteIds: deletedFeed.deletedNoteIds,
+      deletedStudyThreadIds: deletedFeed.deletedStudyThreadIds,
+      deletedThreadIds: deletedFeed.deletedThreadIds,
       userMetadata: userMetaForResponse ? (() => {
         const { lockPinHash, ...rest } = userMetaForResponse;
         return { ...rest, highestSimpleNoteId: effectiveHighestForChanges, hasLockPinSet: !!lockPinHash };

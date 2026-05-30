@@ -16,7 +16,7 @@ export class HttpClient {
   private retries: number;
 
   constructor(config: HarvousClientConfig) {
-    this.baseUrl = (config.baseUrl || 'https://harvous.com').replace(/\/$/, '');
+    this.baseUrl = (config.baseUrl || 'https://app.harvous.com').replace(/\/$/, '');
     this.token = config.token;
     this.getToken = config.getToken;
     this.timeout = config.timeout ?? 10000;

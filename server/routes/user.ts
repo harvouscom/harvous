@@ -29,6 +29,7 @@ import { getAuthenticatedAuth, requireAuth } from '../middleware/auth';
 import {
   db, first, Notes, Threads, Spaces, Tags, NoteTags, NoteThreads, UserMetadata,
   UserXP, Comments, ScriptureMetadata, Members, NoteScriptureReferences, ResourceMetadata,
+  StudyThreadEntries,
   eq, and, or, desc, asc, isNotNull, isNull, sql, inArray,
 } from '../db';
 import { nowISO } from '../db/dates';
@@ -52,34 +53,18 @@ import { validateName, validateColor } from '@/utils/validation';
 import { hashPinNew, validatePinFormat, verifyPin } from '@/utils/lock-pin-server';
 import { htmlToMarkdown, htmlToPlainText } from '@/utils/html-to-markdown';
 import { generateUserExport, type ExportFormat } from '../utils/export-user-data';
-import { generateNoteId, generateThreadId } from '@/utils/ids';
+import { generateNoteId, generateThreadId, generateStudyThreadEntryId } from '@/utils/ids';
 import { THREAD_COLORS } from '@/utils/colors';
-import { parseCSV, type ParsedCSVNote } from '@/utils/csv-parser';
-import { parseMarkdownExport, type ParsedMarkdownNote } from '@/utils/markdown-import-parser';
+import { parseImportFiles, type ParsedImportRow } from '../utils/parse-import-files';
+import type { ParsedMarkdownNote } from '@/utils/markdown-import-parser';
+import type { ParsedCSVNote } from '@/utils/csv-parser';
 import { markdownToHtml } from '@/utils/markdown-to-html';
 import { parseScriptureReference } from '@/utils/scripture-detector';
 import { ensureUnorganizedThread } from '../utils/unorganized-thread';
 import { isMyPileDisplayTitle } from '@/utils/my-pile-thread';
+import { deleteNotesCascadeForUser } from '../utils/delete-note-cascade';
 
 const app = new Hono();
-
-/** Stay under Postgres parameter limits when bulk-deleting by note id. */
-const NOTE_ID_DELETE_CHUNK = 2000;
-
-async function deleteNoteRelatedRowsBulk(noteIds: string[]): Promise<void> {
-  if (noteIds.length === 0) return;
-  for (let i = 0; i < noteIds.length; i += NOTE_ID_DELETE_CHUNK) {
-    const chunk = noteIds.slice(i, i + NOTE_ID_DELETE_CHUNK);
-    await db.delete(NoteThreads).where(inArray(NoteThreads.noteId, chunk));
-    await db.delete(NoteScriptureReferences).where(
-      or(inArray(NoteScriptureReferences.noteId, chunk), inArray(NoteScriptureReferences.scriptureNoteId, chunk)),
-    );
-    await db.delete(NoteTags).where(inArray(NoteTags.noteId, chunk));
-    await db.delete(Comments).where(inArray(Comments.noteId, chunk));
-    await db.delete(ScriptureMetadata).where(inArray(ScriptureMetadata.noteId, chunk));
-    await db.delete(ResourceMetadata).where(inArray(ResourceMetadata.noteId, chunk));
-  }
-}
 
 // ─── GET /api/user/achievements ──────────────────────────────────────────────
 
@@ -138,10 +123,8 @@ app.delete('/api/user/clear-data', requireAuth, async (c) => {
 
     const userNotes = await db.select({ id: Notes.id }).from(Notes).where(eq(Notes.userId, auth.userId));
     const noteIds = userNotes.map(n => n.id);
+    await deleteNotesCascadeForUser(auth.userId, noteIds);
 
-    await deleteNoteRelatedRowsBulk(noteIds);
-
-    await db.delete(Notes).where(eq(Notes.userId, auth.userId));
     await db.delete(Threads).where(eq(Threads.userId, auth.userId));
 
     const userSpaces = await db.select({ id: Spaces.id }).from(Spaces).where(eq(Spaces.userId, auth.userId));
@@ -167,8 +150,7 @@ app.delete('/api/user/delete-account', requireAuth, async (c) => {
     // Delete data (same as clear-data)
     const userNotes = await db.select({ id: Notes.id }).from(Notes).where(eq(Notes.userId, auth.userId));
     const noteIds = userNotes.map(n => n.id);
-    await deleteNoteRelatedRowsBulk(noteIds);
-    await db.delete(Notes).where(eq(Notes.userId, auth.userId));
+    await deleteNotesCascadeForUser(auth.userId, noteIds);
     await db.delete(Threads).where(eq(Threads.userId, auth.userId));
 
     const userSpaces = await db.select({ id: Spaces.id }).from(Spaces).where(eq(Spaces.userId, auth.userId));
@@ -271,23 +253,25 @@ app.post('/api/user/update-church', requireAuth, rateLimit('write'), async (c) =
     const auth = getAuthenticatedAuth(c);
 
     const body = await c.req.json();
-    const { churchName, churchCity, churchState } = body;
+    const { churchName, churchCity, churchState, churchCountry } = body;
 
     const normalizedChurchName = typeof churchName === 'string' ? (churchName.trim() || null) : (churchName ?? null);
     const normalizedChurchCity = typeof churchCity === 'string' ? (churchCity.trim() || null) : (churchCity ?? null);
     const normalizedChurchState = typeof churchState === 'string' ? (churchState.trim() || null) : (churchState ?? null);
+    const normalizedChurchCountry = typeof churchCountry === 'string' ? (churchCountry.trim() || null) : (churchCountry ?? null);
 
     const existingRecord = await db.select().from(UserMetadata).where(eq(UserMetadata.userId, auth.userId)).limit(1);
 
     if (existingRecord.length > 0) {
       const existing = existingRecord[0];
-      const isFirstTimeAddingChurch = !existing.churchName && !existing.churchCity && !existing.churchState &&
-        (normalizedChurchName || normalizedChurchCity || normalizedChurchState);
+      const isFirstTimeAddingChurch = !existing.churchName && !existing.churchCity && !existing.churchState && !existing.churchCountry &&
+        (normalizedChurchName || normalizedChurchCity || normalizedChurchState || normalizedChurchCountry);
 
       await db.update(UserMetadata).set({
         churchName: normalizedChurchName,
         churchCity: normalizedChurchCity,
         churchState: normalizedChurchState,
+        churchCountry: normalizedChurchCountry,
         churchAddedAt: isFirstTimeAddingChurch ? nowISO() : existing.churchAddedAt,
         updatedAt: nowISO()
       }).where(eq(UserMetadata.userId, auth.userId));
@@ -296,13 +280,14 @@ app.post('/api/user/update-church', requireAuth, rateLimit('write'), async (c) =
         await awardChurchAddedXP(auth.userId);
       }
     } else {
-      const hasChurchData = normalizedChurchName || normalizedChurchCity || normalizedChurchState;
+      const hasChurchData = normalizedChurchName || normalizedChurchCity || normalizedChurchState || normalizedChurchCountry;
       await db.insert(UserMetadata).values({
         id: crypto.randomUUID(),
         userId: auth.userId,
         churchName: normalizedChurchName,
         churchCity: normalizedChurchCity,
         churchState: normalizedChurchState,
+        churchCountry: normalizedChurchCountry,
         churchAddedAt: hasChurchData ? nowISO() : null,
         highestSimpleNoteId: 0,
         userColor: 'blue',
@@ -314,7 +299,7 @@ app.post('/api/user/update-church', requireAuth, rateLimit('write'), async (c) =
 
     return c.json({
       success: true, message: 'Church information updated',
-      church: { churchName: normalizedChurchName, churchCity: normalizedChurchCity, churchState: normalizedChurchState }
+      church: { churchName: normalizedChurchName, churchCity: normalizedChurchCity, churchState: normalizedChurchState, churchCountry: normalizedChurchCountry }
     });
   } catch (error) {
     const e = handleAPIError(error, { endpoint: '/api/user/update-church', action: 'update_church_info' });
@@ -472,12 +457,12 @@ app.get('/api/user/get-profile', requireAuth, async (c) => {
     const userData = await getCachedUserData(auth.userId);
     console.log('[api/user/get-profile] userData loaded', { displayName: userData.displayName });
 
-    let churchData = { churchName: null as string | null, churchCity: null as string | null, churchState: null as string | null };
+    let churchData = { churchName: null as string | null, churchCity: null as string | null, churchState: null as string | null, churchCountry: null as string | null };
     let defaultTranslation = 'NET';
     try {
       const um = first(await db.select().from(UserMetadata).where(eq(UserMetadata.userId, auth.userId)).limit(1));
       if (um) {
-        churchData = { churchName: um.churchName ?? null, churchCity: um.churchCity ?? null, churchState: um.churchState ?? null };
+        churchData = { churchName: um.churchName ?? null, churchCity: um.churchCity ?? null, churchState: um.churchState ?? null, churchCountry: um.churchCountry ?? null };
         defaultTranslation = um.defaultTranslation ?? 'NET';
       }
     } catch (_) { /* non-fatal */ }
@@ -505,8 +490,10 @@ app.get('/api/user/get-profile', requireAuth, async (c) => {
 
     return c.json({
       firstName: userData.firstName, lastName: userData.lastName,
-      userColor: userData.userColor, email: userData.email, emailVerified,
-      churchName: churchData.churchName, churchCity: churchData.churchCity, churchState: churchData.churchState,
+      userColor: userData.userColor, email: userData.email,
+      profileImageUrl: userData.profileImageUrl ?? null,
+      emailVerified,
+      churchName: churchData.churchName, churchCity: churchData.churchCity, churchState: churchData.churchState, churchCountry: churchData.churchCountry,
       defaultTranslation,
       hasLockPinSet
     });
@@ -683,6 +670,47 @@ app.get('/api/user/limits', requireAuth, rateLimit('read'), async (c) => {
   }
 });
 
+// ─── POST /api/user/import/preview ───────────────────────────────────────────
+
+app.post('/api/user/import/preview', requireAuth, async (c) => {
+  try {
+    getAuthenticatedAuth(c);
+    const formData = await c.req.formData();
+    const format = formData.get('format') as string;
+    if (!format || (format !== 'markdown' && format !== 'csv-threads')) {
+      return c.json({ error: 'Invalid format. Must be "markdown" or "csv-threads"' }, 400);
+    }
+    const files: File[] = [];
+    const filesEntry = formData.getAll('files') as File[];
+    if (filesEntry?.length > 0) files.push(...filesEntry);
+    else {
+      const fileEntry = formData.get('file') as File;
+      if (fileEntry) files.push(fileEntry);
+    }
+    if (files.length === 0) return c.json({ error: 'At least one file is required' }, 400);
+
+    const { rows, warnings, unsupported } = await parseImportFiles(files, format as 'markdown' | 'csv-threads');
+    if (rows.length === 0) return c.json({ error: 'No notes found in files', warnings, unsupported }, 400);
+
+    return c.json({
+      documents: rows.map((r) => ({
+        index: r.index,
+        fileName: r.fileName,
+        title: r.title,
+        highlightCount: r.highlightCount,
+        tagCount: r.tagCount,
+        sourceType: r.sourceType,
+        folderPath: r.folderPath,
+      })),
+      warnings,
+      unsupported,
+    });
+  } catch (error: unknown) {
+    const e = handleAPIError(error, { endpoint: '/api/user/import/preview', action: 'import_preview' });
+    return c.json({ error: e.message }, 500);
+  }
+});
+
 // ─── POST /api/user/import ───────────────────────────────────────────────────
 
 app.post('/api/user/import', requireAuth, async (c) => {
@@ -695,6 +723,17 @@ app.post('/api/user/import', requireAuth, async (c) => {
       return c.json({ error: 'Invalid format. Must be "markdown" or "csv-threads"' }, 400);
     }
 
+    const selectedRaw = formData.get('selectedIndices') as string | null;
+    let selectedSet: Set<number> | null = null;
+    if (selectedRaw) {
+      try {
+        const arr = JSON.parse(selectedRaw) as number[];
+        if (Array.isArray(arr)) selectedSet = new Set(arr.filter((n) => typeof n === 'number'));
+      } catch {
+        /* import all */
+      }
+    }
+
     const files: File[] = [];
     const fileEntry = formData.get('file') as File;
     const filesEntry = formData.getAll('files') as File[];
@@ -702,15 +741,10 @@ app.post('/api/user/import', requireAuth, async (c) => {
     else if (filesEntry?.length > 0) files.push(...filesEntry);
     else return c.json({ error: 'At least one file is required' }, 400);
 
-    // Parse all files
-    const allParsedNotes: Array<{ note: ParsedCSVNote | ParsedMarkdownNote; folderPath: string | null; fileName: string }> = [];
-    for (const file of files) {
-      const fileContent = await file.text();
-      const folderPath = getFolderPath(file);
-      let parsedNotes: Array<ParsedCSVNote | ParsedMarkdownNote> = [];
-      if (format === 'csv-threads') parsedNotes = parseCSV(fileContent);
-      else if (format === 'markdown') parsedNotes = parseMarkdownExport(fileContent);
-      for (const note of parsedNotes) allParsedNotes.push({ note, folderPath, fileName: file.name || '' });
+    const parsed = await parseImportFiles(files, format as 'markdown' | 'csv-threads');
+    let allParsedNotes: ParsedImportRow[] = parsed.rows;
+    if (selectedSet && selectedSet.size > 0) {
+      allParsedNotes = allParsedNotes.filter((r) => selectedSet!.has(r.index));
     }
     if (allParsedNotes.length === 0) return c.json({ error: 'No notes found in files' }, 400);
 
@@ -730,13 +764,13 @@ app.post('/api/user/import', requireAuth, async (c) => {
     }
 
     const effectiveHighest = await getEffectiveHighestSimpleNoteId(auth.userId);
-    let notesImported = 0, threadsCreated = 0, tagsCreated = 0, duplicatesSkipped = 0;
+    let notesImported = 0, threadsCreated = 0, tagsCreated = 0, duplicatesSkipped = 0, highlightsImported = 0;
     const errors: string[] = [];
     const createdThreadIds = new Set<string>();
 
     for (let i = 0; i < allParsedNotes.length; i++) {
       try {
-        const { note: parsedNote, folderPath } = allParsedNotes[i];
+        const { note: parsedNote, folderPath, portableBuild } = allParsedNotes[i];
         let title: string | null = null, content = '', threadName: string | null = null;
         let threadColor: string | null = null, tags: string[] = [], createdDate: Date = new Date();
         let scriptureReference: string | null = null, scriptureTranslation: string | null = null;
@@ -755,7 +789,12 @@ app.post('/api/user/import', requireAuth, async (c) => {
           createdDate = parseExportDate(csvNote.createdDate);
         } else {
           const mdNote = parsedNote as ParsedMarkdownNote;
-          title = mdNote.title || null; content = markdownToHtml(mdNote.content);
+          title = mdNote.title || null;
+          if (portableBuild) {
+            content = portableBuild.htmlContent;
+          } else {
+            content = markdownToHtml(mdNote.content);
+          }
           if (mdNote.threadName) {
             threadName = mdNote.threadName;
             threadColor = (mdNote.threadColor && THREAD_COLORS.includes(mdNote.threadColor as any)) ? mdNote.threadColor : null;
@@ -833,13 +872,28 @@ app.post('/api/user/import', requireAuth, async (c) => {
           } catch (err) { errors.push(`Failed to create scripture metadata for note ${i + 1}`); }
         }
 
+        if (portableBuild && portableBuild.studyInserts.length > 0) {
+          try {
+            for (const row of portableBuild.studyInserts) {
+              await db.insert(StudyThreadEntries).values({
+                ...row,
+                parentNoteId: newNote.id,
+                userId: auth.userId,
+              });
+              highlightsImported++;
+            }
+          } catch (err) {
+            errors.push(`Failed to import highlights for note ${i + 1}`);
+          }
+        }
+
         notesImported++;
       } catch (noteError) {
         errors.push(`Failed to import note ${i + 1}: ${noteError instanceof Error ? noteError.message : 'Unknown error'}`);
       }
     }
 
-    return c.json({ success: true, notesImported, threadsCreated, tagsCreated, duplicatesSkipped, errors: errors.length > 0 ? errors : undefined });
+    return c.json({ success: true, notesImported, threadsCreated, tagsCreated, duplicatesSkipped, highlightsImported, errors: errors.length > 0 ? errors : undefined });
   } catch (error: any) {
     console.error('Import error:', error);
     return c.json({ error: error.message || 'Failed to import data' }, 500);

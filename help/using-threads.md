@@ -1,6 +1,6 @@
 # Using Threads
 
-Threads are collections of related notes within a space. Think of them as folders within your main drawers (spaces).
+Threads are collections of related notes within a space. Within each space, they group notes by study or topic so you can reopen the thread and keep building on the same line of thought.
 
 ## What are Threads?
 

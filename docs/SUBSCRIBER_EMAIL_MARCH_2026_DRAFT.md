@@ -49,7 +49,7 @@ Here’s a concise version you can paste and tune:
 ### Navigation, spaces, and organization
 
 - **Space-aware navigation:** better **filtering and scoping** for notes and threads when you work inside a space; **history tracking** and **active thread** behavior are more consistent.  
-- **My Pile** and **note counts** (including **note-type counts** in navigation data) are handled more accurately—less confusion when things sit outside a tidy folder.  
+- **My Pile** and **note counts** (including **note-type counts** in navigation data) are handled more accurately—less confusion when things sit outside a tidy thread.  
 - **Search and space routes** now reflect **thread colors** so scanability matches the rest of the app.  
 - **Back navigation** controls gained a **`backIconDirection`** option for clearer affordances in nested flows.  
 - **Thread context** handling was enhanced end-to-end (including scripture-heavy threads).

@@ -1,0 +1,210 @@
+@import "tailwindcss";
+
+/* Scorekard — self-hosted display font for h1/h2 */
+@font-face {
+  font-family: "Scorekard";
+  src: url("/fonts/scorekard/Scorekard-Regular.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Scorekard";
+  src: url("/fonts/scorekard/Scorekard-Semibold.woff2") format("woff2");
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Scorekard";
+  src: url("/fonts/scorekard/Scorekard-Bold.woff2") format("woff2");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@theme {
+  --font-display: "Scorekard", "Google Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Google Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-italic: "Instrument Serif", "Iowan Old Style", "Georgia", serif;
+
+  --color-paper: #f7f6f3;
+  --color-ink: #1a1916;
+  --color-ink-soft: #5a584f;
+  --color-ink-faint: #8a877c;
+  --color-rule: #e7e4dc;
+  --color-card: #ffffff;
+  --color-accent: #3869e6;
+  --color-accent-soft: #e8eefc;
+  --color-warm: #f1ede2;
+  --color-highlight: #ffe8a8;
+
+  /* Pastel palette — derived from the saturated brand palette
+     (blue / yellow / orange-red / pink / purple / green).
+     Cream + highlight are kept unchanged. */
+  --color-peach: #fbc8ad;
+  --color-peach-ink: #7a2810;
+  --color-sky: #c2dcf8;
+  --color-sky-ink: #143a6e;
+  --color-mint: #c9e3b8;
+  --color-mint-ink: #2a5a25;
+  --color-lilac: #dec5ed;
+  --color-lilac-ink: #4a1a70;
+  --color-pink: #f3c8e0;
+  --color-pink-ink: #6b1f4b;
+  --color-cream: #f6ecd6;
+  --color-cream-ink: #5a4116;
+
+  --radius-card: 1.25rem;
+  --radius-pill: 999px;
+  --shadow-card: 0 1px 2px rgba(20, 18, 12, 0.04), 0 8px 24px -10px rgba(20, 18, 12, 0.08);
+  --shadow-float: 0 20px 60px -20px rgba(20, 18, 12, 0.18);
+}
+
+html {
+  background-color: var(--color-paper);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+body {
+  min-height: 100dvh;
+}
+
+h1, h2 {
+  font-family: var(--font-display);
+  letter-spacing: -0.02em;
+  font-weight: 600;
+  color: var(--color-ink);
+}
+
+h3, h4, h5, h6 {
+  font-family: var(--font-sans);
+  letter-spacing: -0.015em;
+  font-weight: 600;
+  color: var(--color-ink);
+}
+
+.font-display {
+  font-family: var(--font-display);
+  letter-spacing: -0.02em;
+  font-weight: 400;
+}
+
+
+/* Text selection matches the marker highlight */
+::selection {
+  background: var(--color-highlight);
+  color: var(--color-ink);
+}
+::-moz-selection {
+  background: var(--color-highlight);
+  color: var(--color-ink);
+}
+
+/* Marker highlight — Campsite/Fizzy inline color accent */
+mark, .mark {
+  background: linear-gradient(180deg, transparent 55%, var(--color-highlight) 55%);
+  color: inherit;
+  padding: 0 0.1em;
+  border-radius: 2px;
+}
+mark.mark-blue, .mark-blue {
+  background: linear-gradient(180deg, transparent 55%, var(--color-accent-soft) 55%);
+}
+mark.mark-mint, .mark-mint {
+  background: linear-gradient(180deg, transparent 55%, var(--color-mint) 55%);
+}
+mark.mark-peach, .mark-peach {
+  background: linear-gradient(180deg, transparent 55%, var(--color-peach) 55%);
+}
+
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+.prose-letter {
+  font-size: 1.0625rem;
+  line-height: 1.65;
+  color: var(--color-ink);
+}
+.prose-letter p {
+  margin-bottom: 1.1em;
+}
+.prose-letter p:last-child {
+  margin-bottom: 0;
+}
+
+/* Section dividers — faded rule that blends into the background at the edges */
+.fade-rule-t,
+.fade-rule-b,
+.fade-rule-y {
+  position: relative;
+}
+.fade-rule-t::before,
+.fade-rule-y::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 1px;
+  background: linear-gradient(to right, transparent 0%, var(--color-rule) 22%, var(--color-rule) 78%, transparent 100%);
+  pointer-events: none;
+}
+.fade-rule-b::after,
+.fade-rule-y::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 1px;
+  background: linear-gradient(to right, transparent 0%, var(--color-rule) 22%, var(--color-rule) 78%, transparent 100%);
+  pointer-events: none;
+}
+
+.paper-grain {
+  background-color: var(--color-warm);
+  background-image:
+    radial-gradient(rgba(20, 18, 12, 0.04) 1px, transparent 1px),
+    radial-gradient(rgba(20, 18, 12, 0.03) 1px, transparent 1px);
+  background-size: 24px 24px, 13px 13px;
+  background-position: 0 0, 7px 7px;
+}
+
+details > summary {
+  list-style: none;
+  cursor: pointer;
+}
+details > summary::-webkit-details-marker {
+  display: none;
+}
+
+/* Paper fan-in: papers start flat-stacked, fan to their rotations when in view */
+.paper-leaf {
+  transform: rotate(0deg);
+  transition: transform 900ms cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: transform;
+}
+.paper-stack.in-view .paper-leaf {
+  transform: rotate(var(--rot, 0deg));
+}
+.paper-stack.in-view .paper-leaf:nth-child(1) { transition-delay: 60ms; }
+.paper-stack.in-view .paper-leaf:nth-child(2) { transition-delay: 180ms; }
+.paper-stack.in-view .paper-leaf:nth-child(3) { transition-delay: 300ms; }
+.paper-stack:hover .paper-leaf {
+  transform: rotate(calc(var(--rot, 0deg) * 1.25));
+}
+@media (prefers-reduced-motion: reduce) {
+  .paper-leaf {
+    transition: none;
+    transform: rotate(var(--rot, 0deg));
+  }
+  .paper-stack:hover .paper-leaf {
+    transform: rotate(var(--rot, 0deg));
+  }
+}

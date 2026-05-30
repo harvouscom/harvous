@@ -1,0 +1,17 @@
+{
+  "canvasDefaultLightOklch": { "l": 98.7, "c": 0.005, "h": 92 },
+  "canvasDefaultDarkOklch": { "l": 12, "c": 0.01, "h": 285 },
+  "canvasDefaultLightHex": "#fcfbf7",
+  "canvasDefaultDarkHex": "#050509",
+  "legacyPaperLightHex": "#f7f6f3",
+  "legacyPaperDarkHex": "#1a1a1c",
+  "presets": [
+    { "label": "Paper", "darkLabel": "Paper", "light": null, "dark": null },
+    { "label": "Sky", "darkLabel": "Night", "light": "#c2dcf8", "dark": "#152536" },
+    { "label": "Lilac", "darkLabel": "Dusk", "light": "#dec5ed", "dark": "#2a2438" },
+    { "label": "Peach", "darkLabel": "Ember", "light": "#fbc8ad", "dark": "#382820" },
+    { "label": "Mint", "darkLabel": "Pine", "light": "#c9e3b8", "dark": "#1e2e22" },
+    { "label": "Pink", "darkLabel": "Plum", "light": "#f3c8e0", "dark": "#382030" },
+    { "label": "Cream", "darkLabel": "Umber", "light": "#f6ecd6", "dark": "#2e2818" }
+  ]
+}

@@ -25,6 +25,8 @@ export interface SearchResult {
   backgroundGradient?: string;
   score?: number;
   threadColors?: Array<{ color: string; frequency: number }>;
+  primaryCollection?: string | null;
+  secondaryCollections?: string[];
 }
 
 function buildSearchUrl(query: string, scope?: SearchScope, resultType: SearchResultType = 'all'): string {

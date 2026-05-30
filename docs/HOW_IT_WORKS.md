@@ -31,8 +31,8 @@ Harvous is a Bible study notes application designed specifically for people who 
 
 Think of Harvous like a digital filing cabinet specifically designed for Bible study, where:
 - **Spaces** are like the main drawers (Bible Study, Prayer Journal, Sermon Notes)
-- **Threads** are like folders within those drawers (Gospel of John, Romans Study, Daily Prayers)
-- **Notes** are like individual documents in those folders (your thoughts, insights, and reflections)
+- **Threads** are like collections within those drawers (Gospel of John, Romans Study, Daily Prayers)
+- **Notes** are like individual documents in those collections (your thoughts, insights, and reflections)
 
 ---
 
@@ -81,11 +81,11 @@ Imagine Harvous as a house with three main rooms:
 
 **Why:** Bible study naturally organizes itself in layers. You might have a "Bible Study" space containing multiple study threads (Gospel of John, Romans, etc.), and each thread contains multiple notes.
 
-**The Problem We Solved:** Generic note apps force you into flat lists or rigid folders. Bible study needs flexibility - sometimes you want to see all notes about "faith" across different threads, sometimes you want to focus on one specific study.
+**The Problem We Solved:** Generic note apps force you into flat lists or rigid filing hierarchies. Bible study needs flexibility - sometimes you want to see all notes about "faith" across different threads, sometimes you want to focus on one specific study.
 
 **How It Works:** 
-- Spaces are top-level containers (like project folders)
-- Threads are collections within spaces (like subfolders)
+- Spaces are top-level containers (like project workspaces)
+- Threads are collections within spaces (nested groupings for a study or topic)
 - Notes can belong to multiple threads (many-to-many relationships)
 - This gives you the flexibility to organize however makes sense
 

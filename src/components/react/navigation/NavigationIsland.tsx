@@ -30,6 +30,8 @@ export interface NavigationIslandProps {
   currentId?: string;
   showProfile?: boolean;
   initials?: string;
+  /** Clerk profile photo for mobile nav avatar. */
+  avatarImageUrl?: string | null;
   /** Desktop nav profile strip label (display name / username). */
   userDisplayName?: string;
   userColor?: string;

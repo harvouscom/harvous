@@ -106,6 +106,16 @@ export const ScripturePill = Mark.create<ScripturePillOptions>({
           };
         },
       },
+      pillAccent: {
+        default: null,
+        parseHTML: (element) => element.getAttribute('data-pill-accent'),
+        renderHTML: (attributes) => {
+          if (!attributes.pillAccent) {
+            return {};
+          }
+          return { 'data-pill-accent': attributes.pillAccent as string };
+        },
+      },
     };
   },
 
@@ -127,7 +137,8 @@ export const ScripturePill = Mark.create<ScripturePillOptions>({
             return false;
           }
           const translation = (element as HTMLElement).getAttribute('data-scripture-translation');
-          return { reference, noteId: noteId || null, translation: translation || null };
+          const pillAccent = (element as HTMLElement).getAttribute('data-pill-accent');
+          return { reference, noteId: noteId || null, translation: translation || null, pillAccent: pillAccent || null };
         },
       },
       {
@@ -139,7 +150,8 @@ export const ScripturePill = Mark.create<ScripturePillOptions>({
             return false;
           }
           const translation = (element as HTMLElement).getAttribute('data-scripture-translation');
-          return { reference, noteId: noteId || null, translation: translation || null };
+          const pillAccent = (element as HTMLElement).getAttribute('data-pill-accent');
+          return { reference, noteId: noteId || null, translation: translation || null, pillAccent: pillAccent || null };
         },
       },
     ];
@@ -156,7 +168,8 @@ export const ScripturePill = Mark.create<ScripturePillOptions>({
     // Always use cursor: pointer to indicate interactivity, even for pending pills
     // No min-height — let the pill's height be determined by the same line-height as
     // surrounding text so lines with pills don't have different spacing.
-    const baseStyle = 'background-color: var(--color-paper); border-radius: 12px; padding: 2px 8px; display: inline-flex; align-items: baseline; gap: 4px; box-shadow: 0px -3px 0px 0px inset rgba(176,176,176,0.25); font-weight: 600; font-style: normal; font-size: 16px; color: var(--color-deep-grey); vertical-align: baseline; line-height: 1.6; user-select: all; white-space: normal; cursor: pointer;';
+    const baseStyle =
+      'background-color: var(--color-paper); border-radius: 12px; padding: 2px 8px; display: inline-flex; align-items: center; gap: 4px; box-shadow: 0px -3px 0px 0px inset rgba(176,176,176,0.25); font-weight: 500; font-style: normal; font-size: inherit; color: var(--color-deep-grey); vertical-align: baseline; line-height: inherit; user-select: all; white-space: normal; cursor: pointer;';
 
     return [
       'span',

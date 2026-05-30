@@ -836,44 +836,50 @@ export default function NewSpacePanel({ onClose, onSpaceCreated, inBottomSheet =
                 <div className="panel__content-scroll">
                 
                 {/* Color selection */}
-                <div className="color-selection">
-                  {THREAD_COLORS.map((color) => (
-                    <button 
-                      key={color}
-                      type="button"
-                      onClick={() => setSelectedColor(color)}
-                      className={`color-swatch ${selectedColor === color ? 'color-swatch--selected' : ''}`}
-                      style={{ backgroundColor: getThreadColorCSS(color) }}
-                    >
-                      {/* Check icon for selected color */}
-                      {selectedColor === color && (
-                        <div className="absolute inset-0 flex-center">
-                          <Icon 
-                            name="check" 
-                            size={20} 
-                            style={{ color: getThreadTextColorCSS(color) }} 
-                          />
-                        </div>
-                      )}
-                    </button>
-                  ))}
+                <div className="panel__section">
+                  <p className="panel__section-eyebrow">Appearance</p>
+                  <div className="color-selection">
+                    {THREAD_COLORS.map((color) => (
+                      <button 
+                        key={color}
+                        type="button"
+                        onClick={() => setSelectedColor(color)}
+                        className={`color-swatch ${selectedColor === color ? 'color-swatch--selected' : ''}`}
+                        style={{ backgroundColor: getThreadColorCSS(color) }}
+                      >
+                        {/* Check icon for selected color */}
+                        {selectedColor === color && (
+                          <div className="absolute inset-0 flex-center">
+                            <Icon 
+                              name="check" 
+                              size={20} 
+                              style={{ color: getThreadTextColorCSS(color) }} 
+                            />
+                          </div>
+                        )}
+                      </button>
+                    ))}
+                  </div>
                 </div>
                 
                 {/* Space visibility dropdown */}
-                <ThreadVisibilityDropdown
-                  isShared={selectedType === 'Shared'}
-                  shareUrl={null}
-                  onToggle={async (enabled) => {
-                    setSelectedType(enabled ? 'Shared' : 'Private');
-                  }}
-                  isLoading={isSubmitting}
-                  isEditMode={false}
-                  privateTriggerLabel="Only I can see this space"
-                  sharedTriggerLabel="Shared to anyone with link"
-                  privateOptionLabel="Only I can see this space"
-                  sharedOptionLabel="Share to anyone with link"
-                  shareNotReadyLabel="Share link will be available after creating the space"
-                />
+                <div className="panel__section">
+                  <p className="panel__section-eyebrow">Visibility</p>
+                  <ThreadVisibilityDropdown
+                    isShared={selectedType === 'Shared'}
+                    shareUrl={null}
+                    onToggle={async (enabled) => {
+                      setSelectedType(enabled ? 'Shared' : 'Private');
+                    }}
+                    isLoading={isSubmitting}
+                    isEditMode={false}
+                    privateTriggerLabel="Only I can see this space"
+                    sharedTriggerLabel="Shared to anyone with link"
+                    privateOptionLabel="Only I can see this space"
+                    sharedOptionLabel="Share to anyone with link"
+                    shareNotReadyLabel="Share link will be available after creating the space"
+                  />
+                </div>
 
                 {/* Selected Items - displayed above AddToSpaceSection */}
                 {selectedItems.length > 0 && !isLoadingItems && (
@@ -937,7 +943,8 @@ export default function NewSpacePanel({ onClose, onSpaceCreated, inBottomSheet =
                 )}
 
                 {/* Search and add notes/threads */}
-                <div className="w-full">
+                <div className="panel__section">
+                  <p className="panel__section-eyebrow">Starting content</p>
                   {isLoadingItems ? (
                     <div className="panel__loading-state">
                       Loading items...

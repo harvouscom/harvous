@@ -1,0 +1,35 @@
+---
+// Closing CTA card. Craft-style — soft mint pastel background with
+// painterly overlays, large display heading, and a single "Start for free"
+// primary button (native apps are not yet on the App Store).
+import CTAButton from "./CTAButton.astro";
+---
+
+<section class="px-4 pb-20 pt-4">
+  <div
+    class="relative mx-auto max-w-6xl overflow-hidden rounded-3xl"
+    style="background: var(--color-warm);"
+  >
+
+<div class="relative px-6 py-20 text-center md:px-16 md:py-28">
+      <h2
+        class="mx-auto max-w-3xl font-display text-4xl leading-[1.05] md:text-6xl"
+        style="color: var(--color-cream-ink);"
+      >
+        Try Harvous.
+      </h2>
+      <p
+        class="mx-auto mt-5 max-w-xl text-lg md:text-xl"
+        style="color: var(--color-cream-ink); opacity: 0.78;"
+      >
+        A notes app thoughtfully designed for Bible study — for a practice that isn't just on Sundays.
+      </p>
+
+      <div class="mt-10 flex justify-center">
+        <CTAButton href="https://app.harvous.com/sign-up" variant="primary" size="lg" external>
+          Start for free
+        </CTAButton>
+      </div>
+    </div>
+  </div>
+</section>

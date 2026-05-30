@@ -18,15 +18,23 @@ export class APIError extends Error {
 }
 
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
+  const headers = new Headers(init.headers ?? undefined);
+  // Avoid Content-Type on GET/HEAD so requests stay "simple" for cross-origin (Capacitor / split-origin dev).
+  if (
+    init.body !== undefined &&
+    init.body !== null &&
+    init.body !== '' &&
+    !headers.has('Content-Type')
+  ) {
+    headers.set('Content-Type', 'application/json');
+  }
+
   const res = await fetch(`${BASE_URL}${path}`, {
     ...init,
     credentials: 'include',
     // Let the server's Cache-Control headers work (e.g. max-age=30, stale-while-revalidate=60).
     // React Query's staleTime already prevents redundant refetches on the client side.
-    headers: {
-      'Content-Type': 'application/json',
-      ...init.headers,
-    },
+    headers,
   });
 
   if (!res.ok) {
@@ -35,6 +43,14 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   }
 
   return res.json() as Promise<T>;
+}
+
+/**
+ * Resolve a same-origin-or-configured API URL for raw `fetch` calls that the typed
+ * `api` helpers can't express (file downloads, multipart/FormData uploads).
+ */
+export function apiUrl(path: string): string {
+  return `${BASE_URL}${path}`;
 }
 
 export const api = {
@@ -52,6 +68,8 @@ export const api = {
     request<T>(path, { method: 'POST', body: JSON.stringify(body) }),
   put: <T>(path: string, body?: unknown) =>
     request<T>(path, { method: 'PUT', body: JSON.stringify(body) }),
+  patch: <T>(path: string, body?: unknown) =>
+    request<T>(path, { method: 'PATCH', body: JSON.stringify(body) }),
   delete: <T>(path: string, body?: unknown) =>
     request<T>(path, { method: 'DELETE', body: body ? JSON.stringify(body) : undefined }),
 };

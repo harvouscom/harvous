@@ -9,6 +9,10 @@ import OfflineIndicator from './OfflineIndicator';
 
 interface SyncManagerIslandProps {
   userId?: string | null;
+  /** When true, sync still runs but the offline / sync-error floating UI is not shown (e.g. `/prototype/`). */
+  hideOfflineIndicator?: boolean;
+  /** When true, bootstrap / incremental sync waits until idle so shell paint is not competing. */
+  deferSyncInit?: boolean;
 }
 
 /**
@@ -21,7 +25,11 @@ interface SyncManagerIslandProps {
  * 
  * @param userId - Optional userId from server-side auth. If provided, this takes precedence.
  */
-export default function SyncManagerIsland({ userId: serverUserId }: SyncManagerIslandProps = {}) {
+export default function SyncManagerIsland({
+  userId: serverUserId,
+  hideOfflineIndicator = false,
+  deferSyncInit = false,
+}: SyncManagerIslandProps = {}) {
   // Initialize from server prop (fastest), then localStorage, then set window variable
   // This ensures window.__harvous_userId is available synchronously for all components
   const [userId, setUserId] = useState<string | null>(() => {
@@ -64,7 +72,7 @@ export default function SyncManagerIsland({ userId: serverUserId }: SyncManagerI
 
     let syncCleanup: (() => void) | undefined;
 
-    initializeSync(userId)
+    initializeSync(userId, { deferInitialWork: deferSyncInit })
       .then(cleanup => { syncCleanup = cleanup; })
       .catch(err => {
         const errorMessage = err?.message || String(err);
@@ -77,7 +85,7 @@ export default function SyncManagerIsland({ userId: serverUserId }: SyncManagerI
     setHasInitialized(true);
 
     return () => { syncCleanup?.(); };
-  }, [userId, hasInitialized]);
+  }, [userId, hasInitialized, deferSyncInit]);
 
   // Coordinate online recovery - single point of handling 'online' events
   useEffect(() => {
@@ -148,7 +156,9 @@ export default function SyncManagerIsland({ userId: serverUserId }: SyncManagerI
           setUserId(id);
         }
       }} />
-      {isOfflineEnabled && <OfflineIndicator userId={userId ?? undefined} />}
+      {isOfflineEnabled && !hideOfflineIndicator ? (
+        <OfflineIndicator userId={userId ?? undefined} />
+      ) : null}
     </>
   );
 }

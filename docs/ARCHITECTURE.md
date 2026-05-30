@@ -2,6 +2,8 @@
 
 This document describes the core functionality, data structures, and implementation details of the Harvous Bible study notes application.
 
+For the parallel **2.0-style web shell** at `/prototype` (routing, My Home scope, API usage, and native parity gaps), see [PROTOTYPE_2_0_ARCHITECTURE.md](./PROTOTYPE_2_0_ARCHITECTURE.md). For a shorter entry and file index, see [SIMPLIFIED_WEB_PROTOTYPE.md](./SIMPLIFIED_WEB_PROTOTYPE.md).
+
 ## Content Organization
 
 Harvous uses a hierarchical content organization system to help users structure their Bible study notes effectively:

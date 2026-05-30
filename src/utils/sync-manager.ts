@@ -19,6 +19,7 @@ import { getCurrentSeason } from './season-helpers';
 import { THREAD_COLORS } from './colors';
 import { safeFetch } from './safe-fetch';
 import { extractIdFromPath, idToUrl } from './url-helpers';
+import { dispatchRemoteSyncCompleted } from './harvous-remote-sync-event';
 
 export interface SyncResult {
   success: boolean;
@@ -548,6 +549,33 @@ export async function applyIncrementalChanges(userId: string, changes: any): Pro
       }
     }
 
+    // Apply deletions after upserts so server tombstones always win.
+    if (Array.isArray(changes.deletedNoteIds) && changes.deletedNoteIds.length > 0) {
+      for (const noteId of changes.deletedNoteIds as string[]) {
+        await offlineDB.notes.where('[userId+id]').equals([userId, noteId]).delete();
+        const noteThreadRows = await offlineDB.noteThreads.where('[userId+noteId]').equals([userId, noteId]).toArray();
+        for (const row of noteThreadRows) {
+          await offlineDB.noteThreads.delete(row.id);
+        }
+        const noteTagRows = await offlineDB.noteTags.where('[userId+noteId]').equals([userId, noteId]).toArray();
+        for (const row of noteTagRows) {
+          await offlineDB.noteTags.delete(row.id);
+        }
+      }
+      appliedCount += changes.deletedNoteIds.length;
+    }
+
+    if (Array.isArray(changes.deletedThreadIds) && changes.deletedThreadIds.length > 0) {
+      for (const threadId of changes.deletedThreadIds as string[]) {
+        await offlineDB.threads.where('[userId+id]').equals([userId, threadId]).delete();
+        const threadLinks = await offlineDB.noteThreads.where('[userId+threadId]').equals([userId, threadId]).toArray();
+        for (const link of threadLinks) {
+          await offlineDB.noteThreads.delete(link.id);
+        }
+      }
+      appliedCount += changes.deletedThreadIds.length;
+    }
+
     // Update sync state
     await updateSyncState(userId, {
       lastSyncCursor: changes.cursor,
@@ -567,6 +595,16 @@ export async function applyIncrementalChanges(userId: string, changes: any): Pro
   }
 }
 
+/** Advance cursor when a changes page has no upserts (still moves the incremental window forward). */
+async function advanceSyncCursorOnly(userId: string, cursor: string): Promise<void> {
+  await updateSyncState(userId, {
+    lastSyncCursor: cursor,
+    lastSyncTimestamp: Date.now(),
+    isSyncing: false,
+    syncError: null,
+  });
+}
+
 /**
  * Pull changes from server (incremental sync)
  */
@@ -576,54 +614,62 @@ export async function pullChanges(userId: string): Promise<SyncResult> {
   }
 
   try {
-    const syncState = await getSyncState(userId);
-    const sinceCursor = syncState?.lastSyncCursor || null;
+    let totalApplied = 0;
+    let remoteChanged = false;
+    let hasMore = true;
 
-    if (!sinceCursor) {
-      // No sync state - need bootstrap
-      return { success: false, error: 'Bootstrap required' };
-    }
+    while (hasMore) {
+      const syncState = await getSyncState(userId);
+      const sinceCursor = syncState?.lastSyncCursor || null;
 
-    // Use safeFetch for automatic retry logic on 503/5xx errors (longer timeout for heavy sync payload / cold start)
-    const response = await safeFetch(`/api/sync/changes?since=${encodeURIComponent(sinceCursor)}`, {
-      method: 'GET',
-      retries: 3,
-      retryDelay: 1000,
-      timeout: 45000,
-    });
-
-    if (!response) {
-      // safeFetch returns null on failure after retries
-      // Don't log this - safeFetch already logged the final error after retries
-      return { success: false, error: 'Sync failed: Request failed after retries' };
-    }
-
-    if (!response.ok) {
-      const errorType = classifySyncError(response.status);
-      const errorMessage = `Sync failed: ${response.status} ${response.statusText}`;
-      
-      // Completely suppress logging for server/transient errors - safeFetch already handled retries
-      // Only log non-transient errors that need user attention
-      if (errorType !== 'server' && errorType !== 'transient') {
-        console.error('Error pulling changes:', errorMessage);
+      if (!sinceCursor) {
+        return { success: false, error: 'Bootstrap required' };
       }
-      // For server/transient errors, don't log anything - safeFetch already logged final error
-      
-      return {
-        success: false,
-        error: errorMessage,
-      };
+
+      const response = await safeFetch(`/api/sync/changes?since=${encodeURIComponent(sinceCursor)}`, {
+        method: 'GET',
+        retries: 3,
+        retryDelay: 1000,
+        timeout: 45000,
+      });
+
+      if (!response) {
+        return { success: false, error: 'Sync failed: Request failed after retries' };
+      }
+
+      if (!response.ok) {
+        const errorType = classifySyncError(response.status);
+        const errorMessage = `Sync failed: ${response.status} ${response.statusText}`;
+
+        if (errorType !== 'server' && errorType !== 'transient') {
+          console.error('Error pulling changes:', errorMessage);
+        }
+
+        return {
+          success: false,
+          error: errorMessage,
+        };
+      }
+
+      const changes = await response.json();
+      hasMore = changes.hasMore === true;
+
+      if (!changes.hasChanges) {
+        if (typeof changes.cursor === 'string' && changes.cursor.length > 0) {
+          await advanceSyncCursorOnly(userId, changes.cursor);
+        }
+        continue;
+      }
+
+      totalApplied += await applyIncrementalChanges(userId, changes);
+      remoteChanged = true;
     }
 
-    const changes = await response.json();
-    
-    if (!changes.hasChanges) {
-      return { success: true, pulledCount: 0 };
+    if (remoteChanged) {
+      dispatchRemoteSyncCompleted();
     }
 
-    const appliedCount = await applyIncrementalChanges(userId, changes);
-
-    return { success: true, pulledCount: appliedCount };
+    return { success: true, pulledCount: totalApplied };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     const errorType = classifySyncError(errorMessage);
@@ -687,11 +733,11 @@ export async function bootstrapSync(userId: string): Promise<SyncResult> {
     // Clear isSyncing flag on success
     await updateSyncState(userId, { isSyncing: false });
 
-    const result = { 
-      success: true, 
-      pulledCount: bootstrapData.notes?.length || 0 
+    const pulledCount = bootstrapData.notes?.length || 0;
+    return {
+      success: true,
+      pulledCount,
     };
-    return result;
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
 
@@ -874,11 +920,16 @@ export async function pushQueue(userId: string): Promise<SyncResult> {
           await updateEntityId(op.entityType, op.entityId, res.serverId, userId);
         }
 
-        // Mark entity as synced with potential server data (like color)
-        if (res.data) {
-          await markEntitySynced(op.entityType, res.serverId || op.entityId, userId, res.data);
+        const targetEntityId = res.serverId || op.entityId;
+        if (op.operation === 'delete') {
+          await removeEntityLocally(op.entityType, targetEntityId, userId);
         } else {
-          await markEntitySynced(op.entityType, res.serverId || op.entityId, userId);
+          // Mark entity as synced with potential server data (like color)
+          if (res.data) {
+            await markEntitySynced(op.entityType, targetEntityId, userId, res.data);
+          } else {
+            await markEntitySynced(op.entityType, targetEntityId, userId);
+          }
         }
         
         // Remove from queue
@@ -1132,6 +1183,39 @@ async function markEntitySynced(entityType: string, entityId: string, userId: st
   }
 }
 
+async function removeEntityLocally(entityType: string, entityId: string, userId: string): Promise<void> {
+  switch (entityType) {
+    case 'space':
+      await offlineDB.spaces.where('[userId+id]').equals([userId, entityId]).delete();
+      break;
+    case 'thread':
+      await offlineDB.threads.where('[userId+id]').equals([userId, entityId]).delete();
+      {
+        const links = await offlineDB.noteThreads.where('[userId+threadId]').equals([userId, entityId]).toArray();
+        for (const link of links) await offlineDB.noteThreads.delete(link.id);
+      }
+      break;
+    case 'note':
+      await offlineDB.notes.where('[userId+id]').equals([userId, entityId]).delete();
+      {
+        const links = await offlineDB.noteThreads.where('[userId+noteId]').equals([userId, entityId]).toArray();
+        for (const link of links) await offlineDB.noteThreads.delete(link.id);
+        const tags = await offlineDB.noteTags.where('[userId+noteId]').equals([userId, entityId]).toArray();
+        for (const tag of tags) await offlineDB.noteTags.delete(tag.id);
+      }
+      break;
+    case 'noteThread':
+      await offlineDB.noteThreads.where('[userId+id]').equals([userId, entityId]).delete();
+      break;
+    case 'tag':
+      await offlineDB.tags.where('[userId+id]').equals([userId, entityId]).delete();
+      break;
+    case 'noteTag':
+      await offlineDB.noteTags.where('[userId+id]').equals([userId, entityId]).delete();
+      break;
+  }
+}
+
 /**
  * Sync now (pull + push)
  */
@@ -1248,7 +1332,10 @@ export function triggerImmediateSync(userId: string): void {
     try {
       // Push-only (1 API call) instead of syncNow which does pull+push (2 API calls)
       // Pull happens on the next background interval or when tab becomes visible
-      await pushQueue(userId);
+      const pushResult = await pushQueue(userId);
+      if (pushResult.success && (pushResult.pushedCount ?? 0) > 0) {
+        dispatchRemoteSyncCompleted();
+      }
     } catch (err) {
       console.error('[triggerImmediateSync] Error:', err);
     }

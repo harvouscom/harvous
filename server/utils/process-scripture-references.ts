@@ -135,7 +135,7 @@ async function processScriptureReferencesInternal(
   // This helps us track which references were already in the note
   // Use two patterns to handle different attribute orders (Tiptap may serialize attributes in varying order)
   const existingReferences = new Map<string, string>(); // normalizedReference -> noteId
-  const pendingPills = new Map<string, { reference: string; fullMatch: string; startIndex: number; pillTranslation?: string }>(); // normalizedReference -> pill info
+  const pendingPills = new Map<string, { reference: string; fullMatch: string; startIndex: number; pillTranslation?: string; pillAccent?: string }>(); // normalizedReference -> pill info
 
   // Pattern 1: data-scripture-reference comes before data-note-id
   const pillPattern1 = /<span[^>]*data-scripture-reference\s*=\s*["']([^"']+)["'][^>]*data-note-id\s*=\s*["']([^"']+)["'][^>]*>/gi;
@@ -193,11 +193,15 @@ async function processScriptureReferencesInternal(
       // Extract per-pill translation override from data-scripture-translation attribute
       const translationMatch = fullMatch.match(/data-scripture-translation\s*=\s*["']([^"']+)["']/);
       const pillTranslation = translationMatch ? translationMatch[1] : undefined;
+      // Extract per-pill accent override from data-pill-accent attribute (set by web UI or native bridge)
+      const accentMatch = fullMatch.match(/data-pill-accent\s*=\s*["']([^"']+)["']/);
+      const pillAccent = accentMatch ? accentMatch[1] : undefined;
       pendingPills.set(normalizedRef, {
         reference: match[1],
         fullMatch: match[0],
         startIndex: match.index || 0,
         pillTranslation,
+        pillAccent,
       });
     }
   }
@@ -781,6 +785,7 @@ async function processScriptureReferencesInternal(
       reference,
       noteId,
       translation: pillInfo?.pillTranslation || translation,
+      accent: pillInfo?.pillAccent,
     };
   });
 
@@ -792,7 +797,7 @@ async function processScriptureReferencesInternal(
     if (!referenceMap.has(referenceForHighlight)) {
       referenceMap.set(referenceForHighlight, existingScriptureNoteId);
       const pillInfo = pendingPills.get(normalizedRef);
-      referencesForHighlighting.push({ reference: referenceForHighlight, noteId: existingScriptureNoteId, translation: pillInfo?.pillTranslation || translation });
+      referencesForHighlighting.push({ reference: referenceForHighlight, noteId: existingScriptureNoteId, translation: pillInfo?.pillTranslation || translation, accent: pillInfo?.pillAccent });
     }
 
     // Ensure junction entry exists for existing references (critical for collapsible list)

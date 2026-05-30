@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import SquareButton from './SquareButton';
+import ShortcutKeycap from './ShortcutKeycap';
 import DefaultTranslationPanel from './DefaultTranslationPanel';
 import MyChurchPanel from './MyChurchPanel';
 import LockPinPanel from './LockPinPanel';
@@ -91,7 +92,7 @@ export default function MyPreferencesPanel({ onClose, inBottomSheet = false }: M
                                     {i > 0 ? (
                                       <span className="keyboard-shortcuts-panel__chord-sep">+</span>
                                     ) : null}
-                                    <kbd>{part}</kbd>
+                                    <ShortcutKeycap symbol={part} />
                                   </React.Fragment>
                                 ))}
                               </span>
@@ -128,40 +129,32 @@ export default function MyPreferencesPanel({ onClose, inBottomSheet = false }: M
   };
 
   const renderOption = (label: string, onClick: () => void) => (
-    <div
+    <button
+      type="button"
       onClick={onClick}
-      className="w-full cursor-pointer"
+      className="w-full"
+      aria-label={label}
     >
       <div
         className="space-button relative rounded-3xl h-[64px] transition-[scale,shadow] duration-200 pl-4 pr-0 w-full"
         style={{ backgroundImage: 'var(--color-gradient-gray)' }}
       >
-        <div className="flex-between relative w-full h-full pl-2 pr-0 transition-transform duration-125 min-w-0">
-          <div className="flex-fill overflow-hidden">
-            <span
-              className="panel__list-item-label"
-              style={{ color: 'var(--color-deep-grey)' }}
-            >
-              {label}
-            </span>
+        <div className="panel__list-item relative w-full h-full transition-transform duration-125">
+          <div className="panel__list-item-text">
+            <span className="panel__list-item-label">{label}</span>
           </div>
-          <div className="flex-center relative shrink-0">
+          <div className="panel__list-item-icon">
             <div className="panel__list-item-icon-wrapper">
-              <div className="flex-center relative shrink-0">
-                <div className="relative w-6 h-6">
-                  <svg
-                    className="fill-[var(--color-pebble-grey)] block max-w-none w-full h-full transition-transform duration-125"
-                    viewBox="0 0 320 512"
-                  >
-                    <path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z" />
-                  </svg>
-                </div>
+              <div className="panel__chevron" aria-hidden="true">
+                <svg viewBox="0 0 320 512">
+                  <path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z" />
+                </svg>
               </div>
             </div>
           </div>
         </div>
       </div>
-    </div>
+    </button>
   );
 
   return (
@@ -177,7 +170,7 @@ export default function MyPreferencesPanel({ onClose, inBottomSheet = false }: M
           <div className={`panel__body ${inBottomSheet ? 'panel__body--bottom-sheet' : ''}`}>
             <div className={`panel__content ${inBottomSheet ? 'panel__content--bottom-sheet' : ''}`}>
               <div className="panel__content-scroll">
-              <div className="flex flex-col gap-2 w-full">
+              <div className="flex flex-col gap-3 w-full">
                 {renderOption('Preferred Bible', () => setView('bibleTranslation'))}
                 {renderOption('My Church', () => setView('myChurch'))}
                 {renderOption('Lock PIN', () => setView('lockPin'))}

@@ -60,10 +60,18 @@ import '@fontsource/literata/400.css';
 // Only import separately what global.css does NOT include.
 import '../../node_modules/vaul/style.css';
 import '../../src/styles/global.css';
+/* After global.css so Clerk Manage account modal beats late `button` typography rules. */
+import '../../src/styles/clerk-user-profile.css';
 import '../../src/styles/tiptap-editor.css';
 import '../../src/styles/card-full-editable.css';
 import '../../src/styles/auth-gradient.css';
 import '../../src/styles/shared-page.css';
+// `/site/`-inspired redesign for auth + shared pages. Imported AFTER
+// `auth-gradient.css` so its `.auth-page__*` overrides win the cascade.
+import '../../src/styles/auth-page-site.css';
+import './styles/public-pages.css';
+/* Prototype design tokens on :root — needed before lazy layout paints portaled UI. */
+import './styles/prototype-tokens.css';
 
 syncReduceMotionFromStorage();
 if (REDUCE_MOTION_APP_PREFERENCE_ENABLED) {

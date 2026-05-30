@@ -1,0 +1,906 @@
+/**
+ * Prototype Design System — tokens derived directly from native Swift values.
+ *
+ * HarvousColors  → --pds-color-*
+ * HarvousShape   → --pds-radius-*
+ * HarvousTypography / HarvousFonts → --pds-font-* and type classes
+ * CardShadow → --pds-shadow-card / --pds-shadow-card-sm
+ *
+ * Colors stay native-only (--pds-*). The prototype shell remaps app-wide `--font-sans` /
+ * `--font-mono` to `--pds-*` stacks so embedded React surfaces never resolve Reddit Sans.
+ */
+
+@font-face {
+  font-family: "Google Sans Flex";
+  src: url("/fonts/google-sans-flex/GoogleSansFlex-Variable.woff2")
+    format("woff2-variations");
+  font-weight: 1 1000;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* ─── Design tokens ──────────────────────────────────────────────────────── */
+:root {
+  /* OKLCH primitives — lightness chroma hue [/ alpha] */
+  --pds-lch-accent: 52% 0.18 265;
+  --pds-lch-accent-pressed: 45% 0.18 265;
+  --pds-lch-scripture-fg: 48% 0.18 255;
+  --pds-lch-scripture-accent: 58% 0.22 255;
+
+  --pds-lch-bg-page: 100% 0 0;
+  --pds-lch-bg-main: 100% 0 0;
+  --pds-lch-bg-toolbar: 100% 0 0 / 0.78;
+  --pds-lch-bg-footer: 98.5% 0.005 90 / 0.97;
+  --pds-lch-bg-popover: 99% 0.005 90 / 0.98;
+  --pds-lch-bg-popover-solid: 99% 0.005 90;
+  /* Default desk behind shell — very subtle warm off-white (not pure white). */
+  --pds-lch-canvas-default: 98.7% 0.005 92;
+
+  --pds-lch-text-primary: 24% 0.01 285;
+  --pds-lch-text-secondary: 24% 0.01 285 / 0.5;
+  --pds-lch-text-tertiary: 24% 0.01 285 / 0.32;
+  --pds-lch-text-muted: 0% 0 0 / 0.5;
+  --pds-lch-text-muted-strong: 0% 0 0 / 0.75;
+  --pds-lch-text-muted-soft: 0% 0 0 / 0.55;
+  --pds-lch-text-muted-faint: 0% 0 0 / 0.45;
+  --pds-lch-text-muted-ghost: 0% 0 0 / 0.4;
+
+  --pds-lch-fill-input: 0% 0 0 / 0.055;
+  --pds-lch-fill-input-hover: 0% 0 0 / 0.07;
+  --pds-lch-fill-row-hover: 0% 0 0 / 0.038;
+  --pds-lch-fill-row-selected: 0% 0 0 / 0.065;
+  /* Sidebar glass — white frost lifts (brighter than gray black overlays) */
+  --pds-lch-sidebar-fill-input: 100% 0 0 / 0.52;
+  --pds-lch-sidebar-fill-input-hover: 100% 0 0 / 0.6;
+  --pds-lch-sidebar-fill-row-selected: 100% 0 0 / 0.48;
+  --pds-lch-fill-section: 0% 0 0 / 0.038;
+  --pds-lch-fill-control: 0% 0 0 / 0.05;
+  --pds-lch-fill-control-hover: 0% 0 0 / 0.09;
+  --pds-lch-fill-control-pressed: 0% 0 0 / 0.082;
+  --pds-lch-fill-control-strong: 0% 0 0 / 0.08;
+  --pds-lch-fill-control-strong-hover: 0% 0 0 / 0.12;
+  --pds-lch-fill-chip: 0% 0 0 / 0.06;
+  --pds-lch-fill-chip-hover: 0% 0 0 / 0.07;
+  --pds-lch-fill-subtle: 0% 0 0 / 0.045;
+  --pds-lch-fill-faint: 0% 0 0 / 0.04;
+  --pds-lch-fill-ghost: 0% 0 0 / 0.025;
+  --pds-lch-fill-track: 0% 0 0 / 0.18;
+
+  --pds-lch-border: 0% 0 0 / 0.072;
+  --pds-lch-border-soft: 0% 0 0 / 0.04;
+  --pds-lch-border-control: 0% 0 0 / 0.08;
+  --pds-lch-border-control-soft: 0% 0 0 / 0.05;
+  --pds-lch-border-control-medium: 0% 0 0 / 0.1;
+  --pds-lch-border-control-strong: 0% 0 0 / 0.12;
+
+  --pds-lch-overlay-light: 0% 0 0 / 0.15;
+  --pds-lch-overlay-medium: 0% 0 0 / 0.28;
+  --pds-lch-overlay-heavy: 0% 0 0 / 0.35;
+
+  --pds-lch-shadow-card-a: 0% 0 0 / 0.06;
+  --pds-lch-shadow-card-b: 0% 0 0 / 0.03;
+  --pds-lch-shadow-card-elevated: 0% 0 0 / 0.05;
+  --pds-lch-shadow-popover-a: 0% 0 0 / 0.12;
+  --pds-lch-shadow-popover-b: 0% 0 0 / 0.05;
+  --pds-lch-shadow-popover-ring: 0% 0 0 / 0.04;
+  --pds-lch-shadow-drawer-a: 0% 0 0 / 0.18;
+  --pds-lch-shadow-drawer-b: 0% 0 0 / 0.08;
+  --pds-lch-shadow-fab: 0% 0 0 / 0.18;
+  --pds-lch-shadow-track: 0% 0 0 / 0.18;
+  --pds-lch-shadow-shell-a: 0% 0 0 / 0.02;
+  --pds-lch-shadow-shell-b: 0% 0 0 / 0.01;
+  --pds-lch-border-modal-highlight: 100% 0 0 / 0.75;
+  --pds-lch-modal-inset: 100% 0 0 / 0.9;
+  --pds-lch-modal-wash: 100% 0 0 / 0.42;
+  --pds-lch-bg-glass-medium: 100% 0 0 / 0.65;
+  --pds-lch-bg-glass-light: 100% 0 0 / 0.45;
+  --pds-lch-bg-glass-strong: 100% 0 0 / 0.9;
+  --pds-lch-bg-glass-toolbar: 100% 0 0 / 0.72;
+
+  --pds-lch-thread-blue: 88% 0.08 235;
+  --pds-lch-thread-yellow: 91% 0.11 90;
+  --pds-lch-thread-green: 83% 0.08 145;
+  --pds-lch-thread-pink: 86% 0.1 330;
+  --pds-lch-thread-orange: 88.5% 0.08 70;
+  --pds-lch-thread-purple: 81% 0.12 310;
+
+  --pds-lch-destructive: 55% 0.2 25;
+
+  /* Brand accent — Color(red:0.22, green:0.41, blue:0.90) */
+  --pds-accent: oklch(var(--pds-lch-accent));
+  --pds-accent-pressed: oklch(var(--pds-lch-accent-pressed));
+  --pds-accent-active-bg: oklch(var(--pds-lch-accent) / 0.12);
+  --pds-accent-pressed-bg: oklch(var(--pds-lch-accent) / 0.18);
+  --pds-on-accent: #ffffff;
+
+  /* Scripture chip colors (blue theme — default) */
+  --pds-scripture-fg: oklch(var(--pds-lch-scripture-fg));
+  --pds-scripture-bg: oklch(var(--pds-lch-scripture-accent) / 0.075);
+  --pds-scripture-border: oklch(var(--pds-lch-scripture-accent) / 0.2);
+
+  /* Thread pastel fills */
+  --pds-thread-blue: oklch(var(--pds-lch-thread-blue));
+  --pds-thread-yellow: oklch(var(--pds-lch-thread-yellow));
+  --pds-thread-green: oklch(var(--pds-lch-thread-green));
+  --pds-thread-pink: oklch(var(--pds-lch-thread-pink));
+  --pds-thread-orange: oklch(var(--pds-lch-thread-orange));
+  --pds-thread-purple: oklch(var(--pds-lch-thread-purple));
+
+  /* Page / surface backgrounds */
+  --pds-bg-page: oklch(var(--pds-lch-bg-page));
+  --pds-bg-toolbar: oklch(var(--pds-lch-bg-toolbar));
+  --pds-bg-sidebar: var(--pds-bg-toolbar);
+  --pds-bg-main: oklch(var(--pds-lch-bg-main));
+  --pds-bg-footer: oklch(var(--pds-lch-bg-footer));
+  --pds-bg-popover: oklch(var(--pds-lch-bg-popover));
+  --pds-bg-popover-solid: oklch(var(--pds-lch-bg-popover-solid));
+  --pds-bg-input: oklch(var(--pds-lch-fill-input));
+  --pds-bg-input-hover: oklch(var(--pds-lch-fill-input-hover));
+  --pds-bg-row-hover: oklch(var(--pds-lch-fill-row-hover));
+  --pds-bg-row-selected: oklch(var(--pds-lch-fill-row-selected));
+  --pds-bg-sidebar-input: oklch(var(--pds-lch-sidebar-fill-input));
+  --pds-bg-sidebar-input-hover: oklch(var(--pds-lch-sidebar-fill-input-hover));
+  --pds-bg-sidebar-row-selected: oklch(var(--pds-lch-sidebar-fill-row-selected));
+  --pds-bg-section: oklch(var(--pds-lch-fill-section));
+  --pds-bg-control: oklch(var(--pds-lch-fill-control));
+  --pds-bg-control-hover: oklch(var(--pds-lch-fill-control-hover));
+  --pds-bg-control-pressed: oklch(var(--pds-lch-fill-control-pressed));
+  --pds-bg-control-strong: oklch(var(--pds-lch-fill-control-strong));
+  --pds-bg-control-strong-hover: oklch(var(--pds-lch-fill-control-strong-hover));
+  --pds-bg-chip: oklch(var(--pds-lch-fill-chip));
+  --pds-bg-chip-hover: oklch(var(--pds-lch-fill-chip-hover));
+  --pds-bg-subtle: oklch(var(--pds-lch-fill-subtle));
+  --pds-bg-faint: oklch(var(--pds-lch-fill-faint));
+  --pds-bg-ghost: oklch(var(--pds-lch-fill-ghost));
+  --pds-bg-track: oklch(var(--pds-lch-fill-track));
+  --pds-canvas-default: oklch(var(--pds-lch-canvas-default));
+  --pds-bg-chrome-opaque: oklch(var(--pds-lch-bg-page) / 0.92);
+  --pds-bg-sidebar-gradient-start: oklch(var(--pds-lch-bg-popover) / 0.9);
+  --pds-bg-sidebar-gradient-end: oklch(var(--pds-lch-bg-popover) / 0.84);
+  --pds-bg-popover-wash: oklch(var(--pds-lch-bg-page) / 0.28);
+  --pds-text-on-chrome: oklch(var(--pds-lch-text-primary) / 0.92);
+  --pds-text-on-chrome-muted: oklch(var(--pds-lch-text-primary) / 0.68);
+  --pds-fill-resize-handle: oklch(var(--pds-lch-overlay-light));
+  --pds-fill-resize-handle-active: oklch(var(--pds-lch-overlay-medium));
+  --pds-bg-modal: linear-gradient(
+    180deg,
+    oklch(var(--pds-lch-bg-page)),
+    oklch(var(--pds-lch-bg-main))
+  );
+  --pds-bg-modal-wallpaper: linear-gradient(
+    180deg,
+    oklch(var(--pds-lch-bg-page)),
+    oklch(var(--pds-lch-bg-main))
+  );
+  --pds-border-modal-highlight: oklch(var(--pds-lch-border-modal-highlight));
+  --pds-bg-modal-inset-highlight: oklch(var(--pds-lch-modal-inset));
+  --pds-bg-modal-wash: oklch(var(--pds-lch-modal-wash));
+  --pds-bg-surface-glass: oklch(var(--pds-lch-bg-page) / 0.8);
+  --pds-bg-surface-glass-strong: oklch(var(--pds-lch-bg-page) / 0.7);
+  /* Keyboard focus — full primary blue (matches accent pill buttons). */
+  --pds-accent-focus-border: var(--pds-accent);
+  --pds-accent-focus-ring: var(--pds-accent);
+  --pds-accent-subtle-bg: oklch(var(--pds-lch-accent) / 0.06);
+  --pds-accent-subtle-border: oklch(var(--pds-lch-accent) / 0.2);
+  --pds-shadow-chip-selected: 0 1px 2px oklch(var(--pds-lch-shadow-popover-b));
+  --pds-shadow-track-knob: 0 1px 2px oklch(var(--pds-lch-shadow-fab));
+  --pds-bg-glass-medium: oklch(var(--pds-lch-bg-glass-medium));
+  --pds-bg-glass-light: oklch(var(--pds-lch-bg-glass-light));
+  --pds-bg-glass-strong: oklch(var(--pds-lch-bg-glass-strong));
+  --pds-bg-glass-toolbar: oklch(var(--pds-lch-bg-glass-toolbar));
+  /* Faked liquid glass — tint from canvas color so presets read on the shell (no backdrop-filter) */
+  --pds-glass-shell: color-mix(
+    in oklch,
+    var(--pds-canvas-bg, var(--pds-canvas-default)) 52%,
+    transparent
+  );
+  /* Frosted lift on shell — applied via ::before on .proto-sidebar-root (keeps canvas hue). */
+  --pds-glass-panel-frost: oklch(var(--pds-lch-bg-page) / 0.3);
+  /* Stronger frost for the editor format bar (whiter, more opaque than the sidebar panel). */
+  --pds-glass-bar-frost: oklch(var(--pds-lch-bg-page) / 0.55);
+  /* @deprecated — use --pds-glass-shell for toolbar/footer; kept for image-wallpaper overrides */
+  --pds-glass-chrome: var(--pds-glass-shell);
+  --pds-glass-sheen: linear-gradient(
+    180deg,
+    oklch(100% 0 0 / 0.22),
+    oklch(100% 0 0 / 0.04) 42%,
+    transparent 100%
+  );
+  --pds-glass-rim:
+    inset 0 0.5px 0 oklch(100% 0 0 / 0.6),
+    inset 0 -0.5px 0 oklch(0% 0 0 / 0.04);
+  --pds-accent-focus-outline: var(--pds-accent);
+  --pds-accent-focus-outline-soft: var(--pds-accent);
+  --pds-accent-focus-outline-row: var(--pds-accent);
+  --pds-accent-active-bg-strong: oklch(var(--pds-lch-accent) / 0.1);
+  --pds-accent-active-border: var(--pds-accent);
+  --pds-accent-active-ring: var(--pds-accent);
+  --pds-accent-active-border-soft: oklch(var(--pds-lch-accent) / 0.3);
+  --pds-accent-active-border-medium: oklch(var(--pds-lch-accent) / 0.25);
+  --pds-accent-toolbar-bg: oklch(var(--pds-lch-accent) / 0.07);
+  --pds-selection-bg: #ffe8a8; /* match site --color-highlight */
+  --pds-destructive-bg: oklch(var(--pds-lch-destructive) / 0.08);
+  --pds-destructive-bg-strong: oklch(var(--pds-lch-destructive) / 0.15);
+  --pds-shadow-accent-button:
+    inset 0 1px 0 oklch(100% 0 0 / 0.35),
+    0 4px 12px -6px oklch(var(--pds-lch-accent) / 0.45);
+  --pds-shadow-destructive-button:
+    inset 0 1px 0 oklch(100% 0 0 / 0.25),
+    0 4px 12px -6px oklch(var(--pds-lch-destructive) / 0.45);
+
+  /* Text */
+  --pds-text-primary: oklch(var(--pds-lch-text-primary));
+  --pds-text-secondary: oklch(var(--pds-lch-text-secondary));
+  --pds-text-tertiary: oklch(var(--pds-lch-text-tertiary));
+  --pds-text-muted: oklch(var(--pds-lch-text-muted));
+  --pds-text-muted-strong: oklch(var(--pds-lch-text-muted-strong));
+  --pds-text-muted-soft: oklch(var(--pds-lch-text-muted-soft));
+  --pds-text-muted-faint: oklch(var(--pds-lch-text-muted-faint));
+  --pds-text-muted-ghost: oklch(var(--pds-lch-text-muted-ghost));
+  --pds-text-link: var(--pds-accent);
+
+  /* Borders / separators */
+  --pds-border: oklch(var(--pds-lch-border));
+  --pds-border-soft: oklch(var(--pds-lch-border-soft));
+  --pds-border-control: oklch(var(--pds-lch-border-control));
+  --pds-border-control-soft: oklch(var(--pds-lch-border-control-soft));
+  --pds-border-control-medium: oklch(var(--pds-lch-border-control-medium));
+  --pds-border-control-strong: oklch(var(--pds-lch-border-control-strong));
+
+  /* Overlays (drawer scrims, modal backdrops) */
+  --pds-overlay-light: oklch(var(--pds-lch-overlay-light));
+  --pds-overlay-medium: oklch(var(--pds-lch-overlay-medium));
+  --pds-overlay-heavy: oklch(var(--pds-lch-overlay-heavy));
+
+  /* Radii — HarvousShape */
+  --pds-radius-card:     20px;
+  --pds-radius-button:   12px;
+  --pds-radius-input:    10px;
+  --pds-radius-pill:     999px;
+  --pds-radius-row:      10px;
+  --pds-radius-format:    8px;
+  --pds-radius-menu:     12px;
+  --pds-radius-menu-item: 6px;
+  --pds-radius-scripture: 7px;
+
+  /* Destructive (delete-style) tints */
+  --pds-destructive: oklch(var(--pds-lch-destructive));
+  --pds-destructive-bg-hover: oklch(var(--pds-lch-destructive) / 0.08);
+
+  /* Shadows — CardShadow (6%/8 + 3%/2) */
+  --pds-shadow-card:
+    0 2px 8px oklch(var(--pds-lch-shadow-card-a)),
+    0 1px 2px oklch(var(--pds-lch-shadow-card-b));
+  --pds-shadow-card-elevated: 0 4px 16px oklch(var(--pds-lch-shadow-card-elevated));
+  --pds-shadow-shell:
+    0 2px 12px oklch(var(--pds-lch-shadow-shell-a)),
+    0 1px 3px oklch(var(--pds-lch-shadow-shell-b));
+  --pds-shadow-drawer:
+    0 10px 32px oklch(var(--pds-lch-shadow-drawer-a)),
+    0 2px 8px oklch(var(--pds-lch-shadow-drawer-b));
+  --pds-shadow-fab: 0 4px 14px oklch(var(--pds-lch-shadow-fab));
+  --pds-shadow-track: 0 1px 2px oklch(var(--pds-lch-shadow-track));
+  /* Popover — softer, deeper bloom + inner 0.5px ring for macOS-native hairline glow */
+  --pds-shadow-popover:
+    0 16px 40px oklch(var(--pds-lch-shadow-popover-a)),
+    0 4px 12px oklch(var(--pds-lch-shadow-popover-b)),
+    0 0 0 0.5px oklch(var(--pds-lch-shadow-popover-ring));
+  --pds-shadow-sheet:
+    0 12px 40px oklch(var(--pds-lch-shadow-popover-a)),
+    0 4px 12px oklch(var(--pds-lch-shadow-popover-b)),
+    0 0 0 0.5px oklch(var(--pds-lch-shadow-popover-ring));
+  --pds-shadow-menu:
+    0 6px 16px oklch(var(--pds-lch-shadow-card-a)),
+    0 2px 4px oklch(var(--pds-lch-shadow-popover-b));
+  --pds-shadow-toolbar:
+    0 8px 24px oklch(var(--pds-lch-shadow-popover-a)),
+    0 1px 2px oklch(var(--pds-lch-shadow-popover-b));
+
+  /* Font stacks — Google Sans Flex (text = non-rounded terminals, display = rounded terminals). */
+  --pds-font-body:    "Google Sans Flex", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --pds-font-display: "Google Sans Flex", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --pds-font-body-variation: "ROND" 0;
+  --pds-font-display-variation: "ROND" 100;
+  --pds-font-mono:    ui-monospace, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+
+  /* Chrome dimensions */
+  --pds-toolbar-h: 44px;
+  --pds-footer-h:  36px;
+  --pds-sidebar-w: 280px;
+  --pds-sidebar-min-w: 250px;
+  --pds-sidebar-max-w: 420px;
+  --pds-inspector-w: 260px;
+  --pds-inspector-reserve-w: calc(var(--pds-inspector-w) + 8px);
+  --pds-inspector-transition-duration: 0.26s;
+  --pds-inspector-transition-ease: cubic-bezier(0.32, 0.72, 0.24, 1);
+
+  /* Prototype shell viewport frame (web — Figma outer padding + shell radius) */
+  --pds-shell-frame-inset: 14px;
+  --pds-shell-frame-radius: 18px;
+
+  /* Native `StudyHighlightAccentToken` underline colors */
+  --pds-highlight-neutral: #8e8e93;
+  --pds-highlight-warm-amber: #e6a820;
+  --pds-highlight-sky-blue: #1e88c9;
+  --pds-highlight-violet: #8b5cf6;
+  --pds-highlight-mint-green: #43a047;
+  --pds-highlight-coral-rose: #e0409a;
+
+  /* Site paper editor — mirrors /site/src/styles/global.css (founder letter card) */
+  --pds-paper-desk: #f7f6f3;
+  --pds-paper-sheet: var(--pds-bg-sidebar);
+  --pds-paper-rule: #e7e4dc;
+  --pds-paper-shadow: 0 2px 6px rgba(20, 18, 12, 0.04), 0 20px 50px -20px rgba(20, 18, 12, 0.16);
+  --pds-paper-shadow-subtle: 0 1px 3px 1px rgba(60, 64, 67, 0.1);
+  /* Main column lacks sidebar-cell 8px margin — tuned to match search field top */
+  --pds-editor-paper-inset-top: 17px;
+  --pds-editor-paper-inset-x: 0;
+  --pds-paper-grain-a: rgba(20, 18, 12, 0.025);
+  --pds-paper-grain-b: rgba(20, 18, 12, 0.018);
+  --pds-paper-fold-a: rgba(20, 18, 12, 0.07);
+  --pds-paper-fold-b: rgba(20, 18, 12, 0.02);
+}
+
+/* Prototype chrome — no inset top highlight (read as outer shell top border). */
+html.harvous-prototype-route {
+  --pds-glass-rim: inset 0 -0.5px 0 oklch(0% 0 0 / 0.04);
+}
+
+/* Paper (base) + color preset — darker lines in light mode, more visible alpha. */
+html.harvous-prototype-route:not(.harvous-proto-wallpaper-image) {
+  --pds-border: oklch(from var(--pds-canvas-bg, var(--pds-canvas-default)) calc(l * 0.9) c h / 0.26);
+  --pds-border-soft: oklch(from var(--pds-canvas-bg, var(--pds-canvas-default)) calc(l * 0.93) c h / 0.15);
+  --pds-border-control: oklch(from var(--pds-canvas-bg, var(--pds-canvas-default)) calc(l * 0.88) c h / 0.28);
+  --pds-border-control-soft: oklch(
+    from var(--pds-canvas-bg, var(--pds-canvas-default)) calc(l * 0.9) c h / 0.2
+  );
+  --pds-border-control-medium: oklch(
+    from var(--pds-canvas-bg, var(--pds-canvas-default)) calc(l * 0.86) c h / 0.32
+  );
+  --pds-border-control-strong: oklch(
+    from var(--pds-canvas-bg, var(--pds-canvas-default)) calc(l * 0.84) c h / 0.36
+  );
+}
+
+/* Image wallpaper — soft borders + translucent blur shell (prototype-shell.css). */
+html.harvous-proto-wallpaper-image {
+  --pds-border: oklch(
+    from var(--pds-canvas-bg, var(--pds-canvas-default)) min(calc(l * 1.08), 0.96) c h / 0.18
+  );
+  --pds-border-soft: oklch(
+    from var(--pds-canvas-bg, var(--pds-canvas-default)) min(calc(l * 1.05), 0.94) c h / 0.1
+  );
+  --pds-border-control: oklch(
+    from var(--pds-canvas-bg, var(--pds-canvas-default)) min(calc(l * 1.06), 0.95) c h / 0.2
+  );
+  --pds-border-control-soft: oklch(
+    from var(--pds-canvas-bg, var(--pds-canvas-default)) min(calc(l * 1.04), 0.93) c h / 0.14
+  );
+  --pds-border-control-medium: oklch(
+    from var(--pds-canvas-bg, var(--pds-canvas-default)) min(calc(l * 1.02), 0.92) c h / 0.22
+  );
+  --pds-border-control-strong: oklch(
+    from var(--pds-canvas-bg, var(--pds-canvas-default)) min(calc(l * 1), 0.9) c h / 0.24
+  );
+  --pds-glass-shell: oklch(var(--pds-lch-bg-page) / 0.22);
+  --pds-glass-chrome: var(--pds-glass-shell);
+  --pds-glass-panel-frost: oklch(var(--pds-lch-bg-page) / 0.06);
+  --pds-glass-bar-frost: oklch(var(--pds-lch-bg-page) / 0.18);
+  --pds-glass-blur: blur(40px) saturate(1.2);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --pds-lch-accent: 62% 0.16 265;
+    --pds-lch-accent-pressed: 56% 0.16 265;
+    --pds-lch-scripture-fg: 72% 0.14 255;
+    --pds-lch-scripture-accent: 62% 0.18 255;
+
+    --pds-lch-bg-page: 18% 0.01 285;
+    --pds-lch-bg-main: 18% 0.01 285;
+    --pds-lch-bg-toolbar: 20% 0.01 285 / 0.82;
+    --pds-lch-bg-footer: 17% 0.01 285 / 0.97;
+    --pds-lch-bg-popover: 22% 0.012 285 / 0.98;
+    --pds-lch-bg-popover-solid: 22% 0.012 285;
+    --pds-lch-canvas-default: 12% 0.01 285;
+
+    --pds-lch-text-primary: 96% 0 0;
+    --pds-lch-text-secondary: 96% 0 0 / 0.55;
+    --pds-lch-text-tertiary: 96% 0 0 / 0.38;
+    --pds-lch-text-muted: 100% 0 0 / 0.55;
+    --pds-lch-text-muted-strong: 100% 0 0 / 0.78;
+    --pds-lch-text-muted-soft: 100% 0 0 / 0.62;
+    --pds-lch-text-muted-faint: 100% 0 0 / 0.5;
+    --pds-lch-text-muted-ghost: 100% 0 0 / 0.42;
+
+    --pds-lch-fill-input: 100% 0 0 / 0.08;
+    --pds-lch-fill-input-hover: 100% 0 0 / 0.11;
+    --pds-lch-fill-row-hover: 100% 0 0 / 0.06;
+    --pds-lch-fill-row-selected: 100% 0 0 / 0.1;
+    --pds-lch-sidebar-fill-input: 100% 0 0 / 0.1;
+    --pds-lch-sidebar-fill-input-hover: 100% 0 0 / 0.13;
+    --pds-lch-sidebar-fill-row-selected: 100% 0 0 / 0.11;
+    --pds-lch-fill-section: 100% 0 0 / 0.06;
+    --pds-lch-fill-control: 100% 0 0 / 0.08;
+    --pds-lch-fill-control-hover: 100% 0 0 / 0.12;
+    --pds-lch-fill-control-pressed: 100% 0 0 / 0.14;
+    --pds-lch-fill-control-strong: 100% 0 0 / 0.1;
+    --pds-lch-fill-control-strong-hover: 100% 0 0 / 0.14;
+    --pds-lch-fill-chip: 100% 0 0 / 0.1;
+    --pds-lch-fill-chip-hover: 100% 0 0 / 0.12;
+    --pds-lch-fill-subtle: 100% 0 0 / 0.07;
+    --pds-lch-fill-faint: 100% 0 0 / 0.06;
+    --pds-lch-fill-ghost: 100% 0 0 / 0.04;
+    --pds-lch-fill-track: 100% 0 0 / 0.22;
+
+    --pds-lch-border: 100% 0 0 / 0.1;
+    --pds-lch-border-soft: 100% 0 0 / 0.06;
+    --pds-lch-border-control: 100% 0 0 / 0.12;
+    --pds-lch-border-control-soft: 100% 0 0 / 0.08;
+    --pds-lch-border-control-medium: 100% 0 0 / 0.14;
+    --pds-lch-border-control-strong: 100% 0 0 / 0.18;
+
+    --pds-lch-overlay-light: 0% 0 0 / 0.45;
+    --pds-lch-overlay-medium: 0% 0 0 / 0.62;
+    --pds-lch-overlay-heavy: 0% 0 0 / 0.72;
+
+    --pds-lch-shadow-card-a: 0% 0 0 / 0.35;
+    --pds-lch-shadow-card-b: 0% 0 0 / 0.2;
+    --pds-lch-shadow-card-elevated: 0% 0 0 / 0.4;
+    --pds-lch-shadow-popover-a: 0% 0 0 / 0.5;
+    --pds-lch-shadow-popover-b: 0% 0 0 / 0.28;
+    --pds-lch-shadow-popover-ring: 100% 0 0 / 0.08;
+    --pds-lch-shadow-drawer-a: 0% 0 0 / 0.55;
+    --pds-lch-shadow-drawer-b: 0% 0 0 / 0.32;
+    --pds-lch-shadow-fab: 0% 0 0 / 0.45;
+    --pds-lch-shadow-track: 0% 0 0 / 0.4;
+    --pds-lch-shadow-shell-a: 0% 0 0 / 0.35;
+    --pds-lch-shadow-shell-b: 0% 0 0 / 0.2;
+    --pds-lch-border-modal-highlight: 100% 0 0 / 0.1;
+    --pds-lch-modal-inset: 100% 0 0 / 0.06;
+    --pds-lch-modal-wash: 100% 0 0 / 0.08;
+    --pds-lch-bg-glass-medium: 18% 0.01 285 / 0.72;
+    --pds-lch-bg-glass-light: 18% 0.01 285 / 0.55;
+    --pds-lch-bg-glass-strong: 20% 0.01 285 / 0.92;
+    --pds-lch-bg-glass-toolbar: 20% 0.01 285 / 0.82;
+
+    --pds-glass-shell: color-mix(
+      in oklch,
+      var(--pds-canvas-bg, var(--pds-canvas-default)) 56%,
+      transparent
+    );
+    --pds-glass-panel-frost: oklch(var(--pds-lch-bg-page) / 0.26);
+    --pds-glass-bar-frost: oklch(var(--pds-lch-bg-page) / 0.5);
+    --pds-glass-chrome: var(--pds-glass-shell);
+    --pds-glass-sheen: linear-gradient(
+      180deg,
+      oklch(100% 0 0 / 0.08),
+      oklch(100% 0 0 / 0.02) 42%,
+      transparent 100%
+    );
+    --pds-glass-rim:
+      inset 0 0.5px 0 oklch(100% 0 0 / 0.1),
+      inset 0 -0.5px 0 oklch(0% 0 0 / 0.2);
+
+    /* Opaque modal surfaces — do not reuse --pds-lch-bg-popover (carries alpha). */
+    --pds-bg-modal: linear-gradient(
+      180deg,
+      oklch(22% 0.012 285),
+      oklch(18% 0.01 285)
+    );
+    --pds-bg-modal-wallpaper: linear-gradient(
+      180deg,
+      oklch(22% 0.012 285),
+      oklch(18% 0.01 285)
+    );
+
+    --pds-lch-thread-blue: 42% 0.08 235;
+    --pds-lch-thread-yellow: 48% 0.09 90;
+    --pds-lch-thread-green: 40% 0.07 145;
+    --pds-lch-thread-pink: 44% 0.09 330;
+    --pds-lch-thread-orange: 46% 0.08 70;
+    --pds-lch-thread-purple: 38% 0.1 310;
+
+    --pds-lch-destructive: 65% 0.18 25;
+
+    --pds-paper-desk: #1c1b19;
+    --pds-paper-sheet: var(--pds-bg-sidebar);
+    --pds-paper-rule: rgba(255, 255, 255, 0.1);
+    --pds-paper-shadow: 0 2px 6px rgba(0, 0, 0, 0.24), 0 20px 50px -20px rgba(0, 0, 0, 0.45);
+    --pds-paper-shadow-subtle: 0 1px 3px 1px rgba(0, 0, 0, 0.35);
+    --pds-paper-grain-a: rgba(255, 255, 255, 0.035);
+    --pds-paper-grain-b: rgba(255, 255, 255, 0.02);
+    --pds-paper-fold-a: rgba(255, 255, 255, 0.08);
+    --pds-paper-fold-b: rgba(255, 255, 255, 0.02);
+  }
+
+  html.harvous-prototype-route:not(.harvous-proto-wallpaper-image) {
+    --pds-border: oklch(
+      from var(--pds-canvas-bg, var(--pds-canvas-default)) min(calc(l * 1.22 + 0.06), 0.38) c h / 0.32
+    );
+    --pds-border-soft: oklch(
+      from var(--pds-canvas-bg, var(--pds-canvas-default)) min(calc(l * 1.18 + 0.05), 0.34) c h / 0.2
+    );
+    --pds-border-control: oklch(
+      from var(--pds-canvas-bg, var(--pds-canvas-default)) min(calc(l * 1.25 + 0.08), 0.42) c h / 0.34
+    );
+    --pds-border-control-soft: oklch(
+      from var(--pds-canvas-bg, var(--pds-canvas-default)) min(calc(l * 1.2 + 0.06), 0.38) c h / 0.26
+    );
+    --pds-border-control-medium: oklch(
+      from var(--pds-canvas-bg, var(--pds-canvas-default)) min(calc(l * 1.28 + 0.1), 0.44) c h / 0.38
+    );
+    --pds-border-control-strong: oklch(
+      from var(--pds-canvas-bg, var(--pds-canvas-default)) min(calc(l * 1.32 + 0.12), 0.48) c h / 0.42
+    );
+    --pds-glass-rim: inset 0 -0.5px 0 oklch(0% 0 0 / 0.18);
+  }
+
+  html.harvous-proto-wallpaper-image {
+    --pds-border: oklch(
+      from var(--pds-canvas-bg, var(--pds-canvas-default)) calc(l * 0.68) c h / 0.22
+    );
+    --pds-border-soft: oklch(
+      from var(--pds-canvas-bg, var(--pds-canvas-default)) calc(l * 0.72) c h / 0.14
+    );
+    --pds-border-control: oklch(
+      from var(--pds-canvas-bg, var(--pds-canvas-default)) calc(l * 0.66) c h / 0.24
+    );
+    --pds-border-control-soft: oklch(
+      from var(--pds-canvas-bg, var(--pds-canvas-default)) calc(l * 0.7) c h / 0.18
+    );
+    --pds-border-control-medium: oklch(
+      from var(--pds-canvas-bg, var(--pds-canvas-default)) calc(l * 0.64) c h / 0.28
+    );
+    --pds-border-control-strong: oklch(
+      from var(--pds-canvas-bg, var(--pds-canvas-default)) calc(l * 0.62) c h / 0.3
+    );
+    --pds-glass-shell: oklch(var(--pds-lch-bg-page) / 0.28);
+    --pds-glass-chrome: var(--pds-glass-shell);
+    --pds-glass-panel-frost: oklch(var(--pds-lch-bg-page) / 0.08);
+    --pds-glass-bar-frost: oklch(var(--pds-lch-bg-page) / 0.22);
+    --pds-glass-blur: blur(44px) saturate(1.15);
+  }
+}
+
+/* ─── Shell reset / base ─────────────────────────────────────────────────── */
+.proto-shell,
+.proto-shell * {
+  box-sizing: border-box;
+  font-family: var(--pds-font-body);
+  font-variation-settings: var(--pds-font-body-variation);
+  font-optical-sizing: auto;
+}
+
+/* Override SPA :root font on the shell root */
+.proto-shell {
+  /* Remap app-wide tokens so var(--font-sans) never resolves to Reddit Sans under /prototype */
+  --font-sans: var(--pds-font-body);
+  --font-mono: var(--pds-font-mono);
+  color-scheme: light dark;
+  font-family: var(--pds-font-body);
+  font-size: 16px;
+  line-height: 1.45;
+  color: var(--pds-text-primary);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Note titles (resource cards): rounded display face; beats `.proto-shell *` body font. */
+.proto-shell .card-image-link__title,
+.proto-shell .card-image-link__title p,
+.proto-shell .card-image-link__title textarea {
+  font-family: var(--pds-font-display);
+  font-variation-settings: var(--pds-font-display-variation);
+}
+
+/*
+ * Portaled UI (Sonner, spotlight) lives outside .proto-shell but should match prototype typography.
+ * Class is toggled from SimplifiedPrototypeLayout while /prototype/* is mounted.
+ * Must beat global.css html/body !important and SPA index.html #root inline cream.
+ */
+html.harvous-prototype-route {
+  --font-sans: var(--pds-font-body);
+  --font-mono: var(--pds-font-mono);
+  color-scheme: light dark;
+  /* User-customizable canvas behind the shell card (see lib/prototype-background.ts).
+     Vars unset → falls back to theme default. */
+  background-color: var(--pds-canvas-bg, var(--pds-canvas-default)) !important;
+  background-image: var(--pds-canvas-image, none) !important;
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-attachment: fixed;
+}
+html.harvous-prototype-route body,
+html.harvous-prototype-route #root {
+  --font-sans: var(--pds-font-body);
+  --font-mono: var(--pds-font-mono);
+  /* Transparent so the html canvas above shows through the 14px shell gutter. */
+  background-color: transparent !important;
+}
+
+/* Image wallpaper: drop the solid first-paint shell card so backdrop-filter can sample html. */
+html.harvous-proto-wallpaper-image #root {
+  isolation: auto;
+}
+
+html.harvous-proto-wallpaper-image #root::before {
+  display: none;
+}
+
+/* Portaled Sonner toasts — match prototype surfaces in light and dark mode. */
+html.harvous-prototype-route [data-sonner-toast] {
+  background: var(--pds-bg-popover) !important;
+  background-image: none !important;
+  color: var(--pds-text-primary) !important;
+  font-family: var(--pds-font-body) !important;
+  box-shadow: var(--pds-shadow-popover) !important;
+}
+
+html.harvous-prototype-route [data-sonner-toast] [data-title],
+html.harvous-prototype-route [data-sonner-toast] [data-description] {
+  color: var(--pds-text-primary) !important;
+}
+
+/*
+ * global.css ends with `button` / `button *` / `h1–h6` using var(--font-sans) !important and some
+ * rules prefix stacks with literal "Reddit Sans". Higher specificity + !important restores SF only here.
+ */
+.proto-shell button,
+.proto-shell button span,
+.proto-shell button div,
+.proto-shell button p,
+.proto-shell button * {
+  font-family: var(--pds-font-body) !important;
+}
+
+.proto-shell button svg,
+.proto-shell button path {
+  fill: currentColor !important;
+}
+
+.proto-shell h1,
+.proto-shell h2,
+.proto-shell h3,
+.proto-shell h4,
+.proto-shell h5,
+.proto-shell h6 {
+  font-family: var(--pds-font-body) !important;
+}
+
+.proto-shell .text-title,
+.proto-shell .text-subtitle,
+.proto-shell .text-body {
+  font-family: var(--pds-font-body) !important;
+}
+
+.proto-shell .menu-item,
+.proto-shell .menu-item span,
+.proto-shell .menu-item div,
+.proto-shell .menu-item p,
+.proto-shell .menu-item *,
+.proto-shell .menu-item__label,
+.proto-shell .menu-item__label * {
+  font-family: var(--pds-font-body) !important;
+}
+
+.proto-shell .space-button,
+.proto-shell .space-button span,
+.proto-shell .space-button div,
+.proto-shell .space-button p,
+.proto-shell .space-button *,
+.proto-shell .space-btn,
+.proto-shell .space-btn span,
+.proto-shell .space-btn div,
+.proto-shell .space-btn p,
+.proto-shell .space-btn *,
+.proto-shell .space-btn__text {
+  font-family: var(--pds-font-body) !important;
+}
+
+.proto-shell .tab-nav__button,
+.proto-shell .tab-nav__button span,
+.proto-shell .tab-nav__button * {
+  font-family: var(--pds-font-body) !important;
+}
+
+.proto-shell .offline-indicator--chip,
+.proto-shell .offline-indicator--chip * {
+  font-family: var(--pds-font-body) !important;
+}
+
+/* Suppress link underlines and SPA-inherited button resets inside prototype */
+.proto-shell a {
+  color: inherit;
+  text-decoration: none;
+}
+
+/* ─── Typography classes ─────────────────────────────────────────────────── */
+
+/* HarvousTypography.largeTitle — 34pt / 620 / rounded */
+.pds-title-xl {
+  font-family: var(--pds-font-display);
+  font-variation-settings: var(--pds-font-display-variation);
+  font-size: 2.125rem;
+  font-weight: 620;
+  letter-spacing: -0.025em;
+  line-height: 1.1;
+  color: var(--pds-text-primary);
+}
+
+/* HarvousTypography.title — 20pt / 580 / rounded (section headers) */
+.pds-title {
+  font-family: var(--pds-font-display);
+  font-variation-settings: var(--pds-font-display-variation);
+  font-size: 1.25rem;
+  font-weight: 580;
+  letter-spacing: -0.018em;
+  line-height: 1.2;
+  color: var(--pds-text-primary);
+}
+
+/* HarvousTypography.composeTitleField — 22pt / 600 / rounded */
+.pds-compose-title {
+  font-family: var(--pds-font-display);
+  font-variation-settings: var(--pds-font-display-variation);
+  font-size: 1.375rem;
+  font-weight: 600;
+  line-height: 1.25;
+  color: var(--pds-text-primary);
+}
+
+/* HarvousTypography.noteCardTitle — 16pt / 600 */
+.pds-note-card-title {
+  font-size: 1rem;
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--pds-text-primary);
+}
+
+/* HarvousTypography.body — 16pt / 400 */
+.pds-body {
+  font-size: 1rem;
+  font-weight: 400;
+  line-height: 1.5;
+  color: var(--pds-text-primary);
+}
+
+/* HarvousTypography.noteListTitle — macOS 15pt / 500; iOS 17pt / 500 (web uses Mac sidebar scale) */
+.pds-list-title {
+  font-family: var(--pds-font-body);
+  font-size: 0.9375rem;
+  font-weight: 500;
+  line-height: 1.25;
+  color: var(--pds-text-primary);
+}
+
+/* HarvousTypography.noteListPreview — macOS 12pt / 400; iOS 14pt / 400 */
+.pds-list-preview {
+  font-family: var(--pds-font-body);
+  font-size: 0.75rem;
+  font-weight: 400;
+  line-height: 1.35;
+  color: var(--pds-text-secondary);
+}
+
+/* HarvousTypography.caption — 13pt / 500 */
+.pds-caption {
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--pds-text-secondary);
+  line-height: 1.3;
+}
+
+/* HarvousTypography.footnote — 11pt / 400 */
+.pds-footnote {
+  font-size: 0.6875rem;
+  font-weight: 400;
+  color: var(--pds-text-secondary);
+  line-height: 1.3;
+}
+
+/* HarvousTypography.subheadline — 15pt / 400 */
+.pds-subheadline {
+  font-size: 0.9375rem;
+  font-weight: 400;
+  line-height: 1.35;
+  color: var(--pds-text-primary);
+}
+
+/* HarvousTypography.inspectorSectionLabel — 10pt / 600 */
+.pds-inspector-label {
+  font-size: 0.625rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--pds-text-secondary);
+}
+
+/* HarvousTypography.inspectorBody — 12pt / 400 */
+.pds-inspector-body {
+  font-size: 0.75rem;
+  font-weight: 400;
+  color: var(--pds-text-primary);
+  line-height: 1.4;
+}
+
+/* HarvousTypography.searchSpotlightTitle — 13pt / 500 */
+.pds-search-result-title {
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--pds-text-primary);
+}
+
+/* HarvousTypography.searchSpotlightMeta — 11pt / 400 */
+.pds-search-result-meta {
+  font-size: 0.6875rem;
+  font-weight: 400;
+  color: var(--pds-text-secondary);
+}
+
+/* ─── Legacy proto-* aliases (referenced from existing JSX) ──────────────── */
+/* These map old class names to new token values without SPA dependencies. */
+
+.proto-theme {
+  font-family: var(--pds-font-body);
+  font-size: 16px;
+  font-weight: 400;
+  line-height: 1.45;
+  color: var(--pds-text-primary);
+  -webkit-font-smoothing: antialiased;
+}
+
+.proto-display {
+  font-family: var(--pds-font-display);
+  font-variation-settings: var(--pds-font-display-variation);
+}
+
+.proto-title-lg {
+  font-family: var(--pds-font-display);
+  font-variation-settings: var(--pds-font-display-variation);
+  font-size: 1.25rem;
+  font-weight: 580;
+  letter-spacing: -0.018em;
+  line-height: 1.2;
+}
+
+.proto-title-md {
+  font-family: var(--pds-font-display);
+  font-variation-settings: var(--pds-font-display-variation);
+  font-size: 0.9375rem;
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+.proto-body {
+  font-size: 1rem;
+  font-weight: 400;
+  line-height: 1.45;
+}
+
+.proto-list-title {
+  font-size: 0.9375rem;
+  font-weight: 500;
+  line-height: 1.2;
+  color: var(--pds-text-primary);
+}
+
+.proto-list-preview {
+  font-size: 0.75rem;
+  font-weight: 400;
+  line-height: 1.35;
+  color: var(--pds-text-secondary);
+}
+
+.proto-caption {
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--pds-text-secondary);
+}
+
+.proto-footnote {
+  font-size: 0.6875rem;
+  font-weight: 400;
+  color: var(--pds-text-secondary);
+}

@@ -7,6 +7,10 @@ import SignUpPage from './pages/SignUpPage';
 import SpacePage from './pages/SpacePage';
 import ThreadPage from './pages/ThreadPage';
 import NotePage from './pages/NotePage';
+import SimplifiedPrototypeLayout from './layouts/SimplifiedPrototypeLayout';
+import PrototypeHomePage from './pages/prototype/PrototypeHomePage';
+import PrototypeNotePage from './pages/prototype/PrototypeNotePage';
+import PrototypeSearchPage from './pages/prototype/PrototypeSearchPage';
 
 // Root route
 const rootRoute = createRootRoute();
@@ -112,6 +116,7 @@ const noteRoute = createRoute({
     space: typeof search.space === 'string' ? search.space : undefined,
     thread: typeof search.thread === 'string' ? search.thread : undefined,
     from: typeof search.from === 'string' ? search.from : undefined,
+    collection: typeof search.collection === 'string' ? search.collection : undefined,
   }),
 });
 
@@ -125,25 +130,150 @@ const adminVotdRoute = createRoute({
 const joinSpaceRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/spaces/join/$token',
-  component: lazyRouteComponent(() => import('./pages/JoinSpacePage')),
+  component: lazyRouteComponent(() => import('./pages/public/PublicJoinSpacePage')),
 });
 
 const sharedNoteRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/shared/note/$shareToken',
-  component: lazyRouteComponent(() => import('./pages/SharedNotePage')),
+  component: lazyRouteComponent(() => import('./pages/public/PublicSharedNotePage')),
 });
 
 const sharedThreadRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/shared/thread/$shareToken',
-  component: lazyRouteComponent(() => import('./pages/SharedThreadPage')),
+  component: lazyRouteComponent(() => import('./pages/public/PublicSharedThreadPage')),
 });
 
 const invitationRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/invitations/$token',
-  component: lazyRouteComponent(() => import('./pages/InvitationPage')),
+  component: lazyRouteComponent(() => import('./pages/public/PublicInvitationPage')),
+});
+
+/** Simplified prototype — parallel shell, no threads in UI (see docs/SIMPLIFIED_WEB_PROTOTYPE.md). */
+const simplifiedPrototypeRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/prototype',
+  component: SimplifiedPrototypeLayout,
+});
+
+const prototypeHomeRoute = createRoute({
+  getParentRoute: () => simplifiedPrototypeRoute,
+  path: '/',
+  component: PrototypeHomePage,
+});
+
+const prototypeSearchRoute = createRoute({
+  getParentRoute: () => simplifiedPrototypeRoute,
+  path: 'search',
+  component: PrototypeSearchPage,
+  validateSearch: (search: Record<string, unknown>) => ({
+    space: typeof search.space === 'string' ? search.space : undefined,
+  }),
+});
+
+/** Legacy bookmarks: `/prototype/space/{id}/n/{note}` → flat note URL. */
+const prototypeLegacySpaceNoteRedirectRoute = createRoute({
+  getParentRoute: () => simplifiedPrototypeRoute,
+  path: 'space/$spaceId/n/$noteId',
+  beforeLoad: ({ params }) => {
+    throw redirect({
+      to: '/prototype/n/$noteId',
+      params: { noteId: params.noteId },
+      replace: true,
+    });
+  },
+});
+
+/** Legacy bookmarks: `/prototype/space/{id}` → inbox. */
+const prototypeLegacySpaceRedirectRoute = createRoute({
+  getParentRoute: () => simplifiedPrototypeRoute,
+  path: 'space/$spaceId',
+  beforeLoad: () => {
+    throw redirect({
+      to: '/prototype/',
+      replace: true,
+    });
+  },
+});
+
+const prototypeNoteFlatRoute = createRoute({
+  getParentRoute: () => simplifiedPrototypeRoute,
+  path: 'n/$noteId',
+  component: PrototypeNotePage,
+  validateSearch: (search: Record<string, unknown>) => ({
+    studyThread: typeof search.studyThread === 'string' ? search.studyThread : undefined,
+    reference: typeof search.reference === 'string' ? search.reference : undefined,
+  }),
+});
+
+// Settings is a layout route (macOS System Settings-style two-pane shell on wide
+// screens, drilldown on narrow). The category pages render in its <Outlet/>.
+const prototypeSettingsRoute = createRoute({
+  getParentRoute: () => simplifiedPrototypeRoute,
+  path: 'settings',
+  component: lazyRouteComponent(() => import('./pages/prototype/settings/PrototypeSettingsLayout')),
+});
+
+const prototypeSettingsIndexRoute = createRoute({
+  getParentRoute: () => prototypeSettingsRoute,
+  path: '/',
+  component: lazyRouteComponent(() => import('./pages/prototype/settings/PrototypeSettingsIndex')),
+});
+
+const prototypeSettingsAccountRoute = createRoute({
+  getParentRoute: () => prototypeSettingsRoute,
+  path: 'account',
+  component: lazyRouteComponent(() => import('./pages/prototype/settings/PrototypeAccountPage')),
+});
+
+const prototypeSettingsTranslationRoute = createRoute({
+  getParentRoute: () => prototypeSettingsRoute,
+  path: 'translation',
+  component: lazyRouteComponent(() => import('./pages/prototype/settings/PrototypeTranslationPage')),
+});
+
+const prototypeSettingsAppearanceRoute = createRoute({
+  getParentRoute: () => prototypeSettingsRoute,
+  path: 'appearance',
+  component: lazyRouteComponent(() => import('./pages/prototype/settings/PrototypeAppearancePage')),
+});
+
+const prototypeSettingsChurchRoute = createRoute({
+  getParentRoute: () => prototypeSettingsRoute,
+  path: 'church',
+  component: lazyRouteComponent(() => import('./pages/prototype/settings/PrototypeChurchPage')),
+});
+
+const prototypeSettingsLockPinRoute = createRoute({
+  getParentRoute: () => prototypeSettingsRoute,
+  path: 'lock-pin',
+  component: lazyRouteComponent(() => import('./pages/prototype/settings/PrototypeLockPinPage')),
+});
+
+const prototypeSettingsSharingRoute = createRoute({
+  getParentRoute: () => prototypeSettingsRoute,
+  path: 'sharing',
+  component: lazyRouteComponent(() => import('./pages/prototype/settings/PrototypeSharingPage')),
+});
+
+const prototypeSettingsDataRoute = createRoute({
+  getParentRoute: () => prototypeSettingsRoute,
+  path: 'data',
+  component: lazyRouteComponent(() => import('./pages/prototype/settings/PrototypeDataPage')),
+});
+
+const prototypeSettingsSupportRoute = createRoute({
+  getParentRoute: () => prototypeSettingsRoute,
+  path: 'support',
+  component: lazyRouteComponent(() => import('./pages/prototype/settings/PrototypeSupportPage')),
+});
+
+const prototypeSettingsKeyboardShortcutsRoute = createRoute({
+  getParentRoute: () => prototypeSettingsRoute,
+  path: 'keyboard-shortcuts',
+  component: lazyRouteComponent(() => import('./pages/prototype/settings/PrototypeKeyboardShortcutsPage')),
 });
 
 // 404 catch-all — must be last
@@ -175,6 +305,25 @@ const routeTree = rootRoute.addChildren([
   sharedNoteRoute,
   sharedThreadRoute,
   invitationRoute,
+  simplifiedPrototypeRoute.addChildren([
+    prototypeLegacySpaceNoteRedirectRoute,
+    prototypeLegacySpaceRedirectRoute,
+    prototypeHomeRoute,
+    prototypeSearchRoute,
+    prototypeNoteFlatRoute,
+    prototypeSettingsRoute.addChildren([
+      prototypeSettingsIndexRoute,
+      prototypeSettingsAccountRoute,
+      prototypeSettingsTranslationRoute,
+      prototypeSettingsAppearanceRoute,
+      prototypeSettingsChurchRoute,
+      prototypeSettingsLockPinRoute,
+      prototypeSettingsSharingRoute,
+      prototypeSettingsDataRoute,
+      prototypeSettingsSupportRoute,
+      prototypeSettingsKeyboardShortcutsRoute,
+    ]),
+  ]),
   notFoundRoute,
 ]);
 

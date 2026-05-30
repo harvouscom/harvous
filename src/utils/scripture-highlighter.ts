@@ -14,6 +14,7 @@ export interface ScriptureReference {
   reference: string;
   noteId: string;
   translation?: string;
+  accent?: string;
 }
 
 /**
@@ -107,7 +108,7 @@ export function highlightScriptureReferences(
   updatedContent = stripBrokenPillSpans(updatedContent);
 
   // Process each reference
-  for (const { reference, noteId, translation } of references) {
+  for (const { reference, noteId, translation, accent } of references) {
     // Escape special regex characters in the reference
     const escapedReference = reference.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     
@@ -240,7 +241,8 @@ export function highlightScriptureReferences(
       const translationAttr = translation
         ? ` data-scripture-translation="${escapeHtmlAttr(translation)}" data-scripture-translation-label="${escapeHtmlAttr(getTranslationAbbreviationDisplay(translation))}"`
         : '';
-      const wrapped = `<span data-scripture-reference="${cleanText}" data-note-id="${noteId}"${translationAttr} class="scripture-pill scripture-pill-clickable" style="background-color: var(--color-paper); border-radius: 12px; padding: 0px 8px; display: inline-flex; align-items: baseline; height: auto; min-height: 28px; gap: 4px; box-shadow: 0px -3px 0px 0px inset rgba(176,176,176,0.25); font-weight: 600; font-style: normal; font-size: 16px; color: var(--color-deep-grey); vertical-align: baseline; line-height: 1.6; user-select: none; white-space: normal; cursor: pointer;">${cleanText}</span>`;
+      const accentAttr = accent ? ` data-pill-accent="${escapeHtmlAttr(accent)}"` : '';
+      const wrapped = `<span data-scripture-reference="${cleanText}" data-note-id="${noteId}"${translationAttr}${accentAttr} class="scripture-pill scripture-pill-clickable" style="background-color: var(--color-paper); border-radius: 12px; padding: 0px 8px; display: inline-flex; align-items: center; height: auto; gap: 4px; box-shadow: 0px -3px 0px 0px inset rgba(176,176,176,0.25); font-weight: 600; font-style: normal; font-size: 16px; color: var(--color-deep-grey); vertical-align: baseline; line-height: 1.6; user-select: none; white-space: normal; cursor: pointer;">${cleanText}</span>`;
       
       // Preserve leading and trailing spaces outside the pill span
       updatedContent = updatedContent.substring(0, index) + leadingSpaces + wrapped + trailingSpaces + updatedContent.substring(index + matchText.length);

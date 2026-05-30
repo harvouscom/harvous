@@ -1,0 +1,28 @@
+---
+interface Props {
+  name: string;
+  when: string;
+  tone?: "peach" | "sky" | "mint" | "lilac" | "cream";
+}
+
+const { name, when } = Astro.props;
+---
+
+<figure>
+  <blockquote class="testimonial-quote text-base font-semibold leading-snug text-[var(--color-ink)]">
+    <slot />
+  </blockquote>
+  <figcaption class="mt-4 text-sm italic text-[var(--color-ink-soft)]">
+    &mdash;{name}
+  </figcaption>
+</figure>
+
+<style>
+  .testimonial-quote mark {
+    background: var(--color-highlight);
+    color: inherit;
+    padding: 0.05em 0.15em;
+    box-decoration-break: clone;
+    -webkit-box-decoration-break: clone;
+  }
+</style>

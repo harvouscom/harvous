@@ -4,7 +4,7 @@
 
 import { Hono } from 'hono';
 import { getAuth } from '../middleware/auth';
-import { getCachedUserData, ensureOnboardingThreadIfMissing } from '../utils/user-cache';
+import { getCachedUserData } from '../utils/user-cache';
 import {
   getContentItems,
   getScriptureNotesForDashboard,
@@ -22,23 +22,15 @@ route.get('/api/content/load-more', async (c) => {
     }
     console.log('[api/content/load-more] auth.userId', auth.userId);
 
-    // Ensure user cache (and onboarding thread for new users) exists before reading content,
-    // so the first load shows onboarding without a refresh.
     await getCachedUserData(auth.userId);
 
     const offset = parseInt(c.req.query('offset') || '0', 10);
     const limit = parseInt(c.req.query('limit') || '20', 10);
     const filter = c.req.query('filter') || 'all';
 
-    // For first page of "all", ensure onboarding (and scripture refs) exist in this request so junction is populated before getContentItems reads it
-    if (offset === 0 && filter === 'all') {
-      await ensureOnboardingThreadIfMissing(auth.userId);
-    }
-
-    // Optimized path for scripture filter - query directly from database
+    // Scripture notes are no longer surfaced — return empty for the scripture filter
     if (filter === 'scripture') {
-      const { items, hasMore } = await getScriptureNotesForDashboard(auth.userId, limit, offset);
-      return c.json({ items, hasMore, offset, limit });
+      return c.json({ items: [], hasMore: false, offset, limit });
     }
 
     // For other filters, use the existing getContentItems function

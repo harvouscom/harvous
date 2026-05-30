@@ -2,6 +2,12 @@
 
 Solutions to common problems and issues in Harvous.
 
+## Mac app won’t open (preview DMG)
+
+If you installed **Harvous for Mac** from a **GitHub Releases** DMG and macOS blocks it or says the app can’t be opened because it is from an **unidentified developer**, that is expected for **unsigned preview** builds.
+
+**Full steps:** See **[Harvous for Mac (preview)](mac-native-app.md)** (Open Anyway in Privacy & Security, control-click Open, and optional `xattr` quarantine removal).
+
 ## Common Issues
 
 ### "Where did my note go?"

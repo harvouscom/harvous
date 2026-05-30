@@ -1,0 +1,60 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+import FeatureRow from "../components/FeatureRow.astro";
+import CTAButton from "../components/CTAButton.astro";
+import { getCollection, render } from "astro:content";
+
+const features = (await getCollection("features")).sort((a, b) => a.data.order - b.data.order);
+const items = await Promise.all(
+  features.map(async (f) => {
+    const { Content } = await render(f);
+    return { data: f.data, Content };
+  })
+);
+---
+
+<BaseLayout
+  title="Features — Harvous"
+  description="Scripture pills, dictionary lookups, study highlights, multi-view sidebar, native iOS & Mac apps, sharing, and offline sync."
+>
+  <!-- Page header -->
+  <section class="border-b border-[var(--color-rule)]">
+    <div class="mx-auto max-w-3xl px-5 py-16 text-center md:py-24">
+      <div class="text-xs uppercase tracking-[0.14em] text-[var(--color-ink-faint)]">Features</div>
+      <h1 class="mt-3 font-display text-5xl leading-[1.0] md:text-8xl">
+        Everything you need to study. Nothing you don't.
+      </h1>
+      <p class="mx-auto mt-5 max-w-xl text-lg text-[var(--color-ink-soft)]">
+        The same features on every device — web, iOS, iPad, and Mac.
+      </p>
+    </div>
+  </section>
+
+  <section class="mx-auto max-w-6xl space-y-24 px-5 py-20">
+    {items.map(({ data, Content }) => (
+      <FeatureRow title={data.title} tagline={data.tagline} align={data.align}>
+        <Fragment slot="body">
+          <Content />
+        </Fragment>
+        <Fragment slot="visual">
+          <!-- Decorative tile per feature. Real screenshots can be dropped in later. -->
+          <div class="paper-grain aspect-[4/3] rounded-2xl"></div>
+        </Fragment>
+      </FeatureRow>
+    ))}
+  </section>
+
+  <!-- Closing CTA -->
+  <section class="border-t border-[var(--color-rule)]">
+    <div class="mx-auto max-w-3xl px-5 py-24 text-center">
+      <h2 class="font-display text-4xl leading-[1.05] md:text-6xl">
+        Start your study Bible today.
+      </h2>
+      <div class="mt-8 flex justify-center">
+        <CTAButton href="https://app.harvous.com/sign-up" variant="primary" size="lg" external>
+          Start for free
+        </CTAButton>
+      </div>
+    </div>
+  </section>
+</BaseLayout>

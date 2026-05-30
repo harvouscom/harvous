@@ -1,10 +1,10 @@
 # build output
 dist/
+dist-spa/
 
 # generated types
 .astro/
 server/routes/founder-letter.inline.generated.ts
-src/utils/onboarding-notes.generated.ts
 
 # dependencies
 node_modules/
@@ -22,6 +22,16 @@ pnpm-debug.log*
 # macOS-specific files
 .DS_Store
 
+# Harvous native: local Xcode DerivedData / verify scratch dirs for package-dmg / release.sh
+# (build output only — must never be committed; any harvous_* derived-data or verify dir, anywhere under native/)
+native/**/.harvous_*derived_data*/
+native/**/.harvous_*verify*/
+native/.harvous_mac_derived_data/
+native/Harvous/build/
+native/Harvous/*.dmg
+native/Harvous/null.o
+**/xcuserdata/
+
 # jetbrains setting folder
 .idea/
 
@@ -32,3 +42,11 @@ pnpm-debug.log*
 
 # Local publish gate — copy from docs/easter-2026-shared-space/SIGNOFF.template.txt
 docs/easter-2026-shared-space/SIGNOFF.txt
+# iOS derived data (outside project dir)
+native/.harvous_ios_derived_data/
+native/Harvous/.harvous_ios_derived_data/
+
+# Tool/agent runtime files
+.agents/
+skills-lock.json
+.claude/scheduled_tasks.lock

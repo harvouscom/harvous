@@ -1,0 +1,26 @@
+---
+interface Props {
+  title: string;
+  tagline: string;
+  align?: "left" | "right";
+}
+
+const { title, tagline, align = "left" } = Astro.props;
+const reverse = align === "right";
+---
+
+<article class="grid items-center gap-8 md:gap-12 md:grid-cols-2">
+  <div class={reverse ? "md:order-2" : "md:order-1"}>
+    <div class="text-xs uppercase tracking-[0.14em] text-[var(--color-ink-faint)]">{tagline}</div>
+    <h3 class="mt-2 text-3xl font-semibold leading-tight md:text-4xl">{title}</h3>
+    <div class="mt-4 prose-letter text-[var(--color-ink-soft)]">
+      <slot name="body" />
+    </div>
+  </div>
+
+  <div class={reverse ? "md:order-1" : "md:order-2"}>
+    <div class="rounded-3xl border border-[var(--color-rule)] bg-white p-5 shadow-[var(--shadow-card)]">
+      <slot name="visual" />
+    </div>
+  </div>
+</article>

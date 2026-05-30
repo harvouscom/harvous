@@ -1,0 +1,403 @@
+/* ==========================================================================
+   Auth Page — /site/-inspired redesign
+   Single-column centered layout (no more two-pane mesh gradient).
+   Used by: SignInPage, SignUpPage, SharedNotePage, SharedThreadPage,
+            JoinSpacePage, InvitationPage. Inherits via the existing
+            `.auth-page` / `.auth-page__container` / `.auth-page__form-section`
+            class names, so the seven page components only need light JSX
+            tweaks (the bulk of the redesign lives here).
+   ========================================================================== */
+
+/* Bundled marketing-font (`/site/`) — used for display headlines. */
+@font-face {
+  font-family: "Scorekard";
+  src: url("/fonts/scorekard/Scorekard-Regular.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Scorekard";
+  src: url("/fonts/scorekard/Scorekard-Semibold.woff2") format("woff2");
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Scorekard";
+  src: url("/fonts/scorekard/Scorekard-Bold.woff2") format("woff2");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* Local design tokens — mirror `/site/src/styles/global.css`. Scoped to
+   `.auth-page` so the rest of the app keeps its own token system. */
+.auth-page {
+  --site-paper: #f7f6f3;
+  --site-ink: #1a1916;
+  --site-ink-soft: #5a584f;
+  --site-ink-faint: #8a877c;
+  --site-rule: #e7e4dc;
+  --site-card: #ffffff;
+  --site-accent: #3869e6;
+  --site-accent-soft: #e8eefc;
+  --site-warm: #f1ede2;
+  --site-highlight: #ffe8a8;
+}
+
+/* ---------- Root container ---------- */
+
+.auth-page {
+  min-height: 100svh;
+  padding: 0 !important;
+  background-color: var(--site-paper);
+  color: var(--site-ink);
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+
+.auth-page__container {
+  flex: 1;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 0 !important;
+  padding: 16px 24px 32px;
+}
+
+/* Kill the old two-pane media query — single column at every width. */
+@media (min-width: 1160px) {
+  .auth-page__container {
+    flex-direction: column !important;
+  }
+}
+
+/* ---------- Floating top header pill (was `.auth-page__video-section`) ---------- */
+
+.auth-page__video-section,
+.auth-page .thread-colors-mesh-gradient {
+  flex: 0 0 auto !important;
+  background: transparent !important;
+  background-color: transparent !important;
+  min-height: 0 !important;
+  height: auto !important;
+  border-radius: 0 !important;
+  overflow: visible !important;
+  display: flex !important;
+  justify-content: center !important;
+}
+
+/* The original mesh-gradient overlay layers — disable them. */
+.auth-page .thread-colors-mesh-gradient::before,
+.auth-page .thread-colors-mesh-gradient::after {
+  display: none !important;
+  content: none !important;
+}
+
+.auth-page__video-overlay {
+  position: static !important;
+  padding: 0 !important;
+  background: transparent !important;
+  width: auto !important;
+  justify-content: center !important;
+  align-items: center !important;
+}
+
+/* The link-wrapping-logo becomes the floating Harvous pill (icon + wordmark). */
+.auth-page__logo-container {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 16px 7px 8px;
+  background-color: rgba(255, 255, 255, 0.85);
+  border: 0.5px solid var(--site-rule);
+  border-radius: 999px;
+  box-shadow:
+    0 1px 2px rgba(20, 18, 12, 0.04),
+    0 8px 24px -12px rgba(20, 18, 12, 0.12);
+  backdrop-filter: saturate(180%) blur(8px);
+  -webkit-backdrop-filter: saturate(180%) blur(8px);
+  margin-left: 0 !important;
+  text-decoration: none !important;
+  color: var(--site-ink) !important;
+  transition: background-color 120ms ease, box-shadow 120ms ease;
+}
+.auth-page__logo-container:hover {
+  background-color: rgba(255, 255, 255, 0.95);
+}
+/* Add a "Harvous" wordmark after the SVG inside the pill. */
+.auth-page__logo-container::after {
+  content: "Harvous";
+  font-family:
+    "Google Sans", "Reddit Sans", ui-sans-serif, system-ui, -apple-system,
+    "Segoe UI", sans-serif;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.2px;
+  color: var(--site-ink);
+}
+
+/* App-icon PNG inside the floating pill — matches `/site/` Header.astro. */
+.auth-page__logo {
+  width: 22px !important;
+  height: 22px !important;
+  border-radius: 5px;
+  object-fit: cover;
+  display: block;
+}
+
+/* ---------- Form section (centered content cluster) ---------- */
+
+.auth-page__form-section {
+  flex: 1 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 24px 0 0 !important;
+  background-color: transparent !important;
+  min-height: 0 !important;
+}
+
+/* Outer wrapper — wide enough for the headline to sit on one line on
+   desktop. The form inputs are constrained by the inner form-wrapper. */
+.auth-page__content-wrapper {
+  width: 100%;
+  max-width: 640px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+}
+
+/* Inner wrapper — narrows just the input / button cluster. */
+.auth-page__form-wrapper {
+  width: 100%;
+  max-width: 460px;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+}
+
+/* ---------- Display headline (Scorekard) with marker swipe on "your" ---------- */
+
+.auth-page__headline {
+  font-family:
+    "Scorekard", "Google Sans", ui-sans-serif, system-ui, -apple-system,
+    sans-serif !important;
+  font-weight: 600 !important;
+  /* Matches `MacSignInView`'s 44pt display — 3.5rem on wide viewports. */
+  font-size: clamp(2.25rem, 1.3rem + 2.6vw, 3.5rem) !important;
+  line-height: 1.05 !important;
+  letter-spacing: -0.02em !important;
+  color: var(--site-ink) !important;
+  text-align: center !important;
+  margin: 0 0 6px !important;
+  max-width: 100%;
+}
+
+/* Marker swipe matches `/site/` `<mark>` style: linear gradient draws a
+   yellow band under the lower half of the word. No z-index hacks — paints
+   inline as a background. */
+.auth-page__headline-mark {
+  background: linear-gradient(
+    180deg,
+    transparent 55%,
+    var(--site-highlight) 55%
+  );
+  padding: 0 0.08em;
+  border-radius: 2px;
+  color: inherit;
+}
+
+/* ---------- Custom Clerk-headless form (`HarvousAuthForm`) ----------
+   The web sign-in/up pages render `HarvousAuthForm` (custom email-code form
+   built on `useSignIn()` / `useSignUp()`) instead of Clerk's prebuilt
+   `<SignIn>` / `<SignUp>` components. That sidesteps every Clerk-internal
+   class and lets us style the form 1:1 with `MacSignInView.swift`. */
+
+.harvous-auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  width: 100%;
+  align-items: stretch;
+}
+
+.harvous-auth-form__inner {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.harvous-auth-form__input {
+  appearance: none;
+  -webkit-appearance: none;
+  background-color: var(--site-card);
+  border: 0.5px solid var(--site-rule);
+  border-radius: 999px;
+  padding: 12px 20px;
+  font-family:
+    "Google Sans", "Reddit Sans", ui-sans-serif, system-ui, -apple-system,
+    "Segoe UI", sans-serif;
+  font-size: 15px;
+  color: var(--site-ink);
+  box-shadow: 0 1px 2px rgba(20, 18, 12, 0.03);
+  transition: border-color 120ms ease, box-shadow 120ms ease;
+  width: 100%;
+  box-sizing: border-box;
+  outline: none;
+}
+.harvous-auth-form__input::placeholder {
+  color: var(--site-ink-faint);
+}
+.harvous-auth-form__input:focus {
+  border-color: var(--site-accent);
+  box-shadow: 0 0 0 3px rgba(56, 105, 230, 0.12);
+}
+.harvous-auth-form__input--code {
+  letter-spacing: 0.08em;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+/* Gradient blue CTA pill — same treatment as `MacSignInView`'s primary. */
+.harvous-auth-form__primary {
+  background: linear-gradient(
+    180deg,
+    #5a92ff 0%,
+    #3869e6 55%,
+    #2456d9 100%
+  ) !important;
+  color: #ffffff !important;
+  border-radius: 999px;
+  padding: 0 22px;
+  font-family:
+    "Google Sans", "Reddit Sans", ui-sans-serif, system-ui, -apple-system,
+    sans-serif;
+  font-weight: 600;
+  font-size: 15px;
+  height: 46px;
+  border: 0;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.32),
+    0 4px 12px -4px rgba(56, 105, 230, 0.45);
+  transition: filter 120ms ease, background 120ms ease;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  -webkit-text-fill-color: #ffffff;
+}
+.harvous-auth-form__primary:hover:not(:disabled) {
+  filter: brightness(1.05);
+}
+/* When disabled (empty email, busy), keep the text crisp white and only
+   desaturate the gradient — the previous opacity:0.65 was washing out the
+   label, making it look greyish on top of the blue. */
+.harvous-auth-form__primary:disabled {
+  background: linear-gradient(
+    180deg,
+    #a9c2ff 0%,
+    #8aa6f0 55%,
+    #7e9ce6 100%
+  ) !important;
+  cursor: not-allowed;
+  box-shadow: 0 2px 8px -4px rgba(56, 105, 230, 0.3);
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff;
+}
+
+/* "Use a different email" subtle link below the code-step form. */
+.harvous-auth-form__secondary-link {
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  font-family:
+    "Google Sans", "Reddit Sans", ui-sans-serif, system-ui, sans-serif;
+  font-size: 13px;
+  color: var(--site-accent);
+  padding: 0;
+  margin-top: 2px;
+  text-decoration: none;
+}
+.harvous-auth-form__secondary-link:hover {
+  text-decoration: underline;
+}
+
+.harvous-auth-form__hint {
+  font-size: 13px;
+  color: var(--site-ink-soft);
+  text-align: center;
+  margin: 0 0 2px;
+}
+.harvous-auth-form__hint strong {
+  color: var(--site-ink);
+  font-weight: 600;
+}
+
+.harvous-auth-form__error {
+  font-size: 13px;
+  color: #b03030;
+  text-align: center;
+  margin: 0;
+}
+
+/* Spinner replacing the button label when busy. */
+.harvous-auth-form__spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(255, 255, 255, 0.4);
+  border-top-color: #ffffff;
+  border-radius: 999px;
+  animation: harvous-auth-spin 0.7s linear infinite;
+}
+@keyframes harvous-auth-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ---------- Footer pieces shared by sign-in + sign-up ---------- */
+.auth-page__footer-switch {
+  font-family:
+    "Google Sans", "Reddit Sans", ui-sans-serif, system-ui, -apple-system,
+    sans-serif;
+  font-size: 13px;
+  color: var(--site-ink-soft);
+  text-align: center;
+  margin: 0;
+}
+.auth-page__footer-switch a {
+  color: var(--site-accent);
+  font-weight: 600;
+  text-decoration: none;
+  margin-left: 4px;
+}
+.auth-page__footer-switch a:hover {
+  text-decoration: underline;
+}
+.auth-page__secured-by {
+  font-family:
+    "Google Sans", "Reddit Sans", ui-sans-serif, system-ui, -apple-system,
+    sans-serif;
+  font-size: 11px;
+  color: var(--site-ink-faint);
+  text-align: center;
+  margin: 8px 0 0;
+}
+
+/* ---------- Shared-page content sections (note / thread / space previews) ----------
+   These pages render their own content. We only need to ensure the content
+   sits centered against the paper background — no internal restyling needed. */
+
+.auth-page .shared-page__content-section {
+  background-color: transparent !important;
+}
+
+/* ---------- Reduced motion ---------- */
+
+@media (prefers-reduced-motion: reduce) {
+  .auth-page__logo-container {
+    transition: none !important;
+  }
+}

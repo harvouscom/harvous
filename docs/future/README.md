@@ -118,6 +118,8 @@ These were designed here and are now live. The stub files in this folder point t
   - Bible reader / “collected verses” view: see which verses you’ve saved across the Bible (book/chapter/verse, highlight saved)
   - Data and implementation notes for each
 
+- **`QUESTION_HIGHLIGHT_SUGGESTIONS_NATIVE.md`** - Interrogative sentences: wavy inline suggestion + tap to create anchored study highlight (native TextKit exploration; implementation reverted — doc only)
+
 - **`OFFLINE_MODE_IMPLEMENTATION.md`** - Offline mode architecture reference (✅ implemented)
   - Full offline read/write support with IndexedDB, sync queues, and conflict resolution
 

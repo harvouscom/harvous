@@ -98,6 +98,26 @@ export async function generateAutoTags(
       return suggestion;
     });
     enhancedSuggestions.sort((a, b) => b.confidence - a.confidence);
+
+    const { detectPersonTags } = await import('@/utils/person-tag-detector');
+    for (const personTag of detectPersonTags(fullText)) {
+      const key = personTag.toLowerCase();
+      if (enhancedSuggestions.some(s => s.keyword.toLowerCase() === key)) continue;
+      const isExisting = existingTagNames.has(key);
+      const existingTag = isExisting
+        ? existingTags.filter(t => t.name.toLowerCase() === key)
+            .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0]
+        : undefined;
+      enhancedSuggestions.push({
+        keyword: personTag,
+        category: 'character',
+        confidence: 0.85,
+        isExisting,
+        tagId: existingTag?.id,
+      });
+    }
+    enhancedSuggestions.sort((a, b) => b.confidence - a.confidence);
+
     const topSuggestions = enhancedSuggestions.slice(0, 12);
     return { suggestions: topSuggestions, totalFound: suggestions.length, highConfidence };
   } catch (error: unknown) {

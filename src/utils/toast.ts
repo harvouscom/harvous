@@ -1,4 +1,5 @@
 import { toast as sonnerToast } from 'sonner';
+import { shouldSuppressAppToasts } from '@/utils/should-suppress-app-toasts';
 
 // Helper function to strip periods and exclamation marks from toast messages
 function stripPunctuation(message: string): string {
@@ -21,6 +22,7 @@ function ensurePortalExists(callback: () => void, maxRetries = 10, attempt = 0):
 
 // Helper function to safely call Sonner toast
 function safeToast(callback: () => void, type: string, message: string) {
+  if (shouldSuppressAppToasts()) return;
   try {
     ensurePortalExists(callback);
   } catch (error) {

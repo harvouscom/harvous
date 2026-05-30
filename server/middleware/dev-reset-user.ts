@@ -1,6 +1,6 @@
 /**
  * Dev-only: reset the authenticated user to "new user" state once per server run
- * so dev:all shows only onboarding (no test/seed data). Opt-in via DEV_RESET_ENABLED
+ * so dev:all shows an empty account (no test/seed data). Opt-in via DEV_RESET_ENABLED
  * so production and Netlify never run it (we never set that env there).
  */
 
@@ -30,7 +30,7 @@ export async function devResetUserOnce(c: Context, next: Next) {
   try {
     await resetUserToNew(auth.userId);
     devResetDone = true;
-    console.log(`Dev: reset user to new-user state (onboarding only).`);
+    console.log(`Dev: reset user to new-user state (empty account).`);
   } catch (err) {
     console.error('Dev reset on first request failed:', err);
   }

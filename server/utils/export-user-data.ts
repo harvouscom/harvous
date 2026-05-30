@@ -11,11 +11,17 @@ import {
   NoteTags,
   Tags,
   ScriptureMetadata,
+  StudyThreadEntries,
   eq,
   desc,
 } from '../db';
-import { htmlToPlainText, htmlToMarkdown } from '../../src/utils/html-to-markdown';
+import { htmlToPlainText } from '../../src/utils/html-to-markdown';
 import { MY_PILE_THREAD_TITLE } from '@/utils/my-pile-thread';
+import {
+  serializeNoteToPortable,
+  studyRowsToPortableHighlights,
+  type StudyThreadExportRow,
+} from '../../src/utils/portable-markdown';
 
 export type ExportFormat = 'csv-threads' | 'markdown' | 'text';
 
@@ -93,13 +99,51 @@ export async function generateUserExport(
     }
   }
 
+  const studyThreadsByNote = new Map<string, StudyThreadExportRow[]>();
+  if (allNotes.length > 0) {
+    try {
+      const rows = await db
+        .select()
+        .from(StudyThreadEntries)
+        .where(eq(StudyThreadEntries.userId, userId));
+      for (const row of rows) {
+        const mapped: StudyThreadExportRow = {
+          id: row.id,
+          entryKind: row.entryKindRaw,
+          highlightAccentRaw: row.highlightAccentRaw,
+          sourceSnippet: row.sourceSnippet,
+          focusTitle: row.focusTitle,
+          notesBody: row.notesBody,
+          miniNoteBody: row.miniNoteBody,
+          linkedNoteId: row.linkedNoteId,
+          linkedNoteTitle: row.linkedNoteTitle,
+          anchorLocation: row.anchorLocation,
+          anchorLength: row.anchorLength,
+          anchorTextSnapshot: row.anchorTextSnapshot,
+          scriptureReference: row.scriptureReference,
+          scripturePassageTranslation: row.scripturePassageTranslation,
+          scripturePassageExcerpt: row.scripturePassageExcerpt,
+        };
+        if (!studyThreadsByNote.has(row.parentNoteId)) studyThreadsByNote.set(row.parentNoteId, []);
+        studyThreadsByNote.get(row.parentNoteId)!.push(mapped);
+      }
+    } catch {
+      /* StudyThreadEntries table may be missing on older DBs */
+    }
+  }
+
   let content = '';
   let fileExtension = 'txt';
 
   if (format === 'csv-threads') {
     const rows: string[][] = [['Thread Title', 'Thread Color', 'Note Title', 'Note Content', 'Created Date', 'Tags']];
-    const escapeCSV = (str: string) =>
-      str.includes(',') || str.includes('"') || str.includes('\n') ? `"${str.replace(/"/g, '""')}"` : str;
+    const escapeCSV = (value: unknown) => {
+      const str =
+        value instanceof Date ? value.toISOString() : value == null ? '' : String(value);
+      return str.includes(',') || str.includes('"') || str.includes('\n')
+        ? `"${str.replace(/"/g, '""')}"`
+        : str;
+    };
     for (const note of allNotes) {
       const noteThreadIds = noteThreadMap.get(note.id) || [];
       const primaryThreadId = noteThreadIds[0] || note.threadId;
@@ -118,27 +162,37 @@ export async function generateUserExport(
     content = rows.map((row) => row.join(',')).join('\n');
     fileExtension = 'csv';
   } else if (format === 'markdown' || format === 'text') {
-    const lines: string[] = [];
+    const chunks: string[] = [];
     for (const note of allNotes) {
       const noteThreadIds = noteThreadMap.get(note.id) || [];
       const primaryThreadId = noteThreadIds[0] || note.threadId;
       const thread = threadMap.get(primaryThreadId!);
       const tags = noteTagsMap.get(note.id) || [];
       const scripture = scriptureMap.get(note.id);
-      if (note.title) lines.push(`# ${note.title}`, '');
-      lines.push(htmlToMarkdown(note.content || ''), '');
-      lines.push('---');
-      lines.push(`**Created:** ${note.createdAt ? new Date(note.createdAt).toLocaleDateString() : 'Unknown'}`);
-      if (note.updatedAt) lines.push(`**Updated:** ${new Date(note.updatedAt).toLocaleDateString()}`);
-      if (thread) {
-        lines.push(`**Thread:** ${thread.title}`);
-        if (thread.color) lines.push(`**Thread Color:** ${thread.color}`);
-      }
-      if (tags.length > 0) lines.push(`**Tags:** ${tags.map((t) => t.name).join(', ')}`);
-      if (scripture) lines.push(`**Scripture Reference:** ${scripture.reference}${scripture.translation ? ` (${scripture.translation})` : ''}`);
-      lines.push('---', '', '');
+      const studyRows = studyThreadsByNote.get(note.id) || [];
+      const highlights = studyRowsToPortableHighlights(studyRows);
+
+      chunks.push(
+        serializeNoteToPortable(
+          {
+            id: note.id,
+            title: note.title,
+            created: note.createdAt || null,
+            updated: note.updatedAt || null,
+            space: note.spaceId || null,
+            thread: thread?.title || null,
+            threadColor: thread?.color || null,
+            tags: tags.map((t) => t.name),
+            noteType: (note.noteType as 'default' | 'scripture' | 'resource') || 'default',
+            scriptureReference: scripture?.reference || null,
+            scriptureTranslation: scripture?.translation || null,
+          },
+          note.content || '',
+          highlights,
+        ).trim(),
+      );
     }
-    content = lines.join('\n');
+    content = chunks.join('\n\n');
     fileExtension = 'md';
   } else {
     throw new Error(`Unsupported format: ${String(format)}`);

@@ -1,0 +1,72 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+import CTAButton from "../components/CTAButton.astro";
+---
+
+<BaseLayout
+  title="About — Harvous"
+  description="A letter from Derek Castelli, the maker of Harvous."
+>
+  <section class="border-b border-[var(--color-rule)]">
+    <div class="mx-auto max-w-3xl px-5 py-16 text-center md:py-24">
+      <div class="text-xs uppercase tracking-[0.14em] text-[var(--color-ink-faint)]">A letter from Derek</div>
+      <h1 class="mt-3 font-display text-5xl leading-[1.0] md:text-7xl">
+        I made Harvous because I need to remember the Bible, better.
+      </h1>
+    </div>
+  </section>
+
+  <section class="mx-auto max-w-5xl px-5 py-16">
+    <div class="paper-grain rounded-3xl border border-[var(--color-rule)] p-6 md:p-12">
+      <div class="grid gap-10 md:grid-cols-2">
+        <div class="prose-letter">
+          <p>
+            Since 2016 I've been studying the Bible. Many highlights
+            saved in my Bible app of choice. Some notes in said Bible app. Some in Apple
+            Notes. And some somewhere on a piece of paper I don't have anymore.
+            It was all scattered.
+          </p>
+          <p>
+            I've tried many apps for my Bible study. Some were made for scholars
+            and felt archaic. Some were built for readers with notes as an
+            afterthought. None seem to be made for someone who is curious about
+            the Bible wanting to remember their study.
+          </p>
+          <p>
+            So I made one. Harvous is the app I've been wanting — a clean,
+            focused place for notes that knows what a Bible reference is, looks
+            up a word when I'm curious, and gets out of the way when I just want
+            to write.
+          </p>
+        </div>
+        <div class="prose-letter">
+          <p>
+            It's named after Proverbs 25:2 — "It is the glory of God to conceal
+            a matter; to search out a matter is the glory of kings." Studying
+            the Bible is searching. Harvous is the place where the search
+            settles into something you can come back to.
+          </p>
+          <p>
+            What started as a web app is now also a native app on iOS and Mac too,
+            with scripture pills that switch translations, a built-in
+            dictionary, highlights that link back to passages, and a sidebar
+            that finds notes five different ways.
+          </p>
+          <p>
+            If any of that sounds like what you've been looking for, I'd love
+            to have you try it. And if it doesn't work for you yet — write me
+            at <a class="underline decoration-[var(--color-rule)] underline-offset-4 hover:decoration-[var(--color-ink)]" href="mailto:derek@harvous.com">derek@harvous.com</a> and tell me why.
+          </p>
+          <p class="mt-8 text-lg font-semibold">— Derek Castelli</p>
+          <p class="text-sm text-[var(--color-ink-faint)]">Testament Made LLC</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="mt-12 flex justify-center">
+      <CTAButton href="https://app.harvous.com/sign-up" variant="primary" size="lg" external>
+        Start for free
+      </CTAButton>
+    </div>
+  </section>
+</BaseLayout>

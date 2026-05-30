@@ -205,7 +205,7 @@ const newNote = await db.insert(Notes).values({
 
 ## Status
 
-**Current Status**: Design phase - not yet implemented
+**Current Status**: Schema and API implemented; note-details UI shows attribution in classic Note Details, `/prototype` inspector, and native `NoteInspectorView` (binary copy: Harvous vs you — MCP-specific labels remain future work).
 
 **Next Steps**:
 1. Resolve open questions

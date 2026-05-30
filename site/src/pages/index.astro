@@ -1,0 +1,278 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+import Hero from "../components/Hero.astro";
+import TriptychSection from "../components/TriptychSection.astro";
+import DownloadCTA from "../components/DownloadCTA.astro";
+import TestimonialCard from "../components/TestimonialCard.astro";
+import FaqItem from "../components/FaqItem.astro";
+import CTAButton from "../components/CTAButton.astro";
+import { Icon } from "astro-icon/components";
+import { getCollection, render } from "astro:content";
+
+const featureIconMap: Record<string, string> = {
+  "scripture-pills": "fa6-solid:book-bible",
+  "dictionary": "fa6-solid:book-open",
+  "highlights": "fa6-solid:highlighter",
+  "sidebar-modes": "fa6-solid:magnifying-glass",
+  "native-apps": "fa6-solid:folder",
+  "sharing": "fa6-solid:share-nodes",
+  "offline-sync": "fa6-solid:cloud-arrow-down",
+  "daily-passage": "fa6-solid:calendar-days",
+};
+
+const features = (await getCollection("features")).sort((a, b) => a.data.order - b.data.order);
+const faq = (await getCollection("faq")).sort((a, b) => a.data.order - b.data.order);
+const testimonials = (await getCollection("testimonials")).sort((a, b) => a.data.order - b.data.order);
+
+const testimonialContent = await Promise.all(
+  testimonials.map(async (t) => {
+    const { Content } = await render(t);
+    return { data: t.data, Content };
+  })
+);
+
+const faqContent = await Promise.all(
+  faq.map(async (q) => {
+    const { Content } = await render(q);
+    return { data: q.data, Content };
+  })
+);
+---
+
+<BaseLayout>
+  <Hero />
+
+  <TriptychSection />
+
+  <!-- Founder letter -->
+  <section id="about" class="fade-rule-y">
+    <div class="mx-auto max-w-5xl px-8 py-20 md:py-24">
+      <div class="mb-12 text-center">
+        <div class="text-xs uppercase tracking-[0.14em] text-[var(--color-ink-faint)]">A letter from Derek</div>
+        <h2 class="mt-3 font-display text-4xl leading-[1.05] md:text-6xl">
+          I made Harvous because I need<br class="hidden md:block" /> to remember the Bible, better.
+        </h2>
+      </div>
+      <!-- stacked paper wrapper -->
+      <div class="paper-stack relative">
+        <!-- paper 3 — furthest back, tilted right -->
+        <div
+          aria-hidden="true"
+          class="paper-leaf absolute inset-0 border border-[var(--color-rule)] shadow-[0_8px_24px_-12px_rgba(20,18,12,0.10)]"
+          style="--rot: 2.2deg; background-color: #fcfbf7;"
+        ></div>
+        <!-- paper 2 — middle, tilted left -->
+        <div
+          aria-hidden="true"
+          class="paper-leaf absolute inset-0 border border-[var(--color-rule)] shadow-[0_8px_24px_-12px_rgba(20,18,12,0.10)]"
+          style="--rot: -2.8deg; background-color: #fcfbf7;"
+        ></div>
+        <!-- main letter — slight left lean -->
+        <div
+          class="paper-leaf relative border border-[var(--color-rule)] px-6 py-10 md:px-14 md:py-14 shadow-[0_20px_50px_-20px_rgba(20,18,12,0.16),0_2px_6px_rgba(20,18,12,0.04)]"
+          style="--rot: -0.6deg;
+                 background-color: #fcfbf7;
+                 background-image:
+                   radial-gradient(rgba(20,18,12,0.025) 1px, transparent 1px),
+                   radial-gradient(rgba(20,18,12,0.018) 1px, transparent 1px);
+                 background-size: 28px 28px, 17px 17px;
+                 background-position: 0 0, 9px 9px;"
+        >
+          <!-- folded corner accent -->
+          <div
+            aria-hidden="true"
+            class="pointer-events-none absolute right-0 top-0 h-10 w-10"
+            style="background: linear-gradient(225deg, rgba(20,18,12,0.07) 0%, rgba(20,18,12,0.02) 40%, transparent 60%);"
+          ></div>
+
+          <div class="grid gap-8 md:grid-cols-2 md:gap-12">
+            <div class="prose-letter">
+              <p>Hey there,</p>
+              <p>
+                Since 2016 I've been studying the Bible. Many highlights
+                saved in my Bible app of choice. Some notes in said Bible app. Some in Apple
+                Notes. And some somewhere on a piece of paper I don't have anymore.
+                It was all scattered.
+              </p>
+              <p>
+                I've tried many apps for my Bible study. Some were made for scholars
+                and felt archaic. Some were built for readers with notes as an
+                afterthought. None seem to be made for someone who is curious about
+                the Bible wanting to remember their study.
+              </p>
+              <p>
+                So I made one. Harvous knows scripture, looks up words I'm
+                curious about, and stays out of the way when I want to write.
+              </p>
+            </div>
+            <div class="prose-letter">
+              <p>
+                It's named after Proverbs 25:2 — "It is the glory of God to conceal
+                a matter; to search out a matter is the glory of kings." Studying
+                the Bible is searching. Harvous is the place where the search
+                settles into something you can come back to.
+              </p>
+              <p>
+                It's available on the web, Mac, iPad, and iPhone. Right now you
+                can add the scripture (seven available translations), navigate
+                the built-in dictionary, and highlight what stands out to you.
+              </p>
+              <p>
+                If you have any questions, write me at <a class="underline decoration-[var(--color-rule)] underline-offset-4 hover:decoration-[var(--color-ink)]" href="mailto:derek@harvous.com">derek@harvous.com</a>.
+              </p>
+              <div class="mt-6">
+                <img
+                  src="/derek-signiture.png"
+                  alt="Derek's signature"
+                  class="h-14 w-auto opacity-80"
+                />
+                <div class="mt-3 flex items-center gap-3">
+                  <img
+                    src="/derek-avatar.jpeg"
+                    alt="Derek Castelli"
+                    class="h-11 w-11 rounded-full object-cover"
+                  />
+                  <div>
+                    <div class="text-sm font-semibold" style="color: var(--color-ink);">Derek Castelli</div>
+                    <div class="text-sm italic" style="color: var(--color-ink-faint);">Founder of Harvous</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Core features collage — Fizzy-style -->
+  <section id="features" class="mx-auto max-w-6xl px-5 py-20">
+    <div class="mx-auto max-w-3xl text-center">
+      <div class="text-xs uppercase tracking-[0.14em] text-[var(--color-ink-faint)]">What's included</div>
+      <h2 class="mt-3 font-display text-4xl leading-[1.05] md:text-6xl">
+        It all comes together.
+      </h2>
+      <p class="mx-auto mt-8 max-w-2xl text-lg leading-relaxed text-[var(--color-ink-soft)]">
+        <strong class="text-[var(--color-ink)]">Auto folders + tags</strong> organize notes as you write. No busywork, no upkeep.
+        <strong class="text-[var(--color-ink)]">Scripture pills</strong> turn every reference into a tap‑able link across 7 translations.
+        <strong class="text-[var(--color-ink)]">Highlights</strong> save the phrases that matter, with annotations for the thoughts you'd otherwise forget.
+        Together, they turn every note into <mark>your own study Bible</mark>.
+      </p>
+    </div>
+
+    <!-- Collage of core mocks — single row, overlapping -->
+    <div class="relative mx-auto mt-10 flex max-w-5xl items-center justify-center px-4">
+      <!-- Scripture pill -->
+      <div
+        class="relative z-[3] -mr-6 shrink-0 rotate-[-5deg] rounded-xl bg-white px-3.5 py-3 text-sm leading-relaxed shadow-[0_18px_40px_-14px_rgba(20,18,12,0.22)] ring-1 ring-[var(--color-rule)]"
+      >
+        Read it in
+        <span class="mx-0.5 inline-flex items-center rounded-md px-1.5 py-0.5 text-[12px] font-semibold" style="background: var(--color-sky); color: var(--color-sky-ink);">John 3:16</span>
+        first.
+      </div>
+
+      <!-- Dictionary card -->
+      <div
+        class="relative z-[4] -mr-6 w-[240px] shrink-0 rotate-[3deg] rounded-xl bg-white p-3.5 shadow-[0_18px_40px_-14px_rgba(20,18,12,0.22)] ring-1 ring-[var(--color-rule)]"
+      >
+        <div class="text-[10px] font-semibold uppercase tracking-wider" style="color: var(--color-mint-ink); opacity: 0.6;">Dictionary</div>
+        <div class="mt-0.5 text-[15px] font-semibold">Grace</div>
+        <div class="text-[10px] text-[var(--color-ink-faint)]">Easton's Bible Dictionary, 1897</div>
+        <div class="mt-1.5 text-[11px] leading-snug text-[var(--color-ink-soft)]">
+          (3.) God's forgiving mercy <span style="color: var(--color-mint-ink);">(Rom. 11:6)</span>. (4.) The gospel as distinguished from the law.
+        </div>
+      </div>
+
+      <!-- Highlight + annotation -->
+      <div
+        class="relative z-[2] -mr-6 w-[260px] shrink-0 rotate-[-3deg]"
+      >
+        <div class="rounded-xl bg-white px-3.5 py-3 text-sm leading-relaxed shadow-[0_18px_40px_-14px_rgba(20,18,12,0.22)] ring-1 ring-[var(--color-rule)]">
+          We're saved
+          <mark class="px-0.5" style="background: linear-gradient(180deg, transparent 55%, var(--color-highlight) 55%);">by grace</mark>
+          through faith — not by works of our own.
+        </div>
+        <div
+          class="absolute -bottom-3 -right-3 rotate-[6deg] rounded-lg bg-white px-2.5 py-1.5 text-[11px] font-medium shadow-[0_8px_20px_-10px_rgba(20,18,12,0.22)] ring-1 ring-[var(--color-rule)]"
+          style="color: #7a5410;"
+        >
+          <span class="mr-1 inline-block h-1.5 w-1.5 rounded-full align-middle" style="background: #7a5410;"></span>
+          Annotation
+        </div>
+      </div>
+
+      <!-- Daily passage -->
+      <div
+        class="relative z-[5] w-[210px] shrink-0 rotate-[5deg] rounded-xl bg-white p-3.5 shadow-[0_18px_40px_-14px_rgba(20,18,12,0.22)] ring-1 ring-[var(--color-rule)]"
+      >
+        <div class="flex items-center justify-between gap-2">
+          <div>
+            <div class="text-[10px] text-[var(--color-ink-faint)]">Today's Passage</div>
+            <div class="mt-0.5 text-[13px] font-semibold">Proverbs 3:11–12</div>
+          </div>
+          <div class="flex h-9 w-9 flex-col items-center justify-center rounded-md text-xs font-semibold leading-none" style="background: var(--color-lilac); color: var(--color-lilac-ink);">
+            <span class="text-[8px] uppercase tracking-wide opacity-70">May</span>
+            <span class="text-[14px]">22</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Feature grid -->
+    <div class="mx-auto mt-14 max-w-5xl grid grid-cols-2 gap-x-8 gap-y-8 sm:grid-cols-4">
+      {features.map((f) => {
+        const icon = featureIconMap[f.id] ?? "fa6-solid:circle";
+        return (
+          <div class="flex flex-col gap-2.5">
+            <div class="flex h-9 w-9 items-center justify-center rounded-xl" style="background: var(--color-accent-soft);">
+              <Icon name={icon} class="h-4 w-4" style="color: var(--color-accent);" />
+            </div>
+            <div class="text-sm font-semibold text-[var(--color-ink)]">{f.data.tagline}</div>
+            <div class="text-xs leading-relaxed text-[var(--color-ink-soft)]">{f.data.title}</div>
+          </div>
+        );
+      })}
+    </div>
+  </section>
+
+  <!-- Testimonials -->
+  <section class="fade-rule-t">
+    <div class="mx-auto max-w-6xl px-5 py-20">
+      <div class="mb-12 text-center">
+        <div class="text-xs uppercase tracking-[0.14em] text-[var(--color-ink-faint)]">From people using it</div>
+        <h2 class="mt-3 font-display text-4xl leading-[1.05] md:text-6xl">
+          Helping people with their Bible study.
+        </h2>
+      </div>
+      <div class="mx-auto grid max-w-4xl gap-5 md:grid-cols-3">
+        {testimonialContent.map(({ data, Content }, i) => {
+          const palette = ["lilac", "peach", "mint", "sky"] as const;
+          return (
+            <TestimonialCard name={data.name} when={data.when} tone={palette[i % palette.length]}>
+              <Content />
+            </TestimonialCard>
+          );
+        })}
+      </div>
+    </div>
+  </section>
+
+  <!-- FAQ -->
+  <section class="mx-auto max-w-6xl px-5 py-16">
+    <div class="mb-10 text-center">
+      <div class="text-xs uppercase tracking-[0.14em] text-[var(--color-ink-faint)]">Potentially asked questions</div>
+      <h2 class="mt-3 font-display text-4xl leading-tight md:text-5xl">
+        Got questions?
+      </h2>
+    </div>
+    <div class="grid gap-x-16 md:grid-cols-2">
+      {faqContent.map(({ data, Content }) => (
+        <FaqItem question={data.question}>
+          <Content />
+        </FaqItem>
+      ))}
+    </div>
+  </section>
+
+  <DownloadCTA />
+</BaseLayout>

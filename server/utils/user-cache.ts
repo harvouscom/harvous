@@ -5,11 +5,10 @@
  * Dates stored as ISO text strings.
  */
 
-import { db, first, UserMetadata, InboxItems, UserInboxItems, Threads, Notes, NoteThreads, eq, and, inArray } from '../db';
+import { db, first, UserMetadata, InboxItems, UserInboxItems, eq, and, inArray } from '../db';
 import { nowISO } from '../db/dates';
 import { generateReferralCode } from './referral-code';
 import { getCurrentSeason } from '@/utils/season-helpers';
-import { processScriptureReferences } from './process-scripture-references';
 
 export interface CachedUserData {
   firstName: string;
@@ -22,134 +21,9 @@ export interface CachedUserData {
   createdAt?: string;
 }
 
-// In-memory lock: when a new user is being initialized (metadata + onboarding thread),
+// In-memory lock: when a new user is being initialized (metadata),
 // concurrent requests wait for it to finish instead of seeing half-created state.
 const pendingInit = new Map<string, Promise<CachedUserData>>();
-
-// Serialize onboarding per user so concurrent callers never return while another request
-// has inserted the thread row but not yet notes/junction/scripture (load-more would miss refs).
-const pendingOnboardingChain = new Map<string, Promise<void>>();
-
-/**
- * If the user has no onboarding thread yet, create it (and notes + scripture).
- * Idempotent: no-op if thread_onboarding_${userId} already exists.
- * Exported so content route can run it before first page load to ensure scripture refs exist.
- */
-export async function ensureOnboardingThreadIfMissing(userId: string): Promise<void> {
-  const prev = pendingOnboardingChain.get(userId) ?? Promise.resolve();
-  const next = prev.then(async () => {
-    await ensureOnboardingThreadBody(userId);
-    const { syncOnboardingNotesIfNeeded } = await import('./onboarding-sync');
-    await syncOnboardingNotesIfNeeded(userId);
-  });
-  pendingOnboardingChain.set(userId, next);
-  return next.finally(() => {
-    if (pendingOnboardingChain.get(userId) === next) {
-      pendingOnboardingChain.delete(userId);
-    }
-  });
-}
-
-async function ensureOnboardingThreadBody(userId: string): Promise<void> {
-  const onboardingThreadId = `thread_onboarding_${userId}`;
-  const existing = first(await db.select({ id: Threads.id }).from(Threads).where(eq(Threads.id, onboardingThreadId)).limit(1));
-  if (existing) return;
-
-  const { generateNoteId } = await import('@/utils/ids');
-  const { ensureUnorganizedThread } = await import('./unorganized-thread');
-  const { loadOnboardingNotes, ONBOARDING_PACK_VERSION } = await import('@/utils/load-onboarding-notes');
-
-  await ensureUnorganizedThread(userId);
-  const onboardingNotes = loadOnboardingNotes();
-  if (onboardingNotes.length === 0) {
-    console.warn('[onboarding] loadOnboardingNotes returned no notes');
-    return;
-  }
-  const firstContent = onboardingNotes[0]?.content ?? '';
-  if (!firstContent.includes('Proverbs')) {
-    console.warn('[onboarding] first note content missing "Proverbs" (len=%d)', firstContent.length);
-  }
-
-  const ts = nowISO();
-  try {
-    await db.insert(Threads).values({
-      id: onboardingThreadId,
-      title: 'Welcome to Harvous',
-      subtitle: `${onboardingNotes.length} notes to get you started`,
-      color: 'blue',
-      spaceId: null,
-      userId,
-      isPublic: false,
-      isPinned: false,
-      createdAt: ts,
-      updatedAt: ts,
-      lastVisited: ts,
-    });
-  } catch (insertError: unknown) {
-    // Another request already created the onboarding thread (e.g. parallel get-profile + nav).
-    // Treat as idempotent and return so we don't throw UNIQUE constraint to the caller.
-    // Postgres unique violation (23505): thread already created by concurrent request
-    const isUnique =
-      (insertError as { code?: string })?.code === '23505' ||
-      (insertError as Error)?.message?.includes('unique constraint');
-    if (isUnique) {
-      console.log('[onboarding] thread already created by concurrent request, skipping', { userId });
-      return;
-    }
-    throw insertError;
-  }
-
-  const noteRecords = onboardingNotes.map((noteData, idx) => {
-    const noteId = generateNoteId();
-    return {
-      id: noteId,
-      title: noteData.title.charAt(0).toUpperCase() + noteData.title.slice(1),
-      content: noteData.content,
-      threadId: onboardingThreadId,
-      spaceId: null,
-      simpleNoteId: idx + 1,
-      userId,
-      isPublic: false,
-      addedBy: 'system' as const,
-      createdAt: ts,
-      lastVisited: ts,
-    };
-  });
-  const junctionRecords = noteRecords.map((note) => ({
-    id: `note-thread-${note.id}-${Date.now()}`,
-    noteId: note.id,
-    threadId: onboardingThreadId,
-    createdAt: nowISO(),
-  }));
-
-  await db.insert(Notes).values(noteRecords);
-  await db.insert(NoteThreads).values(junctionRecords);
-
-  await Promise.all(
-    noteRecords.map(async (note, idx) => {
-      try {
-        const { results } = await processScriptureReferences(note.id, userId, onboardingThreadId, onboardingNotes[idx].content);
-        if (results.length > 0) {
-          console.log('[onboarding] scripture processed', { noteId: note.id, detectedCount: results.length, refs: results.map((r) => r.reference) });
-        }
-      } catch (e) {
-        const msg = e instanceof Error ? e.message : String(e);
-        console.error('Error processing scripture for onboarding note', note.id, msg, e);
-      }
-    })
-  );
-
-  await db
-    .update(UserMetadata)
-    .set({
-      highestSimpleNoteId: onboardingNotes.length,
-      onboardingPackVersionApplied: ONBOARDING_PACK_VERSION,
-      updatedAt: nowISO(),
-    })
-    .where(eq(UserMetadata.userId, userId));
-
-  console.log(`[onboarding] created thread with ${onboardingNotes.length} notes for user ${userId}`);
-}
 
 /**
  * Get user data from cache or fetch from Clerk API if needed
@@ -177,16 +51,6 @@ export async function getCachedUserData(userId: string): Promise<CachedUserData>
       new Date(userMetadata.clerkDataUpdatedAt).getTime() < new Date('2023-01-01').getTime();
 
     if (userMetadata && isCacheFresh && !isExplicitlyStale) {
-      // Repair: if user was created recently but onboarding thread is missing, create it now
-      const createdMs = userMetadata.createdAt ? new Date(userMetadata.createdAt).getTime() : 0;
-      const fiveMinAgo = now.getTime() - 5 * 60 * 1000;
-      if (createdMs >= fiveMinAgo) {
-        try {
-          await ensureOnboardingThreadIfMissing(userId);
-        } catch (repairErr) {
-          console.error('[user-cache] Onboarding repair failed:', repairErr);
-        }
-      }
       return {
         firstName: userMetadata.firstName || '',
         lastName: userMetadata.lastName || '',
@@ -371,12 +235,6 @@ async function fetchAndCacheUserData(userId: string, existingMetadata: any): Pro
       }
     }
 
-    // Create onboarding thread (idempotent; safe if we or another request already created user)
-    try {
-      await ensureOnboardingThreadIfMissing(userId);
-    } catch (error) {
-      console.error('Error creating onboarding thread (non-fatal, user can still load):', error);
-    }
   }
 
   return {

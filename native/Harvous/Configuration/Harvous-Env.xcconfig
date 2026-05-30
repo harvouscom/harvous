@@ -1,0 +1,22 @@
+// Base layer for per-environment settings consumed by Info.plist via
+// $(VAR) substitution. Real values live in the per-config files that are
+// actually bound to build configurations in project.yml:
+//
+//   Debug      → Harvous-Signing.Debug.xcconfig       (test Clerk + local server)
+//   Debug-Prod → Harvous-Signing.Debug-Prod.xcconfig  (prod Clerk + prod API)
+//   Release    → Harvous-Signing.Release.xcconfig     (prod Clerk + prod API)
+//
+// Those files #include Harvous-Signing.xcconfig, which #includes this file.
+// The placeholders below are intentional fallbacks — if you see _REPLACE_ME
+// reach the runtime, a per-config file forgot to override them.
+//
+// CLERK_PUBLISHABLE_KEY: from Clerk dashboard → API keys → Publishable key.
+//   Use the test (pk_test_…) key for Debug, live (pk_live_…) elsewhere.
+//   Safe to commit — publishable keys are not secret.
+// HARVOUS_API_BASE_URL: base URL the native API client points at.
+
+CLERK_PUBLISHABLE_KEY = pk_test_REPLACE_ME
+HARVOUS_API_BASE_URL = https:/$()/app.harvous.com
+// Supabase Realtime (anon key only). Set in per-config xcconfig or leave empty to disable native Realtime.
+HARVOUS_SUPABASE_URL =
+HARVOUS_SUPABASE_ANON_KEY =

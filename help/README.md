@@ -23,6 +23,10 @@ New to Harvous? Start here:
 - **[Profile and Settings](profile-and-settings.md)** - Manage your account and preferences
 - **[Mobile vs Desktop](mobile-vs-desktop.md)** - Learn about platform differences
 
+## Native Mac app (preview)
+
+- **[Harvous for Mac (preview)](mac-native-app.md)** - Install the DMG from GitHub Releases, first launch, and Gatekeeper / quarantine steps (not the Mac App Store)
+
 ## Help & Support
 
 - **[FAQs](faqs.md)** - Frequently asked questions
@@ -48,6 +52,7 @@ New to Harvous? Start here:
 ### Account & Platform
 - [Profile and Settings](profile-and-settings.md)
 - [Mobile vs Desktop](mobile-vs-desktop.md)
+- [Harvous for Mac (preview)](mac-native-app.md)
 - [XP and Gamification](xp-and-gamification.md)
 
 ## Need More Help?

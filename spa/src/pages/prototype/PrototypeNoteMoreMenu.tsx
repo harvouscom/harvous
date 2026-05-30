@@ -1,0 +1,184 @@
+/**
+ * Note toolbar "more" menu — pin and delete (native MacNoteShareMoreToolbar parity).
+ * Note lock/unlock is temporarily disabled.
+ */
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useNavigate } from '@tanstack/react-router';
+import { useQueryClient, type InfiniteData } from '@tanstack/react-query';
+import Icon from '@/components/react/Icon';
+import { toast } from '@/utils/toast';
+import { APIError } from '../../lib/api';
+import { useDeleteNote } from '../../hooks/mutations/useDeleteNote';
+import { usePinSpaceNote } from '../../hooks/mutations/usePinSpaceNote';
+import { useProtoShell } from '../../layouts/proto-shell-context';
+import { PROTO_TOOLBAR_ICON_SIZE } from './proto-toolbar-tokens';
+import ProtoConfirmDialog from './ProtoConfirmDialog';
+import ProtoPopoverShell from './ProtoPopoverShell';
+
+interface CachedSpaceNotesPage {
+  notes?: { id: string; isPinned?: boolean }[];
+}
+
+function readNotePinnedFromCache(
+  queryClient: ReturnType<typeof useQueryClient>,
+  spaceId: string,
+  noteId: string,
+): boolean {
+  const sid = spaceId.startsWith('space_') ? spaceId : `space_${spaceId}`;
+  const entries = queryClient.getQueriesData<InfiniteData<CachedSpaceNotesPage>>({
+    queryKey: ['space', sid, 'notes'],
+  });
+  for (const [, data] of entries) {
+    for (const page of data?.pages ?? []) {
+      const hit = page.notes?.find((n) => n.id === noteId);
+      if (hit) return hit.isPinned === true;
+    }
+  }
+  return false;
+}
+
+export interface PrototypeNoteMoreMenuProps {
+  noteId: string;
+  spaceId: string;
+  iconSize?: number;
+}
+
+export default function PrototypeNoteMoreMenu({
+  noteId,
+  spaceId,
+  iconSize = PROTO_TOOLBAR_ICON_SIZE,
+}: PrototypeNoteMoreMenuProps) {
+  const [open, setOpen] = useState(false);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [pinOverride, setPinOverride] = useState<boolean | null>(null);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const queryClient = useQueryClient();
+  const navigate = useNavigate();
+  const { closeDrawer, isMobileSidebar } = useProtoShell();
+  const pinNote = usePinSpaceNote();
+  const deleteNote = useDeleteNote();
+
+  const pinnedFromCache = useMemo(
+    () => readNotePinnedFromCache(queryClient, spaceId, noteId),
+    [queryClient, spaceId, noteId, pinNote.isPending, deleteNote.isPending],
+  );
+  const pinned = pinOverride ?? pinnedFromCache;
+
+  useEffect(() => {
+    if (!open) return undefined;
+    const onDoc = (e: MouseEvent) => {
+      const el = rootRef.current;
+      if (el && e.target instanceof Node && !el.contains(e.target)) setOpen(false);
+    };
+    const onEsc = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpen(false);
+    };
+    document.addEventListener('mousedown', onDoc);
+    document.addEventListener('keydown', onEsc);
+    return () => {
+      document.removeEventListener('mousedown', onDoc);
+      document.removeEventListener('keydown', onEsc);
+    };
+  }, [open]);
+
+  useEffect(() => {
+    setPinOverride(null);
+  }, [noteId]);
+
+  const onPin = () => {
+    setOpen(false);
+    const nextPinned = !pinned;
+    pinNote.mutate(
+      { spaceId, noteId, isPinned: nextPinned },
+      {
+        onSuccess: () => setPinOverride(nextPinned),
+        onError: (err) => {
+          const msg =
+            err instanceof APIError ? err.message : err instanceof Error ? err.message : 'Could not update pin';
+          toast.error(msg);
+        },
+      },
+    );
+  };
+
+  const onDeleteConfirm = () => {
+    deleteNote.mutate(
+      { noteId, spaceId },
+      {
+        onSuccess: () => {
+          setDeleteConfirmOpen(false);
+          navigate({ to: '/prototype/' });
+          if (isMobileSidebar) closeDrawer();
+        },
+        onError: (err) => {
+          const msg =
+            err instanceof APIError ? err.message : err instanceof Error ? err.message : 'Could not delete note';
+          toast.error(msg);
+        },
+      },
+    );
+  };
+
+  return (
+    <>
+      <div className="proto-menu" ref={rootRef}>
+        <button
+          type="button"
+          className="proto-toolbar-icon-btn"
+          aria-expanded={open}
+          aria-haspopup="menu"
+          title="More options"
+          aria-label="More options"
+          disabled={pinNote.isPending || deleteNote.isPending}
+          onClick={() => setOpen((x) => !x)}
+        >
+          <Icon name="ellipsis" size={iconSize} />
+        </button>
+
+        {open ? (
+          <ProtoPopoverShell
+            className="proto-menu__popover proto-menu__popover--right"
+            role="menu"
+            aria-label="Note actions"
+          >
+            <div className="proto-menu-section" role="group">
+              <button type="button" role="menuitem" className="proto-menu-item" disabled={pinNote.isPending} onClick={onPin}>
+                <span className="proto-menu-item__icon" aria-hidden>
+                  <Icon name="thumbtack" size={iconSize} />
+                </span>
+                <span style={{ flex: 1, minWidth: 0 }}>{pinned ? 'Unpin note' : 'Pin note'}</span>
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                className="proto-menu-item proto-menu-item--destructive"
+                disabled={deleteNote.isPending}
+                onClick={() => {
+                  setOpen(false);
+                  setDeleteConfirmOpen(true);
+                }}
+              >
+                <span className="proto-menu-item__icon" aria-hidden>
+                  <Icon name="trash-can" size={iconSize} />
+                </span>
+                <span style={{ flex: 1, minWidth: 0 }}>Delete note</span>
+              </button>
+            </div>
+          </ProtoPopoverShell>
+        ) : null}
+      </div>
+
+      {deleteConfirmOpen ? (
+        <ProtoConfirmDialog
+          title="Delete this note? This cannot be undone."
+          confirmLabel="Delete"
+          busy={deleteNote.isPending}
+          onConfirm={onDeleteConfirm}
+          onCancel={() => {
+            if (!deleteNote.isPending) setDeleteConfirmOpen(false);
+          }}
+        />
+      ) : null}
+    </>
+  );
+}

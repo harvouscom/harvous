@@ -1,0 +1,96 @@
+---
+import BaseLayout from "../../layouts/BaseLayout.astro";
+import DownloadCTA from "../../components/DownloadCTA.astro";
+import { Icon } from "astro-icon/components";
+
+const accent = { bg: "var(--color-mint)", ink: "var(--color-mint-ink)" };
+
+const moments = [
+  {
+    icon: "fa6-solid:people-group",
+    heading: "A shared space for your group",
+    body: "Everyone in the group can add to the same threads. Questions, answers, connections — all in one place that lives beyond the hour you meet.",
+  },
+  {
+    icon: "fa6-solid:list",
+    heading: "Threads per week or topic",
+    body: "Week four of your James study has its own thread. Everyone's notes from that session live together. You can look back at what the group found without trying to remember.",
+  },
+  {
+    icon: "fa6-solid:lock",
+    heading: "You stay in control",
+    body: "You set up the space and invite who belongs. You decide what threads exist and what the group can see. It's your space — others are guests in it.",
+  },
+  {
+    icon: "fa6-solid:user",
+    heading: "Keep your prep notes private",
+    body: "Your own notes on the passage — the prep, the things you wanted to say, the questions you almost asked — stay in your personal space. The group only sees what you add to the shared one.",
+  },
+];
+---
+
+<BaseLayout
+  title="For small groups — Harvous"
+  description="Lead your group. Keep what you build together. Harvous shared spaces let your whole group add notes to the same threads — so what you discover doesn't disappear."
+>
+  <!-- Hero -->
+  <section class="border-b border-[var(--color-rule)]">
+    <div class="mx-auto max-w-3xl px-5 py-16 md:py-24">
+      <a
+        href="/use-cases"
+        class="inline-flex items-center gap-1.5 text-sm text-[var(--color-ink-soft)] hover:text-[var(--color-ink)]"
+      >
+        <svg class="h-3.5 w-3.5" viewBox="0 0 16 16" fill="currentColor">
+          <path fill-rule="evenodd" d="M14 8a.75.75 0 0 1-.75.75H3.56l3.22 3.22a.75.75 0 1 1-1.06 1.06l-4.5-4.5a.75.75 0 0 1 0-1.06l4.5-4.5a.75.75 0 0 1 1.06 1.06L3.56 7.25H13.25A.75.75 0 0 1 14 8Z" clip-rule="evenodd"/>
+        </svg>
+        Use cases
+      </a>
+      <div class="mt-6">
+        <span
+          class="rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-wider"
+          style={`background: ${accent.bg}; color: ${accent.ink};`}
+        >
+          Small group
+        </span>
+      </div>
+      <h1 class="mt-5 font-display text-4xl leading-[1.05] md:text-6xl">
+        For the person who leads the discussion and wants to keep what the group builds.
+      </h1>
+      <p class="mt-6 max-w-xl text-lg leading-relaxed text-[var(--color-ink-soft)]">
+        You prep questions, you facilitate, you watch people have realizations out loud. And then next week you start from scratch. The things your group discovered together — they're in someone's head, maybe, but not anywhere you can all come back to.
+      </p>
+    </div>
+  </section>
+
+  <!-- Feature moments -->
+  <section class="mx-auto max-w-5xl px-5 py-20">
+    <div class="grid gap-10 sm:grid-cols-2">
+      {moments.map((m) => (
+        <div class="flex flex-col gap-4">
+          <div
+            class="flex h-11 w-11 items-center justify-center rounded-xl"
+            style={`background: ${accent.bg};`}
+          >
+            <Icon name={m.icon} class="h-5 w-5" style={`color: ${accent.ink};`} />
+          </div>
+          <div>
+            <h3 class="text-lg font-semibold text-[var(--color-ink)]">{m.heading}</h3>
+            <p class="mt-2 text-[var(--color-ink-soft)] leading-relaxed">{m.body}</p>
+          </div>
+        </div>
+      ))}
+    </div>
+  </section>
+
+  <!-- Quote -->
+  <section class="fade-rule-y">
+    <div class="mx-auto max-w-2xl px-5 py-16 text-center">
+      <blockquote class="font-display text-3xl leading-snug md:text-4xl">
+        "This is one of the <mark>most beautiful pieces of software</mark> I've used recently."
+      </blockquote>
+      <figcaption class="mt-6 text-sm italic text-[var(--color-ink-soft)]">&mdash;Joschua, Dec 2025</figcaption>
+    </div>
+  </section>
+
+  <DownloadCTA />
+</BaseLayout>

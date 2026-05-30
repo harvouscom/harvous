@@ -8,6 +8,8 @@ interface NewTagPanelProps {
   onTagCreated?: () => void;
   inBottomSheet?: boolean;
   inline?: boolean; // If true, render as inline form without panel wrapper
+  /** Visible placeholder on the tag name input (Note Details sticky composer defaults this). */
+  placeholder?: string;
 }
 
 export default function NewTagPanel({
@@ -15,7 +17,8 @@ export default function NewTagPanel({
   onClose,
   onTagCreated,
   inBottomSheet = false,
-  inline = false
+  inline = false,
+  placeholder = 'Enter tag name'
 }: NewTagPanelProps) {
   const [tagName, setTagName] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -123,7 +126,7 @@ export default function NewTagPanel({
         const error = await assignResponse.json();
         if (assignResponse.status === 409) {
           // Tag already assigned to note - this is fine, just refresh
-          toast.success('Tag already on note');
+          toast.success(`"${trimmedName}" is already on this note`);
           setTagName('');
           
           // Call callback to refresh tag list
@@ -138,7 +141,7 @@ export default function NewTagPanel({
       }
 
       // Success!
-      toast.success('Tag added to note');
+      toast.success(`Added "${trimmedName}" to this note`);
       setTagName('');
       
       // Call callback to refresh tag list
@@ -168,10 +171,12 @@ export default function NewTagPanel({
             type="text"
             value={tagName}
             onChange={(e) => setTagName(e.target.value)}
-            placeholder="Type here..."
+            placeholder={placeholder}
             className="search-input__field"
             disabled={isSubmitting}
             autoFocus={!isMobile}
+            autoComplete="off"
+            aria-label="New tag name"
           />
         </div>
 
@@ -218,10 +223,12 @@ export default function NewTagPanel({
                       type="text"
                       value={tagName}
                       onChange={(e) => setTagName(e.target.value)}
-                      placeholder="Type here..."
+                      placeholder={placeholder}
                       className="search-input__field"
                       disabled={isSubmitting}
                       autoFocus={!isMobile}
+                      autoComplete="off"
+                      aria-label="New tag name"
                     />
                   </div>
 

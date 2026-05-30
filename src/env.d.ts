@@ -120,6 +120,11 @@ interface ImportMetaEnv {
   readonly SUPABASE_DATABASE_URL?: string;
   /** Supabase Postgres direct URL (port 5432, for drizzle-kit migrations) */
   readonly SUPABASE_DIRECT_URL?: string;
+  /** Supabase project URL — API Realtime broadcast (server) */
+  readonly SUPABASE_URL?: string;
+  readonly SUPABASE_SERVICE_ROLE_KEY?: string;
+  readonly VITE_SUPABASE_URL?: string;
+  readonly VITE_SUPABASE_ANON_KEY?: string;
 
   // Vite / build
   readonly DEV: boolean;

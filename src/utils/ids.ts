@@ -31,6 +31,11 @@ export function generateCommentId(): string {
   return generateTimestampId("comment");
 }
 
+/** Server-backed study branch row (native `StudyThread` parity on Postgres). */
+export function generateStudyThreadEntryId(): string {
+  return generateTimestampId("study");
+}
+
 // Function to get the next available simple note ID for adding content from inbox/archive
 export function getNextSimpleNoteId(existingNotes: Array<{ noteId?: number }>): number {
   // Find the highest existing simple note ID

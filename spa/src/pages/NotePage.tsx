@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useRef } from 'react';
-import { useNavigate, useParams } from '@tanstack/react-router';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useNavigate, useParams, useRouterState } from '@tanstack/react-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { useUser } from '@clerk/clerk-react';
 import { useNote } from '../hooks/queries/useNote';
@@ -12,6 +12,42 @@ import { updateNoteOffline } from '../../../src/utils/offline-mutations';
 import { detectScriptureReferences } from '@/utils/scripture-detector';
 import { debug } from '@/utils/logger';
 import { MY_PILE_THREAD_TITLE } from '@/utils/my-pile-thread';
+import '../styles/note-editor-chrome.css';
+
+function getThreadIdFromSearch(search: string | Record<string, unknown> | undefined): string | null {
+  if (search == null) return null;
+  if (typeof search === 'object') {
+    const t = (search as Record<string, unknown>).thread;
+    return typeof t === 'string' && t.startsWith('thread_') ? t : null;
+  }
+  const raw = typeof search === 'string' ? search : '';
+  const params = new URLSearchParams(raw.startsWith('?') ? raw : `?${raw}`);
+  const thread = params.get('thread');
+  return thread && thread.startsWith('thread_') ? thread : null;
+}
+
+function getCollectionFromSearch(search: string | Record<string, unknown> | undefined): string | undefined {
+  if (search == null) return undefined;
+  if (typeof search === 'object') {
+    const c = (search as Record<string, unknown>).collection;
+    return typeof c === 'string' ? c : undefined;
+  }
+  const raw = typeof search === 'string' ? search : '';
+  const params = new URLSearchParams(raw.startsWith('?') ? raw : `?${raw}`);
+  return params.get('collection') ?? undefined;
+}
+
+function getSpaceIdFromSearch(search: string | Record<string, unknown> | undefined): string | null {
+  if (search == null) return null;
+  if (typeof search === 'object') {
+    const space = (search as Record<string, unknown>).space;
+    return typeof space === 'string' && space.startsWith('space_') ? space : null;
+  }
+  const raw = typeof search === 'string' ? search : '';
+  const params = new URLSearchParams(raw.startsWith('?') ? raw : `?${raw}`);
+  const space = params.get('space');
+  return space && space.startsWith('space_') ? space : null;
+}
 
 export default function NotePage() {
   const { noteId: noteSlug } = useParams({ strict: false }) as { noteId: string };
@@ -22,8 +58,49 @@ export default function NotePage() {
   const { data: _nav } = useNavigation(); // kept warm for nav sidebar
   const queryClient = useQueryClient();
   const navigate = useNavigate();
+  const search = useRouterState({ select: (s) => s.location.search });
+  const urlThreadId = useMemo(() => {
+    let id = getThreadIdFromSearch(search);
+    if (!id && typeof window !== 'undefined') {
+      try {
+        const fromUrl = new URLSearchParams(window.location.search).get('thread');
+        if (fromUrl && fromUrl.startsWith('thread_')) id = fromUrl;
+      } catch { /* ignore */ }
+    }
+    return id;
+  }, [search]);
+  const urlSpaceId = useMemo(() => {
+    let id = getSpaceIdFromSearch(search);
+    if (!id && typeof window !== 'undefined') {
+      try {
+        const fromUrl = new URLSearchParams(window.location.search).get('space');
+        if (fromUrl && fromUrl.startsWith('space_')) id = fromUrl;
+      } catch { /* ignore */ }
+    }
+    return id;
+  }, [search]);
+  const collectionNavContext = useMemo(() => {
+    let raw = getCollectionFromSearch(search);
+    if (raw === undefined && typeof window !== 'undefined') {
+      try {
+        raw = new URLSearchParams(window.location.search).get('collection') ?? undefined;
+      } catch {
+        /* ignore */
+      }
+    }
+    if (raw === undefined) return { type: 'home' as const };
+    if (raw === '' || raw === '__ungrouped__') return { type: 'collection' as const, name: null };
+    return { type: 'collection' as const, name: raw };
+  }, [search]);
   const updateNoteMutation = useUpdateNote();
   const processScriptureMutation = useProcessScriptureRefs();
+
+  const [formatToolbarHostEl, setFormatToolbarHostEl] = useState<HTMLDivElement | null>(null);
+  const [scriptureChromeHostEl, setScriptureChromeHostEl] = useState<HTMLDivElement | null>(null);
+  const [highlightChromeHostEl, setHighlightChromeHostEl] = useState<HTMLDivElement | null>(null);
+  const [chromeMode, setChromeMode] = useState<
+    'format' | 'scripture' | 'highlight' | 'noteActions' | 'hidden'
+  >('hidden');
 
   // Notes in shared spaces that the current user did not add are view-only (member view).
   // Welcome thread onboarding pack notes: read-only in the card like scripture notes (CardFullEditable readOnlyLikeScripture); API also rejects edits.
@@ -87,23 +164,12 @@ export default function NotePage() {
     return () => window.removeEventListener('noteRemovedFromThread', handler);
   }, [noteId, navigate, queryClient]);
 
-  // Capture ?thread= / ?space= from URL once per noteId so later logic (and async effects)
-  // don't lose context if the SPA strips the query string.
+  // Capture ?thread= / ?space= when note id or URL query context changes (same note can
+  // be opened from another thread/space without remounting).
   useEffect(() => {
-    let capturedThread: string | null = null;
-    let capturedSpace: string | null = null;
-    if (typeof window !== 'undefined') {
-      try {
-        const params = new URLSearchParams(window.location.search);
-        const thread = params.get('thread');
-        if (thread && thread.startsWith('thread_')) capturedThread = thread;
-        const space = params.get('space');
-        if (space && space.startsWith('space_')) capturedSpace = space;
-      } catch { /* ignore */ }
-    }
-    noteThreadFromUrlRef.current = capturedThread;
-    noteSpaceIdRef.current = capturedSpace;
-  }, [noteId]);
+    noteThreadFromUrlRef.current = urlThreadId;
+    noteSpaceIdRef.current = urlSpaceId;
+  }, [noteId, urlThreadId, urlSpaceId]);
 
   // When opening a note that has scripture refs but no pill markup (e.g. onboarding or legacy notes),
   // or has pending pills (from deferred create), run scripture processing once then refetch.
@@ -121,8 +187,8 @@ export default function NotePage() {
     const runReprocess = () => {
       reprocessAttemptedRef.current = noteId;
       const threads = note.threads ?? [];
-      let threadIdFromUrl: string | null = null;
-      if (typeof window !== 'undefined') {
+      let threadIdFromUrl: string | null = urlThreadId;
+      if (typeof window !== 'undefined' && !threadIdFromUrl) {
         try {
           const t = new URLSearchParams(window.location.search).get('thread');
           if (t?.startsWith('thread_')) threadIdFromUrl = t;
@@ -155,14 +221,14 @@ export default function NotePage() {
     const refs = detectScriptureReferences(plainText);
     if (refs.length === 0) return;
     runReprocess();
-  }, [note, noteId, isLoading, processScriptureMutation]);
+  }, [note, noteId, isLoading, processScriptureMutation, urlThreadId]);
 
   // Parent thread: prefer ?thread= (multi-note membership) over API order (threads[0]).
   // When the API returns no threads (e.g. rare member edge) but the URL has ?thread=, keep that context.
   const parentThread = useMemo(() => {
     const threads = note?.threads ?? [];
-    let threadId: string | null = null;
-    if (typeof window !== 'undefined') {
+    let threadId: string | null = urlThreadId;
+    if (!threadId && typeof window !== 'undefined') {
       try {
         const fromUrl = new URLSearchParams(window.location.search).get('thread');
         if (fromUrl?.startsWith('thread_')) threadId = fromUrl;
@@ -183,7 +249,7 @@ export default function NotePage() {
       };
     }
     return undefined;
-  }, [note?.threads, noteId]);
+  }, [note?.threads, noteId, urlThreadId]);
   const parentThreadId = parentThread?.id ?? undefined;
 
   // Note detail API includes threadId on the row, but seeded list cache often only has threads[].
@@ -252,7 +318,7 @@ export default function NotePage() {
       openedInSpaceIds: [openedInSpaceId],
       openedInSpaceId: openedInSpaceId,
     });
-  }, [note, parentThread]);
+  }, [note, parentThread, urlSpaceId]);
 
   // Diagnostic (dev): log whether note content has scripture pill markup (helps distinguish "no pills in content" vs "pills not rendering" for member view).
   useEffect(() => {
@@ -266,7 +332,20 @@ export default function NotePage() {
   useEffect(() => {
     if (!noteId) return;
 
-    (window as any).noteSaveCallback = async function(newTitle: string, newContent: string) {
+    (
+      window as unknown as {
+        noteSaveCallback?: (
+          newTitle: string,
+          newContent: string,
+          collectionExtras?: {
+            primaryCollection?: string | null;
+            secondaryCollections?: string[];
+            collectionPinned?: boolean;
+            collectionUserOverride?: boolean;
+          },
+        ) => Promise<unknown>;
+      }
+    ).noteSaveCallback = async function (newTitle, newContent, collectionExtras) {
       // OFFLINE-FIRST: update IndexedDB immediately
       try {
         const userId = (window as any).__harvous_userId || localStorage.getItem('harvous-user-id');
@@ -278,14 +357,19 @@ export default function NotePage() {
       }
 
       // Push to server via mutation (handles cache invalidation + noteUpdated event)
-      return updateNoteMutation.mutateAsync({ noteId, title: newTitle, content: newContent });
+      return updateNoteMutation.mutateAsync({
+        noteId,
+        title: newTitle,
+        content: newContent,
+        ...(collectionExtras ?? {}),
+      });
     };
 
     return () => {
       // Clean up when leaving the note page
-      (window as any).noteSaveCallback = undefined;
+      (window as unknown as { noteSaveCallback?: unknown }).noteSaveCallback = undefined;
     };
-  }, [noteId]);
+  }, [noteId, updateNoteMutation]);
 
   if (isLoading && !note) {
     // Skeleton only when we have no cached data; if we have cached note (e.g. from list seed or prefetch), show it while refetching
@@ -316,24 +400,62 @@ export default function NotePage() {
         'data-parent-thread-space-id': (parentThread as { spaceId?: string | null }).spaceId ?? '',
       } : {})}
     >
-      <SubtleContentMount key={noteId} variant="fade">
-        <CardFullEditable
-          title={note.title || 'Untitled Note'}
-          content={note.content ?? ''}
-          date={formattedDate}
-          noteId={noteId}
-          noteType={(note.noteType || 'default') as 'default' | 'scripture' | 'resource'}
-          version={note.version}
-          resourceTitle={note.resourceTitle ?? undefined}
-          resourceDescription={note.resourceDescription ?? undefined}
-          resourceImage={note.resourceImage ?? undefined}
-          resourceUrl={note.resourceUrl ?? undefined}
-          contentEncrypted={note.contentEncrypted ?? false}
-          isEditable={isEditable}
-          readOnlyLikeScripture={isOnboardingReadonly}
-          className="h-full flex-1 min-h-0"
-        />
-      </SubtleContentMount>
+      <div className="note-editor-column-shell h-full w-full">
+        <div className="note-editor-scroll">
+          <SubtleContentMount key={noteId} variant="fade">
+            <CardFullEditable
+              title={note.title || 'Untitled Note'}
+              content={note.content ?? ''}
+              date={formattedDate}
+              noteId={noteId}
+              noteType={(note.noteType || 'default') as 'default' | 'scripture' | 'resource'}
+              version={note.version}
+              resourceTitle={note.resourceTitle ?? undefined}
+              resourceDescription={note.resourceDescription ?? undefined}
+              resourceImage={note.resourceImage ?? undefined}
+              resourceUrl={note.resourceUrl ?? undefined}
+              contentEncrypted={note.contentEncrypted ?? false}
+              isEditable={isEditable}
+              readOnlyLikeScripture={isOnboardingReadonly}
+              editorChromeMode={isEditable ? 'prototypeNative' : 'default'}
+              formatToolbarPortalTarget={isEditable ? formatToolbarHostEl : null}
+              scriptureChromePortalTarget={isEditable ? scriptureChromeHostEl : null}
+              highlightChromePortalTarget={isEditable ? highlightChromeHostEl : null}
+              onPrototypeChromeModeChange={isEditable ? setChromeMode : undefined}
+              initialPrimaryCollection={note.primaryCollection ?? null}
+              initialSecondaryCollections={note.secondaryCollections ?? []}
+              initialCollectionPinned={note.collectionPinned ?? false}
+              initialCollectionUserOverride={note.collectionUserOverride ?? false}
+              initialCollectionLastAutoUpdatedAtIso={note.collectionLastAutoUpdatedAt ?? null}
+              collectionNavContext={collectionNavContext}
+              className="h-full flex-1 min-h-0"
+            />
+          </SubtleContentMount>
+        </div>
+        {isEditable ? (
+          <div
+            className="note-editor-bottom-bar"
+            data-mode={chromeMode}
+            style={{ display: chromeMode === 'hidden' ? 'none' : undefined }}
+          >
+            <div
+              ref={setHighlightChromeHostEl}
+              className="note-editor-bottom-bar__highlight-host"
+              style={{ display: chromeMode === 'highlight' ? 'block' : 'none' }}
+            />
+            <div
+              ref={setScriptureChromeHostEl}
+              className="note-editor-bottom-bar__scripture-host"
+              style={{ display: chromeMode === 'scripture' ? 'block' : 'none' }}
+            />
+            <div
+              ref={setFormatToolbarHostEl}
+              className="note-editor-bottom-bar__format-host"
+              style={{ display: chromeMode === 'format' ? 'flex' : 'none' }}
+            />
+          </div>
+        ) : null}
+      </div>
     </div>
   );
 }

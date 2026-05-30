@@ -1,6 +1,6 @@
 /**
  * Shared handler for GET /api/votd/today (public, unauthenticated).
- * Registered from `server/routes/health.ts` next to `/api/health` so native clients always hit a live route.
+ * Used by the health route module so the endpoint ships in the same bundle slice as /api/health.
  */
 import type { Context } from 'hono';
 import { db, desc, eq, first, lte } from '../db';

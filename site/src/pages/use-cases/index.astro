@@ -1,0 +1,113 @@
+---
+import BaseLayout from "../../layouts/BaseLayout.astro";
+import CTAButton from "../../components/CTAButton.astro";
+import { Icon } from "astro-icon/components";
+
+const useCases = [
+  {
+    href: "/use-cases/daily-journal",
+    icon: "fa6-solid:book-open-reader",
+    color: "var(--color-sky)",
+    ink: "var(--color-sky-ink)",
+    title: "Daily journal",
+    description: "You study every day. Harvous is where the thoughts go.",
+  },
+  {
+    href: "/use-cases/sermon-notes",
+    icon: "fa6-solid:church",
+    color: "var(--color-lilac)",
+    ink: "var(--color-lilac-ink)",
+    title: "Sermon notes",
+    description: "Sunday thoughts have a habit of fading by Monday.",
+  },
+  {
+    href: "/use-cases/small-group",
+    icon: "fa6-solid:people-group",
+    color: "var(--color-mint)",
+    ink: "var(--color-mint-ink)",
+    title: "Small group",
+    description: "Lead your group. Keep what you build together.",
+  },
+  {
+    href: "/use-cases/book-study",
+    icon: "fa6-solid:magnifying-glass",
+    color: "var(--color-peach)",
+    ink: "var(--color-peach-ink)",
+    title: "Book study",
+    description: "Going deep. One book, start to finish.",
+  },
+  {
+    href: "/use-cases/topical-study",
+    icon: "fa6-solid:tags",
+    color: "var(--color-accent-soft)",
+    ink: "var(--color-accent)",
+    title: "Topical study",
+    description: "Following a theme wherever it goes in Scripture.",
+  },
+];
+---
+
+<BaseLayout
+  title="Use Cases — Harvous"
+  description="Harvous works for daily readers, sermon note-takers, small groups, deep book studies, and topical study across all of Scripture."
+>
+  <!-- Page header -->
+  <section class="border-b border-[var(--color-rule)]">
+    <div class="mx-auto max-w-3xl px-5 py-16 text-center md:py-24">
+      <div class="text-xs uppercase tracking-[0.14em] text-[var(--color-ink-faint)]">Use cases</div>
+      <h1 class="mt-3 font-display text-5xl leading-[1.0] md:text-7xl">
+        Harvous is for people who actually study.
+      </h1>
+      <p class="mx-auto mt-5 max-w-xl text-lg text-[var(--color-ink-soft)]">
+        Not a Bible reader. Not a devotional. A place for your notes, your questions, and everything you want to hold onto from studying Scripture.
+      </p>
+    </div>
+  </section>
+
+  <!-- Use case cards -->
+  <section class="mx-auto max-w-5xl px-5 py-16 md:py-20">
+    <div class="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+      {useCases.map((uc) => (
+        <a
+          href={uc.href}
+          class="group flex flex-col gap-5 rounded-2xl border border-[var(--color-rule)] bg-white p-6 shadow-[var(--shadow-card)] transition hover:shadow-[var(--shadow-float)] hover:-translate-y-0.5"
+        >
+          <div
+            class="flex h-11 w-11 items-center justify-center rounded-xl"
+            style={`background: ${uc.color};`}
+          >
+            <Icon name={uc.icon} class="h-5 w-5" style={`color: ${uc.ink};`} />
+          </div>
+          <div>
+            <h2 class="text-lg font-semibold text-[var(--color-ink)] group-hover:text-[var(--color-accent)]">
+              {uc.title}
+            </h2>
+            <p class="mt-1.5 text-sm leading-relaxed text-[var(--color-ink-soft)]">
+              {uc.description}
+            </p>
+          </div>
+          <div class="mt-auto flex items-center gap-1 text-sm font-medium text-[var(--color-accent)]">
+            See how it works
+            <svg class="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" viewBox="0 0 16 16" fill="currentColor">
+              <path fill-rule="evenodd" d="M2 8a.75.75 0 0 1 .75-.75h8.69L8.22 4.03a.75.75 0 0 1 1.06-1.06l4.5 4.5a.75.75 0 0 1 0 1.06l-4.5 4.5a.75.75 0 0 1-1.06-1.06l3.22-3.22H2.75A.75.75 0 0 1 2 8Z" clip-rule="evenodd"/>
+            </svg>
+          </div>
+        </a>
+      ))}
+    </div>
+  </section>
+
+  <!-- Bottom CTA -->
+  <section class="border-t border-[var(--color-rule)]">
+    <div class="mx-auto max-w-3xl px-5 py-20 text-center">
+      <h2 class="font-display text-4xl leading-[1.05] md:text-5xl">
+        Whatever way you study, there's a place for it here.
+      </h2>
+      <div class="mt-8 flex justify-center">
+        <CTAButton href="https://app.harvous.com/sign-up" variant="primary" size="lg" external>
+          Start for free
+        </CTAButton>
+      </div>
+    </div>
+  </section>
+</BaseLayout>

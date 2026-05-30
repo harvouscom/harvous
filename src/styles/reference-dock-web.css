@@ -1,0 +1,260 @@
+/* Reference dock — bottom chrome for Easton's / reference lookups. Mirrors scripture-pill-chrome.css layout. */
+
+.reference-dock-web {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  box-sizing: border-box;
+  background: var(--pds-bg-footer, rgba(250, 250, 248, 0.97));
+  border-top: 1px solid var(--pds-border, rgba(0, 0, 0, 0.072));
+}
+
+.reference-dock-web__row {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 20px;
+  box-sizing: border-box;
+}
+
+.reference-dock-web__source {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--pds-text-secondary, rgba(29, 29, 31, 0.5));
+}
+
+.reference-dock-web__source *,
+.reference-dock-web__source svg,
+.reference-dock-web__source svg * {
+  color: inherit !important;
+}
+
+.reference-dock-web__done-text {
+  flex-shrink: 0;
+  align-self: center;
+  margin: 0;
+  padding: 6px 0 6px 8px;
+  border: none;
+  background: none;
+  font-family: var(--pds-font-body, inherit);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.2;
+  color: color-mix(in srgb, var(--pds-text-primary, #1d1d1f) 65%, transparent);
+  cursor: pointer;
+  -webkit-font-smoothing: antialiased;
+}
+
+.reference-dock-web__done-text:hover {
+  color: color-mix(in srgb, var(--pds-text-primary, #1d1d1f) 88%, transparent);
+}
+
+.reference-dock-web__done-text:active {
+  color: var(--pds-text-primary, #1d1d1f);
+}
+
+
+/* In-note reference highlight controls — shown when the dock was opened by clicking a reference highlight */
+.reference-dock-web__note-hl-row {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 0 20px;
+  box-sizing: border-box;
+  border-top: 1px solid var(--pds-border, rgba(0, 0, 0, 0.072));
+}
+
+.reference-dock-web__note-hl-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--pds-text-secondary, rgba(29, 29, 31, 0.5));
+  flex-shrink: 0;
+  margin-right: 4px;
+}
+
+.reference-dock-web__highlight-swatches {
+  display: flex;
+  flex-direction: row;
+  gap: 6px;
+  flex: 1;
+}
+
+.reference-dock-web__passage {
+  max-height: 280px;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 16px 22px;
+  border-top: 1px solid var(--pds-border, rgba(0, 0, 0, 0.072));
+}
+
+@media (min-width: 900px) {
+  .reference-dock-web__passage {
+    max-height: min(400px, 40vh);
+  }
+}
+
+.reference-dock-web__status {
+  margin: 0;
+  font-size: 13px;
+  color: var(--pds-text-secondary, rgba(29, 29, 31, 0.5));
+}
+
+.reference-dock-web__passage-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.reference-dock-web__headword {
+  font-family: var(--pds-font-body, inherit);
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--pds-text-primary, #1d1d1f);
+}
+
+.reference-dock-web__category-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  background: rgba(0, 0, 0, 0.06);
+  color: var(--pds-text-secondary, rgba(29, 29, 31, 0.5));
+  flex-shrink: 0;
+}
+
+.reference-dock-web__category-chip *,
+.reference-dock-web__category-chip svg,
+.reference-dock-web__category-chip svg * {
+  color: inherit !important;
+}
+
+.reference-dock-web__passage-html {
+  font-family: var(--pds-font-body, inherit);
+  font-size: 16px;
+  font-weight: 500;
+  line-height: 1.6;
+  color: var(--pds-text-primary, #1d1d1f);
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+/* Highlight action bar — appears below body when text is selected */
+.reference-dock-web__highlight-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+  padding: 8px 10px;
+  border-radius: var(--pds-radius-input, 10px);
+  background: var(--pds-bg-input, rgba(0, 0, 0, 0.04));
+}
+
+.reference-dock-web__highlight-swatches {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+}
+
+/* See also */
+.reference-dock-web__see-also {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  margin-top: 14px;
+  padding-top: 10px;
+  border-top: 1px solid var(--pds-border, rgba(0, 0, 0, 0.06));
+}
+
+.reference-dock-web__see-also-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--pds-text-secondary, rgba(29, 29, 31, 0.5));
+  margin-right: 2px;
+}
+
+.reference-dock-web__see-also-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--pds-border, rgba(0, 0, 0, 0.10));
+  background: transparent;
+  color: var(--pds-accent, #2563eb) !important;
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 100ms ease;
+}
+
+.reference-dock-web__see-also-chip:hover {
+  background: rgba(56, 105, 230, 0.07);
+}
+
+/* Saved highlights list */
+.reference-dock-web__highlight-list {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-top: 10px;
+  border-top: 1px solid var(--pds-border, rgba(0, 0, 0, 0.06));
+}
+
+.reference-dock-web__highlight-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--pds-text-primary, #1d1d1f);
+}
+
+.reference-dock-web__highlight-item .highlight-dock-web__btn {
+  flex-shrink: 0;
+  align-self: center;
+}
+
+.reference-dock-web__highlight-swatch {
+  flex-shrink: 0;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  margin-top: 3px;
+}
+
+.reference-dock-web__highlight-swatch--warmAmber  { background: #f5c842; }
+.reference-dock-web__highlight-swatch--skyBlue    { background: #5ab4f5; }
+.reference-dock-web__highlight-swatch--violet     { background: #a78bfa; }
+.reference-dock-web__highlight-swatch--mintGreen  { background: #6ee7b7; }
+.reference-dock-web__highlight-swatch--coralRose  { background: #f87171; }
+.reference-dock-web__highlight-swatch--neutral    { background: rgba(0,0,0,0.15); }
+
+.reference-dock-web__highlight-excerpt {
+  flex: 1;
+  min-width: 0;
+  line-height: 1.35;
+}
+
+.reference-dock-web__footer {
+  margin-top: 14px;
+  padding-top: 10px;
+  border-top: 1px solid var(--pds-border, rgba(0, 0, 0, 0.06));
+  font-size: 10px;
+  opacity: 0.4;
+  text-align: right;
+}

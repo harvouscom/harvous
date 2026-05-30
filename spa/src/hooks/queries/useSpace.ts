@@ -1,6 +1,7 @@
-import { useQuery, useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useInfiniteQuery, useQueryClient, type InfiniteData } from '@tanstack/react-query';
 import { api } from '../../lib/api';
 import { normalizeDate } from '../../../../src/utils/sorting';
+import { HARVOUS_SPACE_NOTES_CACHE_PREFIX } from '@/utils/user-cache-keys';
 
 const bootstrapQueryKey = (spaceId: string) => ['space', spaceId, 'bootstrap'] as const;
 
@@ -54,6 +55,23 @@ export function clearCachedSpaceBootstrap(spaceId: string): void {
   }
 }
 
+/** Drops all sessionStorage space bootstrap + notes list snapshots. */
+export function clearAllSessionSpaceCaches(): void {
+  try {
+    const raw = sessionStorage.getItem(SPACE_BOOTSTRAP_CACHE_INDEX);
+    if (raw) {
+      const index: string[] = JSON.parse(raw);
+      for (const spaceId of index) {
+        sessionStorage.removeItem(`${SPACE_BOOTSTRAP_CACHE_PREFIX}${spaceId}`);
+        sessionStorage.removeItem(`${HARVOUS_SPACE_NOTES_CACHE_PREFIX}${spaceId}`);
+      }
+    }
+    sessionStorage.removeItem(SPACE_BOOTSTRAP_CACHE_INDEX);
+  } catch {
+    /* quota or private browsing */
+  }
+}
+
 export interface SpaceDetail {
   id: string;
   title: string;
@@ -98,11 +116,55 @@ export interface SpaceContentItem {
   isPinned?: boolean;
 }
 
-interface SpaceItemsPage {
-  items: SpaceItem[];
+export interface SpaceNoteRow {
+  id: string;
+  title?: string | null;
+  content?: string | null;
+  noteType?: string;
+  isPinned?: boolean;
+  simpleNoteId?: number | null;
+  createdAt?: string;
+  updatedAt?: string | null;
+  lastVisited?: string | null;
+  lastUpdated?: string;
+  resourceTitle?: string | null;
+  contentEncrypted?: boolean;
+  primaryCollection?: string | null;
+  secondaryCollections?: string[];
+  collectionPinned?: boolean;
+  collectionUserOverride?: boolean;
+  version?: string;
+}
+
+/** Paginated notes-only list from `GET /api/spaces/:spaceId/notes` */
+interface SpaceNotesPage {
+  notes: SpaceNoteRow[];
   hasMore: boolean;
   offset: number;
   limit: number;
+}
+
+/**
+ * SessionStorage snapshot of a space's first notes page so the sidebar list paints
+ * instantly on refresh (then revalidates) instead of flashing "Loading notes…".
+ * First page only — keeps storage bounded; the list API truncates note content.
+ * Cleared on sign-out by prefix in `clear-user-client-caches.ts`.
+ */
+function getCachedSpaceNotesFirstPage(id: string): SpaceNotesPage | undefined {
+  try {
+    const raw = sessionStorage.getItem(`${HARVOUS_SPACE_NOTES_CACHE_PREFIX}${id}`);
+    return raw ? (JSON.parse(raw) as SpaceNotesPage) : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function setCachedSpaceNotesFirstPage(id: string, page: SpaceNotesPage) {
+  try {
+    sessionStorage.setItem(`${HARVOUS_SPACE_NOTES_CACHE_PREFIX}${id}`, JSON.stringify(page));
+  } catch {
+    /* quota or private browsing */
+  }
 }
 
 export function useSpace(spaceId: string) {
@@ -122,15 +184,28 @@ export function useSpace(spaceId: string) {
 }
 
 export function useSpaceNotes(spaceId: string, limit = 20) {
+  const trimmed = (spaceId ?? '').trim();
+  const id = trimmed.startsWith('space_') ? trimmed : trimmed ? `space_${trimmed}` : '';
+  const cachedFirstPage = id ? getCachedSpaceNotesFirstPage(id) : undefined;
+  // Hydrate instantly from the cached first page; `initialDataUpdatedAt: 0` marks it
+  // stale so React Query revalidates in the background on mount (instant + fresh).
+  const initialData: InfiniteData<SpaceNotesPage, number> | undefined = cachedFirstPage
+    ? { pages: [cachedFirstPage], pageParams: [0] }
+    : undefined;
   return useInfiniteQuery({
-    queryKey: ['space', spaceId, 'notes'],
-    queryFn: ({ pageParam = 0 }) =>
-      api.get<SpaceItemsPage>(`/api/spaces/${spaceId}/notes`, { offset: pageParam, limit }),
+    queryKey: ['space', id, 'notes'],
+    queryFn: async ({ pageParam = 0 }) => {
+      const page = await api.get<SpaceNotesPage>(`/api/spaces/${id}/notes`, { offset: pageParam, limit });
+      if (pageParam === 0 && id) setCachedSpaceNotesFirstPage(id, page);
+      return page;
+    },
     getNextPageParam: (lastPage) =>
       lastPage.hasMore ? lastPage.offset + lastPage.limit : undefined,
     initialPageParam: 0,
-    enabled: !!spaceId,
+    enabled: !!id,
     staleTime: 30_000,
+    initialData,
+    initialDataUpdatedAt: initialData ? 0 : undefined,
   });
 }
 

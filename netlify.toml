@@ -17,6 +17,17 @@
   # Plan ID is inlined into SPA bundle by Vite; it's a public plan identifier, not a secret
   SECRETS_SCAN_OMIT_KEYS = "VITE_CLERK_UNLIMITED_PLAN_ID,CLERK_UNLIMITED_PLAN_ID"
 
+# new.harvous.com defaults to the 2.0 prototype shell (Classic stays default on app.harvous.com).
+# Host-scoped 302 (not a 200 rewrite): the SPA router reads window.location, so the browser URL
+# must actually become /prototype/ for the prototype route tree to match. force=true so this beats
+# the SPA fallback (/* -> /index.html) for the root path. /prototype/* deep links resolve via the
+# existing SPA catch-all in public/_redirects, so no per-route rules are needed here.
+[[redirects]]
+  from = "https://new.harvous.com/"
+  to = "/prototype/"
+  status = 302
+  force = true
+
 # Redirect old URL format (/thread_ID) to new format (/thread/ID)
 [[redirects]]
   from = "/thread_*"

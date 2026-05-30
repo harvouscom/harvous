@@ -1,0 +1,17 @@
+// Debug — dev/test Clerk keys, points at the local dev server by default.
+// This is the safe sandbox config — daily development should target this.
+// For on-device debugging against real prod data, switch to the
+// "Harvous_iOS (Debug-Prod)" / "Harvous_macOS (Debug-Prod)" scheme instead.
+// Safe to commit (publishable keys are not secret).
+// HARVOUS_API_BASE_URL points at the local Hono API (`npm run dev` → port 3001),
+// which serves every `/api/*` route the native client calls. The macOS app and the
+// iOS Simulator share the host network, so they use localhost. A physical iOS device
+// cannot resolve localhost, so the iphoneos* override below points it at the Mac's
+// LAN IP instead (device + Mac must be on the same network). To find your IP run
+// `ipconfig getifaddr en0`; update the override line if it changes. To hit prod data
+// instead, use the "Debug-Prod" scheme.
+#include "Harvous-Signing.xcconfig"
+
+CLERK_PUBLISHABLE_KEY = pk_test_bXV0dWFsLXNwaWRlci0xOC5jbGVyay5hY2NvdW50cy5kZXYk
+HARVOUS_API_BASE_URL = http:/$()/localhost:3001
+HARVOUS_API_BASE_URL[sdk=iphoneos*] = http:/$()/192.168.1.130:3001

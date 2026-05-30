@@ -14,7 +14,10 @@ import { NoteLink } from './TiptapNoteLink';
 import { ScripturePill } from './TiptapScripturePill';
 import { BoldCustom } from './TiptapBoldCustom';
 import { HighlightCustom } from './TiptapHighlightCustom';
+import { UrlLink } from './TiptapUrlLink';
+import { TextIndent } from './TiptapTextIndent';
 import { normalizeScriptureReference, detectScriptureReferences, matchTrailingTranslationAbbreviation, type ScriptureReference, type ScriptureReferenceWithTranslation } from '@/utils/scripture-detector';
+import { isStudyHighlightAccentKey, type StudyHighlightAccentKey } from '@/utils/study-highlight-accents';
 import { TRANSLATION_ORDER, TRANSLATIONS } from '@/data/translations';
 import { getCachedProfileData } from '@/utils/profile-cache';
 import { safeNavigate } from '@/utils/safe-navigate';
@@ -23,10 +26,20 @@ import { pushNavStack } from '@/utils/nav-stack';
 import { shouldProcessDocument, getTextToProcess, resetTracker, cleanupTracker } from '@/utils/incremental-scripture-detection';
 import { debug } from '@/utils/logger';
 import { getOrCreateScriptureNote } from '@/utils/scripture-note-utils';
+import ScripturePillChromeWeb from './ScripturePillChromeWeb';
+import HighlightDockWeb from './HighlightDockWeb';
+import LinkPreviewCard from './LinkPreviewCard';
+import UrlLinkPromptUI from './UrlLinkPromptUI';
+import ReferenceDockWeb from './ReferenceDockWeb';
+import { useEditorHoverPreview } from './useEditorHoverPreview';
+import { useEastonsSlugIndex, lookupWord } from '../../../spa/src/hooks/useEastonsSlugIndex';
 import '@/styles/tiptap-editor.css';
 
 // Icon component for inline SVGs (allows CSS styling)
 import Icon from './Icon';
+
+/** Prototype format toolbar — Font Awesome fill icons (matches proto chrome; not Tabler stroke). */
+const PROTO_FORMAT_ICON_SIZE = 18;
 
 // Track pending pill creation to prevent duplicates from concurrent calls
 // This is a module-level Set to track references currently being processed
@@ -62,10 +75,94 @@ interface TiptapEditorProps {
   onEditorInstanceReady?: (editor: any) => void; // Callback when editor instance is ready for direct access
   /** Legacy hint for layouts that host the editor in a bottom sheet; caret scroll uses `[data-keyboard-open]` + `toolbarAtBottom`. */
   inBottomSheet?: boolean;
+  /**
+   * When `prototypeNative`, bottom chrome follows native-like rules: format bar while the body
+   * is focused (unless scripture picker/confirm is open), and the parent can show a note action bar when not.
+   */
+  editorChromeMode?: 'default' | 'prototypeNative';
+  onPrototypeChromeModeChange?: (
+    mode: 'format' | 'scripture' | 'noteActions' | 'highlight' | 'reference' | 'hidden',
+  ) => void;
+  /**
+   * Prototype-only: when false and no inline `noteActions` host is rendered, use `hidden` instead of `noteActions`
+   * when the editor would otherwise switch to note-actions chrome (blur or no format bar).
+   */
+  prototypeNoteActionsChrome?: boolean;
+  /**
+   * Prototype-only: portal target for highlight dock (accent / remove) — sibling to format + scripture hosts.
+   */
+  highlightChromePortalTarget?: HTMLElement | null;
+  /**
+   * Prototype-only: portal target for the Reference dock (dictionary lookup + reference sources).
+   */
+  referenceChromePortalTarget?: HTMLElement | null;
+  /** Prototype-only: when set, auto-opens the reference dock for this word once the editor mounts. */
+  initialReferenceWord?: string | null;
+  /**
+   * Prototype-only: when provided, the prototype-native format toolbar is rendered
+   * via `createPortal` into this element instead of inline. This lets the parent
+   * pin the bar to the bottom of the editor column (sibling of the scroll
+   * container) so it stays glued to the viewport bottom regardless of content.
+   */
+  formatToolbarPortalTarget?: HTMLElement | null;
+  /**
+   * Bottom host for macOS-style scripture pill chrome (`ScripturePillChromeWeb`).
+   */
+  scriptureChromePortalTarget?: HTMLElement | null;
+  /**
+   * Prototype: set when the user taps a scripture pill in read-only HTML preview; TipTap opens the dock once the editor mounts.
+   */
+  prototypeScripturePillOpenRequest?: {
+    reference: string;
+    translation: string | null;
+    noteId: string | null;
+    pillAccent: string | null;
+  } | null;
+  onPrototypeScripturePillOpenRequestConsumed?: () => void;
+}
+
+const PROTOTYPE_FORMAT_BAR_HIDE_MS = 2000;
+
+/** Resolve scripture pill boundaries from clicked DOM span (captures-phase handler). */
+function resolveScripturePillDOMRange(editor: any, pillEl: HTMLElement): { from: number; to: number } | null {
+  try {
+    if (!editor?.view?.posAtDOM) return null;
+    const pos = editor.view.posAtDOM(pillEl, 0);
+    const $pos = editor.state.doc.resolve(pos);
+    const markType = editor.state.schema.marks.scripturePill;
+    if (!markType) return null;
+    const range = getMarkRange($pos, markType);
+    if (range && typeof range.from === 'number' && typeof range.to === 'number') {
+      return { from: range.from, to: range.to };
+    }
+  } catch {
+    /* ignore */
+  }
+  return null;
+}
+
+function findHighlightRangeByStudyThreadId(editor: any, studyId: string): { from: number; to: number } | null {
+  if (!editor?.state?.doc) return null;
+  let found: { from: number; to: number } | null = null;
+  try {
+    editor.state.doc.descendants((node: any, pos: number) => {
+      if (!node.isText) return true;
+      const hl = node.marks.find(
+        (m: any) => m.type?.name === 'highlight' && m.attrs?.studyThreadEntryId === studyId,
+      );
+      if (hl) {
+        found = { from: pos, to: pos + node.nodeSize };
+        return false;
+      }
+      return true;
+    });
+  } catch {
+    return null;
+  }
+  return found;
 }
 
 // Helper function to find text positions in ProseMirror document
-// Returns the first occurrence that doesn't already have a scripture pill mark
 function findTextPositions(doc: any, searchText: string, skipMarked: boolean = true): { from: number; to: number } | null {
   const allPositions = findAllTextPositions(doc, searchText, skipMarked);
   return allPositions.length > 0 ? allPositions[0] : null;
@@ -984,7 +1081,7 @@ function schedulePendingTranslationAfterPillCreation(
   editor: any,
   references: (ScriptureReference | ScriptureReferenceWithTranslation)[],
 ) {
-  if (!references.length) return;
+  if (!references?.length) return;
   const editorId = String(editor.view?.dom?.id || 'default');
 
   // Register every reference in the map so each gets its own detection window
@@ -1779,7 +1876,7 @@ async function detectAndCreateScriptureNotes(editor: any, parentThreadId?: strin
 
     const detection = await detectResponse.json();
     
-    if (!detection.isScripture || !detection.references || detection.references.length === 0) {
+    if (!detection.isScripture || !detection.references?.length) {
       return;
     }
 
@@ -2726,6 +2823,17 @@ const isMobileDevice = (): boolean => {
   return /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
 };
 
+function selectionIntersectsHighlightMark(editor: any): boolean {
+  if (!editor?.state?.selection || !editor.schema?.marks?.highlight) return false;
+  const { from, to } = editor.state.selection;
+  if (from === to) return false;
+  try {
+    return editor.state.doc.rangeHasMark(from, to, editor.schema.marks.highlight);
+  } catch {
+    return false;
+  }
+}
+
 const TiptapEditor: React.FC<TiptapEditorProps> = ({
   content,
   id = "content",
@@ -2742,7 +2850,17 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
   sourceNoteId,
   onEditorReady,
   onEditorInstanceReady,
-  inBottomSheet = false
+  inBottomSheet = false,
+  editorChromeMode = 'default',
+  onPrototypeChromeModeChange,
+  prototypeNoteActionsChrome = false,
+  formatToolbarPortalTarget,
+  scriptureChromePortalTarget = null,
+  highlightChromePortalTarget = null,
+  referenceChromePortalTarget = null,
+  initialReferenceWord = null,
+  prototypeScripturePillOpenRequest = null,
+  onPrototypeScripturePillOpenRequestConsumed,
 }) => {
   const [isLoaded, setIsLoaded] = useState(false);
   const [isEditorFocused, setIsEditorFocused] = useState(false);
@@ -2755,9 +2873,10 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     bold: false,
     italic: false,
     underline: false,
+    strike: false,
     orderedList: false,
     bulletList: false,
-    headingLevel: 0 // 0 = normal/paragraph, 2 = H2, 3 = H3
+    headingLevel: 0, // 0 = normal/paragraph, 2 = H2, 3 = H3, 4 = H4
   });
   const [showCreateNoteButton, setShowCreateNoteButton] = useState(false);
 
@@ -2779,6 +2898,21 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     reference: string;
     boundaries: { start: number; end: number };
   } | null>(null);
+  // URL link prompt (Phase A): floating input over the current selection / existing url-link.
+  const [urlLinkPrompt, setUrlLinkPrompt] = useState<{
+    rect: { top: number; left: number; bottom: number; right: number; width: number };
+    range: { from: number; to: number };
+    initialHref: string;
+    mode: 'create' | 'edit';
+  } | null>(null);
+  // Reference dock: opens when the user taps "Look up" on a single-word selection.
+  // Renders as a bottom dock (mirroring HighlightDockWeb / ScripturePillChromeWeb).
+  const [referenceDockSession, setReferenceDockSession] = useState<{
+    query: string;
+    noteHighlightRange?: { from: number; to: number } | null;
+    noteHighlightAccent?: StudyHighlightAccentKey | null;
+    studyThreadEntryId?: string | null;
+  } | null>(null);
   // Ref mirrors deleteConfirmPill for reading inside handleKeyDown (avoids stale closure)
   const deleteConfirmPillRef = useRef<{
     rect: DOMRect;
@@ -2791,9 +2925,37 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
   const editorRef = useRef<any>(null);
   const tiptapContentRef = useRef<HTMLDivElement>(null);
   const createNoteBubbleRef = useRef<HTMLDivElement>(null);
-  const mobileScriptureDetectionTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [scripturePillSession, setScripturePillSession] = useState<{
+    boundaries: { from: number; to: number };
+    reference: string;
+    translation: string | null;
+    noteId: string | null;
+    pillAccent: string | null;
+  } | null>(null);
 
-  // Helper function to check if editor/view is valid before accessing docView
+  const [highlightDockSession, setHighlightDockSession] = useState<{
+    studyThreadEntryId: string | null;
+    accent: string;
+    excerpt: string;
+    range: { from: number; to: number } | null;
+  } | null>(null);
+
+  const [selectionExpanded, setSelectionExpanded] = useState(false);
+  const [showFormatBarForActivity, setShowFormatBarForActivity] = useState(false);
+  const [isPointerOverFormatToolbar, setIsPointerOverFormatToolbar] = useState(false);
+  const formatBarHideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const bumpFormatToolbarActivity = useCallback(() => {
+    if (editorChromeMode !== 'prototypeNative') return;
+    setShowFormatBarForActivity(true);
+    if (formatBarHideTimerRef.current) {
+      clearTimeout(formatBarHideTimerRef.current);
+    }
+    formatBarHideTimerRef.current = setTimeout(() => {
+      setShowFormatBarForActivity(false);
+      formatBarHideTimerRef.current = null;
+    }, PROTOTYPE_FORMAT_BAR_HIDE_MS);
+  }, [editorChromeMode]);
   // This prevents errors when editor is destroyed but handlers still fire
   const isEditorValid = (editorInstance: any): boolean => {
     if (!editorInstance) return false;
@@ -2857,9 +3019,13 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
         underline: false,
         // Exclude bold from StarterKit so we can use custom Bold extension
         bold: false,
+        // Disable StarterKit's bundled Link extension — we use our own UrlLink mark which
+        // renders a <span data-url-link> instead of <a>. Without this, StarterKit wraps
+        // bare URLs in <a> tags, causing a double underline (browser <a> default + .url-link).
+        link: false,
       }),
       Heading.configure({
-        levels: [2, 3], // Only allow H2, H3 (H1 is reserved for note titles)
+        levels: [2, 3, 4], // H1 reserved for note titles; H4 matches native body toolbar
       }),
       Underline,
       Superscript,
@@ -2867,6 +3033,8 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       HighlightCustom, // Use custom Highlight extension that prevents application after pills
       ScripturePill, // Must come before NoteLink so scripture pills are parsed correctly
       NoteLink,
+      UrlLink, // External URL links — parse priority lower so note/scripture spans win
+      TextIndent,
       Placeholder.configure({
         placeholder: placeholder,
         showOnlyWhenEditable: true,
@@ -3047,9 +3215,9 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
             } else if (level === 2) {
               newLevel = 3; // H2 → H3
             } else {
-              newLevel = 3; // H3, H4, H5, H6 → H3 (clamp to max)
+              newLevel = 3; // H3, H4, H5, H6 → H3 (clamp to max for classic paste behavior)
             }
-            
+
             // Only transform if newLevel is in allowed range [2, 3]
             if (newLevel >= 2 && newLevel <= 3) {
               const newHeading = document.createElement(`h${newLevel}`);
@@ -3265,7 +3433,8 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                   
                   // Convert results to format expected by convertScriptureReferencesToPills
                   // Only include results where scripture notes were created or added (not skipped)
-                  const scriptureResults = processResult.results
+                  const rawResults = Array.isArray(processResult?.results) ? processResult.results : [];
+                  const scriptureResults = rawResults
                     .filter((r: any) => r.action === 'created' || r.action === 'added')
                     .map((r: any) => ({
                       reference: r.reference,
@@ -3454,7 +3623,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
           try {
             if (textBeforeCursor.trim().length > 0) {
               const references = detectScriptureReferences(textBeforeCursor);
-              if (references.length > 0) {
+              if (references && references.length > 0) {
                 if (isSyncTrigger) {
                   // On desktop: Synchronously handle the trigger char and the pill creation
                   event.preventDefault();
@@ -3594,6 +3763,203 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     // Fix SSR issues
     immediatelyRender: false,
   });
+
+  // Auto-open the reference dock when initialReferenceWord is set (e.g. navigated from sidebar row)
+  const initialReferenceWordFiredRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!initialReferenceWord || initialReferenceWordFiredRef.current === initialReferenceWord) return;
+    if (!editor || !isEditorValid(editor)) return;
+    initialReferenceWordFiredRef.current = initialReferenceWord;
+    setReferenceDockSession({ query: initialReferenceWord });
+  }, [initialReferenceWord, editor]);
+
+  // Hover preview card for scripture pills + note links (+ urlLink later in Phase A).
+  // Adds a new affordance without changing existing click behavior.
+  const hoverPreviewDisabled = !!(
+    selectionActionBar ||
+    translationPicker ||
+    scripturePillSession ||
+    deleteConfirmPill ||
+    highlightDockSession ||
+    urlLinkPrompt
+  );
+  const { preview: hoverPreview, cancelHide: cancelHoverPreviewHide, dismiss: dismissHoverPreview } = useEditorHoverPreview({
+    containerRef: tiptapContentRef,
+    disabled: hoverPreviewDisabled || !editor,
+  });
+
+  // Easton's slug index — loaded once, used to detect single-word selections worth looking up.
+  const { data: eastonsIndex } = useEastonsSlugIndex();
+
+  const getSelectedSingleWord = useCallback((): string | null => {
+    if (!editor) return null;
+    const { from, to } = editor.state.selection;
+    if (from === to) return null;
+    const text = editor.state.doc.textBetween(from, to).trim();
+    if (!text || /\s/.test(text) || text.length > 40) return null;
+    return text;
+  }, [editor]);
+
+  const handleHoverPreviewOpen = useCallback(() => {
+    if (!hoverPreview) return;
+    const p = hoverPreview.payload;
+    if (hoverPreview.kind === 'url' && p.href) {
+      dismissHoverPreview();
+      window.open(p.href, '_blank', 'noopener,noreferrer');
+      return;
+    }
+    const rawNoteId = p.noteId || p.scriptureNoteId;
+    if (!rawNoteId || rawNoteId === 'pending' || rawNoteId === 'null') {
+      dismissHoverPreview();
+      return;
+    }
+    const fullNoteId = rawNoteId.startsWith('note_') ? rawNoteId : `note_${rawNoteId}`;
+    let threadContext: string | undefined;
+    try {
+      const fromQuery = new URLSearchParams(window.location.search).get('thread');
+      if (fromQuery && fromQuery.startsWith('thread_')) threadContext = fromQuery;
+    } catch { /* ignore */ }
+    const currentNoteId = extractIdFromPath(window.location.pathname);
+    if (!threadContext && currentNoteId?.startsWith('note_')) {
+      try {
+        const cached = localStorage.getItem(`harvous-note-thread-${currentNoteId}`);
+        if (cached && cached.startsWith('thread_')) threadContext = cached;
+      } catch { /* ignore */ }
+    }
+    if (currentNoteId?.startsWith('note_') && threadContext) {
+      pushNavStack(currentNoteId, threadContext);
+    }
+    if (threadContext && threadContext !== 'thread_unorganized') {
+      fetch(`/api/notes/${fullNoteId}/add-thread`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ threadId: threadContext }),
+        credentials: 'include',
+      })
+        .then((res) => {
+          if (res.ok) {
+            window.dispatchEvent(
+              new CustomEvent('noteAddedToThread', {
+                detail: { noteId: fullNoteId, threadId: threadContext, source: 'inlineAddThread' },
+              }),
+            );
+          }
+        })
+        .catch(() => {});
+    }
+    dismissHoverPreview();
+    safeNavigate(idToUrl(fullNoteId, threadContext, currentNoteId || undefined));
+  }, [hoverPreview, dismissHoverPreview]);
+
+  const openUrlLinkPrompt = useCallback(() => {
+    if (!editor || !isEditorValid(editor)) return;
+    const { from, to } = editor.state.selection;
+    if (from === to) return;
+    const existingMark = editor.state.doc.rangeHasMark(from, to, editor.state.schema.marks.urlLink);
+    const start = editor.view.coordsAtPos(from);
+    const end = editor.view.coordsAtPos(to);
+    const rect = {
+      top: Math.min(start.top, end.top),
+      left: Math.min(start.left, end.left),
+      bottom: Math.max(start.bottom, end.bottom),
+      right: Math.max(start.right, end.right),
+      width: Math.abs(end.right - start.left),
+    };
+    let initialHref = '';
+    if (existingMark) {
+      editor.state.doc.nodesBetween(from, to, (node) => {
+        const m = node.marks.find((mk) => mk.type.name === 'urlLink');
+        if (m && typeof m.attrs.href === 'string') initialHref = m.attrs.href;
+      });
+    }
+    setSelectionActionBar(null);
+    setUrlLinkPrompt({
+      rect,
+      range: { from, to },
+      initialHref,
+      mode: existingMark ? 'edit' : 'create',
+    });
+  }, [editor]);
+
+  const applyUrlLink = useCallback((rawHref: string) => {
+    if (!editor || !urlLinkPrompt) return;
+    const href = rawHref.trim();
+    if (!href) { setUrlLinkPrompt(null); return; }
+    let normalized = href;
+    if (!/^https?:\/\//i.test(normalized)) normalized = `https://${normalized}`;
+    // Strip formatting marks on the range — URL link pills set their own inline styles
+    // (font-weight:500, no italics, no underline) so inherited bold/italic/etc. would
+    // wrap the pill in <strong>/<em>/etc. without visible effect but polluting the HTML.
+    editor
+      .chain()
+      .focus()
+      .setTextSelection(urlLinkPrompt.range)
+      .unsetMark('bold')
+      .unsetMark('italic')
+      .unsetMark('code')
+      .unsetMark('strike')
+      .unsetMark('underline')
+      .setUrlLink({ href: normalized })
+      .run();
+    setUrlLinkPrompt(null);
+  }, [editor, urlLinkPrompt]);
+
+  const removeUrlLinkAtCurrentRange = useCallback(() => {
+    if (!editor || !urlLinkPrompt) return;
+    editor
+      .chain()
+      .focus()
+      .setTextSelection(urlLinkPrompt.range)
+      .unsetUrlLink()
+      .run();
+    setUrlLinkPrompt(null);
+  }, [editor, urlLinkPrompt]);
+
+  // Get the full mark range from a DOM anchor element (used by hover-card remove/edit).
+  const getUrlLinkRangeFromAnchorEl = useCallback((anchorEl: HTMLElement): { from: number; to: number } | null => {
+    if (!editor) return null;
+    try {
+      const pos = editor.view.posAtDOM(anchorEl, 0);
+      const $pos = editor.state.doc.resolve(pos);
+      const markType = editor.state.schema.marks.urlLink;
+      if (!markType) return null;
+      const range = getMarkRange($pos, markType);
+      if (!range) return null;
+      return { from: range.from, to: range.to };
+    } catch {
+      return null;
+    }
+  }, [editor]);
+
+  const removeUrlLinkFromHoverCard = useCallback(() => {
+    if (!editor || !hoverPreview || hoverPreview.kind !== 'url') return;
+    const range = getUrlLinkRangeFromAnchorEl(hoverPreview.anchorEl);
+    if (!range) return;
+    dismissHoverPreview();
+    editor.chain().focus().setTextSelection(range).unsetUrlLink().run();
+  }, [editor, hoverPreview, getUrlLinkRangeFromAnchorEl, dismissHoverPreview]);
+
+  const editUrlLinkFromHoverCard = useCallback(() => {
+    if (!editor || !hoverPreview || hoverPreview.kind !== 'url') return;
+    const range = getUrlLinkRangeFromAnchorEl(hoverPreview.anchorEl);
+    if (!range) return;
+    dismissHoverPreview();
+    const start = editor.view.coordsAtPos(range.from);
+    const end = editor.view.coordsAtPos(range.to);
+    const rect = {
+      top: Math.min(start.top, end.top),
+      left: Math.min(start.left, end.left),
+      bottom: Math.max(start.bottom, end.bottom),
+      right: Math.max(start.right, end.right),
+      width: Math.abs(end.right - start.left),
+    };
+    setUrlLinkPrompt({
+      rect,
+      range,
+      initialHref: hoverPreview.payload.href ?? '',
+      mode: 'edit',
+    });
+  }, [editor, hoverPreview, getUrlLinkRangeFromAnchorEl, dismissHoverPreview]);
 
   // Store editor in ref for handleKeyDown access
   useEffect(() => {
@@ -3751,16 +4117,28 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       }
       if (isValidSelection(editor)) {
         setShowCreateNoteButton(true);
-        // Position floating action bar below the selection (same as translation picker)
+        // Position floating action bar below the selection (prototype: 8px gap + clamp like native SelectionActionBar)
         try {
           const { view } = editor;
           const { from, to } = view.state.selection;
           const start = view.coordsAtPos(from);
           const end = view.coordsAtPos(to);
-          // Place below the selection, centered horizontally
-          const top = Math.max(start.bottom, end.bottom) + 6;
-          const left = (start.left + end.left) / 2;
-          setSelectionActionBar({ top, left });
+          const bottomEdge = Math.max(start.bottom, end.bottom);
+          const gap = editorChromeMode === 'prototypeNative' ? 8 : 6;
+          const top = bottomEdge + gap;
+          const leftEdge = Math.min(start.left, end.left);
+          const rightEdge = Math.max(start.right, end.right);
+          let centerX = (leftEdge + rightEdge) / 2;
+          if (editorChromeMode === 'prototypeNative') {
+            const hasHl = selectionIntersectsHighlightMark(editor);
+            const barW = hasHl ? 134 : 92;
+            const inset = 8;
+            const vw = typeof window !== 'undefined' ? window.innerWidth : centerX + barW;
+            const minCx = inset + barW / 2;
+            const maxCx = vw - inset - barW / 2;
+            centerX = Math.min(Math.max(centerX, minCx), maxCx);
+          }
+          setSelectionActionBar({ top, left: centerX });
         } catch (_) {
           setSelectionActionBar(null);
         }
@@ -3794,7 +4172,53 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       }
       document.removeEventListener('mousedown', handleMouseDown);
     };
-  }, [editor, enableCreateNoteFromSelection]);
+  }, [editor, enableCreateNoteFromSelection, editorChromeMode]);
+
+  /** When CardFullEditable opens the editor from read-only preview after a scripture pill tap (prototype), open the dock once TipTap has rendered the pill in the doc. */
+  useEffect(() => {
+    if (
+      !editor ||
+      !isEditorValid(editor) ||
+      editorChromeMode !== 'prototypeNative' ||
+      !prototypeScripturePillOpenRequest
+    ) {
+      return;
+    }
+    const req = prototypeScripturePillOpenRequest;
+    let cancelled = false;
+    const run = () => {
+      if (cancelled || !isEditorValid(editor)) return;
+      const root = editor.view.dom as HTMLElement;
+      const pills = root.querySelectorAll('.scripture-pill');
+      let pillEl: HTMLElement | null = null;
+      pills.forEach((p) => {
+        if (pillEl) return;
+        if (p.getAttribute('data-scripture-reference') === req.reference) {
+          pillEl = p as HTMLElement;
+        }
+      });
+      if (!pillEl) return;
+      const boundaries = resolveScripturePillDOMRange(editor, pillEl);
+      if (!boundaries || cancelled) return;
+      setTranslationPicker(null);
+      setHighlightDockSession(null);
+      setScripturePillSession({
+        boundaries,
+        reference: req.reference,
+        translation: req.translation,
+        noteId: req.noteId,
+        pillAccent: req.pillAccent,
+      });
+      onPrototypeScripturePillOpenRequestConsumed?.();
+    };
+    const rafId = window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(run);
+    });
+    return () => {
+      cancelled = true;
+      window.cancelAnimationFrame(rafId);
+    };
+  }, [editor, editorChromeMode, prototypeScripturePillOpenRequest, onPrototypeScripturePillOpenRequestConsumed]);
 
   // Handle ALL scripture pill clicks via DOM click handler (both edit and read-only).
   // We use the CAPTURE phase on the wrapper div so our handler fires BEFORE
@@ -3810,105 +4234,196 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
 
     const handlePillClick = (e: MouseEvent) => {
       const target = e.target as HTMLElement;
-      const pillSpan = target.closest('.scripture-pill') as HTMLElement;
-      if (!pillSpan) return;
 
-      // Read pill data from DOM attributes
-      const reference = pillSpan.getAttribute('data-scripture-reference');
-      const translation = pillSpan.getAttribute('data-scripture-translation');
-      const noteId = pillSpan.getAttribute('data-note-id');
-      if (!reference) return;
+      const pillSpan = target.closest('.scripture-pill') as HTMLElement | null;
+      if (pillSpan) {
+        const reference = pillSpan.getAttribute('data-scripture-reference');
+        const translation = pillSpan.getAttribute('data-scripture-translation');
+        const noteId = pillSpan.getAttribute('data-note-id');
+        const pillAccent = pillSpan.getAttribute('data-pill-accent');
+        if (!reference) return;
 
-      // Stop ProseMirror from processing this click
-      e.preventDefault();
-      e.stopImmediatePropagation();
+        e.preventDefault();
+        e.stopImmediatePropagation();
 
-      if (editor.isEditable) {
-        // Edit mode: show translation picker
-        const rect = pillSpan.getBoundingClientRect();
-        setTranslationPicker({
-          rect: { top: rect.top, left: rect.left, bottom: rect.bottom, right: rect.right, width: rect.width },
-          translation,
-          noteId,
-          reference,
-        });
-      } else {
-        // Read-only mode: navigate to the scripture note
-        if (!noteId || noteId === 'pending' || noteId === 'null') return;
-
-        // Determine thread context from URL/cache/DOM
-        let threadContext: string | undefined;
-        try {
-          const fromQuery = new URLSearchParams(window.location.search).get('thread');
-          if (fromQuery && fromQuery.startsWith('thread_')) {
-            threadContext = fromQuery;
+        if (editor.isEditable) {
+          if (editorChromeMode === 'prototypeNative') {
+            setTranslationPicker(null);
+            setHighlightDockSession(null);
+            const boundaries = resolveScripturePillDOMRange(editor, pillSpan);
+            if (boundaries) {
+              setScripturePillSession({
+                boundaries,
+                reference,
+                translation,
+                noteId,
+                pillAccent,
+              });
+            }
+          } else {
+            setScripturePillSession(null);
+            const rect = pillSpan.getBoundingClientRect();
+            setTranslationPicker({
+              rect: { top: rect.top, left: rect.left, bottom: rect.bottom, right: rect.right, width: rect.width },
+              translation,
+              noteId,
+              reference,
+            });
           }
-        } catch {
-          // ignore
-        }
-        const currentNoteId = extractIdFromPath(window.location.pathname);
-        if (!threadContext && currentNoteId?.startsWith('note_')) {
+        } else {
+          // Read-only mode: navigate to the scripture note
+          if (!noteId || noteId === 'pending' || noteId === 'null') return;
+
+          // Determine thread context from URL/cache/DOM
+          let threadContext: string | undefined;
           try {
-            const cached = localStorage.getItem(`harvous-note-thread-${currentNoteId}`);
-            if (cached && cached.startsWith('thread_')) {
-              threadContext = cached;
+            const fromQuery = new URLSearchParams(window.location.search).get('thread');
+            if (fromQuery && fromQuery.startsWith('thread_')) {
+              threadContext = fromQuery;
             }
           } catch {
             // ignore
           }
-        }
-        const noteElement = document.querySelector('[data-note-id]') as HTMLElement;
-        if (!threadContext && noteElement?.dataset.parentThreadId) {
-          threadContext = noteElement.dataset.parentThreadId;
-        } else {
-          const navElement = document.querySelector('[slot="navigation"]') as HTMLElement;
-          if (!threadContext && navElement?.dataset.parentThreadId) {
-            threadContext = navElement.dataset.parentThreadId;
+          const currentNoteId = extractIdFromPath(window.location.pathname);
+          if (!threadContext && currentNoteId?.startsWith('note_')) {
+            try {
+              const cached = localStorage.getItem(`harvous-note-thread-${currentNoteId}`);
+              if (cached && cached.startsWith('thread_')) {
+                threadContext = cached;
+              }
+            } catch {
+              // ignore
+            }
+          }
+          const noteElement = document.querySelector('[data-note-id]') as HTMLElement;
+          if (!threadContext && noteElement?.dataset.parentThreadId) {
+            threadContext = noteElement.dataset.parentThreadId;
           } else {
-            const pathname = window.location.pathname;
-            if (pathname && pathname !== '/' && !pathname.includes('/dashboard') &&
-                !pathname.includes('/sign-in') && !pathname.includes('/sign-up')) {
-              const itemId = extractIdFromPath(pathname);
-              if (itemId && itemId !== 'dashboard' &&
-                  !itemId.startsWith('note_') && !itemId.startsWith('space_')) {
-                threadContext = itemId;
+            const navElement = document.querySelector('[slot="navigation"]') as HTMLElement;
+            if (!threadContext && navElement?.dataset.parentThreadId) {
+              threadContext = navElement.dataset.parentThreadId;
+            } else {
+              const pathname = window.location.pathname;
+              if (pathname && pathname !== '/' && !pathname.includes('/dashboard') &&
+                  !pathname.includes('/sign-in') && !pathname.includes('/sign-up')) {
+                const itemId = extractIdFromPath(pathname);
+                if (itemId && itemId !== 'dashboard' &&
+                    !itemId.startsWith('note_') && !itemId.startsWith('space_')) {
+                  threadContext = itemId;
+                }
               }
             }
           }
-        }
 
-        // Push current note onto nav stack for breadcrumb-style back navigation
-        if (currentNoteId?.startsWith('note_') && threadContext) {
-          pushNavStack(currentNoteId, threadContext);
-        }
-        const fullNoteId = noteId.startsWith('note_') ? noteId : `note_${noteId}`;
-        if (threadContext && threadContext !== 'thread_unorganized') {
-          fetch(`/api/notes/${fullNoteId}/add-thread`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ threadId: threadContext }),
-            credentials: 'include',
-          })
-            .then((res) => {
-              if (res.ok) {
-                window.dispatchEvent(
-                  new CustomEvent('noteAddedToThread', {
-                    detail: { noteId: fullNoteId, threadId: threadContext, source: 'inlineAddThread' },
-                  })
-                );
-              }
+          // Push current note onto nav stack for breadcrumb-style back navigation
+          if (currentNoteId?.startsWith('note_') && threadContext) {
+            pushNavStack(currentNoteId, threadContext);
+          }
+          const fullNoteId = noteId.startsWith('note_') ? noteId : `note_${noteId}`;
+          if (threadContext && threadContext !== 'thread_unorganized') {
+            fetch(`/api/notes/${fullNoteId}/add-thread`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ threadId: threadContext }),
+              credentials: 'include',
             })
-            .catch(() => {});
+              .then((res) => {
+                if (res.ok) {
+                  window.dispatchEvent(
+                    new CustomEvent('noteAddedToThread', {
+                      detail: { noteId: fullNoteId, threadId: threadContext, source: 'inlineAddThread' },
+                    }),
+                  );
+                }
+              })
+              .catch(() => {});
+          }
+          const url = idToUrl(fullNoteId, threadContext, currentNoteId || undefined);
+          safeNavigate(url);
         }
-        const url = idToUrl(fullNoteId, threadContext, currentNoteId || undefined);
-        safeNavigate(url);
+        return;
+      }
+
+      const markInPm = target.closest('.ProseMirror mark') as HTMLElement | null;
+      if (markInPm && editorChromeMode === 'prototypeNative' && editor.isEditable) {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        const markColor = markInPm.getAttribute('data-color');
+        const markReference = markInPm.getAttribute('data-reference');
+        // Reference highlights (looked-up words) open the reference dock with highlight controls.
+        // - New format: data-reference="word" (created via "Look up")
+        // - Legacy format: data-color="referenceHighlight" (pre-refactor, word inferred from text)
+        const isReference = !!markReference || markColor === 'referenceHighlight';
+        if (isReference) {
+          const word = markReference || markInPm.textContent?.trim() || '';
+          const markStudyId = markInPm.getAttribute('data-study-thread-id');
+          const noteRange = (() => {
+            try {
+              const pos = editor.view.posAtDOM(markInPm, 0);
+              const $p = editor.state.doc.resolve(pos);
+              const markType = editor.state.schema.marks.highlight;
+              if (!markType) return null;
+              const r = getMarkRange($p, markType);
+              if (r && typeof r.from === 'number' && typeof r.to === 'number') {
+                return { from: r.from, to: r.to };
+              }
+            } catch {
+              /* ignore */
+            }
+            return null;
+          })();
+          const accent = isStudyHighlightAccentKey(markColor) ? markColor : 'warmAmber';
+          setReferenceDockSession({
+            query: word,
+            noteHighlightRange: noteRange,
+            noteHighlightAccent: accent,
+            studyThreadEntryId: markStudyId,
+          });
+          setHighlightDockSession(null);
+          setScripturePillSession(null);
+          setTranslationPicker(null);
+          return;
+        }
+        setHighlightDockSession({
+          studyThreadEntryId: markInPm.getAttribute('data-study-thread-id'),
+          accent: markColor || 'warmAmber',
+          excerpt: markInPm.textContent || '',
+          range: (() => {
+            try {
+              const pos = editor.view.posAtDOM(markInPm, 0);
+              const $p = editor.state.doc.resolve(pos);
+              const markType = editor.state.schema.marks.highlight;
+              if (!markType) return null;
+              const r = getMarkRange($p, markType);
+              if (r && typeof r.from === 'number' && typeof r.to === 'number') {
+                return { from: r.from, to: r.to };
+              }
+            } catch {
+              /* ignore */
+            }
+            return null;
+          })(),
+        });
+        setScripturePillSession(null);
+        setTranslationPicker(null);
       }
     };
 
     const handleDismiss = (e: MouseEvent) => {
       const target = e.target as HTMLElement;
-      if (!target.closest('.scripture-translation-picker') && !target.closest('.scripture-pill')) {
+      if (
+        target.closest('.scripture-translation-picker') ||
+        target.closest('.scripture-pill-chrome') ||
+        target.closest('.scripture-pill') ||
+        target.closest('.highlight-dock-web') ||
+        target.closest('.reference-dock-web')
+      ) {
+        // Keep open
+      } else {
         setTranslationPicker(null);
+        setScripturePillSession(null);
+        setHighlightDockSession(null);
+        setReferenceDockSession(null);
       }
       if (!target.closest('.scripture-delete-confirm') && !target.closest('.scripture-pill')) {
         setDeleteConfirmPill(null);
@@ -3923,7 +4438,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       wrapperDiv.removeEventListener('click', handlePillClick, true);
       document.removeEventListener('mousedown', handleDismiss);
     };
-  }, [editor]);
+  }, [editor, editorChromeMode]);
 
   // Handle create note from selection
   const handleCreateNoteFromSelection = async () => {
@@ -4242,6 +4757,10 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       }
       editorWasFocusedForToolbarRef.current = true;
       setIsEditorFocused(true);
+
+      if (editorChromeMode === 'prototypeNative') {
+        bumpFormatToolbarActivity();
+      }
     };
 
     const handleBlur = (event: any) => {
@@ -4250,19 +4769,31 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       
       // Don't hide toolbar if blur is caused by clicking toolbar button
       // Check if the related target (what's being focused) is within the toolbar
-      const relatedTarget = event.event?.relatedTarget;
-      if (relatedTarget) {
-        const toolbar = document.querySelector('.tiptap-toolbar');
-        if (toolbar && toolbar.contains(relatedTarget)) {
-          // Blur is from clicking toolbar button, keep toolbar visible
-          return;
-        }
+      const relatedTarget = event.event?.relatedTarget as HTMLElement | null | undefined;
+      if (relatedTarget?.closest?.('.tiptap-toolbar')) {
+        return;
+      }
+      if (relatedTarget?.closest?.('.scripture-pill-chrome')) {
+        return;
+      }
+      if (relatedTarget?.closest?.('.scripture-translation-picker')) {
+        return;
+      }
+      if (relatedTarget?.closest?.('.selection-action-bar')) {
+        return;
       }
       // Small delay to allow focus to return to editor if needed
       setTimeout(() => {
         if (isEditorValid(editor) && !editor.isFocused) {
           editorWasFocusedForToolbarRef.current = false;
           setIsEditorFocused(false);
+          if (editorChromeMode === 'prototypeNative') {
+            setShowFormatBarForActivity(false);
+            if (formatBarHideTimerRef.current) {
+              clearTimeout(formatBarHideTimerRef.current);
+              formatBarHideTimerRef.current = null;
+            }
+          }
         }
       }, 100);
     };
@@ -4291,7 +4822,79 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
         editor.off('selectionUpdate', handleSelectionUpdate);
       }
     };
-  }, [editor, toolbarAtBottom]);
+  }, [editor, toolbarAtBottom, editorChromeMode, bumpFormatToolbarActivity]);
+
+  useEffect(() => {
+    if (!editor || !sourceNoteId) return;
+    const handler = (e: Event) => {
+      const d = (e as CustomEvent).detail;
+      if (!d || String(d.noteId) !== String(sourceNoteId)) return;
+      const query = String(d.query ?? '').trim();
+      if (!query || !isEditorValid(editor)) return;
+      const all = findAllTextPositions(editor.state.doc, query, false);
+      if (all.length === 0) {
+        window.dispatchEvent(
+          new CustomEvent('prototypeFindInNoteResult', {
+            detail: { noteId: sourceNoteId, count: 0, index: 0 },
+          }),
+        );
+        return;
+      }
+      const idx =
+        typeof d.matchIndex === 'number' ? ((d.matchIndex % all.length) + all.length) % all.length : 0;
+      const match = all[idx];
+      editor.chain().focus().setTextSelection({ from: match.from, to: match.to }).scrollIntoView().run();
+      window.dispatchEvent(
+        new CustomEvent('prototypeFindInNoteResult', {
+          detail: { noteId: sourceNoteId, count: all.length, index: idx },
+        }),
+      );
+    };
+    window.addEventListener('prototypeFindInNote', handler as EventListener);
+    return () => window.removeEventListener('prototypeFindInNote', handler as EventListener);
+  }, [editor, sourceNoteId]);
+
+  /** macOS-parity format bar: idle-hide + selection-visible + typing activity. */
+  useEffect(() => {
+    if (!editor || editorChromeMode !== 'prototypeNative') {
+      setSelectionExpanded(false);
+      return;
+    }
+
+    const syncSel = () => {
+      try {
+        if (!isEditorValid(editor)) return;
+        const { from, to } = editor.state.selection;
+        const expanded = from !== to;
+        setSelectionExpanded(expanded);
+        if (expanded) bumpFormatToolbarActivity();
+      } catch {
+        /* ignore */
+      }
+    };
+
+    const onDocUpdate = ({ transaction }: { transaction: { docChanged: boolean } }) => {
+      if (!transaction.docChanged) return;
+      bumpFormatToolbarActivity();
+    };
+
+    syncSel();
+    editor.on('selectionUpdate', syncSel);
+    editor.on('update', onDocUpdate);
+
+    return () => {
+      if (editor && !editor.isDestroyed) {
+        editor.off('selectionUpdate', syncSel);
+        editor.off('update', onDocUpdate);
+      }
+    };
+  }, [editor, editorChromeMode, bumpFormatToolbarActivity]);
+
+  useEffect(() => () => {
+    if (formatBarHideTimerRef.current) {
+      clearTimeout(formatBarHideTimerRef.current);
+    }
+  }, []);
 
   // Update active states when editor changes
   useEffect(() => {
@@ -4303,20 +4906,23 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       // Check if editor is still valid before accessing it
       if (!isEditorValid(editor)) return;
       
-      // Detect current heading level (0 = paragraph, 2 = H2, 3 = H3)
+      // Detect current heading level (0 = paragraph, 2–4 = headings)
       let headingLevel = 0;
       if (editor.isActive('heading', { level: 2 })) {
         headingLevel = 2;
       } else if (editor.isActive('heading', { level: 3 })) {
         headingLevel = 3;
+      } else if (editor.isActive('heading', { level: 4 })) {
+        headingLevel = 4;
       }
-      
+
       const newStates = {
         canUndo: editor.can().undo(),
         canRedo: editor.can().redo(),
         bold: editor.isActive('bold'),
         italic: editor.isActive('italic'),
         underline: editor.isActive('underline'),
+        strike: editor.isActive('strike'),
         orderedList: editor.isActive('orderedList'),
         bulletList: editor.isActive('bulletList'),
         headingLevel: headingLevel
@@ -4338,6 +4944,64 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       }
     };
   }, [editor]);
+
+  const scriptureChromeActive =
+    editorChromeMode === 'prototypeNative' &&
+    (scripturePillSession != null || deleteConfirmPill != null);
+
+  const highlightChromeActive =
+    editorChromeMode === 'prototypeNative' && highlightDockSession != null;
+
+  const referenceChromeActive =
+    editorChromeMode === 'prototypeNative' && referenceDockSession != null;
+
+  const shouldShowPrototypeFormatToolbar =
+    editorChromeMode === 'prototypeNative' &&
+    isEditorFocused &&
+    !scriptureChromeActive &&
+    !highlightChromeActive &&
+    !referenceChromeActive;
+
+  /* Prototype column bar: undefined = inline fallback; null = host pending; element = portal target. */
+  const columnFormatToolbarPortal = formatToolbarPortalTarget !== undefined;
+
+  useEffect(() => {
+    if (editorChromeMode !== 'prototypeNative' || !onPrototypeChromeModeChange) return;
+    if (scriptureChromeActive) {
+      onPrototypeChromeModeChange('scripture');
+      return;
+    }
+    if (highlightChromeActive) {
+      onPrototypeChromeModeChange('highlight');
+      return;
+    }
+    if (referenceChromeActive) {
+      onPrototypeChromeModeChange('reference');
+      return;
+    }
+    if (!isEditorFocused) {
+      onPrototypeChromeModeChange(prototypeNoteActionsChrome ? 'noteActions' : 'hidden');
+      return;
+    }
+    if (shouldShowPrototypeFormatToolbar) {
+      onPrototypeChromeModeChange('format');
+    } else {
+      onPrototypeChromeModeChange(prototypeNoteActionsChrome ? 'noteActions' : 'hidden');
+    }
+  }, [
+    editorChromeMode,
+    onPrototypeChromeModeChange,
+    prototypeNoteActionsChrome,
+    scriptureChromeActive,
+    highlightChromeActive,
+    referenceChromeActive,
+    deleteConfirmPill,
+    scripturePillSession,
+    highlightDockSession,
+    referenceDockSession,
+    isEditorFocused,
+    shouldShowPrototypeFormatToolbar,
+  ]);
 
   const syncTiptapContentScrollMask = useCallback(() => {
     const el = tiptapContentRef.current;
@@ -4403,20 +5067,20 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     );
   }
 
-  // Handle heading cycle: H2 → H3 → Normal → H2
+  // Handle heading cycle: H2 → H3 → Normal → H2 (single control on classic toolbar; H4 via paste or prototype bar)
   const handleHeadingCycle = () => {
     if (!editor) return;
-    
+
     const currentLevel = activeStates.headingLevel;
-    
+
     if (currentLevel === 0) {
-      // Currently paragraph, set to H2
       editor.chain().focus().setHeading({ level: 2 }).run();
     } else if (currentLevel === 2) {
-      // Currently H2, set to H3
       editor.chain().focus().setHeading({ level: 3 }).run();
     } else if (currentLevel === 3) {
-      // Currently H3, set to paragraph (normal)
+      editor.chain().focus().setParagraph().run();
+    } else {
+      // H4 or other: drop to paragraph from the cycle control
       editor.chain().focus().setParagraph().run();
     }
   };
@@ -4545,6 +5209,188 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     );
   };
 
+  const toggleHeadingLevel = (level: 2 | 3 | 4) => {
+    if (!editor) return;
+    if (editor.isActive('heading', { level })) {
+      editor.chain().focus().setParagraph().run();
+    } else {
+      editor.chain().focus().setHeading({ level }).run();
+    }
+  };
+
+  const renderPrototypeNativeFormatToolbar = (placement: 'top' | 'bottom' | 'portal') => {
+    if (!editor) return null;
+    const isInListItem = editor.isActive('listItem');
+    const canSink = isInListItem ? editor.can().sinkListItem('listItem') : true;
+    const canLift = isInListItem
+      ? editor.can().liftListItem('listItem')
+      : editor.can().decreaseIndent();
+    const { from, to } = editor.state.selection;
+    const hasTextSelection = from !== to;
+
+    const isPortal = placement === 'portal';
+    const positionalStyle: React.CSSProperties = isPortal
+      ? {}
+      : {
+          position: 'sticky',
+          ...(placement === 'bottom'
+            ? { bottom: 0, marginBottom: `${toolbarBottomMargin}px` }
+            : { top: 0, marginBottom: '12px' }),
+          zIndex: 20,
+        };
+
+    return (
+      <div
+        data-prototype-format-toolbar=""
+        className={`tiptap-toolbar tiptap-toolbar--prototype-native p-1 shrink-0 ${
+          placement === 'bottom' ? 'tiptap-toolbar--bottom' : ''
+        } ${isPortal ? 'tiptap-toolbar--portal' : ''}`}
+        style={positionalStyle}
+        onMouseEnter={() => {
+          setIsPointerOverFormatToolbar(true);
+          if (editorChromeMode === 'prototypeNative') bumpFormatToolbarActivity();
+        }}
+        onMouseLeave={() => setIsPointerOverFormatToolbar(false)}
+      >
+        <div className="tiptap-toolbar__hscroll">
+          <TiptapToolbarTrack key={toolbarEnterEpoch} placement={placement}>
+            <ToolbarButton
+              onClick={() => editor.chain().focus().undo().run()}
+              isActive={false}
+              disabled={!activeStates.canUndo}
+              title="Undo"
+              ariaLabel="Undo"
+            >
+              <Icon name="arrow-rotate-left" size={PROTO_FORMAT_ICON_SIZE} className="proto-toolbar-icon" />
+            </ToolbarButton>
+            <ToolbarButton
+              onClick={() => editor.chain().focus().redo().run()}
+              isActive={false}
+              disabled={!activeStates.canRedo}
+              title="Redo"
+              ariaLabel="Redo"
+            >
+              <Icon name="arrow-rotate-right" size={PROTO_FORMAT_ICON_SIZE} className="proto-toolbar-icon" />
+            </ToolbarButton>
+            <span className="tiptap-toolbar__group-divider tiptap-toolbar__group-divider--prototype" aria-hidden />
+            <ToolbarButton
+              onClick={() => editor.chain().focus().toggleBold().run()}
+              isActive={activeStates.bold}
+              title="Bold"
+              ariaLabel="Toggle bold"
+            >
+              <Icon name="bold" size={PROTO_FORMAT_ICON_SIZE} className="proto-toolbar-icon" />
+            </ToolbarButton>
+            <ToolbarButton
+              onClick={() => editor.chain().focus().toggleItalic().run()}
+              isActive={activeStates.italic}
+              title="Italic"
+              ariaLabel="Toggle italic"
+            >
+              <Icon name="italic" size={PROTO_FORMAT_ICON_SIZE} className="proto-toolbar-icon" />
+            </ToolbarButton>
+            <ToolbarButton
+              onClick={() => editor.chain().focus().toggleStrike().run()}
+              isActive={activeStates.strike}
+              title="Strikethrough"
+              ariaLabel="Toggle strikethrough"
+            >
+              <Icon name="strikethrough" size={PROTO_FORMAT_ICON_SIZE} className="proto-toolbar-icon" />
+            </ToolbarButton>
+            <span className="tiptap-toolbar__group-divider tiptap-toolbar__group-divider--prototype" aria-hidden />
+            <ToolbarButton
+              onClick={() => toggleHeadingLevel(2)}
+              isActive={activeStates.headingLevel === 2}
+              title="Heading 2"
+              ariaLabel="Toggle heading 2"
+            >
+              <span style={{ fontSize: '13px', fontWeight: 700 }}>H2</span>
+            </ToolbarButton>
+            <ToolbarButton
+              onClick={() => toggleHeadingLevel(3)}
+              isActive={activeStates.headingLevel === 3}
+              title="Heading 3"
+              ariaLabel="Toggle heading 3"
+            >
+              <span style={{ fontSize: '13px', fontWeight: 700 }}>H3</span>
+            </ToolbarButton>
+            <ToolbarButton
+              onClick={() => toggleHeadingLevel(4)}
+              isActive={activeStates.headingLevel === 4}
+              title="Heading 4"
+              ariaLabel="Toggle heading 4"
+            >
+              <span style={{ fontSize: '13px', fontWeight: 700 }}>H4</span>
+            </ToolbarButton>
+            <span className="tiptap-toolbar__group-divider tiptap-toolbar__group-divider--prototype" aria-hidden />
+            <ToolbarButton
+              onClick={() => editor.chain().focus().toggleBulletList().run()}
+              isActive={activeStates.bulletList}
+              title="Bullet list"
+              ariaLabel="Toggle bullet list"
+            >
+              <Icon name="list" size={PROTO_FORMAT_ICON_SIZE} className="proto-toolbar-icon" />
+            </ToolbarButton>
+            <ToolbarButton
+              onClick={() => editor.chain().focus().toggleOrderedList().run()}
+              isActive={activeStates.orderedList}
+              title="Numbered list"
+              ariaLabel="Toggle numbered list"
+            >
+              <Icon name="list-ol" size={PROTO_FORMAT_ICON_SIZE} className="proto-toolbar-icon" />
+            </ToolbarButton>
+            <ToolbarButton
+              onClick={() =>
+                isInListItem
+                  ? editor.chain().focus().liftListItem('listItem').run()
+                  : editor.chain().focus().decreaseIndent().run()
+              }
+              isActive={false}
+              disabled={!canLift}
+              title="Outdent"
+              ariaLabel="Outdent"
+            >
+              <Icon name="outdent" size={PROTO_FORMAT_ICON_SIZE} className="proto-toolbar-icon" />
+            </ToolbarButton>
+            <ToolbarButton
+              onClick={() =>
+                isInListItem
+                  ? editor.chain().focus().sinkListItem('listItem').run()
+                  : editor.chain().focus().increaseIndent().run()
+              }
+              isActive={false}
+              disabled={!canSink}
+              title="Indent"
+              ariaLabel="Indent"
+            >
+              <Icon name="indent" size={PROTO_FORMAT_ICON_SIZE} className="proto-toolbar-icon" />
+            </ToolbarButton>
+            <span className="tiptap-toolbar__group-divider tiptap-toolbar__group-divider--prototype" aria-hidden />
+            <ToolbarButton
+              onClick={() => editor.chain().focus().setHorizontalRule().run()}
+              isActive={false}
+              title="Horizontal rule"
+              ariaLabel="Insert horizontal rule"
+            >
+              <Icon name="horizontal-rule" size={PROTO_FORMAT_ICON_SIZE} className="proto-toolbar-icon" />
+            </ToolbarButton>
+            <ToolbarButton
+              onClick={() => {
+                openUrlLinkPrompt();
+              }}
+              isActive={!!editor?.isActive('urlLink')}
+              disabled={!hasTextSelection}
+              title="Add link to selection"
+              ariaLabel="Add link to selection"
+            >
+              <Icon name="link" size={PROTO_FORMAT_ICON_SIZE} className="proto-toolbar-icon" />
+            </ToolbarButton>
+          </TiptapToolbarTrack>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="tiptap-editor-container flex flex-col flex-1 min-h-0 w-full" style={{ minHeight: 0, height: '100%' }}>
       {/* Hidden input for form submission */}
@@ -4557,7 +5403,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       />
       
       {/* Toolbar above or below scroll area; below keeps it visible above keyboard on mobile */}
-      {!minimalToolbar && isEditorFocused && !toolbarAtBottom && (
+      {!minimalToolbar && isEditorFocused && !toolbarAtBottom && editorChromeMode !== 'prototypeNative' && (
         <div
           className="tiptap-toolbar p-1 border border-[var(--color-fog-white)] rounded-xl bg-[var(--color-snow-white)] shrink-0"
           style={{
@@ -4699,6 +5545,13 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
           </div>
         </div>
       )}
+      {!minimalToolbar &&
+        editorChromeMode === 'prototypeNative' &&
+        !columnFormatToolbarPortal &&
+        !formatToolbarPortalTarget &&
+        shouldShowPrototypeFormatToolbar &&
+        !toolbarAtBottom &&
+        renderPrototypeNativeFormatToolbar('top')}
       {/* Scroll area with optional top fade when scrolled; toolbar is outside so not faded */}
       <div
         ref={tiptapContentRef}
@@ -4710,13 +5563,45 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
         }}
       >
         <EditorContent editor={editor} />
+        {/* Hover preview card for scripture pills + note links + url-link. */}
+        {hoverPreview ? (
+          <LinkPreviewCard
+            kind={hoverPreview.kind}
+            anchorRect={hoverPreview.anchorRect}
+            payload={hoverPreview.payload}
+            onOpen={
+              hoverPreview.kind === 'url'
+                ? handleHoverPreviewOpen
+                : (hoverPreview.payload.noteId || hoverPreview.payload.scriptureNoteId)
+                  ? handleHoverPreviewOpen
+                  : undefined
+            }
+            onEdit={hoverPreview.kind === 'url' ? editUrlLinkFromHoverCard : undefined}
+            onRemove={hoverPreview.kind === 'url' ? removeUrlLinkFromHoverCard : undefined}
+            onDismiss={dismissHoverPreview}
+            onPointerEnter={cancelHoverPreviewHide}
+            onPointerLeave={dismissHoverPreview}
+          />
+        ) : null}
+        {/* URL link prompt — floating input for adding/editing the urlLink mark. */}
+        {urlLinkPrompt && createPortal(
+          <UrlLinkPromptUI
+            rect={urlLinkPrompt.rect}
+            initialHref={urlLinkPrompt.initialHref}
+            mode={urlLinkPrompt.mode}
+            onSubmit={applyUrlLink}
+            onRemove={urlLinkPrompt.mode === 'edit' ? removeUrlLinkAtCurrentRange : undefined}
+            onCancel={() => setUrlLinkPrompt(null)}
+          />,
+          document.body,
+        )}
         {/* Custom floating selection action bar — positioned via selectionUpdate event */}
         {/* Uses createPortal like the translation picker for reliable positioning */}
         {selectionActionBar && enableCreateNoteFromSelection && createPortal(
           <div
             ref={createNoteBubbleRef}
             data-harvous-bottom-sheet-floating=""
-            className="selection-action-bar floating-picker-enter"
+            className="selection-action-bar"
             style={{
               position: 'fixed',
               top: selectionActionBar.top,
@@ -4724,49 +5609,275 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
               transform: 'translateX(-50%)',
               zIndex: 99999,
               pointerEvents: 'auto',
-              display: 'flex',
-              gap: '4px',
-              padding: '4px',
-              borderRadius: '10px',
-              backgroundColor: 'var(--color-snow-white)',
-              boxShadow: '0 1px 6px rgba(0,0,0,0.08), 0 4px 16px rgba(0,0,0,0.06)',
             }}
-            onMouseDown={(e) => e.preventDefault()}
           >
-            <button
-              className="selection-action-btn"
-              onMouseDown={(e: React.MouseEvent) => {
-                e.preventDefault();
-                e.stopPropagation();
-                handleCreateNoteFromSelection();
-                setSelectionActionBar(null);
-              }}
-              type="button"
-              title="Create note from selection"
-            >
-              <Icon name="note-sticky" size={12} />
-              Create Note
-            </button>
-            <button
-              className="selection-action-btn"
-              onMouseDown={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                if (!editor) return;
-                const { from, to } = editor.state.selection;
-                if (from === to) return;
-                const text = editor.state.doc.textBetween(from, to);
-                navigator.clipboard.writeText(text).then(() => {
-                  if (window.toast) window.toast.info('Copied to clipboard');
-                }).catch(() => {});
-                setSelectionActionBar(null);
-              }}
-              type="button"
-              title="Copy selection"
-            >
-              <Icon name="copy" size={12} />
-              Copy
-            </button>
+            {editorChromeMode === 'prototypeNative' ? (
+              <div
+                className="pds-native-selection-bar floating-picker-enter"
+                onMouseDown={(e) => e.preventDefault()}
+              >
+                <button
+                  type="button"
+                  className="pds-native-selection-bar__btn"
+                  title="Highlight selected text"
+                  aria-label="Highlight selected text"
+                  onMouseDown={(e: React.MouseEvent) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    if (!editor || !isEditorValid(editor)) return;
+                    const { from, to } = editor.state.selection;
+                    if (from === to) return;
+                    const snippet = editor.state.doc.textBetween(from, to);
+                    const defaultAccent = 'warmAmber';
+
+                    void (async () => {
+                      let studyId: string | null = null;
+                      if (editorChromeMode === 'prototypeNative' && sourceNoteId) {
+                        try {
+                          const res = await fetch(`/api/notes/${sourceNoteId}/study-threads`, {
+                            method: 'POST',
+                            credentials: 'include',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                              entryKind: 'miniNote',
+                              sourceSnippet: snippet,
+                              highlightAccentRaw: defaultAccent,
+                              anchorTextSnapshot: snippet,
+                              anchorLocation: from,
+                              anchorLength: Math.max(0, to - from),
+                            }),
+                          });
+                          if (res.ok) {
+                            const data = await res.json();
+                            studyId = data.studyThread?.id ?? null;
+                          }
+                        } catch {
+                          /* fall through to local mark */
+                        }
+                      }
+                      if (!editor || !isEditorValid(editor)) return;
+                      editor
+                        .chain()
+                        .focus()
+                        .setTextSelection({ from, to })
+                        .setHighlight({
+                          color: defaultAccent,
+                          studyThreadEntryId: studyId || undefined,
+                        })
+                        .run();
+                      if (hiddenInputRef.current) {
+                        hiddenInputRef.current.value = editor.getHTML();
+                      }
+                      onContentChange?.(editor.getHTML());
+                      setSelectionActionBar(null);
+                      if (editorChromeMode === 'prototypeNative') {
+                        setHighlightDockSession({
+                          studyThreadEntryId: studyId,
+                          accent: defaultAccent,
+                          excerpt: snippet,
+                          range: { from, to },
+                        });
+                      }
+                    })();
+                  }}
+                >
+                  <Icon name="highlighter" size={14} />
+                </button>
+                {(() => {
+                  const word = getSelectedSingleWord();
+                  const entry = word ? lookupWord(word, eastonsIndex) : null;
+                  if (!entry) return null;
+                  return (
+                    <>
+                      <span className="pds-native-selection-bar__rule" aria-hidden />
+                      <button
+                        type="button"
+                        className="pds-native-selection-bar__btn"
+                        title={`Look up "${word}" in Easton's Bible Dictionary`}
+                        aria-label="Look up in dictionary"
+                        onMouseDown={(e: React.MouseEvent) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          if (!editor || !isEditorValid(editor) || !word) {
+                            setSelectionActionBar(null);
+                            return;
+                          }
+                          const { from, to } = editor.state.selection;
+                          if (from === to) {
+                            setReferenceDockSession({ query: word });
+                            setSelectionActionBar(null);
+                            return;
+                          }
+                          const snippet = editor.state.doc.textBetween(from, to);
+                          const defaultAccent = 'warmAmber';
+                          setSelectionActionBar(null);
+                          void (async () => {
+                            let studyId: string | null = null;
+                            if (editorChromeMode === 'prototypeNative' && sourceNoteId) {
+                              try {
+                                const res = await fetch(`/api/notes/${sourceNoteId}/study-threads`, {
+                                  method: 'POST',
+                                  credentials: 'include',
+                                  headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({
+                                    entryKind: 'reference',
+                                    sourceSnippet: snippet,
+                                    highlightAccentRaw: defaultAccent,
+                                    anchorTextSnapshot: snippet,
+                                    anchorLocation: from,
+                                    anchorLength: Math.max(0, to - from),
+                                    focusTitle: snippet,
+                                  }),
+                                });
+                                if (res.ok) {
+                                  const data = await res.json();
+                                  studyId = data.studyThread?.id ?? null;
+                                }
+                              } catch {
+                                /* fall through to local mark */
+                              }
+                            }
+                            if (!editor || !isEditorValid(editor)) return;
+                            editor
+                              .chain()
+                              .focus()
+                              .setTextSelection({ from, to })
+                              .setHighlight({
+                                color: defaultAccent,
+                                reference: snippet,
+                                studyThreadEntryId: studyId || undefined,
+                              })
+                              .run();
+                            onContentChange?.(editor.getHTML());
+                            setReferenceDockSession({
+                              query: snippet,
+                              noteHighlightRange: { from, to },
+                              noteHighlightAccent: defaultAccent,
+                              studyThreadEntryId: studyId,
+                            });
+                          })();
+                        }}
+                      >
+                        <Icon name="lines-leaning" size={14} />
+                      </button>
+                    </>
+                  );
+                })()}
+                <span className="pds-native-selection-bar__rule" aria-hidden />
+                <button
+                  type="button"
+                  className="pds-native-selection-bar__btn"
+                  title="New Harvous note from selection"
+                  aria-label="New Harvous note from selection"
+                  onMouseDown={(e: React.MouseEvent) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    void handleCreateNoteFromSelection();
+                    setSelectionActionBar(null);
+                  }}
+                >
+                  <Icon name="pen-to-square" size={14} />
+                </button>
+                {selectionIntersectsHighlightMark(editor) ? (
+                  <>
+                    <span className="pds-native-selection-bar__rule" aria-hidden />
+                    <button
+                      type="button"
+                      className="pds-native-selection-bar__btn"
+                      title="Clear highlight from selection"
+                      aria-label="Clear highlight from selection"
+                      onMouseDown={(e: React.MouseEvent) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        if (!editor || !isEditorValid(editor)) return;
+                        const { from, to } = editor.state.selection;
+                        if (from === to) return;
+                        const markType = editor.state.schema.marks.highlight;
+                        let studyId: string | null = null;
+                        editor.state.doc.nodesBetween(from, to, (node: any) => {
+                          if (!node.isText || studyId) return;
+                          const m = node.marks.find((x: any) => x.type.name === 'highlight');
+                          if (m?.attrs?.studyThreadEntryId) {
+                            studyId = m.attrs.studyThreadEntryId;
+                          }
+                        });
+                        void (async () => {
+                          if (studyId) {
+                            try {
+                              await fetch(`/api/study-threads/${studyId}`, {
+                                method: 'DELETE',
+                                credentials: 'include',
+                              });
+                            } catch {
+                              /* still strip mark */
+                            }
+                          }
+                          if (editor && isEditorValid(editor)) {
+                            editor.chain().focus().unsetHighlight().run();
+                            if (hiddenInputRef.current) {
+                              hiddenInputRef.current.value = editor.getHTML();
+                            }
+                            onContentChange?.(editor.getHTML());
+                          }
+                          setSelectionActionBar(null);
+                          setHighlightDockSession(null);
+                        })();
+                      }}
+                    >
+                      <Icon name="eraser" size={14} />
+                    </button>
+                  </>
+                ) : null}
+              </div>
+            ) : (
+              <div
+                className="floating-picker-enter"
+                style={{
+                  display: 'flex',
+                  gap: '4px',
+                  padding: '4px',
+                  borderRadius: '10px',
+                  backgroundColor: 'var(--color-snow-white)',
+                  boxShadow: '0 1px 6px rgba(0,0,0,0.08), 0 4px 16px rgba(0,0,0,0.06)',
+                }}
+                onMouseDown={(e) => e.preventDefault()}
+              >
+                <button
+                  className="selection-action-btn"
+                  onMouseDown={(e: React.MouseEvent) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    handleCreateNoteFromSelection();
+                    setSelectionActionBar(null);
+                  }}
+                  type="button"
+                  title="Create note from selection"
+                >
+                  <Icon name="note-sticky" size={12} />
+                  Create Note
+                </button>
+                <button
+                  className="selection-action-btn"
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    if (!editor) return;
+                    const { from, to } = editor.state.selection;
+                    if (from === to) return;
+                    const text = editor.state.doc.textBetween(from, to);
+                    navigator.clipboard.writeText(text).then(() => {
+                      if (window.toast) window.toast.info('Copied to clipboard');
+                    }).catch(() => {});
+                    setSelectionActionBar(null);
+                  }}
+                  type="button"
+                  title="Copy selection"
+                >
+                  <Icon name="copy" size={12} />
+                  Copy
+                </button>
+              </div>
+            )}
           </div>,
           document.body
         )}
@@ -4832,7 +5943,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
         )}
         {/* Custom floating translation picker — positioned via pill click event, not BubbleMenu */}
         {/* BubbleMenu can't detect non-inclusive marks at cursor boundary positions */}
-        {translationPicker && createPortal(
+        {translationPicker && editorChromeMode !== 'prototypeNative' && createPortal(
           <div
             data-harvous-bottom-sheet-floating=""
             className="scripture-translation-picker floating-picker-enter"
@@ -4953,8 +6064,273 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
           </div>,
           document.body
         )}
+        {scripturePillSession && editorChromeMode === 'prototypeNative' && createPortal(
+          <ScripturePillChromeWeb
+            reference={scripturePillSession.reference}
+            translation={scripturePillSession.translation}
+            sourceNoteId={sourceNoteId ?? null}
+            initialPillAccent={scripturePillSession.pillAccent}
+            onPillAccentChange={(nextAccent) => {
+              if (!editor || !isEditorValid(editor) || !scripturePillSession) return;
+              const { from, to } = scripturePillSession.boundaries;
+              const markType = editor.state.schema.marks.scripturePill;
+              if (!markType) return;
+              let existingMark: any = null;
+              editor.state.doc.nodesBetween(from, to, (node: any) => {
+                if (!existingMark && node.isText) {
+                  const m = node.marks.find((x: any) => x.type?.name === 'scripturePill');
+                  if (m) existingMark = m;
+                }
+              });
+              if (!existingMark) return;
+              const tr = editor.state.tr;
+              tr.removeMark(from, to, markType);
+              tr.addMark(
+                from,
+                to,
+                markType.create({
+                  ...existingMark.attrs,
+                  pillAccent: nextAccent,
+                }),
+              );
+              editor.view.dispatch(tr);
+              if (hiddenInputRef.current) {
+                hiddenInputRef.current.value = editor.getHTML();
+              }
+              onContentChange?.(editor.getHTML());
+              setScripturePillSession((prev) => (prev ? { ...prev, pillAccent: nextAccent } : null));
+            }}
+            onDone={() => {
+              setScripturePillSession(null);
+              queueMicrotask(() => {
+                try {
+                  if (editor && isEditorValid(editor)) {
+                    editor.commands.focus();
+                  }
+                } catch {
+                  /* ignore */
+                }
+              });
+            }}
+            onApply={async (nextRef, nextTranslation) => {
+              if (!editor) return;
+              const sess = scripturePillSession;
+              if (!sess) return;
+              const { from, to } = sess.boundaries;
+              try {
+                const markType = editor.state.schema.marks.scripturePill;
+                if (!markType) return;
+                let existingMark: any = null;
+                editor.state.doc.nodesBetween(from, to, (node: any) => {
+                  if (!existingMark && node.isText) {
+                    const m = node.marks.find((x: any) => x.type?.name === 'scripturePill');
+                    if (m) existingMark = m;
+                  }
+                });
+                if (!existingMark) return;
+
+                const normRef = normalizeScriptureReference(nextRef);
+                const tr = editor.state.tr;
+                tr.replaceWith(from, to, editor.state.schema.text(normRef, [
+                  markType.create({
+                    ...existingMark.attrs,
+                    reference: normRef,
+                    translation: nextTranslation,
+                    pillAccent: existingMark.attrs.pillAccent ?? null,
+                  }),
+                ]));
+                editor.view.dispatch(tr);
+
+                if (hiddenInputRef.current) {
+                  hiddenInputRef.current.value = editor.getHTML();
+                }
+                onContentChange?.(editor.getHTML());
+
+                const noteIdForApi = existingMark.attrs.noteId;
+                const refUnchanged = normalizeScriptureReference(sess.reference) === normRef;
+                if (
+                  refUnchanged &&
+                  noteIdForApi &&
+                  noteIdForApi !== 'pending' &&
+                  noteIdForApi !== 'null' &&
+                  sess.translation !== nextTranslation
+                ) {
+                  await fetch('/api/scripture/update-translation', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ noteId: noteIdForApi, newTranslation: nextTranslation }),
+                    credentials: 'include',
+                  });
+                  window.dispatchEvent(new CustomEvent('noteUpdated', { detail: { noteId: noteIdForApi } }));
+                }
+
+                setScripturePillSession((prev) =>
+                  prev
+                    ? {
+                        ...prev,
+                        reference: normRef,
+                        translation: nextTranslation,
+                        boundaries: { from, to: from + normRef.length },
+                        pillAccent: existingMark.attrs.pillAccent ?? null,
+                      }
+                    : null,
+                );
+              } catch (err) {
+                console.error('[ScripturePillChrome] apply failed:', err);
+              }
+            }}
+          />,
+          scriptureChromePortalTarget || document.body,
+        )}
+        {highlightDockSession && editorChromeMode === 'prototypeNative' && createPortal(
+          <HighlightDockWeb
+            accent={highlightDockSession.accent}
+            excerpt={highlightDockSession.excerpt}
+            includeNeutral={false}
+            onAccentChange={(nextAccent) => {
+              if (!isStudyHighlightAccentKey(nextAccent)) return;
+              if (!editor || !isEditorValid(editor) || !highlightDockSession) return;
+              const sid = highlightDockSession.studyThreadEntryId;
+              const range =
+                highlightDockSession.range ??
+                (sid ? findHighlightRangeByStudyThreadId(editor, sid) : null);
+              if (!range) return;
+              void (async () => {
+                if (sid) {
+                  try {
+                    await fetch(`/api/study-threads/${sid}`, {
+                      method: 'PATCH',
+                      credentials: 'include',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ highlightAccentRaw: nextAccent }),
+                    });
+                  } catch {
+                    /* ignore */
+                  }
+                }
+                if (!editor || !isEditorValid(editor)) return;
+                const markType = editor.state.schema.marks.highlight;
+                if (!markType) return;
+                const tr = editor.state.tr;
+                tr.removeMark(range.from, range.to, markType);
+                tr.addMark(
+                  range.from,
+                  range.to,
+                  markType.create({
+                    color: nextAccent,
+                    studyThreadEntryId: sid || null,
+                  }),
+                );
+                editor.view.dispatch(tr);
+                if (hiddenInputRef.current) {
+                  hiddenInputRef.current.value = editor.getHTML();
+                }
+                onContentChange?.(editor.getHTML());
+                setHighlightDockSession((prev) =>
+                  prev ? { ...prev, accent: nextAccent, range } : prev,
+                );
+              })();
+            }}
+            onRemove={() => {
+              if (!editor || !isEditorValid(editor) || !highlightDockSession) return;
+              const sid = highlightDockSession.studyThreadEntryId;
+              const range =
+                highlightDockSession.range ??
+                (sid ? findHighlightRangeByStudyThreadId(editor, sid) : null);
+              void (async () => {
+                if (sid) {
+                  try {
+                    await fetch(`/api/study-threads/${sid}`, {
+                      method: 'DELETE',
+                      credentials: 'include',
+                    });
+                  } catch {
+                    /* ignore */
+                  }
+                }
+                if (editor && isEditorValid(editor) && range) {
+                  editor
+                    .chain()
+                    .focus()
+                    .setTextSelection({ from: range.from, to: range.to })
+                    .unsetHighlight()
+                    .run();
+                  if (hiddenInputRef.current) {
+                    hiddenInputRef.current.value = editor.getHTML();
+                  }
+                  onContentChange?.(editor.getHTML());
+                }
+                setHighlightDockSession(null);
+              })();
+            }}
+            onDone={() => setHighlightDockSession(null)}
+          />,
+          highlightChromePortalTarget || document.body,
+        )}
+        {referenceDockSession && editorChromeMode === 'prototypeNative' && createPortal(
+          <ReferenceDockWeb
+            initialQuery={referenceDockSession.query}
+            noteHighlightRange={referenceDockSession.noteHighlightRange}
+            noteHighlightAccent={referenceDockSession.noteHighlightAccent}
+            onChangeNoteHighlight={(accent) => {
+              if (!editor || !isEditorValid(editor) || !referenceDockSession.noteHighlightRange) return;
+              const { from, to } = referenceDockSession.noteHighlightRange;
+              const sid = referenceDockSession.studyThreadEntryId;
+              void (async () => {
+                if (sid) {
+                  try {
+                    await fetch(`/api/study-threads/${sid}`, {
+                      method: 'PATCH',
+                      credentials: 'include',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ highlightAccentRaw: accent }),
+                    });
+                  } catch {
+                    /* ignore */
+                  }
+                }
+                if (!editor || !isEditorValid(editor)) return;
+                editor
+                  .chain()
+                  .focus()
+                  .setTextSelection({ from, to })
+                  .setHighlight({
+                    color: accent,
+                    reference: referenceDockSession.query,
+                    studyThreadEntryId: sid || undefined,
+                  })
+                  .run();
+                onContentChange?.(editor.getHTML());
+                setReferenceDockSession((s) => (s ? { ...s, noteHighlightAccent: accent } : null));
+              })();
+            }}
+            onRemoveNoteHighlight={() => {
+              if (!editor || !isEditorValid(editor) || !referenceDockSession.noteHighlightRange) return;
+              const { from, to } = referenceDockSession.noteHighlightRange;
+              const sid = referenceDockSession.studyThreadEntryId;
+              void (async () => {
+                if (sid) {
+                  try {
+                    await fetch(`/api/study-threads/${sid}`, {
+                      method: 'DELETE',
+                      credentials: 'include',
+                    });
+                  } catch {
+                    /* ignore */
+                  }
+                }
+                if (!editor || !isEditorValid(editor)) return;
+                editor.chain().focus().setTextSelection({ from, to }).unsetHighlight().run();
+                onContentChange?.(editor.getHTML());
+                setReferenceDockSession(null);
+              })();
+            }}
+            onDone={() => setReferenceDockSession(null)}
+          />,
+          referenceChromePortalTarget || document.body,
+        )}
       </div>
-      {!minimalToolbar && isEditorFocused && toolbarAtBottom && (
+      {!minimalToolbar && isEditorFocused && toolbarAtBottom && editorChromeMode !== 'prototypeNative' && (
         <div
           className="tiptap-toolbar tiptap-toolbar--bottom p-1 border border-[var(--color-fog-white)] rounded-xl bg-[var(--color-snow-white)] shrink-0"
           style={{
@@ -5072,6 +6448,19 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
           </div>
         </div>
       )}
+      {!minimalToolbar &&
+        editorChromeMode === 'prototypeNative' &&
+        !columnFormatToolbarPortal &&
+        !formatToolbarPortalTarget &&
+        shouldShowPrototypeFormatToolbar &&
+        toolbarAtBottom &&
+        renderPrototypeNativeFormatToolbar('bottom')}
+      {!minimalToolbar &&
+        editorChromeMode === 'prototypeNative' &&
+        columnFormatToolbarPortal &&
+        formatToolbarPortalTarget &&
+        shouldShowPrototypeFormatToolbar &&
+        createPortal(renderPrototypeNativeFormatToolbar('portal'), formatToolbarPortalTarget)}
     </div>
   );
 };

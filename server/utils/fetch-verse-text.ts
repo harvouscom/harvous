@@ -12,7 +12,7 @@ import {
   validateVerseRange,
   normalizeScriptureReference,
 } from '@/utils/scripture-detector';
-import { db, first, VerseTextCache, BibleVerses, eq, and, gte, lte } from '../db';
+import { db, first, VerseTextCache, BibleVerses, eq, and, gte, lte, warmPostgresConnection } from '../db';
 import { nowISO } from '../db/dates';
 
 interface DbVerse {
@@ -26,6 +26,8 @@ interface DbVerse {
  * If a verse in the requested range is missing from the translation, returns a notice.
  */
 export async function fetchVerseText(reference: string, translation: string = 'NET'): Promise<string> {
+  await warmPostgresConnection();
+
   const cleanReference = reference.replace(/,\s+/g, ',');
   const parsed = parseScriptureReference(cleanReference);
   if (!parsed) {
@@ -57,7 +59,11 @@ export async function fetchVerseText(reference: string, translation: string = 'N
       throw cacheReadErr;
     }
   }
-  if (cached?.content && cached.content.length > 0) {
+  if (
+    cached?.content &&
+    cached.content.length > 0 &&
+    cached.content.includes('<sup class="verse-num"')
+  ) {
     return cached.content;
   }
 
@@ -130,7 +136,7 @@ export async function fetchVerseText(reference: string, translation: string = 'N
       if (groupVerses.length > 0) {
         const label = group.start === group.end ? `Verse ${group.start}:` : `Verses ${group.start}-${group.end}:`;
         formattedParts.push(`<p><strong>${label}</strong></p>`);
-        const groupText = groupVerses.map((v) => `<sup>${v.verse}</sup>${v.text}`).join(' ');
+        const groupText = groupVerses.map((v) => `<sup class="verse-num" style="font-size:0.55em; line-height:0; vertical-align:super;">${v.verse}</sup>${v.text}`).join(' ');
         formattedParts.push(`<p>${groupText}</p>`);
         if (index < verseGroups.length - 1) {
           formattedParts.push('<hr style="margin: 1rem 0; border: none; border-top: 1px solid var(--color-stone-grey); opacity: 0.3;" />');
@@ -141,7 +147,7 @@ export async function fetchVerseText(reference: string, translation: string = 'N
     });
     formatted = formattedParts.join('');
   } else {
-    formatted = allVerses.map((v) => `<sup>${v.verse}</sup>${v.text}`).join(' ');
+    formatted = allVerses.map((v) => `<sup class="verse-num" style="font-size:0.55em; line-height:0; vertical-align:super;">${v.verse}</sup>${v.text}`).join(' ');
   }
 
   // Cache the formatted result
@@ -151,7 +157,13 @@ export async function fetchVerseText(reference: string, translation: string = 'N
       translation,
       content: formatted,
       createdAt: nowISO(),
-    }).onConflictDoNothing();
+    }).onConflictDoUpdate({
+      target: [VerseTextCache.reference, VerseTextCache.translation],
+      set: {
+        content: formatted,
+        createdAt: nowISO(),
+      },
+    });
   } catch (cacheErr: any) {
     console.error(`[fetchVerseText] Cache insert failed for ${normalizedKey} (${translation}):`, cacheErr?.message ?? cacheErr);
   }

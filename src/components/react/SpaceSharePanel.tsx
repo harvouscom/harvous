@@ -75,6 +75,7 @@ export default function SpaceSharePanel({
   const adminDropdownRef = useRef<HTMLDivElement>(null);
 
   const [showMakePrivateDialog, setShowMakePrivateDialog] = useState(false);
+  const [showRefreshLinkDialog, setShowRefreshLinkDialog] = useState(false);
 
   const formDataRef = useRef(formData);
   const activeSaveOperationsRef = useRef<Set<string>>(new Set());
@@ -125,10 +126,6 @@ export default function SpaceSharePanel({
 
   const generateNewShareLink = async () => {
     if (isGeneratingLink || !spaceId) return;
-
-    const confirmed = confirm('This will create a new link. The old link will stop working. Continue?');
-
-    if (!confirmed) return;
 
     setIsGeneratingLink(true);
     try {
@@ -551,13 +548,14 @@ export default function SpaceSharePanel({
               <div className={`panel__content ${inBottomSheet ? 'panel__content--bottom-sheet' : ''}`}>
                 <div className="panel__content-scroll">
                   {!isLoadingMembers && !isOwner && (
-                    <p className="text-base" style={{ color: 'var(--color-stone-grey)' }}>
+                    <p className="panel__section-hint">
                       Only the space owner can change sharing.
                     </p>
                   )}
 
                   {isOwner && (
                     <>
+                      <p className="panel__section-eyebrow">Visibility</p>
                       <ThreadVisibilityDropdown
                         isShared={formData.selectedType === 'Shared'}
                         shareUrl={shareLink}
@@ -570,7 +568,7 @@ export default function SpaceSharePanel({
                             await saveTypeChange(type);
                           }
                         }}
-                        onRefresh={generateNewShareLink}
+                        onRefresh={async () => setShowRefreshLinkDialog(true)}
                         isLoading={isGeneratingLink}
                         isEditMode={true}
                         privateTriggerLabel="Only I can see this space"
@@ -724,6 +722,18 @@ export default function SpaceSharePanel({
           await saveTypeChange('Private');
         }}
         onCancel={() => setShowMakePrivateDialog(false)}
+      />
+      <ConfirmDialog
+        isOpen={showRefreshLinkDialog}
+        title="Generate new share link?"
+        message="This creates a new link and permanently invalidates the old one."
+        confirmLabel={isGeneratingLink ? 'Generating…' : 'Generate new link'}
+        cancelLabel="Cancel"
+        onConfirm={async () => {
+          setShowRefreshLinkDialog(false);
+          await generateNewShareLink();
+        }}
+        onCancel={() => setShowRefreshLinkDialog(false)}
       />
     </div>
   );
