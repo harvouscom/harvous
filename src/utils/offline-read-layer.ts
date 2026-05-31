@@ -14,6 +14,7 @@ import {
   sortByCreatedAtAsc,
   sortOnboardingThreadNotes,
   sortThreadsChronologicallyForSpace,
+  sortNotesByLastVisited,
   normalizeDate,
 } from '@/utils/sorting';
 import { isOnboardingThread } from '@/utils/last-visited-sections';
@@ -394,7 +395,7 @@ export async function getNotesForSpaceLocal(userId: string, spaceId: string, lim
       updatedAt: note.updatedAt || note.createdAt,
       id: note.id,
     }));
-    const sorted = chronological ? sortByCreatedAtAsc(mapped) : sortByLastVisited(mapped);
+    const sorted = chronological ? sortByCreatedAtAsc(mapped) : sortNotesByLastVisited(mapped);
     
     const hasMore = sorted.length > offset + limit;
     const notes = sorted.slice(offset, offset + limit);

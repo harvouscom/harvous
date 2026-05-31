@@ -2,6 +2,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@clerk/clerk-react';
 import { api } from '../../lib/api';
 import { updateCachedProfile } from '../queries/useProfile';
+import { updateCachedProfileData } from '@/utils/profile-cache';
 
 interface UpdateTranslationResponse {
   success?: boolean;
@@ -23,7 +24,15 @@ export function useUpdateTranslation() {
       api.post<UpdateTranslationResponse>('/api/user/update-translation', { defaultTranslation }),
     onSuccess: (_data, defaultTranslation) => {
       updateCachedProfile({ defaultTranslation });
+      updateCachedProfileData({ defaultTranslation });
       void queryClient.invalidateQueries({ queryKey: ['profile', userId ?? 'none'] });
+      try {
+        window.dispatchEvent(
+          new CustomEvent('defaultTranslationChanged', { detail: { defaultTranslation } }),
+        );
+      } catch {
+        /* ignore */
+      }
     },
   });
 }

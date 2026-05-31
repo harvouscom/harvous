@@ -11,6 +11,7 @@ import { usePinSpaceNote } from '../../hooks/mutations/usePinSpaceNote';
 import { useSpaceNotes, type SpaceNoteRow } from '../../hooks/queries/useSpace';
 import { getNoteQueryOptions, seedNoteFromList, type ListNoteForSeed } from '../../hooks/queries/useNote';
 import { noteFolderMembershipLabels } from '@/utils/note-folder-display';
+import { sortNotesByLastVisited } from '@/utils/sorting';
 import { stripServerAutoUntitledNoteTitleForDisplay } from '@/utils/server-auto-untitled-note-display';
 import { useProtoShell } from '../../layouts/proto-shell-context';
 import { usePrototypeHomeSpaceId } from '../../hooks/usePrototypeHomeSpaceId';
@@ -554,7 +555,8 @@ export default function PrototypeSidebar() {
 
   const notes = useMemo(() => {
     if (!pages?.pages) return [];
-    return pages.pages.flatMap((p) => p.notes);
+    const flat = pages.pages.flatMap((p) => p.notes);
+    return sortNotesByLastVisited(flat);
   }, [pages]);
 
   const noteSlugFromPath = matchPrototypeNoteId(pathname);

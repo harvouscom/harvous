@@ -1,5 +1,6 @@
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient, type InfiniteData } from '@tanstack/react-query';
 import { api } from '../../lib/api';
+import { patchSpaceNotesInfiniteCache, spaceNotesQueryKey, type SpaceNotesPage } from '../../lib/space-notes-cache';
 
 function normalizeSpaceId(spaceId: string): string {
   const t = (spaceId ?? '').trim();
@@ -13,7 +14,7 @@ interface PinSpaceNoteVariables {
 }
 
 /**
- * Toggle note pin for a space (owner-only API). Invalidates paginated space notes list.
+ * Toggle note pin for a space (owner-only API). Optimistically patches paginated space notes list.
  */
 export function usePinSpaceNote() {
   const queryClient = useQueryClient();
@@ -28,7 +29,23 @@ export function usePinSpaceNote() {
         isPinned,
       });
     },
-    onSuccess: (_data, variables) => {
+    onMutate: async (variables) => {
+      const sid = normalizeSpaceId(variables.spaceId);
+      if (!sid) return;
+      const key = spaceNotesQueryKey(sid);
+      await queryClient.cancelQueries({ queryKey: key });
+      const previous = queryClient.getQueryData<InfiniteData<SpaceNotesPage, number>>(key);
+      patchSpaceNotesInfiniteCache(queryClient, sid, (note) =>
+        note.id === variables.noteId ? { ...note, isPinned: variables.isPinned } : note,
+      );
+      return { previous, sid };
+    },
+    onError: (_err, variables, context) => {
+      if (context?.previous && context.sid) {
+        queryClient.setQueryData(spaceNotesQueryKey(context.sid), context.previous);
+      }
+    },
+    onSettled: (_data, _err, variables) => {
       const sid = normalizeSpaceId(variables.spaceId);
       if (sid) {
         queryClient.invalidateQueries({ queryKey: ['space', sid, 'notes'] });

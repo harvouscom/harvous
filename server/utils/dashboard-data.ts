@@ -18,7 +18,7 @@ import {
 import { nowISO } from '../db/dates';
 import { getThreadColorCSS, getThreadGradientCSS } from "@/utils/colors";
 import { getInboxCount as getInboxCountUtil } from "./inbox-data";
-import { sortByLastVisited, sortByCreatedAtAsc, sortOnboardingThreadNotes } from "@/utils/sorting";
+import { sortByLastVisited, sortByCreatedAtAsc, sortOnboardingThreadNotes, sortNotesByLastVisited } from "@/utils/sorting";
 import { isOnboardingThread } from "@/utils/last-visited-sections";
 import { stripHtmlForCard } from "@/utils/html-stripper";
 import { MY_PILE_THREAD_TITLE } from "@/utils/my-pile-thread";
@@ -1360,7 +1360,7 @@ export async function getNotesForSpace(spaceId: string, userId: string, limit = 
           .limit(fetchLimit);
 
     const mapped = allNotes.map(note => ({ ...note, updatedAt: note.updatedAt || note.createdAt, id: note.id || '' }));
-    const sortedAllNotes = chronological ? sortByCreatedAtAsc(mapped) : sortByLastVisited(mapped);
+    const sortedAllNotes = chronological ? sortByCreatedAtAsc(mapped) : sortNotesByLastVisited(mapped);
     const hasMore = sortedAllNotes.length > offset + limit;
     const sortedNotes = sortedAllNotes.slice(offset, offset + limit);
 
@@ -1451,7 +1451,7 @@ export async function getNotesForSpaceForMember(
           .limit(fetchLimit);
 
     const mapped = allNotes.map(note => ({ ...note, updatedAt: note.updatedAt || note.createdAt, id: note.id || '' }));
-    const sortedAllNotes = chronological ? sortByCreatedAtAsc(mapped) : sortByLastVisited(mapped);
+    const sortedAllNotes = chronological ? sortByCreatedAtAsc(mapped) : sortNotesByLastVisited(mapped);
     const hasMore = sortedAllNotes.length > offset + limit;
     const sortedNotes = sortedAllNotes.slice(offset, offset + limit);
 

@@ -249,3 +249,13 @@ export function sortThreadsByLastVisited<T extends {
   });
 }
 
+/** Space note lists: pinned first, then lastVisited / activity (mirrors thread sort). */
+export function sortNotesByLastVisited<T extends {
+  isPinned?: boolean;
+  lastVisited?: Date | string | null;
+  updatedAt?: Date | string | null;
+  createdAt?: Date | string | null;
+  id?: string;
+}>(items: T[]): T[] {
+  return sortThreadsByLastVisited(items);
+}

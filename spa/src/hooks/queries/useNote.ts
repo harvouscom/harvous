@@ -305,6 +305,10 @@ export function seedNoteFromList(
       merged.content = prev.content;
       merged.__contentIsPreview = prev.__contentIsPreview ?? false;
     }
+    // List payloads can lag autosave — keep the longer / newer title from detail cache.
+    if (typeof prev.title === 'string' && (merged.title?.length ?? 0) < prev.title.length) {
+      merged.title = prev.title;
+    }
     // Collection fields: detail cache (incl. optimistic patches from useUpdateNote.onSuccess)
     // is the source of truth. Never clobber with stale list-seed values that may lag a
     // just-completed folder update by the list-refetch round trip.

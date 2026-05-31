@@ -1,11 +1,13 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../lib/api';
 import type { NoteDetail } from '../queries/useNote';
+import { getCachedProfileData } from '@/utils/profile-cache';
 
 interface ProcessScriptureInput {
   noteId: string;
   contentOverride: string;
   threadId?: string;
+  translation?: string;
 }
 
 interface ProcessScriptureResponse {
@@ -24,10 +26,11 @@ export function useProcessScriptureRefs() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ noteId, contentOverride, threadId }: ProcessScriptureInput) =>
+    mutationFn: ({ noteId, contentOverride, threadId, translation }: ProcessScriptureInput) =>
       api.post<ProcessScriptureResponse>(`/api/notes/${noteId}/process-scripture-references`, {
         contentOverride,
         threadId,
+        translation: translation ?? getCachedProfileData()?.defaultTranslation ?? 'NET',
       }),
     onSuccess: (data, variables) => {
       const updated = data?.updatedContent;
@@ -36,7 +39,6 @@ export function useProcessScriptureRefs() {
           old ? { ...old, content: updated, updatedAt: new Date().toISOString() } : old
         );
       }
-      queryClient.invalidateQueries({ queryKey: ['note', variables.noteId] });
     },
   });
 }

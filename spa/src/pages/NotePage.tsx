@@ -12,6 +12,7 @@ import { updateNoteOffline } from '../../../src/utils/offline-mutations';
 import { detectScriptureReferences } from '@/utils/scripture-detector';
 import { debug } from '@/utils/logger';
 import { MY_PILE_THREAD_TITLE } from '@/utils/my-pile-thread';
+import { getCachedProfileData } from '@/utils/profile-cache';
 import '../styles/note-editor-chrome.css';
 
 function getThreadIdFromSearch(search: string | Record<string, unknown> | undefined): string | null {
@@ -114,10 +115,10 @@ export default function NotePage() {
   // before the user navigates here).
   useEffect(() => {
     const handler = (e: Event) => {
-      const detail = (e as CustomEvent).detail;
-      if (detail?.noteId && String(detail.noteId) === String(noteId)) {
-        queryClient.invalidateQueries({ queryKey: ['note', noteId] });
-      }
+      const detail = (e as CustomEvent<{ noteId?: string; source?: string }>).detail;
+      if (!detail?.noteId || String(detail.noteId) !== String(noteId)) return;
+      if (e.type === 'noteUpdated' && detail.source === 'autosave') return;
+      queryClient.invalidateQueries({ queryKey: ['note', noteId] });
     };
     window.addEventListener('noteLockStateChanged', handler);
     window.addEventListener('noteUpdated', handler);
@@ -361,6 +362,7 @@ export default function NotePage() {
         noteId,
         title: newTitle,
         content: newContent,
+        scriptureVersion: getCachedProfileData()?.defaultTranslation ?? 'NET',
         ...(collectionExtras ?? {}),
       });
     };

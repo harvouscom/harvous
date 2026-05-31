@@ -14,6 +14,7 @@ import PrototypeInspectorPane from './PrototypeInspectorPane';
 import PrototypeMainPaneShell from './PrototypeMainPaneShell';
 import { usePrototypeHomeSpaceId } from '../../hooks/usePrototypeHomeSpaceId';
 import { stripServerAutoUntitledNoteTitleForDisplay } from '@/utils/server-auto-untitled-note-display';
+import { getCachedProfileData } from '@/utils/profile-cache';
 
 export default function PrototypeNotePage() {
   const { noteId: noteSlugParam } = useParams({ strict: false }) as { noteId: string };
@@ -91,10 +92,11 @@ export default function PrototypeNotePage() {
 
   useEffect(() => {
     const handler = (e: Event) => {
-      const detail = (e as CustomEvent).detail;
-      if (detail?.noteId && String(detail.noteId) === String(noteId)) {
-        queryClient.invalidateQueries({ queryKey: ['note', noteId] });
-      }
+      const detail = (e as CustomEvent<{ noteId?: string; source?: string }>).detail;
+      if (!detail?.noteId || String(detail.noteId) !== String(noteId)) return;
+      // Autosave already patches the detail cache — refetching mid-edit resets editTitle.
+      if (e.type === 'noteUpdated' && detail.source === 'autosave') return;
+      queryClient.invalidateQueries({ queryKey: ['note', noteId] });
     };
     window.addEventListener('noteLockStateChanged', handler);
     window.addEventListener('noteUpdated', handler);
@@ -139,8 +141,19 @@ export default function PrototypeNotePage() {
   }, [noteId, parentThread, effectiveSpaceId]);
 
   const reprocessAttemptedRef = useRef<string | null>(null);
+
+  const isNoteEditorFocused = useCallback(() => {
+    if (typeof document === 'undefined') return false;
+    const el = document.activeElement;
+    if (!el) return false;
+    if (el.closest('.ProseMirror')) return true;
+    if (el.tagName === 'TEXTAREA' && el.closest('[data-note-id]')) return true;
+    return false;
+  }, []);
+
   useEffect(() => {
     if (!note || isLoading || note.contentEncrypted) return;
+    if (isNoteEditorFocused()) return;
     const content = note.content ?? '';
     if (!content || typeof content !== 'string') return;
     if (reprocessAttemptedRef.current === noteId) return;
@@ -176,7 +189,7 @@ export default function PrototypeNotePage() {
     const refs = detectScriptureReferences(plainText);
     if (refs.length === 0) return;
     runReprocess();
-  }, [note, noteId, isLoading, processScriptureMutation]);
+  }, [note, noteId, isLoading, processScriptureMutation, isNoteEditorFocused]);
 
   useEffect(() => {
     if (!noteId) return;
@@ -209,6 +222,7 @@ export default function PrototypeNotePage() {
         noteId,
         title: newTitle,
         content: newContent,
+        scriptureVersion: getCachedProfileData()?.defaultTranslation ?? 'NET',
         ...(collectionExtras ?? {}),
       });
     };

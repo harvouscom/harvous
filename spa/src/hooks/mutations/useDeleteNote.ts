@@ -1,8 +1,13 @@
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient, type InfiniteData } from '@tanstack/react-query';
 import { api } from '../../lib/api';
 import { navigationQueryKeyPrefix } from '../queries/useNavigation';
 import { deleteNoteOffline } from '@/utils/offline-mutations';
 import { getPersistedUserId } from '@/utils/user-id';
+import {
+  removeSpaceNoteFromCache,
+  spaceNotesQueryKey,
+  type SpaceNotesPage,
+} from '../../lib/space-notes-cache';
 
 interface DeleteNoteVariables {
   noteId: string;
@@ -17,7 +22,7 @@ interface DeleteNoteResponse {
 }
 
 /**
- * Permanently delete a note (same endpoint as classic app). Invalidates space note lists and navigation.
+ * Permanently delete a note (same endpoint as classic app). Optimistically removes from space note lists.
  */
 export function useDeleteNote() {
   const queryClient = useQueryClient();
@@ -36,10 +41,22 @@ export function useDeleteNote() {
         `/api/notes/delete?noteId=${encodeURIComponent(noteId)}`,
       );
     },
+    onMutate: async (variables) => {
+      const sid = variables.spaceId.startsWith('space_') ? variables.spaceId : `space_${variables.spaceId}`;
+      const key = spaceNotesQueryKey(sid);
+      await queryClient.cancelQueries({ queryKey: key });
+      const previous = queryClient.getQueryData<InfiniteData<SpaceNotesPage, number>>(key);
+      removeSpaceNoteFromCache(queryClient, sid, variables.noteId);
+      return { previous, sid };
+    },
+    onError: (_err, _variables, context) => {
+      if (context?.previous && context.sid) {
+        queryClient.setQueryData(spaceNotesQueryKey(context.sid), context.previous);
+      }
+    },
     onSuccess: (_data, variables) => {
       const sid = variables.spaceId.startsWith('space_') ? variables.spaceId : `space_${variables.spaceId}`;
       queryClient.removeQueries({ queryKey: ['note', variables.noteId] });
-      queryClient.invalidateQueries({ queryKey: ['space', sid, 'notes'] });
       queryClient.invalidateQueries({ queryKey: ['space', sid, 'bootstrap'] });
       queryClient.invalidateQueries({ queryKey: [...navigationQueryKeyPrefix] });
       try {
@@ -49,6 +66,10 @@ export function useDeleteNote() {
       } catch {
         /* ignore */
       }
+    },
+    onSettled: (_data, _err, variables) => {
+      const sid = variables.spaceId.startsWith('space_') ? variables.spaceId : `space_${variables.spaceId}`;
+      void queryClient.invalidateQueries({ queryKey: ['space', sid, 'notes'] });
     },
   });
 }

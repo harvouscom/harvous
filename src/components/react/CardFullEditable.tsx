@@ -592,6 +592,8 @@ export default function CardFullEditable({
     if (editorChromeMode !== 'prototypeNative' || !alwaysEditing || !effectiveIsEditable) return;
     if (readOnlyLikeScripture || noteType === 'scripture') return;
     if (needsPinUnlock) return;
+    // Never clobber in-progress typing when autosave/refetch updates the title prop.
+    if (document.activeElement === titleInputRef.current) return;
 
     const initialTitle =
       noteType === 'resource'
@@ -617,8 +619,6 @@ export default function CardFullEditable({
     noteType,
     readOnlyLikeScripture,
     needsPinUnlock,
-    title,
-    content,
     resourceTitle,
     resourceDescription,
   ]);
@@ -1513,6 +1513,8 @@ export default function CardFullEditable({
             // hasChanges = (liveHtml !== editorContent) = true — keeping the follow-up save alive.
             applyAfterPersist(editTitle, editorContent);
           } else {
+            hasLocalContentUpdate.current = true;
+            skipNextContentSyncRef.current = true;
             editor.commands.setContent(saveResult.processedContent, { emitUpdate: false });
             requestAnimationFrame(async () => {
               if (editorInstanceRef.current) {
@@ -1607,6 +1609,8 @@ export default function CardFullEditable({
         try { liveHtml = editor.getHTML(); } catch { /* */ }
         if (liveHtml != null && liveHtml === currentContent) {
           // Safe to inject pills — user hasn't typed since save started
+          hasLocalContentUpdate.current = true;
+          skipNextContentSyncRef.current = true;
           editor.commands.setContent(saveResult.processedContent, { emitUpdate: false });
           requestAnimationFrame(async () => {
             if (!editorInstanceRef.current || editorInstanceRef.current.isDestroyed) return;

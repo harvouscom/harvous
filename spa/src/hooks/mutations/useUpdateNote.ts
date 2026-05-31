@@ -1,11 +1,13 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../lib/api';
 import { navigationQueryKeyPrefix } from '../queries/useNavigation';
+import { updateSpaceNoteInCache } from '../../lib/space-notes-cache';
 
 interface UpdateNoteInput {
   noteId: string;
   title: string;
   content: string;
+  scriptureVersion?: string;
   primaryCollection?: string | null;
   secondaryCollections?: string[];
   collectionPinned?: boolean;
@@ -37,8 +39,18 @@ export function useUpdateNote() {
 
   return useMutation({
     mutationFn: (input: UpdateNoteInput) => {
-      const { noteId, title, content, primaryCollection, secondaryCollections, collectionPinned, collectionUserOverride } = input;
+      const {
+        noteId,
+        title,
+        content,
+        scriptureVersion,
+        primaryCollection,
+        secondaryCollections,
+        collectionPinned,
+        collectionUserOverride,
+      } = input;
       const body: Record<string, unknown> = { noteId, title, content };
+      if (scriptureVersion !== undefined) body.scriptureVersion = scriptureVersion;
       if (primaryCollection !== undefined) body.primaryCollection = primaryCollection;
       if (secondaryCollections !== undefined) body.secondaryCollections = secondaryCollections;
       if (collectionPinned !== undefined) body.collectionPinned = collectionPinned;
@@ -86,12 +98,14 @@ export function useUpdateNote() {
       // title/content, so we intentionally do NOT invalidate ['note', noteId] here —
       // that would trigger a redundant GET …/details on every autosave.
 
-      // List/sidebar caches — without these the sidebar shows the old title
-      // ("New Note") indefinitely after a save. Scope to the affected space/threads
-      // (prefix match also covers ['space', id, 'notes'] / ['thread', id, 'notes']),
-      // falling back to broad invalidation only when the ids aren't cached yet.
+      // List/sidebar caches — patch the open note's row immediately; bootstrap/nav refresh in background.
       if (affectedSpaceId) {
-        queryClient.invalidateQueries({ queryKey: ['space', affectedSpaceId] });
+        updateSpaceNoteInCache(queryClient, affectedSpaceId, variables.noteId, {
+          title: variables.title,
+          content: variables.content,
+          updatedAt: new Date().toISOString(),
+        });
+        queryClient.invalidateQueries({ queryKey: ['space', affectedSpaceId, 'bootstrap'] });
       } else {
         queryClient.invalidateQueries({ queryKey: ['space'] });
       }
@@ -103,7 +117,9 @@ export function useUpdateNote() {
         queryClient.invalidateQueries({ queryKey: ['thread'] });
       }
       queryClient.invalidateQueries({ queryKey: [...navigationQueryKeyPrefix] });
-      window.dispatchEvent(new CustomEvent('noteUpdated', { detail: { noteId: variables.noteId } }));
+      window.dispatchEvent(
+        new CustomEvent('noteUpdated', { detail: { noteId: variables.noteId, source: 'autosave' } }),
+      );
     },
   });
 }
