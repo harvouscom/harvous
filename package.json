@@ -68,6 +68,7 @@
     "@capacitor/status-bar": "^8.0.1",
     "@clerk/backend": "^2.19.3",
     "@clerk/clerk-react": "^5.59.2",
+    "@clerk/themes": "^2.4.57",
     "@extractus/article-extractor": "^8.0.20",
     "@fontsource/literata": "^5.2.8",
     "@fontsource/reddit-mono": "^5.1.1",
