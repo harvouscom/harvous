@@ -65,7 +65,7 @@ export default function PrototypeDailyPassagePill({ homeSpaceId, notes }: Props)
       }
       if (createNote.isPending) return;
       createNote.mutate(
-        { spaceId: homeSpaceId, title: v.reference, noteType: 'scripture' },
+        { spaceId: homeSpaceId, title: v.reference, noteType: 'default' },
         {
           onSuccess: (res) => {
             const nid = getNoteIdFromCreateResponse(res);

@@ -6,6 +6,8 @@ export type SearchResultType = 'all' | 'notes' | 'threads';
 export interface SearchScope {
   spaceId?: string;
   threadId?: string;
+  /** Omit classic `noteType: scripture` rows (2.0 prototype search). */
+  excludeLegacyScriptureNotes?: boolean;
 }
 
 export interface SearchResult {
@@ -33,6 +35,7 @@ function buildSearchUrl(query: string, scope?: SearchScope, resultType: SearchRe
   const params = new URLSearchParams({ q: query.trim() });
   if (scope?.threadId) params.set('threadId', scope.threadId);
   if (scope?.spaceId) params.set('spaceId', scope.spaceId);
+  if (scope?.excludeLegacyScriptureNotes) params.set('excludeLegacyScripture', '1');
   if (resultType !== 'all') params.set('type', resultType);
   const base = import.meta.env.VITE_API_BASE_URL || '';
   return `${base}/api/search?${params}`;
@@ -40,7 +43,14 @@ function buildSearchUrl(query: string, scope?: SearchScope, resultType: SearchRe
 
 export function searchQueryKey(query: string, scope?: SearchScope, resultType: SearchResultType = 'all') {
   const q = query.trim();
-  return ['search', q, scope?.threadId ?? null, scope?.spaceId ?? null, resultType] as const;
+  return [
+    'search',
+    q,
+    scope?.threadId ?? null,
+    scope?.spaceId ?? null,
+    scope?.excludeLegacyScriptureNotes ?? false,
+    resultType,
+  ] as const;
 }
 
 export async function fetchSearchResults(

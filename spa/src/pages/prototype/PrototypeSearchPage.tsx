@@ -35,8 +35,8 @@ export default function PrototypeSearchPage() {
     const t = term.trim();
     if (!t || t.length < MIN_SEARCH_QUERY_LENGTH || !normalizedSpace) return;
     queryClient.prefetchQuery({
-      queryKey: searchQueryKey(t, { spaceId: normalizedSpace }, 'notes'),
-      queryFn: () => fetchSearchResults(t, { spaceId: normalizedSpace }, 'notes'),
+      queryKey: searchQueryKey(t, { spaceId: normalizedSpace, excludeLegacyScriptureNotes: true }, 'notes'),
+      queryFn: () => fetchSearchResults(t, { spaceId: normalizedSpace, excludeLegacyScriptureNotes: true }, 'notes'),
     });
   };
 

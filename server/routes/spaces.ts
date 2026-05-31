@@ -368,8 +368,12 @@ route.get('/api/spaces/:spaceId/notes', requireAuth, async (c) => {
     const spaceId = requireParam(c, 'spaceId');
     const offset = parseInt(c.req.query('offset') || '0', 10);
     const limit = parseInt(c.req.query('limit') || '20', 10);
+    const excludeLegacyScripture =
+      c.req.query('excludeLegacyScripture') === '1' || c.req.query('excludeLegacyScripture') === 'true';
 
-    const result = await getNotesForSpace(spaceId, auth.userId, limit, offset);
+    const result = await getNotesForSpace(spaceId, auth.userId, limit, offset, {
+      excludeLegacyScriptureNotes: excludeLegacyScripture,
+    });
     return c.json({ notes: result.notes, hasMore: result.hasMore, offset, limit });
   } catch (error: any) {
     const standardError = handleAPIError(error, { endpoint: '/api/spaces/[spaceId]/notes', action: 'get_space_notes' });
@@ -471,7 +475,12 @@ route.get('/api/spaces/:spaceId/scripture-index', requireAuth, async (c) => {
       })
       .from(Notes)
       .where(
-        and(eq(Notes.spaceId, spaceIdNorm), eq(Notes.userId, auth.userId), eq(Notes.contentEncrypted, false)),
+        and(
+          eq(Notes.spaceId, spaceIdNorm),
+          eq(Notes.userId, auth.userId),
+          eq(Notes.contentEncrypted, false),
+          ne(Notes.noteType, 'scripture'),
+        ),
       );
 
     const payload = buildSpaceScriptureIndex(

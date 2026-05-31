@@ -14,7 +14,7 @@
 
 import { Hono } from 'hono';
 import { getAuthenticatedAuth, requireAuth } from '../middleware/auth';
-import { db, Notes, Threads, ScriptureMetadata, eq, and, or, like, desc, not, sql } from '../db';
+import { db, Notes, Threads, ScriptureMetadata, eq, and, or, like, desc, not, ne, sql } from '../db';
 import { handleAPIError } from '@/utils/error-handling';
 import { MIN_SEARCH_QUERY_LENGTH } from '@/utils/search-query';
 import { getThreadColorsForNotesBatch } from '../utils/dashboard-data';
@@ -32,6 +32,9 @@ route.get('/api/search', requireAuth, async (c) => {
     const limit = parseInt(url.searchParams.get('limit') || '50');
     const threadIdParam = url.searchParams.get('threadId')?.trim() || null;
     const spaceIdParam = url.searchParams.get('spaceId')?.trim() || null;
+    const excludeLegacyScripture =
+      url.searchParams.get('excludeLegacyScripture') === '1' ||
+      url.searchParams.get('excludeLegacyScripture') === 'true';
 
     if (!query || query.trim().length === 0) {
       return c.json({ results: [] });
@@ -50,6 +53,9 @@ route.get('/api/search', requireAuth, async (c) => {
       : spaceIdParam
         ? [eq(Notes.spaceId, spaceIdParam)]
         : [];
+    if (excludeLegacyScripture) {
+      noteScopeFilters.push(ne(Notes.noteType, 'scripture'));
+    }
     const threadScopeFilters =
       spaceIdParam && !threadIdParam ? [eq(Threads.spaceId, spaceIdParam)] : [];
 

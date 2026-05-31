@@ -17,7 +17,7 @@ export interface PrototypeSearchResultsListProps {
 /** Space-scoped, note-only FTS results with prototype routes. */
 export default function PrototypeSearchResultsList({ query, spaceId }: PrototypeSearchResultsListProps) {
   const trimmed = query.trim();
-  const { data, isLoading, isError, error } = useSearch(trimmed, { spaceId }, 'notes');
+  const { data, isLoading, isError, error } = useSearch(trimmed, { spaceId, excludeLegacyScriptureNotes: true }, 'notes');
 
   if (!trimmed) return null;
 

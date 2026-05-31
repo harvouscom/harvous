@@ -1337,21 +1337,37 @@ export async function getThreadsForSpaceBySpaceId(spaceId: string) {
   }
 }
 
-export async function getNotesForSpace(spaceId: string, userId: string, limit = 20, offset = 0) {
+export type GetNotesForSpaceOptions = {
+  /** Omit classic `noteType: scripture` rows (2.0 shell uses pills + scripture index, not legacy scripture notes). */
+  excludeLegacyScriptureNotes?: boolean;
+};
+
+export async function getNotesForSpace(
+  spaceId: string,
+  userId: string,
+  limit = 20,
+  offset = 0,
+  options?: GetNotesForSpaceOptions,
+) {
   try {
     const fetchLimit = limit + offset + 1;
     const chronological = await spaceUsesChronologicalOrdering(spaceId);
+    const spaceWhere = and(
+      eq(Notes.spaceId, spaceId),
+      eq(Notes.userId, userId),
+      ...(options?.excludeLegacyScriptureNotes ? [ne(Notes.noteType, 'scripture')] : []),
+    );
     const allNotes = chronological
       ? await db
           .select(NOTE_LIST_SELECT)
           .from(Notes)
-          .where(and(eq(Notes.spaceId, spaceId), eq(Notes.userId, userId)))
+          .where(spaceWhere)
           .orderBy(desc(Notes.isPinned), asc(Notes.createdAt), asc(Notes.id))
           .limit(fetchLimit)
       : await db
           .select(NOTE_LIST_SELECT)
           .from(Notes)
-          .where(and(eq(Notes.spaceId, spaceId), eq(Notes.userId, userId)))
+          .where(spaceWhere)
           .orderBy(
             desc(Notes.isPinned),
             asc(sql`CASE WHEN ${Notes.lastVisited} IS NOT NULL THEN 0 ELSE 1 END`),

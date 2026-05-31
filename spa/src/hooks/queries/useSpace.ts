@@ -193,9 +193,13 @@ export function useSpaceNotes(spaceId: string, limit = 20) {
     ? { pages: [cachedFirstPage], pageParams: [0] }
     : undefined;
   return useInfiniteQuery({
-    queryKey: ['space', id, 'notes'],
+    queryKey: ['space', id, 'notes', 'no-legacy-scripture'],
     queryFn: async ({ pageParam = 0 }) => {
-      const page = await api.get<SpaceNotesPage>(`/api/spaces/${id}/notes`, { offset: pageParam, limit });
+      const page = await api.get<SpaceNotesPage>(`/api/spaces/${id}/notes`, {
+        offset: pageParam,
+        limit,
+        excludeLegacyScripture: 1,
+      });
       if (pageParam === 0 && id) setCachedSpaceNotesFirstPage(id, page);
       return page;
     },
