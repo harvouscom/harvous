@@ -57,7 +57,7 @@ Matches native `NoteListColumn` (macOS sidebar variant).
 | Note row — title (15pt/500) | `pds-list-title` | ✅ implemented |
 | Note row — time + excerpt (12pt/400) | `pds-list-preview` + `protoRelativeCaption()` | ✅ implemented |
 | Row selection highlight (glass) | `proto-note-row[data-active]` background | ✅ implemented |
-| Load more (pagination) | "Load more" button | ✅ implemented |
+| Load more (pagination) | Auto load on scroll (intersection observer + loading dots) | ✅ implemented |
 | Back to spaces button | `proto-sidebar-back-btn` with chevron | ✅ implemented |
 | Daily passage pill (pinned below list) | `PrototypeDailyPassagePill` + `PrototypeVotdPassageSheet`; `GET /api/votd/today` | ✅ implemented |
 | Delete swipe (mobile) | ⏳ Not implemented in prototype | ⏳ deferred |

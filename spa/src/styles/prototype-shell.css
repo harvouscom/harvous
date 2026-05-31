@@ -288,6 +288,37 @@ html.harvous-prototype-route .proto-shell__toolbar-cell::after {
   background: transparent;
 }
 
+.proto-load-more-sentinel {
+  height: 4px;
+  flex-shrink: 0;
+  pointer-events: none;
+}
+
+.proto-load-more-status {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 18px 16px;
+  min-height: 28px;
+  flex-shrink: 0;
+}
+
+.proto-load-more-retry {
+  border: none;
+  background: transparent;
+  padding: 4px 0;
+  cursor: pointer;
+  font-family: inherit;
+  color: var(--pds-text-secondary);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.proto-load-more-retry:hover {
+  color: var(--pds-text-primary);
+}
+
 /* ─── Main pane ──────────────────────────────────────────────────────────── */
 .proto-main-pane {
   flex: 1;

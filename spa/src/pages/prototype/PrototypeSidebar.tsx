@@ -15,6 +15,7 @@ import { sortNotesByLastVisited } from '@/utils/sorting';
 import { stripServerAutoUntitledNoteTitleForDisplay } from '@/utils/server-auto-untitled-note-display';
 import { useProtoShell } from '../../layouts/proto-shell-context';
 import { usePrototypeHomeSpaceId } from '../../hooks/usePrototypeHomeSpaceId';
+import { useIntersectionFetchNextPage } from '../../hooks/useIntersectionFetchNextPage';
 import {
   isPrototypeNotePath,
   matchPrototypeNoteId,
@@ -502,6 +503,44 @@ function highlightKindMatches(filter: HighlightKindFilter, entryKind: string | n
   }
 }
 
+function ProtoNotesPaginationFooter({
+  hasNextPage,
+  isFetchingNextPage,
+  isFetchNextPageError,
+  setSentinelRef,
+  onRetry,
+}: {
+  hasNextPage: boolean;
+  isFetchingNextPage: boolean;
+  isFetchNextPageError: boolean;
+  setSentinelRef: (node: HTMLDivElement | null) => void;
+  onRetry: () => void;
+}) {
+  if (!hasNextPage && !isFetchingNextPage && !isFetchNextPageError) {
+    return null;
+  }
+
+  return (
+    <div className="proto-load-more-status">
+      {hasNextPage ? (
+        <div ref={setSentinelRef} className="proto-load-more-sentinel" aria-hidden />
+      ) : null}
+      {isFetchingNextPage ? (
+        <span className="load-more-indicator" aria-label="Loading">
+          <span className="load-more-indicator__dot" />
+          <span className="load-more-indicator__dot" />
+          <span className="load-more-indicator__dot" />
+        </span>
+      ) : null}
+      {isFetchNextPageError ? (
+        <button type="button" className="proto-load-more-retry proto-caption" onClick={onRetry}>
+          Couldn&apos;t load more — Retry
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
 export default function PrototypeSidebar() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const {
@@ -521,13 +560,29 @@ export default function PrototypeSidebar() {
 
   const { homeSpaceId, navReady } = usePrototypeHomeSpaceId();
 
+  const scrollRootRef = useRef<HTMLDivElement>(null);
+
   const {
     data: pages,
     isLoading: notesLoading,
     fetchNextPage,
     hasNextPage,
     isFetchingNextPage,
+    isFetchNextPageError,
   } = useSpaceNotes(homeSpaceId ?? '');
+
+  const notesPaginationEnabled =
+    !!homeSpaceId &&
+    navReady &&
+    (mode === 'notes' || (mode === 'folders' && activeFolderKey !== undefined));
+
+  const { setSentinelRef } = useIntersectionFetchNextPage({
+    scrollRootRef,
+    enabled: notesPaginationEnabled,
+    hasNextPage: !!hasNextPage,
+    isFetchingNextPage,
+    fetchNextPage,
+  });
 
   const highlightsQuery = usePrototypeSpaceStudyThreadHighlights(mode === 'highlights' ? homeSpaceId ?? undefined : undefined);
   const scriptureQuery = usePrototypeSpaceScriptureIndex(mode === 'scripture' ? homeSpaceId ?? undefined : undefined);
@@ -847,7 +902,7 @@ export default function PrototypeSidebar() {
         </div>
       </div>
 
-      <div className="proto-sidebar-scroll">
+      <div ref={scrollRootRef} className="proto-sidebar-scroll">
         {!navReady ? (
           <p className="proto-caption" style={{ padding: '14px 18px' }}>
             Loading…
@@ -883,25 +938,14 @@ export default function PrototypeSidebar() {
                     ))}
                   </ul>
                 )}
-                {hasNextPage ? (
-                  <div style={{ padding: '0 18px 16px', textAlign: 'center' }}>
-                    <button
-                      type="button"
-                      className="proto-caption"
-                      disabled={isFetchingNextPage}
-                      onClick={() => void fetchNextPage()}
-                      style={{
-                        border: '0.5px solid var(--pds-border)',
-                        borderRadius: 8,
-                        padding: '7px 14px',
-                        background: 'var(--pds-bg-glass-medium)',
-                        cursor: 'pointer',
-                        fontFamily: 'inherit',
-                      }}
-                    >
-                      {isFetchingNextPage ? 'Loading…' : 'Load more'}
-                    </button>
-                  </div>
+                {notesPaginationEnabled ? (
+                  <ProtoNotesPaginationFooter
+                    hasNextPage={!!hasNextPage}
+                    isFetchingNextPage={isFetchingNextPage}
+                    isFetchNextPageError={isFetchNextPageError}
+                    setSentinelRef={setSentinelRef}
+                    onRetry={() => void fetchNextPage()}
+                  />
                 ) : null}
               </>
             ) : null}
@@ -945,6 +989,15 @@ export default function PrototypeSidebar() {
                     ))}
                   </ul>
                 )}
+                {notesPaginationEnabled ? (
+                  <ProtoNotesPaginationFooter
+                    hasNextPage={!!hasNextPage}
+                    isFetchingNextPage={isFetchingNextPage}
+                    isFetchNextPageError={isFetchNextPageError}
+                    setSentinelRef={setSentinelRef}
+                    onRetry={() => void fetchNextPage()}
+                  />
+                ) : null}
               </>
             ) : null}
 
