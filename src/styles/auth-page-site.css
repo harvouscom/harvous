@@ -1,11 +1,8 @@
 /* ==========================================================================
-   Auth Page — /site/-inspired redesign
+   Auth Page — /site/-inspired redesign (new.harvous.com sign-in/up only).
    Single-column centered layout (no more two-pane mesh gradient).
-   Used by: SignInPage, SignUpPage, SharedNotePage, SharedThreadPage,
-            JoinSpacePage, InvitationPage. Inherits via the existing
-            `.auth-page` / `.auth-page__container` / `.auth-page__form-section`
-            class names, so the seven page components only need light JSX
-            tweaks (the bulk of the redesign lives here).
+   Requires `.auth-page.auth-page--site` on the root — classic app/localhost
+   auth uses `.auth-page--classic` and forms.css + auth-gradient.css instead.
    ========================================================================== */
 
 /* Bundled marketing-font (`/site/`) — used for display headlines. */
@@ -32,8 +29,8 @@
 }
 
 /* Local design tokens — mirror `/site/src/styles/global.css`. Scoped to
-   `.auth-page` so the rest of the app keeps its own token system. */
-.auth-page {
+   `.auth-page--site` so the rest of the app keeps its own token system. */
+.auth-page.auth-page--site {
   --site-paper: #f7f6f3;
   --site-ink: #1a1916;
   --site-ink-soft: #5a584f;
@@ -48,7 +45,7 @@
 
 /* ---------- Root container ---------- */
 
-.auth-page {
+.auth-page.auth-page--site {
   min-height: 100svh;
   padding: 0 !important;
   background-color: var(--site-paper);
@@ -58,7 +55,7 @@
   position: relative;
 }
 
-.auth-page__container {
+.auth-page.auth-page--site .auth-page__container {
   flex: 1;
   display: flex !important;
   flex-direction: column !important;
@@ -68,15 +65,15 @@
 
 /* Kill the old two-pane media query — single column at every width. */
 @media (min-width: 1160px) {
-  .auth-page__container {
+  .auth-page.auth-page--site .auth-page__container {
     flex-direction: column !important;
   }
 }
 
-/* ---------- Floating top header pill (was `.auth-page__video-section`) ---------- */
+/* ---------- Floating top header pill (was `.auth-page.auth-page--site .auth-page__video-section`) ---------- */
 
-.auth-page__video-section,
-.auth-page .thread-colors-mesh-gradient {
+.auth-page.auth-page--site .auth-page__video-section,
+.auth-page.auth-page--site .thread-colors-mesh-gradient {
   flex: 0 0 auto !important;
   background: transparent !important;
   background-color: transparent !important;
@@ -89,13 +86,13 @@
 }
 
 /* The original mesh-gradient overlay layers — disable them. */
-.auth-page .thread-colors-mesh-gradient::before,
-.auth-page .thread-colors-mesh-gradient::after {
+.auth-page.auth-page--site .thread-colors-mesh-gradient::before,
+.auth-page.auth-page--site .thread-colors-mesh-gradient::after {
   display: none !important;
   content: none !important;
 }
 
-.auth-page__video-overlay {
+.auth-page.auth-page--site .auth-page__video-overlay {
   position: static !important;
   padding: 0 !important;
   background: transparent !important;
@@ -105,7 +102,7 @@
 }
 
 /* The link-wrapping-logo becomes the floating Harvous pill (icon + wordmark). */
-.auth-page__logo-container {
+.auth-page.auth-page--site .auth-page__logo-container {
   display: inline-flex;
   align-items: center;
   gap: 8px;
@@ -123,11 +120,11 @@
   color: var(--site-ink) !important;
   transition: background-color 120ms ease, box-shadow 120ms ease;
 }
-.auth-page__logo-container:hover {
+.auth-page.auth-page--site .auth-page__logo-container:hover {
   background-color: rgba(255, 255, 255, 0.95);
 }
 /* Add a "Harvous" wordmark after the SVG inside the pill. */
-.auth-page__logo-container::after {
+.auth-page.auth-page--site .auth-page__logo-container::after {
   content: "Harvous";
   font-family:
     "Google Sans", "Reddit Sans", ui-sans-serif, system-ui, -apple-system,
@@ -139,7 +136,7 @@
 }
 
 /* App-icon PNG inside the floating pill — matches `/site/` Header.astro. */
-.auth-page__logo {
+.auth-page.auth-page--site .auth-page__logo {
   width: 22px !important;
   height: 22px !important;
   border-radius: 5px;
@@ -149,7 +146,7 @@
 
 /* ---------- Form section (centered content cluster) ---------- */
 
-.auth-page__form-section {
+.auth-page.auth-page--site .auth-page__form-section {
   flex: 1 !important;
   display: flex !important;
   align-items: center !important;
@@ -161,7 +158,7 @@
 
 /* Outer wrapper — wide enough for the headline to sit on one line on
    desktop. The form inputs are constrained by the inner form-wrapper. */
-.auth-page__content-wrapper {
+.auth-page.auth-page--site .auth-page__content-wrapper {
   width: 100%;
   max-width: 640px;
   margin: 0 auto;
@@ -172,7 +169,7 @@
 }
 
 /* Inner wrapper — narrows just the input / button cluster. */
-.auth-page__form-wrapper {
+.auth-page.auth-page--site .auth-page__form-wrapper {
   width: 100%;
   max-width: 460px;
   display: flex;
@@ -182,7 +179,7 @@
 
 /* ---------- Display headline (Scorekard) with marker swipe on "your" ---------- */
 
-.auth-page__headline {
+.auth-page.auth-page--site .auth-page__headline {
   font-family:
     "Scorekard", "Google Sans", ui-sans-serif, system-ui, -apple-system,
     sans-serif !important;
@@ -200,7 +197,7 @@
 /* Marker swipe matches `/site/` `<mark>` style: linear gradient draws a
    yellow band under the lower half of the word. No z-index hacks — paints
    inline as a background. */
-.auth-page__headline-mark {
+.auth-page.auth-page--site .auth-page__headline-mark {
   background: linear-gradient(
     180deg,
     transparent 55%,
@@ -358,7 +355,7 @@
 }
 
 /* ---------- Footer pieces shared by sign-in + sign-up ---------- */
-.auth-page__footer-switch {
+.auth-page.auth-page--site .auth-page__footer-switch {
   font-family:
     "Google Sans", "Reddit Sans", ui-sans-serif, system-ui, -apple-system,
     sans-serif;
@@ -367,16 +364,16 @@
   text-align: center;
   margin: 0;
 }
-.auth-page__footer-switch a {
+.auth-page.auth-page--site .auth-page__footer-switch a {
   color: var(--site-accent);
   font-weight: 600;
   text-decoration: none;
   margin-left: 4px;
 }
-.auth-page__footer-switch a:hover {
+.auth-page.auth-page--site .auth-page__footer-switch a:hover {
   text-decoration: underline;
 }
-.auth-page__secured-by {
+.auth-page.auth-page--site .auth-page__secured-by {
   font-family:
     "Google Sans", "Reddit Sans", ui-sans-serif, system-ui, -apple-system,
     sans-serif;
@@ -386,18 +383,10 @@
   margin: 8px 0 0;
 }
 
-/* ---------- Shared-page content sections (note / thread / space previews) ----------
-   These pages render their own content. We only need to ensure the content
-   sits centered against the paper background — no internal restyling needed. */
-
-.auth-page .shared-page__content-section {
-  background-color: transparent !important;
-}
-
 /* ---------- Reduced motion ---------- */
 
 @media (prefers-reduced-motion: reduce) {
-  .auth-page__logo-container {
+  .auth-page.auth-page--site .auth-page__logo-container {
     transition: none !important;
   }
 }

@@ -5,7 +5,9 @@ import { ClerkProvider, useAuth, useUser } from '@clerk/clerk-react';
 import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query';
 import { clearUserClientCaches } from '@/utils/clear-user-client-caches';
 import { RouterProvider } from '@tanstack/react-router';
-import React, { useEffect, useLayoutEffect, useState, useCallback, useRef } from 'react';
+import React, { useEffect, useLayoutEffect, useState, useCallback, useRef, useMemo, useSyncExternalStore } from 'react';
+import { buildClerkAppearance } from './lib/clerk-appearance';
+import { getColorSchemeSnapshot, subscribeColorScheme } from './lib/prototype-background';
 import { createPortal } from 'react-dom';
 import { shouldSuppressAppToasts } from '@/utils/should-suppress-app-toasts';
 import { Toaster, toast as sonnerToast } from 'sonner';
@@ -663,11 +665,22 @@ function useInAppLinkInterceptor() {
   }, []);
 }
 
+function HarvousClerkProvider({ children }: { children: React.ReactNode }) {
+  const colorScheme = useSyncExternalStore(subscribeColorScheme, getColorSchemeSnapshot, () => 'light');
+  const appearance = useMemo(() => buildClerkAppearance(colorScheme === 'dark'), [colorScheme]);
+
+  return (
+    <ClerkProvider publishableKey={clerkPublishableKey} appearance={appearance}>
+      {children}
+    </ClerkProvider>
+  );
+}
+
 export default function App() {
   useInAppLinkInterceptor();
 
   return (
-    <ClerkProvider publishableKey={clerkPublishableKey}>
+    <HarvousClerkProvider>
       <QueryClientProvider client={queryClient}>
         <AuthSignedOutCacheCleanup />
         <QueryClient401Redirect />
@@ -681,6 +694,6 @@ export default function App() {
         <SpotlightSearch />
         <RouterProvider router={router} />
       </QueryClientProvider>
-    </ClerkProvider>
+    </HarvousClerkProvider>
   );
 }

@@ -106,6 +106,7 @@ The short-lived **space-in-URL** prototype used routes like `/prototype/space/{s
 **Product / routing**
 
 - Choose whether **2.0** eventually **replaces** the classic tree under `/` or keeps a dedicated prefix — impacts SEO, deep links, and Clerk redirect behavior (`AGENTS.md`: avoid forcing sign-in redirect to `/` when join/invite return URLs must win).
+- **Sign-in/up UI:** site-inspired custom auth (`HarvousAuthForm`) on **`new.harvous.com` only**; **`app.harvous.com`** and localhost use classic two-pane mesh + Clerk prebuilt (`isSiteInspiredAuthHost()` in [`src/lib/prototype-path.ts`](../src/lib/prototype-path.ts)).
 
 **Data / shell**
 

@@ -886,3 +886,35 @@
   white-space: normal !important;
   min-width: 0 !important;
 }
+
+/* Classic app sign-in/up: always light card (ClerkProvider may use dark baseTheme elsewhere). */
+.auth-page--classic .clerk-form-card,
+.auth-page--classic .cl-card,
+.auth-page--classic .cl-main,
+.auth-page--classic .cl-footer {
+  background-color: #ffffff !important;
+  background-image: none !important;
+  color: var(--color-deep-grey) !important;
+}
+
+.auth-page--classic .cl-headerTitle,
+.auth-page--classic .clerk-form-header-title {
+  color: var(--color-deep-grey) !important;
+}
+
+.auth-page--classic .cl-headerSubtitle,
+.auth-page--classic .clerk-form-header-subtitle {
+  color: var(--color-stone-grey) !important;
+}
+
+.auth-page--classic .cl-formFieldInput,
+.auth-page--classic .clerk-form-input,
+.auth-page--classic input {
+  background-color: #ffffff !important;
+  color: var(--color-deep-grey) !important;
+}
+
+.auth-page--classic .cl-footerAction,
+.auth-page--classic .cl-footerActionText {
+  color: var(--color-stone-grey) !important;
+}

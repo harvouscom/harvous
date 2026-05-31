@@ -6,6 +6,11 @@ export function isDedicatedPrototypeHost(hostname?: string): boolean {
   return h === DEDICATED_PROTOTYPE_HOST;
 }
 
+/** Site-inspired sign-in/up (custom form) — `new.harvous.com` only; app/localhost use Clerk prebuilt. */
+export function isSiteInspiredAuthHost(hostname?: string): boolean {
+  return isDedicatedPrototypeHost(hostname);
+}
+
 /** `/prototype` on app.harvous.com; empty on new.harvous.com. */
 export function getPrototypeBasePath(): string {
   return isDedicatedPrototypeHost() ? '' : '/prototype';
