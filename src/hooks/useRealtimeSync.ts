@@ -47,7 +47,23 @@ async function applyInvalidation(
     const { refreshPrototypeLists } = await import('../../spa/src/lib/refresh-client-data');
     await refreshPrototypeLists(queryClient, homeSpaceId);
     if (id && type.startsWith('note:')) {
-      await queryClient.invalidateQueries({ queryKey: ['note', id] });
+      if (type === 'note:deleted') {
+        const { clearCachedNoteDetail, clearNoteParentThreadLocalCache } = await import(
+          '../../spa/src/hooks/queries/useNote'
+        );
+        queryClient.removeQueries({ queryKey: ['note', id] });
+        clearCachedNoteDetail(id);
+        clearNoteParentThreadLocalCache(id);
+        try {
+          window.dispatchEvent(
+            new CustomEvent('noteDeleted', { detail: { noteId: id, threadId: 'thread_unorganized' } }),
+          );
+        } catch {
+          /* ignore */
+        }
+      } else {
+        await queryClient.invalidateQueries({ queryKey: ['note', id] });
+      }
     }
     return;
   }

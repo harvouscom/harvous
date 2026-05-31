@@ -49,9 +49,7 @@ interface FolderBucket {
   mostRecentIso: string | null;
 }
 
-function noteParamSlug(id: string) {
-  return id.startsWith('note_') ? id.slice('note_'.length) : id;
-}
+import { noteParamSlug, normalizeNoteIdFromParam } from './proto-route-slugs';
 
 function stripHtmlPreview(html: string | null | undefined, max = 80) {
   if (!html) return '';
@@ -362,8 +360,9 @@ function PrototypeSidebarNoteRow({
       {
         onSuccess: () => {
           setDeleteConfirmOpen(false);
-          if (activeNoteFullId && row.id === activeNoteFullId) {
-            navigate({ to: prototypeHomeRouteTo() });
+          const deletedId = normalizeNoteIdFromParam(row.id);
+          if (activeNoteFullId && deletedId === normalizeNoteIdFromParam(activeNoteFullId)) {
+            navigate({ to: prototypeHomeRouteTo(), replace: true });
             if (isMobileSidebar) closeDrawer();
           }
         },

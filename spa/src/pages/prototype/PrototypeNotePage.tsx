@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react';
-import { useParams, useSearch } from '@tanstack/react-router';
+import { useNavigate, useParams, useSearch } from '@tanstack/react-router';
+import { prototypeHomeRouteTo } from '@/lib/prototype-path';
 import { useQueryClient } from '@tanstack/react-query';
 import CardFullEditable from '../../../../src/components/react/CardFullEditable';
 import SubtleContentMount from '@/components/react/SubtleContentMount';
@@ -21,8 +22,9 @@ export default function PrototypeNotePage() {
   const noteId = noteSlugParam.startsWith('note_') ? noteSlugParam : `note_${noteSlugParam}`;
   const { reference: initialReferenceWord } = useSearch({ strict: false }) as { reference?: string };
   const { homeSpaceId } = usePrototypeHomeSpaceId();
+  const navigate = useNavigate();
 
-  const { data: note, isLoading } = useNote(noteId);
+  const { data: note, isLoading, isError, isFetching } = useNote(noteId);
 
   const queryClient = useQueryClient();
   const updateNoteMutation = useUpdateNote();
@@ -47,6 +49,22 @@ export default function PrototypeNotePage() {
   useEffect(() => {
     dismissStandaloneScripturePassage();
   }, [dismissStandaloneScripturePassage]);
+
+  useEffect(() => {
+    const onDeleted = (e: Event) => {
+      const deletedId = (e as CustomEvent<{ noteId?: string }>).detail?.noteId;
+      if (deletedId && deletedId === noteId) {
+        navigate({ to: prototypeHomeRouteTo(), replace: true });
+      }
+    };
+    window.addEventListener('noteDeleted', onDeleted);
+    return () => window.removeEventListener('noteDeleted', onDeleted);
+  }, [noteId, navigate]);
+
+  useEffect(() => {
+    if (isLoading || isFetching || !isError || note) return;
+    navigate({ to: prototypeHomeRouteTo(), replace: true });
+  }, [isLoading, isFetching, isError, note, navigate]);
 
   const resolvedSpaceFromNote =
     typeof note?.spaceId === 'string' && note.spaceId.trim().length > 0 ? note.spaceId : null;

@@ -108,7 +108,7 @@ export default function PrototypeNoteMoreMenu({
       {
         onSuccess: () => {
           setDeleteConfirmOpen(false);
-          navigate({ to: prototypeHomeRouteTo() });
+          navigate({ to: prototypeHomeRouteTo(), replace: true });
           if (isMobileSidebar) closeDrawer();
         },
         onError: (err) => {

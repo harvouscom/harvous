@@ -117,6 +117,18 @@ export function isPresetSelected(preset: BgPreset, bg: ProtoBg): boolean {
   return candidates.includes(bg.value);
 }
 
+/** Map stored bg to the correct variant for the current OS scheme (no storage write). */
+export function resolveBackgroundForScheme(bg: ProtoBg): ProtoBg {
+  if (bg === null) return null;
+  if (bg.kind === 'image') return bg;
+  for (const preset of BG_PRESETS) {
+    if (isPresetSelected(preset, bg)) {
+      return presetApplyValue(preset);
+    }
+  }
+  return bg;
+}
+
 export function isPhotoSelected(bg: ProtoBg): boolean {
   return bg?.kind === 'image';
 }
@@ -292,33 +304,35 @@ const TINT_SAMPLE_EDGE = 32;
 
 /** Apply classes and canvas vars synchronously (image uses stored tint or theme default until sampled). */
 export function applyBackground(bg: ProtoBg): void {
+  const resolved = resolveBackgroundForScheme(bg);
   const root = document.documentElement;
   const style = root.style;
 
-  if (bg === null) {
+  if (resolved === null) {
     clearBackgroundVars();
     return;
   }
-  if (bg.kind === 'color') {
-    style.setProperty('--pds-canvas-bg', bg.value);
+  if (resolved.kind === 'color') {
+    style.setProperty('--pds-canvas-bg', resolved.value);
     style.removeProperty('--pds-canvas-image');
   } else {
-    style.setProperty('--pds-canvas-bg', imageCanvasTint(bg));
-    style.setProperty('--pds-canvas-image', `url("${bg.value}")`);
+    style.setProperty('--pds-canvas-bg', imageCanvasTint(resolved));
+    style.setProperty('--pds-canvas-image', `url("${resolved.value}")`);
   }
 
   root.classList.remove(WALLPAPER_CLASS, WALLPAPER_IMAGE_CLASS, WALLPAPER_COLOR_CLASS);
-  if (bg.kind === 'color') {
+  if (resolved.kind === 'color') {
     root.classList.add(WALLPAPER_COLOR_CLASS);
-  } else if (bg.kind === 'image') {
+  } else if (resolved.kind === 'image') {
     root.classList.add(WALLPAPER_CLASS, WALLPAPER_IMAGE_CLASS);
   }
 }
 
 /** Apply background and, for images, sample + persist a shell tint when missing. */
 export async function applyBackgroundWithImageTint(bg: ProtoBg): Promise<void> {
+  const resolved = resolveBackgroundForScheme(bg);
   applyBackground(bg);
-  if (bg?.kind !== 'image') return;
+  if (resolved?.kind !== 'image') return;
 
   const rawTint = bg.tint ?? (await sampleImageTint(bg.value));
   const canvasTint = tintForAppearance(rawTint);

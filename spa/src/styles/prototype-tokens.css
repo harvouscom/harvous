@@ -21,6 +21,8 @@
 
 /* ─── Design tokens ──────────────────────────────────────────────────────── */
 :root {
+  /* Clerk default theme follows system light/dark when this is set (see Clerk appearance docs). */
+  color-scheme: light dark;
   /* OKLCH primitives — lightness chroma hue [/ alpha] */
   --pds-lch-accent: 52% 0.18 265;
   --pds-lch-accent-pressed: 45% 0.18 265;

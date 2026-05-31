@@ -3,8 +3,8 @@ import SwiftUI
 import WebKit
 
 /// Legacy in-app Clerk Account Portal (`/user`) via WKWebView. Unused: the portal has no native
-/// session cookies, so the sheet renders blank. iOS uses `UserProfileView`; macOS uses
-/// `HarvousMacUserProfileSheet` (ClerkKit APIs).
+/// session cookies, so the sheet renders blank. Both iOS and macOS use
+/// `HarvousMacUserProfileSheet` (ClerkKit APIs) for account management.
 struct HarvousClerkAccountPortalSheet: View {
     let url: URL
     @Environment(\.dismiss) private var dismiss

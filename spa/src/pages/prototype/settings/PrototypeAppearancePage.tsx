@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import { useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import Icon from '@/components/react/Icon';
 import {
   BG_PRESETS,
@@ -31,11 +31,6 @@ export default function PrototypeAppearancePage() {
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const colorScheme = useSyncExternalStore(subscribeColorScheme, getColorSchemeSnapshot, () => 'light');
-
-  useEffect(() => {
-    if (active?.kind !== 'image') return;
-    void applyBackgroundWithImageTint(active);
-  }, [colorScheme, active]);
 
   const applyActive = (next: ProtoBg) => {
     setError(null);

@@ -1,5 +1,6 @@
 #if canImport(ClerkKit)
 import ClerkKit
+import PhotosUI
 import SwiftUI
 import UniformTypeIdentifiers
 #if os(iOS)
@@ -218,33 +219,58 @@ private struct HarvousMacUserProfileEditView: View {
     @State private var isSaving = false
     @State private var isPhotoBusy = false
     @State private var errorMessage: String?
+    #if os(iOS)
+    @State private var showPhotoPicker = false
+    @State private var photoPickerItem: PhotosPickerItem?
+    #elseif os(macOS)
     @State private var showImageImporter = false
+    #endif
+
+    private var hasPhoto: Bool { bridge.currentProfile?.hasImage == true }
 
     var body: some View {
         Form {
             Section {
-                HStack {
-                    Spacer()
-                    HarvousProfileOrb(
-                        imageUrl: bridge.currentProfile?.imageUrl,
-                        size: 72
-                    )
-                    Spacer()
-                }
-                .listRowBackground(Color.clear)
-                HStack(spacing: 12) {
-                    Button("Upload photo") { showImageImporter = true }
-                        .disabled(isPhotoBusy)
-                    if bridge.currentProfile?.hasImage == true {
-                        Button("Remove photo", role: .destructive) {
-                            Task { await removePhoto() }
+                VStack(spacing: 14) {
+                    // Tap the orb itself to change the photo (camera badge hints at it).
+                    Button(action: startPhotoPick) {
+                        ZStack(alignment: .bottomTrailing) {
+                            HarvousProfileOrb(
+                                imageUrl: bridge.currentProfile?.imageUrl,
+                                size: 88
+                            )
+                            Image(systemName: "camera.fill")
+                                .font(.system(size: 12, weight: .semibold))
+                                .foregroundStyle(.white)
+                                .frame(width: 28, height: 28)
+                                .background(Circle().fill(Color.accentColor))
+                                .overlay(
+                                    Circle().stroke(HarvousManageAccountColors.sheetBackground, lineWidth: 2)
+                                )
                         }
-                        .disabled(isPhotoBusy)
                     }
+                    .buttonStyle(.plain)
+                    .disabled(isPhotoBusy)
+
+                    HStack(spacing: 16) {
+                        Button(hasPhoto ? "Change photo" : "Add photo", action: startPhotoPick)
+                            .disabled(isPhotoBusy)
+                        if hasPhoto {
+                            Button("Remove", role: .destructive) {
+                                Task { await removePhoto() }
+                            }
+                            .disabled(isPhotoBusy)
+                        }
+                    }
+                    .font(HarvousTypography.body)
+
                     if isPhotoBusy {
                         ProgressView().controlSize(.small)
                     }
                 }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 4)
+                .listRowBackground(Color.clear)
             }
             Section("Name") {
                 TextField("First name", text: $firstName)
@@ -267,6 +293,14 @@ private struct HarvousMacUserProfileEditView: View {
         .formStyle(.grouped)
         .navigationTitle("Edit profile")
         .onAppear { hydrateFields() }
+        #if os(iOS)
+        // iOS: open the Photos library (not the Files app, which `.fileImporter` would).
+        .photosPicker(isPresented: $showPhotoPicker, selection: $photoPickerItem, matching: .images)
+        .onChange(of: photoPickerItem) { _, item in
+            guard let item else { return }
+            Task { await importPickedPhoto(item) }
+        }
+        #elseif os(macOS)
         .fileImporter(
             isPresented: $showImageImporter,
             allowedContentTypes: [.png, .jpeg, .heic],
@@ -274,6 +308,16 @@ private struct HarvousMacUserProfileEditView: View {
         ) { result in
             Task { await importPhoto(result) }
         }
+        #endif
+    }
+
+    /// Routes the "change photo" affordances to the right picker per platform.
+    private func startPhotoPick() {
+        #if os(iOS)
+        showPhotoPicker = true
+        #elseif os(macOS)
+        showImageImporter = true
+        #endif
     }
 
     private func hydrateFields() {
@@ -297,6 +341,25 @@ private struct HarvousMacUserProfileEditView: View {
         }
     }
 
+    #if os(iOS)
+    private func importPickedPhoto(_ item: PhotosPickerItem) async {
+        isPhotoBusy = true
+        errorMessage = nil
+        defer {
+            isPhotoBusy = false
+            photoPickerItem = nil
+        }
+        do {
+            guard let data = try await item.loadTransferable(type: Data.self) else {
+                errorMessage = "Could not read the selected photo."
+                return
+            }
+            try await bridge.setProfileImage(data: data)
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+    #elseif os(macOS)
     private func importPhoto(_ result: Result<[URL], Error>) async {
         isPhotoBusy = true
         errorMessage = nil
@@ -311,6 +374,7 @@ private struct HarvousMacUserProfileEditView: View {
             errorMessage = error.localizedDescription
         }
     }
+    #endif
 
     private func removePhoto() async {
         isPhotoBusy = true

@@ -117,7 +117,7 @@ struct SettingsAppearanceView: View {
             Task { await handlePickedPhoto(item) }
         }
         .onChange(of: colorScheme) { _, scheme in
-            store.refreshImageTintIfNeeded(colorScheme: scheme)
+            store.refreshAppearanceForColorScheme(scheme)
         }
     }
 

@@ -40,7 +40,7 @@ export default function PrototypeInspectorPane({ note, spaceId = '' }: Prototype
         onSuccess: () => {
           setDeleteConfirmOpen(false);
           closeInspector();
-          navigate({ to: prototypeHomeRouteTo() });
+          navigate({ to: prototypeHomeRouteTo(), replace: true });
           if (isMobileSidebar) closeDrawer();
         },
         onError: (err) => {

@@ -189,7 +189,7 @@ struct HarvousCanvasBackgroundModifier: ViewModifier {
         }
         .environment(\.harvousGlassTint, store.glassTint(for: colorScheme))
         .onChange(of: colorScheme) { _, scheme in
-            store.refreshImageTintIfNeeded(colorScheme: scheme)
+            store.refreshAppearanceForColorScheme(scheme)
         }
     }
 }

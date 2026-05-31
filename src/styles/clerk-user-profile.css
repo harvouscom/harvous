@@ -17,6 +17,7 @@
   overflow: hidden !important;
   font-family: var(--pds-font-body, var(--font-sans)) !important;
   color: var(--pds-text-primary, var(--color-deep-grey)) !important;
+  color-scheme: light dark;
 }
 
 .cl-userProfile-root,
@@ -24,6 +25,43 @@
   font-family: var(--pds-font-body, var(--font-sans)) !important;
   color: var(--pds-text-primary, var(--color-deep-grey)) !important;
   background: var(--pds-bg-page, #fff) !important;
+}
+
+/* Main pane — Clerk often keeps a light “card” surface in dark mode without explicit overrides. */
+.cl-modalContent:has(.cl-userProfile) .cl-page,
+.cl-modalContent:has(.cl-userProfile-root) .cl-page,
+.cl-modalContent:has(.cl-userProfile) .cl-pageScrollBox,
+.cl-modalContent:has(.cl-userProfile-root) .cl-pageScrollBox,
+.cl-modalContent:has(.cl-userProfile) .cl-profilePage,
+.cl-modalContent:has(.cl-userProfile-root) .cl-profilePage,
+.cl-modalContent:has(.cl-userProfile) .cl-profileSection,
+.cl-modalContent:has(.cl-userProfile-root) .cl-profileSection,
+.cl-modalContent:has(.cl-userProfile) .cl-profileSectionContent,
+.cl-modalContent:has(.cl-userProfile-root) .cl-profileSectionContent {
+  background: var(--pds-bg-page, #fff) !important;
+  color: var(--pds-text-primary, var(--color-deep-grey)) !important;
+}
+
+.cl-modalContent:has(.cl-userProfile) .cl-header,
+.cl-modalContent:has(.cl-userProfile-root) .cl-header,
+.cl-modalContent:has(.cl-userProfile) .cl-headerTitle,
+.cl-modalContent:has(.cl-userProfile-root) .cl-headerTitle,
+.cl-modalContent:has(.cl-userProfile) .cl-headerSubtitle,
+.cl-modalContent:has(.cl-userProfile-root) .cl-headerSubtitle,
+.cl-modalContent:has(.cl-userProfile) .cl-formFieldLabel,
+.cl-modalContent:has(.cl-userProfile-root) .cl-formFieldLabel,
+.cl-modalContent:has(.cl-userProfile) .cl-formFieldLabelRow,
+.cl-modalContent:has(.cl-userProfile-root) .cl-formFieldLabelRow,
+.cl-modalContent:has(.cl-userProfile) .cl-formFieldHintText,
+.cl-modalContent:has(.cl-userProfile-root) .cl-formFieldHintText {
+  color: var(--pds-text-primary, var(--color-deep-grey)) !important;
+}
+
+.cl-modalContent:has(.cl-userProfile) .cl-headerSubtitle,
+.cl-modalContent:has(.cl-userProfile-root) .cl-headerSubtitle,
+.cl-modalContent:has(.cl-userProfile) .cl-formFieldHintText,
+.cl-modalContent:has(.cl-userProfile-root) .cl-formFieldHintText {
+  color: var(--pds-text-secondary, var(--color-pebble-grey)) !important;
 }
 
 /* Sidebar nav (Profile / Security / Billing) */
@@ -169,13 +207,16 @@
   transform: none !important;
 }
 
-/* “Add email address” and similar full-width secondary rows (not sidebar nav) */
-.cl-userProfile .cl-button[data-variant='ghost']:not(.cl-navbarButton),
-.cl-userProfile-root .cl-button[data-variant='ghost']:not(.cl-navbarButton),
-.cl-userProfile .cl-button[data-variant='outline']:not(.cl-navbarButton),
-.cl-userProfile-root .cl-button[data-variant='outline']:not(.cl-navbarButton),
-.cl-userProfile button.cl-button:not([data-variant='solid']):not(.cl-navbarButton),
-.cl-userProfile-root button.cl-button:not([data-variant='solid']):not(.cl-navbarButton) {
+/*
+ * “Add email address” and similar full-width secondary rows (not sidebar nav).
+ * Excludes the avatar / file-drop action buttons, which are styled as compact pills below.
+ */
+.cl-userProfile .cl-button[data-variant='ghost']:not(.cl-navbarButton):not(.cl-avatarImageActionsUpload):not(.cl-avatarImageActionsRemove):not(.cl-fileDropAreaButtonPrimary),
+.cl-userProfile-root .cl-button[data-variant='ghost']:not(.cl-navbarButton):not(.cl-avatarImageActionsUpload):not(.cl-avatarImageActionsRemove):not(.cl-fileDropAreaButtonPrimary),
+.cl-userProfile .cl-button[data-variant='outline']:not(.cl-navbarButton):not(.cl-avatarImageActionsUpload):not(.cl-avatarImageActionsRemove):not(.cl-fileDropAreaButtonPrimary),
+.cl-userProfile-root .cl-button[data-variant='outline']:not(.cl-navbarButton):not(.cl-avatarImageActionsUpload):not(.cl-avatarImageActionsRemove):not(.cl-fileDropAreaButtonPrimary),
+.cl-userProfile button.cl-button:not([data-variant='solid']):not(.cl-navbarButton):not(.cl-avatarImageActionsUpload):not(.cl-avatarImageActionsRemove):not(.cl-fileDropAreaButtonPrimary),
+.cl-userProfile-root button.cl-button:not([data-variant='solid']):not(.cl-navbarButton):not(.cl-avatarImageActionsUpload):not(.cl-avatarImageActionsRemove):not(.cl-fileDropAreaButtonPrimary) {
   appearance: none !important;
   display: flex !important;
   align-items: center !important;
@@ -201,6 +242,107 @@
 .cl-userProfile-root .cl-button[data-variant='ghost']:hover,
 .cl-userProfile .cl-button[data-variant='outline']:hover,
 .cl-userProfile-root .cl-button[data-variant='outline']:hover {
+  background: var(--pds-bg-row-hover, oklch(0% 0 0 / 0.038)) !important;
+}
+
+/* Profile picture — avatar preview + Upload/Remove actions */
+.cl-userProfile .cl-avatarImageContainer,
+.cl-userProfile-root .cl-avatarImageContainer,
+.cl-userProfile .cl-avatarBox,
+.cl-userProfile-root .cl-avatarBox {
+  border-radius: var(--pds-radius-pill, 999px) !important;
+  box-shadow: 0 0 0 0.5px var(--pds-border, oklch(0% 0 0 / 0.072)) !important;
+}
+
+/* Compact pill actions (override the full-width ghost row above) */
+.cl-userProfile .cl-avatarImageActionsUpload,
+.cl-userProfile-root .cl-avatarImageActionsUpload,
+.cl-userProfile .cl-avatarImageActionsRemove,
+.cl-userProfile-root .cl-avatarImageActionsRemove {
+  appearance: none !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: auto !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  height: auto !important;
+  padding: 6px 12px !important;
+  border-radius: var(--pds-radius-pill, 999px) !important;
+  border: 0.5px solid var(--pds-border-control, oklch(0% 0 0 / 0.08)) !important;
+  background: var(--pds-bg-input, oklch(0% 0 0 / 0.055)) !important;
+  box-shadow: none !important;
+  font-family: var(--pds-font-body, var(--font-sans)) !important;
+  font-weight: 600 !important;
+  font-size: 13px !important;
+  color: var(--pds-text-primary, var(--color-deep-grey)) !important;
+  cursor: pointer !important;
+  transition: background 0.1s !important;
+}
+
+.cl-userProfile .cl-avatarImageActionsUpload:hover,
+.cl-userProfile-root .cl-avatarImageActionsUpload:hover,
+.cl-userProfile .cl-avatarImageActionsRemove:hover,
+.cl-userProfile-root .cl-avatarImageActionsRemove:hover {
+  background: var(--pds-bg-row-hover, oklch(0% 0 0 / 0.038)) !important;
+}
+
+.cl-userProfile .cl-avatarImageActionsRemove,
+.cl-userProfile-root .cl-avatarImageActionsRemove {
+  color: var(--pds-destructive, oklch(55% 0.2 25)) !important;
+}
+
+/* File-drop area shown when changing the photo */
+.cl-userProfile .cl-fileDropAreaBox,
+.cl-userProfile-root .cl-fileDropAreaBox {
+  border: 1px dashed var(--pds-border-control, oklch(0% 0 0 / 0.16)) !important;
+  border-radius: var(--pds-radius-menu, 12px) !important;
+  background: var(--pds-bg-input, oklch(0% 0 0 / 0.04)) !important;
+  padding: 18px !important;
+}
+
+.cl-userProfile .cl-fileDropAreaIconBox,
+.cl-userProfile-root .cl-fileDropAreaIconBox {
+  background: var(--pds-bg-chip, oklch(0% 0 0 / 0.06)) !important;
+  border-radius: var(--pds-radius-pill, 999px) !important;
+  color: var(--pds-text-secondary, var(--color-pebble-grey)) !important;
+}
+
+.cl-userProfile .cl-fileDropAreaHint,
+.cl-userProfile-root .cl-fileDropAreaHint,
+.cl-userProfile .cl-fileDropAreaFooterHint,
+.cl-userProfile-root .cl-fileDropAreaFooterHint {
+  font-family: var(--pds-font-body, var(--font-sans)) !important;
+  font-size: 12px !important;
+  color: var(--pds-text-secondary, var(--color-pebble-grey)) !important;
+}
+
+/* “Select file” button inside the drop area — compact pill, not a full-width row */
+.cl-userProfile .cl-fileDropAreaButtonPrimary,
+.cl-userProfile-root .cl-fileDropAreaButtonPrimary {
+  appearance: none !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: auto !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  height: auto !important;
+  padding: 7px 14px !important;
+  border-radius: var(--pds-radius-pill, 999px) !important;
+  border: 0.5px solid var(--pds-border-control, oklch(0% 0 0 / 0.08)) !important;
+  background: var(--pds-bg-input, oklch(0% 0 0 / 0.055)) !important;
+  box-shadow: none !important;
+  font-family: var(--pds-font-body, var(--font-sans)) !important;
+  font-weight: 600 !important;
+  font-size: 13px !important;
+  color: var(--pds-text-primary, var(--color-deep-grey)) !important;
+  cursor: pointer !important;
+  transition: background 0.1s !important;
+}
+
+.cl-userProfile .cl-fileDropAreaButtonPrimary:hover,
+.cl-userProfile-root .cl-fileDropAreaButtonPrimary:hover {
   background: var(--pds-bg-row-hover, oklch(0% 0 0 / 0.038)) !important;
 }
 
@@ -284,4 +426,18 @@
   font-weight: inherit !important;
   color: inherit !important;
   transform: none !important;
+}
+
+/* Beat global.css late `button { color: deep-grey !important }` on portaled profile UI. */
+html.harvous-prototype-route .cl-userProfile-root button,
+html.harvous-prototype-route .cl-userProfile button,
+html.harvous-prototype-route .cl-userProfile-root .cl-button,
+html.harvous-prototype-route .cl-userProfile .cl-button,
+html.harvous-prototype-route .cl-userProfile-root button *,
+html.harvous-prototype-route .cl-userProfile button *,
+html.harvous-prototype-route .cl-userProfile-root .cl-button *,
+html.harvous-prototype-route .cl-userProfile .cl-button * {
+  font-family: var(--pds-font-body, var(--font-sans)) !important;
+  font-weight: inherit !important;
+  color: inherit !important;
 }

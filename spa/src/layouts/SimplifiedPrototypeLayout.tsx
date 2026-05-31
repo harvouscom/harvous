@@ -8,7 +8,16 @@ import { useQueryClient } from '@tanstack/react-query';
 import { HARVOUS_REMOTE_SYNC_COMPLETED } from '@/utils/harvous-remote-sync-event';
 import { refreshPrototypeLists } from '../lib/refresh-client-data';
 import { Outlet, useRouter, useRouterState } from '@tanstack/react-router';
-import { useCallback, useEffect, useLayoutEffect, useRef, type CSSProperties, type KeyboardEvent, type PointerEvent } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useSyncExternalStore,
+  type CSSProperties,
+  type KeyboardEvent,
+  type PointerEvent,
+} from 'react';
 import NativeToolbar from '../pages/prototype/NativeToolbar';
 import PrototypeSidebar from '../pages/prototype/PrototypeSidebar';
 import PrototypeEditorChromeBar from '../pages/prototype/PrototypeEditorChromeBar';
@@ -25,8 +34,10 @@ import { ProtoShellProvider, useProtoShell } from './proto-shell-context';
 import {
   applyBackgroundWithImageTint,
   clearBackgroundVars,
+  getColorSchemeSnapshot,
   PROTO_ROUTE_CLASS,
   readBackground,
+  subscribeColorScheme,
 } from '../lib/prototype-background';
 import { noteParamSlug } from '../pages/prototype/proto-route-slugs';
 import {
@@ -59,6 +70,8 @@ export default function SimplifiedPrototypeLayout() {
     }
   }, [isLoaded, isSignedIn, pathname, searchRaw]);
 
+  const colorScheme = useSyncExternalStore(subscribeColorScheme, getColorSchemeSnapshot, () => 'light');
+
   useLayoutEffect(() => {
     const el = document.documentElement;
     el.classList.add(PROTO_ROUTE_CLASS);
@@ -68,6 +81,10 @@ export default function SimplifiedPrototypeLayout() {
       clearBackgroundVars();
     };
   }, []);
+
+  useEffect(() => {
+    void applyBackgroundWithImageTint(readBackground());
+  }, [colorScheme]);
 
   useEffect(() => {
     if (!isLoaded || isSignedIn) return;

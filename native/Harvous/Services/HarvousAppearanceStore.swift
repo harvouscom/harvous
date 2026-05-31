@@ -312,7 +312,7 @@ final class HarvousAppearanceStore {
         }
     }
 
-    func refreshImageTintIfNeeded(colorScheme: ColorScheme) {
+    func refreshAppearanceForColorScheme(_ colorScheme: ColorScheme) {
         guard case let .image(fileName, tintHex) = activeBackground else { return }
         guard tintHex != nil else {
             guard let image = loadPlatformImage(fileName: fileName) else { return }
@@ -336,9 +336,17 @@ final class HarvousAppearanceStore {
 
     // MARK: - Resolved canvas
 
+    private func resolvedBackground(for colorScheme: ColorScheme) -> HarvousCanvasBackground? {
+        guard let active = activeBackground else { return nil }
+        for preset in HarvousAppearancePreset.catalog where preset.matches(active) {
+            return preset.applyStoredValue(for: colorScheme)
+        }
+        return active
+    }
+
     /// Stable identity for SwiftUI canvas invalidation when presets / wallpaper change.
     func canvasVisualIdentity(for colorScheme: ColorScheme) -> String {
-        switch activeBackground {
+        switch resolvedBackground(for: colorScheme) {
         case nil:
             return "default-\(colorScheme == .dark ? "dark" : "light")"
         case let .color(hex):
@@ -349,7 +357,7 @@ final class HarvousAppearanceStore {
     }
 
     func canvasColor(for colorScheme: ColorScheme) -> Color {
-        switch activeBackground {
+        switch resolvedBackground(for: colorScheme) {
         case nil:
             return HarvousAppearanceColors.defaultCanvasColor(for: colorScheme)
         case let .color(hex):
