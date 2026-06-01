@@ -804,7 +804,7 @@ html.harvous-prototype-route body,
 html.harvous-prototype-route #root {
   --font-sans: var(--pds-font-body);
   --font-mono: var(--pds-font-mono);
-  /* Transparent so the html canvas above shows through the 14px shell gutter. */
+  /* Transparent so the html canvas above shows through the shell gutter. */
   background-color: transparent !important;
 }
 

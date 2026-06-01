@@ -379,6 +379,10 @@ html.harvous-prototype-route .proto-shell__toolbar-cell::after {
 }
 
 @media (max-width: 899px) {
+  html.harvous-prototype-route {
+    --pds-shell-frame-inset: 8px;
+  }
+
   .proto-shell {
     grid-template-columns: minmax(0, 1fr);
   }

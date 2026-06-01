@@ -80,14 +80,14 @@
 @container proto-editor-scroll (max-width: 760px) {
   .proto-editor-content-wrap,
   .proto-editor-loading-wrap {
-    --pds-editor-paper-inset-x: 8px;
+    --pds-editor-paper-inset-x: 12px;
   }
 }
 
 @container proto-editor-scroll (max-width: 480px) {
   .proto-editor-content-wrap,
   .proto-editor-loading-wrap {
-    --pds-editor-paper-inset-x: 8px;
+    --pds-editor-paper-inset-x: 12px;
   }
 }
 
