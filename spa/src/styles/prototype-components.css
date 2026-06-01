@@ -616,6 +616,17 @@ html.harvous-proto-wallpaper-color .proto-sidebar-list-view__trigger[aria-expand
   line-height: 0;
   opacity: 0.38;
   color: var(--pds-text-primary);
+  transition: transform 0.22s cubic-bezier(0.32, 0.72, 0.24, 1);
+}
+
+.proto-sidebar-list-view__trigger[aria-expanded='true'] .proto-sidebar-list-view__chevron {
+  transform: rotate(180deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .proto-sidebar-list-view__chevron {
+    transition: none;
+  }
 }
 
 .proto-menu__popover--sidebar-list-view {

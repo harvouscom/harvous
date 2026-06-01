@@ -117,6 +117,37 @@
   }
 }
 
+/* Narrow editor pane — slightly smaller title/body (matches tighter horizontal padding). */
+@container proto-editor-scroll (max-width: 480px) {
+  .proto-editor-surface .ProseMirror {
+    font-size: 15px;
+  }
+
+  .proto-editor-surface .card-full-editable__content-html {
+    font-size: 15px;
+  }
+
+  .proto-editor-surface .card-full-editable__title,
+  .proto-editor-surface .card-full-editable__title-input,
+  .proto-editor-surface [data-proto-note-title] {
+    font-size: 1.25rem !important;
+  }
+
+  .proto-editor-surface .ProseMirror h2,
+  .proto-editor-surface .card-full-editable__content-html h2 {
+    font-size: 1.125rem !important;
+  }
+
+  .proto-editor-surface .ProseMirror h3,
+  .proto-editor-surface .card-full-editable__content-html h3 {
+    font-size: 1rem !important;
+  }
+
+  .proto-editor-surface .card-full-editable__content-html h4 {
+    font-size: 0.9375rem !important;
+  }
+}
+
 /* ─── Note metadata / date strip ─────────────────────────────────────────── */
 .proto-editor-date {
   font-family: var(--pds-font-body);
@@ -1135,4 +1166,18 @@ html.harvous-prototype-route .proto-editor-surface .card-full-editable .flex-1.o
   font-size: 1rem !important;
   font-weight: 520 !important;
   line-height: 1.5 !important;
+}
+
+@container proto-editor-scroll (max-width: 480px) {
+  html.harvous-prototype-route .proto-editor-surface .card-full-editable .flex-1.overflow-auto h2 {
+    font-size: 1.125rem !important;
+  }
+
+  html.harvous-prototype-route .proto-editor-surface .card-full-editable .flex-1.overflow-auto h3 {
+    font-size: 1rem !important;
+  }
+
+  html.harvous-prototype-route .proto-editor-surface .card-full-editable .flex-1.overflow-auto h4 {
+    font-size: 0.9375rem !important;
+  }
 }
