@@ -443,6 +443,31 @@ html.harvous-prototype-route .proto-shell__toolbar-cell::after {
     display: none;
   }
 
+  /* List type menu — opaque popover above the scrolling note list (same fix as desktop sidebar). */
+  .proto-shell__sidebar-cell.proto-shell-drawer-sidebar .proto-sidebar-list-view:has(.proto-menu__popover) {
+    z-index: 100;
+  }
+
+  .proto-shell__sidebar-cell.proto-shell-drawer-sidebar .proto-menu__popover--sidebar-list-view {
+    z-index: 101;
+    background: var(--pds-bg-page);
+    isolation: isolate;
+  }
+
+  .proto-shell__sidebar-cell.proto-shell-drawer-sidebar
+    .proto-sidebar-root:has(.proto-menu__popover--sidebar-list-view) {
+    overflow: visible;
+  }
+
+  .proto-shell__sidebar-cell.proto-shell-drawer-sidebar
+    .proto-sidebar-root:has(.proto-menu__popover--sidebar-list-view)
+    .proto-sidebar-search,
+  .proto-shell__sidebar-cell.proto-shell-drawer-sidebar
+    .proto-sidebar-root:has(.proto-menu__popover--sidebar-list-view)
+    .proto-sidebar-scroll {
+    z-index: 0;
+  }
+
   .proto-shell-drawer-overlay {
     display: none;
     pointer-events: none;
@@ -700,6 +725,7 @@ html.harvous-prototype-route .proto-inspector-mobile-panel {
 
 /* Menus / popovers — opaque surfaces (glass shell must not show through). */
 html.harvous-prototype-route .proto-menu__popover,
+html.harvous-prototype-route .proto-menu__popover--sidebar-list-view,
 html.harvous-prototype-route .proto-share-popover,
 html.harvous-prototype-route .proto-find-popover,
 html.harvous-prototype-route .proto-folder-popover,
