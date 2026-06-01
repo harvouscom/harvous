@@ -26,10 +26,9 @@ private extension Color {
 }
 
 /// Horizontal formatting toolbar — unified with macOS styling.
-/// Groups: undo | inline | headings | lists | blocks | insert
+/// Groups: inline | structure | lists | indent | insert | history (trailing)
 struct NoteToolbar: View {
     @ObservedObject var proxy: EditorProxy
-    @Environment(\.harvousScriptureTheme) private var toolbarTheme
 #if os(iOS)
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.harvousIOSNoteToolbarEmbeddedInUnifiedShell) private var embeddedInIOSUnifiedShell
@@ -73,53 +72,61 @@ struct NoteToolbar: View {
                 .frame(height: 0.5)
             #endif
 
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 0) {
-                    // Undo / redo
-                    group {
-                        iconButton("Harvous.ArrowRotateLeft", isEnabled: proxy.formatToolbar.canUndo) { proxy.undoEdit() }
-                        iconButton("Harvous.ArrowRotateRight", isEnabled: proxy.formatToolbar.canRedo) { proxy.redoEdit() }
-                    }
+            HStack(spacing: 0) {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 0) {
+                        // Inline marks
+                        group {
+                            iconButton("Harvous.Bold", isActive: proxy.formatToolbar.isBold) { proxy.bold() }
+                            iconButton("Harvous.Italic", isActive: proxy.formatToolbar.isItalic) { proxy.italic() }
+                            iconButton("Harvous.Strikethrough", isActive: proxy.formatToolbar.isStrikethrough) { proxy.strikethrough() }
+                        }
 
-                    warmDivider
+                        NoteToolbarGroupDivider()
 
-                    // Inline
-                    group {
-                        textButton("B", weight: .bold, isActive: proxy.formatToolbar.isBold) { proxy.bold() }
-                        textButton("I", italic: true, isActive: proxy.formatToolbar.isItalic) { proxy.italic() }
-                        textButton("S", strikethrough: true, isActive: proxy.formatToolbar.isStrikethrough) { proxy.strikethrough() }
-                    }
+                        // Structure (H1 is the note title field only)
+                        group {
+                            textButton("H2", size: 14, weight: .bold, isActive: proxy.formatToolbar.headingLevel == 2) { proxy.heading(2) }
+                            textButton("H3", size: 14, weight: .bold, isActive: proxy.formatToolbar.headingLevel == 3) { proxy.heading(3) }
+                            iconButton("Harvous.Link") { proxy.addOrEditLink() }
+                        }
 
-                    warmDivider
+                        NoteToolbarGroupDivider()
 
-                    // Headings (H1 is the note title field only)
-                    group {
-                        textButton("H2", size: 14, weight: .bold, isActive: proxy.formatToolbar.headingLevel == 2) { proxy.heading(2) }
-                        textButton("H3", size: 14, weight: .bold, isActive: proxy.formatToolbar.headingLevel == 3) { proxy.heading(3) }
-                        textButton("H4", size: 14, weight: .bold, isActive: proxy.formatToolbar.headingLevel == 4) { proxy.heading(4) }
-                    }
+                        // Lists
+                        group {
+                            iconButton("Harvous.ListUl", isActive: proxy.formatToolbar.isBulletList) { proxy.insertBullet() }
+                            iconButton("Harvous.ListOl", isActive: proxy.formatToolbar.isNumberedList) { proxy.insertNumbered() }
+                        }
 
-                    warmDivider
+                        NoteToolbarGroupDivider()
 
-                    // Lists + indent
-                    group {
-                        iconButton("Harvous.ListUl", isActive: proxy.formatToolbar.isBulletList) { proxy.insertBullet() }
-                        iconButton("Harvous.ListOl", isActive: proxy.formatToolbar.isNumberedList) { proxy.insertNumbered() }
-                        iconButton("Harvous.Outdent", isEnabled: proxy.formatToolbar.isIndented) { proxy.outdent() }
-                        iconButton("Harvous.Indent", isActive: proxy.formatToolbar.isIndented) { proxy.indent() }
-                    }
+                        // Indent
+                        group {
+                            iconButton("Harvous.Outdent", isEnabled: proxy.formatToolbar.isIndented) { proxy.outdent() }
+                            iconButton("Harvous.Indent", isActive: proxy.formatToolbar.isIndented) { proxy.indent() }
+                        }
 
-                    warmDivider
+                        NoteToolbarGroupDivider()
 
-                    // Insert
-                    group {
-                        iconButton("Harvous.Minus") { proxy.insertDivider() }
-                        iconButton("Harvous.Link") { proxy.addOrEditLink() }
-                        iconButton("Harvous.Image") { proxy.insertImage() }
+                        // Insert
+                        group {
+                            iconButton("Harvous.Minus") { proxy.insertDivider() }
+                            iconButton("Harvous.Image") { proxy.insertImage() }
+                        }
                     }
                 }
-                .padding(.horizontal, 14)
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+                NoteToolbarGroupDivider()
+
+                // History — pinned trailing, always visible
+                group {
+                    iconButton("Harvous.ArrowRotateLeft", isEnabled: proxy.formatToolbar.canUndo) { proxy.undoEdit() }
+                    iconButton("Harvous.ArrowRotateRight", isEnabled: proxy.formatToolbar.canRedo) { proxy.redoEdit() }
+                }
             }
+            .padding(.horizontal, 14)
             .frame(height: 44)
         }
     }
@@ -143,7 +150,7 @@ struct NoteToolbar: View {
                 .frame(width: 36, height: 36)
                 .contentShape(Rectangle())
         }
-        .buttonStyle(NoteToolbarButtonStyle(isActive: isActive, theme: toolbarTheme))
+        .buttonStyle(NoteToolbarButtonStyle(isActive: isActive))
     }
 
     private func iconButton(
@@ -157,7 +164,7 @@ struct NoteToolbar: View {
                 .frame(width: 36, height: 36)
                 .contentShape(Rectangle())
         }
-        .buttonStyle(NoteToolbarButtonStyle(isActive: isActive, theme: toolbarTheme))
+        .buttonStyle(NoteToolbarButtonStyle(isActive: isActive))
         .disabled(!isEnabled)
         .opacity(isEnabled ? 1 : 0.35)
     }
@@ -166,10 +173,12 @@ struct NoteToolbar: View {
     private func group<Content: View>(@ViewBuilder content: () -> Content) -> some View {
         HStack(spacing: 0) { content() }
     }
+}
 
-    private var warmDivider: some View {
-        Color.hvHairlineSeparator
-            .frame(width: 0.5, height: 22)
+/// Vertical hairline between format-toolbar groups — one device pixel on iOS, 0.5pt on macOS (matches web `0.5px`).
+private struct NoteToolbarGroupDivider: View {
+    var body: some View {
+        HarvousFormatToolbarHairline()
             .padding(.horizontal, 6)
     }
 }
@@ -178,13 +187,12 @@ struct NoteToolbar: View {
 
 struct NoteToolbarButtonStyle: ButtonStyle {
     var isActive = false
-    var theme: HarvousColors.ThemeVariant? = nil
 
     func makeBody(configuration: Configuration) -> some View {
         let pressed = configuration.isPressed
-        let activeForeground = theme.map(HarvousColors.themeAccent) ?? Color.primary
+        let emphasized = pressed || isActive
         configuration.label
-            .foregroundStyle(pressed || isActive ? activeForeground : Color.secondary)
+            .foregroundStyle(emphasized ? Color.primary : Color.secondary)
             .background(
                 RoundedRectangle(cornerRadius: HarvousRadius.formatButton)
                     .fill(backgroundFill(isPressed: pressed))
@@ -194,11 +202,6 @@ struct NoteToolbarButtonStyle: ButtonStyle {
     }
 
     private func backgroundFill(isPressed: Bool) -> Color {
-        if let theme {
-            if isPressed { return HarvousColors.themePressedBackground(theme) }
-            if isActive { return HarvousColors.themeActiveBackground(theme) }
-            return .clear
-        }
         if isPressed { return Color.hvToolbarQuaternaryBacking }
         if isActive { return Color.hvToolbarQuaternaryBacking.opacity(0.5) }
         return .clear

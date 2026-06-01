@@ -94,12 +94,13 @@ PREV_GIT_TAG=$(git -C "$REPO_ROOT" tag -l 'v*' --sort=-version:refname | head -1
 DERIVED_DATA="${HARVOUS_DERIVED_DATA:-$SCRIPT_DIR/../.harvous_mac_derived_data}"
 mkdir -p "$DERIVED_DATA"
 
-echo "→ Building Release (Harvous_macOS, derived data: ${DERIVED_DATA})…"
+echo "→ Building Release (Harvous_macOS, derived data: ${DERIVED_DATA}, ad-hoc signing for unsigned preview)…"
 xcodebuild -project Harvous.xcodeproj \
   -scheme Harvous_macOS \
   -configuration Release \
   -destination 'generic/platform=macOS' \
   -derivedDataPath "$DERIVED_DATA" \
+  CODE_SIGN_IDENTITY=- \
   clean build
 
 APP_PATH="$DERIVED_DATA/Build/Products/Release/Harvous.app"

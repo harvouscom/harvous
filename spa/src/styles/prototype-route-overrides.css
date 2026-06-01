@@ -109,6 +109,12 @@ html.harvous-prototype-route button.proto-inspector-delete-btn path {
   fill: currentColor !important;
 }
 
+/* Confirm dialog — destructive action keeps red text (soft-tinted fill on wide screens) */
+html.harvous-prototype-route button.proto-confirm-dialog__btn--destructive,
+html.harvous-prototype-route button.proto-confirm-dialog__btn--destructive * {
+  color: var(--pds-destructive) !important;
+}
+
 /* Share popover text actions — accent / destructive link buttons */
 html.harvous-prototype-route button.proto-share-popover__link-action,
 html.harvous-prototype-route button.proto-share-popover__link-action span {

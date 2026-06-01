@@ -493,6 +493,8 @@ private final class HarvousNoteTextView: NSTextView {
     private var pendingStudyHighlightActivation: UUID?
     private var primaryMouseGestureStartPoint: NSPoint = .zero
     private var primaryMouseGestureExceededDragThreshold = false
+    /// True when the current primary-button gesture began on a rendered scripture pill rect (strict hit-test).
+    private var primaryMouseGestureHitScripturePillRect = false
     /// When `mouseUp` never reaches this view (SwiftUI `ScrollView`), a short delayed + `mouseMoved` path may finalize.
     private var studyHighlightClickSalvageWorkItem: DispatchWorkItem?
 
@@ -513,15 +515,9 @@ private final class HarvousNoteTextView: NSTextView {
         }
     }
 
-    /// Attachment glyph range under the pointer (rect hit-test first, then caret-adjacent fallback).
+    /// Attachment glyph range under the pointer (strict rendered-rect hit-test; matches pill click path).
     private func scripturePillAttachmentRangeContainingPointer(_ viewPoint: NSPoint, storage: NSTextStorage) -> NSRange? {
-        if let (_, r) = scripturePillAtPoint(viewPoint, in: storage) { return r }
-        let charIdx = characterIndex(for: viewPoint)
-        guard charIdx != NSNotFound,
-              let (_, r) = scripturePillNearCharacterIndexWithRange(charIdx, in: storage) else {
-            return nil
-        }
-        return r
+        scripturePillAtPoint(viewPoint, in: storage)?.1
     }
 
     private func invalidateScripturePillGlyphDisplay(characterRange range: NSRange) {
@@ -979,6 +975,7 @@ private final class HarvousNoteTextView: NSTextView {
         studyHighlightClickSalvageWorkItem = nil
         pendingStudyHighlightActivation = nil
         primaryMouseGestureExceededDragThreshold = false
+        primaryMouseGestureHitScripturePillRect = false
 
         guard event.clickCount == 1,
               let storage = textStorage,
@@ -993,6 +990,7 @@ private final class HarvousNoteTextView: NSTextView {
         // Direct rect hit-test against rendered pill bounds — more reliable than
         // characterIndex for clicks that land in the pill image below the baseline.
         if let (pill, eff) = scripturePillAtPoint(point, in: storage) {
+            primaryMouseGestureHitScripturePillRect = true
             super.mouseDown(with: event)
             pillTapHandler?(pill.reference, pill.translation, eff)
             return
@@ -1015,19 +1013,7 @@ private final class HarvousNoteTextView: NSTextView {
             return
         }
 
-        // Fallback: character-based pill probe for clicks that land at a pill's text baseline but
-        // outside the rect-based `scripturePillAtPoint` check. `characterIndex(for:)` expects screen
-        // coordinates and will return `NSNotFound` for view-local points — that's fine here since the
-        // guard treats `NSNotFound` as "no character hit" and falls through to normal caret placement.
-        let charIdx = characterIndex(for: point)
-        guard charIdx != NSNotFound,
-              let (pill, eff) = scripturePillNearCharacterIndexWithRange(charIdx, in: storage)
-        else {
-            super.mouseDown(with: event)
-            return
-        }
         super.mouseDown(with: event)
-        pillTapHandler?(pill.reference, pill.translation, eff)
     }
 
     override func mouseDragged(with event: NSEvent) {
@@ -1047,6 +1033,12 @@ private final class HarvousNoteTextView: NSTextView {
         guard event.buttonNumber == 0 else { return }
 
         _ = finalizePendingStudyHighlightClickIfEligible()
+        normalizeTrailingScripturePillCaretAfterNonPillClick()
+        if !primaryMouseGestureHitScripturePillRect, !primaryMouseGestureExceededDragThreshold {
+            DispatchQueue.main.async { [weak self] in
+                self?.normalizeTrailingScripturePillCaretAfterNonPillClick()
+            }
+        }
         onPrimaryMouseGestureEndedForSelectionSync?()
     }
 
@@ -1054,21 +1046,33 @@ private final class HarvousNoteTextView: NSTextView {
         true
     }
 
-    private func scripturePillNearCharacterIndexWithRange(_ charIdx: Int, in storage: NSTextStorage) -> (ScripturePillAttachment, NSRange)? {
-        var eff = NSRange()
-        if charIdx < storage.length,
-           let p = storage.attribute(.attachment, at: charIdx, effectiveRange: &eff) as? ScripturePillAttachment {
-            return (p, eff)
+    /// When a click misses the pill graphic but NSTextView snaps the caret onto the trailing
+    /// attachment glyph, move the insertion point to `storage.length` so typing continues after the pill.
+    @discardableResult
+    private func normalizeTrailingScripturePillCaretAfterNonPillClick() -> Bool {
+        guard !primaryMouseGestureHitScripturePillRect,
+              !primaryMouseGestureExceededDragThreshold,
+              pendingStudyHighlightActivation == nil,
+              let storage = textStorage else { return false }
+        let len = storage.length
+        guard len > 0 else { return false }
+
+        let sel = selectedRange()
+        var pillRange: NSRange?
+        if sel.length == 1 {
+            var eff = NSRange()
+            if storage.attribute(.attachment, at: sel.location, effectiveRange: &eff) is ScripturePillAttachment {
+                pillRange = eff
+            }
+        } else if sel.length == 0, sel.location < len {
+            var eff = NSRange()
+            if storage.attribute(.attachment, at: sel.location, effectiveRange: &eff) is ScripturePillAttachment {
+                pillRange = eff
+            }
         }
-        if charIdx > 0,
-           let p = storage.attribute(.attachment, at: charIdx - 1, effectiveRange: &eff) as? ScripturePillAttachment {
-            return (p, eff)
-        }
-        if charIdx + 1 < storage.length,
-           let p = storage.attribute(.attachment, at: charIdx + 1, effectiveRange: &eff) as? ScripturePillAttachment {
-            return (p, eff)
-        }
-        return nil
+        guard let eff = pillRange, NSMaxRange(eff) == len else { return false }
+        setSelectedRange(NSRange(location: len, length: 0))
+        return true
     }
 
     /// Returns the scripture pill whose rendered rect contains `point` (view-local coords).
@@ -1119,23 +1123,14 @@ private final class HarvousNoteTextView: NSTextView {
         return nil
     }
 
-    /// True when the pointer is over a rendered scripture pill (same logic as click hit-testing).
+    /// True when the pointer is over a rendered scripture pill (strict rect hit-test; matches click path).
     private func isPointOverScripturePill(_ pointInView: NSPoint) -> Bool {
         guard let storage = textStorage, storage.length > 0 else { return false }
-        if scripturePillAtPoint(pointInView, in: storage) != nil { return true }
-        let charIdx = characterIndex(for: pointInView)
-        if charIdx != NSNotFound, scripturePillNearCharacterIndexWithRange(charIdx, in: storage) != nil { return true }
-        return false
+        return scripturePillAtPoint(pointInView, in: storage) != nil
     }
 
     private func scripturePillUnderHoverPointer(_ viewPoint: NSPoint, storage: NSTextStorage) -> ScripturePillAttachment? {
-        if let (pill, _) = scripturePillAtPoint(viewPoint, in: storage) { return pill }
-        let charIdx = characterIndex(for: viewPoint)
-        guard charIdx != NSNotFound,
-              let (pill, _) = scripturePillNearCharacterIndexWithRange(charIdx, in: storage) else {
-            return nil
-        }
-        return pill
+        scripturePillAtPoint(viewPoint, in: storage)?.0
     }
 
     private func prefetchPassageHoverIfNeeded(viewPoint: NSPoint) {
@@ -1516,7 +1511,12 @@ struct HarvousEditor: NSViewRepresentable {
         var didSyncBodyFromState = false
 
         if let noteID, context.coordinator.boundNoteID != noteID {
+            let currentPlain = textView.textStorage.map { harvousExpandedPlainText(in: $0) } ?? documentBody
+            let bodyUnchanged = documentBody == currentPlain
             context.coordinator.boundNoteID = noteID
+            if bodyUnchanged {
+                return
+            }
             context.coordinator.invalidateDeferredNoteBindingWork()
             context.coordinator.isEditing = false
             context.coordinator.suppressFormatBarOnNextBodyCaretUpdate = true
@@ -1676,6 +1676,10 @@ struct HarvousEditor: NSViewRepresentable {
         private var isProgrammaticBodyMutation: Bool { programmaticBodyMutationDepth > 0 }
         /// Last applied highlight paint inputs — avoids strip/reapply on every SwiftUI `updateNSView` during typing.
         private var lastAppliedStudyHighlightSignature: String?
+        /// Last applied scripture-pill inputs (expanded plain text + theme). Gates the render-pass
+        /// `reapplyScripturePillsToBody` so the full regex sweep runs once per real change instead of
+        /// every SwiftUI `updateNSView` pass — fixes the 100%-CPU re-entrant render loop on note open/edit.
+        fileprivate var lastAppliedPillSignature: String?
 
         private func currentStudyHighlightPaintSignature() -> String {
             HarvousStudyHighlightMapper.studyHighlightPaintSignature(
@@ -1693,6 +1697,7 @@ struct HarvousEditor: NSViewRepresentable {
             inlineImageRehydrateTask?.cancel()
             inlineImageRehydrateTask = nil
             lastAppliedStudyHighlightSignature = nil
+            lastAppliedPillSignature = nil
             cancelFormatBarHide()
         }
 
@@ -1777,9 +1782,20 @@ struct HarvousEditor: NSViewRepresentable {
         }
 
         /// Re-run pill detection (e.g. after `syncTextViewDocument` loads saved plain text with no `NSTextAttachment`s).
+        ///
+        /// Signature-gated: pill re-application is idempotent, so when the expanded plain text and theme
+        /// are unchanged this is a no-op. Skipping it here breaks the SwiftUI render loop where every
+        /// `updateNSView` pass re-ran the full `ScriptureDetector` regex (100%-CPU beachball on note open/edit).
+        /// The detection/typing path (`detectAndInsertPills`) is intentionally NOT gated.
         @MainActor
         func reapplyScripturePillsToBody(in textView: NSTextView, paintHighlights: Bool = true) {
+            guard let storage = textView.textStorage else { return }
+            let signature = harvousExpandedPlainText(in: storage) + "|" + String(describing: scriptureTheme)
+            if signature == lastAppliedPillSignature { return }
             detectAndInsertPills(in: textView, text: state.plainText, paintHighlights: paintHighlights)
+            if let st = textView.textStorage {
+                lastAppliedPillSignature = harvousExpandedPlainText(in: st) + "|" + String(describing: scriptureTheme)
+            }
         }
 
         /// Hooks so `EditorProxy` can cancel/restart the idle dismiss timer when the pointer enters/leaves the toolbar.
@@ -2427,8 +2443,18 @@ struct HarvousEditor: NSViewRepresentable {
             let bindingGeneration = noteBindingGeneration
             Task { @MainActor in
                 guard bindingGeneration == self.noteBindingGeneration else { return }
-                self.state.plainText = plainOut
-                self.state.detectedRefs = refsOut
+                // Idempotency guard (fixes 100%-CPU main-thread beachball when editing existing
+                // synced notes). Pill re-application is idempotent, so at steady state
+                // `plainOut`/`refsOut` already equal `state`. Assigning unconditionally still
+                // re-commits SwiftUI → re-enters updateNSView → reapplyScripturePillsToBody →
+                // detectAndInsertPillsImpl → here again, forming an unbounded render loop. Only
+                // write when a value actually changed so the cycle ends at the expansion fixpoint.
+                if self.state.plainText != plainOut {
+                    self.state.plainText = plainOut
+                }
+                if self.state.detectedRefs != refsOut {
+                    self.state.detectedRefs = refsOut
+                }
             }
             let pairs = scripturePillRefTransPairs(in: storage)
             onResolvedScripturePillPairs?(pairs)
@@ -2574,12 +2600,12 @@ private final class HarvousBodyTextView: UITextView {
         var front: [UIMenuElement] = []
         if utf16Sel.length > 0 {
             if let hl = onHighlightCaptureAction {
-                front.append(UIAction(title: "Highlight…", image: UIImage(systemName: "highlighter")) { _ in
+                front.append(UIAction(title: "Create new note…", image: UIImage(systemName: "highlighter")) { _ in
                     hl()
                 })
             }
             if let singleWord = singleWordForLookup, let lookupHandler = onLookupAction {
-                front.append(UIAction(title: "Look Up in Easton's", image: UIImage(systemName: "books.vertical")) { _ in
+                front.append(UIAction(title: "Look up in Bible dictionary", image: UIImage(systemName: "books.vertical")) { _ in
                     lookupHandler(singleWord)
                 })
             }
@@ -2827,7 +2853,12 @@ struct HarvousEditor: UIViewRepresentable {
         }
 
         if let noteID, context.coordinator.boundNoteID != noteID {
+            let currentPlain = harvousExpandedPlainText(in: textView.textStorage)
+            let bodyUnchanged = documentBody == currentPlain
             context.coordinator.boundNoteID = noteID
+            if bodyUnchanged {
+                return
+            }
             context.coordinator.invalidateDeferredNoteBindingWork()
             context.coordinator.isEditing = false
             context.coordinator.withProgrammaticBodyMutation {
@@ -2945,6 +2976,10 @@ struct HarvousEditor: UIViewRepresentable {
         var noteBindingGeneration: UInt64 = 0
         /// Pauses scripture pill detection while Apple Writing Tools mutates the document (iOS 18+).
         private var isWritingToolsActive = false
+        /// Last applied scripture-pill inputs (expanded plain text + theme). Gates the render-pass
+        /// `reapplyScripturePillsToBody` so the regex sweep runs once per real change instead of every
+        /// SwiftUI `updateUIView` pass — fixes the 100%-CPU re-entrant render loop on note open/edit.
+        fileprivate var lastAppliedPillSignature: String?
         private var programmaticBodyMutationDepth: Int = 0
         private var isProgrammaticBodyMutation: Bool { programmaticBodyMutationDepth > 0 }
 
@@ -2970,6 +3005,7 @@ struct HarvousEditor: UIViewRepresentable {
             debounceTask = nil
             inlineImageRehydrateTask?.cancel()
             inlineImageRehydrateTask = nil
+            lastAppliedPillSignature = nil
             cancelFormatBarHide()
         }
 
@@ -3208,13 +3244,6 @@ struct HarvousEditor: UIViewRepresentable {
                 return
             }
 
-            // 4. Last-resort pill probe (rect miss e.g. edge of attachment image).
-            if let (pill, eff) = Self.pillAttachmentRange(containingUTF16: offset, in: storage) {
-                tv.resignFirstResponder()
-                onScripturePillTap?(pill.reference, pill.translation, eff)
-                return
-            }
-
             #if DEBUG
             print("[Harvous.highlight.tap.ios] NO MATCH at offset=\(offset) — paints=\(studyHighlightPaints.map { ($0.threadId, $0.expandedUTF16Range) })")
             #endif
@@ -3305,17 +3334,6 @@ struct HarvousEditor: UIViewRepresentable {
                     if storageOffset >= lo && storageOffset <= hi {
                         return paint.threadId
                     }
-                }
-            }
-            return nil
-        }
-
-        private static func pillAttachmentRange(containingUTF16 utf16: Int, in storage: NSTextStorage) -> (ScripturePillAttachment, NSRange)? {
-            for idx in [utf16, utf16 - 1, utf16 + 1] {
-                guard idx >= 0, idx < storage.length else { continue }
-                var eff = NSRange()
-                if let pill = storage.attribute(.attachment, at: idx, effectiveRange: &eff) as? ScripturePillAttachment {
-                    return (pill, eff)
                 }
             }
             return nil
@@ -3781,8 +3799,18 @@ struct HarvousEditor: UIViewRepresentable {
             let bindingGeneration = noteBindingGeneration
             Task { @MainActor in
                 guard bindingGeneration == self.noteBindingGeneration else { return }
-                self.state.plainText = plainOut
-                self.state.detectedRefs = refsOut
+                // Idempotency guard (fixes 100%-CPU main-thread beachball when editing existing
+                // synced notes). Pill re-application is idempotent, so at steady state
+                // `plainOut`/`refsOut` already equal `state`. Assigning unconditionally still
+                // re-commits SwiftUI → re-enters updateNSView → reapplyScripturePillsToBody →
+                // detectAndInsertPillsImpl → here again, forming an unbounded render loop. Only
+                // write when a value actually changed so the cycle ends at the expansion fixpoint.
+                if self.state.plainText != plainOut {
+                    self.state.plainText = plainOut
+                }
+                if self.state.detectedRefs != refsOut {
+                    self.state.detectedRefs = refsOut
+                }
             }
             let pairs = scripturePillRefTransPairs(in: storage)
             onResolvedScripturePillPairs?(pairs)

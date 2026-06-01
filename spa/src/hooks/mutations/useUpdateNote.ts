@@ -23,6 +23,7 @@ interface UpdateNoteResponse {
     updatedAt: string;
   };
   scriptureResults?: unknown;
+  processedContent?: string | null;
 }
 
 /**
@@ -57,7 +58,11 @@ export function useUpdateNote() {
       if (collectionUserOverride !== undefined) body.collectionUserOverride = collectionUserOverride;
       return api.put<UpdateNoteResponse>('/api/notes/update', body as any);
     },
-    onSuccess: (_data, variables) => {
+    onSuccess: (data, variables) => {
+      const processed =
+        typeof data?.processedContent === 'string' && data.processedContent.length > 0
+          ? data.processedContent
+          : variables.content;
       // Optimistically patch the note detail cache so navigating back / refreshing
       // immediately shows the typed content without waiting for the refetch to
       // round-trip. Without this, a fast refresh after typing can briefly show
@@ -84,7 +89,7 @@ export function useUpdateNote() {
           return {
             ...p,
             title: variables.title,
-            content: variables.content,
+            content: processed,
             // Authoritative full content now in cache — clear any list-preview flag.
             __contentIsPreview: false,
             ...(variables.primaryCollection !== undefined ? { primaryCollection: variables.primaryCollection } : {}),
@@ -102,7 +107,7 @@ export function useUpdateNote() {
       if (affectedSpaceId) {
         updateSpaceNoteInCache(queryClient, affectedSpaceId, variables.noteId, {
           title: variables.title,
-          content: variables.content,
+          content: processed,
           updatedAt: new Date().toISOString(),
         });
         queryClient.invalidateQueries({ queryKey: ['space', affectedSpaceId, 'bootstrap'] });

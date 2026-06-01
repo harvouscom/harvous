@@ -65,20 +65,22 @@ struct HomeHubView: View {
     }
 
     private func composeNewNoteIntoStack(initialBody: String? = nil) {
-        let note = Note(spaceId: spaceStore.activeSpaceUUID())
         if let initialBody {
             let trimmed = initialBody.trimmingCharacters(in: .whitespacesAndNewlines)
             if !trimmed.isEmpty {
+                let note = Note(spaceId: spaceStore.activeSpaceUUID())
                 note.body = trimmed
                 note.detectedRefs = ScriptureDetector.uniqueDisplayRefs(in: trimmed)
+                modelContext.insert(note)
+                NoteSimpleIDAssigner.assignIfMissing(note, in: modelContext)
+                try? modelContext.saveWithLogging()
+                HarvousNoteSpotlightIndexer.reindex(note: note)
+                HarvousVaultExporter.scheduleWrite(note: note, modelContext: modelContext)
+                pushNoteOntoIOSStack(note.id)
+                return
             }
         }
-        modelContext.insert(note)
-        NoteSimpleIDAssigner.assignIfMissing(note, in: modelContext)
-        try? modelContext.saveWithLogging()
-        HarvousNoteSpotlightIndexer.reindex(note: note)
-        HarvousVaultExporter.scheduleWrite(note: note, modelContext: modelContext)
-        pushNoteOntoIOSStack(note.id)
+        pushNoteOntoIOSStack(HarvousLazyComposeDraft.navigationNoteId)
     }
 
     private func openDailyNoteIntoStack() {

@@ -19,6 +19,18 @@ extension Logger {
     static let settings  = Logger(subsystem: subsystem, category: "settings")
 }
 
+/// Reads the stored color scheme preference from `HarvousAppearanceStore` and applies
+/// `preferredColorScheme` so all child windows inherit the override.
+private struct AppearanceAwareRoot<Content: View>: View {
+    @ViewBuilder let content: Content
+    private let store = HarvousAppearanceStore.shared
+
+    var body: some View {
+        content
+            .preferredColorScheme(store.colorSchemePreference.preferredColorScheme)
+    }
+}
+
 @main
 struct HarvousApp: App {
     /// Wake Netlify function + Postgres before the user taps a scripture pill (non-blocking).
@@ -36,6 +48,7 @@ struct HarvousApp: App {
     @StateObject private var spaceStore = SpaceStore()
     #if os(macOS)
     @StateObject private var macNoteListSelectionCoordinator = MacNoteListSelectionCoordinator()
+    @StateObject private var macEditorMenuActionsCoordinator = MacEditorMenuActionsCoordinator()
     #endif
     @StateObject private var shiftHints = HarvousShiftHintsMonitor()
 
@@ -143,20 +156,23 @@ struct HarvousApp: App {
 
     var body: some Scene {
         WindowGroup {
-            SignInGate {
-                ContentView()
-                    .environmentObject(appRouter)
-                    .environmentObject(spaceStore)
-                    .environmentObject(shiftHints)
-                    .environment(HarvousAppearanceStore.shared)
-                    #if os(macOS)
-                    .environmentObject(macNoteListSelectionCoordinator)
-                    // Explicit floor only — do not use `.windowResizability(.contentMinSize)` here:
-                    // the note editor's scroll content height tracks document length and would pin the
-                    // window to the full note height (non-resizable giant window).
-                    .frame(minWidth: 980, minHeight: 560)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    #endif
+            AppearanceAwareRoot {
+                SignInGate {
+                    ContentView()
+                        .environmentObject(appRouter)
+                        .environmentObject(spaceStore)
+                        .environmentObject(shiftHints)
+                        .environment(HarvousAppearanceStore.shared)
+                        #if os(macOS)
+                        .environmentObject(macNoteListSelectionCoordinator)
+                        .environmentObject(macEditorMenuActionsCoordinator)
+                        // Explicit floor only — do not use `.windowResizability(.contentMinSize)` here:
+                        // the note editor's scroll content height tracks document length and would pin the
+                        // window to the full note height (non-resizable giant window).
+                        .frame(minWidth: 980, minHeight: 560)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        #endif
+                }
             }
             .onAppear {
                 #if os(macOS)
@@ -190,14 +206,16 @@ struct HarvousApp: App {
         // Use `Window`, not `Settings`, so this window matches the document `WindowGroup` chrome (corner radius,
         // title bar). `Settings` is a separate window class and never quite matches. ⌘, is wired in `HarvousCommands`.
         Window("Settings", id: HarvousMacPreferencesWindow.sceneID) {
-            MacPreferencesRootView()
-                .environmentObject(appRouter)
-                .environmentObject(spaceStore)
-                .environment(HarvousAppearanceStore.shared)
-                .environment(\.harvousScriptureTheme, spaceStore.scriptureTheme)
-                #if canImport(ClerkKit)
-                .environment(Clerk.shared)
-                #endif
+            AppearanceAwareRoot {
+                MacPreferencesRootView()
+                    .environmentObject(appRouter)
+                    .environmentObject(spaceStore)
+                    .environment(HarvousAppearanceStore.shared)
+                    .environment(\.harvousScriptureTheme, spaceStore.scriptureTheme)
+                    #if canImport(ClerkKit)
+                    .environment(Clerk.shared)
+                    #endif
+            }
         }
         .modelContainer(modelContainer)
         // Pane name from `navigationTitle` lives in the title bar next to traffic lights + toolbar (not a second row).

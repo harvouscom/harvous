@@ -23,6 +23,9 @@ cp "$FA/book-open.svg"       "$ASSETS/Harvous.BookOpen.imageset/BookOpen.svg"
 cp "$FA/table-columns.svg"   "$ASSETS/Harvous.LayoutSidebarLeft.imageset/LayoutSidebarLeft.svg"
 cp "$FA/table-columns.svg"   "$ASSETS/Harvous.LayoutSidebarRight.imageset/LayoutSidebarRight.svg"
 cp "$FA/user.svg"            "$ASSETS/Harvous.UserFilled.imageset/UserFilled.svg"
+cp "$FA/bold.svg"            "$ASSETS/Harvous.Bold.imageset/Bold.svg"
+cp "$FA/italic.svg"          "$ASSETS/Harvous.Italic.imageset/Italic.svg"
+cp "$FA/strikethrough.svg"   "$ASSETS/Harvous.Strikethrough.imageset/Strikethrough.svg"
 ```
 
 (`LayoutSidebarLeft` and `LayoutSidebarRight` intentionally share **table-columns** — two-column split metaphor; swap to a distinct FA icon if you want asymmetry.)
@@ -41,6 +44,9 @@ Mirror into this folder with the **Harvous filenames** (same `cp` targets as abo
 | LayoutSidebarLeft         | table-columns.svg         |
 | LayoutSidebarRight        | table-columns.svg         |
 | UserFilled                | user.svg                  |
+| Bold                      | bold.svg                  |
+| Italic                    | italic.svg                |
+| Strikethrough             | strikethrough.svg         |
 
 (The full `Harvous.*` set is broader — see `Assets.xcassets/` — these are just the originally-shipped toolbar vectors.)
 

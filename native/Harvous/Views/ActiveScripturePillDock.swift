@@ -195,7 +195,6 @@ struct ActiveScripturePillDock: View {
             maxHeight: fillsAvailableHeight && passageChromeExpanded ? .infinity : nil,
             alignment: .topLeading
         )
-        .animation(.spring(response: 0.32, dampingFraction: 0.82), value: passageChromeExpanded)
         .padding(.horizontal, 12)
         .padding(.top, 10)
         // When the passage is expanded the scroll fills to the dock's bottom edge —
@@ -236,6 +235,9 @@ struct ActiveScripturePillDock: View {
         .padding(.horizontal, inStudyDockCarousel ? 0 : 20)
         .padding(.top, inStudyDockCarousel ? 0 : 6)
         .padding(.bottom, inStudyDockCarousel ? 0 : 10)
+        .onChange(of: passageChromeExpanded) { _, expanded in
+            if !expanded { scriptureScrollContentHeight = 0 }
+        }
         .task(id: "\(reference)|\(translation)") {
             await ScripturePassageCache.shared.prefetch(reference: reference, translation: translation)
         }
@@ -541,9 +543,10 @@ struct ActiveScripturePillDock: View {
             // fixedSize on a ScrollView disables scrolling (it uses ideal/content height), so we
             // measure the content instead and drive an exact frame(height:).
             // Default to the max-height cap until the first measurement fires (no zero-height flash).
-            let computedHeight = scriptureScrollContentHeight > 0
-                ? min(scriptureScrollContentHeight, expandedContentMaxHeight)
-                : expandedContentMaxHeight
+            let computedHeight = HarvousDockExpandedContentLayout.clampedScrollFrameHeight(
+                measuredContentHeight: scriptureScrollContentHeight,
+                maxHeight: expandedContentMaxHeight
+            )
             ScrollView {
                 VStack(spacing: 0) {
                     scripturePassageScrollContent
@@ -554,6 +557,7 @@ struct ActiveScripturePillDock: View {
                 .frame(maxWidth: .infinity, minHeight: max(computedHeight - 1, 1), alignment: .topLeading)
             }
             .frame(height: computedHeight)
+            .animation(nil, value: computedHeight)
             .onPreferenceChange(DockScrollContentHeightKey.self) { h in
                 Task { @MainActor in
                     scriptureScrollContentHeight = h
@@ -599,6 +603,7 @@ struct ActiveScripturePillDock: View {
                     .frame(maxWidth: .infinity, minHeight: max(h - 1, 1), alignment: .topLeading)
                 }
                 .frame(height: h)
+                .animation(nil, value: h)
                 .onPreferenceChange(DockScrollContentHeightKey.self) { height in
                     Task { @MainActor in
                         scriptureScrollContentHeight = height

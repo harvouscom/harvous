@@ -20,7 +20,9 @@ Harvous macOS target:
 
 ## Why testers see security prompts
 
-Preview builds use **signing disabled** in Xcode project settings (`CODE_SIGN_IDENTITY = "-"`, suitable for local dev and ad-hoc sharing). Downloads from the browser get Apple’s **quarantine** attribute. Together, that triggers **Gatekeeper** until the user approves the app or clears quarantine. **Developer ID signing + notarization** would remove most of that friction; this doc assumes **unsigned** preview releases only.
+**Gatekeeper (unsigned DMG):** Preview builds are **ad-hoc signed** only in the release pipeline (`release.sh` / `package-dmg.sh` pass `CODE_SIGN_IDENTITY=-` to `xcodebuild`). Daily local builds from Xcode use **Apple Development** signing instead (see `Configuration/Harvous-Signing.xcconfig`). Downloads from the browser get Apple’s **quarantine** attribute. Together, that triggers **Gatekeeper** until the user approves the app or clears quarantine. **Developer ID signing + notarization** would remove most of that friction; this doc assumes **unsigned** preview releases only.
+
+**Keychain (Clerk sign-in):** ClerkKit stores the auth session in Keychain under `com.harvous.app`. Ad-hoc preview builds have no stable `TeamIdentifier`, so testers may see a **login keychain password** prompt on every cold launch until they sign in again or the build is properly signed. That is expected for unsigned DMGs; local Xcode builds should prompt at most once after a one-time Keychain cleanup (see [`CLERK_SETUP.md`](../../native/Harvous/CLERK_SETUP.md#macos-keychain-prompt-on-launch)).
 
 ## Versioning (single source of truth)
 
@@ -60,6 +62,7 @@ xcodebuild -project Harvous.xcodeproj \
   -configuration Release \
   -destination 'generic/platform=macOS' \
   -derivedDataPath "$DERIVED" \
+  CODE_SIGN_IDENTITY=- \
   clean build
 ```
 

@@ -35,6 +35,7 @@
   }
 
   var PROTO_BG_KEY = 'harvous-proto-bg';
+  var PROTO_COLOR_SCHEME_KEY = 'harvous-proto-color-scheme';
   var MAX_IMAGE_DATA_URL_CHARS = 1600000;
   var PROTO_ROUTE_CLASS = 'harvous-prototype-route';
   var WALLPAPER_CLASS = 'harvous-proto-wallpaper';
@@ -45,6 +46,14 @@
 
   var root = document.documentElement;
   root.classList.add(PROTO_ROUTE_CLASS);
+
+  /* Apply stored color scheme preference before any CSS loads. */
+  try {
+    var colorSchemePref = localStorage.getItem(PROTO_COLOR_SCHEME_KEY);
+    if (colorSchemePref === 'light' || colorSchemePref === 'dark') {
+      root.setAttribute('data-color-scheme', colorSchemePref);
+    }
+  } catch (e) { /* ignore — localStorage may be unavailable */ }
 
   /* Critical CSS so the canvas vars + empty shell card paint before the bundle's
      prototype-tokens.css / prototype-shell.css load. Mirrors the html/body/#root
@@ -69,8 +78,10 @@
       '--pds-shadow-shell:0 2px 12px oklch(var(--pds-lch-shadow-shell-a)),0 1px 3px oklch(var(--pds-lch-shadow-shell-b));' +
       'color-scheme:light dark;' +
       '}' +
+      '[data-color-scheme="light"]{color-scheme:light}' +
+      '[data-color-scheme="dark"]{color-scheme:dark}' +
       '@media (prefers-color-scheme:dark){' +
-      ':root{' +
+      ':root:not([data-color-scheme="light"]){' +
       '--pds-lch-bg-page:18% 0.01 285;' +
       '--pds-lch-border:100% 0 0 / 0.1;' +
       '--pds-lch-canvas-default:12% 0.01 285;' +
@@ -81,6 +92,21 @@
       '--pds-text-primary:oklch(var(--pds-lch-text-primary));' +
       '--pds-text-secondary:oklch(var(--pds-lch-text-secondary));' +
       '}' +
+      '}' +
+      ':root[data-color-scheme="dark"]{' +
+      '--pds-lch-bg-page:18% 0.01 285;' +
+      '--pds-lch-border:100% 0 0 / 0.1;' +
+      '--pds-lch-canvas-default:12% 0.01 285;' +
+      '--pds-lch-text-primary:96% 0 0;' +
+      '--pds-lch-text-secondary:96% 0 0 / 0.55;' +
+      '--pds-lch-shadow-shell-a:0% 0 0 / 0.35;' +
+      '--pds-lch-shadow-shell-b:0% 0 0 / 0.2;' +
+      '--pds-bg-page:oklch(var(--pds-lch-bg-page));' +
+      '--pds-border:oklch(var(--pds-lch-border));' +
+      '--pds-canvas-default:oklch(var(--pds-lch-canvas-default));' +
+      '--pds-text-primary:oklch(var(--pds-lch-text-primary));' +
+      '--pds-text-secondary:oklch(var(--pds-lch-text-secondary));' +
+      '--pds-shadow-shell:0 2px 12px oklch(var(--pds-lch-shadow-shell-a)),0 1px 3px oklch(var(--pds-lch-shadow-shell-b));' +
       '}' +
       'html.' +
       PROTO_ROUTE_CLASS +

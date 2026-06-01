@@ -16,8 +16,10 @@ struct SpotlightSearchView: View {
     @FocusState private var fieldFocused: Bool
 
     private var notesInActiveSpace: [Note] {
-        let sid = spaceStore.activeSpaceUUID()
-        return notes.filter { $0.resolvedSpaceId() == sid }
+        HarvousNoteListVisibility.notesInActiveSpace(
+            from: notes,
+            spaceId: spaceStore.activeSpaceUUID()
+        )
     }
 
     private var results: [Note] {

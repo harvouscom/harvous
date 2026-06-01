@@ -12,7 +12,7 @@ This document covers the Tiptap upgrade path, adding rich media embeds (images, 
 - **Custom extensions:** ScripturePill (mark), NoteLink (mark), BoldCustom (extended), HighlightCustom (extended)
 - **ProseMirror-level code:** `appendTransaction` for stored marks, DOM capture-phase click handlers for pill interaction, custom paste transforms
 - **BubbleMenu:** Replaced with custom floating toolbar using `createPortal` + `editor.on('selectionUpdate')` + `view.coordsAtPos()`
-- **No media support:** Notes are text-only today
+- **Inline images (web):** Prototype format toolbar uploads to Supabase Storage `note-attachments`; see [NOTE_INLINE_IMAGE_STORAGE.md](../NOTE_INLINE_IMAGE_STORAGE.md). Native still uses `[Image:base64]` markers until bridged.
 
 ---
 

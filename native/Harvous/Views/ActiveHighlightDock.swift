@@ -49,6 +49,7 @@ struct ActiveHighlightDock: View {
 
     @Environment(\.modelContext) private var modelContext
     @Environment(\.colorScheme) private var dockColorScheme
+    @Environment(\.harvousStudyDockInCarousel) private var inStudyDockCarousel
 
 #if os(iOS)
     /// Avoid auto-moving keyboard focus into the mini-note editors while UITextView is still key during dock reveal.
@@ -86,24 +87,27 @@ struct ActiveHighlightDock: View {
         // (and mini-note) would otherwise see previous-thread vs next-thread as one edit and bump
         // `highlightListEditedAt`. New identity per thread prevents that phantom “change”.
         .id(thread.id)
-        .animation(.spring(response: 0.32, dampingFraction: 0.82), value: isExpanded)
+        .frame(maxWidth: inStudyDockCarousel ? .infinity : nil, alignment: .topLeading)
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
         .background(dockChrome)
-        .overlay(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .strokeBorder(accentTint.opacity(0.55), lineWidth: 1.1)
-                .allowsHitTesting(false)
-        )
+        .studyDockShellBorderOverlay()
         .shadow(color: .black.opacity(0.10), radius: 12, y: 4)
         .shadow(color: .black.opacity(0.06), radius: 3, y: 1)
-        .padding(.horizontal, 20)
-        .padding(.top, 6)
-        .padding(.bottom, 10)
+        .padding(.horizontal, inStudyDockCarousel ? 0 : 20)
+        .padding(.top, inStudyDockCarousel ? 0 : 6)
+        .padding(.bottom, inStudyDockCarousel ? 0 : 10)
 #if os(iOS)
         .onChange(of: isExpanded) { _, expanded in
-            guard expanded else { return }
+            guard expanded else {
+                expandedScrollContentHeight = 0
+                return
+            }
             Task { @MainActor in dockMiniNoteFieldFocused = false }
+        }
+#else
+        .onChange(of: isExpanded) { _, expanded in
+            if !expanded { expandedScrollContentHeight = 0 }
         }
 #endif
         .task(id: thread.id) {
@@ -175,6 +179,8 @@ struct ActiveHighlightDock: View {
             HarvousFAGlyph(assetName: iconAsset, edgePt: 10)
             Text(label)
                 .font(HarvousFonts.font(size: 11, weight: .medium, design: .default))
+                .lineLimit(1)
+                .truncationMode(.tail)
         }
         .foregroundStyle(Color.primary.opacity(0.5))
         .padding(.horizontal, 6)
@@ -189,17 +195,13 @@ struct ActiveHighlightDock: View {
             // Glyph (tap to expand/collapse)
             headerGlyphImage
 
-            // Title: when a reference badge is present, shrink to content-width (capped) so the badge
-            // sits immediately adjacent to the title. Without a badge, let the TextField fill the
-            // remaining space so long titles can truncate cleanly instead of overflowing the frame.
-            let hasReferenceBadge = referenceCategoryMeta != nil
             TextField("", text: $thread.focusTitle, prompt: Text(defaultHighlightTitle).foregroundStyle(.secondary))
                 .font(HarvousFonts.font(size: 14, weight: .semibold, design: .default))
                 .foregroundStyle(.primary)
                 .textFieldStyle(.plain)
                 .lineLimit(1)
                 .truncationMode(.tail)
-                .modifier(HighlightDockTitleSizing(contentWidth: hasReferenceBadge))
+                .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
                 .onChange(of: thread.focusTitle) { old, new in
                     // Avoid bumping list sort / vault timestamps on spurious binding parity or no-op edits.
                     guard old != new else { return }
@@ -215,9 +217,8 @@ struct ActiveHighlightDock: View {
 
             if let meta = referenceCategoryMeta {
                 referenceCategoryBadge(iconAsset: meta.iconAsset, label: meta.label)
+                    .fixedSize(horizontal: true, vertical: false)
             }
-
-            Spacer(minLength: 0)
 
             // Utility toolbar — `.animation(.none)` prevents the spring on `isExpanded` from
             // sliding the chevron symbol or the whole toolbar during expand/collapse.
@@ -266,6 +267,8 @@ struct ActiveHighlightDock: View {
                     onDismiss()
                 }
             }
+            .fixedSize(horizontal: true, vertical: false)
+            .layoutPriority(1)
             .animation(.none, value: isExpanded) // snap toolbar; body below still springs
         }
     }
@@ -312,9 +315,10 @@ struct ActiveHighlightDock: View {
         // - fixedSize on a ScrollView disables scrolling (it uses ideal/content height and believes
         //   it already fits everything), so we measure instead and drive an exact frame(height:).
         // - Until the first measurement fires, start at the max-height cap so there's no zero-height flash.
-        let computedHeight = expandedScrollContentHeight > 0
-            ? min(expandedScrollContentHeight, expandedContentMaxHeight)
-            : expandedContentMaxHeight
+        let computedHeight = HarvousDockExpandedContentLayout.clampedScrollFrameHeight(
+            measuredContentHeight: expandedScrollContentHeight,
+            maxHeight: expandedContentMaxHeight
+        )
 
         // Note text — scrollable; `Spacer` + `minHeight` pin content to top when prose is shorter than the viewport cap.
         ScrollView {
@@ -387,6 +391,7 @@ struct ActiveHighlightDock: View {
             .frame(maxWidth: .infinity, minHeight: max(computedHeight - 1, 1), alignment: .topLeading)
         }
         .frame(height: computedHeight)
+        .animation(nil, value: computedHeight)
         .onPreferenceChange(DockScrollContentHeightKey.self) { h in
             // Prefer async so height updates aren't written during SwiftUI layout (runtime purple warnings).
             Task { @MainActor in
@@ -777,25 +782,6 @@ private enum DockHighlightUtilities {
         let line = String(first)
         if line.count <= 220 { return line }
         return String(line.prefix(217)) + "…"
-    }
-}
-
-// MARK: - Title sizing helper
-
-/// Switches the dock title between content-width (badge adjacent) and flexible-fill (truncates).
-private struct HighlightDockTitleSizing: ViewModifier {
-    let contentWidth: Bool
-
-    func body(content: Content) -> some View {
-        if contentWidth {
-            // Dictionary headwords are short — let the title hug its content so the badge sits
-            // immediately to its right, with no centering gap.
-            content
-                .fixedSize(horizontal: true, vertical: false)
-        } else {
-            content
-                .frame(maxWidth: .infinity, alignment: .leading)
-        }
     }
 }
 

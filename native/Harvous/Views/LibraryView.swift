@@ -26,12 +26,10 @@ struct LibraryView: View {
     }
 
     private var notesInActiveSpace: [Note] {
-        let sid = spaceStore.activeSpaceUUID()
-        let scoped = notes.filter { $0.resolvedSpaceId() == sid }
-        if scoped.isEmpty, !notes.isEmpty {
-            return notes
-        }
-        return scoped
+        HarvousNoteListVisibility.notesInActiveSpace(
+            from: notes,
+            spaceId: spaceStore.activeSpaceUUID()
+        )
     }
 
     private var activeSearchQuery: String {

@@ -17,6 +17,7 @@ import {
   setVotdDismissedToday,
   type VotdToday,
 } from '../../lib/votd-today';
+import { buildVotdScripturePillHtml } from '../../lib/votd-scripture-pill-html';
 import PrototypeVotdPassageSheet from './PrototypeVotdPassageSheet';
 import { noteParamSlug } from './proto-route-slugs';
 
@@ -65,7 +66,12 @@ export default function PrototypeDailyPassagePill({ homeSpaceId, notes }: Props)
       }
       if (createNote.isPending) return;
       createNote.mutate(
-        { spaceId: homeSpaceId, title: v.reference, noteType: 'default' },
+        {
+          spaceId: homeSpaceId,
+          title: '',
+          content: buildVotdScripturePillHtml(v.reference, v.translation),
+          noteType: 'default',
+        },
         {
           onSuccess: (res) => {
             const nid = getNoteIdFromCreateResponse(res);

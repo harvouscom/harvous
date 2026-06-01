@@ -19,7 +19,12 @@ import { useUpdateNote } from '../../hooks/mutations/useUpdateNote';
 import { useTagsList } from '../../hooks/queries/useTagsList';
 import { useAddTagToNote } from '../../hooks/mutations/useAddTagToNote';
 import { useRemoveTagFromNote } from '../../hooks/mutations/useRemoveTagFromNote';
-import { useRegenerateAutoTags } from '../../hooks/mutations/useRegenerateAutoTags';
+import {
+  suggestPrimaryCollectionFromNote,
+  suggestSecondaryCollectionsFromNote,
+} from '@/utils/bible-study-collection-web';
+import { effectiveNoteFolderLabel } from '@/utils/note-folder-display';
+import { useProtoShell } from '../../layouts/proto-shell-context';
 
 interface PrototypeFolderTagEditorProps {
   note: NoteDetail;
@@ -60,7 +65,7 @@ export default function PrototypeFolderTagEditor({
   const tagsList = useTagsList();
   const addTag = useAddTagToNote();
   const removeTag = useRemoveTagFromNote();
-  const regenAuto = useRegenerateAutoTags();
+  const { setPrototypeFolderChip } = useProtoShell();
 
   const serverPrimary = trim(note.primaryCollection ?? '');
   const serverSecondaries = dedupeFolders(
@@ -78,6 +83,27 @@ export default function PrototypeFolderTagEditor({
     setPrimaryDraft(serverPrimary);
   }, [serverPrimary]);
 
+  const syncToolbarFolderChip = useCallback(
+    (
+      patch: {
+        primaryCollection?: string | null;
+        secondaryCollections?: string[];
+      },
+    ) => {
+      const primary =
+        patch.primaryCollection !== undefined ? patch.primaryCollection : (note.primaryCollection ?? null);
+      const secondaries =
+        patch.secondaryCollections !== undefined
+          ? patch.secondaryCollections
+          : (note.secondaryCollections ?? []);
+      setPrototypeFolderChip({
+        noteId: note.id,
+        label: effectiveNoteFolderLabel({ primaryCollection: primary, secondaryCollections: secondaries }),
+      });
+    },
+    [note.id, note.primaryCollection, note.secondaryCollections, setPrototypeFolderChip],
+  );
+
   const persistFolder = useCallback(
     (patch: {
       primaryCollection?: string | null;
@@ -85,14 +111,26 @@ export default function PrototypeFolderTagEditor({
       collectionPinned?: boolean;
       collectionUserOverride?: boolean;
     }) => {
-      updateNote.mutate({
-        noteId: note.id,
-        title: note.title ?? '',
-        content: note.content ?? '',
-        ...patch,
-      });
+      updateNote.mutate(
+        {
+          noteId: note.id,
+          title: note.title ?? '',
+          content: note.content ?? '',
+          ...patch,
+        },
+        {
+          onSuccess: () => {
+            if (
+              patch.primaryCollection !== undefined ||
+              patch.secondaryCollections !== undefined
+            ) {
+              syncToolbarFolderChip(patch);
+            }
+          },
+        },
+      );
     },
-    [note.id, note.title, note.content, updateNote],
+    [note.id, note.title, note.content, updateNote, syncToolbarFolderChip],
   );
 
   const applyPrimary = () => {
@@ -156,19 +194,19 @@ export default function PrototypeFolderTagEditor({
   };
 
   const useAutoSuggestion = () => {
-    if (regenAuto.isPending) return;
-    regenAuto.mutate(
-      {
-        noteId: note.id,
-        noteTitle: note.title ?? '',
-        noteContent: note.content ?? '',
-      },
-      {
-        onSuccess: () => {
-          persistFolder({ collectionUserOverride: false });
-        },
-      },
-    );
+    if (updateNote.isPending) return;
+    const title = note.title ?? '';
+    const content = note.content ?? '';
+    const sug = suggestPrimaryCollectionFromNote(title, content);
+    const secs = suggestSecondaryCollectionsFromNote(title, content, sug);
+    setPrimaryDraft(sug ?? '');
+    syncToolbarFolderChip({ primaryCollection: sug, secondaryCollections: secs });
+    persistFolder({
+      primaryCollection: sug,
+      secondaryCollections: secs,
+      collectionUserOverride: false,
+      collectionPinned: false,
+    });
   };
 
   const tags = note.tags ?? [];
@@ -202,11 +240,11 @@ export default function PrototypeFolderTagEditor({
             type="button"
             className="proto-fte-source__action"
             onClick={useAutoSuggestion}
-            disabled={regenAuto.isPending}
-            title="Restore auto-suggested folders and tags"
+            disabled={updateNote.isPending}
+            title="Restore auto-suggested folders"
           >
             <Icon name="rotate-left" size={11} aria-hidden />
-            {regenAuto.isPending ? 'Working…' : 'Use auto suggestion'}
+            {updateNote.isPending ? 'Working…' : 'Use auto suggestion'}
           </button>
         ) : null}
       </div>

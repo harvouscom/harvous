@@ -17,6 +17,7 @@
  *   POST /api/notes/:id/add-thread
  *   POST /api/notes/:id/remove-thread
  *   POST /api/notes/:id/process-scripture-references
+ *   POST /api/notes/:noteId/inline-image
  *   GET  /api/notes/:noteId/share
  *   POST /api/notes/:noteId/share
  */
@@ -61,6 +62,7 @@ import {
   parseNoteSecondaryCollections,
   serializeNoteSecondaryCollections,
 } from '../utils/note-secondary-collections';
+import { uploadInlineNoteImage } from '../utils/note-inline-image-upload';
 
 const route = new Hono();
 
@@ -1370,6 +1372,46 @@ route.post('/api/notes/:id/update-content', requireAuth, rateLimit('write'), asy
     return c.json({ success: true, message: 'Note content updated' });
   } catch (error) {
     console.error('Error updating note content:', error);
+    return c.json({ success: false, error: 'Internal server error' }, 500);
+  }
+});
+
+// ─── POST /api/notes/:noteId/inline-image ───────────────────────────────────
+route.post('/api/notes/:noteId/inline-image', requireAuth, rateLimit('write'), async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const noteId = requireParam(c, 'noteId');
+
+    const note = first(
+      await db.select().from(Notes).where(and(eq(Notes.id, noteId), eq(Notes.userId, auth.userId))).limit(1),
+    );
+    if (!note) return c.json({ success: false, error: 'Note not found' }, 404);
+    if (isOnboardingSystemNote(note)) {
+      return c.json({ success: false, error: 'This note is read-only.', code: 'ONBOARDING_NOTE_READ_ONLY' }, 400);
+    }
+
+    const formData = await c.req.formData();
+    const file = formData.get('file');
+    if (!file || typeof file === 'string') {
+      return c.json({ success: false, error: 'Image file is required' }, 400);
+    }
+
+    const bytes = Buffer.from(await file.arrayBuffer());
+    const mimeType = file.type || 'application/octet-stream';
+    const result = await uploadInlineNoteImage({
+      userId: auth.userId,
+      noteId,
+      bytes,
+      mimeType,
+    });
+
+    if (!result.ok) {
+      return c.json({ success: false, error: result.error }, result.status);
+    }
+
+    return c.json({ success: true, url: result.url });
+  } catch (error) {
+    console.error('Error uploading inline note image:', error);
     return c.json({ success: false, error: 'Internal server error' }, 500);
   }
 });

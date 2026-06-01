@@ -44,6 +44,13 @@ enum HarvousDockExpandedContentLayout {
         return min(360, max(200, v * 0.45))
         #endif
     }
+
+    /// Exact ScrollView height for dock passage/detail regions — never negative (spring layout overshoot).
+    static func clampedScrollFrameHeight(measuredContentHeight: CGFloat, maxHeight: CGFloat) -> CGFloat {
+        let cap = max(maxHeight, 1)
+        guard measuredContentHeight > 0 else { return cap }
+        return max(1, min(measuredContentHeight, cap))
+    }
 }
 
 private struct HarvousDockExpandedContentMaxHeightKey: EnvironmentKey {
@@ -55,5 +62,17 @@ extension EnvironmentValues {
     var harvousDockExpandedContentMaxHeight: CGFloat {
         get { self[HarvousDockExpandedContentMaxHeightKey.self] }
         set { self[HarvousDockExpandedContentMaxHeightKey.self] = newValue }
+    }
+}
+
+private struct HarvousStudyDockInCarouselKey: EnvironmentKey {
+    static let defaultValue = false
+}
+
+extension EnvironmentValues {
+    /// True when rendered inside `StudyDockCarouselView` (tighter chrome, bottom-aligned with siblings).
+    var harvousStudyDockInCarousel: Bool {
+        get { self[HarvousStudyDockInCarouselKey.self] }
+        set { self[HarvousStudyDockInCarouselKey.self] = newValue }
     }
 }

@@ -127,9 +127,7 @@ final class Note {
 
     /// Short excerpt for card display
     var excerpt: String {
-        let trimmed = body.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard trimmed.count > 120 else { return trimmed }
-        return String(trimmed.prefix(120)) + "…"
+        HarvousNoteListVisibility.listPreviewExcerpt(from: body, maxLength: 120)
     }
 
     /// Primary scripture reference for card badge

@@ -23,7 +23,7 @@ struct DailyPassagePill: View {
 
     @State private var votd: VotdToday?
     @State private var showingPassage = false
-    @State private var pendingAddNoteReference: String?
+    @State private var pendingAddNoteVotd: VotdToday?
     @State private var isHovered = false
     @State private var isDismissHovered = false
     @State private var dragOffset: CGFloat = 0
@@ -82,16 +82,16 @@ struct DailyPassagePill: View {
                         votd: votd,
                         showsAddFAB: !dailyPassageNoteExists,
                         onAdd: {
-                            pendingAddNoteReference = votd.reference
+                            pendingAddNoteVotd = votd
                             showingPassage = false
                         }
                     )
                 }
             }
             .onChange(of: showingPassage) { _, presented in
-                guard !presented, let ref = pendingAddNoteReference else { return }
-                pendingAddNoteReference = nil
-                addNote(ref: ref)
+                guard !presented, let votd = pendingAddNoteVotd else { return }
+                pendingAddNoteVotd = nil
+                addNote(votd: votd)
             }
     }
 
@@ -277,7 +277,7 @@ struct DailyPassagePill: View {
                         }
                         if !dailyPassageNoteExists {
                             orbButton(assetName: "Harvous.Plus") {
-                                addNote(ref: votd.reference)
+                                addNote(votd: votd)
                             }
                         }
                     }
@@ -332,7 +332,18 @@ struct DailyPassagePill: View {
         .buttonStyle(.plain)
     }
 
-    private func addNote(ref: String) {
+    /// Plain body seeded to match `harvousExpandedPlainText` after pill materialization (reference + translation).
+    /// Using reference-only text caused `EditorState.plainText` and storage to oscillate on open (100% CPU beachball).
+    private static func dailyPassageNoteBody(reference: String, translation: String) -> String {
+        let ref = reference.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trans = translation.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !ref.isEmpty else { return "" }
+        guard !trans.isEmpty else { return ref }
+        return "\(ref) \(trans)"
+    }
+
+    private func addNote(votd: VotdToday) {
+        let ref = votd.reference
         let spaceId = spaceStore.activeSpaceUUID()
         let fd = FetchDescriptor<Note>(
             predicate: #Predicate { n in n.spaceId == spaceId },
@@ -343,13 +354,12 @@ struct DailyPassagePill: View {
         if let match = candidates.first(where: { $0.matchesDailyPassageReference(ref) }) {
             note = match
         } else {
-            note = Note(title: ref, body: "", detectedRefs: [ref], spaceId: spaceId)
+            let body = Self.dailyPassageNoteBody(reference: ref, translation: votd.translation)
+            note = Note(title: "", body: body, detectedRefs: [ref], spaceId: spaceId)
             modelContext.insert(note)
             NoteSimpleIDAssigner.assignIfMissing(note, in: modelContext)
             try? modelContext.saveWithLogging()
         }
-        Task { @MainActor in
-            onStudyNow(note)
-        }
+        onStudyNow(note)
     }
 }

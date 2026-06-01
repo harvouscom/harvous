@@ -1,10 +1,15 @@
 import { describe, expect, it } from 'vitest';
-import { detectPersonTags } from './person-tag-detector';
+import { detectPersonTags } from '../person-tag-detector';
 
 describe('detectPersonTags', () => {
   it('detects Pastor and Ps prefixes with names', () => {
     expect(detectPersonTags('Notes from Pastor Tim today')).toEqual(['Pastor Tim']);
     expect(detectPersonTags('Ps Johnson led worship')).toEqual(['Ps Johnson']);
+  });
+
+  it('uses first name only when a last name follows', () => {
+    expect(detectPersonTags('Pastor Tim Johnson preached')).toEqual(['Pastor Tim']);
+    expect(detectPersonTags('Ps Mary Smith shared')).toEqual(['Ps Mary']);
   });
 
   it('does not match Psalms chapter references', () => {

@@ -17,6 +17,8 @@ struct SettingsAppearanceView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
+                colorSchemeSection
+
                 Text("Choose a canvas color or photo—the shell glass tints to match. Saved on this device.")
                     .font(HarvousTypography.subheadline)
                     .foregroundStyle(.secondary)
@@ -118,6 +120,41 @@ struct SettingsAppearanceView: View {
         }
         .onChange(of: colorScheme) { _, scheme in
             store.refreshAppearanceForColorScheme(scheme)
+        }
+    }
+
+    @ViewBuilder
+    private var colorSchemeSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Color scheme")
+                .font(HarvousTypography.footnote)
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 16)
+
+            VStack(spacing: 0) {
+                ForEach(Array(HarvousColorSchemePreference.allCases.enumerated()), id: \.element) { index, pref in
+                    if index > 0 { Divider() }
+                    Button(action: { store.setColorSchemePreference(pref) }) {
+                        HStack {
+                            Text(pref.label)
+                                .font(HarvousTypography.settingsListRow)
+                                .foregroundStyle(Color.primary)
+                            Spacer()
+                            if store.colorSchemePreference == pref {
+                                Image(systemName: "checkmark")
+                                    .font(.system(size: 13, weight: .semibold))
+                                    .foregroundStyle(Color.harvousAccent)
+                            }
+                        }
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 12)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .background(settingsRowBackground)
+            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .padding(.horizontal, 16)
         }
     }
 

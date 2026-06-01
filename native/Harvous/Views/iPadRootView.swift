@@ -19,6 +19,7 @@ import UIKit
 
 struct iPadRootView: View {
     @State private var selectedNote: Note?
+    @State private var lazyDraftComposeActive = false
     @State private var liveShareSnapshot = NoteShareSnapshot(title: "", body: "")
     @State private var lastSelectedNote: Note?
     @State private var splitColumnVisibility: NavigationSplitViewVisibility = .all
@@ -53,10 +54,11 @@ struct iPadRootView: View {
                 ZStack {
                     NoteEditorView(
                         note: $selectedNote,
+                        isLazyDraftComposeActive: $lazyDraftComposeActive,
                         onNavigateToLinkedNotes: { threadNavPath.append($0) },
                         showInspector: $showInspector
                     )
-                    if selectedNote == nil, let dock = appRouter.standaloneScripturePassageDock {
+                    if selectedNote == nil, !lazyDraftComposeActive, let dock = appRouter.standaloneScripturePassageDock {
                         StandaloneScripturePassageDockHost(
                             presentation: dock,
                             scriptureTheme: spaceStore.scriptureTheme,
@@ -300,8 +302,11 @@ struct iPadRootView: View {
             .onAppear {
                 wireShiftHints()
             }
+            .onChange(of: lazyDraftComposeActive) { _, _ in
+                shiftHints.isNoteRouteActive = selectedNote != nil || lazyDraftComposeActive
+            }
             .onChange(of: selectedNote?.id) { _, _ in
-                shiftHints.isNoteRouteActive = selectedNote != nil
+                shiftHints.isNoteRouteActive = selectedNote != nil || lazyDraftComposeActive
                 threadNavPath.removeAll()
                 let newNote = selectedNote
                 let previous = lastSelectedNote
@@ -325,6 +330,11 @@ struct iPadRootView: View {
                 let target = id
                 let fd = FetchDescriptor<Note>(predicate: #Predicate { $0.id == target })
                 if let found = try? context.fetch(fd).first { selectedNote = found }
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .harvousNotesPruned)) { n in
+                let pruned = HarvousNotesPrunedPayload.prunedIds(from: n)
+                guard let current = selectedNote, pruned.contains(current.id) else { return }
+                selectedNote = nil
             }
             .onDrop(of: [.fileURL], isTargeted: .constant(false)) { providers in
                 HarvousVaultDropImport.handle(providers: providers, spaceId: spaceStore.activeSpaceUUID(), modelContext: context)
@@ -405,6 +415,7 @@ struct iPadRootView: View {
     }
 
     private func padFocusNoteList() {
+        lazyDraftComposeActive = false
         selectedNote = nil
     }
 
@@ -413,14 +424,8 @@ struct iPadRootView: View {
     }
 
     private func createNewNote() {
-        let note = Note(spaceId: spaceStore.activeSpaceUUID())
-        context.insert(note)
-        NoteSimpleIDAssigner.assignIfMissing(note, in: context)
-        note.markDirty()
-        try? context.saveWithLogging()
-        HarvousNoteSpotlightIndexer.reindex(note: note)
-        HarvousVaultExporter.scheduleWrite(note: note, modelContext: context)
-        selectedNote = note
+        selectedNote = nil
+        lazyDraftComposeActive = true
     }
 
     private func openDailyNote() {

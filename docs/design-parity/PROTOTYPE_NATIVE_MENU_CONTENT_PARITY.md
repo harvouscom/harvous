@@ -120,17 +120,38 @@ Matches native `NoteInspectorView` sections.
 | Format toolbar (B/I/H/list/etc.) | Inherited from `CardFullEditable` | ↗ linked to classic |
 | Note action bar (collection / thread chips) | ↗ Inherited from CardFullEditable chrome | ↗ linked to classic |
 | Underline multicolor highlights (`StudyHighlightAccentToken`) | `mark[data-study-thread-id]` + `--pds-highlight-*` tokens; server `StudyThreadEntries` | ✅ implemented (web + API; native SwiftData not unified) |
-| Highlight bottom dock (accent / remove) | `HighlightDockWeb` portaled in prototype + classic note bottom bar when `chromeMode === 'highlight'` | ✅ implemented |
+| Highlight bottom dock (accent / remove) | `HighlightDockWeb` in per-note carousel | ✅ implemented |
 | Scripture pill dock — accent swatches + passage-highlight list | `ScripturePillChromeWeb` + `GET /api/study-threads/by-scripture` | ✅ implemented |
+| Study dock carousel (scripture + highlight stack) | `StudyDockCarouselWeb` / `StudyDockCarouselView` + `study-dock-stack` | ✅ implemented |
 
 ### Dock layout parity (native-aligned)
 
-Prototype scripture and highlight bottom docks mirror native lane geometry from `ScripturePillToolbarLane` / `ActiveHighlightDock` (layout only; not exhaustive feature parity).
+**Per-note carousel (scripture + painted highlights):** Open order stack (max 8). Horizontal row of **collapsed cards** (~3.25 visible across track width; fixed compact width when an expanded dock is open) with one **expanded** active card (fills remaining row width). Re-tap pill/mark focuses existing entry. **X** removes only that entry; outside click / caret leaving pill does not evict (scripture collapses only). Reference dock and URL-pill dock stay outside the carousel. See [STUDY_DOCK_CAROUSEL.md](../STUDY_DOCK_CAROUSEL.md).
 
-- Shared lane: `min-height` ~44px, horizontal inset **20px**, primary row **nowrap**.
-- Scripture: horizontal **scroll** lane (`flex: 1`, `min-width: 0`, scrollbar hidden) for pickers, **36×36** verse-range control (`Icon` **arrows-left-right**), and **inline accent swatches** (no separate full-width accent band). **Done** is **borderless text** pinned **outside** the scroll at the trailing edge (muted primary ~65% opacity, strengthens on hover). Book picker **max-width 220px**; chapter/start/end selects **58px**. Control gap **8px**. Passage block: padding **22px / 16px**, ~**14px** heading-to-passage rhythm; **`max-height: 280px`**, rising to **`min(400px, 40vh)`** at viewport **≥900px**.
-- Highlight: swatches in the same scroll pattern, **0.5×16px** divider (~12% primary) before actions; action cluster **gap ~6**; **Done** matches scripture text **Done**.
-- When portaled under **`.proto-editor-bottom-bar__scripture`** / **`__highlight`**, dock roots drop **`border-top`** and footer **background** so the glass bottom bar owns the chrome.
+Scripture pill dock (`ScripturePillChromeWeb` / native `ActiveScripturePillDock`) uses a **floating card** inside the bottom chrome host — not a single flat toolbar row.
+
+**Scripture card structure**
+
+- **Outer gutter:** `6px` top / `10px` bottom / `20px` horizontal (`scripture-pill-chrome__outer`).
+- **Card chrome:** `18px` radius, glass fill, accent stroke (`--scripture-dock-accent` @ 55%), dual shadow (`12/4` + `3/1`).
+- **Header row:** book-open icon, `{reference}` (14px semibold) + uppercase translation label (10px secondary), trailing **accent popover** (`DockAccentSwatchButton`), **collapse chevron**, **dismiss X** (no trailing Done text).
+- **Reference bar** (expanded only): soft track (`--pds-bg-chip`, hairline `--pds-border-control-soft`, 10px radius) with horizontal scroll of **flat PDS capsule menu pills** (`--pds-bg-control`, no classic inset shadow) + **chapter:verse cluster** + **30×30** neutral range orb. Native uses flat `harvousReferencePickerPillBackdrop` for picker segments; connections bar keeps inner-shadow `harvousCapsulePillBackdrop`.
+- **Passage** (expanded only): verse HTML only (no duplicate ref header); **Google Sans Flex** at **400** weight (regular), **1.6** line-height; content-fit height via `ResizeObserver`, capped at **`280px`** / **`min(400px, 40vh)`** at viewport **≥900px**; passage-highlight list below when present.
+- **Collapse:** header-only when collapsed; title tap or chevron toggles expand.
+
+**Compare-in-dock:** deferred — native `dockMode == .compare` not yet ported; web keeps `ScriptureComparePanel` for compare.
+
+**Highlight dock:** floating card chrome shared with scripture (`StudyDockCardShell` / `HighlightDockWeb`).
+
+- **Card structure:** same outer gutter, 18px radius, glass fill, accent stroke from highlight color, dual shadow.
+- **Header row:** highlighter icon, editable **focus title** (14px semibold), **accent popover** (`DockAccentSwatchButton`, no neutral), **trash**, **collapse chevron**, **dismiss X** (no Done text).
+- **Expanded body:** optional **mini-note** textarea (`Note (optional)…`); **Respond** collapsible row with horizontal **prompt chips** (client-seeded from excerpt via `study-prompt-suggester.ts`; appends to mini-note on tap). Persisted fields PATCH `/api/study-threads/:id`.
+- When portaled under **`.study-dock-carousel`**, dock roots stay transparent; the **card** supplies the bordered surface.
+
+**Reference dock (Easton's):** separate portal slot (not in carousel); same floating card shell (`ReferenceDockWeb` + `StudyDockCardShell`).
+
+- **Header row:** category icon, **headword**, category chip (Person / Place / Thing); when opened from a painted reference highlight, **accent popover** + **trash** in header (replaces flat swatch row).
+- **Expanded body:** dictionary HTML, in-body selection highlight bar, see-also chips, saved highlights list; **chevron** + **X** dismiss (no Done text).
 
 **Cross-client identity (web Postgres vs native SwiftData):** The macOS/iOS apps store study rows in SwiftData with UUIDs generated on device. The web app persists the same *conceptual* model in Postgres (`StudyThreadEntries`) with server-issued string IDs. Until native reads and writes the shared API, **highlight and scripture-thread rows created on web will not appear in native and vice versa**; merging both sources without a migration would duplicate or mismatch anchors. Treat Postgres as the future shared source of truth only after a deliberate native sync migration.
 

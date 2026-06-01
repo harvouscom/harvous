@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import Icon from '@/components/react/Icon';
 import {
   BG_PRESETS,
@@ -12,13 +12,16 @@ import {
   presetDisplayLabel,
   presetSwatchColor,
   readBackground,
+  readColorSchemePreference,
   readSavedImage,
   removeSavedImage,
   saveUploadedImage,
   selectSavedImage,
   setActiveBackground,
   subscribeColorScheme,
+  writeColorSchemePreference,
   type BgPreset,
+  type ColorSchemePreference,
   type ProtoBg,
   type ProtoSavedImage,
 } from '../../../lib/prototype-background';
@@ -29,8 +32,16 @@ export default function PrototypeAppearancePage() {
   const [active, setActive] = useState<ProtoBg>(() => readBackground());
   const [savedImage, setSavedImage] = useState<ProtoSavedImage | null>(() => readSavedImage());
   const [error, setError] = useState<string | null>(null);
+  const [colorSchemePref, setColorSchemePref] = useState<ColorSchemePreference>(() => readColorSchemePreference());
   const fileInputRef = useRef<HTMLInputElement>(null);
   const colorScheme = useSyncExternalStore(subscribeColorScheme, getColorSchemeSnapshot, () => 'light');
+
+  const onPickColorScheme = (pref: ColorSchemePreference) => {
+    setColorSchemePref(pref);
+    writeColorSchemePreference(pref);
+    // Re-apply canvas so preset color switches to the new scheme's variant.
+    void applyBackgroundWithImageTint(readBackground());
+  };
 
   const applyActive = (next: ProtoBg) => {
     setError(null);
@@ -102,6 +113,31 @@ export default function PrototypeAppearancePage() {
   return (
     <SettingsShell title="Appearance" appearanceLayout>
       <div className="proto-settings__inset">
+        <p className="pds-list-section-header" style={{ color: 'var(--pds-text-secondary)', margin: '0 0 8px' }}>
+          Color scheme
+        </p>
+        <SettingsGroup>
+          {COLOR_SCHEME_OPTIONS.map(({ value, label }, i) => (
+            <button
+              key={value}
+              type="button"
+              className="proto-note-row"
+              onClick={() => onPickColorScheme(value)}
+              style={{
+                ...rowStyle,
+                ...(i > 0 ? { borderTop: '0.5px solid var(--pds-border)' } : {}),
+              }}
+            >
+              <span className="pds-list-title">{label}</span>
+              {colorSchemePref === value ? (
+                <span style={{ color: 'var(--pds-accent)', display: 'flex' }} aria-label="Selected">
+                  <Icon name="check" size={14} />
+                </span>
+              ) : null}
+            </button>
+          ))}
+        </SettingsGroup>
+
         <p className="pds-subheadline" style={{ color: 'var(--pds-text-secondary)', margin: '0 0 16px' }}>
           Choose a canvas color or photo—the shell glass tints to match. Saved on this device.
         </p>
@@ -191,6 +227,12 @@ export default function PrototypeAppearancePage() {
     </SettingsShell>
   );
 }
+
+const COLOR_SCHEME_OPTIONS: { value: ColorSchemePreference; label: string }[] = [
+  { value: 'system', label: 'System' },
+  { value: 'light', label: 'Light' },
+  { value: 'dark', label: 'Dark' },
+];
 
 const rowStyle: React.CSSProperties = {
   width: '100%',

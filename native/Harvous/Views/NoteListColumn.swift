@@ -95,14 +95,10 @@ struct NoteListColumn: View {
     #endif
 
     private var notesInActiveSpace: [Note] {
-        let sid = spaceStore.activeSpaceUUID()
-        let scoped = notes.filter { $0.resolvedSpaceId() == sid }
-        // Recovery fallback: if active-space scope is empty but local notes exist,
-        // surface all notes instead of presenting a false "No Notes" state.
-        if scoped.isEmpty, !notes.isEmpty {
-            return notes
-        }
-        return scoped
+        HarvousNoteListVisibility.notesInActiveSpace(
+            from: notes,
+            spaceId: spaceStore.activeSpaceUUID()
+        )
     }
 
     @State private var localSearchText = ""

@@ -47,6 +47,13 @@ enum HarvousIOSFoldersDrill: Equatable {
     case bucket(String?)
 }
 
+/// iOS scripture surface drill state. Lifted from `ScriptureHubView` so `IOSListSurfaceChip` can morph into a back affordance.
+enum HarvousIOSScriptureDrill: Equatable {
+    case root
+    case book(Int)
+    case passage(ParsedScriptureFields)
+}
+
 /// Gating for the note editor bottom safe-area chrome while the note editor owns the morphing footer row.
 struct HarvousIOSNoteFooterSupplement {
     /// When a **pinned** highlight or scripture **overlay** dock is visible (`activePillDock` / pinned highlight),
@@ -118,6 +125,8 @@ final class HarvousAppRouter: ObservableObject {
     /// Drill state for the iOS Folders surface. Lifted from `LibraryView` so the bottom-chrome
     /// `IOSListSurfaceChip` can read the active folder name and pop the drill on tap.
     @Published var iosFoldersDrill: HarvousIOSFoldersDrill = .root
+    /// Drill state for the iOS Scripture surface. Lifted from `ScriptureHubView` for the same chip morph pattern.
+    @Published var iosScriptureDrill: HarvousIOSScriptureDrill = .root
     /// Drives the Account sheet (You root + settings; not an inline surface — always a modal).
     @Published var iosShowMore = false
     @Published var iosInlineSearchText = ""
@@ -297,6 +306,9 @@ final class HarvousAppRouter: ObservableObject {
         if surface != .folders {
             iosFoldersDrill = .root
         }
+        if surface != .scripture {
+            iosScriptureDrill = .root
+        }
     }
 
     /// FAB / deep-link `harvous://compose` — Notes hub creates an empty note and pushes it onto its stack.
@@ -414,8 +426,19 @@ extension Notification.Name {
     static let harvousOpenFolderChipPopover = Notification.Name("Harvous.openFolderChipPopover")
     /// Cycle sidebar list mode (⇧← / ⇧→). userInfo `step`: Int (-1 or 1).
     static let harvousCycleSidebarMode = Notification.Name("Harvous.cycleSidebarMode")
+    /// Sync pruned local notes (remote tombstones). userInfo: `HarvousNotesPrunedPayload.noteIdsKey` → `[String]`.
+    static let harvousNotesPruned = Notification.Name("Harvous.notesPruned")
 }
 
 enum HarvousOpenNoteIdPayload {
     static let idKey = "id"
+}
+
+enum HarvousNotesPrunedPayload {
+    static let noteIdsKey = "noteIds"
+
+    static func prunedIds(from notification: Notification) -> Set<UUID> {
+        guard let raw = notification.userInfo?[noteIdsKey] as? [String] else { return [] }
+        return Set(raw.compactMap { UUID(uuidString: $0) })
+    }
 }

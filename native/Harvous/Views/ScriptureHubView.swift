@@ -9,25 +9,21 @@ struct ScriptureHubView: View {
     @Binding var iosSelectedNoteId: UUID?
     var externalSearchText: Binding<String>? = nil
     @State private var fallbackSearchText = ""
-    @State private var scriptureDrill: ScriptureDrill = .root
 
     @Query(sort: \Note.updatedAt, order: .reverse) private var notes: [Note]
     @EnvironmentObject private var spaceStore: SpaceStore
     @EnvironmentObject private var appRouter: HarvousAppRouter
 
-    private enum ScriptureDrill: Equatable {
-        case root
-        case book(Int)
-        case passage(ParsedScriptureFields)
+    /// Drill state lives on `HarvousAppRouter.iosScriptureDrill` so the top-bar chip can read it.
+    private var scriptureDrill: HarvousIOSScriptureDrill {
+        appRouter.iosScriptureDrill
     }
 
     private var notesInActiveSpace: [Note] {
-        let sid = spaceStore.activeSpaceUUID()
-        let scoped = notes.filter { $0.resolvedSpaceId() == sid }
-        if scoped.isEmpty, !notes.isEmpty {
-            return notes
-        }
-        return scoped
+        HarvousNoteListVisibility.notesInActiveSpace(
+            from: notes,
+            spaceId: spaceStore.activeSpaceUUID()
+        )
     }
 
     private var activeSearchQuery: String {
@@ -64,25 +60,6 @@ struct ScriptureHubView: View {
         return []
     }
 
-    private var navigationTitleText: String {
-        switch scriptureDrill {
-        case .root:
-            return ""
-        case .book(let idx):
-            return NoteFilter.scriptureBook(bookIndex: idx).displayName
-        case .passage(let p):
-            return NoteFilter.scripturePassage(p).displayName
-        }
-    }
-
-    private var scriptureBackAccessibilityLabel: String {
-        switch scriptureDrill {
-        case .root: return ""
-        case .book: return "Back to Scripture index"
-        case .passage: return "Back to passages"
-        }
-    }
-
     private var searchBinding: Binding<String> {
         externalSearchText ?? $fallbackSearchText
     }
@@ -110,46 +87,25 @@ struct ScriptureHubView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .navigationTitle(navigationTitleText)
+        // Drilled context (book / passage) lives in `IOSListSurfaceChip` only — no duplicate nav title.
+        .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
         .harvousIOSGlassOverCanvasShell()
         .toolbar {
             ToolbarItem(placement: .topBarLeading) {
                 SpaceSwitcherView()
             }
-            if scriptureDrill != .root {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button {
-                        switch scriptureDrill {
-                        case .root: break
-                        case .book:
-                            scriptureDrill = .root
-                        case .passage(let p):
-                            scriptureDrill = .book(p.bookIndex)
-                        }
-                    } label: {
-                        HarvousFAGlyph(assetName: "Harvous.ChevronLeft", edgePt: 17)
-                            .foregroundStyle(.primary)
-                    }
-                    .buttonStyle(.plain)
-                    .tint(.primary)
-                    .accessibilityLabel(scriptureBackAccessibilityLabel)
-                }
-            }
             if #available(iOS 26, *) {
                 ToolbarSpacer(.fixed, placement: .topBarLeading)
             }
+            // When drilled into a book or passage, the chip morphs into chevron-back + book name
+            // (see `IOSListSurfaceChip`), so no separate back button is needed here.
             ToolbarItem(placement: .topBarLeading) {
                 IOSListSurfaceChip()
             }
             HarvousIOSProfileToolbarTrailingItem {
                 UIImpactFeedbackGenerator(style: .light).impactOccurred()
                 appRouter.selectIOSListSurface(.more)
-            }
-        }
-        .onChange(of: appRouter.iosListSurface) { _, newSurface in
-            if newSurface != .scripture {
-                scriptureDrill = .root
             }
         }
     }
@@ -169,7 +125,7 @@ struct ScriptureHubView: View {
             List {
                 ForEach(filteredScriptureReferenceRows) { row in
                     Button {
-                        scriptureDrill = .passage(row.passage)
+                        appRouter.iosScriptureDrill = .passage(row.passage)
                     } label: {
                         FolderFeedRow(
                             title: row.title,
@@ -220,7 +176,7 @@ struct ScriptureHubView: View {
         List {
             ForEach(filteredScriptureBookRows) { row in
                 Button {
-                    scriptureDrill = .book(row.bookIndex)
+                    appRouter.iosScriptureDrill = .book(row.bookIndex)
                 } label: {
                     FolderFeedRow(
                         title: row.title,

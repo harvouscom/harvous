@@ -154,7 +154,8 @@ export default function PrototypeInspectorPane({ note, spaceId = '' }: Prototype
 
       {deleteConfirmOpen ? (
         <ProtoConfirmDialog
-          title="Delete this note? This cannot be undone."
+          title="Delete this note"
+          message="This cannot be undone."
           confirmLabel="Delete"
           busy={deleteNote.isPending}
           onConfirm={onDeleteConfirm}

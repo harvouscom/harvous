@@ -20,8 +20,8 @@ struct FormatToolbarState: Equatable {
     var isBold = false
     var isItalic = false
     var isStrikethrough = false
-    /// Matched when the dominant font matches `HarvousFonts.headingFont` levels 2…4 (body only; title is separate).
-    /// Suppressed when the selection includes a list paragraph so list toggles do not read as H4 (list markers were 15pt).
+    /// Matched when the dominant font matches `HarvousFonts.headingFont` levels 2…3 (body only; title is separate).
+    /// Suppressed when the selection includes a list paragraph so list toggles do not read as a heading.
     var headingLevel: Int?
     var isIndented = false
     /// All covered paragraphs use the same list prefix (matches toggle logic).
@@ -84,6 +84,9 @@ final class EditorProxy: ObservableObject {
     // MARK: - Scripture pill focus (action bar)
 
     @Published var activeScripturePill: ActiveScripturePill? = nil
+
+    /// Skips one `onBodySelectionHostChanged` dismiss pass after a scripture pill tap (caret may land at pill edge).
+    var deferScriptureDockDismissForNextSelectionSync = false
 
     // MARK: - Scripture pill deletion guard
 
@@ -163,6 +166,7 @@ final class EditorProxy: ObservableObject {
         isPointerOverFormatToolbar = false
         showAddLinkSheet = false
         activeScripturePill = nil
+        deferScriptureDockDismissForNextSelectionSync = false
         preferOrbChromeUntilNextFormatSignal = false
         triggerHighlightCapturePrompt = nil
         triggerStandaloneNoteFromSelection = nil
@@ -290,7 +294,20 @@ final class EditorProxy: ObservableObject {
     /// we carry it over to the new reference so changing translation doesn't silently reset color.
     func replaceActiveScripturePill(reference: String, translation: String, theme: HarvousColors.ThemeVariant = .blue) {
         guard let (tv, storage) = textViewPair(), let active = activeScripturePill else { return }
-        let range = active.attachmentRange
+        // Re-resolve against live storage: the stored anchor range can go stale after a body edit or
+        // pill re-detection, which would otherwise replace the wrong characters (or plain text) and
+        // leave the pill visually unchanged. Fall back to the first attachment matching the old reference.
+        var range = active.attachmentRange
+        let anchorPointsAtMatchingPill: Bool = {
+            guard range.location != NSNotFound, range.location < storage.length,
+                  let att = storage.attribute(.attachment, at: range.location, effectiveRange: nil) as? ScripturePillAttachment
+            else { return false }
+            return att.reference == active.reference
+        }()
+        if !anchorPointsAtMatchingPill,
+           let resolved = firstScripturePillRange(in: storage, matching: active.reference) {
+            range = resolved
+        }
         guard range.location != NSNotFound, NSMaxRange(range) <= storage.length else { return }
 
         var carriedAccent: StudyHighlightAccentToken? = nil
@@ -318,6 +335,19 @@ final class EditorProxy: ObservableObject {
         activeScripturePill = ActiveScripturePill(attachmentRange: newRange, reference: reference, translation: translation)
         setCaret(for: tv, newRange)
         refreshFormatState()
+    }
+
+    /// First scripture pill attachment in `storage` whose reference equals `reference`, used as a
+    /// resilient fallback when an anchor range has drifted away from the live glyph.
+    private func firstScripturePillRange(in storage: NSTextStorage, matching reference: String) -> NSRange? {
+        var found: NSRange?
+        storage.enumerateAttribute(.attachment, in: NSRange(location: 0, length: storage.length)) { value, range, stop in
+            if let att = value as? ScripturePillAttachment, att.reference == reference {
+                found = range
+                stop.pointee = true
+            }
+        }
+        return found
     }
 
     /// Aligns with `window?.firstResponder` / `UITextView.isFirstResponder` so stale key state can’t make the title field look like the body is key.
@@ -364,6 +394,15 @@ final class EditorProxy: ObservableObject {
 #else
         tv.selectedRange = range
 #endif
+    }
+
+    /// Collapses any active body selection to a caret at its end so prose isn't left highlighted
+    /// after a floating accessory (highlight capture / pill delete bar) is dismissed.
+    func collapseBodySelection() {
+        guard let tv = textView else { return }
+        let sel = caretRange(for: tv)
+        guard sel.location != NSNotFound, sel.length > 0 else { return }
+        setCaret(for: tv, NSRange(location: NSMaxRange(sel), length: 0))
     }
 
     func hvNotifyBodyChanged(_ tv: HVTextView) {

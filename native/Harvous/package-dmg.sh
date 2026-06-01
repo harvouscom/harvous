@@ -31,13 +31,14 @@ echo "▶ Packaging Harvous Mac ${VERSION} (DMG name Harvous-${VERSION}.dmg)"
 echo "→ xcodegen generate…"
 xcodegen generate
 
-echo "→ xcodebuild Release (derived data: ${DERIVED_DATA})…"
+echo "→ xcodebuild Release (derived data: ${DERIVED_DATA}, ad-hoc signing for unsigned preview)…"
 mkdir -p "$DERIVED_DATA"
 xcodebuild -project Harvous.xcodeproj \
   -scheme Harvous_macOS \
   -configuration Release \
   -destination 'generic/platform=macOS' \
   -derivedDataPath "$DERIVED_DATA" \
+  CODE_SIGN_IDENTITY=- \
   clean build
 
 APP_PATH="$DERIVED_DATA/Build/Products/Release/Harvous.app"

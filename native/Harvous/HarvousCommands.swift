@@ -238,10 +238,6 @@ struct HarvousCommands: Commands {
                 .keyboardShortcut("3", modifiers: [.command, .option])
                 .disabled(editorProxy == nil)
 
-            Button("Heading 4") { editorProxy?.heading(4) }
-                .keyboardShortcut("4", modifiers: [.command, .option])
-                .disabled(editorProxy == nil)
-
             Button("Body") { editorProxy?.bodyText() }
                 .keyboardShortcut("0", modifiers: [.command, .option])
                 .disabled(editorProxy == nil)

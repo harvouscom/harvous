@@ -6,8 +6,7 @@
 
 import { Hono } from 'hono';
 import { getAuth } from '../middleware/auth';
-import { db, first, Threads, Spaces, Notes } from '../db';
-import { eq, count } from 'drizzle-orm';
+import { db, first, Threads, Spaces, Notes, eq, and, isNull, count, sql } from '../db';
 
 const route = new Hono();
 
@@ -40,11 +39,33 @@ route.get('/api/debug/me', async (c) => {
     return c.json({ hasUserId: false, message: 'Not authenticated' }, 200, { 'Cache-Control': 'no-store' });
   }
   try {
-    const [threadCountRow, spaceCountRow, noteCountRow] = await Promise.all([
+    const [threadCountRow, spaceCountRow, noteCountRow, nullSpaceIdNoteCountRow, myHomeSpaceRow] = await Promise.all([
       db.select({ count: count() }).from(Threads).where(eq(Threads.userId, auth.userId)).limit(1).then(r => first(r)),
       db.select({ count: count() }).from(Spaces).where(eq(Spaces.userId, auth.userId)).limit(1).then(r => first(r)),
       db.select({ count: count() }).from(Notes).where(eq(Notes.userId, auth.userId)).limit(1).then(r => first(r)),
+      db
+        .select({ count: count() })
+        .from(Notes)
+        .where(and(eq(Notes.userId, auth.userId), isNull(Notes.spaceId)))
+        .limit(1)
+        .then((r) => first(r)),
+      db
+        .select({ id: Spaces.id })
+        .from(Spaces)
+        .where(and(eq(Spaces.userId, auth.userId), sql`lower(trim(${Spaces.title})) = 'my home'`))
+        .limit(1)
+        .then((r) => first(r)),
     ]);
+    const myHomeSpaceId = myHomeSpaceRow?.id ?? null;
+    const myHomeNoteCountRow = myHomeSpaceId
+      ? first(
+          await db
+            .select({ count: count() })
+            .from(Notes)
+            .where(and(eq(Notes.userId, auth.userId), eq(Notes.spaceId, myHomeSpaceId)))
+            .limit(1),
+        )
+      : null;
     return c.json(
       {
         hasUserId: true,
@@ -52,6 +73,9 @@ route.get('/api/debug/me', async (c) => {
         threadCount: threadCountRow?.count ?? 0,
         spaceCount: spaceCountRow?.count ?? 0,
         noteCount: noteCountRow?.count ?? 0,
+        nullSpaceIdNoteCount: nullSpaceIdNoteCountRow?.count ?? 0,
+        myHomeSpaceId,
+        myHomeNoteCount: myHomeNoteCountRow?.count ?? 0,
       },
       200,
       { 'Cache-Control': 'no-store' },

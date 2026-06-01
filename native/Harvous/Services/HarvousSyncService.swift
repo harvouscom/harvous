@@ -355,12 +355,23 @@ final class HarvousSyncService {
     }
 
     private func pruneDeletedNotes(serverIds: Set<String>, context: ModelContext) {
+        var prunedLocalIds: [UUID] = []
         for serverId in serverIds {
             let predicate = #Predicate<Note> { $0.serverId == serverId }
             guard let note = try? context.fetch(FetchDescriptor<Note>(predicate: predicate)).first else { continue }
+            prunedLocalIds.append(note.id)
             HarvousVaultExporter.removeMirrorFiles(for: note, modelContext: context)
             HarvousNoteSpotlightIndexer.removeNote(id: note.id)
             context.delete(note)
+        }
+        guard !prunedLocalIds.isEmpty else { return }
+        let ids = prunedLocalIds
+        Task { @MainActor in
+            NotificationCenter.default.post(
+                name: .harvousNotesPruned,
+                object: nil,
+                userInfo: [HarvousNotesPrunedPayload.noteIdsKey: ids.map(\.uuidString)]
+            )
         }
     }
 
@@ -535,7 +546,15 @@ final class HarvousSyncService {
     private static func htmlToPlainText(_ html: String) -> String {
         guard !html.isEmpty else { return "" }
         let withoutTags = html.replacingOccurrences(of: "<[^>]+>", with: " ", options: .regularExpression)
-        let collapsed = withoutTags.replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+        let decoded = withoutTags
+            .replacingOccurrences(of: "&nbsp;", with: " ", options: .caseInsensitive)
+            .replacingOccurrences(of: "&amp;", with: "&", options: .caseInsensitive)
+            .replacingOccurrences(of: "&lt;", with: "<", options: .caseInsensitive)
+            .replacingOccurrences(of: "&gt;", with: ">", options: .caseInsensitive)
+            .replacingOccurrences(of: "&quot;", with: "\"", options: .caseInsensitive)
+            .replacingOccurrences(of: "&#39;", with: "'", options: .caseInsensitive)
+            .replacingOccurrences(of: "&apos;", with: "'", options: .caseInsensitive)
+        let collapsed = decoded.replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
         return collapsed.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
@@ -782,6 +801,11 @@ final class HarvousSyncService {
                     entry.needsSync = false
                     isWriteOffline = false
                     didSync = true
+                } catch HarvousAPIError.http(let status, _) where status == 404 {
+                    context.delete(entry)
+                    Logger.app.info(
+                        "flush highlight create dropped orphan for missing parent \(parentServerId, privacy: .public)"
+                    )
                 } catch HarvousAPIError.transport(let underlying) {
                     noteWriteOfflineFailure(underlying.localizedDescription)
                 } catch {

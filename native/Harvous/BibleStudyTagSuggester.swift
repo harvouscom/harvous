@@ -248,7 +248,7 @@ enum BibleStudyTagSuggester {
     /// "Pastor Tim" / "Ps Johnson" — not "Psalm 23".
     private static func detectPersonTags(in text: String) -> [String] {
         guard let regex = try? NSRegularExpression(
-            pattern: #"\b(?:Pastor|Ps\.?)\s+([A-Z][\w'-]+(?:\s+[A-Z][\w'-]+)?)\b"#,
+            pattern: #"\b(?:Pastor|Ps\.?)\s+([A-Z][\w'-]+)\b"#,
             options: []
         ) else { return [] }
         let ns = text as NSString

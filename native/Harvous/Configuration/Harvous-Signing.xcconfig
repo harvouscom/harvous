@@ -11,7 +11,6 @@
 CODE_SIGNING_ALLOWED = YES
 CODE_SIGNING_REQUIRED = YES
 
-// macOS local dev: ad-hoc signing avoids provisioning/keychain timing failures
-// on macOS 26+ which validates signatures at launch time. Safe because entitlements
-// are empty. Remove this if the Mac build ever needs distribution signing.
-CODE_SIGN_IDENTITY[sdk=macosx*] = -
+// macOS local builds use Apple Development (from project.yml / DEVELOPMENT_TEAM) so
+// ClerkKit can persist session Keychain ACLs across rebuilds. Unsigned preview DMGs
+// override to ad-hoc in release.sh / package-dmg.sh only — see docs/native/MACOS_DMG_PREVIEW_RELEASE.md.

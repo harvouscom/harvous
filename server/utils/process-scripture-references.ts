@@ -206,6 +206,23 @@ async function processScriptureReferencesInternal(
     }
   }
 
+  // Per-pill translation from any scripture span (pending or resolved) for re-highlighting
+  const existingPillTranslations = new Map<string, string>();
+  const allPillTranslationPattern = /<span[^>]*data-scripture-reference\s*=\s*["']([^"']+)["'][^>]*>/gi;
+  let pillTransMatch;
+  while ((pillTransMatch = allPillTranslationPattern.exec(noteContent)) !== null) {
+    const fullMatch = pillTransMatch[0];
+    const reference = pillTransMatch[1];
+    const translationMatch = fullMatch.match(/data-scripture-translation\s*=\s*["']([^"']+)["']/);
+    const pillTranslation = translationMatch ? translationMatch[1] : undefined;
+    if (pillTranslation) {
+      const normalizedRef = normalizeScriptureReference(reference);
+      if (!existingPillTranslations.has(normalizedRef)) {
+        existingPillTranslations.set(normalizedRef, pillTranslation);
+      }
+    }
+  }
+
   // Pattern 3: Also match spans with scripture-pill class (alternative format)
   const pillPattern3 = /<span[^>]*class\s*=\s*["'][^"']*scripture-pill[^"']*["'][^>]*data-scripture-reference\s*=\s*["']([^"']+)["'][^>]*data-note-id\s*=\s*["']([^"']+)["'][^>]*>/gi;
   while ((match = pillPattern3.exec(noteContent)) !== null) {
@@ -784,7 +801,7 @@ async function processScriptureReferencesInternal(
     return {
       reference,
       noteId,
-      translation: pillInfo?.pillTranslation || translation,
+      translation: pillInfo?.pillTranslation || existingPillTranslations.get(normalizedRef) || translation,
       accent: pillInfo?.pillAccent,
     };
   });
@@ -797,7 +814,7 @@ async function processScriptureReferencesInternal(
     if (!referenceMap.has(referenceForHighlight)) {
       referenceMap.set(referenceForHighlight, existingScriptureNoteId);
       const pillInfo = pendingPills.get(normalizedRef);
-      referencesForHighlighting.push({ reference: referenceForHighlight, noteId: existingScriptureNoteId, translation: pillInfo?.pillTranslation || translation, accent: pillInfo?.pillAccent });
+      referencesForHighlighting.push({ reference: referenceForHighlight, noteId: existingScriptureNoteId, translation: pillInfo?.pillTranslation || existingPillTranslations.get(normalizedRef) || translation, accent: pillInfo?.pillAccent });
     }
 
     // Ensure junction entry exists for existing references (critical for collapsible list)

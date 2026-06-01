@@ -35,9 +35,10 @@ enum HarvousBodyRichTextDiagnostics {
 #endif
         if emptyStorage { return false }
         let referenceBody = HarvousFonts.noteComposeBodyPlatformFont().pointSize
-        let referenceH4 = referenceBody * (15.0 / HarvousFonts.noteComposeBodyPointSize)
+        // Legacy 15pt H4 (pre body-size H4) — treat like plain body for size heuristics
+        let referenceLegacyH4 = referenceBody * (15.0 / HarvousFonts.noteComposeBodyPointSize)
         let tol: CGFloat = 0.6
-        if abs(font.pointSize - referenceBody) <= tol || abs(font.pointSize - referenceH4) <= tol { return false }
+        if abs(font.pointSize - referenceBody) <= tol || abs(font.pointSize - referenceLegacyH4) <= tol { return false }
         return true
     }
 

@@ -37,7 +37,12 @@ const queryClient = new QueryClient({
         if (error instanceof APIError && error.status === 401) return false;
         return failureCount < 2;
       },
-      refetchOnWindowFocus: false,
+      // Refetch stale queries when the user returns to the tab/app or regains
+      // network. staleTime still gates this, so quick tab flips don't refetch —
+      // but coming back after being away (or after an edit on another device)
+      // pulls fresh data without a manual reload.
+      refetchOnWindowFocus: true,
+      refetchOnReconnect: true,
     },
     mutations: {
       retry: false,

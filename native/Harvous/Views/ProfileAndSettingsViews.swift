@@ -984,7 +984,6 @@ private struct SettingsKeyboardShortcutsView: View {
         Row(action: "Strikethrough", keys: "⌘⇧X"),
         Row(action: "Heading 2", keys: "⌘⌥2"),
         Row(action: "Heading 3", keys: "⌘⌥3"),
-        Row(action: "Heading 4", keys: "⌘⌥4"),
         Row(action: "Body text", keys: "⌘⌥0"),
         Row(action: "Bulleted list", keys: "⌘⇧8"),
         Row(action: "Numbered list", keys: "⌘⇧7"),

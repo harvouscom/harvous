@@ -9,9 +9,24 @@ import { getSupabaseBrowserClient, isSupabaseRealtimeConfigured, syncChannelName
 import { isRealtimeInvalidationPayload, type RealtimeInvalidationPayload } from '@/lib/realtime-invalidation';
 import { isPrototypeShellRoute } from '@/utils/sync-init';
 import { syncNow } from '@/utils/sync-manager';
+import { matchPrototypeNoteId } from '@/lib/prototype-path';
 
 const CLERK_SUPABASE_JWT_TEMPLATE = 'supabase';
 const DEBOUNCE_MS = 600;
+
+/** True when the open prototype note editor has focus (skip detail refetch mid-edit). */
+function isPrototypeOpenNoteEditorFocused(noteId: string): boolean {
+  if (typeof document === 'undefined' || typeof window === 'undefined') return false;
+  const slug = matchPrototypeNoteId(window.location.pathname);
+  if (!slug) return false;
+  const openId = slug.startsWith('note_') ? slug : `note_${slug}`;
+  if (openId !== noteId) return false;
+  const el = document.activeElement;
+  if (!el) return false;
+  if (el.closest('.ProseMirror')) return true;
+  if (el.tagName === 'TEXTAREA' && el.closest('[data-note-id]')) return true;
+  return false;
+}
 
 export type UseRealtimeSyncOptions = {
   /** Home space for `/prototype` list refresh (optional). */
@@ -61,6 +76,8 @@ async function applyInvalidation(
         } catch {
           /* ignore */
         }
+      } else if (type === 'note:updated' && isPrototypeOpenNoteEditorFocused(id)) {
+        // Autosave already patches detail cache — refetching mid-edit can reset the editor.
       } else {
         await queryClient.invalidateQueries({ queryKey: ['note', id] });
       }

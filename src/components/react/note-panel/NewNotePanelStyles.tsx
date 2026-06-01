@@ -9,7 +9,7 @@ export default function NewNotePanelStyles() {
     <style>{`
       /* Heading styles for TiptapEditor in NewNotePanel - match editor styles */
       .new-note-panel .tiptap-content .ProseMirror h2 {
-        font-size: 18px !important;
+        font-size: 19px !important;
         font-weight: 600 !important;
         line-height: 1.3 !important;
         margin-top: 1.5em !important;
@@ -23,9 +23,9 @@ export default function NewNotePanelStyles() {
       }
 
       .new-note-panel .tiptap-content .ProseMirror h3 {
-        font-size: 16px !important;
+        font-size: 17px !important;
         font-weight: 600 !important;
-        line-height: 1.4 !important;
+        line-height: 1.35 !important;
         margin-top: 1.25em !important;
         margin-bottom: 0.625em !important;
         color: var(--color-deep-grey) !important;
@@ -56,4 +56,3 @@ export default function NewNotePanelStyles() {
     `}</style>
   );
 }
-

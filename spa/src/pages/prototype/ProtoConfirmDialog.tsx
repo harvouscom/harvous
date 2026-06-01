@@ -1,11 +1,14 @@
 import { useEffect, useId, useRef } from 'react';
 import { createPortal } from 'react-dom';
+import Icon, { type IconName } from '@/components/react/Icon';
 
 export type ProtoConfirmDialogProps = {
   /** Primary title — matches native `confirmationDialog` title. */
   title: string;
   /** Optional body copy (native `message:`). */
   message?: string;
+  /** Optional leading icon; pass `null` to hide. Defaults to warning circle for destructive confirms. */
+  icon?: IconName | null;
   confirmLabel?: string;
   cancelLabel?: string;
   busy?: boolean;
@@ -20,6 +23,7 @@ export type ProtoConfirmDialogProps = {
 export default function ProtoConfirmDialog({
   title,
   message,
+  icon = 'circle-exclamation',
   confirmLabel = 'Delete',
   cancelLabel = 'Cancel',
   busy = false,
@@ -61,9 +65,12 @@ export default function ProtoConfirmDialog({
         onClick={(e) => e.stopPropagation()}
       >
         <div className="proto-confirm-dialog__content">
-          <p id={titleId} className="proto-confirm-dialog__title">
+          {icon ? (
+            <Icon name={icon} size={40} className="proto-confirm-dialog__icon" aria-hidden />
+          ) : null}
+          <h2 id={titleId} className="proto-confirm-dialog__title">
             {title}
-          </p>
+          </h2>
           {message ? (
             <p id={messageId} className="proto-confirm-dialog__message">
               {message}

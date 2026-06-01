@@ -27,6 +27,10 @@ See [Clerk Supabase integration](https://clerk.com/docs/guides/development/integ
 
 For private channels, configure [Realtime Authorization](https://supabase.com/docs/guides/realtime/authorization) so users may only join `sync-{their_user_id}`. Phase 1 uses public channel names scoped by Clerk user id; enable private channels when policies are in place.
 
+## Note inline images (Storage)
+
+Web note body images use bucket **`note-attachments`** and the same `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` on the API. See [NOTE_INLINE_IMAGE_STORAGE.md](./NOTE_INLINE_IMAGE_STORAGE.md) and run [`supabase/storage-note-attachments.sql`](../supabase/storage-note-attachments.sql) once per project.
+
 ## Verify
 
 1. Set all env vars above (copy anon key and URL from Supabase dashboard).

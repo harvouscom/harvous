@@ -182,9 +182,34 @@ struct HarvousSavedWallpaperArchive: Codable, Equatable {
     var tintHex: String?
 }
 
+// MARK: - Color scheme preference
+
+enum HarvousColorSchemePreference: String, CaseIterable {
+    case system
+    case light
+    case dark
+
+    var label: String {
+        switch self {
+        case .system: return "System"
+        case .light: return "Light"
+        case .dark: return "Dark"
+        }
+    }
+
+    var preferredColorScheme: ColorScheme? {
+        switch self {
+        case .system: return nil
+        case .light: return .light
+        case .dark: return .dark
+        }
+    }
+}
+
 enum HarvousAppearanceStorageKeys {
     static let activeCanvas = "harvous.appearance.canvas"
     static let savedWallpaper = "harvous.appearance.savedWallpaper"
+    static let colorScheme = "harvous.appearance.colorScheme"
 }
 
 /// Removed preset hex values — migrate stored picks to base Paper (nil / theme default).
@@ -214,10 +239,12 @@ final class HarvousAppearanceStore {
 
     private(set) var activeBackground: HarvousCanvasBackground?
     private(set) var savedWallpaper: HarvousSavedWallpaperArchive?
+    private(set) var colorSchemePreference: HarvousColorSchemePreference
 
     private init() {
         activeBackground = Self.loadActiveBackground()
         savedWallpaper = Self.loadSavedWallpaper()
+        colorSchemePreference = Self.loadColorSchemePreference()
     }
 
     // MARK: - Persistence
@@ -232,6 +259,13 @@ final class HarvousAppearanceStore {
             UserDefaults.standard.removeObject(forKey: HarvousAppearanceStorageKeys.activeCanvas)
         }
         return normalized
+    }
+
+    private static func loadColorSchemePreference() -> HarvousColorSchemePreference {
+        guard let raw = UserDefaults.standard.string(forKey: HarvousAppearanceStorageKeys.colorScheme),
+              let pref = HarvousColorSchemePreference(rawValue: raw)
+        else { return .system }
+        return pref
     }
 
     private static func loadSavedWallpaper() -> HarvousSavedWallpaperArchive? {
@@ -252,6 +286,10 @@ final class HarvousAppearanceStore {
         }
     }
 
+    private func persistColorSchemePreference() {
+        UserDefaults.standard.set(colorSchemePreference.rawValue, forKey: HarvousAppearanceStorageKeys.colorScheme)
+    }
+
     private func persistSavedWallpaper() {
         let defaults = UserDefaults.standard
         if let savedWallpaper,
@@ -264,6 +302,11 @@ final class HarvousAppearanceStore {
     }
 
     // MARK: - Public API
+
+    func setColorSchemePreference(_ preference: HarvousColorSchemePreference) {
+        colorSchemePreference = preference
+        persistColorSchemePreference()
+    }
 
     func selectPreset(_ preset: HarvousAppearancePreset, colorScheme: ColorScheme) {
         activeBackground = preset.applyStoredValue(for: colorScheme)

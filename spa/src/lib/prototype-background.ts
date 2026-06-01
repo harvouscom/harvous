@@ -66,7 +66,52 @@ export type BgPreset = {
 /** Solid-color presets — shared with native via `shared/appearance-presets.json`. */
 export const BG_PRESETS: BgPreset[] = appearancePresetsCatalog.presets;
 
+// ─── Color scheme preference ─────────────────────────────────────────────────
+
+export const PROTO_COLOR_SCHEME_KEY = 'harvous-proto-color-scheme';
+export type ColorSchemePreference = 'system' | 'light' | 'dark';
+const COLOR_SCHEME_CHANGE_EVENT = 'harvous-color-scheme-change';
+
+export function readColorSchemePreference(): ColorSchemePreference {
+  try {
+    const raw = localStorage.getItem(PROTO_COLOR_SCHEME_KEY);
+    if (raw === 'light' || raw === 'dark') return raw;
+  } catch { /* ignore */ }
+  return 'system';
+}
+
+export function applyColorSchemePreference(pref: ColorSchemePreference): void {
+  if (typeof document === 'undefined') return;
+  const root = document.documentElement;
+  if (pref === 'light' || pref === 'dark') {
+    root.setAttribute('data-color-scheme', pref);
+  } else {
+    root.removeAttribute('data-color-scheme');
+  }
+}
+
+export function writeColorSchemePreference(pref: ColorSchemePreference): void {
+  try {
+    if (pref === 'system') {
+      localStorage.removeItem(PROTO_COLOR_SCHEME_KEY);
+    } else {
+      localStorage.setItem(PROTO_COLOR_SCHEME_KEY, pref);
+    }
+  } catch { /* ignore */ }
+  applyColorSchemePreference(pref);
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new Event(COLOR_SCHEME_CHANGE_EVENT));
+  }
+}
+
+// ─── Color scheme detection ───────────────────────────────────────────────────
+
 export function isDarkAppearance(): boolean {
+  if (typeof document !== 'undefined') {
+    const attr = document.documentElement.getAttribute('data-color-scheme');
+    if (attr === 'dark') return true;
+    if (attr === 'light') return false;
+  }
   if (typeof window === 'undefined') return false;
   return window.matchMedia('(prefers-color-scheme: dark)').matches;
 }
@@ -75,7 +120,11 @@ export function subscribeColorScheme(onStoreChange: () => void): () => void {
   if (typeof window === 'undefined') return () => {};
   const mq = window.matchMedia('(prefers-color-scheme: dark)');
   mq.addEventListener('change', onStoreChange);
-  return () => mq.removeEventListener('change', onStoreChange);
+  window.addEventListener(COLOR_SCHEME_CHANGE_EVENT, onStoreChange);
+  return () => {
+    mq.removeEventListener('change', onStoreChange);
+    window.removeEventListener(COLOR_SCHEME_CHANGE_EVENT, onStoreChange);
+  };
 }
 
 export function getColorSchemeSnapshot(): 'light' | 'dark' {

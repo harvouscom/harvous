@@ -1,39 +1,6 @@
 import SwiftData
 import SwiftUI
 
-/// Faded blurred stroke clipped to capsule; tune together with `ScripturePillInnerStrokeLikeConnectionsCapsule` on raster pills.
-private struct HarvousConnectionsCapsuleInnerShadow: View {
-    @Environment(\.colorScheme) private var colorScheme
-
-    private var isDarkAppearance: Bool { colorScheme == .dark }
-
-    var body: some View {
-        Capsule(style: .continuous)
-            .stroke(shadowTint, lineWidth: 5.5)
-            .blur(radius: 3)
-            .blendMode(isDarkAppearance ? .softLight : .multiply)
-            .mask(Capsule(style: .continuous))
-            .allowsHitTesting(false)
-    }
-
-    private var shadowTint: Color {
-        isDarkAppearance ? Color.white.opacity(0.036) : Color.black.opacity(0.042)
-    }
-}
-
-private extension View {
-    /// Capsule backing with faded perimeter stroke (`multiply` light / `softLight` dark), matching scripture pills.
-    func harvousConnectionsPillBackdrop(fillOpacity: Double) -> some View {
-        background {
-            Capsule(style: .continuous)
-                .fill(Color.primary.opacity(fillOpacity))
-                .overlay {
-                    HarvousConnectionsCapsuleInnerShadow()
-                }
-        }
-    }
-}
-
 /// Incoming / outgoing linked-note trail plus add-connection affordance (macOS + iOS).
 struct NoteConnectionsBar: View {
     let note: Note

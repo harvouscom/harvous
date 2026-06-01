@@ -46,6 +46,27 @@ Clean-build and launch. Cold launch should show Clerk's sign-in screen; after
 sign-in, the rest of the app appears. If the placeholder *"Clerk SDK not
 linked"* screen appears, the SPM package wasn't added to that target.
 
+## macOS Keychain prompt on launch
+
+ClerkKit reads the auth session from Keychain on launch (key `com.harvous.app`).
+If macOS asks for your **login keychain password** on every cold launch, stale
+entries from prior ad-hoc builds are usually the cause.
+
+**One-time fix (local Xcode / Apple Development builds):**
+
+1. Open **Keychain Access** → select the **login** keychain.
+2. Search for `com.harvous.app` or `harvous`.
+3. Delete old generic-password / key items tied to Harvous or Clerk.
+4. In Xcode: **Product → Clean Build Folder**, then build and run **Harvous_macOS**.
+5. When prompted, click **Always Allow** (not just Allow) once.
+
+Confirm signing: `codesign -dv --verbose=4 path/to/Harvous.app` should show
+`TeamIdentifier=B3U6BXA8KP`, not `not set`. Subsequent launches should be silent.
+
+Unsigned preview DMGs (see [docs/native/MACOS_DMG_PREVIEW_RELEASE.md](../../docs/native/MACOS_DMG_PREVIEW_RELEASE.md))
+use ad-hoc signing and may still prompt every launch until you add Developer ID
+signing + notarization.
+
 ## SwiftData migration note
 
 This change adds an additive `serverId: String?` to `Note`, `Space`, and

@@ -130,7 +130,7 @@ extension EditorProxy {
 
     func heading(_ level: Int) {
         guard let (tv, storage) = textViewPair() else { return }
-        let lv = max(2, min(level, 4))
+        let lv = max(2, min(level, 3))
         if headingLevelActive(for: tv, storage: storage) == lv {
             bodyText()
             return

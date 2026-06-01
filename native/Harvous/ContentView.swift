@@ -44,9 +44,19 @@ struct ContentView: View {
             }
         }
         .onChange(of: scenePhase) { _, phase in
-            guard phase == .inactive || phase == .background else { return }
-            HarvousVaultExportCoordinator.shared.flush(modelContext: modelContext)
-            HarvousVaultInboxScanner.scanIfNeeded(modelContext: modelContext, activeSpaceId: spaceStore.activeSpaceUUID())
+            switch phase {
+            case .active:
+                // Returning to the foreground: flush any queued local edits, then pull
+                // remote changes so notes edited on another device appear without a manual
+                // refresh. (.onChange doesn't fire for the initial value, so this won't
+                // double up with the launch bootstrap in `.task`.)
+                HarvousSyncScheduler.scheduleFullSync()
+            case .inactive, .background:
+                HarvousVaultExportCoordinator.shared.flush(modelContext: modelContext)
+                HarvousVaultInboxScanner.scanIfNeeded(modelContext: modelContext, activeSpaceId: spaceStore.activeSpaceUUID())
+            @unknown default:
+                break
+            }
         }
         .onOpenURL { url in
             SpaceStore.queueJoinTokenFromURL(url)
@@ -70,6 +80,7 @@ struct ContentView: View {
 #if os(macOS)
 struct MacRootView: View {
     @State private var selectedNote: Note?
+    @State private var lazyDraftComposeActive = false
     @State private var liveShareSnapshot = NoteShareSnapshot(title: "", body: "")
     @State private var lastSelectedNote: Note?
     @State private var splitColumnVisibility: NavigationSplitViewVisibility = .all
@@ -89,6 +100,7 @@ struct MacRootView: View {
     @EnvironmentObject private var appRouter: HarvousAppRouter
     @EnvironmentObject private var spaceStore: SpaceStore
     @EnvironmentObject private var macNoteListSelectionCoordinator: MacNoteListSelectionCoordinator
+    @EnvironmentObject private var macEditorMenuActionsCoordinator: MacEditorMenuActionsCoordinator
     @EnvironmentObject private var shiftHints: HarvousShiftHintsMonitor
     @Environment(\.openWindow) private var openWindow
 
@@ -127,10 +139,11 @@ struct MacRootView: View {
                 ZStack {
                     NoteEditorView(
                         note: $selectedNote,
+                        isLazyDraftComposeActive: $lazyDraftComposeActive,
                         onNavigateToLinkedNotes: { threadNavPath.append($0) },
                         showInspector: $showInspector as Binding<Bool>
                     )
-                    if selectedNote == nil, let dock = appRouter.standaloneScripturePassageDock {
+                    if selectedNote == nil, !lazyDraftComposeActive, let dock = appRouter.standaloneScripturePassageDock {
                         StandaloneScripturePassageDockHost(
                             presentation: dock,
                             scriptureTheme: spaceStore.scriptureTheme,
@@ -315,6 +328,12 @@ struct MacRootView: View {
             .focusedSceneValue(\.focusNoteListAction, macFocusNoteList)
             .focusedSceneValue(\.nextNoteAction, macNoteListSelectionCoordinator.nextNote)
             .focusedSceneValue(\.previousNoteAction, macNoteListSelectionCoordinator.previousNote)
+            .focusedSceneValue(\.deleteNoteAction, macEditorMenuActionsCoordinator.deleteNoteAction)
+            .focusedSceneValue(\.newConnectedNoteAction, macEditorMenuActionsCoordinator.newConnectedNoteAction)
+            .focusedSceneValue(\.nextStudyHighlightAction, macEditorMenuActionsCoordinator.nextStudyHighlightAction)
+            .focusedSceneValue(\.previousStudyHighlightAction, macEditorMenuActionsCoordinator.previousStudyHighlightAction)
+            .focusedSceneValue(\.toggleStudyHighlightDockExpandedAction, macEditorMenuActionsCoordinator.toggleStudyHighlightDockExpandedAction)
+            .focusedSceneValue(\.removeActiveStudyHighlightAction, macEditorMenuActionsCoordinator.removeActiveStudyHighlightAction)
             .onChange(of: selectedNote?.id, initial: true) { _, _ in
                 macToggleInspectorFocusedAction = selectedNote == nil ? nil : { showInspector.toggle() }
             }
@@ -326,8 +345,11 @@ struct MacRootView: View {
             // doesn't read the churning `Clerk.shared` observable on every render.
             .task { isAuthed = bridge.isAuthenticated }
             .onChange(of: bridge.isAuthenticated) { _, authed in isAuthed = authed }
+            .onChange(of: lazyDraftComposeActive) { _, _ in
+                shiftHints.isNoteRouteActive = selectedNote != nil || lazyDraftComposeActive
+            }
             .onChange(of: selectedNote?.id) { _, _ in
-                shiftHints.isNoteRouteActive = selectedNote != nil
+                shiftHints.isNoteRouteActive = selectedNote != nil || lazyDraftComposeActive
                 threadNavPath.removeAll()
                 let newNote = selectedNote
                 let previous = lastSelectedNote
@@ -366,6 +388,11 @@ struct MacRootView: View {
                 if let found = try? context.fetch(fd).first {
                     selectedNote = found
                 }
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .harvousNotesPruned)) { n in
+                let pruned = HarvousNotesPrunedPayload.prunedIds(from: n)
+                guard let current = selectedNote, pruned.contains(current.id) else { return }
+                selectedNote = nil
             }
             .onDrop(of: [.fileURL], isTargeted: .constant(false)) { providers in
                 HarvousVaultDropImport.handle(providers: providers, spaceId: spaceStore.activeSpaceUUID(), modelContext: context)
@@ -473,6 +500,7 @@ struct MacRootView: View {
     }
 
     private func macFocusNoteList() {
+        lazyDraftComposeActive = false
         selectedNote = nil
     }
 
@@ -481,14 +509,8 @@ struct MacRootView: View {
     }
 
     private func createNewNote() {
-        let note = Note(spaceId: spaceStore.activeSpaceUUID())
-        context.insert(note)
-        NoteSimpleIDAssigner.assignIfMissing(note, in: context)
-        note.markDirty()
-        try? context.saveWithLogging()
-        HarvousNoteSpotlightIndexer.reindex(note: note)
-        HarvousVaultExporter.scheduleWrite(note: note, modelContext: context)
-        selectedNote = note
+        selectedNote = nil
+        lazyDraftComposeActive = true
     }
 
     private func openDailyNote() {
@@ -747,8 +769,13 @@ struct iOSRootView: View {
             iosListSurfaceGroup
                 .modifier(HarvousIOSNavigationContainerBackgroundClearModifier())
                 .navigationDestination(item: $iosSelectedNoteId) { noteId in
-                    NoteEditorById(noteId: noteId)
-                        .modifier(HarvousIOSNavigationContainerBackgroundClearModifier())
+                    if HarvousLazyComposeDraft.isDraftNavigationId(noteId) {
+                        LazyDraftNoteEditorView(selectedNoteId: $iosSelectedNoteId)
+                            .modifier(HarvousIOSNavigationContainerBackgroundClearModifier())
+                    } else {
+                        NoteEditorById(noteId: noteId)
+                            .modifier(HarvousIOSNavigationContainerBackgroundClearModifier())
+                    }
                 }
         }
         .background(Color.clear)
@@ -941,11 +968,46 @@ struct IOSListSurfaceChip: View {
         return NoteFilter.folder(key).displayName
     }
 
+    /// When drilled into a scripture book or passage, the chip morphs into chevron + context label (matches folder drill).
+    private var drilledScriptureChip: (label: String, accessibilityLabel: String)? {
+        guard appRouter.iosListSurface == .scripture else { return nil }
+        switch appRouter.iosScriptureDrill {
+        case .root:
+            return nil
+        case .book(let idx):
+            let label = NoteFilter.scriptureBook(bookIndex: idx).displayName
+            return (label, "Back to Scripture index, currently viewing \(label)")
+        case .passage(let p):
+            let label = NoteFilter.scripturePassage(p).displayName
+            return (label, "Back to passages, currently viewing \(label)")
+        }
+    }
+
     var body: some View {
         if let folderLabel = drilledFolderLabel {
-            drilledChip(folderLabel: folderLabel)
+            drilledBackChip(
+                label: folderLabel,
+                accessibilityLabel: "Back to folders, currently viewing \(folderLabel)"
+            ) {
+                appRouter.iosFoldersDrill = .root
+            }
+        } else if let scripture = drilledScriptureChip {
+            drilledBackChip(label: scripture.label, accessibilityLabel: scripture.accessibilityLabel) {
+                popScriptureDrill()
+            }
         } else {
             surfaceMenuChip
+        }
+    }
+
+    private func popScriptureDrill() {
+        switch appRouter.iosScriptureDrill {
+        case .root:
+            break
+        case .book:
+            appRouter.iosScriptureDrill = .root
+        case .passage(let p):
+            appRouter.iosScriptureDrill = .book(p.bookIndex)
         }
     }
 
@@ -994,10 +1056,14 @@ struct IOSListSurfaceChip: View {
         }
     }
 
-    private func drilledChip(folderLabel: String) -> some View {
+    private func drilledBackChip(
+        label: String,
+        accessibilityLabel: String,
+        action: @escaping () -> Void
+    ) -> some View {
         Button {
             UIImpactFeedbackGenerator(style: .light).impactOccurred()
-            appRouter.iosFoldersDrill = .root
+            action()
         } label: {
             HStack(spacing: 6) {
                 HarvousFAGlyph(
@@ -1008,7 +1074,7 @@ struct IOSListSurfaceChip: View {
                     width: HarvousFAIconMetrics.catalogGlyphBoxPt,
                     height: HarvousFAIconMetrics.catalogGlyphBoxPt
                 )
-                Text(folderLabel)
+                Text(label)
                     .font(labelFont)
                     .lineLimit(1)
             }
@@ -1018,7 +1084,7 @@ struct IOSListSurfaceChip: View {
         }
         .buttonStyle(.plain)
         .tint(.primary)
-        .accessibilityLabel("Back to folders, currently viewing \(folderLabel)")
+        .accessibilityLabel(accessibilityLabel)
     }
 }
 

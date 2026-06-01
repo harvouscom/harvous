@@ -17,7 +17,7 @@ enum NoteFilter: Hashable, Sendable {
         case .all: return "Home"
         case .folder(let name):
             if let name, !name.isEmpty { return name }
-            return "Ungrouped"
+            return "No folder"
         case .scriptureBook(let idx):
             guard idx >= 0, idx < ScriptureCanonicalBooks.titles.count else { return "Scripture" }
             return ScriptureCanonicalBooks.titles[idx]

@@ -391,8 +391,18 @@ html.harvous-proto-wallpaper-image {
   --pds-glass-blur: blur(40px) saturate(1.2);
 }
 
+/* Force light-mode native chrome (scrollbars, form controls) when overridden. */
+:root[data-color-scheme="light"] {
+  color-scheme: light;
+}
+
+/* Force dark-mode native chrome when overridden. */
+:root[data-color-scheme="dark"] {
+  color-scheme: dark;
+}
+
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-color-scheme="light"]) {
     --pds-lch-accent: 62% 0.16 265;
     --pds-lch-accent-pressed: 56% 0.16 265;
     --pds-lch-scripture-fg: 72% 0.14 255;
@@ -516,7 +526,7 @@ html.harvous-proto-wallpaper-image {
     --pds-paper-fold-b: rgba(255, 255, 255, 0.02);
   }
 
-  html.harvous-prototype-route:not(.harvous-proto-wallpaper-image) {
+  html.harvous-prototype-route:not(.harvous-proto-wallpaper-image):not([data-color-scheme="light"]) {
     --pds-border: oklch(
       from var(--pds-canvas-bg, var(--pds-canvas-default)) min(calc(l * 1.22 + 0.06), 0.38) c h / 0.32
     );
@@ -538,7 +548,7 @@ html.harvous-proto-wallpaper-image {
     --pds-glass-rim: inset 0 -0.5px 0 oklch(0% 0 0 / 0.18);
   }
 
-  html.harvous-proto-wallpaper-image {
+  html.harvous-proto-wallpaper-image:not([data-color-scheme="light"]) {
     --pds-border: oklch(
       from var(--pds-canvas-bg, var(--pds-canvas-default)) calc(l * 0.68) c h / 0.22
     );
@@ -563,6 +573,179 @@ html.harvous-proto-wallpaper-image {
     --pds-glass-bar-frost: oklch(var(--pds-lch-bg-page) / 0.22);
     --pds-glass-blur: blur(44px) saturate(1.15);
   }
+}
+
+/* ─── Forced dark mode (overrides system light) ──────────────────────────── */
+
+:root[data-color-scheme="dark"] {
+  --pds-lch-accent: 62% 0.16 265;
+  --pds-lch-accent-pressed: 56% 0.16 265;
+  --pds-lch-scripture-fg: 72% 0.14 255;
+  --pds-lch-scripture-accent: 62% 0.18 255;
+
+  --pds-lch-bg-page: 18% 0.01 285;
+  --pds-lch-bg-main: 18% 0.01 285;
+  --pds-lch-bg-toolbar: 20% 0.01 285 / 0.82;
+  --pds-lch-bg-footer: 17% 0.01 285 / 0.97;
+  --pds-lch-bg-popover: 22% 0.012 285 / 0.98;
+  --pds-lch-bg-popover-solid: 22% 0.012 285;
+  --pds-lch-canvas-default: 12% 0.01 285;
+
+  --pds-lch-text-primary: 96% 0 0;
+  --pds-lch-text-secondary: 96% 0 0 / 0.55;
+  --pds-lch-text-tertiary: 96% 0 0 / 0.38;
+  --pds-lch-text-muted: 100% 0 0 / 0.55;
+  --pds-lch-text-muted-strong: 100% 0 0 / 0.78;
+  --pds-lch-text-muted-soft: 100% 0 0 / 0.62;
+  --pds-lch-text-muted-faint: 100% 0 0 / 0.5;
+  --pds-lch-text-muted-ghost: 100% 0 0 / 0.42;
+
+  --pds-lch-fill-input: 100% 0 0 / 0.08;
+  --pds-lch-fill-input-hover: 100% 0 0 / 0.11;
+  --pds-lch-fill-row-hover: 100% 0 0 / 0.06;
+  --pds-lch-fill-row-selected: 100% 0 0 / 0.1;
+  --pds-lch-sidebar-fill-input: 100% 0 0 / 0.1;
+  --pds-lch-sidebar-fill-input-hover: 100% 0 0 / 0.13;
+  --pds-lch-sidebar-fill-row-selected: 100% 0 0 / 0.11;
+  --pds-lch-fill-section: 100% 0 0 / 0.06;
+  --pds-lch-fill-control: 100% 0 0 / 0.08;
+  --pds-lch-fill-control-hover: 100% 0 0 / 0.12;
+  --pds-lch-fill-control-pressed: 100% 0 0 / 0.14;
+  --pds-lch-fill-control-strong: 100% 0 0 / 0.1;
+  --pds-lch-fill-control-strong-hover: 100% 0 0 / 0.14;
+  --pds-lch-fill-chip: 100% 0 0 / 0.1;
+  --pds-lch-fill-chip-hover: 100% 0 0 / 0.12;
+  --pds-lch-fill-subtle: 100% 0 0 / 0.07;
+  --pds-lch-fill-faint: 100% 0 0 / 0.06;
+  --pds-lch-fill-ghost: 100% 0 0 / 0.04;
+  --pds-lch-fill-track: 100% 0 0 / 0.22;
+
+  --pds-lch-border: 100% 0 0 / 0.1;
+  --pds-lch-border-soft: 100% 0 0 / 0.06;
+  --pds-lch-border-control: 100% 0 0 / 0.12;
+  --pds-lch-border-control-soft: 100% 0 0 / 0.08;
+  --pds-lch-border-control-medium: 100% 0 0 / 0.14;
+  --pds-lch-border-control-strong: 100% 0 0 / 0.18;
+
+  --pds-lch-overlay-light: 0% 0 0 / 0.45;
+  --pds-lch-overlay-medium: 0% 0 0 / 0.62;
+  --pds-lch-overlay-heavy: 0% 0 0 / 0.72;
+
+  --pds-lch-shadow-card-a: 0% 0 0 / 0.35;
+  --pds-lch-shadow-card-b: 0% 0 0 / 0.2;
+  --pds-lch-shadow-card-elevated: 0% 0 0 / 0.4;
+  --pds-lch-shadow-popover-a: 0% 0 0 / 0.5;
+  --pds-lch-shadow-popover-b: 0% 0 0 / 0.28;
+  --pds-lch-shadow-popover-ring: 100% 0 0 / 0.08;
+  --pds-lch-shadow-drawer-a: 0% 0 0 / 0.55;
+  --pds-lch-shadow-drawer-b: 0% 0 0 / 0.32;
+  --pds-lch-shadow-fab: 0% 0 0 / 0.45;
+  --pds-lch-shadow-track: 0% 0 0 / 0.4;
+  --pds-lch-shadow-shell-a: 0% 0 0 / 0.35;
+  --pds-lch-shadow-shell-b: 0% 0 0 / 0.2;
+  --pds-lch-border-modal-highlight: 100% 0 0 / 0.1;
+  --pds-lch-modal-inset: 100% 0 0 / 0.06;
+  --pds-lch-modal-wash: 100% 0 0 / 0.08;
+  --pds-lch-bg-glass-medium: 18% 0.01 285 / 0.72;
+  --pds-lch-bg-glass-light: 18% 0.01 285 / 0.55;
+  --pds-lch-bg-glass-strong: 20% 0.01 285 / 0.92;
+  --pds-lch-bg-glass-toolbar: 20% 0.01 285 / 0.82;
+
+  --pds-glass-shell: color-mix(
+    in oklch,
+    var(--pds-canvas-bg, var(--pds-canvas-default)) 56%,
+    transparent
+  );
+  --pds-glass-panel-frost: oklch(var(--pds-lch-bg-page) / 0.26);
+  --pds-glass-bar-frost: oklch(var(--pds-lch-bg-page) / 0.5);
+  --pds-glass-chrome: var(--pds-glass-shell);
+  --pds-glass-sheen: linear-gradient(
+    180deg,
+    oklch(100% 0 0 / 0.08),
+    oklch(100% 0 0 / 0.02) 42%,
+    transparent 100%
+  );
+  --pds-glass-rim:
+    inset 0 0.5px 0 oklch(100% 0 0 / 0.1),
+    inset 0 -0.5px 0 oklch(0% 0 0 / 0.2);
+
+  --pds-bg-modal: linear-gradient(
+    180deg,
+    oklch(22% 0.012 285),
+    oklch(18% 0.01 285)
+  );
+  --pds-bg-modal-wallpaper: linear-gradient(
+    180deg,
+    oklch(22% 0.012 285),
+    oklch(18% 0.01 285)
+  );
+
+  --pds-lch-thread-blue: 42% 0.08 235;
+  --pds-lch-thread-yellow: 48% 0.09 90;
+  --pds-lch-thread-green: 40% 0.07 145;
+  --pds-lch-thread-pink: 44% 0.09 330;
+  --pds-lch-thread-orange: 46% 0.08 70;
+  --pds-lch-thread-purple: 38% 0.1 310;
+
+  --pds-lch-destructive: 65% 0.18 25;
+
+  --pds-paper-desk: #1c1b19;
+  --pds-paper-sheet: var(--pds-bg-sidebar);
+  --pds-paper-rule: rgba(255, 255, 255, 0.1);
+  --pds-paper-shadow: 0 2px 6px rgba(0, 0, 0, 0.24), 0 20px 50px -20px rgba(0, 0, 0, 0.45);
+  --pds-paper-shadow-subtle: 0 1px 3px 1px rgba(0, 0, 0, 0.35);
+  --pds-paper-grain-a: rgba(255, 255, 255, 0.035);
+  --pds-paper-grain-b: rgba(255, 255, 255, 0.02);
+  --pds-paper-fold-a: rgba(255, 255, 255, 0.08);
+  --pds-paper-fold-b: rgba(255, 255, 255, 0.02);
+}
+
+html[data-color-scheme="dark"].harvous-prototype-route:not(.harvous-proto-wallpaper-image) {
+  --pds-border: oklch(
+    from var(--pds-canvas-bg, var(--pds-canvas-default)) min(calc(l * 1.22 + 0.06), 0.38) c h / 0.32
+  );
+  --pds-border-soft: oklch(
+    from var(--pds-canvas-bg, var(--pds-canvas-default)) min(calc(l * 1.18 + 0.05), 0.34) c h / 0.2
+  );
+  --pds-border-control: oklch(
+    from var(--pds-canvas-bg, var(--pds-canvas-default)) min(calc(l * 1.25 + 0.08), 0.42) c h / 0.34
+  );
+  --pds-border-control-soft: oklch(
+    from var(--pds-canvas-bg, var(--pds-canvas-default)) min(calc(l * 1.2 + 0.06), 0.38) c h / 0.26
+  );
+  --pds-border-control-medium: oklch(
+    from var(--pds-canvas-bg, var(--pds-canvas-default)) min(calc(l * 1.28 + 0.1), 0.44) c h / 0.38
+  );
+  --pds-border-control-strong: oklch(
+    from var(--pds-canvas-bg, var(--pds-canvas-default)) min(calc(l * 1.32 + 0.12), 0.48) c h / 0.42
+  );
+  --pds-glass-rim: inset 0 -0.5px 0 oklch(0% 0 0 / 0.18);
+}
+
+html[data-color-scheme="dark"].harvous-proto-wallpaper-image {
+  --pds-border: oklch(
+    from var(--pds-canvas-bg, var(--pds-canvas-default)) calc(l * 0.68) c h / 0.22
+  );
+  --pds-border-soft: oklch(
+    from var(--pds-canvas-bg, var(--pds-canvas-default)) calc(l * 0.72) c h / 0.14
+  );
+  --pds-border-control: oklch(
+    from var(--pds-canvas-bg, var(--pds-canvas-default)) calc(l * 0.66) c h / 0.24
+  );
+  --pds-border-control-soft: oklch(
+    from var(--pds-canvas-bg, var(--pds-canvas-default)) calc(l * 0.7) c h / 0.18
+  );
+  --pds-border-control-medium: oklch(
+    from var(--pds-canvas-bg, var(--pds-canvas-default)) calc(l * 0.64) c h / 0.28
+  );
+  --pds-border-control-strong: oklch(
+    from var(--pds-canvas-bg, var(--pds-canvas-default)) calc(l * 0.62) c h / 0.3
+  );
+  --pds-glass-shell: oklch(var(--pds-lch-bg-page) / 0.28);
+  --pds-glass-chrome: var(--pds-glass-shell);
+  --pds-glass-panel-frost: oklch(var(--pds-lch-bg-page) / 0.08);
+  --pds-glass-bar-frost: oklch(var(--pds-lch-bg-page) / 0.22);
+  --pds-glass-blur: blur(44px) saturate(1.15);
 }
 
 /* ─── Shell reset / base ─────────────────────────────────────────────────── */

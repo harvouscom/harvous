@@ -62,9 +62,25 @@ export async function fetchVotdToday(): Promise<VotdToday | null> {
   return { reference, translation };
 }
 
-export function noteMatchesDailyPassage(row: Pick<SpaceNoteRow, 'title'>, reference: string): boolean {
+export function noteMatchesDailyPassage(
+  row: Pick<SpaceNoteRow, 'title' | 'content'>,
+  reference: string,
+): boolean {
   const ref = reference.trim();
   if (!ref) return false;
   const title = (row.title ?? '').trim();
-  return title.localeCompare(ref, undefined, { sensitivity: 'accent' }) === 0;
+  if (title.localeCompare(ref, undefined, { sensitivity: 'accent' }) === 0) {
+    return true;
+  }
+  const content = row.content ?? '';
+  if (!content.includes('data-scripture-reference')) return false;
+  const pillRefPattern = /data-scripture-reference\s*=\s*["']([^"']+)["']/gi;
+  let match: RegExpExecArray | null;
+  while ((match = pillRefPattern.exec(content)) !== null) {
+    const pillRef = (match[1] ?? '').trim();
+    if (pillRef && pillRef.localeCompare(ref, undefined, { sensitivity: 'accent' }) === 0) {
+      return true;
+    }
+  }
+  return false;
 }

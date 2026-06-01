@@ -94,12 +94,10 @@ struct SidebarPanelView: View {
     }
 
     private var notesInActiveSpace: [Note] {
-        let sid = spaceStore.activeSpaceUUID()
-        let scoped = notes.filter { $0.resolvedSpaceId() == sid }
-        if scoped.isEmpty, !notes.isEmpty {
-            return notes
-        }
-        return scoped
+        HarvousNoteListVisibility.notesInActiveSpace(
+            from: notes,
+            spaceId: spaceStore.activeSpaceUUID()
+        )
     }
 
     private var folderRows: [HarvousFolderRow] {
@@ -156,6 +154,29 @@ struct SidebarPanelView: View {
         case .root: return ""
         case .book: return "Back to Scripture index"
         case .passage: return "Back to passages"
+        }
+    }
+
+    private var scriptureDrillBookLabel: String? {
+        switch scriptureDrill {
+        case .root:
+            return nil
+        case .book(let idx):
+            return NoteFilter.scriptureBook(bookIndex: idx).displayName
+        case .passage(let p):
+            return NoteFilter.scriptureBook(bookIndex: p.bookIndex).displayName
+        }
+    }
+
+    private func scriptureSidebarBackAccessibilityLabel(bookLabel: String) -> String {
+        switch scriptureDrill {
+        case .root:
+            return ""
+        case .book:
+            return "Back to Scripture index, currently viewing \(bookLabel)"
+        case .passage(let p):
+            let passageLabel = NoteFilter.scripturePassage(p).displayName
+            return "Back to passages, currently viewing \(passageLabel)"
         }
     }
 
@@ -239,7 +260,7 @@ struct SidebarPanelView: View {
                     .help("Back to folders")
                     .accessibilityLabel("Back to folders, currently viewing \(NoteFilter.folder(key).displayName)")
                 }
-                if mode == .scripture, scriptureDrill != .root {
+                if mode == .scripture, let bookLabel = scriptureDrillBookLabel {
                     Button {
                         switch scriptureDrill {
                         case .root: break
@@ -249,10 +270,17 @@ struct SidebarPanelView: View {
                             scriptureDrill = .book(p.bookIndex)
                         }
                     } label: {
-                        HarvousFAGlyph(assetName: "Harvous.ChevronLeft", edgePt: 13)
+                        HStack(spacing: 5) {
+                            HarvousFAGlyph(assetName: "Harvous.ChevronLeft", edgePt: 13)
+                            Text(bookLabel)
+                                .font(HarvousFonts.font(size: 12, weight: .medium, design: .default))
+                                .lineLimit(1)
+                                .fixedSize(horizontal: true, vertical: false)
+                        }
                     }
                     .buttonStyle(.bordered)
                     .help(scriptureSidebarBackButtonHelp)
+                    .accessibilityLabel(scriptureSidebarBackAccessibilityLabel(bookLabel: bookLabel))
                 }
                 if mode == .dictionary, dictionaryDrill != .root {
                     Button {
@@ -319,7 +347,7 @@ struct SidebarPanelView: View {
                     .accessibilityLabel("Back to folders, currently viewing \(NoteFilter.folder(key).displayName)")
                 }
 
-                if mode == .scripture, scriptureDrill != .root {
+                if mode == .scripture, let bookLabel = scriptureDrillBookLabel {
                     Button {
                         switch scriptureDrill {
                         case .root: break
@@ -327,11 +355,16 @@ struct SidebarPanelView: View {
                         case .passage(let p): scriptureDrill = .book(p.bookIndex)
                         }
                     } label: {
-                        HarvousFAGlyph(assetName: "Harvous.ChevronLeft", edgePt: 13)
-                            .foregroundStyle(.primary)
+                        HStack(spacing: 5) {
+                            HarvousFAGlyph(assetName: "Harvous.ChevronLeft", edgePt: 13)
+                                .foregroundStyle(.primary)
+                            Text(bookLabel)
+                                .font(HarvousFonts.font(size: 14, weight: .medium, design: .default))
+                                .lineLimit(1)
+                        }
                     }
                     .buttonStyle(.bordered)
-                    .accessibilityLabel(scriptureSidebarBackButtonHelp)
+                    .accessibilityLabel(scriptureSidebarBackAccessibilityLabel(bookLabel: bookLabel))
                 }
 
                 if mode == .dictionary, dictionaryDrill != .root {

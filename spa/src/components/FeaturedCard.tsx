@@ -18,12 +18,9 @@ import {
 import Icon from '@/components/react/Icon';
 import { getTranslationAbbreviationDisplay } from '@/data/translations';
 import { FeaturedCardActionsDock } from '@/components/react/FeaturedCardActionsDock';
+import { buildVotdScripturePillHtml } from '../lib/votd-scripture-pill-html';
 
 export { readDismissedFeaturedItem } from '@/utils/featured-dismiss-local';
-
-function escapeHtmlAttr(s: string): string {
-  return s.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
-}
 
 function getIconForContentType(contentType: FeaturedItem['contentType']) {
   if (contentType === 'space') {
@@ -101,15 +98,6 @@ function dismissVotd(
   onClose();
 }
 
-// Builds the scripture pill HTML for pre-populating the note editor
-function buildScripturePillHtml(metadata: VotdMetadata, translationForPill: string): string {
-  const ref = metadata.reference;
-  const translation = translationForPill || metadata.translation || 'NET';
-  const label = getTranslationAbbreviationDisplay(translation);
-  // NBSP after pill so a visible gap remains before typed text (normal space can collapse at block end)
-  return `<p><span data-scripture-reference="${escapeHtmlAttr(ref)}" data-note-id="pending" data-scripture-translation="${escapeHtmlAttr(translation)}" data-scripture-translation-label="${escapeHtmlAttr(label)}" class="scripture-pill scripture-pill-clickable">${ref}</span>\u00A0</p>`;
-}
-
 function VotdCard({ item, onClose }: { item: FeaturedItem; onClose: () => void }) {
   const queryClient = useQueryClient();
   const { userId } = useAuth();
@@ -151,7 +139,7 @@ function VotdCard({ item, onClose }: { item: FeaturedItem; onClose: () => void }
 
   const handleCreateNote = () => {
     if (!metadata) return;
-    const pillHtml = buildScripturePillHtml(metadata, displayTranslation);
+    const pillHtml = buildVotdScripturePillHtml(metadata.reference, displayTranslation);
     // Pre-populate the new note panel with the scripture pill; defer server dismiss until note is saved.
     try {
       localStorage.removeItem('newNoteTitle');

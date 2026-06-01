@@ -162,16 +162,16 @@ enum HarvousFonts {
         return NSFont(descriptor: roundedDesc, size: size) ?? base
     }
 
-    /// Paragraph headings in the rich editor — rounded. Levels 2…4 only: the note title field is the sole display “H1”
+    /// Paragraph headings in the rich editor — rounded. Levels 2…3 in the toolbar; level 4 retained for legacy detection only.
     /// (`HarvousTypography.composeTitleFieldFont()`); body headings sit clearly below it.
     static func headingFont(level: Int) -> NSFont {
         let ruler = macComposeRulerPointSize
         let lv = max(2, min(level, 4))
         let spec: (CGFloat, CGFloat) = switch lv {
         case 2: (19, 600) // largest in-body section heading
-        case 3: (17, 560)
-        case 4: (15, 520)
-        default: (15, 500)
+        case 3: (17, 600)
+        case 4: (noteComposeBodyPointSize, 520) // same size as body; weight distinguishes H4
+        default: (noteComposeBodyPointSize, 500)
         }
         let size = ruler * (spec.0 / macOSStandardPreferredBodyPointSize)
         return system(size: size, weight: spec.1, design: .rounded)
@@ -188,6 +188,7 @@ enum HarvousFonts {
         if abs(ps - 28) < 1.2 { return 2 }
         if abs(ps - 22) < 1.0 && w >= 6 { return 2 }
         if abs(ps - 18) < 1.0 { return 3 }
+        // Legacy H4 before body-size H4 (15pt semibold)
         if abs(ps - 15) < 0.85 && w >= 7 { return 4 }
         return nil
     }
@@ -224,9 +225,9 @@ enum HarvousFonts {
         let lv = max(2, min(level, 4))
         let spec: (CGFloat, CGFloat) = switch lv {
         case 2: (19, 600)
-        case 3: (17, 560)
-        case 4: (15, 520)
-        default: (15, 500)
+        case 3: (17, 600)
+        case 4: (noteComposeBodyPointSize, 520) // same size as body; weight distinguishes H4
+        default: (noteComposeBodyPointSize, 500)
         }
         let base = system(size: spec.0, weight: spec.1, design: .rounded)
         return noteComposeMetrics.scaledFont(for: base)
@@ -243,6 +244,7 @@ enum HarvousFonts {
         if abs(ps - 28) < 1.2 { return 2 }
         if abs(ps - 22) < 1.0 && w >= 600 { return 2 }
         if abs(ps - 18) < 1.0 { return 3 }
+        // Legacy H4 before body-size H4 (15pt semibold)
         if abs(ps - 15) < 0.85 && w >= 700 { return 4 }
         return nil
     }

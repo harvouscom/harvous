@@ -9,6 +9,18 @@ enum HarvousAppearanceBorders {
         case soft
     }
 
+    /// Shell chrome separators — matches web `var(--pds-border)` (`prototype-shell.css`).
+    static func shellBorder(
+        canvasColor: Color,
+        isPhotoWallpaper: Bool,
+        colorScheme: ColorScheme
+    ) -> Color {
+        if isPhotoWallpaper {
+            return Color.primary.opacity(colorScheme == .dark ? 0.18 : 0.14)
+        }
+        return canvasColor.opacity(colorScheme == .dark ? 0.30 : 0.26)
+    }
+
     static func color(
         weight: Weight,
         canvasColor: Color,

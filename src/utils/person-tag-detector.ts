@@ -3,7 +3,7 @@
  * Must not match book names like "Psalm 23".
  */
 
-const PERSON_TAG_PATTERN = /\b(?:Pastor|Ps\.?)\s+([A-Z][\w'-]+(?:\s+[A-Z][\w'-]+)?)\b/g;
+const PERSON_TAG_PATTERN = /\b(?:Pastor|Ps\.?)\s+([A-Z][\w'-]+)\b/g;
 
 export function detectPersonTags(text: string): string[] {
   if (!text.trim()) return [];
