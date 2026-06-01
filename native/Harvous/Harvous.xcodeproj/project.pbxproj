@@ -13,6 +13,7 @@
 		017ED5EE5DFA215FF7AD567E /* HarvousVaultPortableIngest.swift in Sources */ = {isa = PBXBuildFile; fileRef = 913A5FFA0F8F4B137CD9B1EA /* HarvousVaultPortableIngest.swift */; };
 		01B07957E8B38CEE6933353A /* NoteFeedRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = DB9144D351ECEEB3C826E125 /* NoteFeedRow.swift */; };
 		01B2855983369148E8585DA0 /* ClerkKitUI in Frameworks */ = {isa = PBXBuildFile; productRef = 556365F1F98C290BA73C4A23 /* ClerkKitUI */; };
+		02A8E3A6FB193491ACF7D7C1 /* ScriptureReferencePickerChrome.swift in Sources */ = {isa = PBXBuildFile; fileRef = D402A958317A1BB6F9CEB600 /* ScriptureReferencePickerChrome.swift */; };
 		03D2C65AB42ADC6DE8F818AC /* HarvousAccessibilityID.swift in Sources */ = {isa = PBXBuildFile; fileRef = 36A0CA608FAA9F20DBAB2A77 /* HarvousAccessibilityID.swift */; };
 		03FAE41758568900C8DE8102 /* UserFilled.svg in Resources */ = {isa = PBXBuildFile; fileRef = 65D23E76A28C5B6BFBB74B22 /* UserFilled.svg */; };
 		05A5A4F94605710C92CA410D /* HarvousCommands.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1774DF51E262C76E2037DDE /* HarvousCommands.swift */; };
@@ -229,6 +230,7 @@
 		A45E454F24B92C55BBB6F0DD /* HarvousNoteShareBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 614045C536C379F18876CCDC /* HarvousNoteShareBuilder.swift */; };
 		A4FB5610436A731B82DE0DF7 /* NoteBodyAttachments.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD852741320FC91DAC26796B /* NoteBodyAttachments.swift */; };
 		A712F22DE6DF26037193951F /* NoteBodyAttachments.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD852741320FC91DAC26796B /* NoteBodyAttachments.swift */; };
+		A00871FA0AD1C6D64036C73B /* ScriptureReferencePickerChrome.swift in Sources */ = {isa = PBXBuildFile; fileRef = D402A958317A1BB6F9CEB600 /* ScriptureReferencePickerChrome.swift */; };
 		A7A5E588A786B8BF54EDC0CB /* HarvousEmptyStateView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A1AB47362A740CC585B1C82 /* HarvousEmptyStateView.swift */; };
 		AAF56ACFA76B643FF2349D3B /* MacCollectionChip.swift in Sources */ = {isa = PBXBuildFile; fileRef = B477277FA8277C3C7A61685B /* MacCollectionChip.swift */; };
 		AC5589698327A8BE7F95C069 /* NoteConnectionsBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 179DC334C28DAA5AE0334115 /* NoteConnectionsBar.swift */; };
@@ -455,6 +457,7 @@
 		4DDA4F38E9CBF0A99695D91E /* NoteToolbar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NoteToolbar.swift; sourceTree = "<group>"; };
 		54031E02ED9FB685410E1DF7 /* MacNoteListSelectionCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacNoteListSelectionCoordinator.swift; sourceTree = "<group>"; };
 		54A34848CE71A3904DF33EEF /* ScripturePillActionBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScripturePillActionBar.swift; sourceTree = "<group>"; };
+		D402A958317A1BB6F9CEB600 /* ScriptureReferencePickerChrome.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScriptureReferencePickerChrome.swift; sourceTree = "<group>"; };
 		57D7579C95BFE0D3CDBBE2B0 /* HarvousUITests_macOS.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = HarvousUITests_macOS.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		585C46AFD346925C58AA0320 /* HarvousSupabaseConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HarvousSupabaseConfig.swift; sourceTree = "<group>"; };
 		593C2F48E9B13AC1EA6FF24E /* DockExpandedContentEnvironment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DockExpandedContentEnvironment.swift; sourceTree = "<group>"; };
@@ -670,6 +673,7 @@
 				33EE20524A0A5E391C4EA530 /* ScriptureHubView.swift */,
 				CF4BFB19D1DD4E8F9C3AE8FF /* ScripturePassageView.swift */,
 				54A34848CE71A3904DF33EEF /* ScripturePillActionBar.swift */,
+				D402A958317A1BB6F9CEB600 /* ScriptureReferencePickerChrome.swift */,
 				31916433B937AE3BC0C2AD28 /* SelectionActionBar.swift */,
 				9A1F98DAB48131E648607CDB /* SelectionFormatBar.swift */,
 				46A1A636DA90601D9E72E8F7 /* SettingsSharingView.swift */,
@@ -1281,6 +1285,7 @@
 				EA47FB277B2A0838ED9AE852 /* ScripturePassageDiskStore.swift in Sources */,
 				3B166089E43064C257FBD442 /* ScripturePassageView.swift in Sources */,
 				2947F149FF02A6EF97041A15 /* ScripturePillActionBar.swift in Sources */,
+				A00871FA0AD1C6D64036C73B /* ScriptureReferencePickerChrome.swift in Sources */,
 				691AFE34426BBA935459B53C /* ScripturePillAttachment.swift in Sources */,
 				C06E43E4F5E8CFA1AD5F4487 /* ScriptureReference.swift in Sources */,
 				D9EC7202281BD2CF39EF0743 /* ScriptureReferenceParser.swift in Sources */,
@@ -1476,6 +1481,7 @@
 				E9CA087BE449583307239F7B /* ScripturePassageDiskStore.swift in Sources */,
 				D698062C635684BD3578FD5B /* ScripturePassageView.swift in Sources */,
 				3D51FF494AC422B4F9E1C351 /* ScripturePillActionBar.swift in Sources */,
+				02A8E3A6FB193491ACF7D7C1 /* ScriptureReferencePickerChrome.swift in Sources */,
 				FED33FD47C6FC27C86F60E52 /* ScripturePillAttachment.swift in Sources */,
 				6EA9F1BA119843B7DF4A67E6 /* ScriptureReference.swift in Sources */,
 				CF9A286EF65CBFE8ADAD4A4B /* ScriptureReferenceParser.swift in Sources */,

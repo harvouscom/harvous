@@ -44,8 +44,14 @@ private func scriptureBaselineOffset(from attributes: [NSAttributedString.Key: A
 enum ScripturePassageHTMLParser {
     /// Reading sizes — slightly below typical body so long passages fit comfortably in panels.
     private static let passageBodyPointSize: CGFloat = 17
+    /// Scripture dock passage strip — matches web `16px` body.
+    private static let dockPassageBodyPointSize: CGFloat = 16
     private static let passageLabelPointSize: CGFloat = 14
     private static let passageItalicPointSize: CGFloat = 16
+    /// Google Sans Flex reading body — regular (400) axis weight.
+    private static let passageBodyWeightAxis: CGFloat = 400
+    private static let passageRegularBodyWeightAxis: CGFloat = 400
+    private static let passageLineHeightMultiplier: CGFloat = 1.6
 
     /// Verse numerals use a **much** smaller point size than body so they read clearly as superscript, not mini-body.
     private static let verseNumeralToBodyScale: CGFloat = 0.64
@@ -94,17 +100,20 @@ enum ScripturePassageHTMLParser {
         )
     }()
     /// Broad fallback: verse numeral after any whitespace/punctuation boundary, including NBSP before body text.
+    /// `(?<!\()` prevents matching a digit that immediately follows an opening paren —
+    /// e.g. "(note 5 here)" — which would erroneously superscript content digits as verse numbers.
     private static let broadVerseDigitRegex: NSRegularExpression? = {
         try? NSRegularExpression(
-            pattern: #"(^|[\s\p{P}])(\d{1,3})(?=[\s\u{00A0}]*(?:[\u{2018}\u{2019}\u{201C}\u{201D}\u{0022}\u{0027}])*\p{L})"#,
+            pattern: #"(^|[\s\p{P}])(?<!\()(\d{1,3})(?=[\s\u{00A0}]*(?:[\u{2018}\u{2019}\u{201C}\u{201D}\u{0022}\u{0027}])*\p{L})"#,
             options: [.anchorsMatchLines]
         )
     }()
     private static let broadUnicodeSupRegex: NSRegularExpression? = {
-        try? NSRegularExpression(
-            pattern: #"(^|[\s\p{P}])([\u{00B9}\u{00B2}\u{00B3}\u{2070}\u{2074}\u{2075}\u{2076}\u{2077}\u{2078}\u{2079}]+)(?=[\s\u{00A0}]*(?:[\u{2018}\u{2019}\u{201C}\u{201D}\u{0022}\u{0027}])*\p{L})"#,
-            options: [.anchorsMatchLines]
-        )
+        // Build as a concatenated string so the `[` opening the character class
+        // doesn't get confused with the surrounding raw-string `#"..."#` syntax.
+        let chars = "\u{00B9}\u{00B2}\u{00B3}\u{2070}\u{2074}\u{2075}\u{2076}\u{2077}\u{2078}\u{2079}"
+        let pattern = "(^|[\\s\\p{P}])(?<!\\()([\(chars)]+)(?=[\\s\\u{00A0}]*(?:[\\u{2018}\\u{2019}\\u{201C}\\u{201D}\\u{0022}\\u{0027}])*\\p{L})"
+        return try? NSRegularExpression(pattern: pattern, options: [.anchorsMatchLines])
     }()
 
     /// Merged "1Afterward" (no &lt;sup&gt; run) and multi-verse "… 2The" digit spans, reverse order for stable mutation.
@@ -258,10 +267,13 @@ enum ScripturePassageHTMLParser {
     }
 
     /// Final guard pass used at display time: always enforce smaller verse numeral sizing.
-    static func enforceVerseNumeralDisplaySizing(_ attributed: NSAttributedString) -> NSAttributedString {
+    static func enforceVerseNumeralDisplaySizing(
+        _ attributed: NSAttributedString,
+        bodyPointSize: CGFloat = passageBodyPointSize
+    ) -> NSAttributedString {
         let m = NSMutableAttributedString(attributedString: attributed)
         #if os(macOS)
-        let bodyFont = NSFont.systemFont(ofSize: passageBodyPointSize, weight: .regular)
+        let bodyFont = macPassageBodyFont(size: bodyPointSize)
         let numFont = macVerseNumeralFont(fromBody: bodyFont)
         let bo = numeralBaselineOffset(bodyPointSize: bodyFont.pointSize)
         let full = NSRange(location: 0, length: m.length)
@@ -289,7 +301,7 @@ enum ScripturePassageHTMLParser {
             ], range: r)
         }
         #elseif os(iOS)
-        let bodyFont = UIFont.systemFont(ofSize: passageBodyPointSize, weight: .regular)
+        let bodyFont = iosPassageBodyFont(size: bodyPointSize)
         let numFont = iosVerseNumeralFont(fromBody: bodyFont)
         let bo = numeralBaselineOffset(bodyPointSize: bodyFont.pointSize)
         let full = NSRange(location: 0, length: m.length)
@@ -320,6 +332,73 @@ enum ScripturePassageHTMLParser {
         return NSAttributedString(attributedString: m)
     }
 
+    /// Scripture dock reading strip — 16pt body, 1.6 line height, no paragraph gaps between inline verses.
+    static func applyDockReadingPanelStyle(_ attributed: NSAttributedString) -> NSAttributedString {
+        let m = NSMutableAttributedString(attributedString: attributed)
+        let full = NSRange(location: 0, length: m.length)
+        guard full.length > 0 else { return attributed }
+
+        #if os(macOS)
+        let bodyFont = macPassageBodyFont(size: dockPassageBodyPointSize)
+        let naturalLine = bodyFont.ascender + abs(bodyFont.descender) + bodyFont.leading
+        let lineHeight = max(ceil(naturalLine * passageLineHeightMultiplier), naturalLine + 5)
+        let para = NSMutableParagraphStyle()
+        para.minimumLineHeight = lineHeight
+        para.maximumLineHeight = lineHeight
+        para.paragraphSpacing = 0
+        para.alignment = .natural
+        m.addAttribute(.paragraphStyle, value: para, range: full)
+
+        var i = full.location
+        let end = NSMaxRange(full)
+        while i < end {
+            var eff = NSRange()
+            let attrs = m.attributes(at: i, effectiveRange: &eff)
+            let isNumeral = scriptureBaselineOffset(from: attrs) > 0.1
+                || scriptureSuperscriptLevel(from: attrs) != 0
+            let font = attrs[.font] as? NSFont
+            let isItalic = font.map { NSFontManager.shared.traits(of: $0).contains(.italicFontMask) } ?? false
+            if !isNumeral && !isItalic {
+                m.addAttribute(.font, value: bodyFont, range: eff)
+            }
+            let next = NSMaxRange(eff)
+            if next <= i { break }
+            i = next
+        }
+        #elseif os(iOS)
+        let bodyFont = iosPassageBodyFont(size: dockPassageBodyPointSize)
+        let lineHeight = max(ceil(bodyFont.lineHeight * passageLineHeightMultiplier), bodyFont.lineHeight + 5)
+        let para = NSMutableParagraphStyle()
+        para.minimumLineHeight = lineHeight
+        para.maximumLineHeight = lineHeight
+        para.paragraphSpacing = 0
+        para.alignment = .natural
+        m.addAttribute(.paragraphStyle, value: para, range: full)
+
+        var i = full.location
+        let end = NSMaxRange(full)
+        while i < end {
+            var eff = NSRange()
+            let attrs = m.attributes(at: i, effectiveRange: &eff)
+            let isNumeral = scriptureBaselineOffset(from: attrs) > 0.1
+                || scriptureSuperscriptLevel(from: attrs) != 0
+            let font = attrs[.font] as? UIFont
+            let isItalic = font?.fontDescriptor.symbolicTraits.contains(.traitItalic) ?? false
+            if !isNumeral && !isItalic {
+                m.addAttribute(.font, value: bodyFont, range: eff)
+            }
+            let next = NSMaxRange(eff)
+            if next <= i { break }
+            i = next
+        }
+        #endif
+
+        return enforceVerseNumeralDisplaySizing(
+            NSAttributedString(attributedString: m),
+            bodyPointSize: dockPassageBodyPointSize
+        )
+    }
+
     /// VOTD sheet: body and labels at regular weight; verse numerals and italics unchanged.
     static func enforceRegularPassageWeight(_ attributed: NSAttributedString) -> NSAttributedString {
         let m = NSMutableAttributedString(attributedString: attributed)
@@ -343,7 +422,7 @@ enum ScripturePassageHTMLParser {
 
             if !isVerseNumeral && !isItalic {
                 let size = font?.pointSize ?? passageBodyPointSize
-                let regular = HarvousFonts.system(size: size, weight: 400, design: .default)
+                let regular = HarvousFonts.system(size: size, weight: passageRegularBodyWeightAxis, design: .default)
                 m.addAttribute(.font, value: regular, range: eff)
             }
 
@@ -355,6 +434,10 @@ enum ScripturePassageHTMLParser {
     }
 
     #if os(macOS)
+    private static func macPassageBodyFont(size: CGFloat = passageBodyPointSize, weight: CGFloat = passageBodyWeightAxis) -> NSFont {
+        HarvousFonts.system(size: size, weight: weight, design: .default)
+    }
+
     private static func macVerseNumeralFont(fromBody body: NSFont) -> NSFont {
         let s = max(verseNumeralMinSize, (body.pointSize * verseNumeralToBodyScale).rounded())
         return NSFontManager.shared.convert(body, toSize: s)
@@ -369,9 +452,9 @@ enum ScripturePassageHTMLParser {
             m.removeAttribute(.link, range: range)
         }
 
-        let bodyFont = NSFont.systemFont(ofSize: passageBodyPointSize, weight: .regular)
+        let bodyFont = macPassageBodyFont()
         let naturalLine = bodyFont.ascender + abs(bodyFont.descender) + bodyFont.leading
-        let lineHeight = max(ceil(naturalLine * 1.36), naturalLine + 5)
+        let lineHeight = max(ceil(naturalLine * passageLineHeightMultiplier), naturalLine + 5)
 
         let para = NSMutableParagraphStyle()
         para.minimumLineHeight = lineHeight
@@ -407,13 +490,13 @@ enum ScripturePassageHTMLParser {
                     .baselineOffset: bo,
                 ], range: eff)
             } else if isBold && !isItalic {
-                let labelFont = NSFont.systemFont(ofSize: passageLabelPointSize, weight: .medium)
+                let labelFont = HarvousFonts.system(size: passageLabelPointSize, weight: 500, design: .default)
                 m.addAttributes([
                     .font: labelFont,
                     .foregroundColor: NSColor.labelColor,
                 ], range: eff)
             } else if isItalic {
-                let body = NSFont.systemFont(ofSize: passageItalicPointSize, weight: .regular)
+                let body = HarvousFonts.system(size: passageItalicPointSize, weight: passageBodyWeightAxis, design: .default)
                 let ob = mgr.convert(body, toHaveTrait: .italicFontMask)
                 m.addAttributes([
                     .font: ob,
@@ -449,6 +532,10 @@ enum ScripturePassageHTMLParser {
     }
 
     #elseif os(iOS)
+    private static func iosPassageBodyFont(size: CGFloat = passageBodyPointSize, weight: CGFloat = passageBodyWeightAxis) -> UIFont {
+        HarvousFonts.system(size: size, weight: weight, design: .default)
+    }
+
     private static func iosVerseNumeralFont(fromBody body: UIFont) -> UIFont {
         let s = max(verseNumeralMinSize, (body.pointSize * verseNumeralToBodyScale).rounded())
         return UIFont(descriptor: body.fontDescriptor, size: s)
@@ -462,8 +549,8 @@ enum ScripturePassageHTMLParser {
             m.removeAttribute(.link, range: range)
         }
 
-        let bodyFont = UIFont.systemFont(ofSize: passageBodyPointSize, weight: .regular)
-        let lineHeight = max(ceil(bodyFont.lineHeight * 1.36), bodyFont.lineHeight + 5)
+        let bodyFont = iosPassageBodyFont()
+        let lineHeight = max(ceil(bodyFont.lineHeight * passageLineHeightMultiplier), bodyFont.lineHeight + 5)
 
         let para = NSMutableParagraphStyle()
         para.minimumLineHeight = lineHeight
@@ -497,13 +584,13 @@ enum ScripturePassageHTMLParser {
                     .baselineOffset: bo,
                 ], range: eff)
             } else if isBold && !isItalic {
-                let labelFont = UIFont.systemFont(ofSize: passageLabelPointSize, weight: .medium)
+                let labelFont = HarvousFonts.system(size: passageLabelPointSize, weight: 500, design: .default)
                 m.addAttributes([
                     .font: labelFont,
                     .foregroundColor: UIColor.label,
                 ], range: eff)
             } else if isItalic {
-                let base = UIFont.systemFont(ofSize: passageItalicPointSize, weight: .regular)
+                let base = HarvousFonts.system(size: passageItalicPointSize, weight: passageBodyWeightAxis, design: .default)
                 let d = base.fontDescriptor
                 let merged = d.symbolicTraits.union(.traitItalic)
                 let ob: UIFont = {

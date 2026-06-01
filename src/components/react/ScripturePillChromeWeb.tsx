@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 // @ts-ignore — JSON resolveJsonModule
 import bibleChaptersData from '@/data/bible-chapters.json';
 import {
@@ -8,14 +9,19 @@ import {
   normalizeScriptureReference,
   parseScriptureReference,
 } from '@/utils/scripture-detector';
-import { TRANSLATION_ORDER, TRANSLATIONS } from '@/data/translations';
+import { TRANSLATIONS } from '@/data/translations';
 import { getCachedProfileData } from '@/utils/profile-cache';
 import { safeRenderHtml } from '@/utils/content-renderer';
 import { fetchVerseHtml } from '@/utils/fetch-verse-html';
 import type { StudyHighlightAccentKey } from '@/utils/study-highlight-accents';
-import { STUDY_HIGHLIGHT_SWATCHES_WITH_NEUTRAL } from '@/utils/study-highlight-accents';
+import { isStudyHighlightAccentKey } from '@/utils/study-highlight-accents';
 
 import Icon from '@/components/react/Icon';
+import DockAccentSwatchButton, { SCRIPTURE_DOCK_ACCENT_COLORS } from '@/components/react/DockAccentSwatchButton';
+import ScriptureReferencePickerStrip from '@/components/react/ScriptureReferencePickerStrip';
+import StudyDockCardShell from '@/components/react/StudyDockCardShell';
+import '@/styles/harvous-menu-pill.css';
+import '@/styles/study-dock-card.css';
 import '@/styles/scripture-pill-chrome.css';
 import '@/styles/highlight-dock-web.css';
 
@@ -48,6 +54,11 @@ function buildReferenceString(book: string, chapter: number, verseStart: number,
   return normalizeScriptureReference(`${book} ${chapter}:${verseStart}`) ?? `${book} ${chapter}:${verseStart}`;
 }
 
+function passageScrollCapPx(): number {
+  if (typeof window === 'undefined') return 280;
+  return window.innerWidth >= 900 ? Math.min(400, window.innerHeight * 0.4) : 280;
+}
+
 export interface ScripturePillChromeWebProps {
   reference: string;
   translation: string | null;
@@ -57,14 +68,24 @@ export interface ScripturePillChromeWebProps {
   initialPillAccent?: string | null;
   /** User picked a new accent swatch — caller updates the `scripturePill` mark. */
   onPillAccentChange?: (accent: StudyHighlightAccentKey) => void;
-  /** Close without applying — native “Done”. */
+  /** Close without applying — native dismiss. */
   onDone: () => void;
   /** Persist reference + translation into the pill (caller updates ProseMirror + optional API). */
   onApply: (nextReference: string, nextTranslation: string) => Promise<void> | void;
+  /** When set with `onExpandedChange`, controls collapse/expand from the dock carousel. */
+  expanded?: boolean;
+  onExpandedChange?: (expanded: boolean) => void;
+  /** When false, skips live apply + passage loads (inactive carousel card). Default true. */
+  interactionActive?: boolean;
+  /** Card enter animation — off in carousel (item handles enter). */
+  animateEnter?: boolean;
+  /** Called after the user selects passage text and taps the floating highlight button.
+   *  Caller (TiptapEditor) should open a HighlightDockWeb card for the new thread. */
+  onPassageHighlightCreated?: (excerpt: string, threadId: string) => void;
 }
 
 /**
- * Bottom chrome for scripture pill editing — macOS-style pickers + passage preview (Web).
+ * Bottom chrome for scripture pill editing — native-style card dock with header, reference bar, passage.
  */
 export default function ScripturePillChromeWeb({
   reference,
@@ -74,6 +95,11 @@ export default function ScripturePillChromeWeb({
   onPillAccentChange,
   onDone,
   onApply,
+  expanded: expandedControlled,
+  onExpandedChange,
+  interactionActive = true,
+  animateEnter = true,
+  onPassageHighlightCreated,
 }: ScripturePillChromeWebProps) {
   const books = useMemo(() => orderedCanonBooks(), []);
 
@@ -95,9 +121,23 @@ export default function ScripturePillChromeWeb({
     initialParsed ? Array.isArray(initialParsed.verse) && initialParsed.verse[0] !== initialParsed.verse[1] : false,
   );
   const [trans, setTrans] = useState(translation || getCachedProfileData()?.defaultTranslation || 'NET');
+  const [isExpandedInternal, setIsExpandedInternal] = useState(true);
+  const isControlledExpanded = expandedControlled !== undefined && onExpandedChange !== undefined;
+  const isExpanded = isControlledExpanded ? expandedControlled! : isExpandedInternal;
+  const setIsExpanded = (next: boolean) => {
+    if (isControlledExpanded) onExpandedChange!(next);
+    else setIsExpandedInternal(next);
+  };
 
   const [passageHtml, setPassageHtml] = useState<string>('');
   const [loadingPassage, setLoadingPassage] = useState(false);
+  const [passageContentHeight, setPassageContentHeight] = useState(0);
+  const [passageScrollCap, setPassageScrollCap] = useState(passageScrollCapPx);
+  const passageContentRef = useRef<HTMLDivElement>(null);
+  // Passage text selection → highlight creation
+  const passageScrollRef = useRef<HTMLDivElement>(null);
+  const [passageSelection, setPassageSelection] = useState<{ text: string; rect: DOMRect } | null>(null);
+  const [creatingHighlight, setCreatingHighlight] = useState(false);
 
   const onApplyRef = useRef(onApply);
   useLayoutEffect(() => { onApplyRef.current = onApply; });
@@ -128,12 +168,18 @@ export default function ScripturePillChromeWeb({
   const lastApplied = useRef({ ref: displayRefString, trans });
 
   useEffect(() => {
+    if (!interactionActive) return;
     if (displayRefString === lastApplied.current.ref && trans === lastApplied.current.trans) return;
     lastApplied.current = { ref: displayRefString, trans };
     void onApplyRef.current(normalizeScriptureReference(displayRefString) ?? displayRefString, trans);
-  }, [displayRefString, trans]);
+  }, [displayRefString, trans, interactionActive]);
 
   useEffect(() => {
+    if (!interactionActive || !isExpanded) {
+      setPassageHtml('');
+      setLoadingPassage(false);
+      return;
+    }
     let cancelled = false;
     void (async () => {
       setLoadingPassage(true);
@@ -145,7 +191,14 @@ export default function ScripturePillChromeWeb({
     return () => {
       cancelled = true;
     };
-  }, [displayRefString, trans]);
+  }, [displayRefString, trans, interactionActive, isExpanded]);
+
+  useEffect(() => {
+    const updateCap = () => setPassageScrollCap(passageScrollCapPx());
+    updateCap();
+    window.addEventListener('resize', updateCap);
+    return () => window.removeEventListener('resize', updateCap);
+  }, []);
 
   const maxChapter = maxChapterForBook(selectedBook);
   const verseBoundsForChapter = getChapterVerseRange(selectedBook, chapter);
@@ -189,7 +242,7 @@ export default function ScripturePillChromeWeb({
   >([]);
 
   useEffect(() => {
-    if (!sourceNoteId) {
+    if (!interactionActive || !isExpanded || !sourceNoteId) {
       setPassageStudyThreads([]);
       return;
     }
@@ -213,7 +266,95 @@ export default function ScripturePillChromeWeb({
     return () => {
       cancelled = true;
     };
-  }, [sourceNoteId, displayRefString, trans]);
+  }, [sourceNoteId, displayRefString, trans, interactionActive, isExpanded]);
+
+  useEffect(() => {
+    const el = passageContentRef.current;
+    if (!el || !isExpanded) return;
+    const ro = new ResizeObserver((entries) => {
+      const h = entries[0]?.contentRect.height ?? 0;
+      setPassageContentHeight(h);
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [isExpanded, passageHtml, loadingPassage, passageStudyThreads]);
+
+  // ── Passage text selection detection ──────────────────────────────────────
+  useEffect(() => {
+    const scrollEl = passageScrollRef.current;
+    if (!scrollEl || !isExpanded) return;
+
+    const handleMouseUp = () => {
+      const sel = window.getSelection();
+      if (!sel || sel.isCollapsed || sel.rangeCount === 0) return;
+      const range = sel.getRangeAt(0);
+      if (!scrollEl.contains(range.commonAncestorContainer)) return;
+      const text = sel.toString().trim();
+      if (!text) return;
+      const rect = range.getBoundingClientRect();
+      setPassageSelection({ text, rect });
+    };
+
+    const handleSelectionChange = () => {
+      const sel = window.getSelection();
+      if (!sel || sel.isCollapsed) setPassageSelection(null);
+    };
+
+    const handleScroll = () => setPassageSelection(null);
+
+    scrollEl.addEventListener('mouseup', handleMouseUp);
+    document.addEventListener('selectionchange', handleSelectionChange);
+    scrollEl.addEventListener('scroll', handleScroll);
+    return () => {
+      scrollEl.removeEventListener('mouseup', handleMouseUp);
+      document.removeEventListener('selectionchange', handleSelectionChange);
+      scrollEl.removeEventListener('scroll', handleScroll);
+    };
+  }, [isExpanded]);
+
+  const handleCreatePassageHighlight = useCallback(async () => {
+    if (!passageSelection || !sourceNoteId || creatingHighlight) return;
+    setCreatingHighlight(true);
+    try {
+      const norm = normalizeScriptureReference(displayRefString) ?? displayRefString;
+      const res = await fetch(`/api/notes/${sourceNoteId}/study-threads`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          entryKind: 'scriptureLink',
+          scripturePassageExcerpt: passageSelection.text,
+          scriptureReference: norm,
+          scripturePassageTranslation: trans,
+          highlightAccentRaw: 'warmAmber',
+          sourceSnippet: passageSelection.text,
+          focusTitle: passageSelection.text.slice(0, 80),
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const threadId: string | null = data.studyThread?.id ?? null;
+        if (threadId) {
+          setPassageStudyThreads((prev) => [
+            ...prev,
+            {
+              id: threadId,
+              scripturePassageExcerpt: passageSelection.text,
+              highlightAccentRaw: 'warmAmber',
+              entryKind: 'scriptureLink',
+            },
+          ]);
+          onPassageHighlightCreated?.(passageSelection.text, threadId);
+        }
+      }
+    } catch {
+      /* ignore — highlight list will still reflect server state on next load */
+    }
+    setPassageSelection(null);
+    window.getSelection()?.removeAllRanges();
+    setCreatingHighlight(false);
+  }, [passageSelection, sourceNoteId, creatingHighlight, displayRefString, trans, onPassageHighlightCreated]);
+  // ──────────────────────────────────────────────────────────────────────────
 
   const removePassageStudy = useCallback(async (id: string) => {
     try {
@@ -226,176 +367,164 @@ export default function ScripturePillChromeWeb({
     }
   }, []);
 
-  const selectedSwatchKey = initialPillAccent || 'neutral';
+  const selectedSwatchKey: StudyHighlightAccentKey =
+    initialPillAccent && isStudyHighlightAccentKey(initialPillAccent) ? initialPillAccent : 'neutral';
+
+  const toggleExpanded = useCallback(() => {
+    if (isControlledExpanded) {
+      onExpandedChange!(!isExpanded);
+    } else {
+      setIsExpandedInternal((prev) => !prev);
+    }
+  }, [isControlledExpanded, isExpanded, onExpandedChange]);
+
+  const handleToggleVerseRange = useCallback(() => {
+    setUseVerseRange((prev) => {
+      if (!prev) setVerseEnd(verseStart);
+      return !prev;
+    });
+  }, [verseStart]);
+
+  const passageScrollHeight =
+    passageContentHeight > 0 ? Math.min(passageContentHeight, passageScrollCap) : passageScrollCap;
+
+  const transLabel = (TRANSLATIONS[trans]?.abbreviation ?? trans).toUpperCase();
 
   return (
-    <div className="scripture-pill-chrome" role="region" aria-label="Scripture reference editor">
-      <div className="scripture-pill-chrome__row">
-        <div className="scripture-pill-chrome__scroll">
-          <div className="scripture-pill-chrome__controls">
-            <label className="scripture-pill-chrome__field">
-              <span className="sr-only">Translation</span>
-              <select
-                className="scripture-pill-chrome__select"
-                value={trans}
-                onChange={(e) => setTrans(e.target.value)}
-                aria-label="Translation"
-              >
-                {TRANSLATION_ORDER.map((tid) => (
-                  <option key={tid} value={tid}>
-                    {TRANSLATIONS[tid]?.abbreviation ?? tid}
-                  </option>
+    <>
+    <StudyDockCardShell
+      rootClassName="scripture-pill-chrome"
+      ariaLabel="Scripture reference editor"
+      accentColor={SCRIPTURE_DOCK_ACCENT_COLORS[selectedSwatchKey]}
+      expanded={isExpanded}
+      onToggleExpanded={toggleExpanded}
+      onDismiss={onDone}
+      animateEnter={animateEnter}
+      headerIcon={<Icon name="book-open" size={13} />}
+      headerTitle={
+        <>
+          <input
+            type="text"
+            className="scripture-pill-chrome__title-input study-dock-card__header-primary-text"
+            value={displayRefString}
+            readOnly
+            tabIndex={-1}
+            aria-label="Scripture reference"
+            onMouseDown={(e) => e.stopPropagation()}
+            onClick={(e) => e.stopPropagation()}
+          />
+          <span className="scripture-pill-chrome__trans-chip" aria-label={`Translation ${transLabel}`}>
+            {transLabel}
+          </span>
+        </>
+      }
+      headerActions={
+        onPillAccentChange ? (
+          <DockAccentSwatchButton selection={selectedSwatchKey} onSelectionChange={onPillAccentChange} />
+        ) : null
+      }
+    >
+      <div className="scripture-pill-chrome__reference-bar">
+        <ScriptureReferencePickerStrip
+          books={books}
+          selectedBook={selectedBook}
+          onBookChange={setSelectedBook}
+          chapter={chapter}
+          chapterNums={chapterNums}
+          onChapterChange={setChapter}
+          verseStart={verseStart}
+          verseNums={verseNums}
+          onVerseStartChange={(v) => {
+            setVerseStart(v);
+            setVerseEnd((end) => (useVerseRange && end < v ? v : end));
+          }}
+          verseEnd={verseEnd}
+          endVerseNums={endVerseNums}
+          onVerseEndChange={setVerseEnd}
+          useVerseRange={useVerseRange}
+          onToggleVerseRange={handleToggleVerseRange}
+          translation={trans}
+          onTranslationChange={setTrans}
+        />
+      </div>
+      <div
+        ref={passageScrollRef}
+        className="scripture-pill-chrome__passage"
+        style={{ maxHeight: passageScrollHeight }}
+        aria-busy={loadingPassage}
+        // tabIndex=-1 makes this a valid focus target on click so the browser
+        // doesn't bounce focus back to the editor, allowing text selection.
+        tabIndex={-1}
+      >
+        <div ref={passageContentRef} className="scripture-pill-chrome__passage-inner">
+          {loadingPassage ? (
+            <p className="scripture-pill-chrome__passage-status">Loading passage…</p>
+          ) : passageHtml ? (
+            <div
+              className="scripture-pill-chrome__passage-html"
+              dangerouslySetInnerHTML={{ __html: safeRenderHtml(passageHtml) }}
+            />
+          ) : (
+            <p className="scripture-pill-chrome__passage-status">Could not load this passage.</p>
+          )}
+          {sourceNoteId && passageStudyThreads.length > 0 ? (
+            <div className="scripture-pill-chrome__passage-highlights">
+              <p className="scripture-pill-chrome__section-label">Passage highlights</p>
+              <ul className="scripture-pill-chrome__study-list">
+                {passageStudyThreads.map((row) => (
+                  <li key={row.id} className="scripture-pill-chrome__study-item">
+                    <p className="scripture-pill-chrome__study-excerpt">
+                      {row.scripturePassageExcerpt?.trim() || '(passage highlight)'}
+                    </p>
+                    <button
+                      type="button"
+                      className="study-dock-card__header-btn study-dock-card__header-btn--plain"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => void removePassageStudy(row.id)}
+                      aria-label="Remove passage highlight"
+                    >
+                      <Icon name="trash-can" size={12} />
+                    </button>
+                  </li>
                 ))}
-              </select>
-            </label>
-            <label className="scripture-pill-chrome__field">
-              <span className="sr-only">Book</span>
-              <select
-                className="scripture-pill-chrome__select scripture-pill-chrome__select--book"
-                value={selectedBook}
-                onChange={(e) => setSelectedBook(e.target.value)}
-                aria-label="Book"
-              >
-                {books.map((b) => (
-                  <option key={b} value={b}>
-                    {b}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="scripture-pill-chrome__field scripture-pill-chrome__field--narrow">
-              <span className="sr-only">Chapter</span>
-              <select
-                className="scripture-pill-chrome__select scripture-pill-chrome__select--number"
-                value={chapter}
-                onChange={(e) => setChapter(parseInt(e.target.value, 10))}
-                aria-label="Chapter"
-              >
-                {chapterNums.map((c) => (
-                  <option key={c} value={c}>
-                    {c}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <span className="scripture-pill-chrome__meta scripture-pill-chrome__meta--colon" aria-hidden>
-              :
-            </span>
-            <label className="scripture-pill-chrome__field scripture-pill-chrome__field--narrow">
-              <span className="sr-only">Verse start</span>
-              <select
-                className="scripture-pill-chrome__select scripture-pill-chrome__select--number"
-                value={verseStart}
-                onChange={(e) => {
-                  const v = parseInt(e.target.value, 10);
-                  setVerseStart(v);
-                  setVerseEnd((end) => (useVerseRange && end < v ? v : end));
-                }}
-                aria-label="Start verse"
-              >
-                {verseNums.map((v) => (
-                  <option key={v} value={v}>
-                    {v}
-                  </option>
-                ))}
-              </select>
-            </label>
-            {useVerseRange ? (
-              <>
-                <span className="scripture-pill-chrome__meta scripture-pill-chrome__meta--dash" aria-hidden>
-                  –
-                </span>
-                <label className="scripture-pill-chrome__field scripture-pill-chrome__field--narrow">
-                  <span className="sr-only">End verse</span>
-                  <select
-                    className="scripture-pill-chrome__select scripture-pill-chrome__select--number"
-                    value={verseEnd}
-                    onChange={(e) => setVerseEnd(parseInt(e.target.value, 10))}
-                    aria-label="End verse"
-                  >
-                    {endVerseNums.map((v) => (
-                      <option key={v} value={v}>
-                        {v}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              </>
-            ) : null}
+              </ul>
+            </div>
+          ) : null}
+        </div>
+      </div>
+    </StudyDockCardShell>
+    {/* Floating passage highlight action bar — portal to document.body to escape scroll clip */}
+    {passageSelection && sourceNoteId && passageHtml && typeof document !== 'undefined'
+      ? createPortal(
+          <div
+            className="scripture-pill-chrome__passage-action-bar"
+            style={{
+              top: Math.max(8, passageSelection.rect.top - 40),
+              left: Math.max(
+                8,
+                Math.min(
+                  passageSelection.rect.left + passageSelection.rect.width / 2 - 18,
+                  (typeof window !== 'undefined' ? window.innerWidth : 800) - 44,
+                ),
+              ),
+            }}
+            // Prevent mousedown from clearing the selection before click fires
+            onMouseDown={(e) => e.preventDefault()}
+          >
             <button
               type="button"
-              className={`scripture-pill-chrome__range-toggle${useVerseRange ? ' scripture-pill-chrome__range-toggle--on' : ''}`}
-              onClick={() =>
-                setUseVerseRange((prev) => {
-                  if (!prev) setVerseEnd(verseStart);
-                  return !prev;
-                })
-              }
-              title={useVerseRange ? 'Single verse' : 'Verse range'}
-              aria-pressed={useVerseRange}
-              aria-label={useVerseRange ? 'Switch to single verse' : 'Switch to verse range'}
+              className="study-dock-card__header-btn"
+              onClick={() => void handleCreatePassageHighlight()}
+              disabled={creatingHighlight}
+              aria-label="Highlight selected passage text"
+              title="Highlight"
             >
-              <Icon name="arrows-left-right" size={17} />
+              <Icon name="highlighter" size={12} />
             </button>
-            {onPillAccentChange ? (
-              <div className="scripture-pill-chrome__accent-cluster" role="group" aria-label="Pill accent color">
-                {STUDY_HIGHLIGHT_SWATCHES_WITH_NEUTRAL.map((key) => (
-                  <button
-                    key={key}
-                    type="button"
-                    className={`highlight-dock-web__swatch highlight-dock-web__swatch--${key}${
-                      selectedSwatchKey === key ? ' highlight-dock-web__swatch--selected' : ''
-                    }`}
-                    title={key}
-                    aria-label={key}
-                    aria-pressed={selectedSwatchKey === key}
-                    onMouseDown={(e) => e.preventDefault()}
-                    onClick={() => onPillAccentChange(key)}
-                  />
-                ))}
-              </div>
-            ) : null}
-          </div>
-        </div>
-        <button type="button" className="scripture-pill-chrome__done-text" onClick={onDone}>
-          Done
-        </button>
-      </div>
-      <div className="scripture-pill-chrome__passage" aria-busy={loadingPassage}>
-        <div className="scripture-pill-chrome__passage-head">
-          <span className="scripture-pill-chrome__ref">{displayRefString}</span>
-          <span className="scripture-pill-chrome__trans">{TRANSLATIONS[trans]?.abbreviation ?? trans}</span>
-        </div>
-        {loadingPassage ? (
-          <p className="scripture-pill-chrome__passage-status">Loading passage…</p>
-        ) : passageHtml ? (
-          <div
-            className="scripture-pill-chrome__passage-html"
-            dangerouslySetInnerHTML={{ __html: safeRenderHtml(passageHtml) }}
-          />
-        ) : (
-          <p className="scripture-pill-chrome__passage-status">Could not load this passage.</p>
-        )}
-        {sourceNoteId && passageStudyThreads.length > 0 ? (
-          <ul className="scripture-pill-chrome__study-list">
-            {passageStudyThreads.map((row) => (
-              <li key={row.id} className="scripture-pill-chrome__study-item">
-                <span className="scripture-pill-chrome__study-excerpt">
-                  {row.scripturePassageExcerpt?.trim() || '(passage highlight)'}
-                </span>
-                <button
-                  type="button"
-                  className="highlight-dock-web__btn highlight-dock-web__btn--plain"
-                  onMouseDown={(e) => e.preventDefault()}
-                  onClick={() => void removePassageStudy(row.id)}
-                >
-                  Remove
-                </button>
-              </li>
-            ))}
-          </ul>
-        ) : null}
-      </div>
-    </div>
+          </div>,
+          document.body,
+        )
+      : null}
+    </>
   );
 }

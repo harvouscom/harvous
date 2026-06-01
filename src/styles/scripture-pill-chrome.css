@@ -1,92 +1,123 @@
-/* Scripture pill editor — ported into prototype bottom chrome (uses --pds-* with Harvous fallbacks). */
-.scripture-pill-chrome {
-  display: flex;
-  flex-direction: column;
-  width: 100%;
-  box-sizing: border-box;
-  background: var(--pds-bg-footer, var(--color-snow-white, #fafafa));
-  border-top: 1px solid var(--pds-border, var(--color-fog-white, #e8e8e8));
-}
+/* Scripture pill editor dock — highlight-dock parity (card shell + body sections). */
 
-.scripture-pill-chrome__row {
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  flex-wrap: nowrap;
-  gap: 0;
-  padding: 0 20px;
-  min-height: 44px;
-  box-sizing: border-box;
-}
-
-.scripture-pill-chrome__scroll {
-  flex: 1;
+.scripture-pill-chrome__title-input {
+  flex: 1 1 auto;
   min-width: 0;
+  width: auto;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  outline: none;
+  box-sizing: border-box;
+  cursor: inherit;
+  pointer-events: none;
+}
+
+.scripture-pill-chrome__trans-chip {
+  flex-shrink: 0;
+  min-width: 0;
+  white-space: nowrap;
+  padding: 2px 6px;
+  border-radius: 6px;
+  border: 0.5px solid var(--pds-border-control-soft, rgba(0, 0, 0, 0.1));
+  background: var(--pds-bg-faint, rgba(0, 0, 0, 0.04));
+  font-family: var(--pds-font-body, system-ui, sans-serif);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--pds-text-secondary, #888);
+  line-height: 1.2;
+}
+
+.study-dock-card__card--collapsed .scripture-pill-chrome__trans-chip {
+  flex-shrink: 0;
+  overflow: visible;
+  text-overflow: unset;
+}
+
+.scripture-pill-chrome__section-label {
+  margin: 0;
+  font-family: var(--pds-font-body, inherit);
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--pds-text-tertiary, rgba(29, 29, 31, 0.4));
+}
+
+/* ─── Reference picker bar (track + capsule pills) ─────────────────────────── */
+
+.scripture-pill-chrome__reference-bar {
+  border-radius: 10px;
+  border: 0.5px solid var(--pds-border-control-soft);
+  background: var(--pds-bg-faint);
+  overflow: visible;
+}
+
+.scripture-pill-chrome__reference-scroll {
   overflow-x: auto;
+  overflow-y: visible;
   scrollbar-width: none;
   -ms-overflow-style: none;
 }
 
-.scripture-pill-chrome__scroll::-webkit-scrollbar {
+.scripture-pill-chrome__reference-scroll::-webkit-scrollbar {
   display: none;
 }
 
-.scripture-pill-chrome__controls {
+.scripture-pill-chrome__reference-controls {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: 5px;
   flex-wrap: nowrap;
   width: max-content;
-  padding: 6px 0;
+  padding: 3px 7px;
   box-sizing: border-box;
 }
 
-.scripture-pill-chrome__field {
-  margin: 0;
+.scripture-pill-chrome .harvous-menu-pill__trigger {
+  background: transparent;
+  color: var(--pds-text-secondary) !important;
+  font-weight: 400 !important;
+}
+
+.scripture-pill-chrome .harvous-menu-pill__trigger *,
+.scripture-pill-chrome .harvous-menu-pill__label {
+  font-weight: 400 !important;
+  color: inherit !important;
+}
+
+.scripture-pill-chrome .harvous-menu-pill__trigger:hover,
+.scripture-pill-chrome .harvous-menu-pill__trigger[aria-expanded='true'] {
+  background: var(--pds-bg-chip);
+  color: var(--pds-text-primary) !important;
+}
+
+.scripture-ref-cluster {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
   flex-shrink: 0;
+  padding: 0 1px;
 }
 
-.scripture-pill-chrome__select {
-  font-family: var(--pds-font-body, var(--font-sans, system-ui, sans-serif));
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--pds-text-primary, var(--color-deep-grey, #222));
-  background-color: transparent;
-  border: 1px solid var(--pds-border, rgba(0, 0, 0, 0.072));
-  border-radius: var(--pds-radius-input, 10px);
-  padding: 6px 10px;
-  height: 36px;
-  box-sizing: border-box;
-  transition: background-color 0.12s ease, border-color 0.12s ease;
+.scripture-ref-cluster .harvous-menu-pill__trigger {
+  background: transparent;
+  color: var(--pds-text-secondary) !important;
 }
 
-.scripture-pill-chrome__select:hover {
-  background-color: var(--pds-bg-input, rgba(0, 0, 0, 0.055));
-}
-
-.scripture-pill-chrome__select:focus {
-  outline: none;
-  border-color: var(--pds-accent, rgb(56, 105, 230));
-  box-shadow: 0 0 0 2px var(--pds-accent-active-bg, rgba(56, 105, 230, 0.12));
-}
-
-.scripture-pill-chrome__select--book {
-  max-width: 220px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.scripture-pill-chrome__select--number {
-  max-width: 58px;
-  min-width: 58px;
-  padding-left: 6px;
-  padding-right: 6px;
+.scripture-ref-cluster .harvous-menu-pill__trigger:hover,
+.scripture-ref-cluster .harvous-menu-pill__trigger[aria-expanded='true'] {
+  background: var(--pds-bg-chip);
+  color: var(--pds-text-primary) !important;
 }
 
 .scripture-pill-chrome__meta {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--pds-text-tertiary, var(--color-pebble-grey, #888));
+  font-family: var(--pds-font-body, system-ui, sans-serif);
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--pds-text-tertiary);
+  opacity: 0.85;
 }
 
 .scripture-pill-chrome__meta--colon,
@@ -94,7 +125,7 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 10px;
+  width: 8px;
   flex-shrink: 0;
 }
 
@@ -102,104 +133,112 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 36px;
-  height: 36px;
-  border-radius: var(--pds-radius-input, 10px);
-  border: 1px solid var(--pds-border, rgba(0, 0, 0, 0.072));
+  width: 30px;
+  height: 30px;
+  border-radius: var(--pds-radius-pill, 999px);
+  border: none;
   background: transparent;
-  color: var(--pds-text-primary, var(--color-deep-grey, #222));
+  color: var(--pds-text-tertiary);
   cursor: pointer;
   flex-shrink: 0;
-  transition: background-color 0.12s ease, border-color 0.12s ease;
+  transition: background-color 0.1s ease, transform 0.1s ease, color 0.1s ease;
   padding: 0;
 }
 
 .scripture-pill-chrome__range-toggle:hover {
-  background: var(--pds-bg-input, rgba(0, 0, 0, 0.055));
+  background: var(--pds-bg-chip);
+  color: var(--pds-text-secondary);
+}
+
+.scripture-pill-chrome__range-toggle:active {
+  transform: scale(0.97);
+  background: var(--pds-bg-control);
 }
 
 .scripture-pill-chrome__range-toggle--on {
-  background: var(--pds-accent-active-bg, rgba(56, 105, 230, 0.12));
-  border-color: var(--pds-accent, rgb(56, 105, 230));
-  color: var(--pds-accent, rgb(56, 105, 230));
+  background: var(--pds-bg-chip);
+  color: var(--pds-text-primary);
 }
 
-.scripture-pill-chrome__accent-cluster {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  flex-shrink: 0;
+.scripture-pill-chrome__range-toggle:focus-visible {
+  outline: 2px solid var(--pds-accent-focus-outline-soft, var(--pds-accent, rgb(56, 105, 230)));
+  outline-offset: 1px;
 }
 
-.scripture-pill-chrome__done-text {
-  flex-shrink: 0;
-  align-self: center;
-  margin: 0;
-  padding: 6px 0 6px 8px;
-  border: none;
-  background: none;
-  font-family: var(--pds-font-body, var(--font-sans, system-ui, sans-serif));
-  font-size: 13px;
-  font-weight: 500;
-  line-height: 1.2;
-  color: color-mix(in srgb, var(--pds-text-primary, #1d1d1f) 65%, transparent);
-  cursor: pointer;
-  -webkit-font-smoothing: antialiased;
+/* ─── Passage scroll ─────────────────────────────────────────────────────── */
+
+/* Passage scroll viewport runs edge-to-edge: from the bottom of the reference bar to the
+   bottom of the dock card. The card bottom-padding and body gap are zeroed when expanded;
+   breathing room lives inside the scroll content instead (top/bottom padding here). */
+.scripture-pill-chrome .study-dock-card__body {
+  gap: 0;
 }
 
-.scripture-pill-chrome__done-text:hover {
-  color: color-mix(in srgb, var(--pds-text-primary, #1d1d1f) 88%, transparent);
-}
-
-.scripture-pill-chrome__done-text:active {
-  color: var(--pds-text-primary, #1d1d1f);
-}
-
-.scripture-pill-chrome__done-text:focus-visible {
-  outline: 2px solid var(--pds-accent, rgb(56, 105, 230));
-  outline-offset: 2px;
-  border-radius: 4px;
+/* Remove card bottom padding when passage is visible — scroll runs to card bottom. */
+.scripture-pill-chrome .study-dock-card__card[data-expanded='true'] {
+  padding-bottom: 0;
+  overflow: clip; /* clip passage to the card's 18px border-radius */
 }
 
 .scripture-pill-chrome__passage {
-  max-height: 280px;
   overflow-y: auto;
-  padding: 16px 22px;
-  border-top: 1px solid var(--pds-border, var(--color-fog-white, #efefef));
+  /* Top: breathing room below the reference bar (inside the scroll, scrolls away). */
+  /* Bottom: breathing room after the last verse (inside the scroll). */
+  padding: 8px 0 10px;
+  box-sizing: border-box;
+  /* tabIndex=-1 makes this focusable so clicks don't bounce back to the editor;
+     suppress the default focus ring since this isn't a keyboard-operable control. */
+  outline: none;
 }
 
-@media (min-width: 900px) {
-  .scripture-pill-chrome__passage {
-    max-height: min(400px, 40vh);
-  }
-}
-
-.scripture-pill-chrome__passage-head {
-  display: flex;
-  gap: 8px;
-  align-items: baseline;
-  margin-bottom: 14px;
-}
-
-.scripture-pill-chrome__ref {
-  font-family: var(--pds-font-body, var(--font-sans, system-ui, sans-serif));
-  font-size: 15px;
-  font-weight: 600;
-  color: var(--pds-text-primary, var(--color-deep-grey, #222));
-}
-
-.scripture-pill-chrome__trans {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--pds-text-tertiary, var(--color-pebble-grey, #888));
+.scripture-pill-chrome__passage-inner {
+  box-sizing: border-box;
 }
 
 .scripture-pill-chrome__passage-html {
-  font-family: var(--pds-font-body, var(--font-sans, system-ui, sans-serif));
+  /* Explicitly allow text selection and show the I-beam cursor for the passage. */
+  user-select: text;
+  -webkit-user-select: text;
+  cursor: text;
+  font-family: var(
+    --pds-font-body,
+    "Google Sans Flex",
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    Roboto,
+    "Helvetica Neue",
+    Arial,
+    sans-serif
+  );
   font-size: 16px;
-  font-weight: 500;
+  font-weight: 400;
   line-height: 1.6;
   color: var(--pds-text-primary, var(--color-deep-grey, #222));
+}
+
+.scripture-pill-chrome__passage-html p,
+.scripture-pill-chrome__passage-html span,
+.scripture-pill-chrome__passage-html div {
+  font-family: inherit;
+  line-height: inherit;
+}
+
+/* Verse number superscripts — override the server-emitted inline style.
+   `vertical-align: super` is font-metric-dependent and shifts inconsistently when the
+   preceding text ends in characters like ) that have unusual vertical metrics (tall
+   ascenders, zero descenders). Replacing it with position-relative keeps every verse
+   number at exactly the same height regardless of what comes before it. */
+.scripture-pill-chrome__passage-html sup.verse-num {
+  vertical-align: baseline !important;
+  position: relative;
+  top: -0.38em;
+  line-height: 0 !important;
+  font-size: 0.58em !important;
+  font-weight: 500;
+  color: var(--pds-text-secondary, rgba(29, 29, 31, 0.45));
+  margin-right: 0.1em;
+  display: inline-block;
 }
 
 .scripture-pill-chrome__passage-status {
@@ -208,34 +247,66 @@
   color: var(--pds-text-secondary, var(--color-pebble-grey, #777));
 }
 
-.scripture-pill-chrome__study-list {
-  list-style: none;
-  margin: 12px 0 0;
-  padding: 0;
+.scripture-pill-chrome__passage-highlights {
   display: flex;
   flex-direction: column;
   gap: 6px;
+  margin-top: 2px;
+}
+
+.scripture-pill-chrome__study-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
 .scripture-pill-chrome__study-item {
   display: flex;
+  flex-direction: row;
   align-items: flex-start;
-  justify-content: space-between;
   gap: 8px;
-  font-size: 13px;
-  color: var(--pds-text-primary, var(--color-deep-grey, #222));
-}
-
-.scripture-pill-chrome__study-item .highlight-dock-web__btn {
-  flex-shrink: 0;
-  align-self: center;
 }
 
 .scripture-pill-chrome__study-excerpt {
   flex: 1;
   min-width: 0;
-  line-height: 1.35;
+  margin: 0;
+  font-family: var(--pds-font-body, inherit);
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 1.45;
+  color: var(--pds-text-primary, #1d1d1f);
 }
+
+.scripture-pill-chrome__study-item .study-dock-card__header-btn {
+  flex-shrink: 0;
+  margin-top: -2px;
+}
+
+/* ─── Passage text selection → highlight action bar ─────────────────────── */
+
+/* Portal-rendered to document.body so it escapes the passage scroll clip. */
+.scripture-pill-chrome__passage-action-bar {
+  position: fixed;
+  z-index: 9999;
+  display: inline-flex;
+  align-items: center;
+  padding: 3px;
+  border-radius: 999px;
+  background: var(--pds-bg-glass-medium, rgba(255, 255, 255, 0.92));
+  border: 0.5px solid var(--pds-border-control, rgba(0, 0, 0, 0.12));
+  box-shadow:
+    0 4px 12px rgba(0, 0, 0, 0.12),
+    0 1px 3px rgba(0, 0, 0, 0.07);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  pointer-events: auto;
+  user-select: none;
+}
+
 
 .sr-only {
   position: absolute;

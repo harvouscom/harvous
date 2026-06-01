@@ -45,6 +45,9 @@ struct ScripturePassageView: View {
     var onPassageHighlightTap: ((UUID) -> Void)? = nil
     /// When non-nil, only this passage highlight keeps full accent underlines (inline dock focus).
     var passageHighlightFocusedThreadId: UUID? = nil
+    /// iOS dock: invoked when the user chooses Highlight from the system text edit menu; receives
+    /// normalized excerpt read synchronously from the text view (not async SwiftUI selection state).
+    var onPassageHighlightFromEditMenu: ((String) -> Void)? = nil
 
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -136,7 +139,8 @@ struct ScripturePassageView: View {
                         paintRanges: paintRanges,
                         onSelectionChange: onPassageSelectionChange,
                         onSelectionRectChange: onPassageSelectionRectChange,
-                        onPaintTap: onPassageHighlightTap
+                        onPaintTap: onPassageHighlightTap,
+                        onHighlightFromEditMenu: onPassageHighlightFromEditMenu
                     )
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .transition(passageTextTransition)
@@ -261,10 +265,12 @@ struct ScripturePassageView: View {
         useReadingTypography: Bool,
         useRegularPassageWeight: Bool
     ) -> NSAttributedString {
-        let sized = ScripturePassageHTMLParser.enforceVerseNumeralDisplaySizing(base)
-        var displayed = useReadingTypography ? sized.withLineSpacingExtra(4) : sized
+        var displayed = ScripturePassageHTMLParser.enforceVerseNumeralDisplaySizing(base)
+        if useReadingTypography {
+            displayed = ScripturePassageHTMLParser.applyDockReadingPanelStyle(displayed)
+        }
         if useRegularPassageWeight {
-            displayed = ScripturePassageHTMLParser.enforceRegularPassageWeight(displayed)
+            return ScripturePassageHTMLParser.enforceRegularPassageWeight(displayed)
         }
         return displayed
     }
@@ -400,22 +406,6 @@ struct ScripturePassageView: View {
     }
 }
 
-// MARK: - Reading line spacing (matches prior SwiftUI `.lineSpacing(4)` on `Text`)
-
-private extension NSAttributedString {
-    func withLineSpacingExtra(_ extra: CGFloat) -> NSAttributedString {
-        guard extra > 0 else { return self }
-        let m = NSMutableAttributedString(attributedString: self)
-        let full = NSRange(location: 0, length: m.length)
-        m.enumerateAttribute(.paragraphStyle, in: full, options: []) { value, range, _ in
-            let mp = ((value as? NSParagraphStyle)?.mutableCopy() as? NSMutableParagraphStyle) ?? NSMutableParagraphStyle()
-            mp.lineSpacing = mp.lineSpacing + extra
-            m.addAttribute(.paragraphStyle, value: mp, range: range)
-        }
-        return m
-    }
-}
-
 // MARK: - Native text (honors NSAttributedString baselineOffset for verse numerals)
 
 #if os(macOS)
@@ -490,6 +480,7 @@ private struct ScripturePassageFittingTextView: NSViewRepresentable {
     var onSelectionChange: ((String) -> Void)?
     var onSelectionRectChange: ((CGRect?) -> Void)?
     var onPaintTap: ((UUID) -> Void)?
+    var onHighlightFromEditMenu: ((String) -> Void)? = nil
 
     func makeCoordinator() -> Coordinator {
         Coordinator()
@@ -610,6 +601,32 @@ private struct ScripturePassageFittingTextView: NSViewRepresentable {
 
 #else
 
+/// Passage text view with a Highlight item in the system edit menu (iOS scripture dock).
+private final class ScripturePassageTextView: UITextView {
+    var onHighlightAction: (() -> Void)?
+
+    override func editMenu(for textRange: UITextRange, suggestedActions: [UIMenuElement]) -> UIMenu? {
+        let start = offset(from: beginningOfDocument, to: textRange.start)
+        let end = offset(from: beginningOfDocument, to: textRange.end)
+        guard start <= end else {
+            return super.editMenu(for: textRange, suggestedActions: suggestedActions)
+        }
+
+        let utf16Sel = NSRange(location: start, length: max(0, end - start))
+        guard utf16Sel.length > 0, onHighlightAction != nil else {
+            return super.editMenu(for: textRange, suggestedActions: suggestedActions)
+        }
+
+        var front: [UIMenuElement] = []
+        if let hl = onHighlightAction {
+            front.append(UIAction(title: "Highlight", image: UIImage(systemName: "highlighter")) { _ in
+                hl()
+            })
+        }
+        return UIMenu(children: front + suggestedActions)
+    }
+}
+
 private struct ScripturePassageFittingTextView: UIViewRepresentable {
     var attributed: NSAttributedString
     var contentDigest: Int
@@ -617,13 +634,14 @@ private struct ScripturePassageFittingTextView: UIViewRepresentable {
     var onSelectionChange: ((String) -> Void)?
     var onSelectionRectChange: ((CGRect?) -> Void)?
     var onPaintTap: ((UUID) -> Void)?
+    var onHighlightFromEditMenu: ((String) -> Void)?
 
     func makeCoordinator() -> Coordinator {
         Coordinator()
     }
 
-    func makeUIView(context: Context) -> UITextView {
-        let tv = UITextView()
+    func makeUIView(context: Context) -> ScripturePassageTextView {
+        let tv = ScripturePassageTextView()
         tv.isEditable = false
         tv.isSelectable = true
         tv.isScrollEnabled = false
@@ -636,8 +654,10 @@ private struct ScripturePassageFittingTextView: UIViewRepresentable {
         context.coordinator.onSelectionChange = onSelectionChange
         context.coordinator.onSelectionRectChange = onSelectionRectChange
         context.coordinator.onPaintTap = onPaintTap
+        context.coordinator.onHighlightFromEditMenu = onHighlightFromEditMenu
         context.coordinator.paintRanges = paintRanges
         context.coordinator.lastDigest = contentDigest
+        wireHighlightEditMenu(on: tv, coordinator: context.coordinator)
         tv.attributedText = attributed
 
         // Tap gesture detects single-tap on a painted range. cancelsTouchesInView=false so the
@@ -648,12 +668,14 @@ private struct ScripturePassageFittingTextView: UIViewRepresentable {
         return tv
     }
 
-    func updateUIView(_ tv: UITextView, context: Context) {
+    func updateUIView(_ tv: ScripturePassageTextView, context: Context) {
         context.coordinator.textView = tv
         context.coordinator.onSelectionChange = onSelectionChange
         context.coordinator.onSelectionRectChange = onSelectionRectChange
         context.coordinator.onPaintTap = onPaintTap
+        context.coordinator.onHighlightFromEditMenu = onHighlightFromEditMenu
         context.coordinator.paintRanges = paintRanges
+        wireHighlightEditMenu(on: tv, coordinator: context.coordinator)
         if context.coordinator.lastDigest != contentDigest {
             context.coordinator.lastDigest = contentDigest
             // Suspend the delegate during the attributed-text swap so synchronous selection
@@ -663,6 +685,16 @@ private struct ScripturePassageFittingTextView: UIViewRepresentable {
             tv.attributedText = attributed
             tv.selectedRange = NSRange(location: 0, length: 0)
             tv.delegate = savedDelegate
+        }
+    }
+
+    private func wireHighlightEditMenu(on tv: ScripturePassageTextView, coordinator: Coordinator) {
+        if onHighlightFromEditMenu != nil {
+            tv.onHighlightAction = { [weak coordinator] in
+                coordinator?.invokeHighlightFromEditMenuIfPossible()
+            }
+        } else {
+            tv.onHighlightAction = nil
         }
     }
 
@@ -678,8 +710,21 @@ private struct ScripturePassageFittingTextView: UIViewRepresentable {
         var onSelectionChange: ((String) -> Void)?
         var onSelectionRectChange: ((CGRect?) -> Void)?
         var onPaintTap: ((UUID) -> Void)?
+        var onHighlightFromEditMenu: ((String) -> Void)?
         var paintRanges: [(id: UUID, range: NSRange)] = []
         var lastDigest: Int = 0
+
+        func invokeHighlightFromEditMenuIfPossible() {
+            guard let tv = textView, let cb = onHighlightFromEditMenu else { return }
+            let r = tv.selectedRange
+            let s = (tv.text ?? "") as NSString
+            guard r.length > 0, NSMaxRange(r) <= s.length else { return }
+            let normalized = StudyThread.normalizedPassageExcerpt(s.substring(with: r))
+            guard !normalized.isEmpty else { return }
+            DispatchQueue.main.async {
+                cb(normalized)
+            }
+        }
 
         @objc func handleTap(_ gesture: UITapGestureRecognizer) {
             guard gesture.state == .ended,

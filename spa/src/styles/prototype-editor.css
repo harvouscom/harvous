@@ -33,6 +33,7 @@
 }
 
 .proto-editor-surface {
+  position: relative;
   flex: 1;
   min-height: 0;
   display: flex;
@@ -40,6 +41,45 @@
   background: transparent;
   overflow: hidden;
   font-family: var(--pds-font-body);
+}
+
+/* Floating study docks — overlay bottom of editor column (native ActiveScripturePillDock parity). */
+.proto-editor-dock-layer {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 6;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 0 0 8px;
+  pointer-events: none;
+}
+
+.proto-editor-dock-layer__slot {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.proto-editor-dock-layer__slot:not(:empty) {
+  pointer-events: auto;
+}
+
+.proto-editor-dock-layer__slot:empty {
+  display: none;
+}
+
+.proto-editor-dock-layer .scripture-pill-chrome,
+.proto-editor-dock-layer .highlight-dock-web,
+.proto-editor-dock-layer .study-dock-carousel,
+.proto-editor-dock-layer .reference-dock-web,
+.proto-editor-dock-layer .study-dock-card {
+  pointer-events: auto;
 }
 
 .proto-editor-scroll {
@@ -292,24 +332,34 @@
 .proto-editor-surface .ProseMirror h3 {
   font-family: var(--pds-font-display) !important;
   font-size: 1.0625rem;
-  font-weight: 560;
+  font-weight: 600;
   margin: 1.2em 0 0.35em;
   color: var(--pds-text-primary) !important;
 }
 
-.proto-editor-surface .ProseMirror h4 {
+/* Rendered note mode (non-ProseMirror HTML) headings — per-level scale; h4 kept for legacy notes */
+.proto-editor-surface .card-full-editable__content-html h2 {
   font-family: var(--pds-font-display) !important;
-  font-size: 0.9375rem;
-  font-weight: 520;
-  margin: 1.1em 0 0.3em;
-  color: var(--pds-text-primary) !important;
+  font-size: 1.1875rem !important;
+  font-weight: 600 !important;
+  letter-spacing: -0.01em;
 }
 
-/* Rendered note mode (non-ProseMirror HTML) headings should also be rounded. */
+.proto-editor-surface .card-full-editable__content-html h3 {
+  font-family: var(--pds-font-display) !important;
+  font-size: 1.0625rem !important;
+  font-weight: 600 !important;
+  letter-spacing: -0.01em;
+}
+
+.proto-editor-surface .card-full-editable__content-html h4 {
+  font-family: var(--pds-font-display) !important;
+  font-size: 1rem !important;
+  font-weight: 520 !important;
+  letter-spacing: -0.01em;
+}
+
 .proto-editor-surface .card-full-editable__content-html h1,
-.proto-editor-surface .card-full-editable__content-html h2,
-.proto-editor-surface .card-full-editable__content-html h3,
-.proto-editor-surface .card-full-editable__content-html h4,
 .proto-editor-surface .card-full-editable__content-html h5,
 .proto-editor-surface .card-full-editable__content-html h6 {
   font-family: var(--pds-font-display) !important;
@@ -337,6 +387,17 @@
   border: none;
   border-top: 1px solid var(--pds-border);
   margin: 1.5em 0;
+}
+
+.proto-editor-surface .ProseMirror img {
+  display: block;
+  max-width: 400px;
+  width: 100%;
+  height: auto;
+  margin: 1em 0;
+  border-radius: 8px;
+  border: 1px solid var(--pds-border);
+  box-sizing: border-box;
 }
 
 .proto-editor-surface .ProseMirror strong { font-weight: 600; }
@@ -439,6 +500,8 @@
 
 .proto-editor-bottom-bar__scripture {
   width: 100%;
+  padding-top: 0;
+  padding-bottom: 0;
 }
 
 .proto-editor-bottom-bar__highlight {
@@ -449,12 +512,69 @@
   width: 100%;
 }
 
-/* Dock roots — host bar supplies border + glass fill; avoids double borders. */
+/* Dock roots in the shell bottom bar — transparent; floating docks live in `.proto-editor-dock-layer`. */
 .proto-editor-bottom-bar__scripture .scripture-pill-chrome,
 .proto-editor-bottom-bar__highlight .highlight-dock-web,
 .proto-editor-bottom-bar__reference .reference-dock-web {
   border-top: none;
   background: transparent;
+}
+
+/* Scripture reference strip — prototype PDS only (not classic SPA translation-dropdown chrome). */
+.proto-editor-surface .scripture-pill-chrome__reference-bar {
+  background: var(--pds-bg-faint);
+  border-color: var(--pds-border-control-soft);
+}
+
+.proto-editor-surface .scripture-pill-chrome .harvous-menu-pill__trigger,
+.proto-editor-surface .scripture-pill-chrome .harvous-menu-pill__item,
+.proto-editor-surface .scripture-pill-chrome .scripture-pill-chrome__range-toggle {
+  font-family: var(--pds-font-body) !important;
+  font-weight: 400 !important;
+}
+
+.proto-editor-surface .scripture-pill-chrome .harvous-menu-pill__trigger,
+.proto-editor-surface .scripture-pill-chrome .harvous-menu-pill__trigger *,
+.proto-editor-surface .scripture-pill-chrome .harvous-menu-pill__item {
+  font-weight: 400 !important;
+}
+
+.proto-editor-surface .scripture-pill-chrome .harvous-menu-pill__trigger {
+  color: var(--pds-text-secondary) !important;
+}
+
+.proto-editor-surface .scripture-pill-chrome .harvous-menu-pill__trigger:hover,
+.proto-editor-surface .scripture-pill-chrome .harvous-menu-pill__trigger[aria-expanded='true'] {
+  color: var(--pds-text-primary) !important;
+}
+
+.proto-editor-surface .scripture-pill-chrome .harvous-menu-pill__chevron {
+  color: var(--pds-text-tertiary);
+  opacity: 0.75;
+}
+
+/* Highlight dock respond — beat global button 700. Header title uses study-dock-card.css. */
+html.harvous-prototype-route .proto-editor-surface .highlight-dock-web__respond-trigger,
+html.harvous-prototype-route .proto-editor-surface .highlight-dock-web__respond-trigger span,
+html.harvous-prototype-route .proto-editor-surface .highlight-dock-web__respond-trigger * {
+  font-family: var(--pds-font-body) !important;
+  font-weight: 500 !important;
+  color: var(--pds-text-tertiary) !important;
+}
+
+html.harvous-prototype-route .proto-editor-surface .highlight-dock-web__respond-trigger:hover,
+html.harvous-prototype-route .proto-editor-surface .highlight-dock-web__respond-trigger:hover span,
+html.harvous-prototype-route .proto-editor-surface .highlight-dock-web__respond-trigger:hover * {
+  color: var(--pds-text-secondary) !important;
+}
+
+html.harvous-prototype-route .proto-editor-surface .highlight-dock-web__respond-chevron {
+  opacity: 0.75;
+}
+
+.proto-editor-surface .scripture-ref-cluster .harvous-menu-pill__trigger:hover,
+.proto-editor-surface .scripture-ref-cluster .harvous-menu-pill__trigger[aria-expanded='true'] {
+  background: var(--pds-bg-chip);
 }
 
 /* Connect / linked-note strip (note-actions mode) */
@@ -497,54 +617,100 @@
   align-items: center;
 }
 
+.proto-editor-bottom-bar .tiptap-toolbar--prototype-native .tiptap-toolbar__hscroll,
 .proto-editor-surface .tiptap-toolbar--prototype-native .tiptap-toolbar__hscroll {
-  padding: 4px 0;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  flex-wrap: nowrap;
   width: 100%;
+  overflow: hidden;
+  padding: 4px 0;
 }
 
 .proto-editor-bottom-bar .tiptap-toolbar--prototype-native .tiptap-toolbar__hscroll {
   padding: 0;
+}
+
+.proto-editor-bottom-bar .tiptap-toolbar--prototype-native .tiptap-toolbar__scroll-region,
+.proto-editor-surface .tiptap-toolbar--prototype-native .tiptap-toolbar__scroll-region {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+}
+
+.proto-editor-bottom-bar .tiptap-toolbar--prototype-native .tiptap-toolbar__track,
+.proto-editor-surface .tiptap-toolbar--prototype-native .tiptap-toolbar__track {
+  width: max-content;
+  flex-wrap: nowrap;
+}
+
+.proto-editor-bottom-bar .tiptap-toolbar--prototype-native .tiptap-toolbar__trailing,
+.proto-editor-surface .tiptap-toolbar--prototype-native .tiptap-toolbar__trailing {
+  flex: 0 0 auto;
   display: flex;
-  justify-content: center;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: center;
+  margin-left: auto;
 }
 
-/* Center the icon track within the column-level bottom bar (matches native). */
-.proto-editor-bottom-bar .tiptap-toolbar--prototype-native .tiptap-toolbar__track {
-  width: auto !important;
-  justify-content: center;
+.proto-editor-bottom-bar .tiptap-toolbar--prototype-native .tiptap-toolbar__history,
+.proto-editor-surface .tiptap-toolbar--prototype-native .tiptap-toolbar__history {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: center;
 }
 
+.proto-editor-bottom-bar .tiptap-toolbar--prototype-native .tiptap-toolbar__group-divider--prototype,
 .proto-editor-surface .tiptap-toolbar--prototype-native .tiptap-toolbar__group-divider--prototype {
   display: inline-block;
-  width: 0.5px;
+  width: 1px;
   height: 22px;
-  background: var(--pds-border);
   margin: 0 6px;
   flex-shrink: 0;
   align-self: center;
+  background: var(--pds-text-primary);
+  opacity: 0.14;
+  transform: scaleX(0.5);
+  transform-origin: center;
 }
 
+.proto-editor-bottom-bar .tiptap-toolbar--prototype-native button,
 .proto-editor-surface .tiptap-toolbar--prototype-native button {
   min-width: 36px !important;
   min-height: 36px !important;
   border-radius: var(--pds-radius-format) !important;
   color: var(--pds-text-secondary);
+  flex-shrink: 0;
 }
 
 /* Prototype toolbar icon sizing (Font Awesome Solid; `Icon` injects width/height on the SVG root). */
+.proto-editor-bottom-bar .tiptap-toolbar--prototype-native .proto-toolbar-icon,
 .proto-editor-surface .tiptap-toolbar--prototype-native .proto-toolbar-icon {
   width: 18px;
   height: 18px;
   color: currentColor;
 }
 
+.proto-editor-bottom-bar .tiptap-toolbar--prototype-native button:hover:not(:disabled),
 .proto-editor-surface .tiptap-toolbar--prototype-native button:hover:not(:disabled) {
   background: var(--pds-bg-control);
   color: var(--pds-text-primary);
 }
 
+.proto-editor-bottom-bar .tiptap-toolbar--prototype-native button[aria-pressed='true'],
+.proto-editor-bottom-bar .tiptap-toolbar--prototype-native button.is-active,
+.proto-editor-bottom-bar .tiptap-toolbar--prototype-native button.ql-active,
+.proto-editor-bottom-bar .tiptap-toolbar--prototype-native button[data-active='true'],
 .proto-editor-surface .tiptap-toolbar--prototype-native button[aria-pressed='true'],
-.proto-editor-surface .tiptap-toolbar--prototype-native button.is-active {
+.proto-editor-surface .tiptap-toolbar--prototype-native button.is-active,
+.proto-editor-surface .tiptap-toolbar--prototype-native button.ql-active,
+.proto-editor-surface .tiptap-toolbar--prototype-native button[data-active='true'] {
   color: var(--pds-text-primary);
   background: var(--pds-bg-chip);
 }
@@ -950,10 +1116,32 @@ html.harvous-prototype-route .proto-editor-surface .card-full-editable__content-
 html.harvous-prototype-route .proto-editor-surface .card-full-editable__content-html p,
 html.harvous-prototype-route .proto-editor-surface .card-full-editable .flex-1.overflow-auto li,
 html.harvous-prototype-route .proto-editor-surface .card-full-editable .flex-1.overflow-auto h1,
-html.harvous-prototype-route .proto-editor-surface .card-full-editable .flex-1.overflow-auto h2,
-html.harvous-prototype-route .proto-editor-surface .card-full-editable .flex-1.overflow-auto h3,
-html.harvous-prototype-route .proto-editor-surface .card-full-editable .flex-1.overflow-auto h4,
 html.harvous-prototype-route .proto-editor-surface .card-full-editable .flex-1.overflow-auto h5,
 html.harvous-prototype-route .proto-editor-surface .card-full-editable .flex-1.overflow-auto h6 {
   color: var(--pds-text-primary) !important;
+}
+
+html.harvous-prototype-route .proto-editor-surface .card-full-editable .flex-1.overflow-auto h2,
+html.harvous-prototype-route .proto-editor-surface .card-full-editable .flex-1.overflow-auto h3,
+html.harvous-prototype-route .proto-editor-surface .card-full-editable .flex-1.overflow-auto h4 {
+  color: var(--pds-text-primary) !important;
+  font-family: var(--pds-font-display) !important;
+}
+
+html.harvous-prototype-route .proto-editor-surface .card-full-editable .flex-1.overflow-auto h2 {
+  font-size: 1.1875rem !important;
+  font-weight: 600 !important;
+  line-height: 1.3 !important;
+}
+
+html.harvous-prototype-route .proto-editor-surface .card-full-editable .flex-1.overflow-auto h3 {
+  font-size: 1.0625rem !important;
+  font-weight: 600 !important;
+  line-height: 1.35 !important;
+}
+
+html.harvous-prototype-route .proto-editor-surface .card-full-editable .flex-1.overflow-auto h4 {
+  font-size: 1rem !important;
+  font-weight: 520 !important;
+  line-height: 1.5 !important;
 }

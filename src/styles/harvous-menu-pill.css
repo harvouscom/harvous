@@ -1,0 +1,167 @@
+/* Capsule menu pill — prototype PDS (note-action bar / proto-menu), not classic SPA dropdown chrome. */
+
+.harvous-menu-pill {
+  position: relative;
+  display: inline-flex;
+  flex-shrink: 0;
+}
+
+.harvous-menu-pill__trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  height: 30px;
+  margin: 0;
+  padding: 0 9px;
+  border: none;
+  border-radius: var(--pds-radius-pill, 999px);
+  background: var(--pds-bg-control);
+  cursor: pointer;
+  font-family: var(--pds-font-body, system-ui, sans-serif) !important;
+  font-size: 13px;
+  font-weight: 400 !important;
+  line-height: 1.2;
+  color: var(--pds-text-primary) !important;
+  white-space: nowrap;
+  transition: background-color 0.1s ease, transform 0.1s ease, color 0.1s ease;
+}
+
+.harvous-menu-pill__trigger:hover {
+  background: var(--pds-bg-control-strong);
+}
+
+.harvous-menu-pill__trigger:active {
+  transform: scale(0.97);
+  background: var(--pds-bg-control-hover);
+}
+
+.harvous-menu-pill__trigger:focus-visible {
+  outline: 2px solid var(--pds-accent-focus-outline-soft, var(--pds-accent, rgb(56, 105, 230)));
+  outline-offset: 1px;
+}
+
+.harvous-menu-pill__trigger[aria-expanded='true'] {
+  background: var(--pds-bg-control-strong);
+}
+
+.harvous-menu-pill__label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+  font-weight: 400 !important;
+}
+
+.harvous-menu-pill__label--digits {
+  font-variant-numeric: tabular-nums;
+}
+
+.harvous-menu-pill__chevron {
+  flex-shrink: 0;
+  width: 9px;
+  height: 9px;
+  color: var(--pds-text-tertiary);
+  opacity: 0.75;
+  transition: transform 0.15s ease, opacity 0.1s ease;
+}
+
+.harvous-menu-pill__chevron--open {
+  transform: rotate(180deg);
+}
+
+.harvous-menu-pill--book .harvous-menu-pill__trigger {
+  max-width: 220px;
+}
+
+.harvous-menu-pill--compact .harvous-menu-pill__trigger {
+  min-width: 32px;
+  padding: 0 7px;
+}
+
+.harvous-menu-pill__menu {
+  --harvous-menu-pill-pad: 4px;
+  --harvous-menu-pill-inner-radius: calc(var(--pds-radius-menu, 10px) - var(--harvous-menu-pill-pad));
+  position: absolute;
+  top: calc(100% + 5px);
+  left: 0;
+  z-index: 5000;
+  min-width: 100%;
+  max-height: min(220px, 40vh);
+  overflow-x: hidden;
+  overflow-y: auto;
+  margin: 0;
+  padding: var(--harvous-menu-pill-pad);
+  list-style: none;
+  border-radius: var(--pds-radius-menu, 10px);
+  border: 0.5px solid var(--pds-border-control-strong, rgba(0, 0, 0, 0.14));
+  background: var(--pds-bg-popover-solid, var(--pds-bg-page, #fff));
+  box-shadow: var(--pds-shadow-popover, 0 8px 28px rgba(0, 0, 0, 0.12));
+  font-family: var(--pds-font-body, system-ui, sans-serif) !important;
+  scrollbar-width: none;
+  transform-origin: top left;
+}
+
+.harvous-menu-pill__menu--portal {
+  position: fixed;
+  animation: harvous-menu-pill-pop-in 120ms cubic-bezier(0.32, 0.72, 0.24, 1) both;
+}
+
+@keyframes harvous-menu-pill-pop-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.harvous-menu-pill__menu::-webkit-scrollbar {
+  display: none;
+}
+
+.harvous-menu-pill__item {
+  display: block;
+  width: 100%;
+  margin: 0;
+  padding: 7px 10px;
+  border: none;
+  border-radius: var(--pds-radius-menu-item, 7px);
+  background: transparent;
+  text-align: left;
+  font-family: var(--pds-font-body, system-ui, sans-serif) !important;
+  font-size: 13px;
+  font-weight: 500 !important;
+  line-height: 1.2;
+  color: var(--pds-text-primary) !important;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.harvous-menu-pill__item:hover {
+  background: var(--pds-bg-chip-hover, var(--pds-bg-row-hover));
+}
+
+.harvous-menu-pill__item--selected {
+  background: var(--pds-bg-control-strong);
+  color: var(--pds-text-primary) !important;
+}
+
+.harvous-menu-pill__item--digits {
+  font-variant-numeric: tabular-nums;
+}
+
+.harvous-menu-pill__menu > li:first-child .harvous-menu-pill__item {
+  border-top-left-radius: var(--harvous-menu-pill-inner-radius);
+  border-top-right-radius: var(--harvous-menu-pill-inner-radius);
+}
+
+.harvous-menu-pill__menu > li:last-child .harvous-menu-pill__item {
+  border-bottom-left-radius: var(--harvous-menu-pill-inner-radius);
+  border-bottom-right-radius: var(--harvous-menu-pill-inner-radius);
+}
+
+.harvous-menu-pill__menu > li:only-child .harvous-menu-pill__item {
+  border-radius: var(--harvous-menu-pill-inner-radius);
+}

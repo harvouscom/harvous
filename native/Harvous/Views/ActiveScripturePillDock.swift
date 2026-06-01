@@ -12,6 +12,7 @@ import SwiftData
 /// accent renders in `HarvousColors.{ns|ui}ScripturePillNeutralAccent`.
 struct ActiveScripturePillDock: View {
     @Environment(\.harvousDockExpandedContentMaxHeight) private var expandedContentMaxHeight
+    @Environment(\.harvousStudyDockInCarousel) private var inStudyDockCarousel
     /// Measured natural height of the scripture passage content — drives exact frame so the dock is
     /// content-fit up to the cap while still allowing real scrolling.
     @State private var scriptureScrollContentHeight: CGFloat = 0
@@ -190,20 +191,20 @@ struct ActiveScripturePillDock: View {
             }
         }
         .frame(
-            maxWidth: fillsAvailableHeight && passageChromeExpanded ? .infinity : nil,
+            maxWidth: inStudyDockCarousel || (fillsAvailableHeight && passageChromeExpanded) ? .infinity : nil,
             maxHeight: fillsAvailableHeight && passageChromeExpanded ? .infinity : nil,
             alignment: .topLeading
         )
         .animation(.spring(response: 0.32, dampingFraction: 0.82), value: passageChromeExpanded)
         .padding(.horizontal, 12)
         .padding(.top, 10)
+        // When the passage is expanded the scroll fills to the dock's bottom edge —
+        // no padding below the scroll viewport. Collapsed: restore the usual 10pt gap.
         .padding(.bottom, passageChromeExpanded ? 0 : 10)
         .background(dockChrome)
-        .overlay(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .strokeBorder(accentTint.opacity(0.55), lineWidth: 1.1)
-                .allowsHitTesting(false)
-        )
+        // Clip scroll content to the dock's rounded corners so text doesn't overflow visually.
+        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .studyDockShellBorderOverlay()
         .overlay(alignment: .bottom) {
             if dockMode == .study, let tapped = tappedPassageHighlight {
                 ActiveHighlightDock(
@@ -232,9 +233,9 @@ struct ActiveScripturePillDock: View {
         .animation(.spring(response: 0.28, dampingFraction: 0.84), value: tappedPassageHighlight?.id)
         .shadow(color: .black.opacity(0.10), radius: 12, y: 4)
         .shadow(color: .black.opacity(0.06), radius: 3, y: 1)
-        .padding(.horizontal, 20)
-        .padding(.top, 6)
-        .padding(.bottom, 10)
+        .padding(.horizontal, inStudyDockCarousel ? 0 : 20)
+        .padding(.top, inStudyDockCarousel ? 0 : 6)
+        .padding(.bottom, inStudyDockCarousel ? 0 : 10)
         .task(id: "\(reference)|\(translation)") {
             await ScripturePassageCache.shared.prefetch(reference: reference, translation: translation)
         }
@@ -299,6 +300,11 @@ struct ActiveScripturePillDock: View {
         .onChange(of: tappedPassageHighlight?.id) { _, newId in
             onStandaloneFocusedPassageHighlightChanged?(newId)
         }
+        #if os(iOS)
+        .sheet(item: $passageHighlightDraft) { _ in
+            iosPassageHighlightAuthoringSheet
+        }
+        #endif
     }
 
     private var headerRow: some View {
@@ -313,19 +319,27 @@ struct ActiveScripturePillDock: View {
                     .font(HarvousFonts.font(size: 14, weight: .semibold, design: .default))
                     .foregroundStyle(.primary)
                     .lineLimit(1)
+                    .truncationMode(.tail)
+                    .layoutPriority(0)
                 if dockMode == .study {
                     Text(ScriptureReference.displayTranslationLabel(translation))
                         .font(HarvousFonts.font(size: 10, weight: .semibold, design: .default))
                         .textCase(.uppercase)
                         .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                        .layoutPriority(1)
                 } else {
                     Text("Compare")
                         .font(HarvousFonts.font(size: 10, weight: .semibold, design: .default))
                         .textCase(.uppercase)
                         .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
                 }
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
+            .layoutPriority(0)
             .contentShape(Rectangle())
             .onTapGesture {
                 guard allowsCollapseExpand, dockMode == .study else { return }
@@ -381,7 +395,7 @@ struct ActiveScripturePillDock: View {
 
                 if allowsCollapseExpand, dockMode == .study {
                     toolbarButton(
-                        assetName: isExpanded ? "Harvous.ChevronUp" : "Harvous.ChevronDown",
+                        assetName: isExpanded ? "Harvous.ChevronDown" : "Harvous.ChevronUp",
                         help: isExpanded ? "Collapse" : "Expand",
                         prominent: true
                     ) {
@@ -395,6 +409,8 @@ struct ActiveScripturePillDock: View {
                     onDismiss()
                 }
             }
+            .fixedSize(horizontal: true, vertical: false)
+            .layoutPriority(1)
             .animation(.none, value: isExpanded) // snap toolbar; body below still springs
         }
     }
@@ -427,8 +443,26 @@ struct ActiveScripturePillDock: View {
     }
 
     /// Inner stack inside the passage `ScrollView` — shared by content-fit and full-height layouts.
+    private var passageSelectionRectHandler: ((CGRect?) -> Void)? {
+        #if os(macOS)
+        return { rect in passageSelectionRect = rect }
+        #else
+        return nil
+        #endif
+    }
+
+    private var passageHighlightFromEditMenuHandler: ((String) -> Void)? {
+        #if os(iOS)
+        guard onSavePassageHighlight != nil else { return nil }
+        return { excerpt in beginPassageHighlightDraft(excerpt: excerpt) }
+        #else
+        return nil
+        #endif
+    }
+
     private var scripturePassageScrollContent: some View {
         VStack(alignment: .leading, spacing: 10) {
+            Spacer(minLength: 0).frame(height: 8).allowsHitTesting(false) // breathing room below reference bar
             ScripturePassageView(
                 reference: reference,
                 translation: translation,
@@ -445,14 +479,13 @@ struct ActiveScripturePillDock: View {
                         passageSelectionRect = nil
                     }
                 },
-                onPassageSelectionRectChange: { rect in
-                    passageSelectionRect = rect
-                },
+                onPassageSelectionRectChange: passageSelectionRectHandler,
                 onPassageHighlightTap: { paintId in
                     guard let thread = scripturePassageHighlights.first(where: { $0.id == paintId }) else { return }
                     tappedPassageHighlight = thread
                 },
-                passageHighlightFocusedThreadId: tappedPassageHighlight?.id
+                passageHighlightFocusedThreadId: tappedPassageHighlight?.id,
+                onPassageHighlightFromEditMenu: passageHighlightFromEditMenuHandler
             )
             .background(GeometryReader { geo in
                 // Read the passage view's frame in the named body space so the overlay (placed
@@ -499,7 +532,7 @@ struct ActiveScripturePillDock: View {
     }
 
     private var expandedBodyContentFitHeight: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 0) {
             if allowsStructuralReferenceEdit {
                 referenceEditorRow
             }
@@ -537,17 +570,19 @@ struct ActiveScripturePillDock: View {
         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width in
             Task { @MainActor in expandedBodyWidth = width }
         }
+        #if os(macOS)
         .overlay(alignment: .topLeading) {
             if dockMode == .study {
                 passageSelectionOverlay
             }
         }
         .animation(.spring(response: 0.36, dampingFraction: 0.82), value: passageHighlightDraft != nil)
+        #endif
     }
 
     /// Offered mainly from standalone Highlights-column host: passage scroll consumes all vertical space below the header row(s).
     private var expandedBodyPassageFillsOfferedHeight: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 0) {
             if allowsStructuralReferenceEdit {
                 referenceEditorRow
             }
@@ -583,21 +618,25 @@ struct ActiveScripturePillDock: View {
         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width in
             Task { @MainActor in expandedBodyWidth = width }
         }
+        #if os(macOS)
         .overlay(alignment: .topLeading) {
             if dockMode == .study {
                 passageSelectionOverlay
             }
         }
         .animation(.spring(response: 0.36, dampingFraction: 0.82), value: passageHighlightDraft != nil)
+        #endif
     }
 
-    /// Floating selection menu (mirrors `SelectionActionBar` over note body text).
+    /// Floating selection menu (mirrors `SelectionActionBar` over note body text). macOS only — iOS uses
+    /// the system text edit menu + `IOSHighlightAuthoringSheet`.
     ///
     /// Lives as an overlay on `expandedBody` (outside the ScrollView) so it is never clipped by the
     /// scroll viewport. Positions are computed in expandedBody-local coordinates:
     /// `passageFrameInBodySpace.origin` + the passage-local selection rect from the text coordinator.
     @ViewBuilder
     private var passageSelectionOverlay: some View {
+        #if os(macOS)
         if let selRect = passageSelectionRect, onSavePassageHighlight != nil {
             // Convert passage-local rect → expandedBody-local rect.
             let bodyRect = selRect.offsetBy(
@@ -621,36 +660,8 @@ struct ActiveScripturePillDock: View {
                     ),
                     morphNamespace: passageSelectionMorph,
                     morphID: Self.passageSelectionMorphID,
-                    onCancel: {
-                        passageHighlightDraft = nil
-                    },
-                    onSave: {
-                        guard let snapshot = passageHighlightDraft, !snapshot.excerpt.isEmpty else { return }
-                        let newThread = onSavePassageHighlight?(snapshot.excerpt, snapshot.annotation, snapshot.title, snapshot.accent)
-                        // Apply speculative AI questions immediately if generation finished during annotation.
-                        // Setting aiSuggestedQuestionsGenerated = true before the dock renders prevents
-                        // the inline ActiveHighlightDock's .task from double-generating.
-                        if let thread = newThread,
-                           let generated = speculativeGenResult,
-                           !thread.aiSuggestedQuestionsGenerated {
-                            let defaults = StudyPromptSuggester.questions(forScriptureExcerpt: snapshot.excerpt, reference: reference)
-                            thread.suggestedQuestions = generated + defaults
-                            thread.aiSuggestedQuestionsGenerated = true
-                            try? modelContext.saveWithLogging()
-                        }
-                        speculativeGenTask = nil
-                        speculativeGenResult = nil
-                        passageHighlightDraft = nil
-                        // Clear selection state so the next drag-select starts fresh — the
-                        // underlying text view will re-emit `onPassageSelectionChange` for any new selection.
-                        passageSelectionNormalized = ""
-                        passageSelectionRect = nil
-                        // Open the inline dock for the newly created highlight.
-                        if let thread = newThread {
-                            tappedPassageHighlightExpanded = true
-                            tappedPassageHighlight = thread
-                        }
-                    }
+                    onCancel: cancelPassageHighlightDraft,
+                    onSave: savePassageHighlightFromDraft
                 )
                 .offset(passageSelectionPopoverOffset(for: bodyRect))
                 .transition(.opacity)
@@ -661,11 +672,7 @@ struct ActiveScripturePillDock: View {
                     morphNamespace: passageSelectionMorph,
                     morphID: Self.passageSelectionMorphID,
                     onHighlight: {
-                        let seedAccent: StudyHighlightAccentToken = (accent != nil && accent != .neutral) ? accent! : .warmAmber
-                        passageHighlightDraft = PassageHighlightDraft(
-                            excerpt: passageSelectionNormalized,
-                            accent: seedAccent
-                        )
+                        beginPassageHighlightDraft(excerpt: passageSelectionNormalized)
                     },
                     onNewStandaloneNote: nil
                 )
@@ -676,6 +683,71 @@ struct ActiveScripturePillDock: View {
                 ))
                 .zIndex(1)
             }
+        }
+        #endif
+    }
+
+    #if os(iOS)
+    @ViewBuilder
+    private var iosPassageHighlightAuthoringSheet: some View {
+        if passageHighlightDraft != nil {
+            IOSHighlightAuthoringSheet(
+                excerptPreview: passageHighlightDraft?.excerpt ?? "",
+                annotationText: Binding(
+                    get: { passageHighlightDraft?.annotation ?? "" },
+                    set: { passageHighlightDraft?.annotation = $0 }
+                ),
+                titleText: Binding(
+                    get: { passageHighlightDraft?.title ?? "" },
+                    set: { passageHighlightDraft?.title = $0 }
+                ),
+                selectedAccent: Binding(
+                    get: { passageHighlightDraft?.accent ?? .warmAmber },
+                    set: { passageHighlightDraft?.accent = $0 }
+                ),
+                onCancel: cancelPassageHighlightDraft,
+                onSave: savePassageHighlightFromDraft
+            )
+            .presentationDetents([.medium, .large])
+            .presentationDragIndicator(.visible)
+        }
+    }
+    #endif
+
+    private func beginPassageHighlightDraft(excerpt: String) {
+        let seedAccent: StudyHighlightAccentToken = (accent != nil && accent != .neutral) ? accent! : .warmAmber
+        passageHighlightDraft = PassageHighlightDraft(excerpt: excerpt, accent: seedAccent)
+    }
+
+    private func cancelPassageHighlightDraft() {
+        passageHighlightDraft = nil
+    }
+
+    private func savePassageHighlightFromDraft() {
+        guard let snapshot = passageHighlightDraft, !snapshot.excerpt.isEmpty else { return }
+        let newThread = onSavePassageHighlight?(snapshot.excerpt, snapshot.annotation, snapshot.title, snapshot.accent)
+        // Apply speculative AI questions immediately if generation finished during annotation.
+        // Setting aiSuggestedQuestionsGenerated = true before the dock renders prevents
+        // the inline ActiveHighlightDock's .task from double-generating.
+        if let thread = newThread,
+           let generated = speculativeGenResult,
+           !thread.aiSuggestedQuestionsGenerated {
+            let defaults = StudyPromptSuggester.questions(forScriptureExcerpt: snapshot.excerpt, reference: reference)
+            thread.suggestedQuestions = generated + defaults
+            thread.aiSuggestedQuestionsGenerated = true
+            try? modelContext.saveWithLogging()
+        }
+        speculativeGenTask = nil
+        speculativeGenResult = nil
+        passageHighlightDraft = nil
+        // Clear selection state so the next drag-select starts fresh — the
+        // underlying text view will re-emit `onPassageSelectionChange` for any new selection.
+        passageSelectionNormalized = ""
+        passageSelectionRect = nil
+        // Open the inline dock for the newly created highlight.
+        if let thread = newThread {
+            tappedPassageHighlightExpanded = true
+            tappedPassageHighlight = thread
         }
     }
 
@@ -704,8 +776,9 @@ struct ActiveScripturePillDock: View {
         return CGSize(width: x, height: y)
     }
 
-    /// In-flight passage highlight (annotation popover binds to its mutable fields).
-    fileprivate struct PassageHighlightDraft: Equatable {
+    /// In-flight passage highlight (annotation popover / iOS sheet binds to its mutable fields).
+    fileprivate struct PassageHighlightDraft: Equatable, Identifiable {
+        let id = UUID()
         let excerpt: String
         var annotation: String = ""
         var title: String = ""
@@ -716,7 +789,6 @@ struct ActiveScripturePillDock: View {
     private enum ScriptureDockReferenceBarMetrics {
         static let controlHeight: CGFloat = 30
         static let rowHSpacing: CGFloat = 6
-        static let numberClusterSpacing: CGFloat = 3
         static let horizontalPadding: CGFloat = 7
         static let verticalPadding: CGFloat = 3
         static let chromeCornerRadius: CGFloat = 10
@@ -734,124 +806,98 @@ struct ActiveScripturePillDock: View {
         HStack(alignment: .center, spacing: 0) {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(alignment: .center, spacing: ScriptureDockReferenceBarMetrics.rowHSpacing) {
-                    Group {
-                        Picker("Translation", selection: $translation) {
-                            ForEach(ScriptureReference.availableTranslations, id: \.self) { t in
-                                Text(ScriptureReference.displayTranslationLabel(t)).tag(t)
-                            }
-                        }
-                        .pickerStyle(.menu)
-                        .controlSize(.small)
-                        .labelsHidden()
-                        .fixedSize(horizontal: true, vertical: false)
-                        .frame(height: ScriptureDockReferenceBarMetrics.controlHeight)
-                        .accessibilityLabel("Translation")
+                    ScriptureReferenceMenuPill(
+                        accessibilityLabel: "Translation",
+                        selection: $translation,
+                        options: ScriptureReference.availableTranslations.map {
+                            (value: $0, label: ScriptureReference.displayTranslationLabel($0))
+                        },
+                        displayText: { ScriptureReference.displayTranslationLabel($0) }
+                    )
 
-                        Picker("Book", selection: $bookIndex) {
-                            ForEach(Array(ScriptureCanonicalBooks.titles.enumerated()), id: \.offset) { pair in
-                                Text(pair.element).tag(pair.offset)
-                            }
-                        }
-                        .pickerStyle(.menu)
-                        .controlSize(.small)
-                        .labelsHidden()
-                        .fixedSize(horizontal: true, vertical: false)
-                        .frame(maxWidth: ScriptureDockReferenceBarMetrics.bookMaxWidth, alignment: .leading)
-                        .frame(height: ScriptureDockReferenceBarMetrics.controlHeight)
-                        .accessibilityLabel("Book")
+                    ScriptureReferenceMenuPill(
+                        accessibilityLabel: "Book",
+                        selection: $bookIndex,
+                        options: Array(ScriptureCanonicalBooks.titles.enumerated()).map {
+                            (value: $0.offset, label: $0.element)
+                        },
+                        displayText: { ScriptureCanonicalBooks.titles[$0] },
+                        maxWidth: ScriptureDockReferenceBarMetrics.bookMaxWidth
+                    )
 
-                        HStack(alignment: .center, spacing: ScriptureDockReferenceBarMetrics.numberClusterSpacing) {
-                            Picker("Chapter", selection: $chapter) {
-                                ForEach(1...maxChapter, id: \.self) { c in
-                                    Text(String(c))
-                                        .monospacedDigit()
-                                        .lineLimit(1)
-                                        .tag(c)
-                                }
-                            }
-                            .pickerStyle(.menu)
-                            .controlSize(.small)
-                            .labelsHidden()
-                            .fixedSize(horizontal: true, vertical: false)
-                            .frame(height: ScriptureDockReferenceBarMetrics.controlHeight)
-                            .accessibilityLabel("Chapter")
+                    ScriptureReferenceNumberCluster {
+                        ScriptureReferenceMenuPill(
+                            accessibilityLabel: "Chapter",
+                            selection: $chapter,
+                            options: (1...maxChapter).map { (value: $0, label: String($0)) },
+                            displayText: { String($0) },
+                            inCluster: true,
+                            monospaceDigits: true
+                        )
 
-                            Text(":")
+                        Text(":")
+                            .font(ScriptureDockReferenceBarMetrics.labelFont)
+                            .foregroundStyle(.tertiary.opacity(0.85))
+                            .frame(width: ScriptureDockReferenceBarMetrics.colonFrameWidth, alignment: .center)
+
+                        ScriptureReferenceMenuPill(
+                            accessibilityLabel: "Verse",
+                            selection: $verseStart,
+                            options: (1...maxVerse).map { (value: $0, label: String($0)) },
+                            displayText: { String($0) },
+                            inCluster: true,
+                            monospaceDigits: true
+                        )
+
+                        if useVerseRange {
+                            Text("–")
                                 .font(ScriptureDockReferenceBarMetrics.labelFont)
-                                .foregroundStyle(HarvousColors.scriptureChipForeground(scriptureTheme).opacity(0.45))
-                                .frame(width: ScriptureDockReferenceBarMetrics.colonFrameWidth, alignment: .center)
+                                .foregroundStyle(.tertiary.opacity(0.85))
+                                .frame(width: ScriptureDockReferenceBarMetrics.dashFrameWidth, alignment: .center)
 
-                            Picker("Verse", selection: $verseStart) {
-                                ForEach(1...maxVerse, id: \.self) { v in
-                                    Text(String(v))
-                                        .monospacedDigit()
-                                        .lineLimit(1)
-                                        .tag(v)
-                                }
-                            }
-                            .pickerStyle(.menu)
-                            .controlSize(.small)
-                            .labelsHidden()
-                            .fixedSize(horizontal: true, vertical: false)
-                            .frame(height: ScriptureDockReferenceBarMetrics.controlHeight)
-                            .accessibilityLabel("Verse")
-
-                            if useVerseRange {
-                                Text("–")
-                                    .font(ScriptureDockReferenceBarMetrics.labelFont)
-                                    .foregroundStyle(HarvousColors.scriptureChipForeground(scriptureTheme).opacity(0.45))
-                                    .frame(width: ScriptureDockReferenceBarMetrics.dashFrameWidth, alignment: .center)
-
-                                Picker("End verse", selection: $verseEnd) {
-                                    ForEach(verseStart...maxVerse, id: \.self) { v in
-                                        Text(String(v))
-                                            .monospacedDigit()
-                                            .lineLimit(1)
-                                            .tag(v)
-                                    }
-                                }
-                                .pickerStyle(.menu)
-                                .controlSize(.small)
-                                .labelsHidden()
-                                .fixedSize(horizontal: true, vertical: false)
-                                .frame(height: ScriptureDockReferenceBarMetrics.controlHeight)
-                                .accessibilityLabel("End verse")
-                            }
+                            ScriptureReferenceMenuPill(
+                                accessibilityLabel: "End verse",
+                                selection: $verseEnd,
+                                options: (verseStart...maxVerse).map { (value: $0, label: String($0)) },
+                                displayText: { String($0) },
+                                inCluster: true,
+                                monospaceDigits: true
+                            )
                         }
-
-                        Button {
-                            withAnimation(.easeInOut(duration: 0.12)) {
-                                useVerseRange.toggle()
-                                if !useVerseRange { verseEnd = verseStart }
-                                clampVersesToCanon()
-                            }
-                        } label: {
-                            HarvousFAGlyph(assetName: "Harvous.ArrowsLeftRight", edgePt: ScriptureDockReferenceBarMetrics.rangeGlyphPt)
-                                .foregroundStyle(.primary)
-                                .frame(
-                                    width: ScriptureDockReferenceBarMetrics.controlHeight,
-                                    height: ScriptureDockReferenceBarMetrics.controlHeight
-                                )
-                                .contentShape(Rectangle())
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityLabel(useVerseRange ? "Single verse" : "Verse range")
-                        #if os(macOS)
-                        .help(useVerseRange ? "Single verse" : "Verse range")
-                        #endif
                     }
-                    .environment(\.font, ScriptureDockReferenceBarMetrics.labelFont)
+
+                    Button {
+                        withAnimation(.easeInOut(duration: 0.12)) {
+                            useVerseRange.toggle()
+                            if !useVerseRange { verseEnd = verseStart }
+                            clampVersesToCanon()
+                        }
+                    } label: {
+                        HarvousFAGlyph(
+                            assetName: "Harvous.ArrowsLeftRight",
+                            edgePt: ScriptureDockReferenceBarMetrics.rangeGlyphPt
+                        )
+                        .frame(
+                            width: ScriptureDockReferenceBarMetrics.controlHeight,
+                            height: ScriptureDockReferenceBarMetrics.controlHeight
+                        )
+                        .contentShape(Circle())
+                    }
+                    .buttonStyle(ScriptureReferenceRangeToggleStyle(isActive: useVerseRange))
+                    .accessibilityLabel(useVerseRange ? "Single verse" : "Verse range")
+                    #if os(macOS)
+                    .help(useVerseRange ? "Single verse" : "Verse range")
+                    #endif
                 }
                 .padding(.horizontal, ScriptureDockReferenceBarMetrics.horizontalPadding)
                 .padding(.vertical, ScriptureDockReferenceBarMetrics.verticalPadding)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
-        // Menu-style pickers default to system accent blue; primary reads as body text.
         .tint(Color.primary)
         .background(
             RoundedRectangle(cornerRadius: ScriptureDockReferenceBarMetrics.chromeCornerRadius, style: .continuous)
-                .fill(Color.primary.opacity(0.05))
+                .fill(Color.primary.opacity(0.04))
         )
         .overlay(
             RoundedRectangle(cornerRadius: ScriptureDockReferenceBarMetrics.chromeCornerRadius, style: .continuous)

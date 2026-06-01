@@ -272,17 +272,14 @@ struct ScripturePillToolbarLane: View {
                             coordinator.toggleVerseRange()
                         }
                     } label: {
-                        ZStack {
-                            if coordinator.useVerseRange {
-                                Circle()
-                                    .fill(Color.primary.opacity(0.09))
-                                    .frame(width: ScripturePillActionBar.toolbarControlHeight, height: ScripturePillActionBar.toolbarControlHeight)
-                            }
-                            HarvousFAGlyph(assetName: "Harvous.ArrowsLeftRight", edgePt: 15)
-                        }
-                        .frame(width: ScripturePillActionBar.toolbarControlHeight, height: ScripturePillActionBar.toolbarControlHeight)
+                        HarvousFAGlyph(assetName: "Harvous.ArrowsLeftRight", edgePt: 15)
+                            .frame(
+                                width: ScripturePillActionBar.toolbarControlHeight,
+                                height: ScripturePillActionBar.toolbarControlHeight
+                            )
+                            .contentShape(Circle())
                     }
-                    .buttonStyle(NoteToolbarButtonStyle(isActive: coordinator.useVerseRange))
+                    .buttonStyle(ScriptureReferenceRangeToggleStyle(isActive: coordinator.useVerseRange))
                     .accessibilityLabel(coordinator.useVerseRange ? "Single verse" : "Verse range")
 #if os(macOS)
                     .help(coordinator.useVerseRange ? "Single verse" : "Verse range")
