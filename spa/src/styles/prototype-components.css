@@ -582,8 +582,8 @@ html[data-shift-hints='1'] .proto-toolbar-orb-group {
 .proto-sidebar-list-view__trigger:focus-visible {
   outline: none;
   background: var(--pds-bg-chrome-opaque);
-  border-color: var(--pds-accent-active-border);
-  box-shadow: 0 0 0 2px var(--pds-accent-active-ring);
+  border-color: var(--pds-border-control-strong);
+  box-shadow: none;
 }
 
 html.harvous-proto-wallpaper-image .proto-sidebar-list-view__trigger:focus-visible,
@@ -593,8 +593,9 @@ html.harvous-proto-wallpaper-color .proto-sidebar-list-view__trigger:focus-visib
 
 .proto-sidebar-list-view__trigger[aria-expanded='true'] {
   background: var(--pds-bg-chrome-opaque);
-  border-color: var(--pds-accent-active-border);
-  box-shadow: 0 0 0 2px var(--pds-accent-active-ring);
+  border-color: var(--pds-border-control);
+  box-shadow: none;
+  color: var(--pds-text-primary);
 }
 
 html.harvous-proto-wallpaper-image .proto-sidebar-list-view__trigger[aria-expanded='true'],
