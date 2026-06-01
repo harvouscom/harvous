@@ -3,8 +3,12 @@
  */
 
 import { randomUUID } from 'crypto';
-import sharp from 'sharp';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+
+async function loadSharp() {
+  const { default: sharp } = await import('sharp');
+  return sharp;
+}
 
 export const NOTE_ATTACHMENTS_BUCKET = 'note-attachments';
 
@@ -57,6 +61,8 @@ export function publicNoteAttachmentUrl(storagePath: string): string {
 export async function prepareInlineNoteImageJpeg(input: Buffer): Promise<Buffer> {
   let quality = JPEG_QUALITY;
   let last: Buffer | null = null;
+
+  const sharp = await loadSharp();
 
   for (let attempt = 0; attempt < 6; attempt++) {
     const out = await sharp(input)

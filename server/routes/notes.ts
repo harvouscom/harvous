@@ -62,8 +62,6 @@ import {
   parseNoteSecondaryCollections,
   serializeNoteSecondaryCollections,
 } from '../utils/note-secondary-collections';
-import { uploadInlineNoteImage } from '../utils/note-inline-image-upload';
-
 const route = new Hono();
 
 function noteJsonWithParsedSecondaries<T extends { secondaryCollections?: string | null }>(note: T) {
@@ -1398,6 +1396,7 @@ route.post('/api/notes/:noteId/inline-image', requireAuth, rateLimit('write'), a
 
     const bytes = Buffer.from(await file.arrayBuffer());
     const mimeType = file.type || 'application/octet-stream';
+    const { uploadInlineNoteImage } = await import('../utils/note-inline-image-upload');
     const result = await uploadInlineNoteImage({
       userId: auth.userId,
       noteId,
