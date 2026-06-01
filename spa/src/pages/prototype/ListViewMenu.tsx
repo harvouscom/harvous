@@ -1,11 +1,29 @@
 /**
  * List view popover — Notes, Folders, Highlights, Scripture (native SidebarPanelView parity).
+ * Rendered at the top of `PrototypeSidebar`, above search.
  */
 import { useEffect, useRef, useState } from 'react';
 import Icon from '@/components/react/Icon';
 import { useProtoShell, type SidebarListMode } from '../../layouts/proto-shell-context';
-import { PROTO_LIST_VIEW_ICON_SIZE, PROTO_TOOLBAR_ICON_SIZE } from './proto-toolbar-tokens';
+import { PROTO_TOOLBAR_ICON_SIZE } from './proto-toolbar-tokens';
 import ProtoPopoverShell from './ProtoPopoverShell';
+
+function listModeShortLabel(mode: SidebarListMode): string {
+  switch (mode) {
+    case 'notes':
+      return 'Notes';
+    case 'folders':
+      return 'Folders';
+    case 'highlights':
+      return 'Highlights';
+    case 'scripture':
+      return 'Scripture';
+    case 'dictionary':
+      return 'Dictionary';
+    default:
+      return 'List view';
+  }
+}
 
 function listModeTitle(mode: SidebarListMode): string {
   switch (mode) {
@@ -76,22 +94,30 @@ export default function ListViewMenu({ disabled }: { disabled?: boolean }) {
   };
 
   return (
-    <div className="proto-menu" ref={rootRef}>
+    <div className="proto-menu proto-sidebar-list-view__menu" ref={rootRef}>
       <button
         type="button"
-        className="proto-space-trigger"
+        className="proto-sidebar-list-view__trigger"
         aria-expanded={open}
         aria-haspopup="menu"
         title={listModeTitle(sidebarListMode)}
         disabled={disabled}
         onClick={() => !disabled && setOpen((x) => !x)}
       >
-        <ListModeTriggerIcon mode={sidebarListMode} size={PROTO_LIST_VIEW_ICON_SIZE} />
+        <span className="proto-toolbar-folder-chip__icon" aria-hidden>
+          <ListModeTriggerIcon mode={sidebarListMode} size={14} />
+        </span>
+        <span className="proto-sidebar-list-view__label">
+          {listModeShortLabel(sidebarListMode)}
+        </span>
+        <span className="proto-sidebar-list-view__chevron" aria-hidden>
+          <Icon name="chevron-down" size={11} />
+        </span>
       </button>
 
       {open ? (
         <ProtoPopoverShell
-          className="proto-menu__popover proto-menu__popover--list-view"
+          className="proto-menu__popover proto-menu__popover--list-view proto-menu__popover--sidebar-list-view"
           role="menu"
           aria-label="List view"
         >

@@ -135,7 +135,8 @@
   --pds-bg-main: oklch(var(--pds-lch-bg-main));
   --pds-bg-footer: oklch(var(--pds-lch-bg-footer));
   --pds-bg-popover: oklch(var(--pds-lch-bg-popover));
-  --pds-bg-popover-solid: oklch(var(--pds-lch-bg-popover-solid));
+  /* Menus / portaled popovers — fully opaque (no / 0.98 alpha on --pds-lch-bg-popover). */
+  --pds-bg-popover-solid: var(--pds-bg-page);
   --pds-bg-input: oklch(var(--pds-lch-fill-input));
   --pds-bg-input-hover: oklch(var(--pds-lch-fill-input-hover));
   --pds-bg-row-hover: oklch(var(--pds-lch-fill-row-hover));
@@ -303,6 +304,8 @@
   --pds-font-display: "Google Sans Flex", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --pds-font-body-variation: "ROND" 0;
   --pds-font-display-variation: "ROND" 100;
+  /* HarvousFonts axisSettings — 13px / wght 500 / default ROND (toolbar + sidebar chips). */
+  --pds-font-body-variation-chip: "ROND" 0, "wght" 500, "opsz" 13;
   --pds-font-mono:    ui-monospace, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
 
   /* Chrome dimensions */
@@ -816,7 +819,7 @@ html.harvous-proto-wallpaper-image #root::before {
 
 /* Portaled Sonner toasts — match prototype surfaces in light and dark mode. */
 html.harvous-prototype-route [data-sonner-toast] {
-  background: var(--pds-bg-popover) !important;
+  background: var(--pds-bg-popover-solid) !important;
   background-image: none !important;
   color: var(--pds-text-primary) !important;
   font-family: var(--pds-font-body) !important;

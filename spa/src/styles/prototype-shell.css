@@ -290,19 +290,13 @@ html.harvous-prototype-route .proto-shell__toolbar-cell::after {
   position: relative;
   isolation: isolate;
   border-radius: var(--pds-shell-frame-radius);
-  background: var(--pds-glass-shell);
+  background: var(--pds-bg-page);
   box-shadow: var(--pds-paper-shadow-subtle), var(--pds-glass-rim);
   overflow: hidden;
 }
 
 .proto-sidebar-root::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  background: var(--pds-glass-panel-frost);
-  pointer-events: none;
-  z-index: 0;
+  display: none;
 }
 
 .proto-sidebar-root::after {
@@ -427,7 +421,7 @@ html.harvous-prototype-route .proto-shell__toolbar-cell::after {
     padding: 0;
     border-radius: var(--pds-shell-frame-radius);
     box-shadow: var(--pds-shadow-drawer), var(--pds-glass-rim);
-    background: var(--pds-glass-shell);
+    background: var(--pds-bg-page);
   }
 
   .proto-shell__sidebar-resize-handle {
@@ -500,7 +494,7 @@ html.harvous-prototype-route .proto-shell__toolbar-cell::after {
     width: min(340px, calc(92vw - 16px));
     z-index: 160;
     border-radius: var(--pds-shell-frame-radius);
-    background: var(--pds-bg-sidebar);
+    background: var(--pds-bg-page);
     box-shadow: var(--pds-shadow-drawer);
     overflow-y: auto;
     display: flex;
@@ -658,12 +652,12 @@ html.harvous-proto-wallpaper-image .proto-shell {
 }
 
 html.harvous-proto-wallpaper-image .proto-sidebar-root {
-  background: transparent;
+  background: var(--pds-bg-page);
   box-shadow: var(--pds-paper-shadow-subtle);
 }
 
 html.harvous-proto-wallpaper-image .proto-sidebar-root::before {
-  background: var(--pds-glass-panel-frost);
+  display: none;
 }
 
 html.harvous-proto-wallpaper-image .proto-shell__toolbar-cell,
@@ -690,6 +684,25 @@ html.harvous-proto-wallpaper-image .proto-editor-bottom-bar {
 .proto-popover-shell__content {
   position: relative;
   z-index: 1;
+}
+
+/* Floating side panels — opaque cards (not glass-shell / toolbar alpha). */
+html.harvous-prototype-route .proto-sidebar-root,
+html.harvous-prototype-route .proto-inspector-desktop,
+html.harvous-prototype-route .proto-inspector-mobile-panel {
+  background: var(--pds-bg-page);
+  background-image: none;
+}
+
+/* Menus / popovers — opaque surfaces (glass shell must not show through). */
+html.harvous-prototype-route .proto-menu__popover,
+html.harvous-prototype-route .proto-share-popover,
+html.harvous-prototype-route .proto-find-popover,
+html.harvous-prototype-route .proto-folder-popover,
+html.harvous-prototype-route .proto-connect-note-popover,
+html.harvous-prototype-route .harvous-menu-pill__menu {
+  background: var(--pds-bg-popover-solid);
+  background-image: none;
 }
 
 /* Keep menu/popup labels readable over busy note-list content. */

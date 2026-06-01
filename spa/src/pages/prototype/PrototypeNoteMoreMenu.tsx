@@ -2,7 +2,7 @@
  * Note toolbar "more" menu — pin and delete (native MacNoteShareMoreToolbar parity).
  * Note lock/unlock is temporarily disabled.
  */
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import { prototypeHomeRouteTo } from '@/lib/prototype-path';
 import { useQueryClient, type InfiniteData } from '@tanstack/react-query';
@@ -42,12 +42,23 @@ export interface PrototypeNoteMoreMenuProps {
   noteId: string;
   spaceId: string;
   iconSize?: number;
+  /** When true, Find and Share live in this menu (compact toolbar). */
+  overflowActions?: boolean;
+  isPublic?: boolean;
+  onFind?: () => void;
+  onShare?: () => void;
+  menuButtonRef?: RefObject<HTMLButtonElement | null>;
 }
 
 export default function PrototypeNoteMoreMenu({
   noteId,
   spaceId,
   iconSize = PROTO_TOOLBAR_ICON_SIZE,
+  overflowActions = false,
+  isPublic = false,
+  onFind,
+  onShare,
+  menuButtonRef,
 }: PrototypeNoteMoreMenuProps) {
   const [open, setOpen] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
@@ -124,6 +135,7 @@ export default function PrototypeNoteMoreMenu({
     <>
       <div className="proto-menu" ref={rootRef}>
         <button
+          ref={menuButtonRef}
           type="button"
           className="proto-toolbar-icon-btn"
           aria-expanded={open}
@@ -134,6 +146,9 @@ export default function PrototypeNoteMoreMenu({
           onClick={() => setOpen((x) => !x)}
         >
           <Icon name="ellipsis" size={iconSize} />
+          {overflowActions && isPublic ? (
+            <span className="proto-toolbar-icon-btn__share-dot" aria-hidden />
+          ) : null}
         </button>
 
         {open ? (
@@ -143,6 +158,39 @@ export default function PrototypeNoteMoreMenu({
             aria-label="Note actions"
           >
             <div className="proto-menu-section" role="group">
+              {overflowActions && onFind ? (
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="proto-menu-item"
+                  onClick={() => {
+                    setOpen(false);
+                    onFind();
+                  }}
+                >
+                  <span className="proto-menu-item__icon" aria-hidden>
+                    <Icon name="magnifying-glass" size={iconSize} />
+                  </span>
+                  <span style={{ flex: 1, minWidth: 0 }}>Find in note</span>
+                </button>
+              ) : null}
+              {overflowActions && onShare ? (
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="proto-menu-item"
+                  onClick={() => {
+                    setOpen(false);
+                    onShare();
+                  }}
+                >
+                  <span className="proto-menu-item__icon" aria-hidden>
+                    <Icon name="share" size={iconSize} />
+                  </span>
+                  <span style={{ flex: 1, minWidth: 0 }}>{isPublic ? 'Manage share' : 'Share'}</span>
+                </button>
+              ) : null}
+              {overflowActions && (onFind || onShare) ? <div className="proto-menu-sep" role="separator" /> : null}
               <button type="button" role="menuitem" className="proto-menu-item" disabled={pinNote.isPending} onClick={onPin}>
                 <span className="proto-menu-item__icon" aria-hidden>
                   <Icon name="thumbtack" size={iconSize} />

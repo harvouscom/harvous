@@ -1,11 +1,11 @@
 /**
  * NativeToolbar — mirrors the macOS Harvous toolbar layout.
  *
- * Left group:  [sidebar toggle] [space switcher] [list view] [compose]
+ * Left group:  [sidebar toggle] [space switcher] [compose]
  * Center:       "Prototype" brand, or folder chip on prototype note routes
  * Right group: [find · share · more] — gap — [inspector toggle · account menu]
  */
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate, useRouterState } from '@tanstack/react-router';
 import Icon from '@/components/react/Icon';
 import { usePrototypeHomeSpaceId } from '../../hooks/usePrototypeHomeSpaceId';
@@ -14,7 +14,6 @@ import { PROTOTYPE_DRAFT_NOTE_SLUG, normalizeNoteIdFromParam, isPrototypeDraftNo
 import { useProtoShell } from '../../layouts/proto-shell-context';
 import { effectiveNoteFolderLabel } from '@/utils/note-folder-display';
 import AccountMenu from './AccountMenu';
-import ListViewMenu from './ListViewMenu';
 import SpaceSwitcherMenu from './SpaceSwitcherMenu';
 import { PROTO_TOOLBAR_ICON_SIZE } from './proto-toolbar-tokens';
 import PrototypeSharePopover from './PrototypeSharePopover';
@@ -30,10 +29,11 @@ export default function NativeToolbar() {
   const navigate = useNavigate();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
 
-  // Find popover state — anchored to the toolbar find button.
+  // Find popover state — anchored to the toolbar find button (desktop) or more menu (mobile).
   const findButtonRef = useRef<HTMLButtonElement | null>(null);
+  const overflowMenuButtonRef = useRef<HTMLButtonElement | null>(null);
   const [findAnchorRect, setFindAnchorRect] = useState<DOMRect | null>(null);
-  // Share popover state — anchored to the toolbar share button.
+  // Share popover state — anchored to the toolbar share button (desktop) or more menu (mobile).
   const shareButtonRef = useRef<HTMLButtonElement | null>(null);
   const [shareAnchorRect, setShareAnchorRect] = useState<DOMRect | null>(null);
   // Folder popover state — anchored to the toolbar folder chip.
@@ -96,18 +96,26 @@ export default function NativeToolbar() {
 
   const showShiftHints = usePrototypeShiftHints();
 
+  const openFindPopover = useCallback(() => {
+    const anchor = isMobileSidebar ? overflowMenuButtonRef.current : findButtonRef.current;
+    if (anchor) setFindAnchorRect(anchor.getBoundingClientRect());
+  }, [isMobileSidebar]);
+
+  const openSharePopover = useCallback(() => {
+    const anchor = isMobileSidebar ? overflowMenuButtonRef.current : shareButtonRef.current;
+    if (anchor) setShareAnchorRect(anchor.getBoundingClientRect());
+  }, [isMobileSidebar]);
+
   useEffect(() => {
     if (!isOnNotePage || !toolbarNoteId) return;
     const onOpenFind = (e: Event) => {
       const d = (e as CustomEvent).detail;
       if (d?.noteId && String(d.noteId) !== String(toolbarNoteId)) return;
-      if (findButtonRef.current) {
-        setFindAnchorRect(findButtonRef.current.getBoundingClientRect());
-      }
+      openFindPopover();
     };
     window.addEventListener('prototypeOpenFindInNote', onOpenFind as EventListener);
     return () => window.removeEventListener('prototypeOpenFindInNote', onOpenFind as EventListener);
-  }, [isOnNotePage, toolbarNoteId]);
+  }, [isOnNotePage, toolbarNoteId, openFindPopover]);
 
   return (
     <div className="proto-toolbar-inner">
@@ -132,7 +140,6 @@ export default function NativeToolbar() {
           </button>
         </PrototypeToolbarShortcutItem>
         <SpaceSwitcherMenu homeSpaceId={homeSpaceId} navReady={navReady} />
-        <ListViewMenu disabled={!homeSpaceId} />
         <PrototypeToolbarShortcutItem shortcut="N" showShortcut={showShiftHints}>
           <button
             type="button"
@@ -187,26 +194,28 @@ export default function NativeToolbar() {
       <div className="proto-toolbar-right">
         {isOnNotePage && toolbarNoteId ? (
           <div className="proto-toolbar-orb-group" aria-label="Note actions">
-            <PrototypeToolbarShortcutItem shortcut="F" showShortcut={showShiftHints}>
-              <button
-                ref={findButtonRef}
-                type="button"
-                className="proto-toolbar-icon-btn"
-                title="Find in note (Shift+F)"
-                aria-label="Find in note"
-                aria-haspopup="dialog"
-                aria-expanded={findAnchorRect !== null}
-                onClick={() => {
-                  if (findAnchorRect) {
-                    setFindAnchorRect(null);
-                  } else if (findButtonRef.current) {
-                    setFindAnchorRect(findButtonRef.current.getBoundingClientRect());
-                  }
-                }}
-              >
-                <Icon name="magnifying-glass" size={PROTO_TOOLBAR_ICON_SIZE} />
-              </button>
-            </PrototypeToolbarShortcutItem>
+            {!isMobileSidebar ? (
+              <PrototypeToolbarShortcutItem shortcut="F" showShortcut={showShiftHints}>
+                <button
+                  ref={findButtonRef}
+                  type="button"
+                  className="proto-toolbar-icon-btn"
+                  title="Find in note (Shift+F)"
+                  aria-label="Find in note"
+                  aria-haspopup="dialog"
+                  aria-expanded={findAnchorRect !== null}
+                  onClick={() => {
+                    if (findAnchorRect) {
+                      setFindAnchorRect(null);
+                    } else {
+                      openFindPopover();
+                    }
+                  }}
+                >
+                  <Icon name="magnifying-glass" size={PROTO_TOOLBAR_ICON_SIZE} />
+                </button>
+              </PrototypeToolbarShortcutItem>
+            ) : null}
             {findAnchorRect ? (
               <PrototypeFindInNotePopover
                 noteId={toolbarNoteId}
@@ -215,7 +224,7 @@ export default function NativeToolbar() {
               />
             ) : null}
 
-            {toolbarNote && toolbarNoteId ? (
+            {toolbarNote && toolbarNoteId && !isMobileSidebar ? (
               <>
                 <button
                   ref={shareButtonRef}
@@ -228,8 +237,8 @@ export default function NativeToolbar() {
                   onClick={() => {
                     if (shareAnchorRect) {
                       setShareAnchorRect(null);
-                    } else if (shareButtonRef.current) {
-                      setShareAnchorRect(shareButtonRef.current.getBoundingClientRect());
+                    } else {
+                      openSharePopover();
                     }
                   }}
                 >
@@ -238,20 +247,28 @@ export default function NativeToolbar() {
                     <span className="proto-toolbar-icon-btn__share-dot" aria-hidden />
                   ) : null}
                 </button>
-                {shareAnchorRect ? (
-                  <PrototypeSharePopover
-                    noteId={toolbarNoteId}
-                    isPublic={!!toolbarNote.isPublic}
-                    shareToken={toolbarNote.shareToken ?? null}
-                    anchorRect={shareAnchorRect}
-                    onDismiss={() => setShareAnchorRect(null)}
-                  />
-                ) : null}
               </>
+            ) : null}
+            {shareAnchorRect && toolbarNote && toolbarNoteId ? (
+              <PrototypeSharePopover
+                noteId={toolbarNoteId}
+                isPublic={!!toolbarNote.isPublic}
+                shareToken={toolbarNote.shareToken ?? null}
+                anchorRect={shareAnchorRect}
+                onDismiss={() => setShareAnchorRect(null)}
+              />
             ) : null}
 
             {noteSpaceId ? (
-              <PrototypeNoteMoreMenu noteId={toolbarNoteId} spaceId={noteSpaceId} />
+              <PrototypeNoteMoreMenu
+                noteId={toolbarNoteId}
+                spaceId={noteSpaceId}
+                overflowActions={isMobileSidebar}
+                isPublic={!!toolbarNote?.isPublic}
+                menuButtonRef={overflowMenuButtonRef}
+                onFind={isMobileSidebar ? openFindPopover : undefined}
+                onShare={isMobileSidebar && toolbarNote ? openSharePopover : undefined}
+              />
             ) : null}
           </div>
         ) : null}

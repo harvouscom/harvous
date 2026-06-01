@@ -33,6 +33,20 @@ html.harvous-prototype-route .proto-menu__popover--list-view button.proto-menu-i
   font-weight: 500 !important;
 }
 
+/* Sidebar list view trigger — folder-chip weight + GSF axes (beat global `button * { font-weight: 700 }`) */
+html.harvous-prototype-route button.proto-sidebar-list-view__trigger,
+html.harvous-prototype-route button.proto-sidebar-list-view__trigger .proto-sidebar-list-view__label {
+  font-weight: 500 !important;
+  font-variation-settings: var(--pds-font-body-variation-chip) !important;
+}
+
+/* Toolbar folder chip — same GSF medium axes inside buttons */
+html.harvous-prototype-route button.proto-toolbar-folder-chip,
+html.harvous-prototype-route button.proto-toolbar-folder-chip .proto-toolbar-folder-chip__label {
+  font-weight: 500 !important;
+  font-variation-settings: var(--pds-font-body-variation-chip) !important;
+}
+
 html.harvous-prototype-route [class*='proto-'] button svg,
 html.harvous-prototype-route [class*='proto-'] button path {
   fill: currentColor !important;

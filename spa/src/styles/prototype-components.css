@@ -98,6 +98,7 @@ html[data-shift-hints='1'] .proto-toolbar-orb-group {
   font-family: var(--pds-font-body) !important;
   font-size: 13px;
   font-weight: 500;
+  font-variation-settings: var(--pds-font-body-variation-chip);
   line-height: 1.2;
   transition: background 0.1s, color 0.1s;
 }
@@ -128,6 +129,7 @@ html[data-shift-hints='1'] .proto-toolbar-orb-group {
   white-space: nowrap;
   font-size: 13px;
   font-weight: 500;
+  font-variation-settings: var(--pds-font-body-variation-chip);
   line-height: 1.2;
 }
 
@@ -509,10 +511,118 @@ html[data-shift-hints='1'] .proto-toolbar-orb-group {
   }
 }
 
+/* ─── Sidebar list view (above search) ───────────────────────────────────── */
+.proto-sidebar-list-view {
+  flex-shrink: 0;
+  padding: 10px 12px 0;
+}
+
+.proto-sidebar-list-view__menu {
+  display: block;
+  width: 100%;
+}
+
+.proto-sidebar-list-view__trigger {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  box-sizing: border-box;
+  width: 100%;
+  height: 34px;
+  min-height: 34px;
+  padding: 0 10px;
+  border-radius: var(--pds-radius-input);
+  border: 0.5px solid var(--pds-border-control);
+  background: var(--pds-bg-faint);
+  cursor: pointer;
+  text-align: left;
+  /* Match `.proto-toolbar-folder-chip` label styling */
+  color: var(--pds-text-secondary);
+  font-family: var(--pds-font-body) !important;
+  font-size: 13px;
+  font-weight: 500 !important;
+  font-variation-settings: var(--pds-font-body-variation-chip) !important;
+  line-height: 1;
+  transition: background 0.12s, border-color 0.12s, box-shadow 0.12s, color 0.1s;
+}
+
+.proto-sidebar-list-view__trigger .proto-toolbar-folder-chip__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  line-height: 0;
+}
+
+.proto-sidebar-list-view__trigger .proto-sidebar-list-view__label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--pds-font-body) !important;
+  font-size: 13px;
+  font-weight: 500 !important;
+  font-variation-settings: var(--pds-font-body-variation-chip) !important;
+  line-height: 1.2;
+  color: inherit !important;
+}
+
+.proto-sidebar-list-view__trigger:hover:not(:disabled) {
+  background: var(--pds-bg-row-hover);
+  color: var(--pds-text-primary);
+}
+
+.proto-sidebar-list-view__trigger:focus-visible {
+  outline: none;
+  background: var(--pds-bg-chrome-opaque);
+  border-color: var(--pds-accent-active-border);
+  box-shadow: 0 0 0 2px var(--pds-accent-active-ring);
+}
+
+html.harvous-proto-wallpaper-image .proto-sidebar-list-view__trigger:focus-visible,
+html.harvous-proto-wallpaper-color .proto-sidebar-list-view__trigger:focus-visible {
+  background: var(--pds-bg-toolbar);
+}
+
+.proto-sidebar-list-view__trigger[aria-expanded='true'] {
+  background: var(--pds-bg-chrome-opaque);
+  border-color: var(--pds-accent-active-border);
+  box-shadow: 0 0 0 2px var(--pds-accent-active-ring);
+}
+
+html.harvous-proto-wallpaper-image .proto-sidebar-list-view__trigger[aria-expanded='true'],
+html.harvous-proto-wallpaper-color .proto-sidebar-list-view__trigger[aria-expanded='true'] {
+  background: var(--pds-bg-toolbar);
+}
+
+.proto-sidebar-list-view__trigger:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.proto-sidebar-list-view__chevron {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 0;
+  opacity: 0.38;
+  color: var(--pds-text-primary);
+}
+
+.proto-menu__popover--sidebar-list-view {
+  left: 0;
+  right: 0;
+  width: auto;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
 /* ─── Sidebar search input ───────────────────────────────────────────────── */
 .proto-sidebar-search {
   flex-shrink: 0;
-  padding: 10px 12px 8px;
+  padding: 6px 12px 8px;
 }
 
 .proto-sidebar-search__field {
@@ -1040,7 +1150,7 @@ html.harvous-proto-wallpaper-color .proto-sidebar-search__field:focus-within {
   width: var(--pds-inspector-w);
   z-index: 10;
   border-radius: var(--pds-shell-frame-radius);
-  background: var(--pds-bg-sidebar);
+  background: var(--pds-bg-page);
   overflow: hidden;
   display: flex;
   flex-direction: column;

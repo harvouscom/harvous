@@ -40,6 +40,7 @@ import {
 import PrototypeDictionaryColumn from './PrototypeDictionaryColumn';
 import PrototypeDictionaryEntry from './PrototypeDictionaryEntry';
 import PrototypeDailyPassagePill from './PrototypeDailyPassagePill';
+import ListViewMenu from './ListViewMenu';
 import {
   loadPinnedHighlightIds,
   togglePinnedHighlightId,
@@ -903,6 +904,9 @@ export default function PrototypeSidebar() {
 
   return (
     <div className="proto-sidebar-root">
+      <div className="proto-sidebar-list-view">
+        <ListViewMenu disabled={!navReady || !homeSpaceId} />
+      </div>
       <div className="proto-sidebar-search">
         <div className="proto-sidebar-search__field">
           <span className="proto-sidebar-search__icon" aria-hidden>

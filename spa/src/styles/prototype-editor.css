@@ -80,14 +80,14 @@
 @container proto-editor-scroll (max-width: 760px) {
   .proto-editor-content-wrap,
   .proto-editor-loading-wrap {
-    --pds-editor-paper-inset-x: 12px;
+    --pds-editor-paper-inset-x: 8px;
   }
 }
 
 @container proto-editor-scroll (max-width: 480px) {
   .proto-editor-content-wrap,
   .proto-editor-loading-wrap {
-    --pds-editor-paper-inset-x: 16px;
+    --pds-editor-paper-inset-x: 8px;
   }
 }
 
@@ -105,9 +105,15 @@
   padding: 32px 32px 80px;
 }
 
-@media (max-width: 640px) {
+@container proto-editor-scroll (max-width: 640px) {
   .proto-editor-paper {
-    padding: 20px 16px 80px;
+    padding: 20px 12px 80px;
+  }
+}
+
+@container proto-editor-scroll (max-width: 480px) {
+  .proto-editor-paper {
+    padding: 20px 8px 80px;
   }
 }
 
@@ -153,9 +159,15 @@
   padding: 32px;
 }
 
-@media (max-width: 640px) {
+@container proto-editor-scroll (max-width: 640px) {
   .proto-editor-loading-inner {
-    padding: 20px 16px;
+    padding: 20px 12px;
+  }
+}
+
+@container proto-editor-scroll (max-width: 480px) {
+  .proto-editor-loading-inner {
+    padding: 20px 8px;
   }
 }
 
