@@ -36,6 +36,19 @@ export const classicClerkAuthAppearance: Appearance = {
     headerSubtitle: 'clerk-form-header-subtitle',
     formButtonPrimary: 'clerk-form-button-primary primary-button',
     formFieldInput: 'clerk-form-input',
+    otpCodeField: 'clerk-form-otp-field',
+    otpCodeFieldInputs: 'clerk-form-otp-row',
+    otpCodeFieldInput: {
+      className: 'clerk-form-otp-input',
+      style: {
+        minHeight: '3rem',
+        maxWidth: '2.75rem',
+        width: '2.75rem',
+        padding: 0,
+        textAlign: 'center',
+      },
+    },
+    otpCodeFieldInputContainer: 'clerk-form-otp-input-container',
     formFieldLabel: {
       className: 'hidden',
       style: { display: 'none' },
