@@ -39,6 +39,43 @@ export function matchTrailingTranslationAbbreviation(text: string): { canonicalI
   return { canonicalId: normalizeInlineTranslationAbbreviation(m[1]), consumed: m[0] };
 }
 
+/** Translation codes longest-first for anchored suffix matching (NKJV before KJV). */
+const ANCHORED_TRANSLATION_CODES = (() => {
+  const sorted = [...TRANSLATION_ORDER].sort((a, b) => b.length - a.length || a.localeCompare(b));
+  return ['NASB 1995', ...sorted];
+})();
+
+/**
+ * Match optional leading whitespace + translation abbreviation at the start of `text`,
+ * even when more prose follows (native `scriptureTrailingTranslationAfterReference` parity).
+ * Requires no letter immediately after the matched code.
+ */
+export function matchAnchoredTrailingTranslationAbbreviation(
+  text: string,
+): { canonicalId: string; consumed: string } | null {
+  const wsMatch = text.match(/^(\s*)/);
+  const leadingWs = wsMatch ? wsMatch[1] : '';
+  const tail = text.slice(leadingWs.length);
+  if (!tail) return null;
+
+  for (const code of ANCHORED_TRANSLATION_CODES) {
+    const pattern =
+      code === 'NASB 1995'
+        ? /^NASB\s+1995/i
+        : new RegExp(`^${code.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`, 'i');
+    const m = tail.match(pattern);
+    if (!m) continue;
+    const matched = m[0];
+    const idxAfter = matched.length;
+    if (idxAfter < tail.length && /[a-zA-Z]/.test(tail[idxAfter]!)) continue;
+    return {
+      canonicalId: normalizeInlineTranslationAbbreviation(matched),
+      consumed: leadingWs + matched,
+    };
+  }
+  return null;
+}
+
 const DEBUG = false;
 
 // Bible chapter/verse data structure

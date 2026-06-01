@@ -1,3 +1,10 @@
+/** Slug for in-progress compose — no server note until the user adds title or body. */
+export const PROTOTYPE_DRAFT_NOTE_SLUG = 'new';
+
+export function isPrototypeDraftNoteSlug(slug: string): boolean {
+  return slug === PROTOTYPE_DRAFT_NOTE_SLUG;
+}
+
 /** Slugs for `/prototype/n/:noteId`; classic `/space/:spaceId` still passes full ids (`space_*` / `note_*`) where needed. */
 export function noteParamSlug(id: string) {
   return id.startsWith('note_') ? id.slice('note_'.length) : id;

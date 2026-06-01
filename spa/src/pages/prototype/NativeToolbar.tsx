@@ -7,20 +7,14 @@
  */
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useRouterState } from '@tanstack/react-router';
-import { useQueryClient } from '@tanstack/react-query';
 import Icon from '@/components/react/Icon';
 import { usePrototypeHomeSpaceId } from '../../hooks/usePrototypeHomeSpaceId';
-import {
-  getNoteIdFromCreateResponse,
-  seedNoteFromCreateResponse,
-  useNote,
-} from '../../hooks/queries/useNote';
-import { alertCreateNoteFailure, useCreateSimpleNote } from '../../hooks/mutations/useCreateSimpleNote';
+import { useNote } from '../../hooks/queries/useNote';
+import { PROTOTYPE_DRAFT_NOTE_SLUG, normalizeNoteIdFromParam, isPrototypeDraftNoteSlug } from './proto-route-slugs';
 import { useProtoShell } from '../../layouts/proto-shell-context';
 import { effectiveNoteFolderLabel } from '@/utils/note-folder-display';
 import AccountMenu from './AccountMenu';
 import ListViewMenu from './ListViewMenu';
-import { noteParamSlug, normalizeNoteIdFromParam } from './proto-route-slugs';
 import SpaceSwitcherMenu from './SpaceSwitcherMenu';
 import { PROTO_TOOLBAR_ICON_SIZE } from './proto-toolbar-tokens';
 import PrototypeSharePopover from './PrototypeSharePopover';
@@ -34,7 +28,6 @@ import { isPrototypeNotePath, matchPrototypeNoteId, prototypeNoteRouteTo } from 
 /* ── NativeToolbar ───────────────────────────────────────────────────────── */
 export default function NativeToolbar() {
   const navigate = useNavigate();
-  const queryClient = useQueryClient();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
 
   // Find popover state — anchored to the toolbar find button.
@@ -47,7 +40,6 @@ export default function NativeToolbar() {
   const folderChipRef = useRef<HTMLButtonElement | null>(null);
   const [folderAnchorRect, setFolderAnchorRect] = useState<DOMRect | null>(null);
   const { homeSpaceId, navReady } = usePrototypeHomeSpaceId();
-  const createNote = useCreateSimpleNote();
 
   const {
     isMobileSidebar,
@@ -63,8 +55,9 @@ export default function NativeToolbar() {
   } = useProtoShell();
 
   const noteSlugFromPath = matchPrototypeNoteId(pathname);
+  const isDraftNoteRoute = noteSlugFromPath != null && isPrototypeDraftNoteSlug(noteSlugFromPath);
   const toolbarNoteId =
-    noteSlugFromPath ? normalizeNoteIdFromParam(noteSlugFromPath) : null;
+    noteSlugFromPath && !isDraftNoteRoute ? normalizeNoteIdFromParam(noteSlugFromPath) : null;
 
   const { data: toolbarNote, isLoading: toolbarNoteLoading } = useNote(toolbarNoteId ?? '');
 
@@ -88,35 +81,12 @@ export default function NativeToolbar() {
       : null;
 
   const onCompose = () => {
-    if (!homeSpaceId || createNote.isPending) return;
-    createNote.mutate(
-      { spaceId: homeSpaceId },
-      {
-        onSuccess: (res) => {
-          const nid = getNoteIdFromCreateResponse(res);
-          const note = res?.note;
-          if (note && typeof note === 'object' && nid && homeSpaceId) {
-            try {
-              seedNoteFromCreateResponse(queryClient, note as Record<string, unknown> & { id: string }, homeSpaceId);
-            } catch (e) {
-              console.error('[NativeToolbar] seedNoteFromCreateResponse:', e);
-            }
-          }
-          if (nid) {
-            if (isMobileSidebar) closeDrawer();
-            navigate({
-              to: prototypeNoteRouteTo(),
-              params: { noteId: noteParamSlug(nid) },
-            });
-          } else {
-            alert('Create succeeded but response had no note id.');
-          }
-        },
-        onError: (err) => {
-          alertCreateNoteFailure(err);
-        },
-      },
-    );
+    if (!homeSpaceId) return;
+    if (isMobileSidebar) closeDrawer();
+    navigate({
+      to: prototypeNoteRouteTo(),
+      params: { noteId: PROTOTYPE_DRAFT_NOTE_SLUG },
+    });
   };
 
   const onSidebarButton = () => {
@@ -169,7 +139,7 @@ export default function NativeToolbar() {
             className="proto-toolbar-icon-btn"
             title="New note"
             aria-label="New note"
-            disabled={!homeSpaceId || createNote.isPending}
+            disabled={!homeSpaceId}
             onClick={onCompose}
           >
             <Icon name="pen-to-square" size={PROTO_TOOLBAR_ICON_SIZE} />

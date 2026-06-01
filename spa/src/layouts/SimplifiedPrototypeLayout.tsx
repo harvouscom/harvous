@@ -27,8 +27,7 @@ import '../styles/prototype-components.css';
 import '../styles/prototype-editor.css';
 import '../styles/prototype-route-overrides.css';
 import { usePrototypeHomeSpaceId } from '../hooks/usePrototypeHomeSpaceId';
-import { alertCreateNoteFailure, useCreateSimpleNote } from '../hooks/mutations/useCreateSimpleNote';
-import { getNoteIdFromCreateResponse, seedNoteFromCreateResponse } from '../hooks/queries/useNote';
+import { noteParamSlug, PROTOTYPE_DRAFT_NOTE_SLUG } from '../pages/prototype/proto-route-slugs';
 import { PROTO_LAST_SPACE_KEY } from './proto-session-keys';
 import { ProtoShellProvider, useProtoShell } from './proto-shell-context';
 import {
@@ -39,7 +38,6 @@ import {
   readBackground,
   subscribeColorScheme,
 } from '../lib/prototype-background';
-import { noteParamSlug } from '../pages/prototype/proto-route-slugs';
 import {
   isPrototypeHomePath,
   isPrototypeNotePath,
@@ -367,10 +365,8 @@ function DrawerOverlay({ onClose }: { onClose: () => void }) {
 
 function PrototypeShortcutBridge() {
   const navigate = useRouter();
-  const queryClient = useQueryClient();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const { homeSpaceId } = usePrototypeHomeSpaceId();
-  const createNote = useCreateSimpleNote();
   const {
     isMobileSidebar,
     closeDrawer,
@@ -383,36 +379,13 @@ function PrototypeShortcutBridge() {
   } = useProtoShell();
 
   const createPrototypeNote = useCallback(() => {
-    if (!homeSpaceId || createNote.isPending) return;
-    createNote.mutate(
-      { spaceId: homeSpaceId },
-      {
-        onSuccess: (res) => {
-          const nid = getNoteIdFromCreateResponse(res);
-          const note = res?.note;
-          if (note && typeof note === 'object' && nid) {
-            try {
-              seedNoteFromCreateResponse(queryClient, note as Record<string, unknown> & { id: string }, homeSpaceId);
-            } catch (e) {
-              console.error('[PrototypeShortcutBridge] seedNoteFromCreateResponse:', e);
-            }
-          }
-          if (!nid) {
-            alert('Create succeeded but response had no note id.');
-            return;
-          }
-          if (isMobileSidebar) closeDrawer();
-          navigate.navigate({
-            to: prototypeNoteRouteTo(),
-            params: { noteId: noteParamSlug(nid) },
-          });
-        },
-        onError: (err) => {
-          alertCreateNoteFailure(err);
-        },
-      },
-    );
-  }, [closeDrawer, createNote, homeSpaceId, isMobileSidebar, navigate, queryClient]);
+    if (!homeSpaceId) return;
+    if (isMobileSidebar) closeDrawer();
+    navigate.navigate({
+      to: prototypeNoteRouteTo(),
+      params: { noteId: PROTOTYPE_DRAFT_NOTE_SLUG },
+    });
+  }, [closeDrawer, homeSpaceId, isMobileSidebar, navigate]);
 
   const togglePrototypeSidebar = useCallback(() => {
     if (isMobileSidebar) toggleDrawer();

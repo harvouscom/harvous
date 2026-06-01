@@ -14,6 +14,7 @@ import {
   validateVerseRange,
   normalizeChapterReference,
   matchTrailingTranslationAbbreviation,
+  matchAnchoredTrailingTranslationAbbreviation,
   normalizeInlineTranslationAbbreviation,
   type ScriptureReference,
 } from '../scripture-detector';
@@ -383,6 +384,32 @@ describe('matchTrailingTranslationAbbreviation', () => {
 
   it('returns null when extra words follow', () => {
     expect(matchTrailingTranslationAbbreviation(' ESV more')).toBeNull();
+  });
+});
+
+describe('matchAnchoredTrailingTranslationAbbreviation', () => {
+  it('matches NLT when prose follows on the same line', () => {
+    const m = matchAnchoredTrailingTranslationAbbreviation(' NLT and see what we need');
+    expect(m).not.toBeNull();
+    expect(m!.canonicalId).toBe('NLT');
+    expect(m!.consumed).toBe(' NLT');
+  });
+
+  it('matches NASB 1995 with following punctuation', () => {
+    const m = matchAnchoredTrailingTranslationAbbreviation(' NASB 1995, clearer here');
+    expect(m).not.toBeNull();
+    expect(m!.canonicalId).toBe('NASB');
+    expect(m!.consumed).toBe(' NASB 1995');
+  });
+
+  it('returns null when abbrev is part of a longer word', () => {
+    expect(matchAnchoredTrailingTranslationAbbreviation(' NLTish')).toBeNull();
+  });
+
+  it('still matches block-end abbrev (parity with matchTrailingTranslationAbbreviation)', () => {
+    const m = matchAnchoredTrailingTranslationAbbreviation('  NASB 1995  ');
+    expect(m).not.toBeNull();
+    expect(m!.canonicalId).toBe('NASB');
   });
 });
 

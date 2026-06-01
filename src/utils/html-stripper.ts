@@ -277,6 +277,49 @@ export function stripHtmlForPreview(html: string, maxLength: number = 150): stri
   return stripHtml(html, { maxLength });
 }
 
+/** Block/line boundaries in note HTML before per-segment stripping. */
+function markHtmlBlockBoundaries(html: string): string {
+  return html
+    .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+    .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/p>/gi, '\n')
+    .replace(/<\/div>/gi, '\n')
+    .replace(/<\/h[1-6]>/gi, '\n')
+    .replace(/<\/li>/gi, '\n');
+}
+
+function listPreviewSegmentsFromHtml(html: string): string[] {
+  const marked = markHtmlBlockBoundaries(html);
+  const segments: string[] = [];
+  for (const chunk of marked.split('\n')) {
+    const piece = stripHtml(chunk).trim();
+    if (piece) segments.push(piece);
+  }
+  if (segments.length > 0) return segments;
+  const fallback = stripHtml(html, { preserveSpacing: true }).trim();
+  return fallback ? [fallback] : [];
+}
+
+/**
+ * One-line note list preview: skips empty filler blocks, joins lines with a space,
+ * and keeps adding lines until `maxLength` (or runs out of content).
+ */
+export function stripHtmlForListPreview(html: string, maxLength: number = 80): string {
+  if (!html) return '';
+  const segments = listPreviewSegmentsFromHtml(html);
+  let out = '';
+  for (const segment of segments) {
+    const next = out ? `${out} ${segment}` : segment;
+    if (next.length > maxLength) {
+      if (!out) return segment.length > maxLength ? `${segment.slice(0, maxLength)}…` : segment;
+      break;
+    }
+    out = next;
+  }
+  return out;
+}
+
 /**
  * Convenience function for CardNote components (preserves spacing)
  */
