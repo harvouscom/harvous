@@ -97,8 +97,7 @@ export default function NotePage() {
   const processScriptureMutation = useProcessScriptureRefs();
 
   const [formatToolbarHostEl, setFormatToolbarHostEl] = useState<HTMLDivElement | null>(null);
-  const [scriptureChromeHostEl, setScriptureChromeHostEl] = useState<HTMLDivElement | null>(null);
-  const [highlightChromeHostEl, setHighlightChromeHostEl] = useState<HTMLDivElement | null>(null);
+  const [studyDockCarouselHostEl, setStudyDockCarouselHostEl] = useState<HTMLDivElement | null>(null);
   const [chromeMode, setChromeMode] = useState<
     'format' | 'scripture' | 'highlight' | 'noteActions' | 'hidden'
   >('hidden');
@@ -421,8 +420,7 @@ export default function NotePage() {
               readOnlyLikeScripture={isOnboardingReadonly}
               editorChromeMode={isEditable ? 'prototypeNative' : 'default'}
               formatToolbarPortalTarget={isEditable ? formatToolbarHostEl : null}
-              scriptureChromePortalTarget={isEditable ? scriptureChromeHostEl : null}
-              highlightChromePortalTarget={isEditable ? highlightChromeHostEl : null}
+              studyDockCarouselPortalTarget={isEditable ? studyDockCarouselHostEl : null}
               onPrototypeChromeModeChange={isEditable ? setChromeMode : undefined}
               initialPrimaryCollection={note.primaryCollection ?? null}
               initialSecondaryCollections={note.secondaryCollections ?? []}
@@ -435,21 +433,16 @@ export default function NotePage() {
           </SubtleContentMount>
         </div>
         {isEditable ? (
+          <div className="note-editor-dock-layer" aria-live="polite">
+            <div ref={setStudyDockCarouselHostEl} className="note-editor-dock-layer__slot" />
+          </div>
+        ) : null}
+        {isEditable ? (
           <div
             className="note-editor-bottom-bar"
             data-mode={chromeMode}
             style={{ display: chromeMode === 'hidden' ? 'none' : undefined }}
           >
-            <div
-              ref={setHighlightChromeHostEl}
-              className="note-editor-bottom-bar__highlight-host"
-              style={{ display: chromeMode === 'highlight' ? 'block' : 'none' }}
-            />
-            <div
-              ref={setScriptureChromeHostEl}
-              className="note-editor-bottom-bar__scripture-host"
-              style={{ display: chromeMode === 'scripture' ? 'block' : 'none' }}
-            />
             <div
               ref={setFormatToolbarHostEl}
               className="note-editor-bottom-bar__format-host"

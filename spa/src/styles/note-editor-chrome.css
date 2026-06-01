@@ -1,5 +1,6 @@
 /* Production note editor: column bottom hosts (format + scripture portals + actions). Uses Harvous globals. */
 .note-editor-column-shell {
+  position: relative;
   flex: 1;
   display: flex;
   flex-direction: column;
@@ -33,8 +34,49 @@
   min-height: 44px;
 }
 
+/* Floating study docks above the format bar (native parity). */
+.note-editor-dock-layer {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 44px;
+  z-index: 6;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 0 0 8px;
+  pointer-events: none;
+}
+
+.note-editor-dock-layer__slot {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.note-editor-dock-layer__slot:not(:empty) {
+  pointer-events: auto;
+}
+
+.note-editor-dock-layer__slot:empty {
+  display: none;
+}
+
+.note-editor-dock-layer .scripture-pill-chrome,
+.note-editor-dock-layer .highlight-dock-web,
+.note-editor-dock-layer .study-dock-carousel,
+.note-editor-dock-layer .reference-dock-web,
+.note-editor-dock-layer .study-dock-card {
+  pointer-events: auto;
+}
+
 .note-editor-bottom-bar__scripture-host {
   width: 100%;
+  padding-top: 0;
+  padding-bottom: 0;
 }
 
 .note-editor-bottom-bar__highlight-host {
@@ -53,9 +95,42 @@
   width: 100%;
 }
 
+.note-editor-bottom-bar .tiptap-toolbar--prototype-native .tiptap-toolbar__hscroll {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  flex-wrap: nowrap;
+  width: 100%;
+  overflow: hidden;
+}
+
+.note-editor-bottom-bar .tiptap-toolbar--prototype-native .tiptap-toolbar__scroll-region {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
 .note-editor-bottom-bar .tiptap-toolbar--prototype-native .tiptap-toolbar__track {
-  width: auto !important;
-  justify-content: center;
+  width: max-content;
+  flex-wrap: nowrap;
+}
+
+.note-editor-bottom-bar .tiptap-toolbar--prototype-native .tiptap-toolbar__trailing {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: center;
+  margin-left: auto;
+}
+
+.note-editor-bottom-bar .tiptap-toolbar--prototype-native .tiptap-toolbar__history {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: center;
+  flex-shrink: 0;
 }
 
 .note-production-action-bar__inner {

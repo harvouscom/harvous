@@ -91,10 +91,8 @@ type ProtoShellContextValue = {
   setEditorChromeMode: (mode: PrototypeEditorChromeMode) => void;
   formatToolbarHostEl: HTMLDivElement | null;
   setFormatToolbarHostEl: (el: HTMLDivElement | null) => void;
-  scriptureChromeHostEl: HTMLDivElement | null;
-  setScriptureChromeHostEl: (el: HTMLDivElement | null) => void;
-  highlightChromeHostEl: HTMLDivElement | null;
-  setHighlightChromeHostEl: (el: HTMLDivElement | null) => void;
+  studyDockCarouselHostEl: HTMLDivElement | null;
+  setStudyDockCarouselHostEl: (el: HTMLDivElement | null) => void;
   referenceChromeHostEl: HTMLDivElement | null;
   setReferenceChromeHostEl: (el: HTMLDivElement | null) => void;
   /** Search route hides sidebar — chrome row skips the sidebar gutter pad. */
@@ -128,8 +126,7 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
   );
   const [editorChromeMode, setEditorChromeMode] = useState<PrototypeEditorChromeMode>('hidden');
   const [formatToolbarHostEl, setFormatToolbarHostEl] = useState<HTMLDivElement | null>(null);
-  const [scriptureChromeHostEl, setScriptureChromeHostEl] = useState<HTMLDivElement | null>(null);
-  const [highlightChromeHostEl, setHighlightChromeHostEl] = useState<HTMLDivElement | null>(null);
+  const [studyDockCarouselHostEl, setStudyDockCarouselHostEl] = useState<HTMLDivElement | null>(null);
   const [referenceChromeHostEl, setReferenceChromeHostEl] = useState<HTMLDivElement | null>(null);
   const [hideSidebar, setHideSidebar] = useState(false);
 
@@ -254,10 +251,8 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
       setEditorChromeMode,
       formatToolbarHostEl,
       setFormatToolbarHostEl,
-      scriptureChromeHostEl,
-      setScriptureChromeHostEl,
-      highlightChromeHostEl,
-      setHighlightChromeHostEl,
+      studyDockCarouselHostEl,
+      setStudyDockCarouselHostEl,
       referenceChromeHostEl,
       setReferenceChromeHostEl,
       hideSidebar,
@@ -293,8 +288,7 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
       dismissStandaloneScripturePassage,
       editorChromeMode,
       formatToolbarHostEl,
-      scriptureChromeHostEl,
-      highlightChromeHostEl,
+      studyDockCarouselHostEl,
       referenceChromeHostEl,
       hideSidebar,
     ],

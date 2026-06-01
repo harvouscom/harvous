@@ -3,10 +3,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import Icon from '@/components/react/Icon';
+import DockAccentSwatchButton, { SCRIPTURE_DOCK_ACCENT_COLORS } from '@/components/react/DockAccentSwatchButton';
+import StudyDockCardShell from '@/components/react/StudyDockCardShell';
 import { api } from '../../../spa/src/lib/api';
 import { slugCandidates, type EastonCategory } from '../../../spa/src/hooks/useEastonsSlugIndex';
 import type { StudyHighlightAccentKey } from '@/utils/study-highlight-accents';
-import { STUDY_HIGHLIGHT_SWATCHES_NO_NEUTRAL } from '@/utils/study-highlight-accents';
+import { isStudyHighlightAccentKey, STUDY_HIGHLIGHT_SWATCHES_NO_NEUTRAL } from '@/utils/study-highlight-accents';
+import '@/styles/study-dock-card.css';
 import '@/styles/reference-dock-web.css';
 import '@/styles/highlight-dock-web.css';
 
@@ -41,17 +44,23 @@ export interface ReferenceDockWebProps {
 
 function categoryIcon(cat: EastonCategory) {
   switch (cat) {
-    case 'person': return 'person';
-    case 'place':  return 'location-dot';
-    default:       return 'tag';
+    case 'person':
+      return 'person';
+    case 'place':
+      return 'location-dot';
+    default:
+      return 'tag';
   }
 }
 
 function categoryLabel(cat: EastonCategory) {
   switch (cat) {
-    case 'person': return 'Person';
-    case 'place':  return 'Place';
-    default:       return 'Thing';
+    case 'person':
+      return 'Person';
+    case 'place':
+      return 'Place';
+    default:
+      return 'Thing';
   }
 }
 
@@ -112,6 +121,7 @@ export default function ReferenceDockWeb({
   const [query, setQuery] = useState(initialQuery);
   const trimmed = query.trim();
   const { data: entry, isLoading } = useEastonsEntry(trimmed);
+  const [isExpanded, setIsExpanded] = useState(true);
 
   const [highlights, setHighlights] = useState<SavedHighlight[]>([]);
   const [pendingExcerpt, setPendingExcerpt] = useState<string | null>(null);
@@ -173,67 +183,70 @@ export default function ReferenceDockWeb({
     window.getSelection()?.removeAllRanges();
   }, [pendingExcerpt, entry, selectedAccent, highlights]);
 
-  const removeHighlight = useCallback((id: string) => {
-    if (!entry) return;
-    const updated = highlights.filter((h) => h.id !== id);
-    setHighlights(updated);
-    persistHighlights('eastons', entry.slug, updated);
-  }, [entry, highlights]);
+  const removeHighlight = useCallback(
+    (id: string) => {
+      if (!entry) return;
+      const updated = highlights.filter((h) => h.id !== id);
+      setHighlights(updated);
+      persistHighlights('eastons', entry.slug, updated);
+    },
+    [entry, highlights],
+  );
 
   const dismissPending = useCallback(() => {
     setPendingExcerpt(null);
     window.getSelection()?.removeAllRanges();
   }, []);
 
+  const headword = entry?.headword ?? trimmed;
+  const noteAccent: StudyHighlightAccentKey =
+    noteHighlightAccent && isStudyHighlightAccentKey(noteHighlightAccent) ? noteHighlightAccent : 'warmAmber';
+  const accentColor = SCRIPTURE_DOCK_ACCENT_COLORS[noteHighlightRange ? noteAccent : 'neutral'];
+
+  const headerActions =
+    noteHighlightRange && (onChangeNoteHighlight || onRemoveNoteHighlight) ? (
+      <>
+        {onChangeNoteHighlight ? (
+          <DockAccentSwatchButton
+            selection={noteAccent}
+            paletteTokens={STUDY_HIGHLIGHT_SWATCHES_NO_NEUTRAL}
+            onSelectionChange={onChangeNoteHighlight}
+          />
+        ) : null}
+        {onRemoveNoteHighlight ? (
+          <button
+            type="button"
+            className="study-dock-card__header-btn study-dock-card__header-btn--plain"
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={onRemoveNoteHighlight}
+            aria-label="Remove highlight"
+          >
+            <Icon name="trash-can" size={12} />
+          </button>
+        ) : null}
+      </>
+    ) : null;
+
   return (
-    <div className="reference-dock-web" role="region" aria-label="Reference">
-      <div className="reference-dock-web__row">
-        <span className="reference-dock-web__source">
-          <Icon name="book-open" size={12} aria-hidden />
-          Easton's
-        </span>
-        <button
-          type="button"
-          className="reference-dock-web__done-text"
-          onMouseDown={(e) => e.preventDefault()}
-          onClick={onDone}
-        >
-          Done
-        </button>
-      </div>
-
-      {noteHighlightRange && (onChangeNoteHighlight || onRemoveNoteHighlight) ? (
-        <div className="reference-dock-web__note-hl-row">
-          <span className="reference-dock-web__note-hl-label">Highlight</span>
-          <div className="reference-dock-web__highlight-swatches">
-            {STUDY_HIGHLIGHT_SWATCHES_NO_NEUTRAL.map((key) => (
-              <button
-                key={key}
-                type="button"
-                className={`highlight-dock-web__swatch highlight-dock-web__swatch--${key}${
-                  noteHighlightAccent === key ? ' highlight-dock-web__swatch--selected' : ''
-                }`}
-                title={key}
-                aria-label={key}
-                aria-pressed={noteHighlightAccent === key}
-                onMouseDown={(e) => e.preventDefault()}
-                onClick={() => onChangeNoteHighlight?.(key)}
-              />
-            ))}
-          </div>
-          {onRemoveNoteHighlight ? (
-            <button
-              type="button"
-              className="highlight-dock-web__btn highlight-dock-web__btn--plain"
-              onMouseDown={(e) => e.preventDefault()}
-              onClick={onRemoveNoteHighlight}
-            >
-              Remove
-            </button>
-          ) : null}
-        </div>
-      ) : null}
-
+    <StudyDockCardShell
+      rootClassName="reference-dock-web"
+      ariaLabel="Reference"
+      accentColor={accentColor}
+      expanded={isExpanded}
+      onToggleExpanded={() => setIsExpanded((prev) => !prev)}
+      onDismiss={onDone}
+      headerIcon={<Icon name={entry ? categoryIcon(entry.category) : 'book-open'} size={13} />}
+      headerTitle={<span className="reference-dock-web__headword">{headword}</span>}
+      headerTrailing={
+        entry ? (
+          <span className="reference-dock-web__category-chip" data-category={entry.category}>
+            <Icon name={categoryIcon(entry.category)} size={11} aria-hidden />
+            {categoryLabel(entry.category)}
+          </span>
+        ) : null
+      }
+      headerActions={headerActions}
+    >
       <div className="reference-dock-web__passage">
         {!trimmed ? (
           <p className="reference-dock-web__status">Type a word to look up.</p>
@@ -243,14 +256,6 @@ export default function ReferenceDockWeb({
           <p className="reference-dock-web__status">No entry found for "{trimmed}".</p>
         ) : (
           <>
-            <div className="reference-dock-web__passage-head">
-              <span className="reference-dock-web__headword">{entry.headword}</span>
-              <span className="reference-dock-web__category-chip" data-category={entry.category}>
-                <Icon name={categoryIcon(entry.category)} size={11} aria-hidden />
-                {categoryLabel(entry.category)}
-              </span>
-            </div>
-
             <div ref={bodyRef} className="reference-dock-web__passage-html">
               {entry.body}
             </div>
@@ -336,6 +341,6 @@ export default function ReferenceDockWeb({
           </>
         )}
       </div>
-    </div>
+    </StudyDockCardShell>
   );
 }

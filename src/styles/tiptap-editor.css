@@ -92,10 +92,10 @@
   list-style-type: inherit !important;
 }
 
-/* Heading styles */
+/* Heading styles — title field is H1; body headings step down to H4 (= body size) */
 .tiptap-content .ProseMirror h2 {
-  font-size: 18px !important;
-  font-weight: 700 !important;
+  font-size: 19px !important;
+  font-weight: 600 !important;
   line-height: 1.3 !important;
   margin-top: 1.5em !important;
   margin-bottom: 0.75em !important;
@@ -110,9 +110,9 @@
 }
 
 .tiptap-content .ProseMirror h3 {
-  font-size: 16px !important;
-  font-weight: 700 !important;
-  line-height: 1.4 !important;
+  font-size: 17px !important;
+  font-weight: 600 !important;
+  line-height: 1.35 !important;
   margin-top: 1.25em !important;
   margin-bottom: 0.625em !important;
   color: var(--color-deep-grey) !important;
@@ -141,6 +141,26 @@
 
 .tiptap-content .ProseMirror hr:last-child {
   margin-bottom: 0 !important;
+}
+
+/* Inline note images (Supabase Storage URLs) */
+.tiptap-content .ProseMirror img {
+  display: block;
+  max-width: 400px;
+  width: 100%;
+  height: auto;
+  margin: 1em 0;
+  border-radius: 8px;
+  border: 1px solid var(--color-fog-white, #e5e5e5);
+  box-sizing: border-box;
+}
+
+.tiptap-content .ProseMirror img:first-child {
+  margin-top: 0;
+}
+
+.tiptap-content .ProseMirror img:last-child {
+  margin-bottom: 0;
 }
 
 /* Inside the editor, scripture pills use user-select:all (atomic selection) so that
@@ -173,44 +193,59 @@
   -webkit-overflow-scrolling: touch;
 }
 
+/* Prototype-native: outer bar is a fixed row; only the leading scroll-region scrolls. */
+.tiptap-toolbar--prototype-native > .tiptap-toolbar__hscroll {
+  overflow: hidden;
+  flex-wrap: nowrap;
+}
+
 /* Override all conflicting CSS for toolbar buttons */
 .tiptap-toolbar button {
   box-shadow: none !important;
   background: transparent !important;
+  color: var(--pds-text-secondary, var(--color-gray)) !important;
 }
 
-.tiptap-toolbar button:hover {
+.tiptap-toolbar button:hover:not(:disabled) {
   box-shadow: none !important;
-  background: transparent !important;
+  background: var(--pds-bg-control, oklch(0% 0 0 / 0.04)) !important;
+  color: var(--pds-text-primary, var(--color-deep-grey)) !important;
 }
 
-.tiptap-toolbar button:hover div {
-  color: var(--color-deep-grey) !important;
+.tiptap-toolbar button:hover:not(:disabled) div {
+  color: inherit !important;
 }
 
-.tiptap-toolbar button.ql-active {
+.tiptap-toolbar button.ql-active,
+.tiptap-toolbar button[aria-pressed='true'],
+.tiptap-toolbar button[data-active='true'] {
   box-shadow: none !important;
-  background: transparent !important;
+  background: var(--pds-bg-chip, oklch(0% 0 0 / 0.06)) !important;
+  color: var(--pds-text-primary, var(--color-deep-grey)) !important;
 }
 
-.tiptap-toolbar button.ql-active div {
-  color: var(--color-deep-grey) !important;
+.tiptap-toolbar button.ql-active div,
+.tiptap-toolbar button[aria-pressed='true'] div,
+.tiptap-toolbar button[data-active='true'] div {
+  color: inherit !important;
 }
 
-.tiptap-toolbar button:active {
+.tiptap-toolbar button:active:not(:disabled) {
   box-shadow: none !important;
   filter: brightness(0.97) !important;
   transform: scale(0.98) !important;
+  background: var(--pds-bg-control-hover, oklch(0% 0 0 / 0.08)) !important;
 }
 
 /* Force override any conflicting styles from other components */
-.tiptap-toolbar button,
-.tiptap-toolbar button:hover,
-.tiptap-toolbar button:focus,
-.tiptap-toolbar button:active,
-.tiptap-toolbar button.ql-active {
-  background: transparent !important;
+.tiptap-toolbar button:focus {
   box-shadow: none !important;
+}
+
+.tiptap-toolbar button.ql-active,
+.tiptap-toolbar button[aria-pressed='true'],
+.tiptap-toolbar button[data-active='true'] {
+  background: var(--pds-bg-chip, oklch(0% 0 0 / 0.06)) !important;
 }
 
 /* Ensure primary and secondary buttons maintain white text even in Tiptap context */

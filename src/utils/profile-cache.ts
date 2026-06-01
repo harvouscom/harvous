@@ -1,3 +1,5 @@
+import { HARVOUS_PROFILE_CACHE_KEY } from '@/utils/user-cache-keys';
+
 /**
  * Client-Side Profile Cache (profile-cache.ts)
  * 
@@ -100,6 +102,43 @@ export function clearCachedProfileData(): void {
  * If church fields are not in updates, preserves existing values.
  * This prevents accidentally overwriting church data with null.
  */
+function readClerkUserIdForDefaultTranslation(): string | undefined {
+  if (typeof window === 'undefined') return undefined;
+  try {
+    const w = (window as unknown as { __harvous_userId?: string }).__harvous_userId;
+    if (typeof w === 'string' && w.length > 0) return w;
+    const a = localStorage.getItem('harvous-user-id');
+    if (a) return a;
+    const b = localStorage.getItem('harvous_userId');
+    if (b) return b;
+  } catch {
+    /* ignore */
+  }
+  return undefined;
+}
+
+/**
+ * Resolves the user's default Bible translation from any warm client cache (sessionStorage).
+ * Falls back to NET when caches are cold (e.g. first paint after hard refresh).
+ */
+export function getEffectiveDefaultTranslation(): string {
+  const fromProfileData = getCachedProfileData()?.defaultTranslation;
+  if (fromProfileData) return fromProfileData;
+
+  if (typeof window === 'undefined') return 'NET';
+  try {
+    const userId = readClerkUserIdForDefaultTranslation();
+    if (!userId) return 'NET';
+    const raw = sessionStorage.getItem(HARVOUS_PROFILE_CACHE_KEY);
+    if (!raw) return 'NET';
+    const p = JSON.parse(raw) as { id?: string; defaultTranslation?: string };
+    if (p.id === userId && p.defaultTranslation) return p.defaultTranslation;
+  } catch {
+    /* ignore */
+  }
+  return 'NET';
+}
+
 export function updateCachedProfileData(updates: Partial<CachedProfileData>): void {
   if (typeof window === 'undefined') {
     return;

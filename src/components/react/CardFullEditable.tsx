@@ -11,7 +11,8 @@ import { debug } from '@/utils/logger';
 import { safeRenderHtml } from '@/utils/content-renderer';
 import { getOrCreateScriptureNote } from '@/utils/scripture-note-utils';
 import { getTranslation, getTranslationAbbreviationDisplay } from '@/data/translations';
-import { withScripturePillDisplayLabels } from '@/utils/scripture-pill-display';
+import { withScripturePillDisplayLabels, repairScripturePillTranslationsInHtml } from '@/utils/scripture-pill-display';
+import { getEffectiveDefaultTranslation } from '@/utils/profile-cache';
 import { getCachedProfileData } from '@/utils/profile-cache';
 import { isNoteUnlocked, lockNote } from '@/utils/note-unlock-state';
 import { useIsOffline } from '@/hooks/useIsOffline';
@@ -75,14 +76,7 @@ function noteBodyRequiresPinUnlock(
   return !isNoteUnlocked(noteId);
 }
 
-/** Native parity: empty TipTap/HTML body (including `<p></p>`). */
-function isTiptapBodyEmpty(html: string | undefined | null): boolean {
-  if (html == null || html === '') return true;
-  const text = html.replace(/<[^>]+>/g, ' ').replace(/&nbsp;/gi, ' ').replace(/\s+/g, ' ').trim();
-  return text.length === 0;
-}
-
-// Title character limits
+import { isEffectivelyEmptyPrototypeNote, isTiptapBodyEmpty } from '@/utils/prototype-note-empty';
 const TITLE_SOFT_LIMIT = 30;  // Show counter when >= 30
 const TITLE_WARNING_LIMIT = 45;  // Red text when >= 45 (within 5 of limit)
 const TITLE_HARD_LIMIT = 50;  // Maximum allowed
@@ -158,6 +152,8 @@ interface CardFullEditableProps {
   initialCollectionUserOverride?: boolean;
   initialCollectionLastAutoUpdatedAtIso?: string | null;
   scriptureChromePortalTarget?: HTMLElement | null;
+  /** Per-note scripture + highlight dock carousel host (prototype / production note). */
+  studyDockCarouselPortalTarget?: HTMLElement | null;
   /** Optional: URL/search-driven collection context for the multi-collection banner. */
   collectionNavContext?: WebCollectionNavSource;
   /**
@@ -165,6 +161,8 @@ interface CardFullEditableProps {
    * Production note pages omit this so users still get view-then-edit.
    */
   alwaysEditing?: boolean;
+  /** Prototype-only: fired on editor unmount with live title/body so the parent can discard empty notes. */
+  onPrototypeEditorUnmount?: (snapshot: { noteId: string; title: string; content: string }) => void;
 }
 
 export default function CardFullEditable({ 
@@ -201,10 +199,12 @@ export default function CardFullEditable({
   initialCollectionLastAutoUpdatedAtIso = null,
   scriptureChromePortalTarget = null,
   highlightChromePortalTarget = null,
+  studyDockCarouselPortalTarget = null,
   referenceChromePortalTarget = null,
   initialReferenceWord = null,
   collectionNavContext = DEFAULT_COLLECTION_NAV_CONTEXT,
   alwaysEditing = false,
+  onPrototypeEditorUnmount,
 }: CardFullEditableProps) {
   const effectivePrototypeNoteActionsChrome =
     editorChromeMode === 'prototypeNative'
@@ -215,6 +215,8 @@ export default function CardFullEditable({
   const isCurrentlyOffline = useIsOffline();
   const effectiveIsEditable =
     noteType === 'scripture' || readOnlyLikeScripture || isCurrentlyOffline ? false : isEditable;
+  const effectiveIsEditableRef = useRef(effectiveIsEditable);
+  effectiveIsEditableRef.current = effectiveIsEditable;
   const resolvedScriptureVersion = noteType === 'scripture'
     ? (version || getCachedProfileData()?.defaultTranslation || 'NET')
     : undefined;
@@ -226,7 +228,9 @@ export default function CardFullEditable({
   const [isSaving, setIsSaving] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
   const [displayTitle, setDisplayTitle] = useState(title);
-  const [displayContent, setDisplayContent] = useState(content);
+  const [displayContent, setDisplayContent] = useState(() =>
+    repairScripturePillTranslationsInHtml(content ?? '', getEffectiveDefaultTranslation()),
+  );
   const [displayScriptureVersion, setDisplayScriptureVersion] = useState(resolvedScriptureVersion);
   const [imageRemoved, setImageRemoved] = useState(false);
   const [isTitleFocused, setIsTitleFocused] = useState(false);
@@ -249,6 +253,8 @@ export default function CardFullEditable({
   // Mirror editorChromeMode so unmount cleanup isn't a stale closure
   const editorChromeModeRef = useRef(editorChromeMode);
   editorChromeModeRef.current = editorChromeMode;
+  const readOnlyLikeScriptureRef = useRef(readOnlyLikeScripture);
+  readOnlyLikeScriptureRef.current = readOnlyLikeScripture;
 
   // Prototype-specific save state — entirely ref-based, bypasses hasChanges state machine
   const protoLastSavedRef = useRef<{ title: string; content: string; collectionKey: string } | null>(null);
@@ -257,6 +263,14 @@ export default function CardFullEditable({
   // in-flight save's `finally` block checks this and re-fires protoSaveAsync so
   // trailing edits (typed during a save, or captured by unmount cleanup) aren't lost.
   const protoPendingFlushRef = useRef(false);
+  const protoSaveAsyncRef = useRef<(opts?: { fromUnmount?: boolean }) => Promise<void>>(async () => {});
+  const onSaveRef = useRef(onSave);
+  onSaveRef.current = onSave;
+  const noteIdRef = useRef(noteId);
+  noteIdRef.current = noteId;
+  const onPrototypeEditorUnmountRef = useRef(onPrototypeEditorUnmount);
+  onPrototypeEditorUnmountRef.current = onPrototypeEditorUnmount;
+  const isMountedRef = useRef(true);
   const [scrollPosition, setScrollPosition] = useState(0);
   const [parentThreadId, setParentThreadId] = useState<string | undefined>(undefined);
   const [prototypeBottomChromeMode, setPrototypeBottomChromeModeInternal] = useState<
@@ -320,6 +334,25 @@ export default function CardFullEditable({
     initialCollectionUserOverride,
     initialCollectionLastAutoUpdatedAtIso,
   ]);
+
+  // Prototype: apply auto folder once when a note opens (automatic mode), before first autosave.
+  useEffect(() => {
+    if (editorChromeMode !== 'prototypeNative') return;
+    const initialTitle =
+      noteType === 'default'
+        ? stripServerAutoUntitledNoteTitleForDisplay(title)
+        : (title ?? '');
+    const initialContent = content ?? '';
+    const timer = window.setTimeout(() => {
+      setCollectionChrome(prev => {
+        if (prev.collectionUserOverride && !prev.collectionPinned) return prev;
+        return applyAutoCollectionAfterEdit(prev, initialTitle, initialContent, new Date());
+      });
+    }, 0);
+    return () => window.clearTimeout(timer);
+    // title/content intentionally omitted — snapshot at note open only
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [noteId, editorChromeMode, noteType]);
 
   useEffect(() => {
     setPrototypeScripturePillOpenRequest(null);
@@ -386,11 +419,32 @@ export default function CardFullEditable({
   // before the 700ms debounce fires). React state updates are silently dropped after unmount,
   // but the network request still goes through.
   useEffect(() => {
+    isMountedRef.current = true;
     return () => {
-      // Prototype path: use ref-based saver (doesn't depend on hasChanges state).
-      // protoSaveAsync bails early if noteSaveCallback isn't registered (non-prototype route).
-      if (editorChromeModeRef.current === 'prototypeNative') {
-        void protoSaveAsync();
+      isMountedRef.current = false;
+      const currentTitle = editTitleRef.current;
+      const currentContent = (() => {
+        if (editorInstanceRef.current && !editorInstanceRef.current.isDestroyed) {
+          try { return editorInstanceRef.current.getHTML(); } catch { /* */ }
+        }
+        return editContentRef.current;
+      })();
+      const departingNoteId = noteIdRef.current;
+      if (
+        editorChromeModeRef.current === 'prototypeNative' &&
+        departingNoteId &&
+        !readOnlyLikeScriptureRef.current &&
+        effectiveIsEditableRef.current
+      ) {
+        onPrototypeEditorUnmountRef.current?.({
+          noteId: departingNoteId,
+          title: currentTitle,
+          content: currentContent,
+        });
+        if (isEffectivelyEmptyPrototypeNote(currentTitle, currentContent)) {
+          return;
+        }
+        void protoSaveAsyncRef.current({ fromUnmount: true });
       } else if (hasChangesRef.current) {
         void flushEditsRef.current(false);
       }
@@ -575,9 +629,22 @@ export default function CardFullEditable({
     // Only reset displayContent if we haven't updated it locally
     // This prevents the highlight from disappearing when content prop updates
     if (!hasLocalContentUpdate.current) {
-      setDisplayContent(content);
+      const repaired = repairScripturePillTranslationsInHtml(
+        content ?? '',
+        getEffectiveDefaultTranslation(),
+      );
+      setDisplayContent(repaired);
+      if (
+        editorChromeMode === 'prototypeNative' &&
+        alwaysEditing &&
+        repaired !== (content ?? '')
+      ) {
+        setEditContent(repaired);
+        hasLocalContentUpdate.current = true;
+        setHasChanges(true);
+      }
     }
-  }, [title, content, contentEncrypted, lockStateOverride, noteId, editorChromeMode, noteType]);
+  }, [title, content, contentEncrypted, lockStateOverride, noteId, editorChromeMode, noteType, alwaysEditing]);
 
   // Leave edit mode when locked so ciphertext never appears in TipTap (prototype alwaysEditing).
   useEffect(() => {
@@ -603,7 +670,9 @@ export default function CardFullEditable({
           : title;
     const c = content ?? '';
     const initialContent =
-      noteType === 'resource' && !c.trim() && resourceDescription ? resourceDescription : c;
+      noteType === 'resource' && !c.trim() && resourceDescription
+        ? resourceDescription
+        : repairScripturePillTranslationsInHtml(c, getEffectiveDefaultTranslation());
 
     setEditTitle(initialTitle);
     setEditContent(initialContent);
@@ -1518,8 +1587,9 @@ export default function CardFullEditable({
             editor.commands.setContent(saveResult.processedContent, { emitUpdate: false });
             requestAnimationFrame(async () => {
               if (editorInstanceRef.current) {
-                const { convertNoteLinksToScripturePills } = await import('./TiptapEditor');
+                const { convertNoteLinksToScripturePills, consumeTrailingTranslationAfterPills } = await import('./TiptapEditor');
                 await convertNoteLinksToScripturePills(editorInstanceRef.current);
+                consumeTrailingTranslationAfterPills(editorInstanceRef.current);
                 const finalContent = editorInstanceRef.current.getHTML();
                 applyAfterPersist(editTitle, finalContent);
               }
@@ -1549,14 +1619,22 @@ export default function CardFullEditable({
   // Prototype auto-save: purely ref-based, never depends on hasChanges state so it can't be
   // silently wiped by init-effect re-fires or applyAfterPersist. Fires 700ms after the last
   // editTitle / editContent change, reads live content from the editor ref, and calls
-  // noteSaveCallback directly.
-  const protoSaveAsync = useCallback(async () => {
+  // onSave (note-scoped) or noteSaveCallback as fallback.
+  const protoSaveAsync = useCallback(async (opts?: { fromUnmount?: boolean }) => {
     if (protoIsSavingRef.current) {
       // A save is in flight. Remember that a flush was requested so we re-fire
       // when it returns — otherwise trailing edits typed during the in-flight
-      // save (or content captured by an unmount cleanup) are silently dropped.
+      // save (or content captured by unmount cleanup) are silently dropped.
       protoPendingFlushRef.current = true;
-      return;
+      if (!opts?.fromUnmount) return;
+      // Unmount flush: wait for the in-flight save (it already captured note-scoped saveFn).
+      let spins = 0;
+      while (protoIsSavingRef.current && spins < 200) {
+        await new Promise<void>((resolve) => {
+          window.setTimeout(resolve, 25);
+        });
+        spins++;
+      }
     }
 
     const currentTitle = editTitleRef.current;
@@ -1592,18 +1670,26 @@ export default function CardFullEditable({
       return;
     }
 
-    const globalCallback = (window as any).noteSaveCallback;
-    if (!globalCallback) return;
+    if (isEffectivelyEmptyPrototypeNote(currentTitle, currentContent)) {
+      return;
+    }
+
+    // Capture note-scoped save fn synchronously — never read window.noteSaveCallback after await.
+    const saveFn =
+      onSaveRef.current ??
+      (typeof window !== 'undefined' ? (window as { noteSaveCallback?: typeof onSaveRef.current }).noteSaveCallback : undefined);
+    if (!saveFn) return;
 
     protoIsSavingRef.current = true;
     const prevLast = protoLastSavedRef.current;
     protoLastSavedRef.current = { title: currentTitle, content: currentContent, collectionKey };
 
     try {
-      const saveResult: any = await globalCallback(currentTitle, currentContent, collectionExtras);
-      if (collectionExtras) setCollectionChrome(chromeForSave);
+      const saveResult: unknown = await saveFn(currentTitle, currentContent, collectionExtras);
+      const result = saveResult as { processedContent?: string } | null;
+      if (collectionExtras && isMountedRef.current) setCollectionChrome(chromeForSave);
 
-      if (saveResult?.processedContent && editorInstanceRef.current && !editorInstanceRef.current.isDestroyed) {
+      if (result?.processedContent && editorInstanceRef.current && !editorInstanceRef.current.isDestroyed) {
         const editor = editorInstanceRef.current;
         let liveHtml: string | null = null;
         try { liveHtml = editor.getHTML(); } catch { /* */ }
@@ -1611,11 +1697,13 @@ export default function CardFullEditable({
           // Safe to inject pills — user hasn't typed since save started
           hasLocalContentUpdate.current = true;
           skipNextContentSyncRef.current = true;
-          editor.commands.setContent(saveResult.processedContent, { emitUpdate: false });
+          editor.commands.setContent(result.processedContent, { emitUpdate: false });
           requestAnimationFrame(async () => {
             if (!editorInstanceRef.current || editorInstanceRef.current.isDestroyed) return;
-            const { convertNoteLinksToScripturePills } = await import('./TiptapEditor');
+            if (!isMountedRef.current) return;
+            const { convertNoteLinksToScripturePills, consumeTrailingTranslationAfterPills } = await import('./TiptapEditor');
             await convertNoteLinksToScripturePills(editorInstanceRef.current);
+            consumeTrailingTranslationAfterPills(editorInstanceRef.current);
             const finalContent = editorInstanceRef.current.getHTML();
             protoLastSavedRef.current = { title: currentTitle, content: finalContent, collectionKey };
             setDisplayTitle(currentTitle);
@@ -1626,11 +1714,13 @@ export default function CardFullEditable({
           // User typed during save — we did NOT update protoLastSavedRef to the
           // live content, so the chained re-fire below will see a mismatch and
           // save the trailing characters.
-          setDisplayTitle(currentTitle);
-          setDisplayContent(currentContent);
+          if (isMountedRef.current) {
+            setDisplayTitle(currentTitle);
+            setDisplayContent(currentContent);
+          }
           protoPendingFlushRef.current = true;
         }
-      } else {
+      } else if (isMountedRef.current) {
         setDisplayTitle(currentTitle);
         setDisplayContent(currentContent);
         setHasChanges(false);
@@ -1638,18 +1728,28 @@ export default function CardFullEditable({
     } catch {
       // Restore last-saved so the next attempt retries the full content
       protoLastSavedRef.current = prevLast;
-      protoPendingFlushRef.current = true;
+      protoPendingFlushRef.current = isMountedRef.current;
+      window.dispatchEvent(new CustomEvent('toast', {
+        detail: {
+          message: 'Error saving note. Please try again.',
+          type: 'error',
+        },
+      }));
     } finally {
       protoIsSavingRef.current = false;
-      if (protoPendingFlushRef.current) {
+      if (protoPendingFlushRef.current && isMountedRef.current) {
         protoPendingFlushRef.current = false;
         // Re-fire after releasing the lock. The equality-check guard above
         // prevents infinite loops when content is unchanged.
-        void protoSaveAsync();
+        void protoSaveAsyncRef.current();
+      } else {
+        protoPendingFlushRef.current = false;
       }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // intentionally empty — reads everything from refs
+
+  protoSaveAsyncRef.current = protoSaveAsync;
 
   // Prototype mode is alwaysEditing — the editor is conceptually always in edit
   // mode, so we don't gate on isTitleEditing/isContentEditing here. Gating on those
@@ -2200,6 +2300,9 @@ export default function CardFullEditable({
                       formatToolbarPortalTarget={
                         editorChromeMode === 'prototypeNative' ? formatToolbarPortalTarget : undefined
                       }
+                      studyDockCarouselPortalTarget={
+                        editorChromeMode === 'prototypeNative' ? studyDockCarouselPortalTarget : null
+                      }
                       scriptureChromePortalTarget={
                         editorChromeMode === 'prototypeNative' ? scriptureChromePortalTarget : null
                       }
@@ -2571,6 +2674,9 @@ export default function CardFullEditable({
                     }
                     formatToolbarPortalTarget={
                       editorChromeMode === 'prototypeNative' ? formatToolbarPortalTarget : undefined
+                    }
+                    studyDockCarouselPortalTarget={
+                      editorChromeMode === 'prototypeNative' ? studyDockCarouselPortalTarget : null
                     }
                     scriptureChromePortalTarget={
                       editorChromeMode === 'prototypeNative' ? scriptureChromePortalTarget : null

@@ -13,6 +13,8 @@ import { getNoteQueryOptions, seedNoteFromList, type ListNoteForSeed } from '../
 import { noteFolderMembershipLabels } from '@/utils/note-folder-display';
 import { sortNotesByLastVisited } from '@/utils/sorting';
 import { stripServerAutoUntitledNoteTitleForDisplay } from '@/utils/server-auto-untitled-note-display';
+import { isEffectivelyEmptyPrototypeNote } from '@/utils/prototype-note-empty';
+import { stripHtmlForListPreview } from '@/utils/html-stripper';
 import { useProtoShell } from '../../layouts/proto-shell-context';
 import { usePrototypeHomeSpaceId } from '../../hooks/usePrototypeHomeSpaceId';
 import { useIntersectionFetchNextPage } from '../../hooks/useIntersectionFetchNextPage';
@@ -49,12 +51,11 @@ interface FolderBucket {
   mostRecentIso: string | null;
 }
 
-import { noteParamSlug, normalizeNoteIdFromParam } from './proto-route-slugs';
+import { noteParamSlug, normalizeNoteIdFromParam, isPrototypeDraftNoteSlug } from './proto-route-slugs';
 
 function stripHtmlPreview(html: string | null | undefined, max = 80) {
   if (!html) return '';
-  const t = html.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
-  return t.length > max ? `${t.slice(0, max)}…` : t;
+  return stripHtmlForListPreview(html, max);
 }
 
 function describeQueryFailure(err: unknown): string {
@@ -457,7 +458,8 @@ function PrototypeSidebarNoteRow({
       </div>
       {deleteConfirmOpen ? (
         <ProtoConfirmDialog
-          title="Delete this note? This cannot be undone."
+          title="Delete this note"
+          message="This cannot be undone."
           confirmLabel="Delete"
           busy={deleteNote.isPending}
           onConfirm={onDeleteConfirm}
@@ -610,16 +612,32 @@ export default function PrototypeSidebar() {
   const notes = useMemo(() => {
     if (!pages?.pages) return [];
     const flat = pages.pages.flatMap((p) => p.notes);
-    return sortNotesByLastVisited(flat);
+    const byId = new Map<string, SpaceNoteRow>();
+    for (const note of flat) {
+      const existing = byId.get(note.id);
+      if (!existing) {
+        byId.set(note.id, note);
+        continue;
+      }
+      const existingUpdated = existing.updatedAt ?? existing.createdAt ?? '';
+      const noteUpdated = note.updatedAt ?? note.createdAt ?? '';
+      if (noteUpdated >= existingUpdated) {
+        byId.set(note.id, note);
+      }
+    }
+    return sortNotesByLastVisited(Array.from(byId.values())).filter(
+      (n) => !isEffectivelyEmptyPrototypeNote(n.title, n.content),
+    );
   }, [pages]);
 
   const noteSlugFromPath = matchPrototypeNoteId(pathname);
   const activeNoteSlug = noteSlugFromPath;
-  const activeNoteFullId = activeNoteSlug
-    ? activeNoteSlug.startsWith('note_')
-      ? activeNoteSlug
-      : `note_${activeNoteSlug}`
-    : undefined;
+  const activeNoteFullId =
+    activeNoteSlug && !isPrototypeDraftNoteSlug(activeNoteSlug)
+      ? activeNoteSlug.startsWith('note_')
+        ? activeNoteSlug
+        : `note_${activeNoteSlug}`
+      : undefined;
 
   const notesForMode = useMemo(() => {
     const base =
