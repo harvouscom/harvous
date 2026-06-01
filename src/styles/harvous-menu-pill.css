@@ -94,7 +94,7 @@
   list-style: none;
   border-radius: var(--pds-radius-menu, 10px);
   border: 0.5px solid var(--pds-border-control-strong, rgba(0, 0, 0, 0.14));
-  background: var(--pds-bg-popover-solid, var(--pds-bg-page, #fff));
+  background: var(--pds-bg-popover-solid, var(--pds-bg-page));
   box-shadow: var(--pds-shadow-popover, 0 8px 28px rgba(0, 0, 0, 0.12));
   font-family: var(--pds-font-body, system-ui, sans-serif) !important;
   scrollbar-width: none;
