@@ -7,6 +7,7 @@ import Heading from '@tiptap/extension-heading';
 import Placeholder from '@tiptap/extension-placeholder';
 import Underline from '@tiptap/extension-underline';
 import Superscript from '@tiptap/extension-superscript';
+import Image from '@tiptap/extension-image';
 import { getMarkRange } from '@tiptap/core';
 import { TextSelection } from '@tiptap/pm/state';
 import { DOMSerializer } from '@tiptap/pm/model';
@@ -16,10 +17,10 @@ import { BoldCustom } from './TiptapBoldCustom';
 import { HighlightCustom } from './TiptapHighlightCustom';
 import { UrlLink } from './TiptapUrlLink';
 import { TextIndent } from './TiptapTextIndent';
-import { normalizeScriptureReference, detectScriptureReferences, matchTrailingTranslationAbbreviation, type ScriptureReference, type ScriptureReferenceWithTranslation } from '@/utils/scripture-detector';
+import { normalizeScriptureReference, detectScriptureReferences, matchTrailingTranslationAbbreviation, matchAnchoredTrailingTranslationAbbreviation, type ScriptureReference, type ScriptureReferenceWithTranslation } from '@/utils/scripture-detector';
 import { isStudyHighlightAccentKey, type StudyHighlightAccentKey } from '@/utils/study-highlight-accents';
 import { TRANSLATION_ORDER, TRANSLATIONS } from '@/data/translations';
-import { getCachedProfileData } from '@/utils/profile-cache';
+import { getCachedProfileData, getEffectiveDefaultTranslation } from '@/utils/profile-cache';
 import { safeNavigate } from '@/utils/safe-navigate';
 import { idToUrl, extractIdFromPath } from '@/utils/url-helpers';
 import { pushNavStack } from '@/utils/nav-stack';
@@ -28,6 +29,24 @@ import { debug } from '@/utils/logger';
 import { getOrCreateScriptureNote } from '@/utils/scripture-note-utils';
 import ScripturePillChromeWeb from './ScripturePillChromeWeb';
 import HighlightDockWeb from './HighlightDockWeb';
+import StudyDockCarouselWeb from './StudyDockCarouselWeb';
+import { deriveHighlightFocusTitle } from '@/utils/study-thread-focus-title';
+import {
+  closeDockEntry,
+  collapseActiveScriptureIfActive,
+  emptyStudyDockStack,
+  moveDockEntryToIndex,
+  openOrFocusHighlight,
+  openOrFocusScripture,
+  pruneStudyDockStack,
+  setActiveDockEntry,
+  studyDockStackHasEntries,
+  updateDockEntry,
+  type HighlightDockSession,
+  type ScripturePillDockSession,
+  type StudyDockEntry,
+  type StudyDockStack,
+} from '@/utils/study-dock-stack';
 import LinkPreviewCard from './LinkPreviewCard';
 import UrlLinkPromptUI from './UrlLinkPromptUI';
 import ReferenceDockWeb from './ReferenceDockWeb';
@@ -40,6 +59,10 @@ import Icon from './Icon';
 
 /** Prototype format toolbar — Font Awesome fill icons (matches proto chrome; not Tabler stroke). */
 const PROTO_FORMAT_ICON_SIZE = 18;
+
+/** Client-side cap before upload (server enforces the same). */
+const NOTE_INLINE_IMAGE_MAX_RAW_BYTES = 10 * 1024 * 1024;
+const NOTE_INLINE_IMAGE_ACCEPT = 'image/jpeg,image/png,image/webp,image/gif,image/heic,image/heif';
 
 // Track pending pill creation to prevent duplicates from concurrent calls
 // This is a module-level Set to track references currently being processed
@@ -90,8 +113,11 @@ interface TiptapEditorProps {
   prototypeNoteActionsChrome?: boolean;
   /**
    * Prototype-only: portal target for highlight dock (accent / remove) — sibling to format + scripture hosts.
+   * @deprecated Use `studyDockCarouselPortalTarget` (single host for scripture + highlight carousel).
    */
   highlightChromePortalTarget?: HTMLElement | null;
+  /** Prototype-only: portal target for per-note scripture/highlight dock carousel. */
+  studyDockCarouselPortalTarget?: HTMLElement | null;
   /**
    * Prototype-only: portal target for the Reference dock (dictionary lookup + reference sources).
    */
@@ -107,6 +133,7 @@ interface TiptapEditorProps {
   formatToolbarPortalTarget?: HTMLElement | null;
   /**
    * Bottom host for macOS-style scripture pill chrome (`ScripturePillChromeWeb`).
+   * @deprecated Use `studyDockCarouselPortalTarget`.
    */
   scriptureChromePortalTarget?: HTMLElement | null;
   /**
@@ -122,6 +149,26 @@ interface TiptapEditorProps {
 }
 
 const PROTOTYPE_FORMAT_BAR_HIDE_MS = 2000;
+
+/** True when pointer coordinates lie inside the pill element's border box (strict tap, not DOM ancestry alone). */
+function pointerIsInsideElementRect(e: MouseEvent, el: HTMLElement): boolean {
+  const rect = el.getBoundingClientRect();
+  return e.clientX >= rect.left && e.clientX <= rect.right && e.clientY >= rect.top && e.clientY <= rect.bottom;
+}
+
+/** Collapsed caret must sit inside the mark; expanded selection must intersect the pill span. */
+function selectionIntersectsScripturePillBoundaries(
+  from: number,
+  to: number,
+  boundaries: { from: number; to: number },
+): boolean {
+  const pillFrom = boundaries.from;
+  const pillTo = boundaries.to;
+  if (from === to) {
+    return from >= pillFrom && from < pillTo;
+  }
+  return from < pillTo && to > pillFrom;
+}
 
 /** Resolve scripture pill boundaries from clicked DOM span (captures-phase handler). */
 function resolveScripturePillDOMRange(editor: any, pillEl: HTMLElement): { from: number; to: number } | null {
@@ -160,6 +207,43 @@ function findHighlightRangeByStudyThreadId(editor: any, studyId: string): { from
     return null;
   }
   return found;
+}
+
+function studyDockEntryStillValid(editor: any, entry: StudyDockEntry): boolean {
+  if (!editor || editor.isDestroyed || !editor.state?.doc) return true;
+  if (entry.kind === 'scripture') {
+    const { from, to } = entry.session.boundaries;
+    const normRef = normalizeScriptureReference(entry.session.reference);
+    let found = false;
+    try {
+      editor.state.doc.nodesBetween(from, to, (node: any) => {
+        if (found || !node.isText) return;
+        const m = node.marks.find((x: any) => x.type?.name === 'scripturePill');
+        if (m && normalizeScriptureReference(m.attrs.reference) === normRef) {
+          found = true;
+        }
+      });
+    } catch {
+      return false;
+    }
+    return found;
+  }
+  const sid = entry.session.studyThreadEntryId;
+  if (sid && findHighlightRangeByStudyThreadId(editor, sid)) return true;
+  const range = entry.session.range;
+  if (range) {
+    let hasMark = false;
+    try {
+      editor.state.doc.nodesBetween(range.from, range.to, (node: any) => {
+        if (hasMark || !node.isText) return;
+        hasMark = node.marks.some((x: any) => x.type?.name === 'highlight');
+      });
+    } catch {
+      return false;
+    }
+    return hasMark;
+  }
+  return false;
 }
 
 // Helper function to find text positions in ProseMirror document
@@ -965,7 +1049,7 @@ function resolvePendingTranslationPill(editor: any): boolean {
           try { textAfterPill = doc.textBetween(pillTo, scanEnd); } catch (_) {}
         }
 
-        const trailing = matchTrailingTranslationAbbreviation(textAfterPill);
+        const trailing = matchAnchoredTrailingTranslationAbbreviation(textAfterPill);
         if (trailing) {
           const deleteFrom = pillTo;
           const deleteTo = pillTo + trailing.consumed.length;
@@ -977,7 +1061,7 @@ function resolvePendingTranslationPill(editor: any): boolean {
           view.dispatch(tr);
           anyConsumed = true;
         } else {
-          const resolvedTranslation = getCachedProfileData()?.defaultTranslation || 'NET';
+          const resolvedTranslation = getCachedProfileData()?.defaultTranslation ?? getEffectiveDefaultTranslation();
           const tr = view.state.tr;
           tr.addMark(pillFrom, pillTo, markType.create({ reference, noteId: 'pending', translation: resolvedTranslation }));
           tr.setMeta('addToHistory', false);
@@ -1034,7 +1118,7 @@ function tryConsumeTranslationAbbrevAfterPill(editor: any): boolean {
       try { textAfterPill = doc.textBetween(pillTo, scanEnd); } catch (_) {}
     }
 
-    const trailing = matchTrailingTranslationAbbreviation(textAfterPill);
+    const trailing = matchAnchoredTrailingTranslationAbbreviation(textAfterPill);
     if (!trailing) return false;
 
     // Apply the detected abbreviation to ALL pending pills for this editor
@@ -1480,6 +1564,130 @@ export async function convertScriptureReferencesToPills(
   }
 }
 
+/**
+ * Load-time cleanup: a scripture pill may be immediately followed by a translation
+ * abbreviation as plain text — e.g. "<pill>Exodus 5:1-10</pill> NLT and see…". This happens when
+ * content is bridged from native, when Settings default changed but the pill still carries NET,
+ * or when a translation abbreviation was typed after a pill that had already resolved to the default.
+ * The typing-time consume only handles freshly-created *pending* pills, so on reopen the orphan
+ * abbreviation can linger. Consume the anchored abbrev into the pill (when stale/missing) or drop
+ * redundant text when it matches the pill translation.
+ */
+function shouldAdoptTrailingTranslationForPill(pillTranslation: string | null | undefined): boolean {
+  if (!pillTranslation) return true;
+  if (pillTranslation === 'NET') return true;
+  return false;
+}
+
+export function applyDefaultTranslationToScripturePills(
+  editor: any,
+  defaultTranslation: string,
+  previousDefault?: string,
+): boolean {
+  if (!editor || editor.isDestroyed || !editor.view) return false;
+  try {
+    const markType = editor.view.state.schema.marks.scripturePill;
+    if (!markType) return false;
+
+    const tr = editor.view.state.tr;
+    let modified = false;
+
+    editor.view.state.doc.descendants((node: any, pos: number) => {
+      if (!node.isText) return;
+      const m = node.marks.find((mk: any) => mk.type.name === 'scripturePill');
+      if (!m) return;
+      const current = m.attrs.translation as string | null | undefined;
+      const shouldUpdate =
+        !current ||
+        current === 'NET' ||
+        (previousDefault && current === previousDefault);
+      if (!shouldUpdate || current === defaultTranslation) return;
+
+      tr.removeMark(pos, pos + node.nodeSize, markType);
+      tr.addMark(
+        pos,
+        pos + node.nodeSize,
+        markType.create({ ...m.attrs, translation: defaultTranslation }),
+      );
+      modified = true;
+    });
+
+    if (modified) {
+      tr.setMeta('addToHistory', false);
+      tr.setStoredMarks([]);
+      editor.view.dispatch(tr);
+    }
+    return modified;
+  } catch (e) {
+    console.error('[TiptapEditor] applyDefaultTranslationToScripturePills error:', e);
+    return false;
+  }
+}
+
+export function consumeTrailingTranslationAfterPills(editor: any): boolean {
+  if (!editor || editor.isDestroyed || !editor.view) return false;
+  try {
+    const view = editor.view;
+    const markType = view.state.schema.marks.scripturePill;
+    if (!markType) return false;
+
+    // Snapshot pill ranges + their mark first; we mutate the doc afterwards.
+    const pills: { from: number; to: number; mark: any }[] = [];
+    view.state.doc.descendants((node: any, pos: number) => {
+      if (!node.isText) return;
+      const m = node.marks.find((mk: any) => mk.type.name === 'scripturePill');
+      if (m) pills.push({ from: pos, to: pos + node.nodeSize, mark: m });
+    });
+    if (pills.length === 0) return false;
+
+    const tr = view.state.tr;
+    let modified = false;
+    // Right-to-left so earlier positions remain valid after each delete.
+    for (let i = pills.length - 1; i >= 0; i--) {
+      const pill = pills[i];
+      try {
+        const $to = tr.doc.resolve(pill.to);
+        const blockEnd = $to.end($to.depth);
+        if (pill.to >= blockEnd) continue;
+
+        let onlyText = true;
+        tr.doc.nodesBetween(pill.to, blockEnd, (n: any) => {
+          if (!n.isText && n.isInline) onlyText = false;
+        });
+        if (!onlyText) continue;
+
+        const textAfter = tr.doc.textBetween(pill.to, blockEnd);
+        const trailing = matchAnchoredTrailingTranslationAbbreviation(textAfter);
+        if (!trailing) continue;
+
+        const deleteTo = pill.to + trailing.consumed.length;
+        tr.delete(pill.to, deleteTo);
+
+        const pillTrans = pill.mark.attrs.translation as string | null | undefined;
+        if (shouldAdoptTrailingTranslationForPill(pillTrans)) {
+          tr.addMark(pill.from, pill.to, markType.create({
+            ...pill.mark.attrs,
+            translation: trailing.canonicalId,
+          }));
+        }
+        modified = true;
+      } catch (_) {
+        /* skip this pill on any position error */
+      }
+    }
+
+    if (modified) {
+      tr.setMeta('addToHistory', false);
+      tr.setStoredMarks([]);
+      view.dispatch(tr);
+    }
+    return modified;
+  } catch (e) {
+    console.error('[TiptapEditor] consumeTrailingTranslationAfterPills error:', e);
+    return false;
+  }
+}
+
 // Helper function to convert note-link spans and scripture-pill spans to proper scripturePill marks
 // This handles cases where HTML contains spans that should be scripture pills but weren't parsed correctly
 // (Fallback method for when Tiptap's parseHTML doesn't correctly convert the spans to marks)
@@ -1695,7 +1903,10 @@ export async function convertNoteLinksToScripturePills(editor: any) {
             if (reference) {
               const normalizedRef = normalizeScriptureReference(reference);
               // Get translation from note's scripture metadata if available
-              const noteTranslation = noteData.note?.scriptureVersion || noteData.note?.translation || getCachedProfileData()?.defaultTranslation || 'NET';
+              const noteTranslation =
+                noteData.note?.scriptureVersion ||
+                noteData.note?.translation ||
+                (getCachedProfileData()?.defaultTranslation ?? getEffectiveDefaultTranslation());
 
               // Find positions of this text in the document
               // Use the linkText which should match what's in the document
@@ -2072,7 +2283,7 @@ async function detectAndCreateScriptureNotes(editor: any, parentThreadId?: strin
           const markType = editor.state.schema.marks.scripturePill;
           if (markType) {
             tr.removeMark(adjustedPos.from, adjustedPos.to, markType);
-            const userTranslation = getCachedProfileData()?.defaultTranslation || 'NET';
+            const userTranslation = getCachedProfileData()?.defaultTranslation ?? getEffectiveDefaultTranslation();
             tr.addMark(adjustedPos.from, adjustedPos.to, markType.create({ reference: normalizedRef, noteId: noteId || undefined, translation: userTranslation }));
             // Remove noteLink mark if present
             const noteLinkMark = editor.state.schema.marks.noteLink;
@@ -2091,7 +2302,7 @@ async function detectAndCreateScriptureNotes(editor: any, parentThreadId?: strin
           }
         } catch (e) {
           // If transaction fails, fall back to chain API
-          const userTranslation = getCachedProfileData()?.defaultTranslation || 'NET';
+          const userTranslation = getCachedProfileData()?.defaultTranslation ?? getEffectiveDefaultTranslation();
           editor.chain()
             .setTextSelection(adjustedPos)
             .unsetMark('noteLink')
@@ -2785,11 +2996,17 @@ async function detectAndCreateScriptureNotes(editor: any, parentThreadId?: strin
  * frame the element mounts; we paint a prep state first, then arm after one rAF (prep already
  * separates commits — a second rAF was stacking delay on cold first paint vs warm title↔body focus).
  */
+function FormatToolbarDivider() {
+  return <span className="tiptap-toolbar__group-divider tiptap-toolbar__group-divider--prototype" aria-hidden />;
+}
+
 function TiptapToolbarTrack({
   placement,
+  compact = false,
   children,
 }: {
   placement: 'top' | 'bottom';
+  compact?: boolean;
   children: React.ReactNode;
 }) {
   const [enterArmed, setEnterArmed] = useState(false);
@@ -2810,7 +3027,9 @@ function TiptapToolbarTrack({
     placement === 'top' ? 'tiptap-toolbar__track--enter-from-top' : 'tiptap-toolbar__track--enter-from-bottom';
 
   return (
-    <div className={`tiptap-toolbar__track flex items-center w-full min-w-0 ${enterArmed ? runClass : prepClass}`}>
+    <div
+      className={`tiptap-toolbar__track flex items-center flex-nowrap ${compact ? '' : 'w-full min-w-0'} ${enterArmed ? runClass : prepClass}`}
+    >
       {children}
     </div>
   );
@@ -2857,6 +3076,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
   formatToolbarPortalTarget,
   scriptureChromePortalTarget = null,
   highlightChromePortalTarget = null,
+  studyDockCarouselPortalTarget = null,
   referenceChromePortalTarget = null,
   initialReferenceWord = null,
   prototypeScripturePillOpenRequest = null,
@@ -2876,7 +3096,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     strike: false,
     orderedList: false,
     bulletList: false,
-    headingLevel: 0, // 0 = normal/paragraph, 2 = H2, 3 = H3, 4 = H4
+    headingLevel: 0, // 0 = normal/paragraph, 2 = H2, 3 = H3
   });
   const [showCreateNoteButton, setShowCreateNoteButton] = useState(false);
 
@@ -2922,23 +3142,15 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
   const [contentOverflowing, setContentOverflowing] = useState(false);
   const [contentHasScrolledDown, setContentHasScrolledDown] = useState(false);
   const hiddenInputRef = useRef<HTMLInputElement>(null);
+  const inlineImageInputRef = useRef<HTMLInputElement>(null);
+  const [isUploadingInlineImage, setIsUploadingInlineImage] = useState(false);
   const editorRef = useRef<any>(null);
   const tiptapContentRef = useRef<HTMLDivElement>(null);
   const createNoteBubbleRef = useRef<HTMLDivElement>(null);
-  const [scripturePillSession, setScripturePillSession] = useState<{
-    boundaries: { from: number; to: number };
-    reference: string;
-    translation: string | null;
-    noteId: string | null;
-    pillAccent: string | null;
-  } | null>(null);
-
-  const [highlightDockSession, setHighlightDockSession] = useState<{
-    studyThreadEntryId: string | null;
-    accent: string;
-    excerpt: string;
-    range: { from: number; to: number } | null;
-  } | null>(null);
+  const skipScriptureDockDismissRef = useRef(false);
+  const [studyDockStack, setStudyDockStack] = useState<StudyDockStack>(emptyStudyDockStack);
+  const studyDockPortalTarget =
+    studyDockCarouselPortalTarget ?? scriptureChromePortalTarget ?? highlightChromePortalTarget;
 
   const [selectionExpanded, setSelectionExpanded] = useState(false);
   const [showFormatBarForActivity, setShowFormatBarForActivity] = useState(false);
@@ -3025,7 +3237,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
         link: false,
       }),
       Heading.configure({
-        levels: [2, 3, 4], // H1 reserved for note titles; H4 matches native body toolbar
+        levels: [2, 3], // H1 reserved for note titles
       }),
       Underline,
       Superscript,
@@ -3035,6 +3247,10 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       NoteLink,
       UrlLink, // External URL links — parse priority lower so note/scripture spans win
       TextIndent,
+      Image.configure({
+        inline: false,
+        allowBase64: false,
+      }),
       Placeholder.configure({
         placeholder: placeholder,
         showOnlyWhenEditable: true,
@@ -3773,14 +3989,30 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     setReferenceDockSession({ query: initialReferenceWord });
   }, [initialReferenceWord, editor]);
 
+  useEffect(() => {
+    setStudyDockStack(emptyStudyDockStack());
+  }, [sourceNoteId]);
+
+  useEffect(() => {
+    if (!editor || editorChromeMode !== 'prototypeNative') return;
+    const prune = () => {
+      setStudyDockStack((s) => pruneStudyDockStack(s, (e) => studyDockEntryStillValid(editor, e)));
+    };
+    editor.on('update', prune);
+    return () => {
+      if (editor && !editor.isDestroyed) {
+        editor.off('update', prune);
+      }
+    };
+  }, [editor, editorChromeMode]);
+
   // Hover preview card for scripture pills + note links (+ urlLink later in Phase A).
   // Adds a new affordance without changing existing click behavior.
   const hoverPreviewDisabled = !!(
     selectionActionBar ||
     translationPicker ||
-    scripturePillSession ||
+    studyDockStackHasEntries(studyDockStack) ||
     deleteConfirmPill ||
-    highlightDockSession ||
     urlLinkPrompt
   );
   const { preview: hoverPreview, cancelHide: cancelHoverPreviewHide, dismiss: dismissHoverPreview } = useEditorHoverPreview({
@@ -3880,6 +4112,58 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       mode: existingMark ? 'edit' : 'create',
     });
   }, [editor]);
+
+  const triggerInlineImagePicker = useCallback(() => {
+    if (!sourceNoteId || isUploadingInlineImage) return;
+    inlineImageInputRef.current?.click();
+  }, [sourceNoteId, isUploadingInlineImage]);
+
+  const handleInlineImageFileChange = useCallback(
+    async (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      e.target.value = '';
+      if (!file || !editor || !sourceNoteId || !isEditorValid(editor)) return;
+
+      if (file.size > NOTE_INLINE_IMAGE_MAX_RAW_BYTES) {
+        window.dispatchEvent(
+          new CustomEvent('showToast', {
+            detail: { message: 'Image is too large (max 10 MB).', type: 'info' },
+          }),
+        );
+        return;
+      }
+
+      setIsUploadingInlineImage(true);
+      try {
+        const formData = new FormData();
+        formData.append('file', file);
+        const res = await fetch(`/api/notes/${sourceNoteId}/inline-image`, {
+          method: 'POST',
+          body: formData,
+          credentials: 'include',
+        });
+        const data = (await res.json().catch(() => ({}))) as { url?: string; error?: string };
+        if (!res.ok || !data.url) {
+          window.dispatchEvent(
+            new CustomEvent('showToast', {
+              detail: { message: data.error || 'Could not upload image.', type: 'info' },
+            }),
+          );
+          return;
+        }
+        editor.chain().focus().setImage({ src: data.url }).run();
+      } catch {
+        window.dispatchEvent(
+          new CustomEvent('showToast', {
+            detail: { message: 'Could not upload image.', type: 'info' },
+          }),
+        );
+      } finally {
+        setIsUploadingInlineImage(false);
+      }
+    },
+    [editor, sourceNoteId],
+  );
 
   const applyUrlLink = useCallback((rawHref: string) => {
     if (!editor || !urlLinkPrompt) return;
@@ -3995,6 +4279,37 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     (dom as any).__tiptapEditor = editor;
   }, [editor, id]);
 
+  // Normalize scripture pill translations after editor hydrates (runs even when HTML already matches props).
+  const pillNormalizeContentRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!editor || !content) return;
+    if (!isEditorValid(editor)) return;
+    if (pillNormalizeContentRef.current === content) return;
+
+    const timer = setTimeout(async () => {
+      if (!isEditorValid(editor)) return;
+      const defaultTrans = getEffectiveDefaultTranslation();
+      applyDefaultTranslationToScripturePills(editor, defaultTrans);
+      await convertNoteLinksToScripturePills(editor);
+      consumeTrailingTranslationAfterPills(editor);
+
+      try {
+        const html = editor.getHTML();
+        pillNormalizeContentRef.current = content;
+        if (html !== content) {
+          if (hiddenInputRef.current) {
+            hiddenInputRef.current.value = html;
+          }
+          onContentChange?.(html);
+        }
+      } catch {
+        /* ignore */
+      }
+    }, 50);
+
+    return () => clearTimeout(timer);
+  }, [editor, content, onContentChange]);
+
   // Update content from props, but only if it's different and editor is not focused
   // Exception: new-note panel can hydrate prefill from localStorage after the editor mounts empty;
   // onEditorReady may already have focused, so we must still setContent when editor.isEmpty.
@@ -4039,6 +4354,9 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     const conversionTimeout = setTimeout(async () => {
       if (isEditorValid(editor)) {
         await convertNoteLinksToScripturePills(editor);
+        // Drop/absorb any orphan translation abbreviation left as plain text right after a pill
+        // (native-bridged content, or an abbrev typed after an already-resolved pill).
+        consumeTrailingTranslationAfterPills(editor);
       }
     }, 500);
 
@@ -4047,6 +4365,39 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       clearTimeout(conversionTimeout);
     };
   }, [editor, content, id]);
+
+  // When Settings default translation changes, update in-editor pills that still carry NET / prior default.
+  useEffect(() => {
+    if (!editor) return;
+
+    const handler = (e: Event) => {
+      if (!isEditorValid(editor)) return;
+      const detail = (e as CustomEvent<{ defaultTranslation?: string; previousDefault?: string }>).detail;
+      const defaultTranslation = detail?.defaultTranslation;
+      if (!defaultTranslation) return;
+
+      const updated = applyDefaultTranslationToScripturePills(
+        editor,
+        defaultTranslation,
+        detail?.previousDefault,
+      );
+      const consumed = consumeTrailingTranslationAfterPills(editor);
+      if (!updated && !consumed) return;
+
+      try {
+        const html = editor.getHTML();
+        if (hiddenInputRef.current) {
+          hiddenInputRef.current.value = html;
+        }
+        onContentChange?.(html);
+      } catch {
+        /* ignore */
+      }
+    };
+
+    window.addEventListener('defaultTranslationChanged', handler);
+    return () => window.removeEventListener('defaultTranslationChanged', handler);
+  }, [editor, onContentChange]);
 
   // Ensure editor is focused and editable
   useEffect(() => {
@@ -4201,14 +4552,15 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       const boundaries = resolveScripturePillDOMRange(editor, pillEl);
       if (!boundaries || cancelled) return;
       setTranslationPicker(null);
-      setHighlightDockSession(null);
-      setScripturePillSession({
+      skipScriptureDockDismissRef.current = true;
+      const session: ScripturePillDockSession = {
         boundaries,
         reference: req.reference,
         translation: req.translation,
         noteId: req.noteId,
         pillAccent: req.pillAccent,
-      });
+      };
+      setStudyDockStack((s) => openOrFocusScripture(s, session));
       onPrototypeScripturePillOpenRequestConsumed?.();
     };
     const rafId = window.requestAnimationFrame(() => {
@@ -4242,6 +4594,9 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
         const noteId = pillSpan.getAttribute('data-note-id');
         const pillAccent = pillSpan.getAttribute('data-pill-accent');
         if (!reference) return;
+        if (!pointerIsInsideElementRect(e, pillSpan)) {
+          return;
+        }
 
         e.preventDefault();
         e.stopImmediatePropagation();
@@ -4249,19 +4604,20 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
         if (editor.isEditable) {
           if (editorChromeMode === 'prototypeNative') {
             setTranslationPicker(null);
-            setHighlightDockSession(null);
             const boundaries = resolveScripturePillDOMRange(editor, pillSpan);
             if (boundaries) {
-              setScripturePillSession({
+              skipScriptureDockDismissRef.current = true;
+              const session: ScripturePillDockSession = {
                 boundaries,
                 reference,
                 translation,
                 noteId,
                 pillAccent,
-              });
+              };
+              setStudyDockStack((s) => openOrFocusScripture(s, session));
             }
           } else {
-            setScripturePillSession(null);
+            setStudyDockStack(emptyStudyDockStack());
             const rect = pillSpan.getBoundingClientRect();
             setTranslationPicker({
               rect: { top: rect.top, left: rect.left, bottom: rect.bottom, right: rect.right, width: rect.width },
@@ -4379,15 +4735,17 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
             noteHighlightAccent: accent,
             studyThreadEntryId: markStudyId,
           });
-          setHighlightDockSession(null);
-          setScripturePillSession(null);
           setTranslationPicker(null);
           return;
         }
-        setHighlightDockSession({
+        const highlightExcerpt = markInPm.textContent || '';
+        const highlightSession: HighlightDockSession = {
           studyThreadEntryId: markInPm.getAttribute('data-study-thread-id'),
           accent: markColor || 'warmAmber',
-          excerpt: markInPm.textContent || '',
+          excerpt: highlightExcerpt,
+          entryKind: 'miniNote',
+          focusTitle: deriveHighlightFocusTitle(highlightExcerpt),
+          miniNoteBody: '',
           range: (() => {
             try {
               const pos = editor.view.posAtDOM(markInPm, 0);
@@ -4403,8 +4761,8 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
             }
             return null;
           })(),
-        });
-        setScripturePillSession(null);
+        };
+        setStudyDockStack((s) => openOrFocusHighlight(s, highlightSession));
         setTranslationPicker(null);
       }
     };
@@ -4414,15 +4772,15 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       if (
         target.closest('.scripture-translation-picker') ||
         target.closest('.scripture-pill-chrome') ||
+        target.closest('.study-dock-card') ||
         target.closest('.scripture-pill') ||
         target.closest('.highlight-dock-web') ||
+        target.closest('.study-dock-carousel') ||
         target.closest('.reference-dock-web')
       ) {
         // Keep open
       } else {
         setTranslationPicker(null);
-        setScripturePillSession(null);
-        setHighlightDockSession(null);
         setReferenceDockSession(null);
       }
       if (!target.closest('.scripture-delete-confirm') && !target.closest('.scripture-pill')) {
@@ -4437,6 +4795,27 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     return () => {
       wrapperDiv.removeEventListener('click', handlePillClick, true);
       document.removeEventListener('mousedown', handleDismiss);
+    };
+  }, [editor, editorChromeMode]);
+
+  /** Close scripture dock when the caret/selection leaves the tapped pill (prototype web). */
+  useEffect(() => {
+    if (!editor || editorChromeMode !== 'prototypeNative') return;
+
+    const dismissIfSelectionLeftPill = () => {
+      if (!isEditorValid(editor)) return;
+      if (skipScriptureDockDismissRef.current) {
+        skipScriptureDockDismissRef.current = false;
+        return;
+      }
+      setStudyDockStack((stack) => collapseActiveScriptureIfActive(stack));
+    };
+
+    editor.on('selectionUpdate', dismissIfSelectionLeftPill);
+    return () => {
+      if (editor && !editor.isDestroyed) {
+        editor.off('selectionUpdate', dismissIfSelectionLeftPill);
+      }
     };
   }, [editor, editorChromeMode]);
 
@@ -4643,7 +5022,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                 // Store scripture detection metadata (keep original format, no divider)
                 localStorage.setItem('newNoteType', 'scripture');
                 localStorage.setItem('newNoteScriptureReference', detection.primaryReference);
-                localStorage.setItem('newNoteScriptureVersion', getCachedProfileData()?.defaultTranslation || 'NET');
+                localStorage.setItem('newNoteScriptureVersion', getCachedProfileData()?.defaultTranslation ?? getEffectiveDefaultTranslation());
                 localStorage.setItem('newNoteScriptureText', verseData.text);
                 localStorage.setItem('newNoteTitle', detection.primaryReference); // Reference becomes title
                 localStorage.setItem('newNoteContent', verseData.text); // Verse text becomes content
@@ -4651,7 +5030,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                 // Detection succeeded but verse fetch failed - still mark as scripture
                 localStorage.setItem('newNoteType', 'scripture');
                 localStorage.setItem('newNoteScriptureReference', detection.primaryReference);
-                localStorage.setItem('newNoteScriptureVersion', getCachedProfileData()?.defaultTranslation || 'NET');
+                localStorage.setItem('newNoteScriptureVersion', getCachedProfileData()?.defaultTranslation ?? getEffectiveDefaultTranslation());
                 localStorage.setItem('newNoteTitle', detection.primaryReference);
                 localStorage.setItem('newNoteContent', extractedContent); // Fallback to original content
               }
@@ -4767,13 +5146,33 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       // Check if editor is still valid
       if (!isEditorValid(editor)) return;
       
-      // Don't hide toolbar if blur is caused by clicking toolbar button
-      // Check if the related target (what's being focused) is within the toolbar
+      // Don't treat focus moving into editor chrome (toolbar, study dock, pickers) as "editor
+      // blurred" — that would thrash `isEditorFocused`, which in turn collapses any passage text
+      // selection and interrupts dock button clicks. The format toolbar is instead hidden while a
+      // dock chrome is active via `studyDockChromeTakesOver` below.
       const relatedTarget = event.event?.relatedTarget as HTMLElement | null | undefined;
       if (relatedTarget?.closest?.('.tiptap-toolbar')) {
         return;
       }
       if (relatedTarget?.closest?.('.scripture-pill-chrome')) {
+        return;
+      }
+      if (relatedTarget?.closest?.('.study-dock-card')) {
+        return;
+      }
+      if (relatedTarget?.closest?.('.study-dock-carousel')) {
+        return;
+      }
+      if (relatedTarget?.closest?.('.highlight-dock-web')) {
+        return;
+      }
+      if (relatedTarget?.closest?.('.reference-dock-web')) {
+        return;
+      }
+      if (relatedTarget?.closest?.('.dock-accent-swatch')) {
+        return;
+      }
+      if (relatedTarget?.closest?.('.dock-accent-swatch__popover-anchor')) {
         return;
       }
       if (relatedTarget?.closest?.('.scripture-translation-picker')) {
@@ -4906,14 +5305,12 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       // Check if editor is still valid before accessing it
       if (!isEditorValid(editor)) return;
       
-      // Detect current heading level (0 = paragraph, 2–4 = headings)
+      // Detect current heading level (0 = paragraph, 2–3 = headings)
       let headingLevel = 0;
       if (editor.isActive('heading', { level: 2 })) {
         headingLevel = 2;
       } else if (editor.isActive('heading', { level: 3 })) {
         headingLevel = 3;
-      } else if (editor.isActive('heading', { level: 4 })) {
-        headingLevel = 4;
       }
 
       const newStates = {
@@ -4945,62 +5342,42 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     };
   }, [editor]);
 
-  const scriptureChromeActive =
+  const studyDockChromeActive =
     editorChromeMode === 'prototypeNative' &&
-    (scripturePillSession != null || deleteConfirmPill != null);
+    (studyDockStackHasEntries(studyDockStack) || deleteConfirmPill != null);
 
-  const highlightChromeActive =
-    editorChromeMode === 'prototypeNative' && highlightDockSession != null;
 
   const referenceChromeActive =
     editorChromeMode === 'prototypeNative' && referenceDockSession != null;
 
-  const shouldShowPrototypeFormatToolbar =
+  /* An expanded study dock (or reference / delete-confirm bar) takes over the bottom chrome — the
+     format toolbar should hide while it's up (matches native: the dock replaces the format bar).
+     This hides the toolbar WITHOUT flipping `isEditorFocused`, so passage text selection and dock
+     button clicks aren't disrupted by focus thrash. */
+  const studyDockChromeTakesOver =
     editorChromeMode === 'prototypeNative' &&
-    isEditorFocused &&
-    !scriptureChromeActive &&
-    !highlightChromeActive &&
-    !referenceChromeActive;
+    (studyDockStack.entries.some((e) => e.expanded) ||
+      referenceDockSession != null ||
+      deleteConfirmPill != null);
+
+  const shouldShowPrototypeFormatToolbar =
+    editorChromeMode === 'prototypeNative' && isEditorFocused && !studyDockChromeTakesOver;
 
   /* Prototype column bar: undefined = inline fallback; null = host pending; element = portal target. */
   const columnFormatToolbarPortal = formatToolbarPortalTarget !== undefined;
 
   useEffect(() => {
     if (editorChromeMode !== 'prototypeNative' || !onPrototypeChromeModeChange) return;
-    if (scriptureChromeActive) {
-      onPrototypeChromeModeChange('scripture');
-      return;
-    }
-    if (highlightChromeActive) {
-      onPrototypeChromeModeChange('highlight');
-      return;
-    }
-    if (referenceChromeActive) {
-      onPrototypeChromeModeChange('reference');
-      return;
-    }
     if (!isEditorFocused) {
       onPrototypeChromeModeChange(prototypeNoteActionsChrome ? 'noteActions' : 'hidden');
       return;
     }
-    if (shouldShowPrototypeFormatToolbar) {
-      onPrototypeChromeModeChange('format');
-    } else {
-      onPrototypeChromeModeChange(prototypeNoteActionsChrome ? 'noteActions' : 'hidden');
-    }
+    onPrototypeChromeModeChange('format');
   }, [
     editorChromeMode,
     onPrototypeChromeModeChange,
     prototypeNoteActionsChrome,
-    scriptureChromeActive,
-    highlightChromeActive,
-    referenceChromeActive,
-    deleteConfirmPill,
-    scripturePillSession,
-    highlightDockSession,
-    referenceDockSession,
     isEditorFocused,
-    shouldShowPrototypeFormatToolbar,
   ]);
 
   const syncTiptapContentScrollMask = useCallback(() => {
@@ -5067,7 +5444,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     );
   }
 
-  // Handle heading cycle: H2 → H3 → Normal → H2 (single control on classic toolbar; H4 via paste or prototype bar)
+  // Handle heading cycle: H2 → H3 → Normal → H2 (single control on classic toolbar)
   const handleHeadingCycle = () => {
     if (!editor) return;
 
@@ -5077,10 +5454,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       editor.chain().focus().setHeading({ level: 2 }).run();
     } else if (currentLevel === 2) {
       editor.chain().focus().setHeading({ level: 3 }).run();
-    } else if (currentLevel === 3) {
-      editor.chain().focus().setParagraph().run();
     } else {
-      // H4 or other: drop to paragraph from the cycle control
       editor.chain().focus().setParagraph().run();
     }
   };
@@ -5100,12 +5474,12 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     ariaLabel?: string;
     disabled?: boolean;
   }) => {
-    const iconRef = React.useRef<HTMLDivElement>(null);
-    
     return (
       <button
         type="button"
         disabled={disabled}
+        aria-pressed={isActive}
+        data-active={isActive ? 'true' : undefined}
         onMouseDown={(e: React.MouseEvent<HTMLButtonElement, MouseEvent>) => {
           if (disabled) return;
           // Use onMouseDown to prevent editor from losing focus
@@ -5131,15 +5505,13 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
           e.preventDefault();
           e.stopPropagation();
         }}
-        className={`flex items-center justify-center min-w-[2.5rem] min-h-[2.5rem] px-3 py-2 rounded-lg transition-all duration-200 relative ${isActive ? 'ql-active' : ''}`}
+        className={`flex items-center justify-center min-w-[2.5rem] min-h-[2.5rem] px-3 py-2 rounded-lg transition-all duration-200 relative ${isActive ? 'ql-active is-active' : ''}`}
         title={title}
         aria-label={ariaLabel || title}
         style={{
           fontFamily: 'var(--font-sans) !important',
           fontSize: '14px !important',
           fontWeight: '500 !important',
-          color: 'var(--color-deep-grey) !important',
-          background: 'transparent !important',
           border: 'none !important',
           borderRadius: '8px !important',
           padding: '8px 12px !important',
@@ -5154,20 +5526,6 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
           opacity: disabled ? 0.38 : 1,
           transition: '0.2s ease-in-out !important'
         }}
-        onMouseEnter={() => {
-          if (disabled) return;
-          // Change icon color on hover - deep grey
-          if (iconRef.current) {
-            iconRef.current.style.setProperty('color', 'var(--color-deep-grey)', 'important');
-          }
-        }}
-        onMouseLeave={() => {
-          if (disabled) return;
-          // Reset icon color - deep grey for active, gray for inactive
-          if (iconRef.current) {
-            iconRef.current.style.setProperty('color', isActive ? 'var(--color-deep-grey)' : 'var(--color-gray)', 'important');
-          }
-        }}
         onMouseUp={(e: React.MouseEvent<HTMLButtonElement, MouseEvent>) => {
           if (disabled) return;
           // Visual feedback for click
@@ -5176,40 +5534,23 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
         }}
       >
         <div 
-          ref={iconRef}
           style={{ 
             width: '20px',
             height: '20px',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            color: isActive ? 'var(--color-deep-grey)' : 'var(--color-gray)',
+            color: 'currentColor',
             transition: 'color 0.2s ease-in-out',
           }}
         >
           {children}
         </div>
-        {isActive && !disabled && (
-          <div 
-            className="absolute bottom-0 left-1/2 transform -translate-x-1/2 w-1 h-1 bg-[var(--color-deep-grey)] rounded-full"
-            style={{
-              position: 'absolute',
-              bottom: '0px',
-              left: '50%',
-              transform: 'translateX(-50%)',
-              width: '4px',
-            height: '4px',
-            background: 'var(--color-deep-grey)',
-            borderRadius: '50%',
-            zIndex: 1
-          }}
-        />
-        )}
       </button>
     );
   };
 
-  const toggleHeadingLevel = (level: 2 | 3 | 4) => {
+  const toggleHeadingLevel = (level: 2 | 3) => {
     if (!editor) return;
     if (editor.isActive('heading', { level })) {
       editor.chain().focus().setParagraph().run();
@@ -5253,140 +5594,157 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
         onMouseLeave={() => setIsPointerOverFormatToolbar(false)}
       >
         <div className="tiptap-toolbar__hscroll">
-          <TiptapToolbarTrack key={toolbarEnterEpoch} placement={placement}>
-            <ToolbarButton
-              onClick={() => editor.chain().focus().undo().run()}
-              isActive={false}
-              disabled={!activeStates.canUndo}
-              title="Undo"
-              ariaLabel="Undo"
-            >
-              <Icon name="arrow-rotate-left" size={PROTO_FORMAT_ICON_SIZE} className="proto-toolbar-icon" />
-            </ToolbarButton>
-            <ToolbarButton
-              onClick={() => editor.chain().focus().redo().run()}
-              isActive={false}
-              disabled={!activeStates.canRedo}
-              title="Redo"
-              ariaLabel="Redo"
-            >
-              <Icon name="arrow-rotate-right" size={PROTO_FORMAT_ICON_SIZE} className="proto-toolbar-icon" />
-            </ToolbarButton>
-            <span className="tiptap-toolbar__group-divider tiptap-toolbar__group-divider--prototype" aria-hidden />
-            <ToolbarButton
-              onClick={() => editor.chain().focus().toggleBold().run()}
-              isActive={activeStates.bold}
-              title="Bold"
-              ariaLabel="Toggle bold"
-            >
-              <Icon name="bold" size={PROTO_FORMAT_ICON_SIZE} className="proto-toolbar-icon" />
-            </ToolbarButton>
-            <ToolbarButton
-              onClick={() => editor.chain().focus().toggleItalic().run()}
-              isActive={activeStates.italic}
-              title="Italic"
-              ariaLabel="Toggle italic"
-            >
-              <Icon name="italic" size={PROTO_FORMAT_ICON_SIZE} className="proto-toolbar-icon" />
-            </ToolbarButton>
-            <ToolbarButton
-              onClick={() => editor.chain().focus().toggleStrike().run()}
-              isActive={activeStates.strike}
-              title="Strikethrough"
-              ariaLabel="Toggle strikethrough"
-            >
-              <Icon name="strikethrough" size={PROTO_FORMAT_ICON_SIZE} className="proto-toolbar-icon" />
-            </ToolbarButton>
-            <span className="tiptap-toolbar__group-divider tiptap-toolbar__group-divider--prototype" aria-hidden />
-            <ToolbarButton
-              onClick={() => toggleHeadingLevel(2)}
-              isActive={activeStates.headingLevel === 2}
-              title="Heading 2"
-              ariaLabel="Toggle heading 2"
-            >
-              <span style={{ fontSize: '13px', fontWeight: 700 }}>H2</span>
-            </ToolbarButton>
-            <ToolbarButton
-              onClick={() => toggleHeadingLevel(3)}
-              isActive={activeStates.headingLevel === 3}
-              title="Heading 3"
-              ariaLabel="Toggle heading 3"
-            >
-              <span style={{ fontSize: '13px', fontWeight: 700 }}>H3</span>
-            </ToolbarButton>
-            <ToolbarButton
-              onClick={() => toggleHeadingLevel(4)}
-              isActive={activeStates.headingLevel === 4}
-              title="Heading 4"
-              ariaLabel="Toggle heading 4"
-            >
-              <span style={{ fontSize: '13px', fontWeight: 700 }}>H4</span>
-            </ToolbarButton>
-            <span className="tiptap-toolbar__group-divider tiptap-toolbar__group-divider--prototype" aria-hidden />
-            <ToolbarButton
-              onClick={() => editor.chain().focus().toggleBulletList().run()}
-              isActive={activeStates.bulletList}
-              title="Bullet list"
-              ariaLabel="Toggle bullet list"
-            >
-              <Icon name="list" size={PROTO_FORMAT_ICON_SIZE} className="proto-toolbar-icon" />
-            </ToolbarButton>
-            <ToolbarButton
-              onClick={() => editor.chain().focus().toggleOrderedList().run()}
-              isActive={activeStates.orderedList}
-              title="Numbered list"
-              ariaLabel="Toggle numbered list"
-            >
-              <Icon name="list-ol" size={PROTO_FORMAT_ICON_SIZE} className="proto-toolbar-icon" />
-            </ToolbarButton>
-            <ToolbarButton
-              onClick={() =>
-                isInListItem
-                  ? editor.chain().focus().liftListItem('listItem').run()
-                  : editor.chain().focus().decreaseIndent().run()
-              }
-              isActive={false}
-              disabled={!canLift}
-              title="Outdent"
-              ariaLabel="Outdent"
-            >
-              <Icon name="outdent" size={PROTO_FORMAT_ICON_SIZE} className="proto-toolbar-icon" />
-            </ToolbarButton>
-            <ToolbarButton
-              onClick={() =>
-                isInListItem
-                  ? editor.chain().focus().sinkListItem('listItem').run()
-                  : editor.chain().focus().increaseIndent().run()
-              }
-              isActive={false}
-              disabled={!canSink}
-              title="Indent"
-              ariaLabel="Indent"
-            >
-              <Icon name="indent" size={PROTO_FORMAT_ICON_SIZE} className="proto-toolbar-icon" />
-            </ToolbarButton>
-            <span className="tiptap-toolbar__group-divider tiptap-toolbar__group-divider--prototype" aria-hidden />
-            <ToolbarButton
-              onClick={() => editor.chain().focus().setHorizontalRule().run()}
-              isActive={false}
-              title="Horizontal rule"
-              ariaLabel="Insert horizontal rule"
-            >
-              <Icon name="horizontal-rule" size={PROTO_FORMAT_ICON_SIZE} className="proto-toolbar-icon" />
-            </ToolbarButton>
-            <ToolbarButton
-              onClick={() => {
-                openUrlLinkPrompt();
-              }}
-              isActive={!!editor?.isActive('urlLink')}
-              disabled={!hasTextSelection}
-              title="Add link to selection"
-              ariaLabel="Add link to selection"
-            >
-              <Icon name="link" size={PROTO_FORMAT_ICON_SIZE} className="proto-toolbar-icon" />
-            </ToolbarButton>
-          </TiptapToolbarTrack>
+          <div className="tiptap-toolbar__scroll-region">
+            <TiptapToolbarTrack key={toolbarEnterEpoch} compact placement={placement === 'portal' ? 'bottom' : placement}>
+              <ToolbarButton
+                onClick={() => editor.chain().focus().toggleBold().run()}
+                isActive={activeStates.bold}
+                title="Bold"
+                ariaLabel="Toggle bold"
+              >
+                <Icon name="bold" size={PROTO_FORMAT_ICON_SIZE} className="proto-toolbar-icon" />
+              </ToolbarButton>
+              <ToolbarButton
+                onClick={() => editor.chain().focus().toggleItalic().run()}
+                isActive={activeStates.italic}
+                title="Italic"
+                ariaLabel="Toggle italic"
+              >
+                <Icon name="italic" size={PROTO_FORMAT_ICON_SIZE} className="proto-toolbar-icon" />
+              </ToolbarButton>
+              <ToolbarButton
+                onClick={() => editor.chain().focus().toggleStrike().run()}
+                isActive={activeStates.strike}
+                title="Strikethrough"
+                ariaLabel="Toggle strikethrough"
+              >
+                <Icon name="strikethrough" size={PROTO_FORMAT_ICON_SIZE} className="proto-toolbar-icon" />
+              </ToolbarButton>
+              <FormatToolbarDivider />
+              <ToolbarButton
+                onClick={() => toggleHeadingLevel(2)}
+                isActive={activeStates.headingLevel === 2}
+                title="Heading 2"
+                ariaLabel="Toggle heading 2"
+              >
+                <span style={{ fontSize: '13px', fontWeight: 700 }}>H2</span>
+              </ToolbarButton>
+              <ToolbarButton
+                onClick={() => toggleHeadingLevel(3)}
+                isActive={activeStates.headingLevel === 3}
+                title="Heading 3"
+                ariaLabel="Toggle heading 3"
+              >
+                <span style={{ fontSize: '13px', fontWeight: 700 }}>H3</span>
+              </ToolbarButton>
+              <ToolbarButton
+                onClick={() => {
+                  openUrlLinkPrompt();
+                }}
+                isActive={!!editor?.isActive('urlLink')}
+                disabled={!hasTextSelection}
+                title="Add link to selection"
+                ariaLabel="Add link to selection"
+              >
+                <Icon name="link" size={PROTO_FORMAT_ICON_SIZE} className="proto-toolbar-icon" />
+              </ToolbarButton>
+              <FormatToolbarDivider />
+              <ToolbarButton
+                onClick={() => editor.chain().focus().toggleBulletList().run()}
+                isActive={activeStates.bulletList}
+                title="Bullet list"
+                ariaLabel="Toggle bullet list"
+              >
+                <Icon name="list" size={PROTO_FORMAT_ICON_SIZE} className="proto-toolbar-icon" />
+              </ToolbarButton>
+              <ToolbarButton
+                onClick={() => editor.chain().focus().toggleOrderedList().run()}
+                isActive={activeStates.orderedList}
+                title="Numbered list"
+                ariaLabel="Toggle numbered list"
+              >
+                <Icon name="list-ol" size={PROTO_FORMAT_ICON_SIZE} className="proto-toolbar-icon" />
+              </ToolbarButton>
+              <FormatToolbarDivider />
+              <ToolbarButton
+                onClick={() =>
+                  isInListItem
+                    ? editor.chain().focus().liftListItem('listItem').run()
+                    : editor.chain().focus().decreaseIndent().run()
+                }
+                isActive={false}
+                disabled={!canLift}
+                title="Outdent"
+                ariaLabel="Outdent"
+              >
+                <Icon name="outdent" size={PROTO_FORMAT_ICON_SIZE} className="proto-toolbar-icon" />
+              </ToolbarButton>
+              <ToolbarButton
+                onClick={() =>
+                  isInListItem
+                    ? editor.chain().focus().sinkListItem('listItem').run()
+                    : editor.chain().focus().increaseIndent().run()
+                }
+                isActive={false}
+                disabled={!canSink}
+                title="Indent"
+                ariaLabel="Indent"
+              >
+                <Icon name="indent" size={PROTO_FORMAT_ICON_SIZE} className="proto-toolbar-icon" />
+              </ToolbarButton>
+              <FormatToolbarDivider />
+              <ToolbarButton
+                onClick={() => editor.chain().focus().setHorizontalRule().run()}
+                isActive={false}
+                title="Horizontal rule"
+                ariaLabel="Insert horizontal rule"
+              >
+                <Icon name="horizontal-rule" size={PROTO_FORMAT_ICON_SIZE} className="proto-toolbar-icon" />
+              </ToolbarButton>
+              <ToolbarButton
+                onClick={triggerInlineImagePicker}
+                isActive={false}
+                disabled={!sourceNoteId || isUploadingInlineImage}
+                title="Insert image"
+                ariaLabel="Insert image"
+              >
+                <Icon name="image" size={PROTO_FORMAT_ICON_SIZE} className="proto-toolbar-icon" />
+              </ToolbarButton>
+            </TiptapToolbarTrack>
+          </div>
+          <div className="tiptap-toolbar__trailing">
+            <FormatToolbarDivider />
+            <div className="tiptap-toolbar__history">
+              <ToolbarButton
+                onClick={() => editor.chain().focus().undo().run()}
+                isActive={false}
+                disabled={!activeStates.canUndo}
+                title="Undo"
+                ariaLabel="Undo"
+              >
+                <Icon name="arrow-rotate-left" size={PROTO_FORMAT_ICON_SIZE} className="proto-toolbar-icon" />
+              </ToolbarButton>
+              <ToolbarButton
+                onClick={() => editor.chain().focus().redo().run()}
+                isActive={false}
+                disabled={!activeStates.canRedo}
+                title="Redo"
+                ariaLabel="Redo"
+              >
+                <Icon name="arrow-rotate-right" size={PROTO_FORMAT_ICON_SIZE} className="proto-toolbar-icon" />
+              </ToolbarButton>
+            </div>
+          </div>
         </div>
+        <input
+          ref={inlineImageInputRef}
+          type="file"
+          accept={NOTE_INLINE_IMAGE_ACCEPT}
+          className="sr-only"
+          tabIndex={-1}
+          aria-hidden
+          onChange={handleInlineImageFileChange}
+        />
       </div>
     );
   };
@@ -5557,6 +5915,10 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
         ref={tiptapContentRef}
         className={`tiptap-content flex-1 min-h-0 overflow-auto relative ${contentOverflowing && contentHasScrolledDown ? 'tiptap-content--top-fade' : ''}`}
         onClick={(e: React.MouseEvent<HTMLDivElement, MouseEvent>) => {
+          // Portal children (study dock, translation picker, etc.) are in TipTap's React tree
+          // so their clicks bubble here even though they live in a different DOM node.
+          // Only re-focus the editor when the click physically came from inside this DOM node.
+          if (!e.currentTarget.contains(e.target as Node)) return;
           if (editor) {
             editor.commands.focus();
           }
@@ -5671,12 +6033,17 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                       onContentChange?.(editor.getHTML());
                       setSelectionActionBar(null);
                       if (editorChromeMode === 'prototypeNative') {
-                        setHighlightDockSession({
-                          studyThreadEntryId: studyId,
-                          accent: defaultAccent,
-                          excerpt: snippet,
-                          range: { from, to },
-                        });
+                        setStudyDockStack((s) =>
+                          openOrFocusHighlight(s, {
+                            studyThreadEntryId: studyId,
+                            accent: defaultAccent,
+                            excerpt: snippet,
+                            range: { from, to },
+                            entryKind: 'miniNote',
+                            focusTitle: deriveHighlightFocusTitle(snippet),
+                            miniNoteBody: '',
+                          }),
+                        );
                       }
                     })();
                   }}
@@ -5820,7 +6187,15 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                             onContentChange?.(editor.getHTML());
                           }
                           setSelectionActionBar(null);
-                          setHighlightDockSession(null);
+                          if (studyId) {
+                            setStudyDockStack((s) => {
+                              const entry = s.entries.find(
+                                (e) =>
+                                  e.kind === 'highlight' && e.session.studyThreadEntryId === studyId,
+                              );
+                              return entry ? closeDockEntry(s, entry.id) : s;
+                            });
+                          }
                         })();
                       }}
                     >
@@ -5981,7 +6356,9 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
               }}
             >
             {TRANSLATION_ORDER.map((tid) => {
-              const currentTranslation = translationPicker.translation || getCachedProfileData()?.defaultTranslation || 'NET';
+              const currentTranslation =
+                translationPicker.translation ||
+                (getCachedProfileData()?.defaultTranslation ?? getEffectiveDefaultTranslation());
               const isSelected = currentTranslation === tid;
               return (
                 <button
@@ -6064,209 +6441,287 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
           </div>,
           document.body
         )}
-        {scripturePillSession && editorChromeMode === 'prototypeNative' && createPortal(
-          <ScripturePillChromeWeb
-            reference={scripturePillSession.reference}
-            translation={scripturePillSession.translation}
-            sourceNoteId={sourceNoteId ?? null}
-            initialPillAccent={scripturePillSession.pillAccent}
-            onPillAccentChange={(nextAccent) => {
-              if (!editor || !isEditorValid(editor) || !scripturePillSession) return;
-              const { from, to } = scripturePillSession.boundaries;
-              const markType = editor.state.schema.marks.scripturePill;
-              if (!markType) return;
-              let existingMark: any = null;
-              editor.state.doc.nodesBetween(from, to, (node: any) => {
-                if (!existingMark && node.isText) {
-                  const m = node.marks.find((x: any) => x.type?.name === 'scripturePill');
-                  if (m) existingMark = m;
-                }
-              });
-              if (!existingMark) return;
-              const tr = editor.state.tr;
-              tr.removeMark(from, to, markType);
-              tr.addMark(
-                from,
-                to,
-                markType.create({
-                  ...existingMark.attrs,
-                  pillAccent: nextAccent,
-                }),
-              );
-              editor.view.dispatch(tr);
-              if (hiddenInputRef.current) {
-                hiddenInputRef.current.value = editor.getHTML();
+        {editorChromeMode === 'prototypeNative' &&
+          studyDockStackHasEntries(studyDockStack) &&
+          createPortal(
+            <StudyDockCarouselWeb
+              stack={studyDockStack}
+              onSelectEntry={(id) => setStudyDockStack((s) => setActiveDockEntry(s, id))}
+              onMoveEntry={(entryId, toIndex) =>
+                setStudyDockStack((s) => moveDockEntryToIndex(s, entryId, toIndex))
               }
-              onContentChange?.(editor.getHTML());
-              setScripturePillSession((prev) => (prev ? { ...prev, pillAccent: nextAccent } : null));
-            }}
-            onDone={() => {
-              setScripturePillSession(null);
-              queueMicrotask(() => {
-                try {
-                  if (editor && isEditorValid(editor)) {
-                    editor.commands.focus();
-                  }
-                } catch {
-                  /* ignore */
-                }
-              });
-            }}
-            onApply={async (nextRef, nextTranslation) => {
-              if (!editor) return;
-              const sess = scripturePillSession;
-              if (!sess) return;
-              const { from, to } = sess.boundaries;
-              try {
-                const markType = editor.state.schema.marks.scripturePill;
-                if (!markType) return;
-                let existingMark: any = null;
-                editor.state.doc.nodesBetween(from, to, (node: any) => {
-                  if (!existingMark && node.isText) {
-                    const m = node.marks.find((x: any) => x.type?.name === 'scripturePill');
-                    if (m) existingMark = m;
-                  }
-                });
-                if (!existingMark) return;
+              renderEntry={(entry, isActive) => {
+                const cardExpanded = isActive && entry.expanded;
+                if (entry.kind === 'scripture') {
+                  return (
+                    <ScripturePillChromeWeb
+                      key={entry.id}
+                      reference={entry.session.reference}
+                      translation={entry.session.translation}
+                      sourceNoteId={sourceNoteId ?? null}
+                      initialPillAccent={entry.session.pillAccent}
+                      interactionActive={isActive}
+                      animateEnter={false}
+                      expanded={cardExpanded}
+                      onExpandedChange={(next) => {
+                        setStudyDockStack((s) =>
+                          updateDockEntry(s, entry.id, (e) => ({ ...e, expanded: next })),
+                        );
+                      }}
+                      onPillAccentChange={(nextAccent) => {
+                        if (!editor || !isEditorValid(editor) || entry.kind !== 'scripture') return;
+                        const { from, to } = entry.session.boundaries;
+                        const markType = editor.state.schema.marks.scripturePill;
+                        if (!markType) return;
+                        let existingMark: any = null;
+                        editor.state.doc.nodesBetween(from, to, (node: any) => {
+                          if (!existingMark && node.isText) {
+                            const m = node.marks.find((x: any) => x.type?.name === 'scripturePill');
+                            if (m) existingMark = m;
+                          }
+                        });
+                        if (!existingMark) return;
+                        const tr = editor.state.tr;
+                        tr.removeMark(from, to, markType);
+                        tr.addMark(
+                          from,
+                          to,
+                          markType.create({
+                            ...existingMark.attrs,
+                            pillAccent: nextAccent,
+                          }),
+                        );
+                        editor.view.dispatch(tr);
+                        if (hiddenInputRef.current) {
+                          hiddenInputRef.current.value = editor.getHTML();
+                        }
+                        onContentChange?.(editor.getHTML());
+                        setStudyDockStack((s) =>
+                          updateDockEntry(s, entry.id, (e) =>
+                            e.kind === 'scripture'
+                              ? { ...e, session: { ...e.session, pillAccent: nextAccent } }
+                              : e,
+                          ),
+                        );
+                      }}
+                      onDone={() => {
+                        setStudyDockStack((s) => closeDockEntry(s, entry.id));
+                        queueMicrotask(() => {
+                          try {
+                            if (editor && isEditorValid(editor)) {
+                              editor.commands.focus();
+                            }
+                          } catch {
+                            /* ignore */
+                          }
+                        });
+                      }}
+                      onApply={async (nextRef, nextTranslation) => {
+                        if (!editor || entry.kind !== 'scripture') return;
+                        const sess = entry.session;
+                        const { from, to } = sess.boundaries;
+                        try {
+                          const markType = editor.state.schema.marks.scripturePill;
+                          if (!markType) return;
+                          let existingMark: any = null;
+                          editor.state.doc.nodesBetween(from, to, (node: any) => {
+                            if (!existingMark && node.isText) {
+                              const m = node.marks.find((x: any) => x.type?.name === 'scripturePill');
+                              if (m) existingMark = m;
+                            }
+                          });
+                          if (!existingMark) return;
 
-                const normRef = normalizeScriptureReference(nextRef);
-                const tr = editor.state.tr;
-                tr.replaceWith(from, to, editor.state.schema.text(normRef, [
-                  markType.create({
-                    ...existingMark.attrs,
-                    reference: normRef,
-                    translation: nextTranslation,
-                    pillAccent: existingMark.attrs.pillAccent ?? null,
-                  }),
-                ]));
-                editor.view.dispatch(tr);
+                          const normRef = normalizeScriptureReference(nextRef);
+                          const tr = editor.state.tr;
+                          tr.replaceWith(from, to, editor.state.schema.text(normRef, [
+                            markType.create({
+                              ...existingMark.attrs,
+                              reference: normRef,
+                              translation: nextTranslation,
+                              pillAccent: existingMark.attrs.pillAccent ?? null,
+                            }),
+                          ]));
+                          editor.view.dispatch(tr);
 
-                if (hiddenInputRef.current) {
-                  hiddenInputRef.current.value = editor.getHTML();
-                }
-                onContentChange?.(editor.getHTML());
+                          if (hiddenInputRef.current) {
+                            hiddenInputRef.current.value = editor.getHTML();
+                          }
+                          onContentChange?.(editor.getHTML());
 
-                const noteIdForApi = existingMark.attrs.noteId;
-                const refUnchanged = normalizeScriptureReference(sess.reference) === normRef;
-                if (
-                  refUnchanged &&
-                  noteIdForApi &&
-                  noteIdForApi !== 'pending' &&
-                  noteIdForApi !== 'null' &&
-                  sess.translation !== nextTranslation
-                ) {
-                  await fetch('/api/scripture/update-translation', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ noteId: noteIdForApi, newTranslation: nextTranslation }),
-                    credentials: 'include',
-                  });
-                  window.dispatchEvent(new CustomEvent('noteUpdated', { detail: { noteId: noteIdForApi } }));
-                }
+                          const noteIdForApi = existingMark.attrs.noteId;
+                          const refUnchanged = normalizeScriptureReference(sess.reference) === normRef;
+                          if (
+                            refUnchanged &&
+                            noteIdForApi &&
+                            noteIdForApi !== 'pending' &&
+                            noteIdForApi !== 'null' &&
+                            sess.translation !== nextTranslation
+                          ) {
+                            await fetch('/api/scripture/update-translation', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ noteId: noteIdForApi, newTranslation: nextTranslation }),
+                              credentials: 'include',
+                            });
+                            window.dispatchEvent(new CustomEvent('noteUpdated', { detail: { noteId: noteIdForApi } }));
+                          }
 
-                setScripturePillSession((prev) =>
-                  prev
-                    ? {
-                        ...prev,
-                        reference: normRef,
-                        translation: nextTranslation,
-                        boundaries: { from, to: from + normRef.length },
-                        pillAccent: existingMark.attrs.pillAccent ?? null,
-                      }
-                    : null,
-                );
-              } catch (err) {
-                console.error('[ScripturePillChrome] apply failed:', err);
-              }
-            }}
-          />,
-          scriptureChromePortalTarget || document.body,
-        )}
-        {highlightDockSession && editorChromeMode === 'prototypeNative' && createPortal(
-          <HighlightDockWeb
-            accent={highlightDockSession.accent}
-            excerpt={highlightDockSession.excerpt}
-            includeNeutral={false}
-            onAccentChange={(nextAccent) => {
-              if (!isStudyHighlightAccentKey(nextAccent)) return;
-              if (!editor || !isEditorValid(editor) || !highlightDockSession) return;
-              const sid = highlightDockSession.studyThreadEntryId;
-              const range =
-                highlightDockSession.range ??
-                (sid ? findHighlightRangeByStudyThreadId(editor, sid) : null);
-              if (!range) return;
-              void (async () => {
-                if (sid) {
-                  try {
-                    await fetch(`/api/study-threads/${sid}`, {
-                      method: 'PATCH',
-                      credentials: 'include',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ highlightAccentRaw: nextAccent }),
-                    });
-                  } catch {
-                    /* ignore */
-                  }
+                          setStudyDockStack((s) =>
+                            updateDockEntry(s, entry.id, (e) =>
+                              e.kind === 'scripture'
+                                ? {
+                                    ...e,
+                                    session: {
+                                      ...e.session,
+                                      reference: normRef,
+                                      translation: nextTranslation,
+                                      boundaries: { from, to: from + normRef.length },
+                                      pillAccent: existingMark.attrs.pillAccent ?? null,
+                                    },
+                                  }
+                                : e,
+                            ),
+                          );
+                        } catch (err) {
+                          console.error('[ScripturePillChrome] apply failed:', err);
+                        }
+                      }}
+                      onPassageHighlightCreated={(excerpt, threadId) => {
+                        setStudyDockStack((s) =>
+                          openOrFocusHighlight(s, {
+                            studyThreadEntryId: threadId,
+                            accent: 'warmAmber',
+                            excerpt,
+                            range: null,
+                            focusTitle: excerpt.slice(0, 80),
+                            entryKind: 'scriptureLink',
+                          }),
+                        );
+                      }}
+                    />
+                  );
                 }
-                if (!editor || !isEditorValid(editor)) return;
-                const markType = editor.state.schema.marks.highlight;
-                if (!markType) return;
-                const tr = editor.state.tr;
-                tr.removeMark(range.from, range.to, markType);
-                tr.addMark(
-                  range.from,
-                  range.to,
-                  markType.create({
-                    color: nextAccent,
-                    studyThreadEntryId: sid || null,
-                  }),
-                );
-                editor.view.dispatch(tr);
-                if (hiddenInputRef.current) {
-                  hiddenInputRef.current.value = editor.getHTML();
+                if (entry.kind === 'highlight') {
+                  return (
+                    <HighlightDockWeb
+                      key={entry.id}
+                      accent={entry.session.accent}
+                      excerpt={entry.session.excerpt}
+                      focusTitle={entry.session.focusTitle}
+                      miniNoteBody={entry.session.miniNoteBody}
+                      entryKind={entry.session.entryKind}
+                      studyThreadEntryId={entry.session.studyThreadEntryId}
+                      sourceNoteId={sourceNoteId ?? null}
+                      interactionActive={isActive}
+                      animateEnter={false}
+                      expanded={cardExpanded}
+                      onExpandedChange={(next) => {
+                        setStudyDockStack((s) =>
+                          updateDockEntry(s, entry.id, (e) => ({ ...e, expanded: next })),
+                        );
+                      }}
+                      onFocusTitleChange={(title) => {
+                        setStudyDockStack((s) =>
+                          updateDockEntry(s, entry.id, (e) =>
+                            e.kind === 'highlight' ? { ...e, session: { ...e.session, focusTitle: title } } : e,
+                          ),
+                        );
+                      }}
+                      onMiniNoteChange={(body) => {
+                        setStudyDockStack((s) =>
+                          updateDockEntry(s, entry.id, (e) =>
+                            e.kind === 'highlight' ? { ...e, session: { ...e.session, miniNoteBody: body } } : e,
+                          ),
+                        );
+                      }}
+                      onAccentChange={(nextAccent) => {
+                        if (!isStudyHighlightAccentKey(nextAccent)) return;
+                        if (!editor || !isEditorValid(editor) || entry.kind !== 'highlight') return;
+                        const sid = entry.session.studyThreadEntryId;
+                        const range =
+                          entry.session.range ?? (sid ? findHighlightRangeByStudyThreadId(editor, sid) : null);
+                        if (!range) return;
+                        void (async () => {
+                          if (sid) {
+                            try {
+                              await fetch(`/api/study-threads/${sid}`, {
+                                method: 'PATCH',
+                                credentials: 'include',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ highlightAccentRaw: nextAccent }),
+                              });
+                            } catch {
+                              /* ignore */
+                            }
+                          }
+                          if (!editor || !isEditorValid(editor)) return;
+                          const markType = editor.state.schema.marks.highlight;
+                          if (!markType) return;
+                          const tr = editor.state.tr;
+                          tr.removeMark(range.from, range.to, markType);
+                          tr.addMark(
+                            range.from,
+                            range.to,
+                            markType.create({
+                              color: nextAccent,
+                              studyThreadEntryId: sid || null,
+                            }),
+                          );
+                          editor.view.dispatch(tr);
+                          if (hiddenInputRef.current) {
+                            hiddenInputRef.current.value = editor.getHTML();
+                          }
+                          onContentChange?.(editor.getHTML());
+                          setStudyDockStack((s) =>
+                            updateDockEntry(s, entry.id, (e) =>
+                              e.kind === 'highlight' ? { ...e, session: { ...e.session, accent: nextAccent, range } } : e,
+                            ),
+                          );
+                        })();
+                      }}
+                      onRemove={() => {
+                        if (!editor || !isEditorValid(editor) || entry.kind !== 'highlight') return;
+                        const sid = entry.session.studyThreadEntryId;
+                        const range =
+                          entry.session.range ?? (sid ? findHighlightRangeByStudyThreadId(editor, sid) : null);
+                        void (async () => {
+                          if (sid) {
+                            try {
+                              await fetch(`/api/study-threads/${sid}`, {
+                                method: 'DELETE',
+                                credentials: 'include',
+                              });
+                            } catch {
+                              /* ignore */
+                            }
+                          }
+                          if (editor && isEditorValid(editor) && range) {
+                            editor
+                              .chain()
+                              .focus()
+                              .setTextSelection({ from: range.from, to: range.to })
+                              .unsetHighlight()
+                              .run();
+                            if (hiddenInputRef.current) {
+                              hiddenInputRef.current.value = editor.getHTML();
+                            }
+                            onContentChange?.(editor.getHTML());
+                          }
+                          setStudyDockStack((s) => closeDockEntry(s, entry.id));
+                        })();
+                      }}
+                      onDone={() => {
+                        setStudyDockStack((s) => closeDockEntry(s, entry.id));
+                      }}
+                    />
+                  );
                 }
-                onContentChange?.(editor.getHTML());
-                setHighlightDockSession((prev) =>
-                  prev ? { ...prev, accent: nextAccent, range } : prev,
-                );
-              })();
-            }}
-            onRemove={() => {
-              if (!editor || !isEditorValid(editor) || !highlightDockSession) return;
-              const sid = highlightDockSession.studyThreadEntryId;
-              const range =
-                highlightDockSession.range ??
-                (sid ? findHighlightRangeByStudyThreadId(editor, sid) : null);
-              void (async () => {
-                if (sid) {
-                  try {
-                    await fetch(`/api/study-threads/${sid}`, {
-                      method: 'DELETE',
-                      credentials: 'include',
-                    });
-                  } catch {
-                    /* ignore */
-                  }
-                }
-                if (editor && isEditorValid(editor) && range) {
-                  editor
-                    .chain()
-                    .focus()
-                    .setTextSelection({ from: range.from, to: range.to })
-                    .unsetHighlight()
-                    .run();
-                  if (hiddenInputRef.current) {
-                    hiddenInputRef.current.value = editor.getHTML();
-                  }
-                  onContentChange?.(editor.getHTML());
-                }
-                setHighlightDockSession(null);
-              })();
-            }}
-            onDone={() => setHighlightDockSession(null)}
-          />,
-          highlightChromePortalTarget || document.body,
-        )}
+                return null;
+              }}
+            />,
+            studyDockPortalTarget || document.body,
+          )}
         {referenceDockSession && editorChromeMode === 'prototypeNative' && createPortal(
           <ReferenceDockWeb
             initialQuery={referenceDockSession.query}

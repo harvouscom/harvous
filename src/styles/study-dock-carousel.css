@@ -1,0 +1,245 @@
+.study-dock-carousel {
+  /* ~3.25 collapsed cards visible across the dock row (peek invites horizontal scroll). */
+  --study-dock-carousel-visible-slots: 3.25;
+  /* Floor scales with the slot count so narrow screens don't bottom out on a fixed 200px card. */
+  --study-dock-carousel-compact-floor: 200px;
+  --study-dock-carousel-track-pad-x: 24px;
+  --study-dock-carousel-gap: 8px;
+  --study-dock-carousel-compact-min: max(
+    var(--study-dock-carousel-compact-floor),
+    calc(
+      (
+          100% - var(--study-dock-carousel-track-pad-x) -
+            (var(--study-dock-carousel-visible-slots) - 1) * var(--study-dock-carousel-gap)
+        ) / var(--study-dock-carousel-visible-slots)
+    )
+  );
+  --study-dock-motion-spring-layer: 320ms cubic-bezier(0.34, 1.08, 0.64, 1);
+  width: 100%;
+  max-width: 100%;
+  pointer-events: auto;
+  box-sizing: border-box;
+  animation: study-dock-carousel-enter var(--study-dock-motion-spring-layer) both;
+}
+
+/* Step the peek count down on smaller viewports so collapsed cards stay readable instead of
+   crowding at the 200px floor. Mirrors the native `compactLayout` breakpoints (trackInner 380/560). */
+@media (max-width: 620px) {
+  .study-dock-carousel {
+    --study-dock-carousel-visible-slots: 2.3;
+    --study-dock-carousel-compact-floor: 176px;
+  }
+}
+
+@media (max-width: 430px) {
+  .study-dock-carousel {
+    --study-dock-carousel-visible-slots: 1.35;
+    --study-dock-carousel-compact-floor: 150px;
+  }
+}
+
+@keyframes study-dock-carousel-enter {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .study-dock-carousel {
+    animation: none;
+  }
+}
+
+.study-dock-carousel__track {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-end;
+  gap: 8px;
+  overflow-x: auto;
+  overflow-y: clip;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 16px 12px 8px;
+  scroll-padding-inline: 12px;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.study-dock-carousel__track::-webkit-scrollbar {
+  display: none;
+}
+
+.study-dock-carousel__item {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-end;
+  gap: 4px;
+  min-width: 0;
+  box-sizing: border-box;
+  transition:
+    flex-grow var(--study-dock-motion-spring-layer),
+    flex-basis var(--study-dock-motion-spring-layer),
+    max-width var(--study-dock-motion-spring-layer),
+    width var(--study-dock-motion-spring-layer);
+}
+
+.study-dock-carousel__item--enter .study-dock-card__outer {
+  animation: study-dock-card-enter var(--study-dock-motion-spring-layer) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .study-dock-carousel__item {
+    transition: none;
+  }
+
+  .study-dock-carousel__item--enter .study-dock-card__outer {
+    animation: none;
+  }
+}
+
+/* Collapsed cards: equal share when all collapsed; fixed min width when an expanded dock is open. */
+.study-dock-carousel__item--compact {
+  flex: 1 1 var(--study-dock-carousel-compact-min);
+  min-width: var(--study-dock-carousel-compact-min);
+  width: auto;
+}
+
+.study-dock-carousel__track:has(> .study-dock-carousel__item--expanded-slot) .study-dock-carousel__item--compact {
+  flex: 0 0 var(--study-dock-carousel-compact-min);
+  width: var(--study-dock-carousel-compact-min);
+}
+
+.study-dock-carousel__item--inactive {
+  cursor: pointer;
+}
+
+/* Expanded active dock: grow into leftover row space; never flex-shrink (1 1 0 + width:100% collapsed to ~0). */
+.study-dock-carousel__item--expanded-slot {
+  flex: 1 0 auto;
+  flex-shrink: 0;
+  min-width: 0;
+  max-width: 100%;
+  align-self: flex-end;
+}
+
+.study-dock-carousel__item--expanded-slot:only-child {
+  flex: 1 0 auto;
+  width: 100%;
+}
+
+/* Bottom-align card borders: no extra outer pad; expanded docks grow upward from the row baseline. */
+.study-dock-carousel__item .study-dock-card__outer {
+  padding: 0;
+  margin: 0;
+}
+
+.study-dock-carousel__item--expanded-slot .study-dock-card__outer {
+  width: 100%;
+  max-width: var(--study-dock-max-width);
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.study-dock-carousel__item--compact .study-dock-card {
+  --study-dock-max-width: 100%;
+}
+
+/* Matches `.tiptap-toolbar__group-divider--prototype` in prototype-editor.css */
+.study-dock-carousel__drag-handle {
+  flex: 0 0 auto;
+  align-self: flex-end;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  min-height: 36px;
+  margin: 0 0 10px;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  cursor: grab;
+  touch-action: none;
+  pointer-events: auto;
+}
+
+.study-dock-carousel__drag-handle:hover {
+  background: color-mix(in srgb, var(--pds-text-primary, #000) 5%, transparent);
+}
+
+.study-dock-carousel__drag-handle:active {
+  cursor: grabbing;
+}
+
+.study-dock-carousel__drag-handle::before {
+  content: '';
+  display: block;
+  width: 1px;
+  height: 22px;
+  flex-shrink: 0;
+  background: var(--pds-text-primary);
+  opacity: 0.14;
+  transform: scaleX(0.5);
+  transform-origin: center;
+}
+
+.study-dock-carousel__track--dragging {
+  cursor: grabbing;
+  user-select: none;
+}
+
+.study-dock-carousel__track--dragging .study-dock-carousel__item {
+  transition: none;
+}
+
+.study-dock-carousel__track--dragging .study-dock-card__card--collapsed:focus-visible,
+.study-dock-carousel__track--dragging .study-dock-card__header-btn:focus-visible,
+.study-dock-carousel__track--dragging .study-dock-carousel__drag-handle:focus,
+.study-dock-carousel__track--dragging .study-dock-carousel__drag-handle:focus-visible {
+  outline: none;
+}
+
+.study-dock-carousel__item--dragging {
+  opacity: 0.55;
+}
+
+.study-dock-carousel__drag-handle:focus,
+.study-dock-carousel__drag-handle:focus-visible {
+  outline: none;
+}
+
+.study-dock-carousel__item-inner {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  flex: 1 1 auto;
+  width: 100%;
+  min-width: 0;
+  align-self: flex-end;
+}
+
+.study-dock-carousel__item--inactive .study-dock-carousel__item-inner {
+  pointer-events: none;
+}
+
+/* Inactive carousel cards: compact header only; parent row handles tap-to-activate. */
+.study-dock-carousel__item--inactive .study-dock-card__card--collapsed {
+  cursor: inherit;
+}
+
+.study-dock-carousel__item--inactive .study-dock-card__header-actions,
+.study-dock-carousel__item--inactive .study-dock-card__header-actions * {
+  pointer-events: auto;
+}
+
+/* Narrow carousel slots: keep dock headers on one line with ellipsis. */
+.study-dock-carousel .study-dock-card__header,
+.study-dock-carousel .study-dock-card__header-title,
+.study-dock-carousel .study-dock-card__card {
+  min-width: 0;
+}

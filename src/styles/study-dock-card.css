@@ -85,7 +85,7 @@
   }
 }
 
-.proto-editor-dock-layer .study-dock-card__card,
+.proto-shell__study-dock-layer .study-dock-card__card,
 .note-editor-dock-layer .study-dock-card__card {
   box-shadow: none;
 }

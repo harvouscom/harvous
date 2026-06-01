@@ -5,13 +5,15 @@ import { useProtoShell } from '../../layouts/proto-shell-context';
  * whole app shell. The floating sidebar card sits in front of it (higher z-index),
  * so the bar reads as passing behind the sidebar; toolbar content is offset right
  * (see prototype-shell.css) so the controls clear the sidebar.
+ *
+ * Study docks (scripture / highlight / reference) portal into `.proto-shell__study-dock-layer`
+ * above this bar — full shell width so the carousel extends behind the sidebar like native.
  */
 export default function PrototypeEditorChromeBar() {
   const {
     editorChromeMode,
     setFormatToolbarHostEl,
-    setScriptureChromeHostEl,
-    setHighlightChromeHostEl,
+    setStudyDockCarouselHostEl,
     setReferenceChromeHostEl,
   } = useProtoShell();
 
@@ -19,26 +21,15 @@ export default function PrototypeEditorChromeBar() {
 
   return (
     <div className="proto-shell__editor-chrome-row" data-mode={editorChromeMode}>
+      <div className="proto-shell__study-dock-layer" aria-live="polite">
+        <div ref={setStudyDockCarouselHostEl} className="proto-shell__study-dock-layer__slot" />
+        <div ref={setReferenceChromeHostEl} className="proto-shell__study-dock-layer__slot" />
+      </div>
       <div
         className="proto-editor-bottom-bar"
         data-mode={editorChromeMode}
         style={collapsed ? { height: 0, overflow: 'hidden', borderTop: 'none' } : undefined}
       >
-        <div
-          ref={setHighlightChromeHostEl}
-          className="proto-editor-bottom-bar__highlight"
-          style={{ display: editorChromeMode === 'highlight' ? 'block' : 'none' }}
-        />
-        <div
-          ref={setScriptureChromeHostEl}
-          className="proto-editor-bottom-bar__scripture"
-          style={{ display: editorChromeMode === 'scripture' ? 'block' : 'none' }}
-        />
-        <div
-          ref={setReferenceChromeHostEl}
-          className="proto-editor-bottom-bar__reference"
-          style={{ display: editorChromeMode === 'reference' ? 'block' : 'none' }}
-        />
         <div
           ref={setFormatToolbarHostEl}
           className="proto-editor-bottom-bar__format"

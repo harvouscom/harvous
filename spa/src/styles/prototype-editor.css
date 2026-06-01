@@ -43,45 +43,6 @@
   font-family: var(--pds-font-body);
 }
 
-/* Floating study docks — overlay bottom of editor column (native ActiveScripturePillDock parity). */
-.proto-editor-dock-layer {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  z-index: 6;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 8px;
-  padding: 0 0 8px;
-  pointer-events: none;
-}
-
-.proto-editor-dock-layer__slot {
-  width: 100%;
-  display: flex;
-  justify-content: center;
-  pointer-events: none;
-}
-
-.proto-editor-dock-layer__slot:not(:empty) {
-  pointer-events: auto;
-}
-
-.proto-editor-dock-layer__slot:empty {
-  display: none;
-}
-
-.proto-editor-dock-layer .scripture-pill-chrome,
-.proto-editor-dock-layer .highlight-dock-web,
-.proto-editor-dock-layer .study-dock-carousel,
-.proto-editor-dock-layer .reference-dock-web,
-.proto-editor-dock-layer .study-dock-card {
-  pointer-events: auto;
-}
-
 .proto-editor-scroll {
   flex: 1;
   min-height: 0;
@@ -512,7 +473,7 @@
   width: 100%;
 }
 
-/* Dock roots in the shell bottom bar — transparent; floating docks live in `.proto-editor-dock-layer`. */
+/* Dock roots in the shell bottom bar — transparent; floating docks live in `.proto-shell__study-dock-layer`. */
 .proto-editor-bottom-bar__scripture .scripture-pill-chrome,
 .proto-editor-bottom-bar__highlight .highlight-dock-web,
 .proto-editor-bottom-bar__reference .reference-dock-web {
@@ -521,34 +482,45 @@
 }
 
 /* Scripture reference strip — prototype PDS only (not classic SPA translation-dropdown chrome). */
-.proto-editor-surface .scripture-pill-chrome__reference-bar {
+.proto-editor-surface .scripture-pill-chrome__reference-bar,
+.proto-shell__study-dock-layer .scripture-pill-chrome__reference-bar {
   background: var(--pds-bg-faint);
   border-color: var(--pds-border-control-soft);
 }
 
 .proto-editor-surface .scripture-pill-chrome .harvous-menu-pill__trigger,
 .proto-editor-surface .scripture-pill-chrome .harvous-menu-pill__item,
-.proto-editor-surface .scripture-pill-chrome .scripture-pill-chrome__range-toggle {
+.proto-editor-surface .scripture-pill-chrome .scripture-pill-chrome__range-toggle,
+.proto-shell__study-dock-layer .scripture-pill-chrome .harvous-menu-pill__trigger,
+.proto-shell__study-dock-layer .scripture-pill-chrome .harvous-menu-pill__item,
+.proto-shell__study-dock-layer .scripture-pill-chrome .scripture-pill-chrome__range-toggle {
   font-family: var(--pds-font-body) !important;
   font-weight: 400 !important;
 }
 
 .proto-editor-surface .scripture-pill-chrome .harvous-menu-pill__trigger,
 .proto-editor-surface .scripture-pill-chrome .harvous-menu-pill__trigger *,
-.proto-editor-surface .scripture-pill-chrome .harvous-menu-pill__item {
+.proto-editor-surface .scripture-pill-chrome .harvous-menu-pill__item,
+.proto-shell__study-dock-layer .scripture-pill-chrome .harvous-menu-pill__trigger,
+.proto-shell__study-dock-layer .scripture-pill-chrome .harvous-menu-pill__trigger *,
+.proto-shell__study-dock-layer .scripture-pill-chrome .harvous-menu-pill__item {
   font-weight: 400 !important;
 }
 
-.proto-editor-surface .scripture-pill-chrome .harvous-menu-pill__trigger {
+.proto-editor-surface .scripture-pill-chrome .harvous-menu-pill__trigger,
+.proto-shell__study-dock-layer .scripture-pill-chrome .harvous-menu-pill__trigger {
   color: var(--pds-text-secondary) !important;
 }
 
 .proto-editor-surface .scripture-pill-chrome .harvous-menu-pill__trigger:hover,
-.proto-editor-surface .scripture-pill-chrome .harvous-menu-pill__trigger[aria-expanded='true'] {
+.proto-editor-surface .scripture-pill-chrome .harvous-menu-pill__trigger[aria-expanded='true'],
+.proto-shell__study-dock-layer .scripture-pill-chrome .harvous-menu-pill__trigger:hover,
+.proto-shell__study-dock-layer .scripture-pill-chrome .harvous-menu-pill__trigger[aria-expanded='true'] {
   color: var(--pds-text-primary) !important;
 }
 
-.proto-editor-surface .scripture-pill-chrome .harvous-menu-pill__chevron {
+.proto-editor-surface .scripture-pill-chrome .harvous-menu-pill__chevron,
+.proto-shell__study-dock-layer .scripture-pill-chrome .harvous-menu-pill__chevron {
   color: var(--pds-text-tertiary);
   opacity: 0.75;
 }
@@ -556,7 +528,10 @@
 /* Highlight dock respond — beat global button 700. Header title uses study-dock-card.css. */
 html.harvous-prototype-route .proto-editor-surface .highlight-dock-web__respond-trigger,
 html.harvous-prototype-route .proto-editor-surface .highlight-dock-web__respond-trigger span,
-html.harvous-prototype-route .proto-editor-surface .highlight-dock-web__respond-trigger * {
+html.harvous-prototype-route .proto-editor-surface .highlight-dock-web__respond-trigger *,
+html.harvous-prototype-route .proto-shell__study-dock-layer .highlight-dock-web__respond-trigger,
+html.harvous-prototype-route .proto-shell__study-dock-layer .highlight-dock-web__respond-trigger span,
+html.harvous-prototype-route .proto-shell__study-dock-layer .highlight-dock-web__respond-trigger * {
   font-family: var(--pds-font-body) !important;
   font-weight: 500 !important;
   color: var(--pds-text-tertiary) !important;
@@ -564,11 +539,15 @@ html.harvous-prototype-route .proto-editor-surface .highlight-dock-web__respond-
 
 html.harvous-prototype-route .proto-editor-surface .highlight-dock-web__respond-trigger:hover,
 html.harvous-prototype-route .proto-editor-surface .highlight-dock-web__respond-trigger:hover span,
-html.harvous-prototype-route .proto-editor-surface .highlight-dock-web__respond-trigger:hover * {
+html.harvous-prototype-route .proto-editor-surface .highlight-dock-web__respond-trigger:hover *,
+html.harvous-prototype-route .proto-shell__study-dock-layer .highlight-dock-web__respond-trigger:hover,
+html.harvous-prototype-route .proto-shell__study-dock-layer .highlight-dock-web__respond-trigger:hover span,
+html.harvous-prototype-route .proto-shell__study-dock-layer .highlight-dock-web__respond-trigger:hover * {
   color: var(--pds-text-secondary) !important;
 }
 
-html.harvous-prototype-route .proto-editor-surface .highlight-dock-web__respond-chevron {
+html.harvous-prototype-route .proto-editor-surface .highlight-dock-web__respond-chevron,
+html.harvous-prototype-route .proto-shell__study-dock-layer .highlight-dock-web__respond-chevron {
   opacity: 0.75;
 }
 
