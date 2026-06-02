@@ -64,6 +64,12 @@
   margin: 0.75em 0 !important;
 }
 
+/* Intentional blank lines: empty blocks and br-only paragraphs need visible height while editing */
+.tiptap-content .ProseMirror p:empty,
+.tiptap-content .ProseMirror p:has(> br:only-child) {
+  min-height: 1.6em;
+}
+
 .tiptap-content .ProseMirror p:first-child {
   margin-top: 0 !important;
 }

@@ -115,3 +115,12 @@ Vaul’s `repositionInputs` path sets an **inline `bottom`** on the drawer conte
 | [src/styles/panels.css](src/styles/panels.css) | Toolbar fixed when `data-keyboard-open`; editor and container max-height; padding-bottom and scroll-margin-bottom; footer hidden when `data-keyboard-open` |
 | [src/components/react/TiptapEditor.tsx](src/components/react/TiptapEditor.tsx) | Toolbar at bottom when `toolbarAtBottom`; 12px spacing; when `inBottomSheet`, scrolls selection into view above toolbar on focus and selection update |
 | [src/components/react/NewNotePanel.tsx](src/components/react/NewNotePanel.tsx) | Passes `toolbarAtBottom={true}` and `inBottomSheet` to note forms; iOS focusin scroll reset |
+
+## Prototype editor regression checklist (manual, iOS)
+
+After editor or save-path changes, smoke-test `/prototype` on an iPhone or iPad:
+
+1. Open a note, focus the body, confirm the formatting toolbar stays above the keyboard and the body scrolls.
+2. Type multiple lines (Enter and Shift+Enter), autosave, hard-refresh — blank lines and in-paragraph breaks should persist.
+3. Type a scripture reference, press Enter for a new paragraph, confirm the reference becomes a pill without blocking the next line.
+4. Type during an in-flight autosave (reference that triggers `processedContent`), then stop — trailing characters should appear after the next save flush.

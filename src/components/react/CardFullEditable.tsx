@@ -77,6 +77,20 @@ function noteBodyRequiresPinUnlock(
 }
 
 import { isEffectivelyEmptyPrototypeNote, isTiptapBodyEmpty } from '@/utils/prototype-note-empty';
+import { canonicalizeNoteHtmlLineBreaks } from '@/utils/note-html-linebreaks';
+import { shouldInjectProcessedNoteContent } from '@/utils/prototype-editor-save';
+
+/** HTML from TipTap for persistence — blank lines use `<p><br></p>` so they survive save/load. */
+function noteHtmlForSave(editor: { getHTML: () => string; isDestroyed?: boolean } | null, fallback: string): string {
+  if (editor && !editor.isDestroyed) {
+    try {
+      return canonicalizeNoteHtmlLineBreaks(editor.getHTML());
+    } catch {
+      /* fall through */
+    }
+  }
+  return canonicalizeNoteHtmlLineBreaks(fallback);
+}
 const TITLE_SOFT_LIMIT = 30;  // Show counter when >= 30
 const TITLE_WARNING_LIMIT = 45;  // Red text when >= 45 (within 5 of limit)
 const TITLE_HARD_LIMIT = 50;  // Maximum allowed
@@ -229,7 +243,9 @@ export default function CardFullEditable({
   const [hasChanges, setHasChanges] = useState(false);
   const [displayTitle, setDisplayTitle] = useState(title);
   const [displayContent, setDisplayContent] = useState(() =>
-    repairScripturePillTranslationsInHtml(content ?? '', getEffectiveDefaultTranslation()),
+    canonicalizeNoteHtmlLineBreaks(
+      repairScripturePillTranslationsInHtml(content ?? '', getEffectiveDefaultTranslation()),
+    ),
   );
   const [displayScriptureVersion, setDisplayScriptureVersion] = useState(resolvedScriptureVersion);
   const [imageRemoved, setImageRemoved] = useState(false);
@@ -629,9 +645,8 @@ export default function CardFullEditable({
     // Only reset displayContent if we haven't updated it locally
     // This prevents the highlight from disappearing when content prop updates
     if (!hasLocalContentUpdate.current) {
-      const repaired = repairScripturePillTranslationsInHtml(
-        content ?? '',
-        getEffectiveDefaultTranslation(),
+      const repaired = canonicalizeNoteHtmlLineBreaks(
+        repairScripturePillTranslationsInHtml(content ?? '', getEffectiveDefaultTranslation()),
       );
       setDisplayContent(repaired);
       if (
@@ -672,7 +687,9 @@ export default function CardFullEditable({
     const initialContent =
       noteType === 'resource' && !c.trim() && resourceDescription
         ? resourceDescription
-        : repairScripturePillTranslationsInHtml(c, getEffectiveDefaultTranslation());
+        : canonicalizeNoteHtmlLineBreaks(
+            repairScripturePillTranslationsInHtml(c, getEffectiveDefaultTranslation()),
+          );
 
     setEditTitle(initialTitle);
     setEditContent(initialContent);
@@ -1470,12 +1487,11 @@ export default function CardFullEditable({
       try {
         let editorContent = editContent;
 
-        if (editorInstanceRef.current) {
-          editorContent = editorInstanceRef.current.getHTML();
-        } else {
+        editorContent = noteHtmlForSave(editorInstanceRef.current, editorContent);
+        if (!editorInstanceRef.current) {
           const hiddenInput = document.querySelector('#edit-note-content') as HTMLInputElement;
-          if (hiddenInput && hiddenInput.value) {
-            editorContent = hiddenInput.value;
+          if (hiddenInput?.value) {
+            editorContent = canonicalizeNoteHtmlLineBreaks(hiddenInput.value);
           }
         }
 
@@ -1574,7 +1590,7 @@ export default function CardFullEditable({
               liveHtml = null;
             }
           }
-          const userTypedDuringSave = liveHtml != null && liveHtml !== editorContent;
+          const userTypedDuringSave = !shouldInjectProcessedNoteContent(liveHtml, editorContent);
 
           if (userTypedDuringSave) {
             // Skip the pill-injection override; the next debounced save will reprocess the newer content.
@@ -1584,7 +1600,9 @@ export default function CardFullEditable({
           } else {
             hasLocalContentUpdate.current = true;
             skipNextContentSyncRef.current = true;
-            editor.commands.setContent(saveResult.processedContent, { emitUpdate: false });
+            editor.commands.setContent(canonicalizeNoteHtmlLineBreaks(saveResult.processedContent), {
+              emitUpdate: false,
+            });
             requestAnimationFrame(async () => {
               if (editorInstanceRef.current) {
                 const { convertNoteLinksToScripturePills, consumeTrailingTranslationAfterPills } = await import('./TiptapEditor');
@@ -1638,12 +1656,10 @@ export default function CardFullEditable({
     }
 
     const currentTitle = editTitleRef.current;
-    const currentContent = (() => {
-      if (editorInstanceRef.current && !editorInstanceRef.current.isDestroyed) {
-        try { return editorInstanceRef.current.getHTML(); } catch { /* */ }
-      }
-      return editContentRef.current;
-    })();
+    const currentContent = noteHtmlForSave(
+      editorInstanceRef.current,
+      editContentRef.current,
+    );
 
     // Recompute the auto collection from the live text so the suggested folder is
     // persisted alongside the autosave (otherwise it shows transiently then gets
@@ -1693,11 +1709,13 @@ export default function CardFullEditable({
         const editor = editorInstanceRef.current;
         let liveHtml: string | null = null;
         try { liveHtml = editor.getHTML(); } catch { /* */ }
-        if (liveHtml != null && liveHtml === currentContent) {
+        if (shouldInjectProcessedNoteContent(liveHtml, currentContent)) {
           // Safe to inject pills — user hasn't typed since save started
           hasLocalContentUpdate.current = true;
           skipNextContentSyncRef.current = true;
-          editor.commands.setContent(result.processedContent, { emitUpdate: false });
+          editor.commands.setContent(canonicalizeNoteHtmlLineBreaks(result.processedContent), {
+            emitUpdate: false,
+          });
           requestAnimationFrame(async () => {
             if (!editorInstanceRef.current || editorInstanceRef.current.isDestroyed) return;
             if (!isMountedRef.current) return;
@@ -1809,8 +1827,8 @@ export default function CardFullEditable({
       // Handle Select All for title textarea (Cmd+A on Mac, Ctrl+A on Windows/Linux)
       const target = e.target as HTMLTextAreaElement;
       if (target === titleInputRef.current) {
-        // Tab from title → focus content editor
-        if (e.key === 'Tab' && !e.shiftKey) {
+        // Tab or Enter from title → focus content editor (Apple Notes / native parity)
+        if ((e.key === 'Tab' && !e.shiftKey) || e.key === 'Enter') {
           e.preventDefault();
           if (editorInstanceRef.current && !editorInstanceRef.current.isDestroyed) {
             editorInstanceRef.current.commands.focus('end');
@@ -1851,6 +1869,9 @@ export default function CardFullEditable({
   };
 
   const handleContentChange = (newContent: string) => {
+    if (editorChromeMode === 'prototypeNative') {
+      hasLocalContentUpdate.current = true;
+    }
     setEditContent(newContent);
     setHasChanges(editTitle !== displayTitle || newContent !== displayContent);
   };
@@ -2657,7 +2678,11 @@ export default function CardFullEditable({
                     content={editContent}
                     id="edit-note-content"
                     name="editContent"
-                    placeholder="Start writing your note..."
+                    placeholder={
+                      editorChromeMode === 'prototypeNative'
+                        ? 'Start writing… Enter for a new paragraph, Shift+Enter for a line break'
+                        : 'Start writing your note...'
+                    }
                     tabindex={3}
                     minimalToolbar={false}
                     toolbarAtBottom={true}

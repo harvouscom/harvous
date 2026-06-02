@@ -738,6 +738,9 @@ export function getPrototypeKeyboardShortcutsReference(): KeyboardShortcutRefere
         { action: 'Find in note', keyParts: [shift, 'F'] },
         { action: 'Note details', keyParts: [shift, 'D'] },
         { action: 'Save', keyParts: [getKeyboardShortcutModifierLabel(), 'S'] },
+        { action: 'New paragraph', keyParts: ['Enter'] },
+        { action: 'Line break in paragraph', keyParts: [shift, 'Enter'] },
+        { action: 'Title to body', keyParts: ['Enter'] },
       ],
     },
     {

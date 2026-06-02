@@ -325,6 +325,13 @@
   margin: 0 0 0.75em;
 }
 
+.proto-editor-surface .ProseMirror p:empty,
+.proto-editor-surface .ProseMirror p:has(> br:only-child),
+.proto-editor-surface .card-full-editable__content-html p:empty,
+.proto-editor-surface .card-full-editable__content-html p:has(> br:only-child) {
+  min-height: 1.6em;
+}
+
 .proto-editor-surface .ProseMirror h2 {
   font-family: var(--pds-font-display) !important;
   font-size: 1.1875rem;

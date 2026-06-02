@@ -302,7 +302,7 @@ function listPreviewSegmentsFromHtml(html: string): string[] {
 }
 
 /**
- * One-line note list preview: skips empty filler blocks, joins lines with a space,
+ * One-line note list preview: skips empty filler blocks, joins lines with " · ",
  * and keeps adding lines until `maxLength` (or runs out of content).
  */
 export function stripHtmlForListPreview(html: string, maxLength: number = 80): string {
@@ -310,7 +310,7 @@ export function stripHtmlForListPreview(html: string, maxLength: number = 80): s
   const segments = listPreviewSegmentsFromHtml(html);
   let out = '';
   for (const segment of segments) {
-    const next = out ? `${out} ${segment}` : segment;
+    const next = out ? `${out} · ${segment}` : segment;
     if (next.length > maxLength) {
       if (!out) return segment.length > maxLength ? `${segment.slice(0, maxLength)}…` : segment;
       break;

@@ -245,6 +245,12 @@
 /* Scripture pill styling in view mode (display mode, not Tiptap).
    Ensures pills render correctly with or without inline style on the span,
    e.g. when viewing a note as a member in a shared space. */
+/* Blank lines in read-only note HTML (empty <p> or <p><br></p>) */
+.card-full-editable__content-html p:empty,
+.card-full-editable__content-html p:has(> br:only-child) {
+  min-height: 1.6em;
+}
+
 .card-full-editable__content-html .scripture-pill {
   background-color: var(--color-paper);
   border-radius: 12px;

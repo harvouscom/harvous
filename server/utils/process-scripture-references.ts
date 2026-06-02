@@ -7,6 +7,7 @@ import { db, first, Notes, UserMetadata, NoteThreads, ScriptureMetadata, NoteScr
 import { getEffectiveHighestSimpleNoteId } from './highest-simple-note-id';
 import { detectScriptureReferences, normalizeScriptureReference, parseScriptureReference } from '@/utils/scripture-detector';
 import { highlightScriptureReferences } from '@/utils/scripture-highlighter';
+import { canonicalizeNoteHtmlLineBreaks } from '@/utils/note-html-linebreaks';
 import { generateNoteId, generateShareToken } from '@/utils/ids';
 import { getCurrentSeason } from '@/utils/season-helpers';
 import { awardNoteCreatedXP } from './xp-system';
@@ -1155,7 +1156,9 @@ async function processScriptureReferencesInternal(
     console.error('[processScriptureReferences] Failed to prune stale references (non-critical):', pruneError?.message ?? pruneError);
   }
 
-  const updatedContent = highlightScriptureReferences(noteContent, referencesForHighlighting);
+  const updatedContent = canonicalizeNoteHtmlLineBreaks(
+    highlightScriptureReferences(noteContent, referencesForHighlighting),
+  );
 
   // Always update note in database with properly highlighted content
   // This ensures scripture pills always have correct class and data attributes

@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { useEditor, EditorContent } from '@tiptap/react';
 // BubbleMenu replaced with custom createPortal-based floating toolbar for reliability
 import StarterKit from '@tiptap/starter-kit';
+import { canonicalizeNoteHtmlLineBreaks } from '@/utils/note-html-linebreaks';
 import Heading from '@tiptap/extension-heading';
 import Placeholder from '@tiptap/extension-placeholder';
 import Underline from '@tiptap/extension-underline';
@@ -4329,7 +4330,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       return;
     }
 
-    editor.commands.setContent(content, { emitUpdate: false });
+    editor.commands.setContent(canonicalizeNoteHtmlLineBreaks(content), { emitUpdate: false });
 
     const needsCursorAfterScripturePill =
       isNewNoteEditor && content.includes('scripture-pill');

@@ -2,9 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { stripHtmlForListPreview } from '../html-stripper';
 
 describe('stripHtmlForListPreview', () => {
-  it('joins block lines with a space', () => {
+  it('joins block lines with a middle dot separator', () => {
     expect(stripHtmlForListPreview('<p>Proverbs 16:9</p><p>Writing about Exodus 5:1-10</p>', 80)).toBe(
-      'Proverbs 16:9 Writing about Exodus 5:1-10',
+      'Proverbs 16:9 · Writing about Exodus 5:1-10',
     );
   });
 
@@ -16,7 +16,7 @@ describe('stripHtmlForListPreview', () => {
 
   it('fills preview from additional lines when the first is short', () => {
     expect(stripHtmlForListPreview('<p>Hi</p><p>Second line here</p><p>Third</p>', 80)).toBe(
-      'Hi Second line here Third',
+      'Hi · Second line here · Third',
     );
   });
 

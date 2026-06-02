@@ -10,8 +10,9 @@ export default function PrototypeKeyboardShortcutsPage() {
     <SettingsShell title="Keyboard shortcuts">
       <p className="pds-caption" style={{ margin: '0 0 16px', color: 'var(--pds-text-secondary)' }}>
         Prototype shortcuts use Shift plus a letter or symbol. Hold Shift alone for a moment to see letter hints
-        on toolbar buttons (Shift is implied). In the editor, Shift+letter still types as usual — use shortcuts
-        when focus is outside the note body.
+        on toolbar buttons (Shift is implied). In the note body, Enter starts a new paragraph and Shift+Enter
+        adds a line break inside the current paragraph. Shell shortcuts below apply when focus is outside the
+        editor.
       </p>
       <div className="proto-shortcuts-page">
         {shortcutGroups.map((group, groupIndex) => (
