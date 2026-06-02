@@ -145,22 +145,22 @@
 }
 
 .reference-dock-web__highlight-swatch--warmAmber {
-  background: #f5c842;
+  background: var(--study-dock-accent-warmAmber);
 }
 .reference-dock-web__highlight-swatch--skyBlue {
-  background: #5ab4f5;
+  background: var(--study-dock-accent-skyBlue);
 }
 .reference-dock-web__highlight-swatch--violet {
-  background: #a78bfa;
+  background: var(--study-dock-accent-violet);
 }
 .reference-dock-web__highlight-swatch--mintGreen {
-  background: #6ee7b7;
+  background: var(--study-dock-accent-mintGreen);
 }
 .reference-dock-web__highlight-swatch--coralRose {
-  background: #f87171;
+  background: var(--study-dock-accent-coralRose);
 }
 .reference-dock-web__highlight-swatch--neutral {
-  background: rgba(0, 0, 0, 0.15);
+  background: var(--study-dock-accent-neutral);
 }
 
 .reference-dock-web__highlight-excerpt {

@@ -295,7 +295,8 @@ private struct SettingsDefaultBibleView: View {
                 }
                 .pickerStyle(.inline)
                 .labelsHidden()
-                .accessibilityLabel("Default Bible translation")            }
+                .accessibilityLabel("Default translation")
+            }
         }
         .harvousGroupedSettingsForm()
     }

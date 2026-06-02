@@ -14,10 +14,10 @@ import { getCachedProfileData } from '@/utils/profile-cache';
 import { safeRenderHtml } from '@/utils/content-renderer';
 import { fetchVerseHtml } from '@/utils/fetch-verse-html';
 import type { StudyHighlightAccentKey } from '@/utils/study-highlight-accents';
-import { isStudyHighlightAccentKey } from '@/utils/study-highlight-accents';
+import { isStudyHighlightAccentKey, scriptureDockChromeAccent } from '@/utils/study-highlight-accents';
 
 import Icon from '@/components/react/Icon';
-import DockAccentSwatchButton, { SCRIPTURE_DOCK_ACCENT_COLORS } from '@/components/react/DockAccentSwatchButton';
+import DockAccentSwatchButton from '@/components/react/DockAccentSwatchButton';
 import ScriptureReferencePickerStrip from '@/components/react/ScriptureReferencePickerStrip';
 import StudyDockCardShell from '@/components/react/StudyDockCardShell';
 import '@/styles/harvous-menu-pill.css';
@@ -395,28 +395,24 @@ export default function ScripturePillChromeWeb({
     <StudyDockCardShell
       rootClassName="scripture-pill-chrome"
       ariaLabel="Scripture reference editor"
-      accentColor={SCRIPTURE_DOCK_ACCENT_COLORS[selectedSwatchKey]}
+      accentColor={scriptureDockChromeAccent(initialPillAccent)}
       expanded={isExpanded}
       onToggleExpanded={toggleExpanded}
       onDismiss={onDone}
       animateEnter={animateEnter}
       headerIcon={<Icon name="book-open" size={13} />}
       headerTitle={
-        <>
-          <input
-            type="text"
-            className="scripture-pill-chrome__title-input study-dock-card__header-primary-text"
-            value={displayRefString}
-            readOnly
-            tabIndex={-1}
+        <span className="scripture-pill-chrome__header-label">
+          <span
+            className="scripture-pill-chrome__title-text study-dock-card__header-primary-text"
             aria-label="Scripture reference"
-            onMouseDown={(e) => e.stopPropagation()}
-            onClick={(e) => e.stopPropagation()}
-          />
+          >
+            {displayRefString}
+          </span>
           <span className="scripture-pill-chrome__trans-chip" aria-label={`Translation ${transLabel}`}>
             {transLabel}
           </span>
-        </>
+        </span>
       }
       headerActions={
         onPillAccentChange ? (

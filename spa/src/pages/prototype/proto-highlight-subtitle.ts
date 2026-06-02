@@ -78,3 +78,36 @@ export function prototypeHighlightSubtitlePreview(row: StudyThreadEntryDetail, p
 export function prototypeHighlightRecencyIso(row: StudyThreadEntryDetail): string | null {
   return row.highlightListEditedAt ?? row.updatedAt ?? row.createdAt ?? null;
 }
+
+/** Icon for Highlights list rows — native `StudyHighlightFeedRow.kindGlyphAsset`. */
+export function highlightEntryKindIconName(entryKind: string | null | undefined): string {
+  switch (entryKind) {
+    case 'linkedNote':
+      return 'arrow-right-arrow-left';
+    case 'scriptureLink':
+      return 'book-open';
+    case 'reference':
+      return 'lines-leaning';
+    case 'workspace':
+    case 'miniNote':
+    default:
+      return 'note-sticky';
+  }
+}
+
+export function highlightEntryKindAriaLabel(entryKind: string | null | undefined): string {
+  switch (entryKind) {
+    case 'linkedNote':
+      return 'Connected highlight';
+    case 'scriptureLink':
+      return 'Scripture highlight';
+    case 'reference':
+      return 'Reference highlight';
+    case 'miniNote':
+      return 'Note highlight';
+    case 'workspace':
+      return 'Highlight';
+    default:
+      return 'Highlight';
+  }
+}

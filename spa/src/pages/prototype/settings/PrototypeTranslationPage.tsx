@@ -15,7 +15,7 @@ export default function PrototypeTranslationPage() {
     'NET';
 
   return (
-    <SettingsShell title="Default Bible translation">
+    <SettingsShell title="Default translation">
       <p className="pds-subheadline" style={{ color: 'var(--pds-text-secondary)', margin: '0 0 16px', padding: '0 12px' }}>
         Used across the app when you read Scripture.
       </p>

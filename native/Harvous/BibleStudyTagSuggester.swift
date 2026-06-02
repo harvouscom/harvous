@@ -35,7 +35,7 @@ enum BibleStudyTagSuggester {
     static func applyToNote(_ note: Note, allowPrimaryUpdate: Bool = true, existingFolders: [String] = []) {
         let analysis = analyze(title: note.title, body: note.body)
         if note.tags != analysis.tags {
-            note.tags = analysis.tags
+            note.tags = analysis.tags.uniquedPreservingOrderCaseInsensitive()
         }
 
         // Manual tweaks without lock: preserve primary + secondaries from automation.

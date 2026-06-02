@@ -87,7 +87,7 @@ html[data-shift-hints='1'] .proto-toolbar-orb-group {
   align-items: center;
   gap: 6px;
   max-width: min(240px, 42vw);
-  height: 28px;
+  height: var(--pds-toolbar-orb-size);
   padding: 0 12px;
   border-radius: var(--pds-radius-pill);
   border: 0.5px solid var(--pds-border-control);
@@ -96,9 +96,9 @@ html[data-shift-hints='1'] .proto-toolbar-orb-group {
   /* Match `.proto-note-action-bar__pill--connect` label styling */
   color: var(--pds-text-secondary);
   font-family: var(--pds-font-body) !important;
-  font-size: 13px;
+  font-size: var(--pds-toolbar-folder-chip-font-size);
   font-weight: 500;
-  font-variation-settings: var(--pds-font-body-variation-chip);
+  font-variation-settings: var(--pds-font-body-variation-toolbar-chip);
   line-height: 1.2;
   transition: background 0.1s, color 0.1s;
 }
@@ -127,9 +127,9 @@ html[data-shift-hints='1'] .proto-toolbar-orb-group {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 13px;
+  font-size: var(--pds-toolbar-folder-chip-font-size);
   font-weight: 500;
-  font-variation-settings: var(--pds-font-body-variation-chip);
+  font-variation-settings: var(--pds-font-body-variation-toolbar-chip);
   line-height: 1.2;
 }
 
@@ -144,8 +144,8 @@ html[data-shift-hints='1'] .proto-toolbar-orb-group {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 28px;
-  height: 28px;
+  width: var(--pds-toolbar-orb-size);
+  height: var(--pds-toolbar-orb-size);
   border-radius: var(--pds-radius-pill);
   border: 0.5px solid var(--pds-border-control);
   background: var(--pds-bg-glass-medium);
@@ -241,8 +241,8 @@ html[data-shift-hints='1'] .proto-toolbar-orb-group {
 
 /* Avatar circle */
 .proto-avatar-mini {
-  width: 28px;
-  height: 28px;
+  width: var(--pds-toolbar-orb-size);
+  height: var(--pds-toolbar-orb-size);
   border-radius: var(--pds-radius-pill);
   background: var(--pds-bg-control-strong);
   color: var(--pds-text-primary);
@@ -262,8 +262,8 @@ html[data-shift-hints='1'] .proto-toolbar-orb-group {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 28px;
-  height: 28px;
+  width: var(--pds-toolbar-orb-size);
+  height: var(--pds-toolbar-orb-size);
   border-radius: var(--pds-radius-pill);
   border: 0.5px solid var(--pds-border-control);
   background: var(--pds-bg-glass-medium);
@@ -817,13 +817,23 @@ html.harvous-proto-wallpaper-color .proto-sidebar-search__field:focus-within {
   opacity: 0.92;
 }
 
+/* Native StudyHighlightFeedRow kind glyph (edgePt 11, secondary). */
+.proto-note-row__kind-icon {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--pds-text-secondary);
+  opacity: 0.92;
+}
+
 .proto-note-row__title-text {
   flex: 1;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-weight: 600 !important;
+  font-weight: 500 !important;
   color: var(--pds-text-primary) !important;
   font-family: var(--pds-font-body) !important;
 }
@@ -946,8 +956,8 @@ html.harvous-proto-wallpaper-color .proto-sidebar-search__field:focus-within {
 }
 
 .proto-note-row .pds-list-title {
-  /* Mac: HarvousTypography.noteListTitle uses axis 500 → SF Medium; web 500 reads light vs SF, so semibold for parity */
-  font-weight: 600 !important;
+  /* HarvousTypography.noteListTitle — weight 500 */
+  font-weight: 500 !important;
   color: var(--pds-text-primary) !important;
   font-family: var(--pds-font-body) !important;
 }
@@ -1178,7 +1188,8 @@ html.harvous-proto-wallpaper-color .proto-sidebar-search__field:focus-within {
   right: 8px;
   bottom: 8px;
   width: var(--pds-inspector-w);
-  z-index: 10;
+  /* Above shell editor chrome row (dock layer) so the panel stays interactive at the bottom. */
+  z-index: 20;
   border-radius: var(--pds-shell-frame-radius);
   background: var(--pds-bg-page);
   overflow: hidden;
@@ -2153,15 +2164,16 @@ html.harvous-proto-wallpaper-color .proto-search-input:focus {
 .proto-settings {
   min-height: 0;
   display: grid;
-  grid-template-columns: 320px minmax(0, 1fr);
+  /* macOS Settings split: navigationSplitViewColumnWidth ideal 220 */
+  grid-template-columns: 220px minmax(0, 1fr);
   grid-template-rows: minmax(0, 1fr);
 }
 
 .proto-settings__nav {
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  padding: 10px 8px;
+  gap: 4px;
+  padding: 12px 10px;
   border-right: 0.5px solid var(--pds-border);
   background: var(--pds-bg-page);
   min-height: 0;
@@ -2171,11 +2183,11 @@ html.harvous-proto-wallpaper-color .proto-search-input:focus {
 
 .proto-settings__nav-item {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: 10px;
   width: 100%;
   text-align: left;
-  padding: 8px 10px;
+  padding: 10px 12px;
   border: none;
   background: transparent;
   border-radius: var(--pds-radius-row);
@@ -2192,11 +2204,6 @@ html.harvous-proto-wallpaper-color .proto-search-input:focus {
   color: var(--pds-text-primary) !important;
 }
 
-.proto-settings__nav-item .pds-list-preview,
-.proto-settings__nav-item .proto-settings__nav-footnote {
-  color: var(--pds-text-secondary) !important;
-}
-
 .proto-settings__nav-item:hover {
   background: var(--pds-bg-row-hover);
 }
@@ -2210,8 +2217,7 @@ html.harvous-proto-wallpaper-color .proto-search-input:focus {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 18px;
-  margin-top: 1px;
+  width: 20px;
   color: var(--pds-text-secondary) !important;
 }
 
@@ -2233,29 +2239,17 @@ html.harvous-proto-wallpaper-color .proto-search-input:focus {
   color: var(--pds-text-primary) !important;
 }
 
-.proto-settings__nav-text {
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-}
-
 .proto-settings__nav-title {
-  font-weight: 600 !important;
+  min-width: 0;
+  flex: 1;
   font-family: var(--pds-font-body) !important;
+  font-size: 0.9375rem;
+  font-weight: 500 !important;
+  line-height: 1.25;
   color: var(--pds-text-primary) !important;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-}
-
-.proto-settings__nav-footnote {
-  margin-top: 1px;
-  font-weight: 400 !important;
-  font-family: var(--pds-font-body) !important;
-  color: var(--pds-text-secondary) !important;
-  font-size: 11px;
-  line-height: 1.3;
-  white-space: normal;
 }
 
 .proto-settings__detail {

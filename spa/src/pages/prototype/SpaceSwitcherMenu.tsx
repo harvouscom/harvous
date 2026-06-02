@@ -6,7 +6,7 @@ import { useMemo } from 'react';
 import Icon from '@/components/react/Icon';
 import ProtoHouseIcon from './ProtoHouseIcon';
 import { useNavigation } from '../../hooks/queries/useNavigation';
-import { PROTO_TOOLBAR_ICON_SIZE } from './proto-toolbar-tokens';
+import { PROTO_TOOLBAR_ORB_ICON_SIZE } from './proto-toolbar-tokens';
 
 export default function SpaceSwitcherMenu({ homeSpaceId, navReady }: { homeSpaceId: string | null; navReady: boolean }) {
   const { data: nav } = useNavigation();
@@ -25,9 +25,9 @@ export default function SpaceSwitcherMenu({ homeSpaceId, navReady }: { homeSpace
   const hasHome = Boolean(normalizedActive);
   const triggerTitle = hasHome ? 'My Home' : 'No My Home yet — finish setup in the classic app';
   const triggerIcon = hasHome ? (
-    <ProtoHouseIcon size={PROTO_TOOLBAR_ICON_SIZE} />
+    <ProtoHouseIcon size={PROTO_TOOLBAR_ORB_ICON_SIZE} />
   ) : (
-    <Icon name="table-cells" size={PROTO_TOOLBAR_ICON_SIZE} />
+    <Icon name="table-cells" size={PROTO_TOOLBAR_ORB_ICON_SIZE} />
   );
 
   return (

@@ -1,17 +1,23 @@
 /* Scripture pill editor dock — highlight-dock parity (card shell + body sections). */
 
-.scripture-pill-chrome__title-input {
+/* Ref + translation chip — shrink-wrapped group (read-only inputs stay wide in flex). */
+.scripture-pill-chrome__header-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+.scripture-pill-chrome__title-text {
   flex: 1 1 auto;
   min-width: 0;
-  width: auto;
   margin: 0;
-  padding: 0;
-  border: none;
-  background: none;
-  outline: none;
-  box-sizing: border-box;
-  cursor: inherit;
-  pointer-events: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .scripture-pill-chrome__trans-chip {
@@ -29,6 +35,21 @@
   text-transform: uppercase;
   color: var(--pds-text-secondary, #888);
   line-height: 1.2;
+}
+
+.scripture-pill-chrome .study-dock-card__header-title {
+  justify-content: flex-start;
+}
+
+.study-dock-card__card--collapsed .scripture-pill-chrome__header-label {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.study-dock-card__card--collapsed .scripture-pill-chrome__header-label .scripture-pill-chrome__title-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .study-dock-card__card--collapsed .scripture-pill-chrome__trans-chip {

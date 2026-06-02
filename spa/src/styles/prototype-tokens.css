@@ -304,12 +304,16 @@
   --pds-font-display: "Google Sans Flex", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --pds-font-body-variation: "ROND" 0;
   --pds-font-display-variation: "ROND" 100;
-  /* HarvousFonts axisSettings — 13px / wght 500 / default ROND (toolbar + sidebar chips). */
+  /* HarvousFonts axisSettings — 13px / wght 500 / default ROND (sidebar chips). */
   --pds-font-body-variation-chip: "ROND" 0, "wght" 500, "opsz" 13;
+  /* Toolbar folder chip — scaled with `--pds-toolbar-orb-size`. */
+  --pds-toolbar-folder-chip-font-size: 14px;
+  --pds-font-body-variation-toolbar-chip: "ROND" 0, "wght" 500, "opsz" 14;
   --pds-font-mono:    ui-monospace, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
 
   /* Chrome dimensions */
-  --pds-toolbar-h: 44px;
+  --pds-toolbar-orb-size: 30px;
+  --pds-toolbar-h: 46px;
   --pds-footer-h:  36px;
   --pds-sidebar-w: 280px;
   --pds-sidebar-min-w: 250px;
@@ -323,13 +327,13 @@
   --pds-shell-frame-inset: 14px;
   --pds-shell-frame-radius: 18px;
 
-  /* Native `StudyHighlightAccentToken` underline colors */
-  --pds-highlight-neutral: #8e8e93;
-  --pds-highlight-warm-amber: #e6a820;
-  --pds-highlight-sky-blue: #1e88c9;
-  --pds-highlight-violet: #8b5cf6;
-  --pds-highlight-mint-green: #43a047;
-  --pds-highlight-coral-rose: #e0409a;
+  /* Native study dock accents — see src/styles/study-highlight-accent-colors.css */
+  --pds-highlight-neutral: var(--study-dock-accent-neutral);
+  --pds-highlight-warm-amber: var(--study-dock-accent-warmAmber);
+  --pds-highlight-sky-blue: var(--study-dock-accent-skyBlue);
+  --pds-highlight-violet: var(--study-dock-accent-violet);
+  --pds-highlight-mint-green: var(--study-dock-accent-mintGreen);
+  --pds-highlight-coral-rose: var(--study-dock-accent-coralRose);
 
   /* Site paper editor — mirrors /site/src/styles/global.css (founder letter card) */
   --pds-paper-desk: #f7f6f3;

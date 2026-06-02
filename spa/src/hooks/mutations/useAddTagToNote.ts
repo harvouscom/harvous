@@ -10,6 +10,7 @@ interface AddTagInput {
 
 interface CreateTagResponse {
   success: boolean;
+  created?: boolean;
   tag: TagSummary;
 }
 
@@ -38,10 +39,21 @@ export function useAddTagToNote() {
       if (existing) {
         tagId = existing.id;
       } else {
-        const created = await api.post<CreateTagResponse>('/api/tags/create', {
-          name: trimmed,
-        });
-        tagId = created.tag.id;
+        try {
+          const created = await api.post<CreateTagResponse>('/api/tags/create', {
+            name: trimmed,
+          });
+          tagId = created.tag.id;
+        } catch (err) {
+          if (err instanceof APIError && err.status === 409) {
+            const list = await api.get<{ tags: TagSummary[] }>('/api/tags/list');
+            const fallback = list.tags.find((t) => t.name.toLowerCase() === trimmed.toLowerCase());
+            if (!fallback) throw err;
+            tagId = fallback.id;
+          } else {
+            throw err;
+          }
+        }
       }
 
       try {

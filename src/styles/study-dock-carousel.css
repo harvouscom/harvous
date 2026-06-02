@@ -132,6 +132,26 @@
   width: 100%;
 }
 
+/* Single dock collapsed — native `centersCardInSlot` when count == 1; keep max card width centered. */
+.study-dock-carousel__track > .study-dock-carousel__item--compact:only-child {
+  flex: 1 0 auto;
+  width: 100%;
+}
+
+.study-dock-carousel__track > .study-dock-carousel__item--compact:only-child .study-dock-card {
+  --study-dock-max-width: calc(
+    var(--study-dock-paper-width) + 2 * var(--study-dock-paper-overhang) + 24px
+  );
+}
+
+.study-dock-carousel__track > .study-dock-carousel__item--compact:only-child .study-dock-card__outer {
+  width: 100%;
+  max-width: var(--study-dock-max-width);
+  margin-left: auto;
+  margin-right: auto;
+  padding: 0;
+}
+
 /* Bottom-align card borders: no extra outer pad; expanded docks grow upward from the row baseline. */
 .study-dock-carousel__item .study-dock-card__outer {
   padding: 0;

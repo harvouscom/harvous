@@ -23,7 +23,7 @@ extension Logger {
 /// `preferredColorScheme` so all child windows inherit the override.
 private struct AppearanceAwareRoot<Content: View>: View {
     @ViewBuilder let content: Content
-    private let store = HarvousAppearanceStore.shared
+    @Environment(HarvousAppearanceStore.self) private var store
 
     var body: some View {
         content
@@ -162,7 +162,6 @@ struct HarvousApp: App {
                         .environmentObject(appRouter)
                         .environmentObject(spaceStore)
                         .environmentObject(shiftHints)
-                        .environment(HarvousAppearanceStore.shared)
                         #if os(macOS)
                         .environmentObject(macNoteListSelectionCoordinator)
                         .environmentObject(macEditorMenuActionsCoordinator)
@@ -174,6 +173,7 @@ struct HarvousApp: App {
                         #endif
                 }
             }
+            .environment(HarvousAppearanceStore.shared)
             .onAppear {
                 #if os(macOS)
                 shiftHints.isEnabled = true
@@ -210,12 +210,12 @@ struct HarvousApp: App {
                 MacPreferencesRootView()
                     .environmentObject(appRouter)
                     .environmentObject(spaceStore)
-                    .environment(HarvousAppearanceStore.shared)
                     .environment(\.harvousScriptureTheme, spaceStore.scriptureTheme)
                     #if canImport(ClerkKit)
                     .environment(Clerk.shared)
                     #endif
             }
+            .environment(HarvousAppearanceStore.shared)
         }
         .modelContainer(modelContainer)
         // Pane name from `navigationTitle` lives in the title bar next to traffic lights + toolbar (not a second row).

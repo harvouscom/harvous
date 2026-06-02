@@ -63,6 +63,7 @@ import { parseScriptureReference } from '@/utils/scripture-detector';
 import { ensureUnorganizedThread } from '../utils/unorganized-thread';
 import { isMyPileDisplayTitle } from '@/utils/my-pile-thread';
 import { deleteNotesCascadeForUser } from '../utils/delete-note-cascade';
+import { getOrCreateTag } from '../utils/tag-helpers';
 
 const app = new Hono();
 
@@ -843,8 +844,8 @@ app.post('/api/user/import', requireAuth, async (c) => {
 
         for (const tagName of tags) {
           try {
-            const [tagId, wasCreated] = await getOrCreateTag(auth.userId, tagName);
-            if (wasCreated) tagsCreated++;
+            const { tagId, created: tagCreated } = await getOrCreateTag(auth.userId, tagName);
+            if (tagCreated) tagsCreated++;
             const existingRelation = first(await db.select().from(NoteTags)
               .where(and(eq(NoteTags.noteId, newNote.id), eq(NoteTags.tagId, tagId))).limit(1));
             if (!existingRelation) {
@@ -1047,22 +1048,6 @@ async function getOrCreateThread(userId: string, threadTitle: string, threadColo
     userId, isPublic: false, color: finalColor, isPinned: false, createdAt: nowISO(),
   }).returning())!;
   return newThread.id;
-}
-
-async function getOrCreateTag(userId: string, tagName: string): Promise<[string, boolean]> {
-  const trimmedName = tagName.trim();
-  if (!trimmedName) throw new Error('Tag name cannot be empty');
-
-  const allUserTags = await db.select().from(Tags).where(eq(Tags.userId, userId));
-  const existingTag = allUserTags.find(t => t.name.toLowerCase() === trimmedName.toLowerCase());
-  if (existingTag) return [existingTag.id, false];
-
-  const tagId = `tag_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-  await db.insert(Tags).values({
-    id: tagId, name: trimmedName, color: null, category: null,
-    userId, isSystem: false, createdAt: nowISO(),
-  });
-  return [tagId, true];
 }
 
 async function isDuplicateNote(userId: string, title: string | null, content: string): Promise<boolean> {

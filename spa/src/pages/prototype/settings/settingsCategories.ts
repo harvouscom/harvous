@@ -15,7 +15,7 @@ export interface SettingsCategory {
   /** Absolute route for the detail pane. */
   route: string;
   icon: IconName;
-  /** One-line description shown under the title (native `.footnote`). */
+  /** One-line description for narrow drilldown rows (mobile settings list). */
   footnote: string;
 }
 
@@ -29,7 +29,7 @@ export const SETTINGS_CATEGORIES: SettingsCategory[] = [
   },
   {
     key: 'translation',
-    title: 'Default Bible translation',
+    title: 'Default translation',
     route: prototypeHref('settings/translation'),
     icon: 'book-open',
     footnote: 'The translation used across the app.',

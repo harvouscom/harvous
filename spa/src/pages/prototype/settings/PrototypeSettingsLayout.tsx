@@ -61,10 +61,7 @@ export default function PrototypeSettingsLayout() {
             <span className="proto-settings__nav-icon" aria-hidden>
               <Icon name={cat.icon} size={15} />
             </span>
-            <span className="proto-settings__nav-text">
-              <span className="pds-list-title proto-settings__nav-title">{cat.title}</span>
-              <span className="pds-list-preview proto-settings__nav-footnote">{cat.footnote}</span>
-            </span>
+            <span className="proto-settings__nav-title">{cat.title}</span>
           </button>
         );
       })}

@@ -136,6 +136,7 @@ function PrototypeAuthenticatedChrome({ userId }: { userId?: string }) {
     drawerOpen,
     closeDrawer,
     desktopSidebarCollapsed,
+    sidebarExiting,
     sidebarWidth,
     setSidebarWidth,
     persistSidebarWidth,
@@ -303,6 +304,7 @@ function PrototypeAuthenticatedChrome({ userId }: { userId?: string }) {
     isNoteRoute ? 'proto-shell--note-chrome' : '',
     isMobileSidebar && drawerOpen && !hideSidebar ? 'proto-shell--drawer-open' : '',
     !hideSidebar && desktopSidebarCollapsed ? 'proto-shell--sidebar-collapsed' : '',
+    !hideSidebar && sidebarExiting && !isMobileSidebar ? 'proto-shell--sidebar-closing' : '',
   ]
     .filter(Boolean)
     .join(' ');
@@ -323,16 +325,24 @@ function PrototypeAuthenticatedChrome({ userId }: { userId?: string }) {
           <NativeToolbar />
         </header>
 
-        {!hideSidebar && isMobileSidebar && drawerOpen ? (
+        {!hideSidebar && isMobileSidebar && (drawerOpen || sidebarExiting) ? (
           <DrawerOverlay onClose={closeDrawer} />
         ) : null}
 
         {!hideSidebar ? (
-          <aside className="proto-shell__sidebar-cell proto-shell-drawer-sidebar">
+          <aside
+            className={[
+              'proto-shell__sidebar-cell',
+              'proto-shell-drawer-sidebar',
+              sidebarExiting ? 'proto-shell-drawer-sidebar--exiting' : '',
+            ]
+              .filter(Boolean)
+              .join(' ')}
+          >
             <PrototypeSidebar />
           </aside>
         ) : null}
-        {!hideSidebar && !isMobileSidebar && !desktopSidebarCollapsed ? (
+        {!hideSidebar && !isMobileSidebar && !desktopSidebarCollapsed && !sidebarExiting ? (
           <div
             ref={resizeHandleRef}
             className="proto-shell__sidebar-resize-handle"

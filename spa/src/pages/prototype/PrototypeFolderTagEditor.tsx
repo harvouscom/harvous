@@ -24,6 +24,7 @@ import {
   suggestSecondaryCollectionsFromNote,
 } from '@/utils/bible-study-collection-web';
 import { effectiveNoteFolderLabel } from '@/utils/note-folder-display';
+import { dedupeNoteTagsByName } from '@/utils/dedupe-note-tags';
 import { useProtoShell } from '../../layouts/proto-shell-context';
 
 interface PrototypeFolderTagEditorProps {
@@ -209,7 +210,7 @@ export default function PrototypeFolderTagEditor({
     });
   };
 
-  const tags = note.tags ?? [];
+  const tags = useMemo(() => dedupeNoteTagsByName(note.tags ?? []), [note.tags]);
   const existingTags = useMemo(() => tagsList.data?.tags ?? [], [tagsList.data]);
 
   const addTagFromDraft = () => {
@@ -411,7 +412,7 @@ export default function PrototypeFolderTagEditor({
                   <button
                     type="button"
                     className="proto-fte-tag-chip__remove"
-                    onClick={() => removeTag.mutate({ noteId: note.id, tagId: t.id })}
+                    onClick={() => removeTag.mutate({ noteId: note.id, tagName: t.name })}
                     aria-label={`Remove tag ${t.name}`}
                     title={`Remove ${t.name}`}
                   >

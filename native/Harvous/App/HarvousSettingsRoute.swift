@@ -70,7 +70,7 @@ enum HarvousSettingsSidebarItem: String, CaseIterable, Hashable, Identifiable {
         switch self {
         case .account: return "Account"
         case .subscription: return "Subscription"
-        case .defaultBible: return "Default Bible translation"
+        case .defaultBible: return "Default translation"
         case .myChurch: return "My church"
         case .appearance: return "Appearance"
         case .lockPin: return "Lock PIN"

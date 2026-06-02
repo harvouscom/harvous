@@ -3,7 +3,11 @@
 import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { StudyHighlightAccentKey } from '@/utils/study-highlight-accents';
-import { STUDY_HIGHLIGHT_SWATCHES_WITH_NEUTRAL } from '@/utils/study-highlight-accents';
+import {
+  STUDY_HIGHLIGHT_ACCENT_LABELS,
+  STUDY_HIGHLIGHT_SWATCHES_WITH_NEUTRAL,
+  studyDockAccentCssVar,
+} from '@/utils/study-highlight-accents';
 import '@/styles/highlight-dock-web.css';
 
 export interface DockAccentSwatchButtonProps {
@@ -17,15 +21,14 @@ type PopoverPosition = {
   left: number;
 };
 
-/** Resolved stroke/fill color for dock chrome — matches native `resolvedAccentNSColor` (light). */
+/** Resolved dock chrome accent — theme-aware via `study-highlight-accent-colors.css`. */
 export const SCRIPTURE_DOCK_ACCENT_COLORS: Record<StudyHighlightAccentKey, string> = {
-  /** Matches native `HarvousColors.nsScripturePillNeutralAccent` (HSB 0.62, 0.22, 0.52). */
-  neutral: '#676f84',
-  warmAmber: '#e6a820',
-  skyBlue: '#1e88c9',
-  violet: '#8b5cf6',
-  mintGreen: '#43a047',
-  coralRose: '#e0409a',
+  neutral: studyDockAccentCssVar('neutral'),
+  warmAmber: studyDockAccentCssVar('warmAmber'),
+  skyBlue: studyDockAccentCssVar('skyBlue'),
+  violet: studyDockAccentCssVar('violet'),
+  mintGreen: studyDockAccentCssVar('mintGreen'),
+  coralRose: studyDockAccentCssVar('coralRose'),
 };
 
 function SwatchChoice({
@@ -41,16 +44,15 @@ function SwatchChoice({
     <button
       type="button"
       className={`dock-accent-swatch__choice${selected ? ' dock-accent-swatch__choice--selected' : ''}`}
-      title={token}
-      aria-label={token}
+      title={STUDY_HIGHLIGHT_ACCENT_LABELS[token]}
+      aria-label={STUDY_HIGHLIGHT_ACCENT_LABELS[token]}
       aria-pressed={selected}
       onMouseDown={(e) => e.preventDefault()}
       onClick={onPick}
     >
       <span className="dock-accent-swatch__choice-ring" aria-hidden />
       <span
-        className="dock-accent-swatch__choice-fill"
-        style={{ backgroundColor: SCRIPTURE_DOCK_ACCENT_COLORS[token] }}
+        className={`dock-accent-swatch__choice-fill dock-accent-swatch__choice-fill--${token}`}
         aria-hidden
       />
     </button>
@@ -161,7 +163,7 @@ export default function DockAccentSwatchButton({
       <button
         type="button"
         className="dock-accent-swatch__trigger"
-        aria-label={`Accent color: ${selection}`}
+        aria-label={`Accent color: ${STUDY_HIGHLIGHT_ACCENT_LABELS[selection]}`}
         aria-expanded={open}
         aria-haspopup="dialog"
         onMouseDown={(e) => e.preventDefault()}
@@ -169,8 +171,7 @@ export default function DockAccentSwatchButton({
       >
         <span className="dock-accent-swatch__trigger-ring" aria-hidden />
         <span
-          className="dock-accent-swatch__trigger-fill"
-          style={{ backgroundColor: SCRIPTURE_DOCK_ACCENT_COLORS[selection] }}
+          className={`dock-accent-swatch__trigger-fill dock-accent-swatch__trigger-fill--${selection}`}
           aria-hidden
         />
       </button>

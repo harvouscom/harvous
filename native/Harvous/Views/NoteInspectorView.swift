@@ -280,7 +280,7 @@ struct NoteInspectorView: View {
                     .padding(.top, 4)
             } else {
                 FlowLayout(spacing: 8) {
-                    ForEach(note.tags.uniquedPreservingOrder(), id: \.self) { tag in
+                    ForEach(note.tags.uniquedPreservingOrderCaseInsensitive(), id: \.self) { tag in
                         tagChip(tag)
                     }
                 }
@@ -505,13 +505,14 @@ struct NoteInspectorView: View {
         }
 
         note.tags.append(trimmed)
+        note.tags = note.tags.uniquedPreservingOrderCaseInsensitive()
         note.updatedAt = Date()
         draftTag = ""
         persistInspectorMutation()
     }
 
     private func removeTag(_ tag: String) {
-        note.tags.removeAll { $0 == tag }
+        note.tags.removeAll { $0.caseInsensitiveCompare(tag) == .orderedSame }
         note.updatedAt = Date()
         persistInspectorMutation()
     }
@@ -806,15 +807,4 @@ private struct InspectorConnectionRow: View {
     return NoteInspectorView(note: note)
         .frame(width: 280)
         .modelContainer(for: [Note.self], inMemory: true)
-}
-
-private extension Array where Element: Hashable {
-    /// Removes duplicates while preserving the order of first occurrence. Defensive guard for SwiftUI
-    /// `ForEach(_, id: \.self)` over `Note.detectedRefs` / `Note.tags`: legacy notes can hold duplicates
-    /// (e.g. a VOTD note where the same reference appears in body more than once). Duplicate IDs put
-    /// SwiftUI's diff into "undefined results" mode and have manifested as note-switch hangs.
-    func uniquedPreservingOrder() -> [Element] {
-        var seen = Set<Element>()
-        return filter { seen.insert($0).inserted }
-    }
 }

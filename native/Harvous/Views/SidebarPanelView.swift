@@ -9,12 +9,6 @@ private enum SidebarToolbarLayout {
     static let borderedIconClusterSpacing: CGFloat = 7
 }
 
-private struct SidebarColumnWidthPreferenceKey: PreferenceKey {
-    nonisolated static let defaultValue: CGFloat = 0
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
-        value = nextValue()
-    }
-}
 #endif
 
 /// Sidebar — note list with a notes/folders toggle. Collapsible via ⌘\.

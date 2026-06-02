@@ -76,3 +76,27 @@ extension EnvironmentValues {
         set { self[HarvousStudyDockInCarouselKey.self] = newValue }
     }
 }
+
+#if os(macOS)
+private struct HarvousMacStudyDockLeadingInsetKey: EnvironmentKey {
+    static let defaultValue: CGFloat = 0
+}
+
+private struct HarvousMacStudyDockTrailingInsetKey: EnvironmentKey {
+    static let defaultValue: CGFloat = 0
+}
+
+extension EnvironmentValues {
+    /// Leading inset for the macOS study dock carousel (collapsed-sidebar gutter only; 0 when sidebar is open).
+    var harvousMacStudyDockLeadingInset: CGFloat {
+        get { self[HarvousMacStudyDockLeadingInsetKey.self] }
+        set { self[HarvousMacStudyDockLeadingInsetKey.self] = newValue }
+    }
+
+    /// Trailing inset when the note inspector column is open.
+    var harvousMacStudyDockTrailingInset: CGFloat {
+        get { self[HarvousMacStudyDockTrailingInsetKey.self] }
+        set { self[HarvousMacStudyDockTrailingInsetKey.self] = newValue }
+    }
+}
+#endif

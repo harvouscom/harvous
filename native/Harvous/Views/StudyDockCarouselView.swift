@@ -10,6 +10,10 @@ struct StudyDockCarouselView<ActiveContent: View>: View {
     let onMoveEntry: (UUID, Int) -> Void
     /// Editor column width from `NoteEditorView` (avoids measuring horizontal scroll content width).
     var containerTrackWidth: CGFloat? = nil
+    /// macOS detail-column leading gutter when the split sidebar is hidden (detail-only).
+    var leadingContentInset: CGFloat = 0
+    /// macOS note inspector reserve when the inspector column is open.
+    var trailingContentInset: CGFloat = 0
     let collapsedTitle: (StudyDockEntry) -> String
     let collapsedIconAsset: (StudyDockEntry) -> String
     let collapsedAccentTint: (StudyDockEntry) -> Color
@@ -52,6 +56,19 @@ struct StudyDockCarouselView<ActiveContent: View>: View {
         return trackWidth
     }
 
+    /// Viewport width for flex math — full detail width minus macOS sidebar/inspector insets.
+    private var layoutTrackWidth: CGFloat {
+        max(0, resolvedTrackWidth - leadingContentInset - trailingContentInset)
+    }
+
+    private var trackLeadingPadding: CGFloat {
+        leadingContentInset + trackHorizontalPadding / 2
+    }
+
+    private var trackTrailingPadding: CGFloat {
+        trailingContentInset + trackHorizontalPadding / 2
+    }
+
     var body: some View {
         if stack.isEmpty {
             EmptyView()
@@ -70,13 +87,15 @@ struct StudyDockCarouselView<ActiveContent: View>: View {
                                     .id(entry.id)
                             }
                         }
-                        .padding(.horizontal, trackHorizontalPadding / 2)
+                        .padding(.leading, trackLeadingPadding)
+                        .padding(.trailing, trackTrailingPadding)
                         // Extra vertical padding gives dock shadows room to render without
                         // being clipped by the ScrollView's content bounds.
                         .padding(.top, 16)
                         .padding(.bottom, 12)
                         .animation(draggedEntryId == nil ? HarvousAnimation.spring : nil, value: scrollCenterToken)
                     }
+                    .scrollTargetLayout()
                     .frame(maxWidth: .infinity, alignment: .leading)
                     // A horizontal ScrollView otherwise greedily fills all offered HEIGHT. Inside the
                     // bottom editor overlay that means it covers the whole editor and swallows every
@@ -85,16 +104,18 @@ struct StudyDockCarouselView<ActiveContent: View>: View {
                     .fixedSize(horizontal: false, vertical: true)
                     // Allow dock card shadows to bleed outside the scroll viewport boundary.
                     .scrollClipDisabled()
+                    .scrollTargetBehavior(.viewAligned)
+                    #if os(macOS)
+                    .scrollBounceBehavior(.basedOnSize, axes: .horizontal)
+                    #endif
                     .scrollDisabled(draggedEntryId != nil)
+                    .contentShape(Rectangle())
                     .accessibilityElement(children: .contain)
                     .accessibilityLabel("Open study docks")
                     .onAppear {
                         scrollExpandedActiveToCenter(scrollProxy: scrollProxy, delayed: false)
                     }
                     .onChange(of: scrollCenterToken) { _, _ in
-                        scrollExpandedActiveToCenter(scrollProxy: scrollProxy, delayed: true)
-                    }
-                    .onChange(of: resolvedTrackWidth) { _, _ in
                         scrollExpandedActiveToCenter(scrollProxy: scrollProxy, delayed: true)
                     }
                     .onDisappear {
@@ -122,7 +143,7 @@ struct StudyDockCarouselView<ActiveContent: View>: View {
     private func carouselSlot(entry: StudyDockEntry) -> some View {
         let isActive = entry.id == stack.activeId
         let isExpandedSlot = isActive && entry.expanded
-        let slotWidth = widthForEntry(entry, trackWidth: resolvedTrackWidth)
+        let slotWidth = widthForEntry(entry, trackWidth: layoutTrackWidth)
         let isDragging = draggedEntryId == entry.id
         let centersCardInSlot = isExpandedSlot || stack.entries.count == 1
 

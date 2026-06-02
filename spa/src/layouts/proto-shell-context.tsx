@@ -57,6 +57,8 @@ type ProtoShellContextValue = {
   isMobileSidebar: boolean;
   /** Desktop only: hides the pinned sidebar column (toolbar toggle ⌘\ equivalent). */
   desktopSidebarCollapsed: boolean;
+  /** True during sidebar close animation — keep the panel mounted (mobile drawer + desktop collapse). */
+  sidebarExiting: boolean;
   toggleDesktopSidebar: () => void;
   /** Desktop sidebar width in px, clamped to Mac-like bounds. */
   sidebarWidth: number;
@@ -117,6 +119,8 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
   const [inspectorOpen, setInspectorOpen] = useState(false);
   const [inspectorExiting, setInspectorExiting] = useState(false);
   const inspectorExitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [sidebarExiting, setSidebarExiting] = useState(false);
+  const sidebarExitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [sidebarListMode, setSidebarListModeState] = useState<SidebarListMode>('notes');
   const [sidebarFolderDrilldown, setSidebarFolderDrilldown] = useState<SidebarFolderDrilldown>(undefined);
   const [sidebarDictionarySlug, setSidebarDictionarySlug] = useState<string | undefined>(undefined);
@@ -144,10 +148,63 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
     return () => mq.removeEventListener('change', sync);
   }, []);
 
-  const toggleDrawer = useCallback(() => setDrawerOpen((x) => !x), []);
-  const openDrawer = useCallback(() => setDrawerOpen(true), []);
-  const closeDrawer = useCallback(() => setDrawerOpen(false), []);
-  const toggleDesktopSidebar = useCallback(() => setDesktopSidebarCollapsed((x) => !x), []);
+  /** Duration must match sidebar exit CSS (260ms — same as inspector). */
+  const SIDEBAR_EXIT_MS = 260;
+
+  const cancelSidebarExit = useCallback(() => {
+    if (sidebarExitTimerRef.current) clearTimeout(sidebarExitTimerRef.current);
+    sidebarExitTimerRef.current = null;
+    setSidebarExiting(false);
+  }, []);
+
+  const beginSidebarClose = useCallback(
+    (complete: () => void) => {
+      if (sidebarExitTimerRef.current) clearTimeout(sidebarExitTimerRef.current);
+      setSidebarExiting(true);
+      sidebarExitTimerRef.current = setTimeout(() => {
+        complete();
+        setSidebarExiting(false);
+        sidebarExitTimerRef.current = null;
+      }, SIDEBAR_EXIT_MS);
+    },
+    [],
+  );
+
+  const toggleDrawer = useCallback(() => {
+    setDrawerOpen((prev) => {
+      if (prev) {
+        beginSidebarClose(() => setDrawerOpen(false));
+        return true;
+      }
+      cancelSidebarExit();
+      return true;
+    });
+  }, [beginSidebarClose, cancelSidebarExit]);
+  const openDrawer = useCallback(() => {
+    cancelSidebarExit();
+    setDrawerOpen(true);
+  }, [cancelSidebarExit]);
+  const closeDrawer = useCallback(() => {
+    setDrawerOpen((prev) => {
+      if (!prev) return false;
+      beginSidebarClose(() => setDrawerOpen(false));
+      return true;
+    });
+  }, [beginSidebarClose]);
+  const collapseDesktopSidebar = useCallback(() => {
+    if (desktopSidebarCollapsed || sidebarExiting) return;
+    /* Collapse grid immediately so main/editor ease in sync with the panel exit. */
+    setDesktopSidebarCollapsed(true);
+    beginSidebarClose(() => undefined);
+  }, [beginSidebarClose, desktopSidebarCollapsed, sidebarExiting]);
+  const toggleDesktopSidebar = useCallback(() => {
+    if (desktopSidebarCollapsed) {
+      cancelSidebarExit();
+      setDesktopSidebarCollapsed(false);
+      return;
+    }
+    collapseDesktopSidebar();
+  }, [cancelSidebarExit, collapseDesktopSidebar, desktopSidebarCollapsed]);
   const setSidebarWidth = useCallback((width: number) => {
     setSidebarWidthState(clampSidebarWidth(width));
   }, []);
@@ -166,9 +223,18 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
     if (mode !== 'dictionary') setSidebarDictionarySlug(undefined);
   }, []);
   const ensureSidebarExpanded = useCallback(() => {
-    if (isMobileSidebar) openDrawer();
+    cancelSidebarExit();
+    if (isMobileSidebar) setDrawerOpen(true);
     else setDesktopSidebarCollapsed(false);
-  }, [isMobileSidebar, openDrawer]);
+  }, [cancelSidebarExit, isMobileSidebar]);
+
+  useEffect(
+    () => () => {
+      if (sidebarExitTimerRef.current) clearTimeout(sidebarExitTimerRef.current);
+      if (inspectorExitTimerRef.current) clearTimeout(inspectorExitTimerRef.current);
+    },
+    [],
+  );
   /** Duration must match the CSS exit animation length (260ms). */
   const INSPECTOR_EXIT_MS = 260;
 
@@ -224,6 +290,7 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
       closeDrawer,
       isMobileSidebar,
       desktopSidebarCollapsed,
+      sidebarExiting,
       toggleDesktopSidebar,
       sidebarWidth,
       setSidebarWidth,
@@ -265,6 +332,7 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
       closeDrawer,
       isMobileSidebar,
       desktopSidebarCollapsed,
+      sidebarExiting,
       toggleDesktopSidebar,
       sidebarWidth,
       setSidebarWidth,

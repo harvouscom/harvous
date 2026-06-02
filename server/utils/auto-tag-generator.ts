@@ -1,6 +1,7 @@
 import { randomUUID } from 'crypto';
 import { findKeywordsInText, findKeywordsInTextWithPriority, BIBLE_STUDY_KEYWORDS, type BibleStudyKeyword } from '@/utils/bible-study-keywords';
 import { db, first, Tags, NoteTags, eq, and, now } from '../db';
+import { getOrCreateTag, noteHasTagWithNormalizedName } from './tag-helpers';
 
 /** Confidence threshold for Harvous system user / automated note creation and admin regeneration. */
 export const AUTO_TAG_CONFIDENCE_SYSTEM_AUTOGEN = 0.65;
@@ -159,23 +160,12 @@ export async function applyAutoTags(
       let tagId = suggestion.tagId;
       if (!tagId) {
         try {
-          const allUserTags = await db.select().from(Tags).where(eq(Tags.userId, userId));
-          const existingTag = allUserTags.find(t => t.name.toLowerCase() === suggestion.keyword.toLowerCase());
-          if (existingTag) {
-            tagId = existingTag.id;
-          } else {
-            const newTagId = `tag_${randomUUID()}`;
-            await db.insert(Tags).values({
-              id: newTagId,
-              name: suggestion.keyword,
-              color: getColorForCategory(suggestion.category),
-              category: suggestion.category,
-              userId: userId,
-              isSystem: true,
-              createdAt: now(),
-            });
-            tagId = newTagId;
-          }
+          const { tagId: resolvedId } = await getOrCreateTag(userId, suggestion.keyword, {
+            color: getColorForCategory(suggestion.category),
+            category: suggestion.category,
+            isSystem: true,
+          });
+          tagId = resolvedId;
         } catch (tagError) {
           console.error(`Error handling tag ${suggestion.keyword}:`, tagError);
           errors.push(`Failed to handle tag "${suggestion.keyword}": ${tagError}`);
@@ -195,6 +185,7 @@ export async function applyAutoTags(
           .where(and(eq(NoteTags.noteId, noteId), eq(NoteTags.tagId, tagId)))
           .limit(1));
         if (existingRelation) continue;
+        if (await noteHasTagWithNormalizedName(noteId, suggestion.keyword, userId)) continue;
       }
 
       const relationId = `note_tag_${randomUUID()}`;

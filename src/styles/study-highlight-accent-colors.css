@@ -1,0 +1,36 @@
+/**
+ * Study dock / swatch accent fills — light/dark values match native
+ * `StudyHighlightAccentToken.resolvedAccentNSColor` (EditorStudyHighlight.swift).
+ * Scripture neutral uses `HarvousColors.nsScripturePillNeutralAccent` (HSB 0.62, 0.22, 0.52).
+ */
+:root {
+  /* Picker swatch + explicit neutral token (`resolvedAccentNSColor` gray). */
+  --study-dock-accent-neutral: #9e9e9e;
+  /* Scripture dock chrome when accent is nil / neutral (`HarvousColors.nsScripturePillNeutralAccent`). */
+  --study-dock-scripture-pill-neutral: #677085;
+  --study-dock-accent-warmAmber: #f2cf13;
+  --study-dock-accent-skyBlue: #30a8db;
+  --study-dock-accent-violet: #9d5ac7;
+  --study-dock-accent-mintGreen: #2bc71e;
+  --study-dock-accent-coralRose: #eb598e;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-color-scheme='light']) {
+    --study-dock-accent-neutral: #b8b8b8;
+    --study-dock-accent-warmAmber: #ffd914;
+    --study-dock-accent-skyBlue: #35baf2;
+    --study-dock-accent-violet: #ba6aeb;
+    --study-dock-accent-mintGreen: #35f224;
+    --study-dock-accent-coralRose: #ff619a;
+  }
+}
+
+:root[data-color-scheme='dark'] {
+  --study-dock-accent-neutral: #b8b8b8;
+  --study-dock-accent-warmAmber: #ffd914;
+  --study-dock-accent-skyBlue: #35baf2;
+  --study-dock-accent-violet: #ba6aeb;
+  --study-dock-accent-mintGreen: #35f224;
+  --study-dock-accent-coralRose: #ff619a;
+}

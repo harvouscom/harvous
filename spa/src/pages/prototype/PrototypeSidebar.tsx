@@ -32,6 +32,8 @@ import type { PrototypeHighlightStudyThreadRow } from '../../hooks/queries/usePr
 import { usePrototypeSpaceStudyThreadHighlights } from '../../hooks/queries/usePrototypeSpaceStudyThreadHighlights';
 import { usePrototypeSpaceScriptureIndex } from '../../hooks/queries/usePrototypeSpaceScriptureIndex';
 import {
+  highlightEntryKindAriaLabel,
+  highlightEntryKindIconName,
   isScripturePassageHighlightRow,
   prototypeHighlightListTitle,
   prototypeHighlightSubtitlePreview,
@@ -106,19 +108,20 @@ type PrototypeSidebarNoteRowProps = {
   onOpenNote: (row: SpaceNoteRow) => void;
 };
 
+/** Native `StudyHighlightAccentToken.pickerChoicesWithNeutral` order + labels. */
 const HIGHLIGHT_ACCENT_SWATCHES: { token: string; label: string; cssVar: string }[] = [
-  { token: 'warmAmber', label: 'Warm amber', cssVar: '--pds-highlight-warm-amber' },
-  { token: 'skyBlue', label: 'Sky blue', cssVar: '--pds-highlight-sky-blue' },
-  { token: 'violet', label: 'Violet', cssVar: '--pds-highlight-violet' },
-  { token: 'mintGreen', label: 'Mint green', cssVar: '--pds-highlight-mint-green' },
-  { token: 'coralRose', label: 'Coral rose', cssVar: '--pds-highlight-coral-rose' },
   { token: 'neutral', label: 'Neutral', cssVar: '--pds-highlight-neutral' },
+  { token: 'warmAmber', label: 'Amber', cssVar: '--pds-highlight-warm-amber' },
+  { token: 'skyBlue', label: 'Sky', cssVar: '--pds-highlight-sky-blue' },
+  { token: 'violet', label: 'Violet', cssVar: '--pds-highlight-violet' },
+  { token: 'mintGreen', label: 'Mint', cssVar: '--pds-highlight-mint-green' },
+  { token: 'coralRose', label: 'Coral', cssVar: '--pds-highlight-coral-rose' },
 ];
 
 function HighlightRow({
   isActive,
   isPinned,
-  isReferenceRow,
+  entryKind,
   title,
   line,
   currentAccent,
@@ -130,7 +133,7 @@ function HighlightRow({
 }: {
   isActive: boolean;
   isPinned: boolean;
-  isReferenceRow: boolean;
+  entryKind: string | null | undefined;
   title: string;
   line: string;
   currentAccent: string | null;
@@ -140,6 +143,7 @@ function HighlightRow({
   onDelete: () => void;
   isDeleting: boolean;
 }) {
+  const kindIcon = highlightEntryKindIconName(entryKind);
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRootRef = useRef<HTMLDivElement>(null);
 
@@ -169,20 +173,22 @@ function HighlightRow({
         setMenuOpen(true);
       }}
     >
-      <button type="button" className="proto-note-row__main" onClick={onOpen}>
+      <button
+        type="button"
+        className="proto-note-row__main"
+        onClick={onOpen}
+        aria-label={`${highlightEntryKindAriaLabel(entryKind)}: ${title}`}
+      >
         <div className="proto-note-row__title-line">
           {isPinned ? (
             <span className="proto-note-row__pin" aria-hidden>
               <Icon name="thumbtack" size={11} />
             </span>
           ) : null}
-          <div
-            className="pds-list-title proto-note-row__title-text"
-            style={isReferenceRow ? { display: 'inline-flex', alignItems: 'center', gap: 6 } : undefined}
-          >
-            {isReferenceRow ? <Icon name="lines-leaning" size={11} aria-hidden /> : null}
-            <span>{title}</span>
-          </div>
+          <span className="proto-note-row__kind-icon" aria-hidden>
+            <Icon name={kindIcon} size={11} />
+          </span>
+          <span className="pds-list-title proto-note-row__title-text">{title}</span>
         </div>
         {line ? <div className="pds-list-preview proto-note-row__preview">{line}</div> : null}
       </button>
@@ -1099,7 +1105,6 @@ export default function PrototypeSidebar() {
                       const sub = prototypeHighlightSubtitlePreview(r, r.parentNoteTitle ?? '');
                       const line = rel && sub ? `${rel}  ${sub}` : rel || sub;
                       const title = prototypeHighlightListTitle(r);
-                      const isReferenceRow = r.entryKind === 'reference';
                       const isPinned = pinnedHighlightIds.includes(r.id);
                       const activeRow =
                         standaloneScripturePassage?.focusedHighlightThreadId === r.id ||
@@ -1109,7 +1114,7 @@ export default function PrototypeSidebar() {
                           key={r.id}
                           isActive={activeRow}
                           isPinned={isPinned}
-                          isReferenceRow={isReferenceRow}
+                          entryKind={r.entryKind}
                           title={title}
                           line={line}
                           currentAccent={r.highlightAccentRaw}

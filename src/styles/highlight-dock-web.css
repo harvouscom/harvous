@@ -1,4 +1,5 @@
-/* Highlight dock — swatch gradients + card body (shell in study-dock-card.css). */
+/* Highlight dock — accent swatches + card body (shell in study-dock-card.css). */
+@import './study-highlight-accent-colors.css';
 
 .highlight-dock-web {
   background: transparent;
@@ -181,7 +182,7 @@
   color: var(--pds-text-primary, #1d1d1f);
 }
 
-/* Swatch gradients — used by DockAccentSwatchButton popover and reference dock inline bars */
+/* Inline swatch row (reference dock highlight bar) — native resolvedAccent fills */
 .highlight-dock-web__swatch {
   width: 26px;
   height: 26px;
@@ -190,6 +191,7 @@
   padding: 0;
   cursor: pointer;
   flex-shrink: 0;
+  background: var(--study-dock-accent-warmAmber);
 }
 
 .highlight-dock-web__swatch--selected {
@@ -197,27 +199,27 @@
 }
 
 .highlight-dock-web__swatch--neutral {
-  background: linear-gradient(135deg, #c8c8c8 0%, #9a9a9a 100%);
+  background: var(--study-dock-accent-neutral);
 }
 
 .highlight-dock-web__swatch--warmAmber {
-  background: linear-gradient(135deg, #ffd54f 0%, #ffb300 100%);
+  background: var(--study-dock-accent-warmAmber);
 }
 
 .highlight-dock-web__swatch--skyBlue {
-  background: linear-gradient(135deg, #4fc3f7 0%, #0288d1 100%);
+  background: var(--study-dock-accent-skyBlue);
 }
 
 .highlight-dock-web__swatch--violet {
-  background: linear-gradient(135deg, #b388ff 0%, #7c4dff 100%);
+  background: var(--study-dock-accent-violet);
 }
 
 .highlight-dock-web__swatch--mintGreen {
-  background: linear-gradient(135deg, #69f0ae 0%, #00c853 100%);
+  background: var(--study-dock-accent-mintGreen);
 }
 
 .highlight-dock-web__swatch--coralRose {
-  background: linear-gradient(135deg, #ff80ab 0%, #e91e63 100%);
+  background: var(--study-dock-accent-coralRose);
 }
 
 .highlight-dock-web__btn {
@@ -392,4 +394,34 @@
   border-radius: 999px;
   pointer-events: none;
   flex-shrink: 0;
+}
+
+.dock-accent-swatch__choice-fill--neutral,
+.dock-accent-swatch__trigger-fill--neutral {
+  background-color: var(--study-dock-accent-neutral);
+}
+
+.dock-accent-swatch__choice-fill--warmAmber,
+.dock-accent-swatch__trigger-fill--warmAmber {
+  background-color: var(--study-dock-accent-warmAmber);
+}
+
+.dock-accent-swatch__choice-fill--skyBlue,
+.dock-accent-swatch__trigger-fill--skyBlue {
+  background-color: var(--study-dock-accent-skyBlue);
+}
+
+.dock-accent-swatch__choice-fill--violet,
+.dock-accent-swatch__trigger-fill--violet {
+  background-color: var(--study-dock-accent-violet);
+}
+
+.dock-accent-swatch__choice-fill--mintGreen,
+.dock-accent-swatch__trigger-fill--mintGreen {
+  background-color: var(--study-dock-accent-mintGreen);
+}
+
+.dock-accent-swatch__choice-fill--coralRose,
+.dock-accent-swatch__trigger-fill--coralRose {
+  background-color: var(--study-dock-accent-coralRose);
 }

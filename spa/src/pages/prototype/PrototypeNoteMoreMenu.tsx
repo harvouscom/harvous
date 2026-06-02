@@ -12,7 +12,7 @@ import { APIError } from '../../lib/api';
 import { useDeleteNote } from '../../hooks/mutations/useDeleteNote';
 import { usePinSpaceNote } from '../../hooks/mutations/usePinSpaceNote';
 import { useProtoShell } from '../../layouts/proto-shell-context';
-import { PROTO_TOOLBAR_ICON_SIZE } from './proto-toolbar-tokens';
+import { PROTO_TOOLBAR_ICON_SIZE, PROTO_TOOLBAR_ORB_ICON_SIZE } from './proto-toolbar-tokens';
 import ProtoConfirmDialog from './ProtoConfirmDialog';
 import ProtoPopoverShell from './ProtoPopoverShell';
 
@@ -145,7 +145,7 @@ export default function PrototypeNoteMoreMenu({
           disabled={pinNote.isPending || deleteNote.isPending}
           onClick={() => setOpen((x) => !x)}
         >
-          <Icon name="ellipsis" size={iconSize} />
+          <Icon name="ellipsis" size={PROTO_TOOLBAR_ORB_ICON_SIZE} />
           {overflowActions && isPublic ? (
             <span className="proto-toolbar-icon-btn__share-dot" aria-hidden />
           ) : null}

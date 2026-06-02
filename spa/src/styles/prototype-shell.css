@@ -78,11 +78,25 @@
 }
 
 .proto-shell__study-dock-layer__slot:not(:empty) {
-  pointer-events: auto;
+  /* Only dock cards capture clicks — padded/empty slot area must not block the inspector. */
+  pointer-events: none;
+  /* Cards start in the main column; the layer still spans behind the sidebar for glass continuity. */
+  padding-left: var(--proto-sidebar-w-clamped);
+  box-sizing: border-box;
 }
 
 .proto-shell__study-dock-layer__slot:empty {
   display: none;
+}
+
+.proto-shell--no-sidebar .proto-shell__study-dock-layer__slot:not(:empty),
+.proto-shell--sidebar-collapsed .proto-shell__study-dock-layer__slot:not(:empty) {
+  padding-left: 0;
+}
+
+/* Desktop note inspector (absolute in note pane) — keep carousel out of the right panel. */
+.proto-shell:has(.proto-note-pane-row--inspector-open) .proto-shell__study-dock-layer__slot:not(:empty) {
+  padding-right: var(--pds-inspector-reserve-w);
 }
 
 .proto-shell__study-dock-layer .scripture-pill-chrome,
@@ -138,13 +152,19 @@
 }
 
 /* Desktop sidebar collapsed (⌘\ equivalent) */
-.proto-shell--sidebar-collapsed .proto-shell__sidebar-cell.proto-shell-drawer-sidebar {
+.proto-shell--sidebar-collapsed:not(.proto-shell--sidebar-closing) .proto-shell__sidebar-cell.proto-shell-drawer-sidebar {
   width: 0;
   min-width: 0;
   padding: 0;
   /* Stay opaque while the grid column animates — opacity:0 reveals white html canvas. */
   border-right: none;
   overflow: hidden;
+  pointer-events: none;
+}
+
+/* Close: let the grid column shrink smoothly; panel exit animation runs inside the cell. */
+.proto-shell--sidebar-collapsed.proto-shell--sidebar-closing .proto-shell__sidebar-cell.proto-shell-drawer-sidebar {
+  overflow: visible;
   pointer-events: none;
 }
 .proto-shell--sidebar-collapsed:not(.proto-shell--no-sidebar) {
@@ -399,6 +419,11 @@ html.harvous-prototype-route .proto-shell__toolbar-cell::after {
     grid-template-columns: minmax(0, 1fr);
   }
 
+  /* Drawer sidebar overlays the shell — dock uses full width like the editor column. */
+  .proto-shell__study-dock-layer__slot:not(:empty) {
+    padding-left: 0;
+  }
+
   .proto-shell--inspector-open {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -486,6 +511,22 @@ html.harvous-prototype-route .proto-shell__toolbar-cell::after {
     transform: translateX(0);
   }
 
+  .proto-shell-drawer-sidebar--exiting {
+    animation: proto-sidebar-mobile-out var(--pds-inspector-transition-duration) var(--pds-inspector-transition-ease) both;
+    transition: none;
+  }
+
+  @keyframes proto-sidebar-mobile-out {
+    from {
+      transform: translateX(0);
+      opacity: 1;
+    }
+    to {
+      transform: translateX(calc(-100% - 16px));
+      opacity: 1;
+    }
+  }
+
   .proto-shell__main-cell {
     border-left: none;
     grid-column: 1 / -1;
@@ -547,19 +588,21 @@ html.harvous-prototype-route .proto-shell__toolbar-cell::after {
 
   @media (prefers-reduced-motion: reduce) {
     .proto-inspector-mobile-panel,
-    .proto-inspector-mobile-panel--exiting {
+    .proto-inspector-mobile-panel--exiting,
+    .proto-shell-drawer-sidebar--exiting {
       animation: none;
     }
   }
 }
 
 @media (min-width: 900px) {
-  /* Animate expand only — collapsing snaps the grid so the gutter never shows html canvas. */
+  /* Grid + chrome padding ease on open and on close (close uses --sidebar-closing). */
   .proto-shell {
     transition: grid-template-columns 0.26s cubic-bezier(0.32, 0.72, 0.24, 1);
   }
 
-  .proto-shell--sidebar-collapsed {
+  /* After close animation, snap collapsed layout (avoids transition fighting resize). */
+  .proto-shell--sidebar-collapsed:not(.proto-shell--sidebar-closing) {
     transition: none;
   }
 
@@ -585,6 +628,19 @@ html.harvous-prototype-route .proto-shell__toolbar-cell::after {
     top: auto;
     bottom: auto;
     left: auto;
+  }
+
+  .proto-shell-drawer-sidebar--exiting .proto-sidebar-root {
+    animation: proto-sidebar-desktop-out var(--pds-inspector-transition-duration) var(--pds-inspector-transition-ease) both;
+  }
+
+  @keyframes proto-sidebar-desktop-out {
+    from {
+      transform: translateX(0);
+    }
+    to {
+      transform: translateX(calc(-100% - 16px));
+    }
   }
 
   .proto-shell-drawer-overlay {
@@ -636,14 +692,19 @@ html.harvous-prototype-route .proto-shell__toolbar-cell::after {
   .proto-shell__editor-chrome-row .proto-editor-bottom-bar__format,
   .proto-shell__editor-chrome-row .proto-editor-bottom-bar__scripture,
   .proto-shell__editor-chrome-row .proto-editor-bottom-bar__highlight,
-  .proto-shell__editor-chrome-row .proto-editor-bottom-bar__reference {
-    transition: padding-left 0.26s cubic-bezier(0.32, 0.72, 0.24, 1);
+  .proto-shell__editor-chrome-row .proto-editor-bottom-bar__reference,
+  .proto-shell__study-dock-layer__slot:not(:empty),
+  .proto-shell:has(.proto-note-pane-row--inspector-open) .proto-shell__study-dock-layer__slot:not(:empty) {
+    transition:
+      padding-left 0.26s cubic-bezier(0.32, 0.72, 0.24, 1),
+      padding-right var(--pds-inspector-transition-duration) var(--pds-inspector-transition-ease);
   }
 
-  .proto-shell--sidebar-collapsed .proto-shell__editor-chrome-row .proto-editor-bottom-bar__format,
-  .proto-shell--sidebar-collapsed .proto-shell__editor-chrome-row .proto-editor-bottom-bar__scripture,
-  .proto-shell--sidebar-collapsed .proto-shell__editor-chrome-row .proto-editor-bottom-bar__highlight,
-  .proto-shell--sidebar-collapsed .proto-shell__editor-chrome-row .proto-editor-bottom-bar__reference {
+  .proto-shell--sidebar-collapsed:not(.proto-shell--sidebar-closing) .proto-shell__editor-chrome-row .proto-editor-bottom-bar__format,
+  .proto-shell--sidebar-collapsed:not(.proto-shell--sidebar-closing) .proto-shell__editor-chrome-row .proto-editor-bottom-bar__scripture,
+  .proto-shell--sidebar-collapsed:not(.proto-shell--sidebar-closing) .proto-shell__editor-chrome-row .proto-editor-bottom-bar__highlight,
+  .proto-shell--sidebar-collapsed:not(.proto-shell--sidebar-closing) .proto-shell__editor-chrome-row .proto-editor-bottom-bar__reference,
+  .proto-shell--sidebar-collapsed:not(.proto-shell--sidebar-closing) .proto-shell__study-dock-layer__slot:not(:empty) {
     transition: none;
   }
 
@@ -652,8 +713,11 @@ html.harvous-prototype-route .proto-shell__toolbar-cell::after {
     .proto-shell__editor-chrome-row .proto-editor-bottom-bar__format,
     .proto-shell__editor-chrome-row .proto-editor-bottom-bar__scripture,
     .proto-shell__editor-chrome-row .proto-editor-bottom-bar__highlight,
-    .proto-shell__editor-chrome-row .proto-editor-bottom-bar__reference {
+    .proto-shell__editor-chrome-row .proto-editor-bottom-bar__reference,
+    .proto-shell__study-dock-layer__slot:not(:empty),
+    .proto-shell-drawer-sidebar--exiting .proto-sidebar-root {
       transition: none;
+      animation: none;
     }
   }
 }

@@ -143,7 +143,7 @@
 }
 
 /* Header primary label — same typography collapsed and expanded (beats global button 700). */
-.study-dock-card .scripture-pill-chrome__title-input,
+.study-dock-card .scripture-pill-chrome__title-text,
 .study-dock-card .highlight-dock-web__title-input,
 .study-dock-card .reference-dock-web__headword,
 .study-dock-card__header-primary-text {

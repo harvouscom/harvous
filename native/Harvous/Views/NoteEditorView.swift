@@ -102,6 +102,10 @@ struct NoteEditorView: View {
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.harvousIsIPadSplitLayout) private var isIPadSplitLayout
+    #if os(macOS)
+    @Environment(\.harvousMacStudyDockLeadingInset) private var macStudyDockLeadingInset
+    @Environment(\.harvousMacStudyDockTrailingInset) private var macStudyDockTrailingInset
+    #endif
     @EnvironmentObject private var spaceStore: SpaceStore
 
     /// When set, pushes `LinkedNotesView` for this linked-notes entry id (macOS split column + iOS nested stack).
@@ -1083,8 +1087,16 @@ struct NoteEditorView: View {
                             #if os(iOS)
                             .autocorrectionDisabled(false)
                             .textInputAutocapitalization(.sentences)
+                            .submitLabel(.next)
 #endif
                             .focused($titleFocused)
+                            .onSubmit {
+                                moveFocusFromTitleToBody()
+                            }
+                            .onKeyPress(.return) {
+                                moveFocusFromTitleToBody()
+                                return .handled
+                            }
                             .onChange(of: titleFocused) { _, focused in
                                 guard focused else { return }
                                 DispatchQueue.main.async {
@@ -1096,12 +1108,8 @@ struct NoteEditorView: View {
                             .padding(.bottom, 12)
                             .onChange(of: title) { _, newValue in
                                 if newValue.contains("\n") {
-                                    let cleaned = newValue.replacingOccurrences(of: "\n", with: "")
-                                    DispatchQueue.main.async {
-                                        title = cleaned
-                                        titleFocused = false
-                                        proxy.refocusTextView()
-                                    }
+                                    title = newValue.replacingOccurrences(of: "\n", with: "")
+                                    moveFocusFromTitleToBody()
                                 } else {
                                     scheduleAutosaveForCanvas(note: note)
                                 }
@@ -1197,11 +1205,16 @@ struct NoteEditorView: View {
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 #if os(macOS)
-                // Overlay on the full-width HStack (not the 794pt editor column) so the carousel
-                // spans the whole window — matching web where the dock fills the browser viewport.
+                // Overlay on the detail-column HStack (not the clamped editor paper) so the carousel
+                // spans the full detail width; leading inset applies only when the sidebar is hidden.
                 .overlay(alignment: .bottom) {
                     VStack(alignment: .leading, spacing: studyDockStackSpacing) {
-                        studyDockCarouselLayer(note: note, containerTrackWidth: outerGeo.size.width)
+                        studyDockCarouselLayer(
+                            note: note,
+                            containerTrackWidth: outerGeo.size.width,
+                            leadingContentInset: macStudyDockLeadingInset,
+                            trailingContentInset: macStudyDockTrailingInset
+                        )
                         activeURLPillDock(note: note)
                     }
                     .frame(maxWidth: .infinity, alignment: .bottomLeading)
@@ -1597,7 +1610,12 @@ struct NoteEditorView: View {
     }
 
     @ViewBuilder
-    private func studyDockCarouselLayer(note: Note, containerTrackWidth: CGFloat) -> some View {
+    private func studyDockCarouselLayer(
+        note: Note,
+        containerTrackWidth: CGFloat,
+        leadingContentInset: CGFloat = 0,
+        trailingContentInset: CGFloat = 0
+    ) -> some View {
         let excerptByThreadId = studyDockExcerptByThreadId()
         let focusTitleByThreadId = studyDockFocusTitleByThreadId()
         StudyDockCarouselView(
@@ -1616,6 +1634,8 @@ struct NoteEditorView: View {
                 studyDockStack = stack
             },
             containerTrackWidth: containerTrackWidth,
+            leadingContentInset: leadingContentInset,
+            trailingContentInset: trailingContentInset,
             collapsedTitle: { entry in
                 studyDockCollapsedTitle(
                     entry: entry,
@@ -2094,6 +2114,14 @@ struct NoteEditorView: View {
             .navigationBarTitleDisplayMode(.inline)
         }
         #endif
+    }
+
+    /// Return in the title field moves focus to the body editor (Apple Notes parity).
+    private func moveFocusFromTitleToBody() {
+        titleFocused = false
+        DispatchQueue.main.async {
+            proxy.refocusTextView()
+        }
     }
 
     private func scripturePillTapped(reference: String, translation: String, range: NSRange) {

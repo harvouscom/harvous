@@ -126,6 +126,16 @@ struct MacRootView: View {
         )
     }
 
+    /// Leading gutter for the study dock carousel in the detail column only.
+    /// When the sidebar is visible, the split already offsets the editor — do not add sidebar width again.
+    private var macStudyDockLeadingInset: CGFloat {
+        splitColumnVisibility == .detailOnly ? StudyDockLayoutMetrics.macCollapsedSidebarLeadingGutter : 0
+    }
+
+    private var macStudyDockTrailingInset: CGFloat {
+        showInspector ? StudyDockLayoutMetrics.macInspectorTrailingReserve : 0
+    }
+
     private var macNavigationSplit: some View {
         NavigationSplitView(columnVisibility: animatedSplitVisibility) {
             SidebarPanelView(
@@ -143,6 +153,8 @@ struct MacRootView: View {
                         onNavigateToLinkedNotes: { threadNavPath.append($0) },
                         showInspector: $showInspector as Binding<Bool>
                     )
+                    .environment(\.harvousMacStudyDockLeadingInset, macStudyDockLeadingInset)
+                    .environment(\.harvousMacStudyDockTrailingInset, macStudyDockTrailingInset)
                     if selectedNote == nil, !lazyDraftComposeActive, let dock = appRouter.standaloneScripturePassageDock {
                         StandaloneScripturePassageDockHost(
                             presentation: dock,

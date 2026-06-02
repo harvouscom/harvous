@@ -15,7 +15,7 @@ import { useProtoShell } from '../../layouts/proto-shell-context';
 import { effectiveNoteFolderLabel } from '@/utils/note-folder-display';
 import AccountMenu from './AccountMenu';
 import SpaceSwitcherMenu from './SpaceSwitcherMenu';
-import { PROTO_TOOLBAR_ICON_SIZE } from './proto-toolbar-tokens';
+import { PROTO_TOOLBAR_FOLDER_CHIP_ICON_SIZE, PROTO_TOOLBAR_ORB_ICON_SIZE } from './proto-toolbar-tokens';
 import PrototypeSharePopover from './PrototypeSharePopover';
 import PrototypeFindInNotePopover from './PrototypeFindInNotePopover';
 import PrototypeFolderPopover from './PrototypeFolderPopover';
@@ -47,6 +47,7 @@ export default function NativeToolbar() {
     toggleDrawer,
     toggleDesktopSidebar,
     desktopSidebarCollapsed,
+    sidebarExiting,
     inspectorOpen,
     inspectorExiting,
     toggleInspector,
@@ -131,10 +132,13 @@ export default function NativeToolbar() {
           >
             <Icon
               name="bars"
-              size={PROTO_TOOLBAR_ICON_SIZE}
+              size={PROTO_TOOLBAR_ORB_ICON_SIZE}
               style={{
                 transition: 'transform 0.26s cubic-bezier(0.32, 0.72, 0.24, 1)',
-                transform: (isMobileSidebar ? !drawerOpen : desktopSidebarCollapsed) ? 'rotate(90deg)' : 'rotate(0deg)',
+                transform:
+                  (isMobileSidebar ? !drawerOpen || sidebarExiting : desktopSidebarCollapsed || sidebarExiting)
+                    ? 'rotate(90deg)'
+                    : 'rotate(0deg)',
               }}
             />
           </button>
@@ -149,7 +153,7 @@ export default function NativeToolbar() {
             disabled={!homeSpaceId}
             onClick={onCompose}
           >
-            <Icon name="pen-to-square" size={PROTO_TOOLBAR_ICON_SIZE} />
+            <Icon name="pen-to-square" size={PROTO_TOOLBAR_ORB_ICON_SIZE} />
           </button>
         </PrototypeToolbarShortcutItem>
       </div>
@@ -174,7 +178,7 @@ export default function NativeToolbar() {
                 }
               }}
             >
-              <Icon name="folder" size={14} className="proto-toolbar-folder-chip__icon" aria-hidden />
+              <Icon name="folder" size={PROTO_TOOLBAR_FOLDER_CHIP_ICON_SIZE} className="proto-toolbar-folder-chip__icon" aria-hidden />
               {toolbarFolderLabel?.trim() ? (
                 <span className="proto-toolbar-folder-chip__label">{toolbarFolderLabel}</span>
               ) : null}
@@ -212,7 +216,7 @@ export default function NativeToolbar() {
                     }
                   }}
                 >
-                  <Icon name="magnifying-glass" size={PROTO_TOOLBAR_ICON_SIZE} />
+                  <Icon name="magnifying-glass" size={PROTO_TOOLBAR_ORB_ICON_SIZE} />
                 </button>
               </PrototypeToolbarShortcutItem>
             ) : null}
@@ -242,7 +246,7 @@ export default function NativeToolbar() {
                     }
                   }}
                 >
-                  <Icon name="share" size={PROTO_TOOLBAR_ICON_SIZE} />
+                  <Icon name="share" size={PROTO_TOOLBAR_ORB_ICON_SIZE} />
                   {toolbarNote.isPublic ? (
                     <span className="proto-toolbar-icon-btn__share-dot" aria-hidden />
                   ) : null}
@@ -284,12 +288,12 @@ export default function NativeToolbar() {
                 aria-label={inspectorOpen ? 'Hide note details' : 'Show note details'}
                 onClick={toggleInspector}
               >
-                <InspectorToggleIcon open={inspectorOpen && !inspectorExiting} size={PROTO_TOOLBAR_ICON_SIZE} />
+                <InspectorToggleIcon open={inspectorOpen && !inspectorExiting} size={PROTO_TOOLBAR_ORB_ICON_SIZE} />
               </button>
             </PrototypeToolbarShortcutItem>
           ) : null}
 
-          <AccountMenu iconSize={PROTO_TOOLBAR_ICON_SIZE} />
+          <AccountMenu iconSize={PROTO_TOOLBAR_ORB_ICON_SIZE} />
         </div>
       </div>
     </div>

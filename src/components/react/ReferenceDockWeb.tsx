@@ -8,7 +8,11 @@ import StudyDockCardShell from '@/components/react/StudyDockCardShell';
 import { api } from '../../../spa/src/lib/api';
 import { slugCandidates, type EastonCategory } from '../../../spa/src/hooks/useEastonsSlugIndex';
 import type { StudyHighlightAccentKey } from '@/utils/study-highlight-accents';
-import { isStudyHighlightAccentKey, STUDY_HIGHLIGHT_SWATCHES_NO_NEUTRAL } from '@/utils/study-highlight-accents';
+import {
+  isStudyHighlightAccentKey,
+  STUDY_HIGHLIGHT_ACCENT_LABELS,
+  STUDY_HIGHLIGHT_SWATCHES_NO_NEUTRAL,
+} from '@/utils/study-highlight-accents';
 import '@/styles/study-dock-card.css';
 import '@/styles/reference-dock-web.css';
 import '@/styles/highlight-dock-web.css';
@@ -270,8 +274,8 @@ export default function ReferenceDockWeb({
                       className={`highlight-dock-web__swatch highlight-dock-web__swatch--${key}${
                         selectedAccent === key ? ' highlight-dock-web__swatch--selected' : ''
                       }`}
-                      title={key}
-                      aria-label={key}
+                      title={STUDY_HIGHLIGHT_ACCENT_LABELS[key]}
+                      aria-label={STUDY_HIGHLIGHT_ACCENT_LABELS[key]}
                       aria-pressed={selectedAccent === key}
                       onMouseDown={(e) => e.preventDefault()}
                       onClick={() => setSelectedAccent(key)}
