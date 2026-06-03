@@ -56,7 +56,19 @@ function buildReferenceString(book: string, chapter: number, verseStart: number,
 
 function passageScrollCapPx(): number {
   if (typeof window === 'undefined') return 280;
-  return window.innerWidth >= 900 ? Math.min(400, window.innerHeight * 0.4) : 280;
+  if (window.innerWidth >= 900) {
+    return Math.min(400, window.innerHeight * 0.4);
+  }
+  try {
+    const raw = getComputedStyle(document.documentElement).getPropertyValue('--proto-dock-expanded-max-height');
+    const dockMax = parseFloat(raw);
+    if (Number.isFinite(dockMax) && dockMax > 0) {
+      return Math.min(280, Math.max(120, Math.round(dockMax - 120)));
+    }
+  } catch {
+    /* ignore */
+  }
+  return 280;
 }
 
 export interface ScripturePillChromeWebProps {
@@ -197,7 +209,12 @@ export default function ScripturePillChromeWeb({
     const updateCap = () => setPassageScrollCap(passageScrollCapPx());
     updateCap();
     window.addEventListener('resize', updateCap);
-    return () => window.removeEventListener('resize', updateCap);
+    const vv = window.visualViewport;
+    vv?.addEventListener('resize', updateCap);
+    return () => {
+      window.removeEventListener('resize', updateCap);
+      vv?.removeEventListener('resize', updateCap);
+    };
   }, []);
 
   const maxChapter = maxChapterForBook(selectedBook);

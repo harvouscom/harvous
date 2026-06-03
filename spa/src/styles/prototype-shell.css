@@ -68,6 +68,11 @@
   gap: 8px;
   padding: 16px 0 8px;
   pointer-events: none;
+  overflow: visible;
+}
+
+.proto-shell__editor-chrome-row:has(.proto-shell__study-dock-layer__slot:not(:empty)) {
+  overflow: visible;
 }
 
 .proto-shell__study-dock-layer__slot {
@@ -437,8 +442,12 @@ html.harvous-prototype-route .proto-shell__toolbar-cell::after {
     position: fixed;
     left: 0;
     right: 0;
-    bottom: var(--proto-keyboard-bottom, 0);
+    bottom: var(--proto-keyboard-bottom, 12px);
     z-index: 1400;
+    padding-bottom: env(safe-area-inset-bottom, 0);
+    background-color: var(--pds-glass-shell);
+    background-image: linear-gradient(var(--pds-glass-bar-frost), var(--pds-glass-bar-frost));
+    box-shadow: var(--pds-glass-rim);
   }
 
   html[data-proto-keyboard-open] .proto-shell__study-dock-layer {
@@ -447,8 +456,27 @@ html.harvous-prototype-route .proto-shell__toolbar-cell::after {
 
   /* Reserve room so the caret / last line clears the fixed format bar while typing. */
   html[data-proto-keyboard-open] .proto-editor-scroll {
+    max-height: var(--proto-editor-scroll-max-height, none);
     scroll-padding-bottom: 60px;
     padding-bottom: 60px;
+  }
+
+  html[data-proto-keyboard-open] .proto-editor-surface .tiptap-content {
+    max-height: var(--proto-editor-scroll-max-height, none);
+    overflow-y: auto !important;
+    padding-bottom: 56px;
+  }
+
+  html[data-proto-keyboard-open] .proto-editor-surface .tiptap-content .ProseMirror {
+    scroll-margin-bottom: 60px;
+  }
+
+  html[data-proto-keyboard-open] .proto-editor-surface .tiptap-editor-container {
+    max-height: var(--proto-editor-scroll-max-height);
+  }
+
+  .proto-shell__study-dock-layer .study-dock-card__card[data-expanded='true'] {
+    max-height: var(--proto-dock-expanded-max-height, none);
   }
 
   .proto-shell--inspector-open {

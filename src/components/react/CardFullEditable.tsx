@@ -510,6 +510,8 @@ export default function CardFullEditable({
   // Mobile keyboard: when keyboard opens (visualViewport shrinks), set CSS vars on card root so toolbar floats 12px above keyboard and editor scrolls (same as NewNotePanel in sheet)
   const RESERVE_EDITOR_PX = 130;
   useEffect(() => {
+    // Prototype shell portaled toolbar — SimplifiedPrototypeLayout owns keyboard layout.
+    if (editorChromeMode === 'prototypeNative') return;
     const vv = typeof window !== 'undefined' ? window.visualViewport : null;
     if (!vv) return;
     const isIOS = typeof navigator !== 'undefined' && /iPad|iPhone|iPod/.test(navigator.userAgent);
@@ -577,7 +579,7 @@ export default function CardFullEditable({
       if (focusEl) focusEl.removeEventListener('focusin', onFocusIn);
       clearOverrides(cardRootRef.current);
     };
-  }, []);
+  }, [editorChromeMode]);
 
   // iOS focus scroll fix: when in bottom sheet or on touch device, reset window scroll on focusin so Safari doesn't push toolbar off
   useEffect(() => {

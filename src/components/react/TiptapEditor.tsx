@@ -163,9 +163,29 @@ interface TiptapEditorProps {
 const PROTOTYPE_FORMAT_BAR_HIDE_MS = 2000;
 
 /** True when pointer coordinates lie inside the pill element's border box (strict tap, not DOM ancestry alone). */
-function pointerIsInsideElementRect(e: MouseEvent, el: HTMLElement): boolean {
+function pointerIsInsideElementRect(e: MouseEvent | TouchEvent, el: HTMLElement): boolean {
+  let clientX: number;
+  let clientY: number;
+  if ('touches' in e && e.touches.length > 0) {
+    clientX = e.touches[0].clientX;
+    clientY = e.touches[0].clientY;
+  } else if ('changedTouches' in e && e.changedTouches.length > 0) {
+    clientX = e.changedTouches[0].clientX;
+    clientY = e.changedTouches[0].clientY;
+  } else if ('clientX' in e) {
+    clientX = e.clientX;
+    clientY = e.clientY;
+  } else {
+    return true;
+  }
   const rect = el.getBoundingClientRect();
-  return e.clientX >= rect.left && e.clientX <= rect.right && e.clientY >= rect.top && e.clientY <= rect.bottom;
+  const pad = 'pointerType' in e && e.pointerType === 'touch' ? 4 : 0;
+  return (
+    clientX >= rect.left - pad &&
+    clientX <= rect.right + pad &&
+    clientY >= rect.top - pad &&
+    clientY <= rect.bottom + pad
+  );
 }
 
 /** Collapsed caret must sit inside the mark; expanded selection must intersect the pill span. */
@@ -3371,7 +3391,10 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
   const scrollSelectionIntoViewAboveToolbar = (editorInstance: any) => {
     if (!isEditorValid(editorInstance)) return;
     const host = editorInstance.view.dom.closest('[data-keyboard-open]');
-    if (!host) return;
+    const protoKeyboardOpen =
+      typeof document !== 'undefined' &&
+      document.documentElement.hasAttribute('data-proto-keyboard-open');
+    if (!host && !protoKeyboardOpen) return;
     const { from } = editorInstance.state.selection;
     const { node } = editorInstance.view.domAtPos(from);
     const el =
@@ -4815,7 +4838,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     const wrapperDiv = tiptapContentRef.current;
     if (!wrapperDiv) return;
 
-    const handlePillClick = (e: MouseEvent) => {
+    const handlePillPointer = (e: MouseEvent | TouchEvent) => {
       const target = e.target as HTMLElement;
 
       const pillSpan = target.closest('.scripture-pill') as HTMLElement | null;
@@ -4998,6 +5021,30 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       }
     };
 
+    let touchHandledPill: HTMLElement | null = null;
+
+    const handlePillTouchStart = (e: TouchEvent) => {
+      const target = e.target as HTMLElement;
+      const pillSpan = target.closest('.scripture-pill') as HTMLElement | null;
+      if (!pillSpan) return;
+      handlePillPointer(e);
+      touchHandledPill = pillSpan;
+      window.setTimeout(() => {
+        touchHandledPill = null;
+      }, 400);
+    };
+
+    const handlePillClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      const pillSpan = target.closest('.scripture-pill') as HTMLElement | null;
+      if (pillSpan && touchHandledPill === pillSpan) {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        return;
+      }
+      handlePillPointer(e);
+    };
+
     const handleDismiss = (e: MouseEvent) => {
       const target = e.target as HTMLElement;
       if (
@@ -5020,10 +5067,12 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       }
     };
 
-    // Use capture phase so we intercept pill clicks before ProseMirror
+    // Use capture phase so we intercept pill taps before ProseMirror
+    wrapperDiv.addEventListener('touchstart', handlePillTouchStart, { capture: true, passive: false });
     wrapperDiv.addEventListener('click', handlePillClick, true);
     document.addEventListener('mousedown', handleDismiss);
     return () => {
+      wrapperDiv.removeEventListener('touchstart', handlePillTouchStart, { capture: true });
       wrapperDiv.removeEventListener('click', handlePillClick, true);
       document.removeEventListener('mousedown', handleDismiss);
     };

@@ -202,6 +202,7 @@ function PrototypeAuthenticatedChrome({ userId }: { userId?: string }) {
   // study docks while typing. The format toolbar is portaled into the shell (not the card
   // root), so the classic CardFullEditable keyboard handling can't reposition it — mirror
   // that visualViewport logic here, scoped to note routes on the mobile breakpoint.
+  const RESERVE_EDITOR_PX = 130;
   useEffect(() => {
     if (!isNoteRoute) return undefined;
     const vv = typeof window !== 'undefined' ? window.visualViewport : null;
@@ -212,48 +213,82 @@ function PrototypeAuthenticatedChrome({ userId }: { userId?: string }) {
 
     const clear = () => {
       root.style.removeProperty('--proto-keyboard-bottom');
+      root.style.removeProperty('--proto-editor-scroll-max-height');
+      root.style.removeProperty('--proto-dock-expanded-max-height');
       root.removeAttribute('data-proto-keyboard-open');
     };
 
-    const apply = () => {
+    const updateDockMaxHeight = () => {
+      if (!mq.matches) {
+        root.style.removeProperty('--proto-dock-expanded-max-height');
+        return;
+      }
+      const chromeRow = document.querySelector('.proto-shell__editor-chrome-row');
+      if (!chromeRow) return;
+      const rect = chromeRow.getBoundingClientRect();
+      const available = Math.round(rect.top - 16);
+      if (available > 0) {
+        root.style.setProperty('--proto-dock-expanded-max-height', `${Math.max(180, available)}px`);
+      }
+    };
+
+    const apply = (estimatedViewportHeight?: number) => {
+      updateDockMaxHeight();
       if (!mq.matches) {
         clear();
         return;
       }
       const innerH = window.innerHeight;
-      const keyboardOpen = vv.height < innerH * 0.75;
+      let effectiveHeight: number;
+      if (estimatedViewportHeight != null && vv.height > innerH * 0.85) {
+        effectiveHeight = estimatedViewportHeight;
+      } else {
+        effectiveHeight = vv.height;
+      }
+      const keyboardOpen = effectiveHeight < innerH * 0.75;
       if (keyboardOpen) {
-        const keyboardBottom = Math.max(0, Math.round(innerH - vv.height - vv.offsetTop));
-        root.style.setProperty('--proto-keyboard-bottom', `${keyboardBottom}px`);
+        const toolbarBottom = Math.max(0, Math.round(innerH - effectiveHeight + 12));
+        const editorH = Math.max(120, effectiveHeight - RESERVE_EDITOR_PX);
+        root.style.setProperty('--proto-keyboard-bottom', `${toolbarBottom}px`);
+        root.style.setProperty('--proto-editor-scroll-max-height', `${editorH}px`);
         root.setAttribute('data-proto-keyboard-open', '');
       } else {
-        clear();
+        root.style.removeProperty('--proto-keyboard-bottom');
+        root.style.removeProperty('--proto-editor-scroll-max-height');
+        root.removeAttribute('data-proto-keyboard-open');
       }
     };
 
     apply();
-    const raf = requestAnimationFrame(apply);
+    const raf = requestAnimationFrame(() => apply());
+    const onViewportChange = () => apply();
     const onFocusIn = () => {
       setTimeout(apply, 100);
       setTimeout(apply, 300);
       if (isIOS) {
         setTimeout(apply, 400);
         setTimeout(apply, 600);
+        const estimatedHeight = Math.round(window.innerHeight * 0.55);
+        if (estimatedHeight < window.innerHeight * 0.75) {
+          setTimeout(() => apply(estimatedHeight), 50);
+        }
       }
     };
     const onFocusOut = () => {
       setTimeout(apply, 100);
       setTimeout(apply, 300);
     };
-    vv.addEventListener('resize', apply);
-    vv.addEventListener('scroll', apply);
+    vv.addEventListener('resize', onViewportChange);
+    vv.addEventListener('scroll', onViewportChange);
+    window.addEventListener('resize', updateDockMaxHeight);
     document.addEventListener('focusin', onFocusIn);
     document.addEventListener('focusout', onFocusOut);
 
     return () => {
       cancelAnimationFrame(raf);
-      vv.removeEventListener('resize', apply);
-      vv.removeEventListener('scroll', apply);
+      vv.removeEventListener('resize', onViewportChange);
+      vv.removeEventListener('scroll', onViewportChange);
+      window.removeEventListener('resize', updateDockMaxHeight);
       document.removeEventListener('focusin', onFocusIn);
       document.removeEventListener('focusout', onFocusOut);
       clear();
