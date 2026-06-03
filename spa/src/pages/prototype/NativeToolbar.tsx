@@ -11,8 +11,12 @@ import Icon from '@/components/react/Icon';
 import { usePrototypeHomeSpaceId } from '../../hooks/usePrototypeHomeSpaceId';
 import { useNote } from '../../hooks/queries/useNote';
 import { PROTOTYPE_DRAFT_NOTE_SLUG, normalizeNoteIdFromParam, isPrototypeDraftNoteSlug } from './proto-route-slugs';
-import { useProtoShell } from '../../layouts/proto-shell-context';
-import { effectiveNoteFolderLabel } from '@/utils/note-folder-display';
+import { useProtoShell, usePrototypeFolderChip } from '../../layouts/proto-shell-context';
+import {
+  effectiveNoteFolderLabel,
+  noteFolderChipAdditionalCount,
+  noteFolderMembershipLabels,
+} from '@/utils/note-folder-display';
 import AccountMenu from './AccountMenu';
 import SpaceSwitcherMenu from './SpaceSwitcherMenu';
 import { PROTO_TOOLBAR_FOLDER_CHIP_ICON_SIZE, PROTO_TOOLBAR_ORB_ICON_SIZE } from './proto-toolbar-tokens';
@@ -41,6 +45,7 @@ export default function NativeToolbar() {
   const [folderAnchorRect, setFolderAnchorRect] = useState<DOMRect | null>(null);
   const { homeSpaceId, navReady } = usePrototypeHomeSpaceId();
 
+  const prototypeFolderChip = usePrototypeFolderChip();
   const {
     isMobileSidebar,
     drawerOpen,
@@ -52,7 +57,6 @@ export default function NativeToolbar() {
     inspectorExiting,
     toggleInspector,
     closeDrawer,
-    prototypeFolderChip,
   } = useProtoShell();
 
   const noteSlugFromPath = matchPrototypeNoteId(pathname);
@@ -72,14 +76,34 @@ export default function NativeToolbar() {
     prototypeFolderChip != null &&
     prototypeFolderChip.noteId === toolbarNoteId;
 
+  const toolbarFolderSource = toolbarNote
+    ? {
+        primaryCollection: toolbarNote.primaryCollection ?? null,
+        secondaryCollections: toolbarNote.secondaryCollections ?? [],
+      }
+    : null;
+
   const toolbarFolderLabel = useShellFolderChip
     ? prototypeFolderChip.label
-    : toolbarNote
-      ? effectiveNoteFolderLabel({
-          primaryCollection: toolbarNote.primaryCollection ?? null,
-          secondaryCollections: toolbarNote.secondaryCollections ?? [],
-        })
+    : toolbarFolderSource
+      ? effectiveNoteFolderLabel(toolbarFolderSource)
       : null;
+
+  const toolbarFolderExtraCount = useShellFolderChip
+    ? prototypeFolderChip.extraCount
+    : toolbarFolderSource
+      ? noteFolderChipAdditionalCount(toolbarFolderSource)
+      : 0;
+
+  const toolbarFolderAriaLabel = (() => {
+    const labels = useShellFolderChip
+      ? prototypeFolderChip.membershipLabels
+      : toolbarFolderSource
+        ? noteFolderMembershipLabels(toolbarFolderSource)
+        : [];
+    if (labels.length === 0) return 'Folder — none set';
+    return `Folders: ${labels.join(', ')}`;
+  })();
 
   const onCompose = () => {
     if (!homeSpaceId) return;
@@ -167,7 +191,7 @@ export default function NativeToolbar() {
               type="button"
               className="proto-toolbar-folder-chip"
               title="Folder — edit folders"
-              aria-label={toolbarFolderLabel?.trim() ? `Folder: ${toolbarFolderLabel}` : 'Folder — none set'}
+              aria-label={toolbarFolderAriaLabel}
               aria-haspopup="dialog"
               aria-expanded={folderAnchorRect !== null}
               onClick={() => {
@@ -180,7 +204,12 @@ export default function NativeToolbar() {
             >
               <Icon name="folder" size={PROTO_TOOLBAR_FOLDER_CHIP_ICON_SIZE} className="proto-toolbar-folder-chip__icon" aria-hidden />
               {toolbarFolderLabel?.trim() ? (
-                <span className="proto-toolbar-folder-chip__label">{toolbarFolderLabel}</span>
+                <span className="proto-toolbar-folder-chip__labels">
+                  <span className="proto-toolbar-folder-chip__label">{toolbarFolderLabel}</span>
+                  {toolbarFolderExtraCount > 0 ? (
+                    <span className="proto-toolbar-folder-chip__extra">+{toolbarFolderExtraCount}</span>
+                  ) : null}
+                </span>
               ) : null}
             </button>
             {folderAnchorRect && toolbarNoteId ? (

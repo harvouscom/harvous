@@ -57,7 +57,8 @@ html.harvous-prototype-route button.proto-sidebar-list-view__trigger .proto-side
 
 /* Toolbar folder chip — same GSF medium axes inside buttons */
 html.harvous-prototype-route button.proto-toolbar-folder-chip,
-html.harvous-prototype-route button.proto-toolbar-folder-chip .proto-toolbar-folder-chip__label {
+html.harvous-prototype-route button.proto-toolbar-folder-chip .proto-toolbar-folder-chip__label,
+html.harvous-prototype-route button.proto-toolbar-folder-chip .proto-toolbar-folder-chip__extra {
   font-weight: 500 !important;
   font-variation-settings: var(--pds-font-body-variation-toolbar-chip) !important;
 }

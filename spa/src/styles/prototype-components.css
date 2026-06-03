@@ -122,6 +122,13 @@ html[data-shift-hints='1'] .proto-toolbar-orb-group {
   opacity: 0.85;
 }
 
+.proto-toolbar-folder-chip__labels {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  min-width: 0;
+}
+
 .proto-toolbar-folder-chip__label {
   min-width: 0;
   overflow: hidden;
@@ -133,7 +140,17 @@ html[data-shift-hints='1'] .proto-toolbar-orb-group {
   line-height: 1.2;
 }
 
+.proto-toolbar-folder-chip__extra {
+  flex-shrink: 0;
+  color: var(--pds-text-secondary);
+  font-size: var(--pds-toolbar-folder-chip-font-size);
+  font-weight: 500;
+  font-variation-settings: var(--pds-font-body-variation-toolbar-chip);
+  line-height: 1.2;
+}
+
 .proto-toolbar-folder-chip__label,
+.proto-toolbar-folder-chip__extra,
 .proto-toolbar-folder-chip__icon {
   font-family: inherit !important;
 }

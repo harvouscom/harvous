@@ -30,7 +30,31 @@ export type SidebarListMode = 'notes' | 'folders' | 'highlights' | 'scripture' |
 export type SidebarFolderDrilldown = string | null | undefined;
 
 /** Toolbar folder chip on prototype note routes — driven by note page + editor collection state. */
-export type PrototypeFolderChip = { noteId: string; label: string | null };
+export type PrototypeFolderChip = {
+  noteId: string;
+  label: string | null;
+  extraCount: number;
+  /** Full folder list for accessibility (primary + secondaries). */
+  membershipLabels: string[];
+};
+
+function prototypeFolderChipsEqual(
+  a: PrototypeFolderChip | null,
+  b: PrototypeFolderChip | null,
+): boolean {
+  if (a === b) return true;
+  if (!a || !b) return a === b;
+  return (
+    a.noteId === b.noteId &&
+    a.label === b.label &&
+    a.extraCount === b.extraCount &&
+    a.membershipLabels.length === b.membershipLabels.length &&
+    a.membershipLabels.every((label, index) => label === b.membershipLabels[index])
+  );
+}
+
+/** Toolbar folder chip value — isolated so note-page edits don't re-render the whole shell. */
+const PrototypeFolderChipContext = createContext<PrototypeFolderChip | null>(null);
 
 /** Scripture-passage highlight opened from Highlights list — main pane shows standalone passage (native dock parity). */
 export type StandaloneScripturePassageState = {
@@ -83,7 +107,6 @@ type ProtoShellContextValue = {
   toggleInspector: () => void;
   openInspector: () => void;
   closeInspector: () => void;
-  prototypeFolderChip: PrototypeFolderChip | null;
   setPrototypeFolderChip: (value: PrototypeFolderChip | null) => void;
   standaloneScripturePassage: StandaloneScripturePassageState | null;
   openStandaloneScripturePassage: (value: StandaloneScripturePassageState) => void;
@@ -273,7 +296,7 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
     });
   }, []);
   const setPrototypeFolderChip = useCallback((value: PrototypeFolderChip | null) => {
-    setPrototypeFolderChipState(value);
+    setPrototypeFolderChipState((prev) => (prototypeFolderChipsEqual(prev, value) ? prev : value));
   }, []);
   const openStandaloneScripturePassage = useCallback((value: StandaloneScripturePassageState) => {
     setStandaloneScripturePassage(value);
@@ -309,7 +332,6 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
       toggleInspector,
       openInspector,
       closeInspector,
-      prototypeFolderChip,
       setPrototypeFolderChip,
       standaloneScripturePassage,
       openStandaloneScripturePassage,
@@ -349,7 +371,6 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
       toggleInspector,
       openInspector,
       closeInspector,
-      prototypeFolderChip,
       setPrototypeFolderChip,
       standaloneScripturePassage,
       openStandaloneScripturePassage,
@@ -362,7 +383,17 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
     ],
   );
 
-  return <ProtoShellContext.Provider value={value}>{children}</ProtoShellContext.Provider>;
+  return (
+    <ProtoShellContext.Provider value={value}>
+      <PrototypeFolderChipContext.Provider value={prototypeFolderChip}>
+        {children}
+      </PrototypeFolderChipContext.Provider>
+    </ProtoShellContext.Provider>
+  );
+}
+
+export function usePrototypeFolderChip() {
+  return useContext(PrototypeFolderChipContext);
 }
 
 export function useProtoShell() {

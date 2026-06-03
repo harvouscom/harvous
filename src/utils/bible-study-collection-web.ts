@@ -30,6 +30,17 @@ export interface CollectionChromeState {
   collectionLastAutoUpdatedAtIso: string | null;
 }
 
+export function collectionChromeStatesEqual(a: CollectionChromeState, b: CollectionChromeState): boolean {
+  return (
+    a.primaryCollection === b.primaryCollection &&
+    a.collectionPinned === b.collectionPinned &&
+    a.collectionUserOverride === b.collectionUserOverride &&
+    a.collectionLastAutoUpdatedAtIso === b.collectionLastAutoUpdatedAtIso &&
+    a.secondaryCollections.length === b.secondaryCollections.length &&
+    a.secondaryCollections.every((label, index) => label === b.secondaryCollections[index])
+  );
+}
+
 function collectionRank(cat: string): number {
   if (cat === 'spiritual') return 0;
   if (cat === 'biblical' || cat === 'theme') return 1;

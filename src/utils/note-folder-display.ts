@@ -31,3 +31,23 @@ export function effectiveNoteFolderLabel(note: NoteFolderLabelSource): string | 
   const labels = noteFolderMembershipLabels(note);
   return labels[0] ?? null;
 }
+
+/** Additional folder count for toolbar chip (native `folderChipAdditionalCount`). */
+export function noteFolderChipAdditionalCount(note: NoteFolderLabelSource): number {
+  const labels = noteFolderMembershipLabels(note);
+  return labels.length <= 1 ? 0 : labels.length - 1;
+}
+
+/** Toolbar folder chip: primary label, +N overflow, and full list for accessibility. */
+export function noteFolderChipDisplayState(note: NoteFolderLabelSource): {
+  label: string | null;
+  extraCount: number;
+  membershipLabels: string[];
+} {
+  const membershipLabels = noteFolderMembershipLabels(note);
+  return {
+    label: membershipLabels[0] ?? null,
+    extraCount: membershipLabels.length <= 1 ? 0 : membershipLabels.length - 1,
+    membershipLabels,
+  };
+}

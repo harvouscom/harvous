@@ -25,13 +25,14 @@ import InlinePinUnlock from './InlinePinUnlock';
 import NoteProductionActionBar from './NoteProductionActionBar';
 import {
   applyAutoCollectionAfterEdit,
+  collectionChromeStatesEqual,
   collectionContextBannerText,
   type CollectionChromeState,
   type WebCollectionNavSource,
   suggestPrimaryCollectionFromNote,
   suggestSecondaryCollectionsFromNote,
 } from '@/utils/bible-study-collection-web';
-import { effectiveNoteFolderLabel } from '@/utils/note-folder-display';
+import { noteFolderChipDisplayState } from '@/utils/note-folder-display';
 import { stripServerAutoUntitledNoteTitleForDisplay } from '@/utils/server-auto-untitled-note-display';
 
 // Lazy load TiptapEditor to reduce initial bundle size - only loads when user enters edit mode
@@ -156,8 +157,8 @@ interface CardFullEditableProps {
    * when the format toolbar is inactive. Omit to derive from `noteActionsPortalTarget` or `prototypeNoteActionBar`.
    */
   prototypeNoteActionsChrome?: boolean;
-  /** Prototype-only: folder chip label derived from local collection chrome (keeps toolbar in sync while editing). */
-  onPrototypeFolderDisplayChange?: (label: string | null) => void;
+  /** Prototype-only: folder chip derived from local collection chrome (keeps toolbar in sync while editing). */
+  onPrototypeFolderDisplayChange?: (chip: ReturnType<typeof noteFolderChipDisplayState>) => void;
   /**
    * Prototype-only: when set, the highlight dock is portaled into this element (column-level bottom bar).
    */
@@ -333,6 +334,7 @@ export default function CardFullEditable({
     collectionLastAutoUpdatedAtIso: initialCollectionLastAutoUpdatedAtIso ?? null,
   });
   const [addSecondaryDraft, setAddSecondaryDraft] = useState('');
+  const lastPrototypeFolderChipRef = useRef<string>('');
 
   // Mirror collection state in a ref so the ref-based prototype saver (protoSaveAsync)
   // can read the live value without being recreated on every change.
@@ -341,21 +343,40 @@ export default function CardFullEditable({
     collectionChromeRef.current = collectionChrome;
   }, [collectionChrome]);
 
-  useEffect(() => {
-    setCollectionChrome({
+  const buildCollectionChromeFromInitialProps = useCallback(
+    (): CollectionChromeState => ({
       primaryCollection: initialPrimaryCollection ?? null,
-      secondaryCollections: initialSecondaryCollections?.length ? [...initialSecondaryCollections] : [],
+      secondaryCollections: initialSecondaryCollections?.length
+        ? [...initialSecondaryCollections]
+        : [...EMPTY_SECONDARY_COLLECTIONS],
       collectionPinned: !!initialCollectionPinned,
       collectionUserOverride: !!initialCollectionUserOverride,
       collectionLastAutoUpdatedAtIso: initialCollectionLastAutoUpdatedAtIso ?? null,
+    }),
+    [
+      initialPrimaryCollection,
+      initialSecondaryCollections,
+      initialCollectionPinned,
+      initialCollectionUserOverride,
+      initialCollectionLastAutoUpdatedAtIso,
+    ],
+  );
+
+  useEffect(() => {
+    if (editorChromeMode === 'prototypeNative' && alwaysEditing) {
+      const inBodyEditor =
+        typeof document !== 'undefined' && !!document.activeElement?.closest('.ProseMirror');
+      if (inBodyEditor) return;
+    }
+    setCollectionChrome((prev) => {
+      const next = buildCollectionChromeFromInitialProps();
+      return collectionChromeStatesEqual(prev, next) ? prev : next;
     });
   }, [
     noteId,
-    initialPrimaryCollection,
-    initialSecondaryCollections,
-    initialCollectionPinned,
-    initialCollectionUserOverride,
-    initialCollectionLastAutoUpdatedAtIso,
+    buildCollectionChromeFromInitialProps,
+    editorChromeMode,
+    alwaysEditing,
   ]);
 
   // Prototype: apply auto folder once when a note opens (automatic mode), before first autosave.
@@ -379,6 +400,7 @@ export default function CardFullEditable({
 
   useEffect(() => {
     setPrototypeScripturePillOpenRequest(null);
+    lastPrototypeFolderChipRef.current = '';
   }, [noteId]);
 
   // Reset proto save tracking on note switch so first edit always triggers a save
@@ -425,12 +447,14 @@ export default function CardFullEditable({
 
   useEffect(() => {
     if (editorChromeMode !== 'prototypeNative' || !onPrototypeFolderDisplayChange) return;
-    onPrototypeFolderDisplayChange(
-      effectiveNoteFolderLabel({
-        primaryCollection: collectionChrome.primaryCollection,
-        secondaryCollections: collectionChrome.secondaryCollections,
-      }),
-    );
+    const chip = noteFolderChipDisplayState({
+      primaryCollection: collectionChrome.primaryCollection,
+      secondaryCollections: collectionChrome.secondaryCollections,
+    });
+    const chipKey = JSON.stringify(chip);
+    if (chipKey === lastPrototypeFolderChipRef.current) return;
+    lastPrototypeFolderChipRef.current = chipKey;
+    onPrototypeFolderDisplayChange(chip);
   }, [
     editorChromeMode,
     onPrototypeFolderDisplayChange,

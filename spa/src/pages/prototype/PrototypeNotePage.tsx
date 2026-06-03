@@ -12,7 +12,7 @@ import { useUpdateNote } from '../../hooks/mutations/useUpdateNote';
 import { useDeleteNote } from '../../hooks/mutations/useDeleteNote';
 import { alertCreateNoteFailure, useCreateSimpleNote } from '../../hooks/mutations/useCreateSimpleNote';
 import { useProtoShell } from '../../layouts/proto-shell-context';
-import { effectiveNoteFolderLabel } from '@/utils/note-folder-display';
+import { noteFolderChipDisplayState } from '@/utils/note-folder-display';
 import { isEffectivelyEmptyPrototypeNote } from '@/utils/prototype-note-empty';
 import PrototypeInspectorPane from './PrototypeInspectorPane';
 import PrototypeMainPaneShell from './PrototypeMainPaneShell';
@@ -22,6 +22,7 @@ import { getEffectiveDefaultTranslation } from '@/utils/profile-cache';
 import { isPrototypeDraftNoteSlug, noteParamSlug } from './proto-route-slugs';
 
 const DRAFT_NOTE_ID = 'note_draft';
+const EMPTY_NOTE_COLLECTIONS: string[] = [];
 
 export default function PrototypeNotePage() {
   const { noteId: noteSlugParam } = useParams({ strict: false }) as { noteId: string };
@@ -36,6 +37,12 @@ export default function PrototypeNotePage() {
   const navigate = useNavigate();
 
   const { data: note, isLoading, isError, isFetching } = useNote(isDraft ? '' : noteId);
+
+  const editorSecondaryCollections = useMemo(() => {
+    if (isDraft) return EMPTY_NOTE_COLLECTIONS;
+    const secondaries = note?.secondaryCollections;
+    return secondaries?.length ? secondaries : EMPTY_NOTE_COLLECTIONS;
+  }, [isDraft, note?.secondaryCollections]);
 
   const queryClient = useQueryClient();
   const updateNoteMutation = useUpdateNote();
@@ -99,10 +106,19 @@ export default function PrototypeNotePage() {
 
   const liveFolderLabelRef = useRef<string | null>(null);
 
+  const isNoteEditorFocused = useCallback(() => {
+    if (typeof document === 'undefined') return false;
+    const el = document.activeElement;
+    if (!el) return false;
+    if (el.closest('.ProseMirror')) return true;
+    if (el.tagName === 'TEXTAREA' && el.closest('[data-note-id]')) return true;
+    return false;
+  }, []);
+
   const onPrototypeFolderDisplayChange = useCallback(
-    (label: string | null) => {
-      liveFolderLabelRef.current = label;
-      setPrototypeFolderChip({ noteId, label });
+    (chip: ReturnType<typeof noteFolderChipDisplayState>) => {
+      liveFolderLabelRef.current = chip.label;
+      setPrototypeFolderChip({ noteId, ...chip });
     },
     [noteId, setPrototypeFolderChip],
   );
@@ -118,25 +134,32 @@ export default function PrototypeNotePage() {
       setPrototypeFolderChip(null);
       return;
     }
-    const serverLabel = effectiveNoteFolderLabel({
+    if (isNoteEditorFocused()) return;
+    const serverChip = noteFolderChipDisplayState({
       primaryCollection: note.primaryCollection ?? null,
       secondaryCollections: note.secondaryCollections ?? [],
     });
     const live = liveFolderLabelRef.current;
-    if (live && !serverLabel) {
-      setPrototypeFolderChip({ noteId, label: live });
+    if (live && !serverChip.label) {
+      setPrototypeFolderChip({ noteId, label: live, extraCount: 0, membershipLabels: live ? [live] : [] });
       return;
     }
-    if (serverLabel) {
+    if (serverChip.label) {
       liveFolderLabelRef.current = null;
     }
-    setPrototypeFolderChip({ noteId, label: serverLabel ?? live });
+    setPrototypeFolderChip({
+      noteId,
+      label: serverChip.label ?? live,
+      extraCount: serverChip.label ? serverChip.extraCount : 0,
+      membershipLabels: serverChip.label ? serverChip.membershipLabels : live ? [live] : [],
+    });
   }, [
     isDraft,
     noteId,
     note?.primaryCollection,
     note?.secondaryCollections,
     setPrototypeFolderChip,
+    isNoteEditorFocused,
   ]);
 
   useEffect(() => {
@@ -203,15 +226,6 @@ export default function PrototypeNotePage() {
   }, [noteId, parentThread, effectiveSpaceId]);
 
   const reprocessAttemptedRef = useRef<string | null>(null);
-
-  const isNoteEditorFocused = useCallback(() => {
-    if (typeof document === 'undefined') return false;
-    const el = document.activeElement;
-    if (!el) return false;
-    if (el.closest('.ProseMirror')) return true;
-    if (el.tagName === 'TEXTAREA' && el.closest('[data-note-id]')) return true;
-    return false;
-  }, []);
 
   useEffect(() => {
     if (isDraft || !note || isLoading || note.contentEncrypted) return;
@@ -475,10 +489,17 @@ export default function PrototypeNotePage() {
   const showInspectorMobile = (inspectorOpen || inspectorExiting) && isMobileSidebar;
   const inspectorReservesEditorSpace = inspectorOpen && !inspectorExiting;
 
+  const notePaneRowClass = [
+    'proto-note-pane-row',
+    inspectorReservesEditorSpace ? 'proto-note-pane-row--inspector-open' : '',
+  ]
+    .filter(Boolean)
+    .join(' ');
+
   return (
     <PrototypeMainPaneShell>
     <div
-      className={`proto-note-pane-row${inspectorReservesEditorSpace ? ' proto-note-pane-row--inspector-open' : ''}`}
+      className={notePaneRowClass}
       data-note-id={noteId}
       data-parent-thread-id={parentThreadId}
       data-parent-thread-title={parentThread?.title ?? ''}
@@ -515,7 +536,7 @@ export default function PrototypeNotePage() {
                 initialReferenceWord={initialReferenceWord || null}
                 onPrototypeChromeModeChange={setEditorChromeMode}
                 initialPrimaryCollection={editorNote.primaryCollection ?? null}
-                initialSecondaryCollections={editorNote.secondaryCollections ?? []}
+                initialSecondaryCollections={editorSecondaryCollections}
                 initialCollectionPinned={editorNote.collectionPinned ?? false}
                 initialCollectionUserOverride={editorNote.collectionUserOverride ?? false}
                 initialCollectionLastAutoUpdatedAtIso={editorNote.collectionLastAutoUpdatedAt ?? null}
@@ -553,6 +574,7 @@ export default function PrototypeNotePage() {
           </div>
         </>
       ) : null}
+
     </div>
     </PrototypeMainPaneShell>
   );

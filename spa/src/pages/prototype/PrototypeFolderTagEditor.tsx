@@ -23,7 +23,7 @@ import {
   suggestPrimaryCollectionFromNote,
   suggestSecondaryCollectionsFromNote,
 } from '@/utils/bible-study-collection-web';
-import { effectiveNoteFolderLabel } from '@/utils/note-folder-display';
+import { noteFolderChipDisplayState } from '@/utils/note-folder-display';
 import { dedupeNoteTagsByName } from '@/utils/dedupe-note-tags';
 import { useProtoShell } from '../../layouts/proto-shell-context';
 
@@ -99,7 +99,7 @@ export default function PrototypeFolderTagEditor({
           : (note.secondaryCollections ?? []);
       setPrototypeFolderChip({
         noteId: note.id,
-        label: effectiveNoteFolderLabel({ primaryCollection: primary, secondaryCollections: secondaries }),
+        ...noteFolderChipDisplayState({ primaryCollection: primary, secondaryCollections: secondaries }),
       });
     },
     [note.id, note.primaryCollection, note.secondaryCollections, setPrototypeFolderChip],
