@@ -4,6 +4,12 @@ import { useEditor, EditorContent } from '@tiptap/react';
 // BubbleMenu replaced with custom createPortal-based floating toolbar for reliability
 import StarterKit from '@tiptap/starter-kit';
 import { canonicalizeNoteHtmlLineBreaks } from '@/utils/note-html-linebreaks';
+import {
+  isDocTextEmpty,
+  isTiptapBodyEmpty,
+  normalizeEmptyBodyHtmlForEditor,
+  preferredCaretPosForEmptyDoc,
+} from '@/utils/prototype-note-empty';
 import Heading from '@tiptap/extension-heading';
 import Placeholder from '@tiptap/extension-placeholder';
 import Underline from '@tiptap/extension-underline';
@@ -19,6 +25,11 @@ import { HighlightCustom } from './TiptapHighlightCustom';
 import { UrlLink } from './TiptapUrlLink';
 import { TextIndent } from './TiptapTextIndent';
 import { normalizeScriptureReference, detectScriptureReferences, matchTrailingTranslationAbbreviation, matchAnchoredTrailingTranslationAbbreviation, type ScriptureReference, type ScriptureReferenceWithTranslation } from '@/utils/scripture-detector';
+import {
+  isOrphanScriptureSuffix,
+  isScriptureReferenceContinuationKey,
+  mergeReferenceWithOrphanSuffix,
+} from '@/utils/scripture-pill-orphan';
 import { isStudyHighlightAccentKey, type StudyHighlightAccentKey } from '@/utils/study-highlight-accents';
 import { TRANSLATION_ORDER, TRANSLATIONS } from '@/data/translations';
 import { getCachedProfileData, getEffectiveDefaultTranslation } from '@/utils/profile-cache';
@@ -418,6 +429,16 @@ export function placeCursorAfterLeadingScripturePill(editor: any): void {
     } catch {
       /* ignore */
     }
+  }
+}
+
+/** Empty docs: caret at start of first block; otherwise optional end-of-doc placement. */
+function placeCaretForEmptyOrEnd(editor: any, preferEndWhenNonEmpty: boolean): void {
+  const doc = editor.state.doc;
+  if (isDocTextEmpty(doc)) {
+    editor.commands.setTextSelection(preferredCaretPosForEmptyDoc(doc));
+  } else if (preferEndWhenNonEmpty) {
+    editor.commands.setTextSelection(doc.content.size);
   }
 }
 
@@ -1198,6 +1219,150 @@ function schedulePendingTranslationAfterPillCreation(
 // Helper function to convert scripture references to pills using processed results data
 // This is more reliable than parsing HTML since Tiptap may have already parsed/removed spans
 // Helper function to create pending pills for detected scripture references
+function normalizeRefForPillCompare(s: string): string {
+  return s.replace(/\s*[-–—]\s*/g, '-').replace(/\s*:\s*/g, ':').trim();
+}
+
+/** Apply or refresh a scripture pill mark on [pillFrom, pillTo); returns final end position. */
+function applyScripturePillToRange(
+  tr: any,
+  markType: any,
+  pillFrom: number,
+  pillTo: number,
+  reference: string,
+  attrs: { noteId: string | null; translation?: string | null; pillAccent?: string | null },
+): number {
+  const currentText = tr.doc.textBetween(pillFrom, pillTo);
+  const noteId = attrs.noteId ?? 'pending';
+  const translation = attrs.translation ?? null;
+  const pillAccent = attrs.pillAccent ?? null;
+  if (normalizeRefForPillCompare(currentText) !== normalizeRefForPillCompare(reference)) {
+    const textNode = tr.doc.schema.text(reference, [
+      markType.create({ reference, noteId, translation, pillAccent }),
+    ]);
+    tr.replaceWith(pillFrom, pillTo, textNode);
+    return pillFrom + reference.length;
+  }
+  tr.removeMark(pillFrom, pillTo, markType);
+  tr.addMark(
+    pillFrom,
+    pillTo,
+    markType.create({ reference, noteId, translation, pillAccent }),
+  );
+  return pillTo;
+}
+
+function resolveExtendedReference(
+  existingRef: string,
+  gapText: string,
+  detectedRef: string,
+): string | null {
+  const merged = mergeReferenceWithOrphanSuffix(existingRef, gapText);
+  if (merged) return merged;
+  const pillTrim = existingRef.trim();
+  const detTrim = detectedRef.trim();
+  if (detTrim.length > pillTrim.length && detTrim.toLowerCase().startsWith(pillTrim.toLowerCase())) {
+    return detectedRef;
+  }
+  return null;
+}
+
+function insertScriptureContinuationAtPillEnd(
+  editor: any,
+  boundaries: { start: number; end: number },
+  key: string,
+  pillAttrs: { reference: string; noteId: string | null; translation?: string | null; pillAccent?: string | null },
+): void {
+  if (!editor?.view) return;
+  const view = editor.view;
+  const markType = view.state.schema.marks.scripturePill;
+  if (!markType) return;
+
+  let tr = view.state.tr;
+  const insertPos = boundaries.end;
+  tr.insertText(key, insertPos, [
+    markType.create({
+      reference: pillAttrs.reference,
+      noteId: pillAttrs.noteId,
+      translation: pillAttrs.translation ?? null,
+      pillAccent: pillAttrs.pillAccent ?? null,
+    }),
+  ]);
+  const newEnd = insertPos + key.length;
+  const merged =
+    mergeReferenceWithOrphanSuffix(pillAttrs.reference, tr.doc.textBetween(boundaries.end, newEnd)) ||
+    detectScriptureReferences(tr.doc.textBetween(boundaries.start, newEnd))[0]?.reference ||
+    null;
+
+  const finalRef = merged ?? pillAttrs.reference;
+  const finalEnd = applyScripturePillToRange(tr, markType, boundaries.start, newEnd, finalRef, {
+    noteId: pillAttrs.noteId,
+    translation: pillAttrs.translation,
+    pillAccent: pillAttrs.pillAccent,
+  });
+
+  tr.setSelection(TextSelection.create(tr.doc, finalEnd));
+  tr.setStoredMarks([]);
+  tr.setMeta('addToHistory', true);
+  view.dispatch(tr);
+}
+
+/** Merge plain verse suffixes immediately after scripture pills (e.g. chapter pill + ":2"). */
+export function absorbOrphanSuffixesAfterPills(editor: any): boolean {
+  if (!editor || editor.isDestroyed || !editor.view) return false;
+  try {
+    const view = editor.view;
+    const markType = view.state.schema.marks.scripturePill;
+    if (!markType) return false;
+
+    const pillSpans: { from: number; mark: any }[] = [];
+    view.state.doc.descendants((node: any, pos: number) => {
+      if (!node.isText) return;
+      const m = node.marks.find((mk: any) => mk.type.name === 'scripturePill');
+      if (m) pillSpans.push({ from: pos, mark: m });
+    });
+    if (pillSpans.length === 0) return false;
+
+    let tr = view.state.tr;
+    let modified = false;
+
+    for (let i = pillSpans.length - 1; i >= 0; i--) {
+      const boundaries = findPillBoundaries(tr.doc, pillSpans[i].from);
+      if (!boundaries) continue;
+
+      const $end = tr.doc.resolve(boundaries.end);
+      const blockEnd = $end.end($end.depth);
+      if (boundaries.end >= blockEnd) continue;
+
+      const gapText = tr.doc.textBetween(boundaries.end, blockEnd);
+      const suffixMatch = gapText.match(/^[\s:,\d\-–—]+/);
+      if (!suffixMatch || !isOrphanScriptureSuffix(suffixMatch[0])) continue;
+
+      const suffix = suffixMatch[0];
+      const existingRef = pillSpans[i].mark.attrs.reference as string;
+      const merged = mergeReferenceWithOrphanSuffix(existingRef, suffix);
+      if (!merged) continue;
+
+      const pillTo = boundaries.end + suffix.length;
+      applyScripturePillToRange(tr, markType, boundaries.start, pillTo, merged, {
+        noteId: pillSpans[i].mark.attrs.noteId,
+        translation: pillSpans[i].mark.attrs.translation,
+        pillAccent: pillSpans[i].mark.attrs.pillAccent,
+      });
+      modified = true;
+    }
+
+    if (modified) {
+      tr.setMeta('addToHistory', false);
+      tr.setStoredMarks([]);
+      view.dispatch(tr);
+    }
+    return modified;
+  } catch {
+    return false;
+  }
+}
+
 // Helper function to create pending pills for detected scripture references
 // This is called after space key press to show visual feedback
 function createPendingPillsForReferences(editor: any, references: (ScriptureReference | ScriptureReferenceWithTranslation)[], translation?: string) {
@@ -1266,17 +1431,51 @@ function createPendingPillsForReferences(editor: any, references: (ScriptureRefe
             } catch (_) {}
           }
 
-          // Skip if pill already exists — don't overwrite it (preserves translation and noteId)
-          if (pillMark) {
-            continue;
-          }
-          
           if (!isWithinSingleParagraph(doc, pos.from, pos.to)) continue;
           const adjustedPos = adjustPositionForParagraphBoundary(doc, pos.from, pos.to);
           if (!isWithinSingleParagraph(doc, adjustedPos.from, adjustedPos.to)) continue;
-          
+
           const markType = state.schema.marks.scripturePill;
-          if (markType) {
+          if (!markType) continue;
+
+          // Extend an existing pill when detection found a longer reference (e.g. Romans 12 → Romans 12:2).
+          if (pillMark) {
+            const boundaries = findPillBoundaries(doc, pos.from);
+            if (!boundaries) continue;
+            const gapText = doc.textBetween(boundaries.end, adjustedPos.to);
+            const extendedRef = resolveExtendedReference(
+              pillMark.attrs.reference as string,
+              gapText,
+              reference,
+            );
+            if (!extendedRef) continue;
+
+            const finalPillTo = applyScripturePillToRange(
+              tr,
+              markType,
+              boundaries.start,
+              adjustedPos.to,
+              extendedRef,
+              {
+                noteId: pillMark.attrs.noteId,
+                translation: pillMark.attrs.translation ?? translation ?? null,
+                pillAccent: pillMark.attrs.pillAccent,
+              },
+            );
+
+            try {
+              const $endPos = tr.doc.resolve(finalPillTo);
+              const atParaEnd = $endPos.parentOffset === $endPos.parent.content.size;
+              if (atParaEnd) {
+                tr.insertText(' ', finalPillTo);
+              }
+            } catch (_) {}
+
+            modified = true;
+            continue;
+          }
+
+          {
             // Use explicit translation if provided, otherwise null (deferred — set on next space/Enter or timeout)
             const pillTranslation = translation || null;
 
@@ -1298,25 +1497,10 @@ function createPendingPillsForReferences(editor: any, references: (ScriptureRefe
             const pillFrom = adjustedPos.from + leadingOffset;
             const pillTo = adjustedPos.to + leadingOffset;
 
-            // Replace text with canonical reference when it differs (e.g. "john 3:16" -> "John 3:16")
-            const currentText = tr.doc.textBetween(pillFrom, pillTo);
-            // Normalize both sides for comparison (handle spacing around dashes/colons)
-            const normalizeRef = (s: string) => s.replace(/\s*[-–—]\s*/g, '-').replace(/\s*:\s*/g, ':').trim();
-            let finalPillTo = pillTo;
-            if (normalizeRef(currentText) !== normalizeRef(reference)) {
-              const textNode = state.schema.text(reference, [
-                markType.create({ reference, noteId: 'pending', translation: pillTranslation })
-              ]);
-              tr.replaceWith(pillFrom, pillTo, textNode);
-              finalPillTo = pillFrom + reference.length;
-            } else {
-              tr.removeMark(pillFrom, pillTo, markType);
-              tr.addMark(pillFrom, pillTo, markType.create({
-                reference,
-                noteId: 'pending',
-                translation: pillTranslation,
-              }));
-            }
+            const finalPillTo = applyScripturePillToRange(tr, markType, pillFrom, pillTo, reference, {
+              noteId: 'pending',
+              translation: pillTranslation,
+            });
 
             // 2a: Trailing space — insert if the pill ends at paragraph end so the cursor
             // always has a non-pill landing spot (avoids the empty-paragraph snap-cursor hack)
@@ -1345,6 +1529,8 @@ function createPendingPillsForReferences(editor: any, references: (ScriptureRefe
       // Update our local state reference after dispatch
       state = view.state;
     }
+
+    absorbOrphanSuffixesAfterPills(editor);
 
     // Safety-net: clear stored marks after a brief delay so the next typed
     // character won't inherit the pill mark.  Do NOT reposition the cursor —
@@ -3258,7 +3444,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
         showOnlyCurrent: true,
       }),
     ],
-    content: content || '',
+    content: normalizeEmptyBodyHtmlForEditor(content) || '<p></p>',
     onCreate: ({ editor }) => {
       if (onEditorReady) {
         onEditorReady(editor);
@@ -3359,6 +3545,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
 
                 createPendingPillsForReferences(editor, references);
                 schedulePendingTranslationAfterPillCreation(editor, references);
+                absorbOrphanSuffixesAfterPills(editor);
               } catch (e) {
                 // Silently ignore errors
               }
@@ -3405,6 +3592,17 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       handleDOMEvents: {
         // Let ProseMirror handle all DOM events naturally
         // This ensures cursor placement works correctly on tap
+      },
+      handleClick: (view, _pos, _event) => {
+        if (isDocTextEmpty(view.state.doc)) {
+          const tr = view.state.tr.setSelection(
+            TextSelection.create(view.state.doc, preferredCaretPosForEmptyDoc(view.state.doc)),
+          );
+          view.dispatch(tr);
+          view.focus();
+          return true;
+        }
+        return false;
       },
       transformPastedHTML: (html: string) => {
         // Transform heading levels when pasting:
@@ -3788,6 +3986,19 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
           }
 
           if (pillBoundaries && pillReference) {
+            const realPill = findPillBoundaries(view.state.doc, pillBoundaries.start);
+            if (realPill) {
+              const gapText =
+                from > realPill.end
+                  ? view.state.doc.textBetween(realPill.end, from)
+                  : from < realPill.start
+                    ? view.state.doc.textBetween(from, realPill.start)
+                    : '';
+              if (gapText && isOrphanScriptureSuffix(gapText)) {
+                return false;
+              }
+            }
+
             event.preventDefault();
             // Find the pill's DOM element to position the confirm floater
             const pillEl = editor.view.dom.querySelector(
@@ -3915,6 +4126,18 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
           }
           
           if (atEndOfPill) {
+            if (
+              boundaries &&
+              from === to &&
+              isScriptureReferenceContinuationKey(event.key) &&
+              !event.metaKey &&
+              !event.ctrlKey &&
+              !event.altKey
+            ) {
+              event.preventDefault();
+              insertScriptureContinuationAtPillEnd(editor, boundaries, event.key, scripturePillMark.attrs);
+              return true;
+            }
             return false; // Let ProseMirror handle the character insertion
           }
           
@@ -3960,6 +4183,11 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
               ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Tab', 'Enter', 'Escape', 'Home', 'End', 'PageUp', 'PageDown', 'Backspace', 'Delete'].includes(event.key);
             
             if (!isControlKey && !event.metaKey && !event.ctrlKey && !event.altKey) {
+              if (isScriptureReferenceContinuationKey(event.key)) {
+                event.preventDefault();
+                insertScriptureContinuationAtPillEnd(editor, boundaries, event.key, scripturePillMark.attrs);
+                return true;
+              }
               // Move cursor to end of pill and then let ProseMirror handle character insertion
               editor.chain()
                 .setTextSelection(boundaries.end)
@@ -4293,6 +4521,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       applyDefaultTranslationToScripturePills(editor, defaultTrans);
       await convertNoteLinksToScripturePills(editor);
       consumeTrailingTranslationAfterPills(editor);
+      absorbOrphanSuffixesAfterPills(editor);
 
       try {
         const html = editor.getHTML();
@@ -4319,8 +4548,10 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
 
     if (!isEditorValid(editor)) return;
 
+    const normalizedContent = normalizeEmptyBodyHtmlForEditor(content);
     const currentContent = editor.getHTML();
-    if (currentContent === content) return;
+    if (currentContent === normalizedContent) return;
+    if (isTiptapBodyEmpty(currentContent) && isTiptapBodyEmpty(content)) return;
 
     const isNewNoteEditor = id === 'new-note-content';
     const shouldForceHydratePrefill =
@@ -4330,7 +4561,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       return;
     }
 
-    editor.commands.setContent(canonicalizeNoteHtmlLineBreaks(content), { emitUpdate: false });
+    editor.commands.setContent(normalizedContent, { emitUpdate: false });
 
     const needsCursorAfterScripturePill =
       isNewNoteEditor && content.includes('scripture-pill');
@@ -4342,9 +4573,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
           placeCursorAfterLeadingScripturePill(editor);
           editor.commands.focus();
         } else if (!editor.isFocused) {
-          const doc = editor.state.doc;
-          const endPos = doc.content.size;
-          editor.commands.setTextSelection(endPos);
+          placeCaretForEmptyOrEnd(editor, true);
         }
         snapCursorOutsideScripturePill(editor);
       } catch {
@@ -4358,6 +4587,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
         // Drop/absorb any orphan translation abbreviation left as plain text right after a pill
         // (native-bridged content, or an abbrev typed after an already-resolved pill).
         consumeTrailingTranslationAfterPills(editor);
+        absorbOrphanSuffixesAfterPills(editor);
       }
     }, 500);
 
@@ -5115,6 +5345,14 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     const handleFocus = () => {
       // Check if editor is still valid
       if (!isEditorValid(editor)) return;
+
+      try {
+        if (isDocTextEmpty(editor.state.doc) && editor.state.selection.from !== preferredCaretPosForEmptyDoc(editor.state.doc)) {
+          editor.commands.setTextSelection(preferredCaretPosForEmptyDoc(editor.state.doc));
+        }
+      } catch {
+        /* ignore */
+      }
 
       if (toolbarAtBottom) {
         scheduleScrollSelectionIntoViewAboveToolbar(editor);

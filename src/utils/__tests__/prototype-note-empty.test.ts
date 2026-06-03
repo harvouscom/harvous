@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { isEffectivelyEmptyPrototypeNote, isTiptapBodyEmpty } from '../prototype-note-empty';
+import {
+  isEffectivelyEmptyPrototypeNote,
+  isTiptapBodyEmpty,
+  normalizeEmptyBodyHtmlForEditor,
+  preferredCaretPosForEmptyDoc,
+} from '../prototype-note-empty';
 
 describe('isTiptapBodyEmpty', () => {
   it('treats empty and paragraph-only HTML as empty', () => {
@@ -10,6 +15,27 @@ describe('isTiptapBodyEmpty', () => {
 
   it('detects non-empty body text', () => {
     expect(isTiptapBodyEmpty('<p>Hello</p>')).toBe(false);
+  });
+});
+
+describe('normalizeEmptyBodyHtmlForEditor', () => {
+  it('uses true empty paragraph for empty bodies', () => {
+    expect(normalizeEmptyBodyHtmlForEditor('')).toBe('<p></p>');
+    expect(normalizeEmptyBodyHtmlForEditor('<p></p>')).toBe('<p></p>');
+    expect(normalizeEmptyBodyHtmlForEditor('<p><br></p>')).toBe('<p></p>');
+  });
+
+  it('canonicalizes non-empty bodies including internal blank lines', () => {
+    expect(normalizeEmptyBodyHtmlForEditor('<p>hi</p>')).toBe('<p>hi</p>');
+    expect(normalizeEmptyBodyHtmlForEditor('<p>one</p><p></p><p>two</p>')).toBe(
+      '<p>one</p><p><br></p><p>two</p>',
+    );
+  });
+});
+
+describe('preferredCaretPosForEmptyDoc', () => {
+  it('returns start of first block', () => {
+    expect(preferredCaretPosForEmptyDoc({ textContent: '' })).toBe(1);
   });
 });
 

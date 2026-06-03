@@ -76,9 +76,20 @@ function noteBodyRequiresPinUnlock(
   return !isNoteUnlocked(noteId);
 }
 
-import { isEffectivelyEmptyPrototypeNote, isTiptapBodyEmpty } from '@/utils/prototype-note-empty';
+import {
+  isEffectivelyEmptyPrototypeNote,
+  isTiptapBodyEmpty,
+  normalizeEmptyBodyHtmlForEditor,
+} from '@/utils/prototype-note-empty';
 import { canonicalizeNoteHtmlLineBreaks } from '@/utils/note-html-linebreaks';
 import { shouldInjectProcessedNoteContent } from '@/utils/prototype-editor-save';
+
+/** TipTap body HTML for editing — empty notes use `<p></p>` so the caret stays on line 1. */
+function repairHtmlForEditor(html: string): string {
+  return normalizeEmptyBodyHtmlForEditor(
+    repairScripturePillTranslationsInHtml(html ?? '', getEffectiveDefaultTranslation()),
+  );
+}
 
 /** HTML from TipTap for persistence — blank lines use `<p><br></p>` so they survive save/load. */
 function noteHtmlForSave(editor: { getHTML: () => string; isDestroyed?: boolean } | null, fallback: string): string {
@@ -242,11 +253,7 @@ export default function CardFullEditable({
   const [isSaving, setIsSaving] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
   const [displayTitle, setDisplayTitle] = useState(title);
-  const [displayContent, setDisplayContent] = useState(() =>
-    canonicalizeNoteHtmlLineBreaks(
-      repairScripturePillTranslationsInHtml(content ?? '', getEffectiveDefaultTranslation()),
-    ),
-  );
+  const [displayContent, setDisplayContent] = useState(() => repairHtmlForEditor(content ?? ''));
   const [displayScriptureVersion, setDisplayScriptureVersion] = useState(resolvedScriptureVersion);
   const [imageRemoved, setImageRemoved] = useState(false);
   const [isTitleFocused, setIsTitleFocused] = useState(false);
@@ -645,9 +652,7 @@ export default function CardFullEditable({
     // Only reset displayContent if we haven't updated it locally
     // This prevents the highlight from disappearing when content prop updates
     if (!hasLocalContentUpdate.current) {
-      const repaired = canonicalizeNoteHtmlLineBreaks(
-        repairScripturePillTranslationsInHtml(content ?? '', getEffectiveDefaultTranslation()),
-      );
+      const repaired = repairHtmlForEditor(content ?? '');
       setDisplayContent(repaired);
       if (
         editorChromeMode === 'prototypeNative' &&
@@ -687,9 +692,7 @@ export default function CardFullEditable({
     const initialContent =
       noteType === 'resource' && !c.trim() && resourceDescription
         ? resourceDescription
-        : canonicalizeNoteHtmlLineBreaks(
-            repairScripturePillTranslationsInHtml(c, getEffectiveDefaultTranslation()),
-          );
+        : repairHtmlForEditor(c);
 
     setEditTitle(initialTitle);
     setEditContent(initialContent);
@@ -2680,7 +2683,7 @@ export default function CardFullEditable({
                     name="editContent"
                     placeholder={
                       editorChromeMode === 'prototypeNative'
-                        ? 'Start writing… Enter for a new paragraph, Shift+Enter for a line break'
+                        ? 'Start writing...'
                         : 'Start writing your note...'
                     }
                     tabindex={3}
