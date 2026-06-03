@@ -450,16 +450,29 @@ html.harvous-prototype-route .proto-shell__toolbar-cell::after {
     padding-left: 0;
   }
 
-  /* Soft keyboard open: lift the format bar above the keyboard, hide the study docks. */
+  /* Soft keyboard open: lift the format bar above the keyboard (top set via visualViewport in layout). */
+  html[data-proto-keyboard-open],
+  html[data-proto-keyboard-open] body {
+    overflow: hidden !important;
+    overscroll-behavior: none;
+  }
+
+  html[data-proto-keyboard-open] .proto-shell-frame {
+    overflow: hidden;
+    margin-top: var(--proto-shell-frame-offset-top, var(--pds-shell-frame-inset));
+    height: var(--proto-visible-viewport-height, calc(100dvh - 2 * var(--pds-shell-frame-inset)));
+    max-height: var(--proto-visible-viewport-height, calc(100dvh - 2 * var(--pds-shell-frame-inset)));
+  }
+
   html[data-proto-keyboard-open] .proto-shell__editor-chrome-row .proto-editor-bottom-bar {
     position: fixed;
     left: 0;
     right: 0;
-    bottom: var(--proto-keyboard-bottom, 12px);
+    top: var(--proto-toolbar-top, auto);
+    bottom: auto;
     z-index: 1400;
-    padding-bottom: env(safe-area-inset-bottom, 0);
-    background-color: var(--pds-glass-shell);
-    background-image: linear-gradient(var(--pds-glass-bar-frost), var(--pds-glass-bar-frost));
+    background: var(--pds-bg-popover-solid);
+    background-image: none;
     box-shadow: var(--pds-glass-rim);
   }
 
@@ -469,9 +482,8 @@ html.harvous-prototype-route .proto-shell__toolbar-cell::after {
 
   /* Reserve room so the caret / last line clears the fixed format bar while typing. */
   html[data-proto-keyboard-open] .proto-editor-scroll {
-    max-height: var(--proto-editor-scroll-max-height, none);
-    scroll-padding-bottom: 60px;
-    padding-bottom: 60px;
+    overflow: hidden;
+    overscroll-behavior: contain;
   }
 
   html[data-proto-keyboard-open] .proto-editor-surface .tiptap-content {

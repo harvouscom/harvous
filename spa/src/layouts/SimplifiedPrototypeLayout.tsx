@@ -211,11 +211,44 @@ function PrototypeAuthenticatedChrome({ userId }: { userId?: string }) {
     const isIOS = typeof navigator !== 'undefined' && /iPad|iPhone|iPod/.test(navigator.userAgent);
     const root = document.documentElement;
 
+    const pinPageScroll = () => {
+      if (window.scrollY !== 0 || vv.offsetTop !== 0) {
+        window.scrollTo(0, 0);
+      }
+    };
+
+    const lockPageScroll = () => {
+      if (!root.hasAttribute('data-proto-page-scroll-locked')) {
+        root.setAttribute('data-proto-page-scroll-locked', '');
+      }
+      pinPageScroll();
+    };
+
+    const unlockPageScroll = () => {
+      root.removeAttribute('data-proto-page-scroll-locked');
+      window.scrollTo(0, 0);
+    };
+
     const clear = () => {
-      root.style.removeProperty('--proto-keyboard-bottom');
+      root.style.removeProperty('--proto-toolbar-top');
       root.style.removeProperty('--proto-editor-scroll-max-height');
       root.style.removeProperty('--proto-dock-expanded-max-height');
+      root.style.removeProperty('--proto-visible-viewport-height');
+      root.style.removeProperty('--proto-shell-frame-offset-top');
       root.removeAttribute('data-proto-keyboard-open');
+      unlockPageScroll();
+      document
+        .querySelectorAll<HTMLElement>('.proto-shell-frame')
+        .forEach((frame) => {
+          frame.style.removeProperty('height');
+          frame.style.removeProperty('max-height');
+        });
+      document
+        .querySelectorAll<HTMLElement>('.proto-shell__editor-chrome-row .proto-editor-bottom-bar')
+        .forEach((bar) => {
+          bar.style.removeProperty('top');
+          bar.style.removeProperty('bottom');
+        });
     };
 
     const updateDockMaxHeight = () => {
@@ -232,7 +265,7 @@ function PrototypeAuthenticatedChrome({ userId }: { userId?: string }) {
       }
     };
 
-    const apply = (estimatedViewportHeight?: number) => {
+    const apply = (estimatedViewportHeight?: number, toolbarMeasureAttempt = 0) => {
       updateDockMaxHeight();
       if (!mq.matches) {
         clear();
@@ -247,21 +280,52 @@ function PrototypeAuthenticatedChrome({ userId }: { userId?: string }) {
       }
       const keyboardOpen = effectiveHeight < innerH * 0.75;
       if (keyboardOpen) {
-        const toolbarBottom = Math.max(0, Math.round(innerH - effectiveHeight + 12));
-        const editorH = Math.max(120, effectiveHeight - RESERVE_EDITOR_PX);
-        root.style.setProperty('--proto-keyboard-bottom', `${toolbarBottom}px`);
+        const gap = 12;
+        const offsetTop = vv.offsetTop;
+        const visibleBottom = offsetTop + effectiveHeight;
+        const visibleHeight = Math.round(effectiveHeight);
+        const frameInset =
+          parseFloat(getComputedStyle(root).getPropertyValue('--pds-shell-frame-inset')) || 8;
+        const frameOffsetTop = Math.round(offsetTop + frameInset);
+        const frameHeight = Math.max(120, visibleHeight - frameInset * 2);
+        const frame = document.querySelector<HTMLElement>('.proto-shell-frame');
+        const frameTop = frame?.getBoundingClientRect().top ?? frameOffsetTop;
+        const bar = document.querySelector<HTMLElement>(
+          '.proto-shell__editor-chrome-row .proto-editor-bottom-bar',
+        );
+        const barHeight = bar?.getBoundingClientRect().height ?? 48;
+        const toolbarTop = Math.max(0, Math.round(visibleBottom - barHeight - gap - frameTop));
+        const editorH = Math.max(120, Math.round(visibleBottom - barHeight - gap - RESERVE_EDITOR_PX));
+        root.style.setProperty('--proto-toolbar-top', `${toolbarTop}px`);
         root.style.setProperty('--proto-editor-scroll-max-height', `${editorH}px`);
+        root.style.setProperty('--proto-visible-viewport-height', `${frameHeight}px`);
+        root.style.setProperty('--proto-shell-frame-offset-top', `${frameOffsetTop}px`);
         root.setAttribute('data-proto-keyboard-open', '');
+        lockPageScroll();
+        document.querySelectorAll<HTMLElement>('.proto-shell-frame').forEach((frame) => {
+          frame.style.height = `${frameHeight}px`;
+          frame.style.maxHeight = `${frameHeight}px`;
+        });
+        if (bar) {
+          bar.style.top = `${toolbarTop}px`;
+          bar.style.bottom = 'auto';
+          if (barHeight < 24 && toolbarMeasureAttempt < 4) {
+            requestAnimationFrame(() => apply(estimatedViewportHeight, toolbarMeasureAttempt + 1));
+          }
+        }
       } else {
-        root.style.removeProperty('--proto-keyboard-bottom');
-        root.style.removeProperty('--proto-editor-scroll-max-height');
-        root.removeAttribute('data-proto-keyboard-open');
+        clear();
       }
     };
 
     apply();
     const raf = requestAnimationFrame(() => apply());
-    const onViewportChange = () => apply();
+    const onViewportChange = () => {
+      apply();
+      if (root.hasAttribute('data-proto-keyboard-open')) {
+        pinPageScroll();
+      }
+    };
     const onFocusIn = () => {
       setTimeout(apply, 100);
       setTimeout(apply, 300);

@@ -586,6 +586,7 @@ export default function CardFullEditable({
     const el = cardRootRef.current;
     if (!el) return;
     const isTouchDevice = typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches;
+    if (editorChromeMode === 'prototypeNative') return;
     if (!inBottomSheet && !isTouchDevice) return;
 
     const timeouts: ReturnType<typeof setTimeout>[] = [];
@@ -600,7 +601,7 @@ export default function CardFullEditable({
       el.removeEventListener('focusin', handler);
       timeouts.forEach((t) => clearTimeout(t));
     };
-  }, [inBottomSheet]);
+  }, [inBottomSheet, editorChromeMode]);
 
   // Reset local-content flag when note changes so we accept new content from props
   useEffect(() => {
