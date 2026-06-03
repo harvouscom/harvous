@@ -112,6 +112,19 @@
   pointer-events: auto;
 }
 
+/* Study dock cards — opaque surfaces (glass-light reads too translucent over the shell). */
+html.harvous-prototype-route .proto-shell__study-dock-layer .study-dock-card__card {
+  background: var(--pds-bg-popover-solid);
+  background-image: none;
+}
+
+html.harvous-prototype-route .proto-shell__study-dock-layer .dock-accent-swatch__popover {
+  background: var(--pds-bg-popover-solid);
+  background-image: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
 /* Full-width bar; toolbar content is offset right so it clears the floating sidebar. */
 .proto-shell__editor-chrome-row .proto-editor-bottom-bar {
   width: 100%;
