@@ -198,6 +198,68 @@ function PrototypeAuthenticatedChrome({ userId }: { userId?: string }) {
     };
   }, [userId, pathname, queryClient, homeSpaceId]);
 
+  // Mobile soft keyboard: lift the shell editor chrome row above the keyboard and hide the
+  // study docks while typing. The format toolbar is portaled into the shell (not the card
+  // root), so the classic CardFullEditable keyboard handling can't reposition it — mirror
+  // that visualViewport logic here, scoped to note routes on the mobile breakpoint.
+  useEffect(() => {
+    if (!isNoteRoute) return undefined;
+    const vv = typeof window !== 'undefined' ? window.visualViewport : null;
+    if (!vv) return undefined;
+    const mq = window.matchMedia('(max-width: 899px)');
+    const isIOS = typeof navigator !== 'undefined' && /iPad|iPhone|iPod/.test(navigator.userAgent);
+    const root = document.documentElement;
+
+    const clear = () => {
+      root.style.removeProperty('--proto-keyboard-bottom');
+      root.removeAttribute('data-proto-keyboard-open');
+    };
+
+    const apply = () => {
+      if (!mq.matches) {
+        clear();
+        return;
+      }
+      const innerH = window.innerHeight;
+      const keyboardOpen = vv.height < innerH * 0.75;
+      if (keyboardOpen) {
+        const keyboardBottom = Math.max(0, Math.round(innerH - vv.height - vv.offsetTop));
+        root.style.setProperty('--proto-keyboard-bottom', `${keyboardBottom}px`);
+        root.setAttribute('data-proto-keyboard-open', '');
+      } else {
+        clear();
+      }
+    };
+
+    apply();
+    const raf = requestAnimationFrame(apply);
+    const onFocusIn = () => {
+      setTimeout(apply, 100);
+      setTimeout(apply, 300);
+      if (isIOS) {
+        setTimeout(apply, 400);
+        setTimeout(apply, 600);
+      }
+    };
+    const onFocusOut = () => {
+      setTimeout(apply, 100);
+      setTimeout(apply, 300);
+    };
+    vv.addEventListener('resize', apply);
+    vv.addEventListener('scroll', apply);
+    document.addEventListener('focusin', onFocusIn);
+    document.addEventListener('focusout', onFocusOut);
+
+    return () => {
+      cancelAnimationFrame(raf);
+      vv.removeEventListener('resize', apply);
+      vv.removeEventListener('scroll', apply);
+      document.removeEventListener('focusin', onFocusIn);
+      document.removeEventListener('focusout', onFocusOut);
+      clear();
+    };
+  }, [isNoteRoute]);
+
   const clampSidebarWidth = useCallback(
     (width: number) => Math.min(sidebarWidthMax, Math.max(sidebarWidthMin, width)),
     [sidebarWidthMax, sidebarWidthMin],
