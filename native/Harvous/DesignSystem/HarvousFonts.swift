@@ -9,7 +9,7 @@ import UIKit
 #endif
 
 /// Google Sans Flex everywhere; rounded terminal axis for display/title styles.
-enum HarvousFontDesign: Sendable {
+enum HarvousFontDesign: Sendable, Hashable {
     case `default`
     case rounded
 }
@@ -18,6 +18,32 @@ enum HarvousFonts {
     private static let googleSansFlexPostScriptName = "GoogleSansFlex-Regular"
     private static let roundedAxisValue: CGFloat = 100
     private static let defaultAxisValue: CGFloat = 0
+
+    // MARK: - Instance cache
+    //
+    // `system(...)` resolves a Google Sans Flex *variable* font from a `kCTFontVariationAttribute`
+    // descriptor. CoreText re-instantiates the named instance from disk (`CGFontURLCreate`) on every
+    // call — extremely expensive when called in hot paths (each scripture pill build hits it 3×).
+    // Fonts are immutable and safe to share, so memoize by (size, axis, design). Guarded by a lock
+    // because `system(...)` is not main-actor isolated and is called from multiple contexts.
+    private struct FontCacheKey: Hashable {
+        let size: CGFloat
+        let axis: CGFloat
+        let design: HarvousFontDesign
+    }
+
+    private static let fontCacheLock = NSLock()
+    // `nonisolated(unsafe)`: all access is serialized through `fontCacheLock`.
+    #if os(macOS)
+    nonisolated(unsafe) private static var fontCache: [FontCacheKey: NSFont] = [:]
+    #elseif os(iOS)
+    nonisolated(unsafe) private static var fontCache: [FontCacheKey: UIFont] = [:]
+    #endif
+
+    /// Stable cache key: round size to 0.5pt so near-identical Dynamic Type sizes share an entry.
+    private static func fontCacheKey(size: CGFloat, axis: CGFloat, design: HarvousFontDesign) -> FontCacheKey {
+        FontCacheKey(size: (size * 2).rounded() / 2, axis: axis, design: design)
+    }
 
     /// Default note compose body (before Dynamic Type / Larger Text scaling). iOS +1pt for legibility on smaller screens.
     static let noteComposeBodyPointSize: CGFloat = {
@@ -152,14 +178,31 @@ enum HarvousFonts {
     }
 
     static func system(size: CGFloat, weight axis: CGFloat = 400, design: HarvousFontDesign = .default) -> NSFont {
-        if let font = googleSansFlexNSFont(size: size, weight: axis, design: design) {
-            return font
+        let key = fontCacheKey(size: size, axis: axis, design: design)
+        fontCacheLock.lock()
+        if let cached = fontCache[key] {
+            fontCacheLock.unlock()
+            return cached
         }
-        let w = nsWeight(fromAxis: axis)
-        let base = NSFont.systemFont(ofSize: size, weight: w)
-        guard design == .rounded else { return base }
-        guard let roundedDesc = base.fontDescriptor.withDesign(.rounded) else { return base }
-        return NSFont(descriptor: roundedDesc, size: size) ?? base
+        fontCacheLock.unlock()
+
+        let resolved: NSFont
+        if let font = googleSansFlexNSFont(size: size, weight: axis, design: design) {
+            resolved = font
+        } else {
+            let w = nsWeight(fromAxis: axis)
+            let base = NSFont.systemFont(ofSize: size, weight: w)
+            if design == .rounded, let roundedDesc = base.fontDescriptor.withDesign(.rounded) {
+                resolved = NSFont(descriptor: roundedDesc, size: size) ?? base
+            } else {
+                resolved = base
+            }
+        }
+
+        fontCacheLock.lock()
+        fontCache[key] = resolved
+        fontCacheLock.unlock()
+        return resolved
     }
 
     /// Paragraph headings in the rich editor — rounded. Levels 2…3 in the toolbar; level 4 retained for legacy detection only.
@@ -210,14 +253,31 @@ enum HarvousFonts {
     }
 
     static func system(size: CGFloat, weight axis: CGFloat = 400, design: HarvousFontDesign = .default) -> UIFont {
-        if let font = googleSansFlexUIFont(size: size, weight: axis, design: design) {
-            return font
+        let key = fontCacheKey(size: size, axis: axis, design: design)
+        fontCacheLock.lock()
+        if let cached = fontCache[key] {
+            fontCacheLock.unlock()
+            return cached
         }
-        let w = uiWeight(fromAxis: axis)
-        let base = UIFont.systemFont(ofSize: size, weight: w)
-        guard design == .rounded else { return base }
-        guard let roundedDesc = base.fontDescriptor.withDesign(.rounded) else { return base }
-        return UIFont(descriptor: roundedDesc, size: size)
+        fontCacheLock.unlock()
+
+        let resolved: UIFont
+        if let font = googleSansFlexUIFont(size: size, weight: axis, design: design) {
+            resolved = font
+        } else {
+            let w = uiWeight(fromAxis: axis)
+            let base = UIFont.systemFont(ofSize: size, weight: w)
+            if design == .rounded, let roundedDesc = base.fontDescriptor.withDesign(.rounded) {
+                resolved = UIFont(descriptor: roundedDesc, size: size)
+            } else {
+                resolved = base
+            }
+        }
+
+        fontCacheLock.lock()
+        fontCache[key] = resolved
+        fontCacheLock.unlock()
+        return resolved
     }
 
     /// Same level specs as macOS; sizes scale with Dynamic Type (`.body` metrics) so detection matches persisted notes.

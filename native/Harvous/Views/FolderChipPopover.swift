@@ -30,7 +30,7 @@ struct FolderChipPopover: View {
             #endif
         }
 
-        /// Minimum tap/click target for “Also in” row actions (promote / remove).
+        /// Minimum tap/click target for "Also in" row actions (promote / remove).
         static var folderRowActionExtent: CGFloat {
             #if os(iOS)
             48
@@ -41,7 +41,7 @@ struct FolderChipPopover: View {
 
         static var glyphSection: CGFloat {
             #if os(iOS)
-            13
+            11
             #else
             11
             #endif
@@ -49,7 +49,7 @@ struct FolderChipPopover: View {
 
         static var glyphFolderRow: CGFloat {
             #if os(iOS)
-            16
+            13
             #else
             13
             #endif
@@ -57,16 +57,16 @@ struct FolderChipPopover: View {
 
         static var glyphRowAction: CGFloat {
             #if os(iOS)
-            17
+            13
             #else
-            14
+            13
             #endif
         }
 
         /// Primary-field trailing chrome (check / clear).
         static var trailButtonExtent: CGFloat {
             #if os(iOS)
-            32
+            26
             #else
             26
             #endif
@@ -75,13 +75,13 @@ struct FolderChipPopover: View {
         /// Space reserved inside the primary `TextField` for trailing buttons (≈ two buttons + paddings).
         static var primaryFieldTrailingReserve: CGFloat {
             #if os(iOS)
-            108
+            76
             #else
-            84
+            76
             #endif
         }
 
-        /// Tighter vertical stacking for “Also in” rows — applied per row alongside `alsoInRowsStackSpacing`.
+        /// Tighter vertical stacking for "Also in" rows — applied per row alongside `alsoInRowsStackSpacing`.
         static var secondaryFolderRowVerticalPadding: CGFloat {
             #if os(iOS)
             1
@@ -108,7 +108,7 @@ struct FolderChipPopover: View {
             #endif
         }
 
-        /// Spacing inside the destructive footer group (divider above the “Remove all folders” button sits closer to it).
+        /// Spacing inside the destructive footer group (divider above the "Remove all folders" button sits closer to it).
         static var destructiveGroupSpacing: CGFloat {
             #if os(iOS)
             12
@@ -156,7 +156,7 @@ struct FolderChipPopover: View {
                     Button {
                         onApply()
                     } label: {
-                        HarvousFAGlyph(assetName: "Harvous.Check", edgePt: 13)
+                        HarvousFAGlyph(assetName: "Harvous.Check", edgePt: 11)
                             .frame(width: Metrics.trailButtonExtent, height: Metrics.trailButtonExtent)
                     }
                     .buttonStyle(.plain)
@@ -173,7 +173,7 @@ struct FolderChipPopover: View {
                     Button {
                         onClear()
                     } label: {
-                        HarvousFAGlyph(assetName: "Harvous.Xmark", edgePt: 13)
+                        HarvousFAGlyph(assetName: "Harvous.Xmark", edgePt: 11)
                             .frame(width: Metrics.trailButtonExtent, height: Metrics.trailButtonExtent)
                     }
                     .buttonStyle(.plain)
@@ -185,7 +185,7 @@ struct FolderChipPopover: View {
                     .help(clearHelp)
                     .accessibilityLabel(clearAccessibilityLabel)
                 }
-                .padding(.trailing, 10)
+                .padding(.trailing, 6)
             }
         }
 
@@ -199,7 +199,7 @@ struct FolderChipPopover: View {
         }
     }
 
-    /// Section subtitles (“Primary”, “Also in”).
+    /// Section subtitles ("Primary", "Also in").
     private var sectionLabelFont: Font {
         #if os(iOS)
         HarvousFonts.font(size: 14, weight: 600, design: .default)
@@ -208,7 +208,25 @@ struct FolderChipPopover: View {
         #endif
     }
 
-    /// Source row (“Manual”) and body-style labels in lists.
+    /// Source badge ("Automatic" / "Manual") — kept compact so the row fits in a narrow inspector.
+    private var sourceBadgeFont: Font {
+        #if os(iOS)
+        HarvousFonts.font(size: 14, weight: 500, design: .default)
+        #else
+        HarvousTypography.subheadline
+        #endif
+    }
+
+    /// "Use auto suggestion" action label.
+    private var sourceActionFont: Font {
+        #if os(iOS)
+        HarvousFonts.font(size: 13, weight: 500, design: .default)
+        #else
+        HarvousTypography.caption
+        #endif
+    }
+
+    /// Body-style labels — "Lock primary folder", "Remove all folders", folder rows.
     private var emphasisBodyFont: Font {
         #if os(iOS)
         HarvousFonts.font(size: 16, weight: 500, design: .default)
@@ -235,14 +253,52 @@ struct FolderChipPopover: View {
     }
 
     @Bindable var note: Note
+    /// When true, renders inline in `NoteInspectorView` (no outer scroll or sheet chrome).
+    var embeddedInInspector: Bool = false
 
     @Environment(\.modelContext) private var modelContext
     @State private var draftFolderLabel = ""
     @State private var draftNewSecondary = ""
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: Metrics.verticalSectionSpacing) {
+        Group {
+            if embeddedInInspector {
+                folderEditorContent
+            } else {
+                ScrollView {
+                    folderEditorContent
+                        .padding(.horizontal, Metrics.horizontalPadding)
+                        .padding(.vertical, Metrics.horizontalPadding)
+                }
+                .scrollBounceBehavior(.basedOnSize)
+                #if os(iOS)
+                .frame(maxWidth: .infinity, alignment: .topLeading)
+                #else
+                .frame(width: 340, alignment: .topLeading)
+                #endif
+            }
+        }
+        .onAppear {
+            DispatchQueue.main.async {
+                draftFolderLabel = note.primaryFolder ?? ""
+            }
+        }
+        .onChange(of: note.primaryFolder) { _, newValue in
+            let normalizedDraft = draftFolderLabel.trimmingCharacters(in: .whitespacesAndNewlines)
+            let normalizedNote = (newValue ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            guard normalizedDraft.isEmpty || normalizedDraft == normalizedNote else { return }
+            let next = newValue ?? ""
+            DispatchQueue.main.async {
+                draftFolderLabel = next
+            }
+        }
+        #if os(iOS)
+        .modifier(FolderChipPopoverPresentationModifier(enabled: !embeddedInInspector))
+        #endif
+    }
+
+    private var folderEditorContent: some View {
+        VStack(alignment: .leading, spacing: Metrics.verticalSectionSpacing) {
                 folderSourceRow
 
                 VStack(alignment: .leading, spacing: Metrics.sectionTitleControlSpacing) {
@@ -291,7 +347,7 @@ struct FolderChipPopover: View {
                 }
 
                 if note.isFolderUserOverride {
-                    Text("Manual membership is set. Tap “Use auto suggestion” to follow Harvous again.")
+                    Text("Manual membership is set. Tap \"Use auto suggestion\" to follow Harvous again.")
                         .font(supportingCopyFont)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -314,36 +370,7 @@ struct FolderChipPopover: View {
                     .buttonStyle(.plain)
                 }
             }
-            .padding(.horizontal, Metrics.horizontalPadding)
-            .padding(.vertical, Metrics.horizontalPadding)
-            .frame(maxWidth: .infinity, alignment: .topLeading)
         }
-        .scrollBounceBehavior(.basedOnSize)
-        #if os(iOS)
-        .frame(maxWidth: .infinity, alignment: .topLeading)
-        #else
-        .frame(width: 340, alignment: .topLeading)
-        #endif
-        .onAppear {
-            DispatchQueue.main.async {
-                draftFolderLabel = note.primaryFolder ?? ""
-            }
-        }
-        .onChange(of: note.primaryFolder) { _, newValue in
-            let normalizedDraft = draftFolderLabel.trimmingCharacters(in: .whitespacesAndNewlines)
-            let normalizedNote = (newValue ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-            guard normalizedDraft.isEmpty || normalizedDraft == normalizedNote else { return }
-            let next = newValue ?? ""
-            DispatchQueue.main.async {
-                draftFolderLabel = next
-            }
-        }
-        #if os(iOS)
-        .presentationCompactAdaptation(.sheet)
-        .presentationDragIndicator(.visible)
-        .presentationDetents([.medium, .large])
-        #endif
-    }
 
     // MARK: - Subviews
 
@@ -456,44 +483,53 @@ struct FolderChipPopover: View {
         )
     }
 
-    /// Manual / Automatic badge plus optional “Use auto suggestion” action on one row.
+    /// Manual / Automatic badge plus optional "Use auto suggestion" action on one row.
+    /// Matches web: only shows "Use auto suggestion" when the user has manually overridden folders.
     private var folderSourceRow: some View {
-        HStack(alignment: .center, spacing: 14) {
-            HStack(spacing: 12) {
+        HStack(alignment: .center, spacing: 10) {
+            HStack(spacing: 7) {
                 HarvousFAGlyph(
                     assetName: note.isFolderUserOverride ? "Harvous.Wrench" : "Harvous.WandMagicSparkles",
                     edgePt: Metrics.glyphSection
                 )
-                .foregroundStyle(.secondary)
+                .foregroundStyle(.secondary.opacity(0.6))
 
                 Text(note.isFolderUserOverride ? "Manual" : "Automatic")
-                    .font(emphasisBodyFont)
+                    .font(sourceBadgeFont)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
             }
             .accessibilityElement(children: .combine)
             .accessibilityLabel(note.isFolderUserOverride ? "Folder source: manual" : "Folder source: automatic")
 
-            Spacer(minLength: 14)
+            Spacer(minLength: 8)
 
-            if canUseAutoSuggestion {
+            if note.isFolderUserOverride {
                 Button {
                     applyAutoSuggestedFolder()
                 } label: {
-                    Label {
+                    HStack(spacing: 5) {
+                        HarvousFAGlyph(assetName: "Harvous.CircleArrowLeft", edgePt: 11)
                         Text("Use auto suggestion")
-                            .lineLimit(2)
-                            .multilineTextAlignment(.trailing)
-                            .minimumScaleFactor(0.82)
-                            .font(emphasisBodyFont)
-                    } icon: {
-                        HarvousFAGlyph(assetName: "Harvous.CircleArrowLeft", edgePt: 15)
-                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.85)
                     }
+                    .font(sourceActionFont)
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 4)
+                    .background(
+                        Capsule(style: .continuous)
+                            .fill(Color.secondary.opacity(0.10))
+                    )
+                    .overlay(
+                        Capsule(style: .continuous)
+                            .strokeBorder(Color.primary.opacity(0.10), lineWidth: 0.5)
+                    )
                 }
                 .buttonStyle(.plain)
-                .foregroundStyle(.secondary)
                 .help("Restore the current auto-suggested folders")
                 .accessibilityLabel("Use auto suggested folders")
-                .layoutPriority(1)
             }
         }
         #if os(iOS)
@@ -518,28 +554,6 @@ struct FolderChipPopover: View {
             }
         }
         return Array(seen)
-    }
-
-    private var canUseAutoSuggestion: Bool {
-        let existing = existingLibraryLabels(excludingNote: note)
-        let r = BibleStudyTagSuggester.result(title: note.title, body: note.body, existingFolders: existing)
-        let sugPrimaryRaw = r.primaryFolder?.trimmingCharacters(in: .whitespacesAndNewlines)
-        let sugSec = normalizeSecondaries(r.secondaryFolders, primary: sugPrimaryRaw)
-        if note.isFolderUserOverride || note.isFolderPinned {
-            return (sugPrimaryRaw != nil && !sugPrimaryRaw!.isEmpty) || !sugSec.isEmpty
-        }
-        let curP = normalizedCurrentPrimaryFolder
-        let primDiff: Bool = {
-            switch (curP, sugPrimaryRaw) {
-            case (nil, nil): return false
-            case (nil, .some(let s)): return !s.isEmpty
-            case (.some(let c), nil): return !c.isEmpty
-            case (.some(let c), .some(let s)): return c.caseInsensitiveCompare(s) != .orderedSame
-            }
-        }()
-        let curSec = note.normalizedSecondaryFolderLabels()
-        let secDiff = curSec.map { $0.lowercased() }.sorted() != sugSec.map { $0.lowercased() }.sorted()
-        return primDiff || secDiff
     }
 
     // MARK: - Mutations
@@ -679,3 +693,21 @@ struct FolderChipPopover: View {
         return out
     }
 }
+
+#if os(iOS)
+private struct FolderChipPopoverPresentationModifier: ViewModifier {
+    let enabled: Bool
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if enabled {
+            content
+                .presentationCompactAdaptation(.sheet)
+                .presentationDragIndicator(.visible)
+                .presentationDetents([.medium, .large])
+        } else {
+            content
+        }
+    }
+}
+#endif

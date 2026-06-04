@@ -29,6 +29,15 @@ export function useConnectNote() {
       const sid = vars.spaceId.startsWith('space_') ? vars.spaceId : `space_${vars.spaceId}`;
       queryClient.invalidateQueries({ queryKey: ['note', vars.parentNoteId] });
       queryClient.invalidateQueries({ queryKey: ['note', vars.linkedNoteId] });
+      // Study thread tree can be re-rooted from either endpoint of the new edge.
+      queryClient.invalidateQueries({
+        predicate: (query) =>
+          Array.isArray(query.queryKey) &&
+          query.queryKey[0] === 'prototype' &&
+          query.queryKey[1] === 'note' &&
+          query.queryKey[3] === 'thread',
+      });
+      queryClient.invalidateQueries({ queryKey: ['prototype', 'space', sid, 'study-threads'] });
       queryClient.invalidateQueries({ queryKey: ['space', sid, 'notes'] });
       queryClient.invalidateQueries({ queryKey: ['space', sid, 'bootstrap'] });
       queryClient.invalidateQueries({ queryKey: ['connectNoteCandidates'] });

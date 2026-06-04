@@ -1,42 +1,297 @@
 ---
 import CTAButton from "./CTAButton.astro";
+import AppShell from "./AppShell.astro";
+import { Icon } from "astro-icon/components";
+
+// key matches the data-spot value on AppShell elements.
+const tabs = [
+  { key: "scripture", icon: "fa6-solid:book-bible", label: "Add Scripture" },
+  { key: "dictionary", icon: "fa6-solid:book-open", label: "Dictionary" },
+  { key: "highlight", icon: "fa6-solid:highlighter", label: "Highlight & annotate" },
+  { key: "folders", icon: "fa6-solid:folder-tree", label: "Auto-organize" },
+  { key: "connect", icon: "fa6-solid:arrow-right-arrow-left", label: "Connect notes" },
+  { key: "passage", icon: "fa6-solid:calendar-days", label: "Daily passage" },
+] as const;
 ---
 
-<section class="relative overflow-hidden">
-  <div class="mx-auto max-w-6xl px-5 pb-10 pt-10 md:pt-12">
-
-    <!-- max-w-5xl aligns left edge with TriptychSection cards below -->
-    <div class="mx-auto max-w-5xl">
-      <div class="grid items-center gap-6 lg:grid-cols-[5fr_7fr] lg:gap-12">
-
-        <!-- Copy -->
-        <div class="text-center lg:text-left">
-          <h1 class="font-display text-5xl leading-[1.0] tracking-tight lg:text-[5rem]">
-            Create your <span class="whitespace-nowrap">study Bible.</span>
-          </h1>
-          <p class="mx-auto mt-6 max-w-md text-lg text-[var(--color-ink-soft)] md:text-xl lg:mx-0 lg:max-w-none">
-            Notes and highlights <mark>linked to scripture</mark>, with a built-in dictionary. Seven translations. On web, Mac, iPhone, and iPad.
-          </p>
-          <div class="mt-7 flex items-center justify-center gap-3 lg:justify-start">
-            <CTAButton href="https://app.harvous.com/sign-up" variant="primary" size="lg" external>
-              Start for free
-            </CTAButton>
-            <CTAButton href="/features" variant="secondary" size="lg">
-              See features
-            </CTAButton>
-          </div>
-        </div>
-
-        <!-- App preview image — wider than grid cell, slightly scaled, overflows right, clipped by section overflow-hidden -->
-        <div class="relative lg:w-[calc(100%+25vw)] lg:origin-top-left lg:scale-[1.08]">
-          <img
-            src="/app-preview-mac.png"
-            alt="Harvous app"
-            class="w-full"
-          />
-        </div>
-
-      </div>
+<section class="hero">
+  <!-- Centered header -->
+  <div class="hero__head" data-reveal>
+    <h1 class="hero__title font-display">
+      Create your <span class="whitespace-nowrap">study Bible.</span>
+    </h1>
+    <p class="hero__sub">
+      Notes and highlights <mark>linked to scripture</mark>, with a built-in dictionary. Seven translations. On web, Mac, iPhone, and iPad.
+    </p>
+    <div class="hero__cta">
+      <CTAButton href="https://app.harvous.com/sign-up" variant="primary" size="lg" external>
+        Start for free
+      </CTAButton>
+      <CTAButton href="/#features" variant="secondary" size="lg">
+        See features
+      </CTAButton>
     </div>
+    <p class="hero__device">Free to use · web, Mac, iPad &amp; iPhone · works offline</p>
+  </div>
+
+  <!-- Feature tab bar -->
+  <div class="hero-tabbar-wrap" data-reveal>
+    <button type="button" class="hero-arrow" data-dir="prev" aria-label="Previous feature">
+      <svg class="hero-arrow__glyph" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10 3L5 8l5 5"/></svg>
+    </button>
+    <div class="hero-tabbar" role="tablist" aria-label="Feature preview">
+      {tabs.map((t, i) => (
+        <button
+          type="button"
+          class={`hero-tab${i === 0 ? " is-active" : ""}`}
+          data-i={i}
+          data-key={t.key}
+          role="tab"
+          aria-selected={i === 0 ? "true" : "false"}
+        >
+          <Icon name={t.icon} />
+          <span>{t.label}</span>
+        </button>
+      ))}
+    </div>
+    <button type="button" class="hero-arrow hero-arrow--next" data-dir="next" aria-label="Next feature">
+      <svg class="hero-arrow__ring" viewBox="0 0 44 44" aria-hidden="true">
+        <circle class="hero-arrow__ring-track" cx="22" cy="22" r="20" fill="none" stroke-width="2" />
+        <circle class="hero-arrow__ring-progress" cx="22" cy="22" r="20" fill="none" stroke-width="2" pathLength="1" />
+      </svg>
+      <svg class="hero-arrow__glyph" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3l5 5-5 5"/></svg>
+    </button>
+  </div>
+
+  <!-- Big app visual with per-tab spotlight -->
+  <div class="hero-stage feature-showcase" data-active="scripture" data-reveal="scale" style="--reveal-delay: 100ms;">
+    <div class="hero-glow" aria-hidden="true"></div>
+    <AppShell />
   </div>
 </section>
+
+<style>
+  .hero { position: relative; overflow: hidden; }
+
+  .hero__head {
+    max-width: 48rem;
+    margin-inline: auto;
+    padding: 4.5rem 1.25rem 0;
+    text-align: center;
+  }
+  @media (min-width: 1024px) { .hero__head { padding-top: 6rem; } }
+  .hero__title {
+    font-size: clamp(2.75rem, 6vw, 4.5rem);
+    line-height: 1;
+    letter-spacing: -0.02em;
+    color: var(--color-ink);
+  }
+  .hero__sub {
+    margin: 1.25rem auto 0;
+    max-width: 36rem;
+    font-size: 1.125rem;
+    line-height: 1.55;
+    color: var(--color-ink-soft);
+  }
+  .hero__cta {
+    margin-top: 1.75rem;
+    display: flex;
+    justify-content: center;
+    gap: 0.75rem;
+  }
+  .hero__device {
+    margin-top: 1rem;
+    font-size: 0.875rem;
+    color: var(--color-ink-faint);
+  }
+
+  /* Tab bar */
+  .hero-tabbar-wrap {
+    position: relative;
+    z-index: 2;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    max-width: 72rem;
+    margin: 2.25rem auto 1.75rem;
+    padding: 0 1.25rem;
+  }
+  .hero-arrow {
+    flex: none;
+    width: 2.75rem;
+    height: 2.75rem;
+    border-radius: 999px;
+    border: 1px solid var(--color-rule);
+    background: var(--color-card);
+    color: var(--color-ink-soft);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: color 150ms ease, background-color 150ms ease;
+  }
+  .hero-arrow__glyph { width: 1rem; height: 1rem; position: relative; z-index: 1; }
+  .hero-arrow:hover { color: var(--color-ink); background: var(--color-warm); }
+
+  /* Auto-advance progress ring around the next arrow */
+  .hero-arrow--next { position: relative; }
+  .hero-arrow__ring {
+    position: absolute;
+    inset: -1px;
+    width: calc(100% + 2px);
+    height: calc(100% + 2px);
+    transform: rotate(-90deg);
+    pointer-events: none;
+  }
+  .hero-arrow__ring-track { stroke: transparent; }
+  .hero-arrow__ring-progress {
+    stroke: var(--color-accent);
+    stroke-linecap: round;
+    stroke-dasharray: 1;
+    stroke-dashoffset: 1;
+  }
+  .hero-arrow__ring-progress.is-running {
+    animation: hero-ring var(--hero-ring-duration, 4500ms) linear forwards;
+  }
+  @keyframes hero-ring {
+    from { stroke-dashoffset: 1; }
+    to { stroke-dashoffset: 0; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .hero-arrow__ring-progress.is-running { animation: none; }
+  }
+  .hero-tabbar {
+    display: flex;
+    gap: 0.25rem;
+    overflow-x: auto;
+    scrollbar-width: none;
+    border-radius: 999px;
+    padding: 0.35rem;
+    background: color-mix(in oklab, var(--color-ink) 5%, transparent);
+  }
+  .hero-tabbar::-webkit-scrollbar { display: none; }
+  .hero-tab {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.6rem 1rem;
+    border-radius: 999px;
+    font-size: 0.95rem;
+    font-weight: 500;
+    color: var(--color-ink-soft);
+    white-space: nowrap;
+    transition: background-color 180ms ease, color 180ms ease, box-shadow 180ms ease;
+  }
+  .hero-tab svg { width: 1rem; height: 1rem; }
+  .hero-tab.is-active {
+    background: var(--color-card);
+    color: var(--color-accent);
+    box-shadow: var(--shadow-card);
+  }
+
+  /* Big app stage */
+  .hero-stage {
+    position: relative;
+    z-index: 1;
+    max-width: 72rem;
+    margin-inline: auto;
+    /* Vertical padding so --pds-shadow-drawer isn't clipped (avoid overflow:hidden here) */
+    padding: 2.5rem 1.25rem 3.5rem;
+    overflow: visible;
+  }
+  .hero-glow {
+    position: absolute;
+    /* Inset to app shell only — no negative top (bled over tab bar); no stage overflow clip */
+    inset: 2.5rem 1.25rem 3.5rem;
+    background: var(--hero-light);
+    z-index: 0;
+    pointer-events: none;
+    border-radius: 14px;
+  }
+  .hero-stage :global(.app-shell) {
+    position: relative;
+    z-index: 1;
+  }
+
+  @media (max-width: 520px) {
+    .hero-arrow { display: none; }
+  }
+</style>
+
+<script>
+  const hero = document.querySelector<HTMLElement>(".hero");
+  if (hero) {
+    const tabs = Array.from(hero.querySelectorAll<HTMLButtonElement>(".hero-tab"));
+    const tabbar = hero.querySelector<HTMLElement>(".hero-tabbar");
+    const stage = hero.querySelector<HTMLElement>(".hero-stage");
+    const arrows = Array.from(hero.querySelectorAll<HTMLButtonElement>(".hero-arrow"));
+    const ring = hero.querySelector<SVGElement>(".hero-arrow__ring-progress");
+    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const INTERVAL = 4500;
+    let active = 0;
+    let timer: ReturnType<typeof setInterval> | null = null;
+
+    const restartRing = () => {
+      if (!ring || reduced) return;
+      ring.classList.remove("is-running");
+      void (ring as unknown as HTMLElement).getBoundingClientRect();
+      ring.classList.add("is-running");
+    };
+    const clearRing = () => ring?.classList.remove("is-running");
+
+    const centerTab = (tab: HTMLElement) => {
+      if (!tabbar) return;
+      const left = tab.offsetLeft - (tabbar.clientWidth - tab.offsetWidth) / 2;
+      tabbar.scrollTo({ left, behavior: reduced ? "auto" : "smooth" });
+    };
+
+    const setActive = (i: number) => {
+      active = i;
+      const key = tabs[i].dataset.key;
+      tabs.forEach((t, k) => {
+        t.classList.toggle("is-active", k === i);
+        t.setAttribute("aria-selected", k === i ? "true" : "false");
+      });
+      if (stage) {
+        stage.dataset.active = key || "";
+        stage.querySelectorAll<HTMLElement>("[data-spot]").forEach((el) => {
+          el.classList.toggle("is-active", el.dataset.spot === key);
+        });
+      }
+      centerTab(tabs[i]);
+    };
+
+    const stop = () => {
+      if (timer) {
+        clearInterval(timer);
+        timer = null;
+      }
+      clearRing();
+    };
+    const start = () => {
+      if (reduced || timer) return;
+      timer = setInterval(() => {
+        setActive((active + 1) % tabs.length);
+        restartRing();
+      }, INTERVAL);
+      restartRing();
+    };
+
+    tabs.forEach((tab, i) => {
+      tab.addEventListener("click", () => { stop(); setActive(i); });
+      tab.addEventListener("mouseenter", () => { stop(); setActive(i); });
+    });
+    arrows.forEach((arrow) => {
+      arrow.addEventListener("click", () => {
+        stop();
+        const dir = arrow.dataset.dir === "next" ? 1 : -1;
+        setActive((active + dir + tabs.length) % tabs.length);
+      });
+    });
+    stage?.addEventListener("mouseenter", stop);
+
+    setActive(0);
+    start();
+  }
+</script>

@@ -102,6 +102,47 @@ export default function PrototypeNotePage() {
   const effectiveSpaceIdRef = useRef(effectiveSpaceId);
   effectiveSpaceIdRef.current = effectiveSpaceId;
 
+  // Handle "New Note from selection" — TiptapEditor fires openNewNotePanel + writes to
+  // localStorage; the prototype doesn't mount BottomSheet/CreateNoteButton so we wire
+  // it up here directly.
+  useEffect(() => {
+    const handler = async () => {
+      const spaceId = effectiveSpaceIdRef.current || homeSpaceId;
+      if (!spaceId) return;
+
+      const title = localStorage.getItem('newNoteTitle') ?? '';
+      const content = localStorage.getItem('newNoteContent') ?? '';
+      const linkedFromNoteId = localStorage.getItem('newNoteSourceNoteId') || undefined;
+
+      // Clean up so a repeated open doesn't replay stale data.
+      ['newNoteTitle', 'newNoteContent', 'newNoteSourceNoteId',
+       'newNoteSourceSelectionFrom', 'newNoteSourceSelectionTo',
+       'newNoteSourceSelectionPlainText', 'newNoteContentEmptyFromSelection',
+       'showNewNotePanel'].forEach((k) => localStorage.removeItem(k));
+
+      try {
+        const res = await createNoteMutationRef.current.mutateAsync({
+          spaceId,
+          title,
+          content: content || '<p></p>',
+          linkedFromNoteId,
+        });
+        const createdId = getNoteIdFromCreateResponse(res);
+        if (createdId) {
+          navigate({
+            to: prototypeNoteRouteTo(),
+            params: { noteId: noteParamSlug(createdId) },
+          });
+        }
+      } catch (err) {
+        alertCreateNoteFailure(err);
+      }
+    };
+
+    window.addEventListener('openNewNotePanel', handler);
+    return () => window.removeEventListener('openNewNotePanel', handler);
+  }, [homeSpaceId, navigate]);
+
   const isEditable = true;
 
   const liveFolderLabelRef = useRef<string | null>(null);
@@ -529,6 +570,7 @@ export default function PrototypeNotePage() {
                 onSave={handleNoteSave}
                 onPrototypeEditorUnmount={handlePrototypeEditorUnmount}
                 readOnlyLikeScripture={isOnboardingReadonly}
+                spaceId={effectiveSpaceId ?? undefined}
                 editorChromeMode="prototypeNative"
                 formatToolbarPortalTarget={formatToolbarHostEl}
                 studyDockCarouselPortalTarget={studyDockCarouselHostEl}

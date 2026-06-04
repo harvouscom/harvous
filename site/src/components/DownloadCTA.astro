@@ -1,26 +1,21 @@
 ---
-// Closing CTA card. Craft-style — soft mint pastel background with
-// painterly overlays, large display heading, and a single "Start for free"
-// primary button (native apps are not yet on the App Store).
+// Closing CTA — warm sunrise glow from the base of the card. Single "Start for free" primary button.
 import CTAButton from "./CTAButton.astro";
 ---
 
 <section class="px-4 pb-20 pt-4">
-  <div
-    class="relative mx-auto max-w-6xl overflow-hidden rounded-3xl"
-    style="background: var(--color-warm);"
-  >
-
-<div class="relative px-6 py-20 text-center md:px-16 md:py-28">
+  <div class="cta-card relative mx-auto max-w-6xl overflow-hidden rounded-3xl" data-reveal="scale">
+    <div class="cta-glow" aria-hidden="true"></div>
+    <div class="relative px-6 py-20 text-center md:px-16 md:py-28">
       <h2
         class="mx-auto max-w-3xl font-display text-4xl leading-[1.05] md:text-6xl"
-        style="color: var(--color-cream-ink);"
+        style="color: var(--color-ink);"
       >
         Try Harvous.
       </h2>
       <p
         class="mx-auto mt-5 max-w-xl text-lg md:text-xl"
-        style="color: var(--color-cream-ink); opacity: 0.78;"
+        style="color: var(--color-ink-soft);"
       >
         A notes app thoughtfully designed for Bible study — for a practice that isn't just on Sundays.
       </p>
@@ -33,3 +28,20 @@ import CTAButton from "./CTAButton.astro";
     </div>
   </div>
 </section>
+
+<style>
+  .cta-card {
+    background: var(--color-warm);
+    border: 1px solid var(--color-rule);
+  }
+  .cta-glow {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: radial-gradient(
+      75% 95% at 50% 118%,
+      color-mix(in oklab, var(--color-highlight) 60%, transparent),
+      transparent 70%
+    );
+  }
+</style>

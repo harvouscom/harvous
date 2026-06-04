@@ -1561,7 +1561,19 @@ struct HarvousEditor: NSViewRepresentable {
         // Only update if the source of truth changed externally (not from the user typing).
         // After a note switch, `state` can still hold the previous note until `syncFromNote` runs; the
         // text view was already loaded from `documentBody`. Do not clobber with stale binding text.
-        if !context.coordinator.isEditing,
+        // Cap pill reapply to once per (body, theme) for the current note binding. Without this, a
+        // web-originated note whose saved body lacks the inline pill translation (the translation is
+        // metadata, not body text) never reaches a fixpoint: `harvousExpandedPlainText` appends
+        // " <translation>", so the expanded storage permanently differs from `state`/`documentBody`,
+        // and every `updateNSView` re-runs strip→reapply → 100%-CPU spin. Reapply genuinely only needs
+        // to run once per loaded content; bounding it here ends the loop regardless of the round-trip
+        // mismatch. The key is reset on note switch (`invalidateDeferredNoteBindingWork`).
+        let pillContentKey = documentBody + "|" + String(describing: scriptureTheme)
+        let storageHasPills = textView.textStorage?.string.contains("\u{FFFC}") ?? false
+        let pillContentAlreadySettled =
+            context.coordinator.lastSettledPillContentKey == pillContentKey && storageHasPills
+
+        if !context.coordinator.isEditing, !pillContentAlreadySettled,
            let st = textView.textStorage {
             let plainStorage = harvousExpandedPlainText(in: st)
             if plainStorage != state.plainText {
@@ -1576,13 +1588,16 @@ struct HarvousEditor: NSViewRepresentable {
             }
         }
 
-        if !context.coordinator.isEditing, !state.plainText.isEmpty, let st = textView.textStorage {
+        if !context.coordinator.isEditing, !pillContentAlreadySettled,
+           !state.plainText.isEmpty, let st = textView.textStorage {
             if didSyncBodyFromState {
                 context.coordinator.reapplyScripturePillsToBody(in: textView)
             } else if !st.string.contains("\u{FFFC}"), !ScriptureDetector.detect(in: st.string).isEmpty {
                 // Same plain `body` and `state` (no sync) but pills never applied, e.g. first layout.
                 context.coordinator.reapplyScripturePillsToBody(in: textView)
             }
+            // Mark this content settled so the strip→reapply cycle cannot re-enter for the same body+theme.
+            context.coordinator.lastSettledPillContentKey = pillContentKey
         }
 
         if themeChanged, let st = textView.textStorage, st.length > 0 {
@@ -1600,8 +1615,22 @@ struct HarvousEditor: NSViewRepresentable {
     @MainActor
     private func wireStudyHighlightInteractions(textView: HarvousNoteTextView) {
         let clickHandler = onStudyHighlightClick
+        let proxyRef = proxy
         textView.studyHighlightPaints = studyHighlightPaints
-        textView.onStudyHighlightClick = { uuid in
+        textView.onStudyHighlightClick = { [weak textView] uuid in
+            // Capture the highlight's viewport rect so NoteEditorView can anchor the popup.
+            if let tv = textView, let storage = tv.textStorage, let win = tv.window {
+                if let paint = tv.studyHighlightPaints.first(where: { $0.threadId == uuid }) {
+                    let storRanges = HarvousStudyHighlightMapper.storageRanges(forExpandedRange: paint.expandedUTF16Range, in: storage)
+                    if let r = storRanges.first(where: { $0.location != NSNotFound && NSMaxRange($0) <= storage.length }) {
+                        var actual = NSRange()
+                        let screenRect = tv.firstRect(forCharacterRange: r, actualRange: &actual)
+                        if screenRect != .zero {
+                            proxyRef?.tappedHighlightViewportRect = tv.convert(win.convertFromScreen(screenRect), from: nil)
+                        }
+                    }
+                }
+            }
             clickHandler?(uuid)
         }
     }
@@ -1680,6 +1709,11 @@ struct HarvousEditor: NSViewRepresentable {
         /// `reapplyScripturePillsToBody` so the full regex sweep runs once per real change instead of
         /// every SwiftUI `updateNSView` pass — fixes the 100%-CPU re-entrant render loop on note open/edit.
         fileprivate var lastAppliedPillSignature: String?
+        /// Stable (`documentBody` + theme) key of the content for which `updateNSView` last completed its
+        /// strip→reapply pass. Caps that pass to once per loaded content so it cannot re-enter when the
+        /// expanded storage permanently differs from the saved body (web notes whose translation is
+        /// metadata, not inline). Reset on note switch below.
+        fileprivate var lastSettledPillContentKey: String?
 
         private func currentStudyHighlightPaintSignature() -> String {
             HarvousStudyHighlightMapper.studyHighlightPaintSignature(
@@ -1698,6 +1732,7 @@ struct HarvousEditor: NSViewRepresentable {
             inlineImageRehydrateTask = nil
             lastAppliedStudyHighlightSignature = nil
             lastAppliedPillSignature = nil
+            lastSettledPillContentKey = nil
             cancelFormatBarHide()
         }
 
@@ -1811,6 +1846,18 @@ struct HarvousEditor: NSViewRepresentable {
             }
             p.triggerRemoveIntersectingStudyHighlightsFromSelection = { [weak self] in
                 self?.invokeEraseInlineFormattingFromSelectionIfPossible()
+            }
+            p.captureBodySelectionForConnect = { [weak self, weak p] in
+                guard let self, let p, let tv = self.textView, let storage = tv.textStorage else { return }
+                let storageRange = tv.selectedRange()
+                let expandedRange: NSRange
+                switch HarvousStudyHighlightMapper.expandedRange(forStorageSelection: storageRange, in: storage) {
+                case .success(let exp): expandedRange = exp
+                case .failure: expandedRange = storageRange
+                }
+                let txt = (storage.string as NSString).substring(with: storageRange)
+                p.capturedConnectExpandedRange = expandedRange
+                p.capturedConnectSourceText = txt
             }
         }
 
@@ -2469,6 +2516,7 @@ import UIKit
 private final class HarvousBodyTextView: UITextView {
     var onHighlightCaptureAction: (() -> Void)?
     var onNewStandaloneNoteAction: (() -> Void)?
+    var onConnectExistingNoteAction: (() -> Void)?
     var onLookupAction: ((String) -> Void)?
     /// Set from `updateUIView` on the main actor — the word to look up when selection is exactly one
     /// Easton's-indexed word. `nil` when selection doesn't qualify (multi-word, no entry, etc.).
@@ -2611,6 +2659,11 @@ private final class HarvousBodyTextView: UITextView {
             }
             if let handler = onNewStandaloneNoteAction {
                 front.append(UIAction(title: "New Harvous note", image: UIImage(systemName: "square.and.pencil")) { _ in
+                    handler()
+                })
+            }
+            if let handler = onConnectExistingNoteAction {
+                front.append(UIAction(title: "Connect existing note", image: UIImage(systemName: "arrow.right.arrow.left")) { _ in
                     handler()
                 })
             }
@@ -2786,6 +2839,11 @@ struct HarvousEditor: UIViewRepresentable {
         }
         tv.onNewStandaloneNoteAction = { [weak coordinator] in
             coordinator?.invokeNewStandaloneNoteFromEditMenuIfPossible()
+        }
+        tv.onConnectExistingNoteAction = { [weak coordinator] in
+            DispatchQueue.main.async {
+                coordinator?.proxy?.showConnectFromSelectionPicker = true
+            }
         }
         tv.onRemoveIntersectingStudyHighlightsAction = { [weak coordinator] in
             coordinator?.invokeEraseInlineFormattingFromSelectionIfPossible()
@@ -3101,6 +3159,19 @@ struct HarvousEditor: UIViewRepresentable {
             p.triggerRemoveIntersectingStudyHighlightsFromSelection = { [weak self] in
                 self?.invokeEraseInlineFormattingFromSelectionIfPossible()
             }
+            p.captureBodySelectionForConnect = { [weak self, weak p] in
+                guard let self, let p, let tv = self.textView else { return }
+                let storage = tv.textStorage
+                let storageRange = tv.selectedRange
+                let expandedRange: NSRange
+                switch HarvousStudyHighlightMapper.expandedRange(forStorageSelection: storageRange, in: storage) {
+                case .success(let exp): expandedRange = exp
+                case .failure: expandedRange = storageRange
+                }
+                let txt = (storage.string as NSString).substring(with: storageRange)
+                p.capturedConnectExpandedRange = expandedRange
+                p.capturedConnectSourceText = txt
+            }
         }
 
         @MainActor
@@ -3223,6 +3294,14 @@ struct HarvousEditor: UIViewRepresentable {
                 #if DEBUG
                 print("[Harvous.highlight.tap.ios] RECT uuid=\(uuid) onStudyHighlightTap_set=\(onStudyHighlightTap != nil)")
                 #endif
+                // Capture viewport rect for the connected-note popup anchor.
+                if let paint = studyHighlightPaints.first(where: { $0.threadId == uuid }) {
+                    let storRanges = HarvousStudyHighlightMapper.storageRanges(forExpandedRange: paint.expandedUTF16Range, in: storage)
+                    if let r = storRanges.first(where: { $0.location != NSNotFound && NSMaxRange($0) <= storage.length }) {
+                        let rect = Self.firstRectInTextView(forUTF16Range: r, textView: tv)
+                        if !rect.isEmpty { proxy?.tappedHighlightViewportRect = rect }
+                    }
+                }
                 onStudyHighlightTap?(uuid)
                 tv.resignFirstResponder()
                 return
@@ -3239,6 +3318,8 @@ struct HarvousEditor: UIViewRepresentable {
                 #if DEBUG
                 print("[Harvous.highlight.tap.ios] MATCH uuid=\(uuid) onStudyHighlightTap_set=\(onStudyHighlightTap != nil)")
                 #endif
+                // Use the tap point rect as fallback anchor for the connected-note popup.
+                proxy?.tappedHighlightViewportRect = CGRect(x: point.x - 20, y: point.y - 12, width: 40, height: 24)
                 onStudyHighlightTap?(uuid)
                 tv.resignFirstResponder()
                 return

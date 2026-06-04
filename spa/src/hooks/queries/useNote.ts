@@ -103,6 +103,10 @@ export interface NoteDetail {
   collectionPinned?: boolean;
   collectionUserOverride?: boolean;
   collectionLastAutoUpdatedAt?: string | null;
+  studyThreadTitle?: string | null;
+  studyThreadUserOverride?: boolean;
+  studyThreadPinned?: boolean;
+  studyThreadLastAutoSuggestedAt?: string | null;
   linkedFromNotes?: LinkedNoteRef[];
   linkedToNotes?: LinkedNoteRef[];
   studyThreads?: StudyThreadEntryDetail[];

@@ -5,21 +5,21 @@
  */
 import { useClerk, useUser } from '@clerk/clerk-react';
 import { useQueryClient } from '@tanstack/react-query';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useRouterState } from '@tanstack/react-router';
 import Icon from '@/components/react/Icon';
 import { resolveClerkProfileImageUrl } from '../../lib/clerk-profile-image';
 import { prototypeSettingsRouteTo } from '@/lib/prototype-path';
 import { storeSettingsOpenerPath } from '../../lib/prototype-settings-opener';
 import { updateCachedProfile, useProfile } from '../../hooks/queries/useProfile';
+import { usePopoverDismiss } from '../../hooks/usePopoverDismiss';
 import ProtoPopoverShell from './ProtoPopoverShell';
 
 export default function AccountMenu({ iconSize, disabled = false }: { iconSize: number; disabled?: boolean }) {
   const clerk = useClerk();
   const { user } = useUser();
-  const [open, setOpen] = useState(false);
+  const { open, setOpen, rootRef } = usePopoverDismiss<HTMLDivElement>();
   const [isSigningOut, setIsSigningOut] = useState(false);
-  const rootRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const searchRaw = useRouterState({ select: (s) => s.location.searchStr });
@@ -51,23 +51,6 @@ export default function AccountMenu({ iconSize, disabled = false }: { iconSize: 
     'Your account';
   const email = profile?.email ?? '';
   const showProfilePhoto = Boolean(avatarImageUrl) && !photoLoadFailed;
-
-  useEffect(() => {
-    if (!open) return undefined;
-    const onDoc = (e: MouseEvent) => {
-      const el = rootRef.current;
-      if (el && e.target instanceof Node && !el.contains(e.target)) setOpen(false);
-    };
-    const onEsc = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setOpen(false);
-    };
-    document.addEventListener('mousedown', onDoc);
-    document.addEventListener('keydown', onEsc);
-    return () => {
-      document.removeEventListener('mousedown', onDoc);
-      document.removeEventListener('keydown', onEsc);
-    };
-  }, [open]);
 
   return (
     <div className="proto-menu" ref={rootRef}>

@@ -166,6 +166,17 @@ struct NoteEditorView: View {
     @State private var highlightAnnotationAccent: StudyHighlightAccentToken = .warmAmber
     @Namespace private var selectionAccessoryNamespace
 
+    // ── Connected-note highlight popup (shown instead of dock when tapping an anchored linkedNote highlight) ──
+    struct ConnectedNoteHighlightSession: Identifiable {
+        var id: UUID { threadId }
+        let threadId: UUID
+        let linkedNoteId: UUID?
+        let linkedNoteTitle: String
+        var accent: StudyHighlightAccentToken
+        let anchorRect: CGRect?
+    }
+    @State private var connectedNoteHighlightSession: ConnectedNoteHighlightSession?
+
     /// Inline expanded chrome for a tapped scripture pill (passage + accent + translation).
     /// Replaces the former bottom action bar as the primary click affordance; the old bar still
     /// drives selection-near-pill editing of book/chapter/verse.
@@ -675,6 +686,170 @@ struct NoteEditorView: View {
         studyDockStack = stack
     }
 
+    // MARK: - Connected-note highlight popup
+
+    #if os(macOS)
+    /// macOS: inline floating card positioned above/below the tapped highlight underline.
+    @ViewBuilder
+    private func connectedNotePopoverCard(session: ConnectedNoteHighlightSession) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            // Header: icon + note title
+            HStack(spacing: 6) {
+                Image(systemName: "arrow.right.arrow.left")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(.secondary)
+                Text(session.linkedNoteTitle.isEmpty ? "Connected note" : session.linkedNoteTitle)
+                    .font(.system(size: 13, weight: .semibold))
+                    .lineLimit(2)
+                    .foregroundStyle(.primary)
+                Spacer()
+                Button {
+                    connectedNoteHighlightSession = nil
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 10, weight: .medium))
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(.secondary)
+            }
+
+            // Go to note
+            if let linkedId = session.linkedNoteId {
+                Button {
+                    connectedNoteHighlightSession = nil
+                    openNoteInPlace(id: linkedId)
+                } label: {
+                    Label("Go to note", systemImage: "arrow.up.right.square")
+                        .font(.system(size: 12, weight: .medium))
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.small)
+            }
+
+            // Accent swatch row (reuse existing component)
+            let accentBinding = Binding<StudyHighlightAccentToken>(
+                get: { session.accent },
+                set: { newAccent in
+                    applyConnectedNoteAccentChange(session: session, newAccent: newAccent)
+                }
+            )
+            StudyDockAccentPickerRow(
+                selection: accentBinding,
+                entryKind: .linkedNote
+            )
+
+            // Disconnect
+            HStack {
+                Spacer()
+                Button(role: .destructive) {
+                    disconnectConnectedNoteHighlight(session: session)
+                } label: {
+                    Label("Disconnect", systemImage: "trash")
+                        .font(.system(size: 12, weight: .medium))
+                }
+                .buttonStyle(.borderless)
+                .foregroundStyle(.red.opacity(0.8))
+            }
+        }
+        .padding(14)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(.separator, lineWidth: 0.5))
+        .shadow(color: .black.opacity(0.12), radius: 12, y: 4)
+    }
+    #endif
+
+    /// iOS: bottom sheet for the connected-note highlight popup.
+    @ViewBuilder
+    private func iosConnectedNoteHighlightSheet(session: ConnectedNoteHighlightSession) -> some View {
+        NavigationStack {
+            VStack(alignment: .leading, spacing: 20) {
+                // Note title
+                HStack(spacing: 8) {
+                    Image(systemName: "arrow.right.arrow.left")
+                        .foregroundStyle(.secondary)
+                    Text(session.linkedNoteTitle.isEmpty ? "Connected note" : session.linkedNoteTitle)
+                        .font(.headline)
+                        .lineLimit(3)
+                }
+                .padding(.top, 4)
+
+                // Go to note
+                if let linkedId = session.linkedNoteId {
+                    Button {
+                        connectedNoteHighlightSession = nil
+                        openNoteInPlace(id: linkedId)
+                    } label: {
+                        Label("Go to note", systemImage: "arrow.up.right.square")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.large)
+                }
+
+                // Accent swatches
+                let accentBinding = Binding<StudyHighlightAccentToken>(
+                    get: { session.accent },
+                    set: { newAccent in
+                        applyConnectedNoteAccentChange(session: session, newAccent: newAccent)
+                    }
+                )
+                StudyDockAccentPickerRow(
+                    selection: accentBinding,
+                    entryKind: .linkedNote
+                )
+
+                // Disconnect
+                Button(role: .destructive) {
+                    disconnectConnectedNoteHighlight(session: session)
+                } label: {
+                    Label("Disconnect", systemImage: "trash")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.bordered)
+                .tint(.red)
+
+                Spacer()
+            }
+            .padding(20)
+            .navigationTitle("Connected note")
+            #if os(iOS)
+            .navigationBarTitleDisplayMode(.inline)
+            #endif
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Done") { connectedNoteHighlightSession = nil }
+                }
+            }
+        }
+        #if os(iOS)
+        .presentationDetents([.medium])
+        .presentationDragIndicator(.visible)
+        #endif
+    }
+
+    private func applyConnectedNoteAccentChange(session: ConnectedNoteHighlightSession, newAccent: StudyHighlightAccentToken) {
+        guard let thread = ThreadStore.fetch(id: session.threadId, modelContext: context) else { return }
+        thread.highlightAccentRaw = newAccent.rawValue
+        thread.markDirty()
+        try? context.saveWithLogging()
+        connectedNoteHighlightSession = ConnectedNoteHighlightSession(
+            threadId: session.threadId,
+            linkedNoteId: session.linkedNoteId,
+            linkedNoteTitle: session.linkedNoteTitle,
+            accent: newAccent,
+            anchorRect: session.anchorRect
+        )
+        if let n = note { scheduleRefreshThreads(note: n) }
+    }
+
+    private func disconnectConnectedNoteHighlight(session: ConnectedNoteHighlightSession) {
+        connectedNoteHighlightSession = nil
+        guard let thread = ThreadStore.fetch(id: session.threadId, modelContext: context) else { return }
+        context.delete(thread)
+        try? context.saveWithLogging()
+        if let n = note { scheduleRefreshThreads(note: n) }
+    }
+
     #if os(iOS)
     @ViewBuilder
     private func iosHighlightAnnotationCaptureSheet(session: HighlightCaptureSession) -> some View {
@@ -722,10 +897,10 @@ struct NoteEditorView: View {
                 let showErase = !intersectRemovals.isEmpty || clearFormatting
                 let showLookup = proxy.singleWordSelection
                     .map { eastonsService.hasEntry(forWord: $0) } ?? false
-                // Base = Highlight + New Note (84pt) + horizontal padding (12). Each optional pill
-                // (Look up, Erase) adds 37pt (36 glyph + 0.5 divider + spacing).
+                // Base = Highlight + New Note + Connect (133pt) + horizontal padding (12).
+                // Each optional pill (Look up, Erase) adds 37pt (36 glyph + 0.5 divider + spacing).
                 let extras = (showLookup ? 37 : 0) + (showErase ? 37 : 0)
-                let width: CGFloat = 96 + CGFloat(extras)
+                let width: CGFloat = 133 + CGFloat(extras)
                 let x = selectionAccessoryX(rect: rect, containerWidth: horizontalClampWidth, width: width)
                 let y = selectionAccessoryY(rect: rect)
                 let eraseHelp: String = {
@@ -773,7 +948,12 @@ struct NoteEditorView: View {
                             proxy.triggerRemoveIntersectingStudyHighlightsFromSelection?()
                         }
                         : nil,
-                    eraseInlineFormattingHelp: eraseHelp
+                    eraseInlineFormattingHelp: eraseHelp,
+                    onConnectExistingNote: {
+                        proxy.captureBodySelectionForConnect?()
+                        proxy.collapseBodySelection()
+                        proxy.showConnectFromSelectionPicker = true
+                    }
                 )
                 .offset(x: x, y: y)
                 .transition(.asymmetric(
@@ -809,6 +989,19 @@ struct NoteEditorView: View {
                     removal: .opacity.combined(with: .scale(scale: 0.95, anchor: .top))
                 ))
             }
+            if let cnSession = connectedNoteHighlightSession {
+                let baseRect = cnSession.anchorRect ?? CGRect(x: horizontalClampWidth / 2, y: 100, width: 0, height: 0)
+                let panelW: CGFloat = min(300, max(horizontalClampWidth - 16, 200))
+                let x = selectionAccessoryX(rect: baseRect, containerWidth: horizontalClampWidth, width: panelW)
+                let y = selectionAccessoryY(rect: baseRect)
+                connectedNotePopoverCard(session: cnSession)
+                    .frame(width: panelW)
+                    .offset(x: x, y: y)
+                    .transition(.asymmetric(
+                        insertion: .opacity.combined(with: .scale(scale: 0.95, anchor: .top)),
+                        removal: .opacity
+                    ))
+            }
             #endif
             if let prompt = proxy.scripturePillDeletionPrompt {
                 let barW: CGFloat = min(340, max(horizontalClampWidth - 16, 260))
@@ -831,8 +1024,13 @@ struct NoteEditorView: View {
         }
         #if os(macOS)
         .animation(.spring(response: 0.36, dampingFraction: 0.82), value: highlightCaptureSession != nil)
+        .animation(.spring(response: 0.32, dampingFraction: 0.82), value: connectedNoteHighlightSession != nil)
         .onExitCommand {
             // Esc anywhere in the editor surface backs out of a stuck floating accessory.
+            if connectedNoteHighlightSession != nil {
+                connectedNoteHighlightSession = nil
+                return
+            }
             dismissSelectionAccessories()
         }
         #endif
@@ -1370,6 +1568,9 @@ struct NoteEditorView: View {
         }) { session in
             iosHighlightAnnotationCaptureSheet(session: session)
         }
+        .sheet(item: $connectedNoteHighlightSession) { session in
+            iosConnectedNoteHighlightSheet(session: session)
+        }
         #endif
         // Inspector pane — Mac always, iPad when hosted in `iPadRootView`, iPhone never (showInspector
         // stays `.constant(false)` and the in-editor "Note Details" button opens the `.sheet` above instead).
@@ -1412,11 +1613,65 @@ struct NoteEditorView: View {
         .sheet(isPresented: $showLinkPicker) {
             linkPickerSheetContent
         }
+        .sheet(isPresented: $proxy.showConnectFromSelectionPicker) {
+            connectFromSelectionPickerSheet
+        }
         .sheet(isPresented: $showWikiLinkPicker) {
             wikiLinkPickerSheetContent
         }
         .sheet(isPresented: $showRelatedNotes) {
             relatedNotesSheetContent
+        }
+    }
+
+    @ViewBuilder
+    private var connectFromSelectionPickerSheet: some View {
+        if let n = note {
+            NavigationStack {
+                ConnectNotePicker(
+                    spaceId: n.resolvedSpaceId(),
+                    parentNoteId: n.id,
+                    onPick: { picked in
+                        let capturedRange = proxy.capturedConnectExpandedRange
+                        let capturedText = proxy.capturedConnectSourceText
+                        if let range = capturedRange, range.length > 0 {
+                            _ = ThreadStore.createConnectionMarker(
+                                parent: n,
+                                spaceId: n.resolvedSpaceId(),
+                                sourceSnippet: capturedText.isEmpty ? "(Connected note)" : capturedText,
+                                linked: picked,
+                                expandedAnchorUTF16Range: range,
+                                expandedPlainForAnchor: capturedText,
+                                modelContext: context
+                            )
+                        } else {
+                            _ = ThreadStore.createUnanchoredConnection(parent: n, linked: picked, modelContext: context)
+                        }
+                        proxy.capturedConnectExpandedRange = nil
+                        proxy.capturedConnectSourceText = ""
+                        scheduleRefreshThreads(note: n)
+                        proxy.showConnectFromSelectionPicker = false
+                    },
+                    onCancel: {
+                        proxy.capturedConnectExpandedRange = nil
+                        proxy.capturedConnectSourceText = ""
+                        proxy.showConnectFromSelectionPicker = false
+                    }
+                )
+                .navigationTitle("Connect note")
+                #if os(iOS)
+                .navigationBarTitleDisplayMode(.inline)
+                #endif
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Done") {
+                            proxy.showConnectFromSelectionPicker = false
+                        }
+                    }
+                }
+            }
+        } else {
+            Color.clear.onAppear { proxy.showConnectFromSelectionPicker = false }
         }
     }
 
@@ -1552,28 +1807,32 @@ struct NoteEditorView: View {
         scheduleEastonsEntryPrefetch(note: note)
         trailSnapshot = ThreadStore.trailSnapshot(for: note, modelContext: context)
         reconcileStudyHighlightsPainting(for: note)
-        // Tag refresh used to run synchronously inside `syncFromNote` on every note switch — ~300 regex
-        // matches against the full body blocked the main thread. Now runs inside the debounced slot
-        // (50 ms macOS / 150 ms iOS), well after the NavigationStack push transition, so the back-button
-        // hit area isn't queued behind it. Primary folder is applied separately when still empty (automatic mode).
-        let existingFolders = existingFolderNames(excluding: note)
-        BibleStudyTagSuggester.applyToNote(note, allowPrimaryUpdate: false, existingFolders: existingFolders)
-        if !note.isFolderUserOverride && !note.isFolderPinned {
-            let primaryTrimmed = note.primaryFolder?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-            if primaryTrimmed.isEmpty {
-                BibleStudyTagSuggester.applyToNote(note, allowPrimaryUpdate: true, existingFolders: existingFolders)
-                let applied = !(note.primaryFolder?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true)
-                if applied {
-                    note.markDirty()
-                    try? context.saveWithLogging()
-                    HarvousNoteSpotlightIndexer.reindex(note: note)
-                    HarvousVaultExporter.scheduleWrite(note: note, modelContext: context)
-                }
-            }
-        }
         #if os(iOS)
         syncIOSNoteFooterSupplement()
         #endif
+
+        // Tag/folder suggestion deferred to a separate task so the SwiftData results above render first.
+        // Both the full-library scan (existingFolderNames) and the ~300-match regex (BibleStudyTagSuggester)
+        // run in the next async hop on the main actor rather than blocking the current render cycle.
+        let capturedNote = note
+        let capturedContext = context
+        Task { @MainActor in
+            let existingFolders = existingFolderNames(excluding: capturedNote, using: capturedContext)
+            BibleStudyTagSuggester.applyToNote(capturedNote, allowPrimaryUpdate: false, existingFolders: existingFolders)
+            if !capturedNote.isFolderUserOverride && !capturedNote.isFolderPinned {
+                let primaryTrimmed = capturedNote.primaryFolder?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+                if primaryTrimmed.isEmpty {
+                    BibleStudyTagSuggester.applyToNote(capturedNote, allowPrimaryUpdate: true, existingFolders: existingFolders)
+                    let applied = !(capturedNote.primaryFolder?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true)
+                    if applied {
+                        capturedNote.markDirty()
+                        try? capturedContext.saveWithLogging()
+                        HarvousNoteSpotlightIndexer.reindex(note: capturedNote)
+                        HarvousVaultExporter.scheduleWrite(note: capturedNote, modelContext: capturedContext)
+                    }
+                }
+            }
+        }
     }
 
     /// Coalesces multiple rapid calls (note switch, scene-phase transition, highlight events firing together)
@@ -1844,6 +2103,22 @@ struct NoteEditorView: View {
               thread.hasPersistedHighlightAnchor else {
             #if DEBUG
             print("[Harvous.highlight.activate] FAIL — kind=\(thread.entryKind) hasAnchor=\(thread.hasPersistedHighlightAnchor)")
+            #endif
+            return
+        }
+        // Connected-note highlights get a lightweight floating popup instead of the dock.
+        if thread.entryKind == .linkedNote {
+            let accent = StudyHighlightAccentToken.decoding(thread.highlightAccentRaw)
+            connectedNoteHighlightSession = ConnectedNoteHighlightSession(
+                threadId: threadId,
+                linkedNoteId: thread.linkedNoteId,
+                linkedNoteTitle: thread.linkedNoteTitle,
+                accent: accent,
+                anchorRect: proxy.tappedHighlightViewportRect
+            )
+            #if os(iOS)
+            proxy.resignBodyEditing()
+            UIImpactFeedbackGenerator(style: .soft).impactOccurred()
             #endif
             return
         }
@@ -2782,9 +3057,10 @@ struct NoteEditorView: View {
         }
     }
 
-    private func existingFolderNames(excluding note: Note) -> [String] {
+    private func existingFolderNames(excluding note: Note, using modelContext: ModelContext? = nil) -> [String] {
+        let ctx = modelContext ?? context
         let descriptor = FetchDescriptor<Note>()
-        guard let notes = try? context.fetch(descriptor) else { return [] }
+        guard let notes = try? ctx.fetch(descriptor) else { return [] }
         let ownLower = Set(note.allFolderMembershipLabels().map { $0.lowercased() })
         var labels = Set<String>()
         for n in notes where n.id != note.id {

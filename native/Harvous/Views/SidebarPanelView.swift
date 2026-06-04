@@ -16,6 +16,7 @@ struct SidebarPanelView: View {
     private enum SidebarMode: String, CaseIterable, Identifiable {
         case notes
         case folders
+        case threads
         case scripture
         case highlights
         case dictionary
@@ -25,6 +26,7 @@ struct SidebarPanelView: View {
             switch self {
             case .notes: return "Notes"
             case .folders: return "Folders"
+            case .threads: return "Threads"
             case .highlights: return "Highlights"
             case .scripture: return "Scripture"
             case .dictionary: return "Dictionary"
@@ -35,11 +37,17 @@ struct SidebarPanelView: View {
             switch self {
             case .notes: return "Harvous.Note"
             case .folders: return "Harvous.Folder"
+            case .threads: return "Harvous.ArrowRightArrowLeft"
             case .highlights: return "Harvous.Highlight"
             case .scripture: return "Harvous.BookOpen"
             case .dictionary: return "Harvous.LinesLeaning"
             }
         }
+    }
+
+    private enum ThreadsDrill: Equatable {
+        case root
+        case cluster(representativeId: UUID, title: String, memberIds: [UUID])
     }
 
     private enum FoldersDrill: Equatable {
@@ -68,6 +76,7 @@ struct SidebarPanelView: View {
     @EnvironmentObject private var spaceStore: SpaceStore
     @State private var mode: SidebarMode = .notes
     @State private var foldersDrill: FoldersDrill = .root
+    @State private var threadsDrill: ThreadsDrill = .root
     @State private var scriptureDrill: ScriptureDrill = .root
     @State private var dictionaryDrill: DictionaryDrill = .root
     @State private var folderListSearchText = ""
@@ -96,6 +105,10 @@ struct SidebarPanelView: View {
 
     private var folderRows: [HarvousFolderRow] {
         HarvousFolderListIndex.rows(from: notesInActiveSpace)
+    }
+
+    private var threadClusters: [ThreadStore.NoteCluster] {
+        ThreadStore.connectedClusters(from: notesInActiveSpace, modelContext: modelContext)
     }
 
     private var filteredFolderRows: [HarvousFolderRow] {
@@ -276,6 +289,22 @@ struct SidebarPanelView: View {
                     .help(scriptureSidebarBackButtonHelp)
                     .accessibilityLabel(scriptureSidebarBackAccessibilityLabel(bookLabel: bookLabel))
                 }
+                if mode == .threads, case .cluster(_, let clusterTitle, _) = threadsDrill {
+                    Button {
+                        threadsDrill = .root
+                    } label: {
+                        HStack(spacing: 5) {
+                            HarvousFAGlyph(assetName: "Harvous.ChevronLeft", edgePt: 13)
+                            Text(clusterTitle)
+                                .font(HarvousFonts.font(size: 12, weight: .medium, design: .default))
+                                .lineLimit(1)
+                                .fixedSize(horizontal: true, vertical: false)
+                        }
+                    }
+                    .buttonStyle(.bordered)
+                    .help("Back to threads")
+                    .accessibilityLabel("Back to threads, currently viewing \(clusterTitle)")
+                }
                 if mode == .dictionary, dictionaryDrill != .root {
                     Button {
                         dictionaryDrill = .root
@@ -359,6 +388,20 @@ struct SidebarPanelView: View {
                     }
                     .buttonStyle(.bordered)
                     .accessibilityLabel(scriptureSidebarBackAccessibilityLabel(bookLabel: bookLabel))
+                }
+
+                if mode == .threads, case .cluster(_, let clusterTitle, _) = threadsDrill {
+                    Button { threadsDrill = .root } label: {
+                        HStack(spacing: 5) {
+                            HarvousFAGlyph(assetName: "Harvous.ChevronLeft", edgePt: 13)
+                                .foregroundStyle(.primary)
+                            Text(clusterTitle)
+                                .font(HarvousFonts.font(size: 14, weight: .medium, design: .default))
+                                .lineLimit(1)
+                        }
+                    }
+                    .buttonStyle(.bordered)
+                    .accessibilityLabel("Back to threads, currently viewing \(clusterTitle)")
                 }
 
                 if mode == .dictionary, dictionaryDrill != .root {
@@ -454,6 +497,13 @@ struct SidebarPanelView: View {
                                 ownsSidebarChrome: false
                             )
                         }
+                    } else if mode == .threads {
+                        switch threadsDrill {
+                        case .root:
+                            threadsClusterList
+                        case .cluster(_, _, let memberIds):
+                            threadsMemberNoteList(memberIds: memberIds)
+                        }
                     } else {
                         switch foldersDrill {
                         case .root:
@@ -536,11 +586,15 @@ struct SidebarPanelView: View {
                 if newMode == .notes {
                     foldersDrill = .root
                     scriptureDrill = .root
+                    threadsDrill = .root
                     folderListSearchText = ""
                     return
                 }
                 if newMode != .folders {
                     foldersDrill = .root
+                }
+                if newMode != .threads {
+                    threadsDrill = .root
                 }
                 if newMode != .scripture {
                     scriptureDrill = .root
@@ -893,6 +947,98 @@ struct SidebarPanelView: View {
                             .listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 4, trailing: 0))
                             .listRowBackground(Color.clear)
                             .listRowSeparator(.hidden)
+                    }
+                }
+                .listStyle(.plain)
+                .scrollContentBackground(.hidden)
+                #if os(macOS)
+                .harvousListDailyPassagePillScrollReserve()
+                #endif
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+    }
+
+    // MARK: - Threads views
+
+    private var threadsClusterList: some View {
+        Group {
+            let clusters = threadClusters
+            if clusters.isEmpty {
+                HarvousEmptyStateView(
+                    iconAsset: "Harvous.ArrowRightArrowLeft",
+                    title: "No Threads",
+                    description: "Connect notes together to create threads.",
+                    scale: .compact
+                )
+            } else {
+                List {
+                    ForEach(clusters) { cluster in
+                        Button {
+                            threadsDrill = .cluster(
+                                representativeId: cluster.id,
+                                title: cluster.title,
+                                memberIds: cluster.memberIds
+                            )
+                        } label: {
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text(cluster.title)
+                                    .font(HarvousTypography.noteListTitle)
+                                    .foregroundStyle(.primary)
+                                    .lineLimit(1)
+                                Text("\(cluster.noteCount) \(cluster.noteCount == 1 ? "note" : "notes")")
+                                    .font(HarvousTypography.noteListPreview)
+                                    .foregroundStyle(.secondary)
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .listRowInsets(EdgeInsets(top: 6, leading: HarvousFeedListLayout.listRowHorizontalInset, bottom: 6, trailing: HarvousFeedListLayout.listRowHorizontalInset))
+                        .listRowBackground(Color.clear)
+                        .listRowSeparator(.hidden)
+                    }
+                }
+                .listStyle(.plain)
+                .scrollContentBackground(.hidden)
+                #if os(macOS)
+                .harvousListDailyPassagePillScrollReserve()
+                #endif
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+    }
+
+    private func threadsMemberNoteList(memberIds: [UUID]) -> some View {
+        let noteById = Dictionary(uniqueKeysWithValues: notesInActiveSpace.map { ($0.id, $0) })
+        let members = memberIds.compactMap { noteById[$0] }
+        return Group {
+            if members.isEmpty {
+                HarvousEmptyStateView(
+                    iconAsset: "Harvous.Note",
+                    title: "No Notes",
+                    description: "Notes in this thread will appear here.",
+                    scale: .compact
+                )
+            } else {
+                List {
+                    ForEach(members) { note in
+                        Button {
+                            selectedNote = note
+                        } label: {
+                            Text(note.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                                 ? "Untitled"
+                                 : note.title)
+                                .font(HarvousTypography.noteListTitle)
+                                .foregroundStyle(.primary)
+                                .lineLimit(2)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .listRowInsets(EdgeInsets(top: 6, leading: HarvousFeedListLayout.listRowHorizontalInset, bottom: 6, trailing: HarvousFeedListLayout.listRowHorizontalInset))
+                        .listRowBackground(Color.clear)
+                        .listRowSeparator(.hidden)
                     }
                 }
                 .listStyle(.plain)

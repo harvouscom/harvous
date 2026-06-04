@@ -64,7 +64,7 @@
   overflow-y: clip;
   width: 100%;
   box-sizing: border-box;
-  padding: 16px 12px 8px;
+  padding: 24px 12px 16px;
   scroll-padding-inline: 12px;
   scrollbar-width: none;
   -ms-overflow-style: none;

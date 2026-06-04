@@ -1,40 +1,59 @@
 ---
+import ThemeToggle from "./ThemeToggle.astro";
+
 const navLinks = [
   { href: "/#features", label: "Features" },
-  { href: "/use-cases", label: "Use cases" },
   { href: "/blog", label: "Blog" },
 ];
 ---
 
 <header class="sticky top-3 z-40 px-4">
-  <div class="mx-auto flex w-fit items-center gap-5 rounded-full border border-[var(--color-rule)] bg-white/85 px-5 py-2 shadow-[0_1px_2px_rgba(20,18,12,0.04),0_8px_24px_-12px_rgba(20,18,12,0.12)] backdrop-blur">
-    <a href="/" class="flex items-center gap-2 text-base font-semibold tracking-tight">
-      <img src="/icons/app-icon.png" alt="Harvous" class="h-6 w-6 rounded-md" />
-      <span class="hidden sm:inline">Harvous</span>
+  <div
+    class="mx-auto flex w-fit items-center gap-4 rounded-full border border-[var(--color-rule)] px-4 py-2 shadow-[0_1px_2px_rgba(20,18,12,0.04),0_8px_24px_-12px_rgba(20,18,12,0.12)] backdrop-blur sm:gap-5 sm:px-5"
+    style="background: color-mix(in oklab, var(--color-card) 86%, transparent);"
+  >
+    <a href="/" class="group flex items-center gap-2">
+      <img src="/icons/app-icon.png" alt="" class="h-6 w-6 rounded-md" />
+      <span class="wordmark hidden sm:inline">Harvous</span>
     </a>
 
-    <nav class="flex items-center gap-5">
+    <nav class="hidden items-center gap-4 sm:flex sm:gap-5">
       {navLinks.map((link) => (
         <a
           href={link.href}
-          class="text-sm text-[var(--color-ink-soft)] hover:text-[var(--color-ink)]"
+          class="text-sm text-[var(--color-ink-soft)] transition-colors hover:text-[var(--color-ink)]"
         >
           {link.label}
         </a>
       ))}
       <a
         href="https://app.harvous.com/sign-in"
-        class="text-sm text-[var(--color-ink-soft)] hover:text-[var(--color-ink)]"
+        class="hidden text-sm text-[var(--color-ink-soft)] transition-colors hover:text-[var(--color-ink)] sm:inline"
       >
         Log in
       </a>
     </nav>
 
+    <ThemeToggle />
+
     <a
       href="https://app.harvous.com/sign-up"
-      class="rounded-full bg-white px-3 py-1.5 text-sm font-medium text-[var(--color-ink)] shadow-sm ring-1 ring-[var(--color-rule)] hover:bg-[var(--color-warm)]"
+      class="rounded-full px-3 py-1.5 text-sm font-medium text-[var(--color-ink)] shadow-sm ring-1 ring-[var(--color-rule)] transition-colors hover:bg-[var(--color-warm)]"
+      style="background: var(--color-card);"
     >
       Try free
     </a>
   </div>
 </header>
+
+<style>
+  .wordmark {
+    font-family: "Google Sans Flex", ui-sans-serif, system-ui, sans-serif;
+    font-variation-settings: "ROND" 100;
+    font-size: 1.125rem;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    line-height: 1;
+    color: var(--color-ink);
+  }
+</style>

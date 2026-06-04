@@ -2,12 +2,7 @@
  * One-time backfill: copy web thread titles into `Notes.primaryCollection` and
  * `Notes.secondaryCollections` for prototype / DB parity with native collection labels.
  *
- * Rules:
- * - Primary label = `Threads.title` for `Notes.threadId` (canonical primary thread).
- * - Skip notes where `threadId` is `thread_unorganized` or `thread_onboarding_*`.
- * - Secondaries = other `NoteThreads` memberships (non-system threads), excluding the
- *   primary thread id, ordered by `NoteThreads.createdAt` ascending.
- * - Skip notes with `collectionUserOverride` or `collectionPinned`, or existing `primaryCollection`.
+ * Rules: see `server/utils/prototype-user-migration.ts`.
  *
  * Usage (requires `SUPABASE_DATABASE_URL` or `SUPABASE_DIRECT_URL` in env — same as API):
  *   npx tsx server/scripts/backfill-collections-from-threads.ts --dry-run
@@ -19,18 +14,8 @@
  */
 
 import 'dotenv/config';
-import { db } from '../db/client';
-import { Notes, Threads, NoteThreads } from '../db/schema';
-import { and, asc, eq, gt, inArray, isNull, ne, sql, type SQL } from 'drizzle-orm';
-import { nowISO } from '../db/dates';
-import {
-  normalizeSecondaryLabels,
-  serializeNoteSecondaryCollections,
-} from '../utils/note-secondary-collections';
-
-function isSystemThreadId(threadId: string): boolean {
-  return threadId === 'thread_unorganized' || threadId.startsWith('thread_onboarding_');
-}
+import { db, Notes, eq, and, asc, gt, isNull, ne, sql, type SQL } from '../db';
+import { backfillCollectionsFromThreadsForUser } from '../utils/prototype-user-migration';
 
 function parseArgs() {
   const dryRun = process.argv.includes('--dry-run');
@@ -51,16 +36,9 @@ function parseArgs() {
   return { dryRun, userId, batchSize, maxNotes };
 }
 
-interface NoteRow {
-  id: string;
-  threadId: string;
-  userId: string;
-}
-
-/** Exclude per-user onboarding threads (`thread_onboarding_${userId}`). */
 const NOT_ONBOARDING_THREAD = sql`NOT starts_with(${Notes.threadId}::text, 'thread_onboarding_')`;
 
-async function fetchCandidateBatch(lastId: string | null, take: number, userId?: string): Promise<NoteRow[]> {
+async function countCandidates(userId?: string): Promise<number> {
   const conditions: SQL[] = [
     isNull(Notes.primaryCollection),
     eq(Notes.collectionUserOverride, false),
@@ -69,165 +47,99 @@ async function fetchCandidateBatch(lastId: string | null, take: number, userId?:
     NOT_ONBOARDING_THREAD,
   ];
   if (userId) conditions.push(eq(Notes.userId, userId));
-  if (lastId) conditions.push(gt(Notes.id, lastId));
-  const base = and(...conditions);
 
-  return db
-    .select({
-      id: Notes.id,
-      threadId: Notes.threadId,
-      userId: Notes.userId,
-    })
+  const rows = await db
+    .select({ id: Notes.id })
     .from(Notes)
-    .where(base)
+    .where(and(...conditions));
+  return rows.length;
+}
+
+async function sampleCandidates(userId: string | undefined, take: number): Promise<string[]> {
+  const conditions: SQL[] = [
+    isNull(Notes.primaryCollection),
+    eq(Notes.collectionUserOverride, false),
+    eq(Notes.collectionPinned, false),
+    ne(Notes.threadId, 'thread_unorganized'),
+    NOT_ONBOARDING_THREAD,
+  ];
+  if (userId) conditions.push(eq(Notes.userId, userId));
+
+  const rows = await db
+    .select({ id: Notes.id, threadId: Notes.threadId })
+    .from(Notes)
+    .where(and(...conditions))
     .orderBy(asc(Notes.id))
     .limit(take);
+  return rows.map((r) => `  ${r.id}  threadId=${r.threadId}`);
 }
 
-async function loadThreadTitles(threadIds: string[]): Promise<Map<string, string>> {
-  if (threadIds.length === 0) return new Map();
-  const rows = await db
-    .select({ id: Threads.id, title: Threads.title })
-    .from(Threads)
-    .where(inArray(Threads.id, threadIds));
-  return new Map(rows.map((r) => [r.id, r.title]));
-}
+async function backfillAllUsers(batchSize: number, maxNotes?: number): Promise<number> {
+  let totalUpdated = 0;
+  let lastUserId: string | null = null;
 
-type SecondaryRow = {
-  noteId: string;
-  threadId: string;
-  title: string;
-};
+  while (true) {
+    const userConditions: SQL[] = [
+      isNull(Notes.primaryCollection),
+      eq(Notes.collectionUserOverride, false),
+      eq(Notes.collectionPinned, false),
+      ne(Notes.threadId, 'thread_unorganized'),
+      NOT_ONBOARDING_THREAD,
+    ];
+    if (lastUserId) userConditions.push(gt(Notes.userId, lastUserId));
 
-async function loadSecondaries(noteIds: string[]): Promise<Map<string, SecondaryRow[]>> {
-  const out = new Map<string, SecondaryRow[]>();
-  if (noteIds.length === 0) return out;
+    const userRows = await db
+      .select({ userId: Notes.userId })
+      .from(Notes)
+      .where(and(...userConditions))
+      .groupBy(Notes.userId)
+      .orderBy(asc(Notes.userId))
+      .limit(50);
 
-  const rows = await db
-    .select({
-      noteId: NoteThreads.noteId,
-      threadId: NoteThreads.threadId,
-      title: Threads.title,
-      createdAt: NoteThreads.createdAt,
-    })
-    .from(NoteThreads)
-    .innerJoin(Threads, eq(NoteThreads.threadId, Threads.id))
-    .where(inArray(NoteThreads.noteId, noteIds))
-    .orderBy(asc(NoteThreads.noteId), asc(NoteThreads.createdAt));
+    if (userRows.length === 0) break;
 
-  for (const r of rows) {
-    const list = out.get(r.noteId) ?? [];
-    list.push({ noteId: r.noteId, threadId: r.threadId, title: r.title });
-    out.set(r.noteId, list);
+    for (const { userId } of userRows) {
+      const remaining = maxNotes != null ? Math.max(0, maxNotes - totalUpdated) : undefined;
+      if (remaining === 0) return totalUpdated;
+      const updated = await backfillCollectionsFromThreadsForUser(userId, {
+        batchSize,
+        maxNotes: remaining,
+      });
+      totalUpdated += updated;
+      lastUserId = userId;
+      if (maxNotes != null && totalUpdated >= maxNotes) return totalUpdated;
+    }
+
+    if (userRows.length < 50) break;
   }
-  return out;
-}
 
-function computeSecondariesForNote(
-  noteThreadId: string,
-  rows: SecondaryRow[] | undefined,
-  primaryLabel: string,
-): string | null {
-  if (!rows?.length) return serializeNoteSecondaryCollections([]);
-
-  const titles: string[] = [];
-  for (const r of rows) {
-    if (r.threadId === noteThreadId) continue;
-    if (isSystemThreadId(r.threadId)) continue;
-    const t = (r.title || '').trim();
-    if (!t) continue;
-    titles.push(t);
-  }
-  const normalized = normalizeSecondaryLabels(titles, primaryLabel);
-  return serializeNoteSecondaryCollections(normalized);
+  return totalUpdated;
 }
 
 async function main() {
   const { dryRun, userId, batchSize, maxNotes } = parseArgs();
 
   console.log(
-    `${dryRun ? '[DRY RUN] ' : ''}Backfill collections from threads (batchSize=${batchSize}${userId ? `, userId=${userId}` : ''}${maxNotes != null ? `, limit=${maxNotes}` : ''})`,
+    `${dryRun ? '[DRY RUN] ' : ''}Backfill collections from threads (batchSize=${batchSize}${userId ? `, userId=${userId}` : ', all users'}${maxNotes != null ? `, limit=${maxNotes}` : ''})`,
   );
 
-  let lastId: string | null = null;
-  let updated = 0;
-  let skippedNoPrimaryTitle = 0;
-  let skippedPrimaryThreadMissing = 0;
-  const samples: string[] = [];
-  const maxSamples = 20;
-  let totalExamined = 0;
+  const candidateCount = await countCandidates(userId);
+  console.log(`Candidate notes (no primaryCollection, non-system thread): ${candidateCount}`);
 
-  while (true) {
-    const batch = await fetchCandidateBatch(lastId, batchSize, userId);
-    if (batch.length === 0) break;
-
-    const noteIds = batch.map((n) => n.id);
-    const primaryThreadIds = [...new Set(batch.map((n) => n.threadId))];
-    const titleByThreadId = await loadThreadTitles(primaryThreadIds);
-    const secondariesByNote = await loadSecondaries(noteIds);
-
-    for (const note of batch) {
-      if (maxNotes != null && totalExamined >= maxNotes) {
-        lastId = '__stop__';
-        break;
-      }
-      totalExamined++;
-
-      if (isSystemThreadId(note.threadId)) {
-        skippedNoPrimaryTitle++;
-        continue;
-      }
-
-      const rawTitle = titleByThreadId.get(note.threadId);
-      if (rawTitle == null) {
-        skippedPrimaryThreadMissing++;
-        continue;
-      }
-      const primaryLabel = rawTitle.trim();
-      if (!primaryLabel.length) {
-        skippedNoPrimaryTitle++;
-        continue;
-      }
-
-      const secondarySerialized = computeSecondariesForNote(note.threadId, secondariesByNote.get(note.id), primaryLabel);
-
-      if (dryRun) {
-        if (samples.length < maxSamples) {
-          const secParsed = secondarySerialized ? JSON.parse(secondarySerialized) : [];
-          samples.push(
-            `  ${note.id}  primary="${primaryLabel}"  secondaries=${JSON.stringify(secParsed)}`,
-          );
-        }
-      } else {
-        await db
-          .update(Notes)
-          .set({
-            primaryCollection: primaryLabel,
-            secondaryCollections: secondarySerialized,
-            updatedAt: nowISO(),
-          })
-          .where(eq(Notes.id, note.id));
-      }
-      updated++;
+  if (dryRun) {
+    const samples = await sampleCandidates(userId, 20);
+    if (samples.length > 0) {
+      console.log(`\nSample candidate note ids (up to 20):\n${samples.join('\n')}`);
     }
-
-    if (lastId === '__stop__') break;
-
-    lastId = batch[batch.length - 1]!.id;
-
-    if (batch.length < batchSize) break;
-    if (maxNotes != null && totalExamined >= maxNotes) break;
+    console.log('\n[DRY RUN] No rows updated.');
+    process.exit(0);
   }
 
-  console.log(`\nExamined (candidates in stream): ${totalExamined}`);
-  console.log(`${dryRun ? '[DRY RUN] Would update' : 'Updated'} notes: ${updated}`);
-  console.log(`Skipped (empty/missing primary thread title): ${skippedNoPrimaryTitle}`);
-  console.log(`Skipped (Threads row missing for Notes.threadId): ${skippedPrimaryThreadMissing}`);
+  const updated = userId
+    ? await backfillCollectionsFromThreadsForUser(userId, { batchSize, maxNotes })
+    : await backfillAllUsers(batchSize, maxNotes);
 
-  if (dryRun && samples.length > 0) {
-    console.log(`\nSample mappings (up to ${maxSamples}):\n${samples.join('\n')}`);
-  }
-
+  console.log(`\nUpdated notes: ${updated}`);
   console.log('\nDone.');
   process.exit(0);
 }

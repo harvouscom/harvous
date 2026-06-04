@@ -3,7 +3,8 @@ import {
   type OfflineSpace, 
   type OfflineThread, 
   type OfflineNote, 
-  type OfflineNoteThread, 
+  type OfflineNoteThread,
+  type OfflineNoteConnection,
   type OfflineTag, 
   type OfflineNoteTag, 
   type OfflineUserMetadata, 
@@ -139,6 +140,7 @@ export async function applyBootstrapData(userId: string, bootstrapData: any): Pr
       offlineDB.threads.where('userId').equals(userId).delete(),
       offlineDB.notes.where('userId').equals(userId).delete(),
       offlineDB.noteThreads.where('userId').equals(userId).delete(),
+      offlineDB.noteConnections.where('userId').equals(userId).delete(),
       offlineDB.tags.where('userId').equals(userId).delete(),
       offlineDB.noteTags.where('userId').equals(userId).delete(),
       offlineDB.userMetadata.where('userId').equals(userId).delete(),
@@ -234,6 +236,25 @@ export async function applyBootstrapData(userId: string, bootstrapData: any): Pr
         }, userId)
       );
       await offlineDB.noteThreads.bulkPut(noteThreads);
+    } else {
+    }
+
+    // Insert noteConnections
+    if (bootstrapData.noteConnections && bootstrapData.noteConnections.length > 0) {
+      const noteConnections: OfflineNoteConnection[] = bootstrapData.noteConnections.map((nc: any) =>
+        ensureUserPartition<OfflineNoteConnection>({
+          id: nc.id,
+          fromNoteId: nc.fromNoteId,
+          toNoteId: nc.toNoteId,
+          spaceId: nc.spaceId ?? null,
+          syncStatus: 'synced',
+          lastModified: new Date(nc.createdAt).getTime(),
+          serverVersion: new Date(nc.createdAt).getTime(),
+          createdAt: new Date(nc.createdAt),
+          updatedAt: null,
+        }, userId)
+      );
+      await offlineDB.noteConnections.bulkPut(noteConnections);
     } else {
     }
 
@@ -452,6 +473,30 @@ export async function applyIncrementalChanges(userId: string, changes: any): Pro
             updatedAt: null,
           }, userId);
           await offlineDB.noteThreads.put(offlineNoteThread);
+          appliedCount++;
+        }
+      }
+    }
+
+    // Apply noteConnections
+    if (changes.noteConnections && changes.noteConnections.length > 0) {
+      for (const nc of changes.noteConnections) {
+        const existing = await offlineDB.noteConnections.where('[userId+id]').equals([userId, nc.id]).first();
+        const lastModified = new Date(nc.createdAt).getTime();
+
+        if (!existing || lastModified >= (existing.lastModified || 0)) {
+          const offlineConnection: OfflineNoteConnection = ensureUserPartition<OfflineNoteConnection>({
+            id: nc.id,
+            fromNoteId: nc.fromNoteId,
+            toNoteId: nc.toNoteId,
+            spaceId: nc.spaceId ?? null,
+            syncStatus: 'synced',
+            lastModified,
+            serverVersion: lastModified,
+            createdAt: new Date(nc.createdAt),
+            updatedAt: null,
+          }, userId);
+          await offlineDB.noteConnections.put(offlineConnection);
           appliedCount++;
         }
       }

@@ -3,15 +3,16 @@ import { nowISO } from '../db/dates';
 import { isSyncDeletedEntitiesTableMissing } from './pg-undefined-relation';
 
 const EVENT_CHUNK = 1000;
-const EMPTY_FEED: SyncDeletionFeed = { deletedNoteIds: [], deletedStudyThreadIds: [], deletedThreadIds: [] };
+const EMPTY_FEED: SyncDeletionFeed = { deletedNoteIds: [], deletedStudyThreadIds: [], deletedThreadIds: [], deletedNoteConnectionIds: [] };
 
 export interface SyncDeletionFeed {
   deletedNoteIds: string[];
   deletedStudyThreadIds: string[];
   deletedThreadIds: string[];
+  deletedNoteConnectionIds: string[];
 }
 
-type DeletedEntityType = 'note' | 'studyThread' | 'thread';
+type DeletedEntityType = 'note' | 'studyThread' | 'thread' | 'noteConnection';
 
 export async function recordDeletedEntities(
   userId: string,
@@ -68,18 +69,21 @@ export async function loadDeletedEntitiesSince(userId: string, sinceDate: Date):
   const deletedNoteIds = new Set<string>();
   const deletedStudyThreadIds = new Set<string>();
   const deletedThreadIds = new Set<string>();
+  const deletedNoteConnectionIds = new Set<string>();
 
   for (const row of rows) {
     if (!row.entityId) continue;
     if (row.entityType === 'note') deletedNoteIds.add(row.entityId);
     if (row.entityType === 'studyThread') deletedStudyThreadIds.add(row.entityId);
     if (row.entityType === 'thread') deletedThreadIds.add(row.entityId);
+    if (row.entityType === 'noteConnection') deletedNoteConnectionIds.add(row.entityId);
   }
 
   return {
     deletedNoteIds: Array.from(deletedNoteIds),
     deletedStudyThreadIds: Array.from(deletedStudyThreadIds),
     deletedThreadIds: Array.from(deletedThreadIds),
+    deletedNoteConnectionIds: Array.from(deletedNoteConnectionIds),
   };
 }
 

@@ -70,6 +70,15 @@ export const HighlightCustom = Highlight.extend({
           return { 'data-reference': String(attributes.reference) };
         },
       },
+      // When set, clicking this highlight opens a connected-note popup instead of the dock.
+      linkedNoteId: {
+        default: null,
+        parseHTML: (element) => element.getAttribute('data-linked-note-id'),
+        renderHTML: (attributes) => {
+          if (!attributes.linkedNoteId) return {};
+          return { 'data-linked-note-id': String(attributes.linkedNoteId) };
+        },
+      },
     };
   },
 

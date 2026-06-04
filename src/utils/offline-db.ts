@@ -60,6 +60,13 @@ export interface OfflineNoteThread extends BaseOfflineEntity {
   threadId: string;
 }
 
+// Offline NoteConnection graph edge
+export interface OfflineNoteConnection extends BaseOfflineEntity {
+  fromNoteId: string;
+  toNoteId: string;
+  spaceId: string | null;
+}
+
 // Offline Tag entity
 export interface OfflineTag extends BaseOfflineEntity {
   name: string;
@@ -147,6 +154,7 @@ class OfflineDatabase extends Dexie {
   threads!: Table<OfflineThread>;
   notes!: Table<OfflineNote>;
   noteThreads!: Table<OfflineNoteThread>;
+  noteConnections!: Table<OfflineNoteConnection>;
   tags!: Table<OfflineTag>;
   noteTags!: Table<OfflineNoteTag>;
   userMetadata!: Table<OfflineUserMetadata>;
@@ -201,6 +209,22 @@ class OfflineDatabase extends Dexie {
       syncQueue: '++id, userId, operation, entityType, entityId, timestamp, [userId+operation], [userId+entityType], [userId+id]',
       syncState: 'userId',
       // Add new thread cache table
+      threadCache: '[threadId+userId], threadId, userId, timestamp, expiresAt'
+    });
+
+    // Version 4: NoteConnections graph for prototype study threads / offline parity
+    this.version(4).stores({
+      spaces: 'id, userId, syncStatus, lastModified, [userId+syncStatus], [userId+id]',
+      threads: 'id, userId, spaceId, syncStatus, lastModified, [userId+spaceId], [userId+syncStatus], [userId+id]',
+      notes: 'id, userId, threadId, spaceId, syncStatus, lastModified, simpleNoteId, [userId+threadId], [userId+spaceId], [userId+syncStatus], [userId+simpleNoteId], [userId+id]',
+      noteThreads: 'id, userId, noteId, threadId, [userId+noteId], [userId+threadId], [noteId+threadId], [userId+noteId+threadId], [userId+id]',
+      noteConnections:
+        'id, userId, fromNoteId, toNoteId, spaceId, [userId+fromNoteId], [userId+toNoteId], [userId+id]',
+      tags: 'id, userId, syncStatus, [userId+syncStatus], [userId+id]',
+      noteTags: 'id, userId, noteId, tagId, [userId+noteId], [userId+tagId], [userId+id]',
+      userMetadata: 'id, userId, [userId+id]',
+      syncQueue: '++id, userId, operation, entityType, entityId, timestamp, [userId+operation], [userId+entityType], [userId+id]',
+      syncState: 'userId',
       threadCache: '[threadId+userId], threadId, userId, timestamp, expiresAt'
     });
   }

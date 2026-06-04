@@ -22,6 +22,9 @@ struct SelectionActionBar: View {
     /// Tooltip for the eraser pill (depends on whether highlights vs bold/link/etc. apply).
     var eraseInlineFormattingHelp: String = "Remove highlight and formatting"
 
+    /// When non-nil, a connect-existing-note affordance appears after New Note.
+    var onConnectExistingNote: (() -> Void)? = nil
+
     var body: some View {
         HStack(spacing: 2) {
             pillButton(
@@ -49,6 +52,17 @@ struct SelectionActionBar: View {
                     assetName: "Harvous.PenToSquare",
                     help: "New Harvous note from selection"
                 ) { onNewStandaloneNote() }
+            }
+
+            if let onConnectExistingNote {
+                Rectangle()
+                    .fill(Color.primary.opacity(0.14))
+                    .frame(width: 0.5, height: 22)
+
+                pillButton(
+                    assetName: "Harvous.ArrowRightArrowLeft",
+                    help: "Connect existing note to selection"
+                ) { onConnectExistingNote() }
             }
 
             if let onEraseInlineFormatting {

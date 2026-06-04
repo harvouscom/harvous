@@ -16,6 +16,7 @@ import {
   Threads,
   Notes,
   NoteThreads,
+  NoteConnections,
   StudyThreadEntries,
   Tags,
   NoteTags,
@@ -45,7 +46,7 @@ import { generateNoteId, generateThreadId, generateSpaceId, generateStudyThreadE
 import { ensureUnorganizedThread } from '../utils/unorganized-thread';
 import { detectScripture, getPrimaryReference, normalizeScriptureReference } from '@/utils/scripture-detector';
 import { fetchVerseText } from '../utils/fetch-verse-text';
-import { isStudyThreadEntriesTableMissing } from '../utils/pg-undefined-relation';
+import { isStudyThreadEntriesTableMissing, isNoteConnectionsTableMissing } from '../utils/pg-undefined-relation';
 import { deleteSingleNoteCascadeForUser } from '../utils/delete-note-cascade';
 import { loadDeletedEntitiesSince, recordDeletedEntities } from '../utils/sync-deletion-log';
 import { broadcastInvalidationForSyncPush } from '../utils/realtime';
@@ -313,6 +314,9 @@ async function processNoteMutation(userId: string, operation: string, entityId: 
       collectionPinned: typeof data.collectionPinned === 'boolean' ? data.collectionPinned : false,
       collectionUserOverride: typeof data.collectionUserOverride === 'boolean' ? data.collectionUserOverride : false,
       collectionLastAutoUpdatedAt: collectionLastAutoCreate,
+      studyThreadUserOverride:
+        typeof data.studyThreadUserOverride === 'boolean' ? data.studyThreadUserOverride : false,
+      studyThreadPinned: typeof data.studyThreadPinned === 'boolean' ? data.studyThreadPinned : false,
     }).returning())!;
 
     const newHighest = Math.max(assignedSimpleNoteId, effectiveHighest);
@@ -320,6 +324,22 @@ async function processNoteMutation(userId: string, operation: string, entityId: 
 
     if (threadId && threadId !== 'thread_unorganized') {
       await db.insert(NoteThreads).values({ id: generateNoteId(), noteId: newNote.id, threadId, createdAt: nowISO() });
+    }
+
+    // Mirror create-from-highlight link into the NoteConnections graph.
+    if (resolvedLinkedFromNoteId) {
+      try {
+        await db.insert(NoteConnections).values({
+          id: generateNoteId(),
+          fromNoteId: resolvedLinkedFromNoteId,
+          toNoteId: newNote.id,
+          userId,
+          spaceId: data.spaceId || null,
+          createdAt: nowISO(),
+        });
+      } catch {
+        // Duplicate — already connected, safe to ignore.
+      }
     }
 
     // Cache the result for idempotency
@@ -381,6 +401,24 @@ async function processNoteMutation(userId: string, operation: string, entityId: 
         data.collectionLastAutoUpdatedAt == null || data.collectionLastAutoUpdatedAt === ''
           ? null
           : new Date(data.collectionLastAutoUpdatedAt);
+    }
+    if (data.studyThreadTitle !== undefined) {
+      updatePayload.studyThreadTitle =
+        typeof data.studyThreadTitle === 'string' && data.studyThreadTitle.trim()
+          ? data.studyThreadTitle.trim()
+          : null;
+    }
+    if (data.studyThreadUserOverride !== undefined) {
+      updatePayload.studyThreadUserOverride = Boolean(data.studyThreadUserOverride);
+    }
+    if (data.studyThreadPinned !== undefined) {
+      updatePayload.studyThreadPinned = Boolean(data.studyThreadPinned);
+    }
+    if (data.studyThreadLastAutoSuggestedAt !== undefined) {
+      updatePayload.studyThreadLastAutoSuggestedAt =
+        data.studyThreadLastAutoSuggestedAt == null || data.studyThreadLastAutoSuggestedAt === ''
+          ? null
+          : new Date(data.studyThreadLastAutoSuggestedAt);
     }
 
     await db.update(Notes).set(updatePayload as any).where(eq(Notes.id, entityId));
@@ -653,7 +691,7 @@ app.get('/api/sync/bootstrap', requireAuth, async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
 
-    const [spaces, threads, notes, noteThreads, tags, noteTags, studyThreadEntries, userMetadataRows] = await Promise.all([
+    const [spaces, threads, notes, noteThreads, noteConnections, tags, noteTags, studyThreadEntries, userMetadataRows] = await Promise.all([
       db.select({
         id: Spaces.id, title: Spaces.title, description: Spaces.description, color: Spaces.color,
         backgroundGradient: Spaces.backgroundGradient, isPublic: Spaces.isPublic, isActive: Spaces.isActive,
@@ -678,6 +716,10 @@ app.get('/api/sync/bootstrap', requireAuth, async (c) => {
         collectionPinned: Notes.collectionPinned,
         collectionUserOverride: Notes.collectionUserOverride,
         collectionLastAutoUpdatedAt: Notes.collectionLastAutoUpdatedAt,
+        studyThreadTitle: Notes.studyThreadTitle,
+        studyThreadUserOverride: Notes.studyThreadUserOverride,
+        studyThreadPinned: Notes.studyThreadPinned,
+        studyThreadLastAutoSuggestedAt: Notes.studyThreadLastAutoSuggestedAt,
       }).from(Notes).where(and(eq(Notes.userId, auth.userId), ne(Notes.noteType, 'scripture')))
         // Newest-first so the most relevant notes are included when a user has more
         // than the cap; fetch one extra to detect truncation.
@@ -689,6 +731,29 @@ app.get('/api/sync/bootstrap', requireAuth, async (c) => {
         createdAt: NoteThreads.createdAt,
       }).from(NoteThreads).innerJoin(Notes, eq(Notes.id, NoteThreads.noteId))
         .where(eq(Notes.userId, auth.userId)),
+
+      (async () => {
+        try {
+          return await db
+            .select({
+              id: NoteConnections.id,
+              fromNoteId: NoteConnections.fromNoteId,
+              toNoteId: NoteConnections.toNoteId,
+              spaceId: NoteConnections.spaceId,
+              createdAt: NoteConnections.createdAt,
+            })
+            .from(NoteConnections)
+            .where(eq(NoteConnections.userId, auth.userId));
+        } catch (e) {
+          if (isNoteConnectionsTableMissing(e)) {
+            console.warn(
+              '[sync/bootstrap] NoteConnections table missing; returning empty connections. Run `npm run db:push`.',
+            );
+            return [];
+          }
+          throw e;
+        }
+      })(),
 
       db.select({
         id: Tags.id, name: Tags.name, color: Tags.color, category: Tags.category,
@@ -763,9 +828,11 @@ app.get('/api/sync/bootstrap', requireAuth, async (c) => {
       threads,
       notes: notesPage.map((n) => ({ ...n, secondaryCollections: parseNoteSecondaryCollections(n.secondaryCollections) })),
       noteThreads,
+      noteConnections,
       tags,
       noteTags,
       studyThreadEntries,
+      deletedNoteConnectionIds: [],
       userMetadata: userMetaForResponse ? (() => {
         const { lockPinHash, ...rest } = userMetaForResponse;
         return {
@@ -803,7 +870,7 @@ app.get('/api/sync/changes', requireAuth, async (c) => {
 
     const sinceDate = new Date(sinceTimestamp);
 
-    const [changedSpaces, changedThreads, changedNotes, changedNoteThreads, changedTags, changedNoteTags, changedStudyThreadEntries, changedUserMetadataRows, deletedFeed] = await Promise.all([
+    const [changedSpaces, changedThreads, changedNotes, changedNoteThreads, changedNoteConnections, changedTags, changedNoteTags, changedStudyThreadEntries, changedUserMetadataRows, deletedFeed] = await Promise.all([
       db.select({
         id: Spaces.id, title: Spaces.title, description: Spaces.description, color: Spaces.color,
         backgroundGradient: Spaces.backgroundGradient, isPublic: Spaces.isPublic, isActive: Spaces.isActive,
@@ -828,6 +895,10 @@ app.get('/api/sync/changes', requireAuth, async (c) => {
         collectionPinned: Notes.collectionPinned,
         collectionUserOverride: Notes.collectionUserOverride,
         collectionLastAutoUpdatedAt: Notes.collectionLastAutoUpdatedAt,
+        studyThreadTitle: Notes.studyThreadTitle,
+        studyThreadUserOverride: Notes.studyThreadUserOverride,
+        studyThreadPinned: Notes.studyThreadPinned,
+        studyThreadLastAutoSuggestedAt: Notes.studyThreadLastAutoSuggestedAt,
       }).from(Notes).where(and(eq(Notes.userId, auth.userId), ne(Notes.noteType, 'scripture'), or(gt(Notes.updatedAt, sinceDate), gt(Notes.createdAt, sinceDate), gt(Notes.lastVisited, sinceDate))))
         // Oldest-first + cap so a large backlog is paged: the cursor below resumes
         // from the last returned note's timestamp (no data loss; next sync catches up).
@@ -838,6 +909,27 @@ app.get('/api/sync/changes', requireAuth, async (c) => {
         id: NoteThreads.id, noteId: NoteThreads.noteId, threadId: NoteThreads.threadId, createdAt: NoteThreads.createdAt,
       }).from(NoteThreads).innerJoin(Notes, eq(Notes.id, NoteThreads.noteId))
         .where(and(eq(Notes.userId, auth.userId), gt(NoteThreads.createdAt, sinceDate))),
+
+      (async () => {
+        try {
+          return await db
+            .select({
+              id: NoteConnections.id,
+              fromNoteId: NoteConnections.fromNoteId,
+              toNoteId: NoteConnections.toNoteId,
+              spaceId: NoteConnections.spaceId,
+              createdAt: NoteConnections.createdAt,
+            })
+            .from(NoteConnections)
+            .where(and(eq(NoteConnections.userId, auth.userId), gt(NoteConnections.createdAt, sinceDate)));
+        } catch (e) {
+          if (isNoteConnectionsTableMissing(e)) {
+            console.warn('[sync/changes] NoteConnections table missing; returning empty connection delta.');
+            return [];
+          }
+          throw e;
+        }
+      })(),
 
       db.select({
         id: Tags.id, name: Tags.name, color: Tags.color, category: Tags.category,
@@ -926,22 +1018,25 @@ app.get('/api/sync/changes', requireAuth, async (c) => {
       cursor: nextCursor,
       hasMore: notesPageTruncated,
       hasChanges: changedSpaces.length > 0 || changedThreads.length > 0 || changedNotesPage.length > 0 ||
-                  changedNoteThreads.length > 0 || changedTags.length > 0 || changedNoteTags.length > 0 ||
+                  changedNoteThreads.length > 0 || changedNoteConnections.length > 0 || changedTags.length > 0 || changedNoteTags.length > 0 ||
                   changedStudyThreadEntries.length > 0 ||
                   deletedFeed.deletedNoteIds.length > 0 ||
                   deletedFeed.deletedStudyThreadIds.length > 0 ||
                   deletedFeed.deletedThreadIds.length > 0 ||
+                  deletedFeed.deletedNoteConnectionIds.length > 0 ||
                   changedUserMetadata !== null && changedUserMetadata !== undefined,
       spaces: changedSpaces,
       threads: changedThreads,
       notes: changedNotesPage.map((n) => ({ ...n, secondaryCollections: parseNoteSecondaryCollections(n.secondaryCollections) })),
       noteThreads: changedNoteThreads,
+      noteConnections: changedNoteConnections,
       tags: changedTags,
       noteTags: changedNoteTags,
       studyThreadEntries: changedStudyThreadEntries,
       deletedNoteIds: deletedFeed.deletedNoteIds,
       deletedStudyThreadIds: deletedFeed.deletedStudyThreadIds,
       deletedThreadIds: deletedFeed.deletedThreadIds,
+      deletedNoteConnectionIds: deletedFeed.deletedNoteConnectionIds,
       userMetadata: userMetaForResponse ? (() => {
         const { lockPinHash, ...rest } = userMetaForResponse;
         return { ...rest, highestSimpleNoteId: effectiveHighestForChanges, hasLockPinSet: !!lockPinHash };

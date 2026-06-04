@@ -5,15 +5,24 @@ import Foundation
 enum BibleStudyTagSuggester {
     // MARK: - Public API
 
-    static func result(title: String, body: String, existingFolders: [String] = []) -> (
+    /// - parameter currentPrimaryOverride: When provided, secondaries are computed using this label instead
+    ///   of the auto-suggested primary. Pass the note's existing `primaryFolder` value to preserve secondary
+    ///   behaviour for pinned/overridden notes when computing off the main thread.
+    static func result(
+        title: String,
+        body: String,
+        existingFolders: [String] = [],
+        currentPrimaryOverride: String? = nil
+    ) -> (
         primaryFolder: String?,
         secondaryFolders: [String],
         tags: [String]
     ) {
         let analysis = analyze(title: title, body: body)
         let primary = resolveToExistingFolder(analysis.primaryCandidate, from: existingFolders)
+        let secondaryPrimary = normalizedFolderName(currentPrimaryOverride) ?? normalizedFolderName(primary)
         let secondaries: [String]
-        if let primaryTrimmed = normalizedFolderName(primary) {
+        if let primaryTrimmed = secondaryPrimary {
             secondaries = autoSecondaryLabels(
                 analysis: analysis,
                 primaryLabel: primaryTrimmed,

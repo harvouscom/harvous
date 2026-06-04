@@ -18124,6 +18124,7 @@ __export(schema_exports, {
   InboxItems: () => InboxItems,
   Members: () => Members,
   MonthlyAnalytics: () => MonthlyAnalytics,
+  NoteConnections: () => NoteConnections,
   NoteScriptureReferences: () => NoteScriptureReferences2,
   NoteTags: () => NoteTags,
   NoteThreads: () => NoteThreads,
@@ -18147,7 +18148,7 @@ __export(schema_exports, {
   VotdSchedule: () => VotdSchedule,
   WeeklyStreaks: () => WeeklyStreaks
 });
-var ts, Spaces, Threads, Notes, NoteThreads, StudyThreadEntries, SyncDeletedEntities, Comments, Members, SpaceInvitations, UserMetadata, ClerkUserMapping, UserXP, UserSeasonalXP, UserLifetimeXP, WeeklyStreaks, Tags, NoteTags, ScriptureMetadata, NoteScriptureReferences2, VerseTextCache, BibleTranslations, BibleVerses, ResourceMetadata, InboxItems, InboxItemNotes, UserInboxItems, FeaturedItems, VotdSchedule, VotdPublishHistory, UserFeaturedItems, MonthlyAnalytics;
+var ts, Spaces, Threads, Notes, NoteThreads, StudyThreadEntries, SyncDeletedEntities, Comments, Members, SpaceInvitations, UserMetadata, ClerkUserMapping, UserXP, UserSeasonalXP, UserLifetimeXP, WeeklyStreaks, Tags, NoteTags, ScriptureMetadata, NoteScriptureReferences2, NoteConnections, VerseTextCache, BibleTranslations, BibleVerses, ResourceMetadata, InboxItems, InboxItemNotes, UserInboxItems, FeaturedItems, VotdSchedule, VotdPublishHistory, UserFeaturedItems, MonthlyAnalytics;
 var init_schema2 = __esm({
   "server/db/schema.ts"() {
     "use strict";
@@ -18231,7 +18232,14 @@ var init_schema2 = __esm({
         collectionUserOverride: boolean("collectionUserOverride").notNull().default(false),
         collectionLastAutoUpdatedAt: ts("collectionLastAutoUpdatedAt"),
         /** Note created from highlighted text in this source note (same user only). */
-        linkedFromNoteId: text("linkedFromNoteId")
+        linkedFromNoteId: text("linkedFromNoteId"),
+        /** User-overridden name for the study thread this note anchors (as the cluster representative). */
+        studyThreadTitle: text("studyThreadTitle"),
+        /** When true, `studyThreadTitle` is manual; when false, display uses auto-suggested cluster name. */
+        studyThreadUserOverride: boolean("studyThreadUserOverride").notNull().default(false),
+        /** When true, thread name does not auto-update when the cluster changes (folder `collectionPinned` parity). */
+        studyThreadPinned: boolean("studyThreadPinned").notNull().default(false),
+        studyThreadLastAutoSuggestedAt: ts("studyThreadLastAutoSuggestedAt")
       },
       (table) => [
         index("Notes_userIdIndex").on(table.userId),
@@ -18447,6 +18455,19 @@ var init_schema2 = __esm({
       createdAt: ts("createdAt").notNull()
     }, (table) => [
       uniqueIndex("NoteScriptureReferences_uniqueNoteScripture").on(table.noteId, table.scriptureNoteId)
+    ]);
+    NoteConnections = pgTable("NoteConnections", {
+      id: text("id").primaryKey(),
+      fromNoteId: text("fromNoteId").notNull(),
+      toNoteId: text("toNoteId").notNull(),
+      userId: text("userId").notNull(),
+      spaceId: text("spaceId"),
+      createdAt: ts("createdAt").notNull()
+    }, (table) => [
+      uniqueIndex("NoteConnections_uniquePair").on(table.fromNoteId, table.toNoteId),
+      index("NoteConnections_fromNoteIdIndex").on(table.fromNoteId),
+      index("NoteConnections_toNoteIdIndex").on(table.toNoteId),
+      index("NoteConnections_userIdIndex").on(table.userId)
     ]);
     VerseTextCache = pgTable("VerseTextCache", {
       reference: text("reference").notNull(),
@@ -18895,7 +18916,7 @@ function stripHtmlForListPreview(html, maxLength = 80) {
   const segments = listPreviewSegmentsFromHtml(html);
   let out = "";
   for (const segment of segments) {
-    const next = out ? `${out} ${segment}` : segment;
+    const next = out ? `${out} \xB7 ${segment}` : segment;
     if (next.length > maxLength) {
       if (!out) return segment.length > maxLength ? `${segment.slice(0, maxLength)}\u2026` : segment;
       break;
@@ -133417,7 +133438,14 @@ async function deleteNotesCascadeForUser(userId, noteIds) {
   if (deletedNoteIds.length === 0) {
     return { deletedNoteIds: [], deletedStudyThreadIds: [] };
   }
-  await db.update(Notes).set({ linkedFromNoteId: null, updatedAt: nowISO() }).where(and(eq(Notes.userId, userId), inArray(Notes.linkedFromNoteId, deletedNoteIds)));
+  for (const chunk of chunkIds(deletedNoteIds)) {
+    await db.delete(NoteConnections).where(
+      or(
+        inArray(NoteConnections.fromNoteId, chunk),
+        inArray(NoteConnections.toNoteId, chunk)
+      )
+    );
+  }
   const deletedStudyThreadIds = [];
   for (const chunk of chunkIds(deletedNoteIds)) {
     const studyRows = await db.select({ id: StudyThreadEntries.id }).from(StudyThreadEntries).where(
@@ -133490,13 +133518,36 @@ function isPgUndefinedRelation(error, relationName) {
 function isStudyThreadEntriesTableMissing(error) {
   return isPgUndefinedRelation(error, "StudyThreadEntries");
 }
+function isNoteConnectionsTableMissing(error) {
+  return isPgUndefinedRelation(error, "NoteConnections");
+}
 function isSyncDeletedEntitiesTableMissing(error) {
   return isPgUndefinedRelation(error, "SyncDeletedEntities");
+}
+function isPgUndefinedColumn(error, columnName) {
+  const needles = [`column "${columnName}" does not exist`, `column ${columnName} does not exist`];
+  let current = error;
+  const seen = /* @__PURE__ */ new Set();
+  for (let depth = 0; depth < 12 && current != null; depth++) {
+    if (typeof current === "object" && current !== null) {
+      if (seen.has(current)) break;
+      seen.add(current);
+    }
+    const msg = current instanceof Error ? current.message : typeof current === "string" ? current : "";
+    const code = current !== null && typeof current === "object" && "code" in current && current.code != null ? String(current.code) : "";
+    if (needles.some((n) => msg.includes(n))) return true;
+    if (code === "42703" && msg.includes(columnName)) return true;
+    current = current instanceof Error && "cause" in current ? current.cause : void 0;
+  }
+  return false;
+}
+function isStudyThreadNamingColumnMissing(error) {
+  return isPgUndefinedColumn(error, "studyThreadUserOverride") || isPgUndefinedColumn(error, "studyThreadPinned") || isPgUndefinedColumn(error, "studyThreadLastAutoSuggestedAt") || isPgUndefinedColumn(error, "studyThreadTitle");
 }
 
 // server/utils/sync-deletion-log.ts
 var EVENT_CHUNK = 1e3;
-var EMPTY_FEED = { deletedNoteIds: [], deletedStudyThreadIds: [], deletedThreadIds: [] };
+var EMPTY_FEED = { deletedNoteIds: [], deletedStudyThreadIds: [], deletedThreadIds: [], deletedNoteConnectionIds: [] };
 async function recordDeletedEntities(userId, entityType, entityIds) {
   const uniqueIds = Array.from(new Set(entityIds.filter(Boolean)));
   if (uniqueIds.length === 0) return;
@@ -133541,16 +133592,19 @@ async function loadDeletedEntitiesSince(userId, sinceDate) {
   const deletedNoteIds = /* @__PURE__ */ new Set();
   const deletedStudyThreadIds = /* @__PURE__ */ new Set();
   const deletedThreadIds = /* @__PURE__ */ new Set();
+  const deletedNoteConnectionIds = /* @__PURE__ */ new Set();
   for (const row of rows) {
     if (!row.entityId) continue;
     if (row.entityType === "note") deletedNoteIds.add(row.entityId);
     if (row.entityType === "studyThread") deletedStudyThreadIds.add(row.entityId);
     if (row.entityType === "thread") deletedThreadIds.add(row.entityId);
+    if (row.entityType === "noteConnection") deletedNoteConnectionIds.add(row.entityId);
   }
   return {
     deletedNoteIds: Array.from(deletedNoteIds),
     deletedStudyThreadIds: Array.from(deletedStudyThreadIds),
-    deletedThreadIds: Array.from(deletedThreadIds)
+    deletedThreadIds: Array.from(deletedThreadIds),
+    deletedNoteConnectionIds: Array.from(deletedNoteConnectionIds)
   };
 }
 
@@ -134197,6 +134251,21 @@ function requireHarvousAdmin(c) {
   return null;
 }
 
+// src/utils/suggest-study-thread-title.ts
+init_html_stripper();
+
+// src/utils/server-auto-untitled-note-display.ts
+var SERVER_AUTO_UNTITLED_NOTE = /^\s*Untitled Note(?: \d+)?\s*$/i;
+function stripServerAutoUntitledNoteTitleForDisplay(title) {
+  if (title == null) return "";
+  const t = title.trim();
+  if (t === "") return "";
+  return SERVER_AUTO_UNTITLED_NOTE.test(t) ? "" : title;
+}
+
+// src/utils/bible-study-collection-web.ts
+init_html_stripper();
+
 // src/utils/keyword-trie.ts
 var MAX_PHRASE_WORDS = 5;
 function buildKeywordTrie(keywords) {
@@ -134561,6 +134630,570 @@ function findKeywordsInTextWithPriority(fullText, title, content) {
     }
   }
   return foundKeywords.sort((a, b3) => b3.confidence - a.confidence);
+}
+
+// src/utils/bible-study-collection-web.ts
+var MIN_BODY_WORDS = 25;
+var SHORT_NOTE_CONFIDENCE_FLOOR = 0.9;
+var PRIMARY_SCORE_AMBIGUITY_EPS = 0.04;
+function collectionRank(cat) {
+  if (cat === "spiritual") return 0;
+  if (cat === "biblical" || cat === "theme") return 1;
+  if (cat === "book") return 2;
+  if (cat === "life") return 3;
+  if (cat === "character") return 4;
+  if (cat === "place") return 5;
+  return 10;
+}
+function folderPrimaryScore(row, plainTitle, plainBody) {
+  let score = Math.min(1, row.confidence);
+  const cat = row.keyword.category;
+  if (["spiritual", "biblical", "character", "book", "theme"].includes(cat)) {
+    score = Math.min(1, score + 0.05);
+  }
+  switch (cat) {
+    case "spiritual":
+    case "biblical":
+    case "life":
+    case "theme":
+      score += 0.08;
+      break;
+    case "character":
+    case "place": {
+      const occ = countKeywordOccurrences(plainTitle, plainBody, row.keyword);
+      if (occ <= 1) {
+        score -= 0.12;
+      } else if (occ >= 5) {
+        score += 0.28;
+      } else if (occ >= 3) {
+        score += 0.18;
+      } else {
+        score += 0.06;
+      }
+      break;
+    }
+    default:
+      break;
+  }
+  return score;
+}
+function escapeRegExp(s2) {
+  return s2.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+function countKeywordOccurrences(plainTitle, plainBody, keyword) {
+  const corpus = `${plainTitle} ${plainBody}`.toLowerCase();
+  let total = 0;
+  const needles = [keyword.name, ...keyword.synonyms];
+  const seen = /* @__PURE__ */ new Set();
+  for (const raw2 of needles) {
+    const n = raw2.trim().toLowerCase();
+    if (!n || seen.has(n)) continue;
+    seen.add(n);
+    if (n.includes(" ") || n.includes("-")) {
+      let i = 0;
+      while ((i = corpus.indexOf(n, i)) !== -1) {
+        total++;
+        i += Math.max(1, n.length);
+      }
+    } else {
+      const re2 = new RegExp(`\\b${escapeRegExp(n)}\\b`, "g");
+      total += (corpus.match(re2) || []).length;
+    }
+  }
+  return total;
+}
+function dedupeRowsByKeywordName(rows) {
+  const by = /* @__PURE__ */ new Map();
+  for (const r of rows) {
+    if (r.keyword.name.toLowerCase() === "god") continue;
+    const k2 = r.keyword.name.toLowerCase();
+    const prev = by.get(k2);
+    if (!prev || r.confidence > prev.confidence) by.set(k2, r);
+  }
+  return [...by.values()];
+}
+function betterPrimaryRow(a, b3, plainTitle, plainBody) {
+  const sa = folderPrimaryScore(a, plainTitle, plainBody);
+  const sb = folderPrimaryScore(b3, plainTitle, plainBody);
+  if (Math.abs(sa - sb) > PRIMARY_SCORE_AMBIGUITY_EPS) {
+    return sa >= sb ? a : b3;
+  }
+  const aTitle = candidateAppearsInTitle(plainTitle, a.keyword.name);
+  const bTitle = candidateAppearsInTitle(plainTitle, b3.keyword.name);
+  if (aTitle !== bTitle) {
+    return aTitle ? a : b3;
+  }
+  const ra = collectionRank(a.keyword.category);
+  const rb = collectionRank(b3.keyword.category);
+  if (ra !== rb) {
+    return ra < rb ? a : b3;
+  }
+  return sa >= sb ? a : b3;
+}
+function pickPrimaryRowFromDeduped(deduped, plainTitle, plainBody) {
+  if (!deduped.length) return null;
+  return deduped.reduce((best, cur) => betterPrimaryRow(best, cur, plainTitle, plainBody));
+}
+function buildRowsForCollectionSuggest(title, bodyHtml) {
+  const plainTitle = (title || "").trim();
+  const plainBody = stripHtml(bodyHtml || "", { preserveSpacing: true }).trim();
+  const full = `${plainTitle}
+${plainBody}`.trim();
+  if (!full) return { rows: [], plainTitle, plainBody };
+  const rows = findKeywordsInTextWithPriority(full, plainTitle, plainBody).map((r) => ({
+    keyword: r.keyword,
+    confidence: Math.min(1, r.confidence)
+  }));
+  return { rows, plainTitle, plainBody };
+}
+function pickPrimaryKeyword(rows, plainTitle, plainBody) {
+  const deduped = dedupeRowsByKeywordName(rows);
+  return pickPrimaryRowFromDeduped(deduped, plainTitle, plainBody)?.keyword ?? null;
+}
+function suggestPrimaryCollectionFromNote(title, bodyHtml) {
+  const { rows, plainTitle, plainBody } = buildRowsForCollectionSuggest(title, bodyHtml);
+  if (!rows.length) return null;
+  const primary = pickPrimaryKeyword(rows, plainTitle, plainBody);
+  if (!primary?.name) return null;
+  if (!meetsMinimumContext(plainTitle, plainBody, primary.name, rows)) return null;
+  return primary.name;
+}
+function scoreForName(name, rows, plainTitle, plainBody) {
+  const row = rows.find((r) => r.keyword.name.toLowerCase() === name.toLowerCase());
+  return row ? folderPrimaryScore(row, plainTitle, plainBody) : 0;
+}
+function normalizeTitleToken(token) {
+  return token.replace(/[^a-z0-9]/gi, "").toLowerCase();
+}
+function candidateAppearsInTitle(plainTitle, candidate) {
+  if (!candidate || !plainTitle.trim()) return false;
+  const cNorm = normalizeTitleToken(candidate);
+  if (!cNorm.length) return false;
+  const titleLower = plainTitle.toLowerCase();
+  if (candidate.includes(" ")) {
+    return titleLower.includes(candidate.trim().toLowerCase());
+  }
+  const titleWords = plainTitle.split(/\s+/).filter(Boolean);
+  return titleWords.some((w2) => normalizeTitleToken(w2) === cNorm);
+}
+function meetsMinimumContext(title, plainBody, candidate, rows) {
+  if (!candidate) return false;
+  const words = plainBody.split(/\s+/).filter(Boolean);
+  if (words.length >= MIN_BODY_WORDS) return true;
+  return scoreForName(candidate, rows, title, plainBody) >= SHORT_NOTE_CONFIDENCE_FLOOR;
+}
+
+// src/utils/suggest-study-thread-title.ts
+var CLUSTER_TEXT_CAP = 24e3;
+function nodePlainTitle(node) {
+  if (node.noteType === "resource" && node.resourceTitle?.trim()) {
+    return node.resourceTitle.trim();
+  }
+  return stripServerAutoUntitledNoteTitleForDisplay(node.title) ?? "";
+}
+function nodeBodyHtml(node) {
+  if (node.noteType === "resource" && node.resourceDescription?.trim()) {
+    return node.resourceDescription.trim();
+  }
+  return node.content ?? "";
+}
+function buildAggregateText(nodes) {
+  const titles = [];
+  const bodies = [];
+  for (const n of nodes) {
+    const t = nodePlainTitle(n);
+    const b3 = stripHtml(nodeBodyHtml(n), false);
+    if (t) titles.push(t);
+    if (b3) bodies.push(b3);
+  }
+  const title = titles.join(" \xB7 ").slice(0, 2e3);
+  let bodyHtml = bodies.join("\n\n");
+  if (bodyHtml.length > CLUSTER_TEXT_CAP) {
+    bodyHtml = bodyHtml.slice(0, CLUSTER_TEXT_CAP);
+  }
+  return { title, bodyHtml };
+}
+function displayablePlainTitle(node) {
+  return nodePlainTitle(node).trim();
+}
+function fallbackTitle(nodes, repNoteId) {
+  const rep = repNoteId ? nodes.find((n) => n.id === repNoteId) : void 0;
+  if (rep) {
+    const repTitle = displayablePlainTitle(rep);
+    if (repTitle) return repTitle;
+  }
+  const sorted = [...nodes].sort((a, b3) => {
+    const ta = a.updatedAt ?? "";
+    const tb = b3.updatedAt ?? "";
+    return tb.localeCompare(ta);
+  });
+  for (const n of sorted) {
+    const t = displayablePlainTitle(n);
+    if (t) return t;
+  }
+  return null;
+}
+function pickStudyThreadRepresentativeNoteId(noteIds, degreeById) {
+  const degree = (id) => {
+    if (degreeById instanceof Map) return degreeById.get(id) ?? 0;
+    return degreeById[id] ?? 0;
+  };
+  let best = null;
+  for (const id of noteIds) {
+    if (best == null) {
+      best = id;
+      continue;
+    }
+    const d = degree(id);
+    const bestD = degree(best);
+    if (d > bestD || d === bestD && id.localeCompare(best) < 0) {
+      best = id;
+    }
+  }
+  return best;
+}
+function suggestStudyThreadTitleFromNodes(nodes, repNoteId) {
+  if (!nodes.length) return "Study thread";
+  const { title, bodyHtml } = buildAggregateText(nodes);
+  const keyword = suggestPrimaryCollectionFromNote(title, bodyHtml);
+  if (keyword?.trim()) return keyword.trim();
+  return fallbackTitle(nodes, repNoteId) ?? "Study thread";
+}
+function resolveStudyThreadDisplayTitle(args) {
+  const suggested = args.suggestedTitle.trim() || "Study thread";
+  if (args.studyThreadUserOverride) {
+    const manual = stripServerAutoUntitledNoteTitleForDisplay(args.studyThreadTitle);
+    return manual?.trim() || suggested;
+  }
+  return suggested;
+}
+
+// server/utils/normalize-note-id.ts
+function normalizeServerNoteId(id) {
+  const trimmed = id.trim();
+  if (trimmed.startsWith("note/")) return `note_${trimmed.slice(5)}`;
+  if (trimmed.startsWith("note_")) return trimmed;
+  return `note_${trimmed}`;
+}
+
+// server/utils/study-thread-note-rows.ts
+init_db2();
+async function fetchStudyThreadNoteRows(nodeIds, userId) {
+  if (nodeIds.length === 0) return [];
+  try {
+    const rows = await db.select({
+      id: Notes.id,
+      title: Notes.title,
+      content: Notes.content,
+      simpleNoteId: Notes.simpleNoteId,
+      noteType: Notes.noteType,
+      studyThreadTitle: Notes.studyThreadTitle,
+      studyThreadUserOverride: Notes.studyThreadUserOverride,
+      studyThreadPinned: Notes.studyThreadPinned,
+      updatedAt: Notes.updatedAt
+    }).from(Notes).where(and(inArray(Notes.id, nodeIds), eq(Notes.userId, userId)));
+    return rows.map((r) => ({
+      ...r,
+      studyThreadUserOverride: Boolean(r.studyThreadUserOverride),
+      studyThreadPinned: Boolean(r.studyThreadPinned)
+    }));
+  } catch (error) {
+    if (!isStudyThreadNamingColumnMissing(error)) throw error;
+    const rows = await db.select({
+      id: Notes.id,
+      title: Notes.title,
+      content: Notes.content,
+      simpleNoteId: Notes.simpleNoteId,
+      noteType: Notes.noteType,
+      updatedAt: Notes.updatedAt
+    }).from(Notes).where(and(inArray(Notes.id, nodeIds), eq(Notes.userId, userId)));
+    return rows.map((r) => ({
+      ...r,
+      studyThreadTitle: null,
+      studyThreadUserOverride: false,
+      studyThreadPinned: false
+    }));
+  }
+}
+
+// server/utils/study-thread-cluster-naming.ts
+function resolveStudyThreadClusterNaming(memberRows, suggestNodes, repNoteId) {
+  const rep = memberRows.find((m2) => m2.id === repNoteId);
+  const suggestedTitle = suggestStudyThreadTitleFromNodes(suggestNodes, repNoteId);
+  const suggestedTrimmed = suggestedTitle.trim();
+  const manualCarrier = memberRows.find(
+    (m2) => m2.studyThreadUserOverride && Boolean(stripServerAutoUntitledNoteTitleForDisplay(m2.studyThreadTitle)?.trim())
+  ) ?? memberRows.find((m2) => {
+    const manual = stripServerAutoUntitledNoteTitleForDisplay(m2.studyThreadTitle)?.trim();
+    return Boolean(manual && manual !== suggestedTrimmed);
+  });
+  if (manualCarrier) {
+    return {
+      repNoteId,
+      suggestedTitle,
+      threadTitle: resolveStudyThreadDisplayTitle({
+        studyThreadTitle: manualCarrier.studyThreadTitle,
+        studyThreadUserOverride: true,
+        suggestedTitle
+      }),
+      studyThreadUserOverride: true,
+      studyThreadPinned: Boolean(rep?.studyThreadPinned ?? manualCarrier.studyThreadPinned)
+    };
+  }
+  const studyThreadUserOverride = Boolean(rep?.studyThreadUserOverride);
+  return {
+    repNoteId,
+    suggestedTitle,
+    threadTitle: resolveStudyThreadDisplayTitle({
+      studyThreadTitle: rep?.studyThreadTitle ?? null,
+      studyThreadUserOverride,
+      suggestedTitle
+    }),
+    studyThreadUserOverride,
+    studyThreadPinned: Boolean(rep?.studyThreadPinned)
+  };
+}
+
+// server/utils/study-thread-space.ts
+init_db2();
+
+// server/utils/study-thread-graph.ts
+init_db2();
+async function collectStudyThreadGraph(startNoteId, userId, options) {
+  const maxNodes = options?.maxNodes ?? 200;
+  const spaceId = options?.spaceId?.trim() || null;
+  const visited = /* @__PURE__ */ new Set([startNoteId]);
+  const collectedEdges = [];
+  let frontier = [startNoteId];
+  while (frontier.length > 0 && visited.size < maxNodes) {
+    const edgeConditions = [
+      eq(NoteConnections.userId, userId),
+      or(
+        inArray(NoteConnections.fromNoteId, frontier),
+        inArray(NoteConnections.toNoteId, frontier)
+      )
+    ];
+    if (spaceId) {
+      edgeConditions.push(eq(NoteConnections.spaceId, spaceId));
+    }
+    const edgeRows = await db.select({ fromNoteId: NoteConnections.fromNoteId, toNoteId: NoteConnections.toNoteId }).from(NoteConnections).where(and(...edgeConditions));
+    const next = [];
+    for (const edge of edgeRows) {
+      collectedEdges.push({ fromId: edge.fromNoteId, toId: edge.toNoteId });
+      for (const neighbor of [edge.fromNoteId, edge.toNoteId]) {
+        if (!visited.has(neighbor) && visited.size < maxNodes) {
+          visited.add(neighbor);
+          next.push(neighbor);
+        }
+      }
+    }
+    frontier = [...new Set(next)];
+  }
+  const edgeSet = /* @__PURE__ */ new Set();
+  const uniqueEdges = collectedEdges.filter((e) => {
+    const key2 = `${e.fromId}:${e.toId}`;
+    if (edgeSet.has(key2)) return false;
+    edgeSet.add(key2);
+    return true;
+  });
+  const degreeMap = /* @__PURE__ */ new Map();
+  for (const e of uniqueEdges) {
+    degreeMap.set(e.fromId, (degreeMap.get(e.fromId) ?? 0) + 1);
+    degreeMap.set(e.toId, (degreeMap.get(e.toId) ?? 0) + 1);
+  }
+  return { nodeIds: [...visited], edges: uniqueEdges, degreeMap };
+}
+
+// server/utils/study-thread-space.ts
+function normalizeScopeSpaceId(spaceId) {
+  if (!spaceId || !spaceId.trim()) return null;
+  const t = spaceId.trim();
+  return t.startsWith("space_") ? t : `space_${t}`;
+}
+async function resolveStudyThreadScopeSpaceId(focusNoteId, userId, preferredSpaceId) {
+  const preferred = normalizeScopeSpaceId(preferredSpaceId);
+  if (preferred) return preferred;
+  const focus = first(
+    await db.select({ spaceId: Notes.spaceId }).from(Notes).where(and(eq(Notes.id, focusNoteId), eq(Notes.userId, userId))).limit(1)
+  );
+  return normalizeScopeSpaceId(focus?.spaceId ?? null);
+}
+async function collectStudyThreadGraphForScope(focusNoteId, userId, options) {
+  const maxNodes = options?.maxNodes ?? 200;
+  let scopeSpaceId = await resolveStudyThreadScopeSpaceId(
+    focusNoteId,
+    userId,
+    options?.preferredSpaceId
+  );
+  let graph = await collectStudyThreadGraph(focusNoteId, userId, {
+    spaceId: scopeSpaceId,
+    maxNodes
+  });
+  if (graph.edges.length === 0) {
+    const touchRows = await db.select({
+      fromNoteId: NoteConnections.fromNoteId,
+      toNoteId: NoteConnections.toNoteId,
+      spaceId: NoteConnections.spaceId
+    }).from(NoteConnections).where(
+      and(
+        eq(NoteConnections.userId, userId),
+        or(
+          eq(NoteConnections.fromNoteId, focusNoteId),
+          eq(NoteConnections.toNoteId, focusNoteId)
+        )
+      )
+    ).limit(20);
+    const inferred = touchRows.map((r) => normalizeScopeSpaceId(r.spaceId)).find((id) => Boolean(id));
+    if (inferred && inferred !== scopeSpaceId) {
+      scopeSpaceId = inferred;
+      graph = await collectStudyThreadGraph(focusNoteId, userId, {
+        spaceId: scopeSpaceId,
+        maxNodes
+      });
+    }
+  }
+  return { graph, scopeSpaceId };
+}
+
+// server/utils/prototype-user-migration.ts
+init_db2();
+init_dates();
+function isSystemThreadId(threadId) {
+  return threadId === "thread_unorganized" || threadId.startsWith("thread_onboarding_");
+}
+var NOT_ONBOARDING_THREAD = sql`NOT starts_with(${Notes.threadId}::text, 'thread_onboarding_')`;
+async function loadThreadTitles(threadIds) {
+  if (threadIds.length === 0) return /* @__PURE__ */ new Map();
+  const rows = await db.select({ id: Threads.id, title: Threads.title }).from(Threads).where(inArray(Threads.id, threadIds));
+  return new Map(rows.map((r) => [r.id, r.title]));
+}
+async function loadSecondaries(noteIds) {
+  const out = /* @__PURE__ */ new Map();
+  if (noteIds.length === 0) return out;
+  const rows = await db.select({
+    noteId: NoteThreads.noteId,
+    threadId: NoteThreads.threadId,
+    title: Threads.title,
+    createdAt: NoteThreads.createdAt
+  }).from(NoteThreads).innerJoin(Threads, eq(NoteThreads.threadId, Threads.id)).where(inArray(NoteThreads.noteId, noteIds)).orderBy(asc(NoteThreads.noteId), asc(NoteThreads.createdAt));
+  for (const r of rows) {
+    const list = out.get(r.noteId) ?? [];
+    list.push({ noteId: r.noteId, threadId: r.threadId, title: r.title });
+    out.set(r.noteId, list);
+  }
+  return out;
+}
+function computeSecondariesForNote(noteThreadId, rows, primaryLabel) {
+  if (!rows?.length) return serializeNoteSecondaryCollections([]);
+  const titles = [];
+  for (const r of rows) {
+    if (r.threadId === noteThreadId) continue;
+    if (isSystemThreadId(r.threadId)) continue;
+    const t = (r.title || "").trim();
+    if (!t) continue;
+    titles.push(t);
+  }
+  const normalized = normalizeSecondaryLabels(titles, primaryLabel);
+  return serializeNoteSecondaryCollections(normalized);
+}
+async function backfillCollectionsFromThreadsForUser(userId, options) {
+  const batchSize = options?.batchSize ?? 400;
+  const maxNotes = options?.maxNotes;
+  let lastId = null;
+  let updated = 0;
+  let totalExamined = 0;
+  while (true) {
+    const conditions = [
+      eq(Notes.userId, userId),
+      isNull(Notes.primaryCollection),
+      eq(Notes.collectionUserOverride, false),
+      eq(Notes.collectionPinned, false),
+      ne(Notes.threadId, "thread_unorganized"),
+      NOT_ONBOARDING_THREAD
+    ];
+    if (lastId) conditions.push(gt(Notes.id, lastId));
+    const batch = await db.select({ id: Notes.id, threadId: Notes.threadId }).from(Notes).where(and(...conditions)).orderBy(asc(Notes.id)).limit(batchSize);
+    if (batch.length === 0) break;
+    const noteIds = batch.map((n) => n.id);
+    const primaryThreadIds = [...new Set(batch.map((n) => n.threadId))];
+    const titleByThreadId = await loadThreadTitles(primaryThreadIds);
+    const secondariesByNote = await loadSecondaries(noteIds);
+    for (const note of batch) {
+      if (maxNotes != null && totalExamined >= maxNotes) {
+        lastId = "__stop__";
+        break;
+      }
+      totalExamined++;
+      if (isSystemThreadId(note.threadId)) continue;
+      const rawTitle = titleByThreadId.get(note.threadId);
+      if (rawTitle == null) continue;
+      const primaryLabel = rawTitle.trim();
+      if (!primaryLabel.length) continue;
+      const secondarySerialized = computeSecondariesForNote(
+        note.threadId,
+        secondariesByNote.get(note.id),
+        primaryLabel
+      );
+      await db.update(Notes).set({
+        primaryCollection: primaryLabel,
+        secondaryCollections: secondarySerialized,
+        updatedAt: nowISO()
+      }).where(eq(Notes.id, note.id));
+      updated++;
+    }
+    if (lastId === "__stop__") break;
+    lastId = batch[batch.length - 1].id;
+    if (batch.length < batchSize) break;
+    if (maxNotes != null && totalExamined >= maxNotes) break;
+  }
+  return updated;
+}
+async function migrateLinkedFromNoteConnectionsForUser(userId) {
+  const linkedNotes = await db.select({ id: Notes.id, linkedFromNoteId: Notes.linkedFromNoteId, spaceId: Notes.spaceId }).from(Notes).where(and(eq(Notes.userId, userId), isNotNull(Notes.linkedFromNoteId)));
+  let migrated = 0;
+  let skipped = 0;
+  for (const note of linkedNotes) {
+    if (!note.linkedFromNoteId) continue;
+    try {
+      await db.insert(NoteConnections).values({
+        id: generateNoteId(),
+        fromNoteId: note.linkedFromNoteId,
+        toNoteId: note.id,
+        userId,
+        spaceId: note.spaceId ?? null,
+        createdAt: nowISO()
+      });
+      migrated += 1;
+    } catch (error) {
+      if (isPgUndefinedRelation(error, "NoteConnections")) throw error;
+      skipped += 1;
+    }
+  }
+  return { migrated, skipped };
+}
+async function runPrototypeUserMigration(userId) {
+  const collectionsUpdated = await backfillCollectionsFromThreadsForUser(userId);
+  const { migrated, skipped } = await migrateLinkedFromNoteConnectionsForUser(userId);
+  return {
+    collectionsUpdated,
+    connectionsMigrated: migrated,
+    connectionsSkipped: skipped
+  };
+}
+async function userNeedsCollectionBackfill(userId) {
+  const row = first(
+    await db.select({ id: Notes.id }).from(Notes).where(
+      and(
+        eq(Notes.userId, userId),
+        isNull(Notes.primaryCollection),
+        eq(Notes.collectionUserOverride, false),
+        eq(Notes.collectionPinned, false),
+        ne(Notes.threadId, "thread_unorganized"),
+        NOT_ONBOARDING_THREAD
+      )
+    ).limit(1)
+  );
+  return row != null;
 }
 
 // src/data/bible-chapters.json
@@ -144593,6 +145226,87 @@ var parseVerseGroups = (reference) => {
 // server/utils/auto-tag-generator.ts
 var import_crypto3 = require("crypto");
 init_db2();
+
+// server/utils/tag-helpers.ts
+init_db2();
+init_dates();
+function normalizeTagName(name) {
+  return name.trim().toLowerCase();
+}
+async function findTagByName(userId, name) {
+  const trimmed = name.trim();
+  if (!trimmed) return void 0;
+  const allUserTags = await db.select().from(Tags).where(eq(Tags.userId, userId));
+  return allUserTags.find((t) => t.name.toLowerCase() === trimmed.toLowerCase());
+}
+async function getOrCreateTag(userId, name, opts) {
+  const trimmed = name.trim();
+  if (!trimmed) throw new Error("Tag name cannot be empty");
+  const existing = await findTagByName(userId, trimmed);
+  if (existing) {
+    return { tagId: existing.id, created: false, tag: existing };
+  }
+  const tagId = `tag_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  await db.insert(Tags).values({
+    id: tagId,
+    name: trimmed,
+    color: opts?.color ?? null,
+    category: opts?.category ?? null,
+    userId,
+    isSystem: opts?.isSystem ?? false,
+    createdAt: nowISO()
+  });
+  const tag = first(await db.select().from(Tags).where(eq(Tags.id, tagId)).limit(1));
+  return { tagId, created: true, tag };
+}
+function pickPreferredTag(a, b3) {
+  const aAuto = a.isAutoGenerated === true;
+  const bAuto = b3.isAutoGenerated === true;
+  if (aAuto !== bAuto) return aAuto ? b3 : a;
+  const aCreated = a.createdAt ? Date.parse(a.createdAt) : Number.MAX_SAFE_INTEGER;
+  const bCreated = b3.createdAt ? Date.parse(b3.createdAt) : Number.MAX_SAFE_INTEGER;
+  if (aCreated !== bCreated) return aCreated < bCreated ? a : b3;
+  return a.id < b3.id ? a : b3;
+}
+function dedupeNoteTagsForResponse(tags) {
+  const byName = /* @__PURE__ */ new Map();
+  for (const tag of tags) {
+    const key2 = normalizeTagName(tag.name);
+    if (!key2) continue;
+    const prev = byName.get(key2);
+    byName.set(key2, prev ? pickPreferredTag(prev, tag) : tag);
+  }
+  const seen = /* @__PURE__ */ new Set();
+  const out = [];
+  for (const tag of tags) {
+    const key2 = normalizeTagName(tag.name);
+    if (!key2 || seen.has(key2)) continue;
+    seen.add(key2);
+    const picked = byName.get(key2);
+    if (picked) out.push(picked);
+  }
+  return out;
+}
+async function noteHasTagWithNormalizedName(noteId, tagName19, noteOwnerUserId) {
+  const normalized = normalizeTagName(tagName19);
+  if (!normalized) return false;
+  const existing = await db.select({ name: Tags.name }).from(NoteTags).innerJoin(Tags, eq(NoteTags.tagId, Tags.id)).where(and(eq(NoteTags.noteId, noteId), eq(Tags.userId, noteOwnerUserId)));
+  return existing.some((t) => normalizeTagName(t.name) === normalized);
+}
+async function removeNoteTagsByName(noteId, tagName19, noteOwnerUserId) {
+  const normalized = normalizeTagName(tagName19);
+  if (!normalized) return 0;
+  const links = await db.select({ tagId: NoteTags.tagId, name: Tags.name }).from(NoteTags).innerJoin(Tags, eq(NoteTags.tagId, Tags.id)).where(and(eq(NoteTags.noteId, noteId), eq(Tags.userId, noteOwnerUserId)));
+  let removed = 0;
+  for (const link of links) {
+    if (normalizeTagName(link.name) !== normalized) continue;
+    await db.delete(NoteTags).where(and(eq(NoteTags.noteId, noteId), eq(NoteTags.tagId, link.tagId)));
+    removed++;
+  }
+  return removed;
+}
+
+// server/utils/auto-tag-generator.ts
 var AUTO_TAG_CONFIDENCE_SYSTEM_AUTOGEN = 0.65;
 function isTagOverlapping(newTag, existingTag) {
   const newLower = newTag.toLowerCase();
@@ -144717,23 +145431,12 @@ async function applyAutoTags(noteId, suggestions, userId, options) {
       let tagId = suggestion.tagId;
       if (!tagId) {
         try {
-          const allUserTags = await db.select().from(Tags).where(eq(Tags.userId, userId));
-          const existingTag = allUserTags.find((t) => t.name.toLowerCase() === suggestion.keyword.toLowerCase());
-          if (existingTag) {
-            tagId = existingTag.id;
-          } else {
-            const newTagId = `tag_${(0, import_crypto3.randomUUID)()}`;
-            await db.insert(Tags).values({
-              id: newTagId,
-              name: suggestion.keyword,
-              color: getColorForCategory(suggestion.category),
-              category: suggestion.category,
-              userId,
-              isSystem: true,
-              createdAt: now()
-            });
-            tagId = newTagId;
-          }
+          const { tagId: resolvedId } = await getOrCreateTag(userId, suggestion.keyword, {
+            color: getColorForCategory(suggestion.category),
+            category: suggestion.category,
+            isSystem: true
+          });
+          tagId = resolvedId;
         } catch (tagError) {
           console.error(`Error handling tag ${suggestion.keyword}:`, tagError);
           errors.push(`Failed to handle tag "${suggestion.keyword}": ${tagError}`);
@@ -144749,6 +145452,7 @@ async function applyAutoTags(noteId, suggestions, userId, options) {
       } else {
         const existingRelation = first(await db.select().from(NoteTags).where(and(eq(NoteTags.noteId, noteId), eq(NoteTags.tagId, tagId))).limit(1));
         if (existingRelation) continue;
+        if (await noteHasTagWithNormalizedName(noteId, suggestion.keyword, userId)) continue;
       }
       const relationId = `note_tag_${(0, import_crypto3.randomUUID)()}`;
       await db.insert(NoteTags).values({
@@ -144949,6 +145653,16 @@ function highlightScriptureReferences(content, references) {
     }
   }
   return updatedContent;
+}
+
+// src/utils/note-html-linebreaks.ts
+var EMPTY_PARAGRAPH_RE = /<p([^>]*)>(?:\s|&nbsp;|&#160;)*<\/p>/gi;
+var BR_ONLY_PARAGRAPH_RE = /<p([^>]*)>\s*<br\s*\/?>\s*<\/p>/gi;
+function canonicalizeNoteHtmlLineBreaks(html) {
+  if (html == null || html === "") return html ?? "";
+  let out = html.replace(EMPTY_PARAGRAPH_RE, "<p$1><br></p>");
+  out = out.replace(BR_ONLY_PARAGRAPH_RE, "<p$1><br></p>");
+  return out;
 }
 
 // server/utils/fetch-verse-text.ts
@@ -145869,7 +146583,9 @@ async function processScriptureReferencesInternal(noteId, userId, threadId, cont
   } catch (pruneError) {
     console.error("[processScriptureReferences] Failed to prune stale references (non-critical):", pruneError?.message ?? pruneError);
   }
-  const updatedContent = highlightScriptureReferences(noteContent, referencesForHighlighting);
+  const updatedContent = canonicalizeNoteHtmlLineBreaks(
+    highlightScriptureReferences(noteContent, referencesForHighlighting)
+  );
   console.log("[processScriptureReferences] Updating note with highlighted content", {
     noteId,
     referencesForHighlightingCount: referencesForHighlighting.length
@@ -156791,7 +157507,8 @@ route10.post("/api/notes/create", requireAuth, rateLimitNoteCreate(), async (c) 
       validatedResourceUrl = urlValidation.normalizedUrl;
       isPDF = urlValidation.isPDF || false;
     }
-    const capitalizedContent = content && content.length > 0 ? content.charAt(0).toUpperCase() + content.slice(1) : content || "";
+    const normalizedContent = canonicalizeNoteHtmlLineBreaks(content || "");
+    const capitalizedContent = normalizedContent && normalizedContent.length > 0 ? normalizedContent.charAt(0).toUpperCase() + normalizedContent.slice(1) : normalizedContent;
     let capitalizedTitle;
     if (!title || !title.trim()) {
       capitalizedTitle = await getNextUntitledNoteName(auth.userId);
@@ -156841,6 +157558,19 @@ route10.post("/api/notes/create", requireAuth, rateLimitNoteCreate(), async (c) 
       linkedFromNoteId: resolvedLinkedFromNoteId
     }).returning());
     await db.update(UserMetadata).set({ highestSimpleNoteId: nextSimpleNoteId, updatedAt: nowISO() }).where(eq(UserMetadata.userId, auth.userId));
+    if (resolvedLinkedFromNoteId) {
+      try {
+        await db.insert(NoteConnections).values({
+          id: generateNoteId(),
+          fromNoteId: resolvedLinkedFromNoteId,
+          toNoteId: newNote.id,
+          userId: auth.userId,
+          spaceId: finalSpaceId ?? null,
+          createdAt: nowISO()
+        });
+      } catch {
+      }
+    }
     let noteStaysInUnorganized = true;
     if (threadId && threadId.trim() !== "" && threadId !== "thread_unorganized" && !threadId.startsWith("thread_onboarding_")) {
       try {
@@ -157003,7 +157733,8 @@ route10.put("/api/notes/update", requireAuth, rateLimit("write"), async (c) => {
       return c.json({ error: "This note is read-only.", code: "ONBOARDING_NOTE_READ_ONLY" }, 400);
     }
     const isEncrypted = contentEncrypted === true;
-    const capitalizedContent = isEncrypted ? content : content.charAt(0).toUpperCase() + content.slice(1);
+    const contentForStore = isEncrypted ? content : canonicalizeNoteHtmlLineBreaks(typeof content === "string" ? content : "");
+    const capitalizedContent = isEncrypted ? contentForStore : contentForStore.charAt(0).toUpperCase() + contentForStore.slice(1);
     const capitalizedTitle = title ? title.charAt(0).toUpperCase() + title.slice(1) : title;
     const updateData = { title: capitalizedTitle, content: capitalizedContent, updatedAt: nowISO() };
     let nextPrimaryForSecondaries = existingNote.primaryCollection ?? null;
@@ -157101,10 +157832,10 @@ route10.post("/api/notes/connect-link", requireAuth, rateLimit("write"), async (
       return c.json({ success: false, error: "Cannot connect a note to itself", code: "SELF_LINK" }, 400);
     }
     const parent = first(
-      await db.select().from(Notes).where(and(eq(Notes.id, parentNoteId), eq(Notes.userId, auth.userId))).limit(1)
+      await db.select({ id: Notes.id, threadId: Notes.threadId, noteType: Notes.noteType, addedBy: Notes.addedBy, spaceId: Notes.spaceId }).from(Notes).where(and(eq(Notes.id, parentNoteId), eq(Notes.userId, auth.userId))).limit(1)
     );
     const linked = first(
-      await db.select().from(Notes).where(and(eq(Notes.id, linkedNoteId), eq(Notes.userId, auth.userId))).limit(1)
+      await db.select({ id: Notes.id, threadId: Notes.threadId, noteType: Notes.noteType, addedBy: Notes.addedBy, spaceId: Notes.spaceId }).from(Notes).where(and(eq(Notes.id, linkedNoteId), eq(Notes.userId, auth.userId))).limit(1)
     );
     if (!parent || !linked) {
       return c.json({ success: false, error: "Note not found", code: "NOT_FOUND" }, 404);
@@ -157115,32 +157846,212 @@ route10.post("/api/notes/connect-link", requireAuth, rateLimit("write"), async (
     if ((parent.noteType || "default") !== "default" || (linked.noteType || "default") !== "default") {
       return c.json({ success: false, error: "Only default notes can be linked.", code: "INVALID_NOTE_TYPE" }, 400);
     }
-    const parentSpace = normalizeOwnedNoteSpaceId(parent.spaceId ?? null);
-    const linkedSpace = normalizeOwnedNoteSpaceId(linked.spaceId ?? null);
-    if (!parentSpace || !linkedSpace || parentSpace !== linkedSpace) {
-      return c.json({ success: false, error: "Both notes must be in the same space.", code: "SPACE_MISMATCH" }, 400);
-    }
-    if (linked.linkedFromNoteId === parentNoteId) {
-      return c.json({ success: true, alreadyLinked: true, linkedNoteId });
-    }
-    let walk = parentNoteId;
-    const seen = /* @__PURE__ */ new Set();
-    while (walk && !seen.has(walk)) {
-      seen.add(walk);
-      if (walk === linkedNoteId) {
-        return c.json({ success: false, error: "That link would create a cycle.", code: "LINK_CYCLE" }, 400);
+    const spaceId = normalizeOwnedNoteSpaceId(parent.spaceId ?? null) ?? null;
+    try {
+      await db.insert(NoteConnections).values({
+        id: generateNoteId(),
+        fromNoteId: parentNoteId,
+        toNoteId: linkedNoteId,
+        userId: auth.userId,
+        spaceId,
+        createdAt: nowISO()
+      });
+    } catch (err) {
+      if (err?.code === "23505" || err?.message?.includes("unique") || err?.message?.includes("duplicate")) {
+        return c.json({ success: true, alreadyLinked: true });
       }
-      const row = first(
-        await db.select({ linkedFromNoteId: Notes.linkedFromNoteId }).from(Notes).where(and(eq(Notes.id, walk), eq(Notes.userId, auth.userId))).limit(1)
-      );
-      walk = row?.linkedFromNoteId ?? null;
+      throw err;
     }
-    await db.update(Notes).set({ linkedFromNoteId: parentNoteId, updatedAt: nowISO() }).where(and(eq(Notes.id, linkedNoteId), eq(Notes.userId, auth.userId)));
-    await db.update(Notes).set({ updatedAt: nowISO() }).where(and(eq(Notes.id, parentNoteId), eq(Notes.userId, auth.userId)));
     broadcastInvalidation(auth.userId, { type: "note:updated", id: parentNoteId });
+    broadcastInvalidation(auth.userId, { type: "note:updated", id: linkedNoteId });
     return c.json({ success: true });
   } catch (error) {
     const standardError = handleAPIError(error, { endpoint: "/api/notes/connect-link", action: "connect_link" });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+route10.delete("/api/notes/connect-link", requireAuth, rateLimit("write"), async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const body = await c.req.json().catch(() => ({}));
+    const fromNoteId = typeof body.fromNoteId === "string" ? body.fromNoteId.trim() : "";
+    const toNoteId = typeof body.toNoteId === "string" ? body.toNoteId.trim() : "";
+    if (!fromNoteId || !toNoteId) {
+      return c.json({ success: false, error: "fromNoteId and toNoteId are required", code: "INVALID_BODY" }, 400);
+    }
+    const existing = first(
+      await db.select({ id: NoteConnections.id }).from(NoteConnections).where(and(
+        eq(NoteConnections.fromNoteId, fromNoteId),
+        eq(NoteConnections.toNoteId, toNoteId),
+        eq(NoteConnections.userId, auth.userId)
+      )).limit(1)
+    );
+    await db.delete(NoteConnections).where(and(
+      eq(NoteConnections.fromNoteId, fromNoteId),
+      eq(NoteConnections.toNoteId, toNoteId),
+      eq(NoteConnections.userId, auth.userId)
+    ));
+    if (existing) {
+      await recordDeletedEntities(auth.userId, "noteConnection", [existing.id]);
+    }
+    broadcastInvalidation(auth.userId, { type: "note:updated", id: fromNoteId });
+    broadcastInvalidation(auth.userId, { type: "note:updated", id: toNoteId });
+    return c.json({ success: true });
+  } catch (error) {
+    const standardError = handleAPIError(error, { endpoint: "/api/notes/connect-link", action: "disconnect_link" });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+route10.post("/api/notes/migrate-connections", requireAuth, async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const { migrated, skipped } = await migrateLinkedFromNoteConnectionsForUser(auth.userId);
+    return c.json({ success: true, migrated, skipped });
+  } catch (error) {
+    const standardError = handleAPIError(error, { endpoint: "/api/notes/migrate-connections", action: "migrate_connections" });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+route10.get("/api/notes/:id/thread", requireAuth, async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const focusNoteId = normalizeServerNoteId(requireParam(c, "id"));
+    const focus = first(
+      await db.select({ id: Notes.id, spaceId: Notes.spaceId }).from(Notes).where(and(eq(Notes.id, focusNoteId), eq(Notes.userId, auth.userId))).limit(1)
+    );
+    if (!focus) return c.json({ success: false, error: "Note not found" }, 404);
+    const preferredSpaceId = typeof c.req.query("spaceId") === "string" ? c.req.query("spaceId") : void 0;
+    const { graph } = await collectStudyThreadGraphForScope(focusNoteId, auth.userId, {
+      preferredSpaceId,
+      maxNodes: 200
+    });
+    const { nodeIds, edges: uniqueEdges, degreeMap } = graph;
+    const noteRows = await fetchStudyThreadNoteRows(nodeIds, auth.userId);
+    const repNoteId = pickStudyThreadRepresentativeNoteId(degreeMap.keys(), degreeMap) ?? focusNoteId;
+    const resourceIds = noteRows.filter((n) => n.noteType === "resource").map((n) => n.id);
+    let resourceMap = {};
+    if (resourceIds.length > 0) {
+      try {
+        const rmList = await db.select({ noteId: ResourceMetadata.noteId, sourceTitle: ResourceMetadata.sourceTitle, sourceDescription: ResourceMetadata.sourceDescription, sourceImage: ResourceMetadata.sourceImage }).from(ResourceMetadata).where(inArray(ResourceMetadata.noteId, resourceIds));
+        resourceMap = Object.fromEntries(rmList.map((m2) => [m2.noteId, m2]));
+      } catch {
+        resourceMap = {};
+      }
+    }
+    const nodes = noteRows.map((n) => {
+      const rm = n.noteType === "resource" ? resourceMap[n.id] : null;
+      return {
+        id: n.id,
+        title: n.title,
+        content: n.content,
+        simpleNoteId: n.simpleNoteId ?? null,
+        noteType: n.noteType || "default",
+        resourceTitle: rm?.sourceTitle ?? null,
+        resourceDescription: rm?.sourceDescription ?? null,
+        resourceImage: rm?.sourceImage ?? null
+      };
+    });
+    const suggestNodes = noteRows.map((n) => {
+      const rm = n.noteType === "resource" ? resourceMap[n.id] : null;
+      return {
+        id: n.id,
+        title: n.title,
+        content: n.content,
+        noteType: n.noteType,
+        resourceTitle: rm?.sourceTitle ?? null,
+        resourceDescription: rm?.sourceDescription ?? null,
+        updatedAt: n.updatedAt ? n.updatedAt.toISOString() : null
+      };
+    });
+    const naming = resolveStudyThreadClusterNaming(noteRows, suggestNodes, repNoteId);
+    return c.json({
+      success: true,
+      focusNoteId,
+      repNoteId: naming.repNoteId,
+      threadTitle: naming.threadTitle,
+      suggestedTitle: naming.suggestedTitle,
+      studyThreadUserOverride: naming.studyThreadUserOverride,
+      studyThreadPinned: naming.studyThreadPinned,
+      nodes,
+      edges: uniqueEdges,
+      nodeCount: nodes.length
+    });
+  } catch (error) {
+    const standardError = handleAPIError(error, { endpoint: "/api/notes/[id]/thread", action: "get_note_thread" });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+route10.patch("/api/notes/:id/study-thread-title", requireAuth, rateLimit("write"), async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const noteId = normalizeServerNoteId(requireParam(c, "id"));
+    const body = await c.req.json().catch(() => ({}));
+    const hasTitleField = Object.prototype.hasOwnProperty.call(body, "title");
+    const title = hasTitleField ? typeof body.title === "string" ? body.title.trim() || null : null : void 0;
+    const userOverride = typeof body.userOverride === "boolean" ? body.userOverride : void 0;
+    const pinned = typeof body.pinned === "boolean" ? body.pinned : void 0;
+    const note = first(
+      await db.select({ id: Notes.id, spaceId: Notes.spaceId }).from(Notes).where(and(eq(Notes.id, noteId), eq(Notes.userId, auth.userId))).limit(1)
+    );
+    if (!note) return c.json({ success: false, error: "Note not found" }, 404);
+    const preferredSpaceId = typeof c.req.query("spaceId") === "string" ? c.req.query("spaceId") : void 0;
+    const { graph } = await collectStudyThreadGraphForScope(noteId, auth.userId, {
+      preferredSpaceId,
+      maxNodes: 200
+    });
+    const repNoteId = pickStudyThreadRepresentativeNoteId(graph.degreeMap.keys(), graph.degreeMap) ?? noteId;
+    const clusterIds = graph.nodeIds.length > 0 ? graph.nodeIds : [repNoteId];
+    const applyNamingToCluster = async (payload, ids) => {
+      if (ids.length === 0) return;
+      await db.update(Notes).set(payload).where(and(inArray(Notes.id, ids), eq(Notes.userId, auth.userId)));
+    };
+    try {
+      if (userOverride === false) {
+        await applyNamingToCluster(
+          {
+            studyThreadTitle: null,
+            studyThreadUserOverride: false,
+            studyThreadLastAutoSuggestedAt: /* @__PURE__ */ new Date(),
+            updatedAt: nowISO()
+          },
+          clusterIds
+        );
+      } else if (title !== void 0) {
+        const manualPayload = {
+          studyThreadTitle: title,
+          studyThreadUserOverride: userOverride ?? true,
+          updatedAt: nowISO()
+        };
+        await applyNamingToCluster(manualPayload, clusterIds);
+      }
+      if (pinned !== void 0) {
+        await db.update(Notes).set({ studyThreadPinned: pinned, updatedAt: nowISO() }).where(and(eq(Notes.id, repNoteId), eq(Notes.userId, auth.userId)));
+      }
+    } catch (error) {
+      if (!isStudyThreadNamingColumnMissing(error)) throw error;
+      const fallback = { updatedAt: nowISO() };
+      if (title !== void 0) {
+        fallback.studyThreadTitle = title;
+        fallback.studyThreadUserOverride = userOverride !== void 0 ? userOverride : title ? true : false;
+      } else if (userOverride !== void 0) {
+        fallback.studyThreadUserOverride = userOverride;
+      }
+      if (userOverride === false) {
+        fallback.studyThreadTitle = null;
+      }
+      if (Object.keys(fallback).length > 1) {
+        await applyNamingToCluster(fallback, clusterIds);
+      }
+    }
+    broadcastInvalidation(auth.userId, { type: "note:updated", id: repNoteId });
+    return c.json({
+      success: true,
+      title: title !== void 0 ? title : void 0,
+      userOverride,
+      pinned
+    });
+  } catch (error) {
+    const standardError = handleAPIError(error, { endpoint: "/api/notes/[id]/study-thread-title", action: "update_study_thread_title" });
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
@@ -157569,7 +158480,8 @@ route10.get("/api/notes/:id/details", requireAuth, async (c) => {
       };
     });
     const comments = await db.select({ id: Comments.id, content: Comments.content, createdAt: Comments.createdAt, updatedAt: Comments.updatedAt }).from(Comments).where(and(eq(Comments.noteId, noteId), eq(Comments.userId, auth.userId))).orderBy(Comments.createdAt);
-    const noteTags = await db.select({ id: Tags.id, name: Tags.name, color: Tags.color, category: Tags.category, isSystem: Tags.isSystem, isAutoGenerated: NoteTags.isAutoGenerated, confidence: NoteTags.confidence }).from(NoteTags).innerJoin(Tags, eq(NoteTags.tagId, Tags.id)).where(and(eq(NoteTags.noteId, noteId), eq(Tags.userId, note.userId))).orderBy(Tags.name);
+    const noteTags = await db.select({ id: Tags.id, name: Tags.name, color: Tags.color, category: Tags.category, isSystem: Tags.isSystem, isAutoGenerated: NoteTags.isAutoGenerated, confidence: NoteTags.confidence, createdAt: NoteTags.createdAt }).from(NoteTags).innerJoin(Tags, eq(NoteTags.tagId, Tags.id)).where(and(eq(NoteTags.noteId, noteId), eq(Tags.userId, note.userId))).orderBy(Tags.name);
+    const dedupedNoteTags = dedupeNoteTagsForResponse(noteTags);
     let referencingNotes = [];
     if (note.noteType === "scripture") {
       try {
@@ -157608,85 +158520,49 @@ route10.get("/api/notes/:id/details", requireAuth, async (c) => {
       }
     }
     let linkedFromNotes = [];
-    const linkedFromId = note.linkedFromNoteId;
-    if (linkedFromId && note.noteType === "default" && !isMemberView && note.userId === auth.userId) {
-      try {
-        const src = first(await db.select({
-          id: Notes.id,
-          title: Notes.title,
-          content: Notes.content,
-          simpleNoteId: Notes.simpleNoteId,
-          noteType: Notes.noteType,
-          createdAt: Notes.createdAt,
-          updatedAt: Notes.updatedAt
-        }).from(Notes).where(and(eq(Notes.id, linkedFromId), eq(Notes.userId, note.userId))).limit(1));
-        if (src) {
-          let lfResourceTitle = null, lfResourceDescription = null, lfResourceImage = null;
-          if (src.noteType === "resource") {
-            try {
-              const rm = first(await db.select({ sourceTitle: ResourceMetadata.sourceTitle, sourceDescription: ResourceMetadata.sourceDescription, sourceImage: ResourceMetadata.sourceImage }).from(ResourceMetadata).where(eq(ResourceMetadata.noteId, src.id)).limit(1));
-              lfResourceTitle = rm?.sourceTitle || null;
-              lfResourceDescription = rm?.sourceDescription || null;
-              lfResourceImage = rm?.sourceImage || null;
-            } catch {
-            }
-          }
-          linkedFromNotes = [{
-            ...src,
-            noteType: src.noteType || "default",
-            resourceTitle: lfResourceTitle,
-            resourceDescription: lfResourceDescription,
-            resourceImage: lfResourceImage
-          }];
-        }
-      } catch {
-        linkedFromNotes = [];
-      }
-    }
     let linkedToNotes = [];
     if (!isMemberView && note.userId === auth.userId) {
       try {
-        const outgoingRows = await db.select({
-          id: Notes.id,
-          title: Notes.title,
-          content: Notes.content,
-          simpleNoteId: Notes.simpleNoteId,
-          noteType: Notes.noteType,
-          createdAt: Notes.createdAt,
-          updatedAt: Notes.updatedAt
-        }).from(Notes).where(
-          and(
-            eq(Notes.linkedFromNoteId, noteId),
-            eq(Notes.userId, auth.userId),
-            eq(Notes.noteType, "default")
-          )
-        ).orderBy(desc(Notes.updatedAt)).limit(50);
-        const ltResourceIds = outgoingRows.filter((r) => r.noteType === "resource").map((r) => r.id);
-        let ltResourceMap = {};
-        if (ltResourceIds.length > 0) {
-          try {
-            const rmList = await db.select({
-              noteId: ResourceMetadata.noteId,
-              sourceTitle: ResourceMetadata.sourceTitle,
-              sourceDescription: ResourceMetadata.sourceDescription,
-              sourceImage: ResourceMetadata.sourceImage
-            }).from(ResourceMetadata).where(inArray(ResourceMetadata.noteId, ltResourceIds));
-            ltResourceMap = Object.fromEntries(rmList.map((m2) => [m2.noteId, m2]));
-          } catch {
-            ltResourceMap = {};
+        const [incomingEdges, outgoingEdges] = await Promise.all([
+          db.select({ fromNoteId: NoteConnections.fromNoteId }).from(NoteConnections).where(and(eq(NoteConnections.toNoteId, noteId), eq(NoteConnections.userId, auth.userId))).limit(100),
+          db.select({ toNoteId: NoteConnections.toNoteId }).from(NoteConnections).where(and(eq(NoteConnections.fromNoteId, noteId), eq(NoteConnections.userId, auth.userId))).limit(100)
+        ]);
+        const allConnectedIds = [
+          ...incomingEdges.map((e) => e.fromNoteId),
+          ...outgoingEdges.map((e) => e.toNoteId)
+        ];
+        if (allConnectedIds.length > 0) {
+          const connectedRows = await db.select({
+            id: Notes.id,
+            title: Notes.title,
+            content: Notes.content,
+            simpleNoteId: Notes.simpleNoteId,
+            noteType: Notes.noteType,
+            createdAt: Notes.createdAt,
+            updatedAt: Notes.updatedAt
+          }).from(Notes).where(and(inArray(Notes.id, allConnectedIds), eq(Notes.userId, auth.userId)));
+          const connResourceIds = connectedRows.filter((r) => r.noteType === "resource").map((r) => r.id);
+          let connResourceMap = {};
+          if (connResourceIds.length > 0) {
+            try {
+              const rmList = await db.select({ noteId: ResourceMetadata.noteId, sourceTitle: ResourceMetadata.sourceTitle, sourceDescription: ResourceMetadata.sourceDescription, sourceImage: ResourceMetadata.sourceImage }).from(ResourceMetadata).where(inArray(ResourceMetadata.noteId, connResourceIds));
+              connResourceMap = Object.fromEntries(rmList.map((m2) => [m2.noteId, m2]));
+            } catch {
+              connResourceMap = {};
+            }
           }
-        }
-        linkedToNotes = outgoingRows.map((row) => {
-          const rm = row.noteType === "resource" ? ltResourceMap[row.id] : null;
-          return {
-            ...row,
-            noteType: row.noteType || "default",
-            resourceTitle: rm?.sourceTitle ?? null,
-            resourceDescription: rm?.sourceDescription ?? null,
-            resourceImage: rm?.sourceImage ?? null
+          const rowById = Object.fromEntries(connectedRows.map((r) => [r.id, r]));
+          const toRef = (id) => {
+            const r = rowById[id];
+            if (!r) return null;
+            const rm = r.noteType === "resource" ? connResourceMap[r.id] : null;
+            return { ...r, noteType: r.noteType || "default", resourceTitle: rm?.sourceTitle ?? null, resourceDescription: rm?.sourceDescription ?? null, resourceImage: rm?.sourceImage ?? null };
           };
-        });
+          linkedFromNotes = incomingEdges.map((e) => toRef(e.fromNoteId)).filter(Boolean);
+          linkedToNotes = outgoingEdges.map((e) => toRef(e.toNoteId)).filter(Boolean);
+        }
       } catch {
+        linkedFromNotes = [];
         linkedToNotes = [];
       }
     }
@@ -157737,7 +158613,7 @@ route10.get("/api/notes/:id/details", requireAuth, async (c) => {
       threads: formattedThreads,
       allUserThreads: selectableUserThreads.map((t) => ({ id: t.id, title: t.title, color: t.color, isPublic: t.isPublic, createdAt: t.createdAt, updatedAt: t.updatedAt })),
       comments: comments.map((c2) => ({ id: c2.id, content: c2.content, createdAt: c2.createdAt, updatedAt: c2.updatedAt })),
-      tags: noteTags.map((t) => ({ id: t.id, name: t.name, color: t.color, category: t.category, isSystem: t.isSystem, isAutoGenerated: t.isAutoGenerated, confidence: t.confidence })),
+      tags: dedupedNoteTags.map((t) => ({ id: t.id, name: t.name, color: t.color, category: t.category, isSystem: t.isSystem, isAutoGenerated: t.isAutoGenerated, confidence: t.confidence })),
       referencingNotes,
       linkedFromNotes,
       linkedToNotes,
@@ -157759,7 +158635,9 @@ route10.post("/api/notes/:id/update-content", requireAuth, rateLimit("write"), a
     if (isOnboardingSystemNote(note)) {
       return c.json({ success: false, error: "This note is read-only.", code: "ONBOARDING_NOTE_READ_ONLY" }, 400);
     }
-    const updateData = { content, updatedAt: nowISO() };
+    const isEncryptedContent = contentEncrypted === true;
+    const contentForStore = isEncryptedContent ? content : canonicalizeNoteHtmlLineBreaks(content);
+    const updateData = { content: contentForStore, updatedAt: nowISO() };
     if (typeof contentEncrypted === "boolean") {
       updateData.contentEncrypted = contentEncrypted;
       if (contentEncrypted === true) {
@@ -158184,6 +159062,20 @@ route11.post("/api/notes/:parentNoteId/study-threads", requireAuth, rateLimit("w
       createdAt: now2,
       updatedAt: now2
     });
+    const resolvedLinkedNoteId = typeof body.linkedNoteId === "string" ? body.linkedNoteId : null;
+    if (entryKind === "linkedNote" && resolvedLinkedNoteId && resolvedLinkedNoteId !== parentNoteId) {
+      try {
+        await db.insert(NoteConnections).values({
+          id: generateNoteId(),
+          fromNoteId: parentNoteId,
+          toNoteId: resolvedLinkedNoteId,
+          userId: auth.userId,
+          spaceId,
+          createdAt: now2
+        });
+      } catch {
+      }
+    }
     const row = first(await db.select().from(StudyThreadEntries).where(eq(StudyThreadEntries.id, id)).limit(1));
     return c.json({ success: true, studyThread: row ? mapStudyRow(row) : null });
   } catch (error) {
@@ -158240,6 +159132,18 @@ route11.delete("/api/study-threads/:id", requireAuth, rateLimit("write"), async 
     );
     if (!existing) return c.json({ error: "Study thread not found" }, 404);
     await db.delete(StudyThreadEntries).where(and(eq(StudyThreadEntries.id, id), eq(StudyThreadEntries.userId, auth.userId)));
+    if (existing.entryKindRaw === "linkedNote" && existing.linkedNoteId) {
+      try {
+        await db.delete(NoteConnections).where(
+          and(
+            eq(NoteConnections.fromNoteId, existing.parentNoteId),
+            eq(NoteConnections.toNoteId, existing.linkedNoteId),
+            eq(NoteConnections.userId, auth.userId)
+          )
+        );
+      } catch {
+      }
+    }
     return c.json({ success: true, deletedId: id });
   } catch (error) {
     const e = handleAPIError(error, { endpoint: "/api/study-threads/[id]", action: "delete_study_thread" });
@@ -159104,6 +160008,114 @@ route12.get("/api/spaces/:spaceId/study-threads/by-scripture", requireAuth, asyn
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
+route12.get("/api/spaces/:spaceId/study-threads", requireAuth, async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const spaceIdRaw = requireParam(c, "spaceId");
+    const spaceIdNorm = spaceIdRaw.startsWith("space_") ? spaceIdRaw : `space_${spaceIdRaw}`;
+    try {
+      await requireSpaceAccess(spaceIdNorm, auth.userId);
+    } catch (err) {
+      if (err instanceof SpaceAccessError) return c.json({ error: err.message, code: err.code }, err.status);
+      throw err;
+    }
+    const edges = await db.select({ fromNoteId: NoteConnections.fromNoteId, toNoteId: NoteConnections.toNoteId }).from(NoteConnections).where(and(eq(NoteConnections.userId, auth.userId), eq(NoteConnections.spaceId, spaceIdNorm)));
+    if (edges.length === 0) {
+      return c.json({ threads: [] });
+    }
+    const adj = /* @__PURE__ */ new Map();
+    const degree = /* @__PURE__ */ new Map();
+    for (const e of edges) {
+      if (!adj.has(e.fromNoteId)) adj.set(e.fromNoteId, /* @__PURE__ */ new Set());
+      if (!adj.has(e.toNoteId)) adj.set(e.toNoteId, /* @__PURE__ */ new Set());
+      adj.get(e.fromNoteId).add(e.toNoteId);
+      adj.get(e.toNoteId).add(e.fromNoteId);
+      degree.set(e.fromNoteId, (degree.get(e.fromNoteId) ?? 0) + 1);
+      degree.set(e.toNoteId, (degree.get(e.toNoteId) ?? 0) + 1);
+    }
+    const allNodeIds = [...adj.keys()];
+    const visited = /* @__PURE__ */ new Set();
+    const components = [];
+    for (const start of allNodeIds) {
+      if (visited.has(start)) continue;
+      const component = [];
+      const queue = [start];
+      visited.add(start);
+      while (queue.length > 0) {
+        const node = queue.shift();
+        component.push(node);
+        for (const neighbor of adj.get(node) ?? []) {
+          if (!visited.has(neighbor)) {
+            visited.add(neighbor);
+            queue.push(neighbor);
+          }
+        }
+      }
+      components.push(component);
+    }
+    const repIds = components.map((members) => pickStudyThreadRepresentativeNoteId(members, degree));
+    const allMemberIds = [...new Set(components.flat())];
+    const memberRows = await fetchStudyThreadNoteRows(allMemberIds, auth.userId);
+    const memberMap = new Map(memberRows.map((r) => [r.id, r]));
+    const resourceIds = memberRows.filter((n) => n.noteType === "resource").map((n) => n.id);
+    let resourceMap = {};
+    if (resourceIds.length > 0) {
+      try {
+        const rmList = await db.select({
+          noteId: ResourceMetadata.noteId,
+          sourceTitle: ResourceMetadata.sourceTitle,
+          sourceDescription: ResourceMetadata.sourceDescription
+        }).from(ResourceMetadata).where(inArray(ResourceMetadata.noteId, resourceIds));
+        resourceMap = Object.fromEntries(rmList.map((m2) => [m2.noteId, m2]));
+      } catch {
+        resourceMap = {};
+      }
+    }
+    const toSuggestNode = (id) => {
+      const n = memberMap.get(id);
+      if (!n) return null;
+      const rm = n.noteType === "resource" ? resourceMap[n.id] : null;
+      return {
+        id: n.id,
+        title: n.title,
+        content: n.content,
+        noteType: n.noteType,
+        resourceTitle: rm?.sourceTitle ?? null,
+        resourceDescription: rm?.sourceDescription ?? null,
+        updatedAt: n.updatedAt ? n.updatedAt.toISOString() : null
+      };
+    };
+    const threads = components.map((members, i) => {
+      const repId = repIds[i];
+      const rep = memberMap.get(repId);
+      const memberRows2 = members.map((id) => memberMap.get(id)).filter((row) => row != null);
+      const suggestNodes = members.map(toSuggestNode).filter((n) => n != null);
+      const naming = resolveStudyThreadClusterNaming(memberRows2, suggestNodes, repId);
+      return {
+        id: repId,
+        title: naming.threadTitle,
+        suggestedTitle: naming.suggestedTitle,
+        hasCustomTitle: naming.studyThreadUserOverride,
+        studyThreadPinned: naming.studyThreadPinned,
+        noteCount: members.length,
+        updatedAt: rep?.updatedAt ? rep.updatedAt.toISOString() : null,
+        memberIds: members
+      };
+    }).sort((a, b3) => {
+      if (b3.noteCount !== a.noteCount) return b3.noteCount - a.noteCount;
+      const tA = a.updatedAt ?? "";
+      const tB = b3.updatedAt ?? "";
+      return tB.localeCompare(tA);
+    });
+    return c.json({ threads });
+  } catch (error) {
+    const standardError = handleAPIError(error, {
+      endpoint: "/api/spaces/[spaceId]/study-threads",
+      action: "get_study_threads"
+    });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
 route12.get("/api/spaces/:spaceId/connect-note-candidates", requireAuth, async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
@@ -159117,19 +160129,15 @@ route12.get("/api/spaces/:spaceId/connect-note-candidates", requireAuth, async (
     }
     const q2 = (c.req.query("q") ?? "").trim();
     const excludeNoteIdRaw = (c.req.query("excludeNoteId") ?? "").trim();
-    if (q2.length < 1) {
-      return c.json({ notes: [] });
-    }
     const limitParsed = parseInt(c.req.query("limit") || "15", 10);
     const limit = Math.min(Number.isFinite(limitParsed) ? limitParsed : 15, 30);
-    const pattern = `%${q2}%`;
-    const filters2 = [
+    const baseFilters = [
       eq(Notes.userId, auth.userId),
       eq(Notes.spaceId, spaceIdNorm),
-      eq(Notes.noteType, "default"),
-      sql`COALESCE(${Notes.title}, '') ILIKE ${pattern}`
+      eq(Notes.noteType, "default")
     ];
-    if (excludeNoteIdRaw) filters2.push(ne(Notes.id, excludeNoteIdRaw));
+    if (excludeNoteIdRaw) baseFilters.push(ne(Notes.id, excludeNoteIdRaw));
+    const filters2 = q2.length >= 1 ? [...baseFilters, sql`COALESCE(${Notes.title}, '') ILIKE ${"%" + q2 + "%"}`] : baseFilters;
     const rows = await db.select({
       id: Notes.id,
       title: Notes.title,
@@ -167606,6 +168614,40 @@ app.post("/api/user/check-monthly-attendance", requireAuth, async (c) => {
     return c.json({ error: e.message, code: e.code }, 500);
   }
 });
+app.post("/api/user/migrate-to-prototype", requireAuth, async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const result = await runPrototypeUserMigration(auth.userId);
+    const showFoldersBanner = result.collectionsUpdated > 0;
+    return c.json({
+      success: true,
+      ...result,
+      showFoldersBanner
+    });
+  } catch (error) {
+    if (isNoteConnectionsTableMissing(error)) {
+      return c.json(
+        {
+          error: "NoteConnections table missing. Run `npm run db:push` on the target database.",
+          code: "SCHEMA_NOT_READY"
+        },
+        503
+      );
+    }
+    const e = handleAPIError(error, { endpoint: "/api/user/migrate-to-prototype", action: "migrate_to_prototype" });
+    return c.json({ error: e.message, code: e.code }, 500);
+  }
+});
+app.get("/api/user/migrate-to-prototype/status", requireAuth, async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const needsCollectionBackfill = await userNeedsCollectionBackfill(auth.userId);
+    return c.json({ success: true, needsCollectionBackfill });
+  } catch (error) {
+    const e = handleAPIError(error, { endpoint: "/api/user/migrate-to-prototype/status", action: "migrate_to_prototype_status" });
+    return c.json({ error: e.message, code: e.code }, 500);
+  }
+});
 app.delete("/api/user/clear-data", requireAuth, async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
@@ -168211,8 +169253,8 @@ app.post("/api/user/import", requireAuth, async (c) => {
         }
         for (const tagName19 of tags) {
           try {
-            const [tagId, wasCreated] = await getOrCreateTag(auth.userId, tagName19);
-            if (wasCreated) tagsCreated++;
+            const { tagId, created: tagCreated } = await getOrCreateTag(auth.userId, tagName19);
+            if (tagCreated) tagsCreated++;
             const existingRelation = first(await db.select().from(NoteTags).where(and(eq(NoteTags.noteId, newNote.id), eq(NoteTags.tagId, tagId))).limit(1));
             if (!existingRelation) {
               await db.insert(NoteTags).values({
@@ -168396,24 +169438,6 @@ async function getOrCreateThread(userId, threadTitle, threadColor) {
   }).returning());
   return newThread.id;
 }
-async function getOrCreateTag(userId, tagName19) {
-  const trimmedName = tagName19.trim();
-  if (!trimmedName) throw new Error("Tag name cannot be empty");
-  const allUserTags = await db.select().from(Tags).where(eq(Tags.userId, userId));
-  const existingTag = allUserTags.find((t) => t.name.toLowerCase() === trimmedName.toLowerCase());
-  if (existingTag) return [existingTag.id, false];
-  const tagId = `tag_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-  await db.insert(Tags).values({
-    id: tagId,
-    name: trimmedName,
-    color: null,
-    category: null,
-    userId,
-    isSystem: false,
-    createdAt: nowISO()
-  });
-  return [tagId, true];
-}
 async function isDuplicateNote(userId, title, content) {
   const normalizedContent = htmlToPlainText(content).toLowerCase().replace(/\s+/g, " ").trim();
   const normalizedTitle = (title || "").toLowerCase().trim();
@@ -168438,32 +169462,24 @@ app2.post("/api/tags/create", requireAuth, rateLimit("write"), async (c) => {
     if (!name || typeof name !== "string" || name.trim().length === 0) {
       return c.json({ error: "Tag name is required" }, 400);
     }
-    const existingTag = first(await db.select().from(Tags).where(and(eq(Tags.userId, auth.userId), eq(Tags.name, name.trim()))).limit(1));
-    if (existingTag) {
-      return c.json({ error: "Tag already exists" }, 409);
-    }
-    const tagId = `tag_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    await db.insert(Tags).values({
-      id: tagId,
-      name: name.trim(),
+    const { tagId, created, tag } = await getOrCreateTag(auth.userId, name.trim(), {
       color: color || "#006eff",
       category: category || "spiritual",
-      userId: auth.userId,
-      isSystem: false,
-      createdAt: nowISO()
+      isSystem: false
     });
     return c.json({
       success: true,
+      created,
       tag: {
         id: tagId,
-        name: name.trim(),
-        color: color || "#006eff",
-        category: category || "spiritual",
+        name: tag.name,
+        color: tag.color || color || "#006eff",
+        category: tag.category || category || "spiritual",
         userId: auth.userId,
-        isSystem: false,
-        createdAt: (/* @__PURE__ */ new Date()).toISOString()
+        isSystem: tag.isSystem,
+        createdAt: tag.createdAt
       }
-    }, 201);
+    }, created ? 201 : 200);
   } catch (error) {
     const standardError = handleAPIError(error, { endpoint: "/api/tags/create", action: "create_tag" });
     return c.json({ error: standardError.message, code: standardError.code }, 500);
@@ -168634,6 +169650,9 @@ app2.post("/api/note-tags/assign", requireAuth, rateLimit("write"), async (c) =>
     if (!tag) return c.json({ error: "Tag not found" }, 404);
     const existingRelation = first(await db.select().from(NoteTags).where(and(eq(NoteTags.noteId, noteId), eq(NoteTags.tagId, tagId))).limit(1));
     if (existingRelation) return c.json({ error: "Tag already assigned to note" }, 409);
+    if (await noteHasTagWithNormalizedName(noteId, tag.name, auth.userId)) {
+      return c.json({ error: "Tag already assigned to note" }, 409);
+    }
     const relationId = `note_tag_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     await db.insert(NoteTags).values({
       id: relationId,
@@ -168646,6 +169665,25 @@ app2.post("/api/note-tags/assign", requireAuth, rateLimit("write"), async (c) =>
     return c.json({ success: true, message: "Tag assigned to note", relationId }, 201);
   } catch (error) {
     console.error("Error assigning tag to note:", error);
+    return c.json({ error: "Internal server error" }, 500);
+  }
+});
+app2.delete("/api/note-tags/remove-by-name", requireAuth, rateLimit("write"), async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const noteId = c.req.query("noteId");
+    const name = c.req.query("name");
+    if (!noteId || !name) return c.json({ error: "Note ID and tag name are required" }, 400);
+    const noteRow = first(
+      await db.select({ id: Notes.id, userId: Notes.userId }).from(Notes).where(eq(Notes.id, noteId)).limit(1)
+    );
+    if (!noteRow || noteRow.userId !== auth.userId) {
+      return c.json({ error: "Note not found" }, 404);
+    }
+    const removed = await removeNoteTagsByName(noteId, name, noteRow.userId);
+    return c.json({ success: true, message: "Tag removed from note", removed });
+  } catch (error) {
+    console.error("Error removing tag by name from note:", error);
     return c.json({ error: "Internal server error" }, 500);
   }
 });
@@ -168694,7 +169732,17 @@ app2.get("/api/note-tags/list", requireAuth, async (c) => {
       createdAt: NoteTags.createdAt,
       tag: { id: Tags.id, name: Tags.name, color: Tags.color, category: Tags.category, isSystem: Tags.isSystem }
     }).from(NoteTags).innerJoin(Tags, eq(NoteTags.tagId, Tags.id)).where(and(eq(NoteTags.noteId, noteId), eq(Tags.userId, noteRow.userId)));
-    return c.json({ success: true, tags: noteTags });
+    const deduped = dedupeNoteTagsForResponse(
+      noteTags.map((row) => ({
+        id: row.tag.id,
+        name: row.tag.name,
+        isAutoGenerated: row.isAutoGenerated,
+        createdAt: row.createdAt
+      }))
+    );
+    const rowByTagId = new Map(noteTags.map((row) => [row.tag.id, row]));
+    const tags = deduped.map((d) => rowByTagId.get(d.id)).filter((row) => !!row);
+    return c.json({ success: true, tags });
   } catch (error) {
     console.error("Error fetching note tags:", error);
     return c.json({ error: "Internal server error" }, 500);
@@ -171849,12 +172897,27 @@ async function processNoteMutation(userId, operation, entityId, data, clientMuta
       secondaryCollections: createSecondaryStored,
       collectionPinned: typeof data.collectionPinned === "boolean" ? data.collectionPinned : false,
       collectionUserOverride: typeof data.collectionUserOverride === "boolean" ? data.collectionUserOverride : false,
-      collectionLastAutoUpdatedAt: collectionLastAutoCreate
+      collectionLastAutoUpdatedAt: collectionLastAutoCreate,
+      studyThreadUserOverride: typeof data.studyThreadUserOverride === "boolean" ? data.studyThreadUserOverride : false,
+      studyThreadPinned: typeof data.studyThreadPinned === "boolean" ? data.studyThreadPinned : false
     }).returning());
     const newHighest = Math.max(assignedSimpleNoteId, effectiveHighest);
     await db.update(UserMetadata).set({ highestSimpleNoteId: newHighest, updatedAt: nowISO() }).where(eq(UserMetadata.userId, userId));
     if (threadId && threadId !== "thread_unorganized") {
       await db.insert(NoteThreads).values({ id: generateNoteId(), noteId: newNote.id, threadId, createdAt: nowISO() });
+    }
+    if (resolvedLinkedFromNoteId) {
+      try {
+        await db.insert(NoteConnections).values({
+          id: generateNoteId(),
+          fromNoteId: resolvedLinkedFromNoteId,
+          toNoteId: newNote.id,
+          userId,
+          spaceId: data.spaceId || null,
+          createdAt: nowISO()
+        });
+      } catch {
+      }
     }
     if (clientMutationId) {
       processedMutations.set(clientMutationId, { serverId: newNote.id, timestamp: Date.now() });
@@ -171906,6 +172969,18 @@ async function processNoteMutation(userId, operation, entityId, data, clientMuta
     if (data.collectionLastAutoUpdatedAt !== void 0) {
       updatePayload.collectionLastAutoUpdatedAt = data.collectionLastAutoUpdatedAt == null || data.collectionLastAutoUpdatedAt === "" ? null : new Date(data.collectionLastAutoUpdatedAt);
     }
+    if (data.studyThreadTitle !== void 0) {
+      updatePayload.studyThreadTitle = typeof data.studyThreadTitle === "string" && data.studyThreadTitle.trim() ? data.studyThreadTitle.trim() : null;
+    }
+    if (data.studyThreadUserOverride !== void 0) {
+      updatePayload.studyThreadUserOverride = Boolean(data.studyThreadUserOverride);
+    }
+    if (data.studyThreadPinned !== void 0) {
+      updatePayload.studyThreadPinned = Boolean(data.studyThreadPinned);
+    }
+    if (data.studyThreadLastAutoSuggestedAt !== void 0) {
+      updatePayload.studyThreadLastAutoSuggestedAt = data.studyThreadLastAutoSuggestedAt == null || data.studyThreadLastAutoSuggestedAt === "" ? null : new Date(data.studyThreadLastAutoSuggestedAt);
+    }
     await db.update(Notes).set(updatePayload).where(eq(Notes.id, entityId));
     return { success: true, entityId, serverId: entityId };
   } else if (operation === "delete") {
@@ -171947,17 +173022,14 @@ async function processNoteThreadMutation(userId, operation, entityId, data) {
 }
 async function processTagMutation(userId, operation, entityId, data) {
   if (operation === "create") {
-    const newTag = first(await db.insert(Tags).values({
-      id: entityId.startsWith("local_") ? generateNoteId() : entityId,
-      name: data.name,
+    const name = typeof data.name === "string" ? data.name.trim() : "";
+    if (!name) return { success: false, error: "Tag name is required" };
+    const { tagId } = await getOrCreateTag(userId, name, {
       color: data.color || null,
       category: data.category || null,
-      isSystem: data.isSystem || false,
-      userId,
-      createdAt: nowISO(),
-      updatedAt: nowISO()
-    }).returning());
-    return { success: true, entityId, serverId: newTag.id };
+      isSystem: data.isSystem || false
+    });
+    return { success: true, entityId, serverId: tagId };
   } else if (operation === "update") {
     const existing = first(await db.select().from(Tags).where(and(eq(Tags.id, entityId), eq(Tags.userId, userId))).limit(1));
     if (!existing) return { success: false, error: "Tag not found" };
@@ -171974,10 +173046,24 @@ async function processNoteTagMutation(userId, operation, entityId, data) {
   if (operation === "create") {
     const note = first(await db.select().from(Notes).where(and(eq(Notes.id, data.noteId), eq(Notes.userId, userId))).limit(1));
     if (!note) return { success: false, error: "Note not found" };
+    const tagRow = first(await db.select().from(Tags).where(and(eq(Tags.id, data.tagId), eq(Tags.userId, userId))).limit(1));
+    if (!tagRow) return { success: false, error: "Tag not found" };
+    const { tagId: canonicalTagId } = await getOrCreateTag(userId, tagRow.name, {
+      color: tagRow.color,
+      category: tagRow.category,
+      isSystem: tagRow.isSystem
+    });
+    const existingRelation = first(
+      await db.select().from(NoteTags).where(and(eq(NoteTags.noteId, data.noteId), eq(NoteTags.tagId, canonicalTagId))).limit(1)
+    );
+    if (existingRelation) return { success: true, entityId, serverId: existingRelation.id };
+    if (await noteHasTagWithNormalizedName(data.noteId, tagRow.name, userId)) {
+      return { success: true, entityId, serverId: entityId };
+    }
     const newNoteTag = first(await db.insert(NoteTags).values({
       id: entityId.startsWith("local_") ? generateNoteId() : entityId,
       noteId: data.noteId,
-      tagId: data.tagId,
+      tagId: canonicalTagId,
       isAutoGenerated: data.isAutoGenerated || false,
       confidence: data.confidence || null,
       createdAt: nowISO()
@@ -172143,7 +173229,7 @@ var SYNC_NOTE_PAGE_LIMIT = 1e3;
 app9.get("/api/sync/bootstrap", requireAuth, async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
-    const [spaces, threads, notes, noteThreads, tags, noteTags, studyThreadEntries, userMetadataRows] = await Promise.all([
+    const [spaces, threads, notes, noteThreads, noteConnections, tags, noteTags, studyThreadEntries, userMetadataRows] = await Promise.all([
       db.select({
         id: Spaces.id,
         title: Spaces.title,
@@ -172191,7 +173277,11 @@ app9.get("/api/sync/bootstrap", requireAuth, async (c) => {
         secondaryCollections: Notes.secondaryCollections,
         collectionPinned: Notes.collectionPinned,
         collectionUserOverride: Notes.collectionUserOverride,
-        collectionLastAutoUpdatedAt: Notes.collectionLastAutoUpdatedAt
+        collectionLastAutoUpdatedAt: Notes.collectionLastAutoUpdatedAt,
+        studyThreadTitle: Notes.studyThreadTitle,
+        studyThreadUserOverride: Notes.studyThreadUserOverride,
+        studyThreadPinned: Notes.studyThreadPinned,
+        studyThreadLastAutoSuggestedAt: Notes.studyThreadLastAutoSuggestedAt
       }).from(Notes).where(and(eq(Notes.userId, auth.userId), ne(Notes.noteType, "scripture"))).orderBy(desc(sql`coalesce(${Notes.updatedAt}, ${Notes.createdAt})`)).limit(SYNC_NOTE_PAGE_LIMIT + 1),
       db.select({
         id: NoteThreads.id,
@@ -172199,6 +173289,25 @@ app9.get("/api/sync/bootstrap", requireAuth, async (c) => {
         threadId: NoteThreads.threadId,
         createdAt: NoteThreads.createdAt
       }).from(NoteThreads).innerJoin(Notes, eq(Notes.id, NoteThreads.noteId)).where(eq(Notes.userId, auth.userId)),
+      (async () => {
+        try {
+          return await db.select({
+            id: NoteConnections.id,
+            fromNoteId: NoteConnections.fromNoteId,
+            toNoteId: NoteConnections.toNoteId,
+            spaceId: NoteConnections.spaceId,
+            createdAt: NoteConnections.createdAt
+          }).from(NoteConnections).where(eq(NoteConnections.userId, auth.userId));
+        } catch (e) {
+          if (isNoteConnectionsTableMissing(e)) {
+            console.warn(
+              "[sync/bootstrap] NoteConnections table missing; returning empty connections. Run `npm run db:push`."
+            );
+            return [];
+          }
+          throw e;
+        }
+      })(),
       db.select({
         id: Tags.id,
         name: Tags.name,
@@ -172278,9 +173387,11 @@ app9.get("/api/sync/bootstrap", requireAuth, async (c) => {
       threads,
       notes: notesPage.map((n) => ({ ...n, secondaryCollections: parseNoteSecondaryCollections(n.secondaryCollections) })),
       noteThreads,
+      noteConnections,
       tags,
       noteTags,
       studyThreadEntries,
+      deletedNoteConnectionIds: [],
       userMetadata: userMetaForResponse ? (() => {
         const { lockPinHash, ...rest } = userMetaForResponse;
         return {
@@ -172310,7 +173421,7 @@ app9.get("/api/sync/changes", requireAuth, async (c) => {
       if (isNaN(sinceTimestamp)) return c.json({ error: "Invalid since parameter format", code: "INVALID_PARAMETER" }, 400);
     }
     const sinceDate = new Date(sinceTimestamp);
-    const [changedSpaces, changedThreads, changedNotes, changedNoteThreads, changedTags, changedNoteTags, changedStudyThreadEntries, changedUserMetadataRows, deletedFeed] = await Promise.all([
+    const [changedSpaces, changedThreads, changedNotes, changedNoteThreads, changedNoteConnections, changedTags, changedNoteTags, changedStudyThreadEntries, changedUserMetadataRows, deletedFeed] = await Promise.all([
       db.select({
         id: Spaces.id,
         title: Spaces.title,
@@ -172358,7 +173469,11 @@ app9.get("/api/sync/changes", requireAuth, async (c) => {
         secondaryCollections: Notes.secondaryCollections,
         collectionPinned: Notes.collectionPinned,
         collectionUserOverride: Notes.collectionUserOverride,
-        collectionLastAutoUpdatedAt: Notes.collectionLastAutoUpdatedAt
+        collectionLastAutoUpdatedAt: Notes.collectionLastAutoUpdatedAt,
+        studyThreadTitle: Notes.studyThreadTitle,
+        studyThreadUserOverride: Notes.studyThreadUserOverride,
+        studyThreadPinned: Notes.studyThreadPinned,
+        studyThreadLastAutoSuggestedAt: Notes.studyThreadLastAutoSuggestedAt
       }).from(Notes).where(and(eq(Notes.userId, auth.userId), ne(Notes.noteType, "scripture"), or(gt(Notes.updatedAt, sinceDate), gt(Notes.createdAt, sinceDate), gt(Notes.lastVisited, sinceDate)))).orderBy(asc(sql`coalesce(${Notes.updatedAt}, ${Notes.createdAt})`)).limit(SYNC_NOTE_PAGE_LIMIT + 1),
       db.select({
         id: NoteThreads.id,
@@ -172366,6 +173481,23 @@ app9.get("/api/sync/changes", requireAuth, async (c) => {
         threadId: NoteThreads.threadId,
         createdAt: NoteThreads.createdAt
       }).from(NoteThreads).innerJoin(Notes, eq(Notes.id, NoteThreads.noteId)).where(and(eq(Notes.userId, auth.userId), gt(NoteThreads.createdAt, sinceDate))),
+      (async () => {
+        try {
+          return await db.select({
+            id: NoteConnections.id,
+            fromNoteId: NoteConnections.fromNoteId,
+            toNoteId: NoteConnections.toNoteId,
+            spaceId: NoteConnections.spaceId,
+            createdAt: NoteConnections.createdAt
+          }).from(NoteConnections).where(and(eq(NoteConnections.userId, auth.userId), gt(NoteConnections.createdAt, sinceDate)));
+        } catch (e) {
+          if (isNoteConnectionsTableMissing(e)) {
+            console.warn("[sync/changes] NoteConnections table missing; returning empty connection delta.");
+            return [];
+          }
+          throw e;
+        }
+      })(),
       db.select({
         id: Tags.id,
         name: Tags.name,
@@ -172450,17 +173582,19 @@ app9.get("/api/sync/changes", requireAuth, async (c) => {
       timestamp: (/* @__PURE__ */ new Date()).toISOString(),
       cursor: nextCursor,
       hasMore: notesPageTruncated,
-      hasChanges: changedSpaces.length > 0 || changedThreads.length > 0 || changedNotesPage.length > 0 || changedNoteThreads.length > 0 || changedTags.length > 0 || changedNoteTags.length > 0 || changedStudyThreadEntries.length > 0 || deletedFeed.deletedNoteIds.length > 0 || deletedFeed.deletedStudyThreadIds.length > 0 || deletedFeed.deletedThreadIds.length > 0 || changedUserMetadata !== null && changedUserMetadata !== void 0,
+      hasChanges: changedSpaces.length > 0 || changedThreads.length > 0 || changedNotesPage.length > 0 || changedNoteThreads.length > 0 || changedNoteConnections.length > 0 || changedTags.length > 0 || changedNoteTags.length > 0 || changedStudyThreadEntries.length > 0 || deletedFeed.deletedNoteIds.length > 0 || deletedFeed.deletedStudyThreadIds.length > 0 || deletedFeed.deletedThreadIds.length > 0 || deletedFeed.deletedNoteConnectionIds.length > 0 || changedUserMetadata !== null && changedUserMetadata !== void 0,
       spaces: changedSpaces,
       threads: changedThreads,
       notes: changedNotesPage.map((n) => ({ ...n, secondaryCollections: parseNoteSecondaryCollections(n.secondaryCollections) })),
       noteThreads: changedNoteThreads,
+      noteConnections: changedNoteConnections,
       tags: changedTags,
       noteTags: changedNoteTags,
       studyThreadEntries: changedStudyThreadEntries,
       deletedNoteIds: deletedFeed.deletedNoteIds,
       deletedStudyThreadIds: deletedFeed.deletedStudyThreadIds,
       deletedThreadIds: deletedFeed.deletedThreadIds,
+      deletedNoteConnectionIds: deletedFeed.deletedNoteConnectionIds,
       userMetadata: userMetaForResponse ? (() => {
         const { lockPinHash, ...rest } = userMetaForResponse;
         return { ...rest, highestSimpleNoteId: effectiveHighestForChanges, hasLockPinSet: !!lockPinHash };

@@ -78,6 +78,7 @@ public/                      # Static assets, sw.js, manifest.json
 
 ## Important Files
 
+- **Before building web/native UI:** `docs/design-parity/HARVOUS_BUILD_CONVENTIONS.md` - concrete design tokens, component seams, and naming for the `/prototype` shell and native apps (reuse before inventing). Policy in `docs/design-parity/HARVOUS_DESIGN_PARITY_SPEC.md`; known seams/debt in `docs/design-parity/ARCHITECTURE_READINESS_AUDIT.md`.
 - `docs/ARCHITECTURE.md` - Data structures, database schema, relationships
 - `docs/CLEAR_SPLIT_MIGRATION.md` - Plan to simplify to Node API + SPA (no Astro in the middle)
 - `docs/CLEAR_SPLIT_MERGE_DELTA.md` - What changed at merge, production API contract, pre-merge checklist

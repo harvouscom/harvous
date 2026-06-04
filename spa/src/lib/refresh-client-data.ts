@@ -19,6 +19,13 @@ export async function refreshPrototypeLists(
   homeSpaceId?: string | null,
 ): Promise<void> {
   await queryClient.invalidateQueries({ queryKey: navigationQueryKeyPrefix });
+  await queryClient.invalidateQueries({
+    predicate: (query) =>
+      Array.isArray(query.queryKey) &&
+      query.queryKey[0] === 'prototype' &&
+      query.queryKey[1] === 'space' &&
+      query.queryKey[3] === 'study-threads',
+  });
   if (homeSpaceId) {
     await queryClient.invalidateQueries({ queryKey: ['space', homeSpaceId, 'notes'] });
   } else {

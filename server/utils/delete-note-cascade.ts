@@ -2,6 +2,7 @@ import {
   db,
   Notes,
   NoteThreads,
+  NoteConnections,
   NoteScriptureReferences,
   NoteTags,
   Comments,
@@ -55,10 +56,15 @@ export async function deleteNotesCascadeForUser(userId: string, noteIds: string[
     return { deletedNoteIds: [], deletedStudyThreadIds: [] };
   }
 
-  await db
-    .update(Notes)
-    .set({ linkedFromNoteId: null, updatedAt: nowISO() })
-    .where(and(eq(Notes.userId, userId), inArray(Notes.linkedFromNoteId, deletedNoteIds)));
+  // Remove all NoteConnections edges that touch the deleted notes.
+  for (const chunk of chunkIds(deletedNoteIds)) {
+    await db.delete(NoteConnections).where(
+      or(
+        inArray(NoteConnections.fromNoteId, chunk),
+        inArray(NoteConnections.toNoteId, chunk),
+      ),
+    );
+  }
 
   const deletedStudyThreadIds: string[] = [];
   for (const chunk of chunkIds(deletedNoteIds)) {

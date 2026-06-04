@@ -97,6 +97,13 @@ export const Notes = pgTable(
     collectionLastAutoUpdatedAt: ts('collectionLastAutoUpdatedAt'),
     /** Note created from highlighted text in this source note (same user only). */
     linkedFromNoteId: text('linkedFromNoteId'),
+    /** User-overridden name for the study thread this note anchors (as the cluster representative). */
+    studyThreadTitle: text('studyThreadTitle'),
+    /** When true, `studyThreadTitle` is manual; when false, display uses auto-suggested cluster name. */
+    studyThreadUserOverride: boolean('studyThreadUserOverride').notNull().default(false),
+    /** When true, thread name does not auto-update when the cluster changes (folder `collectionPinned` parity). */
+    studyThreadPinned: boolean('studyThreadPinned').notNull().default(false),
+    studyThreadLastAutoSuggestedAt: ts('studyThreadLastAutoSuggestedAt'),
   },
   (table) => [
     index('Notes_userIdIndex').on(table.userId),
@@ -359,6 +366,25 @@ export const NoteScriptureReferences = pgTable('NoteScriptureReferences', {
   createdAt: ts('createdAt').notNull(),
 }, (table) => [
   uniqueIndex('NoteScriptureReferences_uniqueNoteScripture').on(table.noteId, table.scriptureNoteId),
+]);
+
+// ─── NoteConnections (many-to-many note connection graph) ──────────────────────
+// Replaces the single-parent linkedFromNoteId tree with a proper join table.
+// fromNoteId = "context/source" note; toNoteId = "connected" note.
+// Both directions are traversed when building the study thread graph.
+
+export const NoteConnections = pgTable('NoteConnections', {
+  id: text('id').primaryKey(),
+  fromNoteId: text('fromNoteId').notNull(),
+  toNoteId: text('toNoteId').notNull(),
+  userId: text('userId').notNull(),
+  spaceId: text('spaceId'),
+  createdAt: ts('createdAt').notNull(),
+}, (table) => [
+  uniqueIndex('NoteConnections_uniquePair').on(table.fromNoteId, table.toNoteId),
+  index('NoteConnections_fromNoteIdIndex').on(table.fromNoteId),
+  index('NoteConnections_toNoteIdIndex').on(table.toNoteId),
+  index('NoteConnections_userIdIndex').on(table.userId),
 ]);
 
 // ─── VerseTextCache (verse text cache, keyed by normalized reference + translation) ─

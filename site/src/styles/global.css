@@ -1,5 +1,12 @@
 @import "tailwindcss";
 
+/* App design-system tokens (--pds-*) + study accents — drives the AppShell
+   replica and gives us the app's already-designed light/dark "night" palette.
+   Scoped to .proto-* / --pds-* so it does not leak into site chrome. */
+@import "./prototype-tokens.css";
+@import "./study-highlight-accent-colors.css";
+@import "./app-shell.css";
+
 /* Scorekard — self-hosted display font for h1/h2 */
 @font-face {
   font-family: "Scorekard";
@@ -206,5 +213,199 @@ details > summary::-webkit-details-marker {
   }
   .paper-stack:hover .paper-leaf {
     transform: rotate(var(--rot, 0deg));
+  }
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+   Day / Night theme — "the light shines in the darkness" (John 1:5)
+   One attribute (`data-color-scheme`) drives both the site chrome (--color-*)
+   and the embedded AppShell replica (--pds-*, from prototype-tokens.css), so a
+   single toggle re-themes the whole page in lockstep. Light values live in the
+   @theme block above; the dark overrides + glow tokens live here.
+   ────────────────────────────────────────────────────────────────────────── */
+
+:root {
+  /* Light: light is a warm marker, no glow. */
+  --glow-highlight: transparent;
+  --glow-accent: transparent;
+  --hero-light: radial-gradient(60% 60% at 70% 30%, rgba(255, 232, 168, 0.28), transparent 70%);
+  /* Founder-letter sheet — slightly lifted above the desk. Grain/fold/shadow/rule
+     reuse the app's --pds-paper-* tokens (which already theme light/dark). */
+  --paper-sheet: #fcfbf7;
+}
+
+/* Native form controls / scrollbars follow the resolved theme. */
+:root[data-color-scheme="light"] { color-scheme: light; }
+:root[data-color-scheme="dark"] { color-scheme: dark; }
+
+/* Dark palette — aligned to the app's --pds-* night values (deep indigo-charcoal
+   ground where scripture, highlights, and the accent read as light sources). */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-color-scheme="light"]) { color-scheme: dark; }
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-color-scheme="light"]) {
+    --color-paper: oklch(12% 0.01 285);
+    --color-card: oklch(18.5% 0.01 285);
+    --color-ink: oklch(96% 0 0);
+    --color-ink-soft: oklch(96% 0 0 / 0.62);
+    --color-ink-faint: oklch(96% 0 0 / 0.42);
+    --color-rule: oklch(100% 0 0 / 0.1);
+    --color-warm: oklch(20% 0.01 285);
+    --color-accent: oklch(72% 0.18 265);
+    --color-accent-soft: oklch(72% 0.18 265 / 0.2);
+    --color-highlight: #ffe8a8;
+
+    --color-peach: oklch(46% 0.1 40);
+    --color-peach-ink: oklch(89% 0.07 45);
+    --color-sky: oklch(42% 0.085 245);
+    --color-sky-ink: oklch(89% 0.06 240);
+    --color-mint: oklch(41% 0.08 150);
+    --color-mint-ink: oklch(89% 0.08 150);
+    --color-lilac: oklch(41% 0.1 305);
+    --color-lilac-ink: oklch(89% 0.08 305);
+    --color-pink: oklch(44% 0.1 335);
+    --color-pink-ink: oklch(89% 0.08 335);
+    --color-cream: oklch(40% 0.035 90);
+    --color-cream-ink: oklch(90% 0.05 90);
+
+    --glow-highlight: rgba(255, 224, 150, 0.5);
+    --glow-accent: oklch(72% 0.18 265 / 0.45);
+    --hero-light: radial-gradient(55% 55% at 70% 28%, rgba(255, 224, 150, 0.22), transparent 72%);
+    --paper-sheet: oklch(20% 0.01 285);
+
+    --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.4), 0 8px 24px -10px rgba(0, 0, 0, 0.6);
+    --shadow-float: 0 20px 60px -20px rgba(0, 0, 0, 0.7);
+  }
+}
+
+/* Explicit override (set by the no-flash head script + toggle). Mirrors the
+   media block so the choice wins and JS-off dark-OS users still match. */
+:root[data-color-scheme="dark"] {
+  --color-paper: oklch(12% 0.01 285);
+  --color-card: oklch(18.5% 0.01 285);
+  --color-ink: oklch(96% 0 0);
+  --color-ink-soft: oklch(96% 0 0 / 0.62);
+  --color-ink-faint: oklch(96% 0 0 / 0.42);
+  --color-rule: oklch(100% 0 0 / 0.1);
+  --color-warm: oklch(20% 0.01 285);
+  --color-accent: oklch(72% 0.18 265);
+  --color-accent-soft: oklch(72% 0.18 265 / 0.2);
+  --color-highlight: #ffe8a8;
+
+  --color-peach: oklch(46% 0.1 40);
+  --color-peach-ink: oklch(89% 0.07 45);
+  --color-sky: oklch(42% 0.085 245);
+  --color-sky-ink: oklch(89% 0.06 240);
+  --color-mint: oklch(41% 0.08 150);
+  --color-mint-ink: oklch(89% 0.08 150);
+  --color-lilac: oklch(41% 0.1 305);
+  --color-lilac-ink: oklch(89% 0.08 305);
+  --color-pink: oklch(44% 0.1 335);
+  --color-pink-ink: oklch(89% 0.08 335);
+  --color-cream: oklch(40% 0.035 90);
+  --color-cream-ink: oklch(90% 0.05 90);
+
+  --glow-highlight: rgba(255, 224, 150, 0.5);
+  --glow-accent: oklch(72% 0.18 265 / 0.45);
+  --hero-light: radial-gradient(55% 55% at 70% 28%, rgba(255, 224, 150, 0.22), transparent 72%);
+  --paper-sheet: oklch(20% 0.01 285);
+
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.4), 0 8px 24px -10px rgba(0, 0, 0, 0.6);
+  --shadow-float: 0 20px 60px -20px rgba(0, 0, 0, 0.7);
+}
+
+/* Dark marker — prototype warm-amber underline (gradient + glow read harsh on ink).
+   Use longhand only: minifiers rewrite `background: none` → `background: 0 0`, which
+   leaves the light-mode gradient image in place. */
+:root[data-color-scheme="dark"] mark,
+:root[data-color-scheme="dark"] .mark {
+  background-color: transparent !important;
+  background-image: none !important;
+  box-shadow: none !important;
+  color: inherit;
+  border-radius: 0;
+  padding: 0;
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 3px;
+  text-decoration-color: var(--study-dock-accent-warmAmber);
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+:root[data-color-scheme="dark"] mark.mark-blue,
+:root[data-color-scheme="dark"] .mark-blue {
+  text-decoration-color: var(--color-accent);
+}
+:root[data-color-scheme="dark"] mark.mark-mint,
+:root[data-color-scheme="dark"] .mark-mint {
+  text-decoration-color: var(--study-dock-accent-mintGreen);
+}
+:root[data-color-scheme="dark"] mark.mark-peach,
+:root[data-color-scheme="dark"] .mark-peach {
+  text-decoration-color: var(--study-dock-accent-coralRose);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-color-scheme="light"]) mark,
+  :root:not([data-color-scheme="light"]) .mark {
+    background-color: transparent !important;
+    background-image: none !important;
+    box-shadow: none !important;
+    color: inherit;
+    border-radius: 0;
+    padding: 0;
+    text-decoration: underline;
+    text-decoration-thickness: 2px;
+    text-underline-offset: 3px;
+    text-decoration-color: var(--study-dock-accent-warmAmber);
+    box-decoration-break: clone;
+    -webkit-box-decoration-break: clone;
+  }
+  :root:not([data-color-scheme="light"]) mark.mark-blue,
+  :root:not([data-color-scheme="light"]) .mark-blue {
+    text-decoration-color: var(--color-accent);
+  }
+  :root:not([data-color-scheme="light"]) mark.mark-mint,
+  :root:not([data-color-scheme="light"]) .mark-mint {
+    text-decoration-color: var(--study-dock-accent-mintGreen);
+  }
+  :root:not([data-color-scheme="light"]) mark.mark-peach,
+  :root:not([data-color-scheme="light"]) .mark-peach {
+    text-decoration-color: var(--study-dock-accent-coralRose);
+  }
+}
+
+/* Dawn / dusk crossfade on toggle (View Transitions, see ThemeToggle.astro). */
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    animation: none;
+  }
+}
+
+/* Dark ink on transparent (signatures) needs inverting on the night sheet. */
+:root[data-color-scheme="dark"] .signature-img { filter: invert(1) brightness(1.7); }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-color-scheme="light"]) .signature-img { filter: invert(1) brightness(1.7); }
+}
+
+/* ── Reveal-on-scroll — generalizes the paper-stack observer (see BaseLayout) ── */
+[data-reveal] {
+  opacity: 0;
+  transform: translateY(18px);
+  transition:
+    opacity 700ms cubic-bezier(0.22, 1, 0.36, 1),
+    transform 700ms cubic-bezier(0.22, 1, 0.36, 1);
+  transition-delay: var(--reveal-delay, 0ms);
+  will-change: opacity, transform;
+}
+[data-reveal="scale"] { transform: translateY(18px) scale(0.97); }
+[data-reveal].revealed { opacity: 1; transform: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  [data-reveal] {
+    opacity: 1;
+    transform: none;
+    transition: none;
   }
 }

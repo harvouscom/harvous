@@ -113,6 +113,20 @@ final class EditorProxy: ObservableObject {
     var triggerStandaloneNoteFromSelection: (() -> Void)?
     /// Deletes anchored study highlights that intersect the current body selection/caret (`NSTextStorage`).
     var triggerRemoveIntersectingStudyHighlightsFromSelection: (() -> Void)?
+    /// Drives the "connect existing note from selection" picker sheet in `NoteEditorView`.
+    @Published var showConnectFromSelectionPicker: Bool = false
+
+    /// Viewport rect of the most-recently tapped study highlight (set just before `onStudyHighlightTap/Click` fires).
+    /// Used to anchor the connected-note highlight popup near the tapped underline.
+    @Published var tappedHighlightViewportRect: CGRect? = nil
+
+    /// Saved expanded UTF-16 range captured just before the selection is collapsed for the connect picker.
+    /// Set by `captureBodySelectionForConnect()`; read by `NoteEditorView` when creating the connection.
+    @Published var capturedConnectExpandedRange: NSRange? = nil
+    /// Plain text of the selection captured alongside `capturedConnectExpandedRange`.
+    @Published var capturedConnectSourceText: String = ""
+    /// Closure set by the editor; captures the current body selection in expanded-plain coordinates.
+    var captureBodySelectionForConnect: (() -> Void)? = nil
 
     #if os(macOS)
     /// Invoked after keyboard cycling selects a pill (mirrors tap → opens dock).
@@ -171,6 +185,7 @@ final class EditorProxy: ObservableObject {
         triggerHighlightCapturePrompt = nil
         triggerStandaloneNoteFromSelection = nil
         triggerRemoveIntersectingStudyHighlightsFromSelection = nil
+        showConnectFromSelectionPicker = false
         scripturePillDeletionPrompt = nil
         scripturePillDeletionConfirmHandler = nil
         cancelFormatBarHideAction?()

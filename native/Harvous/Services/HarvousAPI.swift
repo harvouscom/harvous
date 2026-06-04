@@ -577,6 +577,14 @@ struct APISimpleNoteIdRange: Codable, Sendable {
     let end: Int
 }
 
+struct APINoteConnection: Codable, Identifiable, Sendable {
+    let id: String
+    let fromNoteId: String
+    let toNoteId: String
+    let spaceId: String?
+    let createdAt: String?
+}
+
 /// Full payload from `GET /api/sync/bootstrap`.
 struct APIBootstrapResponse: Codable, Sendable {
     let cursor: String
@@ -584,10 +592,12 @@ struct APIBootstrapResponse: Codable, Sendable {
     let notesTruncated: Bool?
     let spaces: [APISpace]
     let notes: [APINote]
+    let noteConnections: [APINoteConnection]?
     let studyThreadEntries: [APIStudyThreadEntry]?
     let deletedNoteIds: [String]?
     let deletedStudyThreadIds: [String]?
     let deletedThreadIds: [String]?
+    let deletedNoteConnectionIds: [String]?
     let userMetadata: APIUserMetadata?
 }
 
@@ -599,10 +609,12 @@ struct APIChangesResponse: Codable, Sendable {
     let hasMore: Bool?
     let spaces: [APISpace]
     let notes: [APINote]
+    let noteConnections: [APINoteConnection]?
     let studyThreadEntries: [APIStudyThreadEntry]?
     let deletedNoteIds: [String]?
     let deletedStudyThreadIds: [String]?
     let deletedThreadIds: [String]?
+    let deletedNoteConnectionIds: [String]?
     let userMetadata: APIUserMetadata?
 }
 
@@ -617,6 +629,8 @@ struct APIStudyThreadEntry: Codable, Identifiable, Sendable {
     let focusTitle: String?
     let notesBody: String?
     let miniNoteBody: String?
+    let linkedNoteId: String?
+    let linkedNoteTitle: String?
     let scriptureReference: String?
     let scripturePassageTranslation: String?
     let scripturePassageExcerpt: String?

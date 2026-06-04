@@ -10,6 +10,7 @@
  *   GET    /api/spaces/:spaceId/study-thread-highlights
  *   GET    /api/spaces/:spaceId/scripture-index
  *   GET    /api/spaces/:spaceId/study-threads/by-scripture
+ *   GET    /api/spaces/:spaceId/study-threads
  *   GET    /api/spaces/:spaceId/connect-note-candidates
  *   GET    /api/spaces/:spaceId/items
  *   GET    /api/spaces/:spaceId/bootstrap
@@ -32,7 +33,7 @@ import { getTableColumns } from 'drizzle-orm';
 import { getAuth, getAuthenticatedAuth, requireAuth, requireParam } from '../middleware/auth';
 import {
   db, Spaces, Notes, Threads, NoteThreads, Members, SpaceInvitations, UserMetadata, ResourceMetadata, ScriptureMetadata,
-  StudyThreadEntries,
+  StudyThreadEntries, NoteConnections,
   eq, and, ne, count, inArray, desc, asc, sql, isNull, isNotNull, gt, or,
   first,
 } from '../db';
@@ -70,6 +71,13 @@ import { buildSpaceScriptureIndex } from '../utils/build-space-scripture-index';
 import { buildSpaceReferencesIndex } from '../utils/build-space-references-index';
 import { mapStudyRow } from './study-threads';
 import { isStudyThreadEntriesTableMissing } from '../utils/pg-undefined-relation';
+import {
+  pickStudyThreadRepresentativeNoteId,
+  suggestStudyThreadTitleFromNodes,
+  type StudyThreadSuggestNode,
+} from '@/utils/suggest-study-thread-title';
+import { fetchStudyThreadNoteRows } from '../utils/study-thread-note-rows';
+import { resolveStudyThreadClusterNaming } from '../utils/study-thread-cluster-naming';
 
 const route = new Hono();
 
@@ -612,6 +620,147 @@ route.get('/api/spaces/:spaceId/study-threads/by-scripture', requireAuth, async 
   }
 });
 
+// ─── GET /api/spaces/:spaceId/study-threads ───────────────────────────────────
+// Returns connected components of the NoteConnections graph as "study threads".
+// Each component is represented by its highest-degree node (most connections).
+route.get('/api/spaces/:spaceId/study-threads', requireAuth, async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+
+    const spaceIdRaw = requireParam(c, 'spaceId');
+    const spaceIdNorm = spaceIdRaw.startsWith('space_') ? spaceIdRaw : `space_${spaceIdRaw}`;
+    try {
+      await requireSpaceAccess(spaceIdNorm, auth.userId);
+    } catch (err) {
+      if (err instanceof SpaceAccessError) return c.json({ error: err.message, code: err.code }, err.status);
+      throw err;
+    }
+
+    // Load all NoteConnections for this user in this space.
+    const edges = await db
+      .select({ fromNoteId: NoteConnections.fromNoteId, toNoteId: NoteConnections.toNoteId })
+      .from(NoteConnections)
+      .where(and(eq(NoteConnections.userId, auth.userId), eq(NoteConnections.spaceId, spaceIdNorm)));
+
+    if (edges.length === 0) {
+      return c.json({ threads: [] });
+    }
+
+    // Build adjacency list and degree count.
+    const adj = new Map<string, Set<string>>();
+    const degree = new Map<string, number>();
+    for (const e of edges) {
+      if (!adj.has(e.fromNoteId)) adj.set(e.fromNoteId, new Set());
+      if (!adj.has(e.toNoteId)) adj.set(e.toNoteId, new Set());
+      adj.get(e.fromNoteId)!.add(e.toNoteId);
+      adj.get(e.toNoteId)!.add(e.fromNoteId);
+      degree.set(e.fromNoteId, (degree.get(e.fromNoteId) ?? 0) + 1);
+      degree.set(e.toNoteId, (degree.get(e.toNoteId) ?? 0) + 1);
+    }
+
+    // BFS to find connected components.
+    const allNodeIds = [...adj.keys()];
+    const visited = new Set<string>();
+    const components: string[][] = [];
+    for (const start of allNodeIds) {
+      if (visited.has(start)) continue;
+      const component: string[] = [];
+      const queue = [start];
+      visited.add(start);
+      while (queue.length > 0) {
+        const node = queue.shift()!;
+        component.push(node);
+        for (const neighbor of adj.get(node) ?? []) {
+          if (!visited.has(neighbor)) {
+            visited.add(neighbor);
+            queue.push(neighbor);
+          }
+        }
+      }
+      components.push(component);
+    }
+
+    const repIds = components.map((members) => pickStudyThreadRepresentativeNoteId(members, degree)!);
+
+    const allMemberIds = [...new Set(components.flat())];
+    const memberRows = await fetchStudyThreadNoteRows(allMemberIds, auth.userId);
+
+    const memberMap = new Map(memberRows.map((r) => [r.id, r]));
+
+    const resourceIds = memberRows.filter((n) => n.noteType === 'resource').map((n) => n.id);
+    let resourceMap: Record<
+      string,
+      { sourceTitle: string | null; sourceDescription: string | null }
+    > = {};
+    if (resourceIds.length > 0) {
+      try {
+        const rmList = await db
+          .select({
+            noteId: ResourceMetadata.noteId,
+            sourceTitle: ResourceMetadata.sourceTitle,
+            sourceDescription: ResourceMetadata.sourceDescription,
+          })
+          .from(ResourceMetadata)
+          .where(inArray(ResourceMetadata.noteId, resourceIds));
+        resourceMap = Object.fromEntries(rmList.map((m) => [m.noteId, m]));
+      } catch {
+        resourceMap = {};
+      }
+    }
+
+    const toSuggestNode = (id: string): StudyThreadSuggestNode | null => {
+      const n = memberMap.get(id);
+      if (!n) return null;
+      const rm = n.noteType === 'resource' ? resourceMap[n.id] : null;
+      return {
+        id: n.id,
+        title: n.title,
+        content: n.content,
+        noteType: n.noteType,
+        resourceTitle: rm?.sourceTitle ?? null,
+        resourceDescription: rm?.sourceDescription ?? null,
+        updatedAt: n.updatedAt ? n.updatedAt.toISOString() : null,
+      };
+    };
+
+    // Build response, sorted by component size desc then recency.
+    const threads = components
+      .map((members, i) => {
+        const repId = repIds[i];
+        const rep = memberMap.get(repId);
+        const memberRows = members
+          .map((id) => memberMap.get(id))
+          .filter((row): row is NonNullable<typeof row> => row != null);
+        const suggestNodes = members.map(toSuggestNode).filter((n): n is StudyThreadSuggestNode => n != null);
+        const naming = resolveStudyThreadClusterNaming(memberRows, suggestNodes, repId);
+        return {
+          id: repId,
+          title: naming.threadTitle,
+          suggestedTitle: naming.suggestedTitle,
+          hasCustomTitle: naming.studyThreadUserOverride,
+          studyThreadPinned: naming.studyThreadPinned,
+          noteCount: members.length,
+          updatedAt: rep?.updatedAt ? rep.updatedAt.toISOString() : null,
+          memberIds: members,
+        };
+      })
+      .sort((a, b) => {
+        if (b.noteCount !== a.noteCount) return b.noteCount - a.noteCount;
+        const tA = a.updatedAt ?? '';
+        const tB = b.updatedAt ?? '';
+        return tB.localeCompare(tA);
+      });
+
+    return c.json({ threads });
+  } catch (error: any) {
+    const standardError = handleAPIError(error, {
+      endpoint: '/api/spaces/[spaceId]/study-threads',
+      action: 'get_study_threads',
+    });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+
 // ─── GET /api/spaces/:spaceId/connect-note-candidates ─────────────────────────
 route.get('/api/spaces/:spaceId/connect-note-candidates', requireAuth, async (c) => {
   try {
@@ -629,21 +778,19 @@ route.get('/api/spaces/:spaceId/connect-note-candidates', requireAuth, async (c)
     const q = (c.req.query('q') ?? '').trim();
     const excludeNoteIdRaw = (c.req.query('excludeNoteId') ?? '').trim();
 
-    if (q.length < 1) {
-      return c.json({ notes: [] as { id: string; title: string; noteType: string }[] });
-    }
-
     const limitParsed = parseInt(c.req.query('limit') || '15', 10);
     const limit = Math.min(Number.isFinite(limitParsed) ? limitParsed : 15, 30);
-    const pattern = `%${q}%`;
 
-    const filters = [
+    const baseFilters = [
       eq(Notes.userId, auth.userId),
       eq(Notes.spaceId, spaceIdNorm),
       eq(Notes.noteType, 'default'),
-      sql`COALESCE(${Notes.title}, '') ILIKE ${pattern}`,
     ];
-    if (excludeNoteIdRaw) filters.push(ne(Notes.id, excludeNoteIdRaw));
+    if (excludeNoteIdRaw) baseFilters.push(ne(Notes.id, excludeNoteIdRaw));
+
+    const filters = q.length >= 1
+      ? [...baseFilters, sql`COALESCE(${Notes.title}, '') ILIKE ${'%' + q + '%'}`]
+      : baseFilters;
 
     const rows = await db
       .select({

@@ -8,8 +8,7 @@ import UIKit
 #endif
 
 /// Right-side inspector panel — shown via `.inspector(isPresented:)`.
-/// Displays tags, connections, and note metadata.
-/// Folder edits use the toolbar folder chip popover.
+/// Sections: Info · Tags · Connected Notes · Folders (+ Scripture / Sources when present).
 struct NoteInspectorView: View {
     private enum FieldMetrics {
         static var rowHeight: CGFloat {
@@ -55,10 +54,16 @@ struct NoteInspectorView: View {
     @State private var simpleNoteIdCopied = false
     @State private var allResourceLines: [String] = []
     @State private var showConnectPicker = false
+    @State private var isRetryingSync = false
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
+                if note.syncError != nil {
+                    syncErrorBanner
+                    Divider().padding(.vertical, 12)
+                }
+
                 sectionHeader("Info")
                 infoSection
 
@@ -66,12 +71,6 @@ struct NoteInspectorView: View {
 
                 sectionHeader("Tags")
                 tagsSection
-
-                if !note.detectedRefs.isEmpty {
-                    Divider().padding(.vertical, 12)
-                    sectionHeader("Scripture")
-                    scriptureRefSection
-                }
 
                 if !allResourceLines.isEmpty {
                     Divider().padding(.vertical, 12)
@@ -81,8 +80,13 @@ struct NoteInspectorView: View {
 
                 Divider().padding(.vertical, 12)
 
-                sectionHeader("Connections")
+                sectionHeader("Connected Notes")
                 connectionsSection
+
+                Divider().padding(.vertical, 12)
+
+                sectionHeader("Folders")
+                foldersSection
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 20)
@@ -120,13 +124,80 @@ struct NoteInspectorView: View {
         #endif
     }
 
-    // MARK: - Connections (linked-note markers)
+    // MARK: - Sync status
+
+    /// Surfaced when a local edit failed to upload (`Note.syncError`). Previously the
+    /// error was stored but never shown, so stuck notes failed silently. Retry re-flags
+    /// the note dirty and kicks `HarvousSyncService` to flush again.
+    @ViewBuilder
+    private var syncErrorBanner: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                HarvousFAGlyph(assetName: "Harvous.CircleXmark", edgePt: 13)
+                    .foregroundStyle(.orange)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Changes not synced")
+                        .font(HarvousTypography.inspectorBody)
+                        .foregroundStyle(.primary)
+                    if let detail = note.syncError, !detail.isEmpty {
+                        Text(detail)
+                            .font(HarvousTypography.inspectorCompact)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+                Spacer(minLength: 0)
+            }
+
+            Button(action: retrySync) {
+                HStack(spacing: 6) {
+                    HarvousFAGlyph(assetName: "Harvous.ArrowsRotate", edgePt: 11)
+                    Text(isRetryingSync ? "Retrying…" : "Retry sync")
+                        .font(HarvousTypography.inspectorCompactMedium)
+                }
+                .foregroundStyle(Color.harvousAccent)
+            }
+            .buttonStyle(.plain)
+            .disabled(isRetryingSync)
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: HarvousRadius.input, style: .continuous)
+                .fill(Color.orange.opacity(0.10))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: HarvousRadius.input, style: .continuous)
+                .strokeBorder(Color.orange.opacity(0.22), lineWidth: 0.5)
+        )
+    }
+
+    private func retrySync() {
+        guard !isRetryingSync else { return }
+        isRetryingSync = true
+        // Permanent-rejection path leaves needsSync == false, so re-flag dirty to re-queue.
+        note.needsSync = true
+        try? modelContext.save()
+        let context = modelContext
+        Task {
+            _ = await HarvousSyncService.shared.flushPending(context: context)
+            isRetryingSync = false
+        }
+    }
+
+    // MARK: - Connected Notes (linked-note markers)
+
+    @ViewBuilder
+    private var foldersSection: some View {
+        FolderChipPopover(note: note, embeddedInInspector: true)
+            .padding(.top, 4)
+    }
 
     @ViewBuilder
     private var connectionsSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             if snapshot.incoming.isEmpty && snapshot.outgoing.isEmpty {
-                Text("No connections")
+                Text("No connections yet.")
                     .font(HarvousTypography.inspectorBody)
                     .foregroundStyle(.secondary)
                     .padding(.top, 4)
@@ -353,19 +424,6 @@ struct NoteInspectorView: View {
         }
     }
 
-    // MARK: - Scripture references
-
-    /// Neutral grey capsules (same language as legacy inspector scripture rows) — not theme-gradient scripture blues.
-    @ViewBuilder
-    private var scriptureRefSection: some View {
-        FlowLayout(spacing: 8) {
-            ForEach(note.detectedRefs.uniquedPreservingOrder(), id: \.self) { ref in
-                InspectorScriptureReferenceNeutralCapsule(reference: ref)
-            }
-        }
-        .padding(.top, 4)
-    }
-
     // MARK: - Sources (resource lines from study threads)
 
     @ViewBuilder
@@ -528,7 +586,7 @@ struct NoteInspectorView: View {
     }
 }
 
-// MARK: - Note Details pills (neutral — not scripture-theme blues)
+// MARK: - Note Details chips
 
 private enum InspectorDetailChipMetrics {
     /// Slightly larger than legacy 12pt inspector pills for readability while staying secondary UI.
@@ -545,14 +603,6 @@ private enum InspectorDetailChipMetrics {
     static let capsuleFillOpacity: Double = 0.07
     static let capsuleStrokeOpacity: Double = 0.12
     static let rowIconSpacing: CGFloat = 6
-    /// Sized up with `labelFont` (~15/14pt) so icons feel paired with the caps, not miniature.
-    static var leadingGlyphPt: CGFloat {
-        #if os(iOS)
-        14
-        #else
-        13
-        #endif
-    }
 
     static var removeGlyphPt: CGFloat {
         #if os(iOS)
@@ -562,7 +612,7 @@ private enum InspectorDetailChipMetrics {
         #endif
     }
 
-    /// Column for the leading tag glyph when the remove control is hidden.
+    /// Width of the remove (×) button column.
     static var tagGlyphColumnWidth: CGFloat {
         #if os(iOS)
         18
@@ -572,77 +622,25 @@ private enum InspectorDetailChipMetrics {
     }
 }
 
-private struct InspectorScriptureReferenceNeutralCapsule: View {
-    let reference: String
-
-    var body: some View {
-        HStack(spacing: InspectorDetailChipMetrics.rowIconSpacing) {
-            HarvousFAGlyph(assetName: "Harvous.Bookmark", edgePt: InspectorDetailChipMetrics.leadingGlyphPt)
-                .foregroundStyle(.secondary.opacity(0.75))
-            Text(reference)
-                .font(InspectorDetailChipMetrics.labelFont)
-                .foregroundStyle(.primary)
-                .multilineTextAlignment(.leading)
-        }
-        .padding(.horizontal, InspectorDetailChipMetrics.horizontalPadding)
-        .padding(.vertical, InspectorDetailChipMetrics.verticalPadding)
-        .background(
-            Capsule(style: .continuous)
-                .fill(Color.primary.opacity(InspectorDetailChipMetrics.capsuleFillOpacity))
-        )
-        .overlay(
-            Capsule(style: .continuous)
-                .strokeBorder(
-                    Color.primary.opacity(InspectorDetailChipMetrics.capsuleStrokeOpacity),
-                    lineWidth: 0.5
-                )
-        )
-    }
-}
-
-/// Same interaction model as `RemovableThemeTagChip`, styled like pre-theme neutral inspector pills.
 private struct RemovableInspectorNeutralTagChip: View {
     let text: String
     let onRemove: () -> Void
 
-    @State private var hoverRemoval = false
-    @State private var tapRevealRemoval = false
-
-    private var showRemoval: Bool { hoverRemoval || tapRevealRemoval }
-
     var body: some View {
         HStack(spacing: InspectorDetailChipMetrics.rowIconSpacing) {
-            HarvousFAGlyph(assetName: "Harvous.Tag", edgePt: InspectorDetailChipMetrics.leadingGlyphPt)
-                .foregroundStyle(.secondary.opacity(0.75))
-                .frame(width: InspectorDetailChipMetrics.tagGlyphColumnWidth)
-                .accessibilityHidden(true)
-
             Text(text)
                 .font(InspectorDetailChipMetrics.labelFont)
                 .foregroundStyle(.primary)
                 .lineLimit(1)
-                .contentShape(Rectangle())
-                .onTapGesture {
-                    guard !hoverRemoval else { return }
-                    withAnimation(.easeInOut(duration: 0.18)) {
-                        tapRevealRemoval.toggle()
-                    }
-                }
 
-            if showRemoval {
-                Button {
-                    onRemove()
-                    tapRevealRemoval = false
-                } label: {
-                    HarvousFAGlyph(assetName: "Harvous.Xmark", edgePt: InspectorDetailChipMetrics.removeGlyphPt)
-                        .foregroundStyle(.primary.opacity(0.55))
-                        .frame(width: InspectorDetailChipMetrics.tagGlyphColumnWidth)
-                }
-                .buttonStyle(.plain)
-                .help("Remove tag")
-                .accessibilityLabel("Remove tag \(text)")
-                .transition(.opacity)
+            Button(action: onRemove) {
+                HarvousFAGlyph(assetName: "Harvous.Xmark", edgePt: InspectorDetailChipMetrics.removeGlyphPt)
+                    .foregroundStyle(.primary.opacity(0.55))
+                    .frame(width: InspectorDetailChipMetrics.tagGlyphColumnWidth)
             }
+            .buttonStyle(.plain)
+            .help("Remove tag")
+            .accessibilityLabel("Remove tag \(text)")
         }
         .padding(.horizontal, InspectorDetailChipMetrics.horizontalPadding)
         .padding(.vertical, InspectorDetailChipMetrics.verticalPadding)
@@ -657,23 +655,10 @@ private struct RemovableInspectorNeutralTagChip: View {
                     lineWidth: 0.5
                 )
         )
-        .animation(.easeInOut(duration: 0.18), value: showRemoval)
-        .onHover { hovering in
-            withAnimation(.easeInOut(duration: 0.18)) {
-                hoverRemoval = hovering
-                if hovering {
-                    tapRevealRemoval = false
-                }
-            }
-        }
         .accessibilityElement(children: .combine)
         .accessibilityLabel("Tag \(text)")
-        .accessibilityHint(showRemoval ? "Close icon is visible; activate it to remove this tag" : "Tag keyword")
         .accessibilityActions {
-            Button("Remove tag", role: .destructive) {
-                onRemove()
-                tapRevealRemoval = false
-            }
+            Button("Remove tag", role: .destructive) { onRemove() }
         }
     }
 }

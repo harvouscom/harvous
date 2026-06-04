@@ -30,7 +30,7 @@ import {
   isScriptureReferenceContinuationKey,
   mergeReferenceWithOrphanSuffix,
 } from '@/utils/scripture-pill-orphan';
-import { isStudyHighlightAccentKey, type StudyHighlightAccentKey } from '@/utils/study-highlight-accents';
+import { isStudyHighlightAccentKey, type StudyHighlightAccentKey, STUDY_HIGHLIGHT_SWATCHES_NO_NEUTRAL, STUDY_HIGHLIGHT_ACCENT_LABELS, studyDockAccentCssVar } from '@/utils/study-highlight-accents';
 import { TRANSLATION_ORDER, TRANSLATIONS } from '@/data/translations';
 import { getCachedProfileData, getEffectiveDefaultTranslation } from '@/utils/profile-cache';
 import { safeNavigate } from '@/utils/safe-navigate';
@@ -64,6 +64,8 @@ import UrlLinkPromptUI from './UrlLinkPromptUI';
 import ReferenceDockWeb from './ReferenceDockWeb';
 import { useEditorHoverPreview } from './useEditorHoverPreview';
 import { useEastonsSlugIndex, lookupWord } from '../../../spa/src/hooks/useEastonsSlugIndex';
+import PrototypeConnectNoteSheet from '../../../spa/src/pages/prototype/PrototypeConnectNoteSheet';
+import ConnectedNoteHighlightPopup from './ConnectedNoteHighlightPopup';
 import '@/styles/tiptap-editor.css';
 
 // Icon component for inline SVGs (allows CSS styling)
@@ -106,6 +108,7 @@ interface TiptapEditorProps {
   enableCreateNoteFromSelection?: boolean;
   parentThreadId?: string;
   sourceNoteId?: string; // ID of the note this editor is editing (for hyperlink creation)
+  spaceId?: string;
   onEditorReady?: (editor: any) => void;
   onEditorInstanceReady?: (editor: any) => void; // Callback when editor instance is ready for direct access
   /** Legacy hint for layouts that host the editor in a bottom sheet; caret scroll uses `[data-keyboard-open]` + `toolbarAtBottom`. */
@@ -3274,6 +3277,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
   enableCreateNoteFromSelection = false,
   parentThreadId,
   sourceNoteId,
+  spaceId,
   onEditorReady,
   onEditorInstanceReady,
   inBottomSheet = false,
@@ -3311,6 +3315,32 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
   const [selectionActionBar, setSelectionActionBar] = useState<{
     top: number;
     left: number;
+  } | null>(null);
+  const [connectFromSelectionOpen, setConnectFromSelectionOpen] = useState(false);
+  const [connectFromSelectionAnchorRect, setConnectFromSelectionAnchorRect] = useState<DOMRect | null>(null);
+  const [connectFromSelectionRange, setConnectFromSelectionRange] = useState<{
+    from: number;
+    to: number;
+    text: string;
+    anchorLocation: number;
+    anchorLength: number;
+  } | null>(null);
+  const [postConnectHighlight, setPostConnectHighlight] = useState<{
+    studyThreadId: string;
+    linkedNoteId: string;
+    from: number;
+    to: number;
+    accent: StudyHighlightAccentKey;
+    top: number;
+    centerX: number;
+  } | null>(null);
+  const [connectedNoteHighlightPopup, setConnectedNoteHighlightPopup] = useState<{
+    studyThreadId: string;
+    linkedNoteId: string;
+    accent: StudyHighlightAccentKey;
+    anchorRect: { top: number; left: number; bottom: number; right: number; width: number; height: number };
+    from: number;
+    to: number;
   } | null>(null);
 
   const [translationPicker, setTranslationPicker] = useState<{
@@ -4992,6 +5022,33 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
           setTranslationPicker(null);
           return;
         }
+        const linkedNoteId = markInPm.getAttribute('data-linked-note-id');
+        if (linkedNoteId) {
+          // Connected-note highlight: show floating popup instead of opening the dock.
+          const studyThreadId = markInPm.getAttribute('data-study-thread-id') ?? '';
+          const accent = isStudyHighlightAccentKey(markColor) ? markColor : 'violet';
+          const domRect = markInPm.getBoundingClientRect();
+          const markRange = (() => {
+            try {
+              const pos = editor.view.posAtDOM(markInPm, 0);
+              const $p = editor.state.doc.resolve(pos);
+              const mType = editor.state.schema.marks.highlight;
+              if (!mType) return null;
+              const r = getMarkRange($p, mType);
+              return r && typeof r.from === 'number' ? { from: r.from, to: r.to } : null;
+            } catch { return null; }
+          })();
+          setConnectedNoteHighlightPopup({
+            studyThreadId,
+            linkedNoteId,
+            accent,
+            anchorRect: { top: domRect.top, left: domRect.left, bottom: domRect.bottom, right: domRect.right, width: domRect.width, height: domRect.height },
+            from: markRange?.from ?? 0,
+            to: markRange?.to ?? 0,
+          });
+          setTranslationPicker(null);
+          return;
+        }
         const highlightExcerpt = markInPm.textContent || '';
         const highlightSession: HighlightDockSession = {
           studyThreadEntryId: markInPm.getAttribute('data-study-thread-id'),
@@ -5713,6 +5770,26 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     setIsLoaded(true);
   }, []);
 
+  // Dismiss post-connect color picker on click-outside or Escape
+  useEffect(() => {
+    if (!postConnectHighlight) return;
+    const onPointerDown = (e: MouseEvent | TouchEvent) => {
+      if ((e.target as HTMLElement)?.closest?.('[data-post-connect-picker]')) return;
+      setPostConnectHighlight(null);
+    };
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setPostConnectHighlight(null);
+    };
+    document.addEventListener('mousedown', onPointerDown, { capture: true });
+    document.addEventListener('touchstart', onPointerDown, { passive: true });
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', onPointerDown, { capture: true } as AddEventListenerOptions);
+      document.removeEventListener('touchstart', onPointerDown);
+      document.removeEventListener('keydown', onKeyDown);
+    };
+  }, [postConnectHighlight]);
+
   // Show loading state if editor is not ready yet
   // Component is client-only, so we don't need isClient check
   if (!editor) {
@@ -6433,6 +6510,38 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                 >
                   <Icon name="pen-to-square" size={14} />
                 </button>
+                {sourceNoteId && spaceId ? (
+                  <>
+                    <span className="pds-native-selection-bar__rule" aria-hidden />
+                    <button
+                      type="button"
+                      className="pds-native-selection-bar__btn"
+                      title="Connect existing note to selection"
+                      aria-label="Connect existing note to selection"
+                      onMouseDown={(e: React.MouseEvent) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        if (editor && isEditorValid(editor)) {
+                          const { from, to } = editor.state.selection;
+                          if (from !== to) {
+                            const text = editor.state.doc.textBetween(from, to, ' ');
+                            const anchorLocation = editor.state.doc.textBetween(0, from, '\n').length;
+                            setConnectFromSelectionRange({ from, to, text, anchorLocation, anchorLength: text.length });
+                          } else {
+                            setConnectFromSelectionRange(null);
+                          }
+                        }
+                        setConnectFromSelectionAnchorRect(
+                          createNoteBubbleRef.current?.getBoundingClientRect() ?? null,
+                        );
+                        setConnectFromSelectionOpen(true);
+                        setSelectionActionBar(null);
+                      }}
+                    >
+                      <Icon name="arrow-right-arrow-left" size={14} />
+                    </button>
+                  </>
+                ) : null}
                 {selectionIntersectsHighlightMark(editor) ? (
                   <>
                     <span className="pds-native-selection-bar__rule" aria-hidden />
@@ -7204,6 +7313,165 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
         formatToolbarPortalTarget &&
         shouldShowPrototypeFormatToolbar &&
         createPortal(renderPrototypeNativeFormatToolbar('portal'), formatToolbarPortalTarget)}
+      {connectFromSelectionOpen && sourceNoteId && spaceId ? (
+        <PrototypeConnectNoteSheet
+          open={connectFromSelectionOpen}
+          onOpenChange={(open) => {
+            setConnectFromSelectionOpen(open);
+            if (!open) setConnectFromSelectionRange(null);
+          }}
+          spaceId={spaceId}
+          parentNoteId={sourceNoteId}
+          anchorRect={connectFromSelectionAnchorRect}
+          anchorInfo={connectFromSelectionRange ? {
+            sourceSnippet: connectFromSelectionRange.text,
+            anchorLocation: connectFromSelectionRange.anchorLocation,
+            anchorLength: connectFromSelectionRange.anchorLength,
+            anchorTextSnapshot: connectFromSelectionRange.text,
+          } : undefined}
+          onConnectedWithThread={(studyThreadId, linkedNoteId) => {
+            const range = connectFromSelectionRange;
+            if (!range || !editor || !isEditorValid(editor)) return;
+            const markType = editor.state.schema.marks.highlight;
+            if (!markType) return;
+            const tr = editor.state.tr;
+            tr.removeMark(range.from, range.to, markType);
+            tr.addMark(range.from, range.to, markType.create({ color: 'violet', studyThreadEntryId: studyThreadId, linkedNoteId }));
+            editor.view.dispatch(tr);
+            if (hiddenInputRef.current) {
+              hiddenInputRef.current.value = editor.getHTML();
+            }
+            onContentChange?.(editor.getHTML());
+            // Compute screen position for the floating color picker
+            try {
+              const startCoords = editor.view.coordsAtPos(range.from);
+              const endCoords = editor.view.coordsAtPos(range.to);
+              const top = Math.min(startCoords.top, endCoords.top) - 52;
+              const centerX = (startCoords.left + endCoords.right) / 2;
+              setPostConnectHighlight({ studyThreadId, linkedNoteId, from: range.from, to: range.to, accent: 'violet', top, centerX });
+            } catch {
+              /* ignore positioning errors */
+            }
+            setConnectFromSelectionRange(null);
+          }}
+        />
+      ) : null}
+      {postConnectHighlight && editor && createPortal(
+        <div
+          data-post-connect-picker=""
+          className="pds-native-selection-bar floating-picker-enter"
+          style={{
+            position: 'fixed',
+            top: postConnectHighlight.top,
+            left: postConnectHighlight.centerX,
+            transform: 'translateX(-50%)',
+            zIndex: 99999,
+            pointerEvents: 'auto',
+          }}
+          onMouseDown={(e) => e.preventDefault()}
+        >
+          {STUDY_HIGHLIGHT_SWATCHES_NO_NEUTRAL.map((accentKey) => (
+            <button
+              key={accentKey}
+              type="button"
+              className="pds-native-selection-bar__btn"
+              title={STUDY_HIGHLIGHT_ACCENT_LABELS[accentKey]}
+              aria-label={`Set highlight color: ${STUDY_HIGHLIGHT_ACCENT_LABELS[accentKey]}`}
+              aria-pressed={postConnectHighlight.accent === accentKey}
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => {
+                if (!editor || !isEditorValid(editor)) return;
+                const { studyThreadId, linkedNoteId, from, to } = postConnectHighlight;
+                const markType = editor.state.schema.marks.highlight;
+                if (!markType) return;
+                const tr = editor.state.tr;
+                tr.removeMark(from, to, markType);
+                tr.addMark(from, to, markType.create({ color: accentKey, studyThreadEntryId: studyThreadId, linkedNoteId }));
+                editor.view.dispatch(tr);
+                if (hiddenInputRef.current) {
+                  hiddenInputRef.current.value = editor.getHTML();
+                }
+                onContentChange?.(editor.getHTML());
+                void fetch(`/api/study-threads/${studyThreadId}`, {
+                  method: 'PATCH',
+                  credentials: 'include',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ highlightAccentRaw: accentKey }),
+                }).catch(() => {/* ignore */});
+                setPostConnectHighlight(null);
+              }}
+            >
+              <span
+                style={{
+                  display: 'block',
+                  width: 14,
+                  height: 14,
+                  borderRadius: '50%',
+                  background: studyDockAccentCssVar(accentKey),
+                  outline: postConnectHighlight.accent === accentKey ? `2px solid ${studyDockAccentCssVar(accentKey)}` : 'none',
+                  outlineOffset: 2,
+                }}
+                aria-hidden
+              />
+            </button>
+          ))}
+        </div>,
+        document.body,
+      )}
+      {connectedNoteHighlightPopup && editor ? (
+        <ConnectedNoteHighlightPopup
+          linkedNoteId={connectedNoteHighlightPopup.linkedNoteId}
+          studyThreadId={connectedNoteHighlightPopup.studyThreadId}
+          accent={connectedNoteHighlightPopup.accent}
+          anchorRect={connectedNoteHighlightPopup.anchorRect}
+          onNavigate={() => {
+            const { linkedNoteId } = connectedNoteHighlightPopup;
+            setConnectedNoteHighlightPopup(null);
+            const fullId = linkedNoteId.startsWith('note_') ? linkedNoteId : `note_${linkedNoteId}`;
+            safeNavigate(idToUrl(fullId, undefined, sourceNoteId || undefined));
+          }}
+          onAccentChange={(newAccent) => {
+            const { studyThreadId, linkedNoteId, from, to } = connectedNoteHighlightPopup;
+            if (!editor || !isEditorValid(editor)) return;
+            const markType = editor.state.schema.marks.highlight;
+            if (!markType) return;
+            const tr = editor.state.tr;
+            tr.removeMark(from, to, markType);
+            tr.addMark(from, to, markType.create({ color: newAccent, studyThreadEntryId: studyThreadId, linkedNoteId }));
+            editor.view.dispatch(tr);
+            if (hiddenInputRef.current) hiddenInputRef.current.value = editor.getHTML();
+            onContentChange?.(editor.getHTML());
+            void fetch(`/api/study-threads/${studyThreadId}`, {
+              method: 'PATCH',
+              credentials: 'include',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ highlightAccentRaw: newAccent }),
+            }).catch(() => {/* ignore */});
+            setConnectedNoteHighlightPopup((prev) => prev ? { ...prev, accent: newAccent } : null);
+          }}
+          onDisconnect={() => {
+            const { studyThreadId, from, to } = connectedNoteHighlightPopup;
+            setConnectedNoteHighlightPopup(null);
+            void (async () => {
+              try {
+                await fetch(`/api/study-threads/${studyThreadId}`, {
+                  method: 'DELETE',
+                  credentials: 'include',
+                });
+              } catch { /* ignore */ }
+              if (!editor || !isEditorValid(editor)) return;
+              const markType = editor.state.schema.marks.highlight;
+              if (!markType) return;
+              const tr = editor.state.tr;
+              tr.removeMark(from, to, markType);
+              editor.view.dispatch(tr);
+              if (hiddenInputRef.current) hiddenInputRef.current.value = editor.getHTML();
+              onContentChange?.(editor.getHTML());
+            })();
+          }}
+          onDismiss={() => setConnectedNoteHighlightPopup(null)}
+        />
+      ) : null}
     </div>
   );
 };

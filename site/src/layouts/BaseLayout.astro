@@ -24,6 +24,27 @@ const canonical = new URL(Astro.url.pathname, Astro.site ?? "https://harvous.com
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="generator" content={Astro.generator} />
+
+    <!-- Resolve day/night before paint (no flash). Sets data-color-scheme on
+         <html>, which drives both site chrome (--color-*) and the AppShell
+         replica (--pds-*). -->
+    <script is:inline>
+      (() => {
+        try {
+          const stored = localStorage.getItem("harvous-color-scheme");
+          const scheme =
+            stored === "light" || stored === "dark"
+              ? stored
+              : window.matchMedia("(prefers-color-scheme: dark)").matches
+                ? "dark"
+                : "light";
+          document.documentElement.dataset.colorScheme = scheme;
+        } catch (e) {
+          document.documentElement.dataset.colorScheme = "light";
+        }
+      })();
+    </script>
+
     <title>{title}</title>
     <meta name="description" content={description} />
     <link rel="canonical" href={canonical} />
@@ -41,7 +62,7 @@ const canonical = new URL(Astro.url.pathname, Astro.site ?? "https://harvous.com
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
       rel="stylesheet"
-      href="https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;700&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;700&family=Instrument+Serif:ital@0;1&display=swap"
     />
   </head>
   <body>
@@ -52,24 +73,34 @@ const canonical = new URL(Astro.url.pathname, Astro.site ?? "https://harvous.com
     <Footer />
 
     <script>
-      // Paper-stack fan-in: papers start aligned, fan to their rotations when scrolled into view
+      // Scroll reveals: paper-stack fan-in (.in-view) + generic [data-reveal] (.revealed).
       const stacks = document.querySelectorAll(".paper-stack");
-      if ("IntersectionObserver" in window && stacks.length) {
-        const observer = new IntersectionObserver(
-          (entries) => {
-            entries.forEach((entry) => {
-              if (entry.isIntersecting) {
-                entry.target.classList.add("in-view");
-                observer.unobserve(entry.target);
-              }
-            });
+      const reveals = document.querySelectorAll("[data-reveal]");
+
+      if ("IntersectionObserver" in window) {
+        const reveal = (el: Element, cls: string, ob: IntersectionObserver) => {
+          el.classList.add(cls);
+          ob.unobserve(el);
+        };
+        const stackObserver = new IntersectionObserver(
+          (entries, ob) => {
+            entries.forEach((e) => e.isIntersecting && reveal(e.target, "in-view", ob));
           },
           { threshold: 0.15, rootMargin: "0px 0px -10% 0px" }
         );
-        stacks.forEach((el) => observer.observe(el));
+        stacks.forEach((el) => stackObserver.observe(el));
+
+        const revealObserver = new IntersectionObserver(
+          (entries, ob) => {
+            entries.forEach((e) => e.isIntersecting && reveal(e.target, "revealed", ob));
+          },
+          { threshold: 0.12, rootMargin: "0px 0px -8% 0px" }
+        );
+        reveals.forEach((el) => revealObserver.observe(el));
       } else {
-        // Fallback: just show them rotated immediately
+        // Fallback: show everything in its final state immediately.
         stacks.forEach((el) => el.classList.add("in-view"));
+        reveals.forEach((el) => el.classList.add("revealed"));
       }
     </script>
   </body>

@@ -4,6 +4,7 @@
  * Endpoints:
  *   GET  /api/user/achievements
  *   POST /api/user/check-monthly-attendance
+ *   POST /api/user/migrate-to-prototype
  *   DELETE /api/user/clear-data
  *   DELETE /api/user/delete-account
  *   GET  /api/user/export
@@ -13,6 +14,8 @@
  *   POST /api/user/update-profile
  *   GET  /api/user/xp
  *   GET  /api/user/get-profile
+ *   POST /api/user/migrate-to-prototype
+ *   GET  /api/user/migrate-to-prototype/status
  *   GET  /api/user/locked-notes
  *   POST /api/user/verify-lock-pin
  *   POST /api/user/set-lock-pin
@@ -64,6 +67,11 @@ import { ensureUnorganizedThread } from '../utils/unorganized-thread';
 import { isMyPileDisplayTitle } from '@/utils/my-pile-thread';
 import { deleteNotesCascadeForUser } from '../utils/delete-note-cascade';
 import { getOrCreateTag } from '../utils/tag-helpers';
+import {
+  runPrototypeUserMigration,
+  userNeedsCollectionBackfill,
+} from '../utils/prototype-user-migration';
+import { isNoteConnectionsTableMissing } from '../utils/pg-undefined-relation';
 
 const app = new Hono();
 
@@ -112,6 +120,49 @@ app.post('/api/user/check-monthly-attendance', requireAuth, async (c) => {
     return c.json({ success: true, awardedXP: awarded, xpAmount: awarded ? 25 : 0 });
   } catch (error) {
     const e = handleAPIError(error, { endpoint: '/api/user/check-monthly-attendance', action: 'check_monthly_attendance' });
+    return c.json({ error: e.message, code: e.code }, 500);
+  }
+});
+
+// ─── POST /api/user/migrate-to-prototype ─────────────────────────────────────
+// Idempotent Classic → 2.0 backfill for the signed-in user:
+// thread titles → folder labels; linkedFromNoteId → NoteConnections edges.
+
+app.post('/api/user/migrate-to-prototype', requireAuth, async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const result = await runPrototypeUserMigration(auth.userId);
+    const showFoldersBanner = result.collectionsUpdated > 0;
+    return c.json({
+      success: true,
+      ...result,
+      showFoldersBanner,
+    });
+  } catch (error) {
+    if (isNoteConnectionsTableMissing(error)) {
+      return c.json(
+        {
+          error: 'NoteConnections table missing. Run `npm run db:push` on the target database.',
+          code: 'SCHEMA_NOT_READY',
+        },
+        503,
+      );
+    }
+    const e = handleAPIError(error, { endpoint: '/api/user/migrate-to-prototype', action: 'migrate_to_prototype' });
+    return c.json({ error: e.message, code: e.code }, 500);
+  }
+});
+
+// ─── GET /api/user/migrate-to-prototype/status ───────────────────────────────
+// Lightweight check for whether folder backfill may still be needed (banner hint).
+
+app.get('/api/user/migrate-to-prototype/status', requireAuth, async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const needsCollectionBackfill = await userNeedsCollectionBackfill(auth.userId);
+    return c.json({ success: true, needsCollectionBackfill });
+  } catch (error) {
+    const e = handleAPIError(error, { endpoint: '/api/user/migrate-to-prototype/status', action: 'migrate_to_prototype_status' });
     return c.json({ error: e.message, code: e.code }, 500);
   }
 });

@@ -394,6 +394,7 @@ Copy into your issue tracker or mark inline when decided.
 
 ### Data model
 
+- [x] **Classic thread piles → 2.0:** Folders/collections only (Option 1); connected Threads sidebar is manual graph links — see [CLASSIC_TO_2_0_MIGRATION.md](../CLASSIC_TO_2_0_MIGRATION.md)
 - [ ] **Canonical note body:** HTML in Postgres | plain in Postgres | dual storage
 - [ ] **Classic `threadId`:** Sentinel only (proposed) | nullable column later | native gains `threadId`
 - [ ] **StudyThread merge:** Server ids only (proposed) | device-local study stays local-only
@@ -412,7 +413,7 @@ Copy into your issue tracker or mark inline when decided.
 
 ### Migration and ops
 
-- [ ] **Existing users:** Link by email | admin merge only | export discouraged (proposed)
+- [x] **Existing users:** Same Clerk login + Postgres; per-user `POST /api/user/migrate-to-prototype` on first prototype visit; batch script optional — see [CLASSIC_TO_2_0_MIGRATION.md](../CLASSIC_TO_2_0_MIGRATION.md)
 - [ ] **E2E:** Clerk testing token until phase 7 | rewrite for Supabase
 - [ ] **Audienceful:** Trigger from Supabase auth events vs keep interim Clerk webhook
 
@@ -454,6 +455,8 @@ Copy into your issue tracker or mark inline when decided.
 | [server/middleware/auth.ts](../../server/middleware/auth.ts) | Clerk verify |
 | [server/db/schema.ts](../../server/db/schema.ts) | Drizzle schema |
 | [server/scripts/backfill-collections-from-threads.ts](../../server/scripts/backfill-collections-from-threads.ts) | Thread title → folders |
+| [server/utils/prototype-user-migration.ts](../../server/utils/prototype-user-migration.ts) | Per-user Classic → 2.0 backfill |
+| [docs/CLASSIC_TO_2_0_MIGRATION.md](../CLASSIC_TO_2_0_MIGRATION.md) | Migration runbook |
 | [src/utils/sync-manager.ts](../../src/utils/sync-manager.ts) | Web sync client |
 | [native/Harvous/Models/HarvousLocalIdentity.swift](../../native/Harvous/Models/HarvousLocalIdentity.swift) | Device-local user id |
 

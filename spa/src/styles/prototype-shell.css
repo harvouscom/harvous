@@ -227,6 +227,23 @@ html.harvous-prototype-route .proto-shell__toolbar-cell::after {
   z-index: 1;
 }
 
+.proto-shell__toolbar-stack {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  width: 100%;
+}
+
+.proto-shell__toolbar-cell:has(.proto-migration-banner) {
+  align-items: stretch;
+  height: auto;
+  min-height: var(--pds-toolbar-h);
+}
+
+.proto-shell__toolbar-stack:has(.proto-migration-banner) .native-toolbar-root {
+  flex-shrink: 0;
+}
+
 .proto-shell__sidebar-cell {
   grid-column: 1;
   grid-row: 2;
@@ -672,6 +689,45 @@ html.harvous-prototype-route .proto-shell__toolbar-cell::after {
     .proto-shell-drawer-sidebar--exiting {
       animation: none;
     }
+  }
+
+  /* Reusable expandable right-side panel — mobile variants. */
+  .proto-side-panel-mobile-backdrop {
+    position: fixed;
+    inset: var(--pds-toolbar-h) 0 0 0;
+    z-index: 155;
+    background: transparent;
+    pointer-events: auto;
+  }
+
+  .proto-side-panel-mobile {
+    position: fixed;
+    top: calc(var(--pds-toolbar-h) + 8px);
+    right: 8px;
+    bottom: 8px;
+    width: min(340px, calc(92vw - 16px));
+    z-index: 160;
+    border-radius: var(--pds-shell-frame-radius);
+    background: var(--pds-bg-page);
+    box-shadow: var(--pds-shadow-drawer);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    animation: proto-inspector-mobile-in 0.26s cubic-bezier(0.32, 0.72, 0.24, 1) forwards;
+    transition: width 0.26s cubic-bezier(0.32, 0.72, 0.24, 1);
+  }
+
+  .proto-side-panel-mobile--expanded {
+    width: calc(92vw - 16px);
+  }
+
+  .proto-side-panel-mobile--docked {
+    width: min(340px, calc(92vw - 16px));
+  }
+
+  .proto-side-panel-mobile--exiting {
+    animation: proto-inspector-mobile-out 200ms cubic-bezier(0.32, 0.72, 0.24, 1) both;
+    transition: none;
   }
 }
 

@@ -21,6 +21,7 @@ import {
 import NativeToolbar from '../pages/prototype/NativeToolbar';
 import PrototypeSidebar from '../pages/prototype/PrototypeSidebar';
 import PrototypeEditorChromeBar from '../pages/prototype/PrototypeEditorChromeBar';
+import PrototypeMigrationBanner from '../pages/prototype/PrototypeMigrationBanner';
 import '../styles/prototype-tokens.css';
 import '../styles/prototype-shell.css';
 import '../styles/prototype-components.css';
@@ -483,7 +484,10 @@ function PrototypeAuthenticatedChrome({ userId }: { userId?: string }) {
         <ReferralCreditInit userId={userId} />
 
         <header className="proto-shell__toolbar-cell">
-          <NativeToolbar />
+          <div className="proto-shell__toolbar-stack">
+            <NativeToolbar />
+            {userId ? <PrototypeMigrationBanner /> : null}
+          </div>
         </header>
 
         {!hideSidebar && isMobileSidebar && (drawerOpen || sidebarExiting) ? (

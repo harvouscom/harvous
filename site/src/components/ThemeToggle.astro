@@ -1,0 +1,68 @@
+---
+// Day / night toggle — "the light shines in the darkness" (John 1:5).
+// Drives data-color-scheme on <html>, which re-themes both the site chrome
+// (--color-*) and the AppShell replica (--pds-*). Sun shows by day (tap → night),
+// moon shows at night. First-paint state is set by the no-flash script in BaseLayout.
+---
+
+<button type="button" class="theme-toggle" aria-label="Switch between day and night" title="Day / night">
+  <svg class="theme-toggle__icon theme-toggle__sun" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+    <circle cx="12" cy="12" r="4"></circle>
+    <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"></path>
+  </svg>
+  <svg class="theme-toggle__icon theme-toggle__moon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+    <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+  </svg>
+</button>
+
+<style>
+  .theme-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    height: 1.75rem;
+    width: 1.75rem;
+    border-radius: 999px;
+    color: var(--color-ink-soft);
+    transition: color 150ms ease, background-color 150ms ease;
+  }
+  .theme-toggle:hover {
+    color: var(--color-ink);
+    background: var(--color-warm);
+  }
+  .theme-toggle__moon { display: none; }
+  :global(:root[data-color-scheme="dark"]) .theme-toggle__sun { display: none; }
+  :global(:root[data-color-scheme="dark"]) .theme-toggle__moon { display: inline; }
+</style>
+
+<script>
+  const root = document.documentElement;
+
+  const toggle = () => {
+    const next = root.dataset.colorScheme === "dark" ? "light" : "dark";
+    const apply = () => {
+      root.dataset.colorScheme = next;
+      try {
+        localStorage.setItem("harvous-color-scheme", next);
+      } catch {}
+    };
+    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if ((document as any).startViewTransition && !reduced) {
+      (document as any).startViewTransition(apply);
+    } else {
+      apply();
+    }
+  };
+
+  document.querySelectorAll<HTMLButtonElement>(".theme-toggle").forEach((b) =>
+    b.addEventListener("click", toggle)
+  );
+
+  // Follow the system live, but only while the visitor hasn't made an explicit choice.
+  window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", (e) => {
+    try {
+      if (localStorage.getItem("harvous-color-scheme")) return;
+    } catch {}
+    root.dataset.colorScheme = e.matches ? "dark" : "light";
+  });
+</script>

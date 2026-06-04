@@ -189,6 +189,8 @@ interface CardFullEditableProps {
   alwaysEditing?: boolean;
   /** Prototype-only: fired on editor unmount with live title/body so the parent can discard empty notes. */
   onPrototypeEditorUnmount?: (snapshot: { noteId: string; title: string; content: string }) => void;
+  /** Space the note belongs to — passed to TiptapEditor for connect-from-selection. */
+  spaceId?: string;
 }
 
 export default function CardFullEditable({ 
@@ -231,6 +233,7 @@ export default function CardFullEditable({
   collectionNavContext = DEFAULT_COLLECTION_NAV_CONTEXT,
   alwaysEditing = false,
   onPrototypeEditorUnmount,
+  spaceId,
 }: CardFullEditableProps) {
   const effectivePrototypeNoteActionsChrome =
     editorChromeMode === 'prototypeNative'
@@ -2343,6 +2346,7 @@ export default function CardFullEditable({
                       enableCreateNoteFromSelection={isContentEditing}
                       parentThreadId={parentThreadId}
                       sourceNoteId={noteId}
+                      spaceId={spaceId}
                       onEditorReady={handleEditorReady}
                       editorChromeMode={editorChromeMode}
                       onPrototypeChromeModeChange={
@@ -2722,6 +2726,7 @@ export default function CardFullEditable({
                     enableCreateNoteFromSelection={isContentEditing}
                     parentThreadId={parentThreadId}
                     sourceNoteId={noteId}
+                    spaceId={spaceId}
                     onEditorReady={handleEditorReady}
                     editorChromeMode={editorChromeMode}
                     onPrototypeChromeModeChange={

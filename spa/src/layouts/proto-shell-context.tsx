@@ -1,4 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { PROTO_PANEL_EXIT_MS } from './proto-motion';
 
 /** Breakpoint sync with prototype-shell.css (899px drawer). */
 const MOBILE_MQ = '(max-width: 899px)';
@@ -24,7 +25,20 @@ function readStoredSidebarWidth() {
   }
 }
 
-export type SidebarListMode = 'notes' | 'folders' | 'highlights' | 'scripture' | 'dictionary';
+export type SidebarListMode = 'notes' | 'folders' | 'highlights' | 'scripture' | 'dictionary' | 'threads';
+
+const SIDEBAR_LIST_MODE_STORAGE_KEY = 'harvous-prototype-sidebar-list-mode';
+const SIDEBAR_LIST_MODE_DEFAULT: SidebarListMode = 'notes';
+const VALID_MODES = new Set<SidebarListMode>(['notes', 'folders', 'highlights', 'scripture', 'dictionary', 'threads']);
+
+function readStoredSidebarListMode(): SidebarListMode {
+  if (typeof window === 'undefined') return SIDEBAR_LIST_MODE_DEFAULT;
+  try {
+    const raw = localStorage.getItem(SIDEBAR_LIST_MODE_STORAGE_KEY);
+    if (raw && VALID_MODES.has(raw as SidebarListMode)) return raw as SidebarListMode;
+  } catch { /* ignore */ }
+  return SIDEBAR_LIST_MODE_DEFAULT;
+}
 
 /** `undefined` = top-level list; `null` = “No folder” drill-down; `string` = named folder. */
 export type SidebarFolderDrilldown = string | null | undefined;
@@ -98,6 +112,9 @@ type ProtoShellContextValue = {
   /** Active dictionary entry slug when drilled into a Easton's entry in the sidebar. */
   sidebarDictionarySlug: string | undefined;
   setSidebarDictionarySlug: (slug: string | undefined) => void;
+  /** Representative note ID of the drilled thread cluster; undefined = showing cluster list. */
+  sidebarThreadDrilldownId: string | undefined;
+  setSidebarThreadDrilldownId: (id: string | undefined) => void;
   /** Open mobile drawer or expand desktop sidebar so the list is visible. */
   ensureSidebarExpanded: () => void;
   /** Inspector pane — desktop: inline column; mobile: slide-over on note page. */
@@ -107,6 +124,15 @@ type ProtoShellContextValue = {
   toggleInspector: () => void;
   openInspector: () => void;
   closeInspector: () => void;
+  /** Study thread panel — reusable expandable right-side layer over a note. */
+  threadPanelNoteId: string | null;
+  threadPanelExiting: boolean;
+  threadPanelExpanded: boolean;
+  openThreadPanel: (noteId: string, options?: { expanded?: boolean }) => void;
+  closeThreadPanel: () => void;
+  expandThreadPanel: () => void;
+  /** Expanded thread → inspector (note details); does not leave a docked thread panel. */
+  backFromThreadPanelToInspector: (options?: { popHistory?: boolean }) => void;
   setPrototypeFolderChip: (value: PrototypeFolderChip | null) => void;
   standaloneScripturePassage: StandaloneScripturePassageState | null;
   openStandaloneScripturePassage: (value: StandaloneScripturePassageState) => void;
@@ -142,11 +168,19 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
   const [inspectorOpen, setInspectorOpen] = useState(false);
   const [inspectorExiting, setInspectorExiting] = useState(false);
   const inspectorExitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [threadPanelNoteId, setThreadPanelNoteId] = useState<string | null>(null);
+  const [threadPanelExiting, setThreadPanelExiting] = useState(false);
+  const [threadPanelExpanded, setThreadPanelExpanded] = useState(false);
+  const threadPanelExitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** Skips the next popstate collapse when we called history.back() from collapse/close. */
+  const threadPanelHistorySkipRef = useRef(false);
+  const THREAD_PANEL_HISTORY_FLAG = 'protoThreadPanelExpanded';
   const [sidebarExiting, setSidebarExiting] = useState(false);
   const sidebarExitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [sidebarListMode, setSidebarListModeState] = useState<SidebarListMode>('notes');
+  const [sidebarListMode, setSidebarListModeState] = useState<SidebarListMode>(readStoredSidebarListMode);
   const [sidebarFolderDrilldown, setSidebarFolderDrilldown] = useState<SidebarFolderDrilldown>(undefined);
   const [sidebarDictionarySlug, setSidebarDictionarySlug] = useState<string | undefined>(undefined);
+  const [sidebarThreadDrilldownId, setSidebarThreadDrilldownId] = useState<string | undefined>(undefined);
   const [prototypeFolderChip, setPrototypeFolderChipState] = useState<PrototypeFolderChip | null>(null);
   const [standaloneScripturePassage, setStandaloneScripturePassage] = useState<StandaloneScripturePassageState | null>(
     null,
@@ -171,9 +205,6 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
     return () => mq.removeEventListener('change', sync);
   }, []);
 
-  /** Duration must match sidebar exit CSS (260ms — same as inspector). */
-  const SIDEBAR_EXIT_MS = 260;
-
   const cancelSidebarExit = useCallback(() => {
     if (sidebarExitTimerRef.current) clearTimeout(sidebarExitTimerRef.current);
     sidebarExitTimerRef.current = null;
@@ -188,7 +219,7 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
         complete();
         setSidebarExiting(false);
         sidebarExitTimerRef.current = null;
-      }, SIDEBAR_EXIT_MS);
+      }, PROTO_PANEL_EXIT_MS);
     },
     [],
   );
@@ -242,8 +273,10 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
   }, [sidebarWidth]);
   const setSidebarListMode = useCallback((mode: SidebarListMode) => {
     setSidebarListModeState(mode);
+    try { localStorage.setItem(SIDEBAR_LIST_MODE_STORAGE_KEY, mode); } catch { /* ignore */ }
     if (mode !== 'folders') setSidebarFolderDrilldown(undefined);
     if (mode !== 'dictionary') setSidebarDictionarySlug(undefined);
+    if (mode !== 'threads') setSidebarThreadDrilldownId(undefined);
   }, []);
   const ensureSidebarExpanded = useCallback(() => {
     cancelSidebarExit();
@@ -255,26 +288,112 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
     () => () => {
       if (sidebarExitTimerRef.current) clearTimeout(sidebarExitTimerRef.current);
       if (inspectorExitTimerRef.current) clearTimeout(inspectorExitTimerRef.current);
+      if (threadPanelExitTimerRef.current) clearTimeout(threadPanelExitTimerRef.current);
     },
     [],
   );
-  /** Duration must match the CSS exit animation length (260ms). */
-  const INSPECTOR_EXIT_MS = 260;
-
   const closeInspector = useCallback(() => {
     if (inspectorExitTimerRef.current) clearTimeout(inspectorExitTimerRef.current);
     setInspectorExiting(true);
     inspectorExitTimerRef.current = setTimeout(() => {
       setInspectorOpen(false);
       setInspectorExiting(false);
-    }, INSPECTOR_EXIT_MS);
+    }, PROTO_PANEL_EXIT_MS);
   }, []);
 
   const openInspector = useCallback(() => {
     if (inspectorExitTimerRef.current) clearTimeout(inspectorExitTimerRef.current);
     setInspectorExiting(false);
     setInspectorOpen(true);
+    // Right-panel slot is mutually exclusive — drop the thread panel if it's up.
+    if (threadPanelExitTimerRef.current) clearTimeout(threadPanelExitTimerRef.current);
+    setThreadPanelExiting(false);
+    setThreadPanelNoteId(null);
   }, []);
+
+  const pushThreadPanelExpandedHistory = useCallback(() => {
+    if (typeof window === 'undefined') return;
+    const state = window.history.state as Record<string, unknown> | null;
+    if (state?.[THREAD_PANEL_HISTORY_FLAG]) return;
+    window.history.pushState({ ...(state ?? {}), [THREAD_PANEL_HISTORY_FLAG]: true }, '');
+  }, []);
+
+  const popThreadPanelExpandedHistory = useCallback(() => {
+    if (typeof window === 'undefined') return;
+    const state = window.history.state as Record<string, unknown> | null;
+    if (!state?.[THREAD_PANEL_HISTORY_FLAG]) return;
+    threadPanelHistorySkipRef.current = true;
+    window.history.back();
+  }, []);
+
+  const openThreadPanel = useCallback(
+    (noteId: string, options?: { expanded?: boolean }) => {
+      const expanded = options?.expanded ?? true;
+      if (threadPanelExitTimerRef.current) clearTimeout(threadPanelExitTimerRef.current);
+      setThreadPanelExiting(false);
+      setThreadPanelNoteId(noteId);
+      setThreadPanelExpanded(expanded);
+      if (expanded) pushThreadPanelExpandedHistory();
+      // Close the inspector — both occupy the right-panel slot.
+      if (inspectorExitTimerRef.current) clearTimeout(inspectorExitTimerRef.current);
+      setInspectorExiting(false);
+      setInspectorOpen(false);
+    },
+    [pushThreadPanelExpandedHistory],
+  );
+
+  const beginThreadPanelClose = useCallback(() => {
+    if (threadPanelExitTimerRef.current) clearTimeout(threadPanelExitTimerRef.current);
+    setThreadPanelExiting(true);
+    threadPanelExitTimerRef.current = setTimeout(() => {
+      setThreadPanelNoteId(null);
+      setThreadPanelExiting(false);
+      setThreadPanelExpanded(false);
+      threadPanelExitTimerRef.current = null;
+    }, PROTO_PANEL_EXIT_MS);
+  }, []);
+
+  const closeThreadPanel = useCallback(() => {
+    if (threadPanelExitTimerRef.current) clearTimeout(threadPanelExitTimerRef.current);
+    const state =
+      typeof window !== 'undefined' ? (window.history.state as Record<string, unknown> | null) : null;
+    if (state?.[THREAD_PANEL_HISTORY_FLAG]) {
+      threadPanelHistorySkipRef.current = true;
+      window.history.back();
+    }
+    setThreadPanelExpanded(false);
+    beginThreadPanelClose();
+  }, [beginThreadPanelClose]);
+
+  const expandThreadPanel = useCallback(() => {
+    setThreadPanelExpanded(true);
+    pushThreadPanelExpandedHistory();
+  }, [pushThreadPanelExpandedHistory]);
+
+  const backFromThreadPanelToInspector = useCallback(
+    (options?: { popHistory?: boolean }) => {
+      if (options?.popHistory !== false) popThreadPanelExpandedHistory();
+      setThreadPanelExpanded(false);
+      if (inspectorExitTimerRef.current) clearTimeout(inspectorExitTimerRef.current);
+      setInspectorExiting(false);
+      setInspectorOpen(true);
+      beginThreadPanelClose();
+    },
+    [beginThreadPanelClose, popThreadPanelExpandedHistory],
+  );
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined;
+    const onPopState = () => {
+      if (threadPanelHistorySkipRef.current) {
+        threadPanelHistorySkipRef.current = false;
+        return;
+      }
+      backFromThreadPanelToInspector({ popHistory: false });
+    };
+    window.addEventListener('popstate', onPopState);
+    return () => window.removeEventListener('popstate', onPopState);
+  }, [backFromThreadPanelToInspector]);
 
   const toggleInspector = useCallback(() => {
     setInspectorOpen((prev) => {
@@ -285,7 +404,7 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
         inspectorExitTimerRef.current = setTimeout(() => {
           setInspectorOpen(false);
           setInspectorExiting(false);
-        }, INSPECTOR_EXIT_MS);
+        }, PROTO_PANEL_EXIT_MS);
         // Return true to keep open until timer fires
         return true;
       }
@@ -326,12 +445,21 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
       setSidebarFolderDrilldown,
       sidebarDictionarySlug,
       setSidebarDictionarySlug,
+      sidebarThreadDrilldownId,
+      setSidebarThreadDrilldownId,
       ensureSidebarExpanded,
       inspectorOpen,
       inspectorExiting,
       toggleInspector,
       openInspector,
       closeInspector,
+      threadPanelNoteId,
+      threadPanelExiting,
+      threadPanelExpanded,
+      openThreadPanel,
+      closeThreadPanel,
+      expandThreadPanel,
+      backFromThreadPanelToInspector,
       setPrototypeFolderChip,
       standaloneScripturePassage,
       openStandaloneScripturePassage,
@@ -365,12 +493,20 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
       setSidebarFolderDrilldown,
       sidebarDictionarySlug,
       setSidebarDictionarySlug,
+      sidebarThreadDrilldownId,
       ensureSidebarExpanded,
       inspectorOpen,
       inspectorExiting,
       toggleInspector,
       openInspector,
       closeInspector,
+      threadPanelNoteId,
+      threadPanelExiting,
+      threadPanelExpanded,
+      openThreadPanel,
+      closeThreadPanel,
+      expandThreadPanel,
+      backFromThreadPanelToInspector,
       setPrototypeFolderChip,
       standaloneScripturePassage,
       openStandaloneScripturePassage,

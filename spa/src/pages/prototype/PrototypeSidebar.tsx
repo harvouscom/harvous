@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useRouterState } from '@tanstack/react-router';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQueryClient, type QueryClient } from '@tanstack/react-query';
 import Icon from '@/components/react/Icon';
 import { toast } from '@/utils/toast';
 import { APIError } from '../../lib/api';
@@ -30,6 +30,13 @@ import ProtoConfirmDialog from './ProtoConfirmDialog';
 import ProtoPopoverShell from './ProtoPopoverShell';
 import type { PrototypeHighlightStudyThreadRow } from '../../hooks/queries/usePrototypeSpaceStudyThreadHighlights';
 import { usePrototypeSpaceStudyThreadHighlights } from '../../hooks/queries/usePrototypeSpaceStudyThreadHighlights';
+import { usePrototypeStudyThreads, type StudyThreadCluster } from '../../hooks/queries/usePrototypeStudyThreads';
+import {
+  usePrototypeStudyThread,
+  studyThreadQueryKey,
+  type StudyThreadResponse,
+} from '../../hooks/queries/usePrototypeStudyThread';
+import { studyThreadDisplayTitle } from '../../utils/study-thread-display-title';
 import { usePrototypeSpaceScriptureIndex } from '../../hooks/queries/usePrototypeSpaceScriptureIndex';
 import {
   highlightEntryKindAriaLabel,
@@ -65,6 +72,27 @@ function describeQueryFailure(err: unknown): string {
   if (err instanceof APIError) return err.message;
   if (err instanceof Error) return err.message;
   return '';
+}
+
+function resolveClusterListTitle(
+  cluster: StudyThreadCluster,
+  activeNoteFullId: string | undefined,
+  queryClient: QueryClient,
+  homeSpaceId: string | null | undefined,
+): string {
+  const fallback = cluster.title?.trim() || 'Untitled note';
+  if (!activeNoteFullId || !homeSpaceId) return fallback;
+  const inListCluster =
+    cluster.id === activeNoteFullId || cluster.memberIds?.includes(activeNoteFullId);
+  if (!inListCluster) return fallback;
+
+  const cached = queryClient.getQueryData<StudyThreadResponse>(
+    studyThreadQueryKey(activeNoteFullId, homeSpaceId),
+  );
+  if (!cached?.nodes?.length) return fallback;
+  const sharesCluster = cached.nodes.some((n) => cluster.memberIds?.includes(n.id));
+  if (!sharesCluster) return fallback;
+  return studyThreadDisplayTitle(cached);
 }
 
 function buildFolders(notes: SpaceNoteRow[]): FolderBucket[] {
@@ -559,6 +587,8 @@ export default function PrototypeSidebar() {
     sidebarFolderDrilldown: activeFolderKey,
     sidebarDictionarySlug,
     setSidebarDictionarySlug,
+    sidebarThreadDrilldownId,
+    setSidebarThreadDrilldownId,
     standaloneScripturePassage,
     openStandaloneScripturePassage,
     dismissStandaloneScripturePassage,
@@ -594,6 +624,11 @@ export default function PrototypeSidebar() {
 
   const highlightsQuery = usePrototypeSpaceStudyThreadHighlights(mode === 'highlights' ? homeSpaceId ?? undefined : undefined);
   const scriptureQuery = usePrototypeSpaceScriptureIndex(mode === 'scripture' ? homeSpaceId ?? undefined : undefined);
+  const studyThreadsQuery = usePrototypeStudyThreads(mode === 'threads' ? homeSpaceId ?? undefined : undefined);
+  const threadDrillQuery = usePrototypeStudyThread(
+    mode === 'threads' && sidebarThreadDrilldownId ? sidebarThreadDrilldownId : undefined,
+    homeSpaceId,
+  );
   const [q, setQ] = useState('');
   const [scriptureDrill, setScriptureDrill] = useState<ScriptureDrill>({ level: 'books' });
   const [highlightKindFilter, setHighlightKindFilter] = useState<HighlightKindFilter>('all');
@@ -1150,6 +1185,109 @@ export default function PrototypeSidebar() {
                 searchQuery={q}
                 onOpenSlug={(slug) => setSidebarDictionarySlug(slug)}
               />
+            ) : null}
+
+            {mode === 'threads' && sidebarThreadDrilldownId ? (
+              <>
+                <div style={{ padding: '0 18px 8px' }}>
+                  <button
+                    type="button"
+                    className="proto-sidebar-back-btn"
+                    onClick={() => {
+                      setSidebarThreadDrilldownId(undefined);
+                      setQ('');
+                    }}
+                  >
+                    <Icon name="chevron-left" size={10} />
+                    Threads
+                  </button>
+                  <div className="pds-list-title" style={{ fontWeight: 600 }}>
+                    {threadDrillQuery.data?.threadTitle ?? threadDrillQuery.data?.suggestedTitle ?? 'Thread'}
+                  </div>
+                </div>
+                {threadDrillQuery.isLoading ? (
+                  <p className="proto-caption" style={{ padding: '12px 18px' }}>Loading…</p>
+                ) : threadDrillQuery.isError ? (
+                  <p className="proto-caption" style={{ padding: '12px 18px', textAlign: 'center' }}>
+                    Could not load thread.
+                  </p>
+                ) : !threadDrillQuery.data?.nodes.length ? (
+                  <p className="proto-caption" style={{ padding: '12px 18px', textAlign: 'center', opacity: 0.7 }}>
+                    No notes in this thread.
+                  </p>
+                ) : (
+                  <ul className="proto-note-list" style={{ margin: 0, padding: '4px 0', listStyle: 'none' }}>
+                    {threadDrillQuery.data.nodes.map((node) => {
+                      const slug = node.id.startsWith('note_') ? node.id.slice('note_'.length) : node.id;
+                      const title = node.title || node.resourceTitle || 'Untitled';
+                      return (
+                        <li key={node.id} className="proto-note-row-item">
+                          <button
+                            type="button"
+                            className="proto-note-row__main"
+                            onClick={() => {
+                              navigate({ to: prototypeNoteRouteTo(), params: { noteId: slug } });
+                              if (isMobileSidebar) closeDrawer();
+                            }}
+                          >
+                            <div className="proto-note-row__title-line">
+                              <span className="pds-list-title proto-note-row__title-text">{title}</span>
+                            </div>
+                          </button>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+              </>
+            ) : null}
+
+            {mode === 'threads' && !sidebarThreadDrilldownId ? (
+              <>
+                {studyThreadsQuery.isLoading ? (
+                  <p className="proto-caption" style={{ padding: '12px 18px' }}>Loading threads…</p>
+                ) : studyThreadsQuery.isError ? (
+                  <p className="proto-caption" style={{ padding: '12px 18px', textAlign: 'center' }}>
+                    Could not load threads.
+                  </p>
+                ) : !studyThreadsQuery.data || studyThreadsQuery.data.length === 0 ? (
+                  <p className="proto-caption" style={{ padding: '12px 18px', textAlign: 'center', opacity: 0.7 }}>
+                    No study threads yet. Connect notes together to create threads.
+                  </p>
+                ) : (
+                  <ul className="proto-note-list" style={{ margin: 0, padding: '4px 0', listStyle: 'none' }}>
+                    {studyThreadsQuery.data.map((cluster) => {
+                      const title = resolveClusterListTitle(
+                        cluster,
+                        activeNoteFullId,
+                        queryClient,
+                        homeSpaceId,
+                      );
+                      const preview = `${cluster.noteCount} ${cluster.noteCount === 1 ? 'note' : 'notes'}`;
+                      return (
+                        <li
+                          key={cluster.id}
+                          className="proto-note-row-item"
+                        >
+                          <button
+                            type="button"
+                            className="proto-note-row__main"
+                            onClick={() => {
+                              const slug = cluster.id.startsWith('note_') ? cluster.id.slice('note_'.length) : cluster.id;
+                              setSidebarThreadDrilldownId(slug);
+                            }}
+                          >
+                            <div className="proto-note-row__title-line">
+                              <span className="pds-list-title proto-note-row__title-text">{title}</span>
+                            </div>
+                            <div className="pds-list-preview proto-note-row__preview">{preview}</div>
+                          </button>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+              </>
             ) : null}
 
             {mode === 'scripture' && scriptureDrill.level === 'books' ? (

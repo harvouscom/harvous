@@ -26,6 +26,7 @@ interface CreateSimpleNoteBody {
   title?: string;
   content?: string;
   noteType?: 'default' | 'scripture' | 'resource';
+  linkedFromNoteId?: string;
 }
 
 interface CreateNoteResponse {
@@ -67,7 +68,7 @@ export function useCreateSimpleNote() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ spaceId, title = '', content = '<p></p>', noteType = 'default' }: CreateSimpleNoteBody) => {
+    mutationFn: ({ spaceId, title = '', content = '<p></p>', noteType = 'default', linkedFromNoteId }: CreateSimpleNoteBody) => {
       const sid = normalizedSpaceIdForApi(spaceId);
       return api.post<CreateNoteResponse>('/api/notes/create', {
         spaceId: sid,
@@ -75,6 +76,7 @@ export function useCreateSimpleNote() {
         content,
         noteType,
         threadId: '',
+        ...(linkedFromNoteId ? { linkedFromNoteId } : {}),
       });
     },
     onMutate: async (variables) => {
@@ -117,6 +119,9 @@ export function useCreateSimpleNote() {
       }
       queryClient.invalidateQueries({ queryKey: ['space', sid, 'bootstrap'] });
       queryClient.invalidateQueries({ queryKey: [...navigationQueryKeyPrefix] });
+      if (variables.linkedFromNoteId) {
+        queryClient.invalidateQueries({ queryKey: ['note', variables.linkedFromNoteId] });
+      }
     },
     onError: (_err, _variables, context) => {
       if (context?.previous && context.sid) {

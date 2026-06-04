@@ -14,6 +14,7 @@ import {
   db,
   first,
   Notes,
+  NoteConnections,
   StudyThreadEntries,
   eq,
   and,
@@ -22,7 +23,7 @@ import {
 import { nowISO } from '../db/dates';
 import { handleAPIError } from '@/utils/error-handling';
 import { rateLimit } from '@/utils/rate-limit';
-import { generateStudyThreadEntryId } from '@/utils/ids';
+import { generateStudyThreadEntryId, generateNoteId } from '@/utils/ids';
 import { normalizeScriptureReference } from '@/utils/scripture-detector';
 
 const route = new Hono();
@@ -177,6 +178,24 @@ route.post('/api/notes/:parentNoteId/study-threads', requireAuth, rateLimit('wri
       updatedAt: now,
     });
 
+    // Mirror linkedNote entries into NoteConnections so the web prototype inspector
+    // shows native-created connections (it reads NoteConnections, not StudyThreadEntries).
+    const resolvedLinkedNoteId = typeof body.linkedNoteId === 'string' ? body.linkedNoteId : null;
+    if (entryKind === 'linkedNote' && resolvedLinkedNoteId && resolvedLinkedNoteId !== parentNoteId) {
+      try {
+        await db.insert(NoteConnections).values({
+          id: generateNoteId(),
+          fromNoteId: parentNoteId,
+          toNoteId: resolvedLinkedNoteId,
+          userId: auth.userId,
+          spaceId,
+          createdAt: now,
+        });
+      } catch {
+        // Unique constraint — already connected, safe to ignore.
+      }
+    }
+
     const row = first(await db.select().from(StudyThreadEntries).where(eq(StudyThreadEntries.id, id)).limit(1));
     return c.json({ success: true, studyThread: row ? mapStudyRow(row) : null });
   } catch (error: any) {
@@ -253,6 +272,22 @@ route.delete('/api/study-threads/:id', requireAuth, rateLimit('write'), async (c
     if (!existing) return c.json({ error: 'Study thread not found' }, 404);
 
     await db.delete(StudyThreadEntries).where(and(eq(StudyThreadEntries.id, id), eq(StudyThreadEntries.userId, auth.userId)));
+
+    // If this was a linkedNote entry, also remove the mirrored NoteConnections edge.
+    if (existing.entryKindRaw === 'linkedNote' && existing.linkedNoteId) {
+      try {
+        await db.delete(NoteConnections).where(
+          and(
+            eq(NoteConnections.fromNoteId, existing.parentNoteId),
+            eq(NoteConnections.toNoteId, existing.linkedNoteId),
+            eq(NoteConnections.userId, auth.userId),
+          ),
+        );
+      } catch {
+        // Best-effort — don't fail the delete if the edge is already gone.
+      }
+    }
+
     return c.json({ success: true, deletedId: id });
   } catch (error: any) {
     const e = handleAPIError(error, { endpoint: '/api/study-threads/[id]', action: 'delete_study_thread' });

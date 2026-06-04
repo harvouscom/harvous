@@ -2,7 +2,7 @@
  * Note toolbar "more" menu — pin and delete (native MacNoteShareMoreToolbar parity).
  * Note lock/unlock is temporarily disabled.
  */
-import { useEffect, useMemo, useRef, useState, type RefObject } from 'react';
+import { useEffect, useMemo, useState, type RefObject } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import { prototypeHomeRouteTo } from '@/lib/prototype-path';
 import { useQueryClient, type InfiniteData } from '@tanstack/react-query';
@@ -12,6 +12,7 @@ import { APIError } from '../../lib/api';
 import { useDeleteNote } from '../../hooks/mutations/useDeleteNote';
 import { usePinSpaceNote } from '../../hooks/mutations/usePinSpaceNote';
 import { useProtoShell } from '../../layouts/proto-shell-context';
+import { usePopoverDismiss } from '../../hooks/usePopoverDismiss';
 import { PROTO_TOOLBAR_ICON_SIZE, PROTO_TOOLBAR_ORB_ICON_SIZE } from './proto-toolbar-tokens';
 import ProtoConfirmDialog from './ProtoConfirmDialog';
 import ProtoPopoverShell from './ProtoPopoverShell';
@@ -60,10 +61,9 @@ export default function PrototypeNoteMoreMenu({
   onShare,
   menuButtonRef,
 }: PrototypeNoteMoreMenuProps) {
-  const [open, setOpen] = useState(false);
+  const { open, setOpen, rootRef } = usePopoverDismiss<HTMLDivElement>();
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [pinOverride, setPinOverride] = useState<boolean | null>(null);
-  const rootRef = useRef<HTMLDivElement>(null);
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const { closeDrawer, isMobileSidebar } = useProtoShell();
@@ -75,23 +75,6 @@ export default function PrototypeNoteMoreMenu({
     [queryClient, spaceId, noteId, pinNote.isPending, deleteNote.isPending],
   );
   const pinned = pinOverride ?? pinnedFromCache;
-
-  useEffect(() => {
-    if (!open) return undefined;
-    const onDoc = (e: MouseEvent) => {
-      const el = rootRef.current;
-      if (el && e.target instanceof Node && !el.contains(e.target)) setOpen(false);
-    };
-    const onEsc = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setOpen(false);
-    };
-    document.addEventListener('mousedown', onDoc);
-    document.addEventListener('keydown', onEsc);
-    return () => {
-      document.removeEventListener('mousedown', onDoc);
-      document.removeEventListener('keydown', onEsc);
-    };
-  }, [open]);
 
   useEffect(() => {
     setPinOverride(null);

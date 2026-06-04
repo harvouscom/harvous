@@ -1,0 +1,112 @@
+# Classic → new.harvous.com migration
+
+How existing Classic SPA users move to the 2.0 web prototype without export/import.
+
+**See also:** [native-prototype/NATIVE_2_0_PLATFORM_STRATEGY.md](./native-prototype/NATIVE_2_0_PLATFORM_STRATEGY.md), [PROTOTYPE_2_0_ARCHITECTURE.md](./PROTOTYPE_2_0_ARCHITECTURE.md)
+
+---
+
+## Decision: organizational threads → folders only (Option 1)
+
+**Decided:** Classic colored thread piles map to **folder/collection labels** on notes (`primaryCollection`, `secondaryCollections`). They do **not** auto-create `NoteConnections` graph edges.
+
+Prototype **Threads** sidebar (connected-note study chains) remains for intentional note-to-note links via Connect.
+
+| Classic concept | 2.0 surface | Mechanism |
+|-----------------|-------------|-----------|
+| Thread pile title | Folder label | `backfill-collections-from-threads` / per-user API |
+| Multi-thread membership | Secondary folders | Same backfill |
+| Highlight parent link | Connected thread | `linkedFromNoteId` → `NoteConnections` |
+| Highlights / study rows | Highlights sidebar | Already shared (`StudyThreadEntries`) |
+
+---
+
+## User experience
+
+1. Sign in on `new.harvous.com` with the **same Clerk account** — same Postgres rows, no file import.
+2. **First prototype session:** silent `POST /api/user/migrate-to-prototype` (thread titles → folders; parent links → graph).
+3. If folders were created from thread titles, a **one-time banner** explains Folders vs Connected Threads.
+4. All notes appear in the **Notes** list immediately; organization appears in **Folders** after backfill.
+
+Classic thread pages remain on `classic.harvous.com` until Classic sunset.
+
+---
+
+## Schema prerequisites (production)
+
+Before rollout, apply Drizzle schema to Supabase:
+
+```bash
+npm run db:push
+```
+
+Required objects:
+
+- Table **`NoteConnections`**
+- Columns on **`Notes`:** `studyThreadTitle`, `studyThreadUserOverride`, `studyThreadPinned`, `studyThreadLastAutoSuggestedAt`
+- Collection columns (already on Classic): `primaryCollection`, `secondaryCollections`
+
+Verify locally:
+
+```bash
+npm run db:check
+```
+
+---
+
+## Backfill mechanisms
+
+### Per-user (automatic on first prototype visit)
+
+| Endpoint | Role |
+|----------|------|
+| `POST /api/user/migrate-to-prototype` | Idempotent: folders + `NoteConnections` from `linkedFromNoteId` |
+| `GET /api/user/migrate-to-prototype/status` | Whether folder backfill may still be needed |
+
+Implementation: [server/utils/prototype-user-migration.ts](../server/utils/prototype-user-migration.ts)
+
+Client: [spa/src/pages/prototype/PrototypeMigrationBanner.tsx](../spa/src/pages/prototype/PrototypeMigrationBanner.tsx) runs migration once per browser (`localStorage` key `harvous-prototype-migration-v1-done`).
+
+### Admin batch (optional pre-launch)
+
+```bash
+# Staging dry-run — point .env at target Supabase
+npx tsx server/scripts/backfill-collections-from-threads.ts --dry-run
+
+# Production (all users)
+npx tsx server/scripts/backfill-collections-from-threads.ts
+
+# Single user
+npx tsx server/scripts/backfill-collections-from-threads.ts --userId=user_xxx
+```
+
+Legacy endpoint (connections only): `POST /api/notes/migrate-connections`
+
+---
+
+## Sync / offline
+
+`NoteConnections` are included in:
+
+- `GET /api/sync/bootstrap` → `noteConnections[]`
+- `GET /api/sync/changes` → `noteConnections[]` (by `createdAt`)
+
+Offline IndexedDB (Dexie v4): `noteConnections` table in [src/utils/offline-db.ts](../src/utils/offline-db.ts).
+
+---
+
+## What is not migrated
+
+- Classic **`Threads` / `NoteThreads` rows** — kept as hidden plumbing (`thread_unorganized` sentinel); not shown in 2.0 UI.
+- Thread co-membership → **not** synthesized into `NoteConnections` (Option 2 rejected).
+- Multi-space sidebar scope — prototype still lists **My Home** only (see [SIMPLIFIED_WEB_PROTOTYPE.md](./SIMPLIFIED_WEB_PROTOTYPE.md)).
+
+---
+
+## Rollout checklist
+
+- [ ] `npm run db:push` on production Supabase
+- [ ] Optional: batch `backfill-collections-from-threads.ts` before launch
+- [ ] Deploy API + SPA with migration hook and sync changes
+- [ ] Smoke-test Classic user: notes visible, folders populated, connect-link works
+- [ ] Communicate: thread piles → folders; Threads = connected notes

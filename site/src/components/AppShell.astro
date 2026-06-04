@@ -1,0 +1,214 @@
+---
+import { Icon } from "astro-icon/components";
+
+// Static replica of the Harvous app, matched to the real web/iPad UI:
+// - Toolbar: menu + compose (left), centered folder chip, search/share/more/split/avatar (right)
+// - Sidebar: "Notes" view dropdown, search, note list, Today's Passage card;
+//   swaps to thread-of-connected-notes panel on Connect notes hero tab
+// - Note paper on a tinted canvas; neutral scripture pills w/ translation badge;
+//   highlights as colored underlines
+// - Scripture dock + Annotation dock + dictionary selection bar on the note
+interface Props {
+  class?: string;
+}
+const { class: className = "" } = Astro.props;
+const rootClass = ["app-shell", className].filter(Boolean).join(" ");
+---
+
+<div class={rootClass} aria-hidden="true">
+
+  <!-- Toolbar (matches real app web chrome) -->
+  <div class="app-shell__toolbar">
+    <div class="app-shell__tb-group">
+      <span class="app-shell__tb-icon"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M3 6h14M3 10h14M3 14h14"/></svg></span>
+      <span class="app-shell__tb-icon"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 13.5V16h2.5L15 7.5 12.5 5 4 13.5Z"/><path d="M11.5 6 14 8.5"/></svg></span>
+    </div>
+    <span class="app-shell__title-chip" data-spot="folders">
+      <svg viewBox="0 0 16 16" fill="currentColor" width="12" height="12"><path d="M2 4a2 2 0 0 1 2-2h2.5l1.5 1.5H14a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V4Z"/></svg>
+      Salvation
+    </span>
+    <div class="app-shell__tb-group app-shell__tb-group--right">
+      <span class="app-shell__tb-icon"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="9" cy="9" r="5"/><path d="M15 15l2.5 2.5"/></svg></span>
+      <span class="app-shell__tb-icon"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 11v4a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1v-4"/><path d="M10 3v9M6.5 6.5 10 3l3.5 3.5"/></svg></span>
+      <span class="app-shell__tb-icon"><svg viewBox="0 0 20 20" fill="currentColor"><circle cx="5" cy="10" r="1.4"/><circle cx="10" cy="10" r="1.4"/><circle cx="15" cy="10" r="1.4"/></svg></span>
+      <span class="app-shell__tb-icon"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="4" width="14" height="12" rx="2"/><path d="M12 4v12"/></svg></span>
+      <span class="app-shell__tb-icon" aria-hidden="true">
+        <Icon name="fa6-solid:circle-user" />
+      </span>
+    </div>
+  </div>
+
+  <div class="app-shell__body">
+    <!-- Sidebar -->
+    <aside class="app-shell__sidebar">
+      <div class="app-shell__sidebar-default">
+      <button class="app-shell__view-select" type="button">
+        <svg viewBox="0 0 16 16" fill="currentColor" width="13" height="13"><path d="M3 2.5h10a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1v-9a1 1 0 0 1 1-1Z"/></svg>
+        <span>Notes</span>
+        <svg class="app-shell__view-chevron" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M5 7l3 3 3-3"/></svg>
+      </button>
+
+      <div class="app-shell__search">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6">
+          <circle cx="7" cy="7" r="4.5"></circle><path d="M11 11l3 3" stroke-linecap="round"></path>
+        </svg>
+        Search
+      </div>
+
+      <div class="app-shell__rows">
+        <div class="app-shell__row app-shell__row--active">
+          <div class="app-shell__row-title">Saved by grace</div>
+          <div class="app-shell__row-meta">Just now · Ephesians 2:8–9, Romans 3:24…</div>
+        </div>
+        <div class="app-shell__row">
+          <div class="app-shell__row-title">The vine and branches</div>
+          <div class="app-shell__row-meta">1 hr ago · John 15 — abide in me</div>
+        </div>
+        <div class="app-shell__row">
+          <div class="app-shell__row-title">Glory of kings</div>
+          <div class="app-shell__row-meta">Yesterday · Proverbs 25:2 — to search…</div>
+        </div>
+      </div>
+
+      <div class="app-shell__passage-card" data-spot="passage">
+        <div class="app-shell__passage-text">
+          <div class="app-shell__passage-label">Today's Passage</div>
+          <div class="app-shell__passage-ref">Deuteronomy 31:6</div>
+        </div>
+        <div class="app-shell__passage-actions">
+          <span class="app-shell__passage-btn"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M3 2.5h6.5L13 6v7.5a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1v-10a1 1 0 0 1 1-1Z"/></svg></span>
+          <span class="app-shell__passage-btn"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M8 3.5v9M3.5 8h9"/></svg></span>
+        </div>
+      </div>
+      </div>
+
+      <!-- Thread of connected notes — shown when Connect notes tab is active -->
+      <div class="app-thread-panel" data-spot="connect">
+        <div class="app-thread-panel__head">
+          <span class="app-thread-panel__label">
+            <Icon name="fa6-solid:arrow-right-arrow-left" />
+            Thread
+          </span>
+          <span class="app-thread-panel__meta">3 notes connected</span>
+        </div>
+        <div class="app-thread-panel__name">Grace &amp; salvation</div>
+
+        <div class="app-thread-panel__section">
+          <div class="app-shell__row app-shell__row--active">
+            <div class="app-shell__row-title">Saved by grace</div>
+            <div class="app-shell__row-meta">We're saved by grace through faith — not our own doing…</div>
+          </div>
+        </div>
+
+        <div class="app-thread-panel__section">
+          <p class="app-thread-panel__section-label">Connected notes</p>
+          <div class="app-shell__rows">
+            <div class="app-shell__row">
+              <div class="app-shell__row-title">Faith and works</div>
+              <div class="app-shell__row-meta">Works follow grace; they do not purchase it…</div>
+            </div>
+            <div class="app-shell__row">
+              <div class="app-shell__row-title">The vine and branches</div>
+              <div class="app-shell__row-meta">Abide in me — apart from me you can do nothing…</div>
+            </div>
+          </div>
+        </div>
+
+        <button type="button" class="app-thread-panel__connect">
+          <Icon name="fa6-solid:plus" />
+          Connect a note
+        </button>
+      </div>
+    </aside>
+
+    <!-- Canvas + paper note -->
+    <div class="app-shell__canvas">
+      <div class="app-shell__paper">
+        <h3 class="app-shell__note-title">Saved by grace</h3>
+        <div class="app-shell__note-body">
+          <p>
+            We're saved <span class="app-hl app-hl--warmAmber" data-spot="highlight">by grace</span> through
+            faith — and this is not our own doing; it is the gift of God,
+            <span class="app-hl app-hl--skyBlue">not a result of works</span>, so that no one may boast.
+          </p>
+          <p>
+            Compare with <span class="app-pill" data-spot="scripture">Ephesians 2:8–9<span class="app-pill__tl">ESV</span></span> and
+            <span class="app-pill" data-spot="scripture">Romans 3:24<span class="app-pill__tl">NASB</span></span> — justified freely by his
+            <span class="app-lookup-wrap" data-spot="dictionary">
+              <span class="app-lookup">grace</span>
+              <span class="app-lookup-menu" aria-hidden="true">
+                <svg class="app-lookup-menu__icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><path d="M4.5 3.5l-1.5 9M8 3.5l-1.5 9M11.5 3.5l-1.5 9"/></svg>
+                Look up in Easton's Bible Dictionary…
+              </span>
+            </span>, redeemed apart from the law.
+          </p>
+          <p>
+            Paul keeps the order: grace first, then faith as the means of receiving it. The same thread runs through
+            <span class="app-pill" data-spot="scripture">Titus 3:7<span class="app-pill__tl">NIV</span></span> — heirs because of hope, not because we kept score.
+          </p>
+          <p>
+            The paragraph before the hinge —
+            <span class="app-pill" data-spot="scripture">Ephesians 2:4–5<span class="app-pill__tl">NLT</span></span> — God made us alive with Christ when we were dead in trespasses. Mercy comes first; rescue follows.
+          </p>
+          <p>
+            That sets up the turn in verse 8: salvation is <span class="app-hl app-hl--mintGreen">not from yourselves</span>; it is God's gift. Even the faith that receives it is not something we can parade as a personal achievement.
+          </p>
+          <p>
+            Verse 10 belongs in the same breath — we are God's workmanship, created in Christ Jesus
+            <span class="app-hl app-hl--violet">for good works</span>, which God prepared beforehand. Works follow grace; they do not purchase it. Paul says the same in
+            <span class="app-pill" data-spot="scripture">Galatians 2:16<span class="app-pill__tl">CSB</span></span> and again in
+            <span class="app-pill" data-spot="scripture">Romans 11:6<span class="app-pill__tl">KJV</span></span>.
+          </p>
+          <p>
+            <span class="app-pill" data-spot="scripture">2 Timothy 1:9<span class="app-pill__tl">NET</span></span> names it plainly: God saved us and called us with a holy calling — not because of our works but because of his own purpose and grace, given in Christ before the ages began.
+          </p>
+          <p>
+            Study question: where am I still treating grace as a starting bonus, then living as if upkeep depends on my performance? The antidote is not laziness; it is returning to the gift —
+          </p>
+        </div>
+      </div>
+
+      <div class="app-shell__dock-row">
+      <!-- Scripture dock — "Add Scripture" tab (with inline pills) -->
+      <div class="app-dock app-dock--scripture" data-spot="scripture">
+        <div class="app-dock__head">
+          <span class="app-dock__title">
+            <svg viewBox="0 0 16 16" fill="currentColor" width="13" height="13"><path d="M3 3a1 1 0 0 1 1-1h8a1 1 0 0 1 1 1v10H4a1 1 0 0 0-1 1V3Z"/></svg>
+            Ephesians 2:8 <span class="app-dock__badge">ESV</span>
+          </span>
+          <span class="app-dock__head-actions">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M4 6l4 4 4-4"/></svg>
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M4 4l8 8M12 4l-8 8"/></svg>
+          </span>
+        </div>
+        <div class="app-dock__toolbar">
+          <span class="app-dock__select">ESV<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M3 5l3 3 3-3"/></svg></span>
+          <span class="app-dock__select">Ephesians<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M3 5l3 3 3-3"/></svg></span>
+          <span class="app-dock__select">2<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M3 5l3 3 3-3"/></svg></span>
+          <span class="app-dock__colon">:</span>
+          <span class="app-dock__select">8<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M3 5l3 3 3-3"/></svg></span>
+          <span class="app-dock__range"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M3 8h10M3 8l2.5-2.5M13 8l-2.5 2.5"/></svg></span>
+        </div>
+        <p class="app-dock__verse"><sup>8</sup>For by grace you have been saved through faith. And this is not your own doing; it is the gift of God.</p>
+      </div>
+
+      <!-- Annotation dock — "Highlight & annotate" tab -->
+      <div class="app-dock app-dock--annotation" data-spot="highlight">
+        <div class="app-dock__head">
+          <span class="app-dock__title">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11V13h2L13 5l-2-2L3 11Z"/></svg>
+            by grace
+          </span>
+          <span class="app-dock__head-actions">
+            <span class="app-dock__hl-dot"></span>
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M4 4l8 8M12 4l-8 8"/></svg>
+          </span>
+        </div>
+        <p class="app-dock__note">God's unearned favor — faith receives what grace gives; works are ruled out as the cause.</p>
+      </div>
+      </div>
+
+    </div>
+  </div>
+
+</div>

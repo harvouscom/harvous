@@ -1,0 +1,810 @@
+/**
+ * AppShell replica — a static, non-interactive recreation of the Harvous app,
+ * built entirely on the app's own design tokens (--pds-*, from prototype-tokens.css).
+ * Because it consumes the same tokens as the real app, it is pixel-faithful and
+ * re-themes light/dark in lockstep with the site via `data-color-scheme`.
+ * Demo hooks (.demo-*) let ScrollDemo reveal features progressively on scroll.
+ */
+
+/* ── AppShell — accurate recreation of the real Harvous app ──────────────── */
+.app-shell {
+  font-family: var(--pds-font-body);
+  font-optical-sizing: auto;
+  color: var(--pds-text-primary);
+  background: var(--pds-canvas-default);
+  border: 1px solid var(--pds-border);
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow: var(--pds-shadow-drawer);
+  font-size: 14px;
+  line-height: 1.45;
+  width: 100%;
+}
+
+/* ── Toolbar (matches real app web/iPad chrome) ──────────────────────────── */
+.app-shell__toolbar {
+  display: flex;
+  align-items: center;
+  height: 50px;
+  padding: 0 14px;
+  background: var(--pds-glass-shell);
+  border-bottom: 1px solid var(--pds-border-soft);
+  position: relative;
+}
+.app-shell__tb-group {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.app-shell__tb-group--right { margin-left: auto; gap: 4px; }
+.app-shell__tb-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  color: var(--pds-text-secondary);
+}
+.app-shell__tb-icon svg { width: 18px; height: 18px; }
+.app-shell__title-chip {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  border-radius: var(--pds-radius-pill);
+  background: var(--pds-bg-chip);
+  color: var(--pds-text-primary);
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.app-shell__title-chip svg { color: var(--pds-text-secondary); }
+
+/* ── Body grid ───────────────────────────────────────────────────────────── */
+.app-shell__body {
+  display: grid;
+  grid-template-columns: 260px minmax(0, 1fr);
+  min-height: 320px;
+}
+
+/* ── Sidebar ─────────────────────────────────────────────────────────────── */
+.app-shell__sidebar {
+  background: color-mix(in oklab, var(--pds-bg-sidebar) 96%, transparent);
+  border-right: 1px solid var(--pds-border-soft);
+  padding: 10px 8px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.app-shell__view-select {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: var(--pds-radius-button);
+  background: var(--pds-bg-control);
+  color: var(--pds-text-primary);
+  font-size: 14px;
+  font-weight: 600;
+  text-align: left;
+}
+.app-shell__view-select > svg:first-child { color: var(--pds-text-secondary); flex: none; }
+.app-shell__view-select span { flex: 1; }
+.app-shell__view-chevron { width: 14px; height: 14px; color: var(--pds-text-tertiary); flex: none; }
+.app-shell__search {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 10px;
+  border-radius: var(--pds-radius-input);
+  background: var(--pds-bg-input);
+  color: var(--pds-text-tertiary);
+  font-size: 13px;
+}
+.app-shell__search svg { width: 13px; height: 13px; opacity: 0.6; }
+.app-shell__rows { display: flex; flex-direction: column; gap: 1px; }
+.app-shell__row {
+  padding: 8px 8px;
+  border-radius: var(--pds-radius-row);
+}
+.app-shell__row--active { background: var(--pds-bg-row-selected); }
+.app-shell__row-title {
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--pds-text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.app-shell__row-meta {
+  margin-top: 2px;
+  font-size: 11px;
+  color: var(--pds-text-tertiary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Sidebar — default notes list vs thread-of-connected-notes (Connect notes tab) */
+.app-shell__sidebar-default {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: 1;
+  min-height: 0;
+}
+.app-thread-panel {
+  display: none;
+  flex-direction: column;
+  gap: 10px;
+  flex: 1;
+  min-height: 0;
+  padding: 2px 0;
+  border-radius: 10px;
+  transition: box-shadow 280ms ease;
+}
+.feature-showcase[data-active="connect"] .app-shell__sidebar-default {
+  display: none;
+}
+.feature-showcase[data-active="connect"] .app-thread-panel {
+  display: flex;
+}
+.app-thread-panel__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.app-thread-panel__label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--pds-text-tertiary);
+}
+.app-thread-panel__label svg { width: 11px; height: 11px; }
+.app-thread-panel__meta {
+  font-size: 11px;
+  color: var(--pds-text-tertiary);
+  white-space: nowrap;
+}
+.app-thread-panel__name {
+  padding: 8px 10px;
+  border-radius: var(--pds-radius-input);
+  background: var(--pds-bg-input);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--pds-text-primary);
+  line-height: 1.3;
+}
+.app-thread-panel__section {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-height: 0;
+}
+.app-thread-panel__section-label {
+  margin: 0 0 2px;
+  padding: 0 4px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--pds-text-tertiary);
+}
+.app-thread-panel__section .app-shell__row-meta {
+  white-space: normal;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.app-thread-panel__connect {
+  margin-top: auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  padding: 8px 12px;
+  border-radius: var(--pds-radius-pill);
+  border: 0.5px solid var(--pds-border);
+  background: var(--pds-bg-control);
+  font-family: var(--pds-font-body);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--pds-text-secondary);
+  cursor: default;
+}
+.app-thread-panel__connect svg { width: 12px; height: 12px; }
+
+/* Today's Passage — floating card at bottom of sidebar (matches real app) */
+.app-shell__passage-card {
+  margin-top: auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: var(--pds-bg-popover-solid);
+  border: 1px solid var(--pds-border);
+  box-shadow: var(--pds-shadow-card);
+}
+.app-shell__passage-label {
+  font-size: 10px;
+  color: var(--pds-text-tertiary);
+  letter-spacing: 0.01em;
+}
+.app-shell__passage-ref {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--pds-text-primary);
+  margin-top: 1px;
+}
+.app-shell__passage-actions {
+  margin-left: auto;
+  display: flex;
+  gap: 4px;
+}
+.app-shell__passage-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  background: var(--pds-bg-control);
+  color: var(--pds-text-secondary);
+}
+.app-shell__passage-btn svg { width: 13px; height: 13px; }
+
+/* ── Canvas + paper note (real app: white card on tinted canvas) ─────────── */
+.app-shell__canvas {
+  position: relative;
+  background: var(--pds-canvas-default);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.app-shell__paper {
+  position: relative;
+  flex: 1;
+  background: var(--pds-paper-sheet);
+  box-shadow: var(--pds-paper-shadow-subtle);
+  padding: 28px 32px 36px;
+  max-width: 680px;
+  width: 100%;
+  margin: 0 auto;
+  min-height: 100%;
+}
+.app-shell__note-title {
+  font-family: var(--pds-font-display);
+  font-variation-settings: var(--pds-font-display-variation);
+  font-size: 26px;
+  font-weight: 620;
+  letter-spacing: -0.022em;
+  line-height: 1.15;
+  color: var(--pds-text-primary);
+  margin-bottom: 14px;
+}
+.app-shell__note-body {
+  font-size: 15px;
+  line-height: 1.65;
+  color: var(--pds-text-primary);
+}
+.app-shell__note-body p + p { margin-top: 0.85em; }
+
+/* Scripture pill — neutral chip matching real app (not blue-tinted in prototype) */
+.app-pill {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.28em;
+  padding: 0.08em 0.35em;
+  border-radius: var(--pds-radius-scripture);
+  background: var(--pds-bg-section);
+  color: var(--pds-text-primary);
+  border: 0.5px solid var(--pds-border);
+  font-weight: inherit;
+  font-size: inherit;
+  white-space: nowrap;
+  cursor: default;
+}
+.app-pill__tl {
+  font-size: 0.68em;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  color: var(--pds-text-secondary);
+  line-height: 1;
+}
+
+/* Looked-up word + floating lookup menu (dictionary tab demo) */
+.app-lookup-wrap {
+  position: relative;
+  display: inline-block;
+  vertical-align: baseline;
+  overflow: visible;
+  z-index: 2;
+}
+.app-lookup {
+  text-decoration: underline dotted;
+  text-decoration-thickness: 1.5px;
+  text-underline-offset: 3px;
+  text-decoration-color: var(--pds-text-tertiary);
+  border-radius: 4px;
+  padding: 0 1px;
+}
+.feature-showcase .app-lookup-wrap.is-active .app-lookup {
+  background: color-mix(in oklab, var(--study-dock-accent-warmAmber) 52%, transparent);
+  text-decoration: underline solid;
+  text-decoration-color: var(--pds-text-primary);
+  text-decoration-thickness: 2px;
+  text-underline-offset: 2px;
+}
+.app-lookup-menu {
+  position: absolute;
+  left: 0;
+  top: calc(100% + 8px);
+  z-index: 6;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: min(280px, 70vw);
+  height: 36px;
+  padding: 0 14px;
+  border-radius: 999px;
+  background: var(--pds-bg-toolbar);
+  backdrop-filter: saturate(180%) blur(20px);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  border: 1px solid var(--pds-border);
+  box-shadow: var(--pds-shadow-toolbar);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.2;
+  color: var(--pds-text-primary);
+  white-space: nowrap;
+  pointer-events: none;
+}
+.app-lookup-menu__icon {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  color: var(--pds-text-secondary);
+}
+.feature-showcase .app-lookup-wrap[data-spot].is-active {
+  box-shadow: none;
+  border-radius: 0;
+}
+.feature-showcase .app-lookup-wrap.is-active .app-lookup-menu {
+  box-shadow:
+    var(--pds-shadow-toolbar),
+    0 0 0 2px var(--pds-accent),
+    0 0 0 8px color-mix(in oklab, var(--pds-accent) 18%, transparent);
+}
+
+/* Highlights — colored underlines (same accents as prototype / study dock) */
+.app-hl {
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 3px;
+  text-decoration-color: var(--hl-color, var(--pds-highlight-warm-amber, #f2cf13));
+}
+.app-hl--warmAmber { --hl-color: var(--pds-highlight-warm-amber, #f2cf13); }
+.app-hl--skyBlue,
+.app-hl--sky { --hl-color: var(--pds-highlight-sky-blue, #30a8db); }
+.app-hl--mintGreen,
+.app-hl--mint { --hl-color: var(--pds-highlight-mint-green, #2bc71e); }
+.app-hl--violet { --hl-color: var(--pds-highlight-violet, #9d5ac7); }
+.app-hl--coralRose { --hl-color: var(--pds-highlight-coral-rose, #eb598e); }
+.app-hl--neutral { --hl-color: var(--pds-highlight-neutral, #9e9e9e); }
+
+:root[data-color-scheme="dark"] .app-hl {
+  text-shadow: 0 0 12px color-mix(in oklab, var(--hl-color, var(--pds-highlight-warm-amber)) 60%, transparent);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-color-scheme="light"]) .app-hl {
+    text-shadow: 0 0 12px color-mix(in oklab, var(--hl-color, var(--pds-highlight-warm-amber)) 60%, transparent);
+  }
+}
+
+/* (ScrollDemo staging removed — no longer used on homepage) */
+
+/* ── App crops — substantial "screenshot" views of each feature in use ───────
+   Real app surfaces (--pds-* tokens, Google Sans Flex), cropped by the card. */
+.app-crop {
+  --marker: linear-gradient(180deg, transparent 58%, var(--pds-selection-bg) 58%);
+  font-family: var(--pds-font-body);
+  font-optical-sizing: auto;
+  color: var(--pds-text-primary);
+  background: var(--pds-bg-page);
+  border: 1px solid var(--pds-border);
+  border-radius: 16px;
+  box-shadow: var(--pds-shadow-drawer);
+  padding: 16px 16px 20px;
+  width: 100%;
+  text-align: left;
+}
+
+/* Note header + title */
+.app-crop__note-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+.app-crop__folder-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: var(--pds-bg-chip);
+  font-size: 12px;
+  font-weight: 500;
+}
+.app-crop__folder-chip::before {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-radius: 3px;
+  background: var(--pds-thread-purple);
+}
+.app-crop__meta-date { font-size: 12px; color: var(--pds-text-tertiary); }
+.app-crop__note-title {
+  font-family: var(--pds-font-display);
+  font-variation-settings: var(--pds-font-display-variation);
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  margin-bottom: 8px;
+}
+
+/* Editor prose */
+.app-crop__prose {
+  font-size: 15px;
+  line-height: 1.6;
+  color: var(--pds-text-primary);
+}
+.app-crop__prose p { margin: 0; }
+.app-crop .app-pill { font-size: 0.92em; padding: 1px 6px; }
+
+/* Verse popover — the pill → translations experience */
+.app-crop__verse-pop {
+  margin-top: 14px;
+  border-radius: 12px;
+  background: var(--pds-bg-popover-solid);
+  border: 1px solid var(--pds-border);
+  box-shadow: var(--pds-shadow-popover);
+  overflow: hidden;
+}
+.app-crop__verse-tabs {
+  display: flex;
+  gap: 2px;
+  padding: 7px 8px;
+  border-bottom: 1px solid var(--pds-border-soft);
+}
+.app-crop__vtab {
+  padding: 3px 8px;
+  border-radius: 7px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--pds-text-tertiary);
+}
+.app-crop__vtab--active { background: var(--pds-accent); color: var(--pds-on-accent); }
+.app-crop__verse-text {
+  padding: 10px 12px 4px;
+  margin: 0;
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: var(--pds-text-primary);
+}
+.app-crop__verse-ref {
+  padding: 0 12px 11px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--pds-scripture-fg);
+}
+
+/* Sidebar / organize view */
+.app-crop__sb-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 12px;
+}
+.app-crop__sb-head .app-crop__count { margin-left: auto; font-weight: 400; }
+.app-crop__chip-dot { width: 10px; height: 10px; border-radius: 3px; background: var(--pds-thread-yellow); }
+.app-crop__search {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  height: 30px;
+  padding: 0 10px;
+  margin-bottom: 14px;
+  border-radius: 10px;
+  background: var(--pds-bg-input);
+  font-size: 13px;
+  color: var(--pds-text-tertiary);
+}
+.app-crop__search svg { width: 13px; height: 13px; opacity: 0.6; }
+.app-crop__section {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--pds-text-tertiary);
+  margin: 0 2px 8px;
+}
+.app-crop__section ~ .app-crop__section { margin-top: 14px; }
+.app-crop__frow {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 9px 10px;
+  border-radius: 10px;
+  margin-bottom: 2px;
+  font-size: 14px;
+  font-weight: 500;
+}
+.app-crop__frow svg { width: 16px; height: 16px; color: var(--pds-text-secondary); flex: none; }
+.app-crop__frow--active { background: var(--pds-bg-row-selected); }
+.app-crop__frow--active svg { color: var(--pds-accent); }
+.app-crop__frow .app-crop__count { margin-left: auto; }
+.app-crop__count { font-size: 12px; color: var(--pds-text-tertiary); }
+.app-crop__tags-row { display: flex; flex-wrap: wrap; gap: 6px; }
+.app-crop__tag {
+  padding: 5px 10px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 500;
+  background: var(--pds-bg-chip);
+  color: var(--pds-text-primary);
+}
+
+/* Highlights dock */
+.app-crop__dock {
+  margin-top: 14px;
+  border-radius: 12px;
+  background: var(--pds-bg-section);
+  border: 1px solid var(--pds-border-soft);
+  padding: 11px 12px;
+}
+.app-crop__dock-head {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--pds-text-tertiary);
+  margin-bottom: 9px;
+}
+.app-crop__hl-row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 13px;
+  padding: 6px 0;
+}
+.app-crop__hl-row + .app-crop__hl-row { border-top: 1px solid var(--pds-border-soft); }
+.app-crop__hl-dot { width: 9px; height: 9px; border-radius: 50%; flex: none; transform: translateY(2px); }
+.app-crop__hl-quote { font-weight: 600; }
+.app-crop__hl-note { color: var(--pds-text-secondary); }
+
+/* ── Feature spotlight — highlight only, never fade ──────────────────────── */
+.feature-showcase [data-spot] {
+  transition: box-shadow 280ms ease, outline 280ms ease;
+  border-radius: 8px;
+}
+/* Active: accent ring around the focused element. Nothing else changes. */
+.feature-showcase [data-spot].is-active {
+  box-shadow:
+    0 0 0 2px var(--pds-accent),
+    0 0 0 8px color-mix(in oklab, var(--pds-accent) 18%, transparent);
+  outline: none;
+}
+/* Inline (pills, highlight text) — lighter ring that doesn't break text flow */
+.feature-showcase span[data-spot].is-active,
+.feature-showcase mark[data-spot].is-active {
+  box-shadow:
+    0 0 0 2px var(--pds-accent),
+    0 0 0 5px color-mix(in oklab, var(--pds-accent) 16%, transparent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .feature-showcase [data-spot] { transition: none; }
+}
+
+/* ── Docks — always visible app surfaces (real app), ringed on their tab ──── */
+.app-dock {
+  position: absolute;
+  z-index: 5;
+  border-radius: 16px;
+  background: var(--pds-bg-popover-solid);
+  border: 1px solid var(--pds-border);
+  box-shadow: var(--pds-shadow-drawer);
+  font-family: var(--pds-font-body);
+  color: var(--pds-text-primary);
+  transition: box-shadow 280ms ease;
+}
+/* Scripture + highlight docks — bottom row, grouped with a tight gap */
+.app-shell__dock-row {
+  position: absolute;
+  z-index: 5;
+  left: 24px;
+  bottom: 16px;
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  max-width: calc(100% - 48px);
+}
+.app-shell__dock-row .app-dock {
+  position: relative;
+  inset: auto;
+}
+.app-dock--scripture {
+  flex: 1 1 420px;
+  width: min(420px, 100%);
+  max-width: 420px;
+  padding: 14px 16px 16px;
+}
+.app-dock--annotation {
+  flex: 0 0 auto;
+  width: min(252px, 38vw);
+  padding: 12px 14px;
+}
+
+.app-dock__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.app-dock__title {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--pds-text-primary);
+  white-space: nowrap;
+  min-width: 0;
+}
+.app-dock__title > svg { width: 14px; height: 14px; color: var(--pds-text-secondary); flex: none; }
+.app-dock__badge {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--pds-text-secondary);
+  background: var(--pds-bg-section);
+  border-radius: 5px;
+  padding: 2px 5px;
+}
+.app-dock__head-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--pds-text-tertiary);
+}
+.app-dock__head-actions svg { width: 14px; height: 14px; }
+.app-dock__hl-dot { width: 11px; height: 11px; border-radius: 50%; background: var(--pds-highlight-warm-amber, #f2cf13); }
+
+/* Scripture dock toolbar (translation / book / chapter : verse) */
+.app-dock__toolbar {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin: 12px 0;
+}
+.app-dock__select {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 9px;
+  border-radius: 8px;
+  background: var(--pds-bg-control);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--pds-text-primary);
+}
+.app-dock__select svg { width: 10px; height: 10px; color: var(--pds-text-tertiary); }
+.app-dock__colon { color: var(--pds-text-tertiary); font-weight: 600; }
+.app-dock__range {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 28px;
+  border-radius: 8px;
+  background: var(--pds-bg-control);
+  color: var(--pds-text-secondary);
+  margin-left: auto;
+}
+.app-dock__range svg { width: 15px; height: 15px; }
+.app-dock__verse {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--pds-text-primary);
+}
+.app-dock__verse sup { font-size: 0.7em; color: var(--pds-text-tertiary); margin-right: 1px; vertical-align: super; }
+
+/* Annotation dock */
+.app-dock__note {
+  margin: 10px 0 0;
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: var(--pds-text-secondary);
+}
+
+.feature-showcase .app-dock[data-spot].is-active {
+  box-shadow:
+    var(--pds-shadow-drawer),
+    0 0 0 2px var(--pds-accent),
+    0 0 0 8px color-mix(in oklab, var(--pds-accent) 18%, transparent);
+}
+
+.feature-showcase .app-thread-panel[data-spot].is-active {
+  box-shadow:
+    0 0 0 2px var(--pds-accent),
+    0 0 0 8px color-mix(in oklab, var(--pds-accent) 18%, transparent);
+}
+
+/* ── Big hero stage — fixed app height; long note copy clips inside the window ─ */
+.hero-stage .app-shell {
+  font-size: 15.5px;
+  --hero-app-body-height: clamp(480px, 52vw, 660px);
+}
+.hero-stage .app-shell__body {
+  height: var(--hero-app-body-height);
+  min-height: var(--hero-app-body-height);
+  max-height: var(--hero-app-body-height);
+  overflow: hidden;
+}
+.hero-stage .app-shell__sidebar {
+  padding: 12px 10px 10px;
+  min-height: 0;
+  overflow: hidden;
+}
+.hero-stage .app-shell__canvas {
+  min-height: 0;
+  overflow-x: visible;
+  overflow-y: hidden;
+}
+.hero-stage .app-shell__note-title { font-size: 30px; }
+.hero-stage .app-shell__note-body { font-size: 16px; line-height: 1.7; }
+.hero-stage .app-shell__paper {
+  position: relative;
+  padding: 32px 38px 48px;
+  /* Tall note body runs past the fold; canvas clips vertically like the real app. */
+  padding-bottom: 220px;
+  overflow: visible;
+}
+/* Bottom fade without mask (mask clipped the dictionary lookup menu at the paper edge). */
+.hero-stage .app-shell__paper::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 42%;
+  pointer-events: none;
+  background: linear-gradient(to bottom, transparent, var(--pds-paper-sheet));
+}
+
+/* ── Responsive: drop the sidebar on narrow screens ────────────────────── */
+@media (max-width: 640px) {
+  .app-shell__body { grid-template-columns: 1fr; }
+  .app-shell__sidebar { display: none; }
+  .app-shell__paper { padding: 18px 18px 24px; }
+  .app-shell__note-title { font-size: 22px; }
+}

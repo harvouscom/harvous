@@ -418,6 +418,7 @@ export default function NotePage() {
               contentEncrypted={note.contentEncrypted ?? false}
               isEditable={isEditable}
               readOnlyLikeScripture={isOnboardingReadonly}
+              spaceId={(note?.spaceId ?? urlSpaceId) ?? undefined}
               editorChromeMode={isEditable ? 'prototypeNative' : 'default'}
               formatToolbarPortalTarget={isEditable ? formatToolbarHostEl : null}
               studyDockCarouselPortalTarget={isEditable ? studyDockCarouselHostEl : null}

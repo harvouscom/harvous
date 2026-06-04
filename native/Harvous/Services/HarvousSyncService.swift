@@ -232,8 +232,10 @@ final class HarvousSyncService {
         remote.spaces = payload.spaces
         remote.allNotes = payload.notes
         remote.allHighlights = payload.studyThreadEntries ?? []
+        remote.allNoteConnections = payload.noteConnections ?? []
         remote.deletedNoteIds = payload.deletedNoteIds ?? []
         remote.deletedHighlightIds = payload.deletedStudyThreadIds ?? []
+        remote.deletedNoteConnectionIds = payload.deletedNoteConnectionIds ?? []
         lastPullAt = Date()
 
         Logger.app.info("Sync bootstrap: \(payload.spaces.count) spaces, \(payload.notes.count) notes, \(self.remote.allHighlights.count) highlights")
@@ -254,8 +256,10 @@ final class HarvousSyncService {
         var mergedSpaces: [APISpace] = []
         var mergedNotes: [APINote] = []
         var mergedHighlights: [APIStudyThreadEntry] = []
+        var mergedNoteConnections: [APINoteConnection] = []
         var mergedDeletedNoteIds = Set<String>()
         var mergedDeletedHighlightIds = Set<String>()
+        var mergedDeletedNoteConnectionIds = Set<String>()
         var sawUpserts = false
         var hasMore = true
 
@@ -272,22 +276,27 @@ final class HarvousSyncService {
             mergedDeletedNoteIds.formUnion(payload.deletedNoteIds ?? [])
             mergedDeletedHighlightIds.formUnion(payload.deletedStudyThreadIds ?? [])
 
+            mergedDeletedNoteConnectionIds.formUnion(payload.deletedNoteConnectionIds ?? [])
+
             if payload.hasChanges {
                 sawUpserts = true
                 mergedSpaces.append(contentsOf: payload.spaces)
                 mergedNotes.append(contentsOf: payload.notes)
                 mergedHighlights.append(contentsOf: payload.studyThreadEntries ?? [])
+                mergedNoteConnections.append(contentsOf: payload.noteConnections ?? [])
             }
         }
 
-        let hasDeletions = !mergedDeletedNoteIds.isEmpty || !mergedDeletedHighlightIds.isEmpty
+        let hasDeletions = !mergedDeletedNoteIds.isEmpty || !mergedDeletedHighlightIds.isEmpty || !mergedDeletedNoteConnectionIds.isEmpty
         guard sawUpserts || hasDeletions else { return }
 
         remote.spaces = mergedSpaces
         remote.allNotes = mergedNotes
         remote.allHighlights = mergedHighlights
+        remote.allNoteConnections = mergedNoteConnections
         remote.deletedNoteIds = Array(mergedDeletedNoteIds)
         remote.deletedHighlightIds = Array(mergedDeletedHighlightIds)
+        remote.deletedNoteConnectionIds = Array(mergedDeletedNoteConnectionIds)
         lastPullAt = Date()
         Logger.app.info(
             "Sync changes: \(mergedNotes.count) notes, \(mergedHighlights.count) highlights, \(mergedDeletedNoteIds.count) note tombstones"
@@ -323,6 +332,10 @@ final class HarvousSyncService {
         if !deletedHighlightIds.isEmpty {
             pruneDeletedHighlights(serverIds: deletedHighlightIds, context: context)
         }
+        let deletedConnectionIds = Set(remote.deletedNoteConnectionIds)
+        if !deletedConnectionIds.isEmpty {
+            pruneDeletedNoteConnections(connectionIds: deletedConnectionIds, context: context)
+        }
 
         linkPersonalHomeSpaceIfNeeded(serverSpaces: remote.spaces, context: context)
         for apiSpace in remote.spaces {
@@ -346,6 +359,9 @@ final class HarvousSyncService {
 
         for apiEntry in remote.allHighlights {
             upsertHighlight(apiEntry, context: context)
+        }
+        for conn in remote.allNoteConnections {
+            upsertNoteConnection(conn, context: context)
         }
         do {
             try context.save()
@@ -380,6 +396,71 @@ final class HarvousSyncService {
             let predicate = #Predicate<StudyThread> { $0.serverId == serverId }
             guard let highlight = try? context.fetch(FetchDescriptor<StudyThread>(predicate: predicate)).first else { continue }
             context.delete(highlight)
+        }
+    }
+
+    /// Synthesizes a `StudyThread(linkedNote)` from a server `NoteConnection` edge.
+    /// Uses `"nc_\(connection.id)"` as the serverId so repeated syncs are idempotent.
+    private func upsertNoteConnection(_ conn: APINoteConnection, context: ModelContext) {
+        let syntheticServerId = "nc_\(conn.id)"
+        let existingPred = #Predicate<StudyThread> { $0.serverId == syntheticServerId }
+        if (try? context.fetch(FetchDescriptor<StudyThread>(predicate: existingPred)).first) != nil {
+            return // already ingested
+        }
+
+        let fromServerId = conn.fromNoteId
+        let toServerId = conn.toNoteId
+        let fromPred = #Predicate<Note> { $0.serverId == fromServerId }
+        let toPred = #Predicate<Note> { $0.serverId == toServerId }
+        guard
+            let fromNote = try? context.fetch(FetchDescriptor<Note>(predicate: fromPred)).first,
+            let toNote = try? context.fetch(FetchDescriptor<Note>(predicate: toPred)).first
+        else { return }
+
+        // If a local (unsynced) thread already exists for this pair, adopt it rather than creating a duplicate.
+        let fromId = fromNote.id
+        let toId = toNote.id
+        let linkedKindRaw = StudyThread.EntryKind.linkedNote.rawValue
+        let localPred = #Predicate<StudyThread> { t in
+            t.parentNoteId == fromId
+                && t.linkedNoteId == toId
+                && t.entryKindRaw == linkedKindRaw
+                && !t.isArchived
+        }
+        if let local = try? context.fetch(FetchDescriptor<StudyThread>(predicate: localPred)).first,
+           (local.serverId ?? "").isEmpty {
+            local.serverId = syntheticServerId
+            try? context.saveWithLogging()
+            return
+        }
+
+        let toTitle = toNote.title.trimmingCharacters(in: .whitespacesAndNewlines)
+        let displayTitle = toTitle.isEmpty ? "Untitled note" : toTitle
+        let entry = StudyThread(
+            spaceId: fromNote.spaceId ?? HarvousSpaceBootstrap.personalHomeSpaceId,
+            parentNoteId: fromNote.id,
+            sourceSnippet: "(Connected note)",
+            focusTitle: displayTitle,
+            notesBody: "",
+            entryKindRaw: StudyThread.EntryKind.linkedNote.rawValue,
+            linkedNoteId: toNote.id,
+            linkedNoteTitle: displayTitle,
+            anchorLocation: -1,
+            anchorLength: 0,
+            anchorTextSnapshot: nil,
+            highlightAccentRaw: StudyHighlightAccentToken.warmAmber.rawValue,
+            parentNote: fromNote
+        )
+        entry.serverId = syntheticServerId
+        context.insert(entry)
+    }
+
+    private func pruneDeletedNoteConnections(connectionIds: Set<String>, context: ModelContext) {
+        for connId in connectionIds {
+            let syntheticServerId = "nc_\(connId)"
+            let predicate = #Predicate<StudyThread> { $0.serverId == syntheticServerId }
+            guard let entry = try? context.fetch(FetchDescriptor<StudyThread>(predicate: predicate)).first else { continue }
+            context.delete(entry)
         }
     }
 
@@ -513,6 +594,13 @@ final class HarvousSyncService {
             if let snippet = api.sourceSnippet { existing.sourceSnippet = snippet }
             if let title = api.focusTitle { existing.focusTitle = title }
             if let mini = api.miniNoteBody { existing.miniNoteBody = mini }
+            if let linkedServerId = api.linkedNoteId {
+                let lnPred = #Predicate<Note> { $0.serverId == linkedServerId }
+                if let linked = try? context.fetch(FetchDescriptor<Note>(predicate: lnPred)).first {
+                    existing.linkedNoteId = linked.id
+                    existing.linkedNoteTitle = api.linkedNoteTitle ?? linked.title
+                }
+            }
             existing.updatedAt = Date()
         } else {
             // First-pull highlights without a local parent are skipped — the
@@ -522,6 +610,16 @@ final class HarvousSyncService {
             guard let parent = try? context.fetch(FetchDescriptor<Note>(predicate: parentPredicate)).first else {
                 return
             }
+            // Resolve the linked note UUID for linkedNote-kind entries.
+            var resolvedLinkedNoteId: UUID? = nil
+            var resolvedLinkedNoteTitle: String = api.linkedNoteTitle ?? ""
+            if let linkedServerId = api.linkedNoteId {
+                let lnPred = #Predicate<Note> { $0.serverId == linkedServerId }
+                if let linked = try? context.fetch(FetchDescriptor<Note>(predicate: lnPred)).first {
+                    resolvedLinkedNoteId = linked.id
+                    if resolvedLinkedNoteTitle.isEmpty { resolvedLinkedNoteTitle = linked.title }
+                }
+            }
             let entry = StudyThread(
                 spaceId: parent.spaceId ?? HarvousSpaceBootstrap.personalHomeSpaceId,
                 parentNoteId: parent.id,
@@ -530,6 +628,8 @@ final class HarvousSyncService {
                 notesBody: "",
                 entryKindRaw: api.entryKind ?? StudyThread.EntryKind.miniNote.rawValue,
                 miniNoteBody: api.miniNoteBody ?? "",
+                linkedNoteId: resolvedLinkedNoteId,
+                linkedNoteTitle: resolvedLinkedNoteTitle,
                 scriptureReference: api.scriptureReference,
                 scripturePassageTranslation: api.scripturePassageTranslation,
                 scripturePassageExcerpt: api.scripturePassageExcerpt,
@@ -780,12 +880,24 @@ final class HarvousSyncService {
                     Logger.app.error("flush highlight update \(serverId, privacy: .public) failed: \(error.localizedDescription, privacy: .public)")
                 }
             } else {
+                // Resolve linked note's server ID for linkedNote-kind entries.
+                var linkedNoteServerId: String? = nil
+                var linkedNoteTitleOut: String? = nil
+                if let linkedLocalId = entry.linkedNoteId {
+                    let lnPred = #Predicate<Note> { $0.id == linkedLocalId }
+                    if let linked = try? context.fetch(FetchDescriptor<Note>(predicate: lnPred)).first {
+                        linkedNoteServerId = linked.serverId
+                        linkedNoteTitleOut = entry.linkedNoteTitle.isEmpty ? linked.title : entry.linkedNoteTitle
+                    }
+                }
                 let body = CreateHighlightPayload(
                     entryKind: entry.entryKindRaw,
                     sourceSnippet: entry.sourceSnippet,
                     highlightAccentRaw: entry.highlightAccentRaw,
                     miniNoteBody: entry.miniNoteBody,
                     focusTitle: entry.focusTitle,
+                    linkedNoteId: linkedNoteServerId,
+                    linkedNoteTitle: linkedNoteTitleOut,
                     scriptureReference: entry.scriptureReference,
                     scripturePassageTranslation: entry.scripturePassageTranslation,
                     scripturePassageExcerpt: entry.scripturePassageExcerpt,
@@ -830,8 +942,10 @@ struct RemoteSnapshot {
     var spaces: [APISpace] = []
     var allNotes: [APINote] = []
     var allHighlights: [APIStudyThreadEntry] = []
+    var allNoteConnections: [APINoteConnection] = []
     var deletedNoteIds: [String] = []
     var deletedHighlightIds: [String] = []
+    var deletedNoteConnectionIds: [String] = []
 
     // Legacy per-space keyed views — kept so any remaining call-sites compile.
     var notesBySpace: [String: [APINote]] {
@@ -895,6 +1009,8 @@ private struct CreateHighlightPayload: Encodable {
     let highlightAccentRaw: String
     let miniNoteBody: String
     let focusTitle: String
+    let linkedNoteId: String?
+    let linkedNoteTitle: String?
     let scriptureReference: String?
     let scripturePassageTranslation: String?
     let scripturePassageExcerpt: String?

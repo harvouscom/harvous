@@ -1,0 +1,112 @@
+---
+// Big rounded card container — the "contained section" look (like the founder
+// letter). Slot-based, optional eyebrow + title + lead, optional pastel tone wash.
+interface Props {
+  eyebrow?: string;
+  title?: string;
+  lead?: string;
+  tone?: "card" | "warm" | "sky" | "mint" | "lilac" | "peach" | "plain";
+  class?: string;
+  /** Narrower measure so display titles wrap in balanced lines (e.g. avoid one-word widows). */
+  balancedTitle?: boolean;
+  balancedTitleMeasure?: string;
+}
+const {
+  eyebrow,
+  title,
+  lead,
+  tone = "card",
+  class: className = "",
+  balancedTitle = false,
+  balancedTitleMeasure = "15ch",
+} = Astro.props;
+
+const tones: Record<string, string> = {
+  card: "var(--color-card)",
+  warm: "var(--color-warm)",
+  sky: "var(--color-sky)",
+  mint: "var(--color-mint)",
+  lilac: "var(--color-lilac)",
+  peach: "var(--color-peach)",
+  plain: "transparent",
+};
+const bg = tones[tone] ?? tones.card;
+const isPlain = tone === "plain";
+---
+
+<section class={`section-card-outer ${className}`}>
+  <div class:list={["section-card", isPlain && "section-card--plain"]} data-reveal style={`background: ${bg};`}>
+    {(eyebrow || title || lead) && (
+      <div class="section-card__head">
+        {eyebrow && <div class="section-card__eyebrow">{eyebrow}</div>}
+        {title && (
+          <h2
+            class:list={["section-card__title", balancedTitle && "section-card__title--balanced"]}
+            style={balancedTitle ? `--section-title-measure: ${balancedTitleMeasure}` : undefined}
+          >
+            {title}
+          </h2>
+        )}
+        {lead && <p class="section-card__lead">{lead}</p>}
+      </div>
+    )}
+    <slot />
+  </div>
+</section>
+
+<style>
+  .section-card-outer {
+    margin-inline: auto;
+    max-width: 72rem;
+    padding-inline: 1.25rem;
+    padding-block: 1.25rem;
+  }
+  .section-card {
+    border-radius: 2rem;
+    border: 1px solid var(--color-rule);
+    box-shadow: var(--shadow-card);
+    padding: 2.5rem 1.5rem;
+  }
+  @media (min-width: 768px) {
+    .section-card { padding: 3.5rem 3rem; }
+  }
+  .section-card--plain {
+    border: none;
+    box-shadow: none;
+    padding-inline: 0;
+  }
+  @media (min-width: 768px) {
+    .section-card--plain { padding-inline: 0; }
+  }
+  .section-card__head {
+    margin-inline: auto;
+    max-width: 42rem;
+    margin-bottom: 2.5rem;
+    text-align: center;
+  }
+  .section-card__eyebrow {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    color: var(--color-ink-faint);
+  }
+  .section-card__title {
+    margin-top: 0.75rem;
+    font-family: var(--font-display);
+    font-size: clamp(2rem, 4vw, 3.25rem);
+    line-height: 1.05;
+    letter-spacing: -0.02em;
+    color: var(--color-ink);
+  }
+  .section-card__title--balanced {
+    margin-inline: auto;
+    max-width: var(--section-title-measure, 15ch);
+  }
+  .section-card__lead {
+    margin: 1rem auto 0;
+    max-width: 36rem;
+    font-size: 1.0625rem;
+    line-height: 1.6;
+    color: var(--color-ink-soft);
+  }
+</style>

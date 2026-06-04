@@ -7,12 +7,15 @@
  *   DELETE /api/notes/delete
  *   GET  /api/notes/next-id
  *   POST /api/notes/connect-link
+ *   DELETE /api/notes/connect-link
+ *   POST /api/notes/migrate-connections
  *   GET  /api/notes/recent
  *   POST /api/notes/auto-tags
  *   POST /api/notes/cleanup-upgrade-note
  *   DELETE /api/notes/delete-all-unorganized
  *   POST /api/notes/suggest-threads
  *   GET  /api/notes/:id/details
+ *   GET  /api/notes/:id/thread
  *   POST /api/notes/:id/update-content
  *   POST /api/notes/:id/add-thread
  *   POST /api/notes/:id/remove-thread
@@ -26,7 +29,7 @@ import { Hono } from 'hono';
 import { getAuthenticatedAuth, requireAuth, requireParam } from '../middleware/auth';
 import {
   db, Notes, Threads, NoteThreads, StudyThreadEntries, Comments, Tags, NoteTags,
-  UserMetadata, ScriptureMetadata, NoteScriptureReferences, ResourceMetadata,
+  UserMetadata, ScriptureMetadata, NoteScriptureReferences, NoteConnections, ResourceMetadata,
   eq, and, or, ne, desc, asc, count, like, not, isNull, isNotNull, inArray, sql,
   first,
 } from '../db';
@@ -35,6 +38,13 @@ import { generateNoteId, generateShareToken, generateTimestampId } from '@/utils
 import { getHarvousSystemUserId } from '../utils/harvous-admin';
 import { handleAPIError } from '@/utils/error-handling';
 import { validateContent, validateNoteType, validateThreadId, validateSpaceId, normalizeUrl, extractDomain, validateResourceUrl } from '@/utils/validation';
+import { pickStudyThreadRepresentativeNoteId, type StudyThreadSuggestNode } from '@/utils/suggest-study-thread-title';
+import { normalizeServerNoteId } from '../utils/normalize-note-id';
+import { fetchStudyThreadNoteRows } from '../utils/study-thread-note-rows';
+import { resolveStudyThreadClusterNaming } from '../utils/study-thread-cluster-naming';
+import { collectStudyThreadGraphForScope } from '../utils/study-thread-space';
+import { migrateLinkedFromNoteConnectionsForUser } from '../utils/prototype-user-migration';
+import { isStudyThreadNamingColumnMissing } from '../utils/pg-undefined-relation';
 import { rateLimit, rateLimitNoteCreate } from '@/utils/rate-limit';
 import { parseScriptureReference, normalizeScriptureReference } from '@/utils/scripture-detector';
 import { debug } from '@/utils/logger';
@@ -248,6 +258,22 @@ route.post('/api/notes/create', requireAuth, rateLimitNoteCreate(), async (c) =>
     await db.update(UserMetadata)
       .set({ highestSimpleNoteId: nextSimpleNoteId, updatedAt: nowISO() })
       .where(eq(UserMetadata.userId, auth.userId));
+
+    // Mirror create-from-highlight link into the NoteConnections graph.
+    if (resolvedLinkedFromNoteId) {
+      try {
+        await db.insert(NoteConnections).values({
+          id: generateNoteId(),
+          fromNoteId: resolvedLinkedFromNoteId,
+          toNoteId: newNote.id,
+          userId: auth.userId,
+          spaceId: finalSpaceId ?? null,
+          createdAt: nowISO(),
+        });
+      } catch {
+        // Duplicate or constraint error — connection already exists, safe to ignore.
+      }
+    }
 
     let noteStaysInUnorganized = true;
 
@@ -542,6 +568,7 @@ route.put('/api/notes/update', requireAuth, rateLimit('write'), async (c) => {
 });
 
 // ─── POST /api/notes/connect-link ─────────────────────────────────────────────
+// Creates an edge in the NoteConnections graph (many-to-many, cycles allowed).
 route.post('/api/notes/connect-link', requireAuth, rateLimit('write'), async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
@@ -557,10 +584,12 @@ route.post('/api/notes/connect-link', requireAuth, rateLimit('write'), async (c)
     }
 
     const parent = first(
-      await db.select().from(Notes).where(and(eq(Notes.id, parentNoteId), eq(Notes.userId, auth.userId))).limit(1),
+      await db.select({ id: Notes.id, threadId: Notes.threadId, noteType: Notes.noteType, addedBy: Notes.addedBy, spaceId: Notes.spaceId })
+        .from(Notes).where(and(eq(Notes.id, parentNoteId), eq(Notes.userId, auth.userId))).limit(1),
     );
     const linked = first(
-      await db.select().from(Notes).where(and(eq(Notes.id, linkedNoteId), eq(Notes.userId, auth.userId))).limit(1),
+      await db.select({ id: Notes.id, threadId: Notes.threadId, noteType: Notes.noteType, addedBy: Notes.addedBy, spaceId: Notes.spaceId })
+        .from(Notes).where(and(eq(Notes.id, linkedNoteId), eq(Notes.userId, auth.userId))).limit(1),
     );
     if (!parent || !linked) {
       return c.json({ success: false, error: 'Note not found', code: 'NOT_FOUND' }, 404);
@@ -572,43 +601,276 @@ route.post('/api/notes/connect-link', requireAuth, rateLimit('write'), async (c)
       return c.json({ success: false, error: 'Only default notes can be linked.', code: 'INVALID_NOTE_TYPE' }, 400);
     }
 
-    const parentSpace = normalizeOwnedNoteSpaceId(parent.spaceId ?? null);
-    const linkedSpace = normalizeOwnedNoteSpaceId(linked.spaceId ?? null);
-    if (!parentSpace || !linkedSpace || parentSpace !== linkedSpace) {
-      return c.json({ success: false, error: 'Both notes must be in the same space.', code: 'SPACE_MISMATCH' }, 400);
-    }
-
-    if (linked.linkedFromNoteId === parentNoteId) {
-      return c.json({ success: true, alreadyLinked: true, linkedNoteId });
-    }
-
-    let walk: string | null = parentNoteId;
-    const seen = new Set<string>();
-    while (walk && !seen.has(walk)) {
-      seen.add(walk);
-      if (walk === linkedNoteId) {
-        return c.json({ success: false, error: 'That link would create a cycle.', code: 'LINK_CYCLE' }, 400);
+    // Insert edge — unique constraint handles the "already linked" case.
+    const spaceId = normalizeOwnedNoteSpaceId(parent.spaceId ?? null) ?? null;
+    try {
+      await db.insert(NoteConnections).values({
+        id: generateNoteId(),
+        fromNoteId: parentNoteId,
+        toNoteId: linkedNoteId,
+        userId: auth.userId,
+        spaceId,
+        createdAt: nowISO(),
+      });
+    } catch (err: any) {
+      // Unique constraint violation = already connected.
+      if (err?.code === '23505' || err?.message?.includes('unique') || err?.message?.includes('duplicate')) {
+        return c.json({ success: true, alreadyLinked: true });
       }
-      const row = first(
-        await db
-          .select({ linkedFromNoteId: Notes.linkedFromNoteId })
-          .from(Notes)
-          .where(and(eq(Notes.id, walk), eq(Notes.userId, auth.userId)))
-          .limit(1),
-      );
-      walk = row?.linkedFromNoteId ?? null;
+      throw err;
     }
-
-    await db.update(Notes).set({ linkedFromNoteId: parentNoteId, updatedAt: nowISO() })
-      .where(and(eq(Notes.id, linkedNoteId), eq(Notes.userId, auth.userId)));
-
-    await db.update(Notes).set({ updatedAt: nowISO() })
-      .where(and(eq(Notes.id, parentNoteId), eq(Notes.userId, auth.userId)));
 
     broadcastInvalidation(auth.userId, { type: 'note:updated', id: parentNoteId });
+    broadcastInvalidation(auth.userId, { type: 'note:updated', id: linkedNoteId });
     return c.json({ success: true });
   } catch (error: any) {
     const standardError = handleAPIError(error, { endpoint: '/api/notes/connect-link', action: 'connect_link' });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+
+// ─── DELETE /api/notes/connect-link ──────────────────────────────────────────
+// Removes an edge from the NoteConnections graph.
+route.delete('/api/notes/connect-link', requireAuth, rateLimit('write'), async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+
+    const body = (await c.req.json().catch(() => ({}))) as Record<string, unknown>;
+    const fromNoteId = typeof body.fromNoteId === 'string' ? body.fromNoteId.trim() : '';
+    const toNoteId = typeof body.toNoteId === 'string' ? body.toNoteId.trim() : '';
+    if (!fromNoteId || !toNoteId) {
+      return c.json({ success: false, error: 'fromNoteId and toNoteId are required', code: 'INVALID_BODY' }, 400);
+    }
+
+    const existing = first(
+      await db.select({ id: NoteConnections.id })
+        .from(NoteConnections)
+        .where(and(
+          eq(NoteConnections.fromNoteId, fromNoteId),
+          eq(NoteConnections.toNoteId, toNoteId),
+          eq(NoteConnections.userId, auth.userId),
+        ))
+        .limit(1),
+    );
+
+    await db.delete(NoteConnections)
+      .where(and(
+        eq(NoteConnections.fromNoteId, fromNoteId),
+        eq(NoteConnections.toNoteId, toNoteId),
+        eq(NoteConnections.userId, auth.userId),
+      ));
+
+    if (existing) {
+      await recordDeletedEntities(auth.userId, 'noteConnection', [existing.id]);
+    }
+
+    broadcastInvalidation(auth.userId, { type: 'note:updated', id: fromNoteId });
+    broadcastInvalidation(auth.userId, { type: 'note:updated', id: toNoteId });
+    return c.json({ success: true });
+  } catch (error: any) {
+    const standardError = handleAPIError(error, { endpoint: '/api/notes/connect-link', action: 'disconnect_link' });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+
+// ─── POST /api/notes/migrate-connections ─────────────────────────────────────
+// One-time, idempotent backfill: creates NoteConnections rows from all existing
+// Notes.linkedFromNoteId values for the authenticated user.
+route.post('/api/notes/migrate-connections', requireAuth, async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const { migrated, skipped } = await migrateLinkedFromNoteConnectionsForUser(auth.userId);
+    return c.json({ success: true, migrated, skipped });
+  } catch (error: any) {
+    const standardError = handleAPIError(error, { endpoint: '/api/notes/migrate-connections', action: 'migrate_connections' });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+
+// ─── GET /api/notes/:id/thread ───────────────────────────────────────────────
+// Returns the study thread graph for a note: bidirectional BFS over NoteConnections.
+// Response is flat: { focusNoteId, nodes[], edges[], nodeCount }.
+route.get('/api/notes/:id/thread', requireAuth, async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const focusNoteId = normalizeServerNoteId(requireParam(c, 'id'));
+
+    const focus = first(
+      await db
+        .select({ id: Notes.id, spaceId: Notes.spaceId })
+        .from(Notes)
+        .where(and(eq(Notes.id, focusNoteId), eq(Notes.userId, auth.userId)))
+        .limit(1),
+    );
+    if (!focus) return c.json({ success: false, error: 'Note not found' }, 404);
+
+    const preferredSpaceId =
+      typeof c.req.query('spaceId') === 'string' ? c.req.query('spaceId') : undefined;
+    const { graph } = await collectStudyThreadGraphForScope(focusNoteId, auth.userId, {
+      preferredSpaceId,
+      maxNodes: 200,
+    });
+    const { nodeIds, edges: uniqueEdges, degreeMap } = graph;
+
+    const noteRows = await fetchStudyThreadNoteRows(nodeIds, auth.userId);
+
+    const repNoteId =
+      pickStudyThreadRepresentativeNoteId(degreeMap.keys(), degreeMap) ?? focusNoteId;
+
+    // Batch resource metadata.
+    const resourceIds = noteRows.filter((n) => n.noteType === 'resource').map((n) => n.id);
+    let resourceMap: Record<string, { sourceTitle: string | null; sourceDescription: string | null; sourceImage: string | null }> = {};
+    if (resourceIds.length > 0) {
+      try {
+        const rmList = await db.select({ noteId: ResourceMetadata.noteId, sourceTitle: ResourceMetadata.sourceTitle, sourceDescription: ResourceMetadata.sourceDescription, sourceImage: ResourceMetadata.sourceImage })
+          .from(ResourceMetadata).where(inArray(ResourceMetadata.noteId, resourceIds));
+        resourceMap = Object.fromEntries(rmList.map((m) => [m.noteId, m]));
+      } catch { resourceMap = {}; }
+    }
+
+    const nodes = noteRows.map((n) => {
+      const rm = n.noteType === 'resource' ? resourceMap[n.id] : null;
+      return {
+        id: n.id,
+        title: n.title,
+        content: n.content,
+        simpleNoteId: n.simpleNoteId ?? null,
+        noteType: n.noteType || 'default',
+        resourceTitle: rm?.sourceTitle ?? null,
+        resourceDescription: rm?.sourceDescription ?? null,
+        resourceImage: rm?.sourceImage ?? null,
+      };
+    });
+
+    const suggestNodes: StudyThreadSuggestNode[] = noteRows.map((n) => {
+      const rm = n.noteType === 'resource' ? resourceMap[n.id] : null;
+      return {
+        id: n.id,
+        title: n.title,
+        content: n.content,
+        noteType: n.noteType,
+        resourceTitle: rm?.sourceTitle ?? null,
+        resourceDescription: rm?.sourceDescription ?? null,
+        updatedAt: n.updatedAt ? n.updatedAt.toISOString() : null,
+      };
+    });
+    const naming = resolveStudyThreadClusterNaming(noteRows, suggestNodes, repNoteId);
+
+    return c.json({
+      success: true,
+      focusNoteId,
+      repNoteId: naming.repNoteId,
+      threadTitle: naming.threadTitle,
+      suggestedTitle: naming.suggestedTitle,
+      studyThreadUserOverride: naming.studyThreadUserOverride,
+      studyThreadPinned: naming.studyThreadPinned,
+      nodes,
+      edges: uniqueEdges,
+      nodeCount: nodes.length,
+    });
+  } catch (error: any) {
+    const standardError = handleAPIError(error, { endpoint: '/api/notes/[id]/thread', action: 'get_note_thread' });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+
+// ─── PATCH /api/notes/:id/study-thread-title ────────────────────────────────
+// Sets (or clears) the custom study-thread name on the representative note.
+route.patch('/api/notes/:id/study-thread-title', requireAuth, rateLimit('write'), async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const noteId = normalizeServerNoteId(requireParam(c, 'id'));
+    const body = (await c.req.json().catch(() => ({}))) as Record<string, unknown>;
+    const hasTitleField = Object.prototype.hasOwnProperty.call(body, 'title');
+    const title = hasTitleField
+      ? typeof body.title === 'string'
+        ? body.title.trim() || null
+        : null
+      : undefined;
+    const userOverride =
+      typeof body.userOverride === 'boolean' ? body.userOverride : undefined;
+    const pinned = typeof body.pinned === 'boolean' ? body.pinned : undefined;
+
+    const note = first(
+      await db
+        .select({ id: Notes.id, spaceId: Notes.spaceId })
+        .from(Notes)
+        .where(and(eq(Notes.id, noteId), eq(Notes.userId, auth.userId)))
+        .limit(1),
+    );
+    if (!note) return c.json({ success: false, error: 'Note not found' }, 404);
+
+    const preferredSpaceId =
+      typeof c.req.query('spaceId') === 'string' ? c.req.query('spaceId') : undefined;
+    const { graph } = await collectStudyThreadGraphForScope(noteId, auth.userId, {
+      preferredSpaceId,
+      maxNodes: 200,
+    });
+    const repNoteId =
+      pickStudyThreadRepresentativeNoteId(graph.degreeMap.keys(), graph.degreeMap) ?? noteId;
+    const clusterIds = graph.nodeIds.length > 0 ? graph.nodeIds : [repNoteId];
+
+    const applyNamingToCluster = async (payload: Record<string, unknown>, ids: string[]) => {
+      if (ids.length === 0) return;
+      await db
+        .update(Notes)
+        .set(payload as Record<string, unknown>)
+        .where(and(inArray(Notes.id, ids), eq(Notes.userId, auth.userId)));
+    };
+
+    try {
+      if (userOverride === false) {
+        await applyNamingToCluster(
+          {
+            studyThreadTitle: null,
+            studyThreadUserOverride: false,
+            studyThreadLastAutoSuggestedAt: new Date(),
+            updatedAt: nowISO(),
+          },
+          clusterIds,
+        );
+      } else if (title !== undefined) {
+        const manualPayload: Record<string, unknown> = {
+          studyThreadTitle: title,
+          studyThreadUserOverride: userOverride ?? true,
+          updatedAt: nowISO(),
+        };
+        await applyNamingToCluster(manualPayload, clusterIds);
+      }
+
+      if (pinned !== undefined) {
+        await db
+          .update(Notes)
+          .set({ studyThreadPinned: pinned, updatedAt: nowISO() })
+          .where(and(eq(Notes.id, repNoteId), eq(Notes.userId, auth.userId)));
+      }
+    } catch (error) {
+      if (!isStudyThreadNamingColumnMissing(error)) throw error;
+      const fallback: Record<string, unknown> = { updatedAt: nowISO() };
+      if (title !== undefined) {
+        fallback.studyThreadTitle = title;
+        fallback.studyThreadUserOverride =
+          userOverride !== undefined ? userOverride : title ? true : false;
+      } else if (userOverride !== undefined) {
+        fallback.studyThreadUserOverride = userOverride;
+      }
+      if (userOverride === false) {
+        fallback.studyThreadTitle = null;
+      }
+      if (Object.keys(fallback).length > 1) {
+        await applyNamingToCluster(fallback, clusterIds);
+      }
+    }
+
+    broadcastInvalidation(auth.userId, { type: 'note:updated', id: repNoteId });
+    return c.json({
+      success: true,
+      title: title !== undefined ? title : undefined,
+      userOverride,
+      pinned,
+    });
+  } catch (error: any) {
+    const standardError = handleAPIError(error, { endpoint: '/api/notes/[id]/study-thread-title', action: 'update_study_thread_title' });
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
@@ -1207,88 +1469,59 @@ route.get('/api/notes/:id/details', requireAuth, async (c) => {
       } catch { referencingNotes = []; }
     }
 
+    // Read connections from the NoteConnections graph (many-to-many).
+    // linkedFromNotes = edges where this note is the *target* (incoming).
+    // linkedToNotes   = edges where this note is the *source* (outgoing).
     let linkedFromNotes: any[] = [];
-    const linkedFromId = note.linkedFromNoteId;
-    if (linkedFromId && note.noteType === 'default' && !isMemberView && note.userId === auth.userId) {
-      try {
-        const src = first(await db.select({
-          id: Notes.id, title: Notes.title, content: Notes.content, simpleNoteId: Notes.simpleNoteId, noteType: Notes.noteType, createdAt: Notes.createdAt, updatedAt: Notes.updatedAt,
-        })
-          .from(Notes)
-          .where(and(eq(Notes.id, linkedFromId), eq(Notes.userId, note.userId)))
-          .limit(1));
-        if (src) {
-          let lfResourceTitle: string | null = null, lfResourceDescription: string | null = null, lfResourceImage: string | null = null;
-          if (src.noteType === 'resource') {
-            try {
-              const rm = first(await db.select({ sourceTitle: ResourceMetadata.sourceTitle, sourceDescription: ResourceMetadata.sourceDescription, sourceImage: ResourceMetadata.sourceImage })
-                .from(ResourceMetadata).where(eq(ResourceMetadata.noteId, src.id)).limit(1));
-              lfResourceTitle = rm?.sourceTitle || null;
-              lfResourceDescription = rm?.sourceDescription || null;
-              lfResourceImage = rm?.sourceImage || null;
-            } catch { /* ignore */ }
-          }
-          linkedFromNotes = [{
-            ...src,
-            noteType: src.noteType || 'default',
-            resourceTitle: lfResourceTitle,
-            resourceDescription: lfResourceDescription,
-            resourceImage: lfResourceImage,
-          }];
-        }
-      } catch { linkedFromNotes = []; }
-    }
-
     let linkedToNotes: any[] = [];
     if (!isMemberView && note.userId === auth.userId) {
       try {
-        const outgoingRows = await db.select({
-          id: Notes.id,
-          title: Notes.title,
-          content: Notes.content,
-          simpleNoteId: Notes.simpleNoteId,
-          noteType: Notes.noteType,
-          createdAt: Notes.createdAt,
-          updatedAt: Notes.updatedAt,
-        })
-          .from(Notes)
-          .where(
-            and(
-              eq(Notes.linkedFromNoteId, noteId),
-              eq(Notes.userId, auth.userId),
-              eq(Notes.noteType, 'default'),
-            ),
-          )
-          .orderBy(desc(Notes.updatedAt))
-          .limit(50);
-        const ltResourceIds = outgoingRows.filter((r) => r.noteType === 'resource').map((r) => r.id);
-        let ltResourceMap: Record<string, { sourceTitle: string | null; sourceDescription: string | null; sourceImage: string | null }> = {};
-        if (ltResourceIds.length > 0) {
-          try {
-            const rmList = await db.select({
-              noteId: ResourceMetadata.noteId,
-              sourceTitle: ResourceMetadata.sourceTitle,
-              sourceDescription: ResourceMetadata.sourceDescription,
-              sourceImage: ResourceMetadata.sourceImage,
-            })
-              .from(ResourceMetadata)
-              .where(inArray(ResourceMetadata.noteId, ltResourceIds));
-            ltResourceMap = Object.fromEntries(rmList.map((m) => [m.noteId, m]));
-          } catch { ltResourceMap = {}; }
-        }
-        linkedToNotes = outgoingRows.map((row) => {
-          const rm = row.noteType === 'resource' ? ltResourceMap[row.id] : null;
-          return {
-            ...row,
-            noteType: row.noteType || 'default',
-            resourceTitle: rm?.sourceTitle ?? null,
-            resourceDescription: rm?.sourceDescription ?? null,
-            resourceImage: rm?.sourceImage ?? null,
+        const [incomingEdges, outgoingEdges] = await Promise.all([
+          db.select({ fromNoteId: NoteConnections.fromNoteId })
+            .from(NoteConnections)
+            .where(and(eq(NoteConnections.toNoteId, noteId), eq(NoteConnections.userId, auth.userId)))
+            .limit(100),
+          db.select({ toNoteId: NoteConnections.toNoteId })
+            .from(NoteConnections)
+            .where(and(eq(NoteConnections.fromNoteId, noteId), eq(NoteConnections.userId, auth.userId)))
+            .limit(100),
+        ]);
+
+        const allConnectedIds = [
+          ...incomingEdges.map((e) => e.fromNoteId),
+          ...outgoingEdges.map((e) => e.toNoteId),
+        ];
+
+        if (allConnectedIds.length > 0) {
+          const connectedRows = await db.select({
+            id: Notes.id, title: Notes.title, content: Notes.content,
+            simpleNoteId: Notes.simpleNoteId, noteType: Notes.noteType,
+            createdAt: Notes.createdAt, updatedAt: Notes.updatedAt,
+          }).from(Notes)
+            .where(and(inArray(Notes.id, allConnectedIds), eq(Notes.userId, auth.userId)));
+
+          const connResourceIds = connectedRows.filter((r) => r.noteType === 'resource').map((r) => r.id);
+          let connResourceMap: Record<string, { sourceTitle: string | null; sourceDescription: string | null; sourceImage: string | null }> = {};
+          if (connResourceIds.length > 0) {
+            try {
+              const rmList = await db.select({ noteId: ResourceMetadata.noteId, sourceTitle: ResourceMetadata.sourceTitle, sourceDescription: ResourceMetadata.sourceDescription, sourceImage: ResourceMetadata.sourceImage })
+                .from(ResourceMetadata).where(inArray(ResourceMetadata.noteId, connResourceIds));
+              connResourceMap = Object.fromEntries(rmList.map((m) => [m.noteId, m]));
+            } catch { connResourceMap = {}; }
+          }
+
+          const rowById = Object.fromEntries(connectedRows.map((r) => [r.id, r]));
+          const toRef = (id: string): any | null => {
+            const r = rowById[id];
+            if (!r) return null;
+            const rm = r.noteType === 'resource' ? connResourceMap[r.id] : null;
+            return { ...r, noteType: r.noteType || 'default', resourceTitle: rm?.sourceTitle ?? null, resourceDescription: rm?.sourceDescription ?? null, resourceImage: rm?.sourceImage ?? null };
           };
-        });
-      } catch {
-        linkedToNotes = [];
-      }
+
+          linkedFromNotes = incomingEdges.map((e) => toRef(e.fromNoteId)).filter(Boolean);
+          linkedToNotes = outgoingEdges.map((e) => toRef(e.toNoteId)).filter(Boolean);
+        }
+      } catch { linkedFromNotes = []; linkedToNotes = []; }
     }
 
     let studyThreads: any[] = [];

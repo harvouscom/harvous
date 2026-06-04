@@ -2,7 +2,7 @@
 
 This document describes how the **production SPA** split works today: classic routes versus the **`/prototype` shell**, how data reaches both from the same API, how that compares to **native** SwiftData clients, and what moving toward a unified “2.0” product implies for users and engineering.
 
-**See also:** [ARCHITECTURE_DIAGRAM.md](./ARCHITECTURE_DIAGRAM.md) (combined Mermaid diagram of clients, API, DB, and folders-vs-threads usage by surface), [SIMPLIFIED_WEB_PROTOTYPE.md](./SIMPLIFIED_WEB_PROTOTYPE.md) (quick entry and file pointers), [design-parity/PROTOTYPE_NATIVE_MENU_CONTENT_PARITY.md](./design-parity/PROTOTYPE_NATIVE_MENU_CONTENT_PARITY.md) (menu and surface parity checklist), [native-prototype/NATIVE_2_0_PLATFORM_STRATEGY.md](./native-prototype/NATIVE_2_0_PLATFORM_STRATEGY.md) (migration, auth, data, and billing options — draft for review).
+**See also:** [ARCHITECTURE_DIAGRAM.md](./ARCHITECTURE_DIAGRAM.md) (combined Mermaid diagram of clients, API, DB, and folders-vs-threads usage by surface), [SIMPLIFIED_WEB_PROTOTYPE.md](./SIMPLIFIED_WEB_PROTOTYPE.md) (quick entry and file pointers), [CLASSIC_TO_2_0_MIGRATION.md](./CLASSIC_TO_2_0_MIGRATION.md) (Classic user migration runbook), [design-parity/PROTOTYPE_NATIVE_MENU_CONTENT_PARITY.md](./design-parity/PROTOTYPE_NATIVE_MENU_CONTENT_PARITY.md) (menu and surface parity checklist), [native-prototype/NATIVE_2_0_PLATFORM_STRATEGY.md](./native-prototype/NATIVE_2_0_PLATFORM_STRATEGY.md) (migration, auth, data, and billing options — draft for review).
 
 ---
 
@@ -92,7 +92,7 @@ The short-lived **space-in-URL** prototype used routes like `/prototype/space/{s
 
 **Differences today**
 
-- **Threads:** absent from prototype chrome; classic still orients around threads.
+- **Threads:** absent from prototype chrome; classic still orients around threads. Classic thread **titles** map to **Folders** on first visit ([CLASSIC_TO_2_0_MIGRATION.md](./CLASSIC_TO_2_0_MIGRATION.md)).
 - **URLs:** prototype bookmarks are `/prototype/n/...`; old space-scoped URLs redirect.
 - **Sidebar scope:** list + default new note use **My Home**; other spaces are not first-class in the prototype list without future work (switcher sends users to classic for many flows).
 - **Gaps:** collection/tag editing in inspector often deferred to classic; search has no thread results; some native interactions (e.g. mobile swipe delete) are deferred in parity doc.

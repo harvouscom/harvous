@@ -644,6 +644,88 @@ enum ThreadStore {
     }
 
     /// Pre-warm Apple Intelligence reflection questions for a scripture thread.
+    // MARK: - Connected note clusters
+
+    struct NoteCluster: Identifiable {
+        var id: UUID        // representative note id (most connections)
+        var title: String
+        var noteCount: Int
+        var memberIds: [UUID]
+        var updatedAt: Date?
+    }
+
+    /// Computes connected components of the `linkedNote` connection graph from local SwiftData rows.
+    /// Each component becomes a "Thread" cluster shown in the Threads sidebar list.
+    @MainActor
+    static func connectedClusters(from notes: [Note], modelContext: ModelContext) -> [NoteCluster] {
+        let linkedKindRaw = "linkedNote"
+        let descriptor = FetchDescriptor<StudyThread>(
+            predicate: #Predicate { t in
+                t.entryKindRaw == linkedKindRaw && !t.isArchived
+            }
+        )
+        let edges = (try? modelContext.fetch(descriptor)) ?? []
+
+        // Build bidirectional adjacency map from edges (parentNoteId ↔ linkedNoteId).
+        let noteIdSet = Set(notes.map(\.id))
+        var adj: [UUID: Set<UUID>] = [:]
+        for edge in edges {
+            guard let linkedId = edge.linkedNoteId else { continue }
+            let from = edge.parentNoteId
+            let to = linkedId
+            // Only include nodes whose notes are present in the provided notes array.
+            guard noteIdSet.contains(from), noteIdSet.contains(to) else { continue }
+            adj[from, default: []].insert(to)
+            adj[to, default: []].insert(from)
+        }
+
+        // BFS to find connected components.
+        var visited = Set<UUID>()
+        var clusters: [NoteCluster] = []
+        let noteById = Dictionary(uniqueKeysWithValues: notes.map { ($0.id, $0) })
+
+        for startId in adj.keys where !visited.contains(startId) {
+            var component: [UUID] = []
+            var queue: [UUID] = [startId]
+            visited.insert(startId)
+            while !queue.isEmpty {
+                let current = queue.removeFirst()
+                component.append(current)
+                for neighbor in adj[current] ?? [] where !visited.contains(neighbor) {
+                    visited.insert(neighbor)
+                    queue.append(neighbor)
+                }
+            }
+            guard component.count > 1 else { continue }
+
+            // Pick representative: most connections, break ties by newest updatedAt.
+            let repId = component.max(by: {
+                let degA = adj[$0]?.count ?? 0
+                let degB = adj[$1]?.count ?? 0
+                if degA != degB { return degA < degB }
+                let tA = noteById[$0]?.updatedAt ?? .distantPast
+                let tB = noteById[$1]?.updatedAt ?? .distantPast
+                return tA < tB
+            }) ?? component[0]
+
+            let rep = noteById[repId]
+            let rawTitle = rep?.title.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            let title = rawTitle.isEmpty ? "Untitled" : rawTitle
+            let latestUpdate = component.compactMap { noteById[$0]?.updatedAt }.max()
+
+            clusters.append(NoteCluster(
+                id: repId,
+                title: title,
+                noteCount: component.count,
+                memberIds: component,
+                updatedAt: latestUpdate
+            ))
+        }
+
+        // Sort by most recently updated cluster first.
+        return clusters.sorted { ($0.updatedAt ?? .distantPast) > ($1.updatedAt ?? .distantPast) }
+    }
+
     /// Safe to fire-and-forget; idempotent via `aiSuggestedQuestionsGenerated`.
     /// No-ops gracefully on older OS or when Apple Intelligence is unavailable.
     @MainActor

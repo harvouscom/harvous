@@ -1,0 +1,106 @@
+---
+// A substantial cropped "screenshot" of the real app UI (styled with --pds-*
+// tokens), showing each feature genuinely in use. Bleeds off the bottom of its
+// triptych card. Three variants map to the cards.
+interface Props {
+  variant: "references" | "folders" | "highlights";
+}
+const { variant } = Astro.props;
+
+const folders = [
+  { name: "Grace", count: 12, active: true },
+  { name: "Salvation", count: 8, active: false },
+  { name: "Romans", count: 6, active: false },
+  { name: "Faith & works", count: 4, active: false },
+  { name: "Prayer", count: 9, active: false },
+];
+---
+
+<div class="app-crop" aria-hidden="true">
+  {variant === "references" && (
+    <>
+      <div class="app-crop__note-meta">
+        <span class="app-crop__folder-chip">Salvation</span>
+        <span class="app-crop__meta-date">May 22</span>
+      </div>
+      <h4 class="app-crop__note-title">Saved by grace</h4>
+      <div class="app-crop__prose">
+        <p>
+          The whole rescue is God's doing — <span class="app-hl app-hl--warmAmber">by grace</span> through faith, not wages we earn.
+          <span class="app-pill">Ephesians 2:8</span> and <span class="app-pill">Romans 3:24</span> say the same thing from different angles.
+        </p>
+      </div>
+      <div class="app-crop__verse-pop">
+        <div class="app-crop__verse-tabs">
+          <span class="app-crop__vtab app-crop__vtab--active">ESV</span>
+          <span class="app-crop__vtab">KJV</span>
+          <span class="app-crop__vtab">NIV</span>
+          <span class="app-crop__vtab">NLT</span>
+          <span class="app-crop__vtab">NET</span>
+        </div>
+        <p class="app-crop__verse-text">
+          "For by grace you have been saved through faith. And this is not your own doing; it is the gift of God."
+        </p>
+        <div class="app-crop__verse-ref">Ephesians 2:8 · ESV</div>
+      </div>
+    </>
+  )}
+
+  {variant === "folders" && (
+    <>
+      <div class="app-crop__sb-head">
+        <span class="app-crop__chip-dot"></span>
+        My Home
+        <span class="app-crop__count">128 notes</span>
+      </div>
+      <div class="app-crop__search">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6">
+          <circle cx="7" cy="7" r="4.5"></circle><path d="M11 11l3 3" stroke-linecap="round"></path>
+        </svg>
+        Search
+      </div>
+      <div class="app-crop__section">Folders · Auto</div>
+      {folders.map((f) => (
+        <div class={`app-crop__frow${f.active ? " app-crop__frow--active" : ""}`}>
+          <svg viewBox="0 0 20 20" fill="currentColor"><path d="M2 5a2 2 0 0 1 2-2h3.5l2 2H16a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5Z"/></svg>
+          <span>{f.name}</span>
+          <span class="app-crop__count">{f.count}</span>
+        </div>
+      ))}
+      <div class="app-crop__section">Auto-tagged</div>
+      <div class="app-crop__tags-row">
+        {["grace", "faith", "salvation", "covenant", "mercy", "gospel"].map((t) => (
+          <span class="app-crop__tag">{t}</span>
+        ))}
+      </div>
+    </>
+  )}
+
+  {variant === "highlights" && (
+    <>
+      <h4 class="app-crop__note-title">Ephesians 2</h4>
+      <div class="app-crop__prose">
+        <p>
+          We're saved <span class="app-hl app-hl--warmAmber">by grace</span> through faith — and this is not our own doing;
+          <span class="app-hl app-hl--mintGreen">it is the gift of God</span>, not a result of
+          <span class="app-hl app-hl--skyBlue">works</span>.
+        </p>
+      </div>
+      <div class="app-crop__dock">
+        <div class="app-crop__dock-head">Highlights · 3</div>
+        <div class="app-crop__hl-row">
+          <span class="app-crop__hl-dot" style="background: var(--pds-highlight-warm-amber, #f2cf13);"></span>
+          <span><span class="app-crop__hl-quote">"by grace"</span> <span class="app-crop__hl-note">— God's unearned favor</span></span>
+        </div>
+        <div class="app-crop__hl-row">
+          <span class="app-crop__hl-dot" style="background: var(--pds-highlight-mint-green, #2bc71e);"></span>
+          <span><span class="app-crop__hl-quote">"the gift of God"</span> <span class="app-crop__hl-note">— given, not earned</span></span>
+        </div>
+        <div class="app-crop__hl-row">
+          <span class="app-crop__hl-dot" style="background: var(--pds-highlight-sky-blue, #30a8db);"></span>
+          <span><span class="app-crop__hl-quote">"works"</span> <span class="app-crop__hl-note">— not the cause</span></span>
+        </div>
+      </div>
+    </>
+  )}
+</div>

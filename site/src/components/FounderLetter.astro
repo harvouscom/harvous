@@ -1,0 +1,94 @@
+---
+// Founder letter — the paper-stack + fan-in is a signature, kept intact and made
+// theme-aware (at night the sheet glows like a lit letter on a dark desk via the
+// app's --pds-paper-* tokens). Used by both the homepage and /about.
+---
+
+<div class="paper-stack relative">
+  <!-- paper 3 — furthest back, tilted right -->
+  <div
+    aria-hidden="true"
+    class="paper-leaf absolute inset-0 rounded-[2px] border border-[var(--color-rule)] shadow-[0_8px_24px_-12px_rgba(20,18,12,0.10)]"
+    style="--rot: 2.2deg; background-color: var(--paper-sheet);"
+  ></div>
+  <!-- paper 2 — middle, tilted left -->
+  <div
+    aria-hidden="true"
+    class="paper-leaf absolute inset-0 rounded-[2px] border border-[var(--color-rule)] shadow-[0_8px_24px_-12px_rgba(20,18,12,0.10)]"
+    style="--rot: -2.8deg; background-color: var(--paper-sheet);"
+  ></div>
+  <!-- main letter — slight left lean -->
+  <div
+    class="paper-leaf relative rounded-[2px] border border-[var(--color-rule)] px-6 py-10 shadow-[var(--pds-paper-shadow)] md:px-14 md:py-14"
+    style="--rot: -0.6deg;
+           background-color: var(--paper-sheet);
+           background-image:
+             radial-gradient(var(--pds-paper-grain-a) 1px, transparent 1px),
+             radial-gradient(var(--pds-paper-grain-b) 1px, transparent 1px);
+           background-size: 28px 28px, 17px 17px;
+           background-position: 0 0, 9px 9px;"
+  >
+    <!-- folded corner accent -->
+    <div
+      aria-hidden="true"
+      class="pointer-events-none absolute right-0 top-0 h-10 w-10"
+      style="background: linear-gradient(225deg, var(--pds-paper-fold-a) 0%, var(--pds-paper-fold-b) 40%, transparent 60%);"
+    ></div>
+
+    <div class="grid gap-8 md:grid-cols-2 md:gap-12">
+      <div class="prose-letter">
+        <p>Hey there,</p>
+        <p>
+          Since 2016 I've been studying the Bible. Many highlights
+          saved in my Bible app of choice. Some notes in said Bible app. Some in Apple
+          Notes. And some somewhere on a piece of paper I don't have anymore.
+          It was all scattered.
+        </p>
+        <p>
+          I've tried many apps for my Bible study. Some were made for scholars
+          and felt archaic. Some were built for readers with notes as an
+          afterthought. None seem to be made for someone who is curious about
+          the Bible wanting to remember their study.
+        </p>
+        <p>
+          So I made one. Harvous knows scripture, looks up words I'm
+          curious about, and stays out of the way when I want to write.
+        </p>
+      </div>
+      <div class="prose-letter">
+        <p>
+          It's named after Proverbs 25:2 — "It is the glory of God to conceal
+          a matter; to search out a matter is the glory of kings." Studying
+          the Bible is searching. Harvous is the place where the search
+          settles into something you can come back to.
+        </p>
+        <p>
+          It's available on the web, Mac, iPad, and iPhone. Right now you
+          can add the scripture (seven available translations), navigate
+          the built-in dictionary, and highlight what stands out to you.
+        </p>
+        <p>
+          If you have any questions, write me at <a class="underline decoration-[var(--color-rule)] underline-offset-4 hover:decoration-[var(--color-ink)]" href="mailto:derek@harvous.com">derek@harvous.com</a>.
+        </p>
+        <div class="mt-6">
+          <img
+            src="/derek-signiture.png"
+            alt="Derek's signature"
+            class="signature-img h-14 w-auto opacity-80"
+          />
+          <div class="mt-3 flex items-center gap-3">
+            <img
+              src="/derek-avatar.jpeg"
+              alt="Derek Castelli"
+              class="h-11 w-11 rounded-full object-cover"
+            />
+            <div>
+              <div class="text-sm font-semibold" style="color: var(--color-ink);">Derek Castelli</div>
+              <div class="text-sm italic" style="color: var(--color-ink-faint);">Founder of Harvous</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
