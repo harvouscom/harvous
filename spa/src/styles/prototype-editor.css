@@ -26,6 +26,14 @@
   margin-right: var(--pds-inspector-reserve-w);
 }
 
+.proto-note-pane-row--thread-docked .proto-editor-surface {
+  margin-right: var(--pds-inspector-reserve-w);
+}
+
+.proto-note-pane-row--thread-expanded .proto-editor-surface {
+  margin-right: clamp(368px, min(728px, calc(60vw + 8px)), 728px);
+}
+
 @media (prefers-reduced-motion: reduce) {
   .proto-note-pane-row .proto-editor-surface {
     transition: none;
@@ -281,7 +289,8 @@
   padding: 0.08em 0.35em !important;
   font-family: inherit !important;
   font-size: inherit !important;
-  font-weight: 400 !important;
+  font-weight: 500 !important;
+  font-variation-settings: "ROND" 0, "wght" 500 !important;
   line-height: inherit !important;
   background: var(--pds-bg-section) !important;
   color: var(--pds-text-primary) !important;

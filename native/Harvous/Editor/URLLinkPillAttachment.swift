@@ -20,10 +20,100 @@ private let kUrlVPad: CGFloat = 4
 private let kUrlGap:  CGFloat = 4
 private let kUrlLineSideMargin: CGFloat = 3
 
-/// Trailing glyph character for the external-link indicator. Unicode `↗` renders identically in
-/// both AppKit and UIKit text drawing without us having to manage coordinate flips around a custom
-/// CGPath.
-private let kUrlLinkExternalGlyph = "\u{2197}"
+/// Font Awesome `arrow-up-right-from-square` — matches web URL link pill trailing glyph.
+private let kUrlExternalLinkGlyphAsset = "Harvous.ArrowUpRightFromSquare"
+
+#if os(macOS)
+
+private func urlLinkFATemplateNSImage(named name: String, edgePt: CGFloat) -> NSImage? {
+    guard let src = NSImage(named: name) else { return nil }
+    let dstSize = NSSize(width: edgePt, height: edgePt)
+    let dst = NSImage(size: dstSize, flipped: false) { _ in
+        if let ctx = NSGraphicsContext.current?.cgContext {
+            ctx.interpolationQuality = .high
+        }
+        let srcSize = src.size
+        let aspect = srcSize.width / max(srcSize.height, 0.0001)
+        let fitRect: NSRect
+        if aspect >= 1 {
+            let h = dstSize.width / aspect
+            fitRect = NSRect(x: 0, y: (dstSize.height - h) / 2, width: dstSize.width, height: h)
+        } else {
+            let w = dstSize.height * aspect
+            fitRect = NSRect(x: (dstSize.width - w) / 2, y: 0, width: w, height: dstSize.height)
+        }
+        src.draw(
+            in: fitRect,
+            from: NSRect(origin: .zero, size: srcSize),
+            operation: .sourceOver,
+            fraction: 1,
+            respectFlipped: true,
+            hints: [.interpolation: NSImageInterpolation.high]
+        )
+        return true
+    }
+    dst.isTemplate = true
+    return dst
+}
+
+private func drawUrlLinkExternalGlyph(at origin: NSPoint, color: NSColor) {
+    guard let template = urlLinkFATemplateNSImage(named: kUrlExternalLinkGlyphAsset, edgePt: kUrlGlyphSize) else { return }
+    let rect = NSRect(x: origin.x, y: origin.y, width: kUrlGlyphSize, height: kUrlGlyphSize)
+    let tinted = NSImage(size: rect.size, flipped: false) { bounds in
+        color.set()
+        bounds.fill()
+        template.draw(
+            in: bounds,
+            from: NSRect(origin: .zero, size: template.size),
+            operation: .destinationIn,
+            fraction: 1,
+            respectFlipped: true,
+            hints: [.interpolation: NSImageInterpolation.high]
+        )
+        return true
+    }
+    tinted.draw(
+        in: rect,
+        from: NSRect(origin: .zero, size: tinted.size),
+        operation: .sourceOver,
+        fraction: 1,
+        respectFlipped: true,
+        hints: [.interpolation: NSImageInterpolation.high]
+    )
+}
+
+#else
+
+private func urlLinkFATemplateUIImage(named name: String, edgePt: CGFloat) -> UIImage? {
+    guard let src = UIImage(named: name) else { return nil }
+    let dstSize = CGSize(width: edgePt, height: edgePt)
+    let format = UIGraphicsImageRendererFormat.default()
+    format.scale = UIScreen.main.scale
+    format.opaque = false
+    let renderer = UIGraphicsImageRenderer(size: dstSize, format: format)
+    let img = renderer.image { _ in
+        let srcSize = src.size
+        let aspect = srcSize.width / max(srcSize.height, 0.0001)
+        let fitRect: CGRect
+        if aspect >= 1 {
+            let h = dstSize.width / aspect
+            fitRect = CGRect(x: 0, y: (dstSize.height - h) / 2, width: dstSize.width, height: h)
+        } else {
+            let w = dstSize.height * aspect
+            fitRect = CGRect(x: (dstSize.width - w) / 2, y: 0, width: w, height: dstSize.height)
+        }
+        src.draw(in: fitRect, blendMode: .normal, alpha: 1)
+    }.withRenderingMode(.alwaysTemplate)
+    return img
+}
+
+private func drawUrlLinkExternalGlyph(at origin: CGPoint, color: UIColor) {
+    guard let template = urlLinkFATemplateUIImage(named: kUrlExternalLinkGlyphAsset, edgePt: kUrlGlyphSize) else { return }
+    let rect = CGRect(x: origin.x, y: origin.y, width: kUrlGlyphSize, height: kUrlGlyphSize)
+    template.withTintColor(color, renderingMode: .alwaysOriginal).draw(in: rect)
+}
+
+#endif
 
 /// Strips `http(s)://` and a trailing `/` so the pill reads `kemdesign.co/post` rather than
 /// `https://kemdesign.co/post/`. Mirrors the web `LinkPreviewCard` `displayUrl` derivation.
@@ -96,20 +186,16 @@ final class URLLinkPillAttachment: NSTextAttachment {
 
     static func renderPill(displayHost: String) -> NSImage {
         let refFont = HarvousFonts.system(size: kUrlRefSize, weight: 500)
-        let glyphFont = HarvousFonts.system(size: kUrlGlyphSize, weight: 600)
         let label = NSColor.labelColor.withAlphaComponent(HarvousScripturePillStyle.labelOpacity)
         let tint = HarvousColors.nsScripturePillNeutralAccent
 
-        let refAttrs:   [NSAttributedString.Key: Any] = [.font: refFont,   .foregroundColor: label]
-        let glyphAttrs: [NSAttributedString.Key: Any] = [.font: glyphFont, .foregroundColor: label]
-        let refStr   = NSAttributedString(string: displayHost, attributes: refAttrs)
-        let glyphStr = NSAttributedString(string: kUrlLinkExternalGlyph, attributes: glyphAttrs)
-        let refSize   = refStr.size()
-        let glyphSize = glyphStr.size()
+        let refAttrs: [NSAttributedString.Key: Any] = [.font: refFont, .foregroundColor: label]
+        let refStr = NSAttributedString(string: displayHost, attributes: refAttrs)
+        let refSize = refStr.size()
 
-        let innerW = kUrlHPad + refSize.width + kUrlGap + glyphSize.width + kUrlHPad
+        let innerW = kUrlHPad + refSize.width + kUrlGap + kUrlGlyphSize + kUrlHPad
         let w = kUrlLineSideMargin + innerW + kUrlLineSideMargin
-        let h = max(refSize.height, glyphSize.height) + kUrlVPad * 2
+        let h = max(refSize.height, kUrlGlyphSize) + kUrlVPad * 2
         let size = NSSize(width: ceil(w), height: ceil(h))
 
         return NSImage(size: size, flipped: false) { bounds in
@@ -125,11 +211,11 @@ final class URLLinkPillAttachment: NSTextAttachment {
             pill.lineWidth = 0.5
             pill.stroke()
 
-            let refY   = (size.height - refSize.height)   / 2
-            let glyphY = (size.height - glyphSize.height) / 2
+            let refY = (size.height - refSize.height) / 2
+            let glyphY = (size.height - kUrlGlyphSize) / 2
             let textX = kUrlLineSideMargin + kUrlHPad
-            refStr.draw(at:   NSPoint(x: textX,                          y: refY))
-            glyphStr.draw(at: NSPoint(x: textX + refSize.width + kUrlGap, y: glyphY))
+            refStr.draw(at: NSPoint(x: textX, y: refY))
+            drawUrlLinkExternalGlyph(at: NSPoint(x: textX + refSize.width + kUrlGap, y: glyphY), color: label)
             return true
         }
     }
@@ -188,20 +274,16 @@ final class URLLinkPillAttachment: NSTextAttachment {
 
     static func renderPill(displayHost: String) -> UIImage {
         let refFont = HarvousFonts.system(size: kUrlRefSize, weight: 500)
-        let glyphFont = HarvousFonts.system(size: kUrlGlyphSize, weight: 600)
         let label = UIColor.label.withAlphaComponent(HarvousScripturePillStyle.labelOpacity)
         let tint = HarvousColors.uiScripturePillNeutralAccent
 
-        let refAttrs:   [NSAttributedString.Key: Any] = [.font: refFont,   .foregroundColor: label]
-        let glyphAttrs: [NSAttributedString.Key: Any] = [.font: glyphFont, .foregroundColor: label]
-        let refStr   = NSAttributedString(string: displayHost, attributes: refAttrs)
-        let glyphStr = NSAttributedString(string: kUrlLinkExternalGlyph, attributes: glyphAttrs)
-        let refSize   = refStr.size()
-        let glyphSize = glyphStr.size()
+        let refAttrs: [NSAttributedString.Key: Any] = [.font: refFont, .foregroundColor: label]
+        let refStr = NSAttributedString(string: displayHost, attributes: refAttrs)
+        let refSize = refStr.size()
 
-        let innerW = kUrlHPad + refSize.width + kUrlGap + glyphSize.width + kUrlHPad
+        let innerW = kUrlHPad + refSize.width + kUrlGap + kUrlGlyphSize + kUrlHPad
         let w = kUrlLineSideMargin + innerW + kUrlLineSideMargin
-        let h = max(refSize.height, glyphSize.height) + kUrlVPad * 2
+        let h = max(refSize.height, kUrlGlyphSize) + kUrlVPad * 2
         let size = CGSize(width: ceil(w), height: ceil(h))
 
         return UIGraphicsImageRenderer(size: size).image { _ in
@@ -216,11 +298,11 @@ final class URLLinkPillAttachment: NSTextAttachment {
             pill.lineWidth = 0.5
             pill.stroke()
 
-            let refY   = (size.height - refSize.height)   / 2
-            let glyphY = (size.height - glyphSize.height) / 2
+            let refY = (size.height - refSize.height) / 2
+            let glyphY = (size.height - kUrlGlyphSize) / 2
             let textX = kUrlLineSideMargin + kUrlHPad
-            refStr.draw(at:   CGPoint(x: textX,                          y: refY))
-            glyphStr.draw(at: CGPoint(x: textX + refSize.width + kUrlGap, y: glyphY))
+            refStr.draw(at: CGPoint(x: textX, y: refY))
+            drawUrlLinkExternalGlyph(at: CGPoint(x: textX + refSize.width + kUrlGap, y: glyphY), color: label)
         }
     }
 }
