@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../lib/api';
 import type { NoteDetail } from '../queries/useNote';
+import { fetchAndMergeNoteTagsInCache } from '../../lib/note-tags-cache';
 import { getEffectiveDefaultTranslation } from '@/utils/profile-cache';
 
 interface ProcessScriptureInput {
@@ -39,6 +40,7 @@ export function useProcessScriptureRefs() {
           old ? { ...old, content: updated, updatedAt: new Date().toISOString() } : old
         );
       }
+      void fetchAndMergeNoteTagsInCache(queryClient, variables.noteId);
     },
   });
 }

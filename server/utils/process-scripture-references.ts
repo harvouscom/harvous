@@ -1174,20 +1174,18 @@ async function processScriptureReferencesInternal(
     })
     .where(eq(Notes.id, noteId));
 
-  (async () => {
-    try {
-      const tagTitle = note.title ?? '';
-      const tagResult = await generateAutoTags(tagTitle, updatedContent, userId, AUTO_TAG_CONFIDENCE_SYSTEM_AUTOGEN);
-      if (tagResult.suggestions.length > 0) {
-        await applyAutoTags(noteId, tagResult.suggestions, userId);
-      }
-    } catch (tagErr: unknown) {
-      console.error(
-        '[processScriptureReferences] Auto-tag parent note failed (non-critical):',
-        tagErr instanceof Error ? tagErr.message : tagErr
-      );
+  try {
+    const tagTitle = note.title ?? '';
+    const tagResult = await generateAutoTags(tagTitle, updatedContent, userId, AUTO_TAG_CONFIDENCE_SYSTEM_AUTOGEN);
+    if (tagResult.suggestions.length > 0) {
+      await applyAutoTags(noteId, tagResult.suggestions, userId);
     }
-  })().catch(() => {});
+  } catch (tagErr: unknown) {
+    console.error(
+      '[processScriptureReferences] Auto-tag parent note failed (non-critical):',
+      tagErr instanceof Error ? tagErr.message : tagErr
+    );
+  }
 
   return {
     results,

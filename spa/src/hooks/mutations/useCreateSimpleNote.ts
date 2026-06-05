@@ -7,7 +7,11 @@ import {
   spaceNotesQueryKey,
   type SpaceNotesPage,
 } from '../../lib/space-notes-cache';
-import { getNoteIdFromCreateResponse, seedNoteFromCreateResponse } from '../queries/useNote';
+import {
+  getNoteIdFromCreateResponse,
+  seedNoteFromCreateResponse,
+} from '../queries/useNote';
+import { mergeNoteTagsInCache, previewNoteTagsFromContent, type NoteTagRow } from '../../lib/note-tags-cache';
 import type { SpaceNoteRow } from '../queries/useSpace';
 
 function normalizedSpaceIdForApi(spaceId: string): string {
@@ -41,6 +45,7 @@ interface CreateNoteResponse {
     updatedAt?: string;
     simpleNoteId?: number;
   };
+  tags?: NoteTagRow[];
   error?: string;
 }
 
@@ -111,6 +116,19 @@ export function useCreateSimpleNote() {
           created as Record<string, unknown> & { id: string },
           variables.spaceId,
         );
+        const tagsFromServer = Array.isArray(data?.tags) ? data.tags : null;
+        if (tagsFromServer) {
+          mergeNoteTagsInCache(queryClient, noteId, tagsFromServer);
+        } else {
+          mergeNoteTagsInCache(
+            queryClient,
+            noteId,
+            previewNoteTagsFromContent(
+              created.title ?? variables.title ?? '',
+              created.content ?? variables.content ?? '',
+            ),
+          );
+        }
         try {
           window.dispatchEvent(new CustomEvent('noteCreated', { detail: { noteId, spaceId: sid } }));
         } catch {

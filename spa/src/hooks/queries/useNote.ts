@@ -217,7 +217,7 @@ export function clearNoteParentThreadCacheByThreadId(threadId: string): void {
   }
 }
 
-function setCachedNoteDetail(noteId: string, detail: NoteDetail) {
+export function setCachedNoteDetail(noteId: string, detail: NoteDetail) {
   try {
     sessionStorage.setItem(`${NOTE_DETAIL_CACHE_PREFIX}${noteId}`, JSON.stringify(detail));
     let index: string[] = [];

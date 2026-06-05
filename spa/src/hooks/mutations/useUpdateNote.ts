@@ -2,6 +2,12 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../lib/api';
 import { navigationQueryKeyPrefix } from '../queries/useNavigation';
 import { updateSpaceNoteInCache } from '../../lib/space-notes-cache';
+import {
+  mergeNoteTagsInCache,
+  previewNoteTagsFromContent,
+  type NoteTagRow,
+} from '../../lib/note-tags-cache';
+import type { NoteDetail } from '../queries/useNote';
 
 interface UpdateNoteInput {
   noteId: string;
@@ -22,6 +28,7 @@ interface UpdateNoteResponse {
     content: string;
     updatedAt: string;
   };
+  tags?: NoteTagRow[];
   scriptureResults?: unknown;
   processedContent?: string | null;
 }
@@ -75,19 +82,18 @@ export function useUpdateNote() {
       // when those aren't known yet.
       let affectedSpaceId: string | undefined;
       let affectedThreadIds: string[] = [];
-      queryClient.setQueryData<Record<string, unknown> | undefined>(
+      queryClient.setQueryData<NoteDetail | undefined>(
         ['note', variables.noteId],
         (prev) => {
-          if (!prev || typeof prev !== 'object') return prev;
-          const p = prev as Record<string, unknown>;
-          if (typeof p.spaceId === 'string' && p.spaceId.length > 0) affectedSpaceId = p.spaceId;
-          if (Array.isArray(p.threads)) {
-            affectedThreadIds = (p.threads as Array<{ id?: unknown }>)
+          if (!prev) return prev;
+          if (typeof prev.spaceId === 'string' && prev.spaceId.length > 0) affectedSpaceId = prev.spaceId;
+          if (Array.isArray(prev.threads)) {
+            affectedThreadIds = prev.threads
               .map((t) => (typeof t?.id === 'string' ? t.id : null))
               .filter((id): id is string => !!id);
           }
           return {
-            ...p,
+            ...prev,
             title: variables.title,
             content: processed,
             // Authoritative full content now in cache — clear any list-preview flag.
@@ -99,6 +105,17 @@ export function useUpdateNote() {
           };
         },
       );
+
+      const tagsFromServer = Array.isArray(data?.tags) ? data.tags : null;
+      if (tagsFromServer) {
+        mergeNoteTagsInCache(queryClient, variables.noteId, tagsFromServer);
+      } else {
+        mergeNoteTagsInCache(
+          queryClient,
+          variables.noteId,
+          previewNoteTagsFromContent(variables.title, processed),
+        );
+      }
       // The note detail cache was just patched optimistically with the saved
       // title/content, so we intentionally do NOT invalidate ['note', noteId] here —
       // that would trigger a redundant GET …/details on every autosave.

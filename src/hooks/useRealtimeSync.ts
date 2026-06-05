@@ -77,7 +77,8 @@ async function applyInvalidation(
           /* ignore */
         }
       } else if (type === 'note:updated' && isPrototypeOpenNoteEditorFocused(id)) {
-        // Autosave already patches detail cache — refetching mid-edit can reset the editor.
+        const { fetchAndMergeNoteTagsInCache } = await import('../../spa/src/lib/note-tags-cache');
+        await fetchAndMergeNoteTagsInCache(queryClient, id);
       } else {
         await queryClient.invalidateQueries({ queryKey: ['note', id] });
       }
