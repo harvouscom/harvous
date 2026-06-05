@@ -222,20 +222,22 @@ struct LibraryView: View {
     }
 
     @ViewBuilder
-    private func folderRootListRow(_ row: HarvousFolderRow) -> some View {
+    private func folderRootGridCard(_ row: HarvousFolderRow) -> some View {
         let pinned = pinnedFolderRowIds.contains(row.id)
         let openBucket = Button {
             appRouter.iosFoldersDrill = .bucket(row.folderLabel)
         } label: {
-            FolderFeedRow(
+            CollectionGridCard(
+                iconAssetName: "Harvous.Folder",
                 title: row.title,
-                noteCount: row.count,
-                isPinned: pinned,
-                variant: .conversation
+                subtitle: "\(row.count) note\(row.count == 1 ? "" : "s")",
+                isPinned: pinned
             )
         }
         .buttonStyle(.plain)
 
+        // In a grid (vs. a `List`) `swipeActions` are unavailable, so Pin / Rename / Remove
+        // live entirely in the long-press context menu.
         if row.folderLabel != nil {
             openBucket
                 .contextMenu {
@@ -271,32 +273,6 @@ struct LibraryView: View {
                         }
                     }
                 }
-                .swipeActions(edge: .leading, allowsFullSwipe: true) {
-                    Button {
-                        toggleFolderListPin(rowId: row.id)
-                    } label: {
-                        Label {
-                            Text(pinned ? "Unpin" : "Pin")
-                        } icon: {
-                            HarvousFAGlyph(
-                                assetName: pinned ? "Harvous.ThumbtackSlash" : "Harvous.Thumbtack",
-                                edgePt: 14
-                            )
-                        }
-                    }
-                    .tint(.orange)
-                }
-                .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                    Button(role: .destructive) {
-                        removeConfirmRow = row
-                    } label: {
-                        Label {
-                            Text("Remove")
-                        } icon: {
-                            HarvousFAGlyph(assetName: "Harvous.Trash", edgePt: 14)
-                        }
-                    }
-                }
         } else {
             openBucket
         }
@@ -321,22 +297,17 @@ struct LibraryView: View {
     }
 
     private var foldersFlatList: some View {
-        List {
-            ForEach(orderedFilteredFolderRows) { row in
-                folderRootListRow(row)
-                    .listRowInsets(IOSFoldersListLayout.rowInsets)
-                    .listRowBackground(Color.clear)
-                    .listRowSeparator(.hidden)
+        ScrollView {
+            LazyVGrid(columns: HarvousCollectionGridLayout.columns, spacing: HarvousCollectionGridLayout.spacing) {
+                ForEach(orderedFilteredFolderRows) { row in
+                    folderRootGridCard(row)
+                }
             }
+            .padding(.horizontal, HarvousCollectionGridLayout.horizontalPadding)
+            .padding(.top, HarvousCollectionGridLayout.topPadding)
         }
-        .listStyle(.plain)
         .scrollContentBackground(.hidden)
         .iosListBottomChromeReserve()
-    }
-
-    /// Match hub note row insets in `NoteListColumn` (conversation rows use leading/trailing 14).
-    private enum IOSFoldersListLayout {
-        static let rowInsets = EdgeInsets(top: 4, leading: HarvousFeedListLayout.listRowHorizontalInset, bottom: 4, trailing: HarvousFeedListLayout.listRowHorizontalInset)
     }
 
     private var emptyState: some View {

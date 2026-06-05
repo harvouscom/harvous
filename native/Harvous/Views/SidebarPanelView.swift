@@ -524,17 +524,18 @@ struct SidebarPanelView: View {
                         }
                     }
                 }
-                // Give the list group priority so it fills remaining space before the Spacer;
-                // on iPad the List doesn't expand naturally, so .layoutPriority(1) is needed.
+                // Give the list group priority so it fills the remaining space; on iPad the List
+                // doesn't expand naturally, so .layoutPriority(1) is needed.
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                 .layoutPriority(1)
-
-                Spacer(minLength: 0)
-
-                // Daily passage pill — pinned at the column bottom via Spacer above.
-                DailyPassagePill(onStudyNow: { note in macSelectNoteWithoutListAnimation(note) })
-                    .padding(.horizontal, HarvousFeedListLayout.listRowHorizontalInset)
-                    .padding(.bottom, 8)
+                // Daily passage pill *floats* over the bottom of the list (matching iOS + web).
+                // Every sidebar list applies `harvousListDailyPassagePillScrollReserve` (84pt), so
+                // the last row scrolls out from under the card rather than being hidden behind it.
+                .overlay(alignment: .bottom) {
+                    DailyPassagePill(onStudyNow: { note in macSelectNoteWithoutListAnimation(note) })
+                        .padding(.horizontal, HarvousFeedListLayout.listRowHorizontalInset)
+                        .padding(.bottom, 8)
+                }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(Color.clear)
@@ -732,22 +733,21 @@ struct SidebarPanelView: View {
     }
 
     @ViewBuilder
-    private func folderRootListRow(_ row: HarvousFolderRow) -> some View {
+    private func folderRootGridCard(_ row: HarvousFolderRow) -> some View {
         let pinned = pinnedFolderRowIds.contains(row.id)
         let openBucket = Button {
             foldersDrill = .bucket(row.folderLabel)
         } label: {
-            FolderFeedRow(
+            CollectionGridCard(
+                iconAssetName: "Harvous.Folder",
                 title: row.title,
-                noteCount: row.count,
-                isPinned: pinned,
-                variant: .sidebarCompact
+                subtitle: "\(row.count) note\(row.count == 1 ? "" : "s")",
+                isPinned: pinned
             )
-            .padding(.horizontal, 10)
-            .padding(.vertical, 2)
         }
         .buttonStyle(.plain)
 
+        // Grid cells can't host `swipeActions`; Pin / Rename / Remove stay in the context menu.
         if row.folderLabel != nil {
             openBucket
                 .contextMenu {
@@ -780,32 +780,6 @@ struct SidebarPanelView: View {
                             Text("Remove folder")
                         } icon: {
                             HarvousFAGlyph(assetName: "Harvous.Trash", edgePt: HarvousFAIconMetrics.menuRowLeadingGlyphPt)
-                        }
-                    }
-                }
-                .swipeActions(edge: .leading, allowsFullSwipe: true) {
-                    Button {
-                        toggleFolderListPin(rowId: row.id)
-                    } label: {
-                        Label {
-                            Text(pinned ? "Unpin" : "Pin")
-                        } icon: {
-                            HarvousFAGlyph(
-                                assetName: pinned ? "Harvous.ThumbtackSlash" : "Harvous.Thumbtack",
-                                edgePt: 14
-                            )
-                        }
-                    }
-                    .tint(.orange)
-                }
-                .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                    Button(role: .destructive) {
-                        removeConfirmRow = row
-                    } label: {
-                        Label {
-                            Text("Remove")
-                        } icon: {
-                            HarvousFAGlyph(assetName: "Harvous.Trash", edgePt: 14)
                         }
                     }
                 }
@@ -856,15 +830,15 @@ struct SidebarPanelView: View {
             } else if filteredScriptureBookRows.isEmpty {
                 ContentUnavailableView.search(text: folderListSearchText)
             } else {
-                List {
-                    ForEach(filteredScriptureBookRows) { row in
-                        scriptureBookRootListRow(row)
-                            .listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 4, trailing: 0))
-                            .listRowBackground(Color.clear)
-                            .listRowSeparator(.hidden)
+                ScrollView {
+                    LazyVGrid(columns: HarvousCollectionGridLayout.columns, spacing: HarvousCollectionGridLayout.spacing) {
+                        ForEach(filteredScriptureBookRows) { row in
+                            scriptureBookRootGridCard(row)
+                        }
                     }
+                    .padding(.horizontal, HarvousCollectionGridLayout.horizontalPadding)
+                    .padding(.top, HarvousCollectionGridLayout.topPadding)
                 }
-                .listStyle(.plain)
                 .scrollContentBackground(.hidden)
                 #if os(macOS)
                 .harvousListDailyPassagePillScrollReserve()
@@ -875,19 +849,15 @@ struct SidebarPanelView: View {
     }
 
     @ViewBuilder
-    private func scriptureBookRootListRow(_ row: ScriptureBookRow) -> some View {
+    private func scriptureBookRootGridCard(_ row: ScriptureBookRow) -> some View {
         Button {
             scriptureDrill = .book(row.bookIndex)
         } label: {
-            FolderFeedRow(
+            CollectionGridCard(
+                iconAssetName: "Harvous.BookOpen",
                 title: row.title,
-                noteCount: row.noteCount,
-                isPinned: false,
-                customSubtitle: row.bookListSubtitle,
-                variant: .sidebarCompact
+                subtitle: row.bookListSubtitle
             )
-            .padding(.horizontal, 10)
-            .padding(.vertical, 2)
         }
         .buttonStyle(.plain)
     }
@@ -946,15 +916,15 @@ struct SidebarPanelView: View {
             } else if orderedFilteredFolderRows.isEmpty {
                 ContentUnavailableView.search(text: folderListSearchText)
             } else {
-                List {
-                    ForEach(orderedFilteredFolderRows) { row in
-                        folderRootListRow(row)
-                            .listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 4, trailing: 0))
-                            .listRowBackground(Color.clear)
-                            .listRowSeparator(.hidden)
+                ScrollView {
+                    LazyVGrid(columns: HarvousCollectionGridLayout.columns, spacing: HarvousCollectionGridLayout.spacing) {
+                        ForEach(orderedFilteredFolderRows) { row in
+                            folderRootGridCard(row)
+                        }
                     }
+                    .padding(.horizontal, HarvousCollectionGridLayout.horizontalPadding)
+                    .padding(.top, HarvousCollectionGridLayout.topPadding)
                 }
-                .listStyle(.plain)
                 .scrollContentBackground(.hidden)
                 #if os(macOS)
                 .harvousListDailyPassagePillScrollReserve()
@@ -978,31 +948,28 @@ struct SidebarPanelView: View {
             } else if filteredThreadClusters.isEmpty {
                 ContentUnavailableView.search(text: folderListSearchText)
             } else {
-                List {
-                    ForEach(filteredThreadClusters) { cluster in
-                        Button {
-                            threadsDrill = .cluster(
-                                representativeId: cluster.id,
-                                title: cluster.title,
-                                memberIds: cluster.memberIds
-                            )
-                        } label: {
-                            FolderFeedRow(
-                                title: cluster.title,
-                                noteCount: cluster.noteCount,
-                                isPinned: false,
-                                variant: .sidebarCompact
-                            )
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 2)
+                ScrollView {
+                    LazyVGrid(columns: HarvousCollectionGridLayout.columns, spacing: HarvousCollectionGridLayout.spacing) {
+                        ForEach(filteredThreadClusters) { cluster in
+                            Button {
+                                threadsDrill = .cluster(
+                                    representativeId: cluster.id,
+                                    title: cluster.title,
+                                    memberIds: cluster.memberIds
+                                )
+                            } label: {
+                                CollectionGridCard(
+                                    iconAssetName: "Harvous.ArrowRightArrowLeft",
+                                    title: cluster.title,
+                                    subtitle: "\(cluster.noteCount) note\(cluster.noteCount == 1 ? "" : "s")"
+                                )
+                            }
+                            .buttonStyle(.plain)
                         }
-                        .buttonStyle(.plain)
-                        .listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 4, trailing: 0))
-                        .listRowBackground(Color.clear)
-                        .listRowSeparator(.hidden)
                     }
+                    .padding(.horizontal, HarvousCollectionGridLayout.horizontalPadding)
+                    .padding(.top, HarvousCollectionGridLayout.topPadding)
                 }
-                .listStyle(.plain)
                 .scrollContentBackground(.hidden)
                 #if os(macOS)
                 .harvousListDailyPassagePillScrollReserve()

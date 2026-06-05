@@ -676,6 +676,31 @@ export default function PrototypeSidebar() {
     );
   }, [pages]);
 
+  const notesById = useMemo(() => {
+    const m = new Map<string, SpaceNoteRow>();
+    for (const n of notes) m.set(n.id, n);
+    return m;
+  }, [notes]);
+
+  // Thread/scripture drill rows carry only id+title (±dates), but we render them with the
+  // same PrototypeSidebarNoteRow as the Notes/Folders lists. Resolve the full loaded note so
+  // the row shows the same title + date + excerpt + menu; fall back to the brief when unloaded.
+  const resolveDrillNoteRow = useCallback(
+    (brief: { id: string; title: string | null; updatedAt?: string | null; createdAt?: string | null }): SpaceNoteRow => {
+      const full = notesById.get(brief.id);
+      if (full) return full;
+      return {
+        id: brief.id,
+        title: brief.title,
+        content: '',
+        updatedAt: brief.updatedAt ?? null,
+        createdAt: brief.createdAt ?? null,
+        noteType: 'default',
+      } as SpaceNoteRow;
+    },
+    [notesById],
+  );
+
   const noteSlugFromPath = matchPrototypeNoteId(pathname);
   const activeNoteSlug = noteSlugFromPath;
   const activeNoteFullId =
@@ -924,29 +949,6 @@ export default function PrototypeSidebar() {
     afterNav();
   };
 
-  const openScriptureIndexedNote = (
-    n: { id: string; title: string | null; updatedAt: string | null; createdAt: string },
-    prefetchOnly?: boolean,
-  ) => {
-    if (!homeSpaceId) return;
-    const row = {
-      id: n.id,
-      title: n.title,
-      content: '',
-      updatedAt: n.updatedAt,
-      createdAt: n.createdAt,
-      noteType: 'default',
-    } as SpaceNoteRow;
-    prefetchNote(row, { seedFromList: false });
-    if (prefetchOnly) return;
-    dismissStandaloneScripturePassage();
-    navigate({
-      to: prototypeNoteRouteTo(),
-      params: { noteId: noteParamSlug(n.id) },
-    });
-    afterNav();
-  };
-
   const backTarget: { label: string; kind: string; action: () => void } | null = (() => {
     if (mode === 'folders' && activeFolderKey !== undefined)
       return { label: activeFolderKey ?? 'Unsorted', kind: 'Folder', action: () => { setActiveFolderKey(undefined); setQ(''); } };
@@ -1110,17 +1112,22 @@ export default function PrototypeSidebar() {
                   <span>No folders yet.</span>
                 </div>
               ) : (
-                <ul className="proto-note-list">
+                <ul className="proto-collection-grid">
                   {filteredFolders.map((col) => (
                     <li key={col.name ?? '__none__'}>
                       <button
                         type="button"
-                        className="proto-note-row"
+                        className="proto-collection-card"
                         onClick={() => setActiveFolderKey(col.name)}
                       >
-                        <div className="pds-list-title">{col.name ?? 'Unsorted'}</div>
-                        <div className="pds-list-preview">
-                          {col.count} note{col.count !== 1 ? 's' : ''}
+                        <span className="proto-collection-card__icon">
+                          <Icon name="folder" size={13} aria-hidden />
+                        </span>
+                        <div className="proto-collection-card__body">
+                          <div className="proto-collection-card__title">{col.name ?? 'Unsorted'}</div>
+                          <div className="proto-collection-card__count">
+                            {col.count} note{col.count !== 1 ? 's' : ''}
+                          </div>
                         </div>
                       </button>
                     </li>
@@ -1235,25 +1242,24 @@ export default function PrototypeSidebar() {
                     No notes in this thread.
                   </p>
                 ) : (
-                  <ul className="proto-note-list" style={{ margin: 0, padding: '4px 0', listStyle: 'none' }}>
+                  <ul className="proto-note-list">
                     {threadDrillQuery.data.nodes.map((node) => {
-                      const slug = node.id.startsWith('note_') ? node.id.slice('note_'.length) : node.id;
-                      const title = node.title || node.resourceTitle || 'Untitled';
+                      const row = resolveDrillNoteRow({
+                        id: node.id,
+                        title: node.title || node.resourceTitle || null,
+                      });
                       return (
-                        <li key={node.id} className="proto-note-row-item">
-                          <button
-                            type="button"
-                            className="proto-note-row__main"
-                            onClick={() => {
-                              navigate({ to: prototypeNoteRouteTo(), params: { noteId: slug } });
-                              if (isMobileSidebar) closeDrawer();
-                            }}
-                          >
-                            <div className="proto-note-row__title-line">
-                              <span className="pds-list-title proto-note-row__title-text">{title}</span>
-                            </div>
-                          </button>
-                        </li>
+                        <PrototypeSidebarNoteRow
+                          key={node.id}
+                          row={row}
+                          active={!!(activeNoteFullId && node.id === activeNoteFullId)}
+                          homeSpaceId={homeSpaceId}
+                          activeNoteFullId={activeNoteFullId}
+                          prefetchNote={prefetchNote}
+                          onOpenNote={(r) => {
+                            onNoteRow(r);
+                          }}
+                        />
                       );
                     })}
                   </ul>
@@ -1274,7 +1280,7 @@ export default function PrototypeSidebar() {
                     No study threads yet. Connect notes together to create threads.
                   </p>
                 ) : (
-                  <ul className="proto-note-list" style={{ margin: 0, padding: '4px 0', listStyle: 'none' }}>
+                  <ul className="proto-collection-grid">
                     {studyThreadsQuery.data.map((cluster) => {
                       const title = resolveClusterListTitle(
                         cluster,
@@ -1284,22 +1290,22 @@ export default function PrototypeSidebar() {
                       );
                       const preview = `${cluster.noteCount} ${cluster.noteCount === 1 ? 'note' : 'notes'}`;
                       return (
-                        <li
-                          key={cluster.id}
-                          className="proto-note-row-item"
-                        >
+                        <li key={cluster.id}>
                           <button
                             type="button"
-                            className="proto-note-row__main"
+                            className="proto-collection-card"
                             onClick={() => {
                               const slug = cluster.id.startsWith('note_') ? cluster.id.slice('note_'.length) : cluster.id;
                               setSidebarThreadDrilldownId(slug);
                             }}
                           >
-                            <div className="proto-note-row__title-line">
-                              <span className="pds-list-title proto-note-row__title-text">{title}</span>
+                            <span className="proto-collection-card__icon">
+                              <Icon name="arrow-right-arrow-left" size={13} aria-hidden />
+                            </span>
+                            <div className="proto-collection-card__body">
+                              <div className="proto-collection-card__title">{title}</div>
+                              <div className="proto-collection-card__count">{preview}</div>
                             </div>
-                            <div className="pds-list-preview proto-note-row__preview">{preview}</div>
                           </button>
                         </li>
                       );
@@ -1330,18 +1336,23 @@ export default function PrototypeSidebar() {
                     <span>Add scripture references in your notes to build your index.</span>
                   </div>
                 ) : (
-                  <ul className="proto-note-list">
+                  <ul className="proto-collection-grid">
                     {filteredScriptureBooks.map((b) => (
                       <li key={b.bookOrder}>
                         <button
                           type="button"
-                          className="proto-note-row"
+                          className="proto-collection-card"
                           onClick={() => setScriptureDrill({ level: 'passages', bookOrder: b.bookOrder })}
                         >
-                          <div className="pds-list-title">{b.title}</div>
-                          <div className="pds-list-preview">
-                            {b.referenceCount} reference{b.referenceCount !== 1 ? 's' : ''} · {b.noteCount} note
-                            {b.noteCount !== 1 ? 's' : ''}
+                          <span className="proto-collection-card__icon">
+                            <Icon name="book" size={13} aria-hidden />
+                          </span>
+                          <div className="proto-collection-card__body">
+                            <div className="proto-collection-card__title">{b.title}</div>
+                            <div className="proto-collection-card__count proto-collection-card__count--wrap">
+                              {b.passages.length} passage{b.passages.length !== 1 ? 's' : ''} · {b.noteCount} note
+                              {b.noteCount !== 1 ? 's' : ''}
+                            </div>
                           </div>
                         </button>
                       </li>
@@ -1392,21 +1403,27 @@ export default function PrototypeSidebar() {
                   </p>
                 ) : (
                   <ul className="proto-note-list">
-                    {notesForScripturePassage.map((n) => (
-                      <li key={n.id} className="proto-note-row-item" data-active={activeNoteFullId === n.id ? 'true' : 'false'}>
-                        <button
-                          type="button"
-                          className="proto-note-row__main"
-                          onClick={() => openScriptureIndexedNote(n)}
-                          onMouseEnter={() => openScriptureIndexedNote(n, true)}
-                          onFocus={() => openScriptureIndexedNote(n, true)}
-                        >
-                          <div className="pds-list-title proto-note-row__title-text">
-                            {stripServerAutoUntitledNoteTitleForDisplay(n.title?.trim() ?? '') || 'New Note'}
-                          </div>
-                        </button>
-                      </li>
-                    ))}
+                    {notesForScripturePassage.map((n) => {
+                      const row = resolveDrillNoteRow({
+                        id: n.id,
+                        title: n.title,
+                        updatedAt: n.updatedAt,
+                        createdAt: n.createdAt,
+                      });
+                      return (
+                        <PrototypeSidebarNoteRow
+                          key={n.id}
+                          row={row}
+                          active={!!(activeNoteFullId && n.id === activeNoteFullId)}
+                          homeSpaceId={homeSpaceId}
+                          activeNoteFullId={activeNoteFullId}
+                          prefetchNote={prefetchNote}
+                          onOpenNote={(r) => {
+                            onNoteRow(r);
+                          }}
+                        />
+                      );
+                    })}
                   </ul>
                 )}
               </>

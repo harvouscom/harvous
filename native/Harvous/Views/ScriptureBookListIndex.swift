@@ -7,6 +7,8 @@ struct ScriptureBookRow: Identifiable, Hashable, Sendable {
     let noteCount: Int
     /// Total parsed `detectedRefs` entries in this book (a note with two John refs counts twice).
     let referenceCount: Int
+    /// Distinct passages in this book — matches the count shown when drilling into the book.
+    let passageCount: Int
 
     var id: Int { bookIndex }
 
@@ -15,9 +17,10 @@ struct ScriptureBookRow: Identifiable, Hashable, Sendable {
         return ScriptureCanonicalBooks.titles[bookIndex]
     }
 
-    /// Subtitle for `FolderFeedRow` on the Scripture book list.
+    /// Subtitle for the Scripture book list. Shows distinct passages (what the drill-in lists),
+    /// not raw reference mentions, which double-counts repeated citations within a note.
     var bookListSubtitle: String {
-        "\(referenceCount) reference\(referenceCount == 1 ? "" : "s") · \(noteCount) note\(noteCount == 1 ? "" : "s")"
+        "\(passageCount) passage\(passageCount == 1 ? "" : "s") · \(noteCount) note\(noteCount == 1 ? "" : "s")"
     }
 }
 
@@ -43,11 +46,13 @@ enum ScriptureBookListIndex {
     static func rows(from notesInActiveSpace: [Note]) -> [ScriptureBookRow] {
         var noteIdsPerBook: [Int: Set<UUID>] = [:]
         var referenceCountPerBook: [Int: Int] = [:]
+        var passagesPerBook: [Int: Set<ParsedScriptureFields>] = [:]
         for note in notesInActiveSpace {
             for ref in note.detectedRefs {
                 guard let p = ScriptureReferenceParser.parse(ref) else { continue }
                 let idx = p.bookIndex
                 referenceCountPerBook[idx, default: 0] += 1
+                passagesPerBook[idx, default: []].insert(p)
                 noteIdsPerBook[idx, default: []].insert(note.id)
             }
         }
@@ -56,7 +61,8 @@ enum ScriptureBookListIndex {
             return ScriptureBookRow(
                 bookIndex: idx,
                 noteCount: ids.count,
-                referenceCount: referenceCountPerBook[idx] ?? 0
+                referenceCount: referenceCountPerBook[idx] ?? 0,
+                passageCount: passagesPerBook[idx]?.count ?? 0
             )
         }
     }

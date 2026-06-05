@@ -376,6 +376,13 @@ html.harvous-prototype-route .proto-shell__toolbar-cell::after {
   background: transparent;
 }
 
+/* When the floating daily-passage card is present, reserve space at the bottom of the
+   scroll content so the last list items can scroll out from under the card. Mirrors
+   native's `harvousListDailyPassagePillScrollReserve`. */
+.proto-sidebar-scroll:has(~ .proto-sidebar-daily-passage) {
+  padding-bottom: 84px;
+}
+
 .proto-load-more-sentinel {
   height: 4px;
   flex-shrink: 0;

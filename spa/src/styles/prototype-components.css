@@ -3092,9 +3092,17 @@ html.harvous-prototype-route .proto-editor-empty-state h2.proto-editor-empty-sta
 }
 
 /* ─── Daily passage pill (sidebar, native DailyPassagePill parity) ───────── */
+/* Floats over the bottom of the scrolling list (the list scrolls underneath via the
+   reserve on `.proto-sidebar-scroll`), matching native's floating daily-passage pill.
+   Wrapper is click-through; only the card itself is interactive. */
 .proto-sidebar-daily-passage {
-  flex-shrink: 0;
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 2;
   padding: 0 18px 8px;
+  pointer-events: none;
 }
 
 .proto-daily-passage-pill {
@@ -3108,6 +3116,10 @@ html.harvous-prototype-route .proto-editor-empty-state h2.proto-editor-empty-sta
   background: var(--pds-glass-shell);
   box-shadow: var(--pds-paper-shadow-subtle), var(--pds-glass-rim);
   text-align: left;
+  /* Wrapper is `pointer-events: none` so the list scrolls/clicks through; re-enable the card. */
+  pointer-events: auto;
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
 }
 
 .proto-daily-passage-pill::before {
@@ -3223,6 +3235,136 @@ html.harvous-prototype-route .proto-editor-empty-state h2.proto-editor-empty-sta
 .proto-daily-passage-pill__orb:disabled {
   opacity: 0.5;
   cursor: default;
+}
+
+/* ─── Collection card grid (folders / threads / scripture books) ──────────── */
+/* Compact 2-up glass cards for the collection index modes. Shares the daily
+   passage glass recipe (shell + frost ::before + sheen ::after). Note rows keep
+   the single-column .proto-note-list treatment. */
+.proto-collection-grid {
+  list-style: none;
+  margin: 0;
+  padding: 4px 8px 12px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 8px;
+}
+
+.proto-collection-card {
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  min-height: 80px;
+  padding: 10px 11px;
+  border-radius: 13px;
+  border: 0.5px solid var(--pds-border-control);
+  background: var(--pds-glass-shell);
+  box-shadow: var(--pds-paper-shadow-subtle), var(--pds-glass-rim);
+  text-align: left;
+  cursor: pointer;
+  transition:
+    background 0.1s ease,
+    box-shadow 0.1s ease,
+    transform 0.1s ease;
+  /* global.css: button * { font-weight: 700 !important } — undo for sidebar list */
+  font-family: var(--pds-font-body) !important;
+  font-weight: 400 !important;
+  color: var(--pds-text-primary) !important;
+}
+
+.proto-collection-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--pds-glass-panel-frost);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.proto-collection-card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--pds-glass-sheen);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.proto-collection-card > * {
+  position: relative;
+  z-index: 1;
+}
+
+.proto-collection-card:hover {
+  background: var(--pds-bg-control-strong);
+  box-shadow: var(--pds-paper-shadow), var(--pds-glass-rim);
+}
+
+.proto-collection-card:active {
+  transform: translateY(0.5px);
+}
+
+.proto-collection-card:focus-visible {
+  outline: none;
+  box-shadow:
+    var(--pds-paper-shadow-subtle),
+    var(--pds-glass-rim),
+    inset 0 0 0 1.5px var(--pds-border-control-strong);
+}
+
+.proto-collection-card__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
+  height: 22px;
+  color: var(--pds-text-secondary);
+}
+
+.proto-collection-card__body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: auto;
+  min-width: 0;
+}
+
+.proto-collection-card__title {
+  font-size: 13px;
+  font-weight: 600 !important;
+  line-height: 1.25;
+  color: var(--pds-text-primary) !important;
+  font-family: var(--pds-font-body) !important;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.proto-collection-card__count {
+  font-size: 12px;
+  font-weight: 400 !important;
+  line-height: 1.3;
+  color: var(--pds-text-secondary) !important;
+  font-family: var(--pds-font-body) !important;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Scripture book counts ("N references · N notes") are too long for one compact
+   line — let them wrap to two instead of truncating the notes count. */
+.proto-collection-card__count--wrap {
+  white-space: normal;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
 }
 
 /* ─── VOTD passage sheet (viewport modal) ────────────────────────────────── */

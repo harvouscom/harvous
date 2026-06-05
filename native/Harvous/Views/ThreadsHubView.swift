@@ -114,36 +114,30 @@ struct ThreadsHubView: View {
     }
 
     private var threadsFlatList: some View {
-        List {
-            ForEach(filteredClusters) { cluster in
-                Button {
-                    appRouter.iosThreadsDrill = .cluster(
-                        representativeId: cluster.id,
-                        title: cluster.title,
-                        memberIds: cluster.memberIds
-                    )
-                } label: {
-                    FolderFeedRow(
-                        title: cluster.title,
-                        noteCount: cluster.noteCount,
-                        isPinned: false,
-                        variant: .conversation
-                    )
+        ScrollView {
+            LazyVGrid(columns: HarvousCollectionGridLayout.columns, spacing: HarvousCollectionGridLayout.spacing) {
+                ForEach(filteredClusters) { cluster in
+                    Button {
+                        appRouter.iosThreadsDrill = .cluster(
+                            representativeId: cluster.id,
+                            title: cluster.title,
+                            memberIds: cluster.memberIds
+                        )
+                    } label: {
+                        CollectionGridCard(
+                            iconAssetName: "Harvous.ArrowRightArrowLeft",
+                            title: cluster.title,
+                            subtitle: "\(cluster.noteCount) note\(cluster.noteCount == 1 ? "" : "s")"
+                        )
+                    }
+                    .buttonStyle(.plain)
                 }
-                .buttonStyle(.plain)
-                .listRowInsets(IOSThreadsListLayout.rowInsets)
-                .listRowBackground(Color.clear)
-                .listRowSeparator(.hidden)
             }
+            .padding(.horizontal, HarvousCollectionGridLayout.horizontalPadding)
+            .padding(.top, HarvousCollectionGridLayout.topPadding)
         }
-        .listStyle(.plain)
         .scrollContentBackground(.hidden)
         .iosListBottomChromeReserve()
-    }
-
-    /// Match hub note row insets in `NoteListColumn` (conversation rows use leading/trailing 14).
-    private enum IOSThreadsListLayout {
-        static let rowInsets = EdgeInsets(top: 4, leading: HarvousFeedListLayout.listRowHorizontalInset, bottom: 4, trailing: HarvousFeedListLayout.listRowHorizontalInset)
     }
 }
 

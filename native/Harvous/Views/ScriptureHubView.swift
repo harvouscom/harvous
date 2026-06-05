@@ -173,26 +173,24 @@ struct ScriptureHubView: View {
     }
 
     private var scriptureFlatList: some View {
-        List {
-            ForEach(filteredScriptureBookRows) { row in
-                Button {
-                    appRouter.iosScriptureDrill = .book(row.bookIndex)
-                } label: {
-                    FolderFeedRow(
-                        title: row.title,
-                        noteCount: row.noteCount,
-                        isPinned: false,
-                        customSubtitle: row.bookListSubtitle,
-                        variant: .conversation
-                    )
+        ScrollView {
+            LazyVGrid(columns: HarvousCollectionGridLayout.columns, spacing: HarvousCollectionGridLayout.spacing) {
+                ForEach(filteredScriptureBookRows) { row in
+                    Button {
+                        appRouter.iosScriptureDrill = .book(row.bookIndex)
+                    } label: {
+                        CollectionGridCard(
+                            iconAssetName: "Harvous.BookOpen",
+                            title: row.title,
+                            subtitle: row.bookListSubtitle
+                        )
+                    }
+                    .buttonStyle(.plain)
                 }
-                .buttonStyle(.plain)
-                .listRowInsets(EdgeInsets(top: 4, leading: HarvousFeedListLayout.listRowHorizontalInset, bottom: 4, trailing: HarvousFeedListLayout.listRowHorizontalInset))
-                .listRowBackground(Color.clear)
-                .listRowSeparator(.hidden)
             }
+            .padding(.horizontal, HarvousCollectionGridLayout.horizontalPadding)
+            .padding(.top, HarvousCollectionGridLayout.topPadding)
         }
-        .listStyle(.plain)
         .scrollContentBackground(.hidden)
         .iosListBottomChromeReserve()
     }
