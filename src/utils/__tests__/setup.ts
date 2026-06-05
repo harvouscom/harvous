@@ -12,6 +12,10 @@ Object.defineProperty(window, 'navigator', {
   writable: true,
   value: {
     ...window.navigator,
+    // navigator props live on the prototype as getters, so the spread above drops them;
+    // restore the few that consumers (and react-dom at import time) read.
+    userAgent: window.navigator.userAgent || 'jsdom',
+    platform: window.navigator.platform || '',
     onLine: true,
   },
 });

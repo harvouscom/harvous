@@ -37,6 +37,40 @@ export function SettingsShell({
   );
 }
 
+/**
+ * Sub-screen chrome for drill-down pages inside a settings category (e.g. the
+ * Account hub → Edit profile / Emails / Password / Security). Renders an in-pane
+ * back header so it works in both the wide two-pane modal and the mobile sheet,
+ * where the sheet's own back button jumps straight to the settings list.
+ */
+export function SettingsSubScreen({
+  title,
+  onBack,
+  children,
+}: {
+  title: string;
+  onBack: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <div style={{ maxWidth: 480, width: '100%', margin: '0 auto', padding: '16px 20px 64px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '0 0 16px' }}>
+        <button
+          type="button"
+          onClick={onBack}
+          className="proto-toolbar-icon-btn"
+          aria-label="Back to account"
+          style={{ marginLeft: -6 }}
+        >
+          <Icon name="chevron-left" size={18} />
+        </button>
+        <h1 className="proto-title-md" style={{ margin: 0 }}>{title}</h1>
+      </div>
+      {children}
+    </div>
+  );
+}
+
 /** A tappable settings list row: label (+ optional sublabel) on the left, value/chevron on the right. */
 export function SettingsRow({
   label,

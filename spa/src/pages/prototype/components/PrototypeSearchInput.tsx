@@ -9,6 +9,7 @@ interface PrototypeSearchInputProps {
   onChange: (val: string) => void;
   placeholder?: string;
   autoFocus?: boolean;
+  onKeyDown?: (e: React.KeyboardEvent<HTMLInputElement>) => void;
 }
 
 export default function PrototypeSearchInput({
@@ -16,6 +17,7 @@ export default function PrototypeSearchInput({
   onChange,
   placeholder = 'Search notes…',
   autoFocus,
+  onKeyDown,
 }: PrototypeSearchInputProps) {
   return (
     <div className="proto-search-input-wrap">
@@ -29,6 +31,7 @@ export default function PrototypeSearchInput({
         spellCheck={false}
         value={value}
         onChange={(e) => onChange(e.target.value)}
+        onKeyDown={onKeyDown}
         placeholder={placeholder}
         autoFocus={autoFocus}
       />

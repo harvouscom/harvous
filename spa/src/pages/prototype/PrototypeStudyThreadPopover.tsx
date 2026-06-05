@@ -10,6 +10,7 @@ import { Drawer, DrawerContent } from '@/components/ui/drawer';
 import Icon from '@/components/react/Icon';
 import ProtoPopoverShell from './ProtoPopoverShell';
 import PrototypeConnectNoteSheet from './PrototypeConnectNoteSheet';
+import { useDismissOnOutside } from '../../hooks/usePopoverDismiss';
 import { usePrototypeHomeSpaceId } from '../../hooks/usePrototypeHomeSpaceId';
 import {
   usePrototypeStudyThread,
@@ -224,21 +225,7 @@ export default function PrototypeStudyThreadPopover({
     setPosition({ top, left });
   }, [anchorRect, shouldUsePopover, nodeCount, isLoading]);
 
-  useEffect(() => {
-    if (!shouldUsePopover) return;
-    const onPointerDown = (e: PointerEvent) => {
-      if (!cardRef.current) return;
-      const target = e.target as Node | null;
-      if (target && !cardRef.current.contains(target)) onOpenChange(false);
-    };
-    const onKeyDown = (e: KeyboardEvent) => { if (e.key === 'Escape') onOpenChange(false); };
-    window.addEventListener('pointerdown', onPointerDown, { capture: true });
-    window.addEventListener('keydown', onKeyDown);
-    return () => {
-      window.removeEventListener('pointerdown', onPointerDown, { capture: true } as AddEventListenerOptions);
-      window.removeEventListener('keydown', onKeyDown);
-    };
-  }, [shouldUsePopover, onOpenChange]);
+  useDismissOnOutside(cardRef, () => onOpenChange(false), shouldUsePopover);
 
   // ── Content ────────────────────────────────────────────────────────────────
   const content = (

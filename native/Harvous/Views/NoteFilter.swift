@@ -11,10 +11,13 @@ enum NoteFilter: Hashable, Sendable {
     case scripturePassage(ParsedScriptureFields)
     /// Notes that cite this exact URL (matches `URLLinkPillAttachment.href`).
     case urlReference(href: String)
+    /// Notes in a connected-note thread cluster (member note UUIDs snapshotted at drill-in).
+    case thread(memberIds: Set<UUID>)
 
     var displayName: String {
         switch self {
         case .all: return "Home"
+        case .thread: return "Thread"
         case .folder(let name):
             if let name, !name.isEmpty { return name }
             return "No folder"

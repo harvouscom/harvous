@@ -143,7 +143,7 @@ struct MacRootView: View {
                 splitColumnVisibility: animatedSplitVisibility,
                 onCreateNewNote: createNewNote
             )
-                .navigationSplitViewColumnWidth(min: 230, ideal: 260, max: 300)
+                .navigationSplitViewColumnWidth(min: 240, ideal: 260, max: 300)
         } detail: {
             NavigationStack(path: $threadNavPath) {
                 ZStack {
@@ -340,6 +340,8 @@ struct MacRootView: View {
             .focusedSceneValue(\.focusNoteListAction, macFocusNoteList)
             .focusedSceneValue(\.nextNoteAction, macNoteListSelectionCoordinator.nextNote)
             .focusedSceneValue(\.previousNoteAction, macNoteListSelectionCoordinator.previousNote)
+            .focusedSceneValue(\.firstNoteAction, macNoteListSelectionCoordinator.firstNote)
+            .focusedSceneValue(\.lastNoteAction, macNoteListSelectionCoordinator.lastNote)
             .focusedSceneValue(\.deleteNoteAction, macEditorMenuActionsCoordinator.deleteNoteAction)
             .focusedSceneValue(\.newConnectedNoteAction, macEditorMenuActionsCoordinator.newConnectedNoteAction)
             .focusedSceneValue(\.nextStudyHighlightAction, macEditorMenuActionsCoordinator.nextStudyHighlightAction)
@@ -805,6 +807,11 @@ struct iOSRootView: View {
                     iosSelectedNoteId: $iosSelectedNoteId,
                     externalSearchText: $appRouter.iosInlineSearchText
                 )
+            case .threads:
+                ThreadsHubView(
+                    iosSelectedNoteId: $iosSelectedNoteId,
+                    externalSearchText: $appRouter.iosInlineSearchText
+                )
             case .highlights:
                 HighlightsHubView(iosSelectedNoteId: $iosSelectedNoteId)
             case .scripture:
@@ -905,7 +912,7 @@ struct iOSRootView: View {
         switch appRouter.iosListSurface {
         case .notes:
             appRouter.iosNotesFilterSearchPresented = true
-        case .folders, .highlights, .scripture, .dictionary:
+        case .folders, .threads, .highlights, .scripture, .dictionary:
             NotificationCenter.default.post(name: .harvousFocusIOSInlineSearch, object: nil)
         case .more:
             break
@@ -980,6 +987,13 @@ struct IOSListSurfaceChip: View {
         return NoteFilter.folder(key).displayName
     }
 
+    /// When drilled into a thread cluster, the chip morphs into a chevron-back showing the cluster title.
+    private var drilledThreadLabel: String? {
+        guard appRouter.iosListSurface == .threads,
+              case .cluster(_, let title, _) = appRouter.iosThreadsDrill else { return nil }
+        return title
+    }
+
     /// When drilled into a scripture book or passage, the chip morphs into chevron + context label (matches folder drill).
     private var drilledScriptureChip: (label: String, accessibilityLabel: String)? {
         guard appRouter.iosListSurface == .scripture else { return nil }
@@ -1002,6 +1016,13 @@ struct IOSListSurfaceChip: View {
                 accessibilityLabel: "Back to folders, currently viewing \(folderLabel)"
             ) {
                 appRouter.iosFoldersDrill = .root
+            }
+        } else if let threadLabel = drilledThreadLabel {
+            drilledBackChip(
+                label: threadLabel,
+                accessibilityLabel: "Back to threads, currently viewing \(threadLabel)"
+            ) {
+                appRouter.iosThreadsDrill = .root
             }
         } else if let scripture = drilledScriptureChip {
             drilledBackChip(label: scripture.label, accessibilityLabel: scripture.accessibilityLabel) {
@@ -1027,6 +1048,7 @@ struct IOSListSurfaceChip: View {
         Menu {
             chipMenuButton(.notes, label: "Notes", icon: "Harvous.Note")
             chipMenuButton(.folders, label: "Folders", icon: "Harvous.Folder")
+            chipMenuButton(.threads, label: "Threads", icon: "Harvous.ArrowRightArrowLeft")
             chipMenuButton(.scripture, label: "Scripture", icon: "Harvous.BookOpen")
             chipMenuButton(.highlights, label: "Highlights", icon: "Harvous.Highlight")
             chipMenuButton(.dictionary, label: "Dictionary", icon: "Harvous.LinesLeaning")

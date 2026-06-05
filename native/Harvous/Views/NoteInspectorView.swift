@@ -134,7 +134,7 @@ struct NoteInspectorView: View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
                 HarvousFAGlyph(assetName: "Harvous.CircleXmark", edgePt: 13)
-                    .foregroundStyle(.orange)
+                    .foregroundStyle(Color.harvousWarning)
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Changes not synced")
                         .font(HarvousTypography.inspectorBody)
@@ -164,11 +164,11 @@ struct NoteInspectorView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
             RoundedRectangle(cornerRadius: HarvousRadius.input, style: .continuous)
-                .fill(Color.orange.opacity(0.10))
+                .fill(Color.harvousWarning.opacity(0.10))
         )
         .overlay(
             RoundedRectangle(cornerRadius: HarvousRadius.input, style: .continuous)
-                .strokeBorder(Color.orange.opacity(0.22), lineWidth: 0.5)
+                .strokeBorder(Color.harvousWarning.opacity(0.22), lineWidth: 0.5)
         )
     }
 
@@ -592,9 +592,9 @@ private enum InspectorDetailChipMetrics {
     /// Slightly larger than legacy 12pt inspector pills for readability while staying secondary UI.
     static var labelFont: Font {
         #if os(iOS)
-        .system(size: 15, weight: .medium, design: .default)
+        HarvousFonts.font(size: 15, weight: 500)
         #else
-        .system(size: 14, weight: .medium, design: .default)
+        HarvousFonts.font(size: 14, weight: 500)
         #endif
     }
 

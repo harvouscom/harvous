@@ -1,11 +1,14 @@
-import { useMemo, useState } from 'react';
+import { useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useRouterState } from '@tanstack/react-router';
 import { MIN_SEARCH_QUERY_LENGTH } from '@/utils/search-query';
 import { fetchSearchResults, searchQueryKey } from '../../../../src/hooks/useSearch';
 import { usePrototypeHomeSpaceId } from '../../hooks/usePrototypeHomeSpaceId';
+import { useListKeyboardNavigation } from '../../hooks/useListKeyboardNavigation';
 import PrototypeSearchInput from './components/PrototypeSearchInput';
 import PrototypeSearchResultsList from './PrototypeSearchResultsList';
+
+const SEARCH_RESULT_SELECTOR = 'a.proto-search-result-link';
 
 export default function PrototypeSearchPage() {
   const queryClient = useQueryClient();
@@ -30,6 +33,20 @@ export default function PrototypeSearchPage() {
   const normalizedSpace = normalizedFromQuery ?? homeSpaceId;
 
   const [query, setQuery] = useState('');
+
+  // Keyboard navigation across results: ArrowDown from the field, then Arrow / j-k / Home-End.
+  const resultsRef = useRef<HTMLDivElement>(null);
+  useListKeyboardNavigation(resultsRef, { rowSelector: SEARCH_RESULT_SELECTOR });
+
+  const focusFirstResult = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key !== 'ArrowDown') return;
+    const first = resultsRef.current?.querySelector<HTMLElement>(SEARCH_RESULT_SELECTOR);
+    if (first) {
+      e.preventDefault();
+      first.focus();
+      first.scrollIntoView({ block: 'nearest' });
+    }
+  };
 
   const prefetchSearch = (term: string) => {
     const t = term.trim();
@@ -67,10 +84,13 @@ export default function PrototypeSearchPage() {
           setQuery(v);
           prefetchSearch(v);
         }}
+        onKeyDown={focusFirstResult}
         placeholder="Search notes in My Home…"
         autoFocus
       />
-      <PrototypeSearchResultsList query={query} spaceId={normalizedSpace} />
+      <div ref={resultsRef}>
+        <PrototypeSearchResultsList query={query} spaceId={normalizedSpace} />
+      </div>
     </div>
   );
 }

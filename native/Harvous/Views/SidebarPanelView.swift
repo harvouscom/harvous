@@ -111,6 +111,12 @@ struct SidebarPanelView: View {
         ThreadStore.connectedClusters(from: notesInActiveSpace, modelContext: modelContext)
     }
 
+    private var filteredThreadClusters: [ThreadStore.NoteCluster] {
+        let q = folderListSearchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !q.isEmpty else { return threadClusters }
+        return threadClusters.filter { $0.title.localizedStandardContains(q) }
+    }
+
     private var filteredFolderRows: [HarvousFolderRow] {
         HarvousFolderListIndex.filtered(
             rows: folderRows,
@@ -187,6 +193,92 @@ struct SidebarPanelView: View {
         }
     }
 
+    private struct SidebarBackTarget {
+        let label: String
+        let help: String
+        let accessibilityLabel: String
+        let action: () -> Void
+    }
+
+    /// The drill-in "back" affordance for the current mode, or nil when at root.
+    /// Consolidates the per-mode back conditions so the back row has one source of truth.
+    private var sidebarBackTarget: SidebarBackTarget? {
+        switch mode {
+        case .folders:
+            if case .bucket(let key) = foldersDrill {
+                let name = NoteFilter.folder(key).displayName
+                return SidebarBackTarget(
+                    label: name,
+                    help: "Back to folders",
+                    accessibilityLabel: "Back to folders, currently viewing \(name)"
+                ) { foldersDrill = .root }
+            }
+        case .scripture:
+            if let bookLabel = scriptureDrillBookLabel {
+                return SidebarBackTarget(
+                    label: bookLabel,
+                    help: scriptureSidebarBackButtonHelp,
+                    accessibilityLabel: scriptureSidebarBackAccessibilityLabel(bookLabel: bookLabel)
+                ) {
+                    switch scriptureDrill {
+                    case .root: break
+                    case .book: scriptureDrill = .root
+                    case .passage(let p): scriptureDrill = .book(p.bookIndex)
+                    }
+                }
+            }
+        case .threads:
+            if case .cluster(_, let clusterTitle, _) = threadsDrill {
+                return SidebarBackTarget(
+                    label: clusterTitle,
+                    help: "Back to threads",
+                    accessibilityLabel: "Back to threads, currently viewing \(clusterTitle)"
+                ) { threadsDrill = .root }
+            }
+        case .dictionary:
+            if dictionaryDrill != .root {
+                return SidebarBackTarget(
+                    label: "Dictionary",
+                    help: "Back to dictionary",
+                    accessibilityLabel: "Back to dictionary"
+                ) { dictionaryDrill = .root }
+            }
+        default:
+            break
+        }
+        return nil
+    }
+
+    /// Full-width back row shown above the search field when drilled in.
+    /// Lives in the body (not the title-bar toolbar) so its variable-width label
+    /// no longer crowds the fixed toolbar cluster into overflow.
+    @ViewBuilder
+    private var sidebarBackRow: some View {
+        if let target = sidebarBackTarget {
+            Button(action: target.action) {
+                HStack(spacing: 5) {
+                    HarvousFAGlyph(assetName: "Harvous.ChevronLeft", edgePt: 13)
+                        .foregroundStyle(.secondary)
+                    Text(target.label)
+                        .font(HarvousFonts.font(size: 13, weight: .medium, design: .default))
+                        .foregroundStyle(.primary)
+                        .lineLimit(1)
+                    Spacer(minLength: 0)
+                }
+                .frame(maxWidth: .infinity)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .help(target.help)
+            .accessibilityLabel(target.accessibilityLabel)
+            .padding(.horizontal, HarvousFeedListLayout.listRowHorizontalInset)
+            .padding(.top, 6)
+            .padding(.bottom, 6)
+            Divider()
+                .padding(.horizontal, HarvousFeedListLayout.listRowHorizontalInset)
+        }
+    }
+
     private var sidebarSearchField: some View {
         HStack(spacing: 8) {
             HarvousFAGlyph(assetName: "Harvous.MagnifyingGlass", edgePt: 14)
@@ -250,71 +342,26 @@ struct SidebarPanelView: View {
     private var sidebarMacToolbarClusterBar: some View {
         HStack(spacing: SidebarToolbarLayout.borderedIconClusterSpacing) {
             if showSidebarToolbarChrome {
-                SpaceSwitcherView()
-                if mode == .folders, case .bucket(let key) = foldersDrill {
-                    Button {
-                        foldersDrill = .root
-                    } label: {
+                if let target = sidebarBackTarget {
+                    // SpaceSwitcherView omitted while drilled in — saves ~37pt so the
+                    // label fits without tripping narrowColumnToolbarSuppressBelow.
+                    Button(action: target.action) {
                         HStack(spacing: 5) {
                             HarvousFAGlyph(assetName: "Harvous.ChevronLeft", edgePt: 13)
-                            Text(NoteFilter.folder(key).displayName)
+                            Text(target.label)
                                 .font(HarvousFonts.font(size: 12, weight: .medium, design: .default))
                                 .lineLimit(1)
-                                .fixedSize(horizontal: true, vertical: false)
+                                .truncationMode(.tail)
                         }
                     }
                     .buttonStyle(.bordered)
-                    .help("Back to folders")
-                    .accessibilityLabel("Back to folders, currently viewing \(NoteFilter.folder(key).displayName)")
+                    .frame(maxWidth: 110)
+                    .help(target.help)
+                    .accessibilityLabel(target.accessibilityLabel)
+                } else {
+                    SpaceSwitcherView()
+                    modeMenu
                 }
-                if mode == .scripture, let bookLabel = scriptureDrillBookLabel {
-                    Button {
-                        switch scriptureDrill {
-                        case .root: break
-                        case .book:
-                            scriptureDrill = .root
-                        case .passage(let p):
-                            scriptureDrill = .book(p.bookIndex)
-                        }
-                    } label: {
-                        HStack(spacing: 5) {
-                            HarvousFAGlyph(assetName: "Harvous.ChevronLeft", edgePt: 13)
-                            Text(bookLabel)
-                                .font(HarvousFonts.font(size: 12, weight: .medium, design: .default))
-                                .lineLimit(1)
-                                .fixedSize(horizontal: true, vertical: false)
-                        }
-                    }
-                    .buttonStyle(.bordered)
-                    .help(scriptureSidebarBackButtonHelp)
-                    .accessibilityLabel(scriptureSidebarBackAccessibilityLabel(bookLabel: bookLabel))
-                }
-                if mode == .threads, case .cluster(_, let clusterTitle, _) = threadsDrill {
-                    Button {
-                        threadsDrill = .root
-                    } label: {
-                        HStack(spacing: 5) {
-                            HarvousFAGlyph(assetName: "Harvous.ChevronLeft", edgePt: 13)
-                            Text(clusterTitle)
-                                .font(HarvousFonts.font(size: 12, weight: .medium, design: .default))
-                                .lineLimit(1)
-                                .fixedSize(horizontal: true, vertical: false)
-                        }
-                    }
-                    .buttonStyle(.bordered)
-                    .help("Back to threads")
-                    .accessibilityLabel("Back to threads, currently viewing \(clusterTitle)")
-                }
-                if mode == .dictionary, dictionaryDrill != .root {
-                    Button {
-                        dictionaryDrill = .root
-                    } label: {
-                        HarvousFAGlyph(assetName: "Harvous.ChevronLeft", edgePt: 13)
-                    }
-                    .buttonStyle(.bordered)
-                    .help("Back to dictionary")
-                }
-                modeMenu
             }
             sidebarHideSidebarToolbarButton
         }
@@ -355,63 +402,6 @@ struct SidebarPanelView: View {
             HStack(spacing: 7) {
                 SpaceSwitcherView()
                     .environment(\.harvousIsIPadSplitLayout, isIPadSplitLayout)
-
-                if mode == .folders, case .bucket(let key) = foldersDrill {
-                    Button { foldersDrill = .root } label: {
-                        HStack(spacing: 5) {
-                            HarvousFAGlyph(assetName: "Harvous.ChevronLeft", edgePt: 13)
-                                .foregroundStyle(.primary)
-                            Text(NoteFilter.folder(key).displayName)
-                                .font(HarvousFonts.font(size: 14, weight: .medium, design: .default))
-                                .lineLimit(1)
-                        }
-                    }
-                    .buttonStyle(.bordered)
-                    .accessibilityLabel("Back to folders, currently viewing \(NoteFilter.folder(key).displayName)")
-                }
-
-                if mode == .scripture, let bookLabel = scriptureDrillBookLabel {
-                    Button {
-                        switch scriptureDrill {
-                        case .root: break
-                        case .book: scriptureDrill = .root
-                        case .passage(let p): scriptureDrill = .book(p.bookIndex)
-                        }
-                    } label: {
-                        HStack(spacing: 5) {
-                            HarvousFAGlyph(assetName: "Harvous.ChevronLeft", edgePt: 13)
-                                .foregroundStyle(.primary)
-                            Text(bookLabel)
-                                .font(HarvousFonts.font(size: 14, weight: .medium, design: .default))
-                                .lineLimit(1)
-                        }
-                    }
-                    .buttonStyle(.bordered)
-                    .accessibilityLabel(scriptureSidebarBackAccessibilityLabel(bookLabel: bookLabel))
-                }
-
-                if mode == .threads, case .cluster(_, let clusterTitle, _) = threadsDrill {
-                    Button { threadsDrill = .root } label: {
-                        HStack(spacing: 5) {
-                            HarvousFAGlyph(assetName: "Harvous.ChevronLeft", edgePt: 13)
-                                .foregroundStyle(.primary)
-                            Text(clusterTitle)
-                                .font(HarvousFonts.font(size: 14, weight: .medium, design: .default))
-                                .lineLimit(1)
-                        }
-                    }
-                    .buttonStyle(.bordered)
-                    .accessibilityLabel("Back to threads, currently viewing \(clusterTitle)")
-                }
-
-                if mode == .dictionary, dictionaryDrill != .root {
-                    Button { dictionaryDrill = .root } label: {
-                        HarvousFAGlyph(assetName: "Harvous.ChevronLeft", edgePt: 13)
-                            .foregroundStyle(.primary)
-                    }
-                    .buttonStyle(.bordered)
-                    .accessibilityLabel("Back to dictionary")
-                }
 
                 modeMenu
 
@@ -454,6 +444,9 @@ struct SidebarPanelView: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
+                #if os(iOS)
+                sidebarBackRow
+                #endif
                 sidebarSearchField
 
                 Group {
@@ -502,7 +495,13 @@ struct SidebarPanelView: View {
                         case .root:
                             threadsClusterList
                         case .cluster(_, _, let memberIds):
-                            threadsMemberNoteList(memberIds: memberIds)
+                            NoteListColumn(
+                                filter: .thread(memberIds: Set(memberIds)),
+                                selectedNote: $selectedNote,
+                                externalSearchText: unifiedSearchText,
+                                columnStyle: .macOSSidebar,
+                                ownsSidebarChrome: false
+                            )
                         }
                     } else {
                         switch foldersDrill {
@@ -963,17 +962,18 @@ struct SidebarPanelView: View {
 
     private var threadsClusterList: some View {
         Group {
-            let clusters = threadClusters
-            if clusters.isEmpty {
+            if threadClusters.isEmpty {
                 HarvousEmptyStateView(
                     iconAsset: "Harvous.ArrowRightArrowLeft",
                     title: "No Threads",
                     description: "Connect notes together to create threads.",
                     scale: .compact
                 )
+            } else if filteredThreadClusters.isEmpty {
+                ContentUnavailableView.search(text: folderListSearchText)
             } else {
                 List {
-                    ForEach(clusters) { cluster in
+                    ForEach(filteredThreadClusters) { cluster in
                         Button {
                             threadsDrill = .cluster(
                                 representativeId: cluster.id,
@@ -981,62 +981,17 @@ struct SidebarPanelView: View {
                                 memberIds: cluster.memberIds
                             )
                         } label: {
-                            VStack(alignment: .leading, spacing: 3) {
-                                Text(cluster.title)
-                                    .font(HarvousTypography.noteListTitle)
-                                    .foregroundStyle(.primary)
-                                    .lineLimit(1)
-                                Text("\(cluster.noteCount) \(cluster.noteCount == 1 ? "note" : "notes")")
-                                    .font(HarvousTypography.noteListPreview)
-                                    .foregroundStyle(.secondary)
-                            }
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .contentShape(Rectangle())
+                            FolderFeedRow(
+                                title: cluster.title,
+                                noteCount: cluster.noteCount,
+                                isPinned: false,
+                                variant: .sidebarCompact
+                            )
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 2)
                         }
                         .buttonStyle(.plain)
-                        .listRowInsets(EdgeInsets(top: 6, leading: HarvousFeedListLayout.listRowHorizontalInset, bottom: 6, trailing: HarvousFeedListLayout.listRowHorizontalInset))
-                        .listRowBackground(Color.clear)
-                        .listRowSeparator(.hidden)
-                    }
-                }
-                .listStyle(.plain)
-                .scrollContentBackground(.hidden)
-                #if os(macOS)
-                .harvousListDailyPassagePillScrollReserve()
-                #endif
-            }
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-    }
-
-    private func threadsMemberNoteList(memberIds: [UUID]) -> some View {
-        let noteById = Dictionary(uniqueKeysWithValues: notesInActiveSpace.map { ($0.id, $0) })
-        let members = memberIds.compactMap { noteById[$0] }
-        return Group {
-            if members.isEmpty {
-                HarvousEmptyStateView(
-                    iconAsset: "Harvous.Note",
-                    title: "No Notes",
-                    description: "Notes in this thread will appear here.",
-                    scale: .compact
-                )
-            } else {
-                List {
-                    ForEach(members) { note in
-                        Button {
-                            selectedNote = note
-                        } label: {
-                            Text(note.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                                 ? "Untitled"
-                                 : note.title)
-                                .font(HarvousTypography.noteListTitle)
-                                .foregroundStyle(.primary)
-                                .lineLimit(2)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .contentShape(Rectangle())
-                        }
-                        .buttonStyle(.plain)
-                        .listRowInsets(EdgeInsets(top: 6, leading: HarvousFeedListLayout.listRowHorizontalInset, bottom: 6, trailing: HarvousFeedListLayout.listRowHorizontalInset))
+                        .listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 4, trailing: 0))
                         .listRowBackground(Color.clear)
                         .listRowSeparator(.hidden)
                     }

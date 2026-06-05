@@ -192,6 +192,20 @@ enum HarvousYouNavigation: Hashable {
     case settingsDetail(HarvousSettingsSidebarItem)
 }
 
+// MARK: - Account drill-down routes (in-place, no modal)
+
+/// Pushed onto the settings `NavigationStack` (iOS You stack / macOS preferences detail)
+/// so each account screen opens in place with a normal back-to-Account chevron.
+/// ClerkKit-free (only a String payload) so it compiles without the SDK linked.
+enum HarvousAccountRoute: Hashable {
+    case editProfile
+    case emails
+    case password
+    case security
+    case addEmail
+    case verifyEmail(String)
+}
+
 // MARK: - Deep link path → detail
 
 enum HarvousSettingsPathParser {

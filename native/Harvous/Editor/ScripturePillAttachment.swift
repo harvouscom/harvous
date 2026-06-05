@@ -35,6 +35,48 @@ private enum ScripturePillInnerShadowSharedCIContext {
     static let context = CIContext(options: [CIContextOption.useSoftwareRenderer: false])
 }
 
+/// Cache for the blurred inner-edge stroke raster.
+///
+/// The raster is a *pure function* of geometry (bounds, pill inset, corner radius),
+/// appearance (dark vs light), and device scale — it contains no reference text,
+/// accent tint, or time-of-day gradient. So a composite key over exactly those
+/// inputs is always correct: a hit is guaranteed pixel-identical to a fresh render.
+///
+/// Caching it skips the per-render `CIGaussianBlur` + `CIContext.createCGImage` work,
+/// which is the expensive Core Image step on the scripture-pill draw path. Pills with
+/// the same dimensions (common in pill-heavy synced notes) reuse one raster. Composes
+/// with — and does not replace — the font cache and the strip→reapply loop cap that
+/// fixed the prior 99%-CPU lock-up (see memory: native-scripture-pill-render-loop).
+private enum ScripturePillBlurredStrokeCache {
+    // NSCache is thread-safe at runtime but not annotated `Sendable` in the SDK, so
+    // `nonisolated(unsafe)` opts this shared static out of strict-concurrency checking.
+    nonisolated(unsafe) static let cache: NSCache<NSString, CGImage> = {
+        let c = NSCache<NSString, CGImage>()
+        c.countLimit = 256
+        #if os(iOS)
+        NotificationCenter.default.addObserver(
+            forName: UIApplication.didReceiveMemoryWarningNotification,
+            object: nil,
+            queue: nil
+        ) { _ in c.removeAllObjects() }
+        #endif
+        return c
+    }()
+
+    /// Full-precision interpolation so equal inputs map to one key and any geometry
+    /// difference misses (never reuses a raster of the wrong pixel dimensions).
+    static func key(
+        bounds: CGRect,
+        pillInset: CGFloat,
+        cornerRadius: CGFloat,
+        isDarkMode: Bool,
+        scale: CGFloat
+    ) -> NSString {
+        "\(bounds.origin.x),\(bounds.origin.y),\(bounds.width),\(bounds.height)"
+            + "|\(pillInset)|\(cornerRadius)|\(isDarkMode ? 1 : 0)|\(scale)" as NSString
+    }
+}
+
 private func scripturePillRasterContextScale(_ cg: CGContext) -> CGFloat {
     let sx = abs(cg.convertToDeviceSpace(CGSize(width: 1, height: 0)).width)
     let sy = abs(cg.convertToDeviceSpace(CGSize(width: 0, height: 1)).height)
@@ -169,8 +211,20 @@ private func scripturePillRasterBlurredStrokeForCapsuleMatch(
     isDarkMode: Bool,
     scale: CGFloat
 ) -> CGImage? {
+    let cacheKey = ScripturePillBlurredStrokeCache.key(
+        bounds: bounds,
+        pillInset: pillInset,
+        cornerRadius: cornerRadius,
+        isDarkMode: isDarkMode,
+        scale: scale
+    )
+    if let cached = ScripturePillBlurredStrokeCache.cache.object(forKey: cacheKey) {
+        return cached
+    }
+
+    let produced: CGImage?
 #if os(iOS)
-    scripturePillRasterBlurredStrokeUIImage(
+    produced = scripturePillRasterBlurredStrokeUIImage(
         bounds: bounds,
         pillInset: pillInset,
         cornerRadius: cornerRadius,
@@ -178,7 +232,7 @@ private func scripturePillRasterBlurredStrokeForCapsuleMatch(
         scale: scale
     )
 #elseif os(macOS)
-    scripturePillRasterBlurredStrokeMacOS(
+    produced = scripturePillRasterBlurredStrokeMacOS(
         bounds: bounds,
         pillInset: pillInset,
         cornerRadius: cornerRadius,
@@ -186,8 +240,13 @@ private func scripturePillRasterBlurredStrokeForCapsuleMatch(
         scale: scale
     )
 #else
-    nil
+    produced = nil
 #endif
+
+    if let produced {
+        ScripturePillBlurredStrokeCache.cache.setObject(produced, forKey: cacheKey)
+    }
+    return produced
 }
 
 #endif
@@ -422,37 +481,57 @@ final class ScripturePillAttachment: NSTextAttachment {
         let h = max(refSize.height, transSize.height) + kVPad * 2
         let size = NSSize(width: ceil(w), height: ceil(h))
 
-        return NSImage(size: size, flipped: false) { bounds in
-            let pillLayout = CGRect(x: kLineSideMargin, y: 0, width: innerW, height: bounds.height)
-            let pill = NSBezierPath(roundedRect: pillLayout.insetBy(dx: 0.25, dy: 0.25),
-                                    xRadius: HarvousRadius.scripturePill, yRadius: HarvousRadius.scripturePill)
-            tint.withAlphaComponent(0.075).setFill()
-            pill.fill()
-            pill.addClip()
-            let progress = scriptureGradientProgress()
-            let xPosition = 0.35 + (0.30 * progress)
-            let gx = pillLayout.minX + pillLayout.width * xPosition
-            let startPoint = CGPoint(x: gx, y: bounds.minY)
-            let endPoint   = CGPoint(x: gx, y: bounds.maxY)
-            let gradient = NSGradient(
-                colors: [
-                    tint.withAlphaComponent(0.10),
-                    tint.withAlphaComponent(0.065)
-                ]
-            )
-            gradient?.draw(from: startPoint, to: endPoint, options: [])
-            if let cgContext = NSGraphicsContext.current?.cgContext {
-                scripturePillApplyInnerEdgeShadowsToContext(cgContext, bounds: pillLayout)
-            }
-            tint.withAlphaComponent(0.20).setStroke(); pill.lineWidth = 0.5; pill.stroke()
+        let scale = NSScreen.main?.backingScaleFactor ?? 2.0
+        let pixW  = Int(ceil(size.width  * scale))
+        let pixH  = Int(ceil(size.height * scale))
+        let bitmapRep = NSBitmapImageRep(
+            bitmapDataPlanes: nil,
+            pixelsWide: pixW, pixelsHigh: pixH,
+            bitsPerSample: 8, samplesPerPixel: 4,
+            hasAlpha: true, isPlanar: false,
+            colorSpaceName: .deviceRGB,
+            bytesPerRow: 0, bitsPerPixel: 0
+        )!
+        bitmapRep.size = size
+        NSGraphicsContext.saveGraphicsState()
+        let bitmapCtx = NSGraphicsContext(bitmapImageRep: bitmapRep)!
+        NSGraphicsContext.current = bitmapCtx
+        bitmapCtx.cgContext.scaleBy(x: scale, y: scale)
 
-            let refY   = (size.height - refSize.height)   / 2
-            let transY = (size.height - transSize.height) / 2
-            let textX = kLineSideMargin + kHPad
-            refStr.draw(at:   NSPoint(x: textX,                       y: refY))
-            transStr.draw(at: NSPoint(x: textX + refSize.width + kGap, y: transY))
-            return true
+        let bounds = CGRect(origin: .zero, size: size)
+        let pillLayout = CGRect(x: kLineSideMargin, y: 0, width: innerW, height: bounds.height)
+        let pill = NSBezierPath(roundedRect: pillLayout.insetBy(dx: 0.25, dy: 0.25),
+                                xRadius: HarvousRadius.scripturePill, yRadius: HarvousRadius.scripturePill)
+        tint.withAlphaComponent(0.075).setFill()
+        pill.fill()
+        pill.addClip()
+        let progress = scriptureGradientProgress()
+        let xPosition = 0.35 + (0.30 * progress)
+        let gx = pillLayout.minX + pillLayout.width * xPosition
+        let startPoint = CGPoint(x: gx, y: bounds.minY)
+        let endPoint   = CGPoint(x: gx, y: bounds.maxY)
+        let gradient = NSGradient(
+            colors: [
+                tint.withAlphaComponent(0.10),
+                tint.withAlphaComponent(0.065)
+            ]
+        )
+        gradient?.draw(from: startPoint, to: endPoint, options: [])
+        if let cgContext = NSGraphicsContext.current?.cgContext {
+            scripturePillApplyInnerEdgeShadowsToContext(cgContext, bounds: pillLayout)
         }
+        tint.withAlphaComponent(0.20).setStroke(); pill.lineWidth = 0.5; pill.stroke()
+
+        let refY   = (size.height - refSize.height)   / 2
+        let transY = (size.height - transSize.height) / 2
+        let textX  = kLineSideMargin + kHPad
+        refStr.draw(at:   NSPoint(x: textX,                       y: refY))
+        transStr.draw(at: NSPoint(x: textX + refSize.width + kGap, y: transY))
+
+        NSGraphicsContext.restoreGraphicsState()
+        let img = NSImage(size: size)
+        img.addRepresentation(bitmapRep)
+        return img
     }
 }
 

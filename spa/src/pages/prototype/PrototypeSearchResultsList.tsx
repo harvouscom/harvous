@@ -68,6 +68,7 @@ export default function PrototypeSearchResultsList({ query, spaceId }: Prototype
             key={result.id}
             to={prototypeNoteRouteTo()}
             params={{ noteId: noteSlug(result.id) }}
+            className="proto-search-result-link"
             style={{ textDecoration: 'none' }}
           >
             <PrototypeSearchResultRow result={result} />

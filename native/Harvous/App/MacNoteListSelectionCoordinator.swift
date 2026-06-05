@@ -5,16 +5,23 @@ import SwiftUI
 @MainActor
 final class MacNoteListSelectionCoordinator: ObservableObject {
     private var advance: ((Int) -> Void)?
+    /// `true` jumps to the last row, `false` to the first.
+    private var jumpToEnd: ((Bool) -> Void)?
 
     @Published private(set) var isListNavigationHandlerRegistered = false
 
-    func registerAdvanceHandler(_ handler: @escaping (Int) -> Void) {
-        advance = handler
+    func registerNavigationHandlers(
+        advance: @escaping (Int) -> Void,
+        jumpToEnd: @escaping (Bool) -> Void
+    ) {
+        self.advance = advance
+        self.jumpToEnd = jumpToEnd
         isListNavigationHandlerRegistered = true
     }
 
     func unregisterAdvanceHandler() {
         advance = nil
+        jumpToEnd = nil
         isListNavigationHandlerRegistered = false
     }
 
@@ -24,6 +31,14 @@ final class MacNoteListSelectionCoordinator: ObservableObject {
 
     func previousNote() {
         advance?(-1)
+    }
+
+    func firstNote() {
+        jumpToEnd?(false)
+    }
+
+    func lastNote() {
+        jumpToEnd?(true)
     }
 }
 

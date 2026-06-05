@@ -114,13 +114,27 @@ export default function PrototypeInspectorPane({ note, spaceId = '' }: Prototype
         </div>
         {hasConnections ? (
           <>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-              {linkedFromNotes.map((n) => (
-                <ConnectedNoteRow key={n.id} note={n} direction="from" currentNoteId={note.id} />
-              ))}
-              {linkedToNotes.map((n) => (
-                <ConnectedNoteRow key={n.id} note={n} direction="to" currentNoteId={note.id} />
-              ))}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {linkedFromNotes.length > 0 && (
+                <div>
+                  <p className="proto-inspector-connections-sublabel">Linked from</p>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                    {linkedFromNotes.map((n) => (
+                      <ConnectedNoteRow key={n.id} note={n} direction="from" currentNoteId={note.id} />
+                    ))}
+                  </div>
+                </div>
+              )}
+              {linkedToNotes.length > 0 && (
+                <div>
+                  <p className="proto-inspector-connections-sublabel">Links to</p>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                    {linkedToNotes.map((n) => (
+                      <ConnectedNoteRow key={n.id} note={n} direction="to" currentNoteId={note.id} />
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
             <button
               type="button"
@@ -128,7 +142,7 @@ export default function PrototypeInspectorPane({ note, spaceId = '' }: Prototype
               onClick={(e) => { setThreadsAnchorRect(e.currentTarget.getBoundingClientRect()); setThreadsOpen(true); }}
             >
               <Icon name="eye" size={11} aria-hidden />
-              <span>View threads</span>
+              <span>Open thread</span>
             </button>
           </>
         ) : (

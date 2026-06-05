@@ -79,8 +79,9 @@ OKLCH pastels: `threadBlue/Yellow/Green/Pink/Orange/Purple` (native `Color` exte
 ### Surfaces & glass
 Web layers (all OKLCH, see `prototype-tokens.css`): `--pds-bg-page`, `--pds-bg-toolbar`/`--pds-bg-sidebar` (frosted, 0.78α), `--pds-bg-popover` (0.98α), `--pds-bg-popover-solid` (opaque menus), `--pds-bg-glass-*` (0.45–0.9α), `--pds-glass-shell` (color-mix tint from canvas — there is no `backdrop-filter`; glass is faked from the canvas hue so wallpaper presets read through).
 
-### Destructive
-`--pds-destructive` (oklch `55% 0.2 25`) / `--pds-destructive-bg-hover`. Native has **no** destructive token yet — views use SwiftUI semantic `.red`/`.orange`. (Flagged in the audit; if you need it repeatedly, add `HarvousColors.destructive`.)
+### Destructive / warning
+- **Web:** `--pds-destructive` (oklch `55% 0.2 25`) / `--pds-destructive-bg-hover`.
+- **Native:** `Color.harvousDestructive` (delete / irreversible actions) and `Color.harvousWarning` (non-blocking warnings, e.g. the sync-retry banner). Both are `Color` extension members backed by the system dynamic `.red`/`.orange`, so they stay light/dark + accessibility aware while keeping the hue tunable in one place. **Use these instead of raw `.red`/`.orange`** at destructive/warning sites. (Several older views still use raw `.red`; migrate opportunistically — don't blind-sweep, since some `.orange` usages are intentional accents.)
 
 ### Light / dark / wallpaper
 Web supports light, dark (`[data-color-scheme="dark"]` + `prefers-color-scheme`), and image-wallpaper (`html.harvous-proto-wallpaper-image`) modes — every token has overrides. Native uses `HarvousAppearanceStore` (canvas presets: Sky, Lilac, Peach, Mint, Pink, Cream + light/dark defaults). Any new color must define its dark value too.

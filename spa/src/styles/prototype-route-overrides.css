@@ -27,6 +27,20 @@ html.harvous-prototype-route button.proto-menu-item * {
   font-weight: 400 !important;
 }
 
+/* Chip bar filter chips — match list-view label weight */
+html.harvous-prototype-route button.proto-chip,
+html.harvous-prototype-route button.proto-chip span,
+html.harvous-prototype-route button.proto-chip * {
+  font-weight: 400 !important;
+}
+
+/* Inspector "Open thread" button — beat global `button { font-weight: 700 !important }` */
+html.harvous-prototype-route button.proto-inspector-view-thread,
+html.harvous-prototype-route button.proto-inspector-view-thread span,
+html.harvous-prototype-route button.proto-inspector-view-thread * {
+  font-weight: 400 !important;
+}
+
 html.harvous-prototype-route .proto-menu__popover--list-view button.proto-menu-item[aria-checked='true'],
 html.harvous-prototype-route .proto-menu__popover--list-view button.proto-menu-item[aria-checked='true'] span,
 html.harvous-prototype-route .proto-menu__popover--list-view button.proto-menu-item[aria-checked='true'] * {
@@ -108,6 +122,14 @@ html.harvous-prototype-route button.proto-note-action-bar__pill--share-active,
 html.harvous-prototype-route button.proto-note-action-bar__pill--share-active * {
   color: var(--pds-on-accent) !important;
   fill: var(--pds-on-accent) !important;
+}
+
+/* Account edit-photo badge — white pencil on the accent dot (beats blanket button + svg/path rules) */
+html.harvous-prototype-route button .proto-account-photo-badge,
+html.harvous-prototype-route button .proto-account-photo-badge svg,
+html.harvous-prototype-route button .proto-account-photo-badge path {
+  color: #fff !important;
+  fill: #fff !important;
 }
 
 /* Secondary pill buttons stay theme-aware (not on-accent) */

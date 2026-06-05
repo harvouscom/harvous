@@ -27,7 +27,7 @@ private extension Color {
 
 // MARK: - Settings form chrome
 
-private extension View {
+extension View {
     /// macOS Settings uses the system control accent; iOS You → Settings keeps Harvous blue.
     @ViewBuilder
     func harvousGroupedSettingsForm() -> some View {
@@ -110,19 +110,29 @@ struct HarvousSettingsFormView: View {
     }
 }
 
-// MARK: - Account (read-only identity + Manage account)
+// MARK: - Account (identity header + in-place drill-down rows)
 
-/// Matches web `PrototypeAccountPage`: read-only name/email and Clerk manage-account.
-/// Log out lives in the profile menu root (You sheet / macOS toolbar menu).
+/// One row per account screen; tapping pushes the screen in place on the settings stack.
+private struct SettingsAccountRow: Identifiable {
+    let id = UUID()
+    let title: String
+    let subtitle: String
+    let route: HarvousAccountRoute
+}
+
+private let settingsAccountRows: [SettingsAccountRow] = [
+    SettingsAccountRow(title: "Edit profile", subtitle: "Name and photo", route: .editProfile),
+    SettingsAccountRow(title: "Email addresses", subtitle: "Add, verify, or set primary", route: .emails),
+    SettingsAccountRow(title: "Change password", subtitle: "Update your password", route: .password),
+    SettingsAccountRow(title: "Security", subtitle: "Active devices and account", route: .security),
+]
+
+/// Matches web `PrototypeAccountPage`: identity header + one-tap rows that drill into
+/// account sub-screens **in place** (no modal). Log out lives in the profile menu root.
 private struct SettingsAccountView: View {
     @AppStorage(HarvousSettingsStorageKeys.firstName) private var firstName = ""
     @AppStorage(HarvousSettingsStorageKeys.lastName) private var lastName = ""
     @State private var bridge = HarvousClerkBridge.shared
-    #if canImport(ClerkKit)
-    #if os(iOS) || os(macOS)
-    @State private var showClerkProfile = false
-    #endif
-    #endif
 
     private var profile: HarvousUserProfile? { bridge.currentProfile }
 
@@ -152,41 +162,45 @@ private struct SettingsAccountView: View {
             #endif
         }
         .background(Color.harvousSettingsDetailBackground)
-        #if canImport(ClerkKit)
-        #if os(iOS) || os(macOS)
-        .sheet(isPresented: $showClerkProfile, onDismiss: { bridge.refreshProfile() }) {
-            HarvousMacUserProfileSheet()
-                .environment(Clerk.shared)
-                #if os(iOS)
-                .presentationDragIndicator(.visible)
-                #endif
+        // One stack-wide registration covers every account push, including nested ones
+        // (Emails → Add email → Verify) from the sub-screens.
+        .navigationDestination(for: HarvousAccountRoute.self) { route in
+            AccountRouteView(route: route)
         }
-        #endif
-        #endif
         .onAppear { bridge.refreshProfile() }
+    }
+
+    @ViewBuilder
+    private var identityHeader: some View {
+        HStack(spacing: 12) {
+            HarvousProfileOrb(imageUrl: profile?.imageUrl, size: 56)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(displayName)
+                    .font(HarvousTypography.title)
+                if let emailLine {
+                    Text(emailLine)
+                        .font(HarvousTypography.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
     }
 
     #if os(macOS)
     private var macAccountBody: some View {
         Form {
             Section {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(displayName)
-                        .font(HarvousTypography.title)
-                    if let emailLine {
-                        Text(emailLine)
-                            .font(HarvousTypography.subheadline)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-                .padding(.vertical, 4)
+                identityHeader
+                    .padding(.vertical, 4)
             }
             Section {
-                Button(action: openManageAccount) {
-                    SettingsAccountManageRowLabel()
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                ForEach(settingsAccountRows) { row in
+                    // macOS Form adds its own disclosure chevron, so hide the manual one.
+                    NavigationLink(value: row.route) {
+                        SettingsAccountRowLabel(title: row.title, subtitle: row.subtitle, showChevron: false)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
                 }
-                .buttonStyle(.plain)
             }
         }
         .harvousGroupedSettingsForm()
@@ -197,27 +211,23 @@ private struct SettingsAccountView: View {
     private var iosAccountBody: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(displayName)
-                        .font(HarvousTypography.title)
-                    if let emailLine {
-                        Text(emailLine)
-                            .font(HarvousTypography.subheadline)
-                            .foregroundStyle(.secondary)
+                identityHeader
+                    .padding(.horizontal, 4)
+
+                VStack(spacing: 1) {
+                    ForEach(settingsAccountRows) { row in
+                        NavigationLink(value: row.route) {
+                            SettingsAccountRowLabel(title: row.title, subtitle: row.subtitle)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 14)
+                                .background(Color(uiColor: .secondarySystemGroupedBackground))
+                        }
+                        .buttonStyle(.plain)
+                        .contentShape(Rectangle())
                     }
                 }
-                .padding(.horizontal, 4)
-
-                Button(action: openManageAccount) {
-                    SettingsAccountManageRowLabel()
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 14)
-                        .background(Color(uiColor: .secondarySystemGroupedBackground))
-                        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-                }
-                .buttonStyle(.plain)
-                .contentShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 12)
@@ -225,31 +235,29 @@ private struct SettingsAccountView: View {
         }
     }
     #endif
-
-    private func openManageAccount() {
-        #if canImport(ClerkKit)
-        #if os(iOS) || os(macOS)
-        showClerkProfile = true
-        #endif
-        #endif
-    }
 }
 
-private struct SettingsAccountManageRowLabel: View {
+private struct SettingsAccountRowLabel: View {
+    let title: String
+    let subtitle: String
+    var showChevron: Bool = true
+
     var body: some View {
         HStack(alignment: .center, spacing: 12) {
             VStack(alignment: .leading, spacing: 2) {
-                Text("Manage account")
+                Text(title)
                     .font(HarvousTypography.body)
                     .foregroundStyle(.primary)
-                Text("Name, email, and password")
+                Text(subtitle)
                     .font(HarvousTypography.footnote)
                     .foregroundStyle(.secondary)
             }
             Spacer(minLength: 8)
-            Image(systemName: "chevron.right")
-                .font(HarvousTypography.caption)
-                .foregroundStyle(.tertiary)
+            if showChevron {
+                Image(systemName: "chevron.right")
+                    .font(HarvousTypography.caption)
+                    .foregroundStyle(.tertiary)
+            }
         }
     }
 }

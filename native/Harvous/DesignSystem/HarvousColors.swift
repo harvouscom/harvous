@@ -10,6 +10,16 @@ extension Color {
     /// Harvous blue — set as the app's .tint everywhere possible
     static let harvousAccent = Color(red: 0.22, green: 0.41, blue: 0.90)
 
+    // MARK: - Semantic status
+    /// Destructive / error actions (delete, irreversible removal). Backed by the
+    /// system dynamic red so it stays light/dark + accessibility aware. Use this
+    /// instead of raw `.red` so the destructive hue is tunable in one place.
+    /// See `docs/design-parity/HARVOUS_BUILD_CONVENTIONS.md`.
+    static let harvousDestructive = Color.red
+    /// Non-blocking warning / attention states (failed sync awaiting retry, soft
+    /// alerts). Backed by the system dynamic orange. Use instead of raw `.orange`.
+    static let harvousWarning = Color.orange
+
     // MARK: - Thread palette (OKLCH pastels, approximated in sRGB)
     static let threadBlue   = Color(red: 0.76, green: 0.89, blue: 1.00)
     static let threadYellow = Color(red: 0.98, green: 0.87, blue: 0.47)

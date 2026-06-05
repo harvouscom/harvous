@@ -258,6 +258,45 @@ final class HarvousClerkBridge {
         #endif
     }
 
+    /// Make an existing (verified) email the primary address.
+    func setPrimaryEmail(id: String) async throws {
+        #if canImport(ClerkKit)
+        guard let user = Clerk.shared.user else {
+            throw HarvousProfileError.notSignedIn
+        }
+        _ = try await user.update(.init(primaryEmailAddressId: id))
+        try await reloadClerkUser()
+        #else
+        throw HarvousProfileError.notSignedIn
+        #endif
+    }
+
+    #if canImport(ClerkKit)
+    /// Remove an email address from the account.
+    func deleteEmailAddress(_ email: EmailAddress) async throws {
+        _ = try await email.destroy()
+        try await reloadClerkUser()
+    }
+
+    /// Active sessions/devices for the signed-in user.
+    func activeSessions() async throws -> [Session] {
+        guard let user = Clerk.shared.user else {
+            throw HarvousProfileError.notSignedIn
+        }
+        return try await user.getSessions()
+    }
+
+    /// Revoke (sign out) a specific session/device.
+    func revokeSession(_ session: Session) async throws {
+        _ = try await session.revoke()
+    }
+
+    /// The current session's id, so the active-devices list can mark "this device".
+    var currentSessionId: String? {
+        Clerk.shared.session?.id
+    }
+    #endif
+
     /// Remove the Clerk profile image.
     func deleteProfileImage() async throws {
         #if canImport(ClerkKit)

@@ -747,7 +747,10 @@ export function getPrototypeKeyboardShortcutsReference(): KeyboardShortcutRefere
       heading: 'Sidebar',
       items: [
         { action: 'Cycle list mode', keyParts: [shift, '← / →'] },
-        { action: 'Move in list', keyParts: ['↑', '↓'] },
+        { action: 'Move in list', keyParts: ['↑ / ↓'] },
+        { action: 'Move in list (vim)', keyParts: ['J / K'] },
+        { action: 'Jump to first / last', keyParts: ['Home / End'] },
+        { action: 'Open item', keyParts: ['Enter'] },
       ],
     },
   ];

@@ -39,3 +39,45 @@ export function usePopoverDismiss<T extends HTMLElement = HTMLDivElement>(initia
 
   return { open, setOpen, close, toggle, rootRef };
 }
+
+/**
+ * Outside-dismiss behavior for a *controlled, portaled* popover — one the parent
+ * mounts/unmounts (the parent owns "open"). Wires the shared listeners:
+ *   - a capture-phase `pointerdown` outside `ref` invokes `onDismiss`
+ *   - pressing `Escape` invokes `onDismiss`
+ *
+ * Matches the effect previously copy-pasted across the portaled popovers
+ * (`PrototypeFolderPopover`, `PrototypeSharePopover`, `PrototypeStudyThreadPopover`,
+ * `PrototypeConnectNoteSheet`). `onDismiss` is held in a ref so passing an inline
+ * closure doesn't re-subscribe the listeners on every render. Pass `enabled = false`
+ * to keep the component mounted without active listeners (e.g. non-popover layouts).
+ *
+ * Use this for portaled popovers (where the floating content is NOT a DOM child of
+ * the trigger); use `usePopoverDismiss` for inline menus that own their open state.
+ */
+export function useDismissOnOutside<T extends HTMLElement = HTMLElement>(
+  ref: { current: T | null },
+  onDismiss: () => void,
+  enabled = true,
+) {
+  const onDismissRef = useRef(onDismiss);
+  onDismissRef.current = onDismiss;
+
+  useEffect(() => {
+    if (!enabled) return undefined;
+    const onPointerDown = (e: PointerEvent) => {
+      const el = ref.current;
+      const target = e.target as Node | null;
+      if (el && target && !el.contains(target)) onDismissRef.current();
+    };
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onDismissRef.current();
+    };
+    window.addEventListener('pointerdown', onPointerDown, { capture: true });
+    window.addEventListener('keydown', onKeyDown);
+    return () => {
+      window.removeEventListener('pointerdown', onPointerDown, { capture: true } as EventListenerOptions);
+      window.removeEventListener('keydown', onKeyDown);
+    };
+  }, [ref, enabled]);
+}

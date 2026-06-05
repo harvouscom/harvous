@@ -1,7 +1,8 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import Icon from '@/components/react/Icon';
 import { useShareNote } from '../../hooks/mutations/useShareNote';
+import { useDismissOnOutside } from '../../hooks/usePopoverDismiss';
 import ProtoPopoverShell from './ProtoPopoverShell';
 
 /**
@@ -86,24 +87,7 @@ export default function PrototypeSharePopover({
   }, [anchorRect, isPublic]);
 
   // Dismiss on outside-click and Escape.
-  useEffect(() => {
-    function onPointerDown(e: PointerEvent) {
-      if (!cardRef.current) return;
-      const target = e.target as Node | null;
-      if (target && !cardRef.current.contains(target)) {
-        onDismiss();
-      }
-    }
-    function onKeyDown(e: KeyboardEvent) {
-      if (e.key === 'Escape') onDismiss();
-    }
-    window.addEventListener('pointerdown', onPointerDown, { capture: true });
-    window.addEventListener('keydown', onKeyDown);
-    return () => {
-      window.removeEventListener('pointerdown', onPointerDown, { capture: true } as any);
-      window.removeEventListener('keydown', onKeyDown);
-    };
-  }, [onDismiss]);
+  useDismissOnOutside(cardRef, onDismiss);
 
   if (!anchorRect || typeof document === 'undefined') return null;
 

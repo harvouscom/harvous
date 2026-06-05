@@ -11,6 +11,7 @@ import Icon from '@/components/react/Icon';
 import PrototypeSearchInput from './components/PrototypeSearchInput';
 import { stripServerAutoUntitledNoteTitleForDisplay } from '@/utils/server-auto-untitled-note-display';
 import ProtoPopoverShell from './ProtoPopoverShell';
+import { useDismissOnOutside } from '../../hooks/usePopoverDismiss';
 import { useProtoShell } from '../../layouts/proto-shell-context';
 
 export interface ConnectNoteCandidate {
@@ -184,21 +185,7 @@ export default function PrototypeConnectNoteSheet({
     setPosition({ top, left });
   }, [anchorRect, shouldUsePopover, notes.length, isLoading, isFetching]);
 
-  useEffect(() => {
-    if (!shouldUsePopover) return;
-    const onPointerDown = (e: PointerEvent) => {
-      if (!cardRef.current) return;
-      const target = e.target as Node | null;
-      if (target && !cardRef.current.contains(target)) onOpenChange(false);
-    };
-    const onKeyDown = (e: KeyboardEvent) => { if (e.key === 'Escape') onOpenChange(false); };
-    window.addEventListener('pointerdown', onPointerDown, { capture: true });
-    window.addEventListener('keydown', onKeyDown);
-    return () => {
-      window.removeEventListener('pointerdown', onPointerDown, { capture: true } as AddEventListenerOptions);
-      window.removeEventListener('keydown', onKeyDown);
-    };
-  }, [shouldUsePopover, onOpenChange]);
+  useDismissOnOutside(cardRef, () => onOpenChange(false), shouldUsePopover);
 
   const content = (
     <>

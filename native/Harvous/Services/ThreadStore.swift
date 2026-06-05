@@ -212,6 +212,20 @@ enum ThreadStore {
         highlightAccent: StudyHighlightAccentToken = .auto,
         modelContext: ModelContext
     ) -> StudyThread {
+        // Return existing connection if one already exists (prevents UI duplicates).
+        let parentId = parent.id
+        let linkedId = linked.id
+        let existingDescriptor = FetchDescriptor<StudyThread>(
+            predicate: #Predicate { t in
+                t.parentNoteId == parentId
+                    && t.linkedNoteId == linkedId
+                    && t.entryKindRaw == "linkedNote"
+                    && !t.isArchived
+            }
+        )
+        if let existing = (try? modelContext.fetch(existingDescriptor))?.first {
+            return existing
+        }
         let spaceId = parent.resolvedSpaceId()
         let trimmedTitle = linked.title.trimmingCharacters(in: .whitespacesAndNewlines)
         let displayTitle = trimmedTitle.isEmpty ? "Untitled note" : trimmedTitle
@@ -493,6 +507,14 @@ enum ThreadStore {
             )
             incoming = (try? modelContext.fetch(incomingUnscoped)) ?? []
             outgoing = (try? modelContext.fetch(outgoingUnscoped)) ?? []
+        }
+        // Deduplicate so the same source/target note never shows twice (e.g. from sync duplicates).
+        var seen = Set<UUID>()
+        incoming = incoming.filter { seen.insert($0.parentNoteId).inserted }
+        seen.removeAll()
+        outgoing = outgoing.filter {
+            guard let lid = $0.linkedNoteId else { return false }
+            return seen.insert(lid).inserted
         }
         return TrailSnapshot(incoming: incoming, outgoing: outgoing)
     }

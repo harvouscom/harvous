@@ -18,6 +18,7 @@ import { stripHtmlForListPreview } from '@/utils/html-stripper';
 import { useProtoShell } from '../../layouts/proto-shell-context';
 import { usePrototypeHomeSpaceId } from '../../hooks/usePrototypeHomeSpaceId';
 import { useIntersectionFetchNextPage } from '../../hooks/useIntersectionFetchNextPage';
+import { useListKeyboardNavigation } from '../../hooks/useListKeyboardNavigation';
 import {
   isPrototypeNotePath,
   matchPrototypeNoteId,
@@ -600,6 +601,9 @@ export default function PrototypeSidebar() {
 
   const scrollRootRef = useRef<HTMLDivElement>(null);
 
+  // Arrow / j-k / Home-End movement between rows once the list is focused (Shift+J).
+  useListKeyboardNavigation(scrollRootRef);
+
   const {
     data: pages,
     isLoading: notesLoading,
@@ -943,10 +947,42 @@ export default function PrototypeSidebar() {
     afterNav();
   };
 
+  const backTarget: { label: string; action: () => void } | null = (() => {
+    if (mode === 'folders' && activeFolderKey !== undefined)
+      return { label: activeFolderKey ?? 'Unsorted', action: () => { setActiveFolderKey(undefined); setQ(''); } };
+    if (mode === 'threads' && sidebarThreadDrilldownId)
+      return {
+        label: threadDrillQuery.data?.threadTitle ?? threadDrillQuery.data?.suggestedTitle ?? 'Thread',
+        action: () => { setSidebarThreadDrilldownId(undefined); setQ(''); },
+      };
+    if (mode === 'scripture' && scriptureDrill.level === 'passages') {
+      const bookTitle = scriptureBooks.find((b) => b.bookOrder === scriptureDrill.bookOrder)?.title ?? 'Book';
+      return { label: bookTitle, action: () => { setScriptureDrill({ level: 'books' }); setQ(''); } };
+    }
+    if (mode === 'scripture' && scriptureDrill.level === 'notes') {
+      const { bookOrder } = scriptureDrill;
+      return { label: scriptureNotesPassageTitle || 'Passage', action: () => { setScriptureDrill({ level: 'passages', bookOrder }); setQ(''); } };
+    }
+    return null;
+  })();
+
   return (
     <div className="proto-sidebar-root">
       <div className="proto-sidebar-list-view">
-        <ListViewMenu disabled={!navReady || !homeSpaceId} />
+        {backTarget ? (
+          <button
+            type="button"
+            className="proto-sidebar-list-view__trigger proto-sidebar-list-view__trigger--back"
+            onClick={backTarget.action}
+          >
+            <span className="proto-toolbar-folder-chip__icon" aria-hidden>
+              <Icon name="chevron-left" size={13} />
+            </span>
+            <span className="proto-sidebar-list-view__label">{backTarget.label}</span>
+          </button>
+        ) : (
+          <ListViewMenu disabled={!navReady || !homeSpaceId} />
+        )}
       </div>
       <div className="proto-sidebar-search">
         <div className="proto-sidebar-search__field">
@@ -958,6 +994,19 @@ export default function PrototypeSidebar() {
             placeholder="Search"
             value={q}
             onChange={(e) => setQ(e.target.value)}
+            onKeyDown={(e) => {
+              // Drop from the search field straight into the list results.
+              if (e.key === 'ArrowDown') {
+                const firstRow = scrollRootRef.current?.querySelector<HTMLElement>(
+                  'button.proto-note-row__main, button.proto-note-row',
+                );
+                if (firstRow) {
+                  e.preventDefault();
+                  firstRow.focus();
+                  firstRow.scrollIntoView({ block: 'nearest' });
+                }
+              }
+            }}
             autoComplete="off"
             aria-label="Search"
           />
@@ -1014,22 +1063,6 @@ export default function PrototypeSidebar() {
 
             {mode === 'folders' && activeFolderKey !== undefined ? (
               <>
-                <div style={{ padding: '0 18px 8px' }}>
-                  <button
-                    type="button"
-                    className="proto-sidebar-back-btn"
-                    onClick={() => {
-                      setActiveFolderKey(undefined);
-                      setQ('');
-                    }}
-                  >
-                    <Icon name="chevron-left" size={10} />
-                    Folders
-                  </button>
-                  <div className="pds-list-title" style={{ fontWeight: 600 }}>
-                    {activeFolderKey ?? 'Unsorted'}
-                  </div>
-                </div>
                 {notesForMode.length === 0 ? (
                   <p className="proto-caption" style={{ padding: '12px 18px', textAlign: 'center' }}>
                     No notes in this folder.
@@ -1189,22 +1222,6 @@ export default function PrototypeSidebar() {
 
             {mode === 'threads' && sidebarThreadDrilldownId ? (
               <>
-                <div style={{ padding: '0 18px 8px' }}>
-                  <button
-                    type="button"
-                    className="proto-sidebar-back-btn"
-                    onClick={() => {
-                      setSidebarThreadDrilldownId(undefined);
-                      setQ('');
-                    }}
-                  >
-                    <Icon name="chevron-left" size={10} />
-                    Threads
-                  </button>
-                  <div className="pds-list-title" style={{ fontWeight: 600 }}>
-                    {threadDrillQuery.data?.threadTitle ?? threadDrillQuery.data?.suggestedTitle ?? 'Thread'}
-                  </div>
-                </div>
                 {threadDrillQuery.isLoading ? (
                   <p className="proto-caption" style={{ padding: '12px 18px' }}>Loading…</p>
                 ) : threadDrillQuery.isError ? (
@@ -1334,22 +1351,6 @@ export default function PrototypeSidebar() {
 
             {mode === 'scripture' && scriptureDrill.level === 'passages' ? (
               <>
-                <div style={{ padding: '0 18px 8px' }}>
-                  <button
-                    type="button"
-                    className="proto-sidebar-back-btn"
-                    onClick={() => {
-                      setScriptureDrill({ level: 'books' });
-                      setQ('');
-                    }}
-                  >
-                    <Icon name="chevron-left" size={10} />
-                    Scripture
-                  </button>
-                  <div className="pds-list-title" style={{ fontWeight: 600 }}>
-                    {scriptureBooks.find((b) => b.bookOrder === scriptureDrill.bookOrder)?.title ?? 'Book'}
-                  </div>
-                </div>
                 {passagesForDrill.length === 0 ? (
                   <p className="proto-caption" style={{ padding: '12px 18px', textAlign: 'center' }}>
                     No passages match.
@@ -1383,22 +1384,6 @@ export default function PrototypeSidebar() {
 
             {mode === 'scripture' && scriptureDrill.level === 'notes' ? (
               <>
-                <div style={{ padding: '0 18px 8px' }}>
-                  <button
-                    type="button"
-                    className="proto-sidebar-back-btn"
-                    onClick={() => {
-                      setScriptureDrill({ level: 'passages', bookOrder: scriptureDrill.bookOrder });
-                      setQ('');
-                    }}
-                  >
-                    <Icon name="chevron-left" size={10} />
-                    Passages
-                  </button>
-                  <div className="pds-list-title" style={{ fontWeight: 600 }}>
-                    {scriptureNotesPassageTitle}
-                  </div>
-                </div>
                 {notesForScripturePassage.length === 0 ? (
                   <p className="proto-caption" style={{ padding: '12px 18px', textAlign: 'center' }}>
                     No notes match.

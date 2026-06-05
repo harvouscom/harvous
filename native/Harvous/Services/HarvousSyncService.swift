@@ -372,22 +372,26 @@ final class HarvousSyncService {
 
     private func pruneDeletedNotes(serverIds: Set<String>, context: ModelContext) {
         var prunedLocalIds: [UUID] = []
+        var notesToDelete: [Note] = []
         for serverId in serverIds {
             let predicate = #Predicate<Note> { $0.serverId == serverId }
             guard let note = try? context.fetch(FetchDescriptor<Note>(predicate: predicate)).first else { continue }
             prunedLocalIds.append(note.id)
+            notesToDelete.append(note)
+        }
+        guard !prunedLocalIds.isEmpty else { return }
+        // Post before deleting so the note editor can clear its selection while Note objects are still
+        // live. The synchronous post gives Combine the earliest possible delivery window before the
+        // subsequent context.save() triggers SwiftUI re-renders that would access deleted models.
+        NotificationCenter.default.post(
+            name: .harvousNotesPruned,
+            object: nil,
+            userInfo: [HarvousNotesPrunedPayload.noteIdsKey: prunedLocalIds.map(\.uuidString)]
+        )
+        for note in notesToDelete {
             HarvousVaultExporter.removeMirrorFiles(for: note, modelContext: context)
             HarvousNoteSpotlightIndexer.removeNote(id: note.id)
             context.delete(note)
-        }
-        guard !prunedLocalIds.isEmpty else { return }
-        let ids = prunedLocalIds
-        Task { @MainActor in
-            NotificationCenter.default.post(
-                name: .harvousNotesPruned,
-                object: nil,
-                userInfo: [HarvousNotesPrunedPayload.noteIdsKey: ids.map(\.uuidString)]
-            )
         }
     }
 

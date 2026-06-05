@@ -2,9 +2,10 @@
  * Floating folder editor popover anchored under the toolbar folder chip.
  * Same anchor/position pattern as PrototypeSharePopover.
  */
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { NoteDetail } from '../../hooks/queries/useNote';
+import { useDismissOnOutside } from '../../hooks/usePopoverDismiss';
 import PrototypeFolderTagEditor from './PrototypeFolderTagEditor';
 import ProtoPopoverShell from './ProtoPopoverShell';
 
@@ -51,24 +52,7 @@ export default function PrototypeFolderPopover({
     setPos(computePosition(anchorRect, h));
   }, [anchorRect]);
 
-  useEffect(() => {
-    function onPointerDown(e: PointerEvent) {
-      if (!cardRef.current) return;
-      const target = e.target as Node | null;
-      if (target && !cardRef.current.contains(target)) {
-        onDismiss();
-      }
-    }
-    function onKeyDown(e: KeyboardEvent) {
-      if (e.key === 'Escape') onDismiss();
-    }
-    window.addEventListener('pointerdown', onPointerDown, { capture: true });
-    window.addEventListener('keydown', onKeyDown);
-    return () => {
-      window.removeEventListener('pointerdown', onPointerDown, { capture: true } as any);
-      window.removeEventListener('keydown', onKeyDown);
-    };
-  }, [onDismiss]);
+  useDismissOnOutside(cardRef, onDismiss);
 
   if (!anchorRect || typeof document === 'undefined') return null;
 

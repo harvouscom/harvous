@@ -430,8 +430,8 @@ struct MacNoteShareMoreToolbar: ToolbarContent {
                 HarvousPopoverMenuRow(
                     title: "Delete Note",
                     iconAsset: "Harvous.Trash",
-                    iconTint: .red,
-                    titleTint: .red,
+                    iconTint: .harvousDestructive,
+                    titleTint: .harvousDestructive,
                     role: .destructive
                 ) {
                     showMoreMenu = false

@@ -158,6 +158,8 @@ struct NoteListColumn: View {
             return notesInActiveSpace.filter { $0.noteBelongsToScripturePassage(passage) }
         case .urlReference(let href):
             return notesInActiveSpace.filter { $0.noteBelongsToURLReference(href) }
+        case .thread(let memberIds):
+            return notesInActiveSpace.filter { memberIds.contains($0.id) }
         }
     }
 
@@ -175,9 +177,10 @@ struct NoteListColumn: View {
     #if os(macOS)
     private func registerMacListNavigationHandlerIfNeeded() {
         guard columnStyle == .macOSSidebar else { return }
-        macNoteListSelectionCoordinator.registerAdvanceHandler { delta in
-            macAdvanceNoteSelection(delta: delta)
-        }
+        macNoteListSelectionCoordinator.registerNavigationHandlers(
+            advance: { delta in macAdvanceNoteSelection(delta: delta) },
+            jumpToEnd: { toLast in macJumpNoteSelection(toLast: toLast) }
+        )
     }
 
     private func macAdvanceNoteSelection(delta: Int) {
@@ -198,6 +201,17 @@ struct NoteListColumn: View {
                     selectedNote = rows.last
                 }
             }
+        }
+    }
+
+    /// Jump selection to the first or last row (matches the web list's Home/End).
+    private func macJumpNoteSelection(toLast: Bool) {
+        let rows = sortedFiltered
+        guard !rows.isEmpty else { return }
+        var txn = Transaction()
+        txn.disablesAnimations = true
+        withTransaction(txn) {
+            selectedNote = toLast ? rows.last : rows.first
         }
     }
     #endif

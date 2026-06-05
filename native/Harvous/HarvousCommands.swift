@@ -63,6 +63,14 @@ struct PreviousNoteActionKey: FocusedValueKey {
     typealias Value = () -> Void
 }
 
+struct FirstNoteActionKey: FocusedValueKey {
+    typealias Value = () -> Void
+}
+
+struct LastNoteActionKey: FocusedValueKey {
+    typealias Value = () -> Void
+}
+
 struct TogglePinSelectedNoteActionKey: FocusedValueKey {
     typealias Value = () -> Void
 }
@@ -147,6 +155,16 @@ extension FocusedValues {
         set { self[PreviousNoteActionKey.self] = newValue }
     }
 
+    var firstNoteAction: (() -> Void)? {
+        get { self[FirstNoteActionKey.self] }
+        set { self[FirstNoteActionKey.self] = newValue }
+    }
+
+    var lastNoteAction: (() -> Void)? {
+        get { self[LastNoteActionKey.self] }
+        set { self[LastNoteActionKey.self] = newValue }
+    }
+
     var togglePinSelectedNoteAction: (() -> Void)? {
         get { self[TogglePinSelectedNoteActionKey.self] }
         set { self[TogglePinSelectedNoteActionKey.self] = newValue }
@@ -189,6 +207,8 @@ struct HarvousCommands: Commands {
     @FocusedValue(\.removeActiveStudyHighlightAction) private var removeActiveStudyHighlightAction
     @FocusedValue(\.nextNoteAction) private var nextNoteAction
     @FocusedValue(\.previousNoteAction) private var previousNoteAction
+    @FocusedValue(\.firstNoteAction) private var firstNoteAction
+    @FocusedValue(\.lastNoteAction) private var lastNoteAction
 
     var body: some Commands {
         // macOS: `WindowGroup` registers "New Window" with ⌘N under `.newItem`. Adding our items *after*
@@ -321,6 +341,14 @@ struct HarvousCommands: Commands {
             Button("Previous Note") { previousNoteAction?() }
                 .keyboardShortcut(.upArrow, modifiers: [.control, .command])
                 .disabled(!macNoteListCoordinator.isListNavigationHandlerRegistered || previousNoteAction == nil)
+
+            Button("First Note") { firstNoteAction?() }
+                .keyboardShortcut(.home, modifiers: [.control, .command])
+                .disabled(!macNoteListCoordinator.isListNavigationHandlerRegistered || firstNoteAction == nil)
+
+            Button("Last Note") { lastNoteAction?() }
+                .keyboardShortcut(.end, modifiers: [.control, .command])
+                .disabled(!macNoteListCoordinator.isListNavigationHandlerRegistered || lastNoteAction == nil)
 
             Divider()
 

@@ -24,6 +24,14 @@ import { isPrototypeDraftNoteSlug, noteParamSlug } from './proto-route-slugs';
 const DRAFT_NOTE_ID = 'note_draft';
 const EMPTY_NOTE_COLLECTIONS: string[] = [];
 
+/**
+ * Cap how many times a single note auto-reprocesses scripture. Without a cap, a
+ * persistent server failure re-fires the mutation on every `note` refetch (the
+ * effect depends on the query object). The counter resets when the page
+ * remounts (navigate away and back), so transient failures still get a fresh try.
+ */
+const MAX_SCRIPTURE_REPROCESS_ATTEMPTS = 3;
+
 export default function PrototypeNotePage() {
   const { noteId: noteSlugParam } = useParams({ strict: false }) as { noteId: string };
   const isDraft = isPrototypeDraftNoteSlug(noteSlugParam);
@@ -266,32 +274,29 @@ export default function PrototypeNotePage() {
     }
   }, [noteId, parentThread, effectiveSpaceId]);
 
-  const reprocessAttemptedRef = useRef<string | null>(null);
+  const reprocessAttemptsRef = useRef<Map<string, number>>(new Map());
 
   useEffect(() => {
     if (isDraft || !note || isLoading || note.contentEncrypted) return;
     if (isNoteEditorFocused()) return;
     const content = note.content ?? '';
     if (!content || typeof content !== 'string') return;
-    if (reprocessAttemptedRef.current === noteId) return;
+    if ((reprocessAttemptsRef.current.get(noteId) ?? 0) >= MAX_SCRIPTURE_REPROCESS_ATTEMPTS) return;
 
     const hasPills = content.includes('data-scripture-reference');
     const hasPendingPills = /data-note-id\s*=\s*["']pending["']/.test(content);
     if (hasPills && !hasPendingPills) return;
 
     const runReprocess = () => {
-      reprocessAttemptedRef.current = noteId;
+      // Count every attempt (including failures) toward the cap. We intentionally
+      // do NOT reset on error — that's what previously let a persistent failure
+      // loop on each refetch.
+      const attempts = reprocessAttemptsRef.current;
+      attempts.set(noteId, (attempts.get(noteId) ?? 0) + 1);
       const threads = note.threads ?? [];
       const parentThreadForApi = threads[0];
       const threadId = parentThreadForApi?.id ?? 'thread_unorganized';
-      processScriptureMutation.mutate(
-        { noteId, contentOverride: content, threadId },
-        {
-          onError: () => {
-            reprocessAttemptedRef.current = null;
-          },
-        },
-      );
+      processScriptureMutation.mutate({ noteId, contentOverride: content, threadId });
     };
 
     if (hasPendingPills) {

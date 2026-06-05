@@ -7,6 +7,7 @@ import SwiftUI
 enum HarvousIOSListSurface: String, CaseIterable {
     case notes
     case folders
+    case threads
     case scripture
     case highlights
     case dictionary
@@ -21,6 +22,7 @@ enum HarvousIOSListSurface: String, CaseIterable {
         switch self {
         case .notes: "Harvous.Note"
         case .folders: "Harvous.Folder"
+        case .threads: "Harvous.ArrowRightArrowLeft"
         case .scripture: "Harvous.BookOpen"
         case .highlights: "Harvous.Highlight"
         case .dictionary: "Harvous.LinesLeaning"
@@ -33,6 +35,7 @@ enum HarvousIOSListSurface: String, CaseIterable {
         switch self {
         case .notes: "Notes"
         case .folders: "Folders"
+        case .threads: "Threads"
         case .scripture: "Scripture"
         case .highlights: "Highlights"
         case .dictionary: "Dictionary"
@@ -45,6 +48,12 @@ enum HarvousIOSListSurface: String, CaseIterable {
 enum HarvousIOSFoldersDrill: Equatable {
     case root
     case bucket(String?)
+}
+
+/// iOS threads surface drill state. Member IDs are snapshotted at drill-in (matches `NoteFilter.thread`).
+enum HarvousIOSThreadsDrill: Equatable {
+    case root
+    case cluster(representativeId: UUID, title: String, memberIds: [UUID])
 }
 
 /// iOS scripture surface drill state. Lifted from `ScriptureHubView` so `IOSListSurfaceChip` can morph into a back affordance.
@@ -125,6 +134,8 @@ final class HarvousAppRouter: ObservableObject {
     /// Drill state for the iOS Folders surface. Lifted from `LibraryView` so the bottom-chrome
     /// `IOSListSurfaceChip` can read the active folder name and pop the drill on tap.
     @Published var iosFoldersDrill: HarvousIOSFoldersDrill = .root
+    /// Drill state for the iOS Threads surface. Lifted from `ThreadsHubView` for the same chip morph pattern.
+    @Published var iosThreadsDrill: HarvousIOSThreadsDrill = .root
     /// Drill state for the iOS Scripture surface. Lifted from `ScriptureHubView` for the same chip morph pattern.
     @Published var iosScriptureDrill: HarvousIOSScriptureDrill = .root
     /// Drives the Account sheet (You root + settings; not an inline surface — always a modal).
@@ -306,6 +317,9 @@ final class HarvousAppRouter: ObservableObject {
         if surface != .folders {
             iosFoldersDrill = .root
         }
+        if surface != .threads {
+            iosThreadsDrill = .root
+        }
         if surface != .scripture {
             iosScriptureDrill = .root
         }
@@ -368,7 +382,7 @@ final class HarvousAppRouter: ObservableObject {
             switch iosListSurface {
             case .notes:
                 iosNotesFilterSearchPresented = true
-            case .folders, .highlights, .scripture, .dictionary:
+            case .folders, .threads, .highlights, .scripture, .dictionary:
                 NotificationCenter.default.post(name: .harvousFocusIOSInlineSearch, object: nil)
             case .more:
                 break

@@ -294,7 +294,7 @@ struct NoteEditorView: View {
     /// Split from `noteEditorLifecycleStack` so each half stays within the type-checker's expression limit.
     private var noteEditorStateObservers: some View {
         Group {
-            if let canvasNote = note ?? lazyDraftStubNote {
+            if let canvasNote = note ?? lazyDraftStubNote, canvasNote.modelContext != nil {
                 editorCanvas(note: canvasNote)
             } else if isLazyDraftComposeActive {
                 Color.clear
