@@ -198,26 +198,46 @@ final class URLLinkPillAttachment: NSTextAttachment {
         let h = max(refSize.height, kUrlGlyphSize) + kUrlVPad * 2
         let size = NSSize(width: ceil(w), height: ceil(h))
 
-        return NSImage(size: size, flipped: false) { bounds in
-            let pillLayout = CGRect(x: kUrlLineSideMargin, y: 0, width: innerW, height: bounds.height)
-            let pill = NSBezierPath(
-                roundedRect: pillLayout.insetBy(dx: 0.25, dy: 0.25),
-                xRadius: HarvousRadius.scripturePill,
-                yRadius: HarvousRadius.scripturePill
-            )
-            tint.withAlphaComponent(0.075).setFill()
-            pill.fill()
-            tint.withAlphaComponent(0.20).setStroke()
-            pill.lineWidth = 0.5
-            pill.stroke()
+        let scale = NSScreen.main?.backingScaleFactor ?? 2.0
+        let pixW  = Int(ceil(size.width  * scale))
+        let pixH  = Int(ceil(size.height * scale))
+        let bitmapRep = NSBitmapImageRep(
+            bitmapDataPlanes: nil,
+            pixelsWide: pixW, pixelsHigh: pixH,
+            bitsPerSample: 8, samplesPerPixel: 4,
+            hasAlpha: true, isPlanar: false,
+            colorSpaceName: .deviceRGB,
+            bytesPerRow: 0, bitsPerPixel: 0
+        )!
+        bitmapRep.size = size
+        NSGraphicsContext.saveGraphicsState()
+        let bitmapCtx = NSGraphicsContext(bitmapImageRep: bitmapRep)!
+        NSGraphicsContext.current = bitmapCtx
+        bitmapCtx.cgContext.scaleBy(x: scale, y: scale)
 
-            let refY = (size.height - refSize.height) / 2
-            let glyphY = (size.height - kUrlGlyphSize) / 2
-            let textX = kUrlLineSideMargin + kUrlHPad
-            refStr.draw(at: NSPoint(x: textX, y: refY))
-            drawUrlLinkExternalGlyph(at: NSPoint(x: textX + refSize.width + kUrlGap, y: glyphY), color: label)
-            return true
-        }
+        let bounds = CGRect(origin: .zero, size: size)
+        let pillLayout = CGRect(x: kUrlLineSideMargin, y: 0, width: innerW, height: bounds.height)
+        let pill = NSBezierPath(
+            roundedRect: pillLayout.insetBy(dx: 0.25, dy: 0.25),
+            xRadius: HarvousRadius.scripturePill,
+            yRadius: HarvousRadius.scripturePill
+        )
+        tint.withAlphaComponent(0.075).setFill()
+        pill.fill()
+        tint.withAlphaComponent(0.20).setStroke()
+        pill.lineWidth = 0.5
+        pill.stroke()
+
+        let refY   = (size.height - refSize.height) / 2
+        let glyphY = (size.height - kUrlGlyphSize)  / 2
+        let textX  = kUrlLineSideMargin + kUrlHPad
+        refStr.draw(at: NSPoint(x: textX, y: refY))
+        drawUrlLinkExternalGlyph(at: NSPoint(x: textX + refSize.width + kUrlGap, y: glyphY), color: label)
+
+        NSGraphicsContext.restoreGraphicsState()
+        let img = NSImage(size: size)
+        img.addRepresentation(bitmapRep)
+        return img
     }
 }
 
