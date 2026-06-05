@@ -34,7 +34,7 @@ import { isStudyHighlightAccentKey, type StudyHighlightAccentKey, STUDY_HIGHLIGH
 import { TRANSLATION_ORDER, TRANSLATIONS } from '@/data/translations';
 import { getCachedProfileData, getEffectiveDefaultTranslation } from '@/utils/profile-cache';
 import { safeNavigate } from '@/utils/safe-navigate';
-import { idToUrl, extractIdFromPath } from '@/utils/url-helpers';
+import { idToUrl, extractIdFromPath, noteUrlForCurrentSurface } from '@/utils/url-helpers';
 import { pushNavStack } from '@/utils/nav-stack';
 import { shouldProcessDocument, getTextToProcess, resetTracker, cleanupTracker } from '@/utils/incremental-scripture-detection';
 import { debug } from '@/utils/logger';
@@ -4362,7 +4362,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
         .catch(() => {});
     }
     dismissHoverPreview();
-    safeNavigate(idToUrl(fullNoteId, threadContext, currentNoteId || undefined));
+    safeNavigate(noteUrlForCurrentSurface(fullNoteId, threadContext, currentNoteId || undefined));
   }, [hoverPreview, dismissHoverPreview]);
 
   const openUrlLinkPrompt = useCallback(() => {
@@ -4978,7 +4978,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
               })
               .catch(() => {});
           }
-          const url = idToUrl(fullNoteId, threadContext, currentNoteId || undefined);
+          const url = noteUrlForCurrentSurface(fullNoteId, threadContext, currentNoteId || undefined);
           safeNavigate(url);
         }
         return;
@@ -7428,7 +7428,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
             const { linkedNoteId } = connectedNoteHighlightPopup;
             setConnectedNoteHighlightPopup(null);
             const fullId = linkedNoteId.startsWith('note_') ? linkedNoteId : `note_${linkedNoteId}`;
-            safeNavigate(idToUrl(fullId, undefined, sourceNoteId || undefined));
+            safeNavigate(noteUrlForCurrentSurface(fullId, undefined, sourceNoteId || undefined));
           }}
           onAccentChange={(newAccent) => {
             const { studyThreadId, linkedNoteId, from, to } = connectedNoteHighlightPopup;

@@ -533,7 +533,12 @@ export default function PrototypeNotePage() {
 
   const showInspectorDesktop = (inspectorOpen || inspectorExiting) && !isMobileSidebar;
   const showInspectorMobile = (inspectorOpen || inspectorExiting) && isMobileSidebar;
-  const inspectorReservesEditorSpace = inspectorOpen && !inspectorExiting;
+  // Only reserve editor space when the inspector actually renders. The desktop
+  // inspector is gated on `!isDraft && note` below, so on a draft (a note with no
+  // content yet) or before the note loads, reserving space shrinks the editor for
+  // a panel that never appears — leaving a blank gap on the right.
+  const inspectorReservesEditorSpace =
+    inspectorOpen && !inspectorExiting && !isDraft && !!note;
 
   const notePaneRowClass = [
     'proto-note-pane-row',
@@ -541,6 +546,16 @@ export default function PrototypeNotePage() {
   ]
     .filter(Boolean)
     .join(' ');
+
+  // Keep the editor mounted across the draft→persisted-id swap. Saving a draft
+  // creates the note server-side and navigates to /n/<id>, which changes `noteId`.
+  // Keying SubtleContentMount on the raw noteId would remount the editor
+  // mid-keystroke and drop any characters typed during the async create
+  // round-trip (the reported "auto-folder creation wipes last typed text" bug).
+  // Reuse the stable draft key for the note this page instance just persisted;
+  // every other note keys on noteId as before so switching notes still remounts.
+  const editorMountKey =
+    !isDraft && persistedDraftIdRef.current === noteId ? DRAFT_NOTE_ID : noteId;
 
   return (
     <PrototypeMainPaneShell>
@@ -556,7 +571,7 @@ export default function PrototypeNotePage() {
       {/* Editor column */}
       <div className="proto-editor-surface">
         <div className="proto-editor-scroll">
-          <SubtleContentMount key={noteId} variant="fade">
+          <SubtleContentMount key={editorMountKey} variant="fade">
             <div className="proto-editor-content-wrap">
               <div className="proto-editor-paper">
               <CardFullEditable

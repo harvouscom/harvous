@@ -1820,6 +1820,77 @@ export default function CardFullEditable({
     protoSaveAsync,
   ]);
 
+  // Unload-safe flush. The 700ms debounce + unmount cleanup both rely on async
+  // fetches that the browser aborts mid-navigation, so a hard refresh / tab close
+  // within the debounce window loses the edit. On pagehide / tab-hidden we send a
+  // `keepalive` PUT (survives unload) with the live editor content, mirroring the
+  // body shape useUpdateNote posts. Prototype-only, editable notes only.
+  useEffect(() => {
+    if (editorChromeMode !== 'prototypeNative') return;
+    if (!effectiveIsEditable) return;
+
+    const flush = () => {
+      const departingNoteId = noteIdRef.current;
+      if (!departingNoteId || readOnlyLikeScriptureRef.current) return;
+
+      const currentTitle = editTitleRef.current;
+      const currentContent = noteHtmlForSave(editorInstanceRef.current, editContentRef.current);
+      if (isEffectivelyEmptyPrototypeNote(currentTitle, currentContent)) return;
+
+      const chromeForSave = applyAutoCollectionAfterEdit(
+        collectionChromeRef.current,
+        currentTitle,
+        currentContent,
+        new Date(),
+      );
+      const collectionKey = `${chromeForSave.primaryCollection ?? ''}|${chromeForSave.secondaryCollections.join(',')}|${chromeForSave.collectionPinned ? 1 : 0}|${chromeForSave.collectionUserOverride ? 1 : 0}`;
+
+      const last = protoLastSavedRef.current;
+      if (last && last.title === currentTitle && last.content === currentContent && last.collectionKey === collectionKey) {
+        return;
+      }
+
+      // Drafts have no server note id yet — nothing to PUT against. The 700ms
+      // debounce normally creates them; if the user bails before that, the draft
+      // is intentionally discarded (matches isEffectivelyEmpty handling).
+      if (departingNoteId === 'note_draft') return;
+
+      try {
+        const body = JSON.stringify({
+          noteId: departingNoteId,
+          title: currentTitle,
+          content: currentContent,
+          scriptureVersion: getEffectiveDefaultTranslation(),
+          primaryCollection: chromeForSave.primaryCollection,
+          secondaryCollections: chromeForSave.secondaryCollections,
+          collectionPinned: chromeForSave.collectionPinned,
+          collectionUserOverride: chromeForSave.collectionUserOverride,
+        });
+        const baseUrl = (import.meta.env.VITE_API_BASE_URL as string | undefined) || '';
+        void fetch(`${baseUrl}/api/notes/update`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          keepalive: true,
+          body,
+        }).catch(() => { /* best-effort on unload */ });
+        protoLastSavedRef.current = { title: currentTitle, content: currentContent, collectionKey };
+      } catch {
+        /* ignore — best-effort */
+      }
+    };
+
+    const onVisibility = () => {
+      if (document.visibilityState === 'hidden') flush();
+    };
+    window.addEventListener('pagehide', flush);
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => {
+      window.removeEventListener('pagehide', flush);
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
+  }, [editorChromeMode, effectiveIsEditable]);
+
   // Listen for keyboard shortcut to save when editing (Cmd+S)
   useEffect(() => {
     const handleSaveContent = () => {
