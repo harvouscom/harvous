@@ -486,7 +486,6 @@ function PrototypeAuthenticatedChrome({ userId }: { userId?: string }) {
         <header className="proto-shell__toolbar-cell">
           <div className="proto-shell__toolbar-stack">
             <NativeToolbar />
-            {userId ? <PrototypeMigrationBanner /> : null}
           </div>
         </header>
 
@@ -524,7 +523,10 @@ function PrototypeAuthenticatedChrome({ userId }: { userId?: string }) {
         ) : null}
 
         <main className="proto-shell__main-cell">
-          <Outlet />
+          <div className="proto-shell__main-inner">
+            {userId ? <PrototypeMigrationBanner /> : null}
+            <Outlet />
+          </div>
         </main>
 
         {isNoteRoute ? <PrototypeEditorChromeBar /> : null}

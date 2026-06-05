@@ -234,16 +234,6 @@ html.harvous-prototype-route .proto-shell__toolbar-cell::after {
   width: 100%;
 }
 
-.proto-shell__toolbar-cell:has(.proto-migration-banner) {
-  align-items: stretch;
-  height: auto;
-  min-height: var(--pds-toolbar-h);
-}
-
-.proto-shell__toolbar-stack:has(.proto-migration-banner) .native-toolbar-root {
-  flex-shrink: 0;
-}
-
 .proto-shell__sidebar-cell {
   grid-column: 1;
   grid-row: 2;
@@ -283,6 +273,25 @@ html.harvous-prototype-route .proto-shell__toolbar-cell::after {
      editor's translucent formatting toolbar and reads as a clipped overlap. */
   position: relative;
   z-index: 1;
+}
+
+.proto-shell__main-inner {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* Floating migration notice — main column only, below toolbar */
+.proto-migration-notice {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  right: 8px;
+  z-index: 4;
+  pointer-events: none;
 }
 
 .proto-shell__sidebar-resize-handle {

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
+import Icon from '@/components/react/Icon';
 import { useProtoShell } from '../../layouts/proto-shell-context';
 import {
   PROTO_MIGRATION_BANNER_DISMISSED_KEY,
@@ -31,7 +32,7 @@ function writeFlag(key: string): void {
 export default function PrototypeMigrationBanner() {
   const queryClient = useQueryClient();
   const { homeSpaceId } = usePrototypeHomeSpaceId();
-  const { setSidebarListMode } = useProtoShell();
+  const { setSidebarListMode, ensureSidebarExpanded } = useProtoShell();
   const migrate = usePrototypeMigration();
   const [visible, setVisible] = useState(false);
   const [migrating, setMigrating] = useState(false);
@@ -88,27 +89,37 @@ export default function PrototypeMigrationBanner() {
   }, []);
 
   const openFolders = useCallback(() => {
+    ensureSidebarExpanded();
     setSidebarListMode('folders');
     dismiss();
-  }, [dismiss, setSidebarListMode]);
+  }, [dismiss, ensureSidebarExpanded, setSidebarListMode]);
 
   if (migrating || !visible) return null;
 
   return (
-    <div className="proto-migration-banner" role="status">
-      <div className="proto-migration-banner__body">
-        <p className="proto-migration-banner__title">Your thread piles are now folders</p>
-        <p className="proto-migration-banner__text">
-          Open <strong>Folders</strong> in the sidebar to browse notes by your former thread titles. Use{' '}
-          <strong>Threads</strong> when you want to connect related notes into a study chain.
-        </p>
-      </div>
-      <div className="proto-migration-banner__actions">
-        <button type="button" className="proto-migration-banner__primary" onClick={openFolders}>
-          Show folders
+    <div className="proto-migration-notice">
+      <div className="proto-migration-notice__card" role="region" aria-label="Folders update">
+        <button type="button" className="proto-migration-notice__dismiss" aria-label="Dismiss" onClick={dismiss}>
+          <Icon name="xmark" size={10} aria-hidden />
+          <span>Dismiss</span>
         </button>
-        <button type="button" className="proto-migration-banner__secondary" onClick={dismiss}>
-          Dismiss
+
+        <div className="proto-migration-notice__content">
+          <p className="proto-caption proto-migration-notice__eyebrow">What&apos;s new</p>
+          <p className="pds-list-title proto-migration-notice__title">Your thread piles are now folders</p>
+          <p className="pds-list-preview proto-migration-notice__text">
+            Open <strong>Folders</strong> in the sidebar to browse notes by your former thread titles. Use{' '}
+            <strong>Threads</strong> when you want to connect related notes into a study chain.
+          </p>
+        </div>
+
+        <button
+          type="button"
+          className="proto-migration-notice__orb"
+          aria-label="Show folders"
+          onClick={openFolders}
+        >
+          <Icon name="folder" size={12} />
         </button>
       </div>
     </div>
