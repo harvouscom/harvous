@@ -947,21 +947,22 @@ export default function PrototypeSidebar() {
     afterNav();
   };
 
-  const backTarget: { label: string; action: () => void } | null = (() => {
+  const backTarget: { label: string; kind: string; action: () => void } | null = (() => {
     if (mode === 'folders' && activeFolderKey !== undefined)
-      return { label: activeFolderKey ?? 'Unsorted', action: () => { setActiveFolderKey(undefined); setQ(''); } };
+      return { label: activeFolderKey ?? 'Unsorted', kind: 'Folder', action: () => { setActiveFolderKey(undefined); setQ(''); } };
     if (mode === 'threads' && sidebarThreadDrilldownId)
       return {
         label: threadDrillQuery.data?.threadTitle ?? threadDrillQuery.data?.suggestedTitle ?? 'Thread',
+        kind: 'Thread',
         action: () => { setSidebarThreadDrilldownId(undefined); setQ(''); },
       };
     if (mode === 'scripture' && scriptureDrill.level === 'passages') {
       const bookTitle = scriptureBooks.find((b) => b.bookOrder === scriptureDrill.bookOrder)?.title ?? 'Book';
-      return { label: bookTitle, action: () => { setScriptureDrill({ level: 'books' }); setQ(''); } };
+      return { label: bookTitle, kind: 'Book', action: () => { setScriptureDrill({ level: 'books' }); setQ(''); } };
     }
     if (mode === 'scripture' && scriptureDrill.level === 'notes') {
       const { bookOrder } = scriptureDrill;
-      return { label: scriptureNotesPassageTitle || 'Passage', action: () => { setScriptureDrill({ level: 'passages', bookOrder }); setQ(''); } };
+      return { label: scriptureNotesPassageTitle || 'Passage', kind: 'Passage', action: () => { setScriptureDrill({ level: 'passages', bookOrder }); setQ(''); } };
     }
     return null;
   })();
@@ -978,6 +979,7 @@ export default function PrototypeSidebar() {
             <span className="proto-toolbar-folder-chip__icon" aria-hidden>
               <Icon name="chevron-left" size={13} />
             </span>
+            <span className="proto-sidebar-list-view__kind">{backTarget.kind}</span>
             <span className="proto-sidebar-list-view__label">{backTarget.label}</span>
           </button>
         ) : (

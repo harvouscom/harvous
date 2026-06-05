@@ -73,25 +73,11 @@ struct ActiveHighlightDock: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            headerRow
-
-            if isExpanded {
-                expandedBody
-                    .transition(.opacity)
-                primaryActionIfNeeded
-                    .transition(.opacity)
-            }
-        }
+        applyCollapsedExpandTap { dockCardChrome }
         // When the dock swaps to another `StudyThread` in-place, `.onChange(of: thread.focusTitle)`
         // (and mini-note) would otherwise see previous-thread vs next-thread as one edit and bump
         // `highlightListEditedAt`. New identity per thread prevents that phantom “change”.
         .id(thread.id)
-        .frame(maxWidth: inStudyDockCarousel ? .infinity : nil, alignment: .topLeading)
-        .padding(.horizontal, 12)
-        .padding(.vertical, 10)
-        .background(dockChrome)
-        .studyDockShellBorderOverlay()
         .shadow(color: .black.opacity(0.10), radius: 12, y: 4)
         .shadow(color: .black.opacity(0.06), radius: 3, y: 1)
         .padding(.horizontal, inStudyDockCarousel ? 0 : 20)
@@ -141,6 +127,24 @@ struct ActiveHighlightDock: View {
                 }
             }
         }
+    }
+
+    private var dockCardChrome: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            headerRow
+
+            if isExpanded {
+                expandedBody
+                    .transition(.opacity)
+                primaryActionIfNeeded
+                    .transition(.opacity)
+            }
+        }
+        .frame(maxWidth: inStudyDockCarousel ? .infinity : nil, alignment: .topLeading)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .background(dockChrome)
+        .studyDockShellBorderOverlay()
     }
 
     /// Effective slug for reference rendering — uses the user's see-also override if set, otherwise
@@ -202,6 +206,7 @@ struct ActiveHighlightDock: View {
                 .lineLimit(1)
                 .truncationMode(.tail)
                 .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
+                .allowsHitTesting(isExpanded)
                 .onChange(of: thread.focusTitle) { old, new in
                     // Avoid bumping list sort / vault timestamps on spurious binding parity or no-op edits.
                     guard old != new else { return }
@@ -223,43 +228,45 @@ struct ActiveHighlightDock: View {
             // Utility toolbar — `.animation(.none)` prevents the spring on `isExpanded` from
             // sliding the chevron symbol or the whole toolbar during expand/collapse.
             HStack(spacing: 2) {
-                // Secondary controls: color swatch + trash
-                DockAccentSwatchButton(
-                    selection: Binding(
-                        get: {
-                            StudyHighlightAccentToken
-                                .decoding(thread.highlightAccentRaw)
-                                .resolvedFromAuto(forKind: thread.entryKind)
-                        },
-                        set: { newValue in
-                            thread.highlightAccentRaw = newValue.rawValue
-                            thread.highlightListEditedAt = Date()
-                            thread.markDirty()
-                            try? modelContext.saveWithLogging()
-                            onAccentPersisted()
+                if isExpanded {
+                    // Secondary controls: color swatch + trash
+                    DockAccentSwatchButton(
+                        selection: Binding(
+                            get: {
+                                StudyHighlightAccentToken
+                                    .decoding(thread.highlightAccentRaw)
+                                    .resolvedFromAuto(forKind: thread.entryKind)
+                            },
+                            set: { newValue in
+                                thread.highlightAccentRaw = newValue.rawValue
+                                thread.highlightListEditedAt = Date()
+                                thread.markDirty()
+                                try? modelContext.saveWithLogging()
+                                onAccentPersisted()
+                            }
+                        ),
+                        paletteTokens: thread.entryKind == .scriptureLink
+                            ? StudyHighlightAccentToken.pickerChoicesWithNeutral
+                            : StudyHighlightAccentToken.pickerChoices,
+                        entryKind: thread.entryKind
+                    )
+
+                    if onRemoveHighlight != nil {
+                        toolbarButton(assetName: "Harvous.Trash", help: "Remove highlight") {
+                            onRemoveHighlight?()
                         }
-                    ),
-                    paletteTokens: thread.entryKind == .scriptureLink
-                        ? StudyHighlightAccentToken.pickerChoicesWithNeutral
-                        : StudyHighlightAccentToken.pickerChoices,
-                    entryKind: thread.entryKind
-                )
-
-                if onRemoveHighlight != nil {
-                    toolbarButton(assetName: "Harvous.Trash", help: "Remove highlight") {
-                        onRemoveHighlight?()
                     }
-                }
 
-                toolbarDivider
+                    toolbarDivider
 
-                toolbarButton(
-                    assetName: isExpanded ? "Harvous.ChevronUp" : "Harvous.ChevronDown",
-                    help: isExpanded ? "Collapse" : "Expand",
-                    prominent: true
-                ) {
-                    withAnimation(.spring(response: 0.32, dampingFraction: 0.82)) {
-                        isExpanded.toggle()
+                    toolbarButton(
+                        assetName: "Harvous.ChevronDown",
+                        help: "Collapse",
+                        prominent: true
+                    ) {
+                        withAnimation(.spring(response: 0.32, dampingFraction: 0.82)) {
+                            isExpanded.toggle()
+                        }
                     }
                 }
 
@@ -535,6 +542,23 @@ struct ActiveHighlightDock: View {
                     isExpanded.toggle()
                 }
             }
+    }
+
+    @ViewBuilder
+    private func applyCollapsedExpandTap<Content: View>(@ViewBuilder content: () -> Content) -> some View {
+        if isExpanded {
+            content()
+        } else {
+            content()
+                .contentShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                .onTapGesture {
+                    withAnimation(.spring(response: 0.32, dampingFraction: 0.82)) {
+                        isExpanded = true
+                    }
+                }
+                .accessibilityAddTraits(.isButton)
+                .accessibilityHint("Expand study dock")
+        }
     }
 
     private var dockChrome: some View {

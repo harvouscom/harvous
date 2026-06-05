@@ -182,28 +182,7 @@ struct ActiveScripturePillDock: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            headerRow
-
-            if passageChromeExpanded {
-                expandedBody
-                    .transition(.opacity)
-            }
-        }
-        .frame(
-            maxWidth: inStudyDockCarousel || (fillsAvailableHeight && passageChromeExpanded) ? .infinity : nil,
-            maxHeight: fillsAvailableHeight && passageChromeExpanded ? .infinity : nil,
-            alignment: .topLeading
-        )
-        .padding(.horizontal, 12)
-        .padding(.top, 10)
-        // When the passage is expanded the scroll fills to the dock's bottom edge —
-        // no padding below the scroll viewport. Collapsed: restore the usual 10pt gap.
-        .padding(.bottom, passageChromeExpanded ? 0 : 10)
-        .background(dockChrome)
-        // Clip scroll content to the dock's rounded corners so text doesn't overflow visually.
-        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-        .studyDockShellBorderOverlay()
+        applyCollapsedExpandTap { dockCardChrome }
         .overlay(alignment: .bottom) {
             if dockMode == .study, let tapped = tappedPassageHighlight {
                 ActiveHighlightDock(
@@ -313,31 +292,33 @@ struct ActiveScripturePillDock: View {
         // Title is lineLimit(1) so both sides are the same height — .center aligns icon/text with
         // optional accent controls, collapse chevron (when enabled), and close on the right.
         HStack(alignment: .center, spacing: 8) {
-            HarvousFAGlyph(assetName: dockMode == .compare ? "Harvous.ArrowsLeftRight" : "Harvous.BookOpen", edgePt: 13)
-                .foregroundStyle(.primary)
-
             HStack(alignment: .center, spacing: 8) {
-                Text(reference)
-                    .font(HarvousFonts.font(size: 14, weight: .semibold, design: .default))
+                HarvousFAGlyph(assetName: dockMode == .compare ? "Harvous.ArrowsLeftRight" : "Harvous.BookOpen", edgePt: 13)
                     .foregroundStyle(.primary)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-                    .layoutPriority(0)
-                if dockMode == .study {
-                    Text(ScriptureReference.displayTranslationLabel(translation))
-                        .font(HarvousFonts.font(size: 10, weight: .semibold, design: .default))
-                        .textCase(.uppercase)
-                        .foregroundStyle(.secondary)
+
+                HStack(alignment: .center, spacing: 8) {
+                    Text(reference)
+                        .font(HarvousFonts.font(size: 14, weight: .semibold, design: .default))
+                        .foregroundStyle(.primary)
                         .lineLimit(1)
                         .truncationMode(.tail)
-                        .layoutPriority(1)
-                } else {
-                    Text("Compare")
-                        .font(HarvousFonts.font(size: 10, weight: .semibold, design: .default))
-                        .textCase(.uppercase)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                        .truncationMode(.tail)
+                        .layoutPriority(0)
+                    if dockMode == .study {
+                        Text(ScriptureReference.displayTranslationLabel(translation))
+                            .font(HarvousFonts.font(size: 10, weight: .semibold, design: .default))
+                            .textCase(.uppercase)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                            .truncationMode(.tail)
+                            .layoutPriority(1)
+                    } else {
+                        Text("Compare")
+                            .font(HarvousFonts.font(size: 10, weight: .semibold, design: .default))
+                            .textCase(.uppercase)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                            .truncationMode(.tail)
+                    }
                 }
             }
             .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
@@ -351,58 +332,60 @@ struct ActiveScripturePillDock: View {
             }
 
             HStack(spacing: 2) {
-                if dockMode == .study {
-                    toolbarButton(
-                        assetName: "Harvous.ArrowsLeftRight",
-                        help: "Compare translations",
-                        prominent: false
-                    ) {
-                        clearPassageSelectionState()
-                        withAnimation(.spring(response: 0.32, dampingFraction: 0.82)) {
-                            seedCompareTranslationFromNote()
-                            dockMode = .compare
-                            if allowsCollapseExpand { isExpanded = true }
-                        }
-                    }
-
-                    toolbarDivider
-                } else {
-                    toolbarButton(
-                        assetName: "Harvous.BookOpen",
-                        help: "Back to study",
-                        prominent: true
-                    ) {
-                        withAnimation(.spring(response: 0.32, dampingFraction: 0.82)) {
-                            dockMode = .study
-                        }
-                    }
-
-                    toolbarDivider
-                }
-
-                if showsPillAccentControls, dockMode == .study {
-                    DockAccentSwatchButton(
-                        selection: Binding(
-                            get: { accent ?? .neutral },
-                            set: { newValue in
-                                accent = (newValue == .neutral) ? nil : newValue
+                if isExpanded {
+                    if dockMode == .study {
+                        toolbarButton(
+                            assetName: "Harvous.ArrowsLeftRight",
+                            help: "Compare translations",
+                            prominent: false
+                        ) {
+                            clearPassageSelectionState()
+                            withAnimation(.spring(response: 0.32, dampingFraction: 0.82)) {
+                                seedCompareTranslationFromNote()
+                                dockMode = .compare
+                                if allowsCollapseExpand { isExpanded = true }
                             }
-                        ),
-                        paletteTokens: StudyHighlightAccentToken.pickerChoicesWithNeutral,
-                        entryKind: .scriptureLink
-                    )
+                        }
 
-                    toolbarDivider
-                }
+                        toolbarDivider
+                    } else {
+                        toolbarButton(
+                            assetName: "Harvous.BookOpen",
+                            help: "Back to study",
+                            prominent: true
+                        ) {
+                            withAnimation(.spring(response: 0.32, dampingFraction: 0.82)) {
+                                dockMode = .study
+                            }
+                        }
 
-                if allowsCollapseExpand, dockMode == .study {
-                    toolbarButton(
-                        assetName: isExpanded ? "Harvous.ChevronDown" : "Harvous.ChevronUp",
-                        help: isExpanded ? "Collapse" : "Expand",
-                        prominent: true
-                    ) {
-                        withAnimation(.spring(response: 0.32, dampingFraction: 0.82)) {
-                            isExpanded.toggle()
+                        toolbarDivider
+                    }
+
+                    if showsPillAccentControls, dockMode == .study {
+                        DockAccentSwatchButton(
+                            selection: Binding(
+                                get: { accent ?? .neutral },
+                                set: { newValue in
+                                    accent = (newValue == .neutral) ? nil : newValue
+                                }
+                            ),
+                            paletteTokens: StudyHighlightAccentToken.pickerChoicesWithNeutral,
+                            entryKind: .scriptureLink
+                        )
+
+                        toolbarDivider
+                    }
+
+                    if allowsCollapseExpand, dockMode == .study {
+                        toolbarButton(
+                            assetName: "Harvous.ChevronDown",
+                            help: "Collapse",
+                            prominent: true
+                        ) {
+                            withAnimation(.spring(response: 0.32, dampingFraction: 0.82)) {
+                                isExpanded.toggle()
+                            }
                         }
                     }
                 }
@@ -414,6 +397,49 @@ struct ActiveScripturePillDock: View {
             .fixedSize(horizontal: true, vertical: false)
             .layoutPriority(1)
             .animation(.none, value: isExpanded) // snap toolbar; body below still springs
+        }
+    }
+
+    private var dockCardChrome: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            headerRow
+
+            if passageChromeExpanded {
+                expandedBody
+                    .transition(.opacity)
+            }
+        }
+        .frame(
+            maxWidth: inStudyDockCarousel || (fillsAvailableHeight && passageChromeExpanded) ? .infinity : nil,
+            maxHeight: fillsAvailableHeight && passageChromeExpanded ? .infinity : nil,
+            alignment: .topLeading
+        )
+        .padding(.horizontal, 12)
+        .padding(.top, 10)
+        // When the passage is expanded the scroll fills to the dock's bottom edge —
+        // no padding below the scroll viewport. Collapsed: restore the usual 10pt gap.
+        .padding(.bottom, passageChromeExpanded ? 0 : 10)
+        .background(dockChrome)
+        // Clip scroll content to the dock's rounded corners so text doesn't overflow visually.
+        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .studyDockShellBorderOverlay()
+    }
+
+    @ViewBuilder
+    private func applyCollapsedExpandTap<Content: View>(@ViewBuilder content: () -> Content) -> some View {
+        if passageChromeExpanded || !allowsCollapseExpand {
+            content()
+        } else {
+            content()
+                .contentShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                .onTapGesture {
+                    guard dockMode == .study else { return }
+                    withAnimation(.spring(response: 0.32, dampingFraction: 0.82)) {
+                        isExpanded = true
+                    }
+                }
+                .accessibilityAddTraits(.isButton)
+                .accessibilityHint("Expand scripture dock")
         }
     }
 

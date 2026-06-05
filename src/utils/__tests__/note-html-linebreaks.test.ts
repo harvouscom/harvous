@@ -1,5 +1,27 @@
 import { describe, expect, it } from 'vitest';
-import { canonicalizeNoteHtmlLineBreaks } from '../note-html-linebreaks';
+import {
+  canonicalizeNoteHtmlLineBreaks,
+  stripHrAdjacentEmptyParagraphs,
+} from '../note-html-linebreaks';
+
+describe('stripHrAdjacentEmptyParagraphs', () => {
+  it('removes empty paragraph before hr', () => {
+    expect(stripHrAdjacentEmptyParagraphs('<p>Above</p><p></p><hr><p>Below</p>')).toBe(
+      '<p>Above</p><hr><p>Below</p>',
+    );
+  });
+
+  it('removes br-only paragraph after hr', () => {
+    expect(stripHrAdjacentEmptyParagraphs('<p>Above</p><hr><p><br></p><p>Below</p>')).toBe(
+      '<p>Above</p><hr><p>Below</p>',
+    );
+  });
+
+  it('leaves intentional blank lines away from hr', () => {
+    const html = '<p>one</p><p></p><p>two</p>';
+    expect(stripHrAdjacentEmptyParagraphs(html)).toBe(html);
+  });
+});
 
 describe('canonicalizeNoteHtmlLineBreaks', () => {
   it('converts empty paragraphs to br placeholders', () => {

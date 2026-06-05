@@ -195,6 +195,9 @@ struct SidebarPanelView: View {
 
     private struct SidebarBackTarget {
         let label: String
+        /// Short type word shown as a pill before the label (e.g. "Folder", "Thread").
+        /// `nil` when the label already names the kind (e.g. dictionary).
+        let kind: String?
         let help: String
         let accessibilityLabel: String
         let action: () -> Void
@@ -209,14 +212,18 @@ struct SidebarPanelView: View {
                 let name = NoteFilter.folder(key).displayName
                 return SidebarBackTarget(
                     label: name,
+                    kind: "Folder",
                     help: "Back to folders",
                     accessibilityLabel: "Back to folders, currently viewing \(name)"
                 ) { foldersDrill = .root }
             }
         case .scripture:
             if let bookLabel = scriptureDrillBookLabel {
+                // Drilled to a book → label is the book title; to a passage → the passage.
+                let kind: String = { if case .passage = scriptureDrill { return "Passage" } else { return "Book" } }()
                 return SidebarBackTarget(
                     label: bookLabel,
+                    kind: kind,
                     help: scriptureSidebarBackButtonHelp,
                     accessibilityLabel: scriptureSidebarBackAccessibilityLabel(bookLabel: bookLabel)
                 ) {
@@ -231,6 +238,7 @@ struct SidebarPanelView: View {
             if case .cluster(_, let clusterTitle, _) = threadsDrill {
                 return SidebarBackTarget(
                     label: clusterTitle,
+                    kind: "Thread",
                     help: "Back to threads",
                     accessibilityLabel: "Back to threads, currently viewing \(clusterTitle)"
                 ) { threadsDrill = .root }
@@ -239,6 +247,7 @@ struct SidebarPanelView: View {
             if dictionaryDrill != .root {
                 return SidebarBackTarget(
                     label: "Dictionary",
+                    kind: nil,
                     help: "Back to dictionary",
                     accessibilityLabel: "Back to dictionary"
                 ) { dictionaryDrill = .root }
@@ -249,9 +258,21 @@ struct SidebarPanelView: View {
         return nil
     }
 
-    /// Full-width back row shown above the search field when drilled in.
-    /// Lives in the body (not the title-bar toolbar) so its variable-width label
-    /// no longer crowds the fixed toolbar cluster into overflow.
+    /// Small muted pill naming the view type ("Folder", "Thread", …), shown before
+    /// the back-row label so same-named folders and threads stay distinguishable.
+    @ViewBuilder
+    private func sidebarBackKindChip(_ kind: String) -> some View {
+        Text(kind)
+            .font(HarvousFonts.font(size: 11, weight: .medium, design: .default))
+            .foregroundStyle(.secondary)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 1)
+            .background(Color.secondary.opacity(0.12), in: Capsule())
+    }
+
+    /// Full-width back row shown above the search field when drilled in (both macOS and iOS).
+    /// Lives in the body (not the title-bar toolbar) so its variable-width label has room to
+    /// breathe and never truncates the way a width-capped toolbar button would.
     @ViewBuilder
     private var sidebarBackRow: some View {
         if let target = sidebarBackTarget {
@@ -259,6 +280,9 @@ struct SidebarPanelView: View {
                 HStack(spacing: 5) {
                     HarvousFAGlyph(assetName: "Harvous.ChevronLeft", edgePt: 13)
                         .foregroundStyle(.secondary)
+                    if let kind = target.kind {
+                        sidebarBackKindChip(kind)
+                    }
                     Text(target.label)
                         .font(HarvousFonts.font(size: 13, weight: .medium, design: .default))
                         .foregroundStyle(.primary)
@@ -272,10 +296,10 @@ struct SidebarPanelView: View {
             .help(target.help)
             .accessibilityLabel(target.accessibilityLabel)
             .padding(.horizontal, HarvousFeedListLayout.listRowHorizontalInset)
-            .padding(.top, 6)
+            // Uniform breathing room: 8pt above; below is 6 + the search field's own
+            // top padding of 2, so the gap reads as 8pt on both sides of the row.
+            .padding(.top, 8)
             .padding(.bottom, 6)
-            Divider()
-                .padding(.horizontal, HarvousFeedListLayout.listRowHorizontalInset)
         }
     }
 
@@ -339,29 +363,13 @@ struct SidebarPanelView: View {
     }
 
     /// One `ToolbarItemGroup` slot: SwiftUI separates siblings with wide gutters; nested `HStack` keeps bordered controls tight.
+    /// The drill-in back affordance lives in the full-width `sidebarBackRow` (body), not here,
+    /// so the toolbar always shows the standard chrome and never truncates a long label.
     private var sidebarMacToolbarClusterBar: some View {
         HStack(spacing: SidebarToolbarLayout.borderedIconClusterSpacing) {
             if showSidebarToolbarChrome {
-                if let target = sidebarBackTarget {
-                    // SpaceSwitcherView omitted while drilled in — saves ~37pt so the
-                    // label fits without tripping narrowColumnToolbarSuppressBelow.
-                    Button(action: target.action) {
-                        HStack(spacing: 5) {
-                            HarvousFAGlyph(assetName: "Harvous.ChevronLeft", edgePt: 13)
-                            Text(target.label)
-                                .font(HarvousFonts.font(size: 12, weight: .medium, design: .default))
-                                .lineLimit(1)
-                                .truncationMode(.tail)
-                        }
-                    }
-                    .buttonStyle(.bordered)
-                    .frame(maxWidth: 110)
-                    .help(target.help)
-                    .accessibilityLabel(target.accessibilityLabel)
-                } else {
-                    SpaceSwitcherView()
-                    modeMenu
-                }
+                SpaceSwitcherView()
+                modeMenu
             }
             sidebarHideSidebarToolbarButton
         }
@@ -444,9 +452,7 @@ struct SidebarPanelView: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                #if os(iOS)
                 sidebarBackRow
-                #endif
                 sidebarSearchField
 
                 Group {

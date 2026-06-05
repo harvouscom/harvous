@@ -1072,6 +1072,21 @@ html.harvous-proto-wallpaper-color .proto-sidebar-search__field:focus-within {
   color: var(--pds-text-primary);
 }
 
+.proto-sidebar-list-view__kind {
+  flex-shrink: 0;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--pds-bg-faint);
+  border: 0.5px solid var(--pds-border-control);
+  font-family: var(--pds-font-body);
+  font-size: 11px;
+  font-weight: 500;
+  font-variation-settings: var(--pds-font-body-variation-chip);
+  line-height: 1.4;
+  color: var(--pds-text-secondary);
+  white-space: nowrap;
+}
+
 /* ─── Chip bar (highlight-kind + dictionary-category filters) ────────────── */
 .proto-chip-bar {
   display: flex;

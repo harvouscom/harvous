@@ -1,4 +1,4 @@
-import { canonicalizeNoteHtmlLineBreaks } from './note-html-linebreaks';
+import { canonicalizeNoteHtmlLineBreaks, stripHrAdjacentEmptyParagraphs } from './note-html-linebreaks';
 import { stripServerAutoUntitledNoteTitleForDisplay } from './server-auto-untitled-note-display';
 
 /** Native parity: empty TipTap/HTML body (including `<p></p>`). */
@@ -24,7 +24,8 @@ export function preferredCaretPosForEmptyDoc(_doc?: { textContent: string }): nu
  */
 export function normalizeEmptyBodyHtmlForEditor(html: string | null | undefined): string {
   if (isTiptapBodyEmpty(html)) return '<p></p>';
-  return canonicalizeNoteHtmlLineBreaks(html);
+  const withoutHrPadding = stripHrAdjacentEmptyParagraphs(html);
+  return canonicalizeNoteHtmlLineBreaks(withoutHrPadding);
 }
 
 /** True when the note has no user-visible title and no body text (server "Untitled Note N" counts as empty). */

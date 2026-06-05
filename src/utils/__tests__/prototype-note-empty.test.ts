@@ -31,6 +31,12 @@ describe('normalizeEmptyBodyHtmlForEditor', () => {
       '<p>one</p><p><br></p><p>two</p>',
     );
   });
+
+  it('strips empty paragraphs adjacent to hr on hydrate', () => {
+    expect(normalizeEmptyBodyHtmlForEditor('<p>Above</p><p></p><hr><p><br></p><p>Below</p>')).toBe(
+      '<p>Above</p><hr><p>Below</p>',
+    );
+  });
 });
 
 describe('preferredCaretPosForEmptyDoc', () => {

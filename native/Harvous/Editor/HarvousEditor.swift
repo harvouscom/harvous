@@ -43,8 +43,20 @@ func harvousExpandedPlainText(in storage: NSTextStorage) -> String {
                 }
                 i = NSMaxRange(eff)
             } else if att is HorizontalRuleAttachment {
+                // insertDivider wraps the attachment in `\n…\n`; collapse those so save emits canonical `\n---\n` once.
+                while out.hasSuffix("\n") {
+                    out.removeLast()
+                }
                 out += "\n---\n"
                 i = NSMaxRange(eff)
+                while i < len {
+                    let r = ns.rangeOfComposedCharacterSequence(at: i)
+                    if ns.substring(with: r) == "\n" {
+                        i = NSMaxRange(r)
+                    } else {
+                        break
+                    }
+                }
             } else if let imgAtt = att as? NoteInlineImageAttachment {
                 if let payload = NoteInlineImageSerialization.inlineImagePayload(from: imgAtt) {
                     out += NoteInlineImageSerialization.inlineImageMarker(forPayload: payload)
@@ -88,40 +100,64 @@ private func noteBodyTypingAttributes() -> [NSAttributedString.Key: Any] {
 #endif
 }
 
+/// UTF-16 newline scalar in plain body strings.
+private let horizontalRulePlainNewline: unichar = 10
+
+/// Finds the next `---` divider marker, absorbing adjacent blank lines from legacy double-newline saves.
+private func horizontalRuleMarkerRange(in ns: NSString) -> NSRange? {
+    let length = ns.length
+    if length == 0 { return nil }
+
+    if length == 3, ns.substring(with: NSRange(location: 0, length: 3)) == "---" {
+        return NSRange(location: 0, length: 3)
+    }
+
+    if length >= 4, ns.substring(with: NSRange(location: 0, length: 4)) == "---\n" {
+        var end = 4
+        while end < length, ns.character(at: end) == horizontalRulePlainNewline {
+            end += 1
+        }
+        return NSRange(location: 0, length: end)
+    }
+
+    let patterns = ["\n---\n", "\r\n---\r\n"]
+    for pattern in patterns {
+        let core = ns.range(of: pattern)
+        if core.location == NSNotFound { continue }
+        var start = core.location
+        var end = NSMaxRange(core)
+        while start > 0, ns.character(at: start - 1) == horizontalRulePlainNewline {
+            start -= 1
+        }
+        while end < length, ns.character(at: end) == horizontalRulePlainNewline {
+            end += 1
+        }
+        return NSRange(location: start, length: end - start)
+    }
+    return nil
+}
+
 /// Horizontal rules only — safe to run synchronously on note open.
 @MainActor
-fileprivate func rehydrateHorizontalRules(in storage: NSTextStorage) {
+func rehydrateHorizontalRules(in storage: NSTextStorage) {
     let bodyAttrs = noteBodyTypingAttributes()
     storage.beginEditing()
     defer { storage.endEditing() }
 
-    let patterns = ["\n---\n", "\r\n---\r\n"]
-    for p in patterns {
-        while true {
-            let rr = (storage.string as NSString).range(of: p)
-            if rr.location == NSNotFound { break }
-            let full = NSMutableAttributedString()
+    while true {
+        let ns = storage.string as NSString
+        guard let rr = horizontalRuleMarkerRange(in: ns) else { break }
+
+        let full = NSMutableAttributedString()
+        if rr.location == 0 {
+            full.append(NSAttributedString(attachment: HorizontalRuleAttachment()))
+            full.append(NSAttributedString(string: "\n", attributes: bodyAttrs))
+        } else {
             full.append(NSAttributedString(string: "\n", attributes: bodyAttrs))
             full.append(NSAttributedString(attachment: HorizontalRuleAttachment()))
             full.append(NSAttributedString(string: "\n", attributes: bodyAttrs))
-            storage.replaceCharacters(in: rr, with: full)
         }
-    }
-
-    let head = storage.string as NSString
-    if head.length >= 4 {
-        let prefix = head.substring(with: NSRange(location: 0, length: 4))
-        if prefix == "---\n" {
-            let full = NSMutableAttributedString()
-            full.append(NSAttributedString(attachment: HorizontalRuleAttachment()))
-            full.append(NSAttributedString(string: "\n", attributes: bodyAttrs))
-            storage.replaceCharacters(in: NSRange(location: 0, length: 4), with: full)
-        }
-    }
-
-    if storage.string == "---" {
-        let full = NSMutableAttributedString(attachment: HorizontalRuleAttachment())
-        storage.replaceCharacters(in: NSRange(location: 0, length: 3), with: full)
+        storage.replaceCharacters(in: rr, with: full)
     }
 }
 

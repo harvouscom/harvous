@@ -1,6 +1,6 @@
 /**
  * Space switcher — prototype is My Home only; other spaces are retired in this shell.
- * Hidden when the account has one owned space; static glyph only when multiple legacy spaces exist.
+ * Always shows the home orb once nav is ready; static glyph (no dropdown) in all cases.
  */
 import { useMemo } from 'react';
 import Icon from '@/components/react/Icon';
@@ -10,7 +10,6 @@ import { PROTO_TOOLBAR_ORB_ICON_SIZE } from './proto-toolbar-tokens';
 
 export default function SpaceSwitcherMenu({ homeSpaceId, navReady }: { homeSpaceId: string | null; navReady: boolean }) {
   const { data: nav } = useNavigation();
-  const ownedSpaceCount = nav?.spaces?.length ?? 0;
 
   const normalizedActive = useMemo(
     () =>
@@ -18,7 +17,7 @@ export default function SpaceSwitcherMenu({ homeSpaceId, navReady }: { homeSpace
     [homeSpaceId],
   );
 
-  if (!navReady || ownedSpaceCount <= 1) {
+  if (!navReady) {
     return null;
   }
 

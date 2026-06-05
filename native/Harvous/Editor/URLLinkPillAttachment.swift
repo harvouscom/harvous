@@ -209,11 +209,14 @@ final class URLLinkPillAttachment: NSTextAttachment {
             colorSpaceName: .deviceRGB,
             bytesPerRow: 0, bitsPerPixel: 0
         )!
+        // Setting `bitmapRep.size` to the logical point size (while the pixel buffer is `scale`× larger)
+        // makes `NSGraphicsContext(bitmapImageRep:)` install a points→pixels CTM automatically. Drawing
+        // proceeds in points and is rasterized at device resolution — no manual `scaleBy`, which would
+        // double-apply the scale and overflow the pill.
         bitmapRep.size = size
         NSGraphicsContext.saveGraphicsState()
         let bitmapCtx = NSGraphicsContext(bitmapImageRep: bitmapRep)!
         NSGraphicsContext.current = bitmapCtx
-        bitmapCtx.cgContext.scaleBy(x: scale, y: scale)
 
         let bounds = CGRect(origin: .zero, size: size)
         let pillLayout = CGRect(x: kUrlLineSideMargin, y: 0, width: innerW, height: bounds.height)

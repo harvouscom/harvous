@@ -239,7 +239,7 @@ export default function ReferenceDockWeb({
       expanded={isExpanded}
       onToggleExpanded={() => setIsExpanded((prev) => !prev)}
       onDismiss={onDone}
-      headerIcon={<Icon name={entry ? categoryIcon(entry.category) : 'book-open'} size={13} />}
+      headerIcon={<Icon name="lines-leaning" size={13} />}
       headerTitle={<span className="reference-dock-web__headword">{headword}</span>}
       headerTrailing={
         entry ? (
