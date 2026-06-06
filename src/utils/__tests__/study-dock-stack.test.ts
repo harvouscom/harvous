@@ -5,6 +5,7 @@ import {
   emptyStudyDockStack,
   highlightDockStableKey,
   openOrFocusHighlight,
+  openOrFocusReference,
   openOrFocusScripture,
   pruneStudyDockStack,
   scriptureDockStableKey,
@@ -36,7 +37,8 @@ describe('study-dock-stack', () => {
     const other = { ...scriptureSession, translation: 'ESV' };
     stack = openOrFocusScripture(stack, other);
     expect(stack.entries).toHaveLength(1);
-    expect(stack.entries[0].session.translation).toBe('ESV');
+    const first = stack.entries[0];
+    expect(first.kind === 'scripture' ? first.session.translation : null).toBe('ESV');
   });
 
   it('openOrFocusHighlight keeps scripture and adds highlight', () => {
@@ -44,6 +46,26 @@ describe('study-dock-stack', () => {
     stack = openOrFocusHighlight(stack, highlightSession);
     expect(stack.entries).toHaveLength(2);
     expect(stack.activeId).toBe(stack.entries[1].id);
+  });
+
+  it('openOrFocusReference adds a reference dock and transitions pending → saved in place', () => {
+    let stack = openOrFocusReference(emptyStudyDockStack(), {
+      query: 'Bethlehem',
+      pendingSuggestion: { from: 5, to: 14 },
+    });
+    expect(stack.entries).toHaveLength(1);
+    expect(stack.entries[0].kind).toBe('reference');
+
+    // Saving keeps the same note range → same stable key → updates in place (no duplicate).
+    stack = openOrFocusReference(stack, {
+      query: 'Bethlehem',
+      noteHighlightRange: { from: 5, to: 14 },
+      noteHighlightAccent: 'warmAmber',
+      studyThreadEntryId: 'st_ref_1',
+    });
+    expect(stack.entries).toHaveLength(1);
+    const e = stack.entries[0];
+    expect(e.kind === 'reference' ? e.session.noteHighlightRange : null).toEqual({ from: 5, to: 14 });
   });
 
   it('closeDockEntry activates most recently opened remaining entry', () => {

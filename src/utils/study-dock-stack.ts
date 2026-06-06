@@ -20,6 +20,18 @@ export type HighlightDockSession = {
   entryKind?: 'miniNote' | 'scriptureLink' | 'reference' | 'linkedNote' | 'workspace';
 };
 
+/** Dictionary reference dock — either a not-yet-saved suggestion or a saved reference highlight. */
+export type ReferenceDockSession = {
+  /** The word / headword to look up in Easton's. */
+  query: string;
+  /** Set once saved — the highlight mark range in the note. */
+  noteHighlightRange?: { from: number; to: number } | null;
+  noteHighlightAccent?: string | null;
+  studyThreadEntryId?: string | null;
+  /** Set when opened from a typed suggestion that is not yet saved (range of the hinted word). */
+  pendingSuggestion?: { from: number; to: number } | null;
+};
+
 export type StudyDockEntry =
   | {
       id: string;
@@ -36,6 +48,14 @@ export type StudyDockEntry =
       openedAt: number;
       expanded: boolean;
       session: HighlightDockSession;
+    }
+  | {
+      id: string;
+      kind: 'reference';
+      stableKey: string;
+      openedAt: number;
+      expanded: boolean;
+      session: ReferenceDockSession;
     };
 
 export type StudyDockStack = {
@@ -59,6 +79,14 @@ export function highlightDockStableKey(
   if (studyThreadEntryId) return `highlight:${studyThreadEntryId}`;
   if (range) return `highlight:range:${range.from}-${range.to}`;
   return `highlight:anonymous:${Date.now()}`;
+}
+
+export function referenceDockStableKey(session: ReferenceDockSession): string {
+  // Key on the note range so a pending suggestion and the saved reference for the same word
+  // (same from/to) collapse to one entry — pending → saved transitions in place.
+  const range = session.noteHighlightRange ?? session.pendingSuggestion;
+  if (range) return `reference:range:${range.from}-${range.to}`;
+  return `reference:q:${session.query.trim().toLowerCase()}`;
 }
 
 function newEntryId(): string {
@@ -126,6 +154,38 @@ export function openOrFocusHighlight(
   const entry: StudyDockEntry = {
     id,
     kind: 'highlight',
+    stableKey,
+    openedAt: Date.now(),
+    expanded: true,
+    session,
+  };
+  const entries = trimToMaxEntries([
+    ...stack.entries.map((e) => ({ ...e, expanded: false })),
+    entry,
+  ]);
+  return { entries, activeId: id };
+}
+
+export function openOrFocusReference(
+  stack: StudyDockStack,
+  session: ReferenceDockSession,
+): StudyDockStack {
+  const stableKey = referenceDockStableKey(session);
+  const existing = stack.entries.find((e) => e.stableKey === stableKey);
+  if (existing) {
+    return {
+      entries: stack.entries.map((e) =>
+        e.id === existing.id
+          ? { ...e, kind: 'reference' as const, expanded: true, session }
+          : { ...e, expanded: false },
+      ),
+      activeId: existing.id,
+    };
+  }
+  const id = newEntryId();
+  const entry: StudyDockEntry = {
+    id,
+    kind: 'reference',
     stableKey,
     openedAt: Date.now(),
     expanded: true,
@@ -245,6 +305,11 @@ export function dockChipLabel(entry: StudyDockEntry): string {
     const trans = entry.session.translation;
     if (trans) return `${ref} · ${trans}`;
     return ref;
+  }
+  if (entry.kind === 'reference') {
+    const q = entry.session.query.trim();
+    if (q.length > 28) return `${q.slice(0, 28)}…`;
+    return q || 'Reference';
   }
   const excerpt = entry.session.excerpt.trim();
   if (excerpt.length > 28) return `${excerpt.slice(0, 28)}…`;

@@ -55,12 +55,14 @@ import {
   emptyStudyDockStack,
   moveDockEntryToIndex,
   openOrFocusHighlight,
+  openOrFocusReference,
   openOrFocusScripture,
   pruneStudyDockStack,
   setActiveDockEntry,
   studyDockStackHasEntries,
   updateDockEntry,
   type HighlightDockSession,
+  type ReferenceDockSession,
   type ScripturePillDockSession,
   type StudyDockEntry,
   type StudyDockStack,
@@ -269,6 +271,8 @@ function studyDockEntryStillValid(editor: any, entry: StudyDockEntry): boolean {
     }
     return found;
   }
+  // Reference docks are user-dismissed (pending hints + saved references both persist while open).
+  if (entry.kind === 'reference') return true;
   const sid = entry.session.studyThreadEntryId;
   if (sid && findHighlightRangeByStudyThreadId(editor, sid)) return true;
   const range = entry.session.range;
@@ -3368,17 +3372,6 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     initialHref: string;
     mode: 'create' | 'edit';
   } | null>(null);
-  // Reference dock: opens when the user taps "Look up" on a single-word selection.
-  // Renders as a bottom dock (mirroring HighlightDockWeb / ScripturePillChromeWeb).
-  const [referenceDockSession, setReferenceDockSession] = useState<{
-    query: string;
-    noteHighlightRange?: { from: number; to: number } | null;
-    noteHighlightAccent?: StudyHighlightAccentKey | null;
-    studyThreadEntryId?: string | null;
-    // Set when the dock was opened from a typed suggestion (dotted underline) that is not
-    // yet saved. Carries the word's range so "Save reference" can apply the highlight.
-    pendingSuggestion?: { from: number; to: number } | null;
-  } | null>(null);
   // Ref mirrors deleteConfirmPill for reading inside handleKeyDown (avoids stale closure)
   const deleteConfirmPillRef = useRef<{
     rect: DOMRect;
@@ -3397,6 +3390,12 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
   const [studyDockStack, setStudyDockStack] = useState<StudyDockStack>(emptyStudyDockStack);
   const studyDockPortalTarget =
     studyDockCarouselPortalTarget ?? scriptureChromePortalTarget ?? highlightChromePortalTarget;
+
+  // Reference (dictionary) docks now live in the study-dock carousel alongside scripture pills
+  // and highlights, instead of a separate floating portal. This opens or focuses one.
+  const openReferenceDock = useCallback((session: ReferenceDockSession) => {
+    setStudyDockStack((s) => openOrFocusReference(s, session));
+  }, []);
 
   const [selectionExpanded, setSelectionExpanded] = useState(false);
   const [showFormatBarForActivity, setShowFormatBarForActivity] = useState(false);
@@ -4293,7 +4292,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     if (!initialReferenceWord || initialReferenceWordFiredRef.current === initialReferenceWord) return;
     if (!editor || !isEditorValid(editor)) return;
     initialReferenceWordFiredRef.current = initialReferenceWord;
-    setReferenceDockSession({ query: initialReferenceWord });
+    openReferenceDock({ query: initialReferenceWord });
   }, [initialReferenceWord, editor]);
 
   useEffect(() => {
@@ -4404,7 +4403,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
         .run();
       onContentChange?.(editor.getHTML());
       if (opts?.openDock !== false) {
-        setReferenceDockSession({
+        openReferenceDock({
           query: snippet,
           noteHighlightRange: { from, to },
           noteHighlightAccent: defaultAccent,
@@ -5108,7 +5107,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
           range = null;
         }
         setTranslationPicker(null);
-        setReferenceDockSession({ query: word, pendingSuggestion: range });
+        openReferenceDock({ query: word, pendingSuggestion: range });
         return;
       }
 
@@ -5141,7 +5140,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
             return null;
           })();
           const accent = isStudyHighlightAccentKey(markColor) ? markColor : 'warmAmber';
-          setReferenceDockSession({
+          openReferenceDock({
             query: word,
             noteHighlightRange: noteRange,
             noteHighlightAccent: accent,
@@ -5244,7 +5243,6 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
         // Keep open
       } else {
         setTranslationPicker(null);
-        setReferenceDockSession(null);
       }
       if (!target.closest('.scripture-delete-confirm') && !target.closest('.scripture-pill')) {
         setDeleteConfirmPill(null);
@@ -5819,18 +5817,13 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     editorChromeMode === 'prototypeNative' &&
     (studyDockStackHasEntries(studyDockStack) || deleteConfirmPill != null);
 
-
-  const referenceChromeActive =
-    editorChromeMode === 'prototypeNative' && referenceDockSession != null;
-
-  /* An expanded study dock (or reference / delete-confirm bar) takes over the bottom chrome — the
+  /* An expanded study dock (or delete-confirm bar) takes over the bottom chrome — the
      format toolbar should hide while it's up (matches native: the dock replaces the format bar).
      This hides the toolbar WITHOUT flipping `isEditorFocused`, so passage text selection and dock
      button clicks aren't disrupted by focus thrash. */
   const studyDockChromeTakesOver =
     editorChromeMode === 'prototypeNative' &&
     (studyDockStack.entries.some((e) => e.expanded) ||
-      referenceDockSession != null ||
       deleteConfirmPill != null);
 
   const shouldShowPrototypeFormatToolbar =
@@ -6564,7 +6557,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                           }
                           const { from, to } = editor.state.selection;
                           if (from === to) {
-                            setReferenceDockSession({ query: word });
+                            openReferenceDock({ query: word });
                             setSelectionActionBar(null);
                             return;
                           }
@@ -7196,81 +7189,99 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                     />
                   );
                 }
+                if (entry.kind === 'reference') {
+                  const session = entry.session;
+                  return (
+                    <ReferenceDockWeb
+                      key={entry.id}
+                      initialQuery={session.query}
+                      expanded={cardExpanded}
+                      onExpandedChange={(next) => {
+                        setStudyDockStack((s) =>
+                          updateDockEntry(s, entry.id, (e) => ({ ...e, expanded: next })),
+                        );
+                      }}
+                      animateEnter={false}
+                      noteHighlightRange={session.noteHighlightRange}
+                      noteHighlightAccent={
+                        session.noteHighlightAccent as StudyHighlightAccentKey | null | undefined
+                      }
+                      pendingSuggestion={!!session.pendingSuggestion && !session.noteHighlightRange}
+                      onSaveReference={() => {
+                        const range = session.pendingSuggestion;
+                        if (!range) return;
+                        void saveReferenceHighlight(range, session.query);
+                      }}
+                      onChangeNoteHighlight={(accent) => {
+                        if (!editor || !isEditorValid(editor) || !session.noteHighlightRange) return;
+                        const { from, to } = session.noteHighlightRange;
+                        const sid = session.studyThreadEntryId;
+                        void (async () => {
+                          if (sid) {
+                            try {
+                              await fetch(`/api/study-threads/${sid}`, {
+                                method: 'PATCH',
+                                credentials: 'include',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ highlightAccentRaw: accent }),
+                              });
+                            } catch {
+                              /* ignore */
+                            }
+                          }
+                          if (!editor || !isEditorValid(editor)) return;
+                          editor
+                            .chain()
+                            .focus()
+                            .setTextSelection({ from, to })
+                            .setHighlight({
+                              color: accent,
+                              reference: session.query,
+                              studyThreadEntryId: sid || undefined,
+                            })
+                            .run();
+                          onContentChange?.(editor.getHTML());
+                          setStudyDockStack((s) =>
+                            updateDockEntry(s, entry.id, (e) =>
+                              e.kind === 'reference'
+                                ? { ...e, session: { ...e.session, noteHighlightAccent: accent } }
+                                : e,
+                            ),
+                          );
+                        })();
+                      }}
+                      onRemoveNoteHighlight={() => {
+                        if (!editor || !isEditorValid(editor) || !session.noteHighlightRange) return;
+                        const { from, to } = session.noteHighlightRange;
+                        const sid = session.studyThreadEntryId;
+                        void (async () => {
+                          if (sid) {
+                            try {
+                              await fetch(`/api/study-threads/${sid}`, {
+                                method: 'DELETE',
+                                credentials: 'include',
+                              });
+                            } catch {
+                              /* ignore */
+                            }
+                          }
+                          if (!editor || !isEditorValid(editor)) return;
+                          editor.chain().focus().setTextSelection({ from, to }).unsetHighlight().run();
+                          onContentChange?.(editor.getHTML());
+                          setStudyDockStack((s) => closeDockEntry(s, entry.id));
+                        })();
+                      }}
+                      onDone={() => {
+                        setStudyDockStack((s) => closeDockEntry(s, entry.id));
+                      }}
+                    />
+                  );
+                }
                 return null;
               }}
             />,
             studyDockPortalTarget || document.body,
           )}
-        {referenceDockSession && editorChromeMode === 'prototypeNative' && createPortal(
-          <ReferenceDockWeb
-            initialQuery={referenceDockSession.query}
-            noteHighlightRange={referenceDockSession.noteHighlightRange}
-            noteHighlightAccent={referenceDockSession.noteHighlightAccent}
-            pendingSuggestion={
-              !!referenceDockSession.pendingSuggestion && !referenceDockSession.noteHighlightRange
-            }
-            onSaveReference={() => {
-              const range = referenceDockSession.pendingSuggestion;
-              if (!range) return;
-              void saveReferenceHighlight(range, referenceDockSession.query);
-            }}
-            onChangeNoteHighlight={(accent) => {
-              if (!editor || !isEditorValid(editor) || !referenceDockSession.noteHighlightRange) return;
-              const { from, to } = referenceDockSession.noteHighlightRange;
-              const sid = referenceDockSession.studyThreadEntryId;
-              void (async () => {
-                if (sid) {
-                  try {
-                    await fetch(`/api/study-threads/${sid}`, {
-                      method: 'PATCH',
-                      credentials: 'include',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ highlightAccentRaw: accent }),
-                    });
-                  } catch {
-                    /* ignore */
-                  }
-                }
-                if (!editor || !isEditorValid(editor)) return;
-                editor
-                  .chain()
-                  .focus()
-                  .setTextSelection({ from, to })
-                  .setHighlight({
-                    color: accent,
-                    reference: referenceDockSession.query,
-                    studyThreadEntryId: sid || undefined,
-                  })
-                  .run();
-                onContentChange?.(editor.getHTML());
-                setReferenceDockSession((s) => (s ? { ...s, noteHighlightAccent: accent } : null));
-              })();
-            }}
-            onRemoveNoteHighlight={() => {
-              if (!editor || !isEditorValid(editor) || !referenceDockSession.noteHighlightRange) return;
-              const { from, to } = referenceDockSession.noteHighlightRange;
-              const sid = referenceDockSession.studyThreadEntryId;
-              void (async () => {
-                if (sid) {
-                  try {
-                    await fetch(`/api/study-threads/${sid}`, {
-                      method: 'DELETE',
-                      credentials: 'include',
-                    });
-                  } catch {
-                    /* ignore */
-                  }
-                }
-                if (!editor || !isEditorValid(editor)) return;
-                editor.chain().focus().setTextSelection({ from, to }).unsetHighlight().run();
-                onContentChange?.(editor.getHTML());
-                setReferenceDockSession(null);
-              })();
-            }}
-            onDone={() => setReferenceDockSession(null)}
-          />,
-          referenceChromePortalTarget || document.body,
-        )}
       </div>
       {!minimalToolbar && isEditorFocused && toolbarAtBottom && editorChromeMode !== 'prototypeNative' && (
         <div

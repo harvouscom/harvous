@@ -5,10 +5,28 @@
   border-top: none;
 }
 
+/* Headword + category chip — shrink-wrapped group, chip sits inline next to the name
+   (parity with the scripture dock's reference + translation chip). */
+.reference-dock-web__header-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+}
+
 .reference-dock-web__headword {
+  flex: 0 1 auto;
+  min-width: 0;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.reference-dock-web .study-dock-card__header-title {
+  justify-content: flex-start;
 }
 
 .reference-dock-web__category-chip {

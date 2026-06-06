@@ -39,6 +39,11 @@ interface SavedHighlight {
 export interface ReferenceDockWebProps {
   initialQuery: string;
   onDone: () => void;
+  /** Controlled expand state (carousel-managed). Defaults to open when omitted. */
+  expanded?: boolean;
+  onExpandedChange?: (next: boolean) => void;
+  /** Play the native-style enter animation on mount (false inside the carousel). */
+  animateEnter?: boolean;
   /** Range of the reference highlight in the note — when set, the dock shows accent swatches + remove. */
   noteHighlightRange?: { from: number; to: number } | null;
   noteHighlightAccent?: StudyHighlightAccentKey | null;
@@ -124,6 +129,9 @@ function persistHighlights(source: string, slug: string, items: SavedHighlight[]
 export default function ReferenceDockWeb({
   initialQuery,
   onDone,
+  expanded,
+  onExpandedChange,
+  animateEnter = true,
   noteHighlightRange,
   noteHighlightAccent,
   onChangeNoteHighlight,
@@ -134,7 +142,13 @@ export default function ReferenceDockWeb({
   const [query, setQuery] = useState(initialQuery);
   const trimmed = query.trim();
   const { data: entry, isLoading } = useEastonsEntry(trimmed);
-  const [isExpanded, setIsExpanded] = useState(true);
+  // Controlled expand when the carousel supplies it; otherwise self-managed (standalone use).
+  const [internalExpanded, setInternalExpanded] = useState(true);
+  const isExpanded = expanded ?? internalExpanded;
+  const setIsExpanded = (next: boolean) => {
+    if (onExpandedChange) onExpandedChange(next);
+    else setInternalExpanded(next);
+  };
 
   const [highlights, setHighlights] = useState<SavedHighlight[]>([]);
   const [pendingExcerpt, setPendingExcerpt] = useState<string | null>(null);
@@ -256,18 +270,23 @@ export default function ReferenceDockWeb({
       rootClassName="reference-dock-web"
       ariaLabel="Reference"
       accentColor={accentColor}
+      animateEnter={animateEnter}
       expanded={isExpanded}
-      onToggleExpanded={() => setIsExpanded((prev) => !prev)}
+      onToggleExpanded={() => setIsExpanded(!isExpanded)}
       onDismiss={onDone}
       headerIcon={<Icon name="lines-leaning" size={13} />}
-      headerTitle={<span className="reference-dock-web__headword">{headword}</span>}
-      headerTrailing={
-        entry ? (
-          <span className="reference-dock-web__category-chip" data-category={entry.category}>
-            <Icon name={categoryIcon(entry.category)} size={11} aria-hidden />
-            {categoryLabel(entry.category)}
+      headerTitle={
+        <span className="reference-dock-web__header-label">
+          <span className="reference-dock-web__headword study-dock-card__header-primary-text">
+            {headword}
           </span>
-        ) : null
+          {entry ? (
+            <span className="reference-dock-web__category-chip" data-category={entry.category}>
+              <Icon name={categoryIcon(entry.category)} size={11} aria-hidden />
+              {categoryLabel(entry.category)}
+            </span>
+          ) : null}
+        </span>
       }
       headerActions={headerActions}
     >
