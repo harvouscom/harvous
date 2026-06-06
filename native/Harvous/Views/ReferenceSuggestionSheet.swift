@@ -39,21 +39,9 @@ struct ReferenceSuggestionSheet: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
-                    EastonsEntryView(slug: $slug, showHeadword: true, showDisclaimer: true)
-                        .padding(.horizontal, 20)
-                        .padding(.top, 12)
-
-                    Button(action: onSave) {
-                        Label("Save reference", systemImage: "lines.measurement.horizontal")
-                            .font(HarvousFonts.font(size: 15, weight: .semibold, design: .default))
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 12)
-                    }
-                    .buttonStyle(.borderedProminent)
+                EastonsEntryView(slug: $slug, showHeadword: true, showDisclaimer: true)
                     .padding(.horizontal, 20)
-                    .padding(.bottom, 8)
-                }
+                    .padding(.vertical, 12)
             }
             .navigationTitle(headword)
             #if os(iOS)
@@ -62,6 +50,13 @@ struct ReferenceSuggestionSheet: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel", action: onCancel)
+                }
+                // Compact confirmation in the top bar — the sheet equivalent of the web dock's
+                // header checkmark orb (rather than a large bottom button).
+                ToolbarItem(placement: .confirmationAction) {
+                    Button(action: onSave) {
+                        Label("Save reference", systemImage: "checkmark")
+                    }
                 }
             }
         }
