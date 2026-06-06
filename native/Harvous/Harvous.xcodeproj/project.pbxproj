@@ -102,6 +102,8 @@
 		41CF3F6C487DEBC985825CB3 /* HarvousSupabaseConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 585C46AFD346925C58AA0320 /* HarvousSupabaseConfig.swift */; };
 		42EF207CB460ADD1BCC9A883 /* MacCollectionChip.swift in Sources */ = {isa = PBXBuildFile; fileRef = B477277FA8277C3C7A61685B /* MacCollectionChip.swift */; };
 		4325C3D150A3F7BD2A318E28 /* EastonsEntryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 707C2F50FA943977A1C32589 /* EastonsEntryView.swift */; };
+		FACE0000000000000000F302 /* ReferenceSuggestionSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = FACE0000000000000000F301 /* ReferenceSuggestionSheet.swift */; };
+		FACE0000000000000000F303 /* ReferenceSuggestionSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = FACE0000000000000000F301 /* ReferenceSuggestionSheet.swift */; };
 		44814322EF75B3CFD13BC633 /* StandaloneScripturePassageDockHost.swift in Sources */ = {isa = PBXBuildFile; fileRef = 614471FAF6AEEC5B84B7153D /* StandaloneScripturePassageDockHost.swift */; };
 		44CB8BF9D8B9BDFF407CCAFB /* NoteSearchIndex.swift in Sources */ = {isa = PBXBuildFile; fileRef = 606142989F80707A96817BFB /* NoteSearchIndex.swift */; };
 		4516BEEC0FEA8BDCECCD6B4E /* NoteListColumn.swift in Sources */ = {isa = PBXBuildFile; fileRef = 498127C75F54638C23269FD1 /* NoteListColumn.swift */; };
@@ -530,6 +532,7 @@
 		6C97315E869DD914EC716783 /* HarvousTests_iOS.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = HarvousTests_iOS.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		6D2C27336EAD826C6B63EBD6 /* StudyDockLayoutMetrics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudyDockLayoutMetrics.swift; sourceTree = "<group>"; };
 		707C2F50FA943977A1C32589 /* EastonsEntryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EastonsEntryView.swift; sourceTree = "<group>"; };
+		FACE0000000000000000F301 /* ReferenceSuggestionSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReferenceSuggestionSheet.swift; sourceTree = "<group>"; };
 		719A5C61135BC549F1182DCF /* FindInNoteOverlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FindInNoteOverlay.swift; sourceTree = "<group>"; };
 		723AD04C3728798F3A4F5961 /* HarvousCatalogUIKit.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HarvousCatalogUIKit.swift; sourceTree = "<group>"; };
 		735AAEB8E32FF3F0E2A1D7FA /* Harvous-Signing.Debug.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = "Harvous-Signing.Debug.xcconfig"; sourceTree = "<group>"; };
@@ -682,6 +685,7 @@
 				90294371A1EA96A1DFEAD558 /* EastonsDictionaryListColumn.swift */,
 				210D5769460FF434B9A26CBC /* EastonsEntryDetailView.swift */,
 				707C2F50FA943977A1C32589 /* EastonsEntryView.swift */,
+				FACE0000000000000000F301 /* ReferenceSuggestionSheet.swift */,
 				719A5C61135BC549F1182DCF /* FindInNoteOverlay.swift */,
 				DFFCD31D73BEF3FA29B1879A /* FolderChipPopover.swift */,
 				ADE571CAD30EEA3ECC27ACCF /* FolderFeedRow.swift */,
@@ -1274,6 +1278,7 @@
 				480D11EE537287A1600314C6 /* EastonsDictionaryService.swift in Sources */,
 				792CB2136BDE5047D4F89977 /* EastonsEntryDetailView.swift in Sources */,
 				898D1C843D1089F06B292E63 /* EastonsEntryView.swift in Sources */,
+				FACE0000000000000000F302 /* ReferenceSuggestionSheet.swift in Sources */,
 				18146B73BF3604F56DB0AD43 /* EastonsSlugIndexDiskStore.swift in Sources */,
 				9375794FA1C76B869234E24A /* EditorFormatCommands.swift in Sources */,
 				850C44A2D9E8CD6BF5872D7E /* EditorProxy.swift in Sources */,
@@ -1487,6 +1492,7 @@
 				4AC87940337FF67BF00C1EA1 /* EastonsDictionaryService.swift in Sources */,
 				80D9525CF892C640A0C4C18B /* EastonsEntryDetailView.swift in Sources */,
 				4325C3D150A3F7BD2A318E28 /* EastonsEntryView.swift in Sources */,
+				FACE0000000000000000F303 /* ReferenceSuggestionSheet.swift in Sources */,
 				753906BEBA6A7508B76E879C /* EastonsSlugIndexDiskStore.swift in Sources */,
 				7B916A6EE353822AA786BECC /* EditorFormatCommands.swift in Sources */,
 				2FCBC6156879C10416C7FCB1 /* EditorProxy.swift in Sources */,
