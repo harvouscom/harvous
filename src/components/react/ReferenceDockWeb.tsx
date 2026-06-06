@@ -44,6 +44,13 @@ export interface ReferenceDockWebProps {
   noteHighlightAccent?: StudyHighlightAccentKey | null;
   onChangeNoteHighlight?: (accent: StudyHighlightAccentKey) => void;
   onRemoveNoteHighlight?: () => void;
+  /**
+   * When true the dock was opened from a typed suggestion that is not yet saved — show a
+   * prominent "Save reference" action instead of the accent/remove controls.
+   */
+  pendingSuggestion?: boolean;
+  /** Persist the pending suggestion as a real reference. */
+  onSaveReference?: () => void;
 }
 
 function categoryIcon(cat: EastonCategory) {
@@ -121,6 +128,8 @@ export default function ReferenceDockWeb({
   noteHighlightAccent,
   onChangeNoteHighlight,
   onRemoveNoteHighlight,
+  pendingSuggestion = false,
+  onSaveReference,
 }: ReferenceDockWebProps) {
   const [query, setQuery] = useState(initialQuery);
   const trimmed = query.trim();
@@ -263,6 +272,20 @@ export default function ReferenceDockWeb({
             <div ref={bodyRef} className="reference-dock-web__passage-html">
               {entry.body}
             </div>
+
+            {pendingSuggestion && onSaveReference ? (
+              <div className="reference-dock-web__save-bar">
+                <button
+                  type="button"
+                  className="reference-dock-web__save-btn"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={onSaveReference}
+                >
+                  <Icon name="lines-leaning" size={12} aria-hidden />
+                  Save reference
+                </button>
+              </div>
+            ) : null}
 
             {pendingExcerpt ? (
               <div className="reference-dock-web__highlight-bar">

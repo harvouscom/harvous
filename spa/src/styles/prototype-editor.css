@@ -470,6 +470,23 @@
 .proto-editor-surface .ProseMirror mark[data-color="coralRose"],
 .proto-editor-surface .card-full-editable__content-html mark[data-color="coralRose"] { text-decoration-color: var(--pds-highlight-coral-rose); }
 
+/* Reference suggestion — an ephemeral "you have this saved" hint shown while typing.
+   Faint DOTTED underline, deliberately lighter than a saved reference's solid underline,
+   so it reads as a suggestion (tap → "Save reference"), not a committed highlight. */
+.proto-editor-surface .ProseMirror .reference-suggestion {
+  text-decoration: underline dotted;
+  text-decoration-thickness: 1.5px;
+  text-underline-offset: 3px;
+  text-decoration-color: color-mix(in srgb, var(--pds-highlight-warm-amber) 60%, transparent);
+  cursor: pointer;
+  border-radius: 2px;
+}
+
+.proto-editor-surface .ProseMirror .reference-suggestion:hover {
+  text-decoration-color: var(--pds-highlight-warm-amber);
+  background: color-mix(in srgb, var(--pds-highlight-warm-amber) 10%, transparent);
+}
+
 /* Selection */
 .proto-editor-surface .ProseMirror ::selection {
   background: var(--pds-selection-bg);
@@ -504,10 +521,12 @@
   flex-shrink: 0;
   width: 100%;
   border-top: 0.5px solid var(--pds-border);
-  /* Frosted: white frost layer over the shell tint (no hue shift). */
+  /* Frosted: white frost layer over the shell tint. */
   background-color: var(--pds-glass-shell);
   background-image: linear-gradient(var(--pds-glass-bar-frost), var(--pds-glass-bar-frost));
   box-shadow: var(--pds-glass-rim);
+  -webkit-backdrop-filter: var(--pds-glass-blur);
+  backdrop-filter: var(--pds-glass-blur);
   font-family: var(--pds-font-body);
   z-index: 5;
 }
@@ -1085,8 +1104,8 @@ html.harvous-prototype-route .proto-shell__study-dock-layer .highlight-dock-web_
   padding: 0 6px;
   border-radius: var(--pds-radius-pill);
   background: var(--pds-bg-toolbar);
-  backdrop-filter: saturate(180%) blur(20px);
-  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  -webkit-backdrop-filter: var(--pds-glass-blur-elevated);
+  backdrop-filter: var(--pds-glass-blur-elevated);
   border: 1px solid var(--pds-border);
   box-shadow: var(--pds-shadow-toolbar);
   color: var(--pds-text-primary);

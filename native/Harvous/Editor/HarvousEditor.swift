@@ -513,6 +513,9 @@ private final class HarvousNoteTextView: NSTextView {
     /// `(href, cached title or nil, user-label or nil, attachment UTF-16 range)`. The host is
     /// responsible for presenting the contextual dock; no in-process browser open happens here.
     var urlPillTapHandler: ((String, String?, String?, NSRange) -> Void)?
+    /// Tap on an un-saved inline reference suggestion (dotted underline). Args: `(slug, word UTF-16 range)`.
+    /// Host saves the reference + opens the Easton's dock (reuses the selection-bar look-up path).
+    var referenceSuggestionTapHandler: ((String, NSRange) -> Void)?
 
     /// Single-click on highlighted prose opens the anchored thread target (pill hits take precedence).
     var onStudyHighlightClick: ((UUID) -> Void)?
@@ -923,6 +926,24 @@ private final class HarvousNoteTextView: NSTextView {
         return nil
     }
 
+    /// Rect hit-test for an inline reference suggestion run at `point` (mirrors `studyHighlightUUIDFromPaints`).
+    private func referenceSuggestionAtViewPoint(_ point: NSPoint) -> (slug: String, range: NSRange)? {
+        guard let storage = textStorage, storage.length > 0, let win = window else { return nil }
+        var hit: (slug: String, range: NSRange)?
+        storage.enumerateAttribute(.harvousReferenceSuggestion, in: NSRange(location: 0, length: storage.length), options: []) { value, range, stop in
+            guard let slug = value as? String else { return }
+            var actual = NSRange()
+            let screenRect = firstRect(forCharacterRange: range, actualRange: &actual)
+            guard screenRect != .zero else { return }
+            let viewRect = convert(win.convertFromScreen(screenRect), from: nil)
+            if viewRect.insetBy(dx: -2, dy: -3).contains(point) {
+                hit = (slug, range)
+                stop.pointee = true
+            }
+        }
+        return hit
+    }
+
     /// True when the caret or selection plausibly reflects a click on `pendingUUID`’s painted ranges — avoids
     /// vetoing activation on multi-scalar boundaries while still blocking e.g. triple-click paragraph selects that spill past the highlight.
     private func selectionQualifiesForStudyHighlightActivation(pendingUUID: UUID) -> Bool {
@@ -1038,6 +1059,13 @@ private final class HarvousNoteTextView: NSTextView {
         if let (urlPill, eff) = urlLinkPillAtPoint(point, in: storage) {
             super.mouseDown(with: event)
             urlPillTapHandler?(urlPill.href, urlPill.title, urlPill.label, eff)
+            return
+        }
+
+        // Inline reference suggestion (dotted underline) — tap saves the reference + opens the dock.
+        if let (slug, range) = referenceSuggestionAtViewPoint(point) {
+            super.mouseDown(with: event)
+            referenceSuggestionTapHandler?(slug, range)
             return
         }
 
@@ -1397,6 +1425,8 @@ struct HarvousEditor: NSViewRepresentable {
     /// URL pill tap callback. Args: `(href, cached title or nil, user-label or nil, attachment UTF-16 range)`.
     /// Host opens the inline `ActiveURLPillDock`; no browser navigation happens inside the editor.
     var onURLPillTap: ((String, String?, String?, NSRange) -> Void)? = nil
+    /// Tap on an inline reference suggestion (dotted hint). Args: `(slug, word UTF-16 range)`.
+    var onReferenceSuggestionTap: ((String, NSRange) -> Void)? = nil
     /// Fires after scripture pills are (re-)materialized from plain text (`detectAndInsertPills`), for prefetch/network warm.
     var onResolvedScripturePillPairs: (([(reference: String, translation: String)]) -> Void)? = nil
     /// Resolves the user-picked scripture pill accent for a given reference (persisted on the owning Note).
@@ -1435,6 +1465,7 @@ struct HarvousEditor: NSViewRepresentable {
         scrollView.documentView = textView
         textView.pillTapHandler = onScripturePillTap
         textView.urlPillTapHandler = onURLPillTap
+        textView.referenceSuggestionTapHandler = onReferenceSuggestionTap
         wireStudyHighlightInteractions(textView: textView)
         scrollView.drawsBackground = false
         // `NoteEditorView` wraps this in a SwiftUI `ScrollView`; nested AppKit scrollers steal clicks/coordinates.
@@ -1527,6 +1558,7 @@ struct HarvousEditor: NSViewRepresentable {
 
         textView.pillTapHandler = onScripturePillTap
         textView.urlPillTapHandler = onURLPillTap
+        textView.referenceSuggestionTapHandler = onReferenceSuggestionTap
         wireStudyHighlightInteractions(textView: textView)
         context.coordinator.proxy = proxy
         context.coordinator.wireFormatBarToProxy(proxy)
@@ -2396,17 +2428,20 @@ struct HarvousEditor: NSViewRepresentable {
             guard let storage = textView.textStorage else { return }
             if studyHighlightPaints.isEmpty {
                 HarvousStudyHighlightMapper.stripPainting(from: storage, fullDocumentRange: NSRange(location: 0, length: storage.length))
-                return
+            } else {
+                let anchors = studyHighlightPaints.map {
+                    (id: $0.threadId, kind: $0.entryKind, accent: $0.accent, expandedRange: $0.expandedUTF16Range)
+                }
+                HarvousStudyHighlightMapper.applyHighlights(
+                    storage: storage,
+                    anchors: anchors,
+                    isDark: studyHighlightsAssumeDarkAppearance,
+                    focusedThreadId: studyHighlightFocusedThreadId
+                )
             }
-            let anchors = studyHighlightPaints.map {
-                (id: $0.threadId, kind: $0.entryKind, accent: $0.accent, expandedRange: $0.expandedUTF16Range)
-            }
-            HarvousStudyHighlightMapper.applyHighlights(
-                storage: storage,
-                anchors: anchors,
-                isDark: studyHighlightsAssumeDarkAppearance,
-                focusedThreadId: studyHighlightFocusedThreadId
-            )
+            // Inline reference suggestions (dotted hints) repaint on top of saved highlights;
+            // skipped on words already inside a highlight/pill. Presentation-only, never serialized.
+            ReferenceSuggestionPainter.applySuggestions(storage: storage, isDark: studyHighlightsAssumeDarkAppearance)
         }
 
         @MainActor
@@ -2789,6 +2824,8 @@ struct HarvousEditor: UIViewRepresentable {
     /// URL pill tap callback. Args: `(href, cached title or nil, user-label or nil, attachment UTF-16 range)`.
     /// The host opens the inline `ActiveURLPillDock` — the editor no longer opens Safari directly.
     var onURLPillTap: ((String, String?, String?, NSRange) -> Void)? = nil
+    /// Tap on an inline reference suggestion (dotted hint). Args: `(slug, word UTF-16 range)`.
+    var onReferenceSuggestionTap: ((String, NSRange) -> Void)? = nil
     /// Fires after scripture pills are materialized — used to prefetch passages off the tap path (iOS).
     var onResolvedScripturePillPairs: (([(reference: String, translation: String)]) -> Void)? = nil
     var onStudyHighlightTap: ((UUID) -> Void)? = nil
@@ -2929,6 +2966,7 @@ struct HarvousEditor: UIViewRepresentable {
         context.coordinator.placeholderText = placeholder
         context.coordinator.onScripturePillTap = onScripturePillTap
         context.coordinator.onURLPillTap = onURLPillTap
+        context.coordinator.onReferenceSuggestionTap = onReferenceSuggestionTap
         context.coordinator.onStudyHighlightTap = onStudyHighlightTap
         context.coordinator.pillAccentResolver = pillAccentResolver
         context.coordinator.onResolvedScripturePillPairs = onResolvedScripturePillPairs
@@ -3058,6 +3096,7 @@ struct HarvousEditor: UIViewRepresentable {
         var lastDynamicTypeSize: DynamicTypeSize?
         var onScripturePillTap: ((String, String, NSRange) -> Void)?
         var onURLPillTap: ((String, String?, String?, NSRange) -> Void)?
+        var onReferenceSuggestionTap: ((String, NSRange) -> Void)?
         var onStudyHighlightTap: ((UUID) -> Void)?
         /// Resolver for per-note pill accents (see `HarvousEditor.pillAccentResolver`). Updated on every `updateUIView`.
         var pillAccentResolver: ((String) -> StudyHighlightAccentToken?)?
@@ -3348,6 +3387,15 @@ struct HarvousEditor: UIViewRepresentable {
             #if DEBUG
             print("[Harvous.highlight.tap.ios] offset=\(offset) paintsOnCoordinator=\(studyHighlightPaints.count) storageLen=\(storage.length)")
             #endif
+
+            // Inline reference suggestion (dotted hint) — probe the tapped offset and offset-1
+            // (trailing boundary). Tap saves the reference + opens the dock.
+            if let hit = ReferenceSuggestionPainter.suggestionAt(storageUTF16Index: offset, in: storage)
+                ?? (offset > 0 ? ReferenceSuggestionPainter.suggestionAt(storageUTF16Index: offset - 1, in: storage) : nil) {
+                onReferenceSuggestionTap?(hit.slug, hit.range)
+                tv.resignFirstResponder()
+                return
+            }
 
             // 3. Offset + slop — boundary taps on short runs; storage attrs may not round-trip TextKit 2.
             if let uuid = studyHighlightUUID(forStorageOffset: offset, in: storage) {
@@ -3802,17 +3850,20 @@ struct HarvousEditor: UIViewRepresentable {
             let storage = textView.textStorage
             if studyHighlightPaints.isEmpty {
                 HarvousStudyHighlightMapper.stripPainting(from: storage, fullDocumentRange: NSRange(location: 0, length: storage.length))
-                return
+            } else {
+                let anchors = studyHighlightPaints.map {
+                    (id: $0.threadId, kind: $0.entryKind, accent: $0.accent, expandedRange: $0.expandedUTF16Range)
+                }
+                HarvousStudyHighlightMapper.applyHighlights(
+                    storage: storage,
+                    anchors: anchors,
+                    isDark: studyHighlightsAssumeDarkAppearance,
+                    focusedThreadId: studyHighlightFocusedThreadId
+                )
             }
-            let anchors = studyHighlightPaints.map {
-                (id: $0.threadId, kind: $0.entryKind, accent: $0.accent, expandedRange: $0.expandedUTF16Range)
-            }
-            HarvousStudyHighlightMapper.applyHighlights(
-                storage: storage,
-                anchors: anchors,
-                isDark: studyHighlightsAssumeDarkAppearance,
-                focusedThreadId: studyHighlightFocusedThreadId
-            )
+            // Inline reference suggestions (dotted hints) repaint on top of saved highlights;
+            // skipped on words already inside a highlight/pill. Presentation-only, never serialized.
+            ReferenceSuggestionPainter.applySuggestions(storage: storage, isDark: studyHighlightsAssumeDarkAppearance)
         }
 
         @MainActor

@@ -22,6 +22,12 @@ import { NoteLink } from './TiptapNoteLink';
 import { ScripturePill } from './TiptapScripturePill';
 import { BoldCustom } from './TiptapBoldCustom';
 import { HighlightCustom } from './TiptapHighlightCustom';
+import {
+  ReferenceSuggestion,
+  createDictionaryReferenceProvider,
+  REFERENCE_SUGGESTION_REFRESH_META,
+  type ReferenceProvider,
+} from './TiptapReferenceSuggestion';
 import { UrlLink } from './TiptapUrlLink';
 import { TextIndent } from './TiptapTextIndent';
 import { normalizeScriptureReference, detectScriptureReferences, matchTrailingTranslationAbbreviation, matchAnchoredTrailingTranslationAbbreviation, type ScriptureReference, type ScriptureReferenceWithTranslation } from '@/utils/scripture-detector';
@@ -3369,6 +3375,9 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     noteHighlightRange?: { from: number; to: number } | null;
     noteHighlightAccent?: StudyHighlightAccentKey | null;
     studyThreadEntryId?: string | null;
+    // Set when the dock was opened from a typed suggestion (dotted underline) that is not
+    // yet saved. Carries the word's range so "Save reference" can apply the highlight.
+    pendingSuggestion?: { from: number; to: number } | null;
   } | null>(null);
   // Ref mirrors deleteConfirmPill for reading inside handleKeyDown (avoids stale closure)
   const deleteConfirmPillRef = useRef<{
@@ -3462,6 +3471,16 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     }
   }, [scrollPosition]);
 
+  // Reference-suggestion plumbing. The Easton's index loads async (below) so the plugin
+  // reads it lazily through a ref; the chrome-mode ref gates suggestions to the
+  // prototype/native surface. Both are captured once when the extension is configured.
+  const eastonsIndexRef = useRef<Parameters<typeof lookupWord>[1]>(undefined);
+  const editorChromeModeRef = useRef(editorChromeMode);
+  editorChromeModeRef.current = editorChromeMode;
+  const referenceProvidersRef = useRef<ReferenceProvider[]>([
+    createDictionaryReferenceProvider(() => eastonsIndexRef.current),
+  ]);
+
   const editor = useEditor({
     extensions: [
       StarterKit.configure({
@@ -3483,6 +3502,12 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       Superscript,
       BoldCustom, // Use custom Bold extension that prevents application after pills
       HighlightCustom, // Use custom Highlight extension that prevents application after pills
+      ReferenceSuggestion.configure({
+        // Ephemeral dotted-underline hints for saved references (Dictionary today).
+        // Gated to the prototype/native chrome; reads the Easton's index lazily.
+        getProviders: () => referenceProvidersRef.current,
+        enabled: () => editorChromeModeRef.current === 'prototypeNative',
+      }),
       ScripturePill, // Must come before NoteLink so scripture pills are parsed correctly
       NoteLink,
       UrlLink, // External URL links — parse priority lower so note/scripture spans win
@@ -4304,6 +4329,15 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
 
   // Easton's slug index — loaded once, used to detect single-word selections worth looking up.
   const { data: eastonsIndex } = useEastonsSlugIndex();
+  eastonsIndexRef.current = eastonsIndex;
+
+  // When the index finishes loading after the editor mounted, force the suggestion
+  // plugin to recompute (a static doc won't otherwise re-run its decoration pass).
+  useEffect(() => {
+    if (!editor || editor.isDestroyed || !eastonsIndex) return;
+    if (editorChromeModeRef.current !== 'prototypeNative') return;
+    editor.view.dispatch(editor.state.tr.setMeta(REFERENCE_SUGGESTION_REFRESH_META, true));
+  }, [editor, eastonsIndex]);
 
   const getSelectedSingleWord = useCallback((): string | null => {
     if (!editor) return null;
@@ -4313,6 +4347,74 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     if (!text || /\s/.test(text) || text.length > 40) return null;
     return text;
   }, [editor]);
+
+  /**
+   * Persist a reference for the word at `range`: create the server-side `reference`
+   * study-thread entry (prototype/native only), apply the `data-reference` highlight mark,
+   * and (unless `openDock: false`) open the dock in its saved state. Shared by the
+   * selection-bar "Look up" path and the typed-suggestion "Save reference" path so the
+   * persistence logic lives in one place.
+   */
+  const saveReferenceHighlight = useCallback(
+    async (
+      range: { from: number; to: number },
+      word: string,
+      opts?: { openDock?: boolean },
+    ): Promise<string | null> => {
+      if (!editor || !isEditorValid(editor)) return null;
+      const { from, to } = range;
+      if (from === to) return null;
+      const snippet = editor.state.doc.textBetween(from, to) || word;
+      const defaultAccent: StudyHighlightAccentKey = 'warmAmber';
+      let studyId: string | null = null;
+      if (editorChromeMode === 'prototypeNative' && sourceNoteId) {
+        try {
+          const res = await fetch(`/api/notes/${sourceNoteId}/study-threads`, {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              entryKind: 'reference',
+              sourceSnippet: snippet,
+              highlightAccentRaw: defaultAccent,
+              anchorTextSnapshot: snippet,
+              anchorLocation: from,
+              anchorLength: Math.max(0, to - from),
+              focusTitle: snippet,
+            }),
+          });
+          if (res.ok) {
+            const data = await res.json();
+            studyId = data.studyThread?.id ?? null;
+          }
+        } catch {
+          /* fall through to local-only mark */
+        }
+      }
+      if (!editor || !isEditorValid(editor)) return studyId;
+      editor
+        .chain()
+        .focus()
+        .setTextSelection({ from, to })
+        .setHighlight({
+          color: defaultAccent,
+          reference: snippet,
+          studyThreadEntryId: studyId || undefined,
+        })
+        .run();
+      onContentChange?.(editor.getHTML());
+      if (opts?.openDock !== false) {
+        setReferenceDockSession({
+          query: snippet,
+          noteHighlightRange: { from, to },
+          noteHighlightAccent: defaultAccent,
+          studyThreadEntryId: studyId,
+        });
+      }
+      return studyId;
+    },
+    [editor, editorChromeMode, sourceNoteId, onContentChange],
+  );
 
   const handleHoverPreviewOpen = useCallback(() => {
     if (!hoverPreview) return;
@@ -4981,6 +5083,32 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
           const url = noteUrlForCurrentSurface(fullNoteId, threadContext, currentNoteId || undefined);
           safeNavigate(url);
         }
+        return;
+      }
+
+      // Typed reference suggestion (dotted underline) — not yet saved. Tapping opens the
+      // reference dock in pending mode with a "Save reference" action. The decoration is
+      // a plain span (not a mark), so derive the range from posAtDOM + text length.
+      const suggestionSpan = target.closest('.reference-suggestion') as HTMLElement | null;
+      if (suggestionSpan && editorChromeMode === 'prototypeNative' && editor.isEditable) {
+        if (!pointerIsInsideElementRect(e, suggestionSpan)) return;
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        const word =
+          suggestionSpan.getAttribute('data-reference-word') ||
+          suggestionSpan.textContent?.trim() ||
+          '';
+        if (!word) return;
+        let range: { from: number; to: number } | null = null;
+        try {
+          const from = editor.view.posAtDOM(suggestionSpan, 0);
+          const to = from + (suggestionSpan.textContent?.length ?? word.length);
+          range = { from, to };
+        } catch {
+          range = null;
+        }
+        setTranslationPicker(null);
+        setReferenceDockSession({ query: word, pendingSuggestion: range });
         return;
       }
 
@@ -6440,54 +6568,8 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                             setSelectionActionBar(null);
                             return;
                           }
-                          const snippet = editor.state.doc.textBetween(from, to);
-                          const defaultAccent = 'warmAmber';
                           setSelectionActionBar(null);
-                          void (async () => {
-                            let studyId: string | null = null;
-                            if (editorChromeMode === 'prototypeNative' && sourceNoteId) {
-                              try {
-                                const res = await fetch(`/api/notes/${sourceNoteId}/study-threads`, {
-                                  method: 'POST',
-                                  credentials: 'include',
-                                  headers: { 'Content-Type': 'application/json' },
-                                  body: JSON.stringify({
-                                    entryKind: 'reference',
-                                    sourceSnippet: snippet,
-                                    highlightAccentRaw: defaultAccent,
-                                    anchorTextSnapshot: snippet,
-                                    anchorLocation: from,
-                                    anchorLength: Math.max(0, to - from),
-                                    focusTitle: snippet,
-                                  }),
-                                });
-                                if (res.ok) {
-                                  const data = await res.json();
-                                  studyId = data.studyThread?.id ?? null;
-                                }
-                              } catch {
-                                /* fall through to local mark */
-                              }
-                            }
-                            if (!editor || !isEditorValid(editor)) return;
-                            editor
-                              .chain()
-                              .focus()
-                              .setTextSelection({ from, to })
-                              .setHighlight({
-                                color: defaultAccent,
-                                reference: snippet,
-                                studyThreadEntryId: studyId || undefined,
-                              })
-                              .run();
-                            onContentChange?.(editor.getHTML());
-                            setReferenceDockSession({
-                              query: snippet,
-                              noteHighlightRange: { from, to },
-                              noteHighlightAccent: defaultAccent,
-                              studyThreadEntryId: studyId,
-                            });
-                          })();
+                          void saveReferenceHighlight({ from, to }, word);
                         }}
                       >
                         <Icon name="lines-leaning" size={14} />
@@ -7124,6 +7206,14 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
             initialQuery={referenceDockSession.query}
             noteHighlightRange={referenceDockSession.noteHighlightRange}
             noteHighlightAccent={referenceDockSession.noteHighlightAccent}
+            pendingSuggestion={
+              !!referenceDockSession.pendingSuggestion && !referenceDockSession.noteHighlightRange
+            }
+            onSaveReference={() => {
+              const range = referenceDockSession.pendingSuggestion;
+              if (!range) return;
+              void saveReferenceHighlight(range, referenceDockSession.query);
+            }}
             onChangeNoteHighlight={(accent) => {
               if (!editor || !isEditorValid(editor) || !referenceDockSession.noteHighlightRange) return;
               const { from, to } = referenceDockSession.noteHighlightRange;

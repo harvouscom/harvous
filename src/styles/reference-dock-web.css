@@ -177,3 +177,34 @@
   opacity: 0.4;
   text-align: right;
 }
+
+/* Pending suggestion — prominent "Save reference" action shown before a hint is saved. */
+.reference-dock-web__save-bar {
+  display: flex;
+  margin-top: 12px;
+}
+
+.reference-dock-web__save-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  box-sizing: border-box;
+  margin: 0;
+  min-height: 34px;
+  padding: 7px 14px;
+  border: none;
+  border-radius: var(--pds-radius-pill, 999px);
+  font-family: var(--pds-font-body, inherit);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.2;
+  color: #fff;
+  background: var(--study-dock-accent-warmAmber, #c8893f);
+  cursor: pointer;
+  white-space: nowrap;
+  -webkit-font-smoothing: antialiased;
+}
+
+.reference-dock-web__save-btn:hover {
+  filter: brightness(0.95);
+}

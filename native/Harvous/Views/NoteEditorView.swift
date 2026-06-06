@@ -1330,6 +1330,7 @@ struct NoteEditorView: View {
                             studyHighlightsAssumeDarkAppearance: colorScheme == .dark,
                             onScripturePillTap: { scripturePillTapped(reference: $0, translation: $1, range: $2) },
                             onURLPillTap: { urlPillTapped(href: $0, title: $1, label: $2, range: $3) },
+                            onReferenceSuggestionTap: { saveReferenceFromSuggestion(slug: $0, storageRange: $1) },
                             onResolvedScripturePillPairs: { scheduleScripturePassagePrefetch(pairs: $0) },
                             pillAccentResolver: { [note] reference in
                                 guard let raw = note.scripturePillAccentRaw(forReference: reference) else { return nil }
@@ -1360,6 +1361,7 @@ struct NoteEditorView: View {
                             proxy: proxy,
                             onScripturePillTap: { scripturePillTapped(reference: $0, translation: $1, range: $2) },
                             onURLPillTap: { urlPillTapped(href: $0, title: $1, label: $2, range: $3) },
+                            onReferenceSuggestionTap: { saveReferenceFromSuggestion(slug: $0, storageRange: $1) },
                             onResolvedScripturePillPairs: { scheduleScripturePassagePrefetch(pairs: $0) },
                             onStudyHighlightTap: { userActivatedStudyHighlight(threadId: $0) },
                             studyHighlightPaints: studyHighlightPaints,
@@ -1833,6 +1835,34 @@ struct NoteEditorView: View {
                 }
             }
         }
+    }
+
+    /// Tapping an inline reference suggestion (dotted hint) saves it as a real reference and opens the
+    /// Easton's dock — reusing the same `ThreadStore.createReferenceHighlight` + dock-open path as the
+    /// selection-bar "Look up" action. The suggestion underline disappears on the next repaint because
+    /// the word is now inside a saved highlight (excluded by `ReferenceSuggestionPainter`).
+    private func saveReferenceFromSuggestion(slug: String, storageRange: NSRange) {
+        guard let note else { return }
+        guard let (_, storage) = proxy.textViewPair() else { return }
+        guard case .success(let expRange) = HarvousStudyHighlightMapper.expandedRange(
+            forStorageSelection: storageRange, in: storage
+        ), expRange.length > 0 else { return }
+        let plain = editorState.plainText as NSString
+        guard expRange.location != NSNotFound, NSMaxRange(expRange) <= plain.length else { return }
+        let word = plain.substring(with: expRange)
+        guard !word.isEmpty else { return }
+        let thread = ThreadStore.createReferenceHighlight(
+            parent: note,
+            spaceId: note.resolvedSpaceId(),
+            word: word,
+            expandedAnchorUTF16Range: expRange,
+            expandedPlainForAnchor: editorState.plainText,
+            modelContext: context
+        )
+        scheduleRefreshThreads(note: note)
+        var stack = studyDockStack
+        stack.openOrFocusHighlight(threadId: thread.id)
+        studyDockStack = stack
     }
 
     /// Coalesces multiple rapid calls (note switch, scene-phase transition, highlight events firing together)

@@ -147,6 +147,13 @@ final class EastonsDictionaryService: ObservableObject {
         return nil
     }
 
+    /// Returns the matched index entry (slug + headword + category) for `word`, or `nil`.
+    /// Used by the inline reference-suggestion painter to filter by category (person/place).
+    func matchedEntry(forWord word: String) -> EastonsSlugIndexEntry? {
+        guard let slug = matchedSlug(forWord: word) else { return nil }
+        return slugIndex[slug]
+    }
+
     /// Strip surrounding punctuation, lowercase. Mirrors `useEastonsSlugIndex.normalize`.
     static func normalizeWord(_ word: String) -> String {
         let trimmed = word.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
