@@ -135,4 +135,130 @@ final class HarvousContentBridgeTests: XCTestCase {
             ["John 3:16": "warmAmber"]
         )
     }
+
+    // MARK: - htmlToPlainBody structure
+
+    func testHtmlToPlainBodyEmpty() {
+        XCTAssertEqual(HarvousContentBridge.htmlToPlainBody(""), "")
+        XCTAssertEqual(HarvousContentBridge.htmlToPlainBody("<p></p>"), "")
+    }
+
+    func testHtmlToPlainBodySingleParagraph() {
+        XCTAssertEqual(HarvousContentBridge.htmlToPlainBody("<p>Hello world</p>"), "Hello world")
+    }
+
+    func testHtmlToPlainBodySoftLineBreaks() {
+        XCTAssertEqual(
+            HarvousContentBridge.htmlToPlainBody("<p>Line one<br>Line two</p>"),
+            "Line one\nLine two"
+        )
+    }
+
+    func testHtmlToPlainBodyParagraphBreaks() {
+        XCTAssertEqual(
+            HarvousContentBridge.htmlToPlainBody("<p>First</p><p>Second</p>"),
+            "First\n\nSecond"
+        )
+    }
+
+    func testHtmlToPlainBodyIntentionalBlankLine() {
+        XCTAssertEqual(
+            HarvousContentBridge.htmlToPlainBody("<p>First</p><p><br></p><p>Second</p>"),
+            "First\n\n\nSecond"
+        )
+    }
+
+    func testHtmlToPlainBodyHorizontalRule() {
+        XCTAssertEqual(
+            HarvousContentBridge.htmlToPlainBody("<p>Above</p><hr><p>Below</p>"),
+            "Above\n---\nBelow"
+        )
+    }
+
+    func testHtmlToPlainBodyBulletList() {
+        XCTAssertEqual(
+            HarvousContentBridge.htmlToPlainBody("<ul><li>apple</li><li>pear</li></ul>"),
+            "\u{2022} apple\n\u{2022} pear"
+        )
+    }
+
+    func testHtmlToPlainBodyOrderedList() {
+        XCTAssertEqual(
+            HarvousContentBridge.htmlToPlainBody("<ol><li>first</li><li>second</li></ol>"),
+            "1. first\n2. second"
+        )
+    }
+
+    func testHtmlToPlainBodyMixedBlocks() {
+        let html = "<p>Intro</p><ul><li>one</li><li>two</li></ul><p>Outro</p>"
+        XCTAssertEqual(
+            HarvousContentBridge.htmlToPlainBody(html),
+            "Intro\n\n\u{2022} one\n\u{2022} two\n\nOutro"
+        )
+    }
+
+    func testHtmlToPlainBodyLabeledLink() {
+        XCTAssertEqual(
+            HarvousContentBridge.htmlToPlainBody("<p>See <a href=\"https://harvous.com\">Harvous</a></p>"),
+            "See [Harvous](https://harvous.com)"
+        )
+    }
+
+    func testHtmlToPlainBodyServerStylePill() {
+        let html = "<p>Remember <span data-scripture-reference=\"John 3:16\" data-note-id=\"note_1\" class=\"scripture-pill\">John 3:16</span> today</p>"
+        XCTAssertEqual(
+            HarvousContentBridge.htmlToPlainBody(html),
+            "Remember John 3:16 today"
+        )
+    }
+
+    // MARK: - htmlToPlainBody ↔ markdownToHTML round-trip
+
+    func testRoundTripSingleParagraph() {
+        let body = "Hello world"
+        XCTAssertEqual(
+            HarvousContentBridge.htmlToPlainBody(HarvousContentBridge.markdownToHTML(body)),
+            body
+        )
+    }
+
+    func testRoundTripSoftLineBreaks() {
+        let body = "Line one\nLine two"
+        XCTAssertEqual(
+            HarvousContentBridge.htmlToPlainBody(HarvousContentBridge.markdownToHTML(body)),
+            body
+        )
+    }
+
+    func testRoundTripParagraphBreaks() {
+        let body = "First\n\nSecond"
+        XCTAssertEqual(
+            HarvousContentBridge.htmlToPlainBody(HarvousContentBridge.markdownToHTML(body)),
+            body
+        )
+    }
+
+    func testRoundTripHorizontalRule() {
+        let body = "Above\n---\nBelow"
+        XCTAssertEqual(
+            HarvousContentBridge.htmlToPlainBody(HarvousContentBridge.markdownToHTML(body)),
+            body
+        )
+    }
+
+    func testRoundTripBulletList() {
+        let body = "\u{2022} apple\n\u{2022} pear"
+        XCTAssertEqual(
+            HarvousContentBridge.htmlToPlainBody(HarvousContentBridge.markdownToHTML(body)),
+            body
+        )
+    }
+
+    func testRoundTripMixedBlocks() {
+        let body = "Intro\n\n\u{2022} one\n\u{2022} two\n\nOutro"
+        XCTAssertEqual(
+            HarvousContentBridge.htmlToPlainBody(HarvousContentBridge.markdownToHTML(body)),
+            body
+        )
+    }
 }

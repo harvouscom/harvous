@@ -63,7 +63,22 @@ final class HarvousClerkBridge {
     /// from a `.task` modifier on the root view (async load).
     func configure() {
         #if canImport(ClerkKit)
-        Clerk.configure(publishableKey: HarvousEnvironment.publishableKey)
+        let service = Bundle.main.bundleIdentifier ?? "com.harvous.app"
+        #if os(macOS)
+        HarvousKeychainMigration.clearLegacyClerkKeychainIfNeeded(service: service)
+        #endif
+        let accessGroup = (Bundle.main.object(forInfoDictionaryKey: "HarvousKeychainAccessGroup") as? String)?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let keychainGroup = (accessGroup?.isEmpty == false && accessGroup?.contains("$(") == false)
+            ? accessGroup
+            : nil
+        let options = Clerk.Options(
+            keychainConfig: .init(
+                service: service,
+                accessGroup: keychainGroup
+            )
+        )
+        Clerk.configure(publishableKey: HarvousEnvironment.publishableKey, options: options)
         #endif
     }
 

@@ -69,7 +69,63 @@ enum HarvousContentBridge {
         return html.isEmpty ? "<p></p>" : html
     }
 
-    // MARK: - Server HTML → native accents (download)
+    // MARK: - Server HTML → native plain body (download)
+
+    /// Converts TipTap HTML from the server into the native plain-text note `body`
+    /// (inverse of `markdownToHTML`). Preserves paragraph breaks, soft line breaks,
+    /// blank lines, lists, horizontal rules, and links.
+    static func htmlToPlainBody(_ html: String) -> String {
+        let trimmed = html.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return "" }
+        if trimmed == "<p></p>" || trimmed == "<p><br></p>" || trimmed == "<p><br/></p>" { return "" }
+
+        var segments: [String] = []
+        var remainder = trimmed
+        while !remainder.isEmpty {
+            remainder = remainder.trimmingCharacters(in: .whitespaces)
+            if remainder.isEmpty { break }
+
+            if let hrRange = remainder.range(of: "^<hr\\s*/?>", options: [.regularExpression, .caseInsensitive]) {
+                segments.append("---")
+                remainder = String(remainder[hrRange.upperBound...])
+                continue
+            }
+
+            if let match = firstTopLevelBlock(in: remainder, open: "<p", close: "</p>") {
+                segments.append(paragraphPlain(fromInnerHTML: match.inner))
+                remainder = String(remainder[match.end...])
+                continue
+            }
+
+            if let match = firstTopLevelBlock(in: remainder, open: "<ul", close: "</ul>") {
+                segments.append(bulletListPlain(fromInnerHTML: match.inner))
+                remainder = String(remainder[match.end...])
+                continue
+            }
+
+            if let match = firstTopLevelBlock(in: remainder, open: "<ol", close: "</ol>") {
+                segments.append(orderedListPlain(fromInnerHTML: match.inner))
+                remainder = String(remainder[match.end...])
+                continue
+            }
+
+            if let match = firstTopLevelBlock(in: remainder, open: "<div", close: "</div>") {
+                let nested = htmlToPlainBody("<p>\(match.inner)</p>")
+                if !nested.isEmpty { segments.append(nested) }
+                remainder = String(remainder[match.end...])
+                continue
+            }
+
+            // Skip unknown tags / stray markup
+            if let tagEnd = remainder.firstIndex(of: ">") {
+                remainder = String(remainder[remainder.index(after: tagEnd)...])
+            } else {
+                break
+            }
+        }
+
+        return joinPlainSegments(segments)
+    }
 
     /// Pulls per-pill accent overrides out of server pill markup, keyed by reference
     /// string (e.g. `["John 3:16": "warmAmber"]`). Only spans that actually carry a
@@ -89,7 +145,148 @@ enum HarvousContentBridge {
         return map
     }
 
-    // MARK: - Inline conversion
+    // MARK: - HTML → plain block parsing
+
+    private struct TopLevelBlock {
+        let inner: String
+        let end: String.Index
+    }
+
+    private static func firstTopLevelBlock(in html: String, open: String, close: String) -> TopLevelBlock? {
+        let lower = html.lowercased()
+        let openLower = open.lowercased()
+        guard lower.hasPrefix(openLower) else { return nil }
+        guard let openEnd = html.firstIndex(of: ">") else { return nil }
+        let closeLower = close.lowercased()
+        guard let closeRange = lower.range(of: closeLower, range: openEnd..<lower.endIndex) else { return nil }
+        let inner = String(html[html.index(after: openEnd)..<closeRange.lowerBound])
+        return TopLevelBlock(inner: inner, end: closeRange.upperBound)
+    }
+
+    private static func paragraphPlain(fromInnerHTML inner: String) -> String {
+        let trimmed = inner.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty { return "" }
+        let brOnly = trimmed
+            .replacingOccurrences(of: "&nbsp;", with: " ", options: .caseInsensitive)
+            .replacingOccurrences(of: "&#160;", with: "", options: .caseInsensitive)
+            .replacingOccurrences(of: "<br\\s*/?>", with: "", options: [.regularExpression, .caseInsensitive])
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        if brOnly.isEmpty { return "" }
+        return inlinePlain(fromHTML: inner)
+    }
+
+    private static func bulletListPlain(fromInnerHTML inner: String) -> String {
+        listItems(fromInnerHTML: inner).map { "\u{2022} \($0)" }.joined(separator: "\n")
+    }
+
+    private static func orderedListPlain(fromInnerHTML inner: String) -> String {
+        listItems(fromInnerHTML: inner).enumerated().map { "\($0.offset + 1). \($0.element)" }.joined(separator: "\n")
+    }
+
+    private static func listItems(fromInnerHTML inner: String) -> [String] {
+        var items: [String] = []
+        var remainder = inner
+        while !remainder.isEmpty {
+            remainder = remainder.trimmingCharacters(in: .whitespacesAndNewlines)
+            if remainder.isEmpty { break }
+            if let match = firstTopLevelBlock(in: remainder, open: "<li", close: "</li>") {
+                let text = inlinePlain(fromHTML: match.inner).trimmingCharacters(in: .whitespacesAndNewlines)
+                if !text.isEmpty { items.append(text) }
+                remainder = String(remainder[match.end...])
+            } else if let tagEnd = remainder.firstIndex(of: ">") {
+                remainder = String(remainder[remainder.index(after: tagEnd)...])
+            } else {
+                break
+            }
+        }
+        return items
+    }
+
+    private static func joinPlainSegments(_ segments: [String]) -> String {
+        guard !segments.isEmpty else { return "" }
+        var out = ""
+        for (i, segment) in segments.enumerated() {
+            if i > 0 {
+                let prev = segments[i - 1]
+                if segment == "---" || prev == "---" {
+                    out += "\n"
+                } else if prev.isEmpty {
+                    // Empty `<p><br></p>` block before content — single newline completes the blank line.
+                    out += "\n"
+                } else if segment.isEmpty {
+                    // Content before empty paragraph — paragraph break plus start of blank line.
+                    out += "\n\n"
+                } else {
+                    out += "\n\n"
+                }
+            }
+            out += segment
+        }
+        return out.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private static func inlinePlain(fromHTML html: String) -> String {
+        var s = html
+        // Scripture pills → plain reference text
+        s = s.replacingOccurrences(
+            of: "<span[^>]*data-scripture-reference\\s*=\\s*[\"']([^\"']+)[\"'][^>]*>[\\s\\S]*?</span>",
+            with: "$1",
+            options: [.regularExpression, .caseInsensitive]
+        )
+        // Links → markdown-style or bare URL
+        s = replaceAnchors(in: s)
+        // Line breaks
+        s = s.replacingOccurrences(of: "<br\\s*/?>", with: "\n", options: [.regularExpression, .caseInsensitive])
+        // Strip remaining tags
+        s = s.replacingOccurrences(of: "<[^>]+>", with: "", options: .regularExpression)
+        s = decodeHTMLEntities(s)
+        return s
+    }
+
+    private static func replaceAnchors(in html: String) -> String {
+        guard let regex = try? NSRegularExpression(
+            pattern: "<a\\s[^>]*href\\s*=\\s*[\"']([^\"']+)[\"'][^>]*>([\\s\\S]*?)</a>",
+            options: [.caseInsensitive]
+        ) else { return html }
+        let ns = html as NSString
+        var out = ""
+        var cursor = 0
+        let matches = regex.matches(in: html, range: NSRange(location: 0, length: ns.length))
+        for m in matches {
+            if m.range.location > cursor {
+                out += ns.substring(with: NSRange(location: cursor, length: m.range.location - cursor))
+            }
+            let href = ns.substring(with: m.range(at: 1))
+            let label = decodeHTMLEntities(
+                ns.substring(with: m.range(at: 2))
+                    .replacingOccurrences(of: "<[^>]+>", with: "", options: .regularExpression)
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+            )
+            if label.isEmpty || label == href {
+                out += href
+            } else {
+                out += "[\(label)](\(href))"
+            }
+            cursor = m.range.location + m.range.length
+        }
+        if cursor < ns.length {
+            out += ns.substring(from: cursor)
+        }
+        return out.isEmpty ? html : out
+    }
+
+    private static func decodeHTMLEntities(_ s: String) -> String {
+        s.replacingOccurrences(of: "&nbsp;", with: " ", options: .caseInsensitive)
+            .replacingOccurrences(of: "&#160;", with: " ", options: .caseInsensitive)
+            .replacingOccurrences(of: "&amp;", with: "&", options: .caseInsensitive)
+            .replacingOccurrences(of: "&lt;", with: "<", options: .caseInsensitive)
+            .replacingOccurrences(of: "&gt;", with: ">", options: .caseInsensitive)
+            .replacingOccurrences(of: "&quot;", with: "\"", options: .caseInsensitive)
+            .replacingOccurrences(of: "&#39;", with: "'", options: .caseInsensitive)
+            .replacingOccurrences(of: "&apos;", with: "'", options: .caseInsensitive)
+    }
+
+    // MARK: - Inline conversion (plain → HTML)
 
     private static func inlineHTML(_ text: String, accents: [String: String]) -> String {
         let ns = text as NSString

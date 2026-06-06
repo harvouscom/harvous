@@ -540,7 +540,7 @@ final class HarvousSyncService {
             }
             if let title = api.title { existing.title = title }
             if let content = api.content {
-                existing.body = Self.htmlToPlainText(content)
+                existing.body = HarvousContentBridge.htmlToPlainBody(content)
                 existing.serverContentHTML = content
                 existing.applyServerScripturePillAccents(HarvousContentBridge.extractPillAccents(fromHTML: content))
             }
@@ -560,7 +560,7 @@ final class HarvousSyncService {
         } else {
             let note = Note(
                 title: api.title ?? "",
-                body: Self.htmlToPlainText(api.content ?? ""),
+                body: HarvousContentBridge.htmlToPlainBody(api.content ?? ""),
                 primaryFolder: api.primaryCollection.flatMap { $0.isEmpty ? nil : $0 },
                 secondaryFolders: api.secondaryCollections ?? [],
                 isFolderUserOverride: api.collectionUserOverride ?? false,
@@ -645,23 +645,6 @@ final class HarvousSyncService {
         }
     }
 
-    /// Server stores TipTap HTML; the native model holds plain text. Strip
-    /// tags for a first-pass display — full HTML→Markdown is out of scope here.
-    private static func htmlToPlainText(_ html: String) -> String {
-        guard !html.isEmpty else { return "" }
-        let withoutTags = html.replacingOccurrences(of: "<[^>]+>", with: " ", options: .regularExpression)
-        let decoded = withoutTags
-            .replacingOccurrences(of: "&nbsp;", with: " ", options: .caseInsensitive)
-            .replacingOccurrences(of: "&amp;", with: "&", options: .caseInsensitive)
-            .replacingOccurrences(of: "&lt;", with: "<", options: .caseInsensitive)
-            .replacingOccurrences(of: "&gt;", with: ">", options: .caseInsensitive)
-            .replacingOccurrences(of: "&quot;", with: "\"", options: .caseInsensitive)
-            .replacingOccurrences(of: "&#39;", with: "'", options: .caseInsensitive)
-            .replacingOccurrences(of: "&apos;", with: "'", options: .caseInsensitive)
-        let collapsed = decoded.replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
-        return collapsed.trimmingCharacters(in: .whitespacesAndNewlines)
-    }
-
     private static let iso8601Formatter: ISO8601DateFormatter = {
         let f = ISO8601DateFormatter()
         f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
@@ -686,7 +669,7 @@ final class HarvousSyncService {
         let accents = note.scripturePillAccentMap
         if let serverHTML = note.serverContentHTML,
            !serverHTML.isEmpty,
-           htmlToPlainText(serverHTML) == note.body,
+           HarvousContentBridge.htmlToPlainBody(serverHTML) == note.body,
            HarvousContentBridge.extractPillAccents(fromHTML: serverHTML) == accents {
             return serverHTML
         }

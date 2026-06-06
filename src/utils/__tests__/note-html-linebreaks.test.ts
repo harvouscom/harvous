@@ -3,6 +3,7 @@ import {
   canonicalizeNoteHtmlLineBreaks,
   stripHrAdjacentEmptyParagraphs,
 } from '../note-html-linebreaks';
+import { normalizeEmptyBodyHtmlForEditor } from '../prototype-note-empty';
 
 describe('stripHrAdjacentEmptyParagraphs', () => {
   it('removes empty paragraph before hr', () => {
@@ -48,5 +49,11 @@ describe('canonicalizeNoteHtmlLineBreaks', () => {
   it('preserves Shift+Enter hard break inside a paragraph', () => {
     const html = '<p>line one<br>line two</p>';
     expect(canonicalizeNoteHtmlLineBreaks(html)).toBe(html);
+  });
+
+  it('hydrate path keeps intentional blank line after canonicalize', () => {
+    const saved = canonicalizeNoteHtmlLineBreaks('<p>one</p><p></p><p>two</p>');
+    expect(saved).toBe('<p>one</p><p><br></p><p>two</p>');
+    expect(normalizeEmptyBodyHtmlForEditor(saved)).toBe(saved);
   });
 });

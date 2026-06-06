@@ -48,24 +48,24 @@ linked"* screen appears, the SPM package wasn't added to that target.
 
 ## macOS Keychain prompt on launch
 
-ClerkKit reads the auth session from Keychain on launch (key `com.harvous.app`).
-If macOS asks for your **login keychain password** on every cold launch, stale
-entries from prior ad-hoc builds are usually the cause.
+ClerkKit reads the auth session from Keychain on launch (service `com.harvous.app`).
+If macOS asks for your **login keychain password** on every cold launch:
 
-**One-time fix (local Xcode / Apple Development builds):**
+**Fix in app (Debug + Release):** Harvous now uses the **Keychain Access Group**
+`$(AppIdentifierPrefix)com.harvous.app` (see `Harvous.entitlements`) and passes it to
+`Clerk.Options.KeychainConfig`. On macOS this enables Clerk’s data-protection keychain,
+which survives Xcode rebuilds without re-prompting. A one-time silent migration
+(`HarvousKeychainMigration`) drops legacy rows that were tied to old code signatures.
 
-1. Open **Keychain Access** → select the **login** keychain.
-2. Search for `com.harvous.app` or `harvous`.
-3. Delete old generic-password / key items tied to Harvous or Clerk.
-4. In Xcode: **Product → Clean Build Folder**, then build and run **Harvous_macOS**.
-5. When prompted, click **Always Allow** (not just Allow) once.
+**If you still see the dialog once after pulling this change:**
+
+1. Click **Always Allow** (not just Allow) when prompted.
+2. Or open **Keychain Access** → **login** → search `com.harvous.app` → delete stale
+   Harvous/Clerk generic-password items → relaunch and sign in again.
 
 Confirm signing: `codesign -dv --verbose=4 path/to/Harvous.app` should show
-`TeamIdentifier=B3U6BXA8KP`, not `not set`. Subsequent launches should be silent.
-
-Unsigned preview DMGs (see [docs/native/MACOS_DMG_PREVIEW_RELEASE.md](../../docs/native/MACOS_DMG_PREVIEW_RELEASE.md))
-use ad-hoc signing and may still prompt every launch until you add Developer ID
-signing + notarization.
+`TeamIdentifier=B3U6BXA8KP`, not `not set`. Unsigned preview DMGs (ad-hoc only) may
+still prompt every launch — see [docs/native/MACOS_DMG_PREVIEW_RELEASE.md](../../docs/native/MACOS_DMG_PREVIEW_RELEASE.md).
 
 ## SwiftData migration note
 

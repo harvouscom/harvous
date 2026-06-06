@@ -2053,8 +2053,9 @@ export default function CardFullEditable({
       hasLocalContentUpdate.current = true;
     }
     userEditedSinceOpenRef.current = true;
-    setEditContent(newContent);
-    setHasChanges(editTitle !== displayTitle || newContent !== displayContent);
+    const canonical = canonicalizeNoteHtmlLineBreaks(newContent);
+    setEditContent(canonical);
+    setHasChanges(editTitle !== displayTitle || canonical !== displayContent);
   };
 
   const resolveThreadContext = (): string => {

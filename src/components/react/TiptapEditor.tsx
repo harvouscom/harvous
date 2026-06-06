@@ -22,6 +22,13 @@ import { NoteLink } from './TiptapNoteLink';
 import { ScripturePill } from './TiptapScripturePill';
 import { BoldCustom } from './TiptapBoldCustom';
 import { HighlightCustom } from './TiptapHighlightCustom';
+import { ParagraphCustom } from './TiptapParagraphCustom';
+
+/** HTML from the live editor; optionally normalize empty paragraphs for parent state. */
+function noteHtmlFromEditor(editor: { getHTML: () => string }, canonicalizeBlankLines = false): string {
+  const html = editor.getHTML();
+  return canonicalizeBlankLines ? canonicalizeNoteHtmlLineBreaks(html) : html;
+}
 import {
   ReferenceSuggestion,
   createDictionaryReferenceProvider,
@@ -3484,11 +3491,14 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
         underline: false,
         // Exclude bold from StarterKit so we can use custom Bold extension
         bold: false,
+        // Custom paragraph keeps blank lines as `<p><br></p>` in getHTML output
+        paragraph: false,
         // Disable StarterKit's bundled Link extension — we use our own UrlLink mark which
         // renders a <span data-url-link> instead of <a>. Without this, StarterKit wraps
         // bare URLs in <a> tags, causing a double underline (browser <a> default + .url-link).
         link: false,
       }),
+      ParagraphCustom,
       Heading.configure({
         levels: [2, 3], // H1 reserved for note titles
       }),
@@ -4673,7 +4683,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       absorbOrphanSuffixesAfterPills(editor);
 
       try {
-        const html = editor.getHTML();
+        const html = noteHtmlFromEditor(editor, true);
         pillNormalizeContentRef.current = content;
         if (html !== content) {
           if (hiddenInputRef.current) {
@@ -4765,7 +4775,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       if (!updated && !consumed) return;
 
       try {
-        const html = editor.getHTML();
+        const html = noteHtmlFromEditor(editor, true);
         if (hiddenInputRef.current) {
           hiddenInputRef.current.value = html;
         }

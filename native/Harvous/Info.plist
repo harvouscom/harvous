@@ -62,6 +62,8 @@
 	<string>Harvous uses the camera to scan text from books and handouts into a new note.</string>
 	<key>HarvousClerkPublishableKey</key>
 	<string>$(CLERK_PUBLISHABLE_KEY)</string>
+	<key>HarvousKeychainAccessGroup</key>
+	<string>$(AppIdentifierPrefix)com.harvous.app</string>
 	<key>HarvousAPIBaseURL</key>
 	<string>$(HARVOUS_API_BASE_URL)</string>
 	<key>HarvousSupabaseURL</key>
