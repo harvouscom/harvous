@@ -1,10 +1,14 @@
 import Foundation
 
-// MARK: - Per-note study dock carousel (scripture pill + highlight)
+// MARK: - Per-note study dock carousel (scripture pill + highlight + pending reference)
 
 enum StudyDockEntryPayload: Equatable {
     case scripture(ActiveScripturePillDockItem)
     case highlight(threadId: UUID)
+    /// A typed reference suggestion the user tapped but has not yet saved. `slug` is the Easton's
+    /// headword slug; `headword` is the display label; `storageRange` locates the hinted word so
+    /// Save can apply the highlight.
+    case pendingReference(slug: String, headword: String, storageRange: NSRange)
 }
 
 struct StudyDockEntry: Identifiable, Equatable {
@@ -19,6 +23,8 @@ struct StudyDockEntry: Identifiable, Equatable {
             return item.id
         case .highlight(let threadId):
             return "highlight:\(threadId.uuidString)"
+        case .pendingReference(_, _, let range):
+            return "pendingRef:\(range.location)-\(range.length)"
         }
     }
 }
@@ -70,6 +76,34 @@ struct StudyDockStack: Equatable {
         }
         let id = UUID()
         let entry = StudyDockEntry(id: id, payload: .scripture(item), openedAt: Date(), expanded: true)
+        var next = entries.map { var e = $0; e.expanded = false; return e }
+        next.append(entry)
+        trimOldestIfNeeded(&next)
+        entries = next
+        activeId = id
+    }
+
+    mutating func openOrFocusPendingReference(slug: String, headword: String, storageRange: NSRange) {
+        let key = "pendingRef:\(storageRange.location)-\(storageRange.length)"
+        if let existing = entries.first(where: { $0.stableKey == key }) {
+            activeId = existing.id
+            entries = entries.map { entry in
+                var updated = entry
+                updated.expanded = entry.id == existing.id
+                if entry.id == existing.id {
+                    updated.payload = .pendingReference(slug: slug, headword: headword, storageRange: storageRange)
+                }
+                return updated
+            }
+            return
+        }
+        let id = UUID()
+        let entry = StudyDockEntry(
+            id: id,
+            payload: .pendingReference(slug: slug, headword: headword, storageRange: storageRange),
+            openedAt: Date(),
+            expanded: true
+        )
         var next = entries.map { var e = $0; e.expanded = false; return e }
         next.append(entry)
         trimOldestIfNeeded(&next)
@@ -192,6 +226,8 @@ func studyDockChipLabel(entry: StudyDockEntry, excerptByThreadId: [UUID: String]
             excerptByThreadId: excerptByThreadId,
             focusTitleByThreadId: [:]
         )
+    case .pendingReference(_, let headword, _):
+        return headword
     }
 }
 
@@ -210,6 +246,8 @@ func studyDockCollapsedTitle(
             excerptByThreadId: excerptByThreadId,
             focusTitleByThreadId: focusTitleByThreadId
         )
+    case .pendingReference(_, let headword, _):
+        return headword
     }
 }
 
@@ -217,6 +255,8 @@ func studyDockCollapsedIconAsset(entry: StudyDockEntry, highlightEntryKind: Stud
     switch entry.payload {
     case .scripture:
         return "Harvous.BookOpen"
+    case .pendingReference:
+        return "Harvous.LinesLeaning"
     case .highlight:
         guard let kind = highlightEntryKind else { return "Harvous.Highlight" }
         switch kind {

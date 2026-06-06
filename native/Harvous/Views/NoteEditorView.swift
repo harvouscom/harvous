@@ -177,16 +177,6 @@ struct NoteEditorView: View {
     }
     @State private var connectedNoteHighlightSession: ConnectedNoteHighlightSession?
 
-    // ── Pending reference suggestion sheet (tap dotted hint → confirm before saving) ──
-    // Mirrors the web dock's pending mode: shows the Easton's entry + "Save reference" button.
-    // The reference is only persisted when the user taps Save, not on tap of the hint.
-    struct PendingReferenceSuggestion: Identifiable {
-        var id: String { slug }
-        let slug: String
-        let storageRange: NSRange
-    }
-    @State private var pendingReferenceSuggestion: PendingReferenceSuggestion?
-
     /// Inline expanded chrome for a tapped scripture pill (passage + accent + translation).
     /// Replaces the former bottom action bar as the primary click affordance; the old bar still
     /// drives selection-near-pill editing of book/chapter/verse.
@@ -1340,7 +1330,12 @@ struct NoteEditorView: View {
                             studyHighlightsAssumeDarkAppearance: colorScheme == .dark,
                             onScripturePillTap: { scripturePillTapped(reference: $0, translation: $1, range: $2) },
                             onURLPillTap: { urlPillTapped(href: $0, title: $1, label: $2, range: $3) },
-                            onReferenceSuggestionTap: { pendingReferenceSuggestion = PendingReferenceSuggestion(slug: $0, storageRange: $1) },
+                            onReferenceSuggestionTap: { slug, range in
+                                var stack = studyDockStack
+                                let headword = EastonsDictionaryService.shared.slugIndex[slug]?.headword ?? slug.capitalized
+                                stack.openOrFocusPendingReference(slug: slug, headword: headword, storageRange: range)
+                                studyDockStack = stack
+                            },
                             onResolvedScripturePillPairs: { scheduleScripturePassagePrefetch(pairs: $0) },
                             pillAccentResolver: { [note] reference in
                                 guard let raw = note.scripturePillAccentRaw(forReference: reference) else { return nil }
@@ -1371,7 +1366,12 @@ struct NoteEditorView: View {
                             proxy: proxy,
                             onScripturePillTap: { scripturePillTapped(reference: $0, translation: $1, range: $2) },
                             onURLPillTap: { urlPillTapped(href: $0, title: $1, label: $2, range: $3) },
-                            onReferenceSuggestionTap: { pendingReferenceSuggestion = PendingReferenceSuggestion(slug: $0, storageRange: $1) },
+                            onReferenceSuggestionTap: { slug, range in
+                                var stack = studyDockStack
+                                let headword = EastonsDictionaryService.shared.slugIndex[slug]?.headword ?? slug.capitalized
+                                stack.openOrFocusPendingReference(slug: slug, headword: headword, storageRange: range)
+                                studyDockStack = stack
+                            },
                             onResolvedScripturePillPairs: { scheduleScripturePassagePrefetch(pairs: $0) },
                             onStudyHighlightTap: { userActivatedStudyHighlight(threadId: $0) },
                             studyHighlightPaints: studyHighlightPaints,
@@ -1622,9 +1622,6 @@ struct NoteEditorView: View {
             }
             .frame(minWidth: 420, minHeight: 460)
         }
-        .sheet(item: $pendingReferenceSuggestion) { pending in
-            referenceSuggestionSheet(pending: pending)
-        }
         .sheet(isPresented: $showLinkPicker) {
             linkPickerSheetContent
         }
@@ -1688,22 +1685,6 @@ struct NoteEditorView: View {
         } else {
             Color.clear.onAppear { proxy.showConnectFromSelectionPicker = false }
         }
-    }
-
-    @ViewBuilder
-    /// Pending-mode dictionary entry sheet — shown when the user taps a reference suggestion
-    /// (dotted underline) before committing it. Mirrors the web dock's "Save reference" pending
-    /// mode: show the entry, let the user decide, save only on explicit confirm.
-    private func referenceSuggestionSheet(pending: PendingReferenceSuggestion) -> some View {
-        ReferenceSuggestionSheet(
-            pending: pending,
-            initialSlug: pending.slug,
-            onSave: {
-                pendingReferenceSuggestion = nil
-                saveReferenceFromSuggestion(pending)
-            },
-            onCancel: { pendingReferenceSuggestion = nil }
-        )
     }
 
     @ViewBuilder private var linkPickerSheetContent: some View {
@@ -1865,15 +1846,15 @@ struct NoteEditorView: View {
         }
     }
 
-    /// Called when the user confirms "Save reference" from the pending suggestion sheet.
-    /// Persists the reference highlight + opens the Easton's dock, matching the selection-bar
-    /// "Look up" path. The suggestion underline disappears on the next repaint because the word
-    /// is now inside a saved highlight (excluded by `ReferenceSuggestionPainter`).
-    private func saveReferenceFromSuggestion(_ pending: PendingReferenceSuggestion) {
+    /// Called when the user taps the Save checkmark on the pending reference dock card.
+    /// Persists the reference highlight; the saved reference then reopens as a normal highlight
+    /// dock in the carousel. The suggestion underline disappears on the next repaint because the
+    /// word is now inside a saved highlight (excluded by `ReferenceSuggestionPainter`).
+    private func saveReferenceFromPending(slug: String, storageRange: NSRange) {
         guard let note else { return }
         guard let (_, storage) = proxy.textViewPair() else { return }
         guard case .success(let expRange) = HarvousStudyHighlightMapper.expandedRange(
-            forStorageSelection: pending.storageRange, in: storage
+            forStorageSelection: storageRange, in: storage
         ), expRange.length > 0 else { return }
         let plain = editorState.plainText as NSString
         guard expRange.location != NSNotFound, NSMaxRange(expRange) <= plain.length else { return }
@@ -2038,6 +2019,13 @@ struct NoteEditorView: View {
             #else
             return Color(uiColor: token.resolvedAccentUIColor(kind: thread.entryKind, isDark: isDark))
             #endif
+        case .pendingReference:
+            let token = StudyHighlightAccentToken.warmAmber
+            #if os(macOS)
+            return Color(nsColor: token.resolvedAccentNSColor(kind: .reference, isDark: isDark))
+            #else
+            return Color(uiColor: token.resolvedAccentUIColor(kind: .reference, isDark: isDark))
+            #endif
         }
     }
 
@@ -2048,6 +2036,16 @@ struct NoteEditorView: View {
             activeScripturePillDockContent(note: note, item: item, entryId: entry.id, isActive: isActive)
         case .highlight(let threadId):
             activeHighlightDockContent(note: note, threadId: threadId, entryId: entry.id, isActive: isActive)
+        case .pendingReference(let slug, _, let storageRange):
+            PendingReferenceDock(
+                slug: slug,
+                isExpanded: isActive ? dockExpandedBinding(entryId: entry.id) : .constant(false),
+                onSave: {
+                    closeStudyDockEntry(id: entry.id)
+                    saveReferenceFromPending(slug: slug, storageRange: storageRange)
+                },
+                onDismiss: { closeStudyDockEntry(id: entry.id) }
+            )
         }
     }
 
