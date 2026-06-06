@@ -22,6 +22,10 @@
   transition: margin-right var(--pds-inspector-transition-duration) var(--pds-inspector-transition-ease);
 }
 
+/* Reserve editor width for the inspector only when it's docked side-by-side.
+   The class is applied (see PrototypeNotePage) only when the pane is wide enough;
+   when narrow the class is absent, so the editor keeps full width and the
+   (position: absolute) inspector floats over it as a quiet overlay. */
 .proto-note-pane-row--inspector-open .proto-editor-surface {
   margin-right: var(--pds-inspector-reserve-w);
 }

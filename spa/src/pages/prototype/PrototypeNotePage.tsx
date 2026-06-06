@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate, useParams, useSearch } from '@tanstack/react-router';
 import { prototypeHomeRouteTo, prototypeNoteRouteTo } from '@/lib/prototype-path';
 import { useQueryClient } from '@tanstack/react-query';
@@ -11,6 +12,7 @@ import { useProcessScriptureRefs } from '../../hooks/mutations/useProcessScriptu
 import { useUpdateNote } from '../../hooks/mutations/useUpdateNote';
 import { useDeleteNote } from '../../hooks/mutations/useDeleteNote';
 import { alertCreateNoteFailure, useCreateSimpleNote } from '../../hooks/mutations/useCreateSimpleNote';
+import { PANE_DOCK_MIN_WIDTH } from '../../layouts/proto-inspector-layout';
 import { useProtoShell } from '../../layouts/proto-shell-context';
 import { noteFolderChipDisplayState } from '@/utils/note-folder-display';
 import { isEffectivelyEmptyPrototypeNote } from '@/utils/prototype-note-empty';
@@ -77,6 +79,40 @@ export default function PrototypeNotePage() {
     studyDockCarouselHostEl,
     setEditorChromeMode,
   } = useProtoShell();
+
+  // Dock the inspector side-by-side only when the editor pane is wide enough to
+  // seat the editor (max 720px content) beside it (~268px reserve); otherwise let
+  // it float over the editor as a quiet overlay. Measured from the actual pane
+  // element via ResizeObserver so it tracks real layout px (a viewport media
+  // query is unreliable in the native webview where CSS px != visible px).
+  const paneResizeObserverRef = useRef<ResizeObserver | null>(null);
+  const notePaneRowElRef = useRef<HTMLDivElement | null>(null);
+  const [paneIsWide, setPaneIsWide] = useState(false);
+
+  const syncPaneWidth = useCallback((width: number) => {
+    setPaneIsWide(width >= PANE_DOCK_MIN_WIDTH);
+  }, []);
+
+  const notePaneRowRef = useCallback((node: HTMLDivElement | null) => {
+    paneResizeObserverRef.current?.disconnect();
+    paneResizeObserverRef.current = null;
+    notePaneRowElRef.current = node;
+    if (!node || typeof ResizeObserver === 'undefined') return;
+    syncPaneWidth(node.getBoundingClientRect().width);
+    const ro = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        syncPaneWidth(entry.contentRect.width);
+      }
+    });
+    ro.observe(node);
+    paneResizeObserverRef.current = ro;
+  }, [syncPaneWidth]);
+
+  useLayoutEffect(() => {
+    const node = notePaneRowElRef.current;
+    if (!node) return;
+    syncPaneWidth(node.getBoundingClientRect().width);
+  }, [syncPaneWidth]);
 
   useEffect(() => {
     dismissStandaloneScripturePassage();
@@ -536,12 +572,24 @@ export default function PrototypeNotePage() {
   // inspector is gated on `!isDraft && note` below, so on a draft (a note with no
   // content yet) or before the note loads, reserving space shrinks the editor for
   // a panel that never appears — leaving a blank gap on the right.
+  // Reserve (dock) only when: inspector open, on desktop (mobile uses a fixed
+  // slide-over), and the pane is wide enough. When the pane is narrow the desktop
+  // inspector stays mounted but floats over the editor as a quiet overlay.
   const inspectorReservesEditorSpace =
-    inspectorOpen && !inspectorExiting && !isDraft && !!note;
+    inspectorOpen && !inspectorExiting && !isDraft && !!note && !isMobileSidebar && paneIsWide;
+
+  const inspectorFloating =
+    inspectorOpen &&
+    !inspectorExiting &&
+    !isDraft &&
+    !!note &&
+    !inspectorReservesEditorSpace &&
+    (showInspectorDesktop || showInspectorMobile);
 
   const notePaneRowClass = [
     'proto-note-pane-row',
     inspectorReservesEditorSpace ? 'proto-note-pane-row--inspector-open' : '',
+    inspectorFloating ? 'proto-note-pane-row--inspector-floating' : '',
   ]
     .filter(Boolean)
     .join(' ');
@@ -556,9 +604,32 @@ export default function PrototypeNotePage() {
   const editorMountKey =
     !isDraft && persistedDraftIdRef.current === noteId ? DRAFT_NOTE_ID : noteId;
 
+  const mobileInspectorLayer =
+    showInspectorMobile && !isDraft && note && typeof document !== 'undefined'
+      ? createPortal(
+          <>
+            <div
+              className="proto-inspector-mobile-backdrop"
+              role="presentation"
+              tabIndex={-1}
+              onClick={closeInspector}
+            />
+            <div
+              className={`proto-inspector-mobile-panel${inspectorExiting ? ' proto-inspector-mobile-panel--exiting' : ''}`}
+              role="dialog"
+              aria-label="Note details"
+            >
+              <PrototypeInspectorPane note={note} spaceId={effectiveSpaceId} />
+            </div>
+          </>,
+          document.querySelector('.proto-shell') ?? document.body,
+        )
+      : null;
+
   return (
     <PrototypeMainPaneShell>
     <div
+      ref={notePaneRowRef}
       className={notePaneRowClass}
       data-note-id={noteId}
       data-parent-thread-id={parentThreadId}
@@ -617,23 +688,7 @@ export default function PrototypeNotePage() {
         </div>
       ) : null}
 
-      {showInspectorMobile && !isDraft && note ? (
-        <>
-          <div
-            className="proto-inspector-mobile-backdrop"
-            role="presentation"
-            tabIndex={-1}
-            onClick={closeInspector}
-          />
-          <div
-            className={`proto-inspector-mobile-panel${inspectorExiting ? ' proto-inspector-mobile-panel--exiting' : ''}`}
-            role="dialog"
-            aria-label="Note details"
-          >
-            <PrototypeInspectorPane note={note} spaceId={effectiveSpaceId} />
-          </div>
-        </>
-      ) : null}
+      {mobileInspectorLayer}
 
     </div>
     </PrototypeMainPaneShell>

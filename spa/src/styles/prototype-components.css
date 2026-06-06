@@ -11,12 +11,21 @@
 .proto-sidebar-root,
 .proto-inspector-desktop,
 .proto-inspector-mobile-panel {
-  position: relative;
   isolation: isolate;
   background: var(--pds-glass-shell);
   box-shadow: var(--pds-paper-shadow-subtle, none), var(--pds-glass-rim);
   -webkit-backdrop-filter: var(--proto-glass-blur, var(--pds-glass-blur-elevated));
   backdrop-filter: var(--proto-glass-blur, var(--pds-glass-blur-elevated));
+}
+
+/* Pseudo-element anchoring — omit mobile inspector (shell.css sets position: fixed <900px). */
+.proto-glass-surface,
+.proto-daily-passage-pill,
+.proto-collection-card,
+.proto-migration-notice__card,
+.proto-sidebar-root,
+.proto-inspector-desktop {
+  position: relative;
 }
 
 .proto-glass-surface::before,
@@ -1330,6 +1339,14 @@ html.harvous-proto-wallpaper-color .proto-sidebar-search__field:focus-within {
   .proto-inspector-desktop,
   .proto-inspector-desktop--exiting {
     animation: none;
+  }
+}
+
+/* Mobile inspector — must stay fixed (shell.css); this file loads after shell.css. */
+@media (max-width: 899px) {
+  .proto-inspector-mobile-backdrop,
+  .proto-inspector-mobile-panel {
+    position: fixed;
   }
 }
 
