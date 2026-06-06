@@ -949,7 +949,7 @@ export default function PrototypeSidebar() {
     afterNav();
   };
 
-  const backTarget: { label: string; kind: string; action: () => void } | null = (() => {
+  const backTarget: { label: string; kind: string | null; action: () => void } | null = (() => {
     if (mode === 'folders' && activeFolderKey !== undefined)
       return { label: activeFolderKey ?? 'Unsorted', kind: 'Folder', action: () => { setActiveFolderKey(undefined); setQ(''); } };
     if (mode === 'threads' && sidebarThreadDrilldownId)
@@ -966,6 +966,8 @@ export default function PrototypeSidebar() {
       const { bookOrder } = scriptureDrill;
       return { label: scriptureNotesPassageTitle || 'Passage', kind: 'Passage', action: () => { setScriptureDrill({ level: 'passages', bookOrder }); setQ(''); } };
     }
+    if (mode === 'dictionary' && sidebarDictionarySlug)
+      return { label: 'Dictionary', kind: null, action: () => { setSidebarDictionarySlug(undefined); setQ(''); } };
     return null;
   })();
 
@@ -981,7 +983,9 @@ export default function PrototypeSidebar() {
             <span className="proto-toolbar-folder-chip__icon" aria-hidden>
               <Icon name="chevron-left" size={13} />
             </span>
-            <span className="proto-sidebar-list-view__kind">{backTarget.kind}</span>
+            {backTarget.kind ? (
+              <span className="proto-sidebar-list-view__kind">{backTarget.kind}</span>
+            ) : null}
             <span className="proto-sidebar-list-view__label">{backTarget.label}</span>
           </button>
         ) : (
@@ -1214,10 +1218,6 @@ export default function PrototypeSidebar() {
             {mode === 'dictionary' && sidebarDictionarySlug ? (
               <PrototypeDictionaryEntry
                 slug={sidebarDictionarySlug}
-                onBack={() => {
-                  setSidebarDictionarySlug(undefined);
-                  setQ('');
-                }}
                 onNavigateSlug={(slug) => setSidebarDictionarySlug(slug)}
               />
             ) : null}

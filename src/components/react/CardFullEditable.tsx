@@ -84,6 +84,7 @@ import {
 } from '@/utils/prototype-note-empty';
 import { canonicalizeNoteHtmlLineBreaks } from '@/utils/note-html-linebreaks';
 import { shouldInjectProcessedNoteContent } from '@/utils/prototype-editor-save';
+import { saveNoteDraft, getNoteDraft, clearNoteDraft } from '@/utils/note-draft-store';
 
 /** TipTap body HTML for editing — empty notes use `<p></p>` so the caret stays on line 1. */
 function repairHtmlForEditor(html: string): string {
@@ -163,10 +164,6 @@ interface CardFullEditableProps {
    * Prototype-only: when set, the highlight dock is portaled into this element (column-level bottom bar).
    */
   highlightChromePortalTarget?: HTMLElement | null;
-  /**
-   * Prototype-only: when set, the Search dock is portaled into this element (column-level bottom bar).
-   */
-  referenceChromePortalTarget?: HTMLElement | null;
   /** Prototype-only: when set, auto-opens the reference dock for this word once the editor is ready. */
   initialReferenceWord?: string | null;
   /** When set with prototype chrome + column shell, portals the native-like note actions bar here. */
@@ -228,7 +225,6 @@ export default function CardFullEditable({
   scriptureChromePortalTarget = null,
   highlightChromePortalTarget = null,
   studyDockCarouselPortalTarget = null,
-  referenceChromePortalTarget = null,
   initialReferenceWord = null,
   collectionNavContext = DEFAULT_COLLECTION_NAV_CONTEXT,
   alwaysEditing = false,
@@ -277,6 +273,11 @@ export default function CardFullEditable({
   // Mirror hasChanges in a ref so the unmount cleanup can read the live value
   const hasChangesRef = useRef(hasChanges);
   hasChangesRef.current = hasChanges;
+  // True once the user has actually typed into this note (title or body) since it
+  // opened. Unlike hasLocalContentUpdate (also set by load-time HTML repair and
+  // post-save pill injection), this is a clean "real user edit" signal — used to
+  // guard against refetch-clobber re-seeds and to gate the local draft backstop.
+  const userEditedSinceOpenRef = useRef(false);
   // Mirror editorChromeMode so unmount cleanup isn't a stale closure
   const editorChromeModeRef = useRef(editorChromeMode);
   editorChromeModeRef.current = editorChromeMode;
@@ -633,6 +634,7 @@ export default function CardFullEditable({
   // Reset local-content flag when note changes so we accept new content from props
   useEffect(() => {
     hasLocalContentUpdate.current = false;
+    userEditedSinceOpenRef.current = false;
   }, [noteId]);
 
   useEffect(() => {
@@ -711,6 +713,12 @@ export default function CardFullEditable({
     if (needsPinUnlock) return;
     // Never clobber in-progress typing when autosave/refetch updates the title prop.
     if (document.activeElement === titleInputRef.current) return;
+    // Never clobber in-progress body edits. This effect re-runs when inputs like
+    // effectiveIsEditable (depends on isCurrentlyOffline), lockStateOverride, or
+    // resourceTitle/Description change — at which point it would re-seed editContent
+    // from the (possibly stale) `content` prop and silently drop unsaved typing.
+    if (userEditedSinceOpenRef.current) return;
+    if (editorInstanceRef.current && !editorInstanceRef.current.isDestroyed && editorInstanceRef.current.isFocused) return;
 
     const initialTitle =
       noteType === 'resource'
@@ -723,6 +731,30 @@ export default function CardFullEditable({
       noteType === 'resource' && !c.trim() && resourceDescription
         ? resourceDescription
         : repairHtmlForEditor(c);
+
+    // Crash/close/nav backstop: if a local draft for this note holds unsaved edits
+    // that differ from what the server returned, restore it instead of the server
+    // copy. Marking userEditedSinceOpenRef keeps the autosave debounce + draft
+    // writer alive so the restored content is persisted (and the draft cleared) on
+    // the next save. Degrades to last-write-wins in the rare multi-device case.
+    const draft = noteId ? getNoteDraft(noteId) : null;
+    if (
+      draft &&
+      !isEffectivelyEmptyPrototypeNote(draft.title, draft.content) &&
+      (repairHtmlForEditor(draft.content) !== initialContent || draft.title !== initialTitle)
+    ) {
+      hasLocalContentUpdate.current = true;
+      userEditedSinceOpenRef.current = true;
+      setEditTitle(draft.title);
+      setEditContent(repairHtmlForEditor(draft.content));
+      setIsTitleEditing(true);
+      setIsContentEditing(true);
+      setHasChanges(true);
+      window.dispatchEvent(new CustomEvent('toast', {
+        detail: { message: 'Restored unsaved changes', type: 'info' },
+      }));
+      return;
+    }
 
     setEditTitle(initialTitle);
     setEditContent(initialContent);
@@ -1693,6 +1725,7 @@ export default function CardFullEditable({
       editorInstanceRef.current,
       editContentRef.current,
     );
+    const saveNoteId = noteIdRef.current;
 
     // Recompute the auto collection from the live text so the suggested folder is
     // persisted alongside the autosave (otherwise it shows transiently then gets
@@ -1776,6 +1809,19 @@ export default function CardFullEditable({
         setDisplayContent(currentContent);
         setHasChanges(false);
       }
+
+      // The server now holds the content we just persisted, so the local draft
+      // backstop is redundant — clear it, unless the user has typed newer edits
+      // during the save (those stay drafted and the re-fire below will save them).
+      try {
+        const liveTitle = editTitleRef.current;
+        const liveContent = noteHtmlForSave(editorInstanceRef.current, editContentRef.current);
+        if (saveNoteId && liveTitle === currentTitle && liveContent === currentContent) {
+          clearNoteDraft(saveNoteId);
+        }
+      } catch {
+        /* ignore */
+      }
     } catch {
       // Restore last-saved so the next attempt retries the full content
       protoLastSavedRef.current = prevLast;
@@ -1820,6 +1866,29 @@ export default function CardFullEditable({
     protoSaveAsync,
   ]);
 
+  // Durable draft backstop: persist unsaved edits locally on a tight debounce
+  // (well under the 700ms network autosave) so a close / crash / nav inside the
+  // autosave window is recoverable on next open. Gated on a real user edit so a
+  // pure note-open seed never writes a draft. Cleared on confirmed save.
+  useEffect(() => {
+    if (editorChromeMode !== 'prototypeNative') return;
+    if (!effectiveIsEditable) return;
+    if (!userEditedSinceOpenRef.current) return;
+    const id = noteIdRef.current;
+    if (!id || readOnlyLikeScriptureRef.current) return;
+
+    const timerId = window.setTimeout(() => {
+      const titleNow = editTitleRef.current;
+      const contentNow = noteHtmlForSave(editorInstanceRef.current, editContentRef.current);
+      if (isEffectivelyEmptyPrototypeNote(titleNow, contentNow)) {
+        clearNoteDraft(id);
+        return;
+      }
+      saveNoteDraft(id, { title: titleNow, content: contentNow });
+    }, 250);
+    return () => window.clearTimeout(timerId);
+  }, [editorChromeMode, effectiveIsEditable, editTitle, editContent]);
+
   // Unload-safe flush. The 700ms debounce + unmount cleanup both rely on async
   // fetches that the browser aborts mid-navigation, so a hard refresh / tab close
   // within the debounce window loses the edit. On pagehide / tab-hidden we send a
@@ -1836,6 +1905,13 @@ export default function CardFullEditable({
       const currentTitle = editTitleRef.current;
       const currentContent = noteHtmlForSave(editorInstanceRef.current, editContentRef.current);
       if (isEffectivelyEmptyPrototypeNote(currentTitle, currentContent)) return;
+
+      // Synchronous local backstop first — localStorage survives unload even when
+      // the keepalive PUT below is dropped, and it's the *only* recovery path for
+      // a brand-new (note_draft) note, which has no server id to PUT against.
+      if (userEditedSinceOpenRef.current) {
+        saveNoteDraft(departingNoteId, { title: currentTitle, content: currentContent });
+      }
 
       const chromeForSave = applyAutoCollectionAfterEdit(
         collectionChromeRef.current,
@@ -1976,6 +2052,7 @@ export default function CardFullEditable({
     if (editorChromeMode === 'prototypeNative') {
       hasLocalContentUpdate.current = true;
     }
+    userEditedSinceOpenRef.current = true;
     setEditContent(newContent);
     setHasChanges(editTitle !== displayTitle || newContent !== displayContent);
   };
@@ -2014,6 +2091,7 @@ export default function CardFullEditable({
     const newValue = e.target.value.slice(0, TITLE_HARD_LIMIT); // Enforce hard limit
     e.target.style.height = '0px';
     e.target.style.height = `${Math.max(TITLE_SINGLE_ROW_MIN_HEIGHT_PX, e.target.scrollHeight)}px`;
+    userEditedSinceOpenRef.current = true;
     setEditTitle(newValue);
     setHasChanges(newValue !== displayTitle || editContent !== displayContent);
   };
@@ -2435,9 +2513,6 @@ export default function CardFullEditable({
                       highlightChromePortalTarget={
                         editorChromeMode === 'prototypeNative' ? highlightChromePortalTarget : null
                       }
-                      referenceChromePortalTarget={
-                        editorChromeMode === 'prototypeNative' ? referenceChromePortalTarget : null
-                      }
                       initialReferenceWord={editorChromeMode === 'prototypeNative' ? initialReferenceWord : null}
                       prototypeScripturePillOpenRequest={
                         editorChromeMode === 'prototypeNative' ? prototypeScripturePillOpenRequest : null
@@ -2814,9 +2889,6 @@ export default function CardFullEditable({
                     }
                     highlightChromePortalTarget={
                       editorChromeMode === 'prototypeNative' ? highlightChromePortalTarget : null
-                    }
-                    referenceChromePortalTarget={
-                      editorChromeMode === 'prototypeNative' ? referenceChromePortalTarget : null
                     }
                     initialReferenceWord={editorChromeMode === 'prototypeNative' ? initialReferenceWord : null}
                     prototypeScripturePillOpenRequest={

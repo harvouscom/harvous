@@ -271,7 +271,7 @@ export default function PrototypeFolderTagEditor({
             }}
             aria-label="Primary folder"
           />
-          <div className="proto-fte-field__actions">
+          <div className="proto-fte-field__actions proto-fte-action-pair">
             <button
               type="button"
               className="proto-fte-field__btn proto-fte-field__btn--apply"
@@ -303,24 +303,26 @@ export default function PrototypeFolderTagEditor({
               <div key={label} className="proto-fte-row">
                 <Icon name="folder" size={13} className="proto-fte-row__icon" aria-hidden />
                 <span className="proto-fte-row__label">{label}</span>
-                <button
-                  type="button"
-                  className="proto-fte-row__btn"
-                  onClick={() => promoteSecondary(label)}
-                  title={`Make ${label} the primary folder`}
-                  aria-label={`Make ${label} the primary folder`}
-                >
-                  <Icon name="star" size={13} aria-hidden />
-                </button>
-                <button
-                  type="button"
-                  className="proto-fte-row__btn proto-fte-row__btn--danger"
-                  onClick={() => removeSecondary(label)}
-                  title={`Remove ${label}`}
-                  aria-label={`Remove ${label}`}
-                >
-                  <Icon name="circle-minus" size={13} aria-hidden />
-                </button>
+                <div className="proto-fte-action-pair">
+                  <button
+                    type="button"
+                    className="proto-fte-row__btn"
+                    onClick={() => promoteSecondary(label)}
+                    title={`Make ${label} the primary folder`}
+                    aria-label={`Make ${label} the primary folder`}
+                  >
+                    <Icon name="star" size={13} aria-hidden />
+                  </button>
+                  <button
+                    type="button"
+                    className="proto-fte-row__btn proto-fte-row__btn--danger"
+                    onClick={() => removeSecondary(label)}
+                    title={`Remove ${label}`}
+                    aria-label={`Remove ${label}`}
+                  >
+                    <Icon name="minus" size={13} aria-hidden />
+                  </button>
+                </div>
               </div>
             ))}
           </div>
@@ -345,7 +347,7 @@ export default function PrototypeFolderTagEditor({
             }}
             aria-label="Add secondary folder"
           />
-          <div className="proto-fte-field__actions">
+          <div className="proto-fte-field__actions proto-fte-action-pair">
             <button
               type="button"
               className="proto-fte-field__btn proto-fte-field__btn--apply"

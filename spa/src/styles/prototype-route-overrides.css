@@ -138,11 +138,28 @@ html.harvous-prototype-route button[class*='proto-'].proto-settings-btn--seconda
   color: var(--pds-text-primary) !important;
 }
 
+/* Folder row actions — muted icons; accent / destructive on hover only (no chip background) */
+html.harvous-prototype-route .proto-fte-row__btn,
+html.harvous-prototype-route .proto-fte-row__btn * {
+  color: var(--pds-text-secondary) !important;
+  fill: currentColor !important;
+}
+
+html.harvous-prototype-route .proto-fte-row__btn:hover,
+html.harvous-prototype-route .proto-fte-row__btn:hover * {
+  color: var(--pds-accent) !important;
+  fill: currentColor !important;
+}
+
+html.harvous-prototype-route .proto-fte-row__btn--danger:hover,
+html.harvous-prototype-route .proto-fte-row__btn--danger:hover * {
+  color: var(--pds-destructive) !important;
+  fill: currentColor !important;
+}
+
 /* Destructive rows / actions */
 html.harvous-prototype-route .proto-note-row--destructive,
 html.harvous-prototype-route .proto-note-row--destructive *,
-html.harvous-prototype-route .proto-fte-row__btn--danger,
-html.harvous-prototype-route .proto-fte-row__btn--danger *,
 html.harvous-prototype-route button.proto-menu-item--destructive,
 html.harvous-prototype-route button.proto-menu-item--destructive *,
 html.harvous-prototype-route button.proto-menu-item--destructive span,

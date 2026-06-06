@@ -278,6 +278,12 @@ struct IOSDictionaryHubView: View {
                     .navigationBarTitleDisplayMode(.inline)
                     .toolbar {
                         ToolbarItem(placement: .topBarLeading) {
+                            SpaceSwitcherView()
+                        }
+                        if #available(iOS 26, *) {
+                            ToolbarSpacer(.fixed, placement: .topBarLeading)
+                        }
+                        ToolbarItem(placement: .topBarLeading) {
                             Button {
                                 withAnimation(.easeOut(duration: 0.22)) {
                                     drilledSlug = nil
@@ -303,6 +309,10 @@ struct IOSDictionaryHubView: View {
                             }
                             .buttonStyle(.plain)
                             .accessibilityLabel("Back to dictionary")
+                        }
+                        HarvousIOSProfileToolbarTrailingItem {
+                            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                            appRouter.selectIOSListSurface(.more)
                         }
                     }
                     .transition(.move(edge: .trailing).combined(with: .opacity))

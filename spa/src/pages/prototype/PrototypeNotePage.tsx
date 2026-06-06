@@ -75,7 +75,6 @@ export default function PrototypeNotePage() {
     dismissStandaloneScripturePassage,
     formatToolbarHostEl,
     studyDockCarouselHostEl,
-    referenceChromeHostEl,
     setEditorChromeMode,
   } = useProtoShell();
 
@@ -594,7 +593,6 @@ export default function PrototypeNotePage() {
                 editorChromeMode="prototypeNative"
                 formatToolbarPortalTarget={formatToolbarHostEl}
                 studyDockCarouselPortalTarget={studyDockCarouselHostEl}
-                referenceChromePortalTarget={referenceChromeHostEl}
                 initialReferenceWord={initialReferenceWord || null}
                 onPrototypeChromeModeChange={setEditorChromeMode}
                 initialPrimaryCollection={editorNote.primaryCollection ?? null}

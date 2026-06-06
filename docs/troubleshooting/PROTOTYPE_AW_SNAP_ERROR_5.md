@@ -16,23 +16,26 @@ Chrome shows **Aw, Snap!** with **Error code: 5** on `/prototype` shortly after 
    - Crash stops → wallpaper / compositor path.
    - Still crashes → check Network and Memory (below).
 2. **Inspect `<html>` classes**: On `/prototype` expect `harvous-prototype-route` always. **Paper** adds no wallpaper class. **Solid color presets** add `harvous-proto-wallpaper-color` (canvas var + hue-tinted borders). **Image wallpapers** add `harvous-proto-wallpaper-image` (and `harvous-proto-wallpaper`), not the color class. Stale classes after an upgrade — hard refresh or re-pick the preset in Appearance.
-3. **Computed style**: `.proto-shell__sidebar-cell` should have `backdrop-filter: none` on `/prototype`. **Image wallpaper** may set `backdrop-filter` on `.proto-shell` only (one layer); if Aw Snap returns, remove image blur or reset wallpaper.
+3. **Computed style**: `.proto-shell-frame` should have a single primary `backdrop-filter: var(--pds-glass-blur)`. Inner `.proto-shell` grid should be `background: transparent` (no second full-shell blur). Panel glass (sidebar, inspector, format bar) and elevated cards (daily passage, collection cards) add their own tiered blur — if Aw Snap returns, dial back `--pds-glass-blur-elevated` on floating cards first, then panel blur. Mobile drawer applies blur on the drawer **cell** only (inner `.proto-sidebar-root` blur is disabled to avoid stacking).
 4. **Network ~crash time**: `/api/navigation/data`, `/api/spaces/.../notes`, `/api/sync/bootstrap` or `/api/sync/changes` — failures are separate from Aw Snap; huge note bodies in list responses can spike memory (list API truncates content; see `NOTE_LIST_CONTENT_MAX_CHARS` in [server/utils/dashboard-data.ts](../../server/utils/dashboard-data.ts)).
 5. **Optional**: Disable Chrome hardware acceleration once; if Aw Snap disappears, treat as GPU/compositor.
+6. **`prefers-reduced-transparency`**: blur tokens are set to `none` — if a crash only happens with transparency enabled, treat as compositor / stacked blur.
 
 ## Code references (fixes)
 
 | Area | File |
 |------|------|
 | Wallpaper classes (color vs image) | [spa/src/lib/prototype-background.ts](../../spa/src/lib/prototype-background.ts) |
-| Shell / no blur on prototype route | [spa/src/styles/prototype-shell.css](../../spa/src/styles/prototype-shell.css) |
+| Tiered blur tokens | [spa/src/styles/prototype-tokens.css](../../spa/src/styles/prototype-tokens.css) (`--pds-glass-blur*`) |
+| Shell frame + panel glass | [spa/src/styles/prototype-shell.css](../../spa/src/styles/prototype-shell.css) |
+| Shared glass recipe | [spa/src/styles/prototype-components.css](../../spa/src/styles/prototype-components.css) (`.proto-glass-surface`) |
 | Skip IndexedDB sync on prototype | [src/utils/sync-init.ts](../../src/utils/sync-init.ts) (`isPrototypeShellRoute`) |
 | Light list refresh after sync / tab focus | [spa/src/lib/refresh-client-data.ts](../../spa/src/lib/refresh-client-data.ts) (`refreshPrototypeLists`), [spa/src/layouts/SimplifiedPrototypeLayout.tsx](../../spa/src/layouts/SimplifiedPrototypeLayout.tsx) |
 | Canvas attachment guard | [spa/src/styles/prototype-tokens.css](../../spa/src/styles/prototype-tokens.css) |
 
 ## Delayed crash (~30s) on color preset only
 
-If **Paper** is stable but **Cream / other presets** crash around **30 seconds**, that often lines up with React Query refetch (`staleTime: 30s` on navigation/space notes) while semi-transparent UI still had `backdrop-filter` over the colored `html` canvas (e.g. daily passage pill dismiss chip). Fixes: no `backdrop-filter` in prototype CSS (including `html.harvous-prototype-route [class*='proto-']`), no `translateZ(0)` on `.proto-shell-frame`. Color presets may use `harvous-proto-wallpaper-color` for border hue and opaque popovers — that class does not re-enable blur.
+If **Paper** is stable but **Cream / other presets** crash around **30 seconds**, that often lines up with React Query refetch (`staleTime: 30s` on navigation/space notes) while semi-transparent UI with `backdrop-filter` sits over the colored `html` canvas. Mitigations in place: tiered blur tokens, one primary blur on `.proto-shell-frame`, no `translateZ(0)` on `.proto-shell-frame`, mobile drawer avoids double blur on sidebar root. Color presets use `harvous-proto-wallpaper-color` for border hue; popovers stay opaque (`--pds-bg-popover-solid`).
 
 ## Related
 

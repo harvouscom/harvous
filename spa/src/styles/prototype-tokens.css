@@ -191,7 +191,7 @@
   --pds-bg-glass-light: oklch(var(--pds-lch-bg-glass-light));
   --pds-bg-glass-strong: oklch(var(--pds-lch-bg-glass-strong));
   --pds-bg-glass-toolbar: oklch(var(--pds-lch-bg-glass-toolbar));
-  /* Faked liquid glass — tint from canvas color so presets read on the shell (no backdrop-filter) */
+  /* Liquid glass — canvas tint + tiered backdrop-filter (see html.harvous-prototype-route tokens). */
   --pds-glass-shell: color-mix(
     in oklch,
     var(--pds-canvas-bg, var(--pds-canvas-default)) 52%,
@@ -353,6 +353,18 @@
 /* Prototype chrome — no inset top highlight (read as outer shell top border). */
 html.harvous-prototype-route {
   --pds-glass-rim: inset 0 -0.5px 0 oklch(0% 0 0 / 0.04);
+  /* Tiered blur — shell frame, panels, elevated cards, toolbar orbs (prototype-shell.css). */
+  --pds-glass-blur: blur(24px) saturate(1.2);
+  --pds-glass-blur-elevated: blur(16px) saturate(1.15);
+  --pds-glass-blur-control: blur(10px) saturate(1.1);
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  html.harvous-prototype-route {
+    --pds-glass-blur: none;
+    --pds-glass-blur-elevated: none;
+    --pds-glass-blur-control: none;
+  }
 }
 
 /* Paper (base) + color preset — darker lines in light mode, more visible alpha. */

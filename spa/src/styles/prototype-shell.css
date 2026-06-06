@@ -30,9 +30,8 @@
     var(--proto-sidebar-w, var(--pds-sidebar-w)),
     var(--pds-sidebar-max-w)
   );
-  /* One uniform glass layer for the whole interior (cells are transparent) so the
-     area behind the sidebar reads as a single surface — no per-cell seams/bands. */
-  background: var(--pds-glass-shell);
+  /* Transparent — shell frame carries the primary blur; inner grid has no stacked backdrop-filter. */
+  background: transparent;
   display: grid;
   grid-template-rows: var(--pds-toolbar-h) minmax(0, 1fr);
   grid-template-columns: var(--proto-sidebar-w-clamped) minmax(0, 1fr);
@@ -51,7 +50,8 @@
   /* Sits behind the sidebar card (see .proto-shell__sidebar-cell z-index). */
   position: relative;
   z-index: 1;
-  background: var(--pds-glass-shell);
+  /* Transparent — shell frame blur shows through. */
+  background: transparent;
 }
 
 /* Full-width study docks — float above the format bar, span sidebar + main (native parity). */
@@ -351,31 +351,8 @@ html.harvous-prototype-route .proto-shell__toolbar-cell::after {
   min-height: 0;
   display: flex;
   flex-direction: column;
-  position: relative;
-  isolation: isolate;
   border-radius: var(--pds-shell-frame-radius);
-  background: var(--pds-bg-page);
-  box-shadow: var(--pds-paper-shadow-subtle), var(--pds-glass-rim);
   overflow: hidden;
-}
-
-.proto-sidebar-root::before {
-  display: none;
-}
-
-.proto-sidebar-root::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  background: var(--pds-glass-sheen);
-  pointer-events: none;
-  z-index: 0;
-}
-
-.proto-sidebar-root > * {
-  position: relative;
-  z-index: 1;
 }
 
 .proto-sidebar-scroll {
@@ -563,20 +540,25 @@ html.harvous-prototype-route .proto-shell__toolbar-cell::after {
     padding: 0;
     border-radius: var(--pds-shell-frame-radius);
     box-shadow: var(--pds-shadow-drawer), var(--pds-glass-rim);
-    background: var(--pds-bg-page);
+    background: var(--pds-glass-shell);
+    -webkit-backdrop-filter: var(--pds-glass-blur);
+    backdrop-filter: var(--pds-glass-blur);
   }
 
   .proto-shell__sidebar-resize-handle {
     display: none !important;
   }
 
-  /* Drawer cell is the glass card on mobile — inner root stays transparent. */
+  /* Drawer cell is the glass card on mobile — inner root stays transparent (no stacked blur). */
   .proto-shell__sidebar-cell.proto-shell-drawer-sidebar .proto-sidebar-root {
     background: transparent;
     box-shadow: none;
     border-radius: 0;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
   }
 
+  .proto-shell__sidebar-cell.proto-shell-drawer-sidebar .proto-sidebar-root::before,
   .proto-shell__sidebar-cell.proto-shell-drawer-sidebar .proto-sidebar-root::after {
     display: none;
   }
@@ -677,7 +659,6 @@ html.harvous-prototype-route .proto-shell__toolbar-cell::after {
     width: min(340px, calc(92vw - 16px));
     z-index: 160;
     border-radius: var(--pds-shell-frame-radius);
-    background: var(--pds-bg-page);
     box-shadow: var(--pds-shadow-drawer);
     overflow-y: auto;
     display: flex;
@@ -882,35 +863,23 @@ html.harvous-proto-wallpaper-image .proto-shell-frame {
 }
 
 /*
- * Image wallpaper: blur the html canvas on the frame (one layer). Inner grid stays
- * transparent so we do not stack backdrop-filters (GPU — see PROTOTYPE_AW_SNAP_ERROR_5).
+ * Shell frame: one primary blur layer for canvas bleed-through (all prototype modes).
+ * Inner grid stays transparent so we do not stack backdrop-filters (GPU — see PROTOTYPE_AW_SNAP_ERROR_5).
  */
-html.harvous-proto-wallpaper-image .proto-shell-frame {
+html.harvous-prototype-route .proto-shell-frame {
   isolation: auto;
   background: var(--pds-glass-shell);
   backdrop-filter: var(--pds-glass-blur);
   -webkit-backdrop-filter: var(--pds-glass-blur);
 }
 
-html.harvous-proto-wallpaper-image .proto-shell {
+html.harvous-prototype-route .proto-shell {
   background: transparent;
 }
 
-html.harvous-proto-wallpaper-image .proto-sidebar-root {
-  background: var(--pds-bg-page);
-  box-shadow: var(--pds-paper-shadow-subtle);
-}
-
-html.harvous-proto-wallpaper-image .proto-sidebar-root::before {
-  display: none;
-}
-
-html.harvous-proto-wallpaper-image .proto-shell__toolbar-cell,
-html.harvous-proto-wallpaper-image .proto-shell__footer-cell {
-  background: transparent;
-}
-
-html.harvous-proto-wallpaper-image .proto-shell__editor-chrome-row {
+html.harvous-prototype-route .proto-shell__toolbar-cell,
+html.harvous-prototype-route .proto-shell__footer-cell,
+html.harvous-prototype-route .proto-shell__editor-chrome-row {
   background: transparent;
 }
 
@@ -920,7 +889,7 @@ html.harvous-proto-wallpaper-image .proto-editor-bottom-bar {
 }
 
 @media (prefers-reduced-transparency: reduce) {
-  html.harvous-proto-wallpaper-image .proto-shell-frame {
+  html.harvous-prototype-route .proto-shell-frame {
     backdrop-filter: none;
     -webkit-backdrop-filter: none;
   }
@@ -929,14 +898,6 @@ html.harvous-proto-wallpaper-image .proto-editor-bottom-bar {
 .proto-popover-shell__content {
   position: relative;
   z-index: 1;
-}
-
-/* Floating side panels — opaque cards (not glass-shell / toolbar alpha). */
-html.harvous-prototype-route .proto-sidebar-root,
-html.harvous-prototype-route .proto-inspector-desktop,
-html.harvous-prototype-route .proto-inspector-mobile-panel {
-  background: var(--pds-bg-page);
-  background-image: none;
 }
 
 /* Menus / popovers — opaque surfaces (glass shell must not show through). */
@@ -1006,20 +967,10 @@ html.harvous-proto-wallpaper-color .proto-fte-section__label--plain {
   color: var(--pds-text-on-chrome-muted);
 }
 
-/* /prototype: no backdrop-filter except single shell layer on image wallpaper. */
-html.harvous-prototype-route [class*='proto-'],
-html.harvous-prototype-route .pds-native-selection-bar {
-  backdrop-filter: none !important;
-  -webkit-backdrop-filter: none !important;
-}
-
-html.harvous-prototype-route.harvous-proto-wallpaper-image .proto-shell-frame {
-  backdrop-filter: var(--pds-glass-blur) !important;
-  -webkit-backdrop-filter: var(--pds-glass-blur) !important;
-}
-
 html.harvous-prototype-route .proto-editor-bottom-bar {
   background-color: var(--pds-glass-shell);
   background-image: linear-gradient(var(--pds-glass-bar-frost), var(--pds-glass-bar-frost));
   box-shadow: var(--pds-glass-rim);
+  -webkit-backdrop-filter: var(--pds-glass-blur);
+  backdrop-filter: var(--pds-glass-blur);
 }

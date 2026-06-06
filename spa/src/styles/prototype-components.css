@@ -3,6 +3,79 @@
  * No SPA CSS variables referenced.
  */
 
+/* ─── Glass surface recipe (tiered backdrop-filter — see prototype-tokens.css) ─ */
+.proto-glass-surface,
+.proto-daily-passage-pill,
+.proto-collection-card,
+.proto-migration-notice__card,
+.proto-sidebar-root,
+.proto-inspector-desktop,
+.proto-inspector-mobile-panel {
+  position: relative;
+  isolation: isolate;
+  background: var(--pds-glass-shell);
+  box-shadow: var(--pds-paper-shadow-subtle, none), var(--pds-glass-rim);
+  -webkit-backdrop-filter: var(--proto-glass-blur, var(--pds-glass-blur-elevated));
+  backdrop-filter: var(--proto-glass-blur, var(--pds-glass-blur-elevated));
+}
+
+.proto-glass-surface::before,
+.proto-daily-passage-pill::before,
+.proto-collection-card::before,
+.proto-migration-notice__card::before,
+.proto-sidebar-root::before,
+.proto-inspector-desktop::before,
+.proto-inspector-mobile-panel::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--pds-glass-panel-frost);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.proto-glass-surface::after,
+.proto-daily-passage-pill::after,
+.proto-collection-card::after,
+.proto-migration-notice__card::after,
+.proto-sidebar-root::after,
+.proto-inspector-desktop::after,
+.proto-inspector-mobile-panel::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--pds-glass-sheen);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.proto-glass-surface > *,
+.proto-daily-passage-pill > *,
+.proto-collection-card > *,
+.proto-migration-notice__card > *,
+.proto-sidebar-root > *,
+.proto-inspector-desktop > *,
+.proto-inspector-mobile-panel > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* Panel-tier glass (sidebar, inspector). */
+.proto-glass-surface--panel,
+.proto-sidebar-root,
+.proto-inspector-desktop,
+.proto-inspector-mobile-panel {
+  --proto-glass-blur: var(--pds-glass-blur);
+}
+
+/* Small toolbar controls. */
+.proto-glass-surface--control {
+  --proto-glass-blur: var(--pds-glass-blur-control);
+  box-shadow: none;
+}
+
 /* ─── Toolbar ────────────────────────────────────────────────────────────── */
 .proto-toolbar-inner {
   display: flex;
@@ -92,6 +165,8 @@ html[data-shift-hints='1'] .proto-toolbar-orb-group {
   border-radius: var(--pds-radius-pill);
   border: 0.5px solid var(--pds-border-control);
   background: var(--pds-bg-glass-medium);
+  -webkit-backdrop-filter: var(--pds-glass-blur-control);
+  backdrop-filter: var(--pds-glass-blur-control);
   cursor: pointer;
   /* Match `.proto-note-action-bar__pill--connect` label styling */
   color: var(--pds-text-secondary);
@@ -166,6 +241,8 @@ html[data-shift-hints='1'] .proto-toolbar-orb-group {
   border-radius: var(--pds-radius-pill);
   border: 0.5px solid var(--pds-border-control);
   background: var(--pds-bg-glass-medium);
+  -webkit-backdrop-filter: var(--pds-glass-blur-control);
+  backdrop-filter: var(--pds-glass-blur-control);
   cursor: pointer;
   color: var(--pds-text-primary) !important;
   /* Beat global.css `button { font-family: var(--font-sans) !important }` (Reddit Sans). */
@@ -284,6 +361,8 @@ html[data-shift-hints='1'] .proto-toolbar-orb-group {
   border-radius: var(--pds-radius-pill);
   border: 0.5px solid var(--pds-border-control);
   background: var(--pds-bg-glass-medium);
+  -webkit-backdrop-filter: var(--pds-glass-blur-control);
+  backdrop-filter: var(--pds-glass-blur-control);
   cursor: pointer;
   color: var(--pds-text-primary);
   font-family: var(--pds-font-body);
@@ -1227,11 +1306,9 @@ html.harvous-proto-wallpaper-color .proto-sidebar-search__field:focus-within {
   /* Above shell editor chrome row (dock layer) so the panel stays interactive at the bottom. */
   z-index: 20;
   border-radius: var(--pds-shell-frame-radius);
-  background: var(--pds-bg-page);
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  box-shadow: var(--pds-paper-shadow-subtle);
   animation: proto-inspector-desktop-in var(--pds-inspector-transition-duration) var(--pds-inspector-transition-ease) both;
 }
 
@@ -1418,6 +1495,9 @@ html.harvous-proto-wallpaper-color .proto-sidebar-search__field:focus-within {
 
 /* ─── Folder + tag editor ────────────────────────────────────────────────── */
 .proto-folder-tag-editor {
+  --proto-fte-action-size: 26px;
+  --proto-fte-action-gap: 6px;
+  --proto-fte-action-inset: 2px;
   display: flex;
   flex-direction: column;
   gap: 14px;
@@ -1499,7 +1579,6 @@ html.harvous-proto-wallpaper-color .proto-sidebar-search__field:focus-within {
 }
 
 .proto-fte-field {
-  position: relative;
   display: flex;
   align-items: center;
   width: 100%;
@@ -1524,7 +1603,7 @@ html.harvous-proto-wallpaper-color .proto-fte-field:focus-within {
   flex: 1;
   min-width: 0;
   height: 100%;
-  padding: 0 60px 0 12px;
+  padding: 0 8px 0 12px;
   border: none;
   background: transparent;
   font-family: var(--pds-font-body);
@@ -1537,22 +1616,25 @@ html.harvous-proto-wallpaper-color .proto-fte-field:focus-within {
   color: var(--pds-text-tertiary);
 }
 
-.proto-fte-field__actions {
-  position: absolute;
-  right: 5px;
-  top: 50%;
-  transform: translateY(-50%);
+.proto-fte-action-pair {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: var(--proto-fte-action-gap);
+  flex-shrink: 0;
+  padding-right: var(--proto-fte-action-inset);
+}
+
+.proto-fte-field__actions {
+  display: inline-flex;
+  align-items: center;
 }
 
 .proto-fte-field__btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 24px;
-  height: 24px;
+  width: var(--proto-fte-action-size);
+  height: var(--proto-fte-action-size);
   padding: 0;
   border: none;
   border-radius: 7px;
@@ -1602,7 +1684,7 @@ html.harvous-proto-wallpaper-color .proto-fte-field:focus-within {
   align-items: center;
   gap: 8px;
   min-height: 32px;
-  padding: 4px 2px;
+  padding: 4px 0 4px 2px;
 }
 
 .proto-fte-row__icon {
@@ -1626,8 +1708,8 @@ html.harvous-proto-wallpaper-color .proto-fte-field:focus-within {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 26px;
-  height: 26px;
+  width: var(--proto-fte-action-size);
+  height: var(--proto-fte-action-size);
   padding: 0;
   border: none;
   border-radius: 6px;
@@ -1638,13 +1720,14 @@ html.harvous-proto-wallpaper-color .proto-fte-field:focus-within {
 }
 
 .proto-fte-row__btn:hover {
-  background: var(--pds-bg-chip);
+  background: transparent;
+  color: var(--pds-accent);
   opacity: 1;
 }
 
 .proto-fte-row__btn--danger:hover {
-  background: var(--pds-destructive-bg);
-  color: rgb(220, 38, 38);
+  background: transparent;
+  color: var(--pds-destructive);
 }
 
 .proto-fte-lock {
@@ -3106,45 +3189,14 @@ html.harvous-prototype-route .proto-editor-empty-state h2.proto-editor-empty-sta
 }
 
 .proto-daily-passage-pill {
-  position: relative;
-  isolation: isolate;
   display: block;
   width: 100%;
   padding: 9px 12px 8px;
   border-radius: 14px;
   border: 0.5px solid var(--pds-border-control);
-  background: var(--pds-glass-shell);
-  box-shadow: var(--pds-paper-shadow-subtle), var(--pds-glass-rim);
   text-align: left;
   /* Wrapper is `pointer-events: none` so the list scrolls/clicks through; re-enable the card. */
   pointer-events: auto;
-  -webkit-backdrop-filter: blur(12px);
-  backdrop-filter: blur(12px);
-}
-
-.proto-daily-passage-pill::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  background: var(--pds-glass-panel-frost);
-  pointer-events: none;
-  z-index: 0;
-}
-
-.proto-daily-passage-pill::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  background: var(--pds-glass-sheen);
-  pointer-events: none;
-  z-index: 0;
-}
-
-.proto-daily-passage-pill > * {
-  position: relative;
-  z-index: 1;
 }
 
 .proto-daily-passage-pill__dismiss {
@@ -3160,6 +3212,8 @@ html.harvous-prototype-route .proto-editor-empty-state h2.proto-editor-empty-sta
   border-radius: 999px;
   background: var(--pds-glass-shell);
   box-shadow: var(--pds-glass-rim);
+  -webkit-backdrop-filter: var(--pds-glass-blur-control);
+  backdrop-filter: var(--pds-glass-blur-control);
   font-family: var(--pds-font-body);
   font-size: 11px;
   font-weight: 500;
@@ -3251,8 +3305,6 @@ html.harvous-prototype-route .proto-editor-empty-state h2.proto-editor-empty-sta
 }
 
 .proto-collection-card {
-  position: relative;
-  isolation: isolate;
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -3261,8 +3313,6 @@ html.harvous-prototype-route .proto-editor-empty-state h2.proto-editor-empty-sta
   padding: 10px 11px;
   border-radius: 13px;
   border: 0.5px solid var(--pds-border-control);
-  background: var(--pds-glass-shell);
-  box-shadow: var(--pds-paper-shadow-subtle), var(--pds-glass-rim);
   text-align: left;
   cursor: pointer;
   transition:
@@ -3273,31 +3323,6 @@ html.harvous-prototype-route .proto-editor-empty-state h2.proto-editor-empty-sta
   font-family: var(--pds-font-body) !important;
   font-weight: 400 !important;
   color: var(--pds-text-primary) !important;
-}
-
-.proto-collection-card::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  background: var(--pds-glass-panel-frost);
-  pointer-events: none;
-  z-index: 0;
-}
-
-.proto-collection-card::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  background: var(--pds-glass-sheen);
-  pointer-events: none;
-  z-index: 0;
-}
-
-.proto-collection-card > * {
-  position: relative;
-  z-index: 1;
 }
 
 .proto-collection-card:hover {
@@ -3782,6 +3807,8 @@ html.harvous-prototype-route .proto-confirm-dialog h2.proto-confirm-dialog__titl
     transparent
   );
   box-shadow: var(--pds-shadow-shell), var(--pds-glass-rim);
+  -webkit-backdrop-filter: var(--pds-glass-blur);
+  backdrop-filter: var(--pds-glass-blur);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -3796,8 +3823,8 @@ html.harvous-prototype-route .proto-confirm-dialog h2.proto-confirm-dialog__titl
 
 .proto-appearance-preview--image .proto-appearance-preview__shell {
   background: oklch(var(--pds-lch-bg-page) / 0.34);
-  backdrop-filter: blur(8px) saturate(1.15);
   -webkit-backdrop-filter: blur(8px) saturate(1.15);
+  backdrop-filter: blur(8px) saturate(1.15);
 }
 
 .proto-appearance-preview__shell::after {
@@ -4266,44 +4293,13 @@ html.harvous-prototype-route .proto-confirm-dialog h2.proto-confirm-dialog__titl
 
 /* Classic → 2.0 migration notice (floating glass card, daily-passage parity) */
 .proto-migration-notice__card {
-  position: relative;
-  isolation: isolate;
   display: block;
   width: 100%;
   padding: 9px 12px 8px;
   border-radius: 14px;
   border: 0.5px solid var(--pds-border-control);
-  background: var(--pds-glass-shell);
-  box-shadow: var(--pds-paper-shadow-subtle), var(--pds-glass-rim);
   text-align: left;
   pointer-events: auto;
-  -webkit-backdrop-filter: blur(12px);
-  backdrop-filter: blur(12px);
-}
-
-.proto-migration-notice__card::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  background: var(--pds-glass-panel-frost);
-  pointer-events: none;
-  z-index: 0;
-}
-
-.proto-migration-notice__card::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  background: var(--pds-glass-sheen);
-  pointer-events: none;
-  z-index: 0;
-}
-
-.proto-migration-notice__card > * {
-  position: relative;
-  z-index: 1;
 }
 
 .proto-migration-notice__dismiss {
@@ -4319,6 +4315,8 @@ html.harvous-prototype-route .proto-confirm-dialog h2.proto-confirm-dialog__titl
   border-radius: 999px;
   background: var(--pds-glass-shell);
   box-shadow: var(--pds-glass-rim);
+  -webkit-backdrop-filter: var(--pds-glass-blur-control);
+  backdrop-filter: var(--pds-glass-blur-control);
   font-family: var(--pds-font-body);
   font-size: 11px;
   font-weight: 500;

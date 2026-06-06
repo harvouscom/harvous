@@ -144,8 +144,6 @@ type ProtoShellContextValue = {
   setFormatToolbarHostEl: (el: HTMLDivElement | null) => void;
   studyDockCarouselHostEl: HTMLDivElement | null;
   setStudyDockCarouselHostEl: (el: HTMLDivElement | null) => void;
-  referenceChromeHostEl: HTMLDivElement | null;
-  setReferenceChromeHostEl: (el: HTMLDivElement | null) => void;
   /** Search route hides sidebar — chrome row skips the sidebar gutter pad. */
   hideSidebar: boolean;
   setHideSidebar: (hide: boolean) => void;
@@ -188,7 +186,6 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
   const [editorChromeMode, setEditorChromeMode] = useState<PrototypeEditorChromeMode>('hidden');
   const [formatToolbarHostEl, setFormatToolbarHostEl] = useState<HTMLDivElement | null>(null);
   const [studyDockCarouselHostEl, setStudyDockCarouselHostEl] = useState<HTMLDivElement | null>(null);
-  const [referenceChromeHostEl, setReferenceChromeHostEl] = useState<HTMLDivElement | null>(null);
   const [hideSidebar, setHideSidebar] = useState(false);
 
   useEffect(() => {
@@ -470,8 +467,6 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
       setFormatToolbarHostEl,
       studyDockCarouselHostEl,
       setStudyDockCarouselHostEl,
-      referenceChromeHostEl,
-      setReferenceChromeHostEl,
       hideSidebar,
       setHideSidebar,
     }),
@@ -514,7 +509,6 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
       editorChromeMode,
       formatToolbarHostEl,
       studyDockCarouselHostEl,
-      referenceChromeHostEl,
       hideSidebar,
     ],
   );

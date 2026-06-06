@@ -11,11 +11,10 @@ import { useEastonsSlugIndex, slugCandidates } from '../../hooks/useEastonsSlugI
 
 type Props = {
   slug: string;
-  onBack: () => void;
   onNavigateSlug: (slug: string) => void;
 };
 
-export default function PrototypeDictionaryEntry({ slug, onBack, onNavigateSlug }: Props) {
+export default function PrototypeDictionaryEntry({ slug, onNavigateSlug }: Props) {
   const entryQuery = useEastonsEntry(slug);
   const indexQuery = useEastonsSlugIndex();
   const entry = entryQuery.data;
@@ -32,13 +31,6 @@ export default function PrototypeDictionaryEntry({ slug, onBack, onNavigateSlug 
 
   return (
     <>
-      <div style={{ padding: '0 18px 8px' }}>
-        <button type="button" className="proto-sidebar-back-btn" onClick={onBack}>
-          <Icon name="chevron-left" size={10} />
-          Dictionary
-        </button>
-      </div>
-
       {entryQuery.isLoading ? (
         <p className="proto-caption" style={{ padding: '12px 18px' }}>Looking up…</p>
       ) : entryQuery.isError || !entry ? (

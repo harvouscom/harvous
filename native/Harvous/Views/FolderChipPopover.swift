@@ -30,12 +30,23 @@ struct FolderChipPopover: View {
             #endif
         }
 
-        /// Minimum tap/click target for "Also in" row actions (promote / remove).
-        static var folderRowActionExtent: CGFloat {
+        /// Shared extent for field trailing + "Also in" row actions (same on each platform).
+        static var actionButtonExtent: CGFloat {
             #if os(iOS)
-            48
+            44
             #else
-            34
+            26
+            #endif
+        }
+
+        static var actionPairSpacing: CGFloat { 6 }
+
+        /// Trailing inset for paired actions — matches web `--proto-fte-action-inset`.
+        static var actionTrailingInset: CGFloat {
+            #if os(iOS)
+            6
+            #else
+            2
             #endif
         }
 
@@ -63,22 +74,9 @@ struct FolderChipPopover: View {
             #endif
         }
 
-        /// Primary-field trailing chrome (check / clear).
-        static var trailButtonExtent: CGFloat {
-            #if os(iOS)
-            26
-            #else
-            26
-            #endif
-        }
-
-        /// Space reserved inside the primary `TextField` for trailing buttons (≈ two buttons + paddings).
+        /// Space reserved inside folder name fields for trailing action pair.
         static var primaryFieldTrailingReserve: CGFloat {
-            #if os(iOS)
-            76
-            #else
-            76
-            #endif
+            2 * actionButtonExtent + actionPairSpacing + actionTrailingInset
         }
 
         /// Tighter vertical stacking for "Also in" rows — applied per row alongside `alsoInRowsStackSpacing`.
@@ -118,6 +116,20 @@ struct FolderChipPopover: View {
         }
     }
 
+    /// Shared trailing pair layout for field chrome and "Also in" row actions.
+    private struct FolderEditorActionPair<Leading: View, Trailing: View>: View {
+        @ViewBuilder var leading: () -> Leading
+        @ViewBuilder var trailing: () -> Trailing
+
+        var body: some View {
+            HStack(spacing: Metrics.actionPairSpacing) {
+                leading()
+                trailing()
+            }
+            .padding(.trailing, Metrics.actionTrailingInset)
+        }
+    }
+
     /// Rounded capsule folder name field matching primary/add-secondary styling (`Metrics.fieldRowHeight`).
     private struct FolderNameChromeRow: View {
         @Binding var text: String
@@ -152,12 +164,12 @@ struct FolderChipPopover: View {
                     .strokeBorder(Color.primary.opacity(0.08), lineWidth: 1)
             )
             .overlay(alignment: .trailing) {
-                HStack(spacing: 10) {
+                FolderEditorActionPair {
                     Button {
                         onApply()
                     } label: {
                         HarvousFAGlyph(assetName: "Harvous.Check", edgePt: 11)
-                            .frame(width: Metrics.trailButtonExtent, height: Metrics.trailButtonExtent)
+                            .frame(width: Metrics.actionButtonExtent, height: Metrics.actionButtonExtent)
                     }
                     .buttonStyle(.plain)
                     .foregroundStyle(.white)
@@ -169,12 +181,12 @@ struct FolderChipPopover: View {
                     .accessibilityLabel(applyAccessibilityLabel)
                     .accessibilityHint(applyAccessibilityHint)
                     .disabled(applyDisabled)
-
+                } trailing: {
                     Button {
                         onClear()
                     } label: {
                         HarvousFAGlyph(assetName: "Harvous.Xmark", edgePt: 11)
-                            .frame(width: Metrics.trailButtonExtent, height: Metrics.trailButtonExtent)
+                            .frame(width: Metrics.actionButtonExtent, height: Metrics.actionButtonExtent)
                     }
                     .buttonStyle(.plain)
                     .foregroundStyle(.primary.opacity(0.85))
@@ -185,7 +197,6 @@ struct FolderChipPopover: View {
                     .help(clearHelp)
                     .accessibilityLabel(clearAccessibilityLabel)
                 }
-                .padding(.trailing, 6)
             }
         }
 
@@ -396,30 +407,30 @@ struct FolderChipPopover: View {
                             }
                             .labelStyle(.titleAndIcon)
                             Spacer(minLength: 12)
-                            HStack(spacing: 6) {
+                            FolderEditorActionPair {
                                 Button {
                                     promoteSecondaryToPrimary(label)
                                 } label: {
                                     HarvousFAGlyph(assetName: "Harvous.Star", edgePt: Metrics.glyphRowAction)
                                         .foregroundStyle(Color.secondary)
                                         .frame(
-                                            width: Metrics.folderRowActionExtent,
-                                            height: Metrics.folderRowActionExtent
+                                            width: Metrics.actionButtonExtent,
+                                            height: Metrics.actionButtonExtent
                                         )
                                         .contentShape(Rectangle())
                                 }
                                 .buttonStyle(.plain)
                                 .help("Make \(label) the primary folder")
                                 .accessibilityLabel("Make \(label) the primary folder")
-
+                            } trailing: {
                                 Button {
                                     removeSecondary(label)
                                 } label: {
                                     HarvousFAGlyph(assetName: "Harvous.CircleMinus", edgePt: Metrics.glyphRowAction)
                                         .foregroundStyle(.tertiary)
                                         .frame(
-                                            width: Metrics.folderRowActionExtent,
-                                            height: Metrics.folderRowActionExtent
+                                            width: Metrics.actionButtonExtent,
+                                            height: Metrics.actionButtonExtent
                                         )
                                         .contentShape(Rectangle())
                                 }

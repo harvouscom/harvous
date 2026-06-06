@@ -14,7 +14,8 @@ export default function ClerkPrebuiltAuth({
   const clerkFallbackUrl = postAuthClerkFallbackUrl(redirectPath);
 
   const shared = {
-    routing: 'hash' as const,
+    routing: 'path' as const,
+    path: mode === 'signIn' ? '/sign-in' : '/sign-up',
     fallbackRedirectUrl: clerkFallbackUrl,
     appearance: classicClerkAuthAppearance,
   };

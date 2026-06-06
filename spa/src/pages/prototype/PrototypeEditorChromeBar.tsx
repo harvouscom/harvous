@@ -6,15 +6,15 @@ import { useProtoShell } from '../../layouts/proto-shell-context';
  * so the bar reads as passing behind the sidebar; toolbar content is offset right
  * (see prototype-shell.css) so the controls clear the sidebar.
  *
- * Study docks (scripture / highlight / reference) portal into `.proto-shell__study-dock-layer`
- * above this bar — full shell width so the carousel extends behind the sidebar like native.
+ * Study docks (scripture / highlight / reference) all portal into the single carousel host
+ * inside `.proto-shell__study-dock-layer` above this bar — full shell width so the carousel
+ * extends behind the sidebar like native.
  */
 export default function PrototypeEditorChromeBar() {
   const {
     editorChromeMode,
     setFormatToolbarHostEl,
     setStudyDockCarouselHostEl,
-    setReferenceChromeHostEl,
   } = useProtoShell();
 
   const collapsed = editorChromeMode === 'hidden' || editorChromeMode === 'noteActions';
@@ -23,7 +23,6 @@ export default function PrototypeEditorChromeBar() {
     <div className="proto-shell__editor-chrome-row" data-mode={editorChromeMode}>
       <div className="proto-shell__study-dock-layer" aria-live="polite">
         <div ref={setStudyDockCarouselHostEl} className="proto-shell__study-dock-layer__slot" />
-        <div ref={setReferenceChromeHostEl} className="proto-shell__study-dock-layer__slot" />
       </div>
       <div
         className="proto-editor-bottom-bar"

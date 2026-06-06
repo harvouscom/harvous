@@ -771,7 +771,7 @@
   box-shadow: var(--shadow-small) !important;
 }
 
-/* OTP / email-code step — separate from 64px pill inputs (formFieldInput). */
+/* OTP / email-code step — clerk-js 5.125+ uses input-otp with visual segments. */
 .clerk-form-otp-field,
 .clerk-form-root .cl-otpCodeField,
 .clerk-form-card .cl-otpCodeField {
@@ -779,12 +779,18 @@
   max-width: 100% !important;
 }
 
-.clerk-form-otp-row,
-.clerk-form-root .cl-otpCodeFieldInputs,
-.clerk-form-card .cl-otpCodeFieldInputs,
 .clerk-form-otp-input-container,
 .clerk-form-root .cl-otpCodeFieldInputContainer,
 .clerk-form-card .cl-otpCodeFieldInputContainer {
+  position: relative !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+}
+
+.clerk-form-otp-row,
+.clerk-form-root .cl-otpCodeFieldInputs,
+.clerk-form-card .cl-otpCodeFieldInputs {
   display: flex !important;
   flex-wrap: nowrap !important;
   justify-content: center !important;
@@ -795,14 +801,18 @@
   box-sizing: border-box !important;
 }
 
+/* Segments (OTPInputSegment) — override global flex-shrink: 0 so row fits narrow cards. */
 .clerk-form-otp-input,
 .clerk-form-root .cl-otpCodeFieldInput,
 .clerk-form-card .cl-otpCodeFieldInput,
-.clerk-form-root [class*='cl-otpCodeFieldInput'],
-.clerk-form-card [class*='cl-otpCodeFieldInput'] {
-  flex: 0 0 auto !important;
+.clerk-form-root [class*='cl-otpCodeFieldInput']:not([class*='Container']):not([class*='Inputs']),
+.clerk-form-card [class*='cl-otpCodeFieldInput']:not([class*='Container']):not([class*='Inputs']),
+.clerk-form-root [data-testid='otp-input-segment'],
+.clerk-form-card [data-testid='otp-input-segment'] {
+  flex: 1 1 2.75rem !important;
+  flex-shrink: 1 !important;
   width: 2.75rem !important;
-  min-width: 2.75rem !important;
+  min-width: 2rem !important;
   max-width: 2.75rem !important;
   min-height: 3rem !important;
   height: 3rem !important;
@@ -815,41 +825,71 @@
   letter-spacing: 0.02em;
   border-radius: 0.75rem !important;
   background: var(--color-gradient-gray) !important;
-  border: none !important;
+  border: 1px solid transparent !important;
   box-shadow: var(--shadow-small) !important;
   outline: none !important;
   color: var(--color-deep-grey) !important;
   word-break: normal !important;
   overflow-wrap: normal !important;
   white-space: nowrap !important;
+  box-sizing: border-box !important;
+}
+
+@media (max-width: 400px) {
+  .clerk-form-otp-input,
+  .clerk-form-root .cl-otpCodeFieldInput,
+  .clerk-form-card .cl-otpCodeFieldInput,
+  .clerk-form-root [data-testid='otp-input-segment'],
+  .clerk-form-card [data-testid='otp-input-segment'] {
+    width: 2.25rem !important;
+    min-width: 1.75rem !important;
+    max-width: 2.25rem !important;
+    min-height: 2.75rem !important;
+    height: 2.75rem !important;
+    font-size: 1.125rem !important;
+  }
+
+  .clerk-form-otp-row,
+  .clerk-form-root .cl-otpCodeFieldInputs,
+  .clerk-form-card .cl-otpCodeFieldInputs {
+    gap: 6px !important;
+  }
 }
 
 .clerk-form-otp-input:focus,
 .clerk-form-root .cl-otpCodeFieldInput:focus,
-.clerk-form-card .cl-otpCodeFieldInput:focus {
+.clerk-form-card .cl-otpCodeFieldInput:focus,
+.clerk-form-root [data-testid='otp-input-segment']:focus-within,
+.clerk-form-card [data-testid='otp-input-segment']:focus-within {
   outline: none !important;
   box-shadow: var(--shadow-small) !important;
 }
 
-/* Single-field OTP variant (Clerk transparent overlay input). */
-.clerk-form-otp-field input[type='text']:not(.clerk-form-input):not(.cl-formFieldInput),
-.clerk-form-root .cl-otpCodeField input[type='text'] {
+/* Transparent input-otp overlay — must not get pill input styling. */
+.clerk-form-root .cl-otpCodeFieldInputContainer input,
+.clerk-form-card .cl-otpCodeFieldInputContainer input,
+.clerk-form-root .cl-otpCodeField input[inputmode='numeric'],
+.clerk-form-card .cl-otpCodeField input[inputmode='numeric'],
+.clerk-form-root .cl-otpCodeField input[aria-label='Enter verification code'],
+.clerk-form-card .cl-otpCodeField input[aria-label='Enter verification code'] {
+  position: absolute !important;
+  inset: 0 !important;
   width: 100% !important;
-  min-width: 0 !important;
-  max-width: 100% !important;
-  min-height: 3rem !important;
-  height: 3rem !important;
-  padding: 0 1rem !important;
-  text-align: center !important;
-  letter-spacing: 0.2em !important;
-  font-variant-numeric: tabular-nums;
-  font-size: 1.25rem !important;
-  font-weight: 600 !important;
-  border-radius: 0.75rem !important;
-  background: var(--color-gradient-gray) !important;
+  height: 100% !important;
+  min-height: 0 !important;
+  max-width: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  opacity: 1 !important;
+  color: transparent !important;
+  caret-color: transparent !important;
+  background: transparent !important;
   border: none !important;
-  box-shadow: var(--shadow-small) !important;
-  word-break: normal !important;
+  box-shadow: none !important;
+  letter-spacing: inherit !important;
+  font-size: inherit !important;
+  text-align: center !important;
+  z-index: 1 !important;
 }
 
 /* Reduce gaps between Clerk form fields to 12px (sign-in / upgrade only). */
@@ -907,10 +947,22 @@
   color: var(--color-bold-blue);
   font-weight: 500;  /* font-medium */
   transition: opacity 0.2s ease;
+  cursor: pointer;
+  position: relative;
+  z-index: 2;
 }
 
 .clerk-form-link:hover {
   opacity: 0.8;
+}
+
+.clerk-form-alternative-method {
+  width: 100%;
+  text-align: center;
+}
+
+.clerk-form-alternative-method__text {
+  font-weight: 600;
 }
 
 .clerk-form-divider-line {
@@ -990,14 +1042,15 @@
 
 .auth-page--classic .cl-formFieldInput:not([class*='otp']):not(.clerk-form-otp-input),
 .auth-page--classic .clerk-form-input:not([class*='otp']):not(.clerk-form-otp-input),
-.auth-page--classic input:not([class*='otp']):not(.clerk-form-otp-input) {
+.auth-page--classic input:not([class*='otp']):not(.clerk-form-otp-input):not([aria-label='Enter verification code']) {
   background-color: #ffffff !important;
   color: var(--color-deep-grey) !important;
 }
 
 .auth-page--classic .clerk-form-otp-input,
 .auth-page--classic .cl-otpCodeFieldInput,
-.auth-page--classic [class*='cl-otpCodeFieldInput'] {
+.auth-page--classic [class*='cl-otpCodeFieldInput']:not([class*='Container']):not([class*='Inputs']),
+.auth-page--classic [data-testid='otp-input-segment'] {
   background: var(--color-gradient-gray) !important;
   color: var(--color-deep-grey) !important;
 }
@@ -1005,4 +1058,12 @@
 .auth-page--classic .cl-footerAction,
 .auth-page--classic .cl-footerActionText {
   color: var(--color-stone-grey) !important;
+}
+
+.auth-page--classic .cl-footerActionLink,
+.auth-page--classic .clerk-form-link {
+  color: var(--color-bold-blue) !important;
+  cursor: pointer !important;
+  position: relative !important;
+  z-index: 2 !important;
 }

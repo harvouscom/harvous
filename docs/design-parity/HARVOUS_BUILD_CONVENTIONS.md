@@ -77,7 +77,7 @@ To add a theme: extend `ThemeVariant` + `themeBaseRGB(_:)` (native), and add the
 OKLCH pastels: `threadBlue/Yellow/Green/Pink/Orange/Purple` (native `Color` extension) ↔ `--pds-thread-*` (web). Each pastel has a saturated `threadGlyph(_:)` foreground for legible icons on the fill.
 
 ### Surfaces & glass
-Web layers (all OKLCH, see `prototype-tokens.css`): `--pds-bg-page`, `--pds-bg-toolbar`/`--pds-bg-sidebar` (frosted, 0.78α), `--pds-bg-popover` (0.98α), `--pds-bg-popover-solid` (opaque menus), `--pds-bg-glass-*` (0.45–0.9α), `--pds-glass-shell` (color-mix tint from canvas — there is no `backdrop-filter`; glass is faked from the canvas hue so wallpaper presets read through).
+Web layers (all OKLCH, see `prototype-tokens.css`): `--pds-bg-page`, `--pds-bg-toolbar`/`--pds-bg-sidebar` (frosted, 0.78α), `--pds-bg-popover` (0.98α), `--pds-bg-popover-solid` (opaque menus), `--pds-bg-glass-*` (0.45–0.9α), `--pds-glass-shell` (color-mix tint from canvas). Translucent chrome uses **tiered `backdrop-filter`** via `--pds-glass-blur` (shell frame / panels), `--pds-glass-blur-elevated` (floating cards), and `--pds-glass-blur-control` (toolbar orbs). Shared recipe: `.proto-glass-surface` in `prototype-components.css`. Popovers/menus stay `--pds-bg-popover-solid`. `prefers-reduced-transparency` sets blur tokens to `none`.
 
 ### Destructive / warning
 - **Web:** `--pds-destructive` (oklch `55% 0.2 25`) / `--pds-destructive-bg-hover`.

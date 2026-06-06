@@ -141,10 +141,6 @@ interface TiptapEditorProps {
   highlightChromePortalTarget?: HTMLElement | null;
   /** Prototype-only: portal target for per-note scripture/highlight dock carousel. */
   studyDockCarouselPortalTarget?: HTMLElement | null;
-  /**
-   * Prototype-only: portal target for the Reference dock (dictionary lookup + reference sources).
-   */
-  referenceChromePortalTarget?: HTMLElement | null;
   /** Prototype-only: when set, auto-opens the reference dock for this word once the editor mounts. */
   initialReferenceWord?: string | null;
   /**
@@ -3298,7 +3294,6 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
   scriptureChromePortalTarget = null,
   highlightChromePortalTarget = null,
   studyDockCarouselPortalTarget = null,
-  referenceChromePortalTarget = null,
   initialReferenceWord = null,
   prototypeScripturePillOpenRequest = null,
   onPrototypeScripturePillOpenRequestConsumed,

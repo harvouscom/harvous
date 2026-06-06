@@ -637,11 +637,27 @@ function useInAppLinkInterceptor() {
       if (e.defaultPrevented) return;
       const anchor = (e.target as HTMLElement).closest('a');
       if (!anchor || !anchor.href) return;
+
+      // Clerk prebuilt sign-in/up manages its own step navigation (path or hash).
+      if (
+        anchor.closest('.cl-rootBox, .clerk-form-root, [class*="cl-signIn-"], [class*="cl-signUp-"]')
+      ) {
+        return;
+      }
+
       try {
         const url = new URL(anchor.href);
         if (url.origin !== window.location.origin) return;
         if (anchor.target === '_blank' || anchor.rel?.includes('external')) return;
         if (e.ctrlKey || e.metaKey || e.shiftKey) return;
+
+        const onAuthPage =
+          window.location.pathname === '/sign-in' || window.location.pathname.startsWith('/sign-in/') ||
+          window.location.pathname === '/sign-up' || window.location.pathname.startsWith('/sign-up/');
+        if (onAuthPage && url.pathname === window.location.pathname && url.hash && url.hash !== window.location.hash) {
+          return;
+        }
+
         let path = url.pathname + url.search + url.hash;
         if (path === window.location.pathname + window.location.search + (window.location.hash || '')) return;
 
