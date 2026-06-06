@@ -477,14 +477,14 @@
   text-decoration: underline dotted;
   text-decoration-thickness: 1.5px;
   text-underline-offset: 3px;
-  text-decoration-color: color-mix(in srgb, var(--pds-highlight-warm-amber) 60%, transparent);
+  text-decoration-color: var(--pds-text-tertiary);
   cursor: pointer;
   border-radius: 2px;
 }
 
 .proto-editor-surface .ProseMirror .reference-suggestion:hover {
-  text-decoration-color: var(--pds-highlight-warm-amber);
-  background: color-mix(in srgb, var(--pds-highlight-warm-amber) 10%, transparent);
+  text-decoration-color: var(--pds-text-secondary);
+  background: color-mix(in srgb, var(--pds-text-tertiary) 12%, transparent);
 }
 
 /* Selection */
