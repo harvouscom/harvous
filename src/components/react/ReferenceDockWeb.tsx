@@ -217,7 +217,18 @@ export default function ReferenceDockWeb({
   const accentColor = SCRIPTURE_DOCK_ACCENT_COLORS[noteHighlightRange ? noteAccent : 'neutral'];
 
   const headerActions =
-    noteHighlightRange && (onChangeNoteHighlight || onRemoveNoteHighlight) ? (
+    pendingSuggestion && onSaveReference ? (
+      <button
+        type="button"
+        className="study-dock-card__header-btn reference-dock-web__save-orb"
+        onMouseDown={(e) => e.preventDefault()}
+        onClick={onSaveReference}
+        aria-label="Save reference"
+        title="Save reference"
+      >
+        <Icon name="check" size={14} />
+      </button>
+    ) : noteHighlightRange && (onChangeNoteHighlight || onRemoveNoteHighlight) ? (
       <>
         {onChangeNoteHighlight ? (
           <DockAccentSwatchButton
@@ -272,20 +283,6 @@ export default function ReferenceDockWeb({
             <div ref={bodyRef} className="reference-dock-web__passage-html">
               {entry.body}
             </div>
-
-            {pendingSuggestion && onSaveReference ? (
-              <div className="reference-dock-web__save-bar">
-                <button
-                  type="button"
-                  className="reference-dock-web__save-btn"
-                  onMouseDown={(e) => e.preventDefault()}
-                  onClick={onSaveReference}
-                >
-                  <Icon name="lines-leaning" size={12} aria-hidden />
-                  Save reference
-                </button>
-              </div>
-            ) : null}
 
             {pendingExcerpt ? (
               <div className="reference-dock-web__highlight-bar">
