@@ -33,6 +33,51 @@ export type UseRealtimeSyncOptions = {
   homeSpaceId?: string | null;
 };
 
+/**
+ * Patch React Query caches directly from a Realtime note payload — no detail
+ * refetch, no list refetch, no syncNow round trip. The prototype home list and
+ * the sidebar share the `['space', id, 'notes', …]` infinite cache, and
+ * navigation data is sidebar *structure* (unaffected by a note's title/content),
+ * so an in-place patch keeps everything in sync without a network hop.
+ */
+async function patchNoteInCaches(
+  queryClient: QueryClient,
+  id: string,
+  note: NonNullable<RealtimeInvalidationPayload['note']>,
+): Promise<void> {
+  // Don't touch content while the user is actively editing this note on this
+  // device (rare cross-device race); still safe to refresh title/tags.
+  const editorFocused = isPrototypeOpenNoteEditorFocused(id);
+
+  queryClient.setQueryData(['note', id], (prev: unknown) => {
+    if (!prev || typeof prev !== 'object') return prev;
+    const next = { ...(prev as Record<string, unknown>) };
+    if (typeof note.title !== 'undefined') next.title = note.title;
+    if (!editorFocused && typeof note.content === 'string') {
+      next.content = note.content;
+      next.__contentIsPreview = false;
+    }
+    if (note.updatedAt) next.updatedAt = note.updatedAt;
+    return next;
+  });
+
+  if (Array.isArray(note.tags)) {
+    const { mergeNoteTagsInCache } = await import('../../spa/src/lib/note-tags-cache');
+    mergeNoteTagsInCache(queryClient, id, note.tags as Parameters<typeof mergeNoteTagsInCache>[2]);
+  }
+
+  if (note.spaceId) {
+    const { updateSpaceNoteInCache } = await import('../../spa/src/lib/space-notes-cache');
+    const rowPatch: Record<string, unknown> = {};
+    if (typeof note.title !== 'undefined') rowPatch.title = note.title;
+    if (!editorFocused && typeof note.content === 'string') rowPatch.content = note.content;
+    if (note.updatedAt) rowPatch.updatedAt = note.updatedAt;
+    if (Object.keys(rowPatch).length > 0) {
+      updateSpaceNoteInCache(queryClient, note.spaceId, id, rowPatch as Parameters<typeof updateSpaceNoteInCache>[3]);
+    }
+  }
+}
+
 async function applyInvalidation(
   queryClient: QueryClient,
   payload: RealtimeInvalidationPayload,
@@ -40,6 +85,13 @@ async function applyInvalidation(
   homeSpaceId?: string | null,
 ): Promise<void> {
   const { type, id } = payload;
+
+  // Fast path: a note:updated carrying its changed fields patches caches in place.
+  // Broadcasts exclude the sender, so only other devices reach here.
+  if (type === 'note:updated' && id && payload.note) {
+    await patchNoteInCaches(queryClient, id, payload.note);
+    return;
+  }
 
   if (type === 'sync:batch') {
     if (isPrototypeShellRoute()) {
