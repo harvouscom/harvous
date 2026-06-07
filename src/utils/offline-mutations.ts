@@ -552,6 +552,29 @@ export async function updateNoteOffline(userId: string, noteId: string, updates:
 }
 
 /**
+ * Update a note offline only when it already exists in IndexedDB (online-only notes no-op).
+ * Returns true when a local row was updated.
+ */
+export async function updateNoteOfflineIfPresent(
+  userId: string,
+  noteId: string,
+  updates: Partial<{
+    title: string | null;
+    content: string;
+    spaceId: string | null;
+    isPublic: boolean;
+    isFeatured: boolean;
+    order: number;
+  }>,
+): Promise<boolean> {
+  if (!isOfflineModeEnabled()) return false;
+  const note = await offlineDB.notes.where('[userId+id]').equals([userId, noteId]).first();
+  if (!note) return false;
+  await updateNoteOffline(userId, noteId, updates);
+  return true;
+}
+
+/**
  * Delete a note offline
  */
 export async function deleteNoteOffline(userId: string, noteId: string): Promise<void> {

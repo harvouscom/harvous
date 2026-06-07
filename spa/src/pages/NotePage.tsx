@@ -430,6 +430,7 @@ export default function NotePage() {
               initialCollectionLastAutoUpdatedAtIso={note.collectionLastAutoUpdatedAt ?? null}
               collectionNavContext={collectionNavContext}
               className="h-full flex-1 min-h-0"
+              alwaysEditing={isEditable}
             />
           </SubtleContentMount>
         </div>

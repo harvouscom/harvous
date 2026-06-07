@@ -6,11 +6,10 @@ import { useQueryClient } from '@tanstack/react-query';
 import CardFullEditable from '../../../../src/components/react/CardFullEditable';
 import SubtleContentMount from '@/components/react/SubtleContentMount';
 import { detectScriptureReferences } from '@/utils/scripture-detector';
-import { updateNoteOffline } from '../../../../src/utils/offline-mutations';
+import { updateNoteOfflineIfPresent } from '../../../../src/utils/offline-mutations';
 import { getNoteIdFromCreateResponse, useNote } from '../../hooks/queries/useNote';
 import { useProcessScriptureRefs } from '../../hooks/mutations/useProcessScriptureRefs';
 import { useUpdateNote } from '../../hooks/mutations/useUpdateNote';
-import { useDeleteNote } from '../../hooks/mutations/useDeleteNote';
 import { alertCreateNoteFailure, useCreateSimpleNote } from '../../hooks/mutations/useCreateSimpleNote';
 import { PANE_DOCK_MIN_WIDTH } from '../../layouts/proto-inspector-layout';
 import { useProtoShell } from '../../layouts/proto-shell-context';
@@ -64,9 +63,8 @@ export default function PrototypeNotePage() {
   createNoteMutationRef.current = createNoteMutation;
   const draftPersistPromiseRef = useRef<Promise<string | null> | null>(null);
   const persistedDraftIdRef = useRef<string | null>(null);
-  const deleteNoteMutation = useDeleteNote();
-  const deleteNoteMutationRef = useRef(deleteNoteMutation);
-  deleteNoteMutationRef.current = deleteNoteMutation;
+  const draftPersistRemountRef = useRef<{ content: string } | null>(null);
+  const [draftPersistRemountTick, setDraftPersistRemountTick] = useState(0);
   const processScriptureMutation = useProcessScriptureRefs();
   const {
     inspectorOpen,
@@ -403,6 +401,8 @@ export default function PrototypeNotePage() {
               ...collectionExtras,
             });
           }
+          draftPersistRemountRef.current = { content: newContent };
+          setDraftPersistRemountTick((t) => t + 1);
           navigate({
             to: prototypeNoteRouteTo(),
             params: { noteId: noteParamSlug(createdId) },
@@ -445,7 +445,7 @@ export default function PrototypeNotePage() {
           (window as unknown as { __harvous_userId?: string }).__harvous_userId ||
           localStorage.getItem('harvous-user-id');
         if (uid) {
-          await updateNoteOffline(uid, noteId, { title: newTitle, content: newContent });
+          await updateNoteOfflineIfPresent(uid, noteId, { title: newTitle, content: newContent });
         }
       } catch (err) {
         console.error('[PrototypeNotePage] offline note update:', err);
@@ -462,14 +462,11 @@ export default function PrototypeNotePage() {
   );
 
   const handlePrototypeEditorUnmount = useCallback(
-    (snapshot: { noteId: string; title: string; content: string }) => {
-      if (isDraft) return;
-      if (!isEffectivelyEmptyPrototypeNote(snapshot.title, snapshot.content)) return;
-      const spaceId = effectiveSpaceIdRef.current || homeSpaceId;
-      if (!spaceId) return;
-      deleteNoteMutationRef.current.mutate({ noteId: snapshot.noteId, spaceId });
+    (_snapshot: { noteId: string; title: string; content: string }) => {
+      // Never auto-delete persisted notes on navigate-away. Empty notes stay hidden
+      // in the sidebar; users delete explicitly via the menu.
     },
-    [homeSpaceId, isDraft],
+    [],
   );
 
   useEffect(() => {
@@ -504,8 +501,11 @@ export default function PrototypeNotePage() {
     return () => document.removeEventListener('keydown', onKey);
   }, [inspectorOpen, isMobileSidebar, closeInspector]);
 
-  /* Loading — use PDS shimmer, no SPA card-full class */
-  if (!isDraft && isLoading && !note) {
+  /* Loading — use PDS shimmer, no SPA card-full class. Keep editor mounted when this
+   * page instance just persisted a draft (note may still be seeding in React Query). */
+  const keepEditorDuringPersistedDraftLoad =
+    !isDraft && persistedDraftIdRef.current === noteId;
+  if (!isDraft && isLoading && !note && !keepEditorDuringPersistedDraftLoad) {
     return (
       <PrototypeMainPaneShell>
         <div className="proto-editor-surface">
@@ -524,7 +524,7 @@ export default function PrototypeNotePage() {
     );
   }
 
-  if (!isDraft && !note) {
+  if (!isDraft && !note && !keepEditorDuringPersistedDraftLoad) {
     return (
       <PrototypeMainPaneShell>
         <div className="proto-editor-surface proto-editor-error">Note not found.</div>
@@ -532,7 +532,8 @@ export default function PrototypeNotePage() {
     );
   }
 
-  const editorNote = isDraft
+  const editorNote =
+    isDraft || (!note && keepEditorDuringPersistedDraftLoad)
     ? {
         title: '',
         content: '',
@@ -594,16 +595,6 @@ export default function PrototypeNotePage() {
     .filter(Boolean)
     .join(' ');
 
-  // Keep the editor mounted across the draft→persisted-id swap. Saving a draft
-  // creates the note server-side and navigates to /n/<id>, which changes `noteId`.
-  // Keying SubtleContentMount on the raw noteId would remount the editor
-  // mid-keystroke and drop any characters typed during the async create
-  // round-trip (the reported "auto-folder creation wipes last typed text" bug).
-  // Reuse the stable draft key for the note this page instance just persisted;
-  // every other note keys on noteId as before so switching notes still remounts.
-  const editorMountKey =
-    !isDraft && persistedDraftIdRef.current === noteId ? DRAFT_NOTE_ID : noteId;
-
   const mobileInspectorLayer =
     showInspectorMobile && !isDraft && note && typeof document !== 'undefined'
       ? createPortal(
@@ -641,7 +632,7 @@ export default function PrototypeNotePage() {
       {/* Editor column */}
       <div className="proto-editor-surface">
         <div className="proto-editor-scroll">
-          <SubtleContentMount key={editorMountKey} variant="fade">
+          <SubtleContentMount key={noteId} variant="fade">
             <div className="proto-editor-content-wrap">
               <div className="proto-editor-paper">
               <CardFullEditable
@@ -674,6 +665,8 @@ export default function PrototypeNotePage() {
                 onPrototypeFolderDisplayChange={onPrototypeFolderDisplayChange}
                 prototypeNoteActionsChrome={true}
                 alwaysEditing
+                prototypeDraftPersistRemount={draftPersistRemountRef.current}
+                prototypeDraftPersistRemountTick={draftPersistRemountTick}
               />
               </div>
             </div>

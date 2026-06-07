@@ -144,6 +144,8 @@ struct NoteEditorView: View {
     @State private var showFolderToolbarText = true
     @State private var previousChipPrimaryLabel: String?
     @FocusState private var titleFocused: Bool
+    /// User tapped or typed in the body — skip title auto-focus so keystrokes are not stolen.
+    @State private var bodyInteractionSeen = false
 
     /// Study threads anchored to this note (refreshed on appear / note change / returning active).
     @State private var threadsForNote: [StudyThread] = []
@@ -336,12 +338,12 @@ struct NoteEditorView: View {
                 skipNextNoteTransitionForLazyDraftAdoption = false
 #if os(macOS)
                 syncMacEditorMenuActionsRegistration()
+#endif
                 if !titleFocused {
                     DispatchQueue.main.async {
                         proxy.refocusTextView()
                     }
                 }
-#endif
                 if let n = note {
                     scheduleRefreshThreads(note: n)
                 }
@@ -350,6 +352,7 @@ struct NoteEditorView: View {
 
             if oldId != nil, oldId != newId {
                 composeEditorCanvasIdentity = nil
+                bodyInteractionSeen = false
             }
 
             isNoteTransition = true
@@ -381,8 +384,9 @@ struct NoteEditorView: View {
             if let oldId {
                 let mergedRefs = ScriptureDetector.mergedDetectedRefs(title: snapshotTitle, bodyRefs: snapshotRefs)
                 flushPendingEdits(forNoteId: oldId, title: snapshotTitle, body: snapshotBody, refs: mergedRefs)
+                discardUnsyncedEmptyDraftIfNeeded(forNoteId: oldId)
             }
-            syncFromNote()
+            syncFromNote(force: true)
             #if os(iOS)
             scheduleSyncIOSNoteFooterSupplement()
             #endif
@@ -424,7 +428,7 @@ struct NoteEditorView: View {
             if isLazyDraftComposeActive, note == nil, lazyDraftStubNote == nil {
                 beginLazyDraftSession()
             }
-            syncFromNote()
+            syncFromNote(force: true)
             if let n = note {
                 scheduleRefreshThreads(note: n)
             }
@@ -436,12 +440,14 @@ struct NoteEditorView: View {
         .task(id: isLazyDraftComposeActive) {
             guard isLazyDraftComposeActive, note == nil else { return }
             try? await Task.sleep(for: .milliseconds(80))
+            guard !bodyInteractionSeen, !proxy.isBodyFirstResponder, editorState.plainText.isEmpty else { return }
             titleFocused = true
             newNoteTiltTrigger.toggle()
         }
         .task(id: note?.id) {
             guard let n = note, n.title.isEmpty, n.body.isEmpty, !isLazyDraftComposeActive else { return }
             try? await Task.sleep(for: .milliseconds(80))
+            guard !bodyInteractionSeen, !proxy.isBodyFirstResponder, editorState.plainText.isEmpty else { return }
             titleFocused = true
             newNoteTiltTrigger.toggle()
         }
@@ -497,7 +503,8 @@ struct NoteEditorView: View {
                 scheduleSyncIOSNoteFooterSupplement()
                 #endif
             }
-            .onChange(of: editorState.plainText) { _, _ in
+            .onChange(of: editorState.plainText) { _, text in
+                if !text.isEmpty { bodyInteractionSeen = true }
                 guard let note else { return }
                 scheduleReconcileStudyHighlightsPainting(for: note)
                 scheduleConsumePendingStudyHighlightListActivation()
@@ -1471,6 +1478,7 @@ struct NoteEditorView: View {
         }
         .onChange(of: proxy.isBodyFirstResponder) { _, focused in
             shiftHints.isEditorBodyFocused = focused
+            if focused { bodyInteractionSeen = true }
         }
         .onChange(of: titleFocused) { _, focused in
             shiftHints.isTitleFieldFocused = focused
@@ -1772,7 +1780,7 @@ struct NoteEditorView: View {
         HarvousVaultExporter.removeMirrorFiles(for: n, modelContext: context)
         HarvousNoteSpotlightIndexer.removeNote(id: nid)
         ThreadStore.purgeLinkedNoteMarkers(referencingDeletedNote: nid, modelContext: context)
-        HarvousSyncingDelete.delete(note: n, context: context)
+        HarvousSyncingDelete.delete(note: n, context: context, trigger: .menu)
         do {
             try context.save()
         } catch {
@@ -2944,9 +2952,15 @@ struct NoteEditorView: View {
         lazyDraftStubNote = nil
         isLazyDraftComposeActive = false
         if adoptPersistedNote {
+            let wasInBody = proxy.isBodyFirstResponder || !editorState.plainText.isEmpty
             skipNextNoteTransitionForLazyDraftAdoption = true
             note = created
             scheduleRefreshThreads(note: created)
+            if wasInBody {
+                DispatchQueue.main.async {
+                    moveFocusFromTitleToBody()
+                }
+            }
         }
         return created
     }
@@ -3079,6 +3093,17 @@ struct NoteEditorView: View {
         }
     }
 
+    /// After editor flush on note switch: discard local-only empty drafts. Never synced notes.
+    private func discardUnsyncedEmptyDraftIfNeeded(forNoteId id: UUID) {
+        let descriptor = FetchDescriptor<Note>(predicate: #Predicate { $0.id == id })
+        guard let draft = try? context.fetch(descriptor).first else { return }
+        guard HarvousUnsyncedDraftCleanup.shouldDiscardOnSelectionChange(draft) else { return }
+        HarvousVaultExporter.removeMirrorFiles(for: draft, modelContext: context)
+        HarvousNoteSpotlightIndexer.removeNote(id: id)
+        HarvousSyncingDelete.delete(note: draft, context: context, trigger: .autoSwitch)
+        try? context.saveWithLogging()
+    }
+
     private var chipPrimaryLabel: String? {
         note?.folderChipPrimaryLabelText()
     }
@@ -3131,7 +3156,10 @@ struct NoteEditorView: View {
 
     // MARK: - Sync
 
-    private func syncFromNote() {
+    private func syncFromNote(force: Bool = false) {
+        if !force, proxy.isBodyFirstResponder || autosave.hasPendingAutosave {
+            return
+        }
         if let note {
             HarvousSpaceBootstrap.healNoteSpaceIfNeeded(note, in: context)
             title = note.title

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef, useCallback, lazy, Suspense } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useMemo, useRef, useCallback, lazy, Suspense } from 'react';
 import { createPortal } from 'react-dom';
 import { TextSelection } from '@tiptap/pm/state';
 import ButtonSmall from './ButtonSmall';
@@ -188,6 +188,10 @@ interface CardFullEditableProps {
   alwaysEditing?: boolean;
   /** Prototype-only: fired on editor unmount with live title/body so the parent can discard empty notes. */
   onPrototypeEditorUnmount?: (snapshot: { noteId: string; title: string; content: string }) => void;
+  /** Prototype-only: parent signals draft→persist navigation so TipTap remounts with live body HTML. */
+  prototypeDraftPersistRemount?: { content: string } | null;
+  /** Bumped with `prototypeDraftPersistRemount` so remount runs even when CardFullEditable remounts. */
+  prototypeDraftPersistRemountTick?: number;
   /** Space the note belongs to — passed to TiptapEditor for connect-from-selection. */
   spaceId?: string;
 }
@@ -231,6 +235,8 @@ export default function CardFullEditable({
   collectionNavContext = DEFAULT_COLLECTION_NAV_CONTEXT,
   alwaysEditing = false,
   onPrototypeEditorUnmount,
+  prototypeDraftPersistRemount = null,
+  prototypeDraftPersistRemountTick = 0,
   spaceId,
 }: CardFullEditableProps) {
   const effectivePrototypeNoteActionsChrome =
@@ -239,6 +245,11 @@ export default function CardFullEditable({
       : false;
   const eagerTiptap = editorChromeMode === 'prototypeNative' && alwaysEditing;
   const TiptapEditorComponent = eagerTiptap ? TiptapEditorEager : TiptapEditorLazy;
+  const prototypeAlwaysEditing =
+    editorChromeMode === 'prototypeNative' &&
+    alwaysEditing &&
+    noteType !== 'scripture' &&
+    !readOnlyLikeScripture;
   const wrapTiptapSuspense = useCallback(
     (node: React.ReactNode, fallbackClassName: string) =>
       eagerTiptap ? node : <Suspense fallback={<div className={fallbackClassName} />}>{node}</Suspense>,
@@ -255,8 +266,8 @@ export default function CardFullEditable({
     ? (version || getCachedProfileData()?.defaultTranslation || 'NET')
     : undefined;
   
-  const [isTitleEditing, setIsTitleEditing] = useState(false);
-  const [isContentEditing, setIsContentEditing] = useState(false);
+  const [isTitleEditing, setIsTitleEditing] = useState(() => prototypeAlwaysEditing);
+  const [isContentEditing, setIsContentEditing] = useState(() => prototypeAlwaysEditing);
   const [editTitle, setEditTitle] = useState('');
   const [editContent, setEditContent] = useState('');
   const [isSaving, setIsSaving] = useState(false);
@@ -266,6 +277,8 @@ export default function CardFullEditable({
   const [displayScriptureVersion, setDisplayScriptureVersion] = useState(resolvedScriptureVersion);
   const [imageRemoved, setImageRemoved] = useState(false);
   const [isTitleFocused, setIsTitleFocused] = useState(false);
+  /** Remount TipTap after prototype draft→persist id swap (stale paragraph nodeViews). */
+  const [tiptapBodyMountKey, setTiptapBodyMountKey] = useState(0);
   
   const titleInputRef = useRef<HTMLTextAreaElement>(null);
   const contentTextareaRef = useRef<HTMLTextAreaElement>(null);
@@ -305,6 +318,11 @@ export default function CardFullEditable({
   onSaveRef.current = onSave;
   const noteIdRef = useRef(noteId);
   noteIdRef.current = noteId;
+  const prevNoteIdForEditGuardRef = useRef(noteId);
+  const seededEditorForNoteRef = useRef<string | null>(null);
+  const handledPersistRemountTickRef = useRef(-1);
+  /** User clicked/tapped the body editor — skip any title auto-focus intent for this note. */
+  const bodyInteractionRef = useRef(false);
   const onPrototypeEditorUnmountRef = useRef(onPrototypeEditorUnmount);
   onPrototypeEditorUnmountRef.current = onPrototypeEditorUnmount;
   const isMountedRef = useRef(true);
@@ -540,6 +558,11 @@ export default function CardFullEditable({
       unlockRevision,
     ]
   );
+  // Prototype alwaysEditing: TipTap + title field on first paint (no click-to-edit gate).
+  const showTitleEditor =
+    (prototypeAlwaysEditing && !needsPinUnlock && effectiveIsEditable) || isTitleEditing;
+  const showBodyEditor =
+    (prototypeAlwaysEditing && !needsPinUnlock && effectiveIsEditable) || isContentEditing;
   const cardRootRef = useRef<HTMLDivElement>(null);
   /** iOS: focus synchronously on tap so keyboard opens; Tiptap focus in onEditorReady is too late for user-gesture chain */
   const keyboardProxyRef = useRef<HTMLTextAreaElement>(null);
@@ -640,11 +663,55 @@ export default function CardFullEditable({
     };
   }, [inBottomSheet, editorChromeMode]);
 
-  // Reset local-content flag when note changes so we accept new content from props
-  useEffect(() => {
+  // Reset local-content flag when note changes so we accept new content from props.
+  // Prototype draft→persisted-id swap keeps the same editor mounted (stable mount key);
+  // clearing these mid-session drops typing guards and lets server props clobber live edits.
+  useLayoutEffect(() => {
+    const prev = prevNoteIdForEditGuardRef.current;
+    prevNoteIdForEditGuardRef.current = noteId;
+    const isPrototypeDraftPersistSwap =
+      editorChromeMode === 'prototypeNative' &&
+      alwaysEditing &&
+      prev === 'note_draft' &&
+      noteId != null &&
+      noteId !== 'note_draft';
+    if (isPrototypeDraftPersistSwap) return;
     hasLocalContentUpdate.current = false;
     userEditedSinceOpenRef.current = false;
-  }, [noteId]);
+    seededEditorForNoteRef.current = null;
+    bodyInteractionRef.current = false;
+  }, [noteId, editorChromeMode, alwaysEditing]);
+
+  // Parent signals first draft persist (survives CardFullEditable remount on /n/new → /n/<id>).
+  useLayoutEffect(() => {
+    if (!prototypeDraftPersistRemount || editorChromeMode !== 'prototypeNative' || !alwaysEditing) {
+      return;
+    }
+    if (prototypeDraftPersistRemountTick <= handledPersistRemountTickRef.current) {
+      return;
+    }
+    handledPersistRemountTickRef.current = prototypeDraftPersistRemountTick;
+    let live = prototypeDraftPersistRemount.content;
+    const editor = editorInstanceRef.current;
+    if (editor && !editor.isDestroyed) {
+      try {
+        live = editor.getHTML();
+      } catch {
+        /* ignore */
+      }
+    }
+    setEditContent(live);
+    editContentRef.current = live;
+    setDisplayContent(live);
+    shouldFocusEditorRef.current = true;
+    setTiptapBodyMountKey((k) => k + 1);
+    bodyInteractionRef.current = true;
+  }, [
+    prototypeDraftPersistRemount,
+    prototypeDraftPersistRemountTick,
+    editorChromeMode,
+    alwaysEditing,
+  ]);
 
   useEffect(() => {
     setDisplayScriptureVersion(resolvedScriptureVersion);
@@ -690,6 +757,9 @@ export default function CardFullEditable({
       }
     }
 
+    // User has edited this session — don't let server prop refreshes clobber live typing.
+    if (userEditedSinceOpenRef.current) return;
+
     // Only reset displayContent if we haven't updated it locally
     // This prevents the highlight from disappearing when content prop updates
     if (!hasLocalContentUpdate.current) {
@@ -720,8 +790,7 @@ export default function CardFullEditable({
     if (editorChromeMode !== 'prototypeNative' || !alwaysEditing || !effectiveIsEditable) return;
     if (readOnlyLikeScripture || noteType === 'scripture') return;
     if (needsPinUnlock) return;
-    // Never clobber in-progress typing when autosave/refetch updates the title prop.
-    if (document.activeElement === titleInputRef.current) return;
+    if (seededEditorForNoteRef.current === noteId) return;
     // Never clobber in-progress body edits. This effect re-runs when inputs like
     // effectiveIsEditable (depends on isCurrentlyOffline), lockStateOverride, or
     // resourceTitle/Description change — at which point it would re-seed editContent
@@ -762,6 +831,7 @@ export default function CardFullEditable({
       window.dispatchEvent(new CustomEvent('toast', {
         detail: { message: 'Restored unsaved changes', type: 'info' },
       }));
+      seededEditorForNoteRef.current = noteId ?? null;
       return;
     }
 
@@ -770,6 +840,7 @@ export default function CardFullEditable({
     setIsTitleEditing(true);
     setIsContentEditing(true);
     setHasChanges(false);
+    seededEditorForNoteRef.current = noteId ?? null;
   }, [
     noteId,
     lockStateOverride,
@@ -781,35 +852,6 @@ export default function CardFullEditable({
     needsPinUnlock,
     resourceTitle,
     resourceDescription,
-  ]);
-
-  // Brand-new empty note: focus title field (Native NoteEditorView ~80ms delay).
-  useEffect(() => {
-    if (editorChromeMode !== 'prototypeNative' || !alwaysEditing || !effectiveIsEditable) return;
-    if (readOnlyLikeScripture || noteType === 'scripture') return;
-    if (needsPinUnlock) return;
-
-    const t =
-      noteType === 'default'
-        ? stripServerAutoUntitledNoteTitleForDisplay(title).trim()
-        : (title ?? '').trim();
-    if (t.length > 0 || !isTiptapBodyEmpty(content ?? '')) return;
-
-    const id = window.setTimeout(() => {
-      titleInputRef.current?.focus();
-    }, 80);
-    return () => window.clearTimeout(id);
-  }, [
-    noteId,
-    lockStateOverride,
-    editorChromeMode,
-    alwaysEditing,
-    effectiveIsEditable,
-    noteType,
-    readOnlyLikeScripture,
-    needsPinUnlock,
-    title,
-    content,
   ]);
 
   // Reset lock state overrides when contentEncrypted prop changes (e.g. from server)
@@ -1784,8 +1826,8 @@ export default function CardFullEditable({
         const editor = editorInstanceRef.current;
         let liveHtml: string | null = null;
         try { liveHtml = editor.getHTML(); } catch { /* */ }
-        if (shouldInjectProcessedNoteContent(liveHtml, currentContent)) {
-          // Safe to inject pills — user hasn't typed since save started
+        if (shouldInjectProcessedNoteContent(liveHtml, currentContent) && !editor.isFocused) {
+          // Safe to inject pills — user hasn't typed since save started and isn't actively editing
           hasLocalContentUpdate.current = true;
           skipNextContentSyncRef.current = true;
           editor.commands.setContent(canonicalizeNoteHtmlLineBreaks(result.processedContent), {
@@ -1803,6 +1845,14 @@ export default function CardFullEditable({
             setDisplayContent(finalContent);
             setHasChanges(false);
           });
+        } else if (shouldInjectProcessedNoteContent(liveHtml, currentContent) && editor.isFocused) {
+          // Save matched but editor still focused — defer pill injection so setContent
+          // doesn't reset the caret mid-typing. Re-flush after the user pauses or blurs.
+          if (isMountedRef.current) {
+            setDisplayTitle(currentTitle);
+            setDisplayContent(currentContent);
+          }
+          protoPendingFlushRef.current = true;
         } else {
           // User typed during save — we did NOT update protoLastSavedRef to the
           // live content, so the chained re-fire below will see a mismatch and
@@ -2100,11 +2150,30 @@ export default function CardFullEditable({
     return 'thread_unorganized';
   };
 
+  const focusPrototypeBodyEditor = useCallback(() => {
+    if (editorChromeMode !== 'prototypeNative' || !effectiveIsEditable) return;
+    bodyInteractionRef.current = true;
+    const editor = editorInstanceRef.current;
+    if (editor && !editor.isDestroyed) {
+      try {
+        editor.commands.focus('end');
+      } catch {
+        /* ignore */
+      }
+      return;
+    }
+    shouldFocusEditorRef.current = true;
+    setIsContentEditing(true);
+  }, [editorChromeMode, effectiveIsEditable]);
+
   const handleTitleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const newValue = e.target.value.slice(0, TITLE_HARD_LIMIT); // Enforce hard limit
     e.target.style.height = '0px';
     e.target.style.height = `${Math.max(TITLE_SINGLE_ROW_MIN_HEIGHT_PX, e.target.scrollHeight)}px`;
     userEditedSinceOpenRef.current = true;
+    if (editorChromeMode === 'prototypeNative') {
+      hasLocalContentUpdate.current = true;
+    }
     setEditTitle(newValue);
     setHasChanges(newValue !== displayTitle || editContent !== displayContent);
   };
@@ -2305,7 +2374,7 @@ export default function CardFullEditable({
         className={`card-full-editable ${className}`}
         style={{ maxHeight: '100%' }}
         data-card-full-editable
-        {...((isContentEditing || isTitleEditing) && { 'data-editing': 'true' })}
+        {...((showBodyEditor || showTitleEditor) && { 'data-editing': 'true' })}
       >
         <textarea
           ref={keyboardProxyRef}
@@ -2420,7 +2489,7 @@ export default function CardFullEditable({
           {/* Header with title and newspaper icon */}
           <div className="card-image-link__header" style={{ flexShrink: 0 }}>
             <div className="card-image-link__title" style={{ flex: 1, minWidth: 0 }}>
-              {!isTitleEditing ? (
+              {!showTitleEditor ? (
                 <p
                   className="cursor-pointer rounded"
                   style={{
@@ -2471,7 +2540,7 @@ export default function CardFullEditable({
           
           {/* Editable content area with TiptapEditor */}
           <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', minHeight: 0, width: '100%', marginTop: '12px' }}>
-            {!isContentEditing ? (
+            {!showBodyEditor ? (
               <div className="relative flex-1 min-h-0 flex flex-col">
                 <div
                   ref={contentDisplayRef}
@@ -2492,9 +2561,16 @@ export default function CardFullEditable({
               </div>
             ) : (
               <div className="flex-fill flex-stack" style={{ gap: 0, width: '100%' }}>
-                <div className="flex-1 min-h-0 px-3" style={{ width: '100%', maxHeight: '100%' }}>
+                <div
+                  className="flex-1 min-h-0 px-3"
+                  style={{ width: '100%', maxHeight: '100%' }}
+                  onPointerDown={
+                    editorChromeMode === 'prototypeNative' ? focusPrototypeBodyEditor : undefined
+                  }
+                >
                   {wrapTiptapSuspense(
                     <TiptapEditorComponent
+                      key={`proto-body-${noteId ?? 'none'}-${tiptapBodyMountKey}`}
                       content={editContent}
                       id="edit-note-content"
                       name="editContent"
@@ -2695,7 +2771,7 @@ export default function CardFullEditable({
         className={`card-full-editable ${className}`}
         style={{ maxHeight: '100%', gap: 0, display: 'flex', flexDirection: 'column' }}
         data-card-full-editable
-        {...((isContentEditing || isTitleEditing) && { 'data-editing': 'true' })}
+        {...((showBodyEditor || showTitleEditor) && { 'data-editing': 'true' })}
       >
       <textarea
         ref={keyboardProxyRef}
@@ -2743,7 +2819,7 @@ export default function CardFullEditable({
             >
               {displayTitle?.trim() ? displayTitle : 'Locked note'}
             </p>
-          ) : !isTitleEditing ? (
+          ) : !showTitleEditor ? (
             <p 
               className="rounded"
               style={{
@@ -2840,7 +2916,7 @@ export default function CardFullEditable({
                 </div>
               </div>
             </div>
-          ) : !isContentEditing ? (
+          ) : !showBodyEditor ? (
               <div className="flex-fill flex-stack" style={{ gap: 0, maxHeight: '100%' }}>
               <div className="flex-1 flex flex-col min-h-0 px-3 relative" style={{ minHeight: 0, overflow: 'hidden' }}>
                 {displayContent && displayContent.trim() ? (
@@ -2866,9 +2942,16 @@ export default function CardFullEditable({
             </div>
           ) : (
             <div className="flex-fill flex-stack" style={{ gap: 0, maxHeight: '100%' }}>
-              <div className="flex-1 flex flex-col min-h-0 px-3" style={{ maxHeight: '100%' }}>
+              <div
+                className="flex-1 flex flex-col min-h-0 px-3"
+                style={{ maxHeight: '100%' }}
+                onPointerDown={
+                  editorChromeMode === 'prototypeNative' ? focusPrototypeBodyEditor : undefined
+                }
+              >
                 {wrapTiptapSuspense(
                   <TiptapEditorComponent
+                    key={`proto-body-${noteId ?? 'none'}-${tiptapBodyMountKey}`}
                     content={editContent}
                     id="edit-note-content"
                     name="editContent"

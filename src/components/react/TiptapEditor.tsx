@@ -3431,7 +3431,22 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     return true;
   };
 
-  // When keyboard layout is active (`data-keyboard-open` on an ancestor, e.g. sheet or CardFullEditable), scroll selection above the fixed toolbar (scroll-margin-bottom in CSS)
+  /** Doc has text but paragraph nodeViews still show Placeholder empty chrome (contenteditable=false). */
+  const proseMirrorViewLooksDesynced = (editorInstance: any): boolean => {
+    if (!isEditorValid(editorInstance)) return false;
+    const stateText = editorInstance.state?.doc?.textContent ?? '';
+    if (!stateText.trim()) return false;
+    const domText = editorInstance.view.dom?.textContent ?? '';
+    if (stateText === domText) return false;
+    const block = editorInstance.view.docView?.children?.[0];
+    if (block?.dom?.getAttribute('contenteditable') === 'false') return true;
+    return stateText.trim().length > 0 && !domText.trim();
+  };
+
+  const [viewRepairGeneration, setViewRepairGeneration] = useState(0);
+  const viewRepairAttemptsRef = useRef(0);
+
+  // When keyboard layout is active
   const scrollSelectionIntoViewAboveToolbar = (editorInstance: any) => {
     if (!isEditorValid(editorInstance)) return;
     const host = editorInstance.view.dom.closest('[data-keyboard-open]');
@@ -4244,9 +4259,45 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
         return false;
       },
     },
-    // Fix SSR issues
-    immediatelyRender: false,
-  });
+    // Prototype SPA is client-only — render immediately so EditorContent rebinds cleanly.
+    // immediatelyRender:false leaves paragraph nodeViews desynced after draft→persist nav.
+    immediatelyRender: editorChromeMode === 'prototypeNative',
+  }, [viewRepairGeneration]);
+
+  // Self-heal prototype editor when ProseMirror state and DOM diverge (regression from 8fdb3a10).
+  useLayoutEffect(() => {
+    if (!editor || !isEditorValid(editor)) return;
+    if (editorChromeMode !== 'prototypeNative') return;
+
+    const maybeRepairView = () => {
+      if (!isEditorValid(editor)) return;
+      if (!proseMirrorViewLooksDesynced(editor)) return;
+      if (import.meta.env.DEV) {
+        console.warn('[TiptapEditor] ProseMirror view desynced — recreating editor', {
+          sourceNoteId,
+          stateText: editor.state?.doc?.textContent,
+          domText: editor.view?.dom?.textContent,
+        });
+      }
+      if (viewRepairAttemptsRef.current >= 3) return;
+      viewRepairAttemptsRef.current += 1;
+      setViewRepairGeneration((g) => g + 1);
+    };
+
+    const onFocus = () => maybeRepairView();
+    editor.on('focus', onFocus);
+    queueMicrotask(maybeRepairView);
+
+    return () => {
+      if (editor && !editor.isDestroyed) {
+        editor.off('focus', onFocus);
+      }
+    };
+  }, [editor, editorChromeMode, viewRepairGeneration]);
+
+  useEffect(() => {
+    viewRepairAttemptsRef.current = 0;
+  }, [sourceNoteId, content]);
 
   // Auto-open the reference dock when initialReferenceWord is set (e.g. navigated from sidebar row)
   const initialReferenceWordFiredRef = useRef<string | null>(null);
@@ -4673,7 +4724,10 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     const shouldForceHydratePrefill =
       isNewNoteEditor && editor.isEmpty && content.trim().length > 0;
 
-    if (editor.isFocused && !shouldForceHydratePrefill) {
+    const proseMirrorFocused =
+      typeof document !== 'undefined' && !!document.activeElement?.closest('.ProseMirror');
+    // Prototype + classic: live ProseMirror wins while focused — never clobber mid-typing.
+    if ((editor.isFocused || (editorChromeMode === 'prototypeNative' && proseMirrorFocused)) && !shouldForceHydratePrefill) {
       return;
     }
 
@@ -4711,7 +4765,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       clearTimeout(cursorTimeout);
       clearTimeout(conversionTimeout);
     };
-  }, [editor, content, id]);
+  }, [editor, content, id, editorChromeMode]);
 
   // When Settings default translation changes, update in-editor pills that still carry NET / prior default.
   useEffect(() => {
