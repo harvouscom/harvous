@@ -473,9 +473,10 @@ html.harvous-prototype-route .proto-shell__toolbar-cell::after {
     overscroll-behavior: none;
   }
 
+  /* Frame stays anchored at its normal top inset (base margin) and only shrinks height
+     from the bottom to sit above the keyboard — no top offset (avoids a gap up top). */
   html[data-proto-keyboard-open] .proto-shell-frame {
     overflow: hidden;
-    margin-top: var(--proto-shell-frame-offset-top, var(--pds-shell-frame-inset));
     height: var(--proto-visible-viewport-height, calc(100dvh - 2 * var(--pds-shell-frame-inset)));
     max-height: var(--proto-visible-viewport-height, calc(100dvh - 2 * var(--pds-shell-frame-inset)));
   }

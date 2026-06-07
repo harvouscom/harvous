@@ -230,7 +230,6 @@ function PrototypeAuthenticatedChrome({ userId }: { userId?: string }) {
     const clear = () => {
       root.style.removeProperty('--proto-dock-expanded-max-height');
       root.style.removeProperty('--proto-visible-viewport-height');
-      root.style.removeProperty('--proto-shell-frame-offset-top');
       root.removeAttribute('data-proto-keyboard-open');
       unlockPageScroll();
       document
@@ -269,14 +268,15 @@ function PrototypeAuthenticatedChrome({ userId }: { userId?: string }) {
       const effectiveHeight = vv.height;
       const keyboardOpen = effectiveHeight < innerH * 0.75;
       if (keyboardOpen) {
-        const offsetTop = vv.offsetTop;
         const visibleHeight = Math.round(effectiveHeight);
         const frameInset =
           parseFloat(getComputedStyle(root).getPropertyValue('--pds-shell-frame-inset')) || 8;
-        const frameOffsetTop = Math.round(offsetTop + frameInset);
+        // Anchor the frame at its normal top inset (page scroll is locked to the top, so the
+        // visual viewport top aligns with the layout top) and only shrink height from the
+        // bottom. Using vv.offsetTop here pushes the frame down by a stale keyboard-animation
+        // value, leaving an empty gap above the toolbar header.
         const frameHeight = Math.max(120, visibleHeight - frameInset * 2);
         root.style.setProperty('--proto-visible-viewport-height', `${frameHeight}px`);
-        root.style.setProperty('--proto-shell-frame-offset-top', `${frameOffsetTop}px`);
         root.setAttribute('data-proto-keyboard-open', '');
         lockPageScroll();
         document.querySelectorAll<HTMLElement>('.proto-shell-frame').forEach((frame) => {
