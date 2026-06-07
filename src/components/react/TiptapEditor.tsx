@@ -39,6 +39,10 @@ import { UrlLink } from './TiptapUrlLink';
 import { TextIndent } from './TiptapTextIndent';
 import { normalizeScriptureReference, detectScriptureReferences, matchTrailingTranslationAbbreviation, matchAnchoredTrailingTranslationAbbreviation, type ScriptureReference, type ScriptureReferenceWithTranslation } from '@/utils/scripture-detector';
 import {
+  extractResolvedScripturePillReferencesFromHtml,
+  filterReferencesWithoutExistingPills,
+} from '@/utils/scripture-pill-paste-html';
+import {
   isOrphanScriptureSuffix,
   isScriptureReferenceContinuationKey,
   mergeReferenceWithOrphanSuffix,
@@ -3777,34 +3781,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
           // ignore
         }
 
-        // Extract scripture pills with noteIds from pasted HTML
-        const existingPillsWithNoteIds = new Set<string>(); // Set of normalized references
-        if (pastedHTML) {
-          // Pattern 1: data-scripture-reference comes before data-note-id
-          const pillPattern1 = /<span[^>]*data-scripture-reference\s*=\s*["']([^"']+)["'][^>]*data-note-id\s*=\s*["']([^"']+)["'][^>]*>/gi;
-          let match;
-          while ((match = pillPattern1.exec(pastedHTML)) !== null) {
-            const reference = match[1];
-            const noteId = match[2];
-            // Only treat as existing if it has a real note ID (not "pending", not null, not empty)
-            if (noteId && noteId !== 'pending' && noteId !== 'null' && noteId !== '') {
-              const normalizedRef = normalizeScriptureReference(reference);
-              existingPillsWithNoteIds.add(normalizedRef);
-            }
-          }
-
-          // Pattern 2: data-note-id comes before data-scripture-reference
-          const pillPattern2 = /<span[^>]*data-note-id\s*=\s*["']([^"']+)["'][^>]*data-scripture-reference\s*=\s*["']([^"']+)["'][^>]*>/gi;
-          while ((match = pillPattern2.exec(pastedHTML)) !== null) {
-            const noteId = match[1];
-            const reference = match[2];
-            // Only treat as existing if it has a real note ID (not "pending", not null, not empty)
-            if (noteId && noteId !== 'pending' && noteId !== 'null' && noteId !== '') {
-              const normalizedRef = normalizeScriptureReference(reference);
-              existingPillsWithNoteIds.add(normalizedRef);
-            }
-          }
-        }
+        const existingPillsWithNoteIds = extractResolvedScripturePillReferencesFromHtml(pastedHTML);
 
         // Prefer clipboard plain text, fall back to Slice text
         let pastedText = '';
@@ -3858,27 +3835,8 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
             const doc = editor.state.doc;
             const htmlContent = editor.getHTML();
             
-            // Also check the document after paste for pills with noteIds
-            // This catches pills that ProseMirror parsed from the slice HTML
-            const docPillPattern1 = /<span[^>]*data-scripture-reference\s*=\s*["']([^"']+)["'][^>]*data-note-id\s*=\s*["']([^"']+)["'][^>]*>/gi;
-            let docMatch;
-            while ((docMatch = docPillPattern1.exec(htmlContent)) !== null) {
-              const reference = docMatch[1];
-              const noteId = docMatch[2];
-              if (noteId && noteId !== 'pending' && noteId !== 'null' && noteId !== '') {
-                const normalizedRef = normalizeScriptureReference(reference);
-                existingPillsWithNoteIds.add(normalizedRef);
-              }
-            }
-
-            const docPillPattern2 = /<span[^>]*data-note-id\s*=\s*["']([^"']+)["'][^>]*data-scripture-reference\s*=\s*["']([^"']+)["'][^>]*>/gi;
-            while ((docMatch = docPillPattern2.exec(htmlContent)) !== null) {
-              const noteId = docMatch[1];
-              const reference = docMatch[2];
-              if (noteId && noteId !== 'pending' && noteId !== 'null' && noteId !== '') {
-                const normalizedRef = normalizeScriptureReference(reference);
-                existingPillsWithNoteIds.add(normalizedRef);
-              }
+            for (const ref of extractResolvedScripturePillReferencesFromHtml(htmlContent)) {
+              existingPillsWithNoteIds.add(ref);
             }
 
             // Also check ProseMirror marks directly for pills with noteIds
@@ -3895,11 +3853,10 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
               }
             });
 
-            // Filter out references that already have pills with noteIds
-            const referencesNeedingPills = references.filter(ref => {
-              const normalizedRef = normalizeScriptureReference(ref.reference);
-              return !existingPillsWithNoteIds.has(normalizedRef);
-            });
+            const referencesNeedingPills = filterReferencesWithoutExistingPills(
+              references,
+              existingPillsWithNoteIds,
+            );
 
             // Only create pending pills for references that don't already have pills with noteIds
             if (referencesNeedingPills.length > 0) {

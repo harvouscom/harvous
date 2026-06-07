@@ -54,4 +54,29 @@ describe('ParagraphCustom', () => {
       editor.destroy();
     }
   });
+
+  it('round-trips multiple blank lines through getHTML and re-parse', () => {
+    const initial = '<p>one</p><p></p><p></p><p>two</p>';
+    const editor1 = new Editor({
+      extensions: [Document, ParagraphCustom, Text, HardBreak],
+      content: initial,
+    });
+
+    try {
+      const serialized = canonicalizeNoteHtmlLineBreaks(editor1.getHTML());
+      expect(serialized).toBe('<p>one</p><p><br></p><p><br></p><p>two</p>');
+
+      const editor2 = new Editor({
+        extensions: [Document, ParagraphCustom, Text, HardBreak],
+        content: serialized,
+      });
+      try {
+        expect(canonicalizeNoteHtmlLineBreaks(editor2.getHTML())).toBe(serialized);
+      } finally {
+        editor2.destroy();
+      }
+    } finally {
+      editor1.destroy();
+    }
+  });
 });
