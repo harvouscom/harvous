@@ -82,7 +82,7 @@ export default function PrototypeInspectorPane({ note, spaceId = '' }: Prototype
             <InspectorRow label="Type" value={capitalize(note.noteType)} />
           ) : null}
           {note.isPublic ? (
-            <InspectorRow label="Sharing" value="Public" />
+            <InspectorRow label="Sharing" value="Anyone with link" />
           ) : null}
         </div>
       </section>

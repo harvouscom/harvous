@@ -474,7 +474,7 @@ struct NoteInspectorView: View {
             infoRow("Reading", value: readingTimeLabel)
             infoRow("Words", value: wordCount)
             if note.isPublic {
-                infoRow("Sharing", value: "Public")
+                infoRow("Sharing", value: "Anyone with link")
             }
         }
         .padding(.top, 4)
