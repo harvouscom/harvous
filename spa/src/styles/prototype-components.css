@@ -1518,20 +1518,25 @@ html.harvous-proto-wallpaper-color .proto-sidebar-search__field:focus-within {
   display: flex;
   flex-direction: column;
   gap: 14px;
+  min-width: 0;
+  width: 100%;
 }
 
 .proto-fte-source {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 12px;
+  flex-wrap: wrap;
+  gap: 8px 12px;
   min-height: 22px;
+  min-width: 0;
+  width: 100%;
 }
 
 .proto-fte-source__badge {
   display: inline-flex;
   align-items: center;
   gap: 7px;
+  flex-shrink: 0;
   font-family: var(--pds-font-body);
   font-size: 13px;
   font-weight: 500;
@@ -1546,6 +1551,9 @@ html.harvous-proto-wallpaper-color .proto-sidebar-search__field:focus-within {
   display: inline-flex;
   align-items: center;
   gap: 5px;
+  flex-shrink: 0;
+  margin-left: auto;
+  max-width: 100%;
   padding: 4px 10px;
   border-radius: var(--pds-radius-pill);
   border: 0.5px solid var(--pds-border-control);
@@ -1556,6 +1564,7 @@ html.harvous-proto-wallpaper-color .proto-sidebar-search__field:focus-within {
   color: var(--pds-text-secondary);
   cursor: pointer;
   line-height: 1.4;
+  white-space: nowrap;
 }
 
 .proto-fte-source__action:hover:not(:disabled) {
