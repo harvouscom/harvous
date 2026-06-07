@@ -2179,11 +2179,20 @@ export default function CardFullEditable({
     return 'thread_unorganized';
   };
 
-  const focusPrototypeBodyEditor = useCallback(() => {
+  const focusPrototypeBodyEditor = useCallback((event?: React.PointerEvent) => {
     if (editorChromeMode !== 'prototypeNative' || !effectiveIsEditable) return;
     bodyInteractionRef.current = true;
     const editor = editorInstanceRef.current;
     if (editor && !editor.isDestroyed) {
+      // Click landed inside the editable text: let ProseMirror's own mousedown place the
+      // caret at the click point. Forcing focus('end') here clobbered it, jumping the caret
+      // to the document end on every click (user had to arrow / triple-click to recover).
+      const target = event?.target as HTMLElement | null;
+      if (target && target.closest('.ProseMirror')) {
+        return;
+      }
+      // Click landed in the surrounding padding (outside .ProseMirror): focus at the end so
+      // tapping below the text still starts editing.
       try {
         editor.commands.focus('end');
       } catch {

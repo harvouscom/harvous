@@ -249,7 +249,13 @@ export function sortThreadsByLastVisited<T extends {
   });
 }
 
-/** Space note lists: pinned first, then lastVisited / activity (mirrors thread sort). */
+/**
+ * Space note lists: pinned first, then by most-recent activity. Unlike the thread sort,
+ * notes do NOT segregate items that have a `lastVisited` value above those that don't —
+ * editing a note (which bumps `updatedAt`, not `lastVisited`) must float it to the top.
+ * Effective time is the newest of lastVisited / updatedAt / createdAt, so the most recently
+ * *updated or visited* note ranks first, using authoritative server `updatedAt` on refetch.
+ */
 export function sortNotesByLastVisited<T extends {
   isPinned?: boolean;
   lastVisited?: Date | string | null;
@@ -257,5 +263,29 @@ export function sortNotesByLastVisited<T extends {
   createdAt?: Date | string | null;
   id?: string;
 }>(items: T[]): T[] {
-  return sortThreadsByLastVisited(items);
+  const effectiveTime = (item: T): number => {
+    let t = 0;
+    for (const value of [item.lastVisited, item.updatedAt, item.createdAt]) {
+      const date = value != null ? normalizeDate(value) : null;
+      if (date) t = Math.max(t, date.getTime());
+    }
+    return t;
+  };
+  return [...items].sort((a, b) => {
+    // Primary: pinned first
+    if (a.isPinned && !b.isPinned) return -1;
+    if (!a.isPinned && b.isPinned) return 1;
+
+    // Secondary: most recent activity (newest first)
+    const aTime = effectiveTime(a);
+    const bTime = effectiveTime(b);
+    if (aTime !== bTime) return bTime - aTime;
+
+    // Final tiebreaker: id for deterministic ordering
+    const aId = a.id || '';
+    const bId = b.id || '';
+    if (aId < bId) return -1;
+    if (aId > bId) return 1;
+    return 0;
+  });
 }

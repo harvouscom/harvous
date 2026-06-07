@@ -4274,6 +4274,11 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
 
     const maybeRepairView = () => {
       if (!isEditorValid(editor)) return;
+      // Never recreate the editor while the user is actively editing it — recreation
+      // reloads from the (possibly stale) content prop and discards just-typed text,
+      // scripture pills, and freshly-added blank lines. The genuine desync this guards
+      // against (regression 8fdb3a10) happens on draft→persist navigation, not mid-typing.
+      if (editor.isFocused) return;
       if (!proseMirrorViewLooksDesynced(editor)) return;
       if (import.meta.env.DEV) {
         console.warn('[TiptapEditor] ProseMirror view desynced — recreating editor', {
@@ -4299,8 +4304,11 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
   }, [editor, editorChromeMode, viewRepairGeneration]);
 
   useEffect(() => {
+    // Reset the repair budget only when switching notes — NOT on every content change.
+    // Autosave updates `content` on each keystroke; re-arming here let the self-heal
+    // recreate the editor repeatedly mid-edit, dropping pills and blank lines.
     viewRepairAttemptsRef.current = 0;
-  }, [sourceNoteId, content]);
+  }, [sourceNoteId]);
 
   // Auto-open the reference dock when initialReferenceWord is set (e.g. navigated from sidebar row)
   const initialReferenceWordFiredRef = useRef<string | null>(null);
