@@ -1,4 +1,4 @@
-import { detectScriptureReferences } from './scripture-detector';
+import { detectScriptureReferences, normalizeScriptureReference } from './scripture-detector';
 
 /** Gap text between a scripture pill and a longer detected reference (e.g. ":2", " 2", "-14"). */
 export function isOrphanScriptureSuffix(text: string): boolean {
@@ -37,5 +37,8 @@ export function mergeReferenceWithOrphanSuffix(pillRef: string, suffix: string):
       best = ref;
     }
   }
-  return best;
+  // The combined string inserts a space before dash suffixes (e.g. "Exodus 4:18 -20"),
+  // so the matched reference can carry a stray space. Canonicalize to "Exodus 4:18-20"
+  // so the pill's stored reference is clean for server-side verse lookup.
+  return best ? normalizeScriptureReference(best) : null;
 }

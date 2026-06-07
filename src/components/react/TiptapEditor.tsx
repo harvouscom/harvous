@@ -1367,7 +1367,10 @@ export function absorbOrphanSuffixesAfterPills(editor: any): boolean {
     let modified = false;
 
     for (let i = pillSpans.length - 1; i >= 0; i--) {
-      const boundaries = findPillBoundaries(tr.doc, pillSpans[i].from);
+      // Probe one position INSIDE the pill, not at its node start: scripture pills are
+      // inclusive:false, so $pos.marks() strips the pill at the start boundary and
+      // findPillBoundaries' forward end-scan would fail and return null.
+      const boundaries = findPillBoundaries(tr.doc, pillSpans[i].from + 1);
       if (!boundaries) continue;
 
       const $end = tr.doc.resolve(boundaries.end);
@@ -3410,6 +3413,10 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
   // Debounce timer for mobile scripture detection (mobile runs detection in onUpdate,
   // not the desktop space keydown handler). Referenced in onUpdate's mobile branch.
   const mobileScriptureDetectionTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Debounce timer for the desktop orphan-suffix absorb (e.g. an "Exodus 4:18" pill
+  // followed by a typed "-20"). Debounced so multi-digit suffixes (":16", "-200") merge
+  // once the user pauses, instead of locking in a shorter ref ("John 3:1") mid-number.
+  const desktopOrphanAbsorbTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const bumpFormatToolbarActivity = useCallback(() => {
     if (editorChromeMode !== 'prototypeNative') return;
@@ -3655,6 +3662,33 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
               }
             }, 250);
           }
+        }
+      } else {
+        // Desktop safety net: when a verse / range suffix is typed immediately after a
+        // pill (e.g. an "Exodus 4:18" pill followed by "-20"), the keydown continuation
+        // handler can't catch it — scripture pills are inclusive:false, so $from.marks()
+        // does not expose the pill mark at the boundary right after the pill, and the
+        // continuation block is gated on that mark. Absorb the orphan suffix into the pill
+        // once it forms a valid longer reference. Debounced so multi-digit suffixes
+        // (":16", "-200") merge as a whole on pause, not "John 3:1" mid-number. Gated to
+        // verse-suffix chars before the cursor so plain prose never pays for the pill scan.
+        try {
+          const { from, to } = editor.state.selection;
+          const charBefore = from >= 2 ? editor.state.doc.textBetween(from - 1, from) : '';
+          if (from === to && /[\d:,\-–—]/.test(charBefore)) {
+            if (desktopOrphanAbsorbTimer.current) clearTimeout(desktopOrphanAbsorbTimer.current);
+            desktopOrphanAbsorbTimer.current = setTimeout(() => {
+              desktopOrphanAbsorbTimer.current = null;
+              if (!editor || editor.isDestroyed) return;
+              try {
+                absorbOrphanSuffixesAfterPills(editor);
+              } catch {
+                /* ignore */
+              }
+            }, 250);
+          }
+        } catch {
+          /* ignore */
         }
       }
 

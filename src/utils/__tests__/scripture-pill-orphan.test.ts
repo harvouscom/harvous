@@ -39,6 +39,14 @@ describe('mergeReferenceWithOrphanSuffix', () => {
     expect(mergeReferenceWithOrphanSuffix('Romans 12', ':2')).toBe('Romans 12:2');
   });
 
+  it('merges a verse pill with a dash range suffix into a clean reference', () => {
+    // Regression: a "-20" typed after an "Exodus 4:18" pill must extend it to the full
+    // range, and the stored reference must be canonical (no stray space "Exodus 4:18 -20").
+    expect(mergeReferenceWithOrphanSuffix('Exodus 4:18', '-20')).toBe('Exodus 4:18-20');
+    expect(mergeReferenceWithOrphanSuffix('Genesis 1:1', '-3')).toBe('Genesis 1:1-3');
+    expect(mergeReferenceWithOrphanSuffix('John 3:16', '–17')).toBe('John 3:16-17');
+  });
+
   it('returns null when suffix is not scripture continuation', () => {
     expect(mergeReferenceWithOrphanSuffix('Romans 12', ' and')).toBe(null);
   });
