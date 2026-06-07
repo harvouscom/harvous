@@ -474,11 +474,16 @@ html.harvous-prototype-route .proto-shell__toolbar-cell::after {
   }
 
   /* Frame stays anchored at its normal top inset (base margin) and only shrinks height
-     from the bottom to sit above the keyboard — no top offset (avoids a gap up top). */
+     from the bottom to sit above the keyboard — no top offset (avoids a gap up top).
+     Height subtracts only the top inset so the frame's bottom edge reaches the visual
+     viewport bottom (in-flow format bar hugs the keyboard). Bottom corners flatten since
+     the frame now meets the viewport edge. */
   html[data-proto-keyboard-open] .proto-shell-frame {
     overflow: hidden;
-    height: var(--proto-visible-viewport-height, calc(100dvh - 2 * var(--pds-shell-frame-inset)));
-    max-height: var(--proto-visible-viewport-height, calc(100dvh - 2 * var(--pds-shell-frame-inset)));
+    height: var(--proto-visible-viewport-height, calc(100dvh - var(--pds-shell-frame-inset)));
+    max-height: var(--proto-visible-viewport-height, calc(100dvh - var(--pds-shell-frame-inset)));
+    border-bottom-left-radius: 0;
+    border-bottom-right-radius: 0;
   }
 
   /* The format bar stays in normal flow at the bottom of the visual-viewport-sized
@@ -494,9 +499,14 @@ html.harvous-prototype-route .proto-shell__toolbar-cell::after {
   }
 
   /* The editor scroll remains the scroller; the caret clears the in-flow toolbar via
-     the paper's bottom padding + scroll-padding-bottom (prototype-editor.css). */
+     the paper's bottom padding + scroll-padding-bottom (prototype-editor.css).
+     Paint the scroll area with the paper sheet: iOS Safari does not always stretch the
+     paper's flex box down to the format bar, which let the darker shell frame show through
+     as a disconnected "second pane". Filling the scroll makes any unfilled strip read as
+     the editor surface. */
   html[data-proto-keyboard-open] .proto-editor-scroll {
     overscroll-behavior: contain;
+    background: var(--pds-paper-sheet);
   }
 
   .proto-shell__study-dock-layer .study-dock-card__card[data-expanded='true'] {

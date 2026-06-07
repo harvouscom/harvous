@@ -275,7 +275,10 @@ function PrototypeAuthenticatedChrome({ userId }: { userId?: string }) {
         // visual viewport top aligns with the layout top) and only shrink height from the
         // bottom. Using vv.offsetTop here pushes the frame down by a stale keyboard-animation
         // value, leaving an empty gap above the toolbar header.
-        const frameHeight = Math.max(120, visibleHeight - frameInset * 2);
+        // Subtract only the top inset (not bottom): the frame's bottom edge then reaches the
+        // visual viewport bottom so the in-flow format bar hugs the keyboard / Safari address
+        // pill instead of floating well above it.
+        const frameHeight = Math.max(120, visibleHeight - frameInset);
         root.style.setProperty('--proto-visible-viewport-height', `${frameHeight}px`);
         root.setAttribute('data-proto-keyboard-open', '');
         lockPageScroll();

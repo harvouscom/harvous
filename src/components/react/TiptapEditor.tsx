@@ -3407,6 +3407,9 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
   const [showFormatBarForActivity, setShowFormatBarForActivity] = useState(false);
   const [isPointerOverFormatToolbar, setIsPointerOverFormatToolbar] = useState(false);
   const formatBarHideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Debounce timer for mobile scripture detection (mobile runs detection in onUpdate,
+  // not the desktop space keydown handler). Referenced in onUpdate's mobile branch.
+  const mobileScriptureDetectionTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const bumpFormatToolbarActivity = useCallback(() => {
     if (editorChromeMode !== 'prototypeNative') return;
