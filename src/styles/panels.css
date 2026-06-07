@@ -1516,22 +1516,6 @@ html.ios-pwa .drawer-slide {
   height: auto;
 }
 
-.about-harvous-attribution {
-  max-width: 46ch;
-  margin: 20px auto 0;
-  font-size: 12px;
-  line-height: 1.45;
-  color: var(--color-pebble-grey);
-  text-align: center;
-}
-
-.about-harvous-attribution a,
-.about-harvous-attribution a:visited {
-  color: var(--color-deep-grey);
-  text-decoration: underline;
-  text-underline-offset: 2px;
-}
-
 /* Respect reduced motion preferences */
 @media (prefers-reduced-motion: reduce) {
   .about-harvous-paper-stack__paper {
