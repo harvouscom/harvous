@@ -89,6 +89,8 @@ Auto **secondary folders** use the same keyword pool but **stricter gates** than
 - Default minimum folder score: `secondaryMinPrimaryScore` (0.78).
 - **`character` and `place`**: require **title hit** or **≥ 3 occurrences**, otherwise they need **`secondaryCharacterPlaceMinScore`** (0.88). Incidental people/places can still appear in `note.tags` but should not auto-fill secondary folders.
 
+**Folder-only exclusions:** `God`, `Jesus`, and `Holy Spirit` are too broad for auto primary/secondary folder labels (they appear in almost every devotional note). They are filtered out of folder candidate scoring on web (`isAutoFolderExcludedKeyword` in `bible-study-keywords.ts`) and native (`autoFolderExcludedNames` in `BibleStudyTagSuggester`). Tags may still surface Jesus and Holy Spirit; tags already skip God on web.
+
 Web cards mirror this in `src/utils/bible-study-collection-web.ts` (primary over all deduped keywords; secondary eligibility for character/place uses title, rough occurrence count, and the same score floors).
 
 ## Categories and Their Role

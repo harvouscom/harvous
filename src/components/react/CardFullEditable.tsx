@@ -188,6 +188,12 @@ interface CardFullEditableProps {
   alwaysEditing?: boolean;
   /** Prototype-only: fired on editor unmount with live title/body so the parent can discard empty notes. */
   onPrototypeEditorUnmount?: (snapshot: { noteId: string; title: string; content: string }) => void;
+  /**
+   * Prototype-only: stable identity for the body editor across the /n/new → /n/<id>
+   * draft→persist swap. The parent keeps this constant for one compose session so the
+   * TipTap instance survives the swap (no remount mid-typing); falls back to `noteId`.
+   */
+  prototypeBodyMountId?: string | null;
   /** Prototype-only: parent signals draft→persist navigation so TipTap remounts with live body HTML. */
   prototypeDraftPersistRemount?: { content: string } | null;
   /** Bumped with `prototypeDraftPersistRemount` so remount runs even when CardFullEditable remounts. */
@@ -235,6 +241,7 @@ export default function CardFullEditable({
   collectionNavContext = DEFAULT_COLLECTION_NAV_CONTEXT,
   alwaysEditing = false,
   onPrototypeEditorUnmount,
+  prototypeBodyMountId = null,
   prototypeDraftPersistRemount = null,
   prototypeDraftPersistRemountTick = 0,
   spaceId,
@@ -250,6 +257,10 @@ export default function CardFullEditable({
     alwaysEditing &&
     noteType !== 'scripture' &&
     !readOnlyLikeScripture;
+  // Stable identity for the body TipTap so the same instance survives the draft→persist
+  // id swap (parent holds `prototypeBodyMountId` constant for one compose session).
+  // Distinct settled notes still get distinct ids and remount normally.
+  const bodyEditorMountId = prototypeBodyMountId ?? noteId ?? 'none';
   const wrapTiptapSuspense = useCallback(
     (node: React.ReactNode, fallbackClassName: string) =>
       eagerTiptap ? node : <Suspense fallback={<div className={fallbackClassName} />}>{node}</Suspense>,
@@ -682,7 +693,10 @@ export default function CardFullEditable({
     bodyInteractionRef.current = false;
   }, [noteId, editorChromeMode, alwaysEditing]);
 
-  // Parent signals first draft persist (survives CardFullEditable remount on /n/new → /n/<id>).
+  // Parent signals first draft persist (/n/new → /n/<id>). With a stable
+  // `prototypeBodyMountId`, the TipTap instance survives the swap, so keep its live
+  // content and focus in place — do NOT force a remount (that's what dropped typing
+  // and desynced ProseMirror before). Only remount as a fallback if the editor is gone.
   useLayoutEffect(() => {
     if (!prototypeDraftPersistRemount || editorChromeMode !== 'prototypeNative' || !alwaysEditing) {
       return;
@@ -691,21 +705,36 @@ export default function CardFullEditable({
       return;
     }
     handledPersistRemountTickRef.current = prototypeDraftPersistRemountTick;
-    let live = prototypeDraftPersistRemount.content;
+    bodyInteractionRef.current = true;
     const editor = editorInstanceRef.current;
-    if (editor && !editor.isDestroyed) {
+    const editorAlive = !!editor && !editor.isDestroyed;
+    if (editorAlive) {
+      // Same instance lives on: trust its live content, keep the caret, no remount.
+      let live = prototypeDraftPersistRemount.content;
       try {
         live = editor.getHTML();
       } catch {
         /* ignore */
       }
+      editContentRef.current = live;
+      if (!editor.isFocused) {
+        requestAnimationFrame(() => {
+          try {
+            if (!editor.isDestroyed) editor.commands.focus();
+          } catch {
+            /* ignore */
+          }
+        });
+      }
+      return;
     }
+    // Fallback (no surviving editor): reseed + controlled remount, preserving content.
+    const live = prototypeDraftPersistRemount.content;
     setEditContent(live);
     editContentRef.current = live;
     setDisplayContent(live);
     shouldFocusEditorRef.current = true;
     setTiptapBodyMountKey((k) => k + 1);
-    bodyInteractionRef.current = true;
   }, [
     prototypeDraftPersistRemount,
     prototypeDraftPersistRemountTick,
@@ -2570,7 +2599,7 @@ export default function CardFullEditable({
                 >
                   {wrapTiptapSuspense(
                     <TiptapEditorComponent
-                      key={`proto-body-${noteId ?? 'none'}-${tiptapBodyMountKey}`}
+                      key={`proto-body-${bodyEditorMountId}-${tiptapBodyMountKey}`}
                       content={editContent}
                       id="edit-note-content"
                       name="editContent"

@@ -42,13 +42,7 @@ struct FolderChipPopover: View {
         static var actionPairSpacing: CGFloat { 6 }
 
         /// Trailing inset for paired actions — matches web `--proto-fte-action-inset`.
-        static var actionTrailingInset: CGFloat {
-            #if os(iOS)
-            6
-            #else
-            2
-            #endif
-        }
+        static var actionTrailingInset: CGFloat { 10 }
 
         static var glyphSection: CGFloat {
             #if os(iOS)

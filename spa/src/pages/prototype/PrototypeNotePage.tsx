@@ -63,6 +63,10 @@ export default function PrototypeNotePage() {
   createNoteMutationRef.current = createNoteMutation;
   const draftPersistPromiseRef = useRef<Promise<string | null> | null>(null);
   const persistedDraftIdRef = useRef<string | null>(null);
+  // The note id a draft compose persisted into. Unlike `persistedDraftIdRef` (reset
+  // on every slug change), this survives the /n/new → /n/<id> swap so the editor
+  // subtree key can stay stable across that single transition (no remount mid-typing).
+  const adoptedComposeIdRef = useRef<string | null>(null);
   const draftPersistRemountRef = useRef<{ content: string } | null>(null);
   const [draftPersistRemountTick, setDraftPersistRemountTick] = useState(0);
   const processScriptureMutation = useProcessScriptureRefs();
@@ -392,6 +396,7 @@ export default function PrototypeNotePage() {
             throw new Error('Create succeeded but response had no note id');
           }
           persistedDraftIdRef.current = createdId;
+          adoptedComposeIdRef.current = createdId;
           if (collectionExtras && Object.keys(collectionExtras).length > 0) {
             await updateNoteMutationRef.current.mutateAsync({
               noteId: createdId,
@@ -567,6 +572,13 @@ export default function PrototypeNotePage() {
 
   const prototypeDisplayTitle = stripServerAutoUntitledNoteTitleForDisplay(editorNote.title);
 
+  // Stable key for the editor subtree. The draft route and the note it persists into
+  // are ONE editing session, so they share a key — this prevents a destructive
+  // CardFullEditable + TipTap remount mid-typing when /n/new → /n/<id>. Any other
+  // (settled) note keys on its own id, so distinct notes never share an instance.
+  const editorSessionKey =
+    isDraft || adoptedComposeIdRef.current === noteId ? DRAFT_NOTE_ID : noteId;
+
   const showInspectorDesktop = (inspectorOpen || inspectorExiting) && !isMobileSidebar;
   const showInspectorMobile = (inspectorOpen || inspectorExiting) && isMobileSidebar;
   // Only reserve editor space when the inspector actually renders. The desktop
@@ -632,7 +644,7 @@ export default function PrototypeNotePage() {
       {/* Editor column */}
       <div className="proto-editor-surface">
         <div className="proto-editor-scroll">
-          <SubtleContentMount key={noteId} variant="fade">
+          <SubtleContentMount key={editorSessionKey} variant="fade">
             <div className="proto-editor-content-wrap">
               <div className="proto-editor-paper">
               <CardFullEditable
@@ -665,6 +677,7 @@ export default function PrototypeNotePage() {
                 onPrototypeFolderDisplayChange={onPrototypeFolderDisplayChange}
                 prototypeNoteActionsChrome={true}
                 alwaysEditing
+                prototypeBodyMountId={editorSessionKey}
                 prototypeDraftPersistRemount={draftPersistRemountRef.current}
                 prototypeDraftPersistRemountTick={draftPersistRemountTick}
               />

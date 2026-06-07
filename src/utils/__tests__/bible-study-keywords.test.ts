@@ -61,3 +61,25 @@ describe('bible study keyword boundaries (Hell vs Hello)', () => {
     expect(secs.some((s) => s.toLowerCase() === 'david')).toBe(false);
   });
 });
+
+describe('auto folder exclusions (God / Jesus / Holy Spirit)', () => {
+  const devotionalBody =
+    'We trust in the Lord Jesus Christ and the Holy Spirit guides us. God is faithful and good. '.repeat(
+      8,
+    );
+
+  it('suggestPrimaryCollectionFromNote does not surface God, Jesus, or Holy Spirit', () => {
+    const primary = suggestPrimaryCollectionFromNote('God is good', devotionalBody);
+    expect(primary?.toLowerCase()).not.toBe('god');
+    expect(primary?.toLowerCase()).not.toBe('jesus');
+    expect(primary?.toLowerCase()).not.toBe('holy spirit');
+  });
+
+  it('suggestSecondaryCollectionsFromNote omits God, Jesus, and Holy Spirit', () => {
+    const secs = suggestSecondaryCollectionsFromNote('Morning prayer', devotionalBody, 'Prayer');
+    const lower = secs.map((s) => s.toLowerCase());
+    expect(lower).not.toContain('god');
+    expect(lower).not.toContain('jesus');
+    expect(lower).not.toContain('holy spirit');
+  });
+});

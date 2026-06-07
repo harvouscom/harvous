@@ -21,7 +21,6 @@ import {
 import NativeToolbar from '../pages/prototype/NativeToolbar';
 import PrototypeSidebar from '../pages/prototype/PrototypeSidebar';
 import PrototypeEditorChromeBar from '../pages/prototype/PrototypeEditorChromeBar';
-import PrototypeMigrationBanner from '../pages/prototype/PrototypeMigrationBanner';
 import '../styles/prototype-tokens.css';
 import '../styles/prototype-shell.css';
 import '../styles/prototype-components.css';
@@ -199,18 +198,16 @@ function PrototypeAuthenticatedChrome({ userId }: { userId?: string }) {
     };
   }, [userId, pathname, queryClient, homeSpaceId]);
 
-  // Mobile soft keyboard: lift the shell editor chrome row above the keyboard and hide the
-  // study docks while typing. The format toolbar is portaled into the shell (not the card
-  // root), so the classic CardFullEditable keyboard handling can't reposition it — mirror
-  // that visualViewport logic here, scoped to note routes on the mobile breakpoint.
-  const RESERVE_EDITOR_PX = 130;
+  // Mobile soft keyboard: shrink the shell frame to the visual viewport (above the keyboard)
+  // so the in-flow editor chrome row (format toolbar) lands just above the keyboard, and hide
+  // the study docks while typing. Scoped to note routes on the mobile breakpoint.
   useEffect(() => {
     if (!isNoteRoute) return undefined;
     const vv = typeof window !== 'undefined' ? window.visualViewport : null;
     if (!vv) return undefined;
     const mq = window.matchMedia('(max-width: 899px)');
-    const isIOS = typeof navigator !== 'undefined' && /iPad|iPhone|iPod/.test(navigator.userAgent);
     const root = document.documentElement;
+    let settleTimer: ReturnType<typeof setTimeout> | undefined;
 
     const pinPageScroll = () => {
       if (window.scrollY !== 0 || vv.offsetTop !== 0) {
@@ -231,8 +228,6 @@ function PrototypeAuthenticatedChrome({ userId }: { userId?: string }) {
     };
 
     const clear = () => {
-      root.style.removeProperty('--proto-toolbar-top');
-      root.style.removeProperty('--proto-editor-scroll-max-height');
       root.style.removeProperty('--proto-dock-expanded-max-height');
       root.style.removeProperty('--proto-visible-viewport-height');
       root.style.removeProperty('--proto-shell-frame-offset-top');
@@ -243,12 +238,6 @@ function PrototypeAuthenticatedChrome({ userId }: { userId?: string }) {
         .forEach((frame) => {
           frame.style.removeProperty('height');
           frame.style.removeProperty('max-height');
-        });
-      document
-        .querySelectorAll<HTMLElement>('.proto-shell__editor-chrome-row .proto-editor-bottom-bar')
-        .forEach((bar) => {
-          bar.style.removeProperty('top');
-          bar.style.removeProperty('bottom');
         });
     };
 
@@ -266,39 +255,26 @@ function PrototypeAuthenticatedChrome({ userId }: { userId?: string }) {
       }
     };
 
-    const apply = (estimatedViewportHeight?: number, toolbarMeasureAttempt = 0) => {
+    // Size the shell frame to exactly the visual viewport (above the keyboard) and let the
+    // editor chrome row (format toolbar) stay in normal flow at the frame's bottom edge.
+    // No fixed positioning / content max-height reserve — the editor and toolbar then read
+    // as one continuous surface sitting just above the keyboard.
+    const apply = () => {
       updateDockMaxHeight();
       if (!mq.matches) {
         clear();
         return;
       }
       const innerH = window.innerHeight;
-      let effectiveHeight: number;
-      if (estimatedViewportHeight != null && vv.height > innerH * 0.85) {
-        effectiveHeight = estimatedViewportHeight;
-      } else {
-        effectiveHeight = vv.height;
-      }
+      const effectiveHeight = vv.height;
       const keyboardOpen = effectiveHeight < innerH * 0.75;
       if (keyboardOpen) {
-        const gap = 12;
         const offsetTop = vv.offsetTop;
-        const visibleBottom = offsetTop + effectiveHeight;
         const visibleHeight = Math.round(effectiveHeight);
         const frameInset =
           parseFloat(getComputedStyle(root).getPropertyValue('--pds-shell-frame-inset')) || 8;
         const frameOffsetTop = Math.round(offsetTop + frameInset);
         const frameHeight = Math.max(120, visibleHeight - frameInset * 2);
-        const frame = document.querySelector<HTMLElement>('.proto-shell-frame');
-        const frameTop = frame?.getBoundingClientRect().top ?? frameOffsetTop;
-        const bar = document.querySelector<HTMLElement>(
-          '.proto-shell__editor-chrome-row .proto-editor-bottom-bar',
-        );
-        const barHeight = bar?.getBoundingClientRect().height ?? 48;
-        const toolbarTop = Math.max(0, Math.round(visibleBottom - barHeight - gap - frameTop));
-        const editorH = Math.max(120, Math.round(visibleBottom - barHeight - gap - RESERVE_EDITOR_PX));
-        root.style.setProperty('--proto-toolbar-top', `${toolbarTop}px`);
-        root.style.setProperty('--proto-editor-scroll-max-height', `${editorH}px`);
         root.style.setProperty('--proto-visible-viewport-height', `${frameHeight}px`);
         root.style.setProperty('--proto-shell-frame-offset-top', `${frameOffsetTop}px`);
         root.setAttribute('data-proto-keyboard-open', '');
@@ -307,13 +283,6 @@ function PrototypeAuthenticatedChrome({ userId }: { userId?: string }) {
           frame.style.height = `${frameHeight}px`;
           frame.style.maxHeight = `${frameHeight}px`;
         });
-        if (bar) {
-          bar.style.top = `${toolbarTop}px`;
-          bar.style.bottom = 'auto';
-          if (barHeight < 24 && toolbarMeasureAttempt < 4) {
-            requestAnimationFrame(() => apply(estimatedViewportHeight, toolbarMeasureAttempt + 1));
-          }
-        }
       } else {
         clear();
       }
@@ -327,35 +296,27 @@ function PrototypeAuthenticatedChrome({ userId }: { userId?: string }) {
         pinPageScroll();
       }
     };
-    const onFocusIn = () => {
-      setTimeout(apply, 100);
-      setTimeout(apply, 300);
-      if (isIOS) {
-        setTimeout(apply, 400);
-        setTimeout(apply, 600);
-        const estimatedHeight = Math.round(window.innerHeight * 0.55);
-        if (estimatedHeight < window.innerHeight * 0.75) {
-          setTimeout(() => apply(estimatedHeight), 50);
-        }
-      }
-    };
-    const onFocusOut = () => {
-      setTimeout(apply, 100);
-      setTimeout(apply, 300);
+    // visualViewport resize/scroll is the primary signal; focus just nudges a re-apply
+    // (rAF now + one settle after the iOS keyboard animation) instead of a timer cascade.
+    const scheduleSettle = () => {
+      requestAnimationFrame(apply);
+      if (settleTimer) clearTimeout(settleTimer);
+      settleTimer = setTimeout(apply, 250);
     };
     vv.addEventListener('resize', onViewportChange);
     vv.addEventListener('scroll', onViewportChange);
     window.addEventListener('resize', updateDockMaxHeight);
-    document.addEventListener('focusin', onFocusIn);
-    document.addEventListener('focusout', onFocusOut);
+    document.addEventListener('focusin', scheduleSettle);
+    document.addEventListener('focusout', scheduleSettle);
 
     return () => {
       cancelAnimationFrame(raf);
+      if (settleTimer) clearTimeout(settleTimer);
       vv.removeEventListener('resize', onViewportChange);
       vv.removeEventListener('scroll', onViewportChange);
       window.removeEventListener('resize', updateDockMaxHeight);
-      document.removeEventListener('focusin', onFocusIn);
-      document.removeEventListener('focusout', onFocusOut);
+      document.removeEventListener('focusin', scheduleSettle);
+      document.removeEventListener('focusout', scheduleSettle);
       clear();
     };
   }, [isNoteRoute]);
@@ -524,7 +485,6 @@ function PrototypeAuthenticatedChrome({ userId }: { userId?: string }) {
 
         <main className="proto-shell__main-cell">
           <div className="proto-shell__main-inner">
-            {userId ? <PrototypeMigrationBanner /> : null}
             <Outlet />
           </div>
         </main>

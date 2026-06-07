@@ -327,7 +327,11 @@ final class HarvousSyncService {
         let deletedNoteIds = Set(remote.deletedNoteIds).union(pendingNoteDeletes)
         let deletedHighlightIds = Set(remote.deletedHighlightIds)
         if !deletedNoteIds.isEmpty {
-            pruneDeletedNotes(serverIds: deletedNoteIds, context: context)
+            pruneDeletedNotes(
+                serverIds: deletedNoteIds,
+                userTombstonedIds: pendingNoteDeletes,
+                context: context
+            )
         }
         if !deletedHighlightIds.isEmpty {
             pruneDeletedHighlights(serverIds: deletedHighlightIds, context: context)
@@ -370,15 +374,46 @@ final class HarvousSyncService {
         }
     }
 
-    private func pruneDeletedNotes(serverIds: Set<String>, context: ModelContext) {
-        var prunedLocalIds: [UUID] = []
+    /// Removes notes the server (or our own queue) reports deleted. `userTombstonedIds` are
+    /// the notes WE deleted locally (always applied); everything else is server-driven and
+    /// guarded by `HarvousSyncPruneGuard` so a stale/overbroad payload can't destroy work.
+    private func pruneDeletedNotes(
+        serverIds: Set<String>,
+        userTombstonedIds: Set<String>,
+        context: ModelContext
+    ) {
         var notesToDelete: [Note] = []
         for serverId in serverIds {
             let predicate = #Predicate<Note> { $0.serverId == serverId }
             guard let note = try? context.fetch(FetchDescriptor<Note>(predicate: predicate)).first else { continue }
-            prunedLocalIds.append(note.id)
+            if HarvousSyncPruneGuard.shouldKeepDespiteServerDelete(
+                userTombstoned: userTombstonedIds.contains(serverId),
+                hasUnsyncedLocalEdits: note.needsSync
+            ) {
+                Logger.app.error(
+                    "Sync prune SKIPPED unsynced local edits win trigger=syncPrune serverId=\(serverId, privacy: .public) localId=\(note.id.uuidString, privacy: .public)"
+                )
+                continue
+            }
             notesToDelete.append(note)
         }
+
+        // Defensive cap: a malformed/overbroad server response must not wipe a large
+        // fraction of the library in one pull. Withhold server-driven deletes beyond the
+        // cap; explicit user tombstones still apply.
+        let serverDriven = notesToDelete.filter { !userTombstonedIds.contains($0.serverId ?? "") }
+        let totalLocalNotes = (try? context.fetchCount(FetchDescriptor<Note>())) ?? 0
+        if HarvousSyncPruneGuard.serverBulkDeleteLooksSuspicious(
+            serverDrivenDeleteCount: serverDriven.count,
+            totalLocalNotes: totalLocalNotes
+        ) {
+            Logger.app.error(
+                "Sync prune ABORTED suspicious server bulk delete serverDriven=\(serverDriven.count, privacy: .public) totalLocal=\(totalLocalNotes, privacy: .public) — keeping server-driven notes this pull"
+            )
+            notesToDelete = notesToDelete.filter { userTombstonedIds.contains($0.serverId ?? "") }
+        }
+
+        let prunedLocalIds = notesToDelete.map(\.id)
         guard !prunedLocalIds.isEmpty else { return }
         // Post before deleting so the note editor can clear its selection while Note objects are still
         // live. The synchronous post gives Combine the earliest possible delivery window before the
@@ -389,6 +424,10 @@ final class HarvousSyncService {
             userInfo: [HarvousNotesPrunedPayload.noteIdsKey: prunedLocalIds.map(\.uuidString)]
         )
         for note in notesToDelete {
+            let serverId = note.serverId ?? ""
+            Logger.app.info(
+                "Sync prune note trigger=syncPrune localId=\(note.id.uuidString, privacy: .public) serverId=\(serverId, privacy: .public)"
+            )
             HarvousVaultExporter.removeMirrorFiles(for: note, modelContext: context)
             HarvousNoteSpotlightIndexer.removeNote(id: note.id)
             context.delete(note)
@@ -421,10 +460,24 @@ final class HarvousSyncService {
             let toNote = try? context.fetch(FetchDescriptor<Note>(predicate: toPred)).first
         else { return }
 
-        // If a local (unsynced) thread already exists for this pair, adopt it rather than creating a duplicate.
         let fromId = fromNote.id
         let toId = toNote.id
         let linkedKindRaw = StudyThread.EntryKind.linkedNote.rawValue
+
+        // Skip synthetic row when a real study-thread entry already covers this pair.
+        let studyThreadPred = #Predicate<StudyThread> { t in
+            t.parentNoteId == fromId
+                && t.linkedNoteId == toId
+                && t.entryKindRaw == linkedKindRaw
+                && !t.isArchived
+        }
+        if let existingStudyThread = try? context.fetch(FetchDescriptor<StudyThread>(predicate: studyThreadPred)).first,
+           let existingServerId = existingStudyThread.serverId,
+           existingServerId.hasPrefix("study_") {
+            return
+        }
+
+        // If a local (unsynced) thread already exists for this pair, adopt it rather than creating a duplicate.
         let localPred = #Predicate<StudyThread> { t in
             t.parentNoteId == fromId
                 && t.linkedNoteId == toId
@@ -715,6 +768,18 @@ final class HarvousSyncService {
                 case .studyThread:
                     let _: DeleteEnvelope = try await api.delete(
                         "/api/study-threads/\(tombstone.serverId)"
+                    )
+                case .noteConnection:
+                    guard
+                        let fromNoteId = tombstone.fromNoteServerId,
+                        let toNoteId = tombstone.toNoteServerId
+                    else {
+                        HarvousTombstoneQueue.remove(tombstone)
+                        continue
+                    }
+                    let _: DeleteEnvelope = try await api.delete(
+                        "/api/notes/connect-link",
+                        body: ConnectLinkDeleteBody(fromNoteId: fromNoteId, toNoteId: toNoteId)
                     )
                 }
                 HarvousTombstoneQueue.remove(tombstone)
@@ -1014,6 +1079,11 @@ private struct HighlightEnvelope: Decodable {
 private struct DeleteEnvelope: Decodable {
     let success: Bool?
     let deletedId: String?
+}
+
+private struct ConnectLinkDeleteBody: Encodable {
+    let fromNoteId: String
+    let toNoteId: String
 }
 
 // MARK: - Dirty helpers

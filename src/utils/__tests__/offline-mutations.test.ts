@@ -8,6 +8,7 @@ import {
   deleteThreadOffline,
   createNoteOffline,
   updateNoteOffline,
+  updateNoteOfflineIfPresent,
   deleteNoteOffline,
   getNextSimpleNoteIdPreview,
   getLocalNoteCount,
@@ -440,6 +441,27 @@ describe('offline-mutations', () => {
       await expect(
         updateNoteOffline(testUserId, 'non-existent', { title: 'Test' })
       ).rejects.toThrow('Note not found');
+    });
+  });
+
+  describe('updateNoteOfflineIfPresent', () => {
+    it('returns false without throwing when note is missing from IndexedDB', async () => {
+      const updated = await updateNoteOfflineIfPresent(testUserId, 'non-existent', { title: 'Test' });
+      expect(updated).toBe(false);
+    });
+
+    it('updates and returns true when note exists locally', async () => {
+      const noteId = await createNoteOffline(testUserId, {
+        title: 'Original',
+        content: 'Body',
+      });
+      const updated = await updateNoteOfflineIfPresent(testUserId, noteId, {
+        title: 'Changed',
+        content: 'Body',
+      });
+      expect(updated).toBe(true);
+      const note = await offlineDB.notes.where('[userId+id]').equals([testUserId, noteId]).first();
+      expect(note?.title).toBe('Changed');
     });
   });
 

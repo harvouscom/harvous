@@ -157,14 +157,23 @@ final class HarvousContentBridgeTests: XCTestCase {
     func testHtmlToPlainBodyParagraphBreaks() {
         XCTAssertEqual(
             HarvousContentBridge.htmlToPlainBody("<p>First</p><p>Second</p>"),
-            "First\n\nSecond"
+            "First\nSecond"
         )
     }
 
     func testHtmlToPlainBodyIntentionalBlankLine() {
         XCTAssertEqual(
             HarvousContentBridge.htmlToPlainBody("<p>First</p><p><br></p><p>Second</p>"),
-            "First\n\n\nSecond"
+            "First\n\nSecond"
+        )
+    }
+
+    func testHtmlToPlainBodyMultipleBlankLines() {
+        // Two stacked blank-line paragraphs (web user pressing Enter on empty lines)
+        // must map to two blank lines (`\n\n\n`), not four newlines.
+        XCTAssertEqual(
+            HarvousContentBridge.htmlToPlainBody("<p>A</p><p><br></p><p><br></p><p>B</p>"),
+            "A\n\n\nB"
         )
     }
 
@@ -193,7 +202,7 @@ final class HarvousContentBridgeTests: XCTestCase {
         let html = "<p>Intro</p><ul><li>one</li><li>two</li></ul><p>Outro</p>"
         XCTAssertEqual(
             HarvousContentBridge.htmlToPlainBody(html),
-            "Intro\n\n\u{2022} one\n\u{2022} two\n\nOutro"
+            "Intro\n\u{2022} one\n\u{2022} two\nOutro"
         )
     }
 
@@ -232,10 +241,10 @@ final class HarvousContentBridgeTests: XCTestCase {
 
     func testRoundTripParagraphBreaks() {
         let body = "First\n\nSecond"
-        XCTAssertEqual(
-            HarvousContentBridge.htmlToPlainBody(HarvousContentBridge.markdownToHTML(body)),
-            body
-        )
+        let html = HarvousContentBridge.markdownToHTML(body)
+        XCTAssertEqual(html, "<p>First</p><p>Second</p>")
+        // Pull uses single `\n` between paragraphs for NSTextView editing parity.
+        XCTAssertEqual(HarvousContentBridge.htmlToPlainBody(html), "First\nSecond")
     }
 
     func testRoundTripHorizontalRule() {
@@ -256,9 +265,65 @@ final class HarvousContentBridgeTests: XCTestCase {
 
     func testRoundTripMixedBlocks() {
         let body = "Intro\n\n\u{2022} one\n\u{2022} two\n\nOutro"
+        let html = HarvousContentBridge.markdownToHTML(body)
+        XCTAssertEqual(
+            HarvousContentBridge.htmlToPlainBody(html),
+            "Intro\n\u{2022} one\n\u{2022} two\nOutro"
+        )
+    }
+
+    func testRoundTripOrderedList() {
+        let body = "1. first\n2. second"
         XCTAssertEqual(
             HarvousContentBridge.htmlToPlainBody(HarvousContentBridge.markdownToHTML(body)),
             body
         )
+    }
+
+    /// Soft line breaks (Shift+Enter) survive the round trip while a true paragraph
+    /// break collapses to a single `\n` — the line-break-preservation contract the
+    /// recent sync fix depends on.
+    func testRoundTripSoftBreakWithParagraphBreak() {
+        let body = "Alpha\nBeta\n\nGamma"
+        let html = HarvousContentBridge.markdownToHTML(body)
+        XCTAssertEqual(html, "<p>Alpha<br>Beta</p><p>Gamma</p>")
+        XCTAssertEqual(HarvousContentBridge.htmlToPlainBody(html), "Alpha\nBeta\nGamma")
+    }
+
+    // MARK: - htmlToPlainBody regression (sign-in sync crash)
+
+    func testHtmlToPlainBodyMixedCaseTags() {
+        XCTAssertEqual(HarvousContentBridge.htmlToPlainBody("<P>Hello</P>"), "Hello")
+    }
+
+    func testHtmlToPlainBodyUnicodeBody() {
+        XCTAssertEqual(
+            HarvousContentBridge.htmlToPlainBody("<p>Café — İstanbul</p>"),
+            "Café — İstanbul"
+        )
+        XCTAssertEqual(
+            HarvousContentBridge.htmlToPlainBody("<p>ἀγάπη (love)</p>"),
+            "ἀγάπη (love)"
+        )
+    }
+
+    func testHtmlToPlainBodyWebRichHTMLDoesNotTrap() {
+        let html = "<h2>Title</h2><p><strong>bold</strong></p>"
+        let plain = HarvousContentBridge.htmlToPlainBody(html)
+        XCTAssertTrue(plain.contains("bold"), plain)
+    }
+
+    func testHtmlToPlainBodyHighlightMarkupInsideParagraph() {
+        let html = "<p>See <mark data-color=\"yellow\">highlight</mark> here</p>"
+        XCTAssertEqual(
+            HarvousContentBridge.htmlToPlainBody(html),
+            "See highlight here"
+        )
+    }
+
+    func testHtmlToPlainBodyPreBlockDoesNotTrap() {
+        // Unsupported block type — must not trap on sign-in sync (must not match as `<p`).
+        let plain = HarvousContentBridge.htmlToPlainBody("<pre><code>let x = 1</code></pre>")
+        XCTAssertEqual(plain, "")
     }
 }

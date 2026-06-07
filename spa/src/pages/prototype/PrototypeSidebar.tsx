@@ -50,6 +50,7 @@ import {
 import PrototypeDictionaryColumn from './PrototypeDictionaryColumn';
 import PrototypeDictionaryEntry from './PrototypeDictionaryEntry';
 import PrototypeDailyPassagePill from './PrototypeDailyPassagePill';
+import PrototypeMigrationBanner from './PrototypeMigrationBanner';
 import ListViewMenu from './ListViewMenu';
 import {
   loadPinnedHighlightIds,
@@ -1433,7 +1434,10 @@ export default function PrototypeSidebar() {
         )}
       </div>
 
-      <PrototypeDailyPassagePill homeSpaceId={homeSpaceId ?? null} notes={notes} />
+      <div className="proto-sidebar-floating-stack">
+        <PrototypeMigrationBanner />
+        <PrototypeDailyPassagePill homeSpaceId={homeSpaceId ?? null} notes={notes} />
+      </div>
 
       {highlightDeleteTarget ? (
         <ProtoConfirmDialog

@@ -105,7 +105,7 @@ export default function PrototypeDailyPassagePill({ homeSpaceId, notes }: Props)
   }
 
   return (
-    <div className="proto-sidebar-daily-passage">
+    <>
       <div className="proto-daily-passage-pill">
         <button
           type="button"
@@ -157,6 +157,6 @@ export default function PrototypeDailyPassagePill({ homeSpaceId, notes }: Props)
           studyNow(votd);
         }}
       />
-    </div>
+    </>
   );
 }

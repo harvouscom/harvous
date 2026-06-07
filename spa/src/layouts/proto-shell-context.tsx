@@ -195,7 +195,9 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
       const mobile = mq.matches;
       setIsMobileSidebar(mobile);
       setDrawerOpen(!mobile ? true : false);
-      if (!mobile) setDesktopSidebarCollapsed(false);
+      // Don't touch desktopSidebarCollapsed here: collapse is a desktop-only
+      // user action, so returning to desktop must preserve it rather than
+      // force the sidebar back open (it was clobbering the user's collapse).
     };
     sync();
     mq.addEventListener('change', sync);

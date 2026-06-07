@@ -6,6 +6,7 @@
 import { stripHtml } from '@/utils/html-stripper';
 import {
   findKeywordsInTextWithPriority,
+  isAutoFolderExcludedKeyword,
   type BibleStudyKeyword,
 } from '@/utils/bible-study-keywords';
 
@@ -156,7 +157,7 @@ const MAX_AUTO_SECONDARIES = 5;
 function dedupeRowsByKeywordName(rows: ScRow[]): ScRow[] {
   const by = new Map<string, ScRow>();
   for (const r of rows) {
-    if (r.keyword.name.toLowerCase() === 'god') continue;
+    if (isAutoFolderExcludedKeyword(r.keyword.name)) continue;
     const k = r.keyword.name.toLowerCase();
     const prev = by.get(k);
     if (!prev || r.confidence > prev.confidence) by.set(k, r);

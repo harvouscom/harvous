@@ -517,7 +517,7 @@ struct NoteListColumn: View {
                 HarvousVaultExporter.removeMirrorFiles(for: note, modelContext: context)
                 HarvousNoteSpotlightIndexer.removeNote(id: doomedId)
                 ThreadStore.purgeLinkedNoteMarkers(referencingDeletedNote: doomedId, modelContext: context)
-                HarvousSyncingDelete.delete(note: note, context: context)
+                HarvousSyncingDelete.delete(note: note, context: context, trigger: .swipe)
                 try? context.save()
             }
             guard let iosSelectedNoteId else { return }

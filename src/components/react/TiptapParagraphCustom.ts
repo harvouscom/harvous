@@ -1,16 +1,16 @@
 import Paragraph from '@tiptap/extension-paragraph';
 
 /**
- * Empty paragraphs serialize as `<p><br></p>` so intentional blank lines survive
- * getHTML(), autosave, and scripture-pill normalization round-trips.
- * Blank-line persistence is handled at serialize/save time (renderHTML + canonicalizeNoteHtmlLineBreaks),
- * not via live doc mutation — injecting hardBreaks during editing fights backspace/join.
+ * Standard paragraph node — intentionally WITHOUT a `renderHTML` override.
+ *
+ * `renderHTML` is not serialize-only: ProseMirror uses it as the node's live `toDOM`.
+ * A spec that returns `['p', attrs, ['br']]` (e.g. to force `<p><br></p>` for empty
+ * paragraphs) has no content hole (`0`), so ProseMirror renders the node as a
+ * non-editable leaf — `contenteditable="false"`. A brand-new note is a single empty
+ * paragraph, so that override made new notes impossible to type into.
+ *
+ * Blank-line persistence is handled entirely at save time by
+ * `canonicalizeNoteHtmlLineBreaks` (rewrites `<p></p>` → `<p><br></p>`), so the live
+ * editor keeps empty paragraphs fully editable while saved HTML still preserves blanks.
  */
-export const ParagraphCustom = Paragraph.extend({
-  renderHTML({ node, HTMLAttributes }) {
-    if (node.content.size === 0) {
-      return ['p', HTMLAttributes, ['br']];
-    }
-    return ['p', HTMLAttributes, 0];
-  },
-});
+export const ParagraphCustom = Paragraph;

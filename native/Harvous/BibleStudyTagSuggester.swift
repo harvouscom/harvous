@@ -188,6 +188,12 @@ enum BibleStudyTagSuggester {
     /// Skip pathological bodies that would block the main thread during note open.
     private static let maximumAnalyzeBodyLength = ScriptureDetector.maximumDetectLength
 
+    private static let autoFolderExcludedNames: Set<String> = ["god", "jesus", "holy spirit"]
+
+    private static func isAutoFolderExcluded(_ name: String) -> Bool {
+        autoFolderExcludedNames.contains(name.lowercased())
+    }
+
     private static func analyze(title: String, body: String) -> Analysis {
         let cappedBody = body.count > maximumAnalyzeBodyLength
             ? String(body.prefix(maximumAnalyzeBodyLength))
@@ -200,7 +206,7 @@ enum BibleStudyTagSuggester {
         var raw: [Scored] = []
         for row in Self.keywordRows {
             if let s = match(row, titleLower: titleLower, contentLower: contentLower) {
-                if s.name.lowercased() == "god" { continue }
+                if isAutoFolderExcluded(s.name) { continue }
                 raw.append(s)
             }
         }

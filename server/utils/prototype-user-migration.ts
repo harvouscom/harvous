@@ -148,6 +148,7 @@ export async function backfillCollectionsFromThreadsForUser(
         .set({
           primaryCollection: primaryLabel,
           secondaryCollections: secondarySerialized,
+          collectionPinned: true,
           updatedAt: nowISO(),
         })
         .where(eq(Notes.id, note.id));
@@ -161,6 +162,59 @@ export async function backfillCollectionsFromThreadsForUser(
   }
 
   return updated;
+}
+
+/**
+ * Pin primary folders on notes already backfilled from Classic threads (primary matches thread title).
+ * Idempotent — only touches unpinned notes whose primaryCollection equals their thread pile title.
+ */
+export async function repairMigratedCollectionPins(
+  userId?: string,
+  options?: { dryRun?: boolean; batchSize?: number },
+): Promise<{ candidates: number; updated: number }> {
+  const dryRun = options?.dryRun ?? false;
+  const batchSize = options?.batchSize ?? 400;
+  let lastId: string | null = null;
+  let candidates = 0;
+  let updated = 0;
+
+  while (true) {
+    const conditions: SQL[] = [
+      isNotNull(Notes.primaryCollection),
+      eq(Notes.collectionPinned, false),
+      eq(Notes.collectionUserOverride, false),
+      ne(Notes.threadId, 'thread_unorganized'),
+      NOT_ONBOARDING_THREAD,
+      sql`trim(${Notes.primaryCollection}) = trim(${Threads.title})`,
+    ];
+    if (userId) conditions.push(eq(Notes.userId, userId));
+    if (lastId) conditions.push(gt(Notes.id, lastId));
+
+    const batch = await db
+      .select({ id: Notes.id })
+      .from(Notes)
+      .innerJoin(Threads, eq(Notes.threadId, Threads.id))
+      .where(and(...conditions))
+      .orderBy(asc(Notes.id))
+      .limit(batchSize);
+
+    if (batch.length === 0) break;
+
+    candidates += batch.length;
+    if (!dryRun) {
+      const ids = batch.map((n) => n.id);
+      await db
+        .update(Notes)
+        .set({ collectionPinned: true, updatedAt: nowISO() })
+        .where(inArray(Notes.id, ids));
+      updated += batch.length;
+    }
+
+    lastId = batch[batch.length - 1]!.id;
+    if (batch.length < batchSize) break;
+  }
+
+  return { candidates, updated: dryRun ? 0 : updated };
 }
 
 /**

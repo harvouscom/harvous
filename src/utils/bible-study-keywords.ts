@@ -10,6 +10,13 @@ export interface BibleStudyKeyword {
   confidence: number; // Base confidence score (0-1)
 }
 
+/** Too broad for auto primary/secondary folders; tags may still use these names. */
+export const AUTO_FOLDER_EXCLUDED_KEYWORD_NAMES = new Set(['god', 'jesus', 'holy spirit']);
+
+export function isAutoFolderExcludedKeyword(name: string): boolean {
+  return AUTO_FOLDER_EXCLUDED_KEYWORD_NAMES.has(name.trim().toLowerCase());
+}
+
 export const BIBLE_STUDY_KEYWORDS: BibleStudyKeyword[] = [
   // Biblical Books
   { name: 'Genesis', category: 'book', synonyms: ['gen', 'first book'], confidence: 0.9 },

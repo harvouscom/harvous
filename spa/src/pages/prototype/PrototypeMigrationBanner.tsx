@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import Icon from '@/components/react/Icon';
-import { useProtoShell } from '../../layouts/proto-shell-context';
 import {
   PROTO_MIGRATION_BANNER_DISMISSED_KEY,
+  PROTO_MIGRATION_BANNER_PREVIEW_KEY,
   PROTO_MIGRATION_DONE_KEY,
 } from '../../layouts/proto-session-keys';
 import { refreshPrototypeLists } from '../../lib/refresh-client-data';
@@ -12,6 +12,7 @@ import {
   fetchPrototypeMigrationStatus,
   usePrototypeMigration,
 } from '../../hooks/mutations/usePrototypeMigration';
+import PrototypeMigrationSheet from './PrototypeMigrationSheet';
 
 function readFlag(key: string): boolean {
   try {
@@ -32,10 +33,10 @@ function writeFlag(key: string): void {
 export default function PrototypeMigrationBanner() {
   const queryClient = useQueryClient();
   const { homeSpaceId } = usePrototypeHomeSpaceId();
-  const { setSidebarListMode, ensureSidebarExpanded } = useProtoShell();
   const migrate = usePrototypeMigration();
   const [visible, setVisible] = useState(false);
   const [migrating, setMigrating] = useState(false);
+  const [sheetOpen, setSheetOpen] = useState(false);
   const startedRef = useRef(false);
 
   useEffect(() => {
@@ -45,6 +46,11 @@ export default function PrototypeMigrationBanner() {
     let cancelled = false;
 
     const run = async () => {
+      if (import.meta.env.DEV && readFlag(PROTO_MIGRATION_BANNER_PREVIEW_KEY)) {
+        setVisible(true);
+        return;
+      }
+
       if (readFlag(PROTO_MIGRATION_BANNER_DISMISSED_KEY)) return;
 
       const migrationDone = readFlag(PROTO_MIGRATION_DONE_KEY);
@@ -85,43 +91,38 @@ export default function PrototypeMigrationBanner() {
 
   const dismiss = useCallback(() => {
     writeFlag(PROTO_MIGRATION_BANNER_DISMISSED_KEY);
+    setSheetOpen(false);
     setVisible(false);
   }, []);
-
-  const openFolders = useCallback(() => {
-    ensureSidebarExpanded();
-    setSidebarListMode('folders');
-    dismiss();
-  }, [dismiss, ensureSidebarExpanded, setSidebarListMode]);
 
   if (migrating || !visible) return null;
 
   return (
-    <div className="proto-migration-notice">
-      <div className="proto-migration-notice__card" role="region" aria-label="Folders update">
-        <button type="button" className="proto-migration-notice__dismiss" aria-label="Dismiss" onClick={dismiss}>
+    <>
+      <div className="proto-migration-pill proto-daily-passage-pill" role="region" aria-label="Folders update">
+        <button type="button" className="proto-daily-passage-pill__dismiss" aria-label="Dismiss" onClick={dismiss}>
           <Icon name="xmark" size={10} aria-hidden />
           <span>Dismiss</span>
         </button>
 
-        <div className="proto-migration-notice__content">
-          <p className="proto-caption proto-migration-notice__eyebrow">What&apos;s new</p>
-          <p className="pds-list-title proto-migration-notice__title">Your thread piles are now folders</p>
-          <p className="pds-list-preview proto-migration-notice__text">
-            Open <strong>Folders</strong> in the sidebar to browse notes by your former thread titles. Use{' '}
-            <strong>Threads</strong> when you want to connect related notes into a study chain.
-          </p>
+        <div className="proto-daily-passage-pill__content proto-daily-passage-pill__content--no-add">
+          <p className="proto-caption proto-daily-passage-pill__eyebrow">What&apos;s new</p>
+          <p className="pds-list-title proto-daily-passage-pill__reference">Old threads are now folders</p>
         </div>
 
-        <button
-          type="button"
-          className="proto-migration-notice__orb"
-          aria-label="Show folders"
-          onClick={openFolders}
-        >
-          <Icon name="folder" size={12} />
-        </button>
+        <div className="proto-daily-passage-pill__orbs">
+          <button
+            type="button"
+            className="proto-daily-passage-pill__orb"
+            aria-label="Learn more about folders and threads"
+            onClick={() => setSheetOpen(true)}
+          >
+            <Icon name="circle-info" size={12} />
+          </button>
+        </div>
       </div>
-    </div>
+
+      <PrototypeMigrationSheet open={sheetOpen} onClose={() => setSheetOpen(false)} />
+    </>
   );
 }

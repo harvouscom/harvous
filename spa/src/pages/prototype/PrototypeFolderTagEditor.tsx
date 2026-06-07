@@ -271,7 +271,7 @@ export default function PrototypeFolderTagEditor({
             }}
             aria-label="Primary folder"
           />
-          <div className="proto-fte-field__actions proto-fte-action-pair">
+          <div className="proto-fte-field__actions">
             <button
               type="button"
               className="proto-fte-field__btn proto-fte-field__btn--apply"
@@ -347,7 +347,7 @@ export default function PrototypeFolderTagEditor({
             }}
             aria-label="Add secondary folder"
           />
-          <div className="proto-fte-field__actions proto-fte-action-pair">
+          <div className="proto-fte-field__actions">
             <button
               type="button"
               className="proto-fte-field__btn proto-fte-field__btn--apply"

@@ -58,6 +58,16 @@ When `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` (API) and `VITE_SUPABASE_*` / 
 
 If `GET /api/sync/changes` returns 500 with `relation "SyncDeletedEntities" does not exist`, run `npm run db:push` on the active Supabase project, then retry.
 
+To investigate notes that vanished cross-device, list recent tombstones:
+
+```bash
+npx tsx server/scripts/list-recent-deleted-notes.ts --userId=user_xxx --hours=48
+```
+
+On native Mac, filter Console.app for `DeleteAudit` or `Sync prune note` to see local delete triggers (`autoSwitch`, `menu`, `swipe`, `syncPrune`).
+
+Pending native tombstones (not yet flushed to server) live in UserDefaults key `harvous.tombstones.v1`.
+
 ## Related
 
 - [native/Harvous/CLERK_SETUP.md](../../native/Harvous/CLERK_SETUP.md) — schemes and sync

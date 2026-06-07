@@ -82,7 +82,6 @@ struct MacRootView: View {
     @State private var selectedNote: Note?
     @State private var lazyDraftComposeActive = false
     @State private var liveShareSnapshot = NoteShareSnapshot(title: "", body: "")
-    @State private var lastSelectedNote: Note?
     @State private var splitColumnVisibility: NavigationSplitViewVisibility = .all
     @State private var showSearch = false
     @State private var showInspector = false
@@ -236,7 +235,7 @@ struct MacRootView: View {
                                         HarvousNoteSpotlightIndexer.removeNote(id: nid)
                                         ThreadStore.purgeLinkedNoteMarkers(referencingDeletedNote: nid, modelContext: context)
                                         selectedNote = nil
-                                        HarvousSyncingDelete.delete(note: note, context: context)
+                                        HarvousSyncingDelete.delete(note: note, context: context, trigger: .menu)
                                         try? context.saveWithLogging()
                                     }
                                 )
@@ -365,21 +364,6 @@ struct MacRootView: View {
             .onChange(of: selectedNote?.id) { _, _ in
                 shiftHints.isNoteRouteActive = selectedNote != nil || lazyDraftComposeActive
                 threadNavPath.removeAll()
-                let newNote = selectedNote
-                let previous = lastSelectedNote
-                Task { @MainActor in
-                    if let prev = previous,
-                       prev.id != newNote?.id,
-                       prev.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-                       prev.body.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                        let pid = prev.id
-                        HarvousVaultExporter.removeMirrorFiles(for: prev, modelContext: context)
-                        HarvousNoteSpotlightIndexer.removeNote(id: pid)
-                        HarvousSyncingDelete.delete(note: prev, context: context)
-                        try? context.saveWithLogging()
-                    }
-                    lastSelectedNote = newNote
-                }
             }
             .overlay {
                 if showSearch {

@@ -99,7 +99,8 @@
   padding-left: 0;
 }
 
-/* Desktop note inspector (absolute in note pane) — keep carousel out of the right panel. */
+/* Desktop note inspector (absolute in note pane) — keep the carousel clear of the
+   inspector whether it's docked or floating over the editor. */
 .proto-shell:has(.proto-note-pane-row--inspector-open) .proto-shell__study-dock-layer__slot:not(:empty) {
   padding-right: var(--pds-inspector-reserve-w);
 }
@@ -284,16 +285,6 @@ html.harvous-prototype-route .proto-shell__toolbar-cell::after {
   overflow: hidden;
 }
 
-/* Floating migration notice — main column only, below toolbar */
-.proto-migration-notice {
-  position: absolute;
-  top: 8px;
-  left: 8px;
-  right: 8px;
-  z-index: 4;
-  pointer-events: none;
-}
-
 .proto-shell__sidebar-resize-handle {
   display: none;
 }
@@ -362,10 +353,24 @@ html.harvous-prototype-route .proto-shell__toolbar-cell::after {
   background: transparent;
 }
 
-/* When the floating daily-passage card is present, reserve space at the bottom of the
-   scroll content so the last list items can scroll out from under the card. Mirrors
-   native's `harvousListDailyPassagePillScrollReserve`. */
-.proto-sidebar-scroll:has(~ .proto-sidebar-daily-passage) {
+/* When floating sidebar pills are present, reserve space at the bottom of the scroll
+   content so the last list items can scroll out from under the stack. Mirrors native's
+   `harvousListDailyPassagePillScrollReserve` (84pt per pill). */
+.proto-sidebar-scroll:has(~ .proto-sidebar-floating-stack .proto-migration-pill):has(
+    ~ .proto-sidebar-floating-stack .proto-daily-passage-pill
+  ) {
+  padding-bottom: 176px;
+}
+
+.proto-sidebar-scroll:has(~ .proto-sidebar-floating-stack .proto-migration-pill):not(
+    :has(~ .proto-sidebar-floating-stack .proto-daily-passage-pill)
+  ) {
+  padding-bottom: 84px;
+}
+
+.proto-sidebar-scroll:has(~ .proto-sidebar-floating-stack .proto-daily-passage-pill):not(
+    :has(~ .proto-sidebar-floating-stack .proto-migration-pill)
+  ) {
   padding-bottom: 84px;
 }
 
@@ -460,7 +465,8 @@ html.harvous-prototype-route .proto-shell__toolbar-cell::after {
     padding-left: 0;
   }
 
-  /* Soft keyboard open: lift the format bar above the keyboard (top set via visualViewport in layout). */
+  /* Soft keyboard open: shrink the shell frame to the visual viewport (size set via
+     visualViewport in layout) so the in-flow bottom toolbar lands just above the keyboard. */
   html[data-proto-keyboard-open],
   html[data-proto-keyboard-open] body {
     overflow: hidden !important;
@@ -474,13 +480,9 @@ html.harvous-prototype-route .proto-shell__toolbar-cell::after {
     max-height: var(--proto-visible-viewport-height, calc(100dvh - 2 * var(--pds-shell-frame-inset)));
   }
 
+  /* The format bar stays in normal flow at the bottom of the visual-viewport-sized
+     frame (no fixed positioning) — solid background for legibility over the keyboard. */
   html[data-proto-keyboard-open] .proto-shell__editor-chrome-row .proto-editor-bottom-bar {
-    position: fixed;
-    left: 0;
-    right: 0;
-    top: var(--proto-toolbar-top, auto);
-    bottom: auto;
-    z-index: 1400;
     background: var(--pds-bg-popover-solid);
     background-image: none;
     box-shadow: var(--pds-glass-rim);
@@ -490,24 +492,10 @@ html.harvous-prototype-route .proto-shell__toolbar-cell::after {
     display: none;
   }
 
-  /* Reserve room so the caret / last line clears the fixed format bar while typing. */
+  /* The editor scroll remains the scroller; the caret clears the in-flow toolbar via
+     the paper's bottom padding + scroll-padding-bottom (prototype-editor.css). */
   html[data-proto-keyboard-open] .proto-editor-scroll {
-    overflow: hidden;
     overscroll-behavior: contain;
-  }
-
-  html[data-proto-keyboard-open] .proto-editor-surface .tiptap-content {
-    max-height: var(--proto-editor-scroll-max-height, none);
-    overflow-y: auto !important;
-    padding-bottom: 56px;
-  }
-
-  html[data-proto-keyboard-open] .proto-editor-surface .tiptap-content .ProseMirror {
-    scroll-margin-bottom: 60px;
-  }
-
-  html[data-proto-keyboard-open] .proto-editor-surface .tiptap-editor-container {
-    max-height: var(--proto-editor-scroll-max-height);
   }
 
   .proto-shell__study-dock-layer .study-dock-card__card[data-expanded='true'] {

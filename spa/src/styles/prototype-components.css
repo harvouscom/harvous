@@ -6,8 +6,8 @@
 /* ─── Glass surface recipe (tiered backdrop-filter — see prototype-tokens.css) ─ */
 .proto-glass-surface,
 .proto-daily-passage-pill,
+.proto-migration-pill,
 .proto-collection-card,
-.proto-migration-notice__card,
 .proto-sidebar-root,
 .proto-inspector-desktop,
 .proto-inspector-mobile-panel {
@@ -21,8 +21,8 @@
 /* Pseudo-element anchoring — omit mobile inspector (shell.css sets position: fixed <900px). */
 .proto-glass-surface,
 .proto-daily-passage-pill,
+.proto-migration-pill,
 .proto-collection-card,
-.proto-migration-notice__card,
 .proto-sidebar-root,
 .proto-inspector-desktop {
   position: relative;
@@ -30,8 +30,8 @@
 
 .proto-glass-surface::before,
 .proto-daily-passage-pill::before,
+.proto-migration-pill::before,
 .proto-collection-card::before,
-.proto-migration-notice__card::before,
 .proto-sidebar-root::before,
 .proto-inspector-desktop::before,
 .proto-inspector-mobile-panel::before {
@@ -46,8 +46,8 @@
 
 .proto-glass-surface::after,
 .proto-daily-passage-pill::after,
+.proto-migration-pill::after,
 .proto-collection-card::after,
-.proto-migration-notice__card::after,
 .proto-sidebar-root::after,
 .proto-inspector-desktop::after,
 .proto-inspector-mobile-panel::after {
@@ -62,8 +62,8 @@
 
 .proto-glass-surface > *,
 .proto-daily-passage-pill > *,
+.proto-migration-pill > *,
 .proto-collection-card > *,
-.proto-migration-notice__card > *,
 .proto-sidebar-root > *,
 .proto-inspector-desktop > *,
 .proto-inspector-mobile-panel > * {
@@ -100,12 +100,15 @@
   display: flex;
   align-items: center;
   gap: 6px;
+  /* Icon-button groups hold their natural size — only the center chip shrinks. */
+  flex-shrink: 0;
 }
 
 .proto-toolbar-right {
   display: flex;
   align-items: center;
   gap: 20px;
+  flex-shrink: 0;
 }
 
 .proto-toolbar-orb-group--trailing {
@@ -168,6 +171,11 @@ html[data-shift-hints='1'] .proto-toolbar-orb-group {
   display: inline-flex;
   align-items: center;
   gap: 6px;
+  /* Override the global flex-shrink:0 reset so the chip shrinks to the center column
+     and clips its label (the side button groups stay fixed). */
+  flex-shrink: 1;
+  min-width: 0;
+  overflow: hidden;
   max-width: min(240px, 42vw);
   height: var(--pds-toolbar-orb-size);
   padding: 0 12px;
@@ -210,10 +218,12 @@ html[data-shift-hints='1'] .proto-toolbar-orb-group {
   display: inline-flex;
   align-items: baseline;
   gap: 4px;
+  flex-shrink: 1;
   min-width: 0;
 }
 
 .proto-toolbar-folder-chip__label {
+  flex-shrink: 1;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -237,6 +247,19 @@ html[data-shift-hints='1'] .proto-toolbar-orb-group {
 .proto-toolbar-folder-chip__extra,
 .proto-toolbar-folder-chip__icon {
   font-family: inherit !important;
+}
+
+/* Phones — reclaim horizontal room for the center folder chip so the full folder
+   name shows without overlapping the side button groups. */
+@media (max-width: 600px) {
+  .proto-toolbar-inner {
+    padding: 0 6px;
+    gap: 6px;
+  }
+
+  .proto-toolbar-right {
+    gap: 8px;
+  }
 }
 
 /* Icon button — circular macOS toolbar "orb" */
@@ -1514,7 +1537,7 @@ html.harvous-proto-wallpaper-color .proto-sidebar-search__field:focus-within {
 .proto-folder-tag-editor {
   --proto-fte-action-size: 26px;
   --proto-fte-action-gap: 6px;
-  --proto-fte-action-inset: 2px;
+  --proto-fte-action-inset: 10px;
   display: flex;
   flex-direction: column;
   gap: 14px;
@@ -1653,6 +1676,9 @@ html.harvous-proto-wallpaper-color .proto-fte-field:focus-within {
 .proto-fte-field__actions {
   display: inline-flex;
   align-items: center;
+  gap: var(--proto-fte-action-gap);
+  flex-shrink: 0;
+  padding-right: var(--proto-fte-action-inset);
 }
 
 .proto-fte-field__btn {
@@ -3200,20 +3226,25 @@ html.harvous-prototype-route .proto-editor-empty-state h2.proto-editor-empty-sta
   padding: 0 20px 20px;
 }
 
-/* ─── Daily passage pill (sidebar, native DailyPassagePill parity) ───────── */
-/* Floats over the bottom of the scrolling list (the list scrolls underneath via the
-   reserve on `.proto-sidebar-scroll`), matching native's floating daily-passage pill.
-   Wrapper is click-through; only the card itself is interactive. */
-.proto-sidebar-daily-passage {
+/* ─── Sidebar floating stack (migration pill + daily passage) ─────────────── */
+.proto-sidebar-floating-stack {
   position: absolute;
   left: 0;
   right: 0;
   bottom: 0;
   z-index: 2;
   padding: 0 18px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
   pointer-events: none;
 }
 
+.proto-sidebar-floating-stack > * {
+  pointer-events: auto;
+}
+
+/* ─── Daily passage pill (sidebar, native DailyPassagePill parity) ───────── */
 .proto-daily-passage-pill {
   display: block;
   width: 100%;
@@ -3258,6 +3289,13 @@ html.harvous-prototype-route .proto-editor-empty-state h2.proto-editor-empty-sta
 
 .proto-daily-passage-pill__dismiss:hover {
   color: var(--pds-text-primary);
+}
+
+@media (hover: none) {
+  .proto-daily-passage-pill__dismiss {
+    opacity: 1;
+    pointer-events: auto;
+  }
 }
 
 .proto-daily-passage-pill__content {
@@ -3316,6 +3354,9 @@ html.harvous-prototype-route .proto-editor-empty-state h2.proto-editor-empty-sta
   opacity: 0.5;
   cursor: default;
 }
+
+/* ─── Migration pill (Classic → 2.0 sidebar notice) ──────────────────────── */
+/* Shares daily-passage pill layout + glass; compact card with detail in sheet. */
 
 /* ─── Collection card grid (folders / threads / scripture books) ──────────── */
 /* Compact 2-up glass cards for the collection index modes. Shares the daily
@@ -3556,6 +3597,50 @@ html.harvous-proto-wallpaper-color .proto-votd-sheet {
 
 .proto-votd-sheet__fab:hover {
   filter: brightness(1.05);
+}
+
+/* Classic → 2.0 migration detail sheet */
+.proto-migration-sheet__body,
+.proto-migration-sheet__text {
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+.proto-migration-sheet__text {
+  margin: 0;
+  font-family: var(--pds-font-body);
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--pds-text-secondary);
+}
+
+.proto-migration-sheet__text--secondary {
+  margin-top: 12px;
+  font-size: 14px;
+  color: var(--pds-text-tertiary);
+}
+
+.proto-migration-sheet__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  vertical-align: baseline;
+  padding: 2px 7px;
+  border-radius: 999px;
+  border: 0.5px solid var(--pds-border-control-soft);
+  background: var(--pds-bg-chip);
+  font-family: var(--pds-font-body);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--pds-text-secondary);
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.proto-migration-sheet__chip *,
+.proto-migration-sheet__chip svg,
+.proto-migration-sheet__chip svg * {
+  color: inherit !important;
 }
 
 /* ─── Destructive confirmation (native confirmationDialog parity) ───────── */
@@ -4315,110 +4400,4 @@ html.harvous-prototype-route .proto-confirm-dialog h2.proto-confirm-dialog__titl
 
 .proto-study-thread__connect-trigger:hover {
   background: var(--pds-bg-hover, rgba(0, 0, 0, 0.04));
-}
-
-/* Classic → 2.0 migration notice (floating glass card, daily-passage parity) */
-.proto-migration-notice__card {
-  display: block;
-  width: 100%;
-  padding: 9px 12px 8px;
-  border-radius: 14px;
-  border: 0.5px solid var(--pds-border-control);
-  text-align: left;
-  pointer-events: auto;
-}
-
-.proto-migration-notice__dismiss {
-  position: absolute;
-  top: -10px;
-  right: 6px;
-  z-index: 1;
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 4px 8px;
-  border: none;
-  border-radius: 999px;
-  background: var(--pds-glass-shell);
-  box-shadow: var(--pds-glass-rim);
-  -webkit-backdrop-filter: var(--pds-glass-blur-control);
-  backdrop-filter: var(--pds-glass-blur-control);
-  font-family: var(--pds-font-body);
-  font-size: 11px;
-  font-weight: 500;
-  color: var(--pds-text-secondary);
-  cursor: pointer;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 0.15s ease;
-}
-
-.proto-migration-notice__card:hover .proto-migration-notice__dismiss,
-.proto-migration-notice__card:focus-within .proto-migration-notice__dismiss {
-  opacity: 1;
-  pointer-events: auto;
-}
-
-@media (hover: none) {
-  .proto-migration-notice__dismiss {
-    opacity: 1;
-    pointer-events: auto;
-  }
-}
-
-.proto-migration-notice__dismiss:hover {
-  color: var(--pds-text-primary);
-}
-
-.proto-migration-notice__content {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding-right: 38px;
-}
-
-.proto-migration-notice__eyebrow {
-  margin: 0;
-  font-size: 12px !important;
-  line-height: 1.3;
-}
-
-.proto-migration-notice__title {
-  margin: 0;
-  font-size: 17px;
-  font-weight: 600;
-  line-height: 1.3;
-}
-
-.proto-migration-notice__text {
-  margin: 0;
-  line-height: 1.45;
-  color: var(--pds-text-secondary);
-}
-
-.proto-migration-notice__text strong {
-  font-weight: 600;
-  color: var(--pds-text-primary);
-}
-
-.proto-migration-notice__orb {
-  position: absolute;
-  right: 10px;
-  bottom: 8px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 30px;
-  height: 30px;
-  padding: 0;
-  border: none;
-  border-radius: 50%;
-  background: var(--pds-bg-control-strong);
-  color: var(--pds-text-secondary);
-  cursor: pointer;
-}
-
-.proto-migration-notice__orb:hover {
-  color: var(--pds-text-primary);
-  background: var(--pds-bg-control-strong-hover);
 }

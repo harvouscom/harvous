@@ -147,6 +147,10 @@ final class HarvousAPIClient {
         try await request(method: "DELETE", path: path, query: query, body: Optional<Empty>.none)
     }
 
+    func delete<B: Encodable, R: Decodable>(_ path: String, body: B, query: [String: String] = [:]) async throws -> R {
+        try await request(method: "DELETE", path: path, query: query, body: body)
+    }
+
     // MARK: - Share
 
     /// Three actions the server understands for the share endpoint.

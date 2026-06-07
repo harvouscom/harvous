@@ -296,7 +296,11 @@ struct NoteEditorView: View {
     /// Split from `noteEditorLifecycleStack` so each half stays within the type-checker's expression limit.
     private var noteEditorStateObservers: some View {
         Group {
-            if let canvasNote = note ?? lazyDraftStubNote, canvasNote.modelContext != nil {
+            // `modelContext != nil` guards against rendering a real note that was
+            // deleted/detached. The lazy-draft stub is intentionally context-less
+            // until `persistLazyDraftNote` inserts a real note, so exempt it (`note == nil`).
+            if let canvasNote = note ?? lazyDraftStubNote,
+               note == nil || canvasNote.modelContext != nil {
                 editorCanvas(note: canvasNote)
             } else if isLazyDraftComposeActive {
                 Color.clear
@@ -400,6 +404,8 @@ struct NoteEditorView: View {
             guard !isNoteTransition else { return }
             guard !autosave.hasPendingAutosave else { return }
             // Don't clobber active local edits; this path is for remote refreshes.
+            // The title field is protected here too (syncFromNote reseeds `title`).
+            guard !titleFocused else { return }
             guard !current.needsSync else { return }
             syncFromNote()
         }
@@ -3157,7 +3163,11 @@ struct NoteEditorView: View {
     // MARK: - Sync
 
     private func syncFromNote(force: Bool = false) {
-        if !force, proxy.isBodyFirstResponder || autosave.hasPendingAutosave {
+        if !force, HarvousEditorSyncGuard.shouldSkipNonForceSync(
+            titleFocused: titleFocused,
+            bodyFirstResponder: proxy.isBodyFirstResponder,
+            hasPendingAutosave: autosave.hasPendingAutosave
+        ) {
             return
         }
         if let note {

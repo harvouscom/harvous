@@ -91,28 +91,32 @@ enum HarvousContentBridge {
                 continue
             }
 
-            if let match = firstTopLevelBlock(in: remainder, open: "<p", close: "</p>") {
+            if let match = firstTopLevelBlock(in: remainder, tag: "p", close: "</p>") {
                 segments.append(paragraphPlain(fromInnerHTML: match.inner))
-                remainder = String(remainder[match.end...])
+                guard let next = remainderSuffix(from: remainder, after: match.end) else { break }
+                remainder = next
                 continue
             }
 
-            if let match = firstTopLevelBlock(in: remainder, open: "<ul", close: "</ul>") {
+            if let match = firstTopLevelBlock(in: remainder, tag: "ul", close: "</ul>") {
                 segments.append(bulletListPlain(fromInnerHTML: match.inner))
-                remainder = String(remainder[match.end...])
+                guard let next = remainderSuffix(from: remainder, after: match.end) else { break }
+                remainder = next
                 continue
             }
 
-            if let match = firstTopLevelBlock(in: remainder, open: "<ol", close: "</ol>") {
+            if let match = firstTopLevelBlock(in: remainder, tag: "ol", close: "</ol>") {
                 segments.append(orderedListPlain(fromInnerHTML: match.inner))
-                remainder = String(remainder[match.end...])
+                guard let next = remainderSuffix(from: remainder, after: match.end) else { break }
+                remainder = next
                 continue
             }
 
-            if let match = firstTopLevelBlock(in: remainder, open: "<div", close: "</div>") {
+            if let match = firstTopLevelBlock(in: remainder, tag: "div", close: "</div>") {
                 let nested = htmlToPlainBody("<p>\(match.inner)</p>")
                 if !nested.isEmpty { segments.append(nested) }
-                remainder = String(remainder[match.end...])
+                guard let next = remainderSuffix(from: remainder, after: match.end) else { break }
+                remainder = next
                 continue
             }
 
@@ -152,15 +156,32 @@ enum HarvousContentBridge {
         let end: String.Index
     }
 
-    private static func firstTopLevelBlock(in html: String, open: String, close: String) -> TopLevelBlock? {
-        let lower = html.lowercased()
-        let openLower = open.lowercased()
-        guard lower.hasPrefix(openLower) else { return nil }
+    private static func matchesOpenTagPrefix(_ html: String, tag: String) -> Bool {
+        guard let open = html.range(of: "<\(tag)", options: [.caseInsensitive, .anchored]) else { return false }
+        let afterTag = open.upperBound
+        guard afterTag < html.endIndex else { return true }
+        switch html[afterTag] {
+        case ">", " ", "/", "\n", "\t":
+            return true
+        default:
+            return false
+        }
+    }
+
+    private static func firstTopLevelBlock(in html: String, tag: String, close: String) -> TopLevelBlock? {
+        guard matchesOpenTagPrefix(html, tag: tag) else { return nil }
         guard let openEnd = html.firstIndex(of: ">") else { return nil }
-        let closeLower = close.lowercased()
-        guard let closeRange = lower.range(of: closeLower, range: openEnd..<lower.endIndex) else { return nil }
+        guard let closeRange = html.range(of: close, options: .caseInsensitive, range: openEnd..<html.endIndex) else {
+            return nil
+        }
         let inner = String(html[html.index(after: openEnd)..<closeRange.lowerBound])
         return TopLevelBlock(inner: inner, end: closeRange.upperBound)
+    }
+
+    /// Returns the suffix after `end`, or `nil` when `end` is out of bounds (malformed HTML).
+    private static func remainderSuffix(from remainder: String, after end: String.Index) -> String? {
+        guard end <= remainder.endIndex else { return nil }
+        return String(remainder[end...])
     }
 
     private static func paragraphPlain(fromInnerHTML inner: String) -> String {
@@ -189,10 +210,11 @@ enum HarvousContentBridge {
         while !remainder.isEmpty {
             remainder = remainder.trimmingCharacters(in: .whitespacesAndNewlines)
             if remainder.isEmpty { break }
-            if let match = firstTopLevelBlock(in: remainder, open: "<li", close: "</li>") {
+            if let match = firstTopLevelBlock(in: remainder, tag: "li", close: "</li>") {
                 let text = inlinePlain(fromHTML: match.inner).trimmingCharacters(in: .whitespacesAndNewlines)
                 if !text.isEmpty { items.append(text) }
-                remainder = String(remainder[match.end...])
+                guard let next = remainderSuffix(from: remainder, after: match.end) else { break }
+                remainder = next
             } else if let tagEnd = remainder.firstIndex(of: ">") {
                 remainder = String(remainder[remainder.index(after: tagEnd)...])
             } else {
@@ -204,23 +226,26 @@ enum HarvousContentBridge {
 
     private static func joinPlainSegments(_ segments: [String]) -> String {
         guard !segments.isEmpty else { return "" }
-        var out = ""
-        for (i, segment) in segments.enumerated() {
-            if i > 0 {
-                let prev = segments[i - 1]
-                if segment == "---" || prev == "---" {
-                    out += "\n"
-                } else if prev.isEmpty {
-                    // Empty `<p><br></p>` block before content — single newline completes the blank line.
-                    out += "\n"
-                } else if segment.isEmpty {
-                    // Content before empty paragraph — paragraph break plus start of blank line.
-                    out += "\n\n"
-                } else {
-                    out += "\n\n"
-                }
+        var out = segments[0]
+        for i in 1..<segments.count {
+            let prev = segments[i - 1]
+            let segment = segments[i]
+            if segment == "---" || prev == "---" {
+                out += "\n"
+                out += segment
+            } else if segment.isEmpty {
+                // Intentional blank-line paragraph (`<p><br></p>`). The first blank after
+                // content also closes the preceding line (`\n\n`); each *additional*
+                // consecutive blank adds a single line (`\n`) so N stacked `<p><br></p>`
+                // map to N blank lines, not 2N.
+                out += prev.isEmpty ? "\n" : "\n\n"
+            } else if prev.isEmpty {
+                // Content after blank-line paragraph — no extra separator.
+                out += segment
+            } else {
+                // Normal paragraph break — single `\n` matches native Enter behavior in NSTextView.
+                out += "\n" + segment
             }
-            out += segment
         }
         return out.trimmingCharacters(in: .whitespacesAndNewlines)
     }

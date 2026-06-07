@@ -952,10 +952,18 @@ route.delete('/api/notes/delete', requireAuth, rateLimit('write'), async (c) => 
     const auth = getAuthenticatedAuth(c);
 
     const noteId = c.req.query('noteId');
+    const deleteSource = c.req.header('X-Harvous-Delete-Source') ?? c.req.query('source') ?? 'unknown';
     if (!noteId) return c.json({ error: 'Note ID is required' }, 400);
 
     const existingNote = first(await db.select().from(Notes).where(and(eq(Notes.id, noteId), eq(Notes.userId, auth.userId))).limit(1));
     if (!existingNote) return c.json({ error: 'Note not found or access denied' }, 404);
+
+    console.info('[api/notes/delete]', {
+      userId: auth.userId,
+      noteId,
+      source: deleteSource,
+      noteType: existingNote.noteType,
+    });
 
     const threadId = existingNote.threadId;
     const noteCreatedAt = existingNote.createdAt;

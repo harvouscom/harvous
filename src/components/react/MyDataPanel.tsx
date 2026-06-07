@@ -9,6 +9,11 @@ import { offlineDB } from '@/utils/offline-db';
 import { getSyncState } from '@/utils/sync-manager';
 import type { SyncState } from '@/utils/offline-db';
 import { clearNavigationCache } from '@/utils/navigation-cache';
+import {
+  fetchAndValidateUserExport,
+  triggerAuthenticatedExportDownload,
+  type UserExportFormat,
+} from '@/utils/download-user-export';
 import { getModalOverlayBaseStyle, useDesktopMainModalPortal } from '@/hooks/useDesktopMainModalPortal';
 
 interface MyDataPanelProps {
@@ -142,42 +147,14 @@ export default function MyDataPanel({ onClose, inBottomSheet = false }: MyDataPa
 
   const handleExport = async (format: string, label: string) => {
     if (isExporting) return;
-    
+
     setIsExporting(format);
+    const exportFormat = format as UserExportFormat;
+    triggerAuthenticatedExportDownload(exportFormat);
+
     try {
-      const response = await fetch(`/api/user/export?format=${format}`, {
-        method: 'GET',
-        credentials: 'include',
-      });
-
-      if (!response.ok) {
-        throw new Error(`Export failed: ${response.statusText}`);
-      }
-
-      // Get filename from Content-Disposition header or generate one
-      const contentDisposition = response.headers.get('Content-Disposition');
-      let filename = `harvous-export-${new Date().toISOString().split('T')[0]}.${format === 'csv-threads' ? 'csv' : 'md'}`;
-      if (contentDisposition) {
-        const filenameMatch = contentDisposition.match(/filename="?([^"]+)"?/);
-        if (filenameMatch) {
-          filename = filenameMatch[1];
-        }
-      }
-
-      // Create blob and download
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
-
-      // Show success toast
-      const message = `${label} exported!`;
-      toast.success(message, { icon: null });
+      await fetchAndValidateUserExport(exportFormat);
+      toast.success(`${label} exported!`, { icon: null });
     } catch (error) {
       console.error('Export error:', error);
       toast.error(`Failed to export ${label}. Please try again.`, { icon: null });

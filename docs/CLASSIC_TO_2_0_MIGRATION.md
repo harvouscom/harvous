@@ -14,8 +14,8 @@ Prototype **Threads** sidebar (connected-note study chains) remains for intentio
 
 | Classic concept | 2.0 surface | Mechanism |
 |-----------------|-------------|-----------|
-| Thread pile title | Folder label | `backfill-collections-from-threads` / per-user API |
-| Multi-thread membership | Secondary folders | Same backfill |
+| Thread pile title | Folder label (primary pinned) | `backfill-collections-from-threads` / per-user API |
+| Multi-thread membership | Secondary folders | Same backfill (secondaries may auto-update from content) |
 | Highlight parent link | Connected thread | `linkedFromNoteId` → `NoteConnections` |
 | Highlights / study rows | Highlights sidebar | Already shared (`StudyThreadEntries`) |
 
@@ -44,7 +44,9 @@ Required objects:
 
 - Table **`NoteConnections`**
 - Columns on **`Notes`:** `studyThreadTitle`, `studyThreadUserOverride`, `studyThreadPinned`, `studyThreadLastAutoSuggestedAt`
-- Collection columns (already on Classic): `primaryCollection`, `secondaryCollections`
+- Collection columns (already on Classic): `primaryCollection`, `secondaryCollections`, `collectionPinned`
+
+Backfill sets **`collectionPinned: true`** on the migrated **primary** folder so open/edit auto-suggest cannot replace a Classic thread title. Secondary folders from other thread memberships are not pinned and may still refresh from note content.
 
 Verify locally:
 
@@ -78,7 +80,13 @@ npx tsx server/scripts/backfill-collections-from-threads.ts
 
 # Single user
 npx tsx server/scripts/backfill-collections-from-threads.ts --userId=user_xxx
+
+# Repair pins on notes already backfilled before pin support shipped
+npx tsx server/scripts/backfill-collections-from-threads.ts --repair-pins --dry-run
+npx tsx server/scripts/backfill-collections-from-threads.ts --repair-pins
 ```
+
+`--repair-pins` targets notes whose `primaryCollection` matches their Classic `threadId` title but `collectionPinned` is still false. Safe to run idempotently after deploy.
 
 Legacy endpoint (connections only): `POST /api/notes/migrate-connections`
 
@@ -106,7 +114,7 @@ Offline IndexedDB (Dexie v4): `noteConnections` table in [src/utils/offline-db.t
 ## Rollout checklist
 
 - [ ] `npm run db:push` on production Supabase
-- [ ] Optional: batch `backfill-collections-from-threads.ts` before launch
+- [ ] Optional: batch `backfill-collections-from-threads.ts` before launch; run `--repair-pins` after deploy if migration ran earlier without pins
 - [ ] Deploy API + SPA with migration hook and sync changes
 - [ ] Smoke-test Classic user: notes visible, folders populated, connect-link works
 - [ ] Communicate: thread piles → folders; Threads = connected notes

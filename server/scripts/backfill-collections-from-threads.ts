@@ -9,16 +9,22 @@
  *   npx tsx server/scripts/backfill-collections-from-threads.ts
  *   npx tsx server/scripts/backfill-collections-from-threads.ts --userId=user_xxx
  *   npx tsx server/scripts/backfill-collections-from-threads.ts --batch-size=300 --limit=1000
+ *   npx tsx server/scripts/backfill-collections-from-threads.ts --repair-pins --dry-run
+ *   npx tsx server/scripts/backfill-collections-from-threads.ts --repair-pins
  *
  * Staging vs production: point `.env` at the target Supabase DB before running; there is no separate flag.
  */
 
 import 'dotenv/config';
 import { db, Notes, eq, and, asc, gt, isNull, ne, sql, type SQL } from '../db';
-import { backfillCollectionsFromThreadsForUser } from '../utils/prototype-user-migration';
+import {
+  backfillCollectionsFromThreadsForUser,
+  repairMigratedCollectionPins,
+} from '../utils/prototype-user-migration';
 
 function parseArgs() {
   const dryRun = process.argv.includes('--dry-run');
+  const repairPins = process.argv.includes('--repair-pins');
   let userId: string | undefined;
   let batchSize = 400;
   let maxNotes: number | undefined;
@@ -33,7 +39,7 @@ function parseArgs() {
       if (!Number.isNaN(n) && n > 0) maxNotes = n;
     }
   }
-  return { dryRun, userId, batchSize, maxNotes };
+  return { dryRun, repairPins, userId, batchSize, maxNotes };
 }
 
 const NOT_ONBOARDING_THREAD = sql`NOT starts_with(${Notes.threadId}::text, 'thread_onboarding_')`;
@@ -117,7 +123,22 @@ async function backfillAllUsers(batchSize: number, maxNotes?: number): Promise<n
 }
 
 async function main() {
-  const { dryRun, userId, batchSize, maxNotes } = parseArgs();
+  const { dryRun, repairPins, userId, batchSize, maxNotes } = parseArgs();
+
+  if (repairPins) {
+    console.log(
+      `${dryRun ? '[DRY RUN] ' : ''}Repair migrated collection pins${userId ? ` (userId=${userId})` : ' (all users)'}`,
+    );
+    const { candidates, updated } = await repairMigratedCollectionPins(userId, { dryRun, batchSize });
+    console.log(`Candidate notes (primary matches thread title, unpinned): ${candidates}`);
+    if (dryRun) {
+      console.log('\n[DRY RUN] No rows updated.');
+    } else {
+      console.log(`Pinned notes: ${updated}`);
+    }
+    console.log('\nDone.');
+    process.exit(0);
+  }
 
   console.log(
     `${dryRun ? '[DRY RUN] ' : ''}Backfill collections from threads (batchSize=${batchSize}${userId ? `, userId=${userId}` : ', all users'}${maxNotes != null ? `, limit=${maxNotes}` : ''})`,

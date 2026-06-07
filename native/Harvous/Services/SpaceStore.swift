@@ -271,7 +271,7 @@ final class SpaceStore: ObservableObject {
             for n in notes where n.resolvedSpaceId() == sid {
                 HarvousVaultExporter.removeMirrorFiles(for: n, modelContext: modelContext)
                 HarvousNoteSpotlightIndexer.removeNote(id: n.id)
-                HarvousSyncingDelete.delete(note: n, context: modelContext)
+                HarvousSyncingDelete.delete(note: n, context: modelContext, trigger: .spaceDelete)
             }
         }
         modelContext.delete(space)

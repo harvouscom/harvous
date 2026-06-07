@@ -13,6 +13,9 @@ import { getCurrentSeason } from '@/utils/season-helpers';
 import { awardNoteCreatedXP } from './xp-system';
 import { generateAutoTags, applyAutoTags, AUTO_TAG_CONFIDENCE_SYSTEM_AUTOGEN } from './auto-tag-generator';
 import { fetchVerseText } from './fetch-verse-text';
+import { deleteSingleNoteCascadeForUser } from './delete-note-cascade';
+import { recordDeletedEntities } from './sync-deletion-log';
+import { broadcastInvalidation } from './realtime';
 
 export interface ProcessingResult {
   action: 'created' | 'added' | 'unorganized' | 'skipped';
@@ -454,13 +457,17 @@ async function processScriptureReferencesInternal(
             }
           }
 
-          // Delete duplicate note and all associated data
-          await db.delete(ScriptureMetadata).where(eq(ScriptureMetadata.noteId, dupeId));
-          await db.delete(NoteThreads).where(eq(NoteThreads.noteId, dupeId));
-          await db.delete(NoteTags).where(eq(NoteTags.noteId, dupeId));
-          await db.delete(Comments).where(eq(Comments.noteId, dupeId));
-          await db.delete(NoteScriptureReferences).where(eq(NoteScriptureReferences.scriptureNoteId, dupeId));
-          await db.delete(Notes).where(eq(Notes.id, dupeId));
+          // Delete duplicate note and emit sync tombstones so all clients stay consistent.
+          const deleted = await deleteSingleNoteCascadeForUser(userId, dupeId);
+          if (deleted.deletedNoteIds.length > 0) {
+            await recordDeletedEntities(userId, 'note', deleted.deletedNoteIds);
+            if (deleted.deletedStudyThreadIds.length > 0) {
+              await recordDeletedEntities(userId, 'studyThread', deleted.deletedStudyThreadIds);
+            }
+            for (const removedId of deleted.deletedNoteIds) {
+              broadcastInvalidation(userId, { type: 'note:deleted', id: removedId });
+            }
+          }
         }
 
         // Update the map to point to the keeper

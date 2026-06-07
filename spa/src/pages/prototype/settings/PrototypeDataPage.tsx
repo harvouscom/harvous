@@ -2,6 +2,10 @@ import { useRef, useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { api, apiUrl } from '../../../lib/api';
+import {
+  fetchAndValidateUserExport,
+  triggerAuthenticatedExportDownload,
+} from '@/utils/download-user-export';
 import { clientApiOrigin, refreshClientData } from '../../../lib/refresh-client-data';
 import { SettingsShell, SettingsGroup, SettingsRow } from './SettingsShell';
 
@@ -37,20 +41,11 @@ export default function PrototypeDataPage() {
   const handleExport = async (format: ExportFormat) => {
     resetStatus();
     setBusy(format === 'markdown' ? 'export-md' : 'export-csv');
+    const baseUrl = import.meta.env.VITE_API_BASE_URL || '';
+    triggerAuthenticatedExportDownload(format, baseUrl);
+
     try {
-      const res = await fetch(apiUrl(`/api/user/export?format=${format}`), { credentials: 'include' });
-      if (!res.ok) throw new Error(`Export failed (${res.status})`);
-      const blob = await res.blob();
-      const ext = format === 'markdown' ? 'md' : 'csv';
-      const date = new Date().toISOString().slice(0, 10);
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `harvous-export-${date}.${ext}`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
+      await fetchAndValidateUserExport(format, baseUrl);
       setMessage('Export downloaded.');
     } catch {
       setError("Couldn't export your data. Please try again.");

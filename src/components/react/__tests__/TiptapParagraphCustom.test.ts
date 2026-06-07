@@ -11,15 +11,19 @@ describe('ParagraphCustom', () => {
     expect(ParagraphCustom.config.addProseMirrorPlugins).toBeUndefined();
   });
 
-  it('serializes empty paragraphs as br placeholders without live hardBreak nodes', () => {
+  it('keeps empty paragraphs editable (no toDOM override) and lets save-time canonicalize add the br', () => {
     const editor = new Editor({
       extensions: [Document, ParagraphCustom, Text, HardBreak],
       content: '<p>one</p><p></p><p>two</p>',
     });
 
     try {
+      // Live getHTML emits a plain empty <p></p> — the node MUST keep its content hole
+      // so the live editor renders it editable (a forced <p><br></p> here would make the
+      // node contenteditable="false" and break typing into new/empty notes).
       const html = editor.getHTML();
-      expect(html).toContain('<p><br></p>');
+      expect(html).toContain('<p></p>');
+      // Blank-line persistence is applied at save time, not in the live toDOM.
       expect(canonicalizeNoteHtmlLineBreaks(html)).toBe(
         '<p>one</p><p><br></p><p>two</p>',
       );

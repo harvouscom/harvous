@@ -60,6 +60,8 @@
   min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
+  /* Keep the caret clear of the in-flow format toolbar when typing near the bottom. */
+  scroll-padding-bottom: 24px;
   display: flex;
   flex-direction: column;
   container-type: inline-size;
