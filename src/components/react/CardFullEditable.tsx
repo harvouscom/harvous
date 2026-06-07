@@ -35,8 +35,10 @@ import {
 import { noteFolderChipDisplayState } from '@/utils/note-folder-display';
 import { stripServerAutoUntitledNoteTitleForDisplay } from '@/utils/server-auto-untitled-note-display';
 
-// Lazy load TiptapEditor to reduce initial bundle size - only loads when user enters edit mode
-const TiptapEditor = lazy(() => import('./TiptapEditor'));
+// Prototype notes use alwaysEditing — load TipTap synchronously so the body is typeable on first paint.
+import TiptapEditorEager from './TiptapEditor';
+// Classic SPA / bottom sheet: lazy load until the user enters edit mode.
+const TiptapEditorLazy = lazy(() => import('./TiptapEditor'));
 
 /**
  * Stable references for default values of array/object props.
@@ -235,6 +237,13 @@ export default function CardFullEditable({
     editorChromeMode === 'prototypeNative'
       ? (prototypeNoteActionsChrome ?? !!(noteActionsPortalTarget || prototypeNoteActionBar))
       : false;
+  const eagerTiptap = editorChromeMode === 'prototypeNative' && alwaysEditing;
+  const TiptapEditorComponent = eagerTiptap ? TiptapEditorEager : TiptapEditorLazy;
+  const wrapTiptapSuspense = useCallback(
+    (node: React.ReactNode, fallbackClassName: string) =>
+      eagerTiptap ? node : <Suspense fallback={<div className={fallbackClassName} />}>{node}</Suspense>,
+    [eagerTiptap],
+  );
 
   // Override isEditable for scripture notes, onboarding pack notes, and offline (create-only mode)
   const isCurrentlyOffline = useIsOffline();
@@ -2012,6 +2021,9 @@ export default function CardFullEditable({
           e.preventDefault();
           if (editorInstanceRef.current && !editorInstanceRef.current.isDestroyed) {
             editorInstanceRef.current.commands.focus('end');
+          } else {
+            setIsContentEditing(true);
+            shouldFocusEditorRef.current = true;
           }
           return;
         }
@@ -2481,8 +2493,8 @@ export default function CardFullEditable({
             ) : (
               <div className="flex-fill flex-stack" style={{ gap: 0, width: '100%' }}>
                 <div className="flex-1 min-h-0 px-3" style={{ width: '100%', maxHeight: '100%' }}>
-                  <Suspense fallback={<div className="min-h-[100px]" />}>
-                    <TiptapEditor
+                  {wrapTiptapSuspense(
+                    <TiptapEditorComponent
                       content={editContent}
                       id="edit-note-content"
                       name="editContent"
@@ -2520,8 +2532,9 @@ export default function CardFullEditable({
                       }
                       onPrototypeScripturePillOpenRequestConsumed={onPrototypeScripturePillOpenRequestConsumed}
                       prototypeNoteActionsChrome={effectivePrototypeNoteActionsChrome}
-                    />
-                  </Suspense>
+                    />,
+                    'min-h-[100px]',
+                  )}
                 </div>
                 
                 {/* Save/Cancel buttons */}
@@ -2854,8 +2867,8 @@ export default function CardFullEditable({
           ) : (
             <div className="flex-fill flex-stack" style={{ gap: 0, maxHeight: '100%' }}>
               <div className="flex-1 flex flex-col min-h-0 px-3" style={{ maxHeight: '100%' }}>
-                <Suspense fallback={<div className="min-h-[200px]" />}>
-                  <TiptapEditor
+                {wrapTiptapSuspense(
+                  <TiptapEditorComponent
                     content={editContent}
                     id="edit-note-content"
                     name="editContent"
@@ -2897,8 +2910,9 @@ export default function CardFullEditable({
                     }
                     onPrototypeScripturePillOpenRequestConsumed={onPrototypeScripturePillOpenRequestConsumed}
                     prototypeNoteActionsChrome={effectivePrototypeNoteActionsChrome}
-                  />
-                </Suspense>
+                  />,
+                  'min-h-[200px]',
+                )}
               </div>
               
               {/* Save/Cancel buttons */}
