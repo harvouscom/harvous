@@ -29,6 +29,7 @@ import {
   getThreadNoteTypeCounts,
 } from '../utils/dashboard-data';
 import { ensureUnorganizedThread } from '../utils/unorganized-thread';
+import { repairMissingNoteThreadJunctionsForUser } from '../utils/thread-junction-repair';
 import { requireSpaceAccess, SpaceAccessError } from '../utils/space-permissions';
 import { awardCreationBonusXP, revokeXPOnDeletion, revokeAllXPForItem, deleteAllXpForRelatedIds } from '../utils/xp-system';
 import { moveScriptureNotesToThread } from '../utils/move-scripture-notes-to-thread';
@@ -132,6 +133,7 @@ route.get('/api/threads/list', requireAuth, async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
 
+    await repairMissingNoteThreadJunctionsForUser(auth.userId);
     const threads = await getAllThreadsWithCounts(auth.userId);
 
     const threadOptions = threads.map((thread: any) => ({
@@ -461,6 +463,7 @@ route.get('/api/threads/:threadId/prefetch', requireAuth, async (c) => {
     let threadId = requireParam(c, 'threadId');
     if (threadId.startsWith('thread/')) threadId = 'thread_' + threadId.slice(7);
 
+    await repairMissingNoteThreadJunctionsForUser(auth.userId);
     let thread = await getThreadWithCount(threadId, auth.userId);
     let notesResult: { notes: any[]; hasMore: boolean } | any = await getNotesForThread(threadId, auth.userId, 20, 0);
     let noteTypeCounts = await getThreadNoteTypeCounts(threadId, auth.userId);
@@ -597,6 +600,7 @@ route.get('/api/threads/:threadId/notes', requireAuth, async (c) => {
     const offset = parseInt(c.req.query('offset') || '0', 10);
     const limit = parseInt(c.req.query('limit') || '20', 10);
 
+    await repairMissingNoteThreadJunctionsForUser(auth.userId);
     // Owner path
     let result = await getNotesForThread(threadId, auth.userId, limit, offset);
     if (Array.isArray(result)) {

@@ -170,6 +170,28 @@ export async function getAllThreadsWithCounts(userId: string) {
 
       noteCountsMap = new Map(noteCounts.map(item => [item.threadId, item.count]));
 
+      // Include notes assigned via threadId column when junction row is missing.
+      const columnCounts = await db.select({
+        threadId: Notes.threadId,
+        count: count(),
+      })
+        .from(Notes)
+        .leftJoin(
+          NoteThreads,
+          and(eq(NoteThreads.noteId, Notes.id), eq(NoteThreads.threadId, Notes.threadId)),
+        )
+        .where(and(
+          eq(Notes.userId, userId),
+          inArray(Notes.threadId, threadIds),
+          isNull(NoteThreads.id),
+        ))
+        .groupBy(Notes.threadId);
+
+      for (const row of columnCounts) {
+        if (!row.threadId) continue;
+        noteCountsMap.set(row.threadId, (noteCountsMap.get(row.threadId) || 0) + Number(row.count));
+      }
+
       // Also count referenced scripture notes per thread (matching getNotesForThread behavior)
       // Get all note IDs per thread
       const threadNoteRows = await db.select({ threadId: NoteThreads.threadId, noteId: NoteThreads.noteId })
@@ -381,13 +403,24 @@ export async function getThreadWithCount(threadId: string, userId: string) {
 
     if (!thread) return null;
 
-    // Count notes directly in thread
+    // Count notes directly in thread (junction + threadId column fallback)
     const threadNotes = await db.select({ id: Notes.id })
       .from(Notes).innerJoin(NoteThreads, eq(NoteThreads.noteId, Notes.id))
       .where(and(eq(NoteThreads.threadId, threadId), eq(Notes.userId, userId)));
 
+    const columnOnlyNotes = await db.select({ id: Notes.id })
+      .from(Notes)
+      .leftJoin(
+        NoteThreads,
+        and(eq(NoteThreads.noteId, Notes.id), eq(NoteThreads.threadId, threadId)),
+      )
+      .where(and(eq(Notes.userId, userId), eq(Notes.threadId, threadId), isNull(NoteThreads.id)));
+
+    const mergedThreadNotes = [...threadNotes, ...columnOnlyNotes];
+    const uniqueThreadNoteIds = [...new Set(mergedThreadNotes.map((n) => n.id).filter(Boolean))] as string[];
+
     // Also count referenced scripture notes (matching getNotesForThread behavior)
-    const threadNoteIds = threadNotes.map(n => n.id).filter(Boolean) as string[];
+    const threadNoteIds = uniqueThreadNoteIds;
     let referencedScriptureCount = 0;
     if (threadNoteIds.length > 0) {
       const refs = await db.select({ scriptureNoteId: NoteScriptureReferences.scriptureNoteId })
@@ -398,7 +431,7 @@ export async function getThreadWithCount(threadId: string, userId: string) {
       referencedScriptureCount = additionalIds.size;
     }
 
-    const noteCount = threadNotes.length + referencedScriptureCount;
+    const noteCount = uniqueThreadNoteIds.length + referencedScriptureCount;
 
     return {
       ...thread, noteCount,
@@ -590,8 +623,16 @@ export async function getThreadNoteTypeCounts(threadId: string, userId: string) 
         .from(Notes).innerJoin(NoteThreads, eq(NoteThreads.noteId, Notes.id))
         .where(and(eq(NoteThreads.threadId, threadId), eq(Notes.userId, userId)));
 
+      const columnOnlyThreadNotes = await db.select({ id: Notes.id, noteType: Notes.noteType })
+        .from(Notes)
+        .leftJoin(
+          NoteThreads,
+          and(eq(NoteThreads.noteId, Notes.id), eq(NoteThreads.threadId, threadId)),
+        )
+        .where(and(eq(Notes.userId, userId), eq(Notes.threadId, threadId), isNull(NoteThreads.id)));
+
       // Also include referenced scripture notes (matching getNotesForThread behavior)
-      const threadNoteIds = threadNotes.map(n => n.id).filter(Boolean) as string[];
+      const threadNoteIds = [...threadNotes, ...columnOnlyThreadNotes].map(n => n.id).filter(Boolean) as string[];
       let referencedScriptureNotes: typeof threadNotes = [];
       if (threadNoteIds.length > 0) {
         const refs = await db.select({ scriptureNoteId: NoteScriptureReferences.scriptureNoteId })
@@ -606,7 +647,9 @@ export async function getThreadNoteTypeCounts(threadId: string, userId: string) 
       }
 
       const notesMap = new Map<string, { id: string | null; noteType: string | null }>();
-      [...threadNotes, ...referencedScriptureNotes].forEach(n => { if (n.id && !notesMap.has(n.id)) notesMap.set(n.id, n); });
+      [...threadNotes, ...columnOnlyThreadNotes, ...referencedScriptureNotes].forEach(n => {
+        if (n.id && !notesMap.has(n.id)) notesMap.set(n.id, n);
+      });
       const allNotes = Array.from(notesMap.values());
 
       allCount = allNotes.length;
@@ -712,7 +755,18 @@ export async function getNotesForThread(threadId: string, userId: string, limit 
         .orderBy(...threadOrderBy)
         .limit(fetchLimit);
 
-      const threadNoteIds = junctionNotes.map(n => n.id).filter(Boolean);
+      // Fallback: notes with threadId column set but missing junction row (Classic desync).
+      const columnOnlyNotes = await db.select(NOTE_LIST_SELECT)
+        .from(Notes)
+        .leftJoin(
+          NoteThreads,
+          and(eq(NoteThreads.noteId, Notes.id), eq(NoteThreads.threadId, threadId)),
+        )
+        .where(and(eq(Notes.userId, userId), eq(Notes.threadId, threadId), isNull(NoteThreads.id)))
+        .orderBy(...threadOrderBy)
+        .limit(fetchLimit);
+
+      const threadNoteIds = [...junctionNotes, ...columnOnlyNotes].map(n => n.id).filter(Boolean);
       let referencedScriptureNotes: typeof junctionNotes = [];
       if (threadNoteIds.length > 0) {
         const refs = await db.select({ scriptureNoteId: NoteScriptureReferences.scriptureNoteId })
@@ -728,7 +782,9 @@ export async function getNotesForThread(threadId: string, userId: string, limit 
         }
       }
       const notesMap = new Map<string, (typeof junctionNotes)[0]>();
-      [...junctionNotes, ...referencedScriptureNotes].forEach(n => { if (n.id && !notesMap.has(n.id)) notesMap.set(n.id, n); });
+      [...junctionNotes, ...columnOnlyNotes, ...referencedScriptureNotes].forEach(n => {
+        if (n.id && !notesMap.has(n.id)) notesMap.set(n.id, n);
+      });
       allNotes = Array.from(notesMap.values());
     }
 

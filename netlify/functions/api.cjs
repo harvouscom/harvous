@@ -129117,6 +129117,21 @@ async function getAllThreadsWithCounts(userId) {
         eq(Notes.userId, userId)
       )).groupBy(NoteThreads.threadId);
       noteCountsMap = new Map(noteCounts.map((item) => [item.threadId, item.count]));
+      const columnCounts = await db.select({
+        threadId: Notes.threadId,
+        count: count()
+      }).from(Notes).leftJoin(
+        NoteThreads,
+        and(eq(NoteThreads.noteId, Notes.id), eq(NoteThreads.threadId, Notes.threadId))
+      ).where(and(
+        eq(Notes.userId, userId),
+        inArray(Notes.threadId, threadIds),
+        isNull(NoteThreads.id)
+      )).groupBy(Notes.threadId);
+      for (const row of columnCounts) {
+        if (!row.threadId) continue;
+        noteCountsMap.set(row.threadId, (noteCountsMap.get(row.threadId) || 0) + Number(row.count));
+      }
       const threadNoteRows = await db.select({ threadId: NoteThreads.threadId, noteId: NoteThreads.noteId }).from(NoteThreads).innerJoin(Notes, eq(Notes.id, NoteThreads.noteId)).where(and(inArray(NoteThreads.threadId, threadIds), eq(Notes.userId, userId)));
       const allNoteIds = threadNoteRows.map((r) => r.noteId).filter(Boolean);
       if (allNoteIds.length > 0) {
@@ -129284,7 +129299,13 @@ async function getThreadWithCount(threadId, userId) {
     }).from(Threads).where(and(eq(Threads.id, threadId), eq(Threads.userId, userId))).limit(1));
     if (!thread) return null;
     const threadNotes = await db.select({ id: Notes.id }).from(Notes).innerJoin(NoteThreads, eq(NoteThreads.noteId, Notes.id)).where(and(eq(NoteThreads.threadId, threadId), eq(Notes.userId, userId)));
-    const threadNoteIds = threadNotes.map((n) => n.id).filter(Boolean);
+    const columnOnlyNotes = await db.select({ id: Notes.id }).from(Notes).leftJoin(
+      NoteThreads,
+      and(eq(NoteThreads.noteId, Notes.id), eq(NoteThreads.threadId, threadId))
+    ).where(and(eq(Notes.userId, userId), eq(Notes.threadId, threadId), isNull(NoteThreads.id)));
+    const mergedThreadNotes = [...threadNotes, ...columnOnlyNotes];
+    const uniqueThreadNoteIds = [...new Set(mergedThreadNotes.map((n) => n.id).filter(Boolean))];
+    const threadNoteIds = uniqueThreadNoteIds;
     let referencedScriptureCount = 0;
     if (threadNoteIds.length > 0) {
       const refs3 = await db.select({ scriptureNoteId: NoteScriptureReferences2.scriptureNoteId }).from(NoteScriptureReferences2).innerJoin(Notes, eq(NoteScriptureReferences2.scriptureNoteId, Notes.id)).where(and(inArray(NoteScriptureReferences2.noteId, threadNoteIds), eq(Notes.userId, userId), eq(Notes.noteType, "scripture")));
@@ -129292,7 +129313,7 @@ async function getThreadWithCount(threadId, userId) {
       const additionalIds = new Set(refs3.map((r) => r.scriptureNoteId).filter((id) => !alreadyIds.has(id)));
       referencedScriptureCount = additionalIds.size;
     }
-    const noteCount = threadNotes.length + referencedScriptureCount;
+    const noteCount = uniqueThreadNoteIds.length + referencedScriptureCount;
     return {
       ...thread,
       noteCount,
@@ -129438,7 +129459,11 @@ async function getThreadNoteTypeCounts(threadId, userId) {
       resourceCount = allNotes.filter((n) => n.noteType === "resource").length;
     } else {
       const threadNotes = await db.select({ id: Notes.id, noteType: Notes.noteType }).from(Notes).innerJoin(NoteThreads, eq(NoteThreads.noteId, Notes.id)).where(and(eq(NoteThreads.threadId, threadId), eq(Notes.userId, userId)));
-      const threadNoteIds = threadNotes.map((n) => n.id).filter(Boolean);
+      const columnOnlyThreadNotes = await db.select({ id: Notes.id, noteType: Notes.noteType }).from(Notes).leftJoin(
+        NoteThreads,
+        and(eq(NoteThreads.noteId, Notes.id), eq(NoteThreads.threadId, threadId))
+      ).where(and(eq(Notes.userId, userId), eq(Notes.threadId, threadId), isNull(NoteThreads.id)));
+      const threadNoteIds = [...threadNotes, ...columnOnlyThreadNotes].map((n) => n.id).filter(Boolean);
       let referencedScriptureNotes = [];
       if (threadNoteIds.length > 0) {
         const refs3 = await db.select({ scriptureNoteId: NoteScriptureReferences2.scriptureNoteId }).from(NoteScriptureReferences2).innerJoin(Notes, eq(NoteScriptureReferences2.scriptureNoteId, Notes.id)).where(and(inArray(NoteScriptureReferences2.noteId, threadNoteIds), eq(Notes.userId, userId), eq(Notes.noteType, "scripture")));
@@ -129449,7 +129474,7 @@ async function getThreadNoteTypeCounts(threadId, userId) {
         }
       }
       const notesMap = /* @__PURE__ */ new Map();
-      [...threadNotes, ...referencedScriptureNotes].forEach((n) => {
+      [...threadNotes, ...columnOnlyThreadNotes, ...referencedScriptureNotes].forEach((n) => {
         if (n.id && !notesMap.has(n.id)) notesMap.set(n.id, n);
       });
       const allNotes = Array.from(notesMap.values());
@@ -129534,7 +129559,11 @@ async function getNotesForThread(threadId, userId, limit = 20, offset = 0) {
         asc(Notes.id)
       ];
       const junctionNotes = await db.select(NOTE_LIST_SELECT).from(Notes).innerJoin(NoteThreads, eq(NoteThreads.noteId, Notes.id)).where(and(eq(NoteThreads.threadId, threadId), eq(Notes.userId, userId))).orderBy(...threadOrderBy).limit(fetchLimit);
-      const threadNoteIds = junctionNotes.map((n) => n.id).filter(Boolean);
+      const columnOnlyNotes = await db.select(NOTE_LIST_SELECT).from(Notes).leftJoin(
+        NoteThreads,
+        and(eq(NoteThreads.noteId, Notes.id), eq(NoteThreads.threadId, threadId))
+      ).where(and(eq(Notes.userId, userId), eq(Notes.threadId, threadId), isNull(NoteThreads.id))).orderBy(...threadOrderBy).limit(fetchLimit);
+      const threadNoteIds = [...junctionNotes, ...columnOnlyNotes].map((n) => n.id).filter(Boolean);
       let referencedScriptureNotes = [];
       if (threadNoteIds.length > 0) {
         const refs3 = await db.select({ scriptureNoteId: NoteScriptureReferences2.scriptureNoteId }).from(NoteScriptureReferences2).innerJoin(Notes, eq(NoteScriptureReferences2.scriptureNoteId, Notes.id)).where(and(inArray(NoteScriptureReferences2.noteId, threadNoteIds), eq(Notes.userId, userId), eq(Notes.noteType, "scripture")));
@@ -129546,7 +129575,7 @@ async function getNotesForThread(threadId, userId, limit = 20, offset = 0) {
         }
       }
       const notesMap = /* @__PURE__ */ new Map();
-      [...junctionNotes, ...referencedScriptureNotes].forEach((n) => {
+      [...junctionNotes, ...columnOnlyNotes, ...referencedScriptureNotes].forEach((n) => {
         if (n.id && !notesMap.has(n.id)) notesMap.set(n.id, n);
       });
       allNotes = Array.from(notesMap.values());
@@ -130381,6 +130410,36 @@ async function ensurePersonalHomeSpaceDetailed(userId, options) {
   };
 }
 
+// server/utils/thread-junction-repair.ts
+init_db2();
+init_dates();
+async function repairMissingNoteThreadJunctionsForUser(userId) {
+  const userNotes = await db.select({ id: Notes.id, threadId: Notes.threadId }).from(Notes).where(eq(Notes.userId, userId));
+  const userThreads = await db.select({ id: Threads.id }).from(Threads).where(eq(Threads.userId, userId));
+  const threadIdSet = new Set(userThreads.map((t) => t.id));
+  const allNoteThreads = await db.select({ noteId: NoteThreads.noteId, threadId: NoteThreads.threadId }).from(NoteThreads).innerJoin(Notes, eq(Notes.id, NoteThreads.noteId)).where(eq(Notes.userId, userId));
+  const noteThreadPairs = new Set(allNoteThreads.map((nt2) => `${nt2.noteId}::${nt2.threadId}`));
+  let created = 0;
+  for (const note of userNotes) {
+    if (!note.threadId || note.threadId === "thread_unorganized" || !threadIdSet.has(note.threadId)) continue;
+    const key2 = `${note.id}::${note.threadId}`;
+    if (noteThreadPairs.has(key2)) continue;
+    const id = `nt-heal-${note.id}-${note.threadId}-${Date.now()}`;
+    try {
+      await db.insert(NoteThreads).values({
+        id,
+        noteId: note.id,
+        threadId: note.threadId,
+        createdAt: nowISO()
+      });
+      noteThreadPairs.add(key2);
+      created++;
+    } catch {
+    }
+  }
+  return created;
+}
+
 // server/routes/navigation.ts
 init_my_pile_thread();
 var route2 = new Hono2();
@@ -130393,6 +130452,7 @@ route2.get("/api/navigation/data", async (c) => {
     }
     await getCachedUserData(userId);
     await ensurePersonalHomeSpace(userId);
+    await repairMissingNoteThreadJunctionsForUser(userId);
     const [threads, spaces, inboxCount, unorganizedThreadData, unorganizedTypeCounts, memberSpaces] = await Promise.all([
       getAllThreadsWithCounts(userId),
       getSpacesWithCounts(userId),
@@ -144127,6 +144187,7 @@ async function addNotesToThread(noteIds, threadId, userId) {
 route9.get("/api/threads/list", requireAuth, async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
+    await repairMissingNoteThreadJunctionsForUser(auth.userId);
     const threads = await getAllThreadsWithCounts(auth.userId);
     const threadOptions = threads.map((thread) => ({
       id: thread.id,
@@ -144373,6 +144434,7 @@ route9.get("/api/threads/:threadId/prefetch", requireAuth, async (c) => {
     const auth = getAuthenticatedAuth(c);
     let threadId = requireParam(c, "threadId");
     if (threadId.startsWith("thread/")) threadId = "thread_" + threadId.slice(7);
+    await repairMissingNoteThreadJunctionsForUser(auth.userId);
     let thread = await getThreadWithCount(threadId, auth.userId);
     let notesResult = await getNotesForThread(threadId, auth.userId, 20, 0);
     let noteTypeCounts = await getThreadNoteTypeCounts(threadId, auth.userId);
@@ -144492,6 +144554,7 @@ route9.get("/api/threads/:threadId/notes", requireAuth, async (c) => {
     if (threadId.startsWith("thread/")) threadId = "thread_" + threadId.slice(7);
     const offset = parseInt(c.req.query("offset") || "0", 10);
     const limit = parseInt(c.req.query("limit") || "20", 10);
+    await repairMissingNoteThreadJunctionsForUser(auth.userId);
     let result = await getNotesForThread(threadId, auth.userId, limit, offset);
     if (Array.isArray(result)) {
       result = { notes: [], hasMore: false };
@@ -145070,38 +145133,6 @@ async function collectStudyThreadGraphForScope(focusNoteId, userId, options) {
 // server/utils/prototype-user-migration.ts
 init_db2();
 init_dates();
-
-// server/utils/thread-junction-repair.ts
-init_db2();
-init_dates();
-async function repairMissingNoteThreadJunctionsForUser(userId) {
-  const userNotes = await db.select({ id: Notes.id, threadId: Notes.threadId }).from(Notes).where(eq(Notes.userId, userId));
-  const userThreads = await db.select({ id: Threads.id }).from(Threads).where(eq(Threads.userId, userId));
-  const threadIdSet = new Set(userThreads.map((t) => t.id));
-  const allNoteThreads = await db.select({ noteId: NoteThreads.noteId, threadId: NoteThreads.threadId }).from(NoteThreads).innerJoin(Notes, eq(Notes.id, NoteThreads.noteId)).where(eq(Notes.userId, userId));
-  const noteThreadPairs = new Set(allNoteThreads.map((nt2) => `${nt2.noteId}::${nt2.threadId}`));
-  let created = 0;
-  for (const note of userNotes) {
-    if (!note.threadId || note.threadId === "thread_unorganized" || !threadIdSet.has(note.threadId)) continue;
-    const key2 = `${note.id}::${note.threadId}`;
-    if (noteThreadPairs.has(key2)) continue;
-    const id = `nt-heal-${note.id}-${note.threadId}-${Date.now()}`;
-    try {
-      await db.insert(NoteThreads).values({
-        id,
-        noteId: note.id,
-        threadId: note.threadId,
-        createdAt: nowISO()
-      });
-      noteThreadPairs.add(key2);
-      created++;
-    } catch {
-    }
-  }
-  return created;
-}
-
-// server/utils/prototype-user-migration.ts
 function isSystemThreadId(threadId) {
   return threadId === "thread_unorganized" || threadId.startsWith("thread_onboarding_");
 }
