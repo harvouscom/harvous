@@ -26,4 +26,27 @@ describe('stripHtmlForListPreview', () => {
     expect(preview.endsWith('…')).toBe(true);
     expect(preview.length).toBeLessThanOrEqual(21);
   });
+
+  it('shows one translation when NET pill has trailing NLT abbrev', () => {
+    const html =
+      '<p><span data-scripture-reference="Titus 1:1" data-note-id="note_1" data-scripture-translation="NET" class="scripture-pill">Titus 1:1</span> NLT</p>';
+    const preview = stripHtmlForListPreview(html, 80);
+    expect(preview).toBe('Titus 1:1 NLT');
+    expect(preview).not.toContain('NET');
+  });
+
+  it('dedupes redundant trailing abbrev when pill already has that translation', () => {
+    const html =
+      '<p><span data-scripture-reference="John 3:16" data-note-id="note_3" data-scripture-translation="NLT" class="scripture-pill">John 3:16</span> NLT rest</p>';
+    const preview = stripHtmlForListPreview(html, 80);
+    expect(preview).toBe('John 3:16 NLT rest');
+    expect(preview.match(/\bNLT\b/g)?.length).toBe(1);
+  });
+
+  it('preserves prose after pill when trailing abbrev is consumed', () => {
+    const html =
+      '<p>Write about <span data-scripture-reference="Exodus 5:1-5" data-note-id="note_1" data-scripture-translation="NET" class="scripture-pill">Exodus 5:1-5</span> NLT and see</p>';
+    const preview = stripHtmlForListPreview(html, 80);
+    expect(preview).toBe('Write about Exodus 5:1-5 NLT and see');
+  });
 });

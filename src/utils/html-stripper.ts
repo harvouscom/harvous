@@ -5,6 +5,11 @@
  * Supports multiple modes for different use cases.
  */
 
+import { getTranslationAbbreviationDisplay } from '@/data/translations';
+import { matchAnchoredTrailingTranslationAbbreviation } from '@/utils/scripture-detector';
+import { repairScripturePillTranslationsInHtml } from '@/utils/scripture-pill-display';
+import { getEffectiveDefaultTranslation } from '@/utils/profile-cache';
+
 export interface StripHtmlOptions {
   /**
    * Preserve spacing between block elements (p, div, h1-h6, li, etc.)
@@ -24,6 +29,64 @@ export interface StripHtmlOptions {
   maxLength?: number;
 }
 
+const SCRIPTURE_PILL_SPAN_RE = /<span[^>]*data-scripture-reference[^>]*>([\s\S]*?)<\/span>/gi;
+
+function shouldAdoptTranslationOnPill(current: string | null): boolean {
+  if (!current) return true;
+  if (current === 'NET') return true;
+  return false;
+}
+
+function resolveScripturePillPlainText(
+  fullSpan: string,
+  refContent: string,
+  afterSpanHtml: string,
+): { plain: string; skipAfter: number } {
+  const attrMatch = fullSpan.match(/data-scripture-translation\s*=\s*["']([^"']+)["']/i);
+  const current = attrMatch?.[1]?.trim() ?? null;
+  const refText = refContent.trim();
+
+  const textBeforeNextTag = afterSpanHtml.match(/^([^<]*)/)?.[1] ?? '';
+  const trailing = matchAnchoredTrailingTranslationAbbreviation(textBeforeNextTag);
+
+  let effectiveId = current ?? 'NET';
+  let skipAfter = 0;
+
+  if (trailing) {
+    if (shouldAdoptTranslationOnPill(current) || current === trailing.canonicalId) {
+      if (shouldAdoptTranslationOnPill(current)) {
+        effectiveId = trailing.canonicalId;
+      }
+      skipAfter = trailing.consumed.length;
+    }
+  }
+
+  const abbrev = getTranslationAbbreviationDisplay(effectiveId) || effectiveId;
+  return { plain: `${refText} ${abbrev}`, skipAfter };
+}
+
+/** Collapse scripture pill spans to plain text before tag stripping (mirrors editor repair for previews). */
+function collapseScripturePillsForPlainText(html: string): string {
+  if (!html.includes('data-scripture-reference')) return html;
+
+  const pillRe = new RegExp(SCRIPTURE_PILL_SPAN_RE.source, 'gi');
+  let out = '';
+  let cursor = 0;
+  let m: RegExpExecArray | null;
+
+  while ((m = pillRe.exec(html)) !== null) {
+    out += html.slice(cursor, m.index);
+    const fullSpan = m[0];
+    const refContent = m[1];
+    const afterSpan = html.slice(m.index + fullSpan.length);
+    const { plain, skipAfter } = resolveScripturePillPlainText(fullSpan, refContent, afterSpan);
+    out += plain;
+    cursor = m.index + fullSpan.length + skipAfter;
+  }
+  out += html.slice(cursor);
+  return out;
+}
+
 /**
  * Main HTML stripping function
  * 
@@ -35,12 +98,13 @@ export function stripHtml(html: string, options: StripHtmlOptions = {}): string 
   if (!html) return '';
   
   const { preserveSpacing = false, useDOM = false, maxLength } = options;
+  let text = html.includes('data-scripture-reference') ? collapseScripturePillsForPlainText(html) : html;
   
   // Client-side DOM parsing (most accurate, preserves spacing)
   if (useDOM && typeof document !== 'undefined') {
     try {
       const tempDiv = document.createElement('div');
-      tempDiv.innerHTML = html;
+      tempDiv.innerHTML = text;
       
       // Block-level elements that should have spaces between them
       const blockElements = ['P', 'DIV', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'LI', 'UL', 'OL', 'BLOCKQUOTE', 'PRE'];
@@ -79,11 +143,7 @@ export function stripHtml(html: string, options: StripHtmlOptions = {}): string 
               result += extractTextWithSpacing(child);
             } else {
               // For inline elements (like SPAN), extract text and ALWAYS add spaces around it
-              let childText = extractTextWithSpacing(child);
-              const translationAttr = element.getAttribute('data-scripture-translation');
-              if (translationAttr) {
-                childText = `${childText} ${translationAttr}`;
-              }
+              const childText = extractTextWithSpacing(child);
               
               if (!isBlockElement && childText.trim().length > 0) {
                 // ALWAYS add space before inline elements to prevent text running together
@@ -148,8 +208,6 @@ export function stripHtml(html: string, options: StripHtmlOptions = {}): string 
   }
   
   // Regex-based approach (works in both server and client)
-  let text = html;
-  
   // Remove script and style tags completely (including their content)
   text = text.replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '');
   text = text.replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '');
@@ -171,13 +229,10 @@ export function stripHtml(html: string, options: StripHtmlOptions = {}): string 
     text = text.replace(/(<\/span>)([^\s<])/gi, '$1 $2');
     
     // Now extract text from inline spans, ensuring spaces are preserved
-    text = text.replace(/<span[^>]*>([\s\S]*?)<\/span>/gi, (match, content) => {
+    text = text.replace(/<span[^>]*>([\s\S]*?)<\/span>/gi, (_match, content) => {
       const trimmedContent = content.trim();
-      const translationMatch = match.match(/data-scripture-translation\s*=\s*["']([^"']+)["']/i);
-      const translation = translationMatch?.[1]?.trim();
-      const withTranslation = translation ? `${trimmedContent} ${translation}` : trimmedContent;
       if (trimmedContent) {
-        return ` ${withTranslation} `;
+        return ` ${trimmedContent} `;
       }
       return ' ';
     });
@@ -236,12 +291,6 @@ export function stripHtml(html: string, options: StripHtmlOptions = {}): string 
     text = text.trim();
   } else {
     // Simple regex-based stripping (for most use cases)
-    // Include translation abbreviation for scripture pills rendered via CSS ::after.
-    text = text.replace(
-      /<span[^>]*data-scripture-translation\s*=\s*["']([^"']+)["'][^>]*>([\s\S]*?)<\/span>/gi,
-      (_match, translation, content) => `${content} ${translation}`
-    );
-
     // Remove all HTML tags
     text = text.replace(/<[^>]*>/g, '');
     
@@ -307,7 +356,11 @@ function listPreviewSegmentsFromHtml(html: string): string[] {
  */
 export function stripHtmlForListPreview(html: string, maxLength: number = 80): string {
   if (!html) return '';
-  const segments = listPreviewSegmentsFromHtml(html);
+  let normalized = html;
+  if (typeof document !== 'undefined' && html.includes('data-scripture-reference')) {
+    normalized = repairScripturePillTranslationsInHtml(html, getEffectiveDefaultTranslation());
+  }
+  const segments = listPreviewSegmentsFromHtml(normalized);
   let out = '';
   for (const segment of segments) {
     const next = out ? `${out} · ${segment}` : segment;
