@@ -54,21 +54,30 @@ function buildReferenceString(book: string, chapter: number, verseStart: number,
   return normalizeScriptureReference(`${book} ${chapter}:${verseStart}`) ?? `${book} ${chapter}:${verseStart}`;
 }
 
-function passageScrollCapPx(): number {
-  if (typeof window === 'undefined') return 280;
-  if (window.innerWidth >= 900) {
-    return Math.min(400, window.innerHeight * 0.4);
-  }
-  try {
-    const raw = getComputedStyle(document.documentElement).getPropertyValue('--proto-dock-expanded-max-height');
-    const dockMax = parseFloat(raw);
-    if (Number.isFinite(dockMax) && dockMax > 0) {
-      return Math.min(280, Math.max(120, Math.round(dockMax - 120)));
+const DOCK_CHROME_OVERHEAD_FALLBACK_PX = 120;
+
+function measureDockChromeOverheadPx(cardEl: HTMLElement | null): number {
+  if (!cardEl) return DOCK_CHROME_OVERHEAD_FALLBACK_PX;
+  const header = cardEl.querySelector('.study-dock-card__header');
+  const refBar = cardEl.querySelector('.scripture-pill-chrome__reference-bar');
+  const headerH = header?.getBoundingClientRect().height ?? 0;
+  const refBarH = refBar?.getBoundingClientRect().height ?? 0;
+  const overhead = Math.round(headerH + refBarH + 10);
+  return overhead > 0 ? overhead : DOCK_CHROME_OVERHEAD_FALLBACK_PX;
+}
+
+/** Max passage scroll height — prototype shell uses chrome-row space; otherwise native macOS formula. */
+function passageScrollCapPx(chromeOverhead = DOCK_CHROME_OVERHEAD_FALLBACK_PX): number {
+  if (typeof window === 'undefined') return 360;
+  const chromeRow = document.querySelector('.proto-shell__editor-chrome-row');
+  if (chromeRow) {
+    const available = Math.round(chromeRow.getBoundingClientRect().top - 16);
+    if (available > 0) {
+      return Math.max(120, available - chromeOverhead);
     }
-  } catch {
-    /* ignore */
   }
-  return 280;
+  const v = Math.max(window.innerHeight, 1);
+  return Math.min(360, Math.max(200, v * 0.45));
 }
 
 export interface ScripturePillChromeWebProps {
@@ -144,7 +153,7 @@ export default function ScripturePillChromeWeb({
   const [passageHtml, setPassageHtml] = useState<string>('');
   const [loadingPassage, setLoadingPassage] = useState(false);
   const [passageContentHeight, setPassageContentHeight] = useState(0);
-  const [passageScrollCap, setPassageScrollCap] = useState(passageScrollCapPx);
+  const [passageScrollCap, setPassageScrollCap] = useState(() => passageScrollCapPx());
   const passageContentRef = useRef<HTMLDivElement>(null);
   // Passage text selection → highlight creation
   const passageScrollRef = useRef<HTMLDivElement>(null);
@@ -205,8 +214,12 @@ export default function ScripturePillChromeWeb({
     };
   }, [displayRefString, trans, interactionActive, isExpanded]);
 
-  useEffect(() => {
-    const updateCap = () => setPassageScrollCap(passageScrollCapPx());
+  useLayoutEffect(() => {
+    const updateCap = () => {
+      const cardEl = passageScrollRef.current?.closest<HTMLElement>('.study-dock-card__card') ?? null;
+      const overhead = measureDockChromeOverheadPx(cardEl);
+      setPassageScrollCap(passageScrollCapPx(overhead));
+    };
     updateCap();
     window.addEventListener('resize', updateCap);
     const vv = window.visualViewport;
@@ -215,7 +228,7 @@ export default function ScripturePillChromeWeb({
       window.removeEventListener('resize', updateCap);
       vv?.removeEventListener('resize', updateCap);
     };
-  }, []);
+  }, [isExpanded, passageHtml, loadingPassage]);
 
   const maxChapter = maxChapterForBook(selectedBook);
   const verseBoundsForChapter = getChapterVerseRange(selectedBook, chapter);
@@ -405,7 +418,8 @@ export default function ScripturePillChromeWeb({
   const passageScrollHeight =
     passageContentHeight > 0 ? Math.min(passageContentHeight, passageScrollCap) : passageScrollCap;
 
-  const transLabel = (TRANSLATIONS[trans]?.abbreviation ?? trans).toUpperCase();
+  const translationInfo = TRANSLATIONS[trans];
+  const transLabel = (translationInfo?.abbreviation ?? trans).toUpperCase();
 
   return (
     <>
@@ -501,6 +515,26 @@ export default function ScripturePillChromeWeb({
                   </li>
                 ))}
               </ul>
+            </div>
+          ) : null}
+          {translationInfo ? (
+            <div className="scripture-pill-chrome__attribution" role="contentinfo" aria-label="Translation attribution">
+              <Icon
+                name="circle-info"
+                size={9}
+                className="scripture-pill-chrome__attribution-icon"
+                aria-label="Translation attribution"
+              />
+              <p className="scripture-pill-chrome__attribution-copyright">{translationInfo.copyright}</p>
+              <a
+                href={translationInfo.website}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="scripture-pill-chrome__attribution-link"
+              >
+                {transLabel}
+                <Icon name="arrow-up-right-from-square" size={7} aria-hidden />
+              </a>
             </div>
           ) : null}
         </div>

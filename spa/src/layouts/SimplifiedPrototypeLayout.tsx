@@ -227,8 +227,7 @@ function PrototypeAuthenticatedChrome({ userId }: { userId?: string }) {
       window.scrollTo(0, 0);
     };
 
-    const clear = () => {
-      root.style.removeProperty('--proto-dock-expanded-max-height');
+    const clearKeyboardState = () => {
       root.style.removeProperty('--proto-visible-viewport-height');
       root.removeAttribute('data-proto-keyboard-open');
       unlockPageScroll();
@@ -240,11 +239,12 @@ function PrototypeAuthenticatedChrome({ userId }: { userId?: string }) {
         });
     };
 
+    const clear = () => {
+      root.style.removeProperty('--proto-dock-expanded-max-height');
+      clearKeyboardState();
+    };
+
     const updateDockMaxHeight = () => {
-      if (!mq.matches) {
-        root.style.removeProperty('--proto-dock-expanded-max-height');
-        return;
-      }
       const chromeRow = document.querySelector('.proto-shell__editor-chrome-row');
       if (!chromeRow) return;
       const rect = chromeRow.getBoundingClientRect();
@@ -261,7 +261,7 @@ function PrototypeAuthenticatedChrome({ userId }: { userId?: string }) {
     const apply = () => {
       updateDockMaxHeight();
       if (!mq.matches) {
-        clear();
+        clearKeyboardState();
         return;
       }
       const innerH = window.innerHeight;
@@ -287,7 +287,7 @@ function PrototypeAuthenticatedChrome({ userId }: { userId?: string }) {
           frame.style.maxHeight = `${frameHeight}px`;
         });
       } else {
-        clear();
+        clearKeyboardState();
       }
     };
 

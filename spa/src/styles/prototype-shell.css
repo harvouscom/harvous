@@ -126,6 +126,11 @@ html.harvous-prototype-route .proto-shell__study-dock-layer .dock-accent-swatch_
   -webkit-backdrop-filter: none;
 }
 
+/* Expanded dock cards share the chrome-row available height budget (desktop + mobile). */
+.proto-shell__study-dock-layer .study-dock-card__card[data-expanded='true'] {
+  max-height: var(--proto-dock-expanded-max-height, none);
+}
+
 /* Full-width bar; toolbar content is offset right so it clears the floating sidebar. */
 .proto-shell__editor-chrome-row .proto-editor-bottom-bar {
   width: 100%;
@@ -507,10 +512,6 @@ html.harvous-prototype-route .proto-shell__toolbar-cell::after {
   html[data-proto-keyboard-open] .proto-editor-scroll {
     overscroll-behavior: contain;
     background: var(--pds-paper-sheet);
-  }
-
-  .proto-shell__study-dock-layer .study-dock-card__card[data-expanded='true'] {
-    max-height: var(--proto-dock-expanded-max-height, none);
   }
 
   .proto-shell--inspector-open {
