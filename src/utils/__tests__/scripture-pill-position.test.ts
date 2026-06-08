@@ -89,6 +89,25 @@ describe('detectScriptureReferenceEndingAtCursor', () => {
     expect(result).not.toBeNull();
     expect(result!.to).toBe(cursorPos);
   });
+
+  it('detects ref ending at cursor when only whitespace follows in slice', () => {
+    const text = 'Exodus 1:1-22 ';
+    const state = stateFromPlainText(text);
+    const cursorPos = 1 + text.length;
+    const result = detectScriptureReferenceEndingAtCursor(state.doc, cursorPos);
+    expect(result).not.toBeNull();
+    expect(result!.reference).toBe('Exodus 1:1-22');
+    expect(result!.from).not.toBeNull();
+    expect(result!.to).not.toBeNull();
+  });
+
+  it('returns null when no reference ends at cursor', () => {
+    const text = 'John 3:16 and Exodus 1:1-22';
+    const state = stateFromPlainText(text);
+    const cursorPos = 1 + 'John 3:16 and '.length;
+    const result = detectScriptureReferenceEndingAtCursor(state.doc, cursorPos);
+    expect(result).toBeNull();
+  });
 });
 
 describe('mapReferenceEndInSliceToDocPos', () => {

@@ -48,7 +48,8 @@ import {
   mergeReferenceWithOrphanSuffix,
 } from '@/utils/scripture-pill-orphan';
 import { findAdjacentPillBoundaries } from '@/utils/scripture-pill-adjacent';
-import { ensureScripturePillSpacing } from '@/utils/scripture-pill-spacing';
+import { hasLostBlockGaps } from '@/utils/scripture-pill-block-gaps';
+import { ensureScripturePillSpacing, type ScripturePillSpacingMode } from '@/utils/scripture-pill-spacing';
 import {
   detectScriptureReferenceEndingAtCursor,
   findScriptureReferenceAtCursor,
@@ -1282,11 +1283,11 @@ export function absorbOrphanSuffixesAfterPills(editor: any): boolean {
   }
 }
 
-function dispatchScripturePillSpacing(editor: any): void {
+function dispatchScripturePillSpacing(editor: any, mode: ScripturePillSpacingMode = 'live'): void {
   if (!editor?.view) return;
   try {
     const tr = editor.state.tr;
-    if (ensureScripturePillSpacing(tr)) {
+    if (ensureScripturePillSpacing(tr, 'scripturePill', mode)) {
       tr.setMeta('addToHistory', false);
       tr.setStoredMarks([]);
       editor.view.dispatch(tr);
@@ -1294,6 +1295,49 @@ function dispatchScripturePillSpacing(editor: any): void {
   } catch {
     /* ignore */
   }
+}
+
+function hasValidPrecomputedPosition(
+  precomputed: { reference: string; from: number | null; to: number | null } | null | undefined,
+  reference: string,
+): precomputed is PrecomputedPillPosition {
+  return (
+    !!precomputed &&
+    precomputed.from != null &&
+    precomputed.to != null &&
+    normalizeScriptureReference(precomputed.reference) === normalizeScriptureReference(reference)
+  );
+}
+
+/** Apply cursor-anchored detection with detectScriptureReferences fallback. Returns applied reference. */
+function applyDetectionAtCursor(editor: any, cursorPos: number): string | null {
+  const doc = editor.state.doc;
+  const cursorResult = detectScriptureReferenceEndingAtCursor(doc, cursorPos);
+
+  if (cursorResult) {
+    const precomputed = hasValidPrecomputedPosition(cursorResult, cursorResult.reference)
+      ? { reference: cursorResult.reference, from: cursorResult.from!, to: cursorResult.to! }
+      : undefined;
+    const applied = createPendingPillsForReferences(
+      editor,
+      [{ reference: cursorResult.reference }],
+      undefined,
+      cursorPos,
+      precomputed,
+    );
+    return applied ? cursorResult.reference : null;
+  }
+
+  const textStart = Math.max(0, cursorPos - 60);
+  const textBeforeCursor = doc.textBetween(textStart, cursorPos);
+  if (textBeforeCursor.trim().length === 0) return null;
+
+  const refs = detectScriptureReferences(textBeforeCursor);
+  if (refs.length === 0) return null;
+
+  const lastRef = refs[refs.length - 1];
+  const applied = createPendingPillsForReferences(editor, [lastRef], undefined, cursorPos);
+  return applied ? lastRef.reference : null;
 }
 
 type PrecomputedPillPosition = { reference: string; from: number; to: number };
@@ -1320,12 +1364,10 @@ function runScriptureDetectionAtCursor(editor: any): void {
     if ($from.marks().some((m: any) => m.type.name === 'scripturePill')) return;
     if (!isScripturePillBoundaryCursor($from, editor.state.doc)) return;
 
-    const cursorResult = detectScriptureReferenceEndingAtCursor(editor.state.doc, from);
-    if (!cursorResult) return;
-
-    const refPayload = [{ reference: cursorResult.reference }];
-    createPendingPillsForReferences(editor, refPayload, undefined, from, cursorResult);
-    schedulePendingTranslationAfterPillCreation(editor, refPayload);
+    const appliedRef = applyDetectionAtCursor(editor, from);
+    if (appliedRef) {
+      schedulePendingTranslationAfterPillCreation(editor, [{ reference: appliedRef }]);
+    }
     absorbOrphanSuffixesAfterPills(editor);
   } catch {
     /* ignore */
@@ -1340,9 +1382,9 @@ function createPendingPillsForReferences(
   translation?: string,
   cursorPos?: number,
   precomputed?: PrecomputedPillPosition | null,
-) {
+): boolean {
   if (!editor || !references || references.length === 0) {
-    return;
+    return false;
   }
 
   const newReferences = references.filter((ref) => {
@@ -1351,7 +1393,7 @@ function createPendingPillsForReferences(
   });
 
   if (newReferences.length === 0) {
-    return;
+    return false;
   }
 
   try {
@@ -1369,10 +1411,7 @@ function createPendingPillsForReferences(
       const doc = tr.doc;
       let positions = findAllTextPositions(doc, reference, true);
 
-      if (
-        precomputed &&
-        normalizeScriptureReference(precomputed.reference) === normalizeScriptureReference(reference)
-      ) {
+      if (hasValidPrecomputedPosition(precomputed, reference)) {
         positions = [{ from: precomputed.from, to: precomputed.to }];
       } else {
         const anchored = findScriptureReferenceAtCursor(doc, reference, anchorCursorPos);
@@ -1391,7 +1430,11 @@ function createPendingPillsForReferences(
           ];
         }
       }
-      
+
+      if (positions.length === 0 && import.meta.env.DEV) {
+        console.warn('[TiptapEditor] No positions for scripture reference:', reference);
+      }
+
       for (let i = positions.length - 1; i >= 0; i--) {
         const pos = positions[i];
         
@@ -1532,9 +1575,11 @@ function createPendingPillsForReferences(
         }
       } catch (_) {}
     }, 10);
-    
+
+    return modified;
   } catch (error) {
     console.error('Error creating pending pills:', error);
+    return false;
   }
 }
 
@@ -3820,8 +3865,10 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
 
             // Only create pending pills for references that don't already have pills with noteIds
             if (referencesNeedingPills.length > 0) {
-              createPendingPillsForReferences(editor, referencesNeedingPills);
-              schedulePendingTranslationAfterPillCreation(editor, referencesNeedingPills);
+              const applied = createPendingPillsForReferences(editor, referencesNeedingPills);
+              if (applied) {
+                schedulePendingTranslationAfterPillCreation(editor, referencesNeedingPills);
+              }
             }
 
             // If editing an existing note, immediately process scripture references
@@ -3870,8 +3917,10 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
           } catch (e) {
             console.error('[TiptapEditor] Error checking for existing pills after paste:', e);
             // Fallback: create pending pills for all references if check fails
-            createPendingPillsForReferences(editor, references);
-            schedulePendingTranslationAfterPillCreation(editor, references);
+            const applied = createPendingPillsForReferences(editor, references);
+            if (applied) {
+              schedulePendingTranslationAfterPillCreation(editor, references);
+            }
           }
         }, 0);
 
@@ -4041,14 +4090,17 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
             // For Enter / NumpadEnter, let the newline happen naturally
           }
 
-          // Step 2: Detect the single scripture reference ending at the cursor
+          // Step 2: Detect scripture reference ending at cursor (with fallback)
           const doc = view.state.doc;
           const cursorPos = view.state.selection.from;
-          const cursorResult = detectScriptureReferenceEndingAtCursor(doc, cursorPos);
+          const textStart = Math.max(0, cursorPos - 60);
+          const textBeforeCursor = doc.textBetween(textStart, cursorPos);
+          const hasDetectableText =
+            detectScriptureReferenceEndingAtCursor(doc, cursorPos) != null ||
+            (textBeforeCursor.trim().length > 0 && detectScriptureReferences(textBeforeCursor).length > 0);
 
           try {
-            if (cursorResult) {
-              const refPayload = [{ reference: cursorResult.reference }];
+            if (hasDetectableText) {
               if (isSyncTrigger) {
                 event.preventDefault();
 
@@ -4057,33 +4109,19 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                 tr.setStoredMarks([]);
                 view.dispatch(tr);
 
-                const afterTriggerPos = editor.state.selection.from;
-                const resultAfterTrigger =
-                  detectScriptureReferenceEndingAtCursor(editor.state.doc, afterTriggerPos) || cursorResult;
-                createPendingPillsForReferences(
-                  editor,
-                  refPayload,
-                  undefined,
-                  afterTriggerPos,
-                  resultAfterTrigger,
-                );
-                schedulePendingTranslationAfterPillCreation(editor, refPayload);
+                const appliedRef = applyDetectionAtCursor(editor, editor.state.selection.from);
+                if (appliedRef) {
+                  schedulePendingTranslationAfterPillCreation(editor, [{ reference: appliedRef }]);
+                }
                 return true;
               }
 
               queueMicrotask(() => {
                 if (!isEditorValid(editor)) return;
-                const afterEnterPos = editor.state.selection.from;
-                const resultAfterEnter =
-                  detectScriptureReferenceEndingAtCursor(editor.state.doc, afterEnterPos) || cursorResult;
-                createPendingPillsForReferences(
-                  editor,
-                  refPayload,
-                  undefined,
-                  afterEnterPos,
-                  resultAfterEnter,
-                );
-                schedulePendingTranslationAfterPillCreation(editor, refPayload);
+                const appliedRef = applyDetectionAtCursor(editor, editor.state.selection.from);
+                if (appliedRef) {
+                  schedulePendingTranslationAfterPillCreation(editor, [{ reference: appliedRef }]);
+                }
               });
             }
           } catch (e) {
@@ -4652,16 +4690,17 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       await convertNoteLinksToScripturePills(editor);
       consumeTrailingTranslationAfterPills(editor);
       absorbOrphanSuffixesAfterPills(editor);
-      dispatchScripturePillSpacing(editor);
+      dispatchScripturePillSpacing(editor, 'hydrate');
 
       try {
-        const html = noteHtmlFromEditor(editor, true);
+        const incoming = canonicalizeNoteHtmlLineBreaks(content);
+        const outgoing = canonicalizeNoteHtmlLineBreaks(noteHtmlFromEditor(editor, true));
         pillNormalizeContentRef.current = content;
-        if (html !== content) {
+        if (outgoing !== incoming && !hasLostBlockGaps(incoming, outgoing)) {
           if (hiddenInputRef.current) {
-            hiddenInputRef.current.value = html;
+            hiddenInputRef.current.value = outgoing;
           }
-          onContentChange?.(html);
+          onContentChange?.(outgoing);
         }
       } catch {
         /* ignore */
@@ -4722,7 +4761,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
         // (native-bridged content, or an abbrev typed after an already-resolved pill).
         consumeTrailingTranslationAfterPills(editor);
         absorbOrphanSuffixesAfterPills(editor);
-        dispatchScripturePillSpacing(editor);
+        dispatchScripturePillSpacing(editor, 'hydrate');
       }
     }, 500);
 

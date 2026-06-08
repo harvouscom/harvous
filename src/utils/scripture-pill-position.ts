@@ -193,14 +193,34 @@ export function findScriptureReferenceAtCursor(
   return bestRange;
 }
 
+export type CursorEndingReference = {
+  reference: string;
+  from: number | null;
+  to: number | null;
+};
+
+function matchEndsAtCursor(textBeforeCursor: string, refText: string, windowLen: number): number {
+  const matches = findTextWithFlexibleMatching(textBeforeCursor, refText);
+  let bestEnd = -1;
+  for (const m of matches) {
+    const end = m.index + m.length;
+    const tail = textBeforeCursor.slice(end);
+    if (end > bestEnd && end <= windowLen && (tail === '' || /^\s+$/.test(tail))) {
+      bestEnd = end;
+    }
+  }
+  return bestEnd;
+}
+
 /**
  * Detect references in text before cursor and return the one ending closest to the cursor.
+ * Position lookup may be deferred (from/to null) — callers resolve via createPendingPillsForReferences.
  */
 export function detectScriptureReferenceEndingAtCursor(
   doc: any,
   cursorPos: number,
   textWindow = 80,
-): { reference: string; from: number; to: number } | null {
+): CursorEndingReference | null {
   const sliceDocFrom = Math.max(1, cursorPos - textWindow);
   const textBeforeCursor = doc.textBetween(sliceDocFrom, cursorPos);
   const refs = detectScriptureReferences(textBeforeCursor);
@@ -210,19 +230,33 @@ export function detectScriptureReferenceEndingAtCursor(
   let bestRef = refs[0];
   let bestEnd = -1;
   for (const ref of refs) {
-    const matches = findTextWithFlexibleMatching(textBeforeCursor, ref.reference);
-    for (const m of matches) {
-      const end = m.index + m.length;
-      if (end > bestEnd && end <= windowLen) {
+    const end = matchEndsAtCursor(textBeforeCursor, ref.reference, windowLen);
+    if (end > bestEnd) {
+      bestEnd = end;
+      bestRef = ref;
+    }
+  }
+
+  if (bestEnd < 0) {
+    for (let i = refs.length - 1; i >= 0; i--) {
+      const end = matchEndsAtCursor(textBeforeCursor, refs[i].reference, windowLen);
+      if (end >= 0) {
+        bestRef = refs[i];
         bestEnd = end;
-        bestRef = ref;
+        break;
       }
     }
   }
 
+  if (bestEnd < 0) return null;
+
   const pos =
     findScriptureReferenceAtCursor(doc, bestRef.reference, cursorPos, textWindow) ||
     mapReferenceEndInSliceToDocPos(doc, cursorPos, bestRef.reference, textWindow);
-  if (!pos) return null;
-  return { reference: bestRef.reference, from: pos.from, to: pos.to };
+
+  return {
+    reference: bestRef.reference,
+    from: pos?.from ?? null,
+    to: pos?.to ?? null,
+  };
 }

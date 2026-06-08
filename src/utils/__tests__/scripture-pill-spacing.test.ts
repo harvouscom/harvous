@@ -106,4 +106,35 @@ describe('ensureScripturePillSpacing', () => {
     ensureScripturePillSpacing(tr);
     expect(tr.doc.textContent).toBe('Exodus 1:1-22more');
   });
+
+  it('skips spacer insert when blank paragraph blocks exist before and after pill-only line', () => {
+    const pillMark = schema.marks.scripturePill.create({
+      reference: 'Exodus 1:1-22',
+      noteId: 'pending',
+      translation: null,
+    });
+    const doc = schema.node('doc', null, [
+      schema.node('paragraph', null, [schema.text('intro')]),
+      schema.node('paragraph', null, []),
+      schema.node('paragraph', null, [schema.text('Exodus 1:1-22', [pillMark])]),
+      schema.node('paragraph', null, []),
+      schema.node('paragraph', null, [schema.text('outro')]),
+    ]);
+    const state = EditorState.create({ doc });
+    const tr = state.tr;
+    expect(ensureScripturePillSpacing(tr)).toBe(false);
+    expect(tr.doc.childCount).toBe(5);
+    expect(tr.doc.child(2).textContent).toBe('Exodus 1:1-22');
+  });
+
+  it('hydrate mode does not insert spacers', () => {
+    const state = stateFromText([
+      { text: 't', pill: false },
+      { text: 'John 3:16', pill: true },
+      { text: 'W', pill: false },
+    ]);
+    const tr = state.tr;
+    expect(ensureScripturePillSpacing(tr, 'scripturePill', 'hydrate')).toBe(false);
+    expect(tr.doc.textContent).toBe('tJohn 3:16W');
+  });
 });

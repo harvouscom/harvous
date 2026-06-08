@@ -6,6 +6,7 @@ import Text from '@tiptap/extension-text';
 import { Schema } from '@tiptap/pm/model';
 import { EditorState } from '@tiptap/pm/state';
 import { ScripturePill } from '../TiptapScripturePill';
+import { detectScriptureReferences } from '@/utils/scripture-detector';
 import { detectScriptureReferenceEndingAtCursor } from '@/utils/scripture-pill-position';
 import { findAdjacentPillBoundaries } from '@/utils/scripture-pill-adjacent';
 
@@ -68,6 +69,15 @@ const pmSchema = new Schema({
       toDOM: () => ['span', 0],
     },
   },
+});
+
+describe('detectScriptureReferences fallback', () => {
+  it('still finds refs when cursor-anchored position mapping would defer', () => {
+    const text = 'Exodus 1:1-22';
+    const refs = detectScriptureReferences(text);
+    expect(refs.length).toBeGreaterThan(0);
+    expect(refs[refs.length - 1].reference).toBe('Exodus 1:1-22');
+  });
 });
 
 describe('findAdjacentPillBoundaries backspace spacer', () => {

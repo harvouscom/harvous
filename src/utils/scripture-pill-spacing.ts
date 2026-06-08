@@ -3,6 +3,10 @@
  * prose is editable and the cursor can land outside the pill chrome.
  */
 
+import { hasBlockGapAfter, hasBlockGapBefore } from './scripture-pill-block-gaps';
+
+export type ScripturePillSpacingMode = 'live' | 'hydrate';
+
 const WHITESPACE = new Set([' ', '\n', '\r', '\t']);
 
 function isWhitespaceChar(ch: string | undefined): boolean {
@@ -64,7 +68,10 @@ export function collectScripturePillRanges(
 export function ensureScripturePillSpacing(
   tr: { doc: any; insertText: (text: string, pos: number) => void },
   markTypeName = 'scripturePill',
+  mode: ScripturePillSpacingMode = 'live',
 ): boolean {
+  if (mode === 'hydrate') return false;
+
   const ranges = collectScripturePillRanges(tr.doc, markTypeName);
   if (ranges.length === 0) return false;
 
@@ -77,7 +84,11 @@ export function ensureScripturePillSpacing(
       const blockStart = $inside.start($inside.depth);
       const blockEnd = $inside.end($inside.depth);
 
-      if (end < blockEnd && !hasInlineBreakAfter(tr.doc, end, blockEnd)) {
+      if (
+        end < blockEnd &&
+        !hasInlineBreakAfter(tr.doc, end, blockEnd) &&
+        !hasBlockGapAfter(tr.doc, end)
+      ) {
         const charAfter = tr.doc.textBetween(end, Math.min(end + 1, blockEnd));
         if (charAfter && !isWhitespaceChar(charAfter)) {
           tr.insertText(' ', end);
@@ -85,7 +96,11 @@ export function ensureScripturePillSpacing(
         }
       }
 
-      if (start > blockStart && !hasInlineBreakBefore(tr.doc, start)) {
+      if (
+        start > blockStart &&
+        !hasInlineBreakBefore(tr.doc, start) &&
+        !hasBlockGapBefore(tr.doc, start)
+      ) {
         const charBefore = tr.doc.textBetween(start - 1, start);
         if (charBefore && !isWhitespaceChar(charBefore)) {
           tr.insertText(' ', start);
