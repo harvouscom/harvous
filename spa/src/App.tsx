@@ -2,6 +2,7 @@ import { setPwaPromptLastDismissed } from '@/utils/pwa-prompt';
 import { getBackTarget, popNavStack } from '@/utils/nav-stack';
 import { extractIdFromPath } from '@/utils/url-helpers';
 import { ClerkProvider, useAuth, useUser } from '@clerk/clerk-react';
+import { hasClerkSessionCookieHint } from './hooks/queries/useProfile';
 import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query';
 import { clearUserClientCaches } from '@/utils/clear-user-client-caches';
 import { RouterProvider } from '@tanstack/react-router';
@@ -239,14 +240,19 @@ function AuthSignedOutCacheCleanup() {
 }
 
 function QueryClient401Redirect() {
-  const { isLoaded } = useAuth();
+  const { isLoaded, isSignedIn } = useAuth();
   const isLoadedRef = useRef(isLoaded);
+  const isSignedInRef = useRef(isSignedIn);
   isLoadedRef.current = isLoaded;
+  isSignedInRef.current = isSignedIn;
 
   useEffect(() => {
     const maybeRedirect = (error: unknown) => {
       if (!(error instanceof APIError && error.status === 401)) return;
       if (!isLoadedRef.current) return;
+      // Clerk may still be restoring session from cookies; avoid bouncing to sign-in.
+      if (hasClerkSessionCookieHint()) return;
+      if (isSignedInRef.current) return;
       if (redirecting401) return;
       redirecting401 = true;
       window.location.href = '/sign-in';

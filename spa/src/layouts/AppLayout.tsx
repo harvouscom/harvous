@@ -34,7 +34,12 @@ import {
   type NavigationData,
 } from '../hooks/queries/useNavigation';
 import { prefetchFeaturedDismissed } from '../hooks/queries/useFeaturedDismissed';
-import { useProfile, getCachedUserColor, getCachedUserNames } from '../hooks/queries/useProfile';
+import {
+  useProfile,
+  getCachedUserColor,
+  getCachedUserNames,
+  hasClerkSessionCookieHint,
+} from '../hooks/queries/useProfile';
 import { useNote, getCachedNoteParentThreadId, getCachedNoteParentThread, clearNoteParentThreadCacheByThreadId } from '../hooks/queries/useNote';
 import { useThread, clearCachedThreadPrefetch } from '../hooks/queries/useThread';
 import {
@@ -71,9 +76,7 @@ export default function AppLayout() {
   const searchRaw = useRouterState({ select: (s) => s.location.search });
 
   // Computed early so hooks below can use it in their `enabled` options.
-  const hasSessionCookie = /(?:^|;\s*)__client_uat=[1-9]/.test(
-    typeof document !== 'undefined' ? document.cookie : '',
-  );
+  const hasSessionCookie = hasClerkSessionCookieHint();
 
   // TanStack Router returns search as a parsed object (e.g. { space: 'space_xxx' }).
   // Components downstream expect a URL search string. Convert it.

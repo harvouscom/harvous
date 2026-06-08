@@ -269,6 +269,11 @@
   background: var(--pds-bg-row-hover) !important;
 }
 
+/* Edit surface: document spacers handle separation; avoid double gap with auto-inserted spaces */
+.proto-editor-surface .ProseMirror .scripture-pill {
+  margin: 0 !important;
+}
+
 /* Translation suffix (e.g. NET) — smaller, vertically centered with reference via flex parent */
 .proto-editor-surface .scripture-pill[data-scripture-translation-label]::after,
 .proto-editor-surface .scripture-pill[data-scripture-translation]:not([data-scripture-translation-label])::after {

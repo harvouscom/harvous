@@ -25,6 +25,18 @@ const NULL_AUTH: Auth = {
   has: () => false,
 };
 
+const PRODUCTION_AUTHORIZED_PARTIES = ['https://app.harvous.com', 'https://new.harvous.com'] as const;
+
+/** Origins allowed in JWT `azp` — mitigates subdomain cookie-leak attacks (Clerk production guide). */
+function resolveAuthorizedParties(secretKey: string): string[] | undefined {
+  const fromEnv = process.env.CLERK_AUTHORIZED_PARTIES?.split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+  if (fromEnv?.length) return fromEnv;
+  if (secretKey.startsWith('sk_live_')) return [...PRODUCTION_AUTHORIZED_PARTIES];
+  return undefined;
+}
+
 /**
  * Extract the __session cookie value from the Cookie header.
  * Clerk stores the session JWT in the __session cookie.
@@ -122,7 +134,11 @@ export async function clerkAuth(c: Context, next: Next) {
   }
 
   try {
-    const payload = await verifyToken(token, { secretKey });
+    const authorizedParties = resolveAuthorizedParties(secretKey);
+    const payload = await verifyToken(token, {
+      secretKey,
+      ...(authorizedParties ? { authorizedParties } : {}),
+    });
 
     let userId = payload.sub;
     // Only resolve live→dev mapping in production (live Clerk key).

@@ -2,7 +2,7 @@ import { useAuth } from '@clerk/clerk-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { APIError } from '../../lib/api';
 import { HARVOUS_NAV_CACHE_KEY } from '@/utils/user-cache-keys';
-import { readClerkUserIdForProfileCache } from './useProfile';
+import { hasClerkSessionCookieHint, readClerkUserIdForProfileCache } from './useProfile';
 
 export interface NavThread {
   id: string;
@@ -60,14 +60,9 @@ function setCachedNav(data: NavigationData) {
   }
 }
 
-function hasSessionCookieHint(): boolean {
-  if (typeof document === 'undefined') return false;
-  return /(?:^|;\s*)__client_uat=[1-9]/.test(document.cookie);
-}
-
 export function useNavigation(options?: { enabled?: boolean }) {
   const { userId, isLoaded, isSignedIn } = useAuth();
-  const sessionHint = hasSessionCookieHint();
+  const sessionHint = hasClerkSessionCookieHint();
   const effectiveUserId =
     userId ?? (sessionHint ? readClerkUserIdForProfileCache() : undefined);
   const cachedForSession =

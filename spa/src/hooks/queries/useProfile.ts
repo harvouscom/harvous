@@ -72,7 +72,7 @@ function getCachedProfile(): UserProfile | undefined {
 }
 
 /** True when Clerk session cookie suggests a signed-in browser session (before Clerk JS finishes loading). */
-function hasSessionCookieHint(): boolean {
+export function hasClerkSessionCookieHint(): boolean {
   if (typeof document === 'undefined') return false;
   return /(?:^|;\s*)__client_uat=[1-9]/.test(document.cookie);
 }
@@ -154,7 +154,7 @@ export interface XPData {
 
 export function useProfile() {
   const { isLoaded, isSignedIn, userId } = useAuth();
-  const sessionHint = hasSessionCookieHint();
+  const sessionHint = hasClerkSessionCookieHint();
   const effectiveUserId =
     userId ?? (sessionHint ? readClerkUserIdForProfileCache() : undefined);
   const cachedForSessionUser =

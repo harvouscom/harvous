@@ -8,6 +8,7 @@ const schema = new Schema({
     doc: { content: 'block+' },
     paragraph: { group: 'block', content: 'inline*', toDOM: () => ['p', 0] },
     text: { group: 'inline' },
+    hardBreak: { inline: true, group: 'inline', toDOM: () => ['br'] },
   },
   marks: {
     scripturePill: {
@@ -73,5 +74,36 @@ describe('ensureScripturePillSpacing', () => {
     const tr = state.tr;
     ensureScripturePillSpacing(tr);
     expect(tr.doc.textContent).toBe('Genesis 1:1 x');
+  });
+
+  it('does not insert leading space after a newline', () => {
+    const doc = schema.node('doc', null, [
+      schema.node('paragraph', null, [
+        schema.text('\n'),
+        schema.text('Exodus 1:1-22', [
+          schema.marks.scripturePill.create({ reference: 'Exodus 1:1-22', noteId: 'pending', translation: null }),
+        ]),
+      ]),
+    ]);
+    const state = EditorState.create({ doc });
+    const tr = state.tr;
+    ensureScripturePillSpacing(tr);
+    expect(tr.doc.textContent).toBe('\nExodus 1:1-22');
+  });
+
+  it('does not insert trailing space before a hard break', () => {
+    const doc = schema.node('doc', null, [
+      schema.node('paragraph', null, [
+        schema.text('Exodus 1:1-22', [
+          schema.marks.scripturePill.create({ reference: 'Exodus 1:1-22', noteId: 'pending', translation: null }),
+        ]),
+        schema.node('hardBreak'),
+        schema.text('more'),
+      ]),
+    ]);
+    const state = EditorState.create({ doc });
+    const tr = state.tr;
+    ensureScripturePillSpacing(tr);
+    expect(tr.doc.textContent).toBe('Exodus 1:1-22more');
   });
 });

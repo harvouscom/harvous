@@ -912,6 +912,7 @@ html.harvous-proto-wallpaper-color .proto-sidebar-search__field:focus-within {
 
 .proto-note-row-item[data-active='true'] {
   background: var(--pds-bg-sidebar-row-selected);
+  box-shadow: none;
 }
 
 /* Keyboard-focused row (Shift+J then Arrow/j-k) — clear, distinct from hover/active. */
@@ -922,6 +923,11 @@ html.harvous-proto-wallpaper-color .proto-sidebar-search__field:focus-within {
 .proto-note-row-item:focus-within {
   background: var(--pds-bg-row-hover);
   box-shadow: inset 0 0 0 1.5px var(--pds-border-control-strong);
+}
+/* Selected row — background only (no inset ring), even when the row button has focus. */
+.proto-note-row-item[data-active='true']:focus-within {
+  background: var(--pds-bg-sidebar-row-selected);
+  box-shadow: none;
 }
 .proto-note-row:focus-visible {
   background: var(--pds-bg-row-hover);
@@ -1118,6 +1124,12 @@ html.harvous-proto-wallpaper-color .proto-sidebar-search__field:focus-within {
 
 .proto-note-row[data-active='true'] {
   background: var(--pds-bg-sidebar-row-selected);
+  box-shadow: none;
+}
+
+.proto-note-row[data-active='true']:focus-visible {
+  background: var(--pds-bg-sidebar-row-selected);
+  box-shadow: none;
 }
 
 /* ─── Space rows (home sidebar) ──────────────────────────────────────────── */
@@ -4143,8 +4155,10 @@ html.harvous-prototype-route .proto-confirm-dialog h2.proto-confirm-dialog__titl
   line-height: 1.2;
 }
 
-.proto-side-panel__note-list .proto-note-row-item--current {
+.proto-side-panel__note-list .proto-note-row-item--current,
+.proto-side-panel__note-list .proto-note-row-item--current:focus-within {
   background: var(--pds-bg-sidebar-row-selected);
+  box-shadow: none;
 }
 
 .proto-side-panel__note-list .proto-note-row-item--current .proto-note-row__title-text {

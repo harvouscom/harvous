@@ -94,6 +94,10 @@ final class HarvousClerkBridge {
         }
         if !Clerk.shared.isLoaded {
             Logger.app.error("Clerk load timed out; falling through to sign-in UI")
+        } else if let userId = Clerk.shared.user?.id {
+            Logger.app.info("Clerk session restored from Keychain (user=\(userId, privacy: .public))")
+        } else {
+            Logger.app.info("Clerk loaded but no persisted user session — sign-in required")
         }
         refreshProfile()
         #endif

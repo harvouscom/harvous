@@ -47,10 +47,13 @@ import {
   isScriptureReferenceContinuationKey,
   mergeReferenceWithOrphanSuffix,
 } from '@/utils/scripture-pill-orphan';
+import { findAdjacentPillBoundaries } from '@/utils/scripture-pill-adjacent';
 import { ensureScripturePillSpacing } from '@/utils/scripture-pill-spacing';
 import {
+  detectScriptureReferenceEndingAtCursor,
   findScriptureReferenceAtCursor,
   findTextWithFlexibleMatching,
+  mapReferenceEndInSliceToDocPos,
 } from '@/utils/scripture-pill-position';
 import { isStudyHighlightAccentKey, type StudyHighlightAccentKey, STUDY_HIGHLIGHT_SWATCHES_NO_NEUTRAL, STUDY_HIGHLIGHT_ACCENT_LABELS, studyDockAccentCssVar } from '@/utils/study-highlight-accents';
 import { TRANSLATION_ORDER, TRANSLATIONS } from '@/data/translations';
@@ -466,6 +469,14 @@ export function snapCursorOutsideScripturePill(editor: any): void {
         editor.view.dispatch(tr);
         return;
       }
+      if (charAfter === ' ' && sel.empty && sel.from !== pillEnd + 1) {
+        const tr = state.tr
+          .setSelection(TextSelection.create(state.doc, pillEnd + 1))
+          .setStoredMarks([])
+          .setMeta('addToHistory', false);
+        editor.view.dispatch(tr);
+        return;
+      }
       if (sel.empty) return;
     }
 
@@ -482,97 +493,6 @@ export function snapCursorOutsideScripturePill(editor: any): void {
   } catch {
     /* ignore */
   }
-}
-
-// Helper: find pill boundaries by iterating the paragraph's child nodes directly
-// This avoids all the inclusive:false mark resolution issues at boundaries
-function findAdjacentPillBoundaries(
-  doc: any,
-  pos: number,
-  direction: 'before' | 'after'
-): { start: number; end: number } | null {
-  try {
-    const $pos = doc.resolve(pos);
-    const parent = $pos.parent;
-    const parentStart = $pos.start($pos.depth); // absolute position of parent content start
-
-    if (direction === 'before') {
-      // Walk backward through children to find a pill just before cursor
-      let offset = 0;
-      let lastPillStart = -1;
-      let lastPillEnd = -1;
-
-      for (let i = 0; i < parent.childCount; i++) {
-        const child = parent.child(i);
-        const childStart = parentStart + offset;
-        const childEnd = childStart + child.nodeSize;
-
-        if (child.marks.some((m: any) => m.type.name === 'scripturePill')) {
-          // Extend or start a pill range (pills can span multiple text nodes)
-          if (lastPillEnd === childStart) {
-            // Contiguous with previous pill node
-            lastPillEnd = childEnd;
-          } else {
-            lastPillStart = childStart;
-            lastPillEnd = childEnd;
-          }
-        }
-
-        // If this child ends at or past the cursor, we've gone far enough
-        if (childEnd >= pos) break;
-        offset += child.nodeSize;
-      }
-
-      // Pill-adjacent delete confirm: gap 0 only for whitespace (spacer), or gap 1 for spacer char.
-      // Touching alphanumeric neighbors stay editable via normal Backspace.
-      if (lastPillStart >= 0 && lastPillEnd > 0) {
-        const gap = pos - lastPillEnd;
-        if (gap === 1) {
-          const gapChar = doc.textBetween(lastPillEnd, pos);
-          if (gapChar === ' ') {
-            return { start: lastPillStart, end: pos };
-          }
-        } else if (gap === 0) {
-          const charBefore = pos > lastPillEnd ? doc.textBetween(lastPillEnd, pos) : '';
-          if (!charBefore || charBefore === ' ' || charBefore === '\n' || charBefore === '\t') {
-            return { start: lastPillStart, end: pos };
-          }
-        }
-      }
-    }
-
-    if (direction === 'after') {
-      // Walk forward through children to find a pill just after cursor
-      let offset = 0;
-
-      for (let i = 0; i < parent.childCount; i++) {
-        const child = parent.child(i);
-        const childStart = parentStart + offset;
-        const childEnd = childStart + child.nodeSize;
-
-        if (childStart >= pos && child.marks.some((m: any) => m.type.name === 'scripturePill')) {
-          // Find the full pill end (may span multiple nodes)
-          let pillEnd = childEnd;
-          for (let j = i + 1; j < parent.childCount; j++) {
-            const next = parent.child(j);
-            if (next.marks.some((m: any) => m.type.name === 'scripturePill')) {
-              pillEnd = parentStart + offset + child.nodeSize;
-              // recalculate properly
-              let o2 = 0;
-              for (let k = 0; k <= j; k++) o2 += parent.child(k).nodeSize;
-              pillEnd = parentStart + o2;
-            } else break;
-          }
-          return { start: pos, end: pillEnd };
-        }
-
-        if (childStart > pos + 1) break;
-        offset += child.nodeSize;
-      }
-    }
-  } catch (e) {}
-
-  return null;
 }
 
 // Helper function to check if there's a hard break node at a given position
@@ -1376,6 +1296,17 @@ function dispatchScripturePillSpacing(editor: any): void {
   }
 }
 
+type PrecomputedPillPosition = { reference: string; from: number; to: number };
+
+function lockPendingPillCreation(reference: string): void {
+  const normalizedRef = normalizeScriptureReference(reference);
+  if (pendingPillCreations.has(normalizedRef)) return;
+  pendingPillCreations.add(normalizedRef);
+  setTimeout(() => {
+    pendingPillCreations.delete(normalizedRef);
+  }, 500);
+}
+
 /** Run detection + pending pill creation at the current cursor (desktop, mobile, safety net). */
 function runScriptureDetectionAtCursor(editor: any): void {
   if (!editor || editor.isDestroyed || !editor.view) return;
@@ -1389,14 +1320,12 @@ function runScriptureDetectionAtCursor(editor: any): void {
     if ($from.marks().some((m: any) => m.type.name === 'scripturePill')) return;
     if (!isScripturePillBoundaryCursor($from, editor.state.doc)) return;
 
-    const textBeforeCursor = getTextBeforeCursorForScripture(editor);
-    if (textBeforeCursor.trim().length === 0) return;
+    const cursorResult = detectScriptureReferenceEndingAtCursor(editor.state.doc, from);
+    if (!cursorResult) return;
 
-    const references = detectScriptureReferences(textBeforeCursor);
-    if (references.length === 0) return;
-
-    createPendingPillsForReferences(editor, references, undefined, from);
-    schedulePendingTranslationAfterPillCreation(editor, references);
+    const refPayload = [{ reference: cursorResult.reference }];
+    createPendingPillsForReferences(editor, refPayload, undefined, from, cursorResult);
+    schedulePendingTranslationAfterPillCreation(editor, refPayload);
     absorbOrphanSuffixesAfterPills(editor);
   } catch {
     /* ignore */
@@ -1410,32 +1339,20 @@ function createPendingPillsForReferences(
   references: (ScriptureReference | ScriptureReferenceWithTranslation)[],
   translation?: string,
   cursorPos?: number,
+  precomputed?: PrecomputedPillPosition | null,
 ) {
   if (!editor || !references || references.length === 0) {
     return;
   }
 
-  // Filter out references that are already being processed (prevents duplicates)
-  const newReferences = references.filter(ref => {
+  const newReferences = references.filter((ref) => {
     const normalizedRef = normalizeScriptureReference(ref.reference);
-    if (pendingPillCreations.has(normalizedRef)) {
-      return false; // Skip - already being processed
-    }
-    pendingPillCreations.add(normalizedRef);
-    return true;
+    return !pendingPillCreations.has(normalizedRef);
   });
 
   if (newReferences.length === 0) {
-    return; // All references are already being processed
+    return;
   }
-
-  // Clear pending pills after processing to prevent duplicates
-  // This 500ms delay ensures we don't recreate pills that are already being processed
-  setTimeout(() => {
-    newReferences.forEach(ref => {
-      pendingPillCreations.delete(normalizeScriptureReference(ref.reference));
-    });
-  }, 500);
 
   try {
     const view = editor.view;
@@ -1452,17 +1369,27 @@ function createPendingPillsForReferences(
       const doc = tr.doc;
       let positions = findAllTextPositions(doc, reference, true);
 
-      const anchored = findScriptureReferenceAtCursor(doc, reference, anchorCursorPos);
-      if (anchored) {
-        positions = [anchored];
-      } else if (positions.length > 1) {
-        positions = [
-          positions.reduce((best, p) => {
-            const bestDist = Math.min(Math.abs(best.to - anchorCursorPos), Math.abs(best.from - anchorCursorPos));
-            const pDist = Math.min(Math.abs(p.to - anchorCursorPos), Math.abs(p.from - anchorCursorPos));
-            return pDist < bestDist ? p : best;
-          }),
-        ];
+      if (
+        precomputed &&
+        normalizeScriptureReference(precomputed.reference) === normalizeScriptureReference(reference)
+      ) {
+        positions = [{ from: precomputed.from, to: precomputed.to }];
+      } else {
+        const anchored = findScriptureReferenceAtCursor(doc, reference, anchorCursorPos);
+        if (anchored) {
+          positions = [anchored];
+        } else if (positions.length === 0) {
+          const fallback = mapReferenceEndInSliceToDocPos(doc, anchorCursorPos, reference);
+          if (fallback) positions = [fallback];
+        } else if (positions.length > 1) {
+          positions = [
+            positions.reduce((best, p) => {
+              const bestDist = Math.min(Math.abs(best.to - anchorCursorPos), Math.abs(best.from - anchorCursorPos));
+              const pDist = Math.min(Math.abs(p.to - anchorCursorPos), Math.abs(p.from - anchorCursorPos));
+              return pDist < bestDist ? p : best;
+            }),
+          ];
+        }
       }
       
       for (let i = positions.length - 1; i >= 0; i--) {
@@ -1521,6 +1448,7 @@ function createPendingPillsForReferences(
             );
 
             modified = true;
+            lockPendingPillCreation(reference);
             continue;
           }
 
@@ -1533,6 +1461,7 @@ function createPendingPillsForReferences(
             });
 
             modified = true;
+            lockPendingPillCreation(reference);
           }
         } catch (e) {
           continue;
@@ -4112,40 +4041,50 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
             // For Enter / NumpadEnter, let the newline happen naturally
           }
 
-          // Step 2: Detect new scripture references before cursor
+          // Step 2: Detect the single scripture reference ending at the cursor
           const doc = view.state.doc;
           const cursorPos = view.state.selection.from;
-          const textStart = Math.max(0, cursorPos - 60);
-          const textBeforeCursor = doc.textBetween(textStart, cursorPos);
+          const cursorResult = detectScriptureReferenceEndingAtCursor(doc, cursorPos);
 
           try {
-            if (textBeforeCursor.trim().length > 0) {
-              const references = detectScriptureReferences(textBeforeCursor);
-              if (references && references.length > 0) {
-                if (isSyncTrigger) {
-                  // On desktop: Synchronously handle the trigger char and the pill creation
-                  event.preventDefault();
+            if (cursorResult) {
+              const refPayload = [{ reference: cursorResult.reference }];
+              if (isSyncTrigger) {
+                event.preventDefault();
 
-                  // Insert the trigger character (space / comma / period)
-                  const tr = view.state.tr;
-                  tr.insertText(event.key, view.state.selection.from);
-                  tr.setStoredMarks([]);
-                  view.dispatch(tr);
+                const tr = view.state.tr;
+                tr.insertText(event.key, view.state.selection.from);
+                tr.setStoredMarks([]);
+                view.dispatch(tr);
 
-                  // Create pills without translation (deferred — will resolve on next trigger or timeout)
-                  createPendingPillsForReferences(editor, references, undefined, editor.state.selection.from);
-                  schedulePendingTranslationAfterPillCreation(editor, references);
-                  return true;
-                }
-
-                // Enter / NumpadEnter: must not wrap text in a pill before ProseMirror runs splitBlock,
-                // or the paragraph break never inserts. Defer to a microtask so the newline runs first.
-                queueMicrotask(() => {
-                  if (!isEditorValid(editor)) return;
-                  createPendingPillsForReferences(editor, references, undefined, editor.state.selection.from);
-                  schedulePendingTranslationAfterPillCreation(editor, references);
-                });
+                const afterTriggerPos = editor.state.selection.from;
+                const resultAfterTrigger =
+                  detectScriptureReferenceEndingAtCursor(editor.state.doc, afterTriggerPos) || cursorResult;
+                createPendingPillsForReferences(
+                  editor,
+                  refPayload,
+                  undefined,
+                  afterTriggerPos,
+                  resultAfterTrigger,
+                );
+                schedulePendingTranslationAfterPillCreation(editor, refPayload);
+                return true;
               }
+
+              queueMicrotask(() => {
+                if (!isEditorValid(editor)) return;
+                const afterEnterPos = editor.state.selection.from;
+                const resultAfterEnter =
+                  detectScriptureReferenceEndingAtCursor(editor.state.doc, afterEnterPos) || cursorResult;
+                createPendingPillsForReferences(
+                  editor,
+                  refPayload,
+                  undefined,
+                  afterEnterPos,
+                  resultAfterEnter,
+                );
+                schedulePendingTranslationAfterPillCreation(editor, refPayload);
+              });
             }
           } catch (e) {
             console.error('[TiptapEditor] Error in space/enter detection:', e);
@@ -5316,10 +5255,17 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       setStudyDockStack((stack) => collapseActiveScriptureIfActive(stack));
     };
 
+    const snapCaretOutsidePill = () => {
+      if (!isEditorValid(editor)) return;
+      snapCursorOutsideScripturePill(editor);
+    };
+
     editor.on('selectionUpdate', dismissIfSelectionLeftPill);
+    editor.on('selectionUpdate', snapCaretOutsidePill);
     return () => {
       if (editor && !editor.isDestroyed) {
         editor.off('selectionUpdate', dismissIfSelectionLeftPill);
+        editor.off('selectionUpdate', snapCaretOutsidePill);
       }
     };
   }, [editor, editorChromeMode]);

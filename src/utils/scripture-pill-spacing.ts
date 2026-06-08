@@ -9,6 +9,29 @@ function isWhitespaceChar(ch: string | undefined): boolean {
   return ch !== undefined && ch !== '' && WHITESPACE.has(ch);
 }
 
+function isHardBreakNode(doc: { nodeAt: (pos: number) => any }, pos: number): boolean {
+  try {
+    const node = doc.nodeAt(pos);
+    return node?.type?.name === 'hardBreak';
+  } catch {
+    return false;
+  }
+}
+
+function hasInlineBreakBefore(doc: any, pos: number): boolean {
+  if (pos <= 0) return false;
+  if (isHardBreakNode(doc, pos - 1)) return true;
+  const charBefore = doc.textBetween(pos - 1, pos);
+  return charBefore === '\n' || charBefore === '\r';
+}
+
+function hasInlineBreakAfter(doc: any, pos: number, blockEnd: number): boolean {
+  if (pos >= blockEnd) return false;
+  if (isHardBreakNode(doc, pos)) return true;
+  const charAfter = doc.textBetween(pos, Math.min(pos + 1, blockEnd));
+  return charAfter === '\n' || charAfter === '\r';
+}
+
 /** Collect merged [start, end) ranges from text nodes carrying scripturePill marks. */
 export function collectScripturePillRanges(
   doc: { content: { size: number }; nodesBetween: (from: number, to: number, f: (node: any, pos: number) => void) => void },
@@ -54,7 +77,7 @@ export function ensureScripturePillSpacing(
       const blockStart = $inside.start($inside.depth);
       const blockEnd = $inside.end($inside.depth);
 
-      if (end < blockEnd) {
+      if (end < blockEnd && !hasInlineBreakAfter(tr.doc, end, blockEnd)) {
         const charAfter = tr.doc.textBetween(end, Math.min(end + 1, blockEnd));
         if (charAfter && !isWhitespaceChar(charAfter)) {
           tr.insertText(' ', end);
@@ -62,7 +85,7 @@ export function ensureScripturePillSpacing(
         }
       }
 
-      if (start > blockStart) {
+      if (start > blockStart && !hasInlineBreakBefore(tr.doc, start)) {
         const charBefore = tr.doc.textBetween(start - 1, start);
         if (charBefore && !isWhitespaceChar(charBefore)) {
           tr.insertText(' ', start);

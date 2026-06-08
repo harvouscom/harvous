@@ -95,7 +95,7 @@ function textOffsetToDocRange(
 }
 
 /** Map an index within doc.textBetween(sliceFrom, sliceTo) to an absolute document position. */
-function mapSliceIndexToDocPos(
+export function mapSliceIndexToDocPos(
   doc: any,
   sliceFrom: number,
   sliceTo: number,
@@ -118,6 +118,32 @@ function mapSliceIndexToDocPos(
     counted += visibleLen;
   });
   return found;
+}
+
+/**
+ * Map a reference string within a doc slice ending at cursorPos to absolute doc range.
+ */
+export function mapReferenceEndInSliceToDocPos(
+  doc: any,
+  cursorPos: number,
+  reference: string,
+  textWindow = 80,
+): { from: number; to: number } | null {
+  const sliceDocFrom = Math.max(1, cursorPos - textWindow);
+  const slice = doc.textBetween(sliceDocFrom, cursorPos);
+  const trimmedRef = reference.trim();
+  const matches = findTextWithFlexibleMatching(slice, trimmedRef);
+  if (matches.length === 0) return null;
+
+  const best = matches.reduce((a, b) => {
+    const aEnd = a.index + a.length;
+    const bEnd = b.index + b.length;
+    return bEnd >= aEnd ? b : a;
+  });
+
+  const docFrom = mapSliceIndexToDocPos(doc, sliceDocFrom, cursorPos, best.index);
+  if (docFrom === null) return null;
+  return { from: docFrom, to: docFrom + best.length };
 }
 
 /**
@@ -184,9 +210,9 @@ export function detectScriptureReferenceEndingAtCursor(
   let bestRef = refs[0];
   let bestEnd = -1;
   for (const ref of refs) {
-    const idx = textBeforeCursor.lastIndexOf(ref.reference);
-    if (idx >= 0) {
-      const end = idx + ref.reference.length;
+    const matches = findTextWithFlexibleMatching(textBeforeCursor, ref.reference);
+    for (const m of matches) {
+      const end = m.index + m.length;
       if (end > bestEnd && end <= windowLen) {
         bestEnd = end;
         bestRef = ref;
@@ -194,7 +220,9 @@ export function detectScriptureReferenceEndingAtCursor(
     }
   }
 
-  const pos = findScriptureReferenceAtCursor(doc, bestRef.reference, cursorPos, textWindow);
+  const pos =
+    findScriptureReferenceAtCursor(doc, bestRef.reference, cursorPos, textWindow) ||
+    mapReferenceEndInSliceToDocPos(doc, cursorPos, bestRef.reference, textWindow);
   if (!pos) return null;
   return { reference: bestRef.reference, from: pos.from, to: pos.to };
 }

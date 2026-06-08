@@ -5,6 +5,7 @@ import { useEffect, useRef } from 'react';
 import ClerkPrebuiltAuth from '../components/auth/ClerkPrebuiltAuth';
 import ClassicAuthMeshColumn from '../components/auth/ClassicAuthMeshColumn';
 import HarvousAuthForm from '../components/auth/HarvousAuthForm';
+import { hasClerkSessionCookieHint } from '../hooks/queries/useProfile';
 import { postAuthRedirectPath } from '../utils/post-auth-redirect';
 
 /** Mirror of Astro sign-up.astro: persist ?ref= code as a cookie so
@@ -39,7 +40,7 @@ export default function SignUpPage() {
   const params = new URLSearchParams(window.location.search);
   const redirectRaw = params.get('redirect_url');
 
-  if (isSignedIn || (!isLoaded && /(?:^|;\s*)__client_uat=[1-9]/.test(document.cookie))) {
+  if (isSignedIn || (!isLoaded && hasClerkSessionCookieHint())) {
     return null;
   }
 

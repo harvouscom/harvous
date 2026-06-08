@@ -26,6 +26,7 @@ import '../styles/prototype-shell.css';
 import '../styles/prototype-components.css';
 import '../styles/prototype-editor.css';
 import '../styles/prototype-route-overrides.css';
+import { hasClerkSessionCookieHint } from '../hooks/queries/useProfile';
 import { usePrototypeHomeSpaceId } from '../hooks/usePrototypeHomeSpaceId';
 import { noteParamSlug, PROTOTYPE_DRAFT_NOTE_SLUG } from '../pages/prototype/proto-route-slugs';
 import { PROTO_LAST_SPACE_KEY } from './proto-session-keys';
@@ -54,9 +55,7 @@ export default function SimplifiedPrototypeLayout() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const searchRaw = useRouterState({ select: (s) => s.location.search });
   const { homeSpaceId, navReady } = usePrototypeHomeSpaceId();
-  const hasSessionCookie = /(?:^|;\s*)__client_uat=[1-9]/.test(
-    typeof document !== 'undefined' ? document.cookie : '',
-  );
+  const hasSessionCookie = hasClerkSessionCookieHint();
 
   useEffect(() => {
     if (!isLoaded || !isSignedIn) return;
@@ -85,7 +84,7 @@ export default function SimplifiedPrototypeLayout() {
   }, [colorScheme]);
 
   useEffect(() => {
-    if (!isLoaded || isSignedIn) return;
+    if (!isLoaded || isSignedIn || hasSessionCookie) return;
     const path =
       typeof window !== 'undefined'
         ? `${window.location.pathname}${window.location.search || ''}`
@@ -95,7 +94,7 @@ export default function SimplifiedPrototypeLayout() {
       search: { redirect_url: path },
       replace: true,
     });
-  }, [isLoaded, isSignedIn, router]);
+  }, [isLoaded, isSignedIn, hasSessionCookie, router]);
 
   useEffect(() => {
     if (!isLoaded || !isSignedIn) return;

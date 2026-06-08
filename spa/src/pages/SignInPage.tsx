@@ -6,6 +6,7 @@ import ClerkPrebuiltAuth from '../components/auth/ClerkPrebuiltAuth';
 import ClassicAuthMeshColumn from '../components/auth/ClassicAuthMeshColumn';
 import HarvousAuthForm from '../components/auth/HarvousAuthForm';
 import { useClerkSignInSubtitlePatch } from '../hooks/useClerkSignInSubtitlePatch';
+import { hasClerkSessionCookieHint } from '../hooks/queries/useProfile';
 import { postAuthRedirectPath } from '../utils/post-auth-redirect';
 
 export default function SignInPage() {
@@ -28,7 +29,7 @@ export default function SignInPage() {
   const params = new URLSearchParams(window.location.search);
   const redirectRaw = params.get('redirect_url');
 
-  if (isSignedIn || (!isLoaded && /(?:^|;\s*)__client_uat=[1-9]/.test(document.cookie))) {
+  if (isSignedIn || (!isLoaded && hasClerkSessionCookieHint())) {
     return null;
   }
 
