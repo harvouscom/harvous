@@ -423,6 +423,7 @@ struct ActiveScripturePillDock: View {
         // Clip scroll content to the dock's rounded corners so text doesn't overflow visually.
         .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
         .studyDockShellBorderOverlay()
+        .animation(.none, value: passageChromeExpanded)
     }
 
     @ViewBuilder
@@ -580,9 +581,13 @@ struct ActiveScripturePillDock: View {
                     Spacer(minLength: 0)
                         .allowsHitTesting(false)
                 }
-                .frame(maxWidth: .infinity, minHeight: max(computedHeight - 1, 1), alignment: .topLeading)
+                .frame(
+                    maxWidth: .infinity,
+                    minHeight: HarvousDockExpandedContentLayout.nonNegativeFrameHeight(computedHeight - 1),
+                    alignment: .topLeading
+                )
             }
-            .frame(height: computedHeight)
+            .frame(height: HarvousDockExpandedContentLayout.nonNegativeFrameHeight(computedHeight))
             .animation(nil, value: computedHeight)
             .onPreferenceChange(DockScrollContentHeightKey.self) { h in
                 Task { @MainActor in
@@ -618,7 +623,7 @@ struct ActiveScripturePillDock: View {
             }
 
             GeometryReader { scrollViewport in
-                let h = max(scrollViewport.size.height, 120)
+                let h = HarvousDockExpandedContentLayout.nonNegativeFrameHeight(max(scrollViewport.size.height, 120))
                 ScrollView {
                     VStack(spacing: 0) {
                         scripturePassageScrollContent
@@ -626,7 +631,11 @@ struct ActiveScripturePillDock: View {
                         Spacer(minLength: 0)
                             .allowsHitTesting(false)
                     }
-                    .frame(maxWidth: .infinity, minHeight: max(h - 1, 1), alignment: .topLeading)
+                    .frame(
+                        maxWidth: .infinity,
+                        minHeight: HarvousDockExpandedContentLayout.nonNegativeFrameHeight(h - 1),
+                        alignment: .topLeading
+                    )
                 }
                 .frame(height: h)
                 .animation(nil, value: h)

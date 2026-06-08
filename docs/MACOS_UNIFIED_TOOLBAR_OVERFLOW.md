@@ -66,6 +66,13 @@ With `.windowToolbarStyle(.unified(showsTitle: false))` ([HarvousApp.swift](../n
 2. **Preserve** sidebar `.automatic` + detail placements unless product explicitly changes IA.
 3. If overflow **still** flashes after instant expand: treat as **possible AppKit limitation** → **Feedback Assistant** + minimal repro; avoid reopening class-name suppression without DTS guidance.
 
+## Related bugs — split-edge compose orb desync
+
+| Topic | Status |
+|---|---|
+| **Symptom** | During live sidebar **divider drag**, the New Note compose **glyph** can track the detail column while its **`.bordered` glass capsule** stays at the prior x-position (ghost orb in the sidebar cluster). |
+| **Mitigation** | `MacRootView` reads live width via `SidebarPanelView.reportedSidebarColumnWidth` and applies `.id(Int(width.rounded()))` + `disablesAnimations` on the compose `ToolbarItem` so AppKit recreates bordered chrome each frame. SwiftUI-native orb `ButtonStyle` alone did not fix (unified toolbar still hosts desynced layers). |
+
 ## Manual verification (when touching this area)
 
 1. Default window (~1100×720), note selected (chip + share mounted): `**.detailOnly` → expand** via title-bar sidebar control and keyboard — sidebar should **snap** (no slide); watch for overflow flash.
@@ -75,6 +82,7 @@ With `.windowToolbarStyle(.unified(showsTitle: false))` ([HarvousApp.swift](../n
 5. Spot-check **macOS 15** (no `ToolbarSpacer`) vs **macOS 26** (with spacers).
 6. Very **long collection** chip label — if steady-state overflow appears, consider chip truncation separately (not this doc’s scope).
 7. With sidebar expanded, repeatedly **open and close the inspector** at minimum window width (~980) and at sidebar `max` (300). Overflow chevron should not flash on inspector expand; close should still spring-animate. Verify both the toolbar button and the keyboard-shortcut path (focused scene value) route through `animatedInspectorBinding`.
+8. Sidebar expanded: drag split divider between **min (240)** and **max (300)** — compose pencil and bordered orb stay aligned; no ghost orb after drag ends.
 
 ## If this doc goes stale
 

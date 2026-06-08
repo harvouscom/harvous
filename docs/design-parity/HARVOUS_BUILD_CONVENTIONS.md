@@ -54,6 +54,8 @@ Native `HarvousTypography` → web `.pds-*` class. Sizes/weights match by intent
 | Body | `body` | `.pds-body` | 16pt · 400 · body |
 | List row title | `noteListTitle` | `.pds-list-title` | 15pt mac / 17pt iOS · 500 |
 | List preview | `noteListPreview` | `.pds-list-preview` | 12pt mac / 14pt iOS · 400 |
+| List timestamp | `noteListTimestamp` | `.pds-list-timestamp` | 12pt mac / 14pt iOS · 500 |
+| List trailing timestamp | `noteListTrailingTimestamp` | (native only) | 11pt · 500 |
 | Caption / metadata | `caption` | `.pds-caption` | 13pt · 500 |
 | Footnote | `footnote` | `.pds-footnote` | 11pt · 400 |
 | Inspector body / compact | `inspectorBody` / `inspectorCompact(Medium)` | (inline) | 12pt · 400 / 11pt · 400–500 |

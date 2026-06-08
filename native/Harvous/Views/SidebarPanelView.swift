@@ -70,6 +70,10 @@ struct SidebarPanelView: View {
     @Binding var selectedNote: Note?
     @Binding var splitColumnVisibility: NavigationSplitViewVisibility
     var onCreateNewNote: (() -> Void)?
+    #if os(macOS)
+    /// Optional sink for live sidebar column width (split divider drag) — used by detail-toolbar identity refresh.
+    var reportedSidebarColumnWidth: Binding<CGFloat>? = nil
+    #endif
     @Query(sort: \Note.updatedAt, order: .reverse) private var notes: [Note]
     @Environment(\.modelContext) private var modelContext
     @Environment(\.harvousIsIPadSplitLayout) private var isIPadSplitLayout
@@ -577,10 +581,21 @@ struct SidebarPanelView: View {
                 #endif
             }
             #if os(macOS)
-            .onPreferenceChange(SidebarColumnWidthPreferenceKey.self) { sidebarColumnMeasuredWidth = $0 }
+            .onPreferenceChange(SidebarColumnWidthPreferenceKey.self) { width in
+                sidebarColumnMeasuredWidth = width
+                // Parent (`MacRootView`) only needs 1pt steps for compose toolbar `.id` — skip sub-pixel
+                // ticks so `focusedSceneValue` is not republished multiple times per frame during drag.
+                guard let reported = reportedSidebarColumnWidth else { return }
+                let newIdentity = Int(width.rounded())
+                let oldIdentity = Int(reported.wrappedValue.rounded())
+                if newIdentity != oldIdentity {
+                    reported.wrappedValue = width
+                }
+            }
             .onChange(of: splitColumnVisibility) { _, newVisibility in
                 if newVisibility == .detailOnly {
                     sidebarColumnMeasuredWidth = 0
+                    reportedSidebarColumnWidth?.wrappedValue = 0
                 }
             }
             #endif

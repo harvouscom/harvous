@@ -699,10 +699,22 @@ private struct ScripturePassageFittingTextView: UIViewRepresentable {
     }
 
     func sizeThatFits(_ proposal: ProposedViewSize, uiView: UITextView, context: Context) -> CGSize? {
-        let w = proposal.width
-        guard let w, w.isFinite, w > 1 else { return nil }
-        let size = uiView.sizeThatFits(CGSize(width: w, height: CGFloat.greatestFiniteMagnitude))
-        return CGSize(width: w, height: size.height)
+        let w = proposal.width ?? 300
+        guard w.isFinite, w > 1 else { return nil }
+        // Measure against a detached TextKit stack rather than the hosted text
+        // view. `uiView.sizeThatFits` under-reports multi-verse passage height on
+        // iOS when nested in ScrollView-backed docks/sheets, clipping verses 2+.
+        let textStorage = NSTextStorage(attributedString: attributed)
+        let layoutManager = NSLayoutManager()
+        let textContainer = NSTextContainer(size: CGSize(width: w, height: .greatestFiniteMagnitude))
+        textContainer.lineFragmentPadding = 0
+        layoutManager.addTextContainer(textContainer)
+        textStorage.addLayoutManager(layoutManager)
+        layoutManager.ensureLayout(for: textContainer)
+        let used = layoutManager.usedRect(for: textContainer)
+        let inset = uiView.textContainerInset
+        let h = used.height + inset.top + inset.bottom
+        return CGSize(width: w, height: max(1, ceil(h)))
     }
 
     final class Coordinator: NSObject, UITextViewDelegate {

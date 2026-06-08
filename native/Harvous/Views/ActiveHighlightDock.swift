@@ -145,6 +145,8 @@ struct ActiveHighlightDock: View {
         .padding(.vertical, 10)
         .background(dockChrome)
         .studyDockShellBorderOverlay()
+        // Carousel spring animates slot width; snap vertical chrome so expand/collapse cannot overshoot negative height.
+        .animation(.none, value: isExpanded)
     }
 
     /// Effective slug for reference rendering — uses the user's see-also override if set, otherwise
@@ -395,9 +397,13 @@ struct ActiveHighlightDock: View {
                 Spacer(minLength: 0)
                     .allowsHitTesting(false)
             }
-            .frame(maxWidth: .infinity, minHeight: max(computedHeight - 1, 1), alignment: .topLeading)
+            .frame(
+                maxWidth: .infinity,
+                minHeight: HarvousDockExpandedContentLayout.nonNegativeFrameHeight(computedHeight - 1),
+                alignment: .topLeading
+            )
         }
-        .frame(height: computedHeight)
+        .frame(height: HarvousDockExpandedContentLayout.nonNegativeFrameHeight(computedHeight))
         .animation(nil, value: computedHeight)
         .onPreferenceChange(DockScrollContentHeightKey.self) { h in
             // Prefer async so height updates aren't written during SwiftUI layout (runtime purple warnings).

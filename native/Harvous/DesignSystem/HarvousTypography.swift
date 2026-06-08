@@ -32,6 +32,18 @@ enum HarvousTypography {
         #endif
     }(), weight: 400, design: .default)
 
+    /// Sidebar list — relative update time (same size as preview, medium weight)
+    static let noteListTimestamp = HarvousFonts.font(size: {
+        #if os(iOS)
+        return 14
+        #else
+        return 12
+        #endif
+    }(), weight: 500, design: .default)
+
+    /// Conversation list — trailing abbreviated time (footnote size, medium weight)
+    static let noteListTrailingTimestamp = HarvousFonts.font(size: 11, weight: 500, design: .default)
+
     /// Card stack — note title
     static let noteCardTitle = HarvousFonts.font(size: 16, weight: 600, design: .default)
 

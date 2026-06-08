@@ -177,6 +177,8 @@ struct StudyDockCarouselView<ActiveContent: View>: View {
                 // first, the toggle then read `true` and flipped it back to `false`, so a collapsed
                 // dock could never be re-expanded.
                 renderActiveEntry(entry)
+                    // Width spring lives on the carousel `HStack`; height snaps so dock expand/collapse cannot overshoot negative geometry.
+                    .animation(.none, value: entry.expanded)
             } else {
                 StudyDockCarouselCollapsedCard(
                     title: collapsedTitle(entry),

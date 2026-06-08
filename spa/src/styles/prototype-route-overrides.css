@@ -62,6 +62,10 @@ html.harvous-prototype-route button.proto-note-row__main .proto-note-row__previe
   font-weight: 400 !important;
 }
 
+html.harvous-prototype-route button.proto-note-row__main .pds-list-timestamp {
+  font-weight: 500 !important;
+}
+
 /* Sidebar list view trigger — folder-chip weight + GSF axes (beat global `button * { font-weight: 700 }`) */
 html.harvous-prototype-route button.proto-sidebar-list-view__trigger,
 html.harvous-prototype-route button.proto-sidebar-list-view__trigger .proto-sidebar-list-view__label {

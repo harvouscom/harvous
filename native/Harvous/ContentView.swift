@@ -83,6 +83,8 @@ struct MacRootView: View {
     @State private var lazyDraftComposeActive = false
     @State private var liveShareSnapshot = NoteShareSnapshot(title: "", body: "")
     @State private var splitColumnVisibility: NavigationSplitViewVisibility = .all
+    /// Live sidebar column width from `SidebarPanelView` — drives compose toolbar `.id` during split-divider drag.
+    @State private var sidebarColumnMeasuredWidth: CGFloat = 0
     @State private var showSearch = false
     @State private var showInspector = false
     @State private var threadNavPath: [UUID] = []
@@ -135,12 +137,18 @@ struct MacRootView: View {
         showInspector ? StudyDockLayoutMetrics.macInspectorTrailingReserve : 0
     }
 
+    /// Recreates the detail-column compose `ToolbarItem` when the split divider moves so AppKit `.bordered` chrome cannot desync from the glyph.
+    private var macComposeToolbarItemIdentity: Int {
+        splitColumnVisibility == .detailOnly ? 0 : Int(sidebarColumnMeasuredWidth.rounded())
+    }
+
     private var macNavigationSplit: some View {
         NavigationSplitView(columnVisibility: animatedSplitVisibility) {
             SidebarPanelView(
                 selectedNote: $selectedNote,
                 splitColumnVisibility: animatedSplitVisibility,
-                onCreateNewNote: createNewNote
+                onCreateNewNote: createNewNote,
+                reportedSidebarColumnWidth: $sidebarColumnMeasuredWidth
             )
                 .navigationSplitViewColumnWidth(min: 240, ideal: 260, max: 300)
         } detail: {
@@ -204,6 +212,8 @@ struct MacRootView: View {
                                 }
                                 .buttonStyle(.bordered)
                                 .help("New Note (⇧N)")
+                                .id(macComposeToolbarItemIdentity)
+                                .transaction(value: macComposeToolbarItemIdentity) { $0.disablesAnimations = true }
                             }
 
                             if let note = selectedNote {

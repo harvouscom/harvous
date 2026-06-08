@@ -976,6 +976,15 @@ html.harvous-prototype-route [data-sonner-toast] [data-description] {
   color: var(--pds-text-secondary);
 }
 
+/* HarvousTypography.noteListTimestamp — noteListPreview size · 500 */
+.pds-list-timestamp {
+  font-family: var(--pds-font-body);
+  font-size: 0.75rem;
+  font-weight: 500;
+  line-height: 1.35;
+  color: var(--pds-text-secondary);
+}
+
 /* HarvousTypography.caption — 13pt / 500 */
 .pds-caption {
   font-size: 0.8125rem;

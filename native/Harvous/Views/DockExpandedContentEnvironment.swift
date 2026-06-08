@@ -47,9 +47,15 @@ enum HarvousDockExpandedContentLayout {
 
     /// Exact ScrollView height for dock passage/detail regions — never negative (spring layout overshoot).
     static func clampedScrollFrameHeight(measuredContentHeight: CGFloat, maxHeight: CGFloat) -> CGFloat {
-        let cap = max(maxHeight, 1)
+        let cap = max(maxHeight.isFinite ? maxHeight : 0, 1)
         guard measuredContentHeight > 0 else { return cap }
         return max(1, min(measuredContentHeight, cap))
+    }
+
+    /// Use on every explicit `.frame(height:)` in dock scroll regions so spring/carousel layout cannot pass negative geometry to SwiftUI.
+    static func nonNegativeFrameHeight(_ height: CGFloat) -> CGFloat {
+        guard height.isFinite else { return 1 }
+        return max(1, height)
     }
 }
 

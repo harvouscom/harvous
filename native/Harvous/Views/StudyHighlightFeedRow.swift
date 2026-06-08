@@ -58,7 +58,7 @@ struct StudyHighlightFeedRow: View {
             TimelineView(.periodic(from: .now, by: Self.timelineInterval)) { context in
                 HStack(spacing: 0) {
                     Text(NoteRelativeTime.formatted(updatedAt, relativeTo: context.date))
-                        .font(HarvousTypography.noteListPreview)
+                        .font(HarvousTypography.noteListTimestamp)
                         .foregroundStyle(.secondary)
 
                     if !subtitle.isEmpty {
@@ -94,7 +94,7 @@ struct StudyHighlightFeedRow: View {
 
                 TimelineView(.periodic(from: .now, by: Self.timelineInterval)) { context in
                     Text(NoteRelativeTime.formatted(updatedAt, relativeTo: context.date, abbreviated: true))
-                        .font(HarvousTypography.footnote)
+                        .font(HarvousTypography.noteListTrailingTimestamp)
                         .foregroundStyle(.tertiary)
                         .layoutPriority(1)
                 }

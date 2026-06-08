@@ -148,12 +148,24 @@ const HIGHLIGHT_ACCENT_SWATCHES: { token: string; label: string; cssVar: string 
   { token: 'coralRose', label: 'Coral', cssVar: '--pds-highlight-coral-rose' },
 ];
 
+function ProtoListRecencyLine({ rel, preview }: { rel?: string; preview?: string }) {
+  if (!rel && !preview) return null;
+  return (
+    <div className="pds-list-preview proto-note-row__preview">
+      {rel ? <span className="pds-list-timestamp">{rel}</span> : null}
+      {rel && preview ? '  ' : null}
+      {preview ? <span>{preview}</span> : null}
+    </div>
+  );
+}
+
 function HighlightRow({
   isActive,
   isPinned,
   entryKind,
   title,
-  line,
+  rel,
+  preview,
   currentAccent,
   onOpen,
   onTogglePin,
@@ -165,7 +177,8 @@ function HighlightRow({
   isPinned: boolean;
   entryKind: string | null | undefined;
   title: string;
-  line: string;
+  rel?: string;
+  preview?: string;
   currentAccent: string | null;
   onOpen: () => void;
   onTogglePin: () => void;
@@ -220,7 +233,7 @@ function HighlightRow({
           </span>
           <span className="pds-list-title proto-note-row__title-text">{title}</span>
         </div>
-        {line ? <div className="pds-list-preview proto-note-row__preview">{line}</div> : null}
+        <ProtoListRecencyLine rel={rel} preview={preview} />
       </button>
       <div
         className={`proto-menu proto-note-row__menu${menuOpen ? ' proto-note-row__menu--open' : ''}`}
@@ -369,7 +382,6 @@ function PrototypeSidebarNoteRow({
   const iso = row.updatedAt ?? row.createdAt ?? null;
   const rel = protoRelativeCaption(iso);
   const preview = stripHtmlPreview(row.content, 80);
-  const line = rel && preview ? `${rel}  ${preview}` : rel || preview;
   const rowTitle = stripServerAutoUntitledNoteTitleForDisplay(row.title?.trim() ?? '') || 'New Note';
   const title = rowTitle;
   const pinned = row.isPinned === true;
@@ -435,7 +447,7 @@ function PrototypeSidebarNoteRow({
           ) : null}
           <span className="pds-list-title proto-note-row__title-text">{title}</span>
         </div>
-        {line ? <div className="pds-list-preview proto-note-row__preview">{line}</div> : null}
+        <ProtoListRecencyLine rel={rel} preview={preview} />
       </button>
       <div
         className={`proto-menu proto-note-row__menu${menuOpen ? ' proto-note-row__menu--open' : ''}`}
@@ -1185,7 +1197,6 @@ export default function PrototypeSidebar() {
                       const iso = prototypeHighlightRecencyIso(r);
                       const rel = protoRelativeCaption(iso);
                       const sub = prototypeHighlightSubtitlePreview(r, r.parentNoteTitle ?? '');
-                      const line = rel && sub ? `${rel}  ${sub}` : rel || sub;
                       const title = prototypeHighlightListTitle(r);
                       const isPinned = pinnedHighlightIds.includes(r.id);
                       const activeRow =
@@ -1198,7 +1209,8 @@ export default function PrototypeSidebar() {
                           isPinned={isPinned}
                           entryKind={r.entryKind}
                           title={title}
-                          line={line}
+                          rel={rel}
+                          preview={sub}
                           currentAccent={r.highlightAccentRaw}
                           onOpen={() => onHighlightRow(r)}
                           onTogglePin={() => togglePinnedHighlight(r.id)}
