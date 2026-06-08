@@ -402,12 +402,12 @@ html.harvous-prototype-route .proto-shell__toolbar-cell::after {
   cursor: pointer;
   font-family: inherit;
   color: var(--pds-text-secondary);
-  text-decoration: underline;
-  text-underline-offset: 2px;
+  text-decoration: none;
 }
 
 .proto-load-more-retry:hover {
   color: var(--pds-text-primary);
+  text-decoration: none;
 }
 
 /* ─── Main pane ──────────────────────────────────────────────────────────── */

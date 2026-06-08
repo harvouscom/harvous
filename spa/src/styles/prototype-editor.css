@@ -615,7 +615,7 @@
   opacity: 0.75;
 }
 
-/* Highlight dock respond — beat global button 700. Header title uses study-dock-card.css. */
+/* Highlight dock respond — header title uses study-dock-card.css. */
 html.harvous-prototype-route .proto-editor-surface .highlight-dock-web__respond-trigger,
 html.harvous-prototype-route .proto-editor-surface .highlight-dock-web__respond-trigger span,
 html.harvous-prototype-route .proto-editor-surface .highlight-dock-web__respond-trigger *,
@@ -1065,12 +1065,9 @@ html.harvous-prototype-route .proto-shell__study-dock-layer .highlight-dock-web_
   border: 0;
   padding: 4px 2px;
   font-size: 12.5px;
-  font-weight: 500;
+  font-weight: 400;
   color: var(--pds-accent, #3869e6);
   cursor: pointer;
-}
-.proto-share-popover__link-action:hover:not(:disabled) {
-  text-decoration: underline;
 }
 .proto-share-popover__link-action--danger {
   color: var(--pds-destructive);

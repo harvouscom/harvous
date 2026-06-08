@@ -199,7 +199,7 @@ struct FolderChipPopover: View {
             #if os(iOS)
             HarvousTypography.body
             #else
-            HarvousTypography.subheadline
+            HarvousTypography.popoverField
             #endif
         }
     }
@@ -218,7 +218,7 @@ struct FolderChipPopover: View {
         #if os(iOS)
         HarvousFonts.font(size: 14, weight: 500, design: .default)
         #else
-        HarvousTypography.subheadline
+        HarvousTypography.popoverRow
         #endif
     }
 
@@ -236,7 +236,7 @@ struct FolderChipPopover: View {
         #if os(iOS)
         HarvousFonts.font(size: 16, weight: 500, design: .default)
         #else
-        HarvousTypography.subheadline
+        HarvousTypography.popoverRow
         #endif
     }
 
@@ -244,7 +244,7 @@ struct FolderChipPopover: View {
         #if os(iOS)
         HarvousTypography.body
         #else
-        HarvousTypography.subheadline
+        HarvousTypography.popoverField
         #endif
     }
 
@@ -342,7 +342,7 @@ struct FolderChipPopover: View {
                     #if os(iOS)
                     .controlSize(.large)
                     #else
-                    .controlSize(.regular)
+                    .controlSize(.small)
                     #endif
 
                     Text("When on, Harvous won't change the primary folder automatically; secondary suggestions still update from your note.")

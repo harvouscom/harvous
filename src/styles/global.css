@@ -1067,13 +1067,12 @@ button[disabled] {
 }
 .translation-dropdown-trigger span {
   font-size: 13px;
-  font-weight: 600 !important; /* beat late global `button *` (700) so NET pill matches NewNotePanel */
+  font-weight: 600 !important;
   color: var(--color-deep-grey) !important;
   white-space: nowrap;
   line-height: normal;
 }
 
-/* Late global `button { font-weight: 700 !important; }` — keep translation pill control unambiguous */
 button.translation-dropdown-trigger {
   font-weight: 600 !important;
 }
@@ -1420,10 +1419,9 @@ button.translation-dropdown-trigger {
    These rules must come after all imports to ensure highest priority
    ========================================================================== */
 
-/* All buttons - bold weight for better visibility */
+/* All buttons — font/color baseline; weight comes from component classes (not forced bold). */
 button {
   font-family: var(--font-sans) !important;
-  font-weight: 700 !important;
   color: var(--color-deep-grey) !important;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -1441,23 +1439,12 @@ button {
   color: white !important;
 }
 
-/* Button text content - ensure bold */
+/* Button text content — inherit weight from button / component rules */
 button span,
 button div,
 button p,
-button *,
-button.space-button span,
-button.space-button div,
-button.space-button *,
-button.space-btn span,
-button.space-btn div,
-button.space-btn *,
-button.tab-nav__button span,
-button.tab-nav__button *,
-button.menu-item span,
-button.menu-item * {
+button * {
   font-family: var(--font-sans) !important;
-  font-weight: 700 !important;
   color: var(--color-deep-grey) !important;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;

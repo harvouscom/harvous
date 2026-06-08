@@ -550,8 +550,7 @@ html[data-shift-hints='1'] .proto-toolbar-orb-group {
   cursor: pointer;
   font-family: inherit;
   font-size: 13px;
-  /* global.css: button * { font-weight: 700 !important } — menu labels use body regular */
-  font-weight: 400 !important;
+  font-weight: 400;
   color: var(--pds-text-primary);
   text-decoration: none;
   line-height: 1.35;
@@ -560,7 +559,7 @@ html[data-shift-hints='1'] .proto-toolbar-orb-group {
 
 .proto-menu-item span,
 .proto-menu-item__label {
-  font-weight: 400 !important;
+  font-weight: 400;
 }
 
 .proto-menu-item:hover {
@@ -673,10 +672,10 @@ html[data-shift-hints='1'] .proto-toolbar-orb-group {
   /* Match `.proto-toolbar-folder-chip` label styling */
   color: var(--pds-text-secondary);
   font-family: var(--pds-font-body) !important;
-  font-size: 13px;
+  font-size: var(--pds-toolbar-folder-chip-font-size);
   font-weight: 500 !important;
-  font-variation-settings: var(--pds-font-body-variation-chip) !important;
-  line-height: 1;
+  font-variation-settings: var(--pds-font-body-variation-toolbar-chip) !important;
+  line-height: 1.2;
   transition: background 0.12s, border-color 0.12s, box-shadow 0.12s, color 0.1s;
 }
 
@@ -695,9 +694,9 @@ html[data-shift-hints='1'] .proto-toolbar-orb-group {
   text-overflow: ellipsis;
   white-space: nowrap;
   font-family: var(--pds-font-body) !important;
-  font-size: 13px;
+  font-size: var(--pds-toolbar-folder-chip-font-size);
   font-weight: 500 !important;
-  font-variation-settings: var(--pds-font-body-variation-chip) !important;
+  font-variation-settings: var(--pds-font-body-variation-toolbar-chip) !important;
   line-height: 1.2;
   color: inherit !important;
 }
@@ -889,6 +888,33 @@ html.harvous-proto-wallpaper-color .proto-sidebar-search__field:focus-within {
   padding: 4px 0 12px;
 }
 
+/*
+ * macOS sidebar list rhythm only — do not apply on mobile (NoteListColumn + NoteFeedRow.sidebarCompact):
+ * listRowInsets 4+4 · sidebarRowVInset 2 · NoteFeedRow .padding(.vertical, 8)
+ */
+@media (min-width: 601px) {
+  .proto-sidebar-scroll .proto-note-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .proto-sidebar-scroll .proto-note-row-item {
+    padding-top: 2px;
+    padding-bottom: 2px;
+  }
+
+  .proto-sidebar-scroll .proto-note-list > li:not(.proto-note-row-item) {
+    padding-top: 2px;
+    padding-bottom: 2px;
+  }
+
+  .proto-sidebar-scroll .proto-note-row {
+    padding-top: 10px;
+    padding-bottom: 10px;
+  }
+}
+
 /* Note row with trailing overflow menu (prototype sidebar) */
 .proto-note-row-item {
   position: relative;
@@ -940,7 +966,7 @@ html.harvous-proto-wallpaper-color .proto-sidebar-search__field:focus-within {
   min-width: 0;
   display: block;
   text-align: left;
-  padding: 7px 4px 7px 10px;
+  padding: 8px 4px 8px 10px;
   border: none;
   background: transparent;
   cursor: pointer;
@@ -953,7 +979,7 @@ html.harvous-proto-wallpaper-color .proto-sidebar-search__field:focus-within {
 .proto-note-row__title-line {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
   min-width: 0;
 }
 
@@ -982,19 +1008,30 @@ html.harvous-proto-wallpaper-color .proto-sidebar-search__field:focus-within {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  font-size: var(--pds-list-title-size);
   font-weight: 500 !important;
+  font-synthesis: none;
+  font-variation-settings: var(--pds-font-body-variation-list-title) !important;
   color: var(--pds-text-primary) !important;
   font-family: var(--pds-font-body) !important;
 }
 
 .proto-note-row__preview {
-  margin-top: 2px;
+  margin-top: 3px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  font-size: var(--pds-list-meta-size);
   font-weight: 400 !important;
+  font-synthesis: none;
+  font-variation-settings: var(--pds-font-body-variation-list-preview) !important;
   color: var(--pds-text-secondary) !important;
   font-family: var(--pds-font-body) !important;
+}
+
+.proto-note-row__preview .pds-list-timestamp {
+  font-weight: 500 !important;
+  font-variation-settings: var(--pds-font-body-variation-list-timestamp) !important;
 }
 
 .proto-note-row__menu {
@@ -1078,7 +1115,7 @@ html.harvous-proto-wallpaper-color .proto-sidebar-search__field:focus-within {
   display: block;
   width: 100%;
   text-align: left;
-  padding: 7px 10px;
+  padding: 8px 10px;
   margin: 0 8px;
   width: calc(100% - 16px);
   border: none;
@@ -1086,9 +1123,8 @@ html.harvous-proto-wallpaper-color .proto-sidebar-search__field:focus-within {
   cursor: pointer;
   border-radius: var(--pds-radius-row);
   transition: background 0.08s;
-  /* global.css: button * { font-weight: 700 !important } — undo for sidebar list */
   font-family: var(--pds-font-body) !important;
-  font-weight: 400 !important;
+  font-weight: 400;
   color: var(--pds-text-primary) !important;
 }
 
@@ -1105,15 +1141,20 @@ html.harvous-proto-wallpaper-color .proto-sidebar-search__field:focus-within {
 }
 
 .proto-note-row .pds-list-title {
-  /* HarvousTypography.noteListTitle — weight 500 */
+  font-size: var(--pds-list-title-size);
   font-weight: 500 !important;
+  font-synthesis: none;
+  font-variation-settings: var(--pds-font-body-variation-list-title) !important;
   color: var(--pds-text-primary) !important;
   font-family: var(--pds-font-body) !important;
 }
 
 .proto-note-row .pds-list-preview {
-  margin-top: 2px;
+  margin-top: 3px;
+  font-size: var(--pds-list-meta-size);
   font-weight: 400 !important;
+  font-synthesis: none;
+  font-variation-settings: var(--pds-font-body-variation-list-preview) !important;
   color: var(--pds-text-secondary) !important;
   font-family: var(--pds-font-body) !important;
 }
@@ -2275,10 +2316,6 @@ html.harvous-proto-wallpaper-color .proto-search-input:focus {
   font-weight: 500;
 }
 
-.proto-link-quiet:hover {
-  text-decoration: underline;
-}
-
 /* ─── Scripture chip (sidebar badge / inline) ────────────────────────────── */
 .proto-chip-scripture {
   display: inline-flex;
@@ -2538,9 +2575,8 @@ html.harvous-proto-wallpaper-color .proto-search-input:focus {
   border-radius: var(--pds-radius-row);
   cursor: pointer;
   transition: background 0.08s;
-  /* global.css: button * { font-weight: 700 !important } — undo here */
   font-family: var(--pds-font-body) !important;
-  font-weight: 400 !important;
+  font-weight: 400;
   color: var(--pds-text-primary) !important;
 }
 
@@ -3398,9 +3434,8 @@ html.harvous-prototype-route .proto-editor-empty-state h2.proto-editor-empty-sta
     background 0.1s ease,
     box-shadow 0.1s ease,
     transform 0.1s ease;
-  /* global.css: button * { font-weight: 700 !important } — undo for sidebar list */
   font-family: var(--pds-font-body) !important;
-  font-weight: 400 !important;
+  font-weight: 400;
   color: var(--pds-text-primary) !important;
 }
 

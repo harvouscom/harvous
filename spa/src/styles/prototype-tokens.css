@@ -309,6 +309,12 @@
   /* Toolbar folder chip — scaled with `--pds-toolbar-orb-size`. */
   --pds-toolbar-folder-chip-font-size: 14px;
   --pds-font-body-variation-toolbar-chip: "ROND" 0, "wght" 500, "opsz" 14;
+  /* List rows — HarvousTypography.noteList* (15pt / 12pt · 500 / 400 / 500); sidebar pins same at all widths. */
+  --pds-list-title-size: 0.9375rem;
+  --pds-list-meta-size: 0.75rem;
+  --pds-font-body-variation-list-title: "ROND" 0, "wght" 500, "opsz" 15;
+  --pds-font-body-variation-list-preview: "ROND" 0, "wght" 400, "opsz" 12;
+  --pds-font-body-variation-list-timestamp: "ROND" 0, "wght" 500, "opsz" 12;
   --pds-font-mono:    ui-monospace, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
 
   /* Chrome dimensions */
@@ -970,31 +976,56 @@ html.harvous-prototype-route [data-sonner-toast] [data-description] {
   color: var(--pds-text-primary);
 }
 
-/* HarvousTypography.noteListTitle — macOS 15pt / 500; iOS 17pt / 500 (web uses Mac sidebar scale) */
+/* HarvousTypography.noteListTitle — 15pt / 500 */
 .pds-list-title {
   font-family: var(--pds-font-body);
-  font-size: 0.9375rem;
+  font-size: var(--pds-list-title-size);
   font-weight: 500;
+  font-synthesis: none;
+  font-variation-settings: var(--pds-font-body-variation-list-title);
   line-height: 1.25;
   color: var(--pds-text-primary);
 }
 
-/* HarvousTypography.noteListPreview — macOS 12pt / 400; iOS 14pt / 400 */
+/* HarvousTypography.noteListPreview — 12pt / 400 */
 .pds-list-preview {
   font-family: var(--pds-font-body);
-  font-size: 0.75rem;
+  font-size: var(--pds-list-meta-size);
   font-weight: 400;
+  font-synthesis: none;
+  font-variation-settings: var(--pds-font-body-variation-list-preview);
   line-height: 1.35;
   color: var(--pds-text-secondary);
 }
 
-/* HarvousTypography.noteListTimestamp — noteListPreview size · 500 */
+/* HarvousTypography.noteListTimestamp — same size as preview · 500 */
 .pds-list-timestamp {
   font-family: var(--pds-font-body);
-  font-size: 0.75rem;
+  font-size: var(--pds-list-meta-size);
   font-weight: 500;
+  font-synthesis: none;
+  font-variation-settings: var(--pds-font-body-variation-list-timestamp);
   line-height: 1.35;
   color: var(--pds-text-secondary);
+}
+
+/*
+ * Sidebar lists — one scale at every viewport (no iOS/mac split inside .proto-sidebar-scroll).
+ * Spacing rhythm stays desktop-only in prototype-components.css.
+ */
+.proto-sidebar-scroll {
+  --pds-list-title-size: 0.9375rem;
+  --pds-list-meta-size: 0.75rem;
+  --pds-font-body-variation-list-title: "ROND" 0, "wght" 500, "opsz" 15;
+  --pds-font-body-variation-list-preview: "ROND" 0, "wght" 400, "opsz" 12;
+  --pds-font-body-variation-list-timestamp: "ROND" 0, "wght" 500, "opsz" 12;
+}
+
+/* GSF stroke weight — antialiased .proto-shell thins strokes vs native/AppKit. */
+.proto-sidebar-scroll .proto-note-list,
+.proto-sidebar-scroll .proto-note-list * {
+  -webkit-font-smoothing: subpixel-antialiased;
+  -moz-osx-font-smoothing: auto;
 }
 
 /* HarvousTypography.caption — 13pt / 500 */

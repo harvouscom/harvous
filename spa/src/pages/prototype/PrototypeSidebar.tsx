@@ -25,7 +25,7 @@ import {
   prototypeHomeRouteTo,
   prototypeNoteRouteTo,
 } from '@/lib/prototype-path';
-import { protoRelativeCaption } from './proto-time';
+import { protoRelativeCaptionAbbrev } from './proto-time';
 import { PROTO_TOOLBAR_ICON_SIZE } from './proto-toolbar-tokens';
 import ProtoConfirmDialog from './ProtoConfirmDialog';
 import ProtoPopoverShell from './ProtoPopoverShell';
@@ -68,6 +68,17 @@ import { noteParamSlug, normalizeNoteIdFromParam, isPrototypeDraftNoteSlug } fro
 function stripHtmlPreview(html: string | null | undefined, max = 80) {
   if (!html) return '';
   return stripHtmlForListPreview(html, max);
+}
+
+function ProtoListRecencyLine({ rel, preview }: { rel?: string; preview?: string }) {
+  if (!rel && !preview) return null;
+  return (
+    <div className="pds-list-preview proto-note-row__preview">
+      {rel ? <span className="pds-list-timestamp">{rel}</span> : null}
+      {rel && preview ? '  ' : null}
+      {preview ? <span>{preview}</span> : null}
+    </div>
+  );
 }
 
 function describeQueryFailure(err: unknown): string {
@@ -147,17 +158,6 @@ const HIGHLIGHT_ACCENT_SWATCHES: { token: string; label: string; cssVar: string 
   { token: 'mintGreen', label: 'Mint', cssVar: '--pds-highlight-mint-green' },
   { token: 'coralRose', label: 'Coral', cssVar: '--pds-highlight-coral-rose' },
 ];
-
-function ProtoListRecencyLine({ rel, preview }: { rel?: string; preview?: string }) {
-  if (!rel && !preview) return null;
-  return (
-    <div className="pds-list-preview proto-note-row__preview">
-      {rel ? <span className="pds-list-timestamp">{rel}</span> : null}
-      {rel && preview ? '  ' : null}
-      {preview ? <span>{preview}</span> : null}
-    </div>
-  );
-}
 
 function HighlightRow({
   isActive,
@@ -380,7 +380,7 @@ function PrototypeSidebarNoteRow({
   }, [menuOpen]);
 
   const iso = row.updatedAt ?? row.createdAt ?? null;
-  const rel = protoRelativeCaption(iso);
+  const rel = protoRelativeCaptionAbbrev(iso);
   const preview = stripHtmlPreview(row.content, 80);
   const rowTitle = stripServerAutoUntitledNoteTitleForDisplay(row.title?.trim() ?? '') || 'New Note';
   const title = rowTitle;
@@ -1195,7 +1195,7 @@ export default function PrototypeSidebar() {
                   <ul className="proto-note-list">
                     {filteredHighlights.map((r) => {
                       const iso = prototypeHighlightRecencyIso(r);
-                      const rel = protoRelativeCaption(iso);
+                      const rel = protoRelativeCaptionAbbrev(iso);
                       const sub = prototypeHighlightSubtitlePreview(r, r.parentNoteTitle ?? '');
                       const title = prototypeHighlightListTitle(r);
                       const isPinned = pinnedHighlightIds.includes(r.id);

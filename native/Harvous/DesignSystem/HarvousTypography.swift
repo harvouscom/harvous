@@ -113,12 +113,26 @@ enum HarvousTypography {
     /// macOS toolbar profile menu actions (e.g. Settings…).
     static let profileMenuAction = HarvousFonts.font(size: 13, weight: 400, design: .default)
 
-    // MARK: - Share popover (matches prototype `proto-share-popover__*` sizes)
+    // MARK: - Compact popovers (share, folder chip — prototype `proto-share-popover__*` / `proto-fte-*`)
 
-    static let sharePopoverTitle = HarvousFonts.font(size: 15, weight: 600, design: .default)
-    static let sharePopoverBody = HarvousFonts.font(size: 13.5, weight: 400, design: .default)
-    static let sharePopoverAction = HarvousFonts.font(size: 15, weight: 500, design: .default)
-    static let sharePopoverPrimaryButton = HarvousFonts.font(size: 15, weight: 600, design: .default)
+    /// Popover card title — `.proto-share-popover__title` 14px.
+    static let popoverTitle = HarvousFonts.font(size: 14, weight: 600, design: .default)
+    /// Secondary copy under the title — share subtitle 12.5px.
+    static let popoverBody = HarvousFonts.font(size: 12.5, weight: 400, design: .default)
+    /// Row labels — lock toggle, destructive actions — `.proto-fte-lock__label` 13px.
+    static let popoverRow = HarvousFonts.font(size: 13, weight: 500, design: .default)
+    /// Folder name fields and secondary row text — `.proto-fte-field__input` 14px.
+    static let popoverField = HarvousFonts.font(size: 14, weight: 400, design: .default)
+    /// Copy button, link actions — `.proto-share-popover__copy` 12.5px.
+    static let popoverAction = HarvousFonts.font(size: 12.5, weight: 500, design: .default)
+    /// Read-only share URL — `.proto-share-popover__url-input` 12px monospace.
+    static let popoverURL = Font.system(size: 12, weight: .regular, design: .monospaced)
+
+    static let sharePopoverTitle = popoverTitle
+    static let sharePopoverBody = popoverBody
+    static let sharePopoverAction = popoverAction
+    /// Primary CTA — `.proto-share-popover__primary` 13.5px.
+    static let sharePopoverPrimaryButton = HarvousFonts.font(size: 13.5, weight: 600, design: .default)
 }
 
 extension View {

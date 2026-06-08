@@ -71,28 +71,33 @@ struct NoteSharePopoverView: View {
             } else {
                 HStack(spacing: 6) {
                     Text(shareURL ?? "")
-                        .font(.system(size: 12, weight: .regular, design: .monospaced))
+                        .font(HarvousTypography.popoverURL)
                         .lineLimit(1)
                         .truncationMode(.middle)
                         .padding(.horizontal, 10)
                         .padding(.vertical, 7)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
                         .background(
                             RoundedRectangle(cornerRadius: 8, style: .continuous)
                                 .fill(Color.secondary.opacity(0.08))
                         )
+                        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
                         .textSelection(.enabled)
 
                     Button(action: copyURL) {
                         HStack(spacing: 4) {
                             Image(systemName: copied ? "checkmark" : "doc.on.doc")
+                                .font(.system(size: 12, weight: .semibold))
                             Text(copied ? "Copied" : "Copy")
                         }
                         .font(HarvousTypography.sharePopoverAction)
                     }
                     .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    .fixedSize(horizontal: true, vertical: false)
                     .disabled(shareURL == nil)
                 }
+                .frame(maxWidth: .infinity)
 
                 HStack {
                     Button("Get a new link") { Task { await runShare(.refresh) } }

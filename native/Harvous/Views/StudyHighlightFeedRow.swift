@@ -57,7 +57,7 @@ struct StudyHighlightFeedRow: View {
 
             TimelineView(.periodic(from: .now, by: Self.timelineInterval)) { context in
                 HStack(spacing: 0) {
-                    Text(NoteRelativeTime.formatted(updatedAt, relativeTo: context.date))
+                    Text(NoteRelativeTime.formatted(updatedAt, relativeTo: context.date, abbreviated: true))
                         .font(HarvousTypography.noteListTimestamp)
                         .foregroundStyle(.secondary)
 

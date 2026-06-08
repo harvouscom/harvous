@@ -1,8 +1,8 @@
 /**
- * Prototype route — beat global.css late `button` / `button *` deep-grey rules.
+ * Prototype route — beat global.css late `button` / `button *` color + font-family rules.
  *
- * Loaded last in spa/src/main.tsx (after prototype-tokens.css) so it wins over
- * global.css in the main bundle. Scoped to html.harvous-prototype-route only.
+ * Loaded from SimplifiedPrototypeLayout (after prototype CSS). Scoped to
+ * html.harvous-prototype-route only. Font weight is owned by prototype component CSS.
  */
 
 /* ─── Prototype buttons + all descendants ─────────────────────────────────── */
@@ -20,65 +20,34 @@ html.harvous-prototype-route [class*='proto-'] button * {
   font-family: var(--pds-font-body) !important;
 }
 
-/* Popover menu rows — beat global `button * { font-weight: 700 !important }` */
-html.harvous-prototype-route button.proto-menu-item,
-html.harvous-prototype-route button.proto-menu-item span,
-html.harvous-prototype-route button.proto-menu-item * {
-  font-weight: 400 !important;
-}
-
-/* Chip bar filter chips — match list-view label weight */
-html.harvous-prototype-route button.proto-chip,
-html.harvous-prototype-route button.proto-chip span,
-html.harvous-prototype-route button.proto-chip * {
-  font-weight: 400 !important;
-}
-
-/* Inspector "Open thread" button — beat global `button { font-weight: 700 !important }` */
-html.harvous-prototype-route button.proto-inspector-view-thread,
-html.harvous-prototype-route button.proto-inspector-view-thread span,
-html.harvous-prototype-route button.proto-inspector-view-thread * {
-  font-weight: 400 !important;
-}
-
-html.harvous-prototype-route .proto-menu__popover--list-view button.proto-menu-item[aria-checked='true'],
-html.harvous-prototype-route .proto-menu__popover--list-view button.proto-menu-item[aria-checked='true'] span,
-html.harvous-prototype-route .proto-menu__popover--list-view button.proto-menu-item[aria-checked='true'] * {
-  font-weight: 500 !important;
-}
-
-/* Sidebar note/highlight rows — title + preview inside `proto-note-row__main` buttons */
-html.harvous-prototype-route button.proto-note-row__main .pds-list-title,
-html.harvous-prototype-route button.proto-note-row__main .proto-note-row__title-text,
-html.harvous-prototype-route button.proto-note-row__main .pds-list-title *,
-html.harvous-prototype-route button.proto-note-row__main .proto-note-row__title-text * {
-  font-weight: 500 !important;
-}
-
-html.harvous-prototype-route button.proto-note-row__main .pds-list-preview,
-html.harvous-prototype-route button.proto-note-row__main .proto-note-row__preview,
-html.harvous-prototype-route button.proto-note-row__main .pds-list-preview *,
-html.harvous-prototype-route button.proto-note-row__main .proto-note-row__preview * {
-  font-weight: 400 !important;
-}
-
-html.harvous-prototype-route button.proto-note-row__main .pds-list-timestamp {
-  font-weight: 500 !important;
-}
-
-/* Sidebar list view trigger — folder-chip weight + GSF axes (beat global `button * { font-weight: 700 }`) */
+/* Sidebar list view + toolbar folder chip — GSF axes inside buttons */
 html.harvous-prototype-route button.proto-sidebar-list-view__trigger,
-html.harvous-prototype-route button.proto-sidebar-list-view__trigger .proto-sidebar-list-view__label {
-  font-weight: 500 !important;
-  font-variation-settings: var(--pds-font-body-variation-chip) !important;
-}
-
-/* Toolbar folder chip — same GSF medium axes inside buttons */
+html.harvous-prototype-route button.proto-sidebar-list-view__trigger .proto-sidebar-list-view__label,
 html.harvous-prototype-route button.proto-toolbar-folder-chip,
 html.harvous-prototype-route button.proto-toolbar-folder-chip .proto-toolbar-folder-chip__label,
 html.harvous-prototype-route button.proto-toolbar-folder-chip .proto-toolbar-folder-chip__extra {
-  font-weight: 500 !important;
   font-variation-settings: var(--pds-font-body-variation-toolbar-chip) !important;
+}
+
+/* Sidebar list rows — HarvousFonts axisSettings inside buttons (native noteList* parity) */
+html.harvous-prototype-route button.proto-note-row__main .proto-note-row__title-text,
+html.harvous-prototype-route button.proto-note-row__main .pds-list-title,
+html.harvous-prototype-route .proto-note-row .pds-list-title {
+  font-synthesis: none;
+  font-variation-settings: var(--pds-font-body-variation-list-title) !important;
+}
+
+html.harvous-prototype-route button.proto-note-row__main .pds-list-timestamp {
+  font-synthesis: none;
+  font-weight: 500 !important;
+  font-variation-settings: var(--pds-font-body-variation-list-timestamp) !important;
+}
+
+html.harvous-prototype-route button.proto-note-row__main .proto-note-row__preview,
+html.harvous-prototype-route button.proto-note-row__main .pds-list-preview,
+html.harvous-prototype-route .proto-note-row .pds-list-preview {
+  font-synthesis: none;
+  font-variation-settings: var(--pds-font-body-variation-list-preview) !important;
 }
 
 html.harvous-prototype-route [class*='proto-'] button svg,

@@ -26,6 +26,7 @@
   --site-rule: #e7e4dc;
   --site-card: #ffffff;
   --site-accent: #3869e6;
+  --site-accent-soft: #e8eefc;
   --site-warm: #f1ede2;
   --site-highlight: #ffe8a8;
 }
@@ -208,6 +209,7 @@
   flex-direction: column;
   flex: 1;
   min-height: 0;
+  position: relative;
 }
 
 .public-card__color-stripe {
@@ -245,6 +247,9 @@
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   min-height: 0;
+  /* Room to scroll past the floating CTA pill */
+  padding-bottom: 88px;
+  box-sizing: border-box;
 }
 
 .public-card__empty {
@@ -341,16 +346,36 @@
 
 /* ─── CTA footer ────────────────────────────────────────────────────────── */
 
-/* CTA sits transparently at the base of the card — the button floats
-   directly on the paper. No background, no separator rule. */
+/* CTA floats over the card base so scrollable content is never clipped.
+   A soft paper fade keeps the last lines readable above the pill. */
 .public-card__cta {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 10;
   padding: 14px 18px 18px;
-  background: transparent;
   border-top: 0;
   display: flex;
   flex-direction: column;
   gap: 8px;
   flex-shrink: 0;
+  pointer-events: none;
+  box-sizing: border-box;
+}
+
+.public-card .public-card__cta {
+  background: linear-gradient(
+    to top,
+    var(--site-card) 0%,
+    var(--site-card) 52%,
+    rgba(255, 255, 255, 0.88) 72%,
+    transparent 100%
+  );
+}
+
+.public-card__cta > * {
+  pointer-events: auto;
 }
 
 /* Gradient blue pill — mirrors `/site/` CTAButton variant="primary":
@@ -710,6 +735,22 @@
   margin-bottom: 0;
 }
 
+/* Shared note card — float CTA over CardFullEditable body (footer prop). */
+.public-note-card .public-card__cta {
+  background: linear-gradient(
+    to top,
+    #fcfbf7 0%,
+    #fcfbf7 52%,
+    rgba(252, 251, 247, 0.88) 72%,
+    transparent 100%
+  );
+}
+
+.public-note-card .card-full-editable__content-html.overflow-auto,
+.public-note-card .flex-1.overflow-auto {
+  padding-bottom: 88px !important;
+}
+
 /* Study highlights — half-height gradient fill matching /site/ `mark` treatment.
    Default (warmAmber) matches --color-highlight: #ffe8a8 exactly.
    Other colors use the same bottom-55% gradient with tinted swatches. */
@@ -749,6 +790,35 @@
 /* Translation suffix (::after pseudo-element) should match the pill's accent color. */
 .public-note-card .card-full-editable__content-html .scripture-pill::after,
 .public-note-card .card-full-editable__content-html [data-scripture-pill]::after {
+  color: var(--site-accent) !important;
+}
+
+/* URL link chips — same accent pill as scripture refs on public shared notes. */
+.public-page .card-full-editable__content-html .url-link-pill,
+.public-page .card-full-editable__content-html .url-link.url-link-pill {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 4px !important;
+  background: var(--site-accent-soft) !important;
+  color: var(--site-accent) !important;
+  border: 1px solid rgba(56, 105, 230, 0.2) !important;
+  border-radius: 999px !important;
+  padding: 1px 8px !important;
+  font-weight: 500 !important;
+  font-style: normal !important;
+  box-shadow: none !important;
+  text-decoration: none !important;
+  pointer-events: none !important;
+  cursor: default !important;
+  vertical-align: baseline;
+}
+
+.public-page .card-full-editable__content-html .url-link-pill::after {
+  background-color: var(--site-accent) !important;
+}
+
+/* Inside highlights, keep pill colors — don't inherit mark text color. */
+.public-page .card-full-editable__content-html mark .url-link-pill {
   color: var(--site-accent) !important;
 }
 

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { useNavigate, useParams, useRouterState } from '@tanstack/react-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { useUser } from '@clerk/clerk-react';
@@ -13,7 +13,6 @@ import { detectScriptureReferences } from '@/utils/scripture-detector';
 import { debug } from '@/utils/logger';
 import { MY_PILE_THREAD_TITLE } from '@/utils/my-pile-thread';
 import { getCachedProfileData } from '@/utils/profile-cache';
-import '../styles/note-editor-chrome.css';
 
 function getThreadIdFromSearch(search: string | Record<string, unknown> | undefined): string | null {
   if (search == null) return null;
@@ -25,17 +24,6 @@ function getThreadIdFromSearch(search: string | Record<string, unknown> | undefi
   const params = new URLSearchParams(raw.startsWith('?') ? raw : `?${raw}`);
   const thread = params.get('thread');
   return thread && thread.startsWith('thread_') ? thread : null;
-}
-
-function getCollectionFromSearch(search: string | Record<string, unknown> | undefined): string | undefined {
-  if (search == null) return undefined;
-  if (typeof search === 'object') {
-    const c = (search as Record<string, unknown>).collection;
-    return typeof c === 'string' ? c : undefined;
-  }
-  const raw = typeof search === 'string' ? search : '';
-  const params = new URLSearchParams(raw.startsWith('?') ? raw : `?${raw}`);
-  return params.get('collection') ?? undefined;
 }
 
 function getSpaceIdFromSearch(search: string | Record<string, unknown> | undefined): string | null {
@@ -80,27 +68,8 @@ export default function NotePage() {
     }
     return id;
   }, [search]);
-  const collectionNavContext = useMemo(() => {
-    let raw = getCollectionFromSearch(search);
-    if (raw === undefined && typeof window !== 'undefined') {
-      try {
-        raw = new URLSearchParams(window.location.search).get('collection') ?? undefined;
-      } catch {
-        /* ignore */
-      }
-    }
-    if (raw === undefined) return { type: 'home' as const };
-    if (raw === '' || raw === '__ungrouped__') return { type: 'collection' as const, name: null };
-    return { type: 'collection' as const, name: raw };
-  }, [search]);
   const updateNoteMutation = useUpdateNote();
   const processScriptureMutation = useProcessScriptureRefs();
-
-  const [formatToolbarHostEl, setFormatToolbarHostEl] = useState<HTMLDivElement | null>(null);
-  const [studyDockCarouselHostEl, setStudyDockCarouselHostEl] = useState<HTMLDivElement | null>(null);
-  const [chromeMode, setChromeMode] = useState<
-    'format' | 'scripture' | 'highlight' | 'noteActions' | 'hidden'
-  >('hidden');
 
   // Notes in shared spaces that the current user did not add are view-only (member view).
   // Welcome thread onboarding pack notes: read-only in the card like scripture notes (CardFullEditable readOnlyLikeScripture); API also rejects edits.
@@ -401,58 +370,25 @@ export default function NotePage() {
         'data-parent-thread-space-id': (parentThread as { spaceId?: string | null }).spaceId ?? '',
       } : {})}
     >
-      <div className="note-editor-column-shell h-full w-full">
-        <div className="note-editor-scroll">
-          <SubtleContentMount key={noteId} variant="fade">
-            <CardFullEditable
-              title={note.title || 'Untitled Note'}
-              content={note.content ?? ''}
-              date={formattedDate}
-              noteId={noteId}
-              noteType={(note.noteType || 'default') as 'default' | 'scripture' | 'resource'}
-              version={note.version}
-              resourceTitle={note.resourceTitle ?? undefined}
-              resourceDescription={note.resourceDescription ?? undefined}
-              resourceImage={note.resourceImage ?? undefined}
-              resourceUrl={note.resourceUrl ?? undefined}
-              contentEncrypted={note.contentEncrypted ?? false}
-              isEditable={isEditable}
-              readOnlyLikeScripture={isOnboardingReadonly}
-              spaceId={(note?.spaceId ?? urlSpaceId) ?? undefined}
-              editorChromeMode={isEditable ? 'prototypeNative' : 'default'}
-              formatToolbarPortalTarget={isEditable ? formatToolbarHostEl : null}
-              studyDockCarouselPortalTarget={isEditable ? studyDockCarouselHostEl : null}
-              onPrototypeChromeModeChange={isEditable ? setChromeMode : undefined}
-              initialPrimaryCollection={note.primaryCollection ?? null}
-              initialSecondaryCollections={note.secondaryCollections ?? []}
-              initialCollectionPinned={note.collectionPinned ?? false}
-              initialCollectionUserOverride={note.collectionUserOverride ?? false}
-              initialCollectionLastAutoUpdatedAtIso={note.collectionLastAutoUpdatedAt ?? null}
-              collectionNavContext={collectionNavContext}
-              className="h-full flex-1 min-h-0"
-              alwaysEditing={isEditable}
-            />
-          </SubtleContentMount>
-        </div>
-        {isEditable ? (
-          <div className="note-editor-dock-layer" aria-live="polite">
-            <div ref={setStudyDockCarouselHostEl} className="note-editor-dock-layer__slot" />
-          </div>
-        ) : null}
-        {isEditable ? (
-          <div
-            className="note-editor-bottom-bar"
-            data-mode={chromeMode}
-            style={{ display: chromeMode === 'hidden' ? 'none' : undefined }}
-          >
-            <div
-              ref={setFormatToolbarHostEl}
-              className="note-editor-bottom-bar__format-host"
-              style={{ display: chromeMode === 'format' ? 'flex' : 'none' }}
-            />
-          </div>
-        ) : null}
-      </div>
+      <SubtleContentMount key={noteId} variant="fade">
+        <CardFullEditable
+          title={note.title || 'Untitled Note'}
+          content={note.content ?? ''}
+          date={formattedDate}
+          noteId={noteId}
+          noteType={(note.noteType || 'default') as 'default' | 'scripture' | 'resource'}
+          version={note.version}
+          resourceTitle={note.resourceTitle ?? undefined}
+          resourceDescription={note.resourceDescription ?? undefined}
+          resourceImage={note.resourceImage ?? undefined}
+          resourceUrl={note.resourceUrl ?? undefined}
+          contentEncrypted={note.contentEncrypted ?? false}
+          isEditable={isEditable}
+          readOnlyLikeScripture={isOnboardingReadonly}
+          spaceId={(note?.spaceId ?? urlSpaceId) ?? undefined}
+          className="h-full flex-1 min-h-0"
+        />
+      </SubtleContentMount>
     </div>
   );
 }
