@@ -3,6 +3,7 @@ import { Plugin, PluginKey } from '@tiptap/pm/state';
 import { Decoration, DecorationSet } from '@tiptap/pm/view';
 import type { Node as PMNode } from '@tiptap/pm/model';
 import { lookupWord, type EastonCategory } from '../../../spa/src/hooks/useEastonsSlugIndex';
+import { getBookNameVariations } from '@/utils/scripture-detector';
 
 /**
  * Inline reference suggestions ("dotted underline" hints) while typing.
@@ -92,6 +93,15 @@ const EXCLUDED_MARK_NAMES = new Set(['scripturePill', 'highlight', 'noteLink', '
 /** Word token: a letter (incl. Latin-1/extended) followed by letters, apostrophes, hyphens. */
 const WORD_REGEX = /[A-Za-zÀ-ɏ][A-Za-zÀ-ɏ'’-]*/g;
 
+const BIBLE_BOOK_NAMES_LOWER = new Set(getBookNameVariations().map((n) => n.toLowerCase()));
+
+/** Skip Easton's hint when a Bible book name is followed by chapter/verse digits in the same text node. */
+function isLikelyScriptureReferenceInProgress(word: string, text: string, wordEndInText: number): boolean {
+  if (!BIBLE_BOOK_NAMES_LOWER.has(word.toLowerCase())) return false;
+  const after = text.slice(wordEndInText);
+  return /^\s*\d/.test(after);
+}
+
 /**
  * Build the decoration set for the whole document. Words inside excluded marks are
  * skipped wholesale (marks span entire text-node runs).
@@ -117,6 +127,7 @@ export function buildReferenceSuggestionDecorations(
         if (match) break;
       }
       if (!match) continue;
+      if (isLikelyScriptureReferenceInProgress(word, text, m.index + word.length)) continue;
       const from = pos + m.index;
       const to = from + word.length;
       const attrs: Record<string, string> = {

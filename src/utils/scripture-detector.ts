@@ -194,7 +194,7 @@ const getBibleBookNames = (): string[] => {
 };
 
 // Get book name variations (including synonyms)
-const getBookNameVariations = (): string[] => {
+export const getBookNameVariations = (): string[] => {
   const variations: string[] = [];
   BIBLE_STUDY_KEYWORDS
     .filter(k => k.category === 'book')

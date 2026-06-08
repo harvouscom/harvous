@@ -251,6 +251,7 @@
   display: inline-flex !important;
   align-items: center !important;
   border-radius: var(--pds-radius-scripture) !important;
+  margin: 0 0.12em !important;
   padding: 0.08em 0.35em !important;
   font-family: inherit !important;
   font-size: inherit !important;

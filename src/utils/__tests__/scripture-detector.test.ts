@@ -233,6 +233,19 @@ describe('detectScriptureReferences', () => {
       expect(refs[0].verse).toEqual([1, 5]);
     });
 
+    it('detects Exodus chapter verse range', () => {
+      const refs = detectScriptureReferences('Exodus 1:1-22');
+      expect(refs).toHaveLength(1);
+      expect(refs[0].reference).toBe('Exodus 1:1-22');
+      expect(refs[0].book).toBe('Exodus');
+    });
+
+    it('detects Exodus multi-verse span', () => {
+      const refs = detectScriptureReferences('Exodus 4:18-31');
+      expect(refs).toHaveLength(1);
+      expect(refs[0].reference).toBe('Exodus 4:18-31');
+    });
+
     it('detects multiple references in text', () => {
       const refs = detectScriptureReferences('Compare John 3:16 with Romans 8:28');
       expect(refs).toHaveLength(2);

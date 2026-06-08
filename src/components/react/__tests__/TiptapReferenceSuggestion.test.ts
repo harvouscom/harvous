@@ -110,4 +110,15 @@ describe('buildReferenceSuggestionDecorations', () => {
     const doc = schema.nodes.doc.create(null, [para(schema.text('Bethlehem'))]);
     expect(buildReferenceSuggestionDecorations(doc, []).find().length).toBe(0);
   });
+
+  it('skips Bible book names when chapter digits follow in the same text node', () => {
+    const exodusIndex = makeIndex([{ slug: 'exodus', headword: 'Exodus', category: 'place' }]);
+    const exodusProvider = createDictionaryReferenceProvider(() => exodusIndex);
+    const doc = schema.nodes.doc.create(null, [
+      para(schema.text('Reading Exodus 1:1-22 today')),
+    ]);
+    const set = buildReferenceSuggestionDecorations(doc, [exodusProvider]);
+    const words = set.find().map((d) => doc.textBetween(d.from, d.to));
+    expect(words).not.toContain('Exodus');
+  });
 });

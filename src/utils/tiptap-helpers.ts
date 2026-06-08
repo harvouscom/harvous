@@ -3,57 +3,7 @@
  * Shared helper functions for text finding and position matching
  */
 
-/**
- * Normalize text for flexible matching (handles spacing variations)
- */
-function normalizeTextForMatching(text: string): string {
-  // Remove spaces around dashes and colons, normalize whitespace
-  return text
-    .replace(/\s*-\s*/g, '-')  // "16 - 17" -> "16-17"
-    .replace(/:\s+/g, ':')     // "3: 16" -> "3:16"
-    .replace(/\s+/g, ' ')      // Multiple spaces -> single space
-    .trim()
-    .toLowerCase();
-}
-
-/**
- * Find text positions with flexible matching for verse ranges
- */
-function findTextWithFlexibleMatching(fullText: string, searchText: string): Array<{ index: number; length: number }> {
-  const normalizedSearch = normalizeTextForMatching(searchText);
-  const matches: Array<{ index: number; length: number }> = [];
-  
-  // Try exact match first
-  let index = fullText.indexOf(searchText);
-  while (index !== -1) {
-    matches.push({ index, length: searchText.length });
-    index = fullText.indexOf(searchText, index + 1);
-  }
-  
-  // Also try normalized match (handles spacing variations)
-  if (normalizedSearch !== searchText.toLowerCase()) {
-    // Build regex pattern that matches with flexible spacing
-    const escapedSearch = searchText.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    // Allow optional spaces around dashes and colons
-    const flexiblePattern = escapedSearch
-      .replace(/\s*-\s*/g, '\\s*-\\s*')  // Flexible dash spacing
-      .replace(/:\s+/g, ':\\s*')         // Flexible colon spacing
-      .replace(/\s+/g, '\\s+');          // Flexible general spacing
-    
-    const regex = new RegExp(flexiblePattern, 'gi');
-    let match;
-    while ((match = regex.exec(fullText)) !== null) {
-      const matchIndex = match.index;
-      const matchLength = match[0].length;
-      // Avoid duplicates
-      if (!matches.some(m => m.index === matchIndex)) {
-        matches.push({ index: matchIndex, length: matchLength });
-      }
-    }
-  }
-  
-  return matches;
-}
+import { findTextWithFlexibleMatching } from './scripture-pill-position';
 
 /**
  * Find text positions in a Tiptap editor document
