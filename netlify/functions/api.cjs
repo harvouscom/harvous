@@ -19028,6 +19028,140 @@ var init_unorganized_thread = __esm({
   }
 });
 
+// src/data/translations.ts
+var translations_exports = {};
+__export(translations_exports, {
+  TRANSLATIONS: () => TRANSLATIONS,
+  TRANSLATION_ORDER: () => TRANSLATION_ORDER,
+  getTranslation: () => getTranslation,
+  getTranslationAbbreviationDisplay: () => getTranslationAbbreviationDisplay
+});
+function getTranslation(id) {
+  return TRANSLATIONS[id];
+}
+function getTranslationAbbreviationDisplay(id) {
+  return getTranslation(id)?.abbreviation ?? id;
+}
+var TRANSLATIONS, TRANSLATION_ORDER;
+var init_translations = __esm({
+  "src/data/translations.ts"() {
+    "use strict";
+    TRANSLATIONS = {
+      KJV: {
+        id: "KJV",
+        name: "King James Version",
+        abbreviation: "KJV",
+        publisher: "Public Domain",
+        copyright: "The King James Version is in the public domain.",
+        website: "https://www.kingjamesbibleonline.org",
+        isPublicDomain: true,
+        sortOrder: 2
+      },
+      NKJV: {
+        id: "NKJV",
+        name: "New King James Version",
+        abbreviation: "NKJV",
+        publisher: "Thomas Nelson",
+        copyright: "Scripture quotations are from the New King James Version\xAE. Copyright \xA9 1982 by Thomas Nelson. All rights reserved.",
+        website: "https://www.thomasnelson.com/nkjv",
+        isPublicDomain: false,
+        sortOrder: 3
+      },
+      ESV: {
+        id: "ESV",
+        name: "English Standard Version",
+        abbreviation: "ESV",
+        publisher: "Crossway",
+        copyright: "Scripture quotations are from the ESV\xAE Bible (The Holy Bible, English Standard Version\xAE), copyright \xA9 2001 by Crossway, a publishing ministry of Good News Publishers. All rights reserved.",
+        website: "https://www.esv.org",
+        isPublicDomain: false,
+        sortOrder: 1
+      },
+      NIV: {
+        id: "NIV",
+        name: "New International Version",
+        abbreviation: "NIV",
+        publisher: "Biblica / Zondervan",
+        copyright: "Scripture quotations are from The Holy Bible, New International Version\xAE NIV\xAE. Copyright \xA9 1973, 1978, 1984, 2011 by Biblica, Inc.\u2122 All rights reserved worldwide.",
+        website: "https://www.thenivbible.com",
+        isPublicDomain: false,
+        sortOrder: 5
+      },
+      NLT: {
+        id: "NLT",
+        name: "New Living Translation",
+        abbreviation: "NLT",
+        publisher: "Tyndale House",
+        copyright: "Scripture quotations are from the Holy Bible, New Living Translation. Copyright \xA9 1996, 2004, 2015 by Tyndale House Foundation and Tyndale House Publishers, Carol Stream, Illinois 60188. All rights reserved.",
+        website: "https://www.tyndale.com/nlt",
+        isPublicDomain: false,
+        sortOrder: 6
+      },
+      NET: {
+        id: "NET",
+        name: "NET Bible",
+        abbreviation: "NET",
+        publisher: "Biblical Studies Press, L.L.C.",
+        copyright: "Scripture quotations are from the NET Bible\xAE copyright \xA91996, 2019 by Biblical Studies Press, L.L.C. http://netbible.com All rights reserved.",
+        website: "https://netbible.org",
+        isPublicDomain: false,
+        sortOrder: 4
+      },
+      BSB: {
+        id: "BSB",
+        name: "Berean Standard Bible",
+        abbreviation: "BSB",
+        publisher: "Bible Hub",
+        copyright: "The Berean Bible (Berean Standard Bible BSB) \xA9 2016, 2020 by Bible Hub and Berean.Bible. Free to use and share. All rights reserved.",
+        website: "https://berean.bible",
+        isPublicDomain: false,
+        sortOrder: 0
+      },
+      NASB: {
+        id: "NASB",
+        name: "New American Standard Bible (1995)",
+        abbreviation: "NASB 1995",
+        publisher: "The Lockman Foundation",
+        copyright: "Scripture quotations taken from the New American Standard Bible\xAE (NASB 1995), Copyright \xA9 1960, 1971, 1977, 1995 by The Lockman Foundation. All rights reserved.",
+        website: "https://www.lockman.org",
+        isPublicDomain: false,
+        sortOrder: 7
+      },
+      CSB: {
+        id: "CSB",
+        name: "Christian Standard Bible",
+        abbreviation: "CSB",
+        publisher: "Holman Bible Publishers",
+        copyright: "Christian Standard Bible\xAE, CSB\xAE Copyright \xA9 2017 by Holman Bible Publishers. All rights reserved.",
+        website: "https://csbible.com",
+        isPublicDomain: false,
+        sortOrder: 8
+      },
+      AMP: {
+        id: "AMP",
+        name: "Amplified Bible",
+        abbreviation: "AMP",
+        publisher: "The Lockman Foundation",
+        copyright: "Scripture quotations marked AMP are taken from the Amplified\xAE Bible, Copyright \xA9 2015 by The Lockman Foundation. All rights reserved.",
+        website: "https://www.lockman.org",
+        isPublicDomain: false,
+        sortOrder: 9
+      },
+      MSG: {
+        id: "MSG",
+        name: "The Message",
+        abbreviation: "MSG",
+        publisher: "NavPress",
+        copyright: "Scripture quotations marked MSG are taken from THE MESSAGE, copyright \xA9 1993, 2002, 2018 by Eugene H. Peterson.",
+        website: "https://www.navpress.com",
+        isPublicDomain: false,
+        sortOrder: 10
+      }
+    };
+    TRANSLATION_ORDER = Object.values(TRANSLATIONS).sort((a, b3) => a.sortOrder - b3.sortOrder).map((t) => t.id);
+  }
+});
+
 // node_modules/tslib/tslib.es6.mjs
 var tslib_es6_exports = {};
 __export(tslib_es6_exports, {
@@ -40945,140 +41079,6 @@ var init_dist5 = __esm({
       return new SupabaseClient(supabaseUrl, supabaseKey, options);
     };
     if (shouldShowDeprecationWarning()) console.warn("\u26A0\uFE0F  Node.js 18 and below are deprecated and will no longer be supported in future versions of @supabase/supabase-js. Please upgrade to Node.js 20 or later. For more information, visit: https://github.com/orgs/supabase/discussions/37217");
-  }
-});
-
-// src/data/translations.ts
-var translations_exports = {};
-__export(translations_exports, {
-  TRANSLATIONS: () => TRANSLATIONS,
-  TRANSLATION_ORDER: () => TRANSLATION_ORDER,
-  getTranslation: () => getTranslation,
-  getTranslationAbbreviationDisplay: () => getTranslationAbbreviationDisplay
-});
-function getTranslation(id) {
-  return TRANSLATIONS[id];
-}
-function getTranslationAbbreviationDisplay(id) {
-  return getTranslation(id)?.abbreviation ?? id;
-}
-var TRANSLATIONS, TRANSLATION_ORDER;
-var init_translations = __esm({
-  "src/data/translations.ts"() {
-    "use strict";
-    TRANSLATIONS = {
-      KJV: {
-        id: "KJV",
-        name: "King James Version",
-        abbreviation: "KJV",
-        publisher: "Public Domain",
-        copyright: "The King James Version is in the public domain.",
-        website: "https://www.kingjamesbibleonline.org",
-        isPublicDomain: true,
-        sortOrder: 2
-      },
-      NKJV: {
-        id: "NKJV",
-        name: "New King James Version",
-        abbreviation: "NKJV",
-        publisher: "Thomas Nelson",
-        copyright: "Scripture quotations are from the New King James Version\xAE. Copyright \xA9 1982 by Thomas Nelson. All rights reserved.",
-        website: "https://www.thomasnelson.com/nkjv",
-        isPublicDomain: false,
-        sortOrder: 3
-      },
-      ESV: {
-        id: "ESV",
-        name: "English Standard Version",
-        abbreviation: "ESV",
-        publisher: "Crossway",
-        copyright: "Scripture quotations are from the ESV\xAE Bible (The Holy Bible, English Standard Version\xAE), copyright \xA9 2001 by Crossway, a publishing ministry of Good News Publishers. All rights reserved.",
-        website: "https://www.esv.org",
-        isPublicDomain: false,
-        sortOrder: 1
-      },
-      NIV: {
-        id: "NIV",
-        name: "New International Version",
-        abbreviation: "NIV",
-        publisher: "Biblica / Zondervan",
-        copyright: "Scripture quotations are from The Holy Bible, New International Version\xAE NIV\xAE. Copyright \xA9 1973, 1978, 1984, 2011 by Biblica, Inc.\u2122 All rights reserved worldwide.",
-        website: "https://www.thenivbible.com",
-        isPublicDomain: false,
-        sortOrder: 5
-      },
-      NLT: {
-        id: "NLT",
-        name: "New Living Translation",
-        abbreviation: "NLT",
-        publisher: "Tyndale House",
-        copyright: "Scripture quotations are from the Holy Bible, New Living Translation. Copyright \xA9 1996, 2004, 2015 by Tyndale House Foundation and Tyndale House Publishers, Carol Stream, Illinois 60188. All rights reserved.",
-        website: "https://www.tyndale.com/nlt",
-        isPublicDomain: false,
-        sortOrder: 6
-      },
-      NET: {
-        id: "NET",
-        name: "NET Bible",
-        abbreviation: "NET",
-        publisher: "Biblical Studies Press, L.L.C.",
-        copyright: "Scripture quotations are from the NET Bible\xAE copyright \xA91996, 2019 by Biblical Studies Press, L.L.C. http://netbible.com All rights reserved.",
-        website: "https://netbible.org",
-        isPublicDomain: false,
-        sortOrder: 4
-      },
-      BSB: {
-        id: "BSB",
-        name: "Berean Standard Bible",
-        abbreviation: "BSB",
-        publisher: "Bible Hub",
-        copyright: "The Berean Bible (Berean Standard Bible BSB) \xA9 2016, 2020 by Bible Hub and Berean.Bible. Free to use and share. All rights reserved.",
-        website: "https://berean.bible",
-        isPublicDomain: false,
-        sortOrder: 0
-      },
-      NASB: {
-        id: "NASB",
-        name: "New American Standard Bible (1995)",
-        abbreviation: "NASB 1995",
-        publisher: "The Lockman Foundation",
-        copyright: "Scripture quotations taken from the New American Standard Bible\xAE (NASB 1995), Copyright \xA9 1960, 1971, 1977, 1995 by The Lockman Foundation. All rights reserved.",
-        website: "https://www.lockman.org",
-        isPublicDomain: false,
-        sortOrder: 7
-      },
-      CSB: {
-        id: "CSB",
-        name: "Christian Standard Bible",
-        abbreviation: "CSB",
-        publisher: "Holman Bible Publishers",
-        copyright: "Christian Standard Bible\xAE, CSB\xAE Copyright \xA9 2017 by Holman Bible Publishers. All rights reserved.",
-        website: "https://csbible.com",
-        isPublicDomain: false,
-        sortOrder: 8
-      },
-      AMP: {
-        id: "AMP",
-        name: "Amplified Bible",
-        abbreviation: "AMP",
-        publisher: "The Lockman Foundation",
-        copyright: "Scripture quotations marked AMP are taken from the Amplified\xAE Bible, Copyright \xA9 2015 by The Lockman Foundation. All rights reserved.",
-        website: "https://www.lockman.org",
-        isPublicDomain: false,
-        sortOrder: 9
-      },
-      MSG: {
-        id: "MSG",
-        name: "The Message",
-        abbreviation: "MSG",
-        publisher: "NavPress",
-        copyright: "Scripture quotations marked MSG are taken from THE MESSAGE, copyright \xA9 1993, 2002, 2018 by Eugene H. Peterson.",
-        website: "https://www.navpress.com",
-        isPublicDomain: false,
-        sortOrder: 10
-      }
-    };
-    TRANSLATION_ORDER = Object.values(TRANSLATIONS).sort((a, b3) => a.sortOrder - b3.sortOrder).map((t) => t.id);
   }
 });
 
@@ -128275,6 +128275,13 @@ var NULL_AUTH = {
   userId: null,
   has: () => false
 };
+var PRODUCTION_AUTHORIZED_PARTIES = ["https://app.harvous.com", "https://new.harvous.com"];
+function resolveAuthorizedParties(secretKey) {
+  const fromEnv = process.env.CLERK_AUTHORIZED_PARTIES?.split(",").map((s2) => s2.trim()).filter(Boolean);
+  if (fromEnv?.length) return fromEnv;
+  if (secretKey.startsWith("sk_live_")) return [...PRODUCTION_AUTHORIZED_PARTIES];
+  return void 0;
+}
 function getSessionToken(cookieHeader) {
   if (!cookieHeader) return null;
   const match3 = cookieHeader.match(/(?:^|;\s*)__session=([^;]+)/);
@@ -128332,7 +128339,11 @@ async function clerkAuth(c, next) {
     return next();
   }
   try {
-    const payload = await verifyToken2(token, { secretKey });
+    const authorizedParties = resolveAuthorizedParties(secretKey);
+    const payload = await verifyToken2(token, {
+      secretKey,
+      ...authorizedParties ? { authorizedParties } : {}
+    });
     let userId = payload.sub;
     const isLiveKey = secretKey.startsWith("sk_live_");
     const mapping = isLiveKey ? await resolveLiveToDevMapping(userId, secretKey) : null;
@@ -128905,55 +128916,27 @@ function sortOnboardingThreadNotes(items) {
     return 0;
   });
 }
-function sortThreadsByLastVisited(items) {
+function sortNotesByLastVisited(items) {
+  const effectiveTime = (item) => {
+    let t = 0;
+    for (const value of [item.lastVisited, item.updatedAt, item.createdAt]) {
+      const date2 = value != null ? normalizeDate(value) : null;
+      if (date2) t = Math.max(t, date2.getTime());
+    }
+    return t;
+  };
   return [...items].sort((a, b3) => {
     if (a.isPinned && !b3.isPinned) return -1;
     if (!a.isPinned && b3.isPinned) return 1;
-    const aHasLastVisited = a.lastVisited != null && normalizeDate(a.lastVisited) != null;
-    const bHasLastVisited = b3.lastVisited != null && normalizeDate(b3.lastVisited) != null;
-    if (aHasLastVisited && !bHasLastVisited) return -1;
-    if (!aHasLastVisited && bHasLastVisited) return 1;
-    const getSortTime = (item, hasLastVisited) => {
-      if (hasLastVisited && item.lastVisited) {
-        const date2 = normalizeDate(item.lastVisited);
-        if (date2) return date2.getTime();
-      }
-      if (item.updatedAt) {
-        const date2 = normalizeDate(item.updatedAt);
-        if (date2) return date2.getTime();
-      }
-      if (item.createdAt) {
-        const date2 = normalizeDate(item.createdAt);
-        if (date2) return date2.getTime();
-      }
-      return 0;
-    };
-    const aTime = getSortTime(a, aHasLastVisited);
-    const bTime = getSortTime(b3, bHasLastVisited);
-    if (aTime !== bTime) {
-      return bTime - aTime;
-    }
-    if (aTime > 0 && bTime === 0) return -1;
-    if (aTime === 0 && bTime > 0) return 1;
-    const aUpdated = a.updatedAt ? normalizeDate(a.updatedAt)?.getTime() || 0 : 0;
-    const bUpdated = b3.updatedAt ? normalizeDate(b3.updatedAt)?.getTime() || 0 : 0;
-    if (aUpdated !== bUpdated) {
-      return bUpdated - aUpdated;
-    }
-    const aCreated = a.createdAt ? normalizeDate(a.createdAt)?.getTime() || 0 : 0;
-    const bCreated = b3.createdAt ? normalizeDate(b3.createdAt)?.getTime() || 0 : 0;
-    if (aCreated !== bCreated) {
-      return bCreated - aCreated;
-    }
+    const aTime = effectiveTime(a);
+    const bTime = effectiveTime(b3);
+    if (aTime !== bTime) return bTime - aTime;
     const aId = a.id || "";
     const bId = b3.id || "";
     if (aId < bId) return -1;
     if (aId > bId) return 1;
     return 0;
   });
-}
-function sortNotesByLastVisited(items) {
-  return sortThreadsByLastVisited(items);
 }
 
 // src/utils/last-visited-sections.ts
@@ -133404,868 +133387,6 @@ init_my_pile_thread();
 init_db2();
 init_dates();
 
-// src/utils/tiptap-helpers.ts
-function stripNoteLinksToNoteId(htmlContent, targetNoteId) {
-  if (!htmlContent || !targetNoteId) {
-    return htmlContent;
-  }
-  const escaped = targetNoteId.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const pattern = new RegExp(
-    `<span[^>]*data-note-id\\s*=\\s*["']${escaped}["'][^>]*>([\\s\\S]*?)</span>`,
-    "gi"
-  );
-  return htmlContent.replace(pattern, (_3, inner) => inner ?? "");
-}
-
-// server/utils/delete-note-cascade.ts
-var DELETE_CHUNK = 2e3;
-function chunkIds(ids) {
-  const chunks = [];
-  for (let i = 0; i < ids.length; i += DELETE_CHUNK) {
-    chunks.push(ids.slice(i, i + DELETE_CHUNK));
-  }
-  return chunks;
-}
-async function deleteNotesCascadeForUser(userId, noteIds) {
-  if (noteIds.length === 0) {
-    return { deletedNoteIds: [], deletedStudyThreadIds: [] };
-  }
-  const deletedNoteIds = [];
-  for (const chunk of chunkIds(noteIds)) {
-    const owned = await db.select({ id: Notes.id }).from(Notes).where(and(eq(Notes.userId, userId), inArray(Notes.id, chunk)));
-    deletedNoteIds.push(...owned.map((row) => row.id));
-  }
-  if (deletedNoteIds.length === 0) {
-    return { deletedNoteIds: [], deletedStudyThreadIds: [] };
-  }
-  for (const chunk of chunkIds(deletedNoteIds)) {
-    await db.delete(NoteConnections).where(
-      or(
-        inArray(NoteConnections.fromNoteId, chunk),
-        inArray(NoteConnections.toNoteId, chunk)
-      )
-    );
-  }
-  const deletedStudyThreadIds = [];
-  for (const chunk of chunkIds(deletedNoteIds)) {
-    const studyRows = await db.select({ id: StudyThreadEntries.id }).from(StudyThreadEntries).where(
-      and(
-        eq(StudyThreadEntries.userId, userId),
-        or(inArray(StudyThreadEntries.parentNoteId, chunk), inArray(StudyThreadEntries.linkedNoteId, chunk))
-      )
-    );
-    deletedStudyThreadIds.push(...studyRows.map((row) => row.id));
-  }
-  for (const chunk of chunkIds(deletedNoteIds)) {
-    await db.delete(NoteThreads).where(inArray(NoteThreads.noteId, chunk));
-    await db.delete(NoteScriptureReferences2).where(or(inArray(NoteScriptureReferences2.noteId, chunk), inArray(NoteScriptureReferences2.scriptureNoteId, chunk)));
-    await db.delete(NoteTags).where(inArray(NoteTags.noteId, chunk));
-    await db.delete(Comments).where(inArray(Comments.noteId, chunk));
-    await db.delete(ScriptureMetadata).where(inArray(ScriptureMetadata.noteId, chunk));
-    await db.delete(ResourceMetadata).where(inArray(ResourceMetadata.noteId, chunk));
-    await db.delete(StudyThreadEntries).where(
-      and(
-        eq(StudyThreadEntries.userId, userId),
-        or(inArray(StudyThreadEntries.parentNoteId, chunk), inArray(StudyThreadEntries.linkedNoteId, chunk))
-      )
-    );
-  }
-  for (const chunk of chunkIds(deletedNoteIds)) {
-    await db.delete(Notes).where(and(eq(Notes.userId, userId), inArray(Notes.id, chunk)));
-  }
-  try {
-    const notesWithLinks = await db.select({ id: Notes.id, content: Notes.content }).from(Notes).where(and(eq(Notes.userId, userId), not(eq(Notes.contentEncrypted, true)), like(Notes.content, "%data-note-id=%")));
-    for (const note of notesWithLinks) {
-      if (!note.content?.includes("data-note-id")) continue;
-      let nextContent = note.content;
-      for (const deletedId of deletedNoteIds) {
-        nextContent = stripNoteLinksToNoteId(nextContent, deletedId);
-      }
-      if (nextContent !== note.content) {
-        await db.update(Notes).set({ content: nextContent, updatedAt: nowISO() }).where(and(eq(Notes.id, note.id), eq(Notes.userId, userId)));
-      }
-    }
-  } catch {
-  }
-  return { deletedNoteIds, deletedStudyThreadIds };
-}
-async function deleteSingleNoteCascadeForUser(userId, noteId) {
-  return deleteNotesCascadeForUser(userId, [noteId]);
-}
-
-// server/utils/sync-deletion-log.ts
-init_db2();
-init_dates();
-
-// server/utils/pg-undefined-relation.ts
-function isPgUndefinedRelation(error, relationName) {
-  const needle = `relation "${relationName}" does not exist`;
-  let current = error;
-  const seen = /* @__PURE__ */ new Set();
-  for (let depth = 0; depth < 12 && current != null; depth++) {
-    if (typeof current === "object" && current !== null) {
-      if (seen.has(current)) break;
-      seen.add(current);
-    }
-    const msg = current instanceof Error ? current.message : typeof current === "string" ? current : "";
-    const code = current !== null && typeof current === "object" && "code" in current && current.code != null ? String(current.code) : "";
-    if (msg.includes(needle)) return true;
-    if (code === "42P01" && msg.includes(relationName)) return true;
-    current = current instanceof Error && "cause" in current ? current.cause : void 0;
-  }
-  return false;
-}
-function isStudyThreadEntriesTableMissing(error) {
-  return isPgUndefinedRelation(error, "StudyThreadEntries");
-}
-function isNoteConnectionsTableMissing(error) {
-  return isPgUndefinedRelation(error, "NoteConnections");
-}
-function isSyncDeletedEntitiesTableMissing(error) {
-  return isPgUndefinedRelation(error, "SyncDeletedEntities");
-}
-function isPgUndefinedColumn(error, columnName) {
-  const needles = [`column "${columnName}" does not exist`, `column ${columnName} does not exist`];
-  let current = error;
-  const seen = /* @__PURE__ */ new Set();
-  for (let depth = 0; depth < 12 && current != null; depth++) {
-    if (typeof current === "object" && current !== null) {
-      if (seen.has(current)) break;
-      seen.add(current);
-    }
-    const msg = current instanceof Error ? current.message : typeof current === "string" ? current : "";
-    const code = current !== null && typeof current === "object" && "code" in current && current.code != null ? String(current.code) : "";
-    if (needles.some((n) => msg.includes(n))) return true;
-    if (code === "42703" && msg.includes(columnName)) return true;
-    current = current instanceof Error && "cause" in current ? current.cause : void 0;
-  }
-  return false;
-}
-function isStudyThreadNamingColumnMissing(error) {
-  return isPgUndefinedColumn(error, "studyThreadUserOverride") || isPgUndefinedColumn(error, "studyThreadPinned") || isPgUndefinedColumn(error, "studyThreadLastAutoSuggestedAt") || isPgUndefinedColumn(error, "studyThreadTitle");
-}
-
-// server/utils/sync-deletion-log.ts
-var EVENT_CHUNK = 1e3;
-var EMPTY_FEED = { deletedNoteIds: [], deletedStudyThreadIds: [], deletedThreadIds: [], deletedNoteConnectionIds: [] };
-async function recordDeletedEntities(userId, entityType, entityIds) {
-  const uniqueIds = Array.from(new Set(entityIds.filter(Boolean)));
-  if (uniqueIds.length === 0) return;
-  const now2 = nowISO();
-  const rows = uniqueIds.map((entityId) => ({
-    id: `sync_delete_${entityType}_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`,
-    userId,
-    entityType,
-    entityId,
-    deletedAt: now2
-  }));
-  try {
-    for (let i = 0; i < rows.length; i += EVENT_CHUNK) {
-      await db.insert(SyncDeletedEntities).values(rows.slice(i, i + EVENT_CHUNK));
-    }
-  } catch (error) {
-    if (isSyncDeletedEntitiesTableMissing(error)) {
-      console.warn(
-        "[sync/deletion-log] SyncDeletedEntities table missing; skipping tombstone writes. Run `npm run db:push`."
-      );
-      return;
-    }
-    throw error;
-  }
-}
-async function loadDeletedEntitiesSince(userId, sinceDate) {
-  let rows = [];
-  try {
-    rows = await db.select({
-      entityType: SyncDeletedEntities.entityType,
-      entityId: SyncDeletedEntities.entityId
-    }).from(SyncDeletedEntities).where(and(eq(SyncDeletedEntities.userId, userId), gt(SyncDeletedEntities.deletedAt, sinceDate)));
-  } catch (error) {
-    if (isSyncDeletedEntitiesTableMissing(error)) {
-      console.warn(
-        "[sync/deletion-log] SyncDeletedEntities table missing; returning empty deletion feed. Run `npm run db:push`."
-      );
-      return EMPTY_FEED;
-    }
-    throw error;
-  }
-  const deletedNoteIds = /* @__PURE__ */ new Set();
-  const deletedStudyThreadIds = /* @__PURE__ */ new Set();
-  const deletedThreadIds = /* @__PURE__ */ new Set();
-  const deletedNoteConnectionIds = /* @__PURE__ */ new Set();
-  for (const row of rows) {
-    if (!row.entityId) continue;
-    if (row.entityType === "note") deletedNoteIds.add(row.entityId);
-    if (row.entityType === "studyThread") deletedStudyThreadIds.add(row.entityId);
-    if (row.entityType === "thread") deletedThreadIds.add(row.entityId);
-    if (row.entityType === "noteConnection") deletedNoteConnectionIds.add(row.entityId);
-  }
-  return {
-    deletedNoteIds: Array.from(deletedNoteIds),
-    deletedStudyThreadIds: Array.from(deletedStudyThreadIds),
-    deletedThreadIds: Array.from(deletedThreadIds),
-    deletedNoteConnectionIds: Array.from(deletedNoteConnectionIds)
-  };
-}
-
-// server/utils/realtime.ts
-init_dist5();
-var adminClient = null;
-function getAdminClient() {
-  if (adminClient) return adminClient;
-  const url = process.env.SUPABASE_URL?.trim();
-  const key2 = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
-  if (!url || !key2) return null;
-  adminClient = createClient(url, key2, {
-    auth: { persistSession: false, autoRefreshToken: false }
-  });
-  return adminClient;
-}
-function syncChannelName(userId) {
-  return `sync-${userId}`;
-}
-function broadcastInvalidation(userId, payload) {
-  const client = getAdminClient();
-  if (!client) return;
-  void (async () => {
-    try {
-      const channel = client.channel(syncChannelName(userId));
-      const status = await channel.send({
-        type: "broadcast",
-        event: "invalidate",
-        payload
-      });
-      if (status === "error") {
-        console.error("[realtime] broadcast send returned error for", payload.type);
-      }
-      await client.removeChannel(channel);
-    } catch (err) {
-      console.error("[realtime] broadcast failed:", err instanceof Error ? err.message : err);
-    }
-  })();
-}
-function broadcastInvalidationForSyncPush(userId, mutations, results) {
-  const hadSuccess = results.some((r) => r.success);
-  if (!hadSuccess) return;
-  const successful = mutations.filter((_3, i) => results[i]?.success);
-  if (successful.length === 0) {
-    broadcastInvalidation(userId, { type: "sync:batch" });
-    return;
-  }
-  if (successful.length === 1) {
-    const payload = invalidationFromMutation(successful[0]);
-    if (payload) {
-      broadcastInvalidation(userId, payload);
-      return;
-    }
-  }
-  broadcastInvalidation(userId, { type: "sync:batch" });
-}
-function invalidationFromMutation(m2) {
-  const op = m2.operation;
-  const id = typeof m2.entityId === "string" ? m2.entityId : void 0;
-  switch (m2.entityType) {
-    case "note":
-      if (op === "create") return { type: "note:created", id };
-      if (op === "update") return { type: "note:updated", id };
-      if (op === "delete") return { type: "note:deleted", id };
-      return { type: "note:updated", id };
-    case "thread":
-      if (op === "delete") return { type: "thread:deleted", id };
-      return { type: "thread:updated", id };
-    case "space":
-      return { type: "space:updated", id };
-    default:
-      return null;
-  }
-}
-
-// server/routes/threads.ts
-var route9 = new Hono2();
-var ERASE_NOTE_CHUNK = 2e3;
-function parseSelectedNoteIds(raw2) {
-  if (!raw2) return [];
-  const trimmed = raw2.trim();
-  if (trimmed.length === 0) return [];
-  if (trimmed.startsWith("[") && trimmed.endsWith("]")) {
-    try {
-      const parsed = JSON.parse(trimmed);
-      return Array.isArray(parsed) ? parsed : [];
-    } catch {
-      return [];
-    }
-  }
-  return [];
-}
-async function addNotesToThread(noteIds, threadId, userId) {
-  if (noteIds.length === 0) return;
-  try {
-    const [validNotes, existingRelations] = await Promise.all([
-      db.select({ id: Notes.id, threadId: Notes.threadId }).from(Notes).where(and(inArray(Notes.id, noteIds), eq(Notes.userId, userId))),
-      db.select({ noteId: NoteThreads.noteId, threadId: NoteThreads.threadId }).from(NoteThreads).where(inArray(NoteThreads.noteId, noteIds))
-    ]);
-    const validNoteMap = new Map(validNotes.map((n) => [n.id, n]));
-    const relationsByNote = /* @__PURE__ */ new Map();
-    for (const rel of existingRelations) {
-      if (!relationsByNote.has(rel.noteId)) relationsByNote.set(rel.noteId, /* @__PURE__ */ new Set());
-      relationsByNote.get(rel.noteId).add(rel.threadId);
-    }
-    const now2 = nowISO();
-    const rowsToInsert = [];
-    const notesToReparent = [];
-    let i = 0;
-    for (const noteId of noteIds) {
-      const note = validNoteMap.get(noteId);
-      if (!note) continue;
-      const threadsForNote = relationsByNote.get(noteId);
-      if (threadsForNote?.has(threadId)) continue;
-      const isInUnorganized = !threadsForNote || threadsForNote.size === 0 || note.threadId === "thread_unorganized";
-      rowsToInsert.push({
-        id: `note-thread-${Date.now()}-${i}-${Math.random().toString(36).slice(2, 11)}`,
-        noteId,
-        threadId,
-        createdAt: now2
-      });
-      if (isInUnorganized && threadId !== "thread_unorganized") notesToReparent.push(noteId);
-      i++;
-    }
-    if (rowsToInsert.length > 0) {
-      await db.insert(NoteThreads).values(rowsToInsert).onConflictDoNothing();
-    }
-    if (notesToReparent.length > 0) {
-      await db.update(Notes).set({ threadId }).where(and(inArray(Notes.id, notesToReparent), eq(Notes.userId, userId)));
-    }
-    for (const { noteId } of rowsToInsert) {
-      moveScriptureNotesToThread(noteId, threadId, userId).catch((error) => {
-        console.error(`Error moving scripture notes for note ${noteId} (non-blocking):`, error);
-      });
-    }
-  } catch (error) {
-    console.error("Error adding notes to thread:", error);
-  }
-}
-route9.get("/api/threads/list", requireAuth, async (c) => {
-  try {
-    const auth = getAuthenticatedAuth(c);
-    const threads = await getAllThreadsWithCounts(auth.userId);
-    const threadOptions = threads.map((thread) => ({
-      id: thread.id,
-      title: thread.title,
-      color: thread.color,
-      spaceId: thread.spaceId || null,
-      noteCount: thread.noteCount,
-      backgroundGradient: thread.backgroundGradient || getThreadGradientCSS(thread.color || "blue")
-    }));
-    const unorganizedThreadData = await ensureUnorganizedThread(auth.userId);
-    const hasUnorganizedThread = threadOptions.some((thread) => thread.id === "thread_unorganized");
-    if (!hasUnorganizedThread) {
-      threadOptions.unshift({
-        id: "thread_unorganized",
-        title: MY_PILE_THREAD_TITLE,
-        color: null,
-        spaceId: null,
-        noteCount: unorganizedThreadData.noteCount || 0,
-        backgroundGradient: getThreadGradientCSS("paper")
-      });
-    } else {
-      const unorganizedIndex = threadOptions.findIndex((thread) => thread.id === "thread_unorganized");
-      if (unorganizedIndex !== -1) {
-        threadOptions[unorganizedIndex].noteCount = unorganizedThreadData.noteCount || 0;
-        threadOptions[unorganizedIndex].spaceId = null;
-      }
-    }
-    return c.json(threadOptions);
-  } catch (error) {
-    const standardError = handleAPIError(error, { endpoint: "/api/threads/list", action: "list_threads" });
-    return c.json({ error: standardError.message, code: standardError.code }, 500);
-  }
-});
-route9.post("/api/threads/create", requireAuth, rateLimit("write"), async (c) => {
-  try {
-    const auth = getAuthenticatedAuth(c);
-    const formData = await c.req.formData();
-    const title = formData.get("title");
-    const color = formData.get("color");
-    const isPublic = formData.get("isPublic") === "true";
-    const spaceId = formData.get("spaceId");
-    const selectedNoteIds = parseSelectedNoteIds(formData.get("selectedNoteIds"));
-    const titleValidation = validateTitle(title, false);
-    if (!titleValidation.isValid) return c.json({ error: titleValidation.error, code: titleValidation.code }, 400);
-    let finalTitle;
-    if (!title || !title.trim()) {
-      finalTitle = await getNextUntitledThreadName(auth.userId);
-    } else {
-      finalTitle = title.trim();
-    }
-    const colorValidation = validateColor(color);
-    if (!colorValidation.isValid) return c.json({ error: colorValidation.error, code: colorValidation.code }, 400);
-    let threadColor = color;
-    if (color && !THREAD_COLORS.includes(color)) threadColor = getRandomThreadColor();
-    else if (!color) threadColor = getRandomThreadColor();
-    const spaceIdValidation = validateSpaceId(spaceId);
-    if (!spaceIdValidation.isValid) return c.json({ error: spaceIdValidation.error, code: spaceIdValidation.code }, 400);
-    let finalSpaceId = null;
-    if (spaceId && spaceId.trim() && spaceId !== "default_space") finalSpaceId = spaceId;
-    const capitalizedTitle = finalTitle.charAt(0).toUpperCase() + finalTitle.slice(1);
-    const shareToken = isPublic ? generateShareToken() : null;
-    const now2 = nowISO();
-    const newThread = first(await db.insert(Threads).values({
-      id: generateThreadId(),
-      title: capitalizedTitle,
-      subtitle: null,
-      spaceId: finalSpaceId,
-      userId: auth.userId,
-      isPublic,
-      color: threadColor,
-      isPinned: false,
-      shareToken,
-      shareTokenCreatedAt: isPublic ? now2 : null,
-      createdAt: now2,
-      updatedAt: now2,
-      lastVisited: now2
-    }).returning());
-    if (selectedNoteIds.length > 0) {
-      await addNotesToThread(selectedNoteIds, newThread.id, auth.userId);
-      await db.update(Threads).set({ updatedAt: nowISO() }).where(and(eq(Threads.id, newThread.id), eq(Threads.userId, auth.userId)));
-    }
-    awardCreationBonusXP(auth.userId, "thread").catch(() => {
-    });
-    broadcastInvalidation(auth.userId, { type: "thread:updated", id: newThread.id });
-    return c.json({ success: "Thread created!", thread: newThread });
-  } catch (error) {
-    const standardError = handleAPIError(error, { endpoint: "/api/threads/create", action: "create_thread" });
-    return c.json({ error: standardError.message, code: standardError.code }, 500);
-  }
-});
-route9.post("/api/threads/update", requireAuth, rateLimit("write"), async (c) => {
-  try {
-    const auth = getAuthenticatedAuth(c);
-    const formData = await c.req.formData();
-    const threadId = formData.get("id");
-    const title = formData.get("title");
-    const color = formData.get("color");
-    const subtitle = formData.get("subtitle");
-    const isPublic = formData.get("isPublic") === "true";
-    const selectedNoteIds = parseSelectedNoteIds(formData.get("selectedNoteIds"));
-    if (!threadId) return c.json({ error: "Thread ID is required" }, 400);
-    const titleValidation = validateTitle(title, true);
-    if (!titleValidation.isValid) return c.json({ error: titleValidation.error, code: titleValidation.code }, 400);
-    const colorValidation = validateColor(color);
-    if (!colorValidation.isValid) return c.json({ error: colorValidation.error, code: colorValidation.code }, 400);
-    const currentThread = first(await db.select().from(Threads).where(and(eq(Threads.id, threadId), eq(Threads.userId, auth.userId))).limit(1));
-    if (!currentThread) return c.json({ error: "Thread not found or access denied" }, 404);
-    const capitalizedTitle = title.charAt(0).toUpperCase() + title.slice(1);
-    const normalizedSubtitle = subtitle || null;
-    const titleChanged = currentThread.title !== capitalizedTitle;
-    const subtitleChanged = (currentThread.subtitle || null) !== normalizedSubtitle;
-    const isPublicChanged = currentThread.isPublic !== isPublic;
-    const onlyColorChanged = !titleChanged && !subtitleChanged && !isPublicChanged;
-    const updateData = {
-      title: capitalizedTitle,
-      subtitle: normalizedSubtitle,
-      isPublic,
-      color
-    };
-    if (!onlyColorChanged) {
-      updateData.updatedAt = nowISO();
-    }
-    const updatedThread = first(await db.update(Threads).set(updateData).where(and(eq(Threads.id, threadId), eq(Threads.userId, auth.userId))).returning());
-    if (selectedNoteIds.length > 0) {
-      await addNotesToThread(selectedNoteIds, threadId, auth.userId);
-      await db.update(Threads).set({ updatedAt: nowISO() }).where(and(eq(Threads.id, threadId), eq(Threads.userId, auth.userId)));
-    }
-    broadcastInvalidation(auth.userId, { type: "thread:updated", id: threadId });
-    return c.json({ success: "Thread updated!", thread: updatedThread });
-  } catch (error) {
-    const standardError = handleAPIError(error, { endpoint: "/api/threads/update", action: "update_thread" });
-    return c.json({ error: standardError.message, code: standardError.code }, 500);
-  }
-});
-route9.delete("/api/threads/delete", requireAuth, rateLimit("write"), async (c) => {
-  try {
-    const auth = getAuthenticatedAuth(c);
-    const threadId = c.req.query("threadId");
-    if (!threadId) return c.json({ error: "Thread ID is required" }, 400);
-    const existingThread = first(await db.select().from(Threads).where(and(eq(Threads.id, threadId), eq(Threads.userId, auth.userId))).limit(1));
-    if (!existingThread) return c.json({ error: "Thread not found or access denied" }, 404);
-    if (threadId === "thread_unorganized") return c.json({ error: "Cannot delete the unorganized thread" }, 400);
-    const threadCreatedAt = existingThread.createdAt;
-    await revokeXPOnDeletion(auth.userId, threadId, new Date(threadCreatedAt));
-    await revokeAllXPForItem(auth.userId, threadId);
-    const affectedNotes = await db.select({ noteId: NoteThreads.noteId }).from(NoteThreads).where(eq(NoteThreads.threadId, threadId));
-    await db.delete(NoteThreads).where(eq(NoteThreads.threadId, threadId));
-    if (affectedNotes.length > 0) {
-      const affectedNoteIds = affectedNotes.map((n) => n.noteId);
-      const remaining = await db.select({ noteId: NoteThreads.noteId, threadId: NoteThreads.threadId }).from(NoteThreads).where(inArray(NoteThreads.noteId, affectedNoteIds));
-      const firstRemainingByNote = /* @__PURE__ */ new Map();
-      for (const rel of remaining) {
-        if (!firstRemainingByNote.has(rel.noteId)) firstRemainingByNote.set(rel.noteId, rel.threadId);
-      }
-      const notesByDestination = /* @__PURE__ */ new Map();
-      for (const noteId of affectedNoteIds) {
-        const dest = firstRemainingByNote.get(noteId) ?? "thread_unorganized";
-        if (!notesByDestination.has(dest)) notesByDestination.set(dest, []);
-        notesByDestination.get(dest).push(noteId);
-      }
-      await Promise.all(
-        Array.from(notesByDestination.entries()).map(
-          ([dest, ids]) => db.update(Notes).set({ threadId: dest, spaceId: null }).where(and(inArray(Notes.id, ids), eq(Notes.userId, auth.userId)))
-        )
-      );
-    }
-    await db.delete(Threads).where(and(eq(Threads.id, threadId), eq(Threads.userId, auth.userId)));
-    await recordDeletedEntities(auth.userId, "thread", [threadId]);
-    broadcastInvalidation(auth.userId, { type: "thread:deleted", id: threadId });
-    return c.json({ success: `Thread erased! Notes have been moved to the ${MY_PILE_THREAD_TITLE} thread.`, threadId });
-  } catch (error) {
-    const standardError = handleAPIError(error, { endpoint: "/api/threads/delete", action: "delete_thread" });
-    return c.json({ error: standardError.message, code: standardError.code }, 500);
-  }
-});
-route9.post("/api/threads/ensure-unorganized", requireAuth, async (c) => {
-  try {
-    const auth = getAuthenticatedAuth(c);
-    const existingThread = first(await db.select().from(Threads).where(and(eq(Threads.userId, auth.userId), eq(Threads.id, "thread_unorganized"))).limit(1));
-    if (existingThread) {
-      return c.json({ success: true, message: `${MY_PILE_THREAD_TITLE} thread already exists`, thread: existingThread });
-    }
-    const now2 = nowISO();
-    const unorganizedThread = {
-      id: "thread_unorganized",
-      userId: auth.userId,
-      title: MY_PILE_THREAD_TITLE,
-      subtitle: "Individual notes and unassigned content",
-      color: null,
-      spaceId: null,
-      isPublic: false,
-      isPinned: false,
-      createdAt: now2,
-      updatedAt: now2
-    };
-    try {
-      await db.insert(Threads).values(unorganizedThread);
-      return c.json({ success: true, message: `${MY_PILE_THREAD_TITLE} thread created`, thread: unorganizedThread }, 201);
-    } catch (insertError) {
-      if (insertError.code === "23505" || insertError.message?.includes("unique constraint")) {
-        const createdThread = first(await db.select().from(Threads).where(and(eq(Threads.userId, auth.userId), eq(Threads.id, "thread_unorganized"))).limit(1));
-        if (createdThread) return c.json({ success: true, message: `${MY_PILE_THREAD_TITLE} thread already exists`, thread: createdThread });
-      }
-      throw insertError;
-    }
-  } catch (error) {
-    console.error("Error ensuring unorganized thread:", error);
-    return c.json({ error: "Failed to ensure unorganized thread exists" }, 500);
-  }
-});
-route9.delete("/api/threads/erase-with-notes", requireAuth, rateLimit("write"), async (c) => {
-  try {
-    const auth = getAuthenticatedAuth(c);
-    const threadId = c.req.query("threadId");
-    if (!threadId) return c.json({ error: "Thread ID is required" }, 400);
-    const existingThread = first(await db.select().from(Threads).where(and(eq(Threads.id, threadId), eq(Threads.userId, auth.userId))).limit(1));
-    if (!existingThread) return c.json({ error: "Thread not found or access denied" }, 404);
-    if (threadId === "thread_unorganized") return c.json({ error: "Cannot erase the unorganized thread" }, 400);
-    const affectedNotes = await db.select({ noteId: NoteThreads.noteId }).from(NoteThreads).where(eq(NoteThreads.threadId, threadId));
-    const candidateNoteIds = [...new Set(affectedNotes.map((n) => n.noteId))];
-    const ownedNoteIds = [];
-    for (let i = 0; i < candidateNoteIds.length; i += ERASE_NOTE_CHUNK) {
-      const chunk = candidateNoteIds.slice(i, i + ERASE_NOTE_CHUNK);
-      const rows = await db.select({ id: Notes.id }).from(Notes).where(
-        and(eq(Notes.userId, auth.userId), inArray(Notes.id, chunk))
-      );
-      ownedNoteIds.push(...rows.map((r) => r.id));
-    }
-    await deleteAllXpForRelatedIds(auth.userId, [...ownedNoteIds, threadId]);
-    const deleted = await deleteNotesCascadeForUser(auth.userId, ownedNoteIds);
-    await db.delete(NoteThreads).where(eq(NoteThreads.threadId, threadId));
-    await recordDeletedEntities(auth.userId, "note", deleted.deletedNoteIds);
-    await recordDeletedEntities(auth.userId, "studyThread", deleted.deletedStudyThreadIds);
-    await db.delete(Threads).where(and(eq(Threads.id, threadId), eq(Threads.userId, auth.userId)));
-    await recordDeletedEntities(auth.userId, "thread", [threadId]);
-    return c.json({ success: "Thread and all notes erased!", threadId, notesDeleted: ownedNoteIds.length });
-  } catch (error) {
-    const standardError = handleAPIError(error, { endpoint: "/api/threads/erase-with-notes", action: "erase_thread_with_notes" });
-    return c.json({ error: standardError.message, code: standardError.code }, 500);
-  }
-});
-route9.get("/api/threads/:threadId/prefetch", requireAuth, async (c) => {
-  try {
-    const auth = getAuthenticatedAuth(c);
-    let threadId = requireParam(c, "threadId");
-    if (threadId.startsWith("thread/")) threadId = "thread_" + threadId.slice(7);
-    let thread = await getThreadWithCount(threadId, auth.userId);
-    let notesResult = await getNotesForThread(threadId, auth.userId, 20, 0);
-    let noteTypeCounts = await getThreadNoteTypeCounts(threadId, auth.userId);
-    if (!thread) {
-      if (threadId === "thread_unorganized") {
-        const notes2 = Array.isArray(notesResult) ? [] : notesResult.notes;
-        thread = {
-          id: "thread_unorganized",
-          title: MY_PILE_THREAD_TITLE,
-          subtitle: "Notes that haven't been organized into threads yet",
-          color: null,
-          userId: auth.userId,
-          spaceId: null,
-          noteCount: noteTypeCounts?.all ?? notes2?.length ?? 0,
-          backgroundGradient: getThreadGradientCSS("paper"),
-          lastUpdated: (/* @__PURE__ */ new Date()).toISOString(),
-          accentColor: getThreadColorCSS(null),
-          isPublic: false,
-          isPinned: false,
-          createdAt: (/* @__PURE__ */ new Date()).toISOString(),
-          updatedAt: (/* @__PURE__ */ new Date()).toISOString(),
-          lastVisited: null
-        };
-      } else {
-        const threadRow = first(await db.select().from(Threads).where(eq(Threads.id, threadId)).limit(1));
-        if (!threadRow) return c.json({ error: "Thread not found" }, 404);
-        if (threadRow.spaceId) {
-          try {
-            const { space } = await requireSpaceAccess(threadRow.spaceId, auth.userId);
-            thread = await getThreadWithCount(threadId, space.userId);
-            const memberNotes = await getNotesForThreadForMember(threadId, space.userId, 20, 0);
-            notesResult = memberNotes;
-            noteTypeCounts = await getThreadNoteTypeCounts(threadId, space.userId);
-          } catch {
-            return c.json({ error: "Thread not found" }, 404);
-          }
-        } else {
-          return c.json({ error: "Thread not found" }, 404);
-        }
-      }
-    }
-    if (!thread) return c.json({ error: "Thread not found" }, 404);
-    const notes = Array.isArray(notesResult) ? [] : notesResult.notes;
-    return c.json({
-      thread: {
-        id: thread.id,
-        title: thread.title,
-        subtitle: thread.subtitle,
-        color: thread.color,
-        noteCount: thread.noteCount,
-        backgroundGradient: thread.backgroundGradient,
-        userId: thread.userId,
-        spaceId: thread.spaceId ?? null
-      },
-      notes,
-      noteTypeCounts
-    }, 200, {
-      // Title/color change often; avoid browser HTTP cache serving stale thread headers for minutes.
-      "Cache-Control": "private, no-cache"
-    });
-  } catch (error) {
-    console.error("[prefetch] Error fetching thread data:", error);
-    return c.json({ error: "Failed to fetch thread data", details: error.message }, 500);
-  }
-});
-route9.get("/api/threads/:threadId/note-type-counts", requireAuth, async (c) => {
-  try {
-    const auth = getAuthenticatedAuth(c);
-    let threadId = requireParam(c, "threadId");
-    if (threadId.startsWith("thread/")) threadId = "thread_" + threadId.slice(7);
-    let noteTypeCounts = await getThreadNoteTypeCounts(threadId, auth.userId);
-    const threadRow = first(await db.select().from(Threads).where(eq(Threads.id, threadId)).limit(1));
-    if (!threadRow) return c.json({ error: "Thread not found" }, 404);
-    if (threadRow.userId !== auth.userId && threadRow.spaceId) {
-      try {
-        const { space } = await requireSpaceAccess(threadRow.spaceId, auth.userId);
-        noteTypeCounts = await getThreadNoteTypeCounts(threadId, space.userId);
-      } catch {
-        return c.json({ error: "Thread not found" }, 404);
-      }
-    }
-    return c.json({ noteTypeCounts });
-  } catch (error) {
-    const standardError = handleAPIError(error, {
-      endpoint: "/api/threads/[threadId]/note-type-counts",
-      action: "get_thread_note_type_counts",
-      threadId: c.req.param("threadId")
-    });
-    return c.json({ error: standardError.message, code: standardError.code }, 500);
-  }
-});
-route9.post("/api/threads/:threadId/visit", requireAuth, async (c) => {
-  try {
-    const auth = getAuthenticatedAuth(c);
-    let threadId = requireParam(c, "threadId");
-    if (threadId.startsWith("thread/")) threadId = "thread_" + threadId.slice(7);
-    const thread = first(await db.select().from(Threads).where(eq(Threads.id, threadId)).limit(1));
-    if (!thread) return c.json({ error: "Thread not found" }, 404);
-    if (thread.userId !== auth.userId && thread.spaceId) {
-      try {
-        await requireSpaceAccess(thread.spaceId, auth.userId);
-      } catch {
-        return c.json({ error: "Thread not found" }, 404);
-      }
-    }
-    await db.update(Threads).set({ lastVisited: nowISO() }).where(eq(Threads.id, threadId));
-    return c.json({ ok: true });
-  } catch (error) {
-    console.error("[visit] Error updating thread lastVisited:", error);
-    return c.json({ error: error.message || "Failed to update visit" }, 500);
-  }
-});
-route9.get("/api/threads/:threadId/notes", requireAuth, async (c) => {
-  try {
-    const auth = getAuthenticatedAuth(c);
-    let threadId = requireParam(c, "threadId");
-    if (threadId.startsWith("thread/")) threadId = "thread_" + threadId.slice(7);
-    const offset = parseInt(c.req.query("offset") || "0", 10);
-    const limit = parseInt(c.req.query("limit") || "20", 10);
-    let result = await getNotesForThread(threadId, auth.userId, limit, offset);
-    if (Array.isArray(result)) {
-      result = { notes: [], hasMore: false };
-    }
-    if (result.notes.length === 0 && offset === 0) {
-      const thread = first(await db.select().from(Threads).where(eq(Threads.id, threadId)).limit(1));
-      if (thread?.spaceId) {
-        let memberNotesResult = null;
-        try {
-          const { space } = await requireSpaceAccess(thread.spaceId, auth.userId);
-          memberNotesResult = await getNotesForThreadForMember(threadId, space.userId, limit, offset);
-        } catch {
-          const spaceRow = first(await db.select().from(Spaces).where(eq(Spaces.id, thread.spaceId)).limit(1));
-          const memberRow = first(await db.select().from(Members).where(and(eq(Members.spaceId, thread.spaceId), eq(Members.userId, auth.userId))).limit(1));
-          if (spaceRow && memberRow) {
-            memberNotesResult = await getNotesForThreadForMember(threadId, spaceRow.userId, limit, offset);
-          }
-        }
-        if (memberNotesResult) result = memberNotesResult;
-      }
-    }
-    return c.json({ notes: result.notes, hasMore: result.hasMore, offset, limit });
-  } catch (error) {
-    const standardError = handleAPIError(error, { endpoint: "/api/threads/[threadId]/notes", action: "get_thread_notes", threadId: c.req.param("threadId") });
-    return c.json({ error: standardError.message, code: standardError.code }, 500);
-  }
-});
-route9.get("/api/threads/:threadId/share", requireAuth, async (c) => {
-  try {
-    const auth = getAuthenticatedAuth(c);
-    const threadId = requireParam(c, "threadId");
-    const thread = first(await db.select({
-      id: Threads.id,
-      isPublic: Threads.isPublic,
-      shareToken: Threads.shareToken,
-      shareTokenCreatedAt: Threads.shareTokenCreatedAt,
-      userId: Threads.userId
-    }).from(Threads).where(eq(Threads.id, threadId)).limit(1));
-    if (!thread) return c.json({ error: "Thread not found" }, 404);
-    if (thread.userId !== auth.userId) return c.json({ error: "You do not have permission to access this thread" }, 403);
-    const origin = new URL(c.req.url).origin;
-    return c.json({
-      isPublic: thread.isPublic,
-      shareToken: thread.shareToken,
-      shareUrl: thread.shareToken ? `${origin}/shared/thread/${thread.shareToken}` : null,
-      shareTokenCreatedAt: thread.shareTokenCreatedAt
-    });
-  } catch (error) {
-    const standardError = handleAPIError(error, { endpoint: "/api/threads/[threadId]/share", action: "get_share_status", threadId: c.req.param("threadId") });
-    return c.json({ error: standardError.message, code: standardError.code }, 500);
-  }
-});
-route9.post("/api/threads/:threadId/share", requireAuth, async (c) => {
-  try {
-    const auth = getAuthenticatedAuth(c);
-    const threadId = requireParam(c, "threadId");
-    const { action } = await c.req.json();
-    if (!action || !["enable", "disable", "refresh"].includes(action)) {
-      return c.json({ error: "Invalid action. Must be enable, disable, or refresh" }, 400);
-    }
-    const thread = first(await db.select({
-      id: Threads.id,
-      isPublic: Threads.isPublic,
-      shareToken: Threads.shareToken,
-      userId: Threads.userId
-    }).from(Threads).where(eq(Threads.id, threadId)).limit(1));
-    if (!thread) return c.json({ error: "Thread not found" }, 404);
-    if (thread.userId !== auth.userId) return c.json({ error: "You do not have permission to modify this thread" }, 403);
-    const now2 = nowISO();
-    let newShareToken = null;
-    let isPublic = thread.isPublic;
-    if (action === "enable") {
-      newShareToken = generateShareToken();
-      isPublic = true;
-      await db.update(Threads).set({ isPublic: true, shareToken: newShareToken, shareTokenCreatedAt: now2, updatedAt: now2 }).where(and(eq(Threads.id, threadId), eq(Threads.userId, auth.userId)));
-    } else if (action === "disable") {
-      newShareToken = null;
-      isPublic = false;
-      await db.update(Threads).set({ isPublic: false, shareToken: null, shareTokenCreatedAt: null, updatedAt: now2 }).where(and(eq(Threads.id, threadId), eq(Threads.userId, auth.userId)));
-    } else if (action === "refresh") {
-      if (!thread.isPublic) return c.json({ error: "Cannot refresh share link for a private thread" }, 400);
-      newShareToken = generateShareToken();
-      isPublic = true;
-      await db.update(Threads).set({ shareToken: newShareToken, shareTokenCreatedAt: now2, updatedAt: now2 }).where(and(eq(Threads.id, threadId), eq(Threads.userId, auth.userId)));
-    }
-    const origin = new URL(c.req.url).origin;
-    const shareUrl = newShareToken ? `${origin}/shared/thread/${newShareToken}` : null;
-    return c.json({ success: true, isPublic, shareToken: newShareToken, shareUrl, shareTokenCreatedAt: action !== "disable" ? now2 : null });
-  } catch (error) {
-    const standardError = handleAPIError(error, { endpoint: "/api/threads/[threadId]/share", action: "update_share_status", threadId: c.req.param("threadId") });
-    return c.json({ error: standardError.message, code: standardError.code }, 500);
-  }
-});
-route9.get("/api/threads/:threadId/referenced-scripture-notes", requireAuth, async (c) => {
-  try {
-    const auth = getAuthenticatedAuth(c);
-    const noteIdsParam = c.req.query("noteIds");
-    if (!noteIdsParam) return c.json({ scriptureNoteIds: [] });
-    const noteIds = noteIdsParam.split(",").filter((id) => id);
-    if (noteIds.length === 0) return c.json({ scriptureNoteIds: [] });
-    const references = await db.select({ scriptureNoteId: NoteScriptureReferences.scriptureNoteId }).from(NoteScriptureReferences).innerJoin(Notes, eq(NoteScriptureReferences.scriptureNoteId, Notes.id)).where(and(inArray(NoteScriptureReferences.noteId, noteIds), eq(Notes.userId, auth.userId), eq(Notes.noteType, "scripture")));
-    const scriptureNoteIds = [...new Set(references.map((r) => r.scriptureNoteId))];
-    return c.json({ scriptureNoteIds });
-  } catch (error) {
-    const standardError = handleAPIError(error, { endpoint: "/api/threads/[threadId]/referenced-scripture-notes", action: "get_referenced_scripture_notes", threadId: c.req.param("threadId") });
-    return c.json({ error: standardError.message, code: standardError.code }, 500);
-  }
-});
-var threads_default = route9;
-
-// server/routes/notes.ts
-init_db2();
-init_dates();
-
-// server/utils/harvous-admin.ts
-function getHarvousSystemUserId() {
-  const id = process.env.HARVOUS_SYSTEM_USER_ID;
-  if (!id) throw new Error("Missing env HARVOUS_SYSTEM_USER_ID");
-  return id;
-}
-function isHarvousAdmin(c) {
-  const auth = getAuth(c);
-  const userId = auth?.userId ?? null;
-  const systemUserId = process.env.HARVOUS_SYSTEM_USER_ID;
-  if (userId && systemUserId && userId === systemUserId) return true;
-  const expectedSecret = process.env.HARVOUS_ADMIN_SECRET?.trim();
-  if (!expectedSecret) return false;
-  const authHeader = (c.req.header("authorization") ?? c.req.header("Authorization") ?? "").split(",")[0].trim();
-  const m2 = authHeader.match(/^Bearer\s+(.+)$/i);
-  const provided = m2?.[1]?.trim();
-  return provided === expectedSecret;
-}
-function requireHarvousAdmin(c) {
-  if (!isHarvousAdmin(c)) {
-    return c.json({ error: "Unauthorized" }, 401);
-  }
-  return null;
-}
-
-// src/utils/suggest-study-thread-title.ts
-init_html_stripper();
-
-// src/utils/server-auto-untitled-note-display.ts
-var SERVER_AUTO_UNTITLED_NOTE = /^\s*Untitled Note(?: \d+)?\s*$/i;
-function stripServerAutoUntitledNoteTitleForDisplay(title) {
-  if (title == null) return "";
-  const t = title.trim();
-  if (t === "") return "";
-  return SERVER_AUTO_UNTITLED_NOTE.test(t) ? "" : title;
-}
-
-// src/utils/bible-study-collection-web.ts
-init_html_stripper();
-
 // src/utils/keyword-trie.ts
 var MAX_PHRASE_WORDS = 5;
 function buildKeywordTrie(keywords) {
@@ -134343,6 +133464,10 @@ function lookupPhrase(root, words) {
 }
 
 // src/utils/bible-study-keywords.ts
+var AUTO_FOLDER_EXCLUDED_KEYWORD_NAMES = /* @__PURE__ */ new Set(["god", "jesus", "holy spirit"]);
+function isAutoFolderExcludedKeyword(name) {
+  return AUTO_FOLDER_EXCLUDED_KEYWORD_NAMES.has(name.trim().toLowerCase());
+}
 var BIBLE_STUDY_KEYWORDS = [
   // Biblical Books
   { name: "Genesis", category: "book", synonyms: ["gen", "first book"], confidence: 0.9 },
@@ -134630,570 +133755,6 @@ function findKeywordsInTextWithPriority(fullText, title, content) {
     }
   }
   return foundKeywords.sort((a, b3) => b3.confidence - a.confidence);
-}
-
-// src/utils/bible-study-collection-web.ts
-var MIN_BODY_WORDS = 25;
-var SHORT_NOTE_CONFIDENCE_FLOOR = 0.9;
-var PRIMARY_SCORE_AMBIGUITY_EPS = 0.04;
-function collectionRank(cat) {
-  if (cat === "spiritual") return 0;
-  if (cat === "biblical" || cat === "theme") return 1;
-  if (cat === "book") return 2;
-  if (cat === "life") return 3;
-  if (cat === "character") return 4;
-  if (cat === "place") return 5;
-  return 10;
-}
-function folderPrimaryScore(row, plainTitle, plainBody) {
-  let score = Math.min(1, row.confidence);
-  const cat = row.keyword.category;
-  if (["spiritual", "biblical", "character", "book", "theme"].includes(cat)) {
-    score = Math.min(1, score + 0.05);
-  }
-  switch (cat) {
-    case "spiritual":
-    case "biblical":
-    case "life":
-    case "theme":
-      score += 0.08;
-      break;
-    case "character":
-    case "place": {
-      const occ = countKeywordOccurrences(plainTitle, plainBody, row.keyword);
-      if (occ <= 1) {
-        score -= 0.12;
-      } else if (occ >= 5) {
-        score += 0.28;
-      } else if (occ >= 3) {
-        score += 0.18;
-      } else {
-        score += 0.06;
-      }
-      break;
-    }
-    default:
-      break;
-  }
-  return score;
-}
-function escapeRegExp(s2) {
-  return s2.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-function countKeywordOccurrences(plainTitle, plainBody, keyword) {
-  const corpus = `${plainTitle} ${plainBody}`.toLowerCase();
-  let total = 0;
-  const needles = [keyword.name, ...keyword.synonyms];
-  const seen = /* @__PURE__ */ new Set();
-  for (const raw2 of needles) {
-    const n = raw2.trim().toLowerCase();
-    if (!n || seen.has(n)) continue;
-    seen.add(n);
-    if (n.includes(" ") || n.includes("-")) {
-      let i = 0;
-      while ((i = corpus.indexOf(n, i)) !== -1) {
-        total++;
-        i += Math.max(1, n.length);
-      }
-    } else {
-      const re2 = new RegExp(`\\b${escapeRegExp(n)}\\b`, "g");
-      total += (corpus.match(re2) || []).length;
-    }
-  }
-  return total;
-}
-function dedupeRowsByKeywordName(rows) {
-  const by = /* @__PURE__ */ new Map();
-  for (const r of rows) {
-    if (r.keyword.name.toLowerCase() === "god") continue;
-    const k2 = r.keyword.name.toLowerCase();
-    const prev = by.get(k2);
-    if (!prev || r.confidence > prev.confidence) by.set(k2, r);
-  }
-  return [...by.values()];
-}
-function betterPrimaryRow(a, b3, plainTitle, plainBody) {
-  const sa = folderPrimaryScore(a, plainTitle, plainBody);
-  const sb = folderPrimaryScore(b3, plainTitle, plainBody);
-  if (Math.abs(sa - sb) > PRIMARY_SCORE_AMBIGUITY_EPS) {
-    return sa >= sb ? a : b3;
-  }
-  const aTitle = candidateAppearsInTitle(plainTitle, a.keyword.name);
-  const bTitle = candidateAppearsInTitle(plainTitle, b3.keyword.name);
-  if (aTitle !== bTitle) {
-    return aTitle ? a : b3;
-  }
-  const ra = collectionRank(a.keyword.category);
-  const rb = collectionRank(b3.keyword.category);
-  if (ra !== rb) {
-    return ra < rb ? a : b3;
-  }
-  return sa >= sb ? a : b3;
-}
-function pickPrimaryRowFromDeduped(deduped, plainTitle, plainBody) {
-  if (!deduped.length) return null;
-  return deduped.reduce((best, cur) => betterPrimaryRow(best, cur, plainTitle, plainBody));
-}
-function buildRowsForCollectionSuggest(title, bodyHtml) {
-  const plainTitle = (title || "").trim();
-  const plainBody = stripHtml(bodyHtml || "", { preserveSpacing: true }).trim();
-  const full = `${plainTitle}
-${plainBody}`.trim();
-  if (!full) return { rows: [], plainTitle, plainBody };
-  const rows = findKeywordsInTextWithPriority(full, plainTitle, plainBody).map((r) => ({
-    keyword: r.keyword,
-    confidence: Math.min(1, r.confidence)
-  }));
-  return { rows, plainTitle, plainBody };
-}
-function pickPrimaryKeyword(rows, plainTitle, plainBody) {
-  const deduped = dedupeRowsByKeywordName(rows);
-  return pickPrimaryRowFromDeduped(deduped, plainTitle, plainBody)?.keyword ?? null;
-}
-function suggestPrimaryCollectionFromNote(title, bodyHtml) {
-  const { rows, plainTitle, plainBody } = buildRowsForCollectionSuggest(title, bodyHtml);
-  if (!rows.length) return null;
-  const primary = pickPrimaryKeyword(rows, plainTitle, plainBody);
-  if (!primary?.name) return null;
-  if (!meetsMinimumContext(plainTitle, plainBody, primary.name, rows)) return null;
-  return primary.name;
-}
-function scoreForName(name, rows, plainTitle, plainBody) {
-  const row = rows.find((r) => r.keyword.name.toLowerCase() === name.toLowerCase());
-  return row ? folderPrimaryScore(row, plainTitle, plainBody) : 0;
-}
-function normalizeTitleToken(token) {
-  return token.replace(/[^a-z0-9]/gi, "").toLowerCase();
-}
-function candidateAppearsInTitle(plainTitle, candidate) {
-  if (!candidate || !plainTitle.trim()) return false;
-  const cNorm = normalizeTitleToken(candidate);
-  if (!cNorm.length) return false;
-  const titleLower = plainTitle.toLowerCase();
-  if (candidate.includes(" ")) {
-    return titleLower.includes(candidate.trim().toLowerCase());
-  }
-  const titleWords = plainTitle.split(/\s+/).filter(Boolean);
-  return titleWords.some((w2) => normalizeTitleToken(w2) === cNorm);
-}
-function meetsMinimumContext(title, plainBody, candidate, rows) {
-  if (!candidate) return false;
-  const words = plainBody.split(/\s+/).filter(Boolean);
-  if (words.length >= MIN_BODY_WORDS) return true;
-  return scoreForName(candidate, rows, title, plainBody) >= SHORT_NOTE_CONFIDENCE_FLOOR;
-}
-
-// src/utils/suggest-study-thread-title.ts
-var CLUSTER_TEXT_CAP = 24e3;
-function nodePlainTitle(node) {
-  if (node.noteType === "resource" && node.resourceTitle?.trim()) {
-    return node.resourceTitle.trim();
-  }
-  return stripServerAutoUntitledNoteTitleForDisplay(node.title) ?? "";
-}
-function nodeBodyHtml(node) {
-  if (node.noteType === "resource" && node.resourceDescription?.trim()) {
-    return node.resourceDescription.trim();
-  }
-  return node.content ?? "";
-}
-function buildAggregateText(nodes) {
-  const titles = [];
-  const bodies = [];
-  for (const n of nodes) {
-    const t = nodePlainTitle(n);
-    const b3 = stripHtml(nodeBodyHtml(n), false);
-    if (t) titles.push(t);
-    if (b3) bodies.push(b3);
-  }
-  const title = titles.join(" \xB7 ").slice(0, 2e3);
-  let bodyHtml = bodies.join("\n\n");
-  if (bodyHtml.length > CLUSTER_TEXT_CAP) {
-    bodyHtml = bodyHtml.slice(0, CLUSTER_TEXT_CAP);
-  }
-  return { title, bodyHtml };
-}
-function displayablePlainTitle(node) {
-  return nodePlainTitle(node).trim();
-}
-function fallbackTitle(nodes, repNoteId) {
-  const rep = repNoteId ? nodes.find((n) => n.id === repNoteId) : void 0;
-  if (rep) {
-    const repTitle = displayablePlainTitle(rep);
-    if (repTitle) return repTitle;
-  }
-  const sorted = [...nodes].sort((a, b3) => {
-    const ta = a.updatedAt ?? "";
-    const tb = b3.updatedAt ?? "";
-    return tb.localeCompare(ta);
-  });
-  for (const n of sorted) {
-    const t = displayablePlainTitle(n);
-    if (t) return t;
-  }
-  return null;
-}
-function pickStudyThreadRepresentativeNoteId(noteIds, degreeById) {
-  const degree = (id) => {
-    if (degreeById instanceof Map) return degreeById.get(id) ?? 0;
-    return degreeById[id] ?? 0;
-  };
-  let best = null;
-  for (const id of noteIds) {
-    if (best == null) {
-      best = id;
-      continue;
-    }
-    const d = degree(id);
-    const bestD = degree(best);
-    if (d > bestD || d === bestD && id.localeCompare(best) < 0) {
-      best = id;
-    }
-  }
-  return best;
-}
-function suggestStudyThreadTitleFromNodes(nodes, repNoteId) {
-  if (!nodes.length) return "Study thread";
-  const { title, bodyHtml } = buildAggregateText(nodes);
-  const keyword = suggestPrimaryCollectionFromNote(title, bodyHtml);
-  if (keyword?.trim()) return keyword.trim();
-  return fallbackTitle(nodes, repNoteId) ?? "Study thread";
-}
-function resolveStudyThreadDisplayTitle(args) {
-  const suggested = args.suggestedTitle.trim() || "Study thread";
-  if (args.studyThreadUserOverride) {
-    const manual = stripServerAutoUntitledNoteTitleForDisplay(args.studyThreadTitle);
-    return manual?.trim() || suggested;
-  }
-  return suggested;
-}
-
-// server/utils/normalize-note-id.ts
-function normalizeServerNoteId(id) {
-  const trimmed = id.trim();
-  if (trimmed.startsWith("note/")) return `note_${trimmed.slice(5)}`;
-  if (trimmed.startsWith("note_")) return trimmed;
-  return `note_${trimmed}`;
-}
-
-// server/utils/study-thread-note-rows.ts
-init_db2();
-async function fetchStudyThreadNoteRows(nodeIds, userId) {
-  if (nodeIds.length === 0) return [];
-  try {
-    const rows = await db.select({
-      id: Notes.id,
-      title: Notes.title,
-      content: Notes.content,
-      simpleNoteId: Notes.simpleNoteId,
-      noteType: Notes.noteType,
-      studyThreadTitle: Notes.studyThreadTitle,
-      studyThreadUserOverride: Notes.studyThreadUserOverride,
-      studyThreadPinned: Notes.studyThreadPinned,
-      updatedAt: Notes.updatedAt
-    }).from(Notes).where(and(inArray(Notes.id, nodeIds), eq(Notes.userId, userId)));
-    return rows.map((r) => ({
-      ...r,
-      studyThreadUserOverride: Boolean(r.studyThreadUserOverride),
-      studyThreadPinned: Boolean(r.studyThreadPinned)
-    }));
-  } catch (error) {
-    if (!isStudyThreadNamingColumnMissing(error)) throw error;
-    const rows = await db.select({
-      id: Notes.id,
-      title: Notes.title,
-      content: Notes.content,
-      simpleNoteId: Notes.simpleNoteId,
-      noteType: Notes.noteType,
-      updatedAt: Notes.updatedAt
-    }).from(Notes).where(and(inArray(Notes.id, nodeIds), eq(Notes.userId, userId)));
-    return rows.map((r) => ({
-      ...r,
-      studyThreadTitle: null,
-      studyThreadUserOverride: false,
-      studyThreadPinned: false
-    }));
-  }
-}
-
-// server/utils/study-thread-cluster-naming.ts
-function resolveStudyThreadClusterNaming(memberRows, suggestNodes, repNoteId) {
-  const rep = memberRows.find((m2) => m2.id === repNoteId);
-  const suggestedTitle = suggestStudyThreadTitleFromNodes(suggestNodes, repNoteId);
-  const suggestedTrimmed = suggestedTitle.trim();
-  const manualCarrier = memberRows.find(
-    (m2) => m2.studyThreadUserOverride && Boolean(stripServerAutoUntitledNoteTitleForDisplay(m2.studyThreadTitle)?.trim())
-  ) ?? memberRows.find((m2) => {
-    const manual = stripServerAutoUntitledNoteTitleForDisplay(m2.studyThreadTitle)?.trim();
-    return Boolean(manual && manual !== suggestedTrimmed);
-  });
-  if (manualCarrier) {
-    return {
-      repNoteId,
-      suggestedTitle,
-      threadTitle: resolveStudyThreadDisplayTitle({
-        studyThreadTitle: manualCarrier.studyThreadTitle,
-        studyThreadUserOverride: true,
-        suggestedTitle
-      }),
-      studyThreadUserOverride: true,
-      studyThreadPinned: Boolean(rep?.studyThreadPinned ?? manualCarrier.studyThreadPinned)
-    };
-  }
-  const studyThreadUserOverride = Boolean(rep?.studyThreadUserOverride);
-  return {
-    repNoteId,
-    suggestedTitle,
-    threadTitle: resolveStudyThreadDisplayTitle({
-      studyThreadTitle: rep?.studyThreadTitle ?? null,
-      studyThreadUserOverride,
-      suggestedTitle
-    }),
-    studyThreadUserOverride,
-    studyThreadPinned: Boolean(rep?.studyThreadPinned)
-  };
-}
-
-// server/utils/study-thread-space.ts
-init_db2();
-
-// server/utils/study-thread-graph.ts
-init_db2();
-async function collectStudyThreadGraph(startNoteId, userId, options) {
-  const maxNodes = options?.maxNodes ?? 200;
-  const spaceId = options?.spaceId?.trim() || null;
-  const visited = /* @__PURE__ */ new Set([startNoteId]);
-  const collectedEdges = [];
-  let frontier = [startNoteId];
-  while (frontier.length > 0 && visited.size < maxNodes) {
-    const edgeConditions = [
-      eq(NoteConnections.userId, userId),
-      or(
-        inArray(NoteConnections.fromNoteId, frontier),
-        inArray(NoteConnections.toNoteId, frontier)
-      )
-    ];
-    if (spaceId) {
-      edgeConditions.push(eq(NoteConnections.spaceId, spaceId));
-    }
-    const edgeRows = await db.select({ fromNoteId: NoteConnections.fromNoteId, toNoteId: NoteConnections.toNoteId }).from(NoteConnections).where(and(...edgeConditions));
-    const next = [];
-    for (const edge of edgeRows) {
-      collectedEdges.push({ fromId: edge.fromNoteId, toId: edge.toNoteId });
-      for (const neighbor of [edge.fromNoteId, edge.toNoteId]) {
-        if (!visited.has(neighbor) && visited.size < maxNodes) {
-          visited.add(neighbor);
-          next.push(neighbor);
-        }
-      }
-    }
-    frontier = [...new Set(next)];
-  }
-  const edgeSet = /* @__PURE__ */ new Set();
-  const uniqueEdges = collectedEdges.filter((e) => {
-    const key2 = `${e.fromId}:${e.toId}`;
-    if (edgeSet.has(key2)) return false;
-    edgeSet.add(key2);
-    return true;
-  });
-  const degreeMap = /* @__PURE__ */ new Map();
-  for (const e of uniqueEdges) {
-    degreeMap.set(e.fromId, (degreeMap.get(e.fromId) ?? 0) + 1);
-    degreeMap.set(e.toId, (degreeMap.get(e.toId) ?? 0) + 1);
-  }
-  return { nodeIds: [...visited], edges: uniqueEdges, degreeMap };
-}
-
-// server/utils/study-thread-space.ts
-function normalizeScopeSpaceId(spaceId) {
-  if (!spaceId || !spaceId.trim()) return null;
-  const t = spaceId.trim();
-  return t.startsWith("space_") ? t : `space_${t}`;
-}
-async function resolveStudyThreadScopeSpaceId(focusNoteId, userId, preferredSpaceId) {
-  const preferred = normalizeScopeSpaceId(preferredSpaceId);
-  if (preferred) return preferred;
-  const focus = first(
-    await db.select({ spaceId: Notes.spaceId }).from(Notes).where(and(eq(Notes.id, focusNoteId), eq(Notes.userId, userId))).limit(1)
-  );
-  return normalizeScopeSpaceId(focus?.spaceId ?? null);
-}
-async function collectStudyThreadGraphForScope(focusNoteId, userId, options) {
-  const maxNodes = options?.maxNodes ?? 200;
-  let scopeSpaceId = await resolveStudyThreadScopeSpaceId(
-    focusNoteId,
-    userId,
-    options?.preferredSpaceId
-  );
-  let graph = await collectStudyThreadGraph(focusNoteId, userId, {
-    spaceId: scopeSpaceId,
-    maxNodes
-  });
-  if (graph.edges.length === 0) {
-    const touchRows = await db.select({
-      fromNoteId: NoteConnections.fromNoteId,
-      toNoteId: NoteConnections.toNoteId,
-      spaceId: NoteConnections.spaceId
-    }).from(NoteConnections).where(
-      and(
-        eq(NoteConnections.userId, userId),
-        or(
-          eq(NoteConnections.fromNoteId, focusNoteId),
-          eq(NoteConnections.toNoteId, focusNoteId)
-        )
-      )
-    ).limit(20);
-    const inferred = touchRows.map((r) => normalizeScopeSpaceId(r.spaceId)).find((id) => Boolean(id));
-    if (inferred && inferred !== scopeSpaceId) {
-      scopeSpaceId = inferred;
-      graph = await collectStudyThreadGraph(focusNoteId, userId, {
-        spaceId: scopeSpaceId,
-        maxNodes
-      });
-    }
-  }
-  return { graph, scopeSpaceId };
-}
-
-// server/utils/prototype-user-migration.ts
-init_db2();
-init_dates();
-function isSystemThreadId(threadId) {
-  return threadId === "thread_unorganized" || threadId.startsWith("thread_onboarding_");
-}
-var NOT_ONBOARDING_THREAD = sql`NOT starts_with(${Notes.threadId}::text, 'thread_onboarding_')`;
-async function loadThreadTitles(threadIds) {
-  if (threadIds.length === 0) return /* @__PURE__ */ new Map();
-  const rows = await db.select({ id: Threads.id, title: Threads.title }).from(Threads).where(inArray(Threads.id, threadIds));
-  return new Map(rows.map((r) => [r.id, r.title]));
-}
-async function loadSecondaries(noteIds) {
-  const out = /* @__PURE__ */ new Map();
-  if (noteIds.length === 0) return out;
-  const rows = await db.select({
-    noteId: NoteThreads.noteId,
-    threadId: NoteThreads.threadId,
-    title: Threads.title,
-    createdAt: NoteThreads.createdAt
-  }).from(NoteThreads).innerJoin(Threads, eq(NoteThreads.threadId, Threads.id)).where(inArray(NoteThreads.noteId, noteIds)).orderBy(asc(NoteThreads.noteId), asc(NoteThreads.createdAt));
-  for (const r of rows) {
-    const list = out.get(r.noteId) ?? [];
-    list.push({ noteId: r.noteId, threadId: r.threadId, title: r.title });
-    out.set(r.noteId, list);
-  }
-  return out;
-}
-function computeSecondariesForNote(noteThreadId, rows, primaryLabel) {
-  if (!rows?.length) return serializeNoteSecondaryCollections([]);
-  const titles = [];
-  for (const r of rows) {
-    if (r.threadId === noteThreadId) continue;
-    if (isSystemThreadId(r.threadId)) continue;
-    const t = (r.title || "").trim();
-    if (!t) continue;
-    titles.push(t);
-  }
-  const normalized = normalizeSecondaryLabels(titles, primaryLabel);
-  return serializeNoteSecondaryCollections(normalized);
-}
-async function backfillCollectionsFromThreadsForUser(userId, options) {
-  const batchSize = options?.batchSize ?? 400;
-  const maxNotes = options?.maxNotes;
-  let lastId = null;
-  let updated = 0;
-  let totalExamined = 0;
-  while (true) {
-    const conditions = [
-      eq(Notes.userId, userId),
-      isNull(Notes.primaryCollection),
-      eq(Notes.collectionUserOverride, false),
-      eq(Notes.collectionPinned, false),
-      ne(Notes.threadId, "thread_unorganized"),
-      NOT_ONBOARDING_THREAD
-    ];
-    if (lastId) conditions.push(gt(Notes.id, lastId));
-    const batch = await db.select({ id: Notes.id, threadId: Notes.threadId }).from(Notes).where(and(...conditions)).orderBy(asc(Notes.id)).limit(batchSize);
-    if (batch.length === 0) break;
-    const noteIds = batch.map((n) => n.id);
-    const primaryThreadIds = [...new Set(batch.map((n) => n.threadId))];
-    const titleByThreadId = await loadThreadTitles(primaryThreadIds);
-    const secondariesByNote = await loadSecondaries(noteIds);
-    for (const note of batch) {
-      if (maxNotes != null && totalExamined >= maxNotes) {
-        lastId = "__stop__";
-        break;
-      }
-      totalExamined++;
-      if (isSystemThreadId(note.threadId)) continue;
-      const rawTitle = titleByThreadId.get(note.threadId);
-      if (rawTitle == null) continue;
-      const primaryLabel = rawTitle.trim();
-      if (!primaryLabel.length) continue;
-      const secondarySerialized = computeSecondariesForNote(
-        note.threadId,
-        secondariesByNote.get(note.id),
-        primaryLabel
-      );
-      await db.update(Notes).set({
-        primaryCollection: primaryLabel,
-        secondaryCollections: secondarySerialized,
-        updatedAt: nowISO()
-      }).where(eq(Notes.id, note.id));
-      updated++;
-    }
-    if (lastId === "__stop__") break;
-    lastId = batch[batch.length - 1].id;
-    if (batch.length < batchSize) break;
-    if (maxNotes != null && totalExamined >= maxNotes) break;
-  }
-  return updated;
-}
-async function migrateLinkedFromNoteConnectionsForUser(userId) {
-  const linkedNotes = await db.select({ id: Notes.id, linkedFromNoteId: Notes.linkedFromNoteId, spaceId: Notes.spaceId }).from(Notes).where(and(eq(Notes.userId, userId), isNotNull(Notes.linkedFromNoteId)));
-  let migrated = 0;
-  let skipped = 0;
-  for (const note of linkedNotes) {
-    if (!note.linkedFromNoteId) continue;
-    try {
-      await db.insert(NoteConnections).values({
-        id: generateNoteId(),
-        fromNoteId: note.linkedFromNoteId,
-        toNoteId: note.id,
-        userId,
-        spaceId: note.spaceId ?? null,
-        createdAt: nowISO()
-      });
-      migrated += 1;
-    } catch (error) {
-      if (isPgUndefinedRelation(error, "NoteConnections")) throw error;
-      skipped += 1;
-    }
-  }
-  return { migrated, skipped };
-}
-async function runPrototypeUserMigration(userId) {
-  const collectionsUpdated = await backfillCollectionsFromThreadsForUser(userId);
-  const { migrated, skipped } = await migrateLinkedFromNoteConnectionsForUser(userId);
-  return {
-    collectionsUpdated,
-    connectionsMigrated: migrated,
-    connectionsSkipped: skipped
-  };
-}
-async function userNeedsCollectionBackfill(userId) {
-  const row = first(
-    await db.select({ id: Notes.id }).from(Notes).where(
-      and(
-        eq(Notes.userId, userId),
-        isNull(Notes.primaryCollection),
-        eq(Notes.collectionUserOverride, false),
-        eq(Notes.collectionPinned, false),
-        ne(Notes.threadId, "thread_unorganized"),
-        NOT_ONBOARDING_THREAD
-      )
-    ).limit(1)
-  );
-  return row != null;
 }
 
 // src/data/bible-chapters.json
@@ -145223,6 +143784,1550 @@ var parseVerseGroups = (reference) => {
   return groups;
 };
 
+// src/utils/tiptap-helpers.ts
+function stripNoteLinksToNoteId(htmlContent, targetNoteId) {
+  if (!htmlContent || !targetNoteId) {
+    return htmlContent;
+  }
+  const escaped = targetNoteId.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const pattern = new RegExp(
+    `<span[^>]*data-note-id\\s*=\\s*["']${escaped}["'][^>]*>([\\s\\S]*?)</span>`,
+    "gi"
+  );
+  return htmlContent.replace(pattern, (_3, inner) => inner ?? "");
+}
+
+// server/utils/delete-note-cascade.ts
+var DELETE_CHUNK = 2e3;
+function chunkIds(ids) {
+  const chunks = [];
+  for (let i = 0; i < ids.length; i += DELETE_CHUNK) {
+    chunks.push(ids.slice(i, i + DELETE_CHUNK));
+  }
+  return chunks;
+}
+async function deleteNotesCascadeForUser(userId, noteIds) {
+  if (noteIds.length === 0) {
+    return { deletedNoteIds: [], deletedStudyThreadIds: [] };
+  }
+  const deletedNoteIds = [];
+  for (const chunk of chunkIds(noteIds)) {
+    const owned = await db.select({ id: Notes.id }).from(Notes).where(and(eq(Notes.userId, userId), inArray(Notes.id, chunk)));
+    deletedNoteIds.push(...owned.map((row) => row.id));
+  }
+  if (deletedNoteIds.length === 0) {
+    return { deletedNoteIds: [], deletedStudyThreadIds: [] };
+  }
+  for (const chunk of chunkIds(deletedNoteIds)) {
+    await db.delete(NoteConnections).where(
+      or(
+        inArray(NoteConnections.fromNoteId, chunk),
+        inArray(NoteConnections.toNoteId, chunk)
+      )
+    );
+  }
+  const deletedStudyThreadIds = [];
+  for (const chunk of chunkIds(deletedNoteIds)) {
+    const studyRows = await db.select({ id: StudyThreadEntries.id }).from(StudyThreadEntries).where(
+      and(
+        eq(StudyThreadEntries.userId, userId),
+        or(inArray(StudyThreadEntries.parentNoteId, chunk), inArray(StudyThreadEntries.linkedNoteId, chunk))
+      )
+    );
+    deletedStudyThreadIds.push(...studyRows.map((row) => row.id));
+  }
+  for (const chunk of chunkIds(deletedNoteIds)) {
+    await db.delete(NoteThreads).where(inArray(NoteThreads.noteId, chunk));
+    await db.delete(NoteScriptureReferences2).where(or(inArray(NoteScriptureReferences2.noteId, chunk), inArray(NoteScriptureReferences2.scriptureNoteId, chunk)));
+    await db.delete(NoteTags).where(inArray(NoteTags.noteId, chunk));
+    await db.delete(Comments).where(inArray(Comments.noteId, chunk));
+    await db.delete(ScriptureMetadata).where(inArray(ScriptureMetadata.noteId, chunk));
+    await db.delete(ResourceMetadata).where(inArray(ResourceMetadata.noteId, chunk));
+    await db.delete(StudyThreadEntries).where(
+      and(
+        eq(StudyThreadEntries.userId, userId),
+        or(inArray(StudyThreadEntries.parentNoteId, chunk), inArray(StudyThreadEntries.linkedNoteId, chunk))
+      )
+    );
+  }
+  for (const chunk of chunkIds(deletedNoteIds)) {
+    await db.delete(Notes).where(and(eq(Notes.userId, userId), inArray(Notes.id, chunk)));
+  }
+  try {
+    const notesWithLinks = await db.select({ id: Notes.id, content: Notes.content }).from(Notes).where(and(eq(Notes.userId, userId), not(eq(Notes.contentEncrypted, true)), like(Notes.content, "%data-note-id=%")));
+    for (const note of notesWithLinks) {
+      if (!note.content?.includes("data-note-id")) continue;
+      let nextContent = note.content;
+      for (const deletedId of deletedNoteIds) {
+        nextContent = stripNoteLinksToNoteId(nextContent, deletedId);
+      }
+      if (nextContent !== note.content) {
+        await db.update(Notes).set({ content: nextContent, updatedAt: nowISO() }).where(and(eq(Notes.id, note.id), eq(Notes.userId, userId)));
+      }
+    }
+  } catch {
+  }
+  return { deletedNoteIds, deletedStudyThreadIds };
+}
+async function deleteSingleNoteCascadeForUser(userId, noteId) {
+  return deleteNotesCascadeForUser(userId, [noteId]);
+}
+
+// server/utils/sync-deletion-log.ts
+init_db2();
+init_dates();
+
+// server/utils/pg-undefined-relation.ts
+function isPgUndefinedRelation(error, relationName) {
+  const needle = `relation "${relationName}" does not exist`;
+  let current = error;
+  const seen = /* @__PURE__ */ new Set();
+  for (let depth = 0; depth < 12 && current != null; depth++) {
+    if (typeof current === "object" && current !== null) {
+      if (seen.has(current)) break;
+      seen.add(current);
+    }
+    const msg = current instanceof Error ? current.message : typeof current === "string" ? current : "";
+    const code = current !== null && typeof current === "object" && "code" in current && current.code != null ? String(current.code) : "";
+    if (msg.includes(needle)) return true;
+    if (code === "42P01" && msg.includes(relationName)) return true;
+    current = current instanceof Error && "cause" in current ? current.cause : void 0;
+  }
+  return false;
+}
+function isStudyThreadEntriesTableMissing(error) {
+  return isPgUndefinedRelation(error, "StudyThreadEntries");
+}
+function isNoteConnectionsTableMissing(error) {
+  return isPgUndefinedRelation(error, "NoteConnections");
+}
+function isSyncDeletedEntitiesTableMissing(error) {
+  return isPgUndefinedRelation(error, "SyncDeletedEntities");
+}
+function isPgUndefinedColumn(error, columnName) {
+  const needles = [`column "${columnName}" does not exist`, `column ${columnName} does not exist`];
+  let current = error;
+  const seen = /* @__PURE__ */ new Set();
+  for (let depth = 0; depth < 12 && current != null; depth++) {
+    if (typeof current === "object" && current !== null) {
+      if (seen.has(current)) break;
+      seen.add(current);
+    }
+    const msg = current instanceof Error ? current.message : typeof current === "string" ? current : "";
+    const code = current !== null && typeof current === "object" && "code" in current && current.code != null ? String(current.code) : "";
+    if (needles.some((n) => msg.includes(n))) return true;
+    if (code === "42703" && msg.includes(columnName)) return true;
+    current = current instanceof Error && "cause" in current ? current.cause : void 0;
+  }
+  return false;
+}
+function isStudyThreadNamingColumnMissing(error) {
+  return isPgUndefinedColumn(error, "studyThreadUserOverride") || isPgUndefinedColumn(error, "studyThreadPinned") || isPgUndefinedColumn(error, "studyThreadLastAutoSuggestedAt") || isPgUndefinedColumn(error, "studyThreadTitle");
+}
+
+// server/utils/sync-deletion-log.ts
+var EVENT_CHUNK = 1e3;
+var EMPTY_FEED = { deletedNoteIds: [], deletedStudyThreadIds: [], deletedThreadIds: [], deletedNoteConnectionIds: [] };
+async function recordDeletedEntities(userId, entityType, entityIds) {
+  const uniqueIds = Array.from(new Set(entityIds.filter(Boolean)));
+  if (uniqueIds.length === 0) return;
+  const now2 = nowISO();
+  const rows = uniqueIds.map((entityId) => ({
+    id: `sync_delete_${entityType}_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`,
+    userId,
+    entityType,
+    entityId,
+    deletedAt: now2
+  }));
+  try {
+    for (let i = 0; i < rows.length; i += EVENT_CHUNK) {
+      await db.insert(SyncDeletedEntities).values(rows.slice(i, i + EVENT_CHUNK));
+    }
+  } catch (error) {
+    if (isSyncDeletedEntitiesTableMissing(error)) {
+      console.warn(
+        "[sync/deletion-log] SyncDeletedEntities table missing; skipping tombstone writes. Run `npm run db:push`."
+      );
+      return;
+    }
+    throw error;
+  }
+}
+async function loadDeletedEntitiesSince(userId, sinceDate) {
+  let rows = [];
+  try {
+    rows = await db.select({
+      entityType: SyncDeletedEntities.entityType,
+      entityId: SyncDeletedEntities.entityId
+    }).from(SyncDeletedEntities).where(and(eq(SyncDeletedEntities.userId, userId), gt(SyncDeletedEntities.deletedAt, sinceDate)));
+  } catch (error) {
+    if (isSyncDeletedEntitiesTableMissing(error)) {
+      console.warn(
+        "[sync/deletion-log] SyncDeletedEntities table missing; returning empty deletion feed. Run `npm run db:push`."
+      );
+      return EMPTY_FEED;
+    }
+    throw error;
+  }
+  const deletedNoteIds = /* @__PURE__ */ new Set();
+  const deletedStudyThreadIds = /* @__PURE__ */ new Set();
+  const deletedThreadIds = /* @__PURE__ */ new Set();
+  const deletedNoteConnectionIds = /* @__PURE__ */ new Set();
+  for (const row of rows) {
+    if (!row.entityId) continue;
+    if (row.entityType === "note") deletedNoteIds.add(row.entityId);
+    if (row.entityType === "studyThread") deletedStudyThreadIds.add(row.entityId);
+    if (row.entityType === "thread") deletedThreadIds.add(row.entityId);
+    if (row.entityType === "noteConnection") deletedNoteConnectionIds.add(row.entityId);
+  }
+  return {
+    deletedNoteIds: Array.from(deletedNoteIds),
+    deletedStudyThreadIds: Array.from(deletedStudyThreadIds),
+    deletedThreadIds: Array.from(deletedThreadIds),
+    deletedNoteConnectionIds: Array.from(deletedNoteConnectionIds)
+  };
+}
+
+// server/utils/realtime.ts
+init_dist5();
+var adminClient = null;
+function getAdminClient() {
+  if (adminClient) return adminClient;
+  const url = process.env.SUPABASE_URL?.trim();
+  const key2 = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
+  if (!url || !key2) return null;
+  adminClient = createClient(url, key2, {
+    auth: { persistSession: false, autoRefreshToken: false }
+  });
+  return adminClient;
+}
+function syncChannelName(userId) {
+  return `sync-${userId}`;
+}
+function broadcastInvalidation(userId, payload) {
+  const client = getAdminClient();
+  if (!client) return;
+  void (async () => {
+    try {
+      const channel = client.channel(syncChannelName(userId));
+      const status = await channel.send({
+        type: "broadcast",
+        event: "invalidate",
+        payload
+      });
+      if (status === "error") {
+        console.error("[realtime] broadcast send returned error for", payload.type);
+      }
+      await client.removeChannel(channel);
+    } catch (err) {
+      console.error("[realtime] broadcast failed:", err instanceof Error ? err.message : err);
+    }
+  })();
+}
+function broadcastInvalidationForSyncPush(userId, mutations, results) {
+  const hadSuccess = results.some((r) => r.success);
+  if (!hadSuccess) return;
+  const successful = mutations.filter((_3, i) => results[i]?.success);
+  if (successful.length === 0) {
+    broadcastInvalidation(userId, { type: "sync:batch" });
+    return;
+  }
+  if (successful.length === 1) {
+    const payload = invalidationFromMutation(successful[0]);
+    if (payload) {
+      broadcastInvalidation(userId, payload);
+      return;
+    }
+  }
+  broadcastInvalidation(userId, { type: "sync:batch" });
+}
+function invalidationFromMutation(m2) {
+  const op = m2.operation;
+  const id = typeof m2.entityId === "string" ? m2.entityId : void 0;
+  switch (m2.entityType) {
+    case "note":
+      if (op === "create") return { type: "note:created", id };
+      if (op === "update") return { type: "note:updated", id };
+      if (op === "delete") return { type: "note:deleted", id };
+      return { type: "note:updated", id };
+    case "thread":
+      if (op === "delete") return { type: "thread:deleted", id };
+      return { type: "thread:updated", id };
+    case "space":
+      return { type: "space:updated", id };
+    default:
+      return null;
+  }
+}
+
+// server/routes/threads.ts
+var route9 = new Hono2();
+var ERASE_NOTE_CHUNK = 2e3;
+function parseSelectedNoteIds(raw2) {
+  if (!raw2) return [];
+  const trimmed = raw2.trim();
+  if (trimmed.length === 0) return [];
+  if (trimmed.startsWith("[") && trimmed.endsWith("]")) {
+    try {
+      const parsed = JSON.parse(trimmed);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }
+  return [];
+}
+async function addNotesToThread(noteIds, threadId, userId) {
+  if (noteIds.length === 0) return;
+  try {
+    const [validNotes, existingRelations] = await Promise.all([
+      db.select({ id: Notes.id, threadId: Notes.threadId }).from(Notes).where(and(inArray(Notes.id, noteIds), eq(Notes.userId, userId))),
+      db.select({ noteId: NoteThreads.noteId, threadId: NoteThreads.threadId }).from(NoteThreads).where(inArray(NoteThreads.noteId, noteIds))
+    ]);
+    const validNoteMap = new Map(validNotes.map((n) => [n.id, n]));
+    const relationsByNote = /* @__PURE__ */ new Map();
+    for (const rel of existingRelations) {
+      if (!relationsByNote.has(rel.noteId)) relationsByNote.set(rel.noteId, /* @__PURE__ */ new Set());
+      relationsByNote.get(rel.noteId).add(rel.threadId);
+    }
+    const now2 = nowISO();
+    const rowsToInsert = [];
+    const notesToReparent = [];
+    let i = 0;
+    for (const noteId of noteIds) {
+      const note = validNoteMap.get(noteId);
+      if (!note) continue;
+      const threadsForNote = relationsByNote.get(noteId);
+      if (threadsForNote?.has(threadId)) continue;
+      const isInUnorganized = !threadsForNote || threadsForNote.size === 0 || note.threadId === "thread_unorganized";
+      rowsToInsert.push({
+        id: `note-thread-${Date.now()}-${i}-${Math.random().toString(36).slice(2, 11)}`,
+        noteId,
+        threadId,
+        createdAt: now2
+      });
+      if (isInUnorganized && threadId !== "thread_unorganized") notesToReparent.push(noteId);
+      i++;
+    }
+    if (rowsToInsert.length > 0) {
+      await db.insert(NoteThreads).values(rowsToInsert).onConflictDoNothing();
+    }
+    if (notesToReparent.length > 0) {
+      await db.update(Notes).set({ threadId }).where(and(inArray(Notes.id, notesToReparent), eq(Notes.userId, userId)));
+    }
+    for (const { noteId } of rowsToInsert) {
+      moveScriptureNotesToThread(noteId, threadId, userId).catch((error) => {
+        console.error(`Error moving scripture notes for note ${noteId} (non-blocking):`, error);
+      });
+    }
+  } catch (error) {
+    console.error("Error adding notes to thread:", error);
+  }
+}
+route9.get("/api/threads/list", requireAuth, async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const threads = await getAllThreadsWithCounts(auth.userId);
+    const threadOptions = threads.map((thread) => ({
+      id: thread.id,
+      title: thread.title,
+      color: thread.color,
+      spaceId: thread.spaceId || null,
+      noteCount: thread.noteCount,
+      backgroundGradient: thread.backgroundGradient || getThreadGradientCSS(thread.color || "blue")
+    }));
+    const unorganizedThreadData = await ensureUnorganizedThread(auth.userId);
+    const hasUnorganizedThread = threadOptions.some((thread) => thread.id === "thread_unorganized");
+    if (!hasUnorganizedThread) {
+      threadOptions.unshift({
+        id: "thread_unorganized",
+        title: MY_PILE_THREAD_TITLE,
+        color: null,
+        spaceId: null,
+        noteCount: unorganizedThreadData.noteCount || 0,
+        backgroundGradient: getThreadGradientCSS("paper")
+      });
+    } else {
+      const unorganizedIndex = threadOptions.findIndex((thread) => thread.id === "thread_unorganized");
+      if (unorganizedIndex !== -1) {
+        threadOptions[unorganizedIndex].noteCount = unorganizedThreadData.noteCount || 0;
+        threadOptions[unorganizedIndex].spaceId = null;
+      }
+    }
+    return c.json(threadOptions);
+  } catch (error) {
+    const standardError = handleAPIError(error, { endpoint: "/api/threads/list", action: "list_threads" });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+route9.post("/api/threads/create", requireAuth, rateLimit("write"), async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const formData = await c.req.formData();
+    const title = formData.get("title");
+    const color = formData.get("color");
+    const isPublic = formData.get("isPublic") === "true";
+    const spaceId = formData.get("spaceId");
+    const selectedNoteIds = parseSelectedNoteIds(formData.get("selectedNoteIds"));
+    const titleValidation = validateTitle(title, false);
+    if (!titleValidation.isValid) return c.json({ error: titleValidation.error, code: titleValidation.code }, 400);
+    let finalTitle;
+    if (!title || !title.trim()) {
+      finalTitle = await getNextUntitledThreadName(auth.userId);
+    } else {
+      finalTitle = title.trim();
+    }
+    const colorValidation = validateColor(color);
+    if (!colorValidation.isValid) return c.json({ error: colorValidation.error, code: colorValidation.code }, 400);
+    let threadColor = color;
+    if (color && !THREAD_COLORS.includes(color)) threadColor = getRandomThreadColor();
+    else if (!color) threadColor = getRandomThreadColor();
+    const spaceIdValidation = validateSpaceId(spaceId);
+    if (!spaceIdValidation.isValid) return c.json({ error: spaceIdValidation.error, code: spaceIdValidation.code }, 400);
+    let finalSpaceId = null;
+    if (spaceId && spaceId.trim() && spaceId !== "default_space") finalSpaceId = spaceId;
+    const capitalizedTitle = finalTitle.charAt(0).toUpperCase() + finalTitle.slice(1);
+    const shareToken = isPublic ? generateShareToken() : null;
+    const now2 = nowISO();
+    const newThread = first(await db.insert(Threads).values({
+      id: generateThreadId(),
+      title: capitalizedTitle,
+      subtitle: null,
+      spaceId: finalSpaceId,
+      userId: auth.userId,
+      isPublic,
+      color: threadColor,
+      isPinned: false,
+      shareToken,
+      shareTokenCreatedAt: isPublic ? now2 : null,
+      createdAt: now2,
+      updatedAt: now2,
+      lastVisited: now2
+    }).returning());
+    if (selectedNoteIds.length > 0) {
+      await addNotesToThread(selectedNoteIds, newThread.id, auth.userId);
+      await db.update(Threads).set({ updatedAt: nowISO() }).where(and(eq(Threads.id, newThread.id), eq(Threads.userId, auth.userId)));
+    }
+    awardCreationBonusXP(auth.userId, "thread").catch(() => {
+    });
+    broadcastInvalidation(auth.userId, { type: "thread:updated", id: newThread.id });
+    return c.json({ success: "Thread created!", thread: newThread });
+  } catch (error) {
+    const standardError = handleAPIError(error, { endpoint: "/api/threads/create", action: "create_thread" });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+route9.post("/api/threads/update", requireAuth, rateLimit("write"), async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const formData = await c.req.formData();
+    const threadId = formData.get("id");
+    const title = formData.get("title");
+    const color = formData.get("color");
+    const subtitle = formData.get("subtitle");
+    const isPublic = formData.get("isPublic") === "true";
+    const selectedNoteIds = parseSelectedNoteIds(formData.get("selectedNoteIds"));
+    if (!threadId) return c.json({ error: "Thread ID is required" }, 400);
+    const titleValidation = validateTitle(title, true);
+    if (!titleValidation.isValid) return c.json({ error: titleValidation.error, code: titleValidation.code }, 400);
+    const colorValidation = validateColor(color);
+    if (!colorValidation.isValid) return c.json({ error: colorValidation.error, code: colorValidation.code }, 400);
+    const currentThread = first(await db.select().from(Threads).where(and(eq(Threads.id, threadId), eq(Threads.userId, auth.userId))).limit(1));
+    if (!currentThread) return c.json({ error: "Thread not found or access denied" }, 404);
+    const capitalizedTitle = title.charAt(0).toUpperCase() + title.slice(1);
+    const normalizedSubtitle = subtitle || null;
+    const titleChanged = currentThread.title !== capitalizedTitle;
+    const subtitleChanged = (currentThread.subtitle || null) !== normalizedSubtitle;
+    const isPublicChanged = currentThread.isPublic !== isPublic;
+    const onlyColorChanged = !titleChanged && !subtitleChanged && !isPublicChanged;
+    const updateData = {
+      title: capitalizedTitle,
+      subtitle: normalizedSubtitle,
+      isPublic,
+      color
+    };
+    if (!onlyColorChanged) {
+      updateData.updatedAt = nowISO();
+    }
+    const updatedThread = first(await db.update(Threads).set(updateData).where(and(eq(Threads.id, threadId), eq(Threads.userId, auth.userId))).returning());
+    if (selectedNoteIds.length > 0) {
+      await addNotesToThread(selectedNoteIds, threadId, auth.userId);
+      await db.update(Threads).set({ updatedAt: nowISO() }).where(and(eq(Threads.id, threadId), eq(Threads.userId, auth.userId)));
+    }
+    broadcastInvalidation(auth.userId, { type: "thread:updated", id: threadId });
+    return c.json({ success: "Thread updated!", thread: updatedThread });
+  } catch (error) {
+    const standardError = handleAPIError(error, { endpoint: "/api/threads/update", action: "update_thread" });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+route9.delete("/api/threads/delete", requireAuth, rateLimit("write"), async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const threadId = c.req.query("threadId");
+    if (!threadId) return c.json({ error: "Thread ID is required" }, 400);
+    const existingThread = first(await db.select().from(Threads).where(and(eq(Threads.id, threadId), eq(Threads.userId, auth.userId))).limit(1));
+    if (!existingThread) return c.json({ error: "Thread not found or access denied" }, 404);
+    if (threadId === "thread_unorganized") return c.json({ error: "Cannot delete the unorganized thread" }, 400);
+    const threadCreatedAt = existingThread.createdAt;
+    await revokeXPOnDeletion(auth.userId, threadId, new Date(threadCreatedAt));
+    await revokeAllXPForItem(auth.userId, threadId);
+    const affectedNotes = await db.select({ noteId: NoteThreads.noteId }).from(NoteThreads).where(eq(NoteThreads.threadId, threadId));
+    await db.delete(NoteThreads).where(eq(NoteThreads.threadId, threadId));
+    if (affectedNotes.length > 0) {
+      const affectedNoteIds = affectedNotes.map((n) => n.noteId);
+      const remaining = await db.select({ noteId: NoteThreads.noteId, threadId: NoteThreads.threadId }).from(NoteThreads).where(inArray(NoteThreads.noteId, affectedNoteIds));
+      const firstRemainingByNote = /* @__PURE__ */ new Map();
+      for (const rel of remaining) {
+        if (!firstRemainingByNote.has(rel.noteId)) firstRemainingByNote.set(rel.noteId, rel.threadId);
+      }
+      const notesByDestination = /* @__PURE__ */ new Map();
+      for (const noteId of affectedNoteIds) {
+        const dest = firstRemainingByNote.get(noteId) ?? "thread_unorganized";
+        if (!notesByDestination.has(dest)) notesByDestination.set(dest, []);
+        notesByDestination.get(dest).push(noteId);
+      }
+      await Promise.all(
+        Array.from(notesByDestination.entries()).map(
+          ([dest, ids]) => db.update(Notes).set({ threadId: dest, spaceId: null }).where(and(inArray(Notes.id, ids), eq(Notes.userId, auth.userId)))
+        )
+      );
+    }
+    await db.delete(Threads).where(and(eq(Threads.id, threadId), eq(Threads.userId, auth.userId)));
+    await recordDeletedEntities(auth.userId, "thread", [threadId]);
+    broadcastInvalidation(auth.userId, { type: "thread:deleted", id: threadId });
+    return c.json({ success: `Thread erased! Notes have been moved to the ${MY_PILE_THREAD_TITLE} thread.`, threadId });
+  } catch (error) {
+    const standardError = handleAPIError(error, { endpoint: "/api/threads/delete", action: "delete_thread" });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+route9.post("/api/threads/ensure-unorganized", requireAuth, async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const existingThread = first(await db.select().from(Threads).where(and(eq(Threads.userId, auth.userId), eq(Threads.id, "thread_unorganized"))).limit(1));
+    if (existingThread) {
+      return c.json({ success: true, message: `${MY_PILE_THREAD_TITLE} thread already exists`, thread: existingThread });
+    }
+    const now2 = nowISO();
+    const unorganizedThread = {
+      id: "thread_unorganized",
+      userId: auth.userId,
+      title: MY_PILE_THREAD_TITLE,
+      subtitle: "Individual notes and unassigned content",
+      color: null,
+      spaceId: null,
+      isPublic: false,
+      isPinned: false,
+      createdAt: now2,
+      updatedAt: now2
+    };
+    try {
+      await db.insert(Threads).values(unorganizedThread);
+      return c.json({ success: true, message: `${MY_PILE_THREAD_TITLE} thread created`, thread: unorganizedThread }, 201);
+    } catch (insertError) {
+      if (insertError.code === "23505" || insertError.message?.includes("unique constraint")) {
+        const createdThread = first(await db.select().from(Threads).where(and(eq(Threads.userId, auth.userId), eq(Threads.id, "thread_unorganized"))).limit(1));
+        if (createdThread) return c.json({ success: true, message: `${MY_PILE_THREAD_TITLE} thread already exists`, thread: createdThread });
+      }
+      throw insertError;
+    }
+  } catch (error) {
+    console.error("Error ensuring unorganized thread:", error);
+    return c.json({ error: "Failed to ensure unorganized thread exists" }, 500);
+  }
+});
+route9.delete("/api/threads/erase-with-notes", requireAuth, rateLimit("write"), async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const threadId = c.req.query("threadId");
+    if (!threadId) return c.json({ error: "Thread ID is required" }, 400);
+    const existingThread = first(await db.select().from(Threads).where(and(eq(Threads.id, threadId), eq(Threads.userId, auth.userId))).limit(1));
+    if (!existingThread) return c.json({ error: "Thread not found or access denied" }, 404);
+    if (threadId === "thread_unorganized") return c.json({ error: "Cannot erase the unorganized thread" }, 400);
+    const affectedNotes = await db.select({ noteId: NoteThreads.noteId }).from(NoteThreads).where(eq(NoteThreads.threadId, threadId));
+    const candidateNoteIds = [...new Set(affectedNotes.map((n) => n.noteId))];
+    const ownedNoteIds = [];
+    for (let i = 0; i < candidateNoteIds.length; i += ERASE_NOTE_CHUNK) {
+      const chunk = candidateNoteIds.slice(i, i + ERASE_NOTE_CHUNK);
+      const rows = await db.select({ id: Notes.id }).from(Notes).where(
+        and(eq(Notes.userId, auth.userId), inArray(Notes.id, chunk))
+      );
+      ownedNoteIds.push(...rows.map((r) => r.id));
+    }
+    await deleteAllXpForRelatedIds(auth.userId, [...ownedNoteIds, threadId]);
+    const deleted = await deleteNotesCascadeForUser(auth.userId, ownedNoteIds);
+    await db.delete(NoteThreads).where(eq(NoteThreads.threadId, threadId));
+    await recordDeletedEntities(auth.userId, "note", deleted.deletedNoteIds);
+    await recordDeletedEntities(auth.userId, "studyThread", deleted.deletedStudyThreadIds);
+    await db.delete(Threads).where(and(eq(Threads.id, threadId), eq(Threads.userId, auth.userId)));
+    await recordDeletedEntities(auth.userId, "thread", [threadId]);
+    return c.json({ success: "Thread and all notes erased!", threadId, notesDeleted: ownedNoteIds.length });
+  } catch (error) {
+    const standardError = handleAPIError(error, { endpoint: "/api/threads/erase-with-notes", action: "erase_thread_with_notes" });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+route9.get("/api/threads/:threadId/prefetch", requireAuth, async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    let threadId = requireParam(c, "threadId");
+    if (threadId.startsWith("thread/")) threadId = "thread_" + threadId.slice(7);
+    let thread = await getThreadWithCount(threadId, auth.userId);
+    let notesResult = await getNotesForThread(threadId, auth.userId, 20, 0);
+    let noteTypeCounts = await getThreadNoteTypeCounts(threadId, auth.userId);
+    if (!thread) {
+      if (threadId === "thread_unorganized") {
+        const notes2 = Array.isArray(notesResult) ? [] : notesResult.notes;
+        thread = {
+          id: "thread_unorganized",
+          title: MY_PILE_THREAD_TITLE,
+          subtitle: "Notes that haven't been organized into threads yet",
+          color: null,
+          userId: auth.userId,
+          spaceId: null,
+          noteCount: noteTypeCounts?.all ?? notes2?.length ?? 0,
+          backgroundGradient: getThreadGradientCSS("paper"),
+          lastUpdated: (/* @__PURE__ */ new Date()).toISOString(),
+          accentColor: getThreadColorCSS(null),
+          isPublic: false,
+          isPinned: false,
+          createdAt: (/* @__PURE__ */ new Date()).toISOString(),
+          updatedAt: (/* @__PURE__ */ new Date()).toISOString(),
+          lastVisited: null
+        };
+      } else {
+        const threadRow = first(await db.select().from(Threads).where(eq(Threads.id, threadId)).limit(1));
+        if (!threadRow) return c.json({ error: "Thread not found" }, 404);
+        if (threadRow.spaceId) {
+          try {
+            const { space } = await requireSpaceAccess(threadRow.spaceId, auth.userId);
+            thread = await getThreadWithCount(threadId, space.userId);
+            const memberNotes = await getNotesForThreadForMember(threadId, space.userId, 20, 0);
+            notesResult = memberNotes;
+            noteTypeCounts = await getThreadNoteTypeCounts(threadId, space.userId);
+          } catch {
+            return c.json({ error: "Thread not found" }, 404);
+          }
+        } else {
+          return c.json({ error: "Thread not found" }, 404);
+        }
+      }
+    }
+    if (!thread) return c.json({ error: "Thread not found" }, 404);
+    const notes = Array.isArray(notesResult) ? [] : notesResult.notes;
+    return c.json({
+      thread: {
+        id: thread.id,
+        title: thread.title,
+        subtitle: thread.subtitle,
+        color: thread.color,
+        noteCount: thread.noteCount,
+        backgroundGradient: thread.backgroundGradient,
+        userId: thread.userId,
+        spaceId: thread.spaceId ?? null
+      },
+      notes,
+      noteTypeCounts
+    }, 200, {
+      // Title/color change often; avoid browser HTTP cache serving stale thread headers for minutes.
+      "Cache-Control": "private, no-cache"
+    });
+  } catch (error) {
+    console.error("[prefetch] Error fetching thread data:", error);
+    return c.json({ error: "Failed to fetch thread data", details: error.message }, 500);
+  }
+});
+route9.get("/api/threads/:threadId/note-type-counts", requireAuth, async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    let threadId = requireParam(c, "threadId");
+    if (threadId.startsWith("thread/")) threadId = "thread_" + threadId.slice(7);
+    let noteTypeCounts = await getThreadNoteTypeCounts(threadId, auth.userId);
+    const threadRow = first(await db.select().from(Threads).where(eq(Threads.id, threadId)).limit(1));
+    if (!threadRow) return c.json({ error: "Thread not found" }, 404);
+    if (threadRow.userId !== auth.userId && threadRow.spaceId) {
+      try {
+        const { space } = await requireSpaceAccess(threadRow.spaceId, auth.userId);
+        noteTypeCounts = await getThreadNoteTypeCounts(threadId, space.userId);
+      } catch {
+        return c.json({ error: "Thread not found" }, 404);
+      }
+    }
+    return c.json({ noteTypeCounts });
+  } catch (error) {
+    const standardError = handleAPIError(error, {
+      endpoint: "/api/threads/[threadId]/note-type-counts",
+      action: "get_thread_note_type_counts",
+      threadId: c.req.param("threadId")
+    });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+route9.post("/api/threads/:threadId/visit", requireAuth, async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    let threadId = requireParam(c, "threadId");
+    if (threadId.startsWith("thread/")) threadId = "thread_" + threadId.slice(7);
+    const thread = first(await db.select().from(Threads).where(eq(Threads.id, threadId)).limit(1));
+    if (!thread) return c.json({ error: "Thread not found" }, 404);
+    if (thread.userId !== auth.userId && thread.spaceId) {
+      try {
+        await requireSpaceAccess(thread.spaceId, auth.userId);
+      } catch {
+        return c.json({ error: "Thread not found" }, 404);
+      }
+    }
+    await db.update(Threads).set({ lastVisited: nowISO() }).where(eq(Threads.id, threadId));
+    return c.json({ ok: true });
+  } catch (error) {
+    console.error("[visit] Error updating thread lastVisited:", error);
+    return c.json({ error: error.message || "Failed to update visit" }, 500);
+  }
+});
+route9.get("/api/threads/:threadId/notes", requireAuth, async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    let threadId = requireParam(c, "threadId");
+    if (threadId.startsWith("thread/")) threadId = "thread_" + threadId.slice(7);
+    const offset = parseInt(c.req.query("offset") || "0", 10);
+    const limit = parseInt(c.req.query("limit") || "20", 10);
+    let result = await getNotesForThread(threadId, auth.userId, limit, offset);
+    if (Array.isArray(result)) {
+      result = { notes: [], hasMore: false };
+    }
+    if (result.notes.length === 0 && offset === 0) {
+      const thread = first(await db.select().from(Threads).where(eq(Threads.id, threadId)).limit(1));
+      if (thread?.spaceId) {
+        let memberNotesResult = null;
+        try {
+          const { space } = await requireSpaceAccess(thread.spaceId, auth.userId);
+          memberNotesResult = await getNotesForThreadForMember(threadId, space.userId, limit, offset);
+        } catch {
+          const spaceRow = first(await db.select().from(Spaces).where(eq(Spaces.id, thread.spaceId)).limit(1));
+          const memberRow = first(await db.select().from(Members).where(and(eq(Members.spaceId, thread.spaceId), eq(Members.userId, auth.userId))).limit(1));
+          if (spaceRow && memberRow) {
+            memberNotesResult = await getNotesForThreadForMember(threadId, spaceRow.userId, limit, offset);
+          }
+        }
+        if (memberNotesResult) result = memberNotesResult;
+      }
+    }
+    return c.json({ notes: result.notes, hasMore: result.hasMore, offset, limit });
+  } catch (error) {
+    const standardError = handleAPIError(error, { endpoint: "/api/threads/[threadId]/notes", action: "get_thread_notes", threadId: c.req.param("threadId") });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+route9.get("/api/threads/:threadId/share", requireAuth, async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const threadId = requireParam(c, "threadId");
+    const thread = first(await db.select({
+      id: Threads.id,
+      isPublic: Threads.isPublic,
+      shareToken: Threads.shareToken,
+      shareTokenCreatedAt: Threads.shareTokenCreatedAt,
+      userId: Threads.userId
+    }).from(Threads).where(eq(Threads.id, threadId)).limit(1));
+    if (!thread) return c.json({ error: "Thread not found" }, 404);
+    if (thread.userId !== auth.userId) return c.json({ error: "You do not have permission to access this thread" }, 403);
+    const origin = new URL(c.req.url).origin;
+    return c.json({
+      isPublic: thread.isPublic,
+      shareToken: thread.shareToken,
+      shareUrl: thread.shareToken ? `${origin}/shared/thread/${thread.shareToken}` : null,
+      shareTokenCreatedAt: thread.shareTokenCreatedAt
+    });
+  } catch (error) {
+    const standardError = handleAPIError(error, { endpoint: "/api/threads/[threadId]/share", action: "get_share_status", threadId: c.req.param("threadId") });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+route9.post("/api/threads/:threadId/share", requireAuth, async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const threadId = requireParam(c, "threadId");
+    const { action } = await c.req.json();
+    if (!action || !["enable", "disable", "refresh"].includes(action)) {
+      return c.json({ error: "Invalid action. Must be enable, disable, or refresh" }, 400);
+    }
+    const thread = first(await db.select({
+      id: Threads.id,
+      isPublic: Threads.isPublic,
+      shareToken: Threads.shareToken,
+      userId: Threads.userId
+    }).from(Threads).where(eq(Threads.id, threadId)).limit(1));
+    if (!thread) return c.json({ error: "Thread not found" }, 404);
+    if (thread.userId !== auth.userId) return c.json({ error: "You do not have permission to modify this thread" }, 403);
+    const now2 = nowISO();
+    let newShareToken = null;
+    let isPublic = thread.isPublic;
+    if (action === "enable") {
+      newShareToken = generateShareToken();
+      isPublic = true;
+      await db.update(Threads).set({ isPublic: true, shareToken: newShareToken, shareTokenCreatedAt: now2, updatedAt: now2 }).where(and(eq(Threads.id, threadId), eq(Threads.userId, auth.userId)));
+    } else if (action === "disable") {
+      newShareToken = null;
+      isPublic = false;
+      await db.update(Threads).set({ isPublic: false, shareToken: null, shareTokenCreatedAt: null, updatedAt: now2 }).where(and(eq(Threads.id, threadId), eq(Threads.userId, auth.userId)));
+    } else if (action === "refresh") {
+      if (!thread.isPublic) return c.json({ error: "Cannot refresh share link for a private thread" }, 400);
+      newShareToken = generateShareToken();
+      isPublic = true;
+      await db.update(Threads).set({ shareToken: newShareToken, shareTokenCreatedAt: now2, updatedAt: now2 }).where(and(eq(Threads.id, threadId), eq(Threads.userId, auth.userId)));
+    }
+    const origin = new URL(c.req.url).origin;
+    const shareUrl = newShareToken ? `${origin}/shared/thread/${newShareToken}` : null;
+    return c.json({ success: true, isPublic, shareToken: newShareToken, shareUrl, shareTokenCreatedAt: action !== "disable" ? now2 : null });
+  } catch (error) {
+    const standardError = handleAPIError(error, { endpoint: "/api/threads/[threadId]/share", action: "update_share_status", threadId: c.req.param("threadId") });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+route9.get("/api/threads/:threadId/referenced-scripture-notes", requireAuth, async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const noteIdsParam = c.req.query("noteIds");
+    if (!noteIdsParam) return c.json({ scriptureNoteIds: [] });
+    const noteIds = noteIdsParam.split(",").filter((id) => id);
+    if (noteIds.length === 0) return c.json({ scriptureNoteIds: [] });
+    const references = await db.select({ scriptureNoteId: NoteScriptureReferences.scriptureNoteId }).from(NoteScriptureReferences).innerJoin(Notes, eq(NoteScriptureReferences.scriptureNoteId, Notes.id)).where(and(inArray(NoteScriptureReferences.noteId, noteIds), eq(Notes.userId, auth.userId), eq(Notes.noteType, "scripture")));
+    const scriptureNoteIds = [...new Set(references.map((r) => r.scriptureNoteId))];
+    return c.json({ scriptureNoteIds });
+  } catch (error) {
+    const standardError = handleAPIError(error, { endpoint: "/api/threads/[threadId]/referenced-scripture-notes", action: "get_referenced_scripture_notes", threadId: c.req.param("threadId") });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+var threads_default = route9;
+
+// server/routes/notes.ts
+init_db2();
+init_dates();
+
+// server/utils/harvous-admin.ts
+function getHarvousSystemUserId() {
+  const id = process.env.HARVOUS_SYSTEM_USER_ID;
+  if (!id) throw new Error("Missing env HARVOUS_SYSTEM_USER_ID");
+  return id;
+}
+function isHarvousAdmin(c) {
+  const auth = getAuth(c);
+  const userId = auth?.userId ?? null;
+  const systemUserId = process.env.HARVOUS_SYSTEM_USER_ID;
+  if (userId && systemUserId && userId === systemUserId) return true;
+  const expectedSecret = process.env.HARVOUS_ADMIN_SECRET?.trim();
+  if (!expectedSecret) return false;
+  const authHeader = (c.req.header("authorization") ?? c.req.header("Authorization") ?? "").split(",")[0].trim();
+  const m2 = authHeader.match(/^Bearer\s+(.+)$/i);
+  const provided = m2?.[1]?.trim();
+  return provided === expectedSecret;
+}
+function requireHarvousAdmin(c) {
+  if (!isHarvousAdmin(c)) {
+    return c.json({ error: "Unauthorized" }, 401);
+  }
+  return null;
+}
+
+// src/utils/suggest-study-thread-title.ts
+init_html_stripper();
+
+// src/utils/server-auto-untitled-note-display.ts
+var SERVER_AUTO_UNTITLED_NOTE = /^\s*Untitled Note(?: \d+)?\s*$/i;
+function stripServerAutoUntitledNoteTitleForDisplay(title) {
+  if (title == null) return "";
+  const t = title.trim();
+  if (t === "") return "";
+  return SERVER_AUTO_UNTITLED_NOTE.test(t) ? "" : title;
+}
+
+// src/utils/bible-study-collection-web.ts
+init_html_stripper();
+var MIN_BODY_WORDS = 25;
+var SHORT_NOTE_CONFIDENCE_FLOOR = 0.9;
+var PRIMARY_SCORE_AMBIGUITY_EPS = 0.04;
+function collectionRank(cat) {
+  if (cat === "spiritual") return 0;
+  if (cat === "biblical" || cat === "theme") return 1;
+  if (cat === "book") return 2;
+  if (cat === "life") return 3;
+  if (cat === "character") return 4;
+  if (cat === "place") return 5;
+  return 10;
+}
+function folderPrimaryScore(row, plainTitle, plainBody) {
+  let score = Math.min(1, row.confidence);
+  const cat = row.keyword.category;
+  if (["spiritual", "biblical", "character", "book", "theme"].includes(cat)) {
+    score = Math.min(1, score + 0.05);
+  }
+  switch (cat) {
+    case "spiritual":
+    case "biblical":
+    case "life":
+    case "theme":
+      score += 0.08;
+      break;
+    case "character":
+    case "place": {
+      const occ = countKeywordOccurrences(plainTitle, plainBody, row.keyword);
+      if (occ <= 1) {
+        score -= 0.12;
+      } else if (occ >= 5) {
+        score += 0.28;
+      } else if (occ >= 3) {
+        score += 0.18;
+      } else {
+        score += 0.06;
+      }
+      break;
+    }
+    default:
+      break;
+  }
+  return score;
+}
+function escapeRegExp(s2) {
+  return s2.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+function countKeywordOccurrences(plainTitle, plainBody, keyword) {
+  const corpus = `${plainTitle} ${plainBody}`.toLowerCase();
+  let total = 0;
+  const needles = [keyword.name, ...keyword.synonyms];
+  const seen = /* @__PURE__ */ new Set();
+  for (const raw2 of needles) {
+    const n = raw2.trim().toLowerCase();
+    if (!n || seen.has(n)) continue;
+    seen.add(n);
+    if (n.includes(" ") || n.includes("-")) {
+      let i = 0;
+      while ((i = corpus.indexOf(n, i)) !== -1) {
+        total++;
+        i += Math.max(1, n.length);
+      }
+    } else {
+      const re2 = new RegExp(`\\b${escapeRegExp(n)}\\b`, "g");
+      total += (corpus.match(re2) || []).length;
+    }
+  }
+  return total;
+}
+function dedupeRowsByKeywordName(rows) {
+  const by = /* @__PURE__ */ new Map();
+  for (const r of rows) {
+    if (isAutoFolderExcludedKeyword(r.keyword.name)) continue;
+    const k2 = r.keyword.name.toLowerCase();
+    const prev = by.get(k2);
+    if (!prev || r.confidence > prev.confidence) by.set(k2, r);
+  }
+  return [...by.values()];
+}
+function betterPrimaryRow(a, b3, plainTitle, plainBody) {
+  const sa = folderPrimaryScore(a, plainTitle, plainBody);
+  const sb = folderPrimaryScore(b3, plainTitle, plainBody);
+  if (Math.abs(sa - sb) > PRIMARY_SCORE_AMBIGUITY_EPS) {
+    return sa >= sb ? a : b3;
+  }
+  const aTitle = candidateAppearsInTitle(plainTitle, a.keyword.name);
+  const bTitle = candidateAppearsInTitle(plainTitle, b3.keyword.name);
+  if (aTitle !== bTitle) {
+    return aTitle ? a : b3;
+  }
+  const ra = collectionRank(a.keyword.category);
+  const rb = collectionRank(b3.keyword.category);
+  if (ra !== rb) {
+    return ra < rb ? a : b3;
+  }
+  return sa >= sb ? a : b3;
+}
+function pickPrimaryRowFromDeduped(deduped, plainTitle, plainBody) {
+  if (!deduped.length) return null;
+  return deduped.reduce((best, cur) => betterPrimaryRow(best, cur, plainTitle, plainBody));
+}
+function buildRowsForCollectionSuggest(title, bodyHtml) {
+  const plainTitle = (title || "").trim();
+  const plainBody = stripHtml(bodyHtml || "", { preserveSpacing: true }).trim();
+  const full = `${plainTitle}
+${plainBody}`.trim();
+  if (!full) return { rows: [], plainTitle, plainBody };
+  const rows = findKeywordsInTextWithPriority(full, plainTitle, plainBody).map((r) => ({
+    keyword: r.keyword,
+    confidence: Math.min(1, r.confidence)
+  }));
+  return { rows, plainTitle, plainBody };
+}
+function pickPrimaryKeyword(rows, plainTitle, plainBody) {
+  const deduped = dedupeRowsByKeywordName(rows);
+  return pickPrimaryRowFromDeduped(deduped, plainTitle, plainBody)?.keyword ?? null;
+}
+function suggestPrimaryCollectionFromNote(title, bodyHtml) {
+  const { rows, plainTitle, plainBody } = buildRowsForCollectionSuggest(title, bodyHtml);
+  if (!rows.length) return null;
+  const primary = pickPrimaryKeyword(rows, plainTitle, plainBody);
+  if (!primary?.name) return null;
+  if (!meetsMinimumContext(plainTitle, plainBody, primary.name, rows)) return null;
+  return primary.name;
+}
+function scoreForName(name, rows, plainTitle, plainBody) {
+  const row = rows.find((r) => r.keyword.name.toLowerCase() === name.toLowerCase());
+  return row ? folderPrimaryScore(row, plainTitle, plainBody) : 0;
+}
+function normalizeTitleToken(token) {
+  return token.replace(/[^a-z0-9]/gi, "").toLowerCase();
+}
+function candidateAppearsInTitle(plainTitle, candidate) {
+  if (!candidate || !plainTitle.trim()) return false;
+  const cNorm = normalizeTitleToken(candidate);
+  if (!cNorm.length) return false;
+  const titleLower = plainTitle.toLowerCase();
+  if (candidate.includes(" ")) {
+    return titleLower.includes(candidate.trim().toLowerCase());
+  }
+  const titleWords = plainTitle.split(/\s+/).filter(Boolean);
+  return titleWords.some((w2) => normalizeTitleToken(w2) === cNorm);
+}
+function meetsMinimumContext(title, plainBody, candidate, rows) {
+  if (!candidate) return false;
+  const words = plainBody.split(/\s+/).filter(Boolean);
+  if (words.length >= MIN_BODY_WORDS) return true;
+  return scoreForName(candidate, rows, title, plainBody) >= SHORT_NOTE_CONFIDENCE_FLOOR;
+}
+
+// src/utils/suggest-study-thread-title.ts
+var CLUSTER_TEXT_CAP = 24e3;
+function nodePlainTitle(node) {
+  if (node.noteType === "resource" && node.resourceTitle?.trim()) {
+    return node.resourceTitle.trim();
+  }
+  return stripServerAutoUntitledNoteTitleForDisplay(node.title) ?? "";
+}
+function nodeBodyHtml(node) {
+  if (node.noteType === "resource" && node.resourceDescription?.trim()) {
+    return node.resourceDescription.trim();
+  }
+  return node.content ?? "";
+}
+function buildAggregateText(nodes) {
+  const titles = [];
+  const bodies = [];
+  for (const n of nodes) {
+    const t = nodePlainTitle(n);
+    const b3 = stripHtml(nodeBodyHtml(n), false);
+    if (t) titles.push(t);
+    if (b3) bodies.push(b3);
+  }
+  const title = titles.join(" \xB7 ").slice(0, 2e3);
+  let bodyHtml = bodies.join("\n\n");
+  if (bodyHtml.length > CLUSTER_TEXT_CAP) {
+    bodyHtml = bodyHtml.slice(0, CLUSTER_TEXT_CAP);
+  }
+  return { title, bodyHtml };
+}
+function displayablePlainTitle(node) {
+  return nodePlainTitle(node).trim();
+}
+function fallbackTitle(nodes, repNoteId) {
+  const rep = repNoteId ? nodes.find((n) => n.id === repNoteId) : void 0;
+  if (rep) {
+    const repTitle = displayablePlainTitle(rep);
+    if (repTitle) return repTitle;
+  }
+  const sorted = [...nodes].sort((a, b3) => {
+    const ta = a.updatedAt ?? "";
+    const tb = b3.updatedAt ?? "";
+    return tb.localeCompare(ta);
+  });
+  for (const n of sorted) {
+    const t = displayablePlainTitle(n);
+    if (t) return t;
+  }
+  return null;
+}
+function pickStudyThreadRepresentativeNoteId(noteIds, degreeById) {
+  const degree = (id) => {
+    if (degreeById instanceof Map) return degreeById.get(id) ?? 0;
+    return degreeById[id] ?? 0;
+  };
+  let best = null;
+  for (const id of noteIds) {
+    if (best == null) {
+      best = id;
+      continue;
+    }
+    const d = degree(id);
+    const bestD = degree(best);
+    if (d > bestD || d === bestD && id.localeCompare(best) < 0) {
+      best = id;
+    }
+  }
+  return best;
+}
+function suggestStudyThreadTitleFromNodes(nodes, repNoteId) {
+  if (!nodes.length) return "Study thread";
+  const { title, bodyHtml } = buildAggregateText(nodes);
+  const keyword = suggestPrimaryCollectionFromNote(title, bodyHtml);
+  if (keyword?.trim()) return keyword.trim();
+  return fallbackTitle(nodes, repNoteId) ?? "Study thread";
+}
+function resolveStudyThreadDisplayTitle(args) {
+  const suggested = args.suggestedTitle.trim() || "Study thread";
+  if (args.studyThreadUserOverride) {
+    const manual = stripServerAutoUntitledNoteTitleForDisplay(args.studyThreadTitle);
+    return manual?.trim() || suggested;
+  }
+  return suggested;
+}
+
+// server/utils/normalize-note-id.ts
+function normalizeServerNoteId(id) {
+  const trimmed = id.trim();
+  if (trimmed.startsWith("note/")) return `note_${trimmed.slice(5)}`;
+  if (trimmed.startsWith("note_")) return trimmed;
+  return `note_${trimmed}`;
+}
+
+// server/utils/study-thread-note-rows.ts
+init_db2();
+async function fetchStudyThreadNoteRows(nodeIds, userId) {
+  if (nodeIds.length === 0) return [];
+  try {
+    const rows = await db.select({
+      id: Notes.id,
+      title: Notes.title,
+      content: Notes.content,
+      simpleNoteId: Notes.simpleNoteId,
+      noteType: Notes.noteType,
+      studyThreadTitle: Notes.studyThreadTitle,
+      studyThreadUserOverride: Notes.studyThreadUserOverride,
+      studyThreadPinned: Notes.studyThreadPinned,
+      updatedAt: Notes.updatedAt
+    }).from(Notes).where(and(inArray(Notes.id, nodeIds), eq(Notes.userId, userId)));
+    return rows.map((r) => ({
+      ...r,
+      studyThreadUserOverride: Boolean(r.studyThreadUserOverride),
+      studyThreadPinned: Boolean(r.studyThreadPinned)
+    }));
+  } catch (error) {
+    if (!isStudyThreadNamingColumnMissing(error)) throw error;
+    const rows = await db.select({
+      id: Notes.id,
+      title: Notes.title,
+      content: Notes.content,
+      simpleNoteId: Notes.simpleNoteId,
+      noteType: Notes.noteType,
+      updatedAt: Notes.updatedAt
+    }).from(Notes).where(and(inArray(Notes.id, nodeIds), eq(Notes.userId, userId)));
+    return rows.map((r) => ({
+      ...r,
+      studyThreadTitle: null,
+      studyThreadUserOverride: false,
+      studyThreadPinned: false
+    }));
+  }
+}
+
+// server/utils/study-thread-cluster-naming.ts
+function resolveStudyThreadClusterNaming(memberRows, suggestNodes, repNoteId) {
+  const rep = memberRows.find((m2) => m2.id === repNoteId);
+  const suggestedTitle = suggestStudyThreadTitleFromNodes(suggestNodes, repNoteId);
+  const suggestedTrimmed = suggestedTitle.trim();
+  const manualCarrier = memberRows.find(
+    (m2) => m2.studyThreadUserOverride && Boolean(stripServerAutoUntitledNoteTitleForDisplay(m2.studyThreadTitle)?.trim())
+  ) ?? memberRows.find((m2) => {
+    const manual = stripServerAutoUntitledNoteTitleForDisplay(m2.studyThreadTitle)?.trim();
+    return Boolean(manual && manual !== suggestedTrimmed);
+  });
+  if (manualCarrier) {
+    return {
+      repNoteId,
+      suggestedTitle,
+      threadTitle: resolveStudyThreadDisplayTitle({
+        studyThreadTitle: manualCarrier.studyThreadTitle,
+        studyThreadUserOverride: true,
+        suggestedTitle
+      }),
+      studyThreadUserOverride: true,
+      studyThreadPinned: Boolean(rep?.studyThreadPinned ?? manualCarrier.studyThreadPinned)
+    };
+  }
+  const studyThreadUserOverride = Boolean(rep?.studyThreadUserOverride);
+  return {
+    repNoteId,
+    suggestedTitle,
+    threadTitle: resolveStudyThreadDisplayTitle({
+      studyThreadTitle: rep?.studyThreadTitle ?? null,
+      studyThreadUserOverride,
+      suggestedTitle
+    }),
+    studyThreadUserOverride,
+    studyThreadPinned: Boolean(rep?.studyThreadPinned)
+  };
+}
+
+// server/utils/study-thread-space.ts
+init_db2();
+
+// server/utils/study-thread-graph.ts
+init_db2();
+async function collectStudyThreadGraph(startNoteId, userId, options) {
+  const maxNodes = options?.maxNodes ?? 200;
+  const spaceId = options?.spaceId?.trim() || null;
+  const visited = /* @__PURE__ */ new Set([startNoteId]);
+  const collectedEdges = [];
+  let frontier = [startNoteId];
+  while (frontier.length > 0 && visited.size < maxNodes) {
+    const edgeConditions = [
+      eq(NoteConnections.userId, userId),
+      or(
+        inArray(NoteConnections.fromNoteId, frontier),
+        inArray(NoteConnections.toNoteId, frontier)
+      )
+    ];
+    if (spaceId) {
+      edgeConditions.push(eq(NoteConnections.spaceId, spaceId));
+    }
+    const edgeRows = await db.select({ fromNoteId: NoteConnections.fromNoteId, toNoteId: NoteConnections.toNoteId }).from(NoteConnections).where(and(...edgeConditions));
+    const next = [];
+    for (const edge of edgeRows) {
+      collectedEdges.push({ fromId: edge.fromNoteId, toId: edge.toNoteId });
+      for (const neighbor of [edge.fromNoteId, edge.toNoteId]) {
+        if (!visited.has(neighbor) && visited.size < maxNodes) {
+          visited.add(neighbor);
+          next.push(neighbor);
+        }
+      }
+    }
+    frontier = [...new Set(next)];
+  }
+  const edgeSet = /* @__PURE__ */ new Set();
+  const uniqueEdges = collectedEdges.filter((e) => {
+    const key2 = `${e.fromId}:${e.toId}`;
+    if (edgeSet.has(key2)) return false;
+    edgeSet.add(key2);
+    return true;
+  });
+  const degreeMap = /* @__PURE__ */ new Map();
+  for (const e of uniqueEdges) {
+    degreeMap.set(e.fromId, (degreeMap.get(e.fromId) ?? 0) + 1);
+    degreeMap.set(e.toId, (degreeMap.get(e.toId) ?? 0) + 1);
+  }
+  return { nodeIds: [...visited], edges: uniqueEdges, degreeMap };
+}
+
+// server/utils/study-thread-space.ts
+function normalizeScopeSpaceId(spaceId) {
+  if (!spaceId || !spaceId.trim()) return null;
+  const t = spaceId.trim();
+  return t.startsWith("space_") ? t : `space_${t}`;
+}
+async function resolveStudyThreadScopeSpaceId(focusNoteId, userId, preferredSpaceId) {
+  const preferred = normalizeScopeSpaceId(preferredSpaceId);
+  if (preferred) return preferred;
+  const focus = first(
+    await db.select({ spaceId: Notes.spaceId }).from(Notes).where(and(eq(Notes.id, focusNoteId), eq(Notes.userId, userId))).limit(1)
+  );
+  return normalizeScopeSpaceId(focus?.spaceId ?? null);
+}
+async function collectStudyThreadGraphForScope(focusNoteId, userId, options) {
+  const maxNodes = options?.maxNodes ?? 200;
+  let scopeSpaceId = await resolveStudyThreadScopeSpaceId(
+    focusNoteId,
+    userId,
+    options?.preferredSpaceId
+  );
+  let graph = await collectStudyThreadGraph(focusNoteId, userId, {
+    spaceId: scopeSpaceId,
+    maxNodes
+  });
+  if (graph.edges.length === 0) {
+    const touchRows = await db.select({
+      fromNoteId: NoteConnections.fromNoteId,
+      toNoteId: NoteConnections.toNoteId,
+      spaceId: NoteConnections.spaceId
+    }).from(NoteConnections).where(
+      and(
+        eq(NoteConnections.userId, userId),
+        or(
+          eq(NoteConnections.fromNoteId, focusNoteId),
+          eq(NoteConnections.toNoteId, focusNoteId)
+        )
+      )
+    ).limit(20);
+    const inferred = touchRows.map((r) => normalizeScopeSpaceId(r.spaceId)).find((id) => Boolean(id));
+    if (inferred && inferred !== scopeSpaceId) {
+      scopeSpaceId = inferred;
+      graph = await collectStudyThreadGraph(focusNoteId, userId, {
+        spaceId: scopeSpaceId,
+        maxNodes
+      });
+    }
+  }
+  return { graph, scopeSpaceId };
+}
+
+// server/utils/prototype-user-migration.ts
+init_db2();
+init_dates();
+
+// server/utils/thread-junction-repair.ts
+init_db2();
+init_dates();
+async function repairMissingNoteThreadJunctionsForUser(userId) {
+  const userNotes = await db.select({ id: Notes.id, threadId: Notes.threadId }).from(Notes).where(eq(Notes.userId, userId));
+  const userThreads = await db.select({ id: Threads.id }).from(Threads).where(eq(Threads.userId, userId));
+  const threadIdSet = new Set(userThreads.map((t) => t.id));
+  const allNoteThreads = await db.select({ noteId: NoteThreads.noteId, threadId: NoteThreads.threadId }).from(NoteThreads).innerJoin(Notes, eq(Notes.id, NoteThreads.noteId)).where(eq(Notes.userId, userId));
+  const noteThreadPairs = new Set(allNoteThreads.map((nt2) => `${nt2.noteId}::${nt2.threadId}`));
+  let created = 0;
+  for (const note of userNotes) {
+    if (!note.threadId || note.threadId === "thread_unorganized" || !threadIdSet.has(note.threadId)) continue;
+    const key2 = `${note.id}::${note.threadId}`;
+    if (noteThreadPairs.has(key2)) continue;
+    const id = `nt-heal-${note.id}-${note.threadId}-${Date.now()}`;
+    try {
+      await db.insert(NoteThreads).values({
+        id,
+        noteId: note.id,
+        threadId: note.threadId,
+        createdAt: nowISO()
+      });
+      noteThreadPairs.add(key2);
+      created++;
+    } catch {
+    }
+  }
+  return created;
+}
+
+// server/utils/prototype-user-migration.ts
+function isSystemThreadId(threadId) {
+  return threadId === "thread_unorganized" || threadId.startsWith("thread_onboarding_");
+}
+var NOT_ONBOARDING_THREAD = sql`NOT starts_with(${Notes.threadId}::text, 'thread_onboarding_')`;
+var NOT_ONBOARDING_JUNCTION_THREAD = sql`NOT starts_with(${NoteThreads.threadId}::text, 'thread_onboarding_')`;
+function collectionBackfillEligible() {
+  return [
+    isNull(Notes.primaryCollection),
+    eq(Notes.collectionUserOverride, false),
+    eq(Notes.collectionPinned, false)
+  ];
+}
+async function loadThreadTitles(threadIds) {
+  if (threadIds.length === 0) return /* @__PURE__ */ new Map();
+  const rows = await db.select({ id: Threads.id, title: Threads.title }).from(Threads).where(inArray(Threads.id, threadIds));
+  return new Map(rows.map((r) => [r.id, r.title]));
+}
+async function loadSecondaries(noteIds) {
+  const out = /* @__PURE__ */ new Map();
+  if (noteIds.length === 0) return out;
+  const rows = await db.select({
+    noteId: NoteThreads.noteId,
+    threadId: NoteThreads.threadId,
+    title: Threads.title,
+    createdAt: NoteThreads.createdAt
+  }).from(NoteThreads).innerJoin(Threads, eq(NoteThreads.threadId, Threads.id)).where(inArray(NoteThreads.noteId, noteIds)).orderBy(asc(NoteThreads.noteId), asc(NoteThreads.createdAt));
+  for (const r of rows) {
+    const list = out.get(r.noteId) ?? [];
+    list.push({ noteId: r.noteId, threadId: r.threadId, title: r.title });
+    out.set(r.noteId, list);
+  }
+  return out;
+}
+function computeSecondariesForNote(noteThreadId, rows, primaryLabel) {
+  if (!rows?.length) return serializeNoteSecondaryCollections([]);
+  const titles = [];
+  for (const r of rows) {
+    if (r.threadId === noteThreadId) continue;
+    if (isSystemThreadId(r.threadId)) continue;
+    const t = (r.title || "").trim();
+    if (!t) continue;
+    titles.push(t);
+  }
+  const normalized = normalizeSecondaryLabels(titles, primaryLabel);
+  return serializeNoteSecondaryCollections(normalized);
+}
+function pickPrimaryThreadFromJunctions(rows) {
+  if (!rows?.length) return null;
+  for (const r of rows) {
+    if (!isSystemThreadId(r.threadId)) return r.threadId;
+  }
+  return null;
+}
+async function applyCollectionBackfillForNote(noteId, primaryThreadId, secondariesByNote, titleByThreadId) {
+  if (isSystemThreadId(primaryThreadId)) return false;
+  const rawTitle = titleByThreadId.get(primaryThreadId);
+  if (rawTitle == null) return false;
+  const primaryLabel = rawTitle.trim();
+  if (!primaryLabel.length) return false;
+  const secondarySerialized = computeSecondariesForNote(
+    primaryThreadId,
+    secondariesByNote.get(noteId),
+    primaryLabel
+  );
+  await db.update(Notes).set({
+    primaryCollection: primaryLabel,
+    secondaryCollections: secondarySerialized,
+    collectionPinned: true,
+    updatedAt: nowISO()
+  }).where(eq(Notes.id, noteId));
+  return true;
+}
+async function backfillCollectionsFromThreadsForUser(userId, options) {
+  const batchSize = options?.batchSize ?? 400;
+  const maxNotes = options?.maxNotes;
+  let updated = 0;
+  let totalExamined = 0;
+  updated += await backfillFromThreadIdColumn(userId, batchSize, maxNotes, () => {
+    totalExamined++;
+    return maxNotes != null && totalExamined >= maxNotes;
+  });
+  if (maxNotes != null && totalExamined >= maxNotes) return updated;
+  const junctionUpdated = await backfillFromJunctionOnlyNotes(userId, batchSize, maxNotes, totalExamined);
+  updated += junctionUpdated;
+  return updated;
+}
+async function backfillFromThreadIdColumn(userId, batchSize, maxNotes, shouldStop) {
+  let lastId = null;
+  let updated = 0;
+  while (true) {
+    const conditions = [
+      eq(Notes.userId, userId),
+      ...collectionBackfillEligible(),
+      ne(Notes.threadId, "thread_unorganized"),
+      NOT_ONBOARDING_THREAD
+    ];
+    if (lastId) conditions.push(gt(Notes.id, lastId));
+    const batch = await db.select({ id: Notes.id, threadId: Notes.threadId }).from(Notes).where(and(...conditions)).orderBy(asc(Notes.id)).limit(batchSize);
+    if (batch.length === 0) break;
+    const noteIds = batch.map((n) => n.id);
+    const primaryThreadIds = [...new Set(batch.map((n) => n.threadId))];
+    const titleByThreadId = await loadThreadTitles(primaryThreadIds);
+    const secondariesByNote = await loadSecondaries(noteIds);
+    for (const note of batch) {
+      if (shouldStop()) return updated;
+      const didUpdate = await applyCollectionBackfillForNote(
+        note.id,
+        note.threadId,
+        secondariesByNote,
+        titleByThreadId
+      );
+      if (didUpdate) updated++;
+    }
+    lastId = batch[batch.length - 1].id;
+    if (batch.length < batchSize) break;
+  }
+  return updated;
+}
+async function backfillFromJunctionOnlyNotes(userId, batchSize, maxNotes, alreadyExamined) {
+  let lastId = null;
+  let updated = 0;
+  let examined = alreadyExamined;
+  while (true) {
+    const conditions = [
+      eq(Notes.userId, userId),
+      ...collectionBackfillEligible(),
+      eq(Notes.threadId, "thread_unorganized"),
+      ne(NoteThreads.threadId, "thread_unorganized"),
+      NOT_ONBOARDING_JUNCTION_THREAD
+    ];
+    if (lastId) conditions.push(gt(Notes.id, lastId));
+    const batch = await db.selectDistinct({ id: Notes.id }).from(Notes).innerJoin(NoteThreads, eq(NoteThreads.noteId, Notes.id)).where(and(...conditions)).orderBy(asc(Notes.id)).limit(batchSize);
+    if (batch.length === 0) break;
+    const noteIds = batch.map((n) => n.id);
+    const secondariesByNote = await loadSecondaries(noteIds);
+    const primaryThreadIds = /* @__PURE__ */ new Set();
+    for (const noteId of noteIds) {
+      const primary = pickPrimaryThreadFromJunctions(secondariesByNote.get(noteId));
+      if (primary) primaryThreadIds.add(primary);
+    }
+    const titleByThreadId = await loadThreadTitles([...primaryThreadIds]);
+    for (const note of batch) {
+      if (maxNotes != null && examined >= maxNotes) return updated;
+      examined++;
+      const primaryThreadId = pickPrimaryThreadFromJunctions(secondariesByNote.get(note.id));
+      if (!primaryThreadId) continue;
+      const didUpdate = await applyCollectionBackfillForNote(
+        note.id,
+        primaryThreadId,
+        secondariesByNote,
+        titleByThreadId
+      );
+      if (didUpdate) updated++;
+    }
+    lastId = batch[batch.length - 1].id;
+    if (batch.length < batchSize) break;
+    if (maxNotes != null && examined >= maxNotes) break;
+  }
+  return updated;
+}
+async function migrateLinkedFromNoteConnectionsForUser(userId) {
+  const linkedNotes = await db.select({ id: Notes.id, linkedFromNoteId: Notes.linkedFromNoteId, spaceId: Notes.spaceId }).from(Notes).where(and(eq(Notes.userId, userId), isNotNull(Notes.linkedFromNoteId)));
+  let migrated = 0;
+  let skipped = 0;
+  for (const note of linkedNotes) {
+    if (!note.linkedFromNoteId) continue;
+    try {
+      await db.insert(NoteConnections).values({
+        id: generateNoteId(),
+        fromNoteId: note.linkedFromNoteId,
+        toNoteId: note.id,
+        userId,
+        spaceId: note.spaceId ?? null,
+        createdAt: nowISO()
+      });
+      migrated += 1;
+    } catch (error) {
+      if (isPgUndefinedRelation(error, "NoteConnections")) throw error;
+      skipped += 1;
+    }
+  }
+  return { migrated, skipped };
+}
+async function runPrototypeUserMigration(userId) {
+  const junctionsRepaired = await repairMissingNoteThreadJunctionsForUser(userId);
+  const collectionsUpdated = await backfillCollectionsFromThreadsForUser(userId);
+  const { migrated, skipped } = await migrateLinkedFromNoteConnectionsForUser(userId);
+  return {
+    junctionsRepaired,
+    collectionsUpdated,
+    connectionsMigrated: migrated,
+    connectionsSkipped: skipped
+  };
+}
+async function hasThreadIdBackfillCandidate(userId) {
+  const row = first(
+    await db.select({ id: Notes.id }).from(Notes).where(
+      and(
+        eq(Notes.userId, userId),
+        ...collectionBackfillEligible(),
+        ne(Notes.threadId, "thread_unorganized"),
+        NOT_ONBOARDING_THREAD
+      )
+    ).limit(1)
+  );
+  return row != null;
+}
+async function hasJunctionOnlyBackfillCandidate(userId) {
+  const row = first(
+    await db.select({ id: Notes.id }).from(Notes).innerJoin(NoteThreads, eq(NoteThreads.noteId, Notes.id)).where(
+      and(
+        eq(Notes.userId, userId),
+        ...collectionBackfillEligible(),
+        eq(Notes.threadId, "thread_unorganized"),
+        ne(NoteThreads.threadId, "thread_unorganized"),
+        NOT_ONBOARDING_JUNCTION_THREAD
+      )
+    ).limit(1)
+  );
+  return row != null;
+}
+async function userNeedsCollectionBackfill(userId) {
+  if (await hasThreadIdBackfillCandidate(userId)) return true;
+  return hasJunctionOnlyBackfillCandidate(userId);
+}
+
 // server/utils/auto-tag-generator.ts
 var import_crypto3 = require("crypto");
 init_db2();
@@ -145286,6 +145391,19 @@ function dedupeNoteTagsForResponse(tags) {
     if (picked) out.push(picked);
   }
   return out;
+}
+async function fetchNoteTagsForResponse(noteId, noteOwnerUserId) {
+  const noteTags = await db.select({
+    id: Tags.id,
+    name: Tags.name,
+    color: Tags.color,
+    category: Tags.category,
+    isSystem: Tags.isSystem,
+    isAutoGenerated: NoteTags.isAutoGenerated,
+    confidence: NoteTags.confidence,
+    createdAt: NoteTags.createdAt
+  }).from(NoteTags).innerJoin(Tags, eq(NoteTags.tagId, Tags.id)).where(and(eq(NoteTags.noteId, noteId), eq(Tags.userId, noteOwnerUserId))).orderBy(Tags.name);
+  return dedupeNoteTagsForResponse(noteTags);
 }
 async function noteHasTagWithNormalizedName(noteId, tagName19, noteOwnerUserId) {
   const normalized = normalizeTagName(tagName19);
@@ -145658,6 +145776,14 @@ function highlightScriptureReferences(content, references) {
 // src/utils/note-html-linebreaks.ts
 var EMPTY_PARAGRAPH_RE = /<p([^>]*)>(?:\s|&nbsp;|&#160;)*<\/p>/gi;
 var BR_ONLY_PARAGRAPH_RE = /<p([^>]*)>\s*<br\s*\/?>\s*<\/p>/gi;
+var EMPTY_P_BEFORE_HR_RE = new RegExp(
+  `<p([^>]*)>(?:\\s|&nbsp;|&#160;|<br\\s*\\/?>)*<\\/p>\\s*(<hr\\s*\\/?>)`,
+  "gi"
+);
+var EMPTY_P_AFTER_HR_RE = new RegExp(
+  `(<hr\\s*\\/?>)\\s*<p([^>]*)>(?:\\s|&nbsp;|&#160;|<br\\s*\\/?>)*<\\/p>`,
+  "gi"
+);
 function canonicalizeNoteHtmlLineBreaks(html) {
   if (html == null || html === "") return html ?? "";
   let out = html.replace(EMPTY_PARAGRAPH_RE, "<p$1><br></p>");
@@ -146077,12 +146203,16 @@ async function processScriptureReferencesInternal(noteId, userId, threadId, cont
                 }
               }
             }
-            await db.delete(ScriptureMetadata).where(eq(ScriptureMetadata.noteId, dupeId));
-            await db.delete(NoteThreads).where(eq(NoteThreads.noteId, dupeId));
-            await db.delete(NoteTags).where(eq(NoteTags.noteId, dupeId));
-            await db.delete(Comments).where(eq(Comments.noteId, dupeId));
-            await db.delete(NoteScriptureReferences2).where(eq(NoteScriptureReferences2.scriptureNoteId, dupeId));
-            await db.delete(Notes).where(eq(Notes.id, dupeId));
+            const deleted = await deleteSingleNoteCascadeForUser(userId, dupeId);
+            if (deleted.deletedNoteIds.length > 0) {
+              await recordDeletedEntities(userId, "note", deleted.deletedNoteIds);
+              if (deleted.deletedStudyThreadIds.length > 0) {
+                await recordDeletedEntities(userId, "studyThread", deleted.deletedStudyThreadIds);
+              }
+              for (const removedId of deleted.deletedNoteIds) {
+                broadcastInvalidation(userId, { type: "note:deleted", id: removedId });
+              }
+            }
           }
           normalizedScriptureMap.set(normalizedRef, { noteId: keeperId, reference: normalizedRef });
           console.log(`[processScriptureReferences] Consolidated "${normalizedRef}": kept ${keeperId}, removed ${duplicateIds.join(", ")}`);
@@ -146594,21 +146724,18 @@ async function processScriptureReferencesInternal(noteId, userId, threadId, cont
     content: updatedContent,
     updatedAt: /* @__PURE__ */ new Date()
   }).where(eq(Notes.id, noteId));
-  (async () => {
-    try {
-      const tagTitle = note.title ?? "";
-      const tagResult = await generateAutoTags(tagTitle, updatedContent, userId, AUTO_TAG_CONFIDENCE_SYSTEM_AUTOGEN);
-      if (tagResult.suggestions.length > 0) {
-        await applyAutoTags(noteId, tagResult.suggestions, userId);
-      }
-    } catch (tagErr) {
-      console.error(
-        "[processScriptureReferences] Auto-tag parent note failed (non-critical):",
-        tagErr instanceof Error ? tagErr.message : tagErr
-      );
+  try {
+    const tagTitle = note.title ?? "";
+    const tagResult = await generateAutoTags(tagTitle, updatedContent, userId, AUTO_TAG_CONFIDENCE_SYSTEM_AUTOGEN);
+    if (tagResult.suggestions.length > 0) {
+      await applyAutoTags(noteId, tagResult.suggestions, userId);
     }
-  })().catch(() => {
-  });
+  } catch (tagErr) {
+    console.error(
+      "[processScriptureReferences] Auto-tag parent note failed (non-critical):",
+      tagErr instanceof Error ? tagErr.message : tagErr
+    );
+  }
   return {
     results,
     updatedContent
@@ -157596,14 +157723,12 @@ route10.post("/api/notes/create", requireAuth, rateLimitNoteCreate(), async (c) 
     const finalNote = first(await db.select().from(Notes).where(eq(Notes.id, newNote.id)).limit(1));
     if (finalNote) Object.assign(newNote, finalNote);
     if (finalNoteType !== "resource" && !contentEncrypted) {
-      (async () => {
-        try {
-          const r = await generateAutoTags(capitalizedTitle || "", capitalizedContent, auth.userId);
-          if (r.suggestions.length > 0) await applyAutoTags(newNote.id, r.suggestions, auth.userId);
-        } catch (err) {
-          console.error("[auto-tag] Failed to auto-tag new note:", newNote.id, err);
-        }
-      })().catch((err) => console.error("[auto-tag] Unhandled:", newNote.id, err));
+      try {
+        const r = await generateAutoTags(capitalizedTitle || "", capitalizedContent, auth.userId);
+        if (r.suggestions.length > 0) await applyAutoTags(newNote.id, r.suggestions, auth.userId);
+      } catch (err) {
+        console.error("[auto-tag] Failed to auto-tag new note:", newNote.id, err);
+      }
     }
     if (finalNoteType === "scripture" && scriptureReference) {
       try {
@@ -157695,10 +157820,27 @@ route10.post("/api/notes/create", requireAuth, rateLimitNoteCreate(), async (c) 
         }
       })().catch((err) => console.error("[api/notes/create] Unhandled background scripture error:", newNote.id, err));
     }
+    let createTags = [];
+    if (!contentEncrypted) {
+      try {
+        createTags = await fetchNoteTagsForResponse(newNote.id, auth.userId);
+      } catch (err) {
+        console.error("[auto-tag] Failed to load tags for create response:", newNote.id, err);
+      }
+    }
     broadcastInvalidation(auth.userId, { type: "note:created", id: newNote.id });
     return c.json({
       success: "Note created!",
       note: noteJsonWithParsedSecondaries(newNote),
+      tags: createTags.map((t) => ({
+        id: t.id,
+        name: t.name,
+        color: t.color,
+        category: t.category,
+        isSystem: t.isSystem,
+        isAutoGenerated: t.isAutoGenerated,
+        confidence: t.confidence
+      })),
       scriptureResults: [],
       scriptureDeferred: true
     });
@@ -157773,8 +157915,9 @@ route10.put("/api/notes/update", requireAuth, rateLimit("write"), async (c) => {
     const updatedNote = first(await db.update(Notes).set(updateData).where(and(eq(Notes.id, noteId), eq(Notes.userId, auth.userId))).returning());
     if (!updatedNote) return c.json({ error: "Failed to update note" }, 500);
     const noteThreads = await db.select({ threadId: NoteThreads.threadId }).from(NoteThreads).where(eq(NoteThreads.noteId, noteId));
-    for (const nt2 of noteThreads) {
-      await db.update(Threads).set({ updatedAt: nowISO() }).where(and(eq(Threads.id, nt2.threadId), eq(Threads.userId, auth.userId)));
+    const threadIdsToTouch = noteThreads.map((nt2) => nt2.threadId);
+    if (threadIdsToTouch.length > 0) {
+      await db.update(Threads).set({ updatedAt: nowISO() }).where(and(inArray(Threads.id, threadIdsToTouch), eq(Threads.userId, auth.userId)));
     }
     if (!isEncrypted) {
       try {
@@ -157794,26 +157937,61 @@ route10.put("/api/notes/update", requireAuth, rateLimit("write"), async (c) => {
       } catch {
       }
     }
-    let scriptureResults = [];
-    let processedContent = null;
-    let scriptureProcessingError = false;
+    if (!isEncrypted) {
+      const contentToProcess = capitalizedContent;
+      (async () => {
+        try {
+          const scriptureResult = await processScriptureReferences(noteId, auth.userId, void 0, contentToProcess, scriptureVersion || "NET");
+          const processed = scriptureResult?.updatedContent;
+          broadcastInvalidation(auth.userId, {
+            type: "note:updated",
+            id: noteId,
+            ...typeof processed === "string" && processed.length > 0 ? { note: { content: processed, updatedAt: (/* @__PURE__ */ new Date()).toISOString() } } : {}
+          });
+        } catch (err) {
+          console.error("[api/notes/update] Background scripture processing failed:", err?.message ?? err);
+        }
+      })().catch((err) => console.error("[api/notes/update] Unhandled background scripture error:", noteId, err));
+    }
+    let updateTags = [];
     if (!isEncrypted) {
       try {
-        const scriptureResult = await processScriptureReferences(noteId, auth.userId, void 0, capitalizedContent, scriptureVersion || "NET");
-        scriptureResults = scriptureResult.results || [];
-        processedContent = scriptureResult.updatedContent || null;
-      } catch (error) {
-        scriptureProcessingError = true;
-        console.error("[api/notes/update] Scripture processing failed:", error?.message);
+        updateTags = await fetchNoteTagsForResponse(noteId, auth.userId);
+      } catch (err) {
+        console.error("[auto-tag] Failed to load tags for update response:", noteId, err);
       }
     }
-    broadcastInvalidation(auth.userId, { type: "note:updated", id: noteId });
+    const tagsPatch = updateTags.map((t) => ({
+      id: t.id,
+      name: t.name,
+      color: t.color,
+      category: t.category,
+      isSystem: t.isSystem,
+      isAutoGenerated: t.isAutoGenerated,
+      confidence: t.confidence
+    }));
+    broadcastInvalidation(auth.userId, {
+      type: "note:updated",
+      id: noteId,
+      note: {
+        title: updatedNote.title,
+        content: capitalizedContent,
+        updatedAt: updatedNote.updatedAt instanceof Date ? updatedNote.updatedAt.toISOString() : typeof updatedNote.updatedAt === "string" ? updatedNote.updatedAt : (/* @__PURE__ */ new Date()).toISOString(),
+        spaceId: updatedNote.spaceId ?? null,
+        threadIds: threadIdsToTouch,
+        tags: tagsPatch
+      }
+    });
     return c.json({
       success: "Note updated!",
       note: noteJsonWithParsedSecondaries(updatedNote),
-      scriptureResults,
-      processedContent,
-      scriptureProcessingError
+      tags: tagsPatch,
+      // Scripture now runs in the background (see above). These remain for client
+      // back-compat: callers fall back to their own content + reprocess-on-view.
+      scriptureResults: [],
+      processedContent: null,
+      scriptureProcessingError: false,
+      scriptureDeferred: true
     });
   } catch (error) {
     return c.json({ error: error.message || "Failed to update note" }, 500);
@@ -158059,9 +158237,16 @@ route10.delete("/api/notes/delete", requireAuth, rateLimit("write"), async (c) =
   try {
     const auth = getAuthenticatedAuth(c);
     const noteId = c.req.query("noteId");
+    const deleteSource = c.req.header("X-Harvous-Delete-Source") ?? c.req.query("source") ?? "unknown";
     if (!noteId) return c.json({ error: "Note ID is required" }, 400);
     const existingNote = first(await db.select().from(Notes).where(and(eq(Notes.id, noteId), eq(Notes.userId, auth.userId))).limit(1));
     if (!existingNote) return c.json({ error: "Note not found or access denied" }, 404);
+    console.info("[api/notes/delete]", {
+      userId: auth.userId,
+      noteId,
+      source: deleteSource,
+      noteType: existingNote.noteType
+    });
     const threadId = existingNote.threadId;
     const noteCreatedAt = existingNote.createdAt;
     const deleted = await deleteSingleNoteCascadeForUser(auth.userId, noteId);
@@ -158326,6 +158511,32 @@ route10.post("/api/notes/suggest-threads", requireAuth, rateLimit("write"), asyn
   } catch (error) {
     const standardError = handleAPIError(error, { endpoint: "/api/notes/suggest-threads", action: "suggest_threads" });
     return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+route10.get("/api/notes/:id/tags", requireAuth, async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const noteId = requireParam(c, "id");
+    const note = first(
+      await db.select({ id: Notes.id, userId: Notes.userId }).from(Notes).where(eq(Notes.id, noteId)).limit(1)
+    );
+    if (!note) return c.json({ error: "Note not found" }, 404);
+    const ownerUserId = note.userId === auth.userId ? auth.userId : note.userId;
+    const tags = await fetchNoteTagsForResponse(noteId, ownerUserId);
+    return c.json({
+      success: true,
+      tags: tags.map((t) => ({
+        id: t.id,
+        name: t.name,
+        color: t.color,
+        category: t.category,
+        isSystem: t.isSystem,
+        isAutoGenerated: t.isAutoGenerated,
+        confidence: t.confidence
+      }))
+    });
+  } catch (error) {
+    return c.json({ error: error.message || "Failed to load note tags" }, 500);
   }
 });
 route10.get("/api/notes/:id/details", requireAuth, async (c) => {
@@ -168618,10 +168829,12 @@ app.post("/api/user/migrate-to-prototype", requireAuth, async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const result = await runPrototypeUserMigration(auth.userId);
+    const needsCollectionBackfill = await userNeedsCollectionBackfill(auth.userId);
     const showFoldersBanner = result.collectionsUpdated > 0;
     return c.json({
       success: true,
       ...result,
+      needsCollectionBackfill,
       showFoldersBanner
     });
   } catch (error) {
@@ -174862,23 +175075,18 @@ app11.get("/api/admin/check-link-integrity", requireAuth, async (c) => {
     const allNoteThreads = await db.select({ id: NoteThreads.id, noteId: NoteThreads.noteId, threadId: NoteThreads.threadId }).from(NoteThreads).innerJoin(Notes, eq(Notes.id, NoteThreads.noteId)).where(eq(Notes.userId, auth.userId));
     const noteThreadPairs = new Set(allNoteThreads.map((nt2) => `${nt2.noteId}::${nt2.threadId}`));
     const noteIdSet = new Set(userNotes.map((n) => n.id));
-    for (const note of userNotes) {
-      if (note.threadId && note.threadId !== "thread_unorganized" && threadIdSet.has(note.threadId)) {
-        const key2 = `${note.id}::${note.threadId}`;
-        if (!noteThreadPairs.has(key2)) {
-          report.threadLinks.details.push({ type: "missing_junction_created", noteId: note.id, threadId: note.threadId });
-          if (!dryRun) {
-            const id = `nt-heal-${note.id}-${note.threadId}-${Date.now()}`;
-            try {
-              await db.insert(NoteThreads).values({ id, noteId: note.id, threadId: note.threadId, createdAt: nowISO() });
-              report.threadLinks.missingJunctionsCreated++;
-            } catch {
-            }
-          } else {
+    if (dryRun) {
+      for (const note of userNotes) {
+        if (note.threadId && note.threadId !== "thread_unorganized" && threadIdSet.has(note.threadId)) {
+          const key2 = `${note.id}::${note.threadId}`;
+          if (!noteThreadPairs.has(key2)) {
+            report.threadLinks.details.push({ type: "missing_junction_created", noteId: note.id, threadId: note.threadId });
             report.threadLinks.missingJunctionsCreated++;
           }
         }
       }
+    } else {
+      report.threadLinks.missingJunctionsCreated = await repairMissingNoteThreadJunctionsForUser(auth.userId);
     }
     for (const nt2 of allNoteThreads) {
       if (!noteIdSet.has(nt2.noteId) || !threadIdSet.has(nt2.threadId)) {

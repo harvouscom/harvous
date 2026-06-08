@@ -132,10 +132,12 @@ app.post('/api/user/migrate-to-prototype', requireAuth, async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const result = await runPrototypeUserMigration(auth.userId);
+    const needsCollectionBackfill = await userNeedsCollectionBackfill(auth.userId);
     const showFoldersBanner = result.collectionsUpdated > 0;
     return c.json({
       success: true,
       ...result,
+      needsCollectionBackfill,
       showFoldersBanner,
     });
   } catch (error) {

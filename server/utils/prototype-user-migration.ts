@@ -1,10 +1,28 @@
 /**
  * Idempotent per-user migration helpers for Classic → prototype (2.0) surfaces.
+ * - Missing NoteThreads junction rows (create-only) for Classic thread visibility
  * - Thread titles → folder/collection labels on notes
  * - linkedFromNoteId → NoteConnections graph edges
  */
 
-import { db, first, Notes, Threads, NoteThreads, NoteConnections, eq, and, asc, gt, inArray, isNull, isNotNull, ne, sql, type SQL } from '../db';
+import {
+  db,
+  first,
+  Notes,
+  Threads,
+  NoteThreads,
+  NoteConnections,
+  eq,
+  and,
+  asc,
+  gt,
+  inArray,
+  isNull,
+  isNotNull,
+  ne,
+  sql,
+  type SQL,
+} from '../db';
 import { nowISO } from '../db/dates';
 import { generateNoteId } from '@/utils/ids';
 import {
@@ -12,8 +30,10 @@ import {
   serializeNoteSecondaryCollections,
 } from './note-secondary-collections';
 import { isPgUndefinedRelation } from './pg-undefined-relation';
+import { repairMissingNoteThreadJunctionsForUser } from './thread-junction-repair';
 
 export interface PrototypeUserMigrationResult {
+  junctionsRepaired: number;
   collectionsUpdated: number;
   connectionsMigrated: number;
   connectionsSkipped: number;
@@ -25,6 +45,17 @@ function isSystemThreadId(threadId: string): boolean {
 
 /** Exclude per-user onboarding threads (`thread_onboarding_${userId}`). */
 const NOT_ONBOARDING_THREAD = sql`NOT starts_with(${Notes.threadId}::text, 'thread_onboarding_')`;
+
+const NOT_ONBOARDING_JUNCTION_THREAD = sql`NOT starts_with(${NoteThreads.threadId}::text, 'thread_onboarding_')`;
+
+/** Shared eligibility: no existing folder label or manual override. */
+function collectionBackfillEligible(): SQL[] {
+  return [
+    isNull(Notes.primaryCollection),
+    eq(Notes.collectionUserOverride, false),
+    eq(Notes.collectionPinned, false),
+  ];
+}
 
 type SecondaryRow = {
   noteId: string;
@@ -84,9 +115,51 @@ function computeSecondariesForNote(
   return serializeNoteSecondaryCollections(normalized);
 }
 
+/** Earliest non-system junction thread (by NoteThreads.createdAt order in loadSecondaries). */
+function pickPrimaryThreadFromJunctions(rows: SecondaryRow[] | undefined): string | null {
+  if (!rows?.length) return null;
+  for (const r of rows) {
+    if (!isSystemThreadId(r.threadId)) return r.threadId;
+  }
+  return null;
+}
+
+async function applyCollectionBackfillForNote(
+  noteId: string,
+  primaryThreadId: string,
+  secondariesByNote: Map<string, SecondaryRow[]>,
+  titleByThreadId: Map<string, string>,
+): Promise<boolean> {
+  if (isSystemThreadId(primaryThreadId)) return false;
+
+  const rawTitle = titleByThreadId.get(primaryThreadId);
+  if (rawTitle == null) return false;
+  const primaryLabel = rawTitle.trim();
+  if (!primaryLabel.length) return false;
+
+  const secondarySerialized = computeSecondariesForNote(
+    primaryThreadId,
+    secondariesByNote.get(noteId),
+    primaryLabel,
+  );
+
+  await db
+    .update(Notes)
+    .set({
+      primaryCollection: primaryLabel,
+      secondaryCollections: secondarySerialized,
+      collectionPinned: true,
+      updatedAt: nowISO(),
+    })
+    .where(eq(Notes.id, noteId));
+
+  return true;
+}
+
 /**
  * Copy Classic thread titles into `Notes.primaryCollection` / `secondaryCollections`
  * for one user. Skips notes with existing collection overrides or labels.
+ * Uses `Notes.threadId` and, when unorganized, earliest non-system `NoteThreads` row.
  */
 export async function backfillCollectionsFromThreadsForUser(
   userId: string,
@@ -94,16 +167,35 @@ export async function backfillCollectionsFromThreadsForUser(
 ): Promise<number> {
   const batchSize = options?.batchSize ?? 400;
   const maxNotes = options?.maxNotes;
-  let lastId: string | null = null;
   let updated = 0;
   let totalExamined = 0;
+
+  updated += await backfillFromThreadIdColumn(userId, batchSize, maxNotes, () => {
+    totalExamined++;
+    return maxNotes != null && totalExamined >= maxNotes;
+  });
+
+  if (maxNotes != null && totalExamined >= maxNotes) return updated;
+
+  const junctionUpdated = await backfillFromJunctionOnlyNotes(userId, batchSize, maxNotes, totalExamined);
+  updated += junctionUpdated;
+
+  return updated;
+}
+
+async function backfillFromThreadIdColumn(
+  userId: string,
+  batchSize: number,
+  maxNotes: number | undefined,
+  shouldStop: () => boolean,
+): Promise<number> {
+  let lastId: string | null = null;
+  let updated = 0;
 
   while (true) {
     const conditions: SQL[] = [
       eq(Notes.userId, userId),
-      isNull(Notes.primaryCollection),
-      eq(Notes.collectionUserOverride, false),
-      eq(Notes.collectionPinned, false),
+      ...collectionBackfillEligible(),
       ne(Notes.threadId, 'thread_unorganized'),
       NOT_ONBOARDING_THREAD,
     ];
@@ -124,41 +216,83 @@ export async function backfillCollectionsFromThreadsForUser(
     const secondariesByNote = await loadSecondaries(noteIds);
 
     for (const note of batch) {
-      if (maxNotes != null && totalExamined >= maxNotes) {
-        lastId = '__stop__';
-        break;
-      }
-      totalExamined++;
+      if (shouldStop()) return updated;
 
-      if (isSystemThreadId(note.threadId)) continue;
-
-      const rawTitle = titleByThreadId.get(note.threadId);
-      if (rawTitle == null) continue;
-      const primaryLabel = rawTitle.trim();
-      if (!primaryLabel.length) continue;
-
-      const secondarySerialized = computeSecondariesForNote(
+      const didUpdate = await applyCollectionBackfillForNote(
+        note.id,
         note.threadId,
-        secondariesByNote.get(note.id),
-        primaryLabel,
+        secondariesByNote,
+        titleByThreadId,
       );
-
-      await db
-        .update(Notes)
-        .set({
-          primaryCollection: primaryLabel,
-          secondaryCollections: secondarySerialized,
-          collectionPinned: true,
-          updatedAt: nowISO(),
-        })
-        .where(eq(Notes.id, note.id));
-      updated++;
+      if (didUpdate) updated++;
     }
 
-    if (lastId === '__stop__') break;
     lastId = batch[batch.length - 1]!.id;
     if (batch.length < batchSize) break;
-    if (maxNotes != null && totalExamined >= maxNotes) break;
+  }
+
+  return updated;
+}
+
+async function backfillFromJunctionOnlyNotes(
+  userId: string,
+  batchSize: number,
+  maxNotes: number | undefined,
+  alreadyExamined: number,
+): Promise<number> {
+  let lastId: string | null = null;
+  let updated = 0;
+  let examined = alreadyExamined;
+
+  while (true) {
+    const conditions: SQL[] = [
+      eq(Notes.userId, userId),
+      ...collectionBackfillEligible(),
+      eq(Notes.threadId, 'thread_unorganized'),
+      ne(NoteThreads.threadId, 'thread_unorganized'),
+      NOT_ONBOARDING_JUNCTION_THREAD,
+    ];
+    if (lastId) conditions.push(gt(Notes.id, lastId));
+
+    const batch = await db
+      .selectDistinct({ id: Notes.id })
+      .from(Notes)
+      .innerJoin(NoteThreads, eq(NoteThreads.noteId, Notes.id))
+      .where(and(...conditions))
+      .orderBy(asc(Notes.id))
+      .limit(batchSize);
+
+    if (batch.length === 0) break;
+
+    const noteIds = batch.map((n) => n.id);
+    const secondariesByNote = await loadSecondaries(noteIds);
+
+    const primaryThreadIds = new Set<string>();
+    for (const noteId of noteIds) {
+      const primary = pickPrimaryThreadFromJunctions(secondariesByNote.get(noteId));
+      if (primary) primaryThreadIds.add(primary);
+    }
+    const titleByThreadId = await loadThreadTitles([...primaryThreadIds]);
+
+    for (const note of batch) {
+      if (maxNotes != null && examined >= maxNotes) return updated;
+      examined++;
+
+      const primaryThreadId = pickPrimaryThreadFromJunctions(secondariesByNote.get(note.id));
+      if (!primaryThreadId) continue;
+
+      const didUpdate = await applyCollectionBackfillForNote(
+        note.id,
+        primaryThreadId,
+        secondariesByNote,
+        titleByThreadId,
+      );
+      if (didUpdate) updated++;
+    }
+
+    lastId = batch[batch.length - 1]!.id;
+    if (batch.length < batchSize) break;
+    if (maxNotes != null && examined >= maxNotes) break;
   }
 
   return updated;
@@ -254,19 +388,20 @@ export async function migrateLinkedFromNoteConnectionsForUser(userId: string): P
   return { migrated, skipped };
 }
 
-/** Run both migration steps for one authenticated user. */
+/** Run migration steps for one authenticated user (additive only). */
 export async function runPrototypeUserMigration(userId: string): Promise<PrototypeUserMigrationResult> {
+  const junctionsRepaired = await repairMissingNoteThreadJunctionsForUser(userId);
   const collectionsUpdated = await backfillCollectionsFromThreadsForUser(userId);
   const { migrated, skipped } = await migrateLinkedFromNoteConnectionsForUser(userId);
   return {
+    junctionsRepaired,
     collectionsUpdated,
     connectionsMigrated: migrated,
     connectionsSkipped: skipped,
   };
 }
 
-/** Whether the user has Classic thread organization not yet reflected in folders. */
-export async function userNeedsCollectionBackfill(userId: string): Promise<boolean> {
+async function hasThreadIdBackfillCandidate(userId: string): Promise<boolean> {
   const row = first(
     await db
       .select({ id: Notes.id })
@@ -274,9 +409,7 @@ export async function userNeedsCollectionBackfill(userId: string): Promise<boole
       .where(
         and(
           eq(Notes.userId, userId),
-          isNull(Notes.primaryCollection),
-          eq(Notes.collectionUserOverride, false),
-          eq(Notes.collectionPinned, false),
+          ...collectionBackfillEligible(),
           ne(Notes.threadId, 'thread_unorganized'),
           NOT_ONBOARDING_THREAD,
         ),
@@ -284,4 +417,62 @@ export async function userNeedsCollectionBackfill(userId: string): Promise<boole
       .limit(1),
   );
   return row != null;
+}
+
+async function hasJunctionOnlyBackfillCandidate(userId: string): Promise<boolean> {
+  const row = first(
+    await db
+      .select({ id: Notes.id })
+      .from(Notes)
+      .innerJoin(NoteThreads, eq(NoteThreads.noteId, Notes.id))
+      .where(
+        and(
+          eq(Notes.userId, userId),
+          ...collectionBackfillEligible(),
+          eq(Notes.threadId, 'thread_unorganized'),
+          ne(NoteThreads.threadId, 'thread_unorganized'),
+          NOT_ONBOARDING_JUNCTION_THREAD,
+        ),
+      )
+      .limit(1),
+  );
+  return row != null;
+}
+
+/** Whether the user has Classic thread organization not yet reflected in folders. */
+export async function userNeedsCollectionBackfill(userId: string): Promise<boolean> {
+  if (await hasThreadIdBackfillCandidate(userId)) return true;
+  return hasJunctionOnlyBackfillCandidate(userId);
+}
+
+/** Count notes eligible for folder backfill (for admin batch dry-run). */
+export async function countCollectionBackfillCandidates(userId?: string): Promise<number> {
+  const threadIdConditions: SQL[] = [
+    ...collectionBackfillEligible(),
+    ne(Notes.threadId, 'thread_unorganized'),
+    NOT_ONBOARDING_THREAD,
+  ];
+  if (userId) threadIdConditions.push(eq(Notes.userId, userId));
+
+  const threadIdRows = await db
+    .select({ id: Notes.id })
+    .from(Notes)
+    .where(and(...threadIdConditions));
+
+  const junctionConditions: SQL[] = [
+    ...collectionBackfillEligible(),
+    eq(Notes.threadId, 'thread_unorganized'),
+    ne(NoteThreads.threadId, 'thread_unorganized'),
+    NOT_ONBOARDING_JUNCTION_THREAD,
+  ];
+  if (userId) junctionConditions.push(eq(Notes.userId, userId));
+
+  const junctionRows = await db
+    .selectDistinct({ id: Notes.id })
+    .from(Notes)
+    .innerJoin(NoteThreads, eq(NoteThreads.noteId, Notes.id))
+    .where(and(...junctionConditions));
+
+  const ids = new Set([...threadIdRows.map((r) => r.id), ...junctionRows.map((r) => r.id)]);
+  return ids.size;
 }

@@ -30,6 +30,7 @@ import { hasClerkSessionCookieHint } from '../hooks/queries/useProfile';
 import { usePrototypeHomeSpaceId } from '../hooks/usePrototypeHomeSpaceId';
 import { noteParamSlug, PROTOTYPE_DRAFT_NOTE_SLUG } from '../pages/prototype/proto-route-slugs';
 import { PROTO_LAST_SPACE_KEY } from './proto-session-keys';
+import { ProtoMigrationProvider } from './proto-migration-context';
 import { ProtoShellProvider, useProtoShell } from './proto-shell-context';
 import {
   applyBackgroundWithImageTint,
@@ -119,9 +120,11 @@ export default function SimplifiedPrototypeLayout() {
   }
 
   return (
-    <ProtoShellProvider>
-      <PrototypeAuthenticatedChrome userId={user?.id} />
-    </ProtoShellProvider>
+    <ProtoMigrationProvider>
+      <ProtoShellProvider>
+        <PrototypeAuthenticatedChrome userId={user?.id} />
+      </ProtoShellProvider>
+    </ProtoMigrationProvider>
   );
 }
 

@@ -1,17 +1,10 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
+import { useCallback, useEffect, useState } from 'react';
 import Icon from '@/components/react/Icon';
 import {
   PROTO_MIGRATION_BANNER_DISMISSED_KEY,
   PROTO_MIGRATION_BANNER_PREVIEW_KEY,
-  PROTO_MIGRATION_DONE_KEY,
 } from '../../layouts/proto-session-keys';
-import { refreshPrototypeLists } from '../../lib/refresh-client-data';
-import { usePrototypeHomeSpaceId } from '../../hooks/usePrototypeHomeSpaceId';
-import {
-  fetchPrototypeMigrationStatus,
-  usePrototypeMigration,
-} from '../../hooks/mutations/usePrototypeMigration';
+import { useProtoMigration } from '../../layouts/proto-migration-context';
 import PrototypeMigrationSheet from './PrototypeMigrationSheet';
 
 function readFlag(key: string): boolean {
@@ -30,64 +23,22 @@ function writeFlag(key: string): void {
   }
 }
 
+/** Informational only — migration runs from ProtoMigrationProvider on layout mount. */
 export default function PrototypeMigrationBanner() {
-  const queryClient = useQueryClient();
-  const { homeSpaceId } = usePrototypeHomeSpaceId();
-  const migrate = usePrototypeMigration();
+  const { migrating, showFoldersBanner } = useProtoMigration();
   const [visible, setVisible] = useState(false);
-  const [migrating, setMigrating] = useState(false);
   const [sheetOpen, setSheetOpen] = useState(false);
-  const startedRef = useRef(false);
 
   useEffect(() => {
-    if (startedRef.current) return;
-    startedRef.current = true;
-
-    let cancelled = false;
-
-    const run = async () => {
-      if (import.meta.env.DEV && readFlag(PROTO_MIGRATION_BANNER_PREVIEW_KEY)) {
-        setVisible(true);
-        return;
-      }
-
-      if (readFlag(PROTO_MIGRATION_BANNER_DISMISSED_KEY)) return;
-
-      const migrationDone = readFlag(PROTO_MIGRATION_DONE_KEY);
-      if (!migrationDone) {
-        setMigrating(true);
-        try {
-          const result = await migrate.mutateAsync();
-          writeFlag(PROTO_MIGRATION_DONE_KEY);
-          if (cancelled) return;
-          await refreshPrototypeLists(queryClient, homeSpaceId);
-          if (result.showFoldersBanner) {
-            setVisible(true);
-          }
-        } catch {
-          /* silent — user can still use notes; admin batch can backfill later */
-        } finally {
-          if (!cancelled) setMigrating(false);
-        }
-        return;
-      }
-
-      try {
-        const status = await fetchPrototypeMigrationStatus();
-        if (!cancelled && status.needsCollectionBackfill) {
-          setVisible(true);
-        }
-      } catch {
-        /* ignore */
-      }
-    };
-
-    void run();
-    return () => {
-      cancelled = true;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- run once on mount
-  }, []);
+    if (import.meta.env.DEV && readFlag(PROTO_MIGRATION_BANNER_PREVIEW_KEY)) {
+      setVisible(true);
+      return;
+    }
+    if (readFlag(PROTO_MIGRATION_BANNER_DISMISSED_KEY)) return;
+    if (showFoldersBanner) {
+      setVisible(true);
+    }
+  }, [showFoldersBanner]);
 
   const dismiss = useCallback(() => {
     writeFlag(PROTO_MIGRATION_BANNER_DISMISSED_KEY);

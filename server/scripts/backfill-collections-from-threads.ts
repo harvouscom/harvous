@@ -19,6 +19,7 @@ import 'dotenv/config';
 import { db, Notes, eq, and, asc, gt, isNull, ne, sql, type SQL } from '../db';
 import {
   backfillCollectionsFromThreadsForUser,
+  countCollectionBackfillCandidates,
   repairMigratedCollectionPins,
 } from '../utils/prototype-user-migration';
 
@@ -43,23 +44,6 @@ function parseArgs() {
 }
 
 const NOT_ONBOARDING_THREAD = sql`NOT starts_with(${Notes.threadId}::text, 'thread_onboarding_')`;
-
-async function countCandidates(userId?: string): Promise<number> {
-  const conditions: SQL[] = [
-    isNull(Notes.primaryCollection),
-    eq(Notes.collectionUserOverride, false),
-    eq(Notes.collectionPinned, false),
-    ne(Notes.threadId, 'thread_unorganized'),
-    NOT_ONBOARDING_THREAD,
-  ];
-  if (userId) conditions.push(eq(Notes.userId, userId));
-
-  const rows = await db
-    .select({ id: Notes.id })
-    .from(Notes)
-    .where(and(...conditions));
-  return rows.length;
-}
 
 async function sampleCandidates(userId: string | undefined, take: number): Promise<string[]> {
   const conditions: SQL[] = [
@@ -89,8 +73,6 @@ async function backfillAllUsers(batchSize: number, maxNotes?: number): Promise<n
       isNull(Notes.primaryCollection),
       eq(Notes.collectionUserOverride, false),
       eq(Notes.collectionPinned, false),
-      ne(Notes.threadId, 'thread_unorganized'),
-      NOT_ONBOARDING_THREAD,
     ];
     if (lastUserId) userConditions.push(gt(Notes.userId, lastUserId));
 
@@ -144,15 +126,15 @@ async function main() {
     `${dryRun ? '[DRY RUN] ' : ''}Backfill collections from threads (batchSize=${batchSize}${userId ? `, userId=${userId}` : ', all users'}${maxNotes != null ? `, limit=${maxNotes}` : ''})`,
   );
 
-  const candidateCount = await countCandidates(userId);
-  console.log(`Candidate notes (no primaryCollection, non-system thread): ${candidateCount}`);
+  const candidateCount = await countCollectionBackfillCandidates(userId);
+  console.log(`Candidate notes (no primaryCollection, thread or junction membership): ${candidateCount}`);
 
   if (dryRun) {
     const samples = await sampleCandidates(userId, 20);
     if (samples.length > 0) {
-      console.log(`\nSample candidate note ids (up to 20):\n${samples.join('\n')}`);
+      console.log(`\nSample candidate note ids (up to 20, threadId column path):\n${samples.join('\n')}`);
     }
-    console.log('\n[DRY RUN] No rows updated.');
+    console.log('\n[DRY RUN] No rows updated. Review candidate count before running without --dry-run.');
     process.exit(0);
   }
 

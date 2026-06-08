@@ -16,6 +16,7 @@
  */
 
 import { Hono } from 'hono';
+import { repairMissingNoteThreadJunctionsForUser } from '../utils/thread-junction-repair';
 import { getStore } from '@netlify/blobs';
 import { getAuth, getAuthenticatedAuth, requireAuth } from '../middleware/auth';
 import {
@@ -295,24 +296,18 @@ app.get('/api/admin/check-link-integrity', requireAuth, async (c) => {
     const noteThreadPairs = new Set(allNoteThreads.map(nt => `${nt.noteId}::${nt.threadId}`));
     const noteIdSet = new Set(userNotes.map(n => n.id));
 
-    for (const note of userNotes) {
-      if (note.threadId && note.threadId !== 'thread_unorganized' && threadIdSet.has(note.threadId)) {
-        const key = `${note.id}::${note.threadId}`;
-        if (!noteThreadPairs.has(key)) {
-          report.threadLinks.details.push({ type: 'missing_junction_created', noteId: note.id, threadId: note.threadId });
-          if (!dryRun) {
-            const id = `nt-heal-${note.id}-${note.threadId}-${Date.now()}`;
-            try {
-              await db.insert(NoteThreads).values({ id, noteId: note.id, threadId: note.threadId, createdAt: nowISO() });
-              report.threadLinks.missingJunctionsCreated++;
-            } catch {
-              // unique constraint = already exists, skip
-            }
-          } else {
+    if (dryRun) {
+      for (const note of userNotes) {
+        if (note.threadId && note.threadId !== 'thread_unorganized' && threadIdSet.has(note.threadId)) {
+          const key = `${note.id}::${note.threadId}`;
+          if (!noteThreadPairs.has(key)) {
+            report.threadLinks.details.push({ type: 'missing_junction_created', noteId: note.id, threadId: note.threadId });
             report.threadLinks.missingJunctionsCreated++;
           }
         }
       }
+    } else {
+      report.threadLinks.missingJunctionsCreated = await repairMissingNoteThreadJunctionsForUser(auth.userId);
     }
 
     // 2. NoteThreads rows pointing to deleted notes or threads

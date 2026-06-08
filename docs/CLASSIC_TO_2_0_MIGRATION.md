@@ -28,7 +28,20 @@ Prototype **Threads** sidebar (connected-note study chains) remains for intentio
 3. If folders were created from thread titles, a **one-time banner** explains Folders vs Connected Threads.
 4. All notes appear in the **Notes** list immediately; organization appears in **Folders** after backfill.
 
-Classic thread pages remain on `classic.harvous.com` until Classic sunset.
+Classic thread pages remain on `app.harvous.com` (not `/prototype`) until host cutover. Early adopters use `new.harvous.com`.
+
+---
+
+## Data preservation (non-negotiable)
+
+Migration is **additive only** for users still on Classic:
+
+- **Creates** missing `NoteThreads` rows when `Notes.threadId` already points at a real thread (restores Classic thread lists).
+- **Sets** `primaryCollection` / `secondaryCollections` only when `primaryCollection IS NULL` and no manual folder override.
+- **Never deletes** thread rows, **never overwrites** existing folder labels, **never changes** `Notes.threadId` during folder backfill.
+- Classic UI reads `NoteThreads`; pre-provisioning folder labels on Classic-only users does not change their experience until the 2.0 shell is default.
+
+Per-user migration runs from [`SimplifiedPrototypeLayout`](../spa/src/layouts/SimplifiedPrototypeLayout.tsx) via [`ProtoMigrationProvider`](../spa/src/layouts/proto-migration-context.tsx). Server `needsCollectionBackfill` is authoritative; `localStorage` done flag is a cache hint only.
 
 ---
 
@@ -67,7 +80,7 @@ npm run db:check
 
 Implementation: [server/utils/prototype-user-migration.ts](../server/utils/prototype-user-migration.ts)
 
-Client: [spa/src/pages/prototype/PrototypeMigrationBanner.tsx](../spa/src/pages/prototype/PrototypeMigrationBanner.tsx) runs migration once per browser (`localStorage` key `harvous-prototype-migration-v1-done`).
+Client: [`ProtoMigrationProvider`](../spa/src/layouts/proto-migration-context.tsx) runs `POST /api/user/migrate-to-prototype` on prototype layout mount when `GET /status` reports `needsCollectionBackfill`. [`PrototypeMigrationBanner`](../spa/src/pages/prototype/PrototypeMigrationBanner.tsx) is informational only (folders vs connected threads).
 
 ### Admin batch (optional pre-launch)
 
@@ -114,7 +127,10 @@ Offline IndexedDB (Dexie v4): `noteConnections` table in [src/utils/offline-db.t
 ## Rollout checklist
 
 - [ ] `npm run db:push` on production Supabase
-- [ ] Optional: batch `backfill-collections-from-threads.ts` before launch; run `--repair-pins` after deploy if migration ran earlier without pins
-- [ ] Deploy API + SPA with migration hook and sync changes
-- [ ] Smoke-test Classic user: notes visible, folders populated, connect-link works
+- [ ] Dry-run `npx tsx server/scripts/backfill-collections-from-threads.ts --dry-run` — confirm zero overwrites of existing `primaryCollection`
+- [ ] Optional: batch backfill before host cutover (safe for Classic-only users); `GET /api/admin/check-link-integrity?dryRun=true` for junction repair preview
+- [ ] Deploy API + SPA with layout-mount migration (`ProtoMigrationProvider`)
+- [ ] Smoke-test Classic user on app.harvous.com: thread notes visible; note content unchanged
+- [ ] Smoke-test prototype: folders match thread titles; `collectionPinned` on migrated primaries
+- [ ] Host cutover: set `DEDICATED_PROTOTYPE_HOST` to `app.harvous.com` in [`src/lib/prototype-path.ts`](../src/lib/prototype-path.ts); sunset Classic `/thread` routes
 - [ ] Communicate: thread piles → folders; Threads = connected notes

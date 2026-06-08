@@ -3,9 +3,11 @@ import { api } from '../../lib/api';
 
 export interface PrototypeMigrationResult {
   success: boolean;
+  junctionsRepaired: number;
   collectionsUpdated: number;
   connectionsMigrated: number;
   connectionsSkipped: number;
+  needsCollectionBackfill: boolean;
   showFoldersBanner: boolean;
 }
 
