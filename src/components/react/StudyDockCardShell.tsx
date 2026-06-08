@@ -81,9 +81,16 @@ export default function StudyDockCardShell({
   }`;
   const titleUsesToggleButton = headerTitleIsButton && expanded;
 
-  const stopHeaderActionBubble = (e: React.MouseEvent) => {
+  const stopHeaderActionClickBubble = (e: React.MouseEvent) => {
+    e.stopPropagation();
+  };
+
+  /** Pointer: run on mousedown (preventDefault suppresses duplicate click). Keyboard: fallback via click detail 0. */
+  const runHeaderPointerAction = (e: React.MouseEvent, action: () => void) => {
+    if (e.button !== 0) return;
     e.preventDefault();
     e.stopPropagation();
+    action();
   };
 
   const rootClass = [
@@ -145,11 +152,7 @@ export default function StudyDockCardShell({
             {headerTrailing && expanded ? (
               <div className="study-dock-card__header-trailing">{headerTrailing}</div>
             ) : null}
-            <div
-              className="study-dock-card__header-actions"
-              onClick={stopHeaderActionBubble}
-              onMouseDown={stopHeaderActionBubble}
-            >
+            <div className="study-dock-card__header-actions" onClick={stopHeaderActionClickBubble}>
               {expanded && headerActions ? (
                 <>
                   {headerActions}
@@ -160,7 +163,11 @@ export default function StudyDockCardShell({
                 <button
                   type="button"
                   className="study-dock-card__header-btn"
-                  onClick={onToggleExpanded}
+                  onMouseDown={(e) => runHeaderPointerAction(e, onToggleExpanded)}
+                  onClick={(e) => {
+                    stopHeaderActionClickBubble(e);
+                    if (e.detail === 0) onToggleExpanded();
+                  }}
                   aria-expanded={expanded}
                   aria-label="Collapse"
                 >
@@ -170,7 +177,11 @@ export default function StudyDockCardShell({
               <button
                 type="button"
                 className="study-dock-card__header-btn"
-                onClick={handleDismiss}
+                onMouseDown={(e) => runHeaderPointerAction(e, handleDismiss)}
+                onClick={(e) => {
+                  stopHeaderActionClickBubble(e);
+                  if (e.detail === 0) handleDismiss();
+                }}
                 aria-label="Dismiss"
               >
                 <Icon name="xmark" size={12} />
