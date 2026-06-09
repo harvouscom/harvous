@@ -72,6 +72,17 @@ export default function HighlightDockWeb({
   const [miniNoteBody, setMiniNoteBody] = useState(miniNoteBodyProp);
   const [respondMenuOpen, setRespondMenuOpen] = useState(false);
   const respondRef = useRef<HTMLDivElement>(null);
+  const userTouchedMiniNoteRef = useRef(false);
+  const userTouchedTitleRef = useRef(false);
+  const pendingMiniNoteRef = useRef<string | null>(null);
+  const pendingTitleRef = useRef<string | null>(null);
+  const hadStudyThreadIdRef = useRef(false);
+  const miniNoteBodyRef = useRef(miniNoteBody);
+  miniNoteBodyRef.current = miniNoteBody;
+  const focusTitleRef = useRef(focusTitle);
+  focusTitleRef.current = focusTitle;
+  const studyThreadEntryIdRef = useRef(studyThreadEntryId);
+  studyThreadEntryIdRef.current = studyThreadEntryId;
   const [isExpandedInternal, setIsExpandedInternal] = useState(true);
   const isControlledExpanded = expandedControlled !== undefined && onExpandedChange !== undefined;
   const isExpanded = isControlledExpanded ? expandedControlled! : isExpandedInternal;
@@ -89,6 +100,14 @@ export default function HighlightDockWeb({
   useEffect(() => {
     setMiniNoteBody(miniNoteBodyProp);
   }, [miniNoteBodyProp]);
+
+  useEffect(() => {
+    userTouchedMiniNoteRef.current = false;
+    userTouchedTitleRef.current = false;
+    pendingMiniNoteRef.current = null;
+    pendingTitleRef.current = null;
+    hadStudyThreadIdRef.current = false;
+  }, [excerpt]);
 
   useEffect(() => {
     if (!interactionActive || !studyThreadEntryId || !sourceNoteId) return;
@@ -109,8 +128,8 @@ export default function HighlightDockWeb({
         if (!row || cancelled) return;
         const hydratedTitle =
           (row.focusTitle != null && row.focusTitle.trim()) || deriveHighlightFocusTitle(excerpt);
-        if (hydratedTitle) setFocusTitle(hydratedTitle);
-        if (row.miniNoteBody != null) setMiniNoteBody(row.miniNoteBody);
+        if (hydratedTitle && !userTouchedTitleRef.current) setFocusTitle(hydratedTitle);
+        if (row.miniNoteBody != null && !userTouchedMiniNoteRef.current) setMiniNoteBody(row.miniNoteBody);
       } catch {
         /* ignore */
       }
@@ -123,11 +142,31 @@ export default function HighlightDockWeb({
   const titleDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const noteDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  const flushPendingAnnotation = useCallback((threadId: string, note: string, title: string) => {
+    const patch: Record<string, string> = {};
+    const noteToSave = pendingMiniNoteRef.current ?? note;
+    const titleToSave = pendingTitleRef.current ?? title;
+    if (userTouchedMiniNoteRef.current || pendingMiniNoteRef.current != null) {
+      patch.miniNoteBody = noteToSave;
+    }
+    if (userTouchedTitleRef.current || pendingTitleRef.current != null) {
+      patch.focusTitle = titleToSave;
+    }
+    if (Object.keys(patch).length > 0) {
+      patchStudyThread(threadId, patch);
+    }
+    pendingMiniNoteRef.current = null;
+    pendingTitleRef.current = null;
+  }, []);
+
   const persistTitle = useCallback(
     (value: string) => {
       onFocusTitleChange?.(value);
       if (studyThreadEntryId) {
         patchStudyThread(studyThreadEntryId, { focusTitle: value });
+        pendingTitleRef.current = null;
+      } else {
+        pendingTitleRef.current = value;
       }
     },
     [studyThreadEntryId, onFocusTitleChange],
@@ -138,13 +177,40 @@ export default function HighlightDockWeb({
       onMiniNoteChange?.(value);
       if (studyThreadEntryId) {
         patchStudyThread(studyThreadEntryId, { miniNoteBody: value });
+        pendingMiniNoteRef.current = null;
+      } else {
+        pendingMiniNoteRef.current = value;
       }
     },
     [studyThreadEntryId, onMiniNoteChange],
   );
 
+  useEffect(() => {
+    if (!studyThreadEntryId) {
+      hadStudyThreadIdRef.current = false;
+      return;
+    }
+    const isFirstAssignment = !hadStudyThreadIdRef.current;
+    hadStudyThreadIdRef.current = true;
+    if (!isFirstAssignment) return;
+    if (
+      !userTouchedMiniNoteRef.current &&
+      !userTouchedTitleRef.current &&
+      pendingMiniNoteRef.current == null &&
+      pendingTitleRef.current == null
+    ) {
+      return;
+    }
+    flushPendingAnnotation(
+      studyThreadEntryId,
+      miniNoteBodyRef.current,
+      focusTitleRef.current,
+    );
+  }, [studyThreadEntryId, flushPendingAnnotation]);
+
   const handleTitleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
+    userTouchedTitleRef.current = true;
     setFocusTitle(value);
     if (titleDebounceRef.current) clearTimeout(titleDebounceRef.current);
     titleDebounceRef.current = setTimeout(() => persistTitle(value), 400);
@@ -152,6 +218,7 @@ export default function HighlightDockWeb({
 
   const handleMiniNoteChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const value = e.target.value;
+    userTouchedMiniNoteRef.current = true;
     setMiniNoteBody(value);
     if (noteDebounceRef.current) clearTimeout(noteDebounceRef.current);
     noteDebounceRef.current = setTimeout(() => persistMiniNote(value), 400);
@@ -161,8 +228,19 @@ export default function HighlightDockWeb({
     return () => {
       if (titleDebounceRef.current) clearTimeout(titleDebounceRef.current);
       if (noteDebounceRef.current) clearTimeout(noteDebounceRef.current);
+      const threadId = studyThreadEntryIdRef.current;
+      if (!threadId) return;
+      if (
+        !userTouchedMiniNoteRef.current &&
+        !userTouchedTitleRef.current &&
+        pendingMiniNoteRef.current == null &&
+        pendingTitleRef.current == null
+      ) {
+        return;
+      }
+      flushPendingAnnotation(threadId, miniNoteBodyRef.current, focusTitleRef.current);
     };
-  }, []);
+  }, [flushPendingAnnotation]);
 
   const accentKey: StudyHighlightAccentKey = isStudyHighlightAccentKey(accent) ? accent : 'warmAmber';
   const accentColor = SCRIPTURE_DOCK_ACCENT_COLORS[accentKey];
@@ -173,6 +251,7 @@ export default function HighlightDockWeb({
     const trimmed = miniNoteBody.trim();
     const prefix = trimmed ? '\n\n' : '';
     const next = `${miniNoteBody}${prefix}${prompt}\n`;
+    userTouchedMiniNoteRef.current = true;
     setMiniNoteBody(next);
     persistMiniNote(next);
     setRespondMenuOpen(false);
@@ -225,8 +304,12 @@ export default function HighlightDockWeb({
           placeholder={titlePlaceholder}
           aria-label="Highlight title"
           onChange={isExpanded ? handleTitleChange : undefined}
-          onMouseDown={(e) => e.stopPropagation()}
-          onClick={(e) => e.stopPropagation()}
+          onMouseDown={(e) => {
+            if (isExpanded) e.stopPropagation();
+          }}
+          onClick={(e) => {
+            if (isExpanded) e.stopPropagation();
+          }}
         />
       }
       headerActions={
@@ -256,6 +339,9 @@ export default function HighlightDockWeb({
           aria-label="Highlight note"
           rows={2}
           onChange={handleMiniNoteChange}
+          onMouseDown={(e) => e.stopPropagation()}
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={(e) => e.stopPropagation()}
         />
       ) : excerpt.trim() ? (
         <p className="highlight-dock-web__excerpt-text">{excerpt}</p>

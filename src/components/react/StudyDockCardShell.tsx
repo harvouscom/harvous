@@ -113,12 +113,23 @@ export default function StudyDockCardShell({
           style={{ '--study-dock-accent': accentColor } as React.CSSProperties}
           tabIndex={expanded ? undefined : 0}
           aria-expanded={expanded}
-          onClick={expanded ? undefined : onToggleExpanded}
+          onClick={
+            expanded
+              ? undefined
+              : (e) => {
+                  /* Keyboard activation only — mouse expand runs on mousedown (preventDefault there suppresses click). */
+                  if (e.detail === 0) onToggleExpanded();
+                }
+          }
           onMouseDown={
             expanded
               ? undefined
               : (e) => {
+                  if (e.button !== 0) return;
+                  if ((e.target as HTMLElement).closest('.study-dock-card__header-actions')) return;
                   e.preventDefault();
+                  e.stopPropagation();
+                  onToggleExpanded();
                 }
           }
           onKeyDown={

@@ -66,9 +66,14 @@
   align-items: center;
   justify-content: flex-end;
   gap: 8px;
-  padding: 16px 0 8px;
+  padding: 16px 0 0;
   pointer-events: none;
   overflow: visible;
+}
+
+/* Shadow room lives on `.study-dock-card__outer` padding — not an extra track gap. */
+.proto-shell__study-dock-layer .study-dock-carousel__track {
+  padding-bottom: 0;
 }
 
 .proto-shell__editor-chrome-row:has(.proto-shell__study-dock-layer__slot:not(:empty)) {

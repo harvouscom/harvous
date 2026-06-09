@@ -140,11 +140,12 @@ export default function StudyDockCarouselWeb({
                 .join(' ')}
               onDragOver={(e) => handleDragOver(e, entry.id)}
               onDrop={handleDrop}
-              onMouseDown={(e) => {
-                if (isActive) return;
+              onMouseDownCapture={(e) => {
                 if ((e.target as HTMLElement).closest('.study-dock-carousel__drag-handle')) return;
                 if ((e.target as HTMLElement).closest('.study-dock-card__header-actions')) return;
+                if (isActive && entry.expanded) return;
                 e.preventDefault();
+                e.stopPropagation();
                 onSelectEntry(entry.id);
               }}
             >

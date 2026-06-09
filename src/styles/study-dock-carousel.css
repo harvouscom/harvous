@@ -149,12 +149,12 @@
   max-width: var(--study-dock-max-width);
   margin-left: auto;
   margin-right: auto;
-  padding: 0;
+  padding: 0 12px 12px;
 }
 
-/* Bottom-align card borders: no extra outer pad; expanded docks grow upward from the row baseline. */
+/* Bottom-align card chrome on the format-bar baseline; side/bottom outer pad is shadow room only. */
 .study-dock-carousel__item .study-dock-card__outer {
-  padding: 0;
+  padding: 0 12px 12px;
   margin: 0;
 }
 

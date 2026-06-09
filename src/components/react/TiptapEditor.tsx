@@ -3290,6 +3290,8 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
   /** Bump when the editor gains focus from an unfocused state so the toolbar remounts and the enter animation can run. */
   const [toolbarEnterEpoch, setToolbarEnterEpoch] = useState(0);
   const editorWasFocusedForToolbarRef = useRef(false);
+  /** Dock mousedown uses preventDefault so blur relatedTarget is often null — still treat as in-chrome. */
+  const studyDockPointerDownRef = useRef(false);
   const [activeStates, setActiveStates] = useState({
     canUndo: false,
     canRedo: false,
@@ -3373,6 +3375,8 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
   } | null>(null);
   const skipScriptureDockDismissRef = useRef(false);
   const [studyDockStack, setStudyDockStack] = useState<StudyDockStack>(emptyStudyDockStack);
+  const studyDockStackRef = useRef(studyDockStack);
+  studyDockStackRef.current = studyDockStack;
   const studyDockPortalTarget =
     studyDockCarouselPortalTarget ?? scriptureChromePortalTarget ?? highlightChromePortalTarget;
 
@@ -4398,18 +4402,19 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
   }, [selectionActionBar, editor]);
 
   const applyHighlightMark = useCallback(
-    (range: { from: number; to: number }, attrs: { color: string; studyThreadEntryId?: string }) => {
+    (
+      range: { from: number; to: number },
+      attrs: { color: string; studyThreadEntryId?: string },
+      opts?: { focusEditor?: boolean },
+    ) => {
       if (!editor || !isEditorValid(editor)) return false;
       const markType = editor.state.schema.marks.highlight;
       if (!markType) return false;
       const { from, to } = range;
       if (from === to) return false;
-      const chained = editor
-        .chain()
-        .focus()
-        .setTextSelection({ from, to })
-        .setHighlight(attrs)
-        .run();
+      const focusEditor = opts?.focusEditor !== false;
+      const chain = focusEditor ? editor.chain().focus() : editor.chain();
+      const chained = chain.setTextSelection({ from, to }).setHighlight(attrs).run();
       if (chained) return true;
       try {
         const tr = editor.state.tr;
@@ -4423,6 +4428,18 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     },
     [editor],
   );
+
+  const releaseEditorFocusForStudyDock = useCallback(() => {
+    if (!editor || !isEditorValid(editor)) return;
+    try {
+      const { to } = editor.state.selection;
+      editor.commands.setTextSelection(to);
+      const dom = editor.view.dom as HTMLElement | undefined;
+      dom?.blur();
+    } catch {
+      /* ignore */
+    }
+  }, [editor]);
 
   const getSelectedSingleWord = useCallback((): string | null => {
     const range = resolveSelectionBarRange();
@@ -4940,6 +4957,14 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
         clearSelectionActionBar();
         return;
       }
+      if (
+        editorChromeMode === 'prototypeNative' &&
+        studyDockStackHasEntries(studyDockStackRef.current)
+      ) {
+        setShowCreateNoteButton(false);
+        setSelectionActionBar(null);
+        return;
+      }
       if (isValidSelection(editor)) {
         setShowCreateNoteButton(true);
         // Position floating action bar below the selection (prototype: 8px gap + clamp like native SelectionActionBar)
@@ -4971,9 +4996,10 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
           clearSelectionActionBar();
         }
       } else {
-        // Keep the frozen bar/range when the live selection collapses (e.g. mousedown on the
-        // portaled bar outside ProseMirror) so bar button handlers can still apply the mark.
+        // Hide the bar once live selection collapses, but keep selectionBarRangeRef so
+        // capture-phase bar handlers can still read the frozen range on the same click.
         setShowCreateNoteButton(false);
+        setSelectionActionBar(null);
       }
     };
 
@@ -4983,6 +5009,14 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     const handlePointerDownOutside = (e: PointerEvent | MouseEvent) => {
       const target = e.target as HTMLElement;
       if (target?.closest?.('.selection-action-bar')) return;
+      if (
+        target?.closest?.(
+          '.study-dock-card, .highlight-dock-web, .study-dock-carousel, .reference-dock-web',
+        )
+      ) {
+        clearSelectionActionBar();
+        return;
+      }
       // Give a tick for the selection to update before dismissing
       setTimeout(() => {
         if (!isEditorValid(editor)) return;
@@ -5726,6 +5760,9 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       // selection and interrupts dock button clicks. The format toolbar is instead hidden while a
       // dock chrome is active via `studyDockChromeTakesOver` below.
       const relatedTarget = event.event?.relatedTarget as HTMLElement | null | undefined;
+      if (studyDockPointerDownRef.current) {
+        return;
+      }
       if (relatedTarget?.closest?.('.tiptap-toolbar')) {
         return;
       }
@@ -5797,6 +5834,26 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       }
     };
   }, [editor, toolbarAtBottom, editorChromeMode, bumpFormatToolbarActivity]);
+
+  useEffect(() => {
+    if (editorChromeMode !== 'prototypeNative') return;
+    const dockSelector =
+      '.study-dock-card, .study-dock-carousel, .highlight-dock-web, .reference-dock-web, .scripture-pill-chrome';
+    const onPointerDown = (e: Event) => {
+      if ((e.target as HTMLElement)?.closest?.(dockSelector)) {
+        studyDockPointerDownRef.current = true;
+      }
+    };
+    const onPointerUp = () => {
+      studyDockPointerDownRef.current = false;
+    };
+    document.addEventListener('mousedown', onPointerDown, true);
+    document.addEventListener('mouseup', onPointerUp, true);
+    return () => {
+      document.removeEventListener('mousedown', onPointerDown, true);
+      document.removeEventListener('mouseup', onPointerUp, true);
+    };
+  }, [editorChromeMode]);
 
   useEffect(() => {
     if (!editor || !sourceNoteId) return;
@@ -5942,12 +5999,17 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       onPrototypeChromeModeChange(prototypeNoteActionsChrome ? 'noteActions' : 'hidden');
       return;
     }
+    if (studyDockChromeTakesOver) {
+      onPrototypeChromeModeChange('hidden');
+      return;
+    }
     onPrototypeChromeModeChange('format');
   }, [
     editorChromeMode,
     onPrototypeChromeModeChange,
     prototypeNoteActionsChrome,
     isEditorFocused,
+    studyDockChromeTakesOver,
   ]);
 
   const syncTiptapContentScrollMask = useCallback(() => {
@@ -6574,7 +6636,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                   className="pds-native-selection-bar__btn"
                   title="Highlight selected text"
                   aria-label="Highlight selected text"
-                  onPointerDown={(e: React.PointerEvent) => {
+                  onPointerDownCapture={(e: React.PointerEvent) => {
                     e.preventDefault();
                     e.stopPropagation();
                     const range = resolveSelectionBarRange();
@@ -6585,6 +6647,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                     const applied = applyHighlightMark(
                       { from, to },
                       { color: defaultAccent },
+                      { focusEditor: false },
                     );
                     if (!applied) {
                       if (import.meta.env.DEV) {
@@ -6597,6 +6660,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                     }
                     onContentChange?.(editor.getHTML());
                     clearSelectionActionBar();
+                    releaseEditorFocusForStudyDock();
                     if (editorChromeMode === 'prototypeNative') {
                       setStudyDockStack((s) =>
                         openOrFocusHighlight(s, {
@@ -6634,6 +6698,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                           applyHighlightMark(
                             { from, to },
                             { color: defaultAccent, studyThreadEntryId: studyId },
+                            { focusEditor: false },
                           );
                           if (hiddenInputRef.current) {
                             hiddenInputRef.current.value = editor.getHTML();

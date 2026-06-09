@@ -46,8 +46,12 @@
   align-items: center;
   justify-content: flex-end;
   gap: 8px;
-  padding: 0 0 8px;
+  padding: 0;
   pointer-events: none;
+}
+
+.note-editor-dock-layer .study-dock-carousel__track {
+  padding-bottom: 0;
 }
 
 .note-editor-dock-layer__slot {
