@@ -188,6 +188,18 @@
   pointer-events: auto;
 }
 
+/* Collapsed slots: stretch the handle to the card chrome height (exclude outer shadow pad). */
+.study-dock-carousel__item--compact .study-dock-carousel__drag-handle {
+  align-self: stretch;
+  min-height: 0;
+  margin-bottom: 12px;
+}
+
+.study-dock-carousel__item--compact .study-dock-carousel__drag-handle::before {
+  height: 100%;
+  min-height: 22px;
+}
+
 .study-dock-carousel__drag-handle:hover {
   background: color-mix(in srgb, var(--pds-text-primary, #000) 5%, transparent);
 }
