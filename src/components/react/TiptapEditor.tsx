@@ -74,6 +74,7 @@ import {
   collapseActiveScriptureIfActive,
   emptyStudyDockStack,
   moveDockEntryToIndex,
+  highlightDockStableKey,
   openOrFocusHighlight,
   openOrFocusReference,
   openOrFocusScripture,
@@ -3232,15 +3233,27 @@ const isMobileDevice = (): boolean => {
   return /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
 };
 
-function selectionIntersectsHighlightMark(editor: any): boolean {
-  if (!editor?.state?.selection || !editor.schema?.marks?.highlight) return false;
-  const { from, to } = editor.state.selection;
-  if (from === to) return false;
+type SelectionActionBarState = {
+  top: number;
+  left: number;
+  from: number;
+  to: number;
+  snippet: string;
+};
+
+function rangeHasHighlightMark(editor: any, from: number, to: number): boolean {
+  if (!editor?.state?.doc || !editor.schema?.marks?.highlight || from === to) return false;
   try {
     return editor.state.doc.rangeHasMark(from, to, editor.schema.marks.highlight);
   } catch {
     return false;
   }
+}
+
+function selectionIntersectsHighlightMark(editor: any): boolean {
+  if (!editor?.state?.selection || !editor.schema?.marks?.highlight) return false;
+  const { from, to } = editor.state.selection;
+  return rangeHasHighlightMark(editor, from, to);
 }
 
 const TiptapEditor: React.FC<TiptapEditorProps> = ({
@@ -3291,10 +3304,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
   const [showCreateNoteButton, setShowCreateNoteButton] = useState(false);
 
   // Custom floating selection action bar (replaces BubbleMenu which has reliability issues across Tiptap versions)
-  const [selectionActionBar, setSelectionActionBar] = useState<{
-    top: number;
-    left: number;
-  } | null>(null);
+  const [selectionActionBar, setSelectionActionBar] = useState<SelectionActionBarState | null>(null);
   const [connectFromSelectionOpen, setConnectFromSelectionOpen] = useState(false);
   const [connectFromSelectionAnchorRect, setConnectFromSelectionAnchorRect] = useState<DOMRect | null>(null);
   const [connectFromSelectionRange, setConnectFromSelectionRange] = useState<{
@@ -4352,14 +4362,32 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     editor.view.dispatch(editor.state.tr.setMeta(REFERENCE_SUGGESTION_REFRESH_META, true));
   }, [editor, eastonsIndex]);
 
-  const getSelectedSingleWord = useCallback((): string | null => {
-    if (!editor) return null;
+  const resolveSelectionBarRange = useCallback((): { from: number; to: number; snippet: string } | null => {
+    if (selectionActionBar && selectionActionBar.from !== selectionActionBar.to) {
+      return {
+        from: selectionActionBar.from,
+        to: selectionActionBar.to,
+        snippet: selectionActionBar.snippet,
+      };
+    }
+    if (!editor || !isEditorValid(editor)) return null;
     const { from, to } = editor.state.selection;
-    if (from === to) return null;
-    const text = editor.state.doc.textBetween(from, to).trim();
+    if (from === to) {
+      if (import.meta.env.DEV) {
+        console.warn('[TiptapEditor] selection bar action: empty range');
+      }
+      return null;
+    }
+    return { from, to, snippet: editor.state.doc.textBetween(from, to) };
+  }, [selectionActionBar, editor]);
+
+  const getSelectedSingleWord = useCallback((): string | null => {
+    const range = resolveSelectionBarRange();
+    if (!range) return null;
+    const text = range.snippet.trim();
     if (!text || /\s/.test(text) || text.length > 40) return null;
     return text;
-  }, [editor]);
+  }, [resolveSelectionBarRange]);
 
   /**
    * Persist a reference for the word at `range`: create the server-side `reference`
@@ -4894,7 +4922,8 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
             const maxCx = vw - inset - barW / 2;
             centerX = Math.min(Math.max(centerX, minCx), maxCx);
           }
-          setSelectionActionBar({ top, left: centerX });
+          const snippet = editor.state.doc.textBetween(from, to);
+          setSelectionActionBar({ top, left: centerX, from, to, snippet });
         } catch (_) {
           setSelectionActionBar(null);
         }
@@ -5310,13 +5339,16 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
   }, [editor, editorChromeMode]);
 
   // Handle create note from selection
-  const handleCreateNoteFromSelection = async () => {
+  const handleCreateNoteFromSelection = async (
+    rangeOverride?: { from: number; to: number },
+  ) => {
     if (!editor) return;
     
     // Check if editor is still valid before accessing it
     if (!isEditorValid(editor)) return;
     
-    const { from, to } = editor.state.selection;
+    const from = rangeOverride?.from ?? editor.state.selection.from;
+    const to = rangeOverride?.to ?? editor.state.selection.to;
     if (from === to) return;
     
     // Determine if we should preserve formatting
@@ -6490,6 +6522,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
               <div
                 className="pds-native-selection-bar floating-picker-enter"
                 onMouseDown={(e) => e.preventDefault()}
+                onPointerDown={(e) => e.preventDefault()}
               >
                 <button
                   type="button"
@@ -6499,15 +6532,40 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                   onMouseDown={(e: React.MouseEvent) => {
                     e.preventDefault();
                     e.stopPropagation();
-                    if (!editor || !isEditorValid(editor)) return;
-                    const { from, to } = editor.state.selection;
-                    if (from === to) return;
-                    const snippet = editor.state.doc.textBetween(from, to);
+                    const range = resolveSelectionBarRange();
+                    if (!range || !editor || !isEditorValid(editor)) return;
+                    const { from, to, snippet } = range;
                     const defaultAccent = 'warmAmber';
 
-                    void (async () => {
-                      let studyId: string | null = null;
-                      if (editorChromeMode === 'prototypeNative' && sourceNoteId) {
+                    editor
+                      .chain()
+                      .focus()
+                      .setTextSelection({ from, to })
+                      .setHighlight({
+                        color: defaultAccent,
+                      })
+                      .run();
+                    if (hiddenInputRef.current) {
+                      hiddenInputRef.current.value = editor.getHTML();
+                    }
+                    onContentChange?.(editor.getHTML());
+                    setSelectionActionBar(null);
+                    if (editorChromeMode === 'prototypeNative') {
+                      setStudyDockStack((s) =>
+                        openOrFocusHighlight(s, {
+                          studyThreadEntryId: null,
+                          accent: defaultAccent,
+                          excerpt: snippet,
+                          range: { from, to },
+                          entryKind: 'miniNote',
+                          focusTitle: deriveHighlightFocusTitle(snippet),
+                          miniNoteBody: '',
+                        }),
+                      );
+                    }
+
+                    if (editorChromeMode === 'prototypeNative' && sourceNoteId) {
+                      void (async () => {
                         try {
                           const res = await fetch(`/api/notes/${sourceNoteId}/study-threads`, {
                             method: 'POST',
@@ -6522,43 +6580,43 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                               anchorLength: Math.max(0, to - from),
                             }),
                           });
-                          if (res.ok) {
-                            const data = await res.json();
-                            studyId = data.studyThread?.id ?? null;
+                          if (!res.ok || !editor || !isEditorValid(editor)) return;
+                          const data = await res.json();
+                          const studyId: string | null = data.studyThread?.id ?? null;
+                          if (!studyId) return;
+                          const markType = editor.state.schema.marks.highlight;
+                          if (markType) {
+                            const tr = editor.state.tr;
+                            tr.removeMark(from, to, markType);
+                            tr.addMark(
+                              from,
+                              to,
+                              markType.create({ color: defaultAccent, studyThreadEntryId: studyId }),
+                            );
+                            editor.view.dispatch(tr);
+                            if (hiddenInputRef.current) {
+                              hiddenInputRef.current.value = editor.getHTML();
+                            }
+                            onContentChange?.(editor.getHTML());
                           }
+                          setStudyDockStack((s) => {
+                            const active = s.entries.find((e) => e.id === s.activeId);
+                            if (!active || active.kind !== 'highlight') return s;
+                            return updateDockEntry(s, active.id, (e) =>
+                              e.kind === 'highlight'
+                                ? {
+                                    ...e,
+                                    stableKey: highlightDockStableKey(studyId, { from, to }),
+                                    session: { ...e.session, studyThreadEntryId: studyId },
+                                  }
+                                : e,
+                            );
+                          });
                         } catch {
-                          /* fall through to local mark */
+                          /* local mark + dock already applied */
                         }
-                      }
-                      if (!editor || !isEditorValid(editor)) return;
-                      editor
-                        .chain()
-                        .focus()
-                        .setTextSelection({ from, to })
-                        .setHighlight({
-                          color: defaultAccent,
-                          studyThreadEntryId: studyId || undefined,
-                        })
-                        .run();
-                      if (hiddenInputRef.current) {
-                        hiddenInputRef.current.value = editor.getHTML();
-                      }
-                      onContentChange?.(editor.getHTML());
-                      setSelectionActionBar(null);
-                      if (editorChromeMode === 'prototypeNative') {
-                        setStudyDockStack((s) =>
-                          openOrFocusHighlight(s, {
-                            studyThreadEntryId: studyId,
-                            accent: defaultAccent,
-                            excerpt: snippet,
-                            range: { from, to },
-                            entryKind: 'miniNote',
-                            focusTitle: deriveHighlightFocusTitle(snippet),
-                            miniNoteBody: '',
-                          }),
-                        );
-                      }
-                    })();
+                      })();
+                    }
                   }}
                 >
                   <Icon name="highlighter" size={14} />
@@ -6582,14 +6640,14 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                             setSelectionActionBar(null);
                             return;
                           }
-                          const { from, to } = editor.state.selection;
-                          if (from === to) {
+                          const range = resolveSelectionBarRange();
+                          if (!range) {
                             openReferenceDock({ query: word });
                             setSelectionActionBar(null);
                             return;
                           }
                           setSelectionActionBar(null);
-                          void saveReferenceHighlight({ from, to }, word);
+                          void saveReferenceHighlight({ from: range.from, to: range.to }, word);
                         }}
                       >
                         <Icon name="lines-leaning" size={14} />
@@ -6606,7 +6664,8 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                   onMouseDown={(e: React.MouseEvent) => {
                     e.preventDefault();
                     e.stopPropagation();
-                    void handleCreateNoteFromSelection();
+                    const range = resolveSelectionBarRange();
+                    void handleCreateNoteFromSelection(range ? { from: range.from, to: range.to } : undefined);
                     setSelectionActionBar(null);
                   }}
                 >
@@ -6623,15 +6682,18 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                       onMouseDown={(e: React.MouseEvent) => {
                         e.preventDefault();
                         e.stopPropagation();
-                        if (editor && isEditorValid(editor)) {
-                          const { from, to } = editor.state.selection;
-                          if (from !== to) {
-                            const text = editor.state.doc.textBetween(from, to, ' ');
-                            const anchorLocation = editor.state.doc.textBetween(0, from, '\n').length;
-                            setConnectFromSelectionRange({ from, to, text, anchorLocation, anchorLength: text.length });
-                          } else {
-                            setConnectFromSelectionRange(null);
-                          }
+                        const range = resolveSelectionBarRange();
+                        if (range && editor && isEditorValid(editor)) {
+                          const anchorLocation = editor.state.doc.textBetween(0, range.from, '\n').length;
+                          setConnectFromSelectionRange({
+                            from: range.from,
+                            to: range.to,
+                            text: range.snippet,
+                            anchorLocation,
+                            anchorLength: range.snippet.length,
+                          });
+                        } else {
+                          setConnectFromSelectionRange(null);
                         }
                         setConnectFromSelectionAnchorRect(
                           createNoteBubbleRef.current?.getBoundingClientRect() ?? null,
@@ -6644,7 +6706,8 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                     </button>
                   </>
                 ) : null}
-                {selectionIntersectsHighlightMark(editor) ? (
+                {selectionActionBar &&
+                rangeHasHighlightMark(editor, selectionActionBar.from, selectionActionBar.to) ? (
                   <>
                     <span className="pds-native-selection-bar__rule" aria-hidden />
                     <button
@@ -6655,9 +6718,9 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                       onMouseDown={(e: React.MouseEvent) => {
                         e.preventDefault();
                         e.stopPropagation();
-                        if (!editor || !isEditorValid(editor)) return;
-                        const { from, to } = editor.state.selection;
-                        if (from === to) return;
+                        const range = resolveSelectionBarRange();
+                        if (!range || !editor || !isEditorValid(editor)) return;
+                        const { from, to } = range;
                         const markType = editor.state.schema.marks.highlight;
                         let studyId: string | null = null;
                         editor.state.doc.nodesBetween(from, to, (node: any) => {
@@ -6679,7 +6742,12 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                             }
                           }
                           if (editor && isEditorValid(editor)) {
-                            editor.chain().focus().unsetHighlight().run();
+                            editor
+                              .chain()
+                              .focus()
+                              .setTextSelection({ from, to })
+                              .unsetHighlight()
+                              .run();
                             if (hiddenInputRef.current) {
                               hiddenInputRef.current.value = editor.getHTML();
                             }
@@ -6721,7 +6789,8 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                   onMouseDown={(e: React.MouseEvent) => {
                     e.preventDefault();
                     e.stopPropagation();
-                    handleCreateNoteFromSelection();
+                    const range = resolveSelectionBarRange();
+                    void handleCreateNoteFromSelection(range ? { from: range.from, to: range.to } : undefined);
                     setSelectionActionBar(null);
                   }}
                   type="button"
@@ -6735,11 +6804,9 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                   onMouseDown={(e) => {
                     e.preventDefault();
                     e.stopPropagation();
-                    if (!editor) return;
-                    const { from, to } = editor.state.selection;
-                    if (from === to) return;
-                    const text = editor.state.doc.textBetween(from, to);
-                    navigator.clipboard.writeText(text).then(() => {
+                    const range = resolveSelectionBarRange();
+                    if (!range) return;
+                    navigator.clipboard.writeText(range.snippet).then(() => {
                       if (window.toast) window.toast.info('Copied to clipboard');
                     }).catch(() => {});
                     setSelectionActionBar(null);
