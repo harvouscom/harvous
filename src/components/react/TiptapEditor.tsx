@@ -3365,6 +3365,12 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
   const editorRef = useRef<any>(null);
   const tiptapContentRef = useRef<HTMLDivElement>(null);
   const createNoteBubbleRef = useRef<HTMLDivElement>(null);
+  /** Frozen range for the portaled selection bar — survives editor selection collapse on bar click. */
+  const selectionBarRangeRef = useRef<{
+    from: number;
+    to: number;
+    snippet: string;
+  } | null>(null);
   const skipScriptureDockDismissRef = useRef(false);
   const [studyDockStack, setStudyDockStack] = useState<StudyDockStack>(emptyStudyDockStack);
   const studyDockPortalTarget =
@@ -4362,7 +4368,17 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     editor.view.dispatch(editor.state.tr.setMeta(REFERENCE_SUGGESTION_REFRESH_META, true));
   }, [editor, eastonsIndex]);
 
+  const clearSelectionActionBar = useCallback(() => {
+    selectionBarRangeRef.current = null;
+    setSelectionActionBar(null);
+    setShowCreateNoteButton(false);
+  }, []);
+
   const resolveSelectionBarRange = useCallback((): { from: number; to: number; snippet: string } | null => {
+    const frozen = selectionBarRangeRef.current;
+    if (frozen && frozen.from !== frozen.to) {
+      return frozen;
+    }
     if (selectionActionBar && selectionActionBar.from !== selectionActionBar.to) {
       return {
         from: selectionActionBar.from,
@@ -4380,6 +4396,33 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     }
     return { from, to, snippet: editor.state.doc.textBetween(from, to) };
   }, [selectionActionBar, editor]);
+
+  const applyHighlightMark = useCallback(
+    (range: { from: number; to: number }, attrs: { color: string; studyThreadEntryId?: string }) => {
+      if (!editor || !isEditorValid(editor)) return false;
+      const markType = editor.state.schema.marks.highlight;
+      if (!markType) return false;
+      const { from, to } = range;
+      if (from === to) return false;
+      const chained = editor
+        .chain()
+        .focus()
+        .setTextSelection({ from, to })
+        .setHighlight(attrs)
+        .run();
+      if (chained) return true;
+      try {
+        const tr = editor.state.tr;
+        tr.removeMark(from, to, markType);
+        tr.addMark(from, to, markType.create(attrs));
+        editor.view.dispatch(tr);
+        return true;
+      } catch {
+        return false;
+      }
+    },
+    [editor],
+  );
 
   const getSelectedSingleWord = useCallback((): string | null => {
     const range = resolveSelectionBarRange();
@@ -4529,14 +4572,14 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
         if (m && typeof m.attrs.href === 'string') initialHref = m.attrs.href;
       });
     }
-    setSelectionActionBar(null);
+    clearSelectionActionBar();
     setUrlLinkPrompt({
       rect,
       range: { from, to },
       initialHref,
       mode: existingMark ? 'edit' : 'create',
     });
-  }, [editor]);
+  }, [editor, clearSelectionActionBar]);
 
   const triggerInlineImagePicker = useCallback(() => {
     if (!sourceNoteId || isUploadingInlineImage) return;
@@ -4887,16 +4930,14 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
   // Selection detection for create note button + floating action bar positioning
   useEffect(() => {
     if (!editor || !enableCreateNoteFromSelection) {
-      setShowCreateNoteButton(false);
-      setSelectionActionBar(null);
+      clearSelectionActionBar();
       return;
     }
 
     const updateSelection = () => {
       // Check if editor is still valid before accessing it
       if (!isEditorValid(editor)) {
-        setShowCreateNoteButton(false);
-        setSelectionActionBar(null);
+        clearSelectionActionBar();
         return;
       }
       if (isValidSelection(editor)) {
@@ -4923,41 +4964,45 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
             centerX = Math.min(Math.max(centerX, minCx), maxCx);
           }
           const snippet = editor.state.doc.textBetween(from, to);
-          setSelectionActionBar({ top, left: centerX, from, to, snippet });
+          const nextBar = { top, left: centerX, from, to, snippet };
+          selectionBarRangeRef.current = { from, to, snippet };
+          setSelectionActionBar(nextBar);
         } catch (_) {
-          setSelectionActionBar(null);
+          clearSelectionActionBar();
         }
       } else {
+        // Keep the frozen bar/range when the live selection collapses (e.g. mousedown on the
+        // portaled bar outside ProseMirror) so bar button handlers can still apply the mark.
         setShowCreateNoteButton(false);
-        setSelectionActionBar(null);
       }
     };
 
     editor.on('selectionUpdate', updateSelection);
 
-    // Also dismiss on blur/click outside
-    const handleMouseDown = (e: MouseEvent) => {
+    // Also dismiss on blur/click outside (pointer + mouse for touch parity)
+    const handlePointerDownOutside = (e: PointerEvent | MouseEvent) => {
       const target = e.target as HTMLElement;
       if (target?.closest?.('.selection-action-bar')) return;
       // Give a tick for the selection to update before dismissing
       setTimeout(() => {
         if (!isEditorValid(editor)) return;
         if (!isValidSelection(editor)) {
-          setSelectionActionBar(null);
-          setShowCreateNoteButton(false);
+          clearSelectionActionBar();
         }
       }, 100);
     };
 
-    document.addEventListener('mousedown', handleMouseDown);
+    document.addEventListener('mousedown', handlePointerDownOutside);
+    document.addEventListener('pointerdown', handlePointerDownOutside);
 
     return () => {
       if (editor && !editor.isDestroyed) {
         editor.off('selectionUpdate', updateSelection);
       }
-      document.removeEventListener('mousedown', handleMouseDown);
+      document.removeEventListener('mousedown', handlePointerDownOutside);
+      document.removeEventListener('pointerdown', handlePointerDownOutside);
     };
-  }, [editor, enableCreateNoteFromSelection, editorChromeMode]);
+  }, [editor, enableCreateNoteFromSelection, editorChromeMode, clearSelectionActionBar]);
 
   /** When CardFullEditable opens the editor from read-only preview after a scripture pill tap (prototype), open the dock once TipTap has rendered the pill in the doc. */
   useEffect(() => {
@@ -6529,7 +6574,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                   className="pds-native-selection-bar__btn"
                   title="Highlight selected text"
                   aria-label="Highlight selected text"
-                  onMouseDown={(e: React.MouseEvent) => {
+                  onPointerDown={(e: React.PointerEvent) => {
                     e.preventDefault();
                     e.stopPropagation();
                     const range = resolveSelectionBarRange();
@@ -6537,19 +6582,21 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                     const { from, to, snippet } = range;
                     const defaultAccent = 'warmAmber';
 
-                    editor
-                      .chain()
-                      .focus()
-                      .setTextSelection({ from, to })
-                      .setHighlight({
-                        color: defaultAccent,
-                      })
-                      .run();
+                    const applied = applyHighlightMark(
+                      { from, to },
+                      { color: defaultAccent },
+                    );
+                    if (!applied) {
+                      if (import.meta.env.DEV) {
+                        console.warn('[TiptapEditor] setHighlight failed for range', { from, to });
+                      }
+                      return;
+                    }
                     if (hiddenInputRef.current) {
                       hiddenInputRef.current.value = editor.getHTML();
                     }
                     onContentChange?.(editor.getHTML());
-                    setSelectionActionBar(null);
+                    clearSelectionActionBar();
                     if (editorChromeMode === 'prototypeNative') {
                       setStudyDockStack((s) =>
                         openOrFocusHighlight(s, {
@@ -6584,21 +6631,14 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                           const data = await res.json();
                           const studyId: string | null = data.studyThread?.id ?? null;
                           if (!studyId) return;
-                          const markType = editor.state.schema.marks.highlight;
-                          if (markType) {
-                            const tr = editor.state.tr;
-                            tr.removeMark(from, to, markType);
-                            tr.addMark(
-                              from,
-                              to,
-                              markType.create({ color: defaultAccent, studyThreadEntryId: studyId }),
-                            );
-                            editor.view.dispatch(tr);
-                            if (hiddenInputRef.current) {
-                              hiddenInputRef.current.value = editor.getHTML();
-                            }
-                            onContentChange?.(editor.getHTML());
+                          applyHighlightMark(
+                            { from, to },
+                            { color: defaultAccent, studyThreadEntryId: studyId },
+                          );
+                          if (hiddenInputRef.current) {
+                            hiddenInputRef.current.value = editor.getHTML();
                           }
+                          onContentChange?.(editor.getHTML());
                           setStudyDockStack((s) => {
                             const active = s.entries.find((e) => e.id === s.activeId);
                             if (!active || active.kind !== 'highlight') return s;
@@ -6637,16 +6677,16 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                           e.preventDefault();
                           e.stopPropagation();
                           if (!editor || !isEditorValid(editor) || !word) {
-                            setSelectionActionBar(null);
+                            clearSelectionActionBar();
                             return;
                           }
                           const range = resolveSelectionBarRange();
                           if (!range) {
                             openReferenceDock({ query: word });
-                            setSelectionActionBar(null);
+                            clearSelectionActionBar();
                             return;
                           }
-                          setSelectionActionBar(null);
+                          clearSelectionActionBar();
                           void saveReferenceHighlight({ from: range.from, to: range.to }, word);
                         }}
                       >
@@ -6666,7 +6706,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                     e.stopPropagation();
                     const range = resolveSelectionBarRange();
                     void handleCreateNoteFromSelection(range ? { from: range.from, to: range.to } : undefined);
-                    setSelectionActionBar(null);
+                    clearSelectionActionBar();
                   }}
                 >
                   <Icon name="pen-to-square" size={14} />
@@ -6699,7 +6739,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                           createNoteBubbleRef.current?.getBoundingClientRect() ?? null,
                         );
                         setConnectFromSelectionOpen(true);
-                        setSelectionActionBar(null);
+                        clearSelectionActionBar();
                       }}
                     >
                       <Icon name="arrow-right-arrow-left" size={14} />
@@ -6753,7 +6793,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                             }
                             onContentChange?.(editor.getHTML());
                           }
-                          setSelectionActionBar(null);
+                          clearSelectionActionBar();
                           if (studyId) {
                             setStudyDockStack((s) => {
                               const entry = s.entries.find(
@@ -6791,7 +6831,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                     e.stopPropagation();
                     const range = resolveSelectionBarRange();
                     void handleCreateNoteFromSelection(range ? { from: range.from, to: range.to } : undefined);
-                    setSelectionActionBar(null);
+                    clearSelectionActionBar();
                   }}
                   type="button"
                   title="Create note from selection"
@@ -6809,7 +6849,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                     navigator.clipboard.writeText(range.snippet).then(() => {
                       if (window.toast) window.toast.info('Copied to clipboard');
                     }).catch(() => {});
-                    setSelectionActionBar(null);
+                    clearSelectionActionBar();
                   }}
                   type="button"
                   title="Copy selection"
