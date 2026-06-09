@@ -222,9 +222,7 @@ struct NoteListColumn: View {
         static let selectionVPadding: CGFloat = 0
         /// Horizontal content padding applied directly to the row (not via listRowInsets, so the
         /// .background modifier sees the full row width and can position the pill correctly).
-        static let sidebarRowHInset: CGFloat = 10
-        /// Vertical content padding that extends the pill height beyond NoteFeedRow's internal padding.
-        static let sidebarRowVInset: CGFloat = 2
+        static let sidebarRowHInset: CGFloat = HarvousFeedListLayout.sidebarRowContentHInset
         /// Inset from window **leading** only so the darker vertical bezel shows; **top is 0** so glass runs flush under the unified title bar / traffic lights.
         static let sidebarWindowBezelInsetLeading: CGFloat = 1
         static let sidebarWindowBezelInsetTop: CGFloat = 0
@@ -480,14 +478,21 @@ struct NoteListColumn: View {
         let isSelected = selectedNote?.id == note.id
         return NoteFeedRow(note: note, variant: .sidebarCompact)
             .padding(.horizontal, Metrics.sidebarRowHInset)
-            .padding(.vertical, Metrics.sidebarRowVInset)
+            .padding(.vertical, HarvousFeedListLayout.sidebarRowContentVInset)
             .background {
                 if isSelected {
                     selectionHighlightPill
                         .padding(.vertical, Metrics.selectionVPadding)
                 }
             }
-            .listRowInsets(EdgeInsets(top: 4, leading: Metrics.selectionHPadding, bottom: 4, trailing: Metrics.selectionHPadding))
+            .listRowInsets(
+                EdgeInsets(
+                    top: HarvousFeedListLayout.sidebarListRowInsetVertical,
+                    leading: Metrics.selectionHPadding,
+                    bottom: HarvousFeedListLayout.sidebarListRowInsetVertical,
+                    trailing: Metrics.selectionHPadding
+                )
+            )
             .listRowBackground(Color.clear)
             .listRowSeparator(.hidden)
             #if os(macOS)

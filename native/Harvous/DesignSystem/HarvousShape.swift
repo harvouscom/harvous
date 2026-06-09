@@ -21,6 +21,11 @@ enum HarvousRadius {
 enum HarvousFeedListLayout {
     static let listRowHorizontalInset: CGFloat = 14
     static let interiorContentHPadding: CGFloat = 10
+    /// Sidebar compact rows: vertical gap between list cells (`listRowInsets` top + bottom).
+    static let sidebarListRowInsetVertical: CGFloat = 2
+    /// Sidebar compact rows: padding outside feed-row interior padding (selection pill extent).
+    static let sidebarRowContentVInset: CGFloat = 0
+    static let sidebarRowContentHInset: CGFloat = 10
 }
 
 /// Typography / fill tuning for raster + SwiftUI scripture pills (keep in sync across surfaces).

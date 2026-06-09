@@ -172,8 +172,7 @@ struct StudyHighlightListColumn: View {
     private enum Metrics {
         static let selectionHPadding: CGFloat = 0
         static let selectionVPadding: CGFloat = 0
-        static let sidebarRowHInset: CGFloat = 10
-        static let sidebarRowVInset: CGFloat = 2
+        static let sidebarRowHInset: CGFloat = HarvousFeedListLayout.sidebarRowContentHInset
         static let sidebarWindowBezelInsetLeading: CGFloat = 1
         static let sidebarWindowBezelInsetTop: CGFloat = 0
     }
@@ -542,14 +541,21 @@ struct StudyHighlightListColumn: View {
             isPinned: pinnedThreadIds.contains(thread.id.uuidString)
         )
         .padding(.horizontal, Metrics.sidebarRowHInset)
-        .padding(.vertical, Metrics.sidebarRowVInset)
+        .padding(.vertical, HarvousFeedListLayout.sidebarRowContentVInset)
         .background {
             if isSelected {
                 selectionHighlightPill
                     .padding(.vertical, Metrics.selectionVPadding)
             }
         }
-        .listRowInsets(EdgeInsets(top: 4, leading: Metrics.selectionHPadding, bottom: 4, trailing: Metrics.selectionHPadding))
+        .listRowInsets(
+            EdgeInsets(
+                top: HarvousFeedListLayout.sidebarListRowInsetVertical,
+                leading: Metrics.selectionHPadding,
+                bottom: HarvousFeedListLayout.sidebarListRowInsetVertical,
+                trailing: Metrics.selectionHPadding
+            )
+        )
         .listRowBackground(Color.clear)
         .listRowSeparator(.hidden)
         #if os(macOS)

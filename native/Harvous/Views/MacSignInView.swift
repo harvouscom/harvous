@@ -20,6 +20,7 @@ import AuthenticationServices
 ///   - Sign in with Apple: gated behind `HarvousAuthCapability.appleSignInEnabled`
 ///     because the entitlement requires a paid Apple Developer Program team.
 struct MacSignInView: View {
+    @Environment(\.colorScheme) private var colorScheme
     @State private var mode: Mode = .signIn
     @State private var step: Step = .enterDetails
     @State private var email: String = ""
@@ -39,12 +40,12 @@ struct MacSignInView: View {
 
     var body: some View {
         ZStack(alignment: .top) {
-            HarvousSitePalette.paper.ignoresSafeArea()
+            HarvousSitePalette.paper(for: colorScheme).ignoresSafeArea()
 
             // Blend the macOS title bar (traffic-light strip) into the paper
             // background so there's no hard separator across the top.
             #if os(macOS)
-            HarvousPaperWindowChrome(background: HarvousSitePalette.paper)
+            HarvousPaperWindowChrome(background: HarvousSitePalette.paper(for: colorScheme))
                 .frame(width: 0, height: 0)
                 .allowsHitTesting(false)
             #endif
@@ -87,20 +88,20 @@ struct MacSignInView: View {
             Text("Harvous")
                 .font(HarvousFonts.font(size: 15, weight: .semibold, design: .default))
                 .tracking(-0.2)
-                .foregroundStyle(HarvousSitePalette.ink)
+                .foregroundStyle(HarvousSitePalette.ink(for: colorScheme))
         }
         .padding(.leading, 12)
         .padding(.trailing, 18)
         .padding(.vertical, 7)
         .background(
             Capsule(style: .continuous)
-                .fill(.white.opacity(0.85))
+                .fill(HarvousSitePalette.headerFill(for: colorScheme))
         )
         .overlay(
             Capsule(style: .continuous)
-                .strokeBorder(HarvousSitePalette.rule, lineWidth: 0.5)
+                .strokeBorder(HarvousSitePalette.rule(for: colorScheme), lineWidth: 0.5)
         )
-        .shadow(color: Color.black.opacity(0.04), radius: 12, y: 4)
+        .shadow(color: Color.black.opacity(colorScheme == .dark ? 0.2 : 0.04), radius: 12, y: 4)
     }
 
     // MARK: - Hero (display headline + subtitle)
@@ -149,8 +150,13 @@ struct MacSignInView: View {
         }()
         let view = Text(text)
             .font(.harvousDisplay(size: fontSize))
-            .foregroundStyle(HarvousSitePalette.ink)
+            .foregroundStyle(HarvousSitePalette.ink(for: colorScheme))
         if marked {
+            if colorScheme == .dark {
+                return AnyView(
+                    view.underline(true, color: HarvousSitePalette.markUnderline)
+                )
+            }
             return AnyView(
                 view.background(
                     GeometryReader { geo in
@@ -221,11 +227,11 @@ struct MacSignInView: View {
 
     private var orDivider: some View {
         HStack(spacing: 12) {
-            Rectangle().fill(HarvousSitePalette.rule).frame(height: 0.5)
+            Rectangle().fill(HarvousSitePalette.rule(for: colorScheme)).frame(height: 0.5)
             Text("or")
                 .font(HarvousFonts.font(size: 12, weight: .regular, design: .default))
-                .foregroundStyle(HarvousSitePalette.inkFaint)
-            Rectangle().fill(HarvousSitePalette.rule).frame(height: 0.5)
+                .foregroundStyle(HarvousSitePalette.inkFaint(for: colorScheme))
+            Rectangle().fill(HarvousSitePalette.rule(for: colorScheme)).frame(height: 0.5)
         }
         .padding(.vertical, 4)
     }
@@ -245,24 +251,27 @@ struct MacSignInView: View {
         field: Field,
         kind: FieldKind = .generic
     ) -> some View {
-        let base = TextField("", text: text, prompt: Text(prompt).foregroundColor(HarvousSitePalette.inkFaint))
+        let base = TextField("", text: text, prompt: Text(prompt).foregroundColor(HarvousSitePalette.inkFaint(for: colorScheme)))
             .textFieldStyle(.plain)
             .font(HarvousFonts.font(size: 15, weight: .regular, design: .default))
-            .foregroundColor(HarvousSitePalette.ink)
+            .foregroundStyle(HarvousSitePalette.ink(for: colorScheme))
+            .tint(HarvousSitePalette.accent(for: colorScheme))
             .padding(.horizontal, 20)
             .padding(.vertical, 13)
             .background(
                 Capsule(style: .continuous)
-                    .fill(HarvousSitePalette.card)
+                    .fill(HarvousSitePalette.card(for: colorScheme))
             )
             .overlay(
                 Capsule(style: .continuous)
                     .strokeBorder(
-                        focusedField == field ? HarvousSitePalette.accent : HarvousSitePalette.rule,
+                        focusedField == field
+                            ? HarvousSitePalette.accent(for: colorScheme)
+                            : HarvousSitePalette.rule(for: colorScheme),
                         lineWidth: focusedField == field ? 1.5 : 0.5
                     )
             )
-            .shadow(color: Color.black.opacity(0.03), radius: 4, y: 1)
+            .shadow(color: Color.black.opacity(colorScheme == .dark ? 0 : 0.03), radius: 4, y: 1)
             .disableAutocorrection(true)
             .focused($focusedField, equals: field)
 
@@ -302,7 +311,7 @@ struct MacSignInView: View {
             }
             .buttonStyle(.plain)
             .font(HarvousFonts.font(size: 13, weight: .regular, design: .default))
-            .foregroundStyle(HarvousSitePalette.accent)
+            .foregroundStyle(HarvousSitePalette.accent(for: colorScheme))
         }
     }
 
@@ -356,21 +365,21 @@ struct MacSignInView: View {
         HStack(spacing: 4) {
             Text(mode == .signIn ? "Don't have an account?" : "Already have an account?")
                 .font(HarvousFonts.font(size: 13, weight: .regular, design: .default))
-                .foregroundStyle(HarvousSitePalette.inkSoft)
+                .foregroundStyle(HarvousSitePalette.inkSoft(for: colorScheme))
             Button(mode == .signIn ? "Sign up" : "Log in") {
                 mode = mode == .signIn ? .signUp : .signIn
                 errorMessage = nil
             }
             .buttonStyle(.plain)
             .font(HarvousFonts.font(size: 13, weight: .semibold, design: .default))
-            .foregroundStyle(HarvousSitePalette.accent)
+            .foregroundStyle(HarvousSitePalette.accent(for: colorScheme))
         }
     }
 
     private var footerLine: some View {
         Text("Secured by Clerk")
             .font(HarvousFonts.font(size: 11, weight: .regular, design: .default))
-            .foregroundStyle(HarvousSitePalette.inkFaint)
+            .foregroundStyle(HarvousSitePalette.inkFaint(for: colorScheme))
     }
 
     // MARK: - Validation + actions
@@ -487,8 +496,56 @@ enum HarvousSitePalette {
     static let card     = Color.white
     /// `--color-accent` — bold blue links / focus rings.
     static let accent   = Color(red: 0.220, green: 0.412, blue: 0.902)
-    /// `--color-highlight` — yellow marker swipe under display headlines.
+    /// `--color-highlight` — yellow marker swipe under display headlines (light mode).
     static let highlight = Color(red: 1.0, green: 0.910, blue: 0.659)
+    /// Dark-mode headline mark underline — site `--study-dock-accent-warmAmber` dark (`#ffd914`).
+    static let markUnderline = Color(red: 1.0, green: 0.851, blue: 0.078)
+
+    // Dark palette — mirrors `site/src/styles/global.css` `@media (prefers-color-scheme: dark)`.
+    static let paperDark    = Color(red: 0.021, green: 0.021, blue: 0.035)
+    static let warmDark     = Color(red: 0.084, green: 0.084, blue: 0.104)
+    static let inkDark      = Color(red: 0.948, green: 0.948, blue: 0.948)
+    static let inkSoftDark  = Color.white.opacity(0.62)
+    static let inkFaintDark = Color.white.opacity(0.42)
+    static let ruleDark     = Color.white.opacity(0.1)
+    static let cardDark     = Color(red: 0.071, green: 0.071, blue: 0.09)
+    static let accentDark   = Color(red: 0.425, green: 0.62, blue: 1.0)
+
+    static func paper(for colorScheme: ColorScheme) -> Color {
+        colorScheme == .dark ? paperDark : paper
+    }
+
+    static func warm(for colorScheme: ColorScheme) -> Color {
+        colorScheme == .dark ? warmDark : warm
+    }
+
+    static func ink(for colorScheme: ColorScheme) -> Color {
+        colorScheme == .dark ? inkDark : ink
+    }
+
+    static func inkSoft(for colorScheme: ColorScheme) -> Color {
+        colorScheme == .dark ? inkSoftDark : inkSoft
+    }
+
+    static func inkFaint(for colorScheme: ColorScheme) -> Color {
+        colorScheme == .dark ? inkFaintDark : inkFaint
+    }
+
+    static func rule(for colorScheme: ColorScheme) -> Color {
+        colorScheme == .dark ? ruleDark : rule
+    }
+
+    static func card(for colorScheme: ColorScheme) -> Color {
+        colorScheme == .dark ? cardDark : card
+    }
+
+    static func accent(for colorScheme: ColorScheme) -> Color {
+        colorScheme == .dark ? accentDark : accent
+    }
+
+    static func headerFill(for colorScheme: ColorScheme) -> Color {
+        colorScheme == .dark ? cardDark.opacity(0.85) : Color.white.opacity(0.85)
+    }
 
     // Pastel palette (mirrors `/site/`):
     /// `--color-sky` + `--color-sky-ink` — used by the "Linked references" card.
@@ -558,7 +615,9 @@ struct HarvousPaperWindowChrome: NSViewRepresentable {
         return view
     }
 
-    func updateNSView(_ nsView: NSView, context: Context) {}
+    func updateNSView(_ nsView: NSView, context: Context) {
+        context.coordinator.updatePaper(background)
+    }
 
     static func dismantleNSView(_ nsView: NSView, coordinator: Coordinator) {
         coordinator.restore()
@@ -575,6 +634,11 @@ struct HarvousPaperWindowChrome: NSViewRepresentable {
         private var savedSeparatorStyle: NSTitlebarSeparatorStyle?
         private var savedToolbarVisible: Bool?
         private var observers: [NSObjectProtocol] = []
+
+        func updatePaper(_ paper: Color) {
+            paperColor = NSColor(paper)
+            applyChrome()
+        }
 
         func attach(to window: NSWindow, paper: Color) {
             self.window = window

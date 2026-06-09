@@ -184,11 +184,18 @@ struct EastonsDictionaryListColumn: View {
                     let pinned = pinnedSlugs.contains(entry.slug)
                     Button { onSelectEntry(entry.slug) } label: {
                         dictionaryRow(entry, isPinned: pinned)
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 2)
+                            .padding(.horizontal, HarvousFeedListLayout.sidebarRowContentHInset)
+                            .padding(.vertical, HarvousFeedListLayout.sidebarRowContentVInset)
                     }
                     .buttonStyle(.plain)
-                    .listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 4, trailing: 0))
+                    .listRowInsets(
+                        EdgeInsets(
+                            top: HarvousFeedListLayout.sidebarListRowInsetVertical,
+                            leading: 0,
+                            bottom: HarvousFeedListLayout.sidebarListRowInsetVertical,
+                            trailing: 0
+                        )
+                    )
                     .listRowBackground(Color.clear)
                     .listRowSeparator(.hidden)
                     .contextMenu {
