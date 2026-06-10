@@ -927,8 +927,8 @@ html.harvous-proto-wallpaper-color .proto-sidebar-search__field:focus-within {
   transition: background 0.08s;
 }
 
-/* Popover extends below the row; lift stacking so later list items don't paint over the menu. */
-.proto-note-row-item:has(.proto-menu__popover) {
+/* Lift the active row so sibling rows don't paint over the ⋯ trigger while the portaled menu is open. */
+.proto-note-row-item:has(.proto-note-row__menu--open) {
   z-index: 80;
 }
 
@@ -1034,8 +1034,9 @@ html.harvous-proto-wallpaper-color .proto-sidebar-search__field:focus-within {
   font-variation-settings: var(--pds-font-body-variation-list-timestamp) !important;
 }
 
+/* position: static — row popovers portal to body; anchor position comes from the row rect. */
 .proto-note-row__menu {
-  position: relative;
+  position: static;
   isolation: isolate;
   display: flex;
   align-items: center;
@@ -1106,8 +1107,13 @@ html.harvous-proto-wallpaper-color .proto-sidebar-search__field:focus-within {
   cursor: default;
 }
 
-.proto-note-row__menu .proto-menu__popover {
-  z-index: 10002;
+/* Sidebar row ⋯ — same compact list-view shell as PrototypeNoteMoreMenu (portaled via --note-row-portal). */
+.proto-menu__popover--note-row-portal {
+  margin: 0;
+}
+
+.proto-menu__popover--note-row.proto-menu__popover--list-view .proto-menu-item {
+  min-width: min(148px, 100%);
 }
 
 /* Folder rows and legacy full-width note button (no menu) */
@@ -3275,6 +3281,7 @@ html.harvous-prototype-route .proto-editor-empty-state h2.proto-editor-empty-sta
 }
 
 /* ─── Sidebar floating stack (migration pill + daily passage) ─────────────── */
+/* Stack: scroll (1) < floating pills (2). Row ⋯ menus portal to body at z-index 100. */
 .proto-sidebar-floating-stack {
   position: absolute;
   left: 0;

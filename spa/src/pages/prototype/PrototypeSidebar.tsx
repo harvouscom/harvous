@@ -28,7 +28,7 @@ import {
 import { protoRelativeCaptionAbbrev } from './proto-time';
 import { PROTO_TOOLBAR_ICON_SIZE } from './proto-toolbar-tokens';
 import ProtoConfirmDialog from './ProtoConfirmDialog';
-import ProtoPopoverShell from './ProtoPopoverShell';
+import PrototypeSidebarRowMenuPopover from './PrototypeSidebarRowMenuPopover';
 import type { PrototypeHighlightStudyThreadRow } from '../../hooks/queries/usePrototypeSpaceStudyThreadHighlights';
 import { usePrototypeSpaceStudyThreadHighlights } from '../../hooks/queries/usePrototypeSpaceStudyThreadHighlights';
 import { usePrototypeStudyThreads, type StudyThreadCluster } from '../../hooks/queries/usePrototypeStudyThreads';
@@ -188,27 +188,12 @@ function HighlightRow({
 }) {
   const kindIcon = highlightEntryKindIconName(entryKind);
   const [menuOpen, setMenuOpen] = useState(false);
+  const rowRef = useRef<HTMLLIElement>(null);
   const menuRootRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!menuOpen) return undefined;
-    const onDoc = (e: MouseEvent) => {
-      const el = menuRootRef.current;
-      if (el && e.target instanceof Node && !el.contains(e.target)) setMenuOpen(false);
-    };
-    const onEsc = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setMenuOpen(false);
-    };
-    document.addEventListener('mousedown', onDoc);
-    document.addEventListener('keydown', onEsc);
-    return () => {
-      document.removeEventListener('mousedown', onDoc);
-      document.removeEventListener('keydown', onEsc);
-    };
-  }, [menuOpen]);
 
   return (
     <li
+      ref={rowRef}
       className="proto-note-row-item"
       data-active={isActive ? 'true' : 'false'}
       onContextMenu={(e) => {
@@ -253,78 +238,82 @@ function HighlightRow({
         >
           <Icon name="ellipsis-vertical" size={14} />
         </button>
-        {menuOpen ? (
-          <ProtoPopoverShell className="proto-menu__popover proto-menu__popover--right" role="menu" aria-label="Highlight actions">
-            <div className="proto-menu-section" role="group">
-              <button
-                type="button"
-                role="menuitem"
-                className="proto-menu-item"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setMenuOpen(false);
-                  onTogglePin();
-                }}
-              >
-                <span className="proto-menu-item__icon" aria-hidden>
-                  <Icon name="thumbtack" size={PROTO_TOOLBAR_ICON_SIZE} />
-                </span>
-                <span style={{ flex: 1, minWidth: 0 }}>{isPinned ? 'Unpin highlight' : 'Pin highlight'}</span>
-              </button>
-              <div
-                role="group"
-                aria-label="Highlight accent"
-                style={{ display: 'flex', gap: 6, padding: '6px 12px', alignItems: 'center' }}
-              >
-                {HIGHLIGHT_ACCENT_SWATCHES.map((s) => {
-                  const selected = currentAccent === s.token;
-                  return (
-                    <button
-                      key={s.token}
-                      type="button"
-                      role="menuitemradio"
-                      aria-checked={selected}
-                      aria-label={s.label}
-                      title={s.label}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setMenuOpen(false);
-                        onSetAccent(s.token);
-                      }}
-                      style={{
-                        width: 16,
-                        height: 16,
-                        borderRadius: '50%',
-                        border: selected
-                          ? '2px solid var(--pds-text-primary)'
-                          : '1px solid var(--pds-border-control-medium)',
-                        background: `var(${s.cssVar})`,
-                        padding: 0,
-                        cursor: 'pointer',
-                      }}
-                    />
-                  );
-                })}
-              </div>
-              <button
-                type="button"
-                role="menuitem"
-                className="proto-menu-item"
-                disabled={isDeleting}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setMenuOpen(false);
-                  onDelete();
-                }}
-              >
-                <span className="proto-menu-item__icon" aria-hidden>
-                  <Icon name="trash-can" size={PROTO_TOOLBAR_ICON_SIZE} />
-                </span>
-                <span style={{ flex: 1, minWidth: 0 }}>Delete highlight</span>
-              </button>
+        <PrototypeSidebarRowMenuPopover
+          open={menuOpen}
+          rowRef={rowRef}
+          triggerRootRef={menuRootRef}
+          onDismiss={() => setMenuOpen(false)}
+          aria-label="Highlight actions"
+        >
+          <div className="proto-menu-section" role="group">
+            <button
+              type="button"
+              role="menuitem"
+              className="proto-menu-item"
+              onClick={(e) => {
+                e.stopPropagation();
+                setMenuOpen(false);
+                onTogglePin();
+              }}
+            >
+              <span className="proto-menu-item__icon" aria-hidden>
+                <Icon name="thumbtack" size={PROTO_TOOLBAR_ICON_SIZE} />
+              </span>
+              <span className="proto-menu-item__label">{isPinned ? 'Unpin highlight' : 'Pin highlight'}</span>
+            </button>
+            <div
+              role="group"
+              aria-label="Highlight accent"
+              style={{ display: 'flex', gap: 6, padding: '6px 12px', alignItems: 'center' }}
+            >
+              {HIGHLIGHT_ACCENT_SWATCHES.map((s) => {
+                const selected = currentAccent === s.token;
+                return (
+                  <button
+                    key={s.token}
+                    type="button"
+                    role="menuitemradio"
+                    aria-checked={selected}
+                    aria-label={s.label}
+                    title={s.label}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setMenuOpen(false);
+                      onSetAccent(s.token);
+                    }}
+                    style={{
+                      width: 16,
+                      height: 16,
+                      borderRadius: '50%',
+                      border: selected
+                        ? '2px solid var(--pds-text-primary)'
+                        : '1px solid var(--pds-border-control-medium)',
+                      background: `var(${s.cssVar})`,
+                      padding: 0,
+                      cursor: 'pointer',
+                    }}
+                  />
+                );
+              })}
             </div>
-          </ProtoPopoverShell>
-        ) : null}
+            <button
+              type="button"
+              role="menuitem"
+              className="proto-menu-item"
+              disabled={isDeleting}
+              onClick={(e) => {
+                e.stopPropagation();
+                setMenuOpen(false);
+                onDelete();
+              }}
+            >
+              <span className="proto-menu-item__icon" aria-hidden>
+                <Icon name="trash-can" size={PROTO_TOOLBAR_ICON_SIZE} />
+              </span>
+              <span className="proto-menu-item__label">Delete highlight</span>
+            </button>
+          </div>
+        </PrototypeSidebarRowMenuPopover>
       </div>
     </li>
   );
@@ -340,6 +329,7 @@ function PrototypeSidebarNoteRow({
 }: PrototypeSidebarNoteRowProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const rowRef = useRef<HTMLLIElement>(null);
   const menuRootRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
   const { closeDrawer, isMobileSidebar } = useProtoShell();
@@ -361,23 +351,6 @@ function PrototypeSidebarNoteRow({
     }, 150);
   }, [cancelHoverPrefetch, prefetchNote, row]);
   useEffect(() => cancelHoverPrefetch, [cancelHoverPrefetch]);
-
-  useEffect(() => {
-    if (!menuOpen) return undefined;
-    const onDoc = (e: MouseEvent) => {
-      const el = menuRootRef.current;
-      if (el && e.target instanceof Node && !el.contains(e.target)) setMenuOpen(false);
-    };
-    const onEsc = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setMenuOpen(false);
-    };
-    document.addEventListener('mousedown', onDoc);
-    document.addEventListener('keydown', onEsc);
-    return () => {
-      document.removeEventListener('mousedown', onDoc);
-      document.removeEventListener('keydown', onEsc);
-    };
-  }, [menuOpen]);
 
   const iso = row.updatedAt ?? row.createdAt ?? null;
   const rel = protoRelativeCaptionAbbrev(iso);
@@ -426,7 +399,7 @@ function PrototypeSidebarNoteRow({
   };
 
   return (
-    <li className="proto-note-row-item" data-active={active ? 'true' : 'false'}>
+    <li ref={rowRef} className="proto-note-row-item" data-active={active ? 'true' : 'false'}>
       <button
         type="button"
         className="proto-note-row__main"
@@ -468,42 +441,46 @@ function PrototypeSidebarNoteRow({
         >
           <Icon name="ellipsis-vertical" size={14} />
         </button>
-        {menuOpen ? (
-          <ProtoPopoverShell className="proto-menu__popover proto-menu__popover--right" role="menu" aria-label="Note actions">
-            <div className="proto-menu-section" role="group">
-              <button
-                type="button"
-                role="menuitem"
-                className="proto-menu-item"
-                disabled={pinNote.isPending}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onPin();
-                }}
-              >
-                <span className="proto-menu-item__icon" aria-hidden>
-                  <Icon name="thumbtack" size={PROTO_TOOLBAR_ICON_SIZE} />
-                </span>
-                <span style={{ flex: 1, minWidth: 0 }}>{pinned ? 'Unpin note' : 'Pin note'}</span>
-              </button>
-              <button
-                type="button"
-                role="menuitem"
-                className="proto-menu-item proto-menu-item--destructive"
-                disabled={deleteNote.isPending}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onDeleteRequest();
-                }}
-              >
-                <span className="proto-menu-item__icon" aria-hidden>
-                  <Icon name="trash-can" size={PROTO_TOOLBAR_ICON_SIZE} />
-                </span>
-                <span style={{ flex: 1, minWidth: 0 }}>Delete note</span>
-              </button>
-            </div>
-          </ProtoPopoverShell>
-        ) : null}
+        <PrototypeSidebarRowMenuPopover
+          open={menuOpen}
+          rowRef={rowRef}
+          triggerRootRef={menuRootRef}
+          onDismiss={() => setMenuOpen(false)}
+          aria-label="Note actions"
+        >
+          <div className="proto-menu-section" role="group">
+            <button
+              type="button"
+              role="menuitem"
+              className="proto-menu-item"
+              disabled={pinNote.isPending}
+              onClick={(e) => {
+                e.stopPropagation();
+                onPin();
+              }}
+            >
+              <span className="proto-menu-item__icon" aria-hidden>
+                <Icon name="thumbtack" size={PROTO_TOOLBAR_ICON_SIZE} />
+              </span>
+              <span className="proto-menu-item__label">{pinned ? 'Unpin note' : 'Pin note'}</span>
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              className="proto-menu-item proto-menu-item--destructive"
+              disabled={deleteNote.isPending}
+              onClick={(e) => {
+                e.stopPropagation();
+                onDeleteRequest();
+              }}
+            >
+              <span className="proto-menu-item__icon" aria-hidden>
+                <Icon name="trash-can" size={PROTO_TOOLBAR_ICON_SIZE} />
+              </span>
+              <span className="proto-menu-item__label">Delete note</span>
+            </button>
+          </div>
+        </PrototypeSidebarRowMenuPopover>
       </div>
       {deleteConfirmOpen ? (
         <ProtoConfirmDialog

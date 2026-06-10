@@ -357,6 +357,8 @@ html.harvous-prototype-route .proto-shell__toolbar-cell::after {
 }
 
 .proto-sidebar-scroll {
+  position: relative;
+  z-index: 1;
   flex: 1;
   min-height: 0;
   overflow-y: auto;
