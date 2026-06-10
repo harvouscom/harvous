@@ -54,32 +54,6 @@ function buildReferenceString(book: string, chapter: number, verseStart: number,
   return normalizeScriptureReference(`${book} ${chapter}:${verseStart}`) ?? `${book} ${chapter}:${verseStart}`;
 }
 
-const DOCK_CHROME_OVERHEAD_FALLBACK_PX = 120;
-
-function measureDockChromeOverheadPx(cardEl: HTMLElement | null): number {
-  if (!cardEl) return DOCK_CHROME_OVERHEAD_FALLBACK_PX;
-  const header = cardEl.querySelector('.study-dock-card__header');
-  const refBar = cardEl.querySelector('.scripture-pill-chrome__reference-bar');
-  const headerH = header?.getBoundingClientRect().height ?? 0;
-  const refBarH = refBar?.getBoundingClientRect().height ?? 0;
-  const overhead = Math.round(headerH + refBarH + 10);
-  return overhead > 0 ? overhead : DOCK_CHROME_OVERHEAD_FALLBACK_PX;
-}
-
-/** Max passage scroll height — prototype shell uses chrome-row space; otherwise native macOS formula. */
-function passageScrollCapPx(chromeOverhead = DOCK_CHROME_OVERHEAD_FALLBACK_PX): number {
-  if (typeof window === 'undefined') return 360;
-  const chromeRow = document.querySelector('.proto-shell__editor-chrome-row');
-  if (chromeRow) {
-    const available = Math.round(chromeRow.getBoundingClientRect().top - 16);
-    if (available > 0) {
-      return Math.max(120, available - chromeOverhead);
-    }
-  }
-  const v = Math.max(window.innerHeight, 1);
-  return Math.min(360, Math.max(200, v * 0.45));
-}
-
 export interface ScripturePillChromeWebProps {
   reference: string;
   translation: string | null;
@@ -152,8 +126,6 @@ export default function ScripturePillChromeWeb({
 
   const [passageHtml, setPassageHtml] = useState<string>('');
   const [loadingPassage, setLoadingPassage] = useState(false);
-  const [passageContentHeight, setPassageContentHeight] = useState(0);
-  const [passageScrollCap, setPassageScrollCap] = useState(() => passageScrollCapPx());
   const passageContentRef = useRef<HTMLDivElement>(null);
   // Passage text selection → highlight creation
   const passageScrollRef = useRef<HTMLDivElement>(null);
@@ -213,22 +185,6 @@ export default function ScripturePillChromeWeb({
       cancelled = true;
     };
   }, [displayRefString, trans, interactionActive, isExpanded]);
-
-  useLayoutEffect(() => {
-    const updateCap = () => {
-      const cardEl = passageScrollRef.current?.closest<HTMLElement>('.study-dock-card__card') ?? null;
-      const overhead = measureDockChromeOverheadPx(cardEl);
-      setPassageScrollCap(passageScrollCapPx(overhead));
-    };
-    updateCap();
-    window.addEventListener('resize', updateCap);
-    const vv = window.visualViewport;
-    vv?.addEventListener('resize', updateCap);
-    return () => {
-      window.removeEventListener('resize', updateCap);
-      vv?.removeEventListener('resize', updateCap);
-    };
-  }, [isExpanded, passageHtml, loadingPassage]);
 
   const maxChapter = maxChapterForBook(selectedBook);
   const verseBoundsForChapter = getChapterVerseRange(selectedBook, chapter);
@@ -297,17 +253,6 @@ export default function ScripturePillChromeWeb({
       cancelled = true;
     };
   }, [sourceNoteId, displayRefString, trans, interactionActive, isExpanded]);
-
-  useEffect(() => {
-    const el = passageContentRef.current;
-    if (!el || !isExpanded) return;
-    const ro = new ResizeObserver((entries) => {
-      const h = entries[0]?.contentRect.height ?? 0;
-      setPassageContentHeight(h);
-    });
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, [isExpanded, passageHtml, loadingPassage, passageStudyThreads]);
 
   // ── Passage text selection detection ──────────────────────────────────────
   useEffect(() => {
@@ -415,9 +360,6 @@ export default function ScripturePillChromeWeb({
     });
   }, [verseStart]);
 
-  const passageScrollHeight =
-    passageContentHeight > 0 ? Math.min(passageContentHeight, passageScrollCap) : passageScrollCap;
-
   const translationInfo = TRANSLATIONS[trans];
   const transLabel = (translationInfo?.abbreviation ?? trans).toUpperCase();
 
@@ -477,7 +419,6 @@ export default function ScripturePillChromeWeb({
       <div
         ref={passageScrollRef}
         className="scripture-pill-chrome__passage"
-        style={{ maxHeight: passageScrollHeight }}
         aria-busy={loadingPassage}
         // tabIndex=-1 makes this a valid focus target on click so the browser
         // doesn't bounce focus back to the editor, allowing text selection.

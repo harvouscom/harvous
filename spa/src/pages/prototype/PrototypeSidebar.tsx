@@ -47,21 +47,20 @@ import {
   prototypeHighlightSubtitlePreview,
   prototypeHighlightRecencyIso,
 } from './proto-highlight-subtitle';
-import PrototypeDictionaryColumn from './PrototypeDictionaryColumn';
-import PrototypeDictionaryEntry from './PrototypeDictionaryEntry';
 import PrototypeDailyPassagePill from './PrototypeDailyPassagePill';
 import PrototypeMigrationBanner from './PrototypeMigrationBanner';
-import ListViewMenu from './ListViewMenu';
+import PrototypeSidebarToolbar from './PrototypeSidebarToolbar';
 import {
   loadPinnedHighlightIds,
   togglePinnedHighlightId,
 } from './proto-pinned-stores';
+import PrototypeSidebarSearchResults from './PrototypeSidebarSearchResults';
+import type { SidebarSearchResult } from './sidebar-search-types';
+import {
+  buildFoldersFromNotes,
+  type ActiveSearchContext,
+} from './sidebar-universal-search';
 
-interface FolderBucket {
-  name: string | null;
-  count: number;
-  mostRecentIso: string | null;
-}
 
 import { noteParamSlug, normalizeNoteIdFromParam, isPrototypeDraftNoteSlug } from './proto-route-slugs';
 
@@ -106,38 +105,6 @@ function resolveClusterListTitle(
   const sharesCluster = cached.nodes.some((n) => cluster.memberIds?.includes(n.id));
   if (!sharesCluster) return fallback;
   return studyThreadDisplayTitle(cached);
-}
-
-function buildFolders(notes: SpaceNoteRow[]): FolderBucket[] {
-  const buckets = new Map<string, { count: number; mostRecentIso: string | null }>();
-  for (const note of notes) {
-    const n = note as SpaceNoteRow & { primaryCollection?: string | null; secondaryCollections?: string[] };
-    const labels = noteFolderMembershipLabels({
-      primaryCollection: n.primaryCollection ?? null,
-      secondaryCollections: n.secondaryCollections ?? [],
-    });
-    const keys = labels.length > 0 ? labels : [null];
-    const iso = note.updatedAt ?? note.createdAt ?? null;
-    for (const label of keys) {
-      const bucketKey = label ?? '__none__';
-      const existing = buckets.get(bucketKey) ?? { count: 0, mostRecentIso: null };
-      existing.count += 1;
-      if (iso && (!existing.mostRecentIso || iso > existing.mostRecentIso)) {
-        existing.mostRecentIso = iso;
-      }
-      buckets.set(bucketKey, existing);
-    }
-  }
-  const result: FolderBucket[] = [];
-  buckets.forEach((v, k) => {
-    result.push({ name: k === '__none__' ? null : k, count: v.count, mostRecentIso: v.mostRecentIso });
-  });
-  return result.sort((a, b) => {
-    if (a.name === null) return 1;
-    if (b.name === null) return -1;
-    if (a.mostRecentIso && b.mostRecentIso) return b.mostRecentIso.localeCompare(a.mostRecentIso);
-    return 0;
-  });
 }
 
 type PrototypeSidebarNoteRowProps = {
@@ -576,10 +543,9 @@ export default function PrototypeSidebar() {
     sidebarListMode: mode,
     setSidebarFolderDrilldown: setActiveFolderKey,
     sidebarFolderDrilldown: activeFolderKey,
-    sidebarDictionarySlug,
-    setSidebarDictionarySlug,
     sidebarThreadDrilldownId,
     setSidebarThreadDrilldownId,
+    setSidebarListMode,
     standaloneScripturePassage,
     openStandaloneScripturePassage,
     dismissStandaloneScripturePassage,
@@ -590,6 +556,7 @@ export default function PrototypeSidebar() {
   const { homeSpaceId, navReady } = usePrototypeHomeSpaceId();
 
   const scrollRootRef = useRef<HTMLDivElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
 
   // Arrow / j-k / Home-End movement between rows once the list is focused (Shift+J).
   useListKeyboardNavigation(scrollRootRef);
@@ -604,9 +571,7 @@ export default function PrototypeSidebar() {
   } = useSpaceNotes(homeSpaceId ?? '');
 
   const notesPaginationEnabled =
-    !!homeSpaceId &&
-    navReady &&
-    (mode === 'notes' || (mode === 'folders' && activeFolderKey !== undefined));
+    !!homeSpaceId && (mode === 'notes' || (mode === 'folders' && activeFolderKey !== undefined));
 
   const { setSentinelRef } = useIntersectionFetchNextPage({
     scrollRootRef,
@@ -616,14 +581,22 @@ export default function PrototypeSidebar() {
     fetchNextPage,
   });
 
-  const highlightsQuery = usePrototypeSpaceStudyThreadHighlights(mode === 'highlights' ? homeSpaceId ?? undefined : undefined);
-  const scriptureQuery = usePrototypeSpaceScriptureIndex(mode === 'scripture' ? homeSpaceId ?? undefined : undefined);
-  const studyThreadsQuery = usePrototypeStudyThreads(mode === 'threads' ? homeSpaceId ?? undefined : undefined);
+  const [q, setQ] = useState('');
+  const searchActive = q.trim().length > 0;
+
+  const highlightsQuery = usePrototypeSpaceStudyThreadHighlights(
+    searchActive || mode === 'highlights' ? homeSpaceId ?? undefined : undefined,
+  );
+  const scriptureQuery = usePrototypeSpaceScriptureIndex(
+    searchActive || mode === 'scripture' ? homeSpaceId ?? undefined : undefined,
+  );
+  const studyThreadsQuery = usePrototypeStudyThreads(
+    searchActive || mode === 'threads' ? homeSpaceId ?? undefined : undefined,
+  );
   const threadDrillQuery = usePrototypeStudyThread(
-    mode === 'threads' && sidebarThreadDrilldownId ? sidebarThreadDrilldownId : undefined,
+    (searchActive || mode === 'threads') && sidebarThreadDrilldownId ? sidebarThreadDrilldownId : undefined,
     homeSpaceId,
   );
-  const [q, setQ] = useState('');
   const [scriptureDrill, setScriptureDrill] = useState<ScriptureDrill>({ level: 'books' });
   const [highlightKindFilter, setHighlightKindFilter] = useState<HighlightKindFilter>('all');
   const [pinnedHighlightIds, setPinnedHighlightIds] = useState<string[]>([]);
@@ -722,14 +695,26 @@ export default function PrototypeSidebar() {
     });
   }, [notes, q, activeFolderKey]);
 
-  const folders = useMemo(() => buildFolders(notes), [notes]);
+  const folders = useMemo(() => buildFoldersFromNotes(notes), [notes]);
+  const scriptureBooks = scriptureQuery.data ?? [];
+
+  const highlightsById = useMemo(() => {
+    const m = new Map<string, PrototypeHighlightStudyThreadRow>();
+    for (const row of highlightsQuery.data ?? []) m.set(row.id, row);
+    return m;
+  }, [highlightsQuery.data]);
+
+  const resolveClusterTitle = useCallback(
+    (cluster: StudyThreadCluster) =>
+      resolveClusterListTitle(cluster, activeNoteFullId, queryClient, homeSpaceId),
+    [activeNoteFullId, queryClient, homeSpaceId],
+  );
+
   const filteredFolders = useMemo(() => {
     const t = q.trim().toLowerCase();
     if (!t) return folders;
     return folders.filter((c) => (c.name ?? 'Unsorted').toLowerCase().includes(t));
   }, [folders, q]);
-
-  const scriptureBooks = scriptureQuery.data ?? [];
 
   const filteredHighlights = useMemo(() => {
     const rows = highlightsQuery.data ?? [];
@@ -803,6 +788,67 @@ export default function PrototypeSidebar() {
           .find((b) => b.bookOrder === scriptureDrill.bookOrder)
           ?.passages.find((p) => p.passageKey === scriptureDrill.passageKey)?.displayRef ?? ''
       : '';
+
+  const activeSearchContext = useMemo((): ActiveSearchContext => {
+    const bookTitle =
+      scriptureDrill.level !== 'books'
+        ? scriptureBooks.find((b) => b.bookOrder === (scriptureDrill as { bookOrder: number }).bookOrder)?.title
+        : undefined;
+    if (scriptureDrill.level === 'books') {
+      return {
+        mode,
+        folderDrill: activeFolderKey,
+        threadDrillId: sidebarThreadDrilldownId,
+        threadDrillTitle: threadDrillQuery.data?.threadTitle ?? threadDrillQuery.data?.suggestedTitle ?? undefined,
+        scriptureDrill: { level: 'books' },
+        highlightKindFilter,
+      };
+    }
+    if (scriptureDrill.level === 'passages') {
+      return {
+        mode,
+        folderDrill: activeFolderKey,
+        threadDrillId: sidebarThreadDrilldownId,
+        threadDrillTitle: threadDrillQuery.data?.threadTitle ?? threadDrillQuery.data?.suggestedTitle ?? undefined,
+        scriptureDrill: { level: 'passages', bookOrder: scriptureDrill.bookOrder, bookTitle },
+        highlightKindFilter,
+      };
+    }
+    return {
+      mode,
+      folderDrill: activeFolderKey,
+      threadDrillId: sidebarThreadDrilldownId,
+      threadDrillTitle: threadDrillQuery.data?.threadTitle ?? threadDrillQuery.data?.suggestedTitle ?? undefined,
+      scriptureDrill: {
+        level: 'notes',
+        bookOrder: scriptureDrill.bookOrder,
+        passageKey: scriptureDrill.passageKey,
+        passageTitle: scriptureNotesPassageTitle,
+      },
+      highlightKindFilter,
+    };
+  }, [
+    mode,
+    activeFolderKey,
+    sidebarThreadDrilldownId,
+    threadDrillQuery.data,
+    scriptureDrill,
+    scriptureBooks,
+    scriptureNotesPassageTitle,
+    highlightKindFilter,
+  ]);
+
+  const universalSearchData = useMemo(
+    () => ({
+      notes,
+      folders,
+      highlights: highlightsQuery.data ?? [],
+      scriptureBooks,
+      threadClusters: studyThreadsQuery.data ?? [],
+      threadDrillNodes: threadDrillQuery.data?.nodes ?? [],
+    }),
+    [notes, folders, highlightsQuery.data, scriptureBooks, studyThreadsQuery.data, threadDrillQuery.data?.nodes],
+  );
 
 
   const prefetchNote = useCallback(
@@ -939,6 +985,87 @@ export default function PrototypeSidebar() {
     afterNav();
   };
 
+  const isSearchResultActive = useCallback(
+    (result: SidebarSearchResult) => {
+      if (result.kind === 'note' && result.noteId) {
+        return !!activeNoteFullId && result.noteId === activeNoteFullId;
+      }
+      if (result.kind === 'highlight' && result.highlightId) {
+        const row = highlightsById.get(result.highlightId);
+        if (!row) return false;
+        return (
+          standaloneScripturePassage?.focusedHighlightThreadId === result.highlightId ||
+          (!isScripturePassageHighlightRow(row) && activeNoteFullId === row.parentNoteId)
+        );
+      }
+      return false;
+    },
+    [activeNoteFullId, highlightsById, standaloneScripturePassage?.focusedHighlightThreadId],
+  );
+
+  const onActivateSearchResult = useCallback(
+    (result: SidebarSearchResult) => {
+      if (!homeSpaceId) return;
+      switch (result.kind) {
+        case 'note': {
+          if (!result.noteId) return;
+          const loaded = notesById.get(result.noteId);
+          onNoteRow(
+            loaded ??
+              ({
+                id: result.noteId,
+                title: result.title,
+                content: '',
+              } as SpaceNoteRow),
+          );
+          return;
+        }
+        case 'folder':
+          setSidebarListMode('folders');
+          setActiveFolderKey(result.folderKey ?? null);
+          return;
+        case 'threadCluster': {
+          if (!result.threadClusterId) return;
+          setSidebarListMode('threads');
+          const slug = result.threadClusterId.startsWith('note_')
+            ? result.threadClusterId.slice('note_'.length)
+            : result.threadClusterId;
+          setSidebarThreadDrilldownId(slug);
+          return;
+        }
+        case 'highlight': {
+          const row = result.highlightId ? highlightsById.get(result.highlightId) : undefined;
+          if (row) onHighlightRow(row);
+          return;
+        }
+        case 'scriptureBook':
+          if (result.scriptureBookOrder == null) return;
+          setSidebarListMode('scripture');
+          setScriptureDrill({ level: 'passages', bookOrder: result.scriptureBookOrder });
+          return;
+        case 'scripturePassage':
+          if (result.scriptureBookOrder == null || !result.scripturePassageKey) return;
+          setSidebarListMode('scripture');
+          setScriptureDrill({
+            level: 'notes',
+            bookOrder: result.scriptureBookOrder,
+            passageKey: result.scripturePassageKey,
+          });
+          return;
+        default:
+          return;
+      }
+    },
+    [
+      homeSpaceId,
+      notesById,
+      highlightsById,
+      setSidebarListMode,
+      setActiveFolderKey,
+      setSidebarThreadDrilldownId,
+    ],
+  );
+
   const backTarget: { label: string; kind: string | null; action: () => void } | null = (() => {
     if (mode === 'folders' && activeFolderKey !== undefined)
       return { label: activeFolderKey ?? 'Unsorted', kind: 'Folder', action: () => { setActiveFolderKey(undefined); setQ(''); } };
@@ -956,38 +1083,31 @@ export default function PrototypeSidebar() {
       const { bookOrder } = scriptureDrill;
       return { label: scriptureNotesPassageTitle || 'Passage', kind: 'Passage', action: () => { setScriptureDrill({ level: 'passages', bookOrder }); setQ(''); } };
     }
-    if (mode === 'dictionary' && sidebarDictionarySlug)
-      return { label: 'Dictionary', kind: null, action: () => { setSidebarDictionarySlug(undefined); setQ(''); } };
     return null;
   })();
 
   return (
     <div className="proto-sidebar-root">
-      <div className="proto-sidebar-list-view">
-        {backTarget ? (
-          <button
-            type="button"
-            className="proto-sidebar-list-view__trigger proto-sidebar-list-view__trigger--back"
-            onClick={backTarget.action}
-          >
-            <span className="proto-toolbar-folder-chip__icon" aria-hidden>
-              <Icon name="chevron-left" size={13} />
-            </span>
+      {isMobileSidebar ? <PrototypeSidebarToolbar variant="drawer" /> : null}
+      {backTarget ? (
+        <div className="proto-sidebar-back-row">
+          <button type="button" className="proto-sidebar-back-row__button" onClick={backTarget.action}>
+            <Icon name="chevron-left" size={13} className="proto-sidebar-back-row__chevron" aria-hidden />
             {backTarget.kind ? (
-              <span className="proto-sidebar-list-view__kind">{backTarget.kind}</span>
+              <span className="proto-sidebar-back-row__kind">{backTarget.kind}</span>
             ) : null}
-            <span className="proto-sidebar-list-view__label">{backTarget.label}</span>
+            <span className="proto-sidebar-back-row__label">{backTarget.label}</span>
           </button>
-        ) : (
-          <ListViewMenu disabled={!navReady || !homeSpaceId} />
-        )}
-      </div>
+        </div>
+      ) : null}
       <div className="proto-sidebar-search">
         <div className="proto-sidebar-search__field">
           <span className="proto-sidebar-search__icon" aria-hidden>
             <Icon name="magnifying-glass" size={14} />
           </span>
           <input
+            ref={searchInputRef}
+            id="proto-sidebar-search-input"
             type="search"
             placeholder="Search"
             value={q}
@@ -1008,25 +1128,49 @@ export default function PrototypeSidebar() {
             autoComplete="off"
             aria-label="Search"
           />
+          {q ? (
+            <button
+              type="button"
+              className="proto-sidebar-search__clear"
+              aria-label="Clear search"
+              onClick={() => {
+                setQ('');
+                searchInputRef.current?.focus();
+              }}
+            >
+              <Icon name="circle-xmark" size={15} aria-hidden />
+            </button>
+          ) : null}
         </div>
       </div>
 
       <div ref={scrollRootRef} className="proto-sidebar-scroll">
-        {!navReady ? (
-          <p className="proto-caption" style={{ padding: '14px 18px' }}>
-            Loading…
-          </p>
-        ) : !homeSpaceId ? (
-          <p className="proto-caption" style={{ padding: '14px 18px' }}>
-            Loading My Home…
-          </p>
+        {!homeSpaceId ? (
+          navReady ? (
+            <p className="proto-caption" style={{ padding: '14px 18px' }}>
+              No My Home yet — finish setup in the classic app
+            </p>
+          ) : null
+        ) : searchActive ? (
+          <PrototypeSidebarSearchResults
+            query={q}
+            homeSpaceId={homeSpaceId}
+            activeNoteFullId={activeNoteFullId}
+            activeSearchContext={activeSearchContext}
+            data={universalSearchData}
+            notesById={notesById}
+            highlightsById={highlightsById}
+            resolveClusterTitle={resolveClusterTitle}
+            highlightKindFilter={highlightKindFilter}
+            onHighlightKindFilterChange={setHighlightKindFilter}
+            onActivateResult={onActivateSearchResult}
+            isResultActive={isSearchResultActive}
+          />
         ) : (
           <>
             {mode === 'notes' ? (
               <>
-                {notesLoading && notesForMode.length === 0 ? (
-                  <p className="proto-caption" style={{ padding: '12px 18px' }}>Loading notes…</p>
-                ) : notesForMode.length === 0 ? (
+                {notesLoading && notesForMode.length === 0 ? null : notesForMode.length === 0 ? (
                   <p className="proto-caption" style={{ padding: '12px 18px', textAlign: 'center' }}>
                     {q.trim() ? 'No notes match.' : 'No notes yet.'}
                   </p>
@@ -1095,9 +1239,7 @@ export default function PrototypeSidebar() {
             ) : null}
 
             {mode === 'folders' && activeFolderKey === undefined ? (
-              notesLoading && filteredFolders.length === 0 ? (
-                <p className="proto-caption" style={{ padding: '12px 18px' }}>Loading…</p>
-              ) : filteredFolders.length === 0 ? (
+              notesLoading && filteredFolders.length === 0 ? null : filteredFolders.length === 0 ? (
                 <div className="proto-main-empty" style={{ minHeight: 120 }}>
                   <svg width="28" height="28" viewBox="0 0 16 16" fill="none" style={{ opacity: 0.28 }}>
                     <rect x="1" y="4" width="14" height="9" rx="2" stroke="currentColor" strokeWidth="1.4" />
@@ -1150,9 +1292,7 @@ export default function PrototypeSidebar() {
                     );
                   })}
                 </div>
-                {highlightsQuery.isLoading ? (
-                  <p className="proto-caption" style={{ padding: '12px 18px' }}>Loading highlights…</p>
-                ) : highlightsQuery.isError ? (
+                {highlightsQuery.isLoading ? null : highlightsQuery.isError ? (
                   <p className="proto-caption" style={{ padding: '12px 18px', textAlign: 'center' }}>
                     Could not load highlights.
                     {describeQueryFailure(highlightsQuery.error) ? (
@@ -1205,25 +1345,9 @@ export default function PrototypeSidebar() {
               </>
             ) : null}
 
-            {mode === 'dictionary' && sidebarDictionarySlug ? (
-              <PrototypeDictionaryEntry
-                slug={sidebarDictionarySlug}
-                onNavigateSlug={(slug) => setSidebarDictionarySlug(slug)}
-              />
-            ) : null}
-
-            {mode === 'dictionary' && !sidebarDictionarySlug ? (
-              <PrototypeDictionaryColumn
-                searchQuery={q}
-                onOpenSlug={(slug) => setSidebarDictionarySlug(slug)}
-              />
-            ) : null}
-
             {mode === 'threads' && sidebarThreadDrilldownId ? (
               <>
-                {threadDrillQuery.isLoading ? (
-                  <p className="proto-caption" style={{ padding: '12px 18px' }}>Loading…</p>
-                ) : threadDrillQuery.isError ? (
+                {threadDrillQuery.isLoading ? null : threadDrillQuery.isError ? (
                   <p className="proto-caption" style={{ padding: '12px 18px', textAlign: 'center' }}>
                     Could not load thread.
                   </p>
@@ -1259,9 +1383,7 @@ export default function PrototypeSidebar() {
 
             {mode === 'threads' && !sidebarThreadDrilldownId ? (
               <>
-                {studyThreadsQuery.isLoading ? (
-                  <p className="proto-caption" style={{ padding: '12px 18px' }}>Loading threads…</p>
-                ) : studyThreadsQuery.isError ? (
+                {studyThreadsQuery.isLoading ? null : studyThreadsQuery.isError ? (
                   <p className="proto-caption" style={{ padding: '12px 18px', textAlign: 'center' }}>
                     Could not load threads.
                   </p>
@@ -1307,9 +1429,7 @@ export default function PrototypeSidebar() {
 
             {mode === 'scripture' && scriptureDrill.level === 'books' ? (
               <>
-                {scriptureQuery.isLoading ? (
-                  <p className="proto-caption" style={{ padding: '12px 18px' }}>Loading…</p>
-                ) : scriptureQuery.isError ? (
+                {scriptureQuery.isLoading ? null : scriptureQuery.isError ? (
                   <p className="proto-caption" style={{ padding: '12px 18px', textAlign: 'center' }}>
                     Could not load scripture index.
                     {describeQueryFailure(scriptureQuery.error) ? (

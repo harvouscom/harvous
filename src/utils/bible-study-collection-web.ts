@@ -344,7 +344,9 @@ export function applyAutoCollectionAfterEdit(
   title: string,
   bodyHtml: string,
   now: Date,
+  options?: { allowPrimaryUpdate?: boolean },
 ): CollectionChromeState {
+  const allowPrimaryUpdate = options?.allowPrimaryUpdate ?? true;
   if (prev.collectionUserOverride && !prev.collectionPinned) return prev;
 
   const { rows, plainTitle, plainBody } = buildRowsForCollectionSuggest(title, bodyHtml);
@@ -373,6 +375,10 @@ export function applyAutoCollectionAfterEdit(
   let nextLastAuto = prev.collectionLastAutoUpdatedAtIso;
 
   if (!current) {
+    if (!allowPrimaryUpdate) {
+      const secs = suggestSecondaryCollectionsFromNote(title, bodyHtml, prev.primaryCollection);
+      return { ...prev, secondaryCollections: secs };
+    }
     nextPrimary = candidate;
     nextLastAuto = nowIso;
   } else if (current.toLowerCase() === candidate.toLowerCase()) {
@@ -392,6 +398,11 @@ export function applyAutoCollectionAfterEdit(
       (candRow.confidence >= candRow.keyword.confidence + 0.2 || candRow.confidence >= candidateScore - 0.05);
 
     if (!(materiallyStronger && strongSignal)) {
+      const secs = suggestSecondaryCollectionsFromNote(title, bodyHtml, prev.primaryCollection);
+      return { ...prev, secondaryCollections: secs };
+    }
+
+    if (!allowPrimaryUpdate) {
       const secs = suggestSecondaryCollectionsFromNote(title, bodyHtml, prev.primaryCollection);
       return { ...prev, secondaryCollections: secs };
     }

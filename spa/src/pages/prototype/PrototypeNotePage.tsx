@@ -20,6 +20,18 @@ import PrototypeMainPaneShell from './PrototypeMainPaneShell';
 import { usePrototypeHomeSpaceId } from '../../hooks/usePrototypeHomeSpaceId';
 import { stripServerAutoUntitledNoteTitleForDisplay } from '@/utils/server-auto-untitled-note-display';
 import { getEffectiveDefaultTranslation } from '@/utils/profile-cache';
+import { isPrototypeNoteEditorFocused } from '@/utils/prototype-editor-focused';
+import { clearNoteDraft } from '@/utils/note-draft-store';
+import {
+  isDraftComposeAdoptionTransition,
+  prototypeComposeEditorKey,
+  shouldKeepEditorDuringPersistedDraftLoad,
+  shouldResetComposeSessionOnEpochChange,
+} from '@/utils/prototype-draft-compose-session';
+import {
+  COMPOSE_URL_IDLE_MS,
+  type PendingComposeUrlReplace,
+} from '@/utils/prototype-compose-url';
 import { isPrototypeDraftNoteSlug, noteParamSlug } from './proto-route-slugs';
 
 const DRAFT_NOTE_ID = 'note_draft';
@@ -66,7 +78,11 @@ export default function PrototypeNotePage() {
   // The note id a draft compose persisted into. Unlike `persistedDraftIdRef` (reset
   // on every slug change), this survives the /n/new → /n/<id> swap so the editor
   // subtree key can stay stable across that single transition (no remount mid-typing).
+  const [adoptedComposeId, setAdoptedComposeId] = useState<string | null>(null);
   const adoptedComposeIdRef = useRef<string | null>(null);
+  const prevNoteSlugParamRef = useRef(noteSlugParam);
+  const pendingComposeUrlReplaceRef = useRef<PendingComposeUrlReplace | null>(null);
+  const composeUrlIdleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const draftPersistRemountRef = useRef<{ content: string } | null>(null);
   const [draftPersistRemountTick, setDraftPersistRemountTick] = useState(0);
   const processScriptureMutation = useProcessScriptureRefs();
@@ -76,11 +92,14 @@ export default function PrototypeNotePage() {
     isMobileSidebar,
     closeInspector,
     setPrototypeFolderChip,
+    setComposePersistedNoteId,
+    composeSessionEpoch,
     dismissStandaloneScripturePassage,
     formatToolbarHostEl,
     studyDockCarouselHostEl,
     setEditorChromeMode,
   } = useProtoShell();
+  const prevComposeSessionEpochRef = useRef(composeSessionEpoch);
 
   // Dock the inspector side-by-side only when the editor pane is wide enough to
   // seat the editor (max 720px content) beside it (~268px reserve); otherwise let
@@ -192,35 +211,156 @@ export default function PrototypeNotePage() {
 
   const liveFolderLabelRef = useRef<string | null>(null);
 
-  const isNoteEditorFocused = useCallback(() => {
-    if (typeof document === 'undefined') return false;
-    const el = document.activeElement;
-    if (!el) return false;
-    if (el.closest('.ProseMirror')) return true;
-    if (el.tagName === 'TEXTAREA' && el.closest('[data-note-id]')) return true;
-    return false;
-  }, []);
+  const resetComposeSessionState = useCallback(() => {
+    liveFolderLabelRef.current = null;
+    persistedDraftIdRef.current = null;
+    adoptedComposeIdRef.current = null;
+    setAdoptedComposeId(null);
+    setComposePersistedNoteId(null);
+    pendingComposeUrlReplaceRef.current = null;
+    draftPersistPromiseRef.current = null;
+    if (composeUrlIdleTimerRef.current) {
+      clearTimeout(composeUrlIdleTimerRef.current);
+      composeUrlIdleTimerRef.current = null;
+    }
+    clearNoteDraft(DRAFT_NOTE_ID);
+    draftPersistRemountRef.current = { content: '' };
+    setDraftPersistRemountTick((t) => t + 1);
+  }, [setComposePersistedNoteId]);
+
+  useEffect(() => {
+    const prevEpoch = prevComposeSessionEpochRef.current;
+    prevComposeSessionEpochRef.current = composeSessionEpoch;
+    if (shouldResetComposeSessionOnEpochChange(prevEpoch, composeSessionEpoch)) {
+      resetComposeSessionState();
+    }
+  }, [composeSessionEpoch, resetComposeSessionState]);
+
+  const flushPendingComposeUrlReplace = useCallback(() => {
+    const pending = pendingComposeUrlReplaceRef.current;
+    if (!pending) return;
+    pendingComposeUrlReplaceRef.current = null;
+    if (composeUrlIdleTimerRef.current) {
+      clearTimeout(composeUrlIdleTimerRef.current);
+      composeUrlIdleTimerRef.current = null;
+    }
+    setComposePersistedNoteId(null);
+    draftPersistRemountRef.current = { content: '' };
+    setDraftPersistRemountTick((t) => t + 1);
+    navigate({
+      to: prototypeNoteRouteTo(),
+      params: { noteId: pending.slug },
+      replace: true,
+    });
+  }, [navigate, setComposePersistedNoteId]);
+
+  const scheduleComposeUrlIdleReplace = useCallback(() => {
+    if (!pendingComposeUrlReplaceRef.current) return;
+    if (composeUrlIdleTimerRef.current) {
+      clearTimeout(composeUrlIdleTimerRef.current);
+    }
+    composeUrlIdleTimerRef.current = setTimeout(() => {
+      composeUrlIdleTimerRef.current = null;
+      if (!isPrototypeNoteEditorFocused()) {
+        flushPendingComposeUrlReplace();
+      }
+    }, COMPOSE_URL_IDLE_MS);
+  }, [flushPendingComposeUrlReplace]);
 
   const onPrototypeFolderDisplayChange = useCallback(
     (chip: ReturnType<typeof noteFolderChipDisplayState>) => {
       liveFolderLabelRef.current = chip.label;
-      setPrototypeFolderChip({ noteId, ...chip });
+      const chipNoteId = adoptedComposeIdRef.current ?? noteId;
+      setPrototypeFolderChip({ noteId: chipNoteId, ...chip });
     },
     [noteId, setPrototypeFolderChip],
   );
 
   useEffect(() => {
+    const prevSlug = prevNoteSlugParamRef.current;
+    prevNoteSlugParamRef.current = noteSlugParam;
+    const adoptedId = adoptedComposeIdRef.current;
+    const isComposeAdoption = isDraftComposeAdoptionTransition(prevSlug, noteSlugParam, adoptedId);
+
+    draftPersistPromiseRef.current = null;
+
+    if (isComposeAdoption) {
+      setComposePersistedNoteId(null);
+      draftPersistRemountRef.current = { content: '' };
+      setDraftPersistRemountTick((t) => t + 1);
+      return;
+    }
+
     liveFolderLabelRef.current = null;
     persistedDraftIdRef.current = null;
-    draftPersistPromiseRef.current = null;
-  }, [noteSlugParam]);
+    adoptedComposeIdRef.current = null;
+    setAdoptedComposeId(null);
+    setComposePersistedNoteId(null);
+    pendingComposeUrlReplaceRef.current = null;
+    if (composeUrlIdleTimerRef.current) {
+      clearTimeout(composeUrlIdleTimerRef.current);
+      composeUrlIdleTimerRef.current = null;
+    }
+    if (isPrototypeDraftNoteSlug(noteSlugParam)) {
+      clearNoteDraft(DRAFT_NOTE_ID);
+    }
+  }, [noteSlugParam, setComposePersistedNoteId]);
+
+  useEffect(() => {
+    if (!isDraft) return undefined;
+    const pane = notePaneRowElRef.current;
+    if (!pane) return undefined;
+
+    const onFocusOut = (e: FocusEvent) => {
+      if (!pendingComposeUrlReplaceRef.current) return;
+      const next = e.relatedTarget as Node | null;
+      if (next && pane.contains(next)) return;
+      requestAnimationFrame(() => {
+        if (!isPrototypeNoteEditorFocused()) {
+          flushPendingComposeUrlReplace();
+        }
+      });
+    };
+
+    const onComposeEdit = () => {
+      if (pendingComposeUrlReplaceRef.current) {
+        scheduleComposeUrlIdleReplace();
+      }
+    };
+
+    pane.addEventListener('focusout', onFocusOut);
+    pane.addEventListener('input', onComposeEdit, true);
+    pane.addEventListener('keydown', onComposeEdit, true);
+    return () => {
+      pane.removeEventListener('focusout', onFocusOut);
+      pane.removeEventListener('input', onComposeEdit, true);
+      pane.removeEventListener('keydown', onComposeEdit, true);
+    };
+  }, [isDraft, flushPendingComposeUrlReplace, scheduleComposeUrlIdleReplace]);
+
+  useEffect(() => {
+    return () => {
+      if (composeUrlIdleTimerRef.current) {
+        clearTimeout(composeUrlIdleTimerRef.current);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!isDraft && adoptedComposeId && note && noteId === adoptedComposeId) {
+      adoptedComposeIdRef.current = null;
+      setAdoptedComposeId(null);
+    }
+  }, [isDraft, adoptedComposeId, note, noteId]);
 
   useEffect(() => {
     if (isDraft || !note) {
-      setPrototypeFolderChip(null);
+      if (!isDraft || !adoptedComposeIdRef.current) {
+        setPrototypeFolderChip(null);
+      }
       return;
     }
-    if (isNoteEditorFocused()) return;
+    if (isPrototypeNoteEditorFocused()) return;
     const serverChip = noteFolderChipDisplayState({
       primaryCollection: note.primaryCollection ?? null,
       secondaryCollections: note.secondaryCollections ?? [],
@@ -245,7 +385,6 @@ export default function PrototypeNotePage() {
     note?.primaryCollection,
     note?.secondaryCollections,
     setPrototypeFolderChip,
-    isNoteEditorFocused,
   ]);
 
   useEffect(() => {
@@ -315,7 +454,7 @@ export default function PrototypeNotePage() {
 
   useEffect(() => {
     if (isDraft || !note || isLoading || note.contentEncrypted) return;
-    if (isNoteEditorFocused()) return;
+    if (isPrototypeNoteEditorFocused()) return;
     const content = note.content ?? '';
     if (!content || typeof content !== 'string') return;
     if ((reprocessAttemptsRef.current.get(noteId) ?? 0) >= MAX_SCRIPTURE_REPROCESS_ATTEMPTS) return;
@@ -348,7 +487,7 @@ export default function PrototypeNotePage() {
     const refs = detectScriptureReferences(plainText);
     if (refs.length === 0) return;
     runReprocess();
-  }, [isDraft, note, noteId, isLoading, processScriptureMutation, isNoteEditorFocused]);
+  }, [isDraft, note, noteId, isLoading, processScriptureMutation]);
 
   const persistDraftNote = useCallback(
     async (
@@ -397,6 +536,9 @@ export default function PrototypeNotePage() {
           }
           persistedDraftIdRef.current = createdId;
           adoptedComposeIdRef.current = createdId;
+          setAdoptedComposeId(createdId);
+          setComposePersistedNoteId(createdId);
+          clearNoteDraft(DRAFT_NOTE_ID);
           if (collectionExtras && Object.keys(collectionExtras).length > 0) {
             await updateNoteMutationRef.current.mutateAsync({
               noteId: createdId,
@@ -406,13 +548,19 @@ export default function PrototypeNotePage() {
               ...collectionExtras,
             });
           }
-          draftPersistRemountRef.current = { content: newContent };
-          setDraftPersistRemountTick((t) => t + 1);
-          navigate({
-            to: prototypeNoteRouteTo(),
-            params: { noteId: noteParamSlug(createdId) },
-            replace: true,
+          const chipForToolbar = noteFolderChipDisplayState({
+            primaryCollection:
+              collectionExtras?.primaryCollection ?? liveFolderLabelRef.current ?? null,
+            secondaryCollections: collectionExtras?.secondaryCollections ?? [],
           });
+          if (chipForToolbar.label) {
+            setPrototypeFolderChip({ noteId: createdId, ...chipForToolbar });
+          }
+          pendingComposeUrlReplaceRef.current = {
+            noteId: createdId,
+            slug: noteParamSlug(createdId),
+          };
+          scheduleComposeUrlIdleReplace();
           return createdId;
         } catch (err) {
           alertCreateNoteFailure(err);
@@ -424,7 +572,7 @@ export default function PrototypeNotePage() {
 
       return draftPersistPromiseRef.current;
     },
-    [homeSpaceId, navigate],
+    [homeSpaceId, scheduleComposeUrlIdleReplace, setComposePersistedNoteId, setPrototypeFolderChip],
   );
 
   const handleNoteSave = useCallback(
@@ -508,8 +656,11 @@ export default function PrototypeNotePage() {
 
   /* Loading — use PDS shimmer, no SPA card-full class. Keep editor mounted when this
    * page instance just persisted a draft (note may still be seeding in React Query). */
-  const keepEditorDuringPersistedDraftLoad =
-    !isDraft && persistedDraftIdRef.current === noteId;
+  const keepEditorDuringPersistedDraftLoad = shouldKeepEditorDuringPersistedDraftLoad(
+    isDraft,
+    noteId,
+    adoptedComposeId,
+  );
   if (!isDraft && isLoading && !note && !keepEditorDuringPersistedDraftLoad) {
     return (
       <PrototypeMainPaneShell>
@@ -537,8 +688,10 @@ export default function PrototypeNotePage() {
     );
   }
 
+  const useComposeEditorStub = isDraft && !!adoptedComposeId;
+
   const editorNote =
-    isDraft || (!note && keepEditorDuringPersistedDraftLoad)
+    useComposeEditorStub || isDraft || (!note && keepEditorDuringPersistedDraftLoad)
     ? {
         title: '',
         content: '',
@@ -574,10 +727,10 @@ export default function PrototypeNotePage() {
 
   // Stable key for the editor subtree. The draft route and the note it persists into
   // are ONE editing session, so they share a key — this prevents a destructive
-  // CardFullEditable + TipTap remount mid-typing when /n/new → /n/<id>. Any other
-  // (settled) note keys on its own id, so distinct notes never share an instance.
-  const editorSessionKey =
-    isDraft || adoptedComposeIdRef.current === noteId ? DRAFT_NOTE_ID : noteId;
+  // CardFullEditable + TipTap remount mid-typing when /n/new → /n/<id>. A new
+  // compose bumps composeSessionEpoch so distinct compose sessions never share an instance.
+  const composeEditorKey = prototypeComposeEditorKey(DRAFT_NOTE_ID, composeSessionEpoch);
+  const editorSessionKey = isDraft || !!adoptedComposeId ? composeEditorKey : noteId;
 
   const showInspectorDesktop = (inspectorOpen || inspectorExiting) && !isMobileSidebar;
   const showInspectorMobile = (inspectorOpen || inspectorExiting) && isMobileSidebar;

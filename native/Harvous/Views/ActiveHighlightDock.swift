@@ -129,6 +129,19 @@ struct ActiveHighlightDock: View {
         }
     }
 
+    private var showsPrimaryDockAction: Bool {
+        switch thread.entryKind {
+        case .linkedNote:
+            return thread.linkedNoteId != nil && onJumpToLinkedNote != nil
+        case .scriptureLink:
+            let trimmed = (thread.scriptureReference ?? thread.miniNoteBody)
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            return !trimmed.isEmpty && onReadPassage != nil
+        default:
+            return false
+        }
+    }
+
     private var dockCardChrome: some View {
         VStack(alignment: .leading, spacing: 10) {
             headerRow
@@ -142,8 +155,11 @@ struct ActiveHighlightDock: View {
         }
         .frame(maxWidth: inStudyDockCarousel ? .infinity : nil, alignment: .topLeading)
         .padding(.horizontal, 12)
-        .padding(.vertical, 10)
+        .padding(.top, 10)
+        // Expanded scroll runs to the card bottom unless a primary action sits below it.
+        .padding(.bottom, isExpanded ? (showsPrimaryDockAction ? 10 : 0) : 10)
         .background(dockChrome)
+        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
         .studyDockShellBorderOverlay()
         // Carousel spring animates slot width; snap vertical chrome so expand/collapse cannot overshoot negative height.
         .animation(.none, value: isExpanded)
@@ -181,17 +197,66 @@ struct ActiveHighlightDock: View {
 
     @ViewBuilder
     private func referenceCategoryBadge(iconAsset: String, label: String) -> some View {
-        HStack(spacing: 3) {
-            HarvousFAGlyph(assetName: iconAsset, edgePt: 10)
-            Text(label)
-                .font(HarvousFonts.font(size: 11, weight: .medium, design: .default))
-                .lineLimit(1)
-                .truncationMode(.tail)
+        StudyDockHeaderChipView(chip: .referenceCategory(iconAsset: iconAsset, label: label))
+    }
+
+    @ViewBuilder
+    private var referenceHeaderTitleGroup: some View {
+        if thread.entryKind == .reference, let meta = referenceCategoryMeta {
+            HStack(spacing: 8) {
+                referenceHeaderTitleContent
+                    .layoutPriority(0)
+                    .frame(minWidth: 0)
+                referenceCategoryBadge(iconAsset: meta.iconAsset, label: meta.label)
+                    .layoutPriority(1)
+            }
+            .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
+        } else {
+            highlightTitleField
+                .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
         }
-        .foregroundStyle(Color.primary.opacity(0.5))
-        .padding(.horizontal, 6)
-        .padding(.vertical, 3)
-        .background(Capsule().fill(Color.primary.opacity(0.07)))
+    }
+
+    @ViewBuilder
+    private var referenceHeaderTitleContent: some View {
+        // Static label like scripture dock — macOS TextField expands horizontally and pushes the chip right.
+        Text(referenceDisplayTitle)
+            .font(HarvousFonts.font(size: 14, weight: .semibold, design: .default))
+            .foregroundStyle(.primary)
+            .lineLimit(1)
+            .truncationMode(.tail)
+    }
+
+    private var referenceDisplayTitle: String {
+        let custom = thread.focusTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !custom.isEmpty { return custom }
+        if let entry = EastonsDictionaryService.shared.slugIndex[effectiveReferenceSlug] {
+            return entry.headword
+        }
+        let word = thread.sourceSnippet.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !word.isEmpty { return word.capitalized }
+        return defaultHighlightTitle
+    }
+
+    private var highlightTitleField: some View {
+        TextField("", text: $thread.focusTitle, prompt: Text(defaultHighlightTitle).foregroundStyle(.secondary))
+            .font(HarvousFonts.font(size: 14, weight: .semibold, design: .default))
+            .foregroundStyle(.primary)
+            .textFieldStyle(.plain)
+            .lineLimit(1)
+            .truncationMode(.tail)
+            .allowsHitTesting(isExpanded)
+            .onChange(of: thread.focusTitle) { old, new in
+                guard old != new else { return }
+                let now = Date()
+                thread.updatedAt = now
+                thread.highlightListEditedAt = now
+                try? modelContext.saveWithLogging()
+            }
+            #if os(iOS)
+            .submitLabel(.done)
+            #endif
+            .accessibilityLabel("Highlight title")
     }
 
     private var headerRow: some View {
@@ -201,31 +266,7 @@ struct ActiveHighlightDock: View {
             // Glyph (tap to expand/collapse)
             headerGlyphImage
 
-            TextField("", text: $thread.focusTitle, prompt: Text(defaultHighlightTitle).foregroundStyle(.secondary))
-                .font(HarvousFonts.font(size: 14, weight: .semibold, design: .default))
-                .foregroundStyle(.primary)
-                .textFieldStyle(.plain)
-                .lineLimit(1)
-                .truncationMode(.tail)
-                .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
-                .allowsHitTesting(isExpanded)
-                .onChange(of: thread.focusTitle) { old, new in
-                    // Avoid bumping list sort / vault timestamps on spurious binding parity or no-op edits.
-                    guard old != new else { return }
-                    let now = Date()
-                    thread.updatedAt = now
-                    thread.highlightListEditedAt = now
-                    try? modelContext.saveWithLogging()
-                }
-                #if os(iOS)
-                .submitLabel(.done)
-                #endif
-                .accessibilityLabel("Highlight title")
-
-            if let meta = referenceCategoryMeta {
-                referenceCategoryBadge(iconAsset: meta.iconAsset, label: meta.label)
-                    .fixedSize(horizontal: true, vertical: false)
-            }
+            referenceHeaderTitleGroup
 
             // Utility toolbar — `.animation(.none)` prevents the spring on `isExpanded` from
             // sliding the chevron symbol or the whole toolbar during expand/collapse.

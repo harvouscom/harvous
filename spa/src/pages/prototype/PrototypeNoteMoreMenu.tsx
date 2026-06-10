@@ -136,7 +136,7 @@ export default function PrototypeNoteMoreMenu({
 
         {open ? (
           <ProtoPopoverShell
-            className="proto-menu__popover proto-menu__popover--right"
+            className="proto-menu__popover proto-menu__popover--right proto-menu__popover--list-view"
             role="menu"
             aria-label="Note actions"
           >
@@ -154,7 +154,7 @@ export default function PrototypeNoteMoreMenu({
                   <span className="proto-menu-item__icon" aria-hidden>
                     <Icon name="magnifying-glass" size={iconSize} />
                   </span>
-                  <span style={{ flex: 1, minWidth: 0 }}>Find in note</span>
+                  <span className="proto-menu-item__label">Find in note</span>
                 </button>
               ) : null}
               {overflowActions && onShare ? (
@@ -170,7 +170,7 @@ export default function PrototypeNoteMoreMenu({
                   <span className="proto-menu-item__icon" aria-hidden>
                     <Icon name="share" size={iconSize} />
                   </span>
-                  <span style={{ flex: 1, minWidth: 0 }}>{isPublic ? 'Manage share' : 'Share'}</span>
+                  <span className="proto-menu-item__label">{isPublic ? 'Manage share' : 'Share'}</span>
                 </button>
               ) : null}
               {overflowActions && (onFind || onShare) ? <div className="proto-menu-sep" role="separator" /> : null}
@@ -178,7 +178,7 @@ export default function PrototypeNoteMoreMenu({
                 <span className="proto-menu-item__icon" aria-hidden>
                   <Icon name="thumbtack" size={iconSize} />
                 </span>
-                <span style={{ flex: 1, minWidth: 0 }}>{pinned ? 'Unpin note' : 'Pin note'}</span>
+                <span className="proto-menu-item__label">{pinned ? 'Unpin note' : 'Pin note'}</span>
               </button>
               <button
                 type="button"
@@ -193,7 +193,7 @@ export default function PrototypeNoteMoreMenu({
                 <span className="proto-menu-item__icon" aria-hidden>
                   <Icon name="trash-can" size={iconSize} />
                 </span>
-                <span style={{ flex: 1, minWidth: 0 }}>Delete note</span>
+                <span className="proto-menu-item__label">Delete note</span>
               </button>
             </div>
           </ProtoPopoverShell>

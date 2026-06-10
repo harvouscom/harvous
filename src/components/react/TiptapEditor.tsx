@@ -16,13 +16,17 @@ import Underline from '@tiptap/extension-underline';
 import Superscript from '@tiptap/extension-superscript';
 import Image from '@tiptap/extension-image';
 import { getMarkRange } from '@tiptap/core';
-import { TextSelection } from '@tiptap/pm/state';
+import { NodeSelection, TextSelection } from '@tiptap/pm/state';
 import { DOMSerializer } from '@tiptap/pm/model';
 import { NoteLink } from './TiptapNoteLink';
 import { ScripturePill } from './TiptapScripturePill';
 import { BoldCustom } from './TiptapBoldCustom';
 import { HighlightCustom } from './TiptapHighlightCustom';
 import { ParagraphCustom } from './TiptapParagraphCustom';
+import { isSelectionActionBarEligible } from './selection-action-bar-eligibility';
+import { contentSyncWouldClobberInlineImage } from './inline-image-insert';
+
+export { isSelectionActionBarEligible } from './selection-action-bar-eligibility';
 
 /** HTML from the live editor; optionally normalize empty paragraphs for parent state. */
 function noteHtmlFromEditor(editor: { getHTML: () => string }, canonicalizeBlankLines = false): string {
@@ -34,6 +38,7 @@ import {
   createDictionaryReferenceProvider,
   REFERENCE_SUGGESTION_REFRESH_META,
   type ReferenceProvider,
+  type EastonsIndex,
 } from './TiptapReferenceSuggestion';
 import { UrlLink } from './TiptapUrlLink';
 import { TextIndent } from './TiptapTextIndent';
@@ -48,13 +53,19 @@ import {
   mergeReferenceWithOrphanSuffix,
 } from '@/utils/scripture-pill-orphan';
 import { findAdjacentPillBoundaries } from '@/utils/scripture-pill-adjacent';
-import { hasLostBlockGaps } from '@/utils/scripture-pill-block-gaps';
-import { ensureScripturePillSpacing, type ScripturePillSpacingMode } from '@/utils/scripture-pill-spacing';
+import { hasBlockGapAfter, hasLostBlockGaps } from '@/utils/scripture-pill-block-gaps';
+import {
+  ensureScripturePillSpacing,
+  rangeCrossesHardBreak,
+  type ScripturePillSpacingMode,
+} from '@/utils/scripture-pill-spacing';
 import {
   detectScriptureReferenceEndingAtCursor,
   findScriptureReferenceAtCursor,
   findTextWithFlexibleMatching,
+  isChapterOnlyScriptureReference,
   mapReferenceEndInSliceToDocPos,
+  shouldSchedulePassiveScriptureDetection,
 } from '@/utils/scripture-pill-position';
 import { isStudyHighlightAccentKey, type StudyHighlightAccentKey, STUDY_HIGHLIGHT_SWATCHES_NO_NEUTRAL, STUDY_HIGHLIGHT_ACCENT_LABELS, studyDockAccentCssVar } from '@/utils/study-highlight-accents';
 import { TRANSLATION_ORDER, TRANSLATIONS } from '@/data/translations';
@@ -92,7 +103,7 @@ import LinkPreviewCard from './LinkPreviewCard';
 import UrlLinkPromptUI from './UrlLinkPromptUI';
 import ReferenceDockWeb from './ReferenceDockWeb';
 import { useEditorHoverPreview } from './useEditorHoverPreview';
-import { useEastonsSlugIndex, lookupWord } from '../../../spa/src/hooks/useEastonsSlugIndex';
+import { useEastonsSlugIndex } from '../../../spa/src/hooks/useEastonsSlugIndex';
 import PrototypeConnectNoteSheet from '../../../spa/src/pages/prototype/PrototypeConnectNoteSheet';
 import ConnectedNoteHighlightPopup from './ConnectedNoteHighlightPopup';
 import '@/styles/tiptap-editor.css';
@@ -102,10 +113,6 @@ import Icon from './Icon';
 
 /** Prototype format toolbar — Font Awesome fill icons (matches proto chrome; not Tabler stroke). */
 const PROTO_FORMAT_ICON_SIZE = 18;
-
-/** Client-side cap before upload (server enforces the same). */
-const NOTE_INLINE_IMAGE_MAX_RAW_BYTES = 10 * 1024 * 1024;
-const NOTE_INLINE_IMAGE_ACCEPT = 'image/jpeg,image/png,image/webp,image/gif,image/heic,image/heif';
 
 // Track pending pill creation to prevent duplicates from concurrent calls
 // This is a module-level Set to track references currently being processed
@@ -376,6 +383,100 @@ function findPillBoundaries(doc: any, pos: number): { start: number; end: number
   return { start: pillStart, end: pillEnd };
 }
 
+type ScripturePillDeleteConfirmState = {
+  rect: DOMRect;
+  reference: string;
+  boundaries: { start: number; end: number };
+};
+
+/** Backspace/Delete/Escape handling for scripture pill delete confirmation. */
+function tryHandleScripturePillDeleteKey(
+  editor: any,
+  event: KeyboardEvent,
+  view: any,
+  deleteConfirmPillRef: React.MutableRefObject<ScripturePillDeleteConfirmState | null>,
+  setDeleteConfirmPill: (value: ScripturePillDeleteConfirmState | null) => void,
+): boolean {
+  if (event.key === 'Escape' && deleteConfirmPillRef.current) {
+    setDeleteConfirmPill(null);
+    deleteConfirmPillRef.current = null;
+    return true;
+  }
+
+  if (!(event.key === 'Backspace' || event.key === 'Delete')) {
+    return false;
+  }
+
+  const { from, to } = view.state.selection;
+  if (from !== to) {
+    return false;
+  }
+
+  const $from = view.state.selection.$from;
+  const scripturePillMark = $from.marks().find((mark: any) => mark.type.name === 'scripturePill');
+
+  const existingConfirm = deleteConfirmPillRef.current;
+  if (existingConfirm) {
+    event.preventDefault();
+    setDeleteConfirmPill(null);
+    deleteConfirmPillRef.current = null;
+    editor
+      .chain()
+      .deleteRange({ from: existingConfirm.boundaries.start, to: existingConfirm.boundaries.end })
+      .run();
+    return true;
+  }
+
+  let pillBoundaries: { start: number; end: number } | null = null;
+  let pillReference: string | null = null;
+
+  if (scripturePillMark) {
+    pillBoundaries = findPillBoundaries(view.state.doc, from);
+    pillReference = scripturePillMark.attrs.reference;
+  } else {
+    const direction = event.key === 'Backspace' ? 'before' : 'after';
+    const adj = findAdjacentPillBoundaries(view.state.doc, from, direction);
+    if (adj) {
+      pillBoundaries = adj;
+      try {
+        const midPos = Math.floor((adj.start + adj.end) / 2);
+        const $mid = view.state.doc.resolve(midPos);
+        const mark =
+          $mid.marks().find((m: any) => m.type.name === 'scripturePill') ||
+          $mid.nodeAfter?.marks?.find((m: any) => m.type.name === 'scripturePill');
+        pillReference = mark?.attrs.reference || null;
+      } catch (_) {}
+    }
+  }
+
+  if (!pillBoundaries || !pillReference) {
+    return false;
+  }
+
+  const realPill = findPillBoundaries(view.state.doc, pillBoundaries.start);
+  if (realPill) {
+    const gapText =
+      from > realPill.end
+        ? view.state.doc.textBetween(realPill.end, from)
+        : from < realPill.start
+          ? view.state.doc.textBetween(from, realPill.start)
+          : '';
+    if (gapText && isOrphanScriptureSuffix(gapText)) {
+      return false;
+    }
+  }
+
+  event.preventDefault();
+  const pillEl = editor.view.dom.querySelector(
+    `.scripture-pill[data-scripture-reference="${CSS.escape(pillReference)}"]`,
+  ) as HTMLElement | null;
+  const rect = pillEl ? pillEl.getBoundingClientRect() : new DOMRect(0, 0, 0, 0);
+  const confirmData = { rect, reference: pillReference, boundaries: pillBoundaries };
+  setDeleteConfirmPill(confirmData);
+  deleteConfirmPillRef.current = confirmData;
+  return true;
+}
+
 /** Move cursor after a leading scripture pill (e.g. VOTD → Create note); end-of-doc can still resolve inside the mark. */
 export function placeCursorAfterLeadingScripturePill(editor: any): void {
   try {
@@ -460,14 +561,31 @@ export function snapCursorOutsideScripturePill(editor: any): void {
         (beforeInPill ? getMarkRange(state.doc.resolve(Math.max(0, sel.from - 1)), markType) : null);
       const pillEnd = range?.to ?? $from.pos;
       const atEndOfParent = offset === parent.content.size;
+      const $pillEnd = state.doc.resolve(Math.min(pillEnd, state.doc.content.size - 1));
+      const blockEnd = $pillEnd.end($pillEnd.depth);
+      const skipTrailingSpace =
+        hasBlockGapAfter(state.doc, pillEnd) ||
+        hasHardBreakAfter(state.doc, pillEnd) ||
+        hasLineBreakAfter(state.doc, pillEnd, blockEnd);
       const charAfter = !atEndOfParent ? state.doc.textBetween(pillEnd, Math.min(pillEnd + 1, $from.end($from.depth))) : '';
-      if (atEndOfParent || (charAfter && charAfter !== ' ' && charAfter !== '\n' && charAfter !== '\t')) {
+      if (
+        !skipTrailingSpace &&
+        (atEndOfParent || (charAfter && charAfter !== ' ' && charAfter !== '\n' && charAfter !== '\t'))
+      ) {
         const tr = state.tr;
         const insertPos = atEndOfParent ? $from.end($from.depth) : pillEnd;
         tr.insertText(' ', insertPos);
         tr.setSelection(TextSelection.create(tr.doc, insertPos + 1));
         tr.setStoredMarks([]);
         tr.setMeta('addToHistory', false);
+        editor.view.dispatch(tr);
+        return;
+      }
+      if (skipTrailingSpace && sel.empty && sel.from !== pillEnd) {
+        const tr = state.tr
+          .setSelection(TextSelection.create(state.doc, pillEnd))
+          .setStoredMarks([])
+          .setMeta('addToHistory', false);
         editor.view.dispatch(tr);
         return;
       }
@@ -1149,6 +1267,9 @@ function applyScripturePillToRange(
   reference: string,
   attrs: { noteId: string | null; translation?: string | null; pillAccent?: string | null },
 ): number {
+  if (!isWithinSingleParagraph(tr.doc, pillFrom, pillTo) || rangeCrossesHardBreak(tr.doc, pillFrom, pillTo)) {
+    return pillTo;
+  }
   const currentText = tr.doc.textBetween(pillFrom, pillTo);
   const noteId = attrs.noteId ?? 'pending';
   const translation = attrs.translation ?? null;
@@ -1225,7 +1346,10 @@ function insertScriptureContinuationAtPillEnd(
 }
 
 /** Merge plain verse suffixes immediately after scripture pills (e.g. chapter pill + ":2"). */
-export function absorbOrphanSuffixesAfterPills(editor: any): boolean {
+export function absorbOrphanSuffixesAfterPills(
+  editor: any,
+  spacingMode: ScripturePillSpacingMode = 'live',
+): boolean {
   if (!editor || editor.isDestroyed || !editor.view) return false;
   try {
     const view = editor.view;
@@ -1273,7 +1397,7 @@ export function absorbOrphanSuffixesAfterPills(editor: any): boolean {
     }
 
     if (modified) {
-      ensureScripturePillSpacing(tr);
+      ensureScripturePillSpacing(tr, 'scripturePill', spacingMode);
       tr.setMeta('addToHistory', false);
       tr.setStoredMarks([]);
       view.dispatch(tr);
@@ -1310,12 +1434,45 @@ function hasValidPrecomputedPosition(
   );
 }
 
+function findScripturePillMarkAtCursor(doc: any, cursorPos: number): any | null {
+  try {
+    const $pos = doc.resolve(cursorPos);
+    let pillMark = $pos.marks().find((m: any) => m.type.name === 'scripturePill');
+    if (!pillMark && $pos.nodeAfter?.marks) {
+      pillMark = $pos.nodeAfter.marks.find((m: any) => m.type.name === 'scripturePill');
+    }
+    if (!pillMark && cursorPos > 1) {
+      const $before = doc.resolve(cursorPos - 1);
+      pillMark = $before.marks().find((m: any) => m.type.name === 'scripturePill');
+    }
+    return pillMark ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/** Skip chapter-only detection inside a pill that already spans a longer reference (e.g. "Exodus 5" in "Exodus 5:1-2"). */
+function isChapterOnlyInsideLongerPill(doc: any, cursorPos: number, chapterRef: string): boolean {
+  const pillMark = findScripturePillMarkAtCursor(doc, cursorPos);
+  if (!pillMark) return false;
+  const pillRef = String(pillMark.attrs.reference ?? '').trim();
+  const chapterTrim = chapterRef.trim();
+  if (!pillRef.includes(':')) return false;
+  return pillRef.toLowerCase().startsWith(chapterTrim.toLowerCase());
+}
+
 /** Apply cursor-anchored detection with detectScriptureReferences fallback. Returns applied reference. */
 function applyDetectionAtCursor(editor: any, cursorPos: number): string | null {
   const doc = editor.state.doc;
   const cursorResult = detectScriptureReferenceEndingAtCursor(doc, cursorPos);
 
   if (cursorResult) {
+    if (
+      isChapterOnlyScriptureReference(cursorResult.reference) &&
+      isChapterOnlyInsideLongerPill(doc, cursorPos, cursorResult.reference)
+    ) {
+      return null;
+    }
     const precomputed = hasValidPrecomputedPosition(cursorResult, cursorResult.reference)
       ? { reference: cursorResult.reference, from: cursorResult.from!, to: cursorResult.to! }
       : undefined;
@@ -1362,8 +1519,15 @@ function runScriptureDetectionAtCursor(editor: any): void {
     if (from !== to || from < 2) return;
 
     const $from = editor.state.doc.resolve(from);
-    if ($from.marks().some((m: any) => m.type.name === 'scripturePill')) return;
-    if (!isScripturePillBoundaryCursor($from, editor.state.doc)) return;
+    const doc = editor.state.doc;
+    const cursorEnding = detectScriptureReferenceEndingAtCursor(doc, from);
+    const insidePill = $from.marks().some((m: any) => m.type.name === 'scripturePill');
+    if (insidePill && !cursorEnding) return;
+    if (
+      !shouldSchedulePassiveScriptureDetection(doc, from, isScripturePillBoundaryCursor($from, doc))
+    ) {
+      return;
+    }
 
     const appliedRef = applyDetectionAtCursor(editor, from);
     if (appliedRef) {
@@ -1459,9 +1623,9 @@ function createPendingPillsForReferences(
             } catch (_) {}
           }
 
-          if (!isWithinSingleParagraph(doc, pos.from, pos.to)) continue;
           const adjustedPos = adjustPositionForParagraphBoundary(doc, pos.from, pos.to);
           if (!isWithinSingleParagraph(doc, adjustedPos.from, adjustedPos.to)) continue;
+          if (rangeCrossesHardBreak(doc, adjustedPos.from, adjustedPos.to)) continue;
 
           const markType = state.schema.marks.scripturePill;
           if (!markType) continue;
@@ -2033,7 +2197,7 @@ export async function convertNoteLinksToScripturePills(editor: any) {
     const noteLinks = tempDiv.querySelectorAll('span.note-link[data-note-id]');
     
     if (noteLinks.length === 0) {
-      dispatchScripturePillSpacing(editor);
+      dispatchScripturePillSpacing(editor, 'hydrate');
       return;
     }
     
@@ -2208,7 +2372,7 @@ export async function convertNoteLinksToScripturePills(editor: any) {
         continue;
       }
     }
-    dispatchScripturePillSpacing(editor);
+    dispatchScripturePillSpacing(editor, 'hydrate');
   } catch (error) {
     console.error('Error converting note-links to scripture pills:', error);
   }
@@ -3256,6 +3420,35 @@ function selectionIntersectsHighlightMark(editor: any): boolean {
   return rangeHasHighlightMark(editor, from, to);
 }
 
+const ONE_SHOT_ATOMIC_BLOCK_TYPES = new Set(['horizontalRule', 'image']);
+
+/** Delete adjacent HR/image in one keystroke (avoids NodeSelection flash + selection bar). */
+function tryDeleteAdjacentAtomicBlock(editor: any, view: any, event: KeyboardEvent): boolean {
+  if (!(event.key === 'Backspace' || event.key === 'Delete')) return false;
+  const { from, to } = view.state.selection;
+  if (from !== to) return false;
+
+  const $from = view.state.selection.$from;
+
+  if (event.key === 'Backspace') {
+    if ($from.parentOffset !== 0) return false;
+    const cutPos = $from.before();
+    const nodeBefore = view.state.doc.resolve(cutPos).nodeBefore;
+    if (!nodeBefore || !ONE_SHOT_ATOMIC_BLOCK_TYPES.has(nodeBefore.type.name)) return false;
+    event.preventDefault();
+    editor.chain().focus().deleteRange({ from: cutPos - nodeBefore.nodeSize, to: cutPos }).run();
+    return true;
+  }
+
+  if ($from.parentOffset !== $from.parent.content.size) return false;
+  const cutPos = $from.after();
+  const nodeAfter = view.state.doc.resolve(cutPos).nodeAfter;
+  if (!nodeAfter || !ONE_SHOT_ATOMIC_BLOCK_TYPES.has(nodeAfter.type.name)) return false;
+  event.preventDefault();
+  editor.chain().focus().deleteRange({ from: cutPos, to: cutPos + nodeAfter.nodeSize }).run();
+  return true;
+}
+
 const TiptapEditor: React.FC<TiptapEditorProps> = ({
   content,
   id = "content",
@@ -3362,8 +3555,6 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
   const [contentOverflowing, setContentOverflowing] = useState(false);
   const [contentHasScrolledDown, setContentHasScrolledDown] = useState(false);
   const hiddenInputRef = useRef<HTMLInputElement>(null);
-  const inlineImageInputRef = useRef<HTMLInputElement>(null);
-  const [isUploadingInlineImage, setIsUploadingInlineImage] = useState(false);
   const editorRef = useRef<any>(null);
   const tiptapContentRef = useRef<HTMLDivElement>(null);
   const createNoteBubbleRef = useRef<HTMLDivElement>(null);
@@ -3485,7 +3676,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
   // Reference-suggestion plumbing. The Easton's index loads async (below) so the plugin
   // reads it lazily through a ref; the chrome-mode ref gates suggestions to the
   // prototype/native surface. Both are captured once when the extension is configured.
-  const eastonsIndexRef = useRef<Parameters<typeof lookupWord>[1]>(undefined);
+  const eastonsIndexRef = useRef<EastonsIndex>(undefined);
   const editorChromeModeRef = useRef(editorChromeMode);
   editorChromeModeRef.current = editorChromeMode;
   const referenceProvidersRef = useRef<ReferenceProvider[]>([
@@ -3553,7 +3744,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       });
     },
     onUpdate: ({ editor }) => {
-      const htmlContent = editor.getHTML();
+      const htmlContent = noteHtmlFromEditor(editor, true);
 
       // Update hidden input
       if (hiddenInputRef.current) {
@@ -3605,7 +3796,11 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
           const thisEditorId = String(editor.view?.dom?.id || 'default');
           const needsScripturePass =
             Array.from(pendingTranslationPills.values()).some(e => e.editorId === thisEditorId) ||
-            isScripturePillBoundaryCursor($mobFrom, editor.state.doc);
+            shouldSchedulePassiveScriptureDetection(
+              editor.state.doc,
+              mobFrom,
+              isScripturePillBoundaryCursor($mobFrom, editor.state.doc),
+            );
           if (!needsScripturePass) {
             if (mobileScriptureDetectionTimer.current) {
               clearTimeout(mobileScriptureDetectionTimer.current);
@@ -3628,7 +3823,11 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
           const thisEditorId = String(editor.view?.dom?.id || 'default');
           const needsScripturePass =
             Array.from(pendingTranslationPills.values()).some((e) => e.editorId === thisEditorId) ||
-            isScripturePillBoundaryCursor($deskFrom, editor.state.doc);
+            shouldSchedulePassiveScriptureDetection(
+              editor.state.doc,
+              deskFrom,
+              isScripturePillBoundaryCursor($deskFrom, editor.state.doc),
+            );
           if (needsScripturePass) {
             if (desktopScriptureDetectionTimer.current) {
               clearTimeout(desktopScriptureDetectionTimer.current);
@@ -4017,73 +4216,11 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
 
         // EARLY CHECK: Handle Backspace/Delete adjacent to or inside a pill
         // This must fire first to prevent ProseMirror's default backspace from eating pill characters
-        if ((event.key === 'Backspace' || event.key === 'Delete') && from === to) {
-          // If a delete confirmation is already showing, the second press confirms deletion
-          const existingConfirm = deleteConfirmPillRef.current;
-          if (existingConfirm) {
-            event.preventDefault();
-            setDeleteConfirmPill(null);
-            deleteConfirmPillRef.current = null;
-            editor.chain()
-              .deleteRange({ from: existingConfirm.boundaries.start, to: existingConfirm.boundaries.end })
-              .run();
-            return true;
-          }
-
-          // First press — find the pill to confirm then show floater
-          let pillBoundaries: { start: number; end: number } | null = null;
-          let pillReference: string | null = null;
-
-          if (scripturePillMark) {
-            pillBoundaries = findPillBoundaries(view.state.doc, from);
-            pillReference = scripturePillMark.attrs.reference;
-          } else {
-            const direction = event.key === 'Backspace' ? 'before' : 'after';
-            const adj = findAdjacentPillBoundaries(view.state.doc, from, direction);
-            if (adj) {
-              pillBoundaries = adj;
-              // Find the mark to get the reference text
-              try {
-                const midPos = Math.floor((adj.start + adj.end) / 2);
-                const $mid = view.state.doc.resolve(midPos);
-                const mark = $mid.marks().find((m: any) => m.type.name === 'scripturePill')
-                  || $mid.nodeAfter?.marks?.find((m: any) => m.type.name === 'scripturePill');
-                pillReference = mark?.attrs.reference || null;
-              } catch (_) {}
-            }
-          }
-
-          if (pillBoundaries && pillReference) {
-            const realPill = findPillBoundaries(view.state.doc, pillBoundaries.start);
-            if (realPill) {
-              const gapText =
-                from > realPill.end
-                  ? view.state.doc.textBetween(realPill.end, from)
-                  : from < realPill.start
-                    ? view.state.doc.textBetween(from, realPill.start)
-                    : '';
-              if (gapText && isOrphanScriptureSuffix(gapText)) {
-                return false;
-              }
-            }
-
-            event.preventDefault();
-            // Find the pill's DOM element to position the confirm floater
-            const pillEl = editor.view.dom.querySelector(
-              `.scripture-pill[data-scripture-reference="${CSS.escape(pillReference)}"]`
-            ) as HTMLElement | null;
-            const rect = pillEl ? pillEl.getBoundingClientRect() : new DOMRect(0, 0, 0, 0);
-            const confirmData = { rect, reference: pillReference, boundaries: pillBoundaries };
-            setDeleteConfirmPill(confirmData);
-            deleteConfirmPillRef.current = confirmData;
-            return true;
-          }
+        if (tryHandleScripturePillDeleteKey(editor, event, view, deleteConfirmPillRef, setDeleteConfirmPill)) {
+          return true;
         }
 
-        // Dismiss delete confirm on Escape
-        if (event.key === 'Escape' && deleteConfirmPillRef.current) {
-          setDeleteConfirmPill(null);
-          deleteConfirmPillRef.current = null;
+        if (tryDeleteAdjacentAtomicBlock(editor, view, event)) {
           return true;
         }
         
@@ -4094,29 +4231,39 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
           event.key === ' ' || event.key === 'Enter' || event.key === 'NumpadEnter' ||
           event.key === ',' || event.key === '.';
         const isSyncTrigger = event.key === ' ' || event.key === ',' || event.key === '.';
-        if (isDetectionTrigger && from === to && !scripturePillMark && !event.metaKey && !event.ctrlKey && !event.altKey && !isMobileDevice()) {
+        const isEnterTrigger = event.key === 'Enter' || event.key === 'NumpadEnter';
+        const cursorEndingAtKeydown = detectScriptureReferenceEndingAtCursor(view.state.doc, from);
+        const skipChapterInsideLongerPill =
+          cursorEndingAtKeydown != null &&
+          isChapterOnlyScriptureReference(cursorEndingAtKeydown.reference) &&
+          isChapterOnlyInsideLongerPill(view.state.doc, from, cursorEndingAtKeydown.reference);
+        const allowDetectionAtCursor =
+          (!scripturePillMark || (cursorEndingAtKeydown != null && !skipChapterInsideLongerPill)) &&
+          !skipChapterInsideLongerPill;
+        if (isDetectionTrigger && from === to && allowDetectionAtCursor && !event.metaKey && !event.ctrlKey && !event.altKey && !isMobileDevice()) {
           // Step 1: Resolve any pending translation pill from a previous keypress
           // (Check if user typed a translation abbreviation like "ESV" after the last pill)
           const consumedAbbrev = resolvePendingTranslationPill(editor);
           if (consumedAbbrev) {
             if (isSyncTrigger) {
               event.preventDefault();
-              const tr = view.state.tr;
-              tr.insertText(event.key, view.state.selection.from);
+              const tr = editor.view.state.tr;
+              tr.insertText(event.key, editor.view.state.selection.from);
               tr.setStoredMarks([]);
-              view.dispatch(tr);
+              editor.view.dispatch(tr);
               return true;
             }
             // For Enter / NumpadEnter, let the newline happen naturally
           }
 
           // Step 2: Detect scripture reference ending at cursor (with fallback)
-          const doc = view.state.doc;
-          const cursorPos = view.state.selection.from;
-          const textStart = Math.max(0, cursorPos - 60);
-          const textBeforeCursor = doc.textBetween(textStart, cursorPos);
+          const liveView = editor.view;
+          const doc = liveView.state.doc;
+          const detectFrom = liveView.state.selection.from;
+          const textStart = Math.max(0, detectFrom - 60);
+          const textBeforeCursor = doc.textBetween(textStart, detectFrom);
           const hasDetectableText =
-            detectScriptureReferenceEndingAtCursor(doc, cursorPos) != null ||
+            detectScriptureReferenceEndingAtCursor(doc, detectFrom) != null ||
             (textBeforeCursor.trim().length > 0 && detectScriptureReferences(textBeforeCursor).length > 0);
 
           try {
@@ -4124,10 +4271,10 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
               if (isSyncTrigger) {
                 event.preventDefault();
 
-                const tr = view.state.tr;
-                tr.insertText(event.key, view.state.selection.from);
+                const tr = liveView.state.tr;
+                tr.insertText(event.key, liveView.state.selection.from);
                 tr.setStoredMarks([]);
-                view.dispatch(tr);
+                liveView.dispatch(tr);
 
                 const appliedRef = applyDetectionAtCursor(editor, editor.state.selection.from);
                 if (appliedRef) {
@@ -4136,13 +4283,12 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                 return true;
               }
 
-              queueMicrotask(() => {
-                if (!isEditorValid(editor)) return;
-                const appliedRef = applyDetectionAtCursor(editor, editor.state.selection.from);
+              if (isEnterTrigger) {
+                const appliedRef = applyDetectionAtCursor(editor, detectFrom);
                 if (appliedRef) {
                   schedulePendingTranslationAfterPillCreation(editor, [{ reference: appliedRef }]);
                 }
-              });
+              }
             }
           } catch (e) {
             console.error('[TiptapEditor] Error in space/enter detection:', e);
@@ -4441,20 +4587,11 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     }
   }, [editor]);
 
-  const getSelectedSingleWord = useCallback((): string | null => {
-    const range = resolveSelectionBarRange();
-    if (!range) return null;
-    const text = range.snippet.trim();
-    if (!text || /\s/.test(text) || text.length > 40) return null;
-    return text;
-  }, [resolveSelectionBarRange]);
-
   /**
    * Persist a reference for the word at `range`: create the server-side `reference`
    * study-thread entry (prototype/native only), apply the `data-reference` highlight mark,
    * and (unless `openDock: false`) open the dock in its saved state. Shared by the
-   * selection-bar "Look up" path and the typed-suggestion "Save reference" path so the
-   * persistence logic lives in one place.
+   * typed-suggestion "Save reference" path and saved-reference reopen flows.
    */
   const saveReferenceHighlight = useCallback(
     async (
@@ -4598,58 +4735,6 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     });
   }, [editor, clearSelectionActionBar]);
 
-  const triggerInlineImagePicker = useCallback(() => {
-    if (!sourceNoteId || isUploadingInlineImage) return;
-    inlineImageInputRef.current?.click();
-  }, [sourceNoteId, isUploadingInlineImage]);
-
-  const handleInlineImageFileChange = useCallback(
-    async (e: React.ChangeEvent<HTMLInputElement>) => {
-      const file = e.target.files?.[0];
-      e.target.value = '';
-      if (!file || !editor || !sourceNoteId || !isEditorValid(editor)) return;
-
-      if (file.size > NOTE_INLINE_IMAGE_MAX_RAW_BYTES) {
-        window.dispatchEvent(
-          new CustomEvent('showToast', {
-            detail: { message: 'Image is too large (max 10 MB).', type: 'info' },
-          }),
-        );
-        return;
-      }
-
-      setIsUploadingInlineImage(true);
-      try {
-        const formData = new FormData();
-        formData.append('file', file);
-        const res = await fetch(`/api/notes/${sourceNoteId}/inline-image`, {
-          method: 'POST',
-          body: formData,
-          credentials: 'include',
-        });
-        const data = (await res.json().catch(() => ({}))) as { url?: string; error?: string };
-        if (!res.ok || !data.url) {
-          window.dispatchEvent(
-            new CustomEvent('showToast', {
-              detail: { message: data.error || 'Could not upload image.', type: 'info' },
-            }),
-          );
-          return;
-        }
-        editor.chain().focus().setImage({ src: data.url }).run();
-      } catch {
-        window.dispatchEvent(
-          new CustomEvent('showToast', {
-            detail: { message: 'Could not upload image.', type: 'info' },
-          }),
-        );
-      } finally {
-        setIsUploadingInlineImage(false);
-      }
-    },
-    [editor, sourceNoteId],
-  );
-
   const applyUrlLink = useCallback((rawHref: string) => {
     if (!editor || !urlLinkPrompt) return;
     const href = rawHref.trim();
@@ -4777,7 +4862,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       applyDefaultTranslationToScripturePills(editor, defaultTrans);
       await convertNoteLinksToScripturePills(editor);
       consumeTrailingTranslationAfterPills(editor);
-      absorbOrphanSuffixesAfterPills(editor);
+      absorbOrphanSuffixesAfterPills(editor, 'hydrate');
       dispatchScripturePillSpacing(editor, 'hydrate');
 
       try {
@@ -4810,6 +4895,10 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     const currentContent = editor.getHTML();
     if (currentContent === normalizedContent) return;
     if (isTiptapBodyEmpty(currentContent) && isTiptapBodyEmpty(content)) return;
+
+    if (contentSyncWouldClobberInlineImage(currentContent, normalizedContent)) {
+      return;
+    }
 
     const isNewNoteEditor = id === 'new-note-content';
     const shouldForceHydratePrefill =
@@ -4935,15 +5024,6 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     return hasMarks || hasComplexNodes;
   };
 
-  // Helper function to validate selection
-  const isValidSelection = (editor: any): boolean => {
-    if (!editor) return false;
-    
-    const { from, to } = editor.state.selection;
-    // Return true for any non-empty selection (no minimum length required)
-    return from !== to;
-  };
-
   // Selection detection for create note button + floating action bar positioning
   useEffect(() => {
     if (!editor || !enableCreateNoteFromSelection) {
@@ -4965,7 +5045,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
         setSelectionActionBar(null);
         return;
       }
-      if (isValidSelection(editor)) {
+      if (isSelectionActionBarEligible(editor)) {
         setShowCreateNoteButton(true);
         // Position floating action bar below the selection (prototype: 8px gap + clamp like native SelectionActionBar)
         try {
@@ -5020,7 +5100,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       // Give a tick for the selection to update before dismissing
       setTimeout(() => {
         if (!isEditorValid(editor)) return;
-        if (!isValidSelection(editor)) {
+        if (!isSelectionActionBarEligible(editor)) {
           clearSelectionActionBar();
         }
       }, 100);
@@ -5359,6 +5439,9 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
 
     const handleDismiss = (e: MouseEvent) => {
       const target = e.target as HTMLElement;
+      if (target.closest('.scripture-delete-confirm')) {
+        return;
+      }
       if (
         target.closest('.scripture-translation-picker') ||
         target.closest('.scripture-pill-chrome') ||
@@ -5372,7 +5455,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       } else {
         setTranslationPicker(null);
       }
-      if (!target.closest('.scripture-delete-confirm') && !target.closest('.scripture-pill')) {
+      if (!target.closest('.scripture-pill')) {
         setDeleteConfirmPill(null);
         deleteConfirmPillRef.current = null;
       }
@@ -5760,9 +5843,6 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       // selection and interrupts dock button clicks. The format toolbar is instead hidden while a
       // dock chrome is active via `studyDockChromeTakesOver` below.
       const relatedTarget = event.event?.relatedTarget as HTMLElement | null | undefined;
-      if (studyDockPointerDownRef.current) {
-        return;
-      }
       if (relatedTarget?.closest?.('.tiptap-toolbar')) {
         return;
       }
@@ -5791,6 +5871,20 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
         return;
       }
       if (relatedTarget?.closest?.('.selection-action-bar')) {
+        return;
+      }
+      if (
+        !relatedTarget &&
+        (studyDockPointerDownRef.current ||
+          document.activeElement?.closest?.(
+            '.study-dock-card, .study-dock-carousel, .highlight-dock-web, .reference-dock-web, .scripture-pill-chrome, .scripture-delete-confirm',
+          ))
+      ) {
+        queueMicrotask(() => {
+          if (isEditorValid(editor)) {
+            setIsEditorFocused(editor.isFocused);
+          }
+        });
         return;
       }
       // Small delay to allow focus to return to editor if needed
@@ -5838,7 +5932,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
   useEffect(() => {
     if (editorChromeMode !== 'prototypeNative') return;
     const dockSelector =
-      '.study-dock-card, .study-dock-carousel, .highlight-dock-web, .reference-dock-web, .scripture-pill-chrome';
+      '.study-dock-card, .study-dock-carousel, .highlight-dock-web, .reference-dock-web, .scripture-pill-chrome, .scripture-delete-confirm';
     const onPointerDown = (e: Event) => {
       if ((e.target as HTMLElement)?.closest?.(dockSelector)) {
         studyDockPointerDownRef.current = true;
@@ -5846,6 +5940,12 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     };
     const onPointerUp = () => {
       studyDockPointerDownRef.current = false;
+      queueMicrotask(() => {
+        const ed = editorRef.current;
+        if (ed && isEditorValid(ed)) {
+          setIsEditorFocused(ed.isFocused);
+        }
+      });
     };
     document.addEventListener('mousedown', onPointerDown, true);
     document.addEventListener('mouseup', onPointerUp, true);
@@ -5854,6 +5954,36 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       document.removeEventListener('mouseup', onPointerUp, true);
     };
   }, [editorChromeMode]);
+
+  /** Pill delete when DOM focus moved to study-dock chrome but editor selection is still valid. */
+  useEffect(() => {
+    if (!editor || editorChromeMode !== 'prototypeNative') return;
+
+    const isExternalTextField = (target: EventTarget | null): boolean => {
+      if (!(target instanceof HTMLElement)) return false;
+      const tag = target.tagName;
+      if (tag === 'TEXTAREA' || tag === 'INPUT') return true;
+      if (target.isContentEditable && !target.closest('.ProseMirror')) return true;
+      return false;
+    };
+
+    const handleDocumentKeyDown = (event: KeyboardEvent) => {
+      if (!(event.key === 'Backspace' || event.key === 'Delete' || event.key === 'Escape')) return;
+      if (isExternalTextField(event.target)) return;
+      if (!isEditorValid(editor)) return;
+      if (editor.isFocused) return;
+
+      editor.commands.focus();
+      if (!tryHandleScripturePillDeleteKey(editor, event, editor.view, deleteConfirmPillRef, setDeleteConfirmPill)) {
+        return;
+      }
+      event.preventDefault();
+      event.stopPropagation();
+    };
+
+    document.addEventListener('keydown', handleDocumentKeyDown, true);
+    return () => document.removeEventListener('keydown', handleDocumentKeyDown, true);
+  }, [editor, editorChromeMode]);
 
   useEffect(() => {
     if (!editor || !sourceNoteId) return;
@@ -6353,15 +6483,6 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
               >
                 <Icon name="horizontal-rule" size={PROTO_FORMAT_ICON_SIZE} className="proto-toolbar-icon" />
               </ToolbarButton>
-              <ToolbarButton
-                onClick={triggerInlineImagePicker}
-                isActive={false}
-                disabled={!sourceNoteId || isUploadingInlineImage}
-                title="Insert image"
-                ariaLabel="Insert image"
-              >
-                <Icon name="image" size={PROTO_FORMAT_ICON_SIZE} className="proto-toolbar-icon" />
-              </ToolbarButton>
             </TiptapToolbarTrack>
           </div>
           <div className="tiptap-toolbar__trailing">
@@ -6388,15 +6509,6 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
             </div>
           </div>
         </div>
-        <input
-          ref={inlineImageInputRef}
-          type="file"
-          accept={NOTE_INLINE_IMAGE_ACCEPT}
-          className="sr-only"
-          tabIndex={-1}
-          aria-hidden
-          onChange={handleInlineImageFileChange}
-        />
       </div>
     );
   };
@@ -6411,7 +6523,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
         name={name}
         value={editor.getHTML()}
       />
-      
+
       {/* Toolbar above or below scroll area; below keeps it visible above keyboard on mobile */}
       {!minimalToolbar && isEditorFocused && !toolbarAtBottom && editorChromeMode !== 'prototypeNative' && (
         <div
@@ -6726,40 +6838,6 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                 >
                   <Icon name="highlighter" size={14} />
                 </button>
-                {(() => {
-                  const word = getSelectedSingleWord();
-                  const entry = word ? lookupWord(word, eastonsIndex) : null;
-                  if (!entry) return null;
-                  return (
-                    <>
-                      <span className="pds-native-selection-bar__rule" aria-hidden />
-                      <button
-                        type="button"
-                        className="pds-native-selection-bar__btn"
-                        title={`Look up "${word}" in Easton's Bible Dictionary`}
-                        aria-label="Look up in dictionary"
-                        onMouseDown={(e: React.MouseEvent) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          if (!editor || !isEditorValid(editor) || !word) {
-                            clearSelectionActionBar();
-                            return;
-                          }
-                          const range = resolveSelectionBarRange();
-                          if (!range) {
-                            openReferenceDock({ query: word });
-                            clearSelectionActionBar();
-                            return;
-                          }
-                          clearSelectionActionBar();
-                          void saveReferenceHighlight({ from: range.from, to: range.to }, word);
-                        }}
-                      >
-                        <Icon name="lines-leaning" size={14} />
-                      </button>
-                    </>
-                  );
-                })()}
                 <span className="pds-native-selection-bar__rule" aria-hidden />
                 <button
                   type="button"

@@ -19,6 +19,7 @@ import {
   type PointerEvent,
 } from 'react';
 import NativeToolbar from '../pages/prototype/NativeToolbar';
+import PrototypeSidebarToolbar from '../pages/prototype/PrototypeSidebarToolbar';
 import PrototypeSidebar from '../pages/prototype/PrototypeSidebar';
 import PrototypeEditorChromeBar from '../pages/prototype/PrototypeEditorChromeBar';
 import '../styles/prototype-tokens.css';
@@ -28,6 +29,7 @@ import '../styles/prototype-editor.css';
 import '../styles/prototype-route-overrides.css';
 import { hasClerkSessionCookieHint } from '../hooks/queries/useProfile';
 import { usePrototypeHomeSpaceId } from '../hooks/usePrototypeHomeSpaceId';
+import { updateStudyDockExpandedMaxHeight } from '@/utils/study-dock-layout';
 import { noteParamSlug, PROTOTYPE_DRAFT_NOTE_SLUG } from '../pages/prototype/proto-route-slugs';
 import { PROTO_LAST_SPACE_KEY } from './proto-session-keys';
 import { ProtoMigrationProvider } from './proto-migration-context';
@@ -247,13 +249,7 @@ function PrototypeAuthenticatedChrome({ userId }: { userId?: string }) {
     };
 
     const updateDockMaxHeight = () => {
-      const chromeRow = document.querySelector('.proto-shell__editor-chrome-row');
-      if (!chromeRow) return;
-      const rect = chromeRow.getBoundingClientRect();
-      const available = Math.round(rect.top - 16);
-      if (available > 0) {
-        root.style.setProperty('--proto-dock-expanded-max-height', `${Math.max(180, available)}px`);
-      }
+      updateStudyDockExpandedMaxHeight();
     };
 
     // Size the shell frame to exactly the visual viewport (above the keyboard) and let the
@@ -424,6 +420,10 @@ function PrototypeAuthenticatedChrome({ userId }: { userId?: string }) {
 
   const shellStyle = { '--proto-sidebar-w': `${sidebarWidth}px` } as CSSProperties;
 
+  const useSplitDesktopToolbar = !hideSidebar && !isMobileSidebar;
+  const showSidebarToolbar =
+    useSplitDesktopToolbar && !desktopSidebarCollapsed && !sidebarExiting;
+
   const shellMods = [
     'proto-shell',
     'proto-theme',
@@ -431,7 +431,7 @@ function PrototypeAuthenticatedChrome({ userId }: { userId?: string }) {
     'proto-shell--no-footer',
     isNoteRoute ? 'proto-shell--note-chrome' : '',
     isMobileSidebar && drawerOpen && !hideSidebar ? 'proto-shell--drawer-open' : '',
-    !hideSidebar && desktopSidebarCollapsed ? 'proto-shell--sidebar-collapsed' : '',
+    !hideSidebar && !isMobileSidebar && desktopSidebarCollapsed ? 'proto-shell--sidebar-collapsed' : '',
     !hideSidebar && sidebarExiting && !isMobileSidebar ? 'proto-shell--sidebar-closing' : '',
   ]
     .filter(Boolean)
@@ -449,11 +449,28 @@ function PrototypeAuthenticatedChrome({ userId }: { userId?: string }) {
         <PrototypePinPanels />
         <ReferralCreditInit userId={userId} />
 
-        <header className="proto-shell__toolbar-cell">
-          <div className="proto-shell__toolbar-stack">
-            <NativeToolbar />
-          </div>
-        </header>
+        {useSplitDesktopToolbar ? (
+          <>
+            {showSidebarToolbar ? (
+              <header className="proto-shell__sidebar-toolbar-cell">
+                <div className="proto-shell__toolbar-stack">
+                  <PrototypeSidebarToolbar />
+                </div>
+              </header>
+            ) : null}
+            <header className="proto-shell__detail-toolbar-cell">
+              <div className="proto-shell__toolbar-stack">
+                <NativeToolbar variant="detail" />
+              </div>
+            </header>
+          </>
+        ) : (
+          <header className="proto-shell__toolbar-cell">
+            <div className="proto-shell__toolbar-stack">
+              <NativeToolbar variant="unified" />
+            </div>
+          </header>
+        )}
 
         {!hideSidebar && isMobileSidebar && (drawerOpen || sidebarExiting) ? (
           <DrawerOverlay onClose={closeDrawer} />
@@ -518,16 +535,18 @@ function PrototypeShortcutBridge() {
     ensureSidebarExpanded,
     sidebarListMode,
     setSidebarListMode,
+    beginPrototypeComposeSession,
   } = useProtoShell();
 
   const createPrototypeNote = useCallback(() => {
     if (!homeSpaceId) return;
     if (isMobileSidebar) closeDrawer();
+    beginPrototypeComposeSession();
     navigate.navigate({
       to: prototypeNoteRouteTo(),
       params: { noteId: PROTOTYPE_DRAFT_NOTE_SLUG },
     });
-  }, [closeDrawer, homeSpaceId, isMobileSidebar, navigate]);
+  }, [beginPrototypeComposeSession, closeDrawer, homeSpaceId, isMobileSidebar, navigate]);
 
   const togglePrototypeSidebar = useCallback(() => {
     if (isMobileSidebar) toggleDrawer();
@@ -544,9 +563,16 @@ function PrototypeShortcutBridge() {
     });
   }, [ensureSidebarExpanded]);
 
+  const focusPrototypeSidebarSearch = useCallback(() => {
+    ensureSidebarExpanded();
+    requestAnimationFrame(() => {
+      document.querySelector<HTMLInputElement>('#proto-sidebar-search-input')?.focus();
+    });
+  }, [ensureSidebarExpanded]);
+
   const cycleListMode = useCallback(
     (step: number) => {
-      const order = ['notes', 'folders', 'highlights', 'scripture', 'dictionary'] as const;
+      const order = ['notes', 'folders', 'highlights', 'scripture', 'threads'] as const;
       const currentIndex = Math.max(0, order.indexOf(sidebarListMode));
       const nextIndex = (currentIndex + step + order.length) % order.length;
       setSidebarListMode(order[nextIndex]);
@@ -563,6 +589,7 @@ function PrototypeShortcutBridge() {
       toggleInspector();
     };
     const onFocusList = () => focusPrototypeNoteList();
+    const onFocusSidebarSearch = () => focusPrototypeSidebarSearch();
     const onCycleListMode = (event: Event) => {
       const custom = event as CustomEvent<{ step?: number }>;
       const step = custom.detail?.step === -1 ? -1 : 1;
@@ -573,6 +600,7 @@ function PrototypeShortcutBridge() {
     window.addEventListener('prototypeShortcutToggleSidebar', onToggleSidebar);
     window.addEventListener('prototypeShortcutToggleInspector', onToggleInspector);
     window.addEventListener('prototypeShortcutFocusNoteList', onFocusList);
+    window.addEventListener('prototypeShortcutFocusSidebarSearch', onFocusSidebarSearch);
     window.addEventListener('prototypeShortcutCycleListMode', onCycleListMode as EventListener);
 
     return () => {
@@ -580,12 +608,14 @@ function PrototypeShortcutBridge() {
       window.removeEventListener('prototypeShortcutToggleSidebar', onToggleSidebar);
       window.removeEventListener('prototypeShortcutToggleInspector', onToggleInspector);
       window.removeEventListener('prototypeShortcutFocusNoteList', onFocusList);
+      window.removeEventListener('prototypeShortcutFocusSidebarSearch', onFocusSidebarSearch);
       window.removeEventListener('prototypeShortcutCycleListMode', onCycleListMode as EventListener);
     };
   }, [
     createPrototypeNote,
     cycleListMode,
     focusPrototypeNoteList,
+    focusPrototypeSidebarSearch,
     pathname,
     toggleInspector,
     togglePrototypeSidebar,

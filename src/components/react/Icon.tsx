@@ -45,6 +45,7 @@ import noteStickySvg from '@fortawesome/fontawesome-free/svgs/solid/note-sticky.
 import bookSvg from '@fortawesome/fontawesome-free/svgs/solid/book.svg?raw';
 import paintbrushSvg from '@fortawesome/fontawesome-free/svgs/solid/paintbrush.svg?raw';
 import circleUserSvg from '@fortawesome/fontawesome-free/svgs/solid/circle-user.svg?raw';
+import circleXmarkSvg from '@fortawesome/fontawesome-free/svgs/solid/circle-xmark.svg?raw';
 import ellipsisVerticalSvg from '@fortawesome/fontawesome-free/svgs/solid/ellipsis-vertical.svg?raw';
 import ellipsisSvg from '@fortawesome/fontawesome-free/svgs/solid/ellipsis.svg?raw';
 import thumbtackSvg from '@fortawesome/fontawesome-free/svgs/solid/thumbtack.svg?raw';
@@ -147,6 +148,7 @@ const icons = {
   book: withCurrentColor(bookSvg),
   paintbrush: withCurrentColor(paintbrushSvg),
   'circle-user': svgRootCurrentColor(circleUserSvg),
+  'circle-xmark': svgRootCurrentColor(circleXmarkSvg),
 
   'layer-group': `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512" fill="currentColor"><path d="M264.5 5.2c14.9-6.9 32.1-6.9 47 0l218.6 101c8.5 3.9 13.9 12.4 13.9 21.8s-5.4 17.9-13.9 21.8l-218.6 101c-14.9 6.9-32.1 6.9-47 0L45.9 149.8C37.4 145.8 32 137.3 32 128s5.4-17.9 13.9-21.8L264.5 5.2zM476.9 209.6l53.2 24.6c8.5 3.9 13.9 12.4 13.9 21.8s-5.4 17.9-13.9 21.8l-218.6 101c-14.9 6.9-32.1 6.9-47 0L45.9 277.8C37.4 273.8 32 265.3 32 256s5.4-17.9 13.9-21.8l53.2-24.6 152 70.2c23.4 10.8 50.4 10.8 73.8 0l152-70.2zm-152 198.2l152-70.2 53.2 24.6c8.5 3.9 13.9 12.4 13.9 21.8s-5.4 17.9-13.9 21.8l-218.6 101c-14.9 6.9-32.1 6.9-47 0L45.9 405.8C37.4 401.8 32 393.3 32 384s5.4-17.9 13.9-21.8l53.2-24.6 152 70.2c23.4 10.8 50.4 10.8 73.8 0z"/></svg>`,
   'magnifying-glass': `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="currentColor"><path d="M416 208c0 45.9-14.9 88.3-40 122.7L502.6 457.4c12.5 12.5 12.5 32.8 0 45.3s-32.8 12.5-45.3 0L330.7 376c-34.4 25.2-76.8 40-122.7 40C93.1 416 0 322.9 0 208S93.1 0 208 0S416 93.1 416 208zM208 352a144 144 0 1 0 0-288 144 144 0 1 0 0 288z"/></svg>`,

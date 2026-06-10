@@ -1,9 +1,8 @@
 /**
- * NativeToolbar — mirrors the macOS Harvous toolbar layout.
+ * Detail-column toolbar — mirrors macOS Harvous detail toolbar.
  *
- * Left group:  [sidebar toggle] [space switcher] [compose]
- * Center:       "Prototype" brand, or folder chip on prototype note routes
- * Right group: [find · share · more] — gap — [inspector toggle · account menu]
+ * Desktop detail:  [show sidebar when collapsed] [compose] · folder chip · find/share/more · inspector · account
+ * Mobile unified: [sidebar toggle] [compose] · … (space + mode live in drawer header)
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate, useRouterState } from '@tanstack/react-router';
@@ -12,41 +11,42 @@ import { usePrototypeHomeSpaceId } from '../../hooks/usePrototypeHomeSpaceId';
 import { useNote } from '../../hooks/queries/useNote';
 import { PROTOTYPE_DRAFT_NOTE_SLUG, normalizeNoteIdFromParam, isPrototypeDraftNoteSlug } from './proto-route-slugs';
 import { useProtoShell, usePrototypeFolderChip } from '../../layouts/proto-shell-context';
+import { resolvePrototypeToolbarNoteId } from '@/utils/prototype-compose-url';
 import {
   effectiveNoteFolderLabel,
   noteFolderChipAdditionalCount,
   noteFolderMembershipLabels,
 } from '@/utils/note-folder-display';
 import AccountMenu from './AccountMenu';
-import SpaceSwitcherMenu from './SpaceSwitcherMenu';
 import { PROTO_TOOLBAR_FOLDER_CHIP_ICON_SIZE, PROTO_TOOLBAR_ORB_ICON_SIZE } from './proto-toolbar-tokens';
 import PrototypeSharePopover from './PrototypeSharePopover';
 import PrototypeFindInNotePopover from './PrototypeFindInNotePopover';
 import PrototypeFolderPopover from './PrototypeFolderPopover';
 import PrototypeToolbarShortcutItem from './PrototypeToolbarShortcutItem';
 import PrototypeNoteMoreMenu from './PrototypeNoteMoreMenu';
+import SplitColumnToggleIcon from './SplitColumnToggleIcon';
 import { usePrototypeShiftHints } from '../../hooks/usePrototypeShiftHints';
 import { isPrototypeNotePath, matchPrototypeNoteId, prototypeNoteRouteTo } from '@/lib/prototype-path';
 
-/* ── NativeToolbar ───────────────────────────────────────────────────────── */
-export default function NativeToolbar() {
+export type NativeToolbarVariant = 'detail' | 'unified';
+
+export default function NativeToolbar({ variant = 'detail' }: { variant?: NativeToolbarVariant }) {
   const navigate = useNavigate();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
 
-  // Find popover state — anchored to the toolbar find button (desktop) or more menu (mobile).
   const findButtonRef = useRef<HTMLButtonElement | null>(null);
   const overflowMenuButtonRef = useRef<HTMLButtonElement | null>(null);
   const [findAnchorRect, setFindAnchorRect] = useState<DOMRect | null>(null);
-  // Share popover state — anchored to the toolbar share button (desktop) or more menu (mobile).
   const shareButtonRef = useRef<HTMLButtonElement | null>(null);
   const [shareAnchorRect, setShareAnchorRect] = useState<DOMRect | null>(null);
-  // Folder popover state — anchored to the toolbar folder chip.
   const folderChipRef = useRef<HTMLButtonElement | null>(null);
   const [folderAnchorRect, setFolderAnchorRect] = useState<DOMRect | null>(null);
-  const { homeSpaceId, navReady } = usePrototypeHomeSpaceId();
+  const { homeSpaceId } = usePrototypeHomeSpaceId();
 
   const prototypeFolderChip = usePrototypeFolderChip();
   const {
+    composePersistedNoteId,
+    beginPrototypeComposeSession,
     isMobileSidebar,
     drawerOpen,
     toggleDrawer,
@@ -57,12 +57,18 @@ export default function NativeToolbar() {
     inspectorExiting,
     toggleInspector,
     closeDrawer,
+    ensureSidebarExpanded,
   } = useProtoShell();
 
+  const isUnified = variant === 'unified';
   const noteSlugFromPath = matchPrototypeNoteId(pathname);
   const isDraftNoteRoute = noteSlugFromPath != null && isPrototypeDraftNoteSlug(noteSlugFromPath);
-  const toolbarNoteId =
-    noteSlugFromPath && !isDraftNoteRoute ? normalizeNoteIdFromParam(noteSlugFromPath) : null;
+  const toolbarNoteId = resolvePrototypeToolbarNoteId(
+    composePersistedNoteId,
+    noteSlugFromPath,
+    isDraftNoteRoute,
+    normalizeNoteIdFromParam,
+  );
 
   const { data: toolbarNote, isLoading: toolbarNoteLoading } = useNote(toolbarNoteId ?? '');
 
@@ -108,6 +114,7 @@ export default function NativeToolbar() {
   const onCompose = () => {
     if (!homeSpaceId) return;
     if (isMobileSidebar) closeDrawer();
+    beginPrototypeComposeSession();
     navigate({
       to: prototypeNoteRouteTo(),
       params: { noteId: PROTOTYPE_DRAFT_NOTE_SLUG },
@@ -117,6 +124,10 @@ export default function NativeToolbar() {
   const onSidebarButton = () => {
     if (isMobileSidebar) toggleDrawer();
     else toggleDesktopSidebar();
+  };
+
+  const onShowSidebar = () => {
+    ensureSidebarExpanded();
   };
 
   const showShiftHints = usePrototypeShiftHints();
@@ -142,32 +153,42 @@ export default function NativeToolbar() {
     return () => window.removeEventListener('prototypeOpenFindInNote', onOpenFind as EventListener);
   }, [isOnNotePage, toolbarNoteId, openFindPopover]);
 
+  const showCollapsedSidebarControls =
+    !isUnified && (desktopSidebarCollapsed || sidebarExiting);
+
   return (
     <div className="proto-toolbar-inner">
-      {/* Left group */}
       <div className="proto-toolbar-left">
-        <PrototypeToolbarShortcutItem shortcut="B" showShortcut={showShiftHints}>
-          <button
-            type="button"
-            className="proto-toolbar-icon-btn"
-            onClick={onSidebarButton}
-            title={isMobileSidebar ? 'Sidebar' : desktopSidebarCollapsed ? 'Show sidebar' : 'Hide sidebar'}
-            aria-label={isMobileSidebar ? 'Toggle sidebar drawer' : 'Toggle sidebar visibility'}
-          >
-            <Icon
-              name="bars"
-              size={PROTO_TOOLBAR_ORB_ICON_SIZE}
-              style={{
-                transition: 'transform 0.26s cubic-bezier(0.32, 0.72, 0.24, 1)',
-                transform:
-                  (isMobileSidebar ? !drawerOpen || sidebarExiting : desktopSidebarCollapsed || sidebarExiting)
-                    ? 'rotate(90deg)'
-                    : 'rotate(0deg)',
-              }}
-            />
-          </button>
-        </PrototypeToolbarShortcutItem>
-        <SpaceSwitcherMenu homeSpaceId={homeSpaceId} navReady={navReady} />
+        {isUnified ? (
+          <PrototypeToolbarShortcutItem shortcut="B" showShortcut={showShiftHints}>
+            <button
+              type="button"
+              className="proto-toolbar-icon-btn"
+              onClick={onSidebarButton}
+              title="Sidebar"
+              aria-label="Toggle sidebar drawer"
+            >
+              <SplitColumnToggleIcon
+                side="left"
+                open={drawerOpen && !sidebarExiting}
+                size={PROTO_TOOLBAR_ORB_ICON_SIZE}
+              />
+            </button>
+          </PrototypeToolbarShortcutItem>
+        ) : null}
+        {showCollapsedSidebarControls ? (
+          <PrototypeToolbarShortcutItem shortcut="B" showShortcut={showShiftHints}>
+            <button
+              type="button"
+              className="proto-toolbar-icon-btn"
+              title="Show sidebar"
+              aria-label="Show sidebar"
+              onClick={onShowSidebar}
+            >
+              <SplitColumnToggleIcon side="left" open={false} size={PROTO_TOOLBAR_ORB_ICON_SIZE} />
+            </button>
+          </PrototypeToolbarShortcutItem>
+        ) : null}
         <PrototypeToolbarShortcutItem shortcut="N" showShortcut={showShiftHints}>
           <button
             type="button"
@@ -182,7 +203,6 @@ export default function NativeToolbar() {
         </PrototypeToolbarShortcutItem>
       </div>
 
-      {/* Center — folder chip on note routes; empty elsewhere */}
       <div className="proto-toolbar-center">
         {isOnNotePage && !toolbarNoteLoading && toolbarNote ? (
           <>
@@ -223,7 +243,6 @@ export default function NativeToolbar() {
         ) : null}
       </div>
 
-      {/* Right — note actions (find/share/more) then trailing chrome (inspector, account) */}
       <div className="proto-toolbar-right">
         {isOnNotePage && toolbarNoteId ? (
           <div className="proto-toolbar-orb-group" aria-label="Note actions">
@@ -317,7 +336,11 @@ export default function NativeToolbar() {
                 aria-label={inspectorOpen ? 'Hide note details' : 'Show note details'}
                 onClick={toggleInspector}
               >
-                <InspectorToggleIcon open={inspectorOpen && !inspectorExiting} size={PROTO_TOOLBAR_ORB_ICON_SIZE} />
+                <SplitColumnToggleIcon
+                  side="right"
+                  open={inspectorOpen && !inspectorExiting}
+                  size={PROTO_TOOLBAR_ORB_ICON_SIZE}
+                />
               </button>
             </PrototypeToolbarShortcutItem>
           ) : null}
@@ -326,46 +349,5 @@ export default function NativeToolbar() {
         </div>
       </div>
     </div>
-  );
-}
-
-/**
- * Custom `table-columns` glyph whose right column fills in when the inspector is
- * open — mirroring the right panel's open/close state. Geometry matches Font
- * Awesome `table-columns` (viewBox 0 0 512 512): right column spans x 288→448,
- * y 160→416.
- */
-function InspectorToggleIcon({ open, size }: { open: boolean; size: number }) {
-  return (
-    <span
-      style={{
-        display: 'inline-flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        width: size,
-        height: size,
-        color: 'inherit',
-      }}
-    >
-      <svg width={size} height={size} viewBox="0 0 512 512" fill="currentColor" style={{ display: 'block' }}>
-        <path d="M0 96C0 60.7 28.7 32 64 32l384 0c35.3 0 64 28.7 64 64l0 320c0 35.3-28.7 64-64 64L64 480c-35.3 0-64-28.7-64-64L0 96zm64 64l0 256 160 0 0-256L64 160zm384 0l-160 0 0 256 160 0 0-256z" />
-        {/* Right column fill — overlaps generously into the solid divider (left),
-            top/bottom bars, and right frame (all the same color) so no antialiased
-            hairline shows around the column. Wipes in from the right edge (scaleX)
-            to mirror the panel sliding in / out. */}
-        <rect
-          x="250"
-          y="100"
-          width="240"
-          height="360"
-          style={{
-            transformBox: 'fill-box',
-            transformOrigin: 'right center',
-            transform: open ? 'scaleX(1)' : 'scaleX(0)',
-            transition: 'transform 0.26s cubic-bezier(0.32, 0.72, 0.24, 1)',
-          }}
-        />
-      </svg>
-    </span>
   );
 }

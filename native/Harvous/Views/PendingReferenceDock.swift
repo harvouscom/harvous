@@ -15,7 +15,10 @@ struct PendingReferenceDock: View {
     let onDismiss: () -> Void
 
     @Environment(\.harvousStudyDockInCarousel) private var inStudyDockCarousel
+    @Environment(\.harvousDockExpandedContentMaxHeight) private var expandedContentMaxHeight
+    @Environment(\.colorScheme) private var colorScheme
     @State private var entrySlug: String
+    @State private var expandedScrollContentHeight: CGFloat = 0
 
     init(slug: String, isExpanded: Binding<Bool>, onSave: @escaping () -> Void, onDismiss: @escaping () -> Void) {
         self.slug = slug
@@ -41,19 +44,21 @@ struct PendingReferenceDock: View {
             VStack(alignment: .leading, spacing: 10) {
                 headerRow
                 if isExpanded {
-                    ScrollView {
-                        EastonsEntryView(slug: $entrySlug, showHeadword: false, showDisclaimer: true)
-                            .padding(.top, 2)
-                    }
-                    .frame(maxHeight: 280)
-                    .transition(.opacity)
+                    referenceScrollBody
+                        .transition(.opacity)
                 }
             }
             .frame(maxWidth: inStudyDockCarousel ? .infinity : nil, alignment: .topLeading)
             .padding(.horizontal, 12)
-            .padding(.vertical, 10)
+            .padding(.top, 10)
+            // Expanded scroll runs to the card bottom (parity with `ActiveScripturePillDock`).
+            .padding(.bottom, isExpanded ? 0 : 10)
             .background(dockChrome)
+            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
             .studyDockShellBorderOverlay()
+        }
+        .onChange(of: isExpanded) { _, expanded in
+            if !expanded { expandedScrollContentHeight = 0 }
         }
         .shadow(color: .black.opacity(0.10), radius: 12, y: 4)
         .shadow(color: .black.opacity(0.06), radius: 3, y: 1)
@@ -62,28 +67,67 @@ struct PendingReferenceDock: View {
         .padding(.bottom, inStudyDockCarousel ? 0 : 10)
     }
 
+    private var referenceScrollBody: some View {
+        let computedHeight = HarvousDockExpandedContentLayout.clampedScrollFrameHeight(
+            measuredContentHeight: expandedScrollContentHeight,
+            maxHeight: expandedContentMaxHeight
+        )
+        return ScrollView {
+            VStack(spacing: 0) {
+                EastonsEntryView(slug: $entrySlug, showHeadword: false, showDisclaimer: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .background(
+                        GeometryReader { geo in
+                            Color.clear.preference(key: DockScrollContentHeightKey.self, value: geo.size.height)
+                        }
+                    )
+
+                Spacer(minLength: 0)
+                    .allowsHitTesting(false)
+            }
+            .frame(
+                maxWidth: .infinity,
+                minHeight: HarvousDockExpandedContentLayout.nonNegativeFrameHeight(computedHeight - 1),
+                alignment: .topLeading
+            )
+        }
+        .frame(height: HarvousDockExpandedContentLayout.nonNegativeFrameHeight(computedHeight))
+        .animation(nil, value: computedHeight)
+        .onPreferenceChange(DockScrollContentHeightKey.self) { h in
+            Task { @MainActor in
+                expandedScrollContentHeight = h
+            }
+        }
+    }
+
     private var headerRow: some View {
         HStack(alignment: .center, spacing: 8) {
             HarvousFAGlyph(assetName: "Harvous.LinesLeaning", edgePt: 13)
                 .foregroundStyle(.secondary)
                 .frame(width: 22, height: 22)
 
-            Text(headword)
-                .font(HarvousFonts.font(size: 14, weight: .semibold, design: .default))
-                .foregroundStyle(.primary)
-                .lineLimit(1)
-                .truncationMode(.tail)
-                .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
+            HStack(spacing: 8) {
+                Text(headword)
+                    .font(HarvousFonts.font(size: 14, weight: .semibold, design: .default))
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    .layoutPriority(0)
 
-            if let meta = categoryMeta {
-                categoryBadge(iconAsset: meta.iconAsset, label: meta.label)
-                    .fixedSize(horizontal: true, vertical: false)
+                if let meta = categoryMeta {
+                    StudyDockHeaderChipView(
+                        chip: .referenceCategory(iconAsset: meta.iconAsset, label: meta.label)
+                    )
+                    .layoutPriority(1)
+                }
             }
+            .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
 
             HStack(spacing: 2) {
                 if isExpanded {
-                    // Primary confirm — accent checkmark orb (parity with web dock's header orb).
-                    toolbarButton(assetName: "Harvous.Check", help: "Save reference", tint: .accentColor) {
+                    // Primary confirm — warm-amber orb (parity with web `.reference-dock-web__save-orb`).
+                    toolbarButton(assetName: "Harvous.Check", help: "Save reference", style: .saveOrb) {
                         onSave()
                     }
                     toolbarDivider
@@ -101,37 +145,57 @@ struct PendingReferenceDock: View {
         }
     }
 
-    private func categoryBadge(iconAsset: String, label: String) -> some View {
-        HStack(spacing: 3) {
-            HarvousFAGlyph(assetName: iconAsset, edgePt: 10)
-            Text(label)
-                .font(HarvousFonts.font(size: 11, weight: .medium, design: .default))
-                .lineLimit(1)
-                .truncationMode(.tail)
-        }
-        .foregroundStyle(Color.primary.opacity(0.5))
-        .padding(.horizontal, 6)
-        .padding(.vertical, 3)
-        .background(Capsule().fill(Color.primary.opacity(0.07)))
+    private enum HeaderButtonStyle {
+        /// Web `.study-dock-card__header-btn` — 28pt glass orb with control border.
+        case chrome
+        /// Web `.reference-dock-web__save-orb` — warm-amber fill, dark checkmark.
+        case saveOrb
+    }
+
+    private var saveOrbFill: Color {
+        let token = StudyHighlightAccentToken.warmAmber
+        #if os(macOS)
+        return Color(nsColor: token.resolvedAccentNSColor(kind: .reference, isDark: colorScheme == .dark))
+        #else
+        return Color(uiColor: token.resolvedAccentUIColor(kind: .reference, isDark: colorScheme == .dark))
+        #endif
     }
 
     private func toolbarButton(
         assetName: String,
         help: String,
-        tint: Color? = nil,
+        style: HeaderButtonStyle = .chrome,
         action: @escaping () -> Void
     ) -> some View {
-        Button(action: action) {
-            HarvousFAGlyph(assetName: assetName, edgePt: 13)
+        let iconPt: CGFloat = style == .saveOrb ? 14 : 12
+        return Button(action: action) {
+            HarvousFAGlyph(assetName: assetName, edgePt: iconPt)
                 .contentTransition(.identity)
                 .frame(width: 28, height: 28)
-                .contentShape(Rectangle())
+                .background {
+                    Circle()
+                        .fill(style == .saveOrb ? AnyShapeStyle(saveOrbFill) : AnyShapeStyle(headerChromeFill))
+                }
+                .overlay {
+                    if style == .chrome {
+                        Circle()
+                            .strokeBorder(Color.primary.opacity(0.12), lineWidth: 0.5)
+                    }
+                }
+                .contentShape(Circle())
         }
         .buttonStyle(.plain)
-        .foregroundStyle(tint ?? Color.primary)
+        .foregroundStyle(Color.primary)
         #if os(macOS)
         .help(help)
         #endif
+    }
+
+    /// Web `--pds-bg-glass-medium` on study-dock header controls.
+    private var headerChromeFill: Color {
+        colorScheme == .dark
+            ? Color(white: 0.18, opacity: 0.72)
+            : Color.white.opacity(0.70)
     }
 
     private var toolbarDivider: some View {

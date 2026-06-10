@@ -36,6 +36,20 @@ function hasInlineBreakAfter(doc: any, pos: number, blockEnd: number): boolean {
   return charAfter === '\n' || charAfter === '\r';
 }
 
+/** True when [from, to) spans a hardBreak inline node (replaceWith would drop the break). */
+export function rangeCrossesHardBreak(
+  doc: { nodesBetween: (from: number, to: number, f: (node: any, pos: number) => void) => void },
+  from: number,
+  to: number,
+): boolean {
+  if (to <= from) return false;
+  let crosses = false;
+  doc.nodesBetween(from, to, (node: any) => {
+    if (node.type?.name === 'hardBreak') crosses = true;
+  });
+  return crosses;
+}
+
 /** Collect merged [start, end) ranges from text nodes carrying scripturePill marks. */
 export function collectScripturePillRanges(
   doc: { content: { size: number }; nodesBetween: (from: number, to: number, f: (node: any, pos: number) => void) => void },

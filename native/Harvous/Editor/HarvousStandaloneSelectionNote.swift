@@ -91,8 +91,6 @@ extension Notification.Name {
 
     /// User picked **Highlight…** — `NoteEditorView` shows annotation UI. See `HarvousHighlightCapturePromptUserInfo`.
     static let harvousHighlightCapturePrompt = Notification.Name("HarvousHighlightCapturePrompt")
-    /// User picked **Look up** — `NoteEditorView` creates a reference highlight and opens the lookup dock.
-    static let harvousLookupWordRequested = Notification.Name("HarvousLookupWordRequested")
 }
 
 enum HarvousStandaloneNoteSelectionUserInfo {
@@ -160,34 +158,4 @@ extension HarvousStandaloneSelectionNote {
         }
         NotificationCenter.default.post(name: .harvousHighlightCapturePrompt, object: nil, userInfo: userInfo)
     }
-
-    /// Posts [.harvousLookupWordRequested] for the enclosing `NoteEditorView` to create a reference highlight and open the dock.
-    @MainActor
-    static func postLookupWordRequestedIfEligible(
-        storage: NSTextStorage,
-        utf16Selection: NSRange,
-        word: String,
-        parentNoteId: UUID?
-    ) {
-        guard let nid = parentNoteId, utf16Selection.length > 0 else { return }
-        guard case let .success(expanded) = HarvousStudyHighlightMapper.expandedRange(
-            forStorageSelection: utf16Selection,
-            in: storage
-        ), expanded.length > 0 else { return }
-        let userInfo: [String: Any] = [
-            HarvousLookupWordRequestedUserInfo.parentNoteIdKey: nid.uuidString,
-            HarvousLookupWordRequestedUserInfo.wordKey: word,
-            HarvousLookupWordRequestedUserInfo.expandedLocationKey: expanded.location,
-            HarvousLookupWordRequestedUserInfo.expandedLengthKey: expanded.length,
-        ]
-        NotificationCenter.default.post(name: .harvousLookupWordRequested, object: nil, userInfo: userInfo)
-    }
-}
-
-/// Keys for [.harvousLookupWordRequested].
-enum HarvousLookupWordRequestedUserInfo {
-    static let parentNoteIdKey = "harvousLookupParentNoteId"
-    static let wordKey = "harvousLookupWord"
-    static let expandedLocationKey = "harvousLookupExpandedLocation"
-    static let expandedLengthKey = "harvousLookupExpandedLength"
 }

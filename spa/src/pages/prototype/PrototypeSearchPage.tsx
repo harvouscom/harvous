@@ -12,7 +12,7 @@ const SEARCH_RESULT_SELECTOR = 'a.proto-search-result-link';
 
 export default function PrototypeSearchPage() {
   const queryClient = useQueryClient();
-  const { homeSpaceId, navReady } = usePrototypeHomeSpaceId();
+  const { homeSpaceId } = usePrototypeHomeSpaceId();
 
   const searchRaw = useRouterState({ select: (s) => s.location.search });
   const spaceFromRouter =
@@ -57,22 +57,6 @@ export default function PrototypeSearchPage() {
     });
   };
 
-  if (!navReady) {
-    return (
-      <div className="proto-search-container">
-        <p className="proto-caption">Loading…</p>
-      </div>
-    );
-  }
-
-  if (!homeSpaceId) {
-    return (
-      <div className="proto-search-container">
-        <p className="proto-caption">Loading My Home…</p>
-      </div>
-    );
-  }
-
   return (
     <div className="proto-search-container">
       <h1 className="pds-title" style={{ marginBottom: 14 }}>
@@ -89,7 +73,9 @@ export default function PrototypeSearchPage() {
         autoFocus
       />
       <div ref={resultsRef}>
-        <PrototypeSearchResultsList query={query} spaceId={normalizedSpace} />
+        {normalizedSpace ? (
+          <PrototypeSearchResultsList query={query} spaceId={normalizedSpace} />
+        ) : null}
       </div>
     </div>
   );

@@ -55,6 +55,27 @@ describe('live scripture pill apply', () => {
       editor.destroy();
     }
   });
+
+  it('applies one pill for Exodus 5:1-2, not chapter-only split', () => {
+    const editor = new Editor({ extensions, content: '<p></p>' });
+    try {
+      editor.commands.insertContent('Exodus 5:1-2 ');
+      const result = detectScriptureReferenceEndingAtCursor(editor.state.doc, editor.state.selection.from);
+      expect(result).not.toBeNull();
+      expect(result!.reference).toBe('Exodus 5:1-2');
+
+      applyPillAtCursor(editor);
+
+      const pillRefs: string[] = [];
+      editor.state.doc.descendants((node) => {
+        const mark = node.marks.find((m) => m.type.name === 'scripturePill');
+        if (mark) pillRefs.push(mark.attrs.reference as string);
+      });
+      expect(pillRefs).toEqual(['Exodus 5:1-2']);
+    } finally {
+      editor.destroy();
+    }
+  });
 });
 
 const pmSchema = new Schema({
@@ -81,12 +102,13 @@ describe('detectScriptureReferences fallback', () => {
 });
 
 describe('findAdjacentPillBoundaries backspace spacer', () => {
-  it('returns null when cursor is on spacer after pill (gap 1)', () => {
+  it('returns pill boundaries when cursor is on single whitespace spacer after pill (gap 1)', () => {
     const state = stateWithPillAndSpacers('t ', 'Exodus 1:1-22', ' w');
     const pillEnd = findPillEnd(state.doc);
     const spacerPos = pillEnd + 1;
     const result = findAdjacentPillBoundaries(state.doc, spacerPos, 'before');
-    expect(result).toBeNull();
+    expect(result).not.toBeNull();
+    expect(result!.end).toBe(spacerPos);
   });
 
   it('returns pill boundaries when cursor is flush at pill end (gap 0)', () => {

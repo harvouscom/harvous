@@ -10,25 +10,48 @@ This document maps every native macOS Harvous surface, menu item, and action to 
 
 | Native surface | Prototype | Status |
 |---|---|---|
-| Unified title bar (toolbar) | `NativeToolbar` — 44px top bar | ✅ implemented |
-| Sidebar (glass, left column) | `PrototypeSidebar` — 280px, backdrop-filter | ✅ implemented |
+| Split toolbar (sidebar column + detail column) | `PrototypeSidebarToolbar` + `NativeToolbar variant="detail"` | ✅ implemented |
+| Unified toolbar (mobile / search route) | `NativeToolbar variant="unified"` | ✅ implemented |
+| Sidebar (glass, left column) | `PrototypeSidebar` — 260px default, backdrop-filter | ✅ implemented |
 | Editor / detail column | `PrototypeNotePage` — `proto-editor-surface` | ✅ implemented |
 | Inspector pane (right) | `PrototypeInspectorPane` — inline flex in note page | ✅ implemented |
 | Active-space footer identity | `SpacePillFooter` — space name + color tile (component exists; not mounted in shell) | ⏳ deferred |
-| `⌘\` sidebar collapse | Toolbar sidebar-toggle button | ✅ implemented |
+| ⇧B sidebar collapse | Sidebar hide button (desktop cluster) / detail show-sidebar when collapsed | ✅ implemented |
 
 ---
 
 ## 2. Toolbar (top bar)
 
+### Sidebar column toolbar (desktop, sidebar visible)
+
 | Native button | Prototype | Status |
 |---|---|---|
-| Sidebar toggle (`⌘\`) | Left: sidebar icon button | ✅ implemented |
-| Space switcher (grid icon) | Left: `SpaceSwitcherMenu` | ✅ implemented |
-| New note / compose | Left: pencil icon — creates note in active space | ✅ implemented |
-| Search | Right: magnifier icon → `/prototype/search` | ✅ implemented |
-| Inspector toggle | Right: right-sidebar icon — toggles `PrototypeInspectorPane` | ✅ implemented |
-| Profile / avatar | Right: `ProfileMenu` popover | ✅ implemented |
+| Space switcher (grid icon) | Trailing cluster: `SpaceSwitcherMenu` | ✅ implemented |
+| List mode menu (icon-only) | Trailing cluster: `ListViewMenu variant="icon-only"` | ✅ implemented |
+| Hide sidebar | Trailing cluster: `table-columns` icon (⇧B) | ✅ implemented |
+
+Narrow sidebar (&lt;210px): space switcher + mode menu hide; hide-sidebar remains (native parity).
+
+### Detail column toolbar
+
+| Native button | Prototype | Status |
+|---|---|---|
+| Show sidebar (when collapsed) | Left: mirrored `table-columns` (⇧B) | ✅ implemented |
+| New note / compose | Left: pencil icon (⇧N) | ✅ implemented |
+| Folder chip (note routes) | Center: folder chip | ✅ implemented |
+| Find in note | Right: magnifier (⇧F on note routes) | ✅ implemented |
+| Share / more | Right: share + overflow menu | ✅ implemented |
+| Inspector toggle | Right: inspector icon (⇧D) | ✅ implemented |
+| Profile / avatar | Right: `ProfileMenu` | ✅ implemented |
+
+### Mobile unified toolbar
+
+| Native button | Prototype | Status |
+|---|---|---|
+| Sidebar toggle (drawer) | Left: bars icon | ✅ implemented |
+| Space switcher | Left: `SpaceSwitcherMenu` | ✅ implemented |
+| New note / compose | Left: pencil icon | ✅ implemented |
+| Full-width search route | Single toolbar spanning shell | ✅ implemented |
 
 ---
 
@@ -52,8 +75,10 @@ Matches native `NoteListColumn` (macOS sidebar variant).
 
 | Native element | Prototype | Status |
 |---|---|---|
-| Search bar (top of sidebar) | Pill-shaped search input | ✅ implemented |
-| Notes / Collections mode toggle | `proto-sidebar-mode` toggle buttons | ✅ implemented |
+| Search bar (top of sidebar body) | Pill-shaped search input; universal scope toggle when typing (`In [view]` / `Elsewhere`) | ✅ implemented |
+| List mode menu (toolbar, icon-only) | `ListViewMenu` in `PrototypeSidebarToolbar` | ✅ implemented |
+| Drill-in back row (plain, above search) | `proto-sidebar-back-row` | ✅ implemented |
+| Notes / Collections mode toggle | Icon-only mode menu (desktop toolbar); full trigger on mobile drawer | ✅ implemented |
 | Note row — title (15pt/500) | `pds-list-title` | ✅ implemented |
 | Note row — time + excerpt (12pt/400) | `pds-list-preview` + `protoRelativeCaption()` | ✅ implemented |
 | Row selection highlight (glass) | `proto-note-row[data-active]` background | ✅ implemented |
@@ -73,7 +98,7 @@ Matches native `SidebarPanelView` collections section.
 | Collection list with note count | `proto-collection-row` with count | ✅ implemented |
 | Drill-down into collection | Click row → shows filtered notes | ✅ implemented |
 | Back from collection to list | `proto-sidebar-back-btn` | ✅ implemented |
-| Collection → search filter | Shared `q` state filters both | ✅ implemented |
+| Collection → search filter | Universal sidebar search; active folder section when drilled | ✅ implemented |
 | "No collection" bucket | Shown as "No collection" row | ✅ implemented |
 
 ---
@@ -106,6 +131,7 @@ Matches native `NoteInspectorView` sections.
 | Info section (created/modified/words) | `InspectorRow` items | ✅ implemented |
 | Added by (note source attribution) | `InspectorRow` + native `infoRow` via `formatNoteAddedBySource` / `addedBySourceLabel` | ✅ implemented |
 | Note type, thread, visibility | Shown when non-default | ✅ implemented |
+| Delete note (bottom destructive control) | `proto-inspector-delete-btn` | ✅ implemented |
 
 ---
 
@@ -161,11 +187,13 @@ Scripture pill dock (`ScripturePillChromeWeb` / native `ActiveScripturePillDock`
 
 | Native element | Prototype | Status |
 |---|---|---|
-| Search input (full-width, 15pt) | `PrototypeSearchInput` — `proto-search-input` | ✅ implemented |
-| Result rows (title + excerpt) | `PrototypeSearchResultRow` — PDS classes only | ✅ implemented |
+| Inline sidebar universal search | `PrototypeSidebarSearchResults` — scope toggle (`In [view]` / Elsewhere) + conditional type filter chips | ✅ implemented |
+| Shift+K | Focus sidebar search (same as ⌘F) | ✅ implemented |
+| Search input (full-width, 15pt) | `PrototypeSearchInput` — `/prototype/search` route (legacy) | ⏳ deprecated — use sidebar search |
+| Result rows (title + excerpt) | `PrototypeSearchResultRow` — PDS classes only | ✅ implemented (sidebar + route) |
 | Scripture badge on result | `proto-chip-scripture` | ✅ implemented |
-| Space picker before search | Space list before query input | ✅ implemented |
-| Thread results | ⏳ Note-only in prototype | ⏳ deferred |
+| Space picker before search | Space list before query input on `/prototype/search` | ⏳ deferred |
+| Thread results | ⏳ Note-only in legacy FTS route | ⏳ deferred |
 
 ---
 

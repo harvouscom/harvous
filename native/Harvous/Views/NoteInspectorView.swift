@@ -49,12 +49,15 @@ struct NoteInspectorView: View {
     var currentNoteTitle: String = "Current note"
     var onOpenLinkedNote: (UUID) -> Void = { _ in }
     var onConnectionsChanged: (() -> Void)? = nil
+    var onDeleteConfirmed: () -> Void = {}
     @Environment(\.modelContext) private var modelContext
     @State private var draftTag = ""
     @State private var simpleNoteIdCopied = false
     @State private var allResourceLines: [String] = []
     @State private var showConnectPicker = false
     @State private var isRetryingSync = false
+    @State private var confirmDelete = false
+    @State private var deleteHover = false
 
     var body: some View {
         ScrollView {
@@ -87,9 +90,19 @@ struct NoteInspectorView: View {
 
                 sectionHeader("Folders")
                 foldersSection
+
+                deleteSection
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 20)
+        }
+        .confirmationDialog(
+            "Delete this note? This cannot be undone.",
+            isPresented: $confirmDelete,
+            titleVisibility: .visible
+        ) {
+            Button("Delete", role: .destructive) { onDeleteConfirmed() }
+            Button("Cancel", role: .cancel) {}
         }
         .task(id: note.id) { loadResourceLines() }
         #if !os(macOS)
@@ -191,6 +204,36 @@ struct NoteInspectorView: View {
     private var foldersSection: some View {
         FolderChipPopover(note: note, embeddedInInspector: true)
             .padding(.top, 4)
+    }
+
+    private var deleteSection: some View {
+        Button {
+            confirmDelete = true
+        } label: {
+            HStack(spacing: 6) {
+                HarvousFAGlyph(assetName: "Harvous.Trash", edgePt: 12)
+                Text("Delete note")
+                    .font(HarvousTypography.inspectorCompactMedium)
+            }
+            .foregroundStyle(Color.harvousDestructive)
+            .frame(maxWidth: .infinity)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .background(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(deleteHover ? Color.primary.opacity(0.06) : Color.clear)
+            )
+        }
+        .buttonStyle(.plain)
+        .padding(.top, 16)
+        .accessibilityLabel("Delete note")
+        #if os(macOS)
+        .onHover { hovering in
+            withAnimation(.easeInOut(duration: 0.15)) {
+                deleteHover = hovering
+            }
+        }
+        #endif
     }
 
     @ViewBuilder

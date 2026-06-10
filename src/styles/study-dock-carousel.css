@@ -118,7 +118,7 @@
   cursor: pointer;
 }
 
-/* Expanded active dock: grow into leftover row space; never flex-shrink (1 1 0 + width:100% collapsed to ~0). */
+/* Expanded active dock: grow into leftover row space; pin to the track baseline when neighbors are taller. */
 .study-dock-carousel__item--expanded-slot {
   flex: 1 0 auto;
   flex-shrink: 0;
@@ -174,10 +174,13 @@
   flex: 0 0 auto;
   align-self: flex-end;
   display: flex;
+  flex-direction: column;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-end;
   width: 14px;
-  min-height: 36px;
+  height: var(--study-dock-drag-handle-height, auto);
+  min-height: 22px;
+  max-height: var(--study-dock-drag-handle-height, none);
   margin: 0 0 10px;
   padding: 0;
   border: none;
@@ -186,18 +189,24 @@
   cursor: grab;
   touch-action: none;
   pointer-events: auto;
+  box-sizing: border-box;
 }
 
-/* Collapsed slots: stretch the handle to the card chrome height (exclude outer shadow pad). */
 .study-dock-carousel__item--compact .study-dock-carousel__drag-handle {
-  align-self: stretch;
-  min-height: 0;
   margin-bottom: 12px;
 }
 
-.study-dock-carousel__item--compact .study-dock-carousel__drag-handle::before {
-  height: 100%;
+.study-dock-carousel__drag-handle::before {
+  content: '';
+  display: block;
+  width: 2px;
+  flex: 1 1 auto;
   min-height: 22px;
+  height: auto;
+  flex-shrink: 0;
+  background: var(--pds-text-primary);
+  opacity: 0.14;
+  border-radius: 1px;
 }
 
 .study-dock-carousel__drag-handle:hover {
@@ -206,18 +215,6 @@
 
 .study-dock-carousel__drag-handle:active {
   cursor: grabbing;
-}
-
-.study-dock-carousel__drag-handle::before {
-  content: '';
-  display: block;
-  width: 1px;
-  height: 22px;
-  flex-shrink: 0;
-  background: var(--pds-text-primary);
-  opacity: 0.14;
-  transform: scaleX(0.5);
-  transform-origin: center;
 }
 
 .study-dock-carousel__track--dragging {

@@ -131,7 +131,9 @@
   z-index: 2;
 }
 
-html[data-shift-hints='1'] .proto-shell__toolbar-cell {
+html[data-shift-hints='1'] .proto-shell__toolbar-cell,
+html[data-shift-hints='1'] .proto-shell__sidebar-toolbar-cell,
+html[data-shift-hints='1'] .proto-shell__detail-toolbar-cell {
   overflow: visible;
   z-index: 1400;
 }
@@ -157,6 +159,117 @@ html[data-shift-hints='1'] .proto-toolbar-orb-group {
 
 .proto-toolbar-brand--muted {
   opacity: 0.45;
+}
+
+/* ─── Sidebar toolbar cluster (desktop split column) ───────────────────────── */
+.proto-sidebar-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  width: 100%;
+  min-width: 0;
+  padding: 0 10px;
+  box-sizing: border-box;
+}
+
+.proto-sidebar-toolbar__cluster {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 7px;
+  flex-shrink: 0;
+}
+
+.proto-sidebar-toolbar__mode-menu {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.proto-sidebar-toolbar--drawer {
+  flex-shrink: 0;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--pds-border);
+}
+
+.proto-menu__popover--sidebar-toolbar {
+  min-width: 180px;
+}
+
+/* ─── Sidebar back row (drill-in) ────────────────────────────────────────── */
+.proto-sidebar-back-row {
+  flex-shrink: 0;
+  padding: 8px 14px 6px;
+}
+
+.proto-sidebar-back-row__button {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+  text-align: left;
+  font-family: var(--pds-font-body);
+  font-size: 13px;
+  font-weight: 500;
+  font-variation-settings: var(--pds-font-body-variation);
+  color: var(--pds-text-primary);
+  line-height: 1.35;
+}
+
+.proto-sidebar-back-row__button:hover {
+  color: var(--pds-text-primary);
+}
+
+.proto-sidebar-back-row__button:focus-visible {
+  outline: none;
+  border-radius: var(--pds-radius-menu-item);
+  box-shadow: 0 0 0 2px var(--pds-accent-active-ring);
+}
+
+.proto-sidebar-back-row__chevron {
+  flex-shrink: 0;
+  color: var(--pds-text-secondary);
+}
+
+.proto-sidebar-back-row__kind {
+  flex-shrink: 0;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--pds-bg-faint);
+  border: 0.5px solid var(--pds-border-control);
+  font-family: var(--pds-font-body);
+  font-size: 11px;
+  font-weight: 500;
+  font-variation-settings: var(--pds-font-body-variation-chip);
+  line-height: 1.4;
+  color: var(--pds-text-secondary);
+  white-space: nowrap;
+}
+
+.proto-sidebar-back-row__label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.proto-menu-item__label {
+  flex: 1;
+  min-width: 0;
+}
+
+.proto-menu-item__check {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--pds-text-secondary);
+  margin-left: auto;
 }
 
 .proto-toolbar-center {
@@ -779,7 +892,11 @@ html.harvous-proto-wallpaper-color .proto-sidebar-list-view__trigger[aria-expand
 /* ─── Sidebar search input ───────────────────────────────────────────────── */
 .proto-sidebar-search {
   flex-shrink: 0;
-  padding: 6px 12px 8px;
+  padding: 8px 14px 8px;
+}
+
+.proto-sidebar-back-row + .proto-sidebar-search {
+  padding-top: 2px;
 }
 
 .proto-sidebar-search__field {
@@ -839,6 +956,61 @@ html.harvous-proto-wallpaper-color .proto-sidebar-search__field:focus-within {
 .proto-sidebar-search input::-webkit-search-cancel-button {
   -webkit-appearance: none;
   appearance: none;
+}
+
+.proto-sidebar-search__clear {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  color: var(--pds-text-secondary);
+  line-height: 0;
+}
+
+.proto-sidebar-search__clear:hover {
+  color: var(--pds-text-primary);
+}
+
+.proto-sidebar-search__clear:focus-visible {
+  outline: none;
+  border-radius: 999px;
+  box-shadow: 0 0 0 2px var(--pds-accent-active-ring);
+}
+
+.proto-sidebar-search-results {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.proto-sidebar-search-scope .proto-chip-bar {
+  margin-top: 4px;
+}
+
+.proto-sidebar-search-section {
+  padding-bottom: 8px;
+}
+
+.proto-sidebar-search-section__header {
+  margin: 0;
+  padding: 10px 18px 6px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--pds-text-secondary, rgba(60, 60, 67, 0.6));
+}
+
+.proto-sidebar-search-section__empty {
+  padding: 4px 18px 8px;
+  margin: 0;
+  text-align: center;
+  opacity: 0.75;
 }
 
 .proto-sidebar-search input::placeholder {
@@ -1034,7 +1206,7 @@ html.harvous-proto-wallpaper-color .proto-sidebar-search__field:focus-within {
   font-variation-settings: var(--pds-font-body-variation-list-timestamp) !important;
 }
 
-/* position: static — row popovers portal to body; anchor position comes from the row rect. */
+/* position: static so row popovers anchor to .proto-note-row-item, not the 30px ⋯ column. */
 .proto-note-row__menu {
   position: static;
   isolation: isolate;
@@ -3281,6 +3453,8 @@ html.harvous-prototype-route .proto-editor-empty-state h2.proto-editor-empty-sta
 }
 
 /* ─── Sidebar floating stack (migration pill + daily passage) ─────────────── */
+/* Horizontal inset matches native `HarvousFeedListLayout.listRowHorizontalInset` (14)
+   and `.proto-sidebar-search` — same as `SidebarPanelView` daily-passage overlay. */
 /* Stack: scroll (1) < floating pills (2). Row ⋯ menus portal to body at z-index 100. */
 .proto-sidebar-floating-stack {
   position: absolute;
@@ -3288,7 +3462,7 @@ html.harvous-prototype-route .proto-editor-empty-state h2.proto-editor-empty-sta
   right: 0;
   bottom: 0;
   z-index: 2;
-  padding: 0 18px 8px;
+  padding: 0 14px 12px;
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -3300,15 +3474,24 @@ html.harvous-prototype-route .proto-editor-empty-state h2.proto-editor-empty-sta
 }
 
 /* ─── Daily passage pill (sidebar, native DailyPassagePill parity) ───────── */
+/* Interior H: macOS `interiorContentHPadding` 10 · iOS 14 (DailyPassagePill.cardContent). */
 .proto-daily-passage-pill {
   display: block;
   width: 100%;
-  padding: 9px 12px 8px;
+  box-sizing: border-box;
+  padding: 9px 10px 8px;
   border-radius: 14px;
   border: 0.5px solid var(--pds-border-control);
   text-align: left;
   /* Wrapper is `pointer-events: none` so the list scrolls/clicks through; re-enable the card. */
   pointer-events: auto;
+}
+
+@media (max-width: 600px) {
+  .proto-daily-passage-pill {
+    padding-left: 14px;
+    padding-right: 14px;
+  }
 }
 
 .proto-daily-passage-pill__dismiss {

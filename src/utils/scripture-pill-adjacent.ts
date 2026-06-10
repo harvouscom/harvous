@@ -37,9 +37,9 @@ export function findAdjacentPillBoundaries(
 
       if (lastPillStart >= 0 && lastPillEnd > 0) {
         const gap = pos - lastPillEnd;
-        if (gap === 0) {
-          const charBefore = pos > lastPillEnd ? doc.textBetween(lastPillEnd, pos) : '';
-          if (!charBefore || charBefore === ' ' || charBefore === '\n' || charBefore === '\t') {
+        if (gap === 0 || gap === 1) {
+          const gapText = pos > lastPillEnd ? doc.textBetween(lastPillEnd, pos) : '';
+          if (!gapText || gapText === ' ' || gapText === '\n' || gapText === '\t') {
             return { start: lastPillStart, end: pos };
           }
         }

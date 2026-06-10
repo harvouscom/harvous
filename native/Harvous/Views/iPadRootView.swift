@@ -47,7 +47,7 @@ struct iPadRootView: View {
                 splitColumnVisibility: $splitColumnVisibility,
                 onCreateNewNote: createNewNote
             )
-            .navigationSplitViewColumnWidth(min: 240, ideal: 280, max: 320)
+            .navigationSplitViewColumnWidth(min: 260, ideal: 280, max: 320)
         } detail: {
             NavigationStack(path: $threadNavPath) {
                 ZStack {

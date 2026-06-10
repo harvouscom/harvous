@@ -63,6 +63,25 @@ export function findTextWithFlexibleMatching(
   return matches;
 }
 
+/** Chapter-only ref matched as prefix of "Book 5:1" — not a standalone chapter reference. */
+function isChapterOnlyPrefixBeforeVerse(
+  text: string,
+  matchIndex: number,
+  matchLength: number,
+  reference: string,
+): boolean {
+  if (reference.includes(':')) return false;
+  return /^:\d/.test(text.slice(matchIndex + matchLength));
+}
+
+function filterReferenceMatches(
+  text: string,
+  matches: Array<{ index: number; length: number }>,
+  reference: string,
+): Array<{ index: number; length: number }> {
+  return matches.filter((m) => !isChapterOnlyPrefixBeforeVerse(text, m.index, m.length, reference));
+}
+
 function buildTextToDocMap(doc: any): Array<{ textStart: number; textEnd: number; docStart: number }> {
   const map: Array<{ textStart: number; textEnd: number; docStart: number }> = [];
   let currentPos = 0;
@@ -132,7 +151,7 @@ export function mapReferenceEndInSliceToDocPos(
   const sliceDocFrom = Math.max(1, cursorPos - textWindow);
   const slice = doc.textBetween(sliceDocFrom, cursorPos);
   const trimmedRef = reference.trim();
-  const matches = findTextWithFlexibleMatching(slice, trimmedRef);
+  const matches = filterReferenceMatches(slice, findTextWithFlexibleMatching(slice, trimmedRef), trimmedRef);
   if (matches.length === 0) return null;
 
   const best = matches.reduce((a, b) => {
@@ -163,7 +182,7 @@ export function findScriptureReferenceAtCursor(
   const textToDocMap = buildTextToDocMap(doc);
   const fullText = doc.textContent;
 
-  const sliceMatches = findTextWithFlexibleMatching(slice, trimmedRef);
+  const sliceMatches = filterReferenceMatches(slice, findTextWithFlexibleMatching(slice, trimmedRef), trimmedRef);
   if (sliceMatches.length > 0) {
     const best = sliceMatches.reduce((a, b) => {
       const aEnd = a.index + a.length;
@@ -176,7 +195,11 @@ export function findScriptureReferenceAtCursor(
     }
   }
 
-  const allMatches = findTextWithFlexibleMatching(fullText, trimmedRef);
+  const allMatches = filterReferenceMatches(
+    fullText,
+    findTextWithFlexibleMatching(fullText, trimmedRef),
+    trimmedRef,
+  );
   if (allMatches.length === 0) return null;
 
   let bestRange: { from: number; to: number } | null = null;
@@ -198,6 +221,28 @@ export type CursorEndingReference = {
   from: number | null;
   to: number | null;
 };
+
+/** Chapter-level reference without verse (e.g. "Exodus 5"). */
+export function isChapterOnlyScriptureReference(reference: string): boolean {
+  return !reference.includes(':');
+}
+
+/**
+ * Whether debounced/onUpdate scripture detection should run.
+ * Chapter-only refs pill only at word boundaries (Space/Enter/comma/period/newline);
+ * otherwise typing "Exodus 5:1-2" would pill "Exodus 5" mid-stream.
+ */
+export function shouldSchedulePassiveScriptureDetection(
+  doc: any,
+  cursorPos: number,
+  isBoundaryCursor: boolean,
+  textWindow = 80,
+): boolean {
+  const cursorEnding = detectScriptureReferenceEndingAtCursor(doc, cursorPos, textWindow);
+  if (cursorEnding == null) return isBoundaryCursor;
+  if (!isChapterOnlyScriptureReference(cursorEnding.reference)) return true;
+  return isBoundaryCursor;
+}
 
 function matchEndsAtCursor(textBeforeCursor: string, refText: string, windowLen: number): number {
   const matches = findTextWithFlexibleMatching(textBeforeCursor, refText);

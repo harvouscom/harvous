@@ -1,7 +1,11 @@
 'use client';
 
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { StudyDockEntry, StudyDockStack } from '@/utils/study-dock-stack';
+import {
+  syncStudyDockDragHandleHeight,
+  updateStudyDockExpandedMaxHeight,
+} from '@/utils/study-dock-layout';
 import '@/styles/study-dock-card.css';
 import '@/styles/study-dock-carousel.css';
 
@@ -10,6 +14,105 @@ export interface StudyDockCarouselWebProps {
   onSelectEntry: (id: string) => void;
   onMoveEntry: (entryId: string, toIndex: number) => void;
   renderEntry: (entry: StudyDockEntry, isActive: boolean) => React.ReactNode;
+}
+
+function StudyDockCarouselItem({
+  entry,
+  isActive,
+  isExpandedSlot,
+  isEntering,
+  isDragging,
+  draggingId,
+  onSelectEntry,
+  onDragOver,
+  onDrop,
+  onDragStart,
+  onDragEnd,
+  renderEntry,
+}: {
+  entry: StudyDockEntry;
+  isActive: boolean;
+  isExpandedSlot: boolean;
+  isEntering: boolean;
+  isDragging: boolean;
+  draggingId: string | null;
+  onSelectEntry: (id: string) => void;
+  onDragOver: (event: React.DragEvent<HTMLDivElement>, targetId: string) => void;
+  onDrop: (event: React.DragEvent<HTMLDivElement>) => void;
+  onDragStart: (event: React.DragEvent<HTMLDivElement>, entryId: string) => void;
+  onDragEnd: (event: React.DragEvent<HTMLDivElement>) => void;
+  renderEntry: (entry: StudyDockEntry, isActive: boolean) => React.ReactNode;
+}) {
+  const handleRef = useRef<HTMLDivElement>(null);
+  const innerRef = useRef<HTMLDivElement>(null);
+
+  useLayoutEffect(() => {
+    const handle = handleRef.current;
+    const inner = innerRef.current;
+    if (!handle || !inner) return undefined;
+
+    const sync = () => {
+      const cardOuter = inner.querySelector<HTMLElement>('.study-dock-card__outer');
+      if (cardOuter) syncStudyDockDragHandleHeight(handle, cardOuter);
+    };
+
+    sync();
+    const ro = new ResizeObserver(sync);
+    ro.observe(inner);
+    const cardOuter = inner.querySelector<HTMLElement>('.study-dock-card__outer');
+    if (cardOuter) ro.observe(cardOuter);
+    const header = inner.querySelector<HTMLElement>('.study-dock-card__header');
+    if (header) ro.observe(header);
+
+    const afterEnter = window.setTimeout(sync, 360);
+    return () => {
+      ro.disconnect();
+      window.clearTimeout(afterEnter);
+    };
+  }, [entry.id, entry.expanded, isActive, isExpandedSlot]);
+
+  return (
+    <div
+      data-dock-entry-id={entry.id}
+      role="tab"
+      aria-selected={isActive}
+      tabIndex={draggingId ? -1 : undefined}
+      className={[
+        'study-dock-carousel__item',
+        isExpandedSlot ? 'study-dock-carousel__item--expanded-slot' : 'study-dock-carousel__item--compact',
+        !isActive ? 'study-dock-carousel__item--inactive' : '',
+        isEntering ? 'study-dock-carousel__item--enter' : '',
+        isDragging ? 'study-dock-carousel__item--dragging' : '',
+      ]
+        .filter(Boolean)
+        .join(' ')}
+      onDragOver={(e) => onDragOver(e, entry.id)}
+      onDrop={onDrop}
+      onMouseDownCapture={(e) => {
+        if ((e.target as HTMLElement).closest('.study-dock-carousel__drag-handle')) return;
+        if ((e.target as HTMLElement).closest('.study-dock-card__header-actions')) return;
+        if (isActive && entry.expanded) return;
+        e.preventDefault();
+        e.stopPropagation();
+        onSelectEntry(entry.id);
+      }}
+    >
+      <div
+        ref={handleRef}
+        role="button"
+        tabIndex={-1}
+        className="study-dock-carousel__drag-handle"
+        draggable
+        aria-label="Reorder study dock"
+        onDragStart={(e) => onDragStart(e, entry.id)}
+        onDragEnd={onDragEnd}
+        onMouseDown={(e) => e.stopPropagation()}
+      />
+      <div ref={innerRef} className="study-dock-carousel__item-inner">
+        {renderEntry(entry, isActive)}
+      </div>
+    </div>
+  );
 }
 
 /**
@@ -100,6 +203,21 @@ export default function StudyDockCarouselWeb({
     return () => window.clearTimeout(afterLayout);
   }, [stack.activeId, activeExpanded, stack.entries.length, draggingId, currentIds.join(',')]);
 
+  useEffect(() => {
+    updateStudyDockExpandedMaxHeight();
+    const track = trackRef.current;
+    if (!track) return undefined;
+
+    const ro = new ResizeObserver(() => updateStudyDockExpandedMaxHeight());
+    ro.observe(track);
+
+    const afterLayout = window.setTimeout(updateStudyDockExpandedMaxHeight, 360);
+    return () => {
+      ro.disconnect();
+      window.clearTimeout(afterLayout);
+    };
+  }, [stack.entries.length, stack.activeId, activeExpanded]);
+
   if (stack.entries.length === 0) return null;
 
   return (
@@ -121,46 +239,21 @@ export default function StudyDockCarouselWeb({
           const isEntering = enteringIdsRef.current.has(entry.id);
           const isDragging = draggingId === entry.id;
           return (
-            <div
+            <StudyDockCarouselItem
               key={entry.id}
-              data-dock-entry-id={entry.id}
-              role="tab"
-              aria-selected={isActive}
-              tabIndex={draggingId ? -1 : undefined}
-              className={[
-                'study-dock-carousel__item',
-                isExpandedSlot
-                  ? 'study-dock-carousel__item--expanded-slot'
-                  : 'study-dock-carousel__item--compact',
-                !isActive ? 'study-dock-carousel__item--inactive' : '',
-                isEntering ? 'study-dock-carousel__item--enter' : '',
-                isDragging ? 'study-dock-carousel__item--dragging' : '',
-              ]
-                .filter(Boolean)
-                .join(' ')}
-              onDragOver={(e) => handleDragOver(e, entry.id)}
+              entry={entry}
+              isActive={isActive}
+              isExpandedSlot={isExpandedSlot}
+              isEntering={isEntering}
+              isDragging={isDragging}
+              draggingId={draggingId}
+              onSelectEntry={onSelectEntry}
+              onDragOver={handleDragOver}
               onDrop={handleDrop}
-              onMouseDownCapture={(e) => {
-                if ((e.target as HTMLElement).closest('.study-dock-carousel__drag-handle')) return;
-                if ((e.target as HTMLElement).closest('.study-dock-card__header-actions')) return;
-                if (isActive && entry.expanded) return;
-                e.preventDefault();
-                e.stopPropagation();
-                onSelectEntry(entry.id);
-              }}
-            >
-              <div
-                role="button"
-                tabIndex={-1}
-                className="study-dock-carousel__drag-handle"
-                draggable
-                aria-label="Reorder study dock"
-                onDragStart={(e) => handleDragStart(e, entry.id)}
-                onDragEnd={handleDragEnd}
-                onMouseDown={(e) => e.stopPropagation()}
-              />
-              <div className="study-dock-carousel__item-inner">{renderEntry(entry, isActive)}</div>
-            </div>
+              onDragStart={handleDragStart}
+              onDragEnd={handleDragEnd}
+              renderEntry={renderEntry}
+            />
           );
         })}
       </div>

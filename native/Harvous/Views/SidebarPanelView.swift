@@ -19,7 +19,6 @@ struct SidebarPanelView: View {
         case threads
         case scripture
         case highlights
-        case dictionary
 
         var id: String { rawValue }
         var title: String {
@@ -29,7 +28,6 @@ struct SidebarPanelView: View {
             case .threads: return "Threads"
             case .highlights: return "Highlights"
             case .scripture: return "Scripture"
-            case .dictionary: return "Dictionary"
             }
         }
 
@@ -40,7 +38,6 @@ struct SidebarPanelView: View {
             case .threads: return "Harvous.ArrowRightArrowLeft"
             case .highlights: return "Harvous.Highlight"
             case .scripture: return "Harvous.BookOpen"
-            case .dictionary: return "Harvous.LinesLeaning"
             }
         }
     }
@@ -62,11 +59,6 @@ struct SidebarPanelView: View {
         case passage(ParsedScriptureFields)
     }
 
-    private enum DictionaryDrill: Equatable {
-        case root
-        case entry(String) // slug
-    }
-
     @Binding var selectedNote: Note?
     @Binding var splitColumnVisibility: NavigationSplitViewVisibility
     var onCreateNewNote: (() -> Void)?
@@ -75,6 +67,13 @@ struct SidebarPanelView: View {
     var reportedSidebarColumnWidth: Binding<CGFloat>? = nil
     #endif
     @Query(sort: \Note.updatedAt, order: .reverse) private var notes: [Note]
+    @Query(
+        sort: [
+            SortDescriptor(\StudyThread.createdAt, order: .reverse),
+            SortDescriptor(\StudyThread.id, order: .forward),
+        ]
+    )
+    private var studyThreads: [StudyThread]
     @Environment(\.modelContext) private var modelContext
     @Environment(\.harvousIsIPadSplitLayout) private var isIPadSplitLayout
     @EnvironmentObject private var spaceStore: SpaceStore
@@ -82,7 +81,6 @@ struct SidebarPanelView: View {
     @State private var foldersDrill: FoldersDrill = .root
     @State private var threadsDrill: ThreadsDrill = .root
     @State private var scriptureDrill: ScriptureDrill = .root
-    @State private var dictionaryDrill: DictionaryDrill = .root
     @State private var folderListSearchText = ""
     @State private var pinnedFolderRowIds: [String] = []
     @State private var renameTarget: HarvousFolderRow?
@@ -119,6 +117,143 @@ struct SidebarPanelView: View {
         let q = folderListSearchText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !q.isEmpty else { return threadClusters }
         return threadClusters.filter { $0.title.localizedStandardContains(q) }
+    }
+
+    private var isSidebarSearchActive: Bool {
+        !folderListSearchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    private var highlightThreadsForSearch: [StudyThread] {
+        let sid = spaceStore.activeSpaceUUID()
+        let scoped = StudyHighlightListIndex.rowsInActiveSpace(
+            threads: studyThreads,
+            activeSpaceId: sid,
+            allowUnscopedFallback: true
+        )
+        return StudyHighlightListIndex.sortedForList(
+            scoped.filter { StudyHighlightListIndex.isEligibleListHighlight($0) }
+        )
+    }
+
+    private var threadDrillNotesForSearch: [Note] {
+        if case .cluster(_, _, let memberIds) = threadsDrill {
+            let idSet = Set(memberIds)
+            return notesInActiveSpace.filter { idSet.contains($0.id) }
+        }
+        return []
+    }
+
+    private var scripturePassageNotesForSearch: [Note] {
+        if case .passage(let p) = scriptureDrill {
+            return notesInActiveSpace.filter { $0.noteBelongsToScripturePassage(p) }
+        }
+        return []
+    }
+
+    private var universalSearchData: SidebarUniversalSearchIndex.SearchData {
+        SidebarUniversalSearchIndex.SearchData(
+            notes: notesInActiveSpace,
+            folderRows: folderRows,
+            highlightThreads: highlightThreadsForSearch,
+            scriptureBookRows: scriptureBookRows,
+            threadClusters: threadClusters,
+            threadDrillNotes: threadDrillNotesForSearch,
+            scripturePassageNotes: scripturePassageNotesForSearch
+        )
+    }
+
+    private var universalSearchActiveContext: SidebarUniversalSearchIndex.ActiveContext {
+        var ctx = SidebarUniversalSearchIndex.ActiveContext(
+            mode: mapSidebarMode(mode),
+            folderDrillLabel: nil,
+            folderDrilledIn: false,
+            threadDrillTitle: nil,
+            threadDrilledIn: false,
+            scriptureBookTitle: nil,
+            scriptureBookIndex: nil,
+            scripturePassageTitle: nil,
+            scriptureDrillLevel: .root,
+            highlightKindFilter: .all
+        )
+
+        switch mode {
+        case .folders:
+            if case .bucket(let key) = foldersDrill {
+                ctx.folderDrilledIn = true
+                ctx.folderDrillLabel = NoteFilter.folder(key).displayName
+            }
+        case .threads:
+            if case .cluster(_, let title, _) = threadsDrill {
+                ctx.threadDrilledIn = true
+                ctx.threadDrillTitle = title
+            }
+        case .scripture:
+            switch scriptureDrill {
+            case .root:
+                ctx.scriptureDrillLevel = .root
+            case .book(let idx):
+                ctx.scriptureDrillLevel = .book
+                ctx.scriptureBookIndex = idx
+                ctx.scriptureBookTitle = NoteFilter.scriptureBook(bookIndex: idx).displayName
+            case .passage(let p):
+                ctx.scriptureDrillLevel = .passage
+                ctx.scriptureBookIndex = p.bookIndex
+                ctx.scripturePassageTitle = NoteFilter.scripturePassage(p).displayName
+            }
+        default:
+            break
+        }
+
+        return ctx
+    }
+
+    private func mapSidebarMode(_ mode: SidebarMode) -> SidebarUniversalSearchIndex.ActiveContext.SidebarPanelViewMode {
+        switch mode {
+        case .notes: return .notes
+        case .folders: return .folders
+        case .threads: return .threads
+        case .scripture: return .scripture
+        case .highlights: return .highlights
+        }
+    }
+
+    private func activateUniversalSearchResult(_ result: SidebarSearchResult) {
+        switch result.kind {
+        case .note:
+            if let id = result.noteId,
+               let note = notesInActiveSpace.first(where: { $0.id == id }) {
+                macSelectNoteWithoutListAnimation(note)
+            }
+        case .folder:
+            mode = .folders
+            foldersDrill = .bucket(result.folderLabel)
+        case .threadCluster:
+            if let repId = result.threadClusterRepresentativeId,
+               let cluster = threadClusters.first(where: { $0.id == repId }) {
+                mode = .threads
+                threadsDrill = .cluster(
+                    representativeId: cluster.id,
+                    title: cluster.title,
+                    memberIds: cluster.memberIds
+                )
+            }
+        case .highlight:
+            if let tid = result.highlightThreadId,
+               let thread = studyThreads.first(where: { $0.id == tid }),
+               let parent = thread.parentNote ?? notesInActiveSpace.first(where: { $0.id == thread.parentNoteId }) {
+                macSelectNoteWithoutListAnimation(parent)
+            }
+        case .scriptureBook:
+            if let idx = result.scriptureBookIndex {
+                mode = .scripture
+                scriptureDrill = .book(idx)
+            }
+        case .scripturePassage:
+            if let passage = result.scripturePassage {
+                mode = .scripture
+                scriptureDrill = .passage(passage)
+            }
+        }
     }
 
     private var filteredFolderRows: [HarvousFolderRow] {
@@ -246,15 +381,6 @@ struct SidebarPanelView: View {
                     help: "Back to threads",
                     accessibilityLabel: "Back to threads, currently viewing \(clusterTitle)"
                 ) { threadsDrill = .root }
-            }
-        case .dictionary:
-            if dictionaryDrill != .root {
-                return SidebarBackTarget(
-                    label: "Dictionary",
-                    kind: nil,
-                    help: "Back to dictionary",
-                    accessibilityLabel: "Back to dictionary"
-                ) { dictionaryDrill = .root }
             }
         default:
             break
@@ -460,7 +586,14 @@ struct SidebarPanelView: View {
                 sidebarSearchField
 
                 Group {
-                    if mode == .notes {
+                    if isSidebarSearchActive {
+                        SidebarUniversalSearchResultsView(
+                            query: folderListSearchText,
+                            activeContext: universalSearchActiveContext,
+                            searchData: universalSearchData,
+                            onSelect: activateUniversalSearchResult
+                        )
+                    } else if mode == .notes {
                         NoteListColumn(
                             filter: .all,
                             selectedNote: $selectedNote,
@@ -475,16 +608,6 @@ struct SidebarPanelView: View {
                             columnStyle: .macOSSidebar,
                             ownsSidebarChrome: false
                         )
-                    } else if mode == .dictionary {
-                        switch dictionaryDrill {
-                        case .root:
-                            EastonsDictionaryListColumn(
-                                externalSearchText: unifiedSearchText,
-                                onSelectEntry: { slug in dictionaryDrill = .entry(slug) }
-                            )
-                        case .entry(let slug):
-                            EastonsEntryDetailView(initialSlug: slug)
-                        }
                     } else if mode == .scripture {
                         switch scriptureDrill {
                         case .root:
@@ -533,8 +656,8 @@ struct SidebarPanelView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                 .layoutPriority(1)
                 // Daily passage pill *floats* over the bottom of the list (matching iOS + web).
-                // Every sidebar list applies `harvousListDailyPassagePillScrollReserve` (84pt), so
-                // the last row scrolls out from under the card rather than being hidden behind it.
+                // Every sidebar list/scroll surface applies bottom scroll reserve so the last row
+                // scrolls out from under the card rather than being hidden behind it.
                 .overlay(alignment: .bottom) {
                     DailyPassagePill(onStudyNow: { note in macSelectNoteWithoutListAnimation(note) })
                         .padding(.horizontal, HarvousFeedListLayout.listRowHorizontalInset)
@@ -619,11 +742,6 @@ struct SidebarPanelView: View {
                 }
                 if newMode != .scripture {
                     scriptureDrill = .root
-                }
-                if newMode != .dictionary {
-                    dictionaryDrill = .root
-                } else {
-                    folderListSearchText = ""
                 }
             }
             .onAppear {
@@ -853,11 +971,9 @@ struct SidebarPanelView: View {
                     }
                     .padding(.horizontal, HarvousCollectionGridLayout.horizontalPadding)
                     .padding(.top, HarvousCollectionGridLayout.topPadding)
+                    .harvousDailyPassagePillScrollContentBottomPadding()
                 }
                 .scrollContentBackground(.hidden)
-                #if os(macOS)
-                .harvousListDailyPassagePillScrollReserve()
-                #endif
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
@@ -918,9 +1034,7 @@ struct SidebarPanelView: View {
                 }
                 .listStyle(.plain)
                 .scrollContentBackground(.hidden)
-                #if os(macOS)
                 .harvousListDailyPassagePillScrollReserve()
-                #endif
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
@@ -946,11 +1060,9 @@ struct SidebarPanelView: View {
                     }
                     .padding(.horizontal, HarvousCollectionGridLayout.horizontalPadding)
                     .padding(.top, HarvousCollectionGridLayout.topPadding)
+                    .harvousDailyPassagePillScrollContentBottomPadding()
                 }
                 .scrollContentBackground(.hidden)
-                #if os(macOS)
-                .harvousListDailyPassagePillScrollReserve()
-                #endif
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
@@ -991,11 +1103,9 @@ struct SidebarPanelView: View {
                     }
                     .padding(.horizontal, HarvousCollectionGridLayout.horizontalPadding)
                     .padding(.top, HarvousCollectionGridLayout.topPadding)
+                    .harvousDailyPassagePillScrollContentBottomPadding()
                 }
                 .scrollContentBackground(.hidden)
-                #if os(macOS)
-                .harvousListDailyPassagePillScrollReserve()
-                #endif
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)

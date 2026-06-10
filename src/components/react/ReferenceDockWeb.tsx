@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type MouseEvent } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import Icon from '@/components/react/Icon';
 import DockAccentSwatchButton, { SCRIPTURE_DOCK_ACCENT_COLORS } from '@/components/react/DockAccentSwatchButton';
@@ -126,6 +126,14 @@ function persistHighlights(source: string, slug: string, items: SavedHighlight[]
   }
 }
 
+/** Mouse: run on mousedown (preventDefault suppresses the follow-up click). Keyboard: click with detail 0. */
+function runPointerAction(e: MouseEvent, action: () => void) {
+  if (e.button !== 0) return;
+  e.preventDefault();
+  e.stopPropagation();
+  action();
+}
+
 export default function ReferenceDockWeb({
   initialQuery,
   onDone,
@@ -235,8 +243,11 @@ export default function ReferenceDockWeb({
       <button
         type="button"
         className="study-dock-card__header-btn reference-dock-web__save-orb"
-        onMouseDown={(e) => e.preventDefault()}
-        onClick={onSaveReference}
+        onMouseDown={(e) => runPointerAction(e, onSaveReference)}
+        onClick={(e) => {
+          e.stopPropagation();
+          if (e.detail === 0) onSaveReference();
+        }}
         aria-label="Save reference"
         title="Save reference"
       >
@@ -255,8 +266,11 @@ export default function ReferenceDockWeb({
           <button
             type="button"
             className="study-dock-card__header-btn study-dock-card__header-btn--plain"
-            onMouseDown={(e) => e.preventDefault()}
-            onClick={onRemoveNoteHighlight}
+            onMouseDown={(e) => runPointerAction(e, onRemoveNoteHighlight)}
+            onClick={(e) => {
+              e.stopPropagation();
+              if (e.detail === 0) onRemoveNoteHighlight();
+            }}
             aria-label="Remove highlight"
           >
             <Icon name="trash-can" size={12} />
@@ -316,24 +330,33 @@ export default function ReferenceDockWeb({
                       title={STUDY_HIGHLIGHT_ACCENT_LABELS[key]}
                       aria-label={STUDY_HIGHLIGHT_ACCENT_LABELS[key]}
                       aria-pressed={selectedAccent === key}
-                      onMouseDown={(e) => e.preventDefault()}
-                      onClick={() => setSelectedAccent(key)}
+                      onMouseDown={(e) => runPointerAction(e, () => setSelectedAccent(key))}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (e.detail === 0) setSelectedAccent(key);
+                      }}
                     />
                   ))}
                 </div>
                 <button
                   type="button"
                   className="highlight-dock-web__btn"
-                  onMouseDown={(e) => e.preventDefault()}
-                  onClick={saveHighlight}
+                  onMouseDown={(e) => runPointerAction(e, saveHighlight)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (e.detail === 0) saveHighlight();
+                  }}
                 >
                   Save
                 </button>
                 <button
                   type="button"
                   className="highlight-dock-web__btn highlight-dock-web__btn--plain"
-                  onMouseDown={(e) => e.preventDefault()}
-                  onClick={dismissPending}
+                  onMouseDown={(e) => runPointerAction(e, dismissPending)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (e.detail === 0) dismissPending();
+                  }}
                 >
                   Cancel
                 </button>
@@ -368,8 +391,11 @@ export default function ReferenceDockWeb({
                     <button
                       type="button"
                       className="highlight-dock-web__btn highlight-dock-web__btn--plain"
-                      onMouseDown={(e) => e.preventDefault()}
-                      onClick={() => removeHighlight(h.id)}
+                      onMouseDown={(e) => runPointerAction(e, () => removeHighlight(h.id))}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (e.detail === 0) removeHighlight(h.id);
+                      }}
                     >
                       Remove
                     </button>

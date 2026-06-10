@@ -7,6 +7,7 @@
     var(--study-dock-paper-width) + 2 * var(--study-dock-paper-overhang) + 24px
   );
   --study-dock-accent: #676f84;
+  --study-dock-scroll-max-height: 280px;
   /* Native spring approximations: expand 0.32/0.82, layer 0.32/0.72, respond 0.28/0.82 */
   --study-dock-motion-spring: 320ms cubic-bezier(0.34, 1.12, 0.64, 1);
   --study-dock-motion-spring-layer: 320ms cubic-bezier(0.34, 1.08, 0.64, 1);
@@ -24,6 +25,12 @@
     --study-dock-motion-spring: 1ms linear;
     --study-dock-motion-spring-layer: 1ms linear;
     --study-dock-motion-respond: 1ms linear;
+  }
+}
+
+@media (min-width: 900px) {
+  .study-dock-card {
+    --study-dock-scroll-max-height: min(400px, 40vh);
   }
 }
 
@@ -92,6 +99,33 @@
 
 .study-dock-card__card[data-expanded='true'] {
   padding-bottom: 10px;
+  /* Allow max-height caps (shell CSS var) to shrink scroll regions instead of growing with passage HTML. */
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+/* Scripture / reference / highlight — scroll region cap + card chrome (native parity). */
+.scripture-pill-chrome__passage,
+.reference-dock-web__passage,
+.highlight-dock-web__body {
+  max-height: var(--study-dock-scroll-max-height);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  box-sizing: border-box;
+}
+
+.scripture-pill-chrome .study-dock-card__body,
+.reference-dock-web .study-dock-card__body,
+.highlight-dock-web .study-dock-card__body {
+  gap: 0;
+}
+
+.scripture-pill-chrome .study-dock-card__card[data-expanded='true'],
+.reference-dock-web .study-dock-card__card[data-expanded='true'],
+.highlight-dock-web .study-dock-card__card[data-expanded='true'] {
+  padding-bottom: 0;
+  overflow: clip;
 }
 
 .study-dock-card__card--collapsed {
@@ -247,11 +281,15 @@
 .study-dock-card__body-wrap {
   display: grid;
   grid-template-rows: 0fr;
+  min-height: 0;
   transition: grid-template-rows var(--study-dock-motion-spring);
 }
 
 .study-dock-card__body-wrap[data-expanded='true'] {
   grid-template-rows: 1fr;
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
 }
 
 .study-dock-card__body {
@@ -273,4 +311,5 @@
   padding-top: 10px;
   opacity: 1;
   transform: translateY(0);
+  flex: 1 1 auto;
 }

@@ -251,6 +251,40 @@ func studyDockCollapsedTitle(
     }
 }
 
+/// Optional chip beside the title on collapsed carousel cards (parity with expanded dock headers).
+enum StudyDockCollapsedHeaderChip: Equatable {
+    case referenceCategory(iconAsset: String, label: String)
+    case scriptureTranslation(label: String)
+}
+
+@MainActor
+func studyDockReferenceCategoryChip(forSlug slug: String) -> StudyDockCollapsedHeaderChip? {
+    guard let entry = EastonsDictionaryService.shared.slugIndex[slug],
+          let icon = entry.categoryIconAsset,
+          let cat = entry.category else { return nil }
+    return .referenceCategory(iconAsset: icon, label: cat.capitalized)
+}
+
+@MainActor
+func studyDockCollapsedHeaderChip(
+    entry: StudyDockEntry,
+    highlightEntryKind: StudyThread.EntryKind?,
+    referenceSlugByThreadId: [UUID: String] = [:]
+) -> StudyDockCollapsedHeaderChip? {
+    switch entry.payload {
+    case .scripture(let item):
+        let label = ScriptureReference.displayTranslationLabel(item.translation)
+        guard !label.isEmpty else { return nil }
+        return .scriptureTranslation(label: label)
+    case .pendingReference(let slug, _, _):
+        return studyDockReferenceCategoryChip(forSlug: slug)
+    case .highlight(let threadId):
+        guard highlightEntryKind == .reference,
+              let slug = referenceSlugByThreadId[threadId] else { return nil }
+        return studyDockReferenceCategoryChip(forSlug: slug)
+    }
+}
+
 func studyDockCollapsedIconAsset(entry: StudyDockEntry, highlightEntryKind: StudyThread.EntryKind?) -> String {
     switch entry.payload {
     case .scripture:

@@ -6,6 +6,7 @@ import {
   findTextWithFlexibleMatching,
   findScriptureReferenceAtCursor,
   mapReferenceEndInSliceToDocPos,
+  shouldSchedulePassiveScriptureDetection,
 } from '../scripture-pill-position';
 
 const schema = new Schema({
@@ -107,6 +108,72 @@ describe('detectScriptureReferenceEndingAtCursor', () => {
     const cursorPos = 1 + 'John 3:16 and '.length;
     const result = detectScriptureReferenceEndingAtCursor(state.doc, cursorPos);
     expect(result).toBeNull();
+  });
+
+  it('returns Exodus 5 chapter-only ending at cursor', () => {
+    const text = 'Lets talk about Exodus 5';
+    const state = stateFromPlainText(text);
+    const cursorPos = 1 + text.length;
+    const result = detectScriptureReferenceEndingAtCursor(state.doc, cursorPos);
+    expect(result).not.toBeNull();
+    expect(result!.reference).toBe('Exodus 5');
+    expect(state.doc.textBetween(result!.from!, result!.to!)).toBe('Exodus 5');
+    expect(result!.to).toBe(cursorPos);
+  });
+
+  it('returns Exodus 5 chapter-only when trailing whitespace before cursor', () => {
+    const text = 'Exodus 5 ';
+    const state = stateFromPlainText(text);
+    const cursorPos = 1 + text.length;
+    const result = detectScriptureReferenceEndingAtCursor(state.doc, cursorPos);
+    expect(result).not.toBeNull();
+    expect(result!.reference).toBe('Exodus 5');
+    expect(state.doc.textBetween(result!.from!, result!.to!)).toBe('Exodus 5');
+  });
+
+  it('returns verse ref at cursor for Exodus 5:1, not chapter-only prefix', () => {
+    const text = 'Exodus 5:1';
+    const state = stateFromPlainText(text);
+    const cursorPos = 1 + text.length;
+    const result = detectScriptureReferenceEndingAtCursor(state.doc, cursorPos);
+    expect(result).not.toBeNull();
+    expect(result!.reference).toBe('Exodus 5:1');
+    expect(state.doc.textBetween(result!.from!, result!.to!)).toBe('Exodus 5:1');
+  });
+});
+
+describe('findScriptureReferenceAtCursor chapter-only prefix guard', () => {
+  it('anchors Exodus 5 at cursor when verse ref appears earlier in text', () => {
+    const text = 'Exodus 5:1 and later Exodus 5';
+    const state = stateFromPlainText(text);
+    const cursorPos = 1 + text.length;
+    const range = findScriptureReferenceAtCursor(state.doc, 'Exodus 5', cursorPos);
+    expect(range).not.toBeNull();
+    expect(state.doc.textBetween(range!.from, range!.to)).toBe('Exodus 5');
+    expect(range!.to).toBe(cursorPos);
+  });
+});
+
+describe('shouldSchedulePassiveScriptureDetection', () => {
+  it('does not schedule chapter-only mid-typing before verse (Exodus 5:1-2)', () => {
+    const text = 'Exodus 5';
+    const state = stateFromPlainText(text);
+    const cursorPos = 1 + text.length;
+    expect(shouldSchedulePassiveScriptureDetection(state.doc, cursorPos, false)).toBe(false);
+  });
+
+  it('schedules chapter-only at word boundary (Exodus 5 + space)', () => {
+    const text = 'Exodus 5 ';
+    const state = stateFromPlainText(text);
+    const cursorPos = 1 + text.length;
+    expect(shouldSchedulePassiveScriptureDetection(state.doc, cursorPos, true)).toBe(true);
+  });
+
+  it('schedules verse refs mid-typing (Exodus 5:1-2)', () => {
+    const text = 'Exodus 5:1-2';
+    const state = stateFromPlainText(text);
+    const cursorPos = 1 + text.length;
+    expect(shouldSchedulePassiveScriptureDetection(state.doc, cursorPos, false)).toBe(true);
   });
 });
 

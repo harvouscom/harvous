@@ -204,23 +204,46 @@ html.harvous-prototype-route .proto-shell__study-dock-layer .dock-accent-swatch_
 }
 
 /* ─── Grid cells ─────────────────────────────────────────────────────────── */
-.proto-shell__toolbar-cell {
-  grid-column: 1 / -1;
+.proto-shell__toolbar-cell,
+.proto-shell__sidebar-toolbar-cell,
+.proto-shell__detail-toolbar-cell {
   grid-row: 1;
   display: flex;
   align-items: center;
   position: relative;
-  /* Keep toolbar popovers above sidebar so they capture hover/click (no click-through). */
   z-index: 1300;
   isolation: isolate;
   border-top: none;
   border-bottom: 1px solid var(--pds-border);
-  /* Transparent — sits on the shell's uniform glass; border + sheen give definition. */
   background: transparent;
   box-shadow: none;
 }
 
-.proto-shell__toolbar-cell::after {
+.proto-shell__toolbar-cell {
+  grid-column: 1 / -1;
+}
+
+.proto-shell__sidebar-toolbar-cell {
+  grid-column: 1;
+  min-width: 0;
+}
+
+.proto-shell__detail-toolbar-cell {
+  grid-column: 2;
+  min-width: 0;
+}
+
+.proto-shell--no-sidebar .proto-shell__detail-toolbar-cell {
+  grid-column: 1 / -1;
+}
+
+.proto-shell--sidebar-collapsed .proto-shell__sidebar-toolbar-cell {
+  display: none;
+}
+
+.proto-shell__toolbar-cell::after,
+.proto-shell__sidebar-toolbar-cell::after,
+.proto-shell__detail-toolbar-cell::after {
   content: "";
   position: absolute;
   inset: 0;
@@ -229,11 +252,15 @@ html.harvous-prototype-route .proto-shell__study-dock-layer .dock-accent-swatch_
   z-index: 0;
 }
 
-html.harvous-prototype-route .proto-shell__toolbar-cell::after {
+html.harvous-prototype-route .proto-shell__toolbar-cell::after,
+html.harvous-prototype-route .proto-shell__sidebar-toolbar-cell::after,
+html.harvous-prototype-route .proto-shell__detail-toolbar-cell::after {
   display: none;
 }
 
-.proto-shell__toolbar-cell > * {
+.proto-shell__toolbar-cell > *,
+.proto-shell__sidebar-toolbar-cell > *,
+.proto-shell__detail-toolbar-cell > * {
   position: relative;
   z-index: 1;
 }
@@ -367,7 +394,7 @@ html.harvous-prototype-route .proto-shell__toolbar-cell::after {
 
 /* When floating sidebar pills are present, reserve space at the bottom of the scroll
    content so the last list items can scroll out from under the stack. Mirrors native's
-   `harvousListDailyPassagePillScrollReserve` (84pt per pill). */
+   `harvousListDailyPassagePillScrollReserve` (72 card + 12 stack bottom + 4 gap = 88pt per pill). */
 .proto-sidebar-scroll:has(~ .proto-sidebar-floating-stack .proto-migration-pill):has(
     ~ .proto-sidebar-floating-stack .proto-daily-passage-pill
   ) {
@@ -377,13 +404,13 @@ html.harvous-prototype-route .proto-shell__toolbar-cell::after {
 .proto-sidebar-scroll:has(~ .proto-sidebar-floating-stack .proto-migration-pill):not(
     :has(~ .proto-sidebar-floating-stack .proto-daily-passage-pill)
   ) {
-  padding-bottom: 84px;
+  padding-bottom: 88px;
 }
 
 .proto-sidebar-scroll:has(~ .proto-sidebar-floating-stack .proto-daily-passage-pill):not(
     :has(~ .proto-sidebar-floating-stack .proto-migration-pill)
   ) {
-  padding-bottom: 84px;
+  padding-bottom: 88px;
 }
 
 .proto-load-more-sentinel {
@@ -571,18 +598,22 @@ html.harvous-prototype-route .proto-shell__toolbar-cell::after {
   }
 
   /* List type menu — opaque popover above the scrolling note list (same fix as desktop sidebar). */
-  .proto-shell__sidebar-cell.proto-shell-drawer-sidebar .proto-sidebar-list-view:has(.proto-menu__popover) {
+  .proto-shell__sidebar-cell.proto-shell-drawer-sidebar .proto-sidebar-list-view:has(.proto-menu__popover),
+  .proto-shell__sidebar-cell.proto-shell-drawer-sidebar .proto-sidebar-toolbar:has(.proto-menu__popover) {
     z-index: 100;
   }
 
-  .proto-shell__sidebar-cell.proto-shell-drawer-sidebar .proto-menu__popover--sidebar-list-view {
+  .proto-shell__sidebar-cell.proto-shell-drawer-sidebar .proto-menu__popover--sidebar-list-view,
+  .proto-shell__sidebar-cell.proto-shell-drawer-sidebar .proto-menu__popover--sidebar-toolbar {
     z-index: 101;
     background: var(--pds-bg-page);
     isolation: isolate;
   }
 
   .proto-shell__sidebar-cell.proto-shell-drawer-sidebar
-    .proto-sidebar-root:has(.proto-menu__popover--sidebar-list-view) {
+    .proto-sidebar-root:has(.proto-menu__popover--sidebar-list-view),
+  .proto-shell__sidebar-cell.proto-shell-drawer-sidebar
+    .proto-sidebar-root:has(.proto-menu__popover--sidebar-toolbar) {
     overflow: visible;
   }
 
@@ -591,6 +622,12 @@ html.harvous-prototype-route .proto-shell__toolbar-cell::after {
     .proto-sidebar-search,
   .proto-shell__sidebar-cell.proto-shell-drawer-sidebar
     .proto-sidebar-root:has(.proto-menu__popover--sidebar-list-view)
+    .proto-sidebar-scroll,
+  .proto-shell__sidebar-cell.proto-shell-drawer-sidebar
+    .proto-sidebar-root:has(.proto-menu__popover--sidebar-toolbar)
+    .proto-sidebar-search,
+  .proto-shell__sidebar-cell.proto-shell-drawer-sidebar
+    .proto-sidebar-root:has(.proto-menu__popover--sidebar-toolbar)
     .proto-sidebar-scroll {
     z-index: 0;
   }
@@ -643,6 +680,15 @@ html.harvous-prototype-route .proto-shell__toolbar-cell::after {
   .proto-shell--sidebar-collapsed:not(.proto-shell--no-sidebar) {
     grid-template-columns: minmax(0, 1fr);
   }
+  /* Desktop collapse rules must not apply to the mobile floating drawer. */
+  .proto-shell--sidebar-collapsed:not(.proto-shell--sidebar-closing) .proto-shell__sidebar-cell.proto-shell-drawer-sidebar {
+    width: min(300px, calc(88vw - 16px));
+    min-width: 0;
+    padding: 0;
+    overflow: visible;
+    pointer-events: auto;
+  }
+
   .proto-shell--sidebar-collapsed .proto-shell__sidebar-cell.proto-shell-drawer-sidebar {
     visibility: visible;
     opacity: 1;
@@ -885,6 +931,8 @@ html.harvous-prototype-route .proto-shell {
 }
 
 html.harvous-prototype-route .proto-shell__toolbar-cell,
+html.harvous-prototype-route .proto-shell__sidebar-toolbar-cell,
+html.harvous-prototype-route .proto-shell__detail-toolbar-cell,
 html.harvous-prototype-route .proto-shell__footer-cell,
 html.harvous-prototype-route .proto-shell__editor-chrome-row {
   background: transparent;

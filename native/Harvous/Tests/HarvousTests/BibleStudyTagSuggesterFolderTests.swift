@@ -27,6 +27,25 @@ final class BibleStudyTagSuggesterFolderTests: XCTestCase {
         XCTAssertFalse(lower.contains("jesus"))
         XCTAssertFalse(lower.contains("holy spirit"))
     }
+
+    func testResultSkipsHonorificPersonNameForCharacterTags() {
+        let body = "Ps Luke has shared about this book and how we talked about Moses, Noah, and the basket."
+        let r = BibleStudyTagSuggester.result(title: "Notes", body: body)
+        XCTAssertFalse(r.tags.contains(where: { $0.caseInsensitiveCompare("Luke") == .orderedSame }))
+        XCTAssertFalse(r.tags.contains(where: { $0.caseInsensitiveCompare("John") == .orderedSame }))
+    }
+
+    func testResultSkipsLukeBookTagInHonorificContext() {
+        let body = "Ps Luke has shared a story from church today."
+        let r = BibleStudyTagSuggester.result(title: "Notes", body: body)
+        XCTAssertFalse(r.tags.contains(where: { $0.caseInsensitiveCompare("Luke") == .orderedSame }))
+    }
+
+    func testResultStillTagsApostleLukeInBiblicalContext() {
+        let body = "We studied how the apostle Luke wrote his gospel account for Theophilus."
+        let r = BibleStudyTagSuggester.result(title: "Luke's Gospel", body: body)
+        XCTAssertTrue(r.tags.contains(where: { $0.caseInsensitiveCompare("Luke") == .orderedSame }))
+    }
 }
 
 private extension String {

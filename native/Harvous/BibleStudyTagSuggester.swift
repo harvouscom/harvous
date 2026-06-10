@@ -205,15 +205,23 @@ enum BibleStudyTagSuggester {
 
         var raw: [Scored] = []
         for row in Self.keywordRows {
-            if let s = match(row, titleLower: titleLower, contentLower: contentLower) {
+            if let s = match(
+                row,
+                title: title,
+                body: cappedBody,
+                titleLower: titleLower,
+                contentLower: contentLower
+            ) {
                 if isAutoFolderExcluded(s.name) { continue }
                 raw.append(s)
             }
         }
         for book in Self.bookNames {
-            if matchBookWord(book, in: textLower) {
+            if matchBookWord(book, in: textLower, originalText: fullText) {
                 let bookLower = book.lowercased()
-                let occurrences = countOccurrences(of: bookLower, in: textLower)
+                let occurrences = book.split(separator: " ").count > 1
+                    ? countOccurrences(of: bookLower, in: textLower)
+                    : countPersonAwareNeedleMatches(bookLower, in: fullText)
                 let inTitle = titleLower.contains(bookLower)
                 raw.append(
                     Scored(
@@ -656,24 +664,32 @@ enum BibleStudyTagSuggester {
         "James", "1 Peter", "2 Peter", "1 John", "2 John", "3 John", "Jude", "Revelation"
     ]
 
-    private static func match(_ row: Row, titleLower: String, contentLower: String) -> Scored? {
+    private static func match(_ row: Row, title: String, body: String, titleLower: String, contentLower: String) -> Scored? {
         let nameLower = row.name.lowercased()
         var found = false
         let conf = row.base
         var inTitle = false
         var frequency = 0
+        let usePersonGate = row.category == .character
 
         for piece in [nameLower] + row.synonyms.map({ $0.lowercased() }) {
             let trimmedPiece = piece.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !trimmedPiece.isEmpty else { continue }
 
-            let titleHits = countBoundedNeedleMatches(trimmedPiece, in: titleLower)
+            let titleHits: Int
+            let contentHits: Int
+            if usePersonGate {
+                titleHits = countPersonAwareNeedleMatches(trimmedPiece, in: title)
+                contentHits = countPersonAwareNeedleMatches(trimmedPiece, in: body)
+            } else {
+                titleHits = countBoundedNeedleMatches(trimmedPiece, in: titleLower)
+                contentHits = countBoundedNeedleMatches(trimmedPiece, in: contentLower)
+            }
             if titleHits > 0 {
                 inTitle = true
                 found = true
                 frequency += titleHits
             }
-            let contentHits = countBoundedNeedleMatches(trimmedPiece, in: contentLower)
             if contentHits > 0 {
                 found = true
                 frequency += contentHits
@@ -709,6 +725,38 @@ enum BibleStudyTagSuggester {
         return count
     }
 
+    /// Character / ambiguous book hits skip modern person-name mentions (Ps Luke, Luke Smith).
+    private static func countPersonAwareNeedleMatches(_ needleLower: String, in text: String) -> Int {
+        let words = needleLower.split(separator: " ").filter { !$0.isEmpty }.map(String.init)
+        guard !words.isEmpty else { return 0 }
+        if words.count == 1 {
+            return countPersonAwareSingleWordOccurrences(of: words[0], in: text)
+        }
+        let escaped = words.map { NSRegularExpression.escapedPattern(for: $0) }.joined(separator: "\\s+")
+        guard let re = try? NSRegularExpression(pattern: "\\b(?:\(escaped))\\b", options: .caseInsensitive) else { return 0 }
+        var count = 0
+        let n = (text as NSString).length
+        re.enumerateMatches(in: text, options: [], range: NSRange(location: 0, length: n)) { match, _, _ in
+            guard let match, let swiftRange = Range(match.range, in: text) else { return }
+            if PersonNameContextGate.shouldSkip(in: text, wordRange: swiftRange) { return }
+            count += 1
+        }
+        return count
+    }
+
+    private static func countPersonAwareSingleWordOccurrences(of word: String, in text: String) -> Int {
+        let escaped = NSRegularExpression.escapedPattern(for: word)
+        guard let re = try? NSRegularExpression(pattern: "\\b\(escaped)\\b", options: .caseInsensitive) else { return 0 }
+        var count = 0
+        let n = (text as NSString).length
+        re.enumerateMatches(in: text, options: [], range: NSRange(location: 0, length: n)) { match, _, _ in
+            guard let match, let swiftRange = Range(match.range, in: text) else { return }
+            if PersonNameContextGate.shouldSkip(in: text, wordRange: swiftRange) { return }
+            count += 1
+        }
+        return count
+    }
+
     private static func countWholeWordOccurrences(of word: String, in textLower: String) -> Int {
         let escaped = NSRegularExpression.escapedPattern(for: word)
         guard let re = try? NSRegularExpression(pattern: "\\b\(escaped)\\b", options: .caseInsensitive) else { return 0 }
@@ -726,16 +774,12 @@ enum BibleStudyTagSuggester {
         return text.components(separatedBy: sub).count - 1
     }
 
-    private static func matchBookWord(_ book: String, in textLower: String) -> Bool {
+    private static func matchBookWord(_ book: String, in textLower: String, originalText: String) -> Bool {
         let b = book.lowercased()
         if b.split(separator: " ").count > 1 {
             return textLower.contains(b)
         }
-        return matchWholeWord(b, in: textLower)
-    }
-
-    private static func matchWholeWord(_ word: String, in textLower: String) -> Bool {
-        countWholeWordOccurrences(of: word, in: textLower) > 0
+        return countPersonAwareSingleWordOccurrences(of: book, in: originalText) > 0
     }
 
     // MARK: - Overlap (subset of server `isTagOverlapping`)

@@ -331,21 +331,23 @@ export default function HighlightDockWeb({
         </>
       }
     >
-      {entryKind === 'miniNote' ? (
-        <textarea
-          className="highlight-dock-web__mini-note"
-          value={miniNoteBody}
-          placeholder="Note (optional)…"
-          aria-label="Highlight note"
-          rows={2}
-          onChange={handleMiniNoteChange}
-          onMouseDown={(e) => e.stopPropagation()}
-          onPointerDown={(e) => e.stopPropagation()}
-          onClick={(e) => e.stopPropagation()}
-        />
-      ) : excerpt.trim() ? (
-        <p className="highlight-dock-web__excerpt-text">{excerpt}</p>
-      ) : null}
+      <div className="highlight-dock-web__body">
+        {entryKind === 'miniNote' ? (
+          <textarea
+            className="highlight-dock-web__mini-note"
+            value={miniNoteBody}
+            placeholder="Note (optional)…"
+            aria-label="Highlight note"
+            rows={2}
+            onChange={handleMiniNoteChange}
+            onMouseDown={(e) => e.stopPropagation()}
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={(e) => e.stopPropagation()}
+          />
+        ) : excerpt.trim() ? (
+          <p className="highlight-dock-web__excerpt-text">{excerpt}</p>
+        ) : null}
+      </div>
 
       {prompts.length > 0 ? (
         <div className="highlight-dock-web__respond" ref={respondRef}>

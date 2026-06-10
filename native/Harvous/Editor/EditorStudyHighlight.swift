@@ -287,6 +287,17 @@ enum HarvousStudyHighlightMapper {
                     i = NSMaxRange(eff)
                     continue
                 }
+                if let urlPill = attAny as? URLLinkPillAttachment {
+                    let piece: String
+                    if let label = urlPill.label, !label.isEmpty {
+                        piece = "[\(label)](\(urlPill.href))"
+                    } else {
+                        piece = urlPill.href
+                    }
+                    out.append(Piece(storageRange: eff, expandedSnippet: piece, isAtomicAttachment: true))
+                    i = NSMaxRange(eff)
+                    continue
+                }
                 if attAny is HorizontalRuleAttachment {
                     out.append(Piece(storageRange: eff, expandedSnippet: "\n---\n", isAtomicAttachment: true))
                     i = NSMaxRange(eff)

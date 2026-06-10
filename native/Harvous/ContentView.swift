@@ -150,7 +150,7 @@ struct MacRootView: View {
                 onCreateNewNote: createNewNote,
                 reportedSidebarColumnWidth: $sidebarColumnMeasuredWidth
             )
-                .navigationSplitViewColumnWidth(min: 240, ideal: 260, max: 300)
+                .navigationSplitViewColumnWidth(min: 260, ideal: 260, max: 300)
         } detail: {
             NavigationStack(path: $threadNavPath) {
                 ZStack {
@@ -792,6 +792,18 @@ struct iOSRootView: View {
 
     @ViewBuilder
     private var iosListSurfaceGroup: some View {
+        if !appRouter.iosInlineSearchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            IOSUniversalSearchHost(
+                iosSelectedNoteId: $iosSelectedNoteId,
+                query: appRouter.iosInlineSearchText
+            )
+        } else {
+            iosListSurfaceContent
+        }
+    }
+
+    @ViewBuilder
+    private var iosListSurfaceContent: some View {
         Group {
             switch appRouter.iosListSurface {
             case .notes:
@@ -813,8 +825,6 @@ struct iOSRootView: View {
                     iosSelectedNoteId: $iosSelectedNoteId,
                     externalSearchText: $appRouter.iosInlineSearchText
                 )
-            case .dictionary:
-                IOSDictionaryHubView(externalSearchText: $appRouter.iosInlineSearchText)
             case .more:
                 // `.more` is presented as a sheet; fallback only.
                 HomeHubView(iosSelectedNoteId: $iosSelectedNoteId)
@@ -822,7 +832,7 @@ struct iOSRootView: View {
         }
         // Note: bottom scroll-content inset is applied directly inside each vertical `List`
         // (see `.iosListBottomChromeReserve()`), not here. Applying it at this level would
-        // also affect the horizontal `ScrollView`s used for the dictionary/highlights chip
+        // also affect the horizontal `ScrollView`s used for the highlights chip
         // bars and create a large empty band between the chips and the list.
     }
 
@@ -906,7 +916,7 @@ struct iOSRootView: View {
         switch appRouter.iosListSurface {
         case .notes:
             appRouter.iosNotesFilterSearchPresented = true
-        case .folders, .threads, .highlights, .scripture, .dictionary:
+        case .folders, .threads, .highlights, .scripture:
             NotificationCenter.default.post(name: .harvousFocusIOSInlineSearch, object: nil)
         case .more:
             break
@@ -1045,7 +1055,6 @@ struct IOSListSurfaceChip: View {
             chipMenuButton(.threads, label: "Threads", icon: "Harvous.ArrowRightArrowLeft")
             chipMenuButton(.scripture, label: "Scripture", icon: "Harvous.BookOpen")
             chipMenuButton(.highlights, label: "Highlights", icon: "Harvous.Highlight")
-            chipMenuButton(.dictionary, label: "Dictionary", icon: "Harvous.LinesLeaning")
         } label: {
             HStack(spacing: 6) {
                 HarvousFAGlyph(

@@ -190,9 +190,9 @@ struct ScriptureHubView: View {
             }
             .padding(.horizontal, HarvousCollectionGridLayout.horizontalPadding)
             .padding(.top, HarvousCollectionGridLayout.topPadding)
+            .iosListBottomChromeScrollContentBottomPadding()
         }
         .scrollContentBackground(.hidden)
-        .iosListBottomChromeReserve()
     }
 }
 

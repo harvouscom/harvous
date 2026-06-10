@@ -27,6 +27,7 @@ import SearchResultRow from '../../../src/components/react/SearchResultRow';
 import RecentSearchRow from '../../../src/components/react/RecentSearchRow';
 import { router } from '../router';
 import { isMobileDevice } from '@/utils/pwa-prompt';
+import { isPrototypeShellPath } from '@/lib/prototype-path';
 import '../../../src/styles/spotlight.css';
 
 interface RecentSearch {
@@ -201,7 +202,10 @@ export default function SpotlightSearch() {
 
   // Listen for open/close events
   useEffect(() => {
-    const handleOpen = () => open();
+    const handleOpen = () => {
+      if (isPrototypeShellPath(window.location.pathname)) return;
+      open();
+    };
     const handleClose = () => close();
     window.addEventListener('openSpotlightSearch', handleOpen);
     window.addEventListener('closeSpotlightSearch', handleClose);
@@ -422,7 +426,7 @@ export default function SpotlightSearch() {
   );
 
   // Portal overlay — desktop: centered in main column; mobile: top-aligned above keyboard.
-  if (!isOpen) return null;
+  if (!isOpen || isPrototypeShellPath(window.location.pathname)) return null;
   return createPortal(
     <div
       ref={overlayRef}

@@ -48,18 +48,9 @@
   color: inherit !important;
 }
 
+/* Passage scroll — max-height + expanded card chrome in study-dock-card.css. */
 .reference-dock-web__passage {
-  max-height: 280px;
-  overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
-  padding: 0 2px 4px;
-  box-sizing: border-box;
-}
-
-@media (min-width: 900px) {
-  .reference-dock-web__passage {
-    max-height: min(400px, 40vh);
-  }
+  padding: 0 2px 8px;
 }
 
 .reference-dock-web__status {

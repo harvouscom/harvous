@@ -16,29 +16,8 @@ export interface EastonsDictionaryEntry {
   seeAlso: string[];
 }
 
-interface IndexResponse {
-  success: boolean;
-  entries: EastonsSlugEntry[];
-}
-
 interface EntryResponse extends EastonsDictionaryEntry {
   success: boolean;
-}
-
-/** All slug entries for the dictionary list view (alphabetical by headword). */
-export function useEastonsEntryList() {
-  return useQuery({
-    queryKey: ['dictionary', 'eastons', 'list'],
-    staleTime: Infinity,
-    gcTime: Infinity,
-    queryFn: async () => {
-      const res = await api.get<IndexResponse>('/api/dictionary/eastons/index');
-      const entries = res.entries ?? [];
-      return [...entries].sort((a, b) =>
-        a.headword.localeCompare(b.headword, undefined, { sensitivity: 'base' }),
-      );
-    },
-  });
 }
 
 /** Single entry fetched by slug. */

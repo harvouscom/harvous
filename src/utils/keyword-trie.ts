@@ -4,6 +4,7 @@
  */
 
 import type { BibleStudyKeyword } from './bible-study-keywords';
+import { shouldSkipPersonNameContext } from './person-name-context';
 
 export interface KeywordTrie {
   _root: TrieNode;
@@ -86,6 +87,9 @@ export function findWordBoundMatches(
         const phraseWords = words.slice(i, i + len);
         const stats = lookupPhrase(root, phraseWords);
         if (!stats) continue;
+        if (!occurrenceIsValidForPersonContext(text, words, i, len, stats[0]!.keyword.category)) {
+          continue;
+        }
         for (const { keyword, isSynonym } of stats) {
           const conf = isSynonym ? keyword.confidence * 0.8 : keyword.confidence;
           const existing = result.get(keyword);
@@ -111,6 +115,40 @@ export function findWordBoundMatches(
   if (content?.trim()) scanText(content.trim(), false);
 
   return result;
+}
+
+function escapeRegexToken(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/** True when a trie hit at `wordIndex` should count (not a modern person-name mention). */
+function occurrenceIsValidForPersonContext(
+  text: string,
+  words: string[],
+  wordIndex: number,
+  phraseLen: number,
+  category: BibleStudyKeyword['category'],
+): boolean {
+  if (category !== 'character' && !(category === 'book' && phraseLen === 1)) {
+    return true;
+  }
+  const phraseWords = words.slice(wordIndex, wordIndex + phraseLen);
+  const pattern =
+    phraseWords.length === 1
+      ? `\\b${escapeRegexToken(phraseWords[0]!)}\\b`
+      : `\\b${phraseWords.map(escapeRegexToken).join('\\s+')}\\b`;
+  const re = new RegExp(pattern, 'giu');
+  let seen = 0;
+  for (const m of text.matchAll(re)) {
+    const start = m.index ?? 0;
+    const end = start + m[0].length;
+    const wordsBefore = tokenize(text.slice(0, start)).length;
+    if (wordsBefore !== wordIndex) continue;
+    seen += 1;
+    if (seen > 1) return true;
+    return !shouldSkipPersonNameContext(m[0], text, start, end);
+  }
+  return false;
 }
 
 function lookupPhrase(

@@ -12,11 +12,6 @@ struct SelectionActionBar: View {
     /// where the selection action is just "highlight" — no standalone-note action.
     var onNewStandaloneNote: (() -> Void)?
 
-    /// When non-nil, an Easton's lookup affordance appears between Highlight and New Note.
-    /// Only set by the caller when the current selection is a single word AND `EastonsDictionaryService`
-    /// has an entry for it, so the button is naturally gated.
-    var onLookup: (() -> Void)? = nil
-
     /// When non-nil, a third affordance removes intersecting study highlights and/or clears inline formatting (macOS selection bar).
     var onEraseInlineFormatting: (() -> Void)? = nil
     /// Tooltip for the eraser pill (depends on whether highlights vs bold/link/etc. apply).
@@ -31,17 +26,6 @@ struct SelectionActionBar: View {
                 assetName: "Harvous.Highlight",
                 help: "Highlight selected text…"
             ) { onHighlight() }
-
-            if let onLookup {
-                Rectangle()
-                    .fill(Color.primary.opacity(0.14))
-                    .frame(width: 0.5, height: 22)
-
-                pillButton(
-                    assetName: "Harvous.LinesLeaning",
-                    help: "Look up in Easton's Bible Dictionary"
-                ) { onLookup() }
-            }
 
             if let onNewStandaloneNote {
                 Rectangle()

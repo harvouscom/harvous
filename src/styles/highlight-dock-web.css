@@ -6,6 +6,11 @@
   border-top: none;
 }
 
+/* Scrollable body — max-height + expanded card chrome in study-dock-card.css. Respond sits below. */
+.highlight-dock-web__body {
+  padding: 0 2px 8px;
+}
+
 .highlight-dock-web__title-input {
   flex: 1;
   min-width: 0;

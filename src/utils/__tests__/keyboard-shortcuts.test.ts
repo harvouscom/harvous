@@ -107,9 +107,12 @@ describe('prototype shell shortcuts (Shift + key)', () => {
     expectEvent('prototypeShortcutNewNote', () => press({ key: 'N', code: 'KeyN', shift: true }));
   });
 
-  it('Shift+K → search', () => {
-    press({ key: 'K', code: 'KeyK', shift: true });
-    expect(appNavigate).toHaveBeenCalledWith('/prototype/search');
+  it('Shift+K → focus sidebar search', () => {
+    expectEvent('prototypeShortcutFocusSidebarSearch', () => press({ key: 'K', code: 'KeyK', shift: true }));
+  });
+
+  it('Mod+K does not open production spotlight', () => {
+    expectNoEvent('openSpotlightSearch', () => press({ key: 'k', code: 'KeyK', meta: true }));
   });
 
   it('Shift+, → settings', () => {

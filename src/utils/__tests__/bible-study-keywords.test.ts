@@ -83,3 +83,26 @@ describe('auto folder exclusions (God / Jesus / Holy Spirit)', () => {
     expect(lower).not.toContain('holy spirit');
   });
 });
+
+describe('person-name context (folder/tag keywords)', () => {
+  it('findKeywordsInTextWithPriority skips Luke in honorific person context', () => {
+    const title = 'Notes';
+    const body = 'Ps Luke has shared about this book and faith.';
+    const rows = findKeywordsInTextWithPriority(`${title} ${body}`, title, body);
+    expect(rows.some((r) => r.keyword.name === 'Luke')).toBe(false);
+  });
+
+  it('findKeywordsInTextWithPriority skips John in honorific person context', () => {
+    const title = '';
+    const body = 'Dr John Smith visited our small group.';
+    const rows = findKeywordsInTextWithPriority(body, title, body);
+    expect(rows.some((r) => r.keyword.name === 'John')).toBe(false);
+  });
+
+  it('findKeywordsInTextWithPriority still matches Luke in biblical study context', () => {
+    const title = 'Luke';
+    const body = 'The apostle Luke wrote his gospel for Theophilus.';
+    const rows = findKeywordsInTextWithPriority(`${title} ${body}`, title, body);
+    expect(rows.some((r) => r.keyword.name === 'Luke')).toBe(true);
+  });
+});

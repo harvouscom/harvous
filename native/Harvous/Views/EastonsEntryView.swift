@@ -4,7 +4,7 @@ import SwiftUI
 //
 // Renders a single Easton's Bible Dictionary entry — category chip, headword, body, see-also
 // chips, optional disclaimer. Used by `ActiveHighlightDock` (when the active thread is a
-// reference highlight) and `EastonsEntryDetailView` (sidebar dictionary mode drill-down).
+// reference highlight) and the reference dock.
 //
 // Slug-based, not query-based: the caller owns the `@Binding<String>` so see-also chips can
 // swap the displayed entry **in place** without re-creating a parent view. Re-fetches whenever
@@ -50,7 +50,9 @@ struct EastonsEntryView: View {
         switch loadState {
         case .idle, .loading:
             HStack(spacing: 8) {
-                ProgressView().scaleEffect(0.7)
+                ProgressView()
+                    .controlSize(.small)
+                    .fixedSize()
                 Text("Looking up…")
                     .font(HarvousFonts.font(size: 13, weight: .regular, design: .default))
                     .foregroundStyle(Color.primary.opacity(0.65))

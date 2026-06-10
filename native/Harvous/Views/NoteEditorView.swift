@@ -189,8 +189,7 @@ struct NoteEditorView: View {
     /// Set when the user picks Edit from the URL pill dock — drives the modal href editor sheet.
     /// Carries the original href + range so the sheet can call `proxy.replaceURLPill(in:newHref:)`.
     @State private var editingURLPillDraft: ActiveURLPillDockItem?
-    /// Observed to drive the action bar's Look up button visibility (the bar checks slug index
-    /// existence inside `onLookup` closure conditional).
+    /// Observed for Easton's entry prefetch on reference highlights in the study dock.
     @ObservedObject private var eastonsService = EastonsDictionaryService.shared
     /// Passage highlights for the active pill dock reference + translation (library-wide).
     @State private var scripturePassageHighlights: [StudyThread] = []
@@ -205,6 +204,8 @@ struct NoteEditorView: View {
     /// Coalesces rapid keystroke-driven highlight paint reconciliation so the SwiftData fetch + sort
     /// does not run on every character — the cumulative main-thread cost was holding up nav back-button hits.
     @State private var reconcileStudyHighlightsTask: Task<Void, Never>?
+    /// Coalesces caret-driven dock collapse/prune so it does not run on every UTF-16 step.
+    @State private var bodySelectionHostChangedTask: Task<Void, Never>?
 #if os(macOS)
     @EnvironmentObject private var macEditorMenuActionsCoordinator: MacEditorMenuActionsCoordinator
 #endif
@@ -254,6 +255,10 @@ struct NoteEditorView: View {
                 proxy.onScripturePillKeyboardFocus = { ref, trans, range in
                     scripturePillTapped(reference: ref, translation: trans, range: range)
                 }
+                wireMacBodyEditingEndedHandler()
+            }
+            .onChange(of: note?.id) { _, _ in
+                wireMacBodyEditingEndedHandler()
             }
             .onReceive(NotificationCenter.default.publisher(for: .harvousToggleActivePillDockExpanded)) { _ in
                 guard studyDockStack.activeEntry != nil else { return }
@@ -438,8 +443,7 @@ struct NoteEditorView: View {
             if let n = note {
                 scheduleRefreshThreads(note: n)
             }
-            // Warm the Easton's slug index so the action bar's Look up button can probe
-            // synchronously while the user selects words.
+            // Warm the Easton's slug index so reference dock and inline suggestions can resolve entries.
             EastonsDictionaryService.shared.loadIndexIfNeeded()
         }
         // Auto-focus title when a brand-new empty note is opened (Apple Notes UX)
@@ -464,13 +468,6 @@ struct NoteEditorView: View {
         .onChange(of: isFolderContextUpdating) { _, updating in
             guard updating else { return }
             animateFolderTextReveal(from: previousChipPrimaryLabel, to: chipPrimaryLabel)
-        }
-        .onChange(of: proxy.singleWordSelection) { _, word in
-            // Speculative prefetch — by the time the user taps Look up, the in-memory entry
-            // cache is already warm and `EastonsEntryView.runFetch` short-circuits the spinner.
-            guard let word, !word.isEmpty else { return }
-            guard let slug = eastonsService.matchedSlug(forWord: word) else { return }
-            eastonsService.prefetchEntry(slug: slug)
         }
         .onChange(of: eastonsService.indexLoadState) { _, state in
             // Once the slug index is loaded (disk hit or network), prefetch entries for any
@@ -534,10 +531,6 @@ struct NoteEditorView: View {
                 // their retained context is the documented crash source.
                 guard isCurrentForStandaloneSelection else { return }
                 Task { @MainActor in consumeHighlightPrompt(payload) }
-            }
-            .onReceive(NotificationCenter.default.publisher(for: .harvousLookupWordRequested)) { payload in
-                guard isCurrentForStandaloneSelection else { return }
-                Task { @MainActor in consumeLookupWordRequested(payload) }
             }
             .onReceive(NotificationCenter.default.publisher(for: .harvousRequestInsertWikiLink)) { _ in
                 guard isCurrentForStandaloneSelection else { return }
@@ -648,30 +641,6 @@ struct NoteEditorView: View {
         highlightAnnotationAccent = .warmAmber
     }
 
-    private func consumeLookupWordRequested(_ notification: Notification) {
-        guard isCurrentForStandaloneSelection else { return }
-        guard let ui = notification.userInfo,
-              let idStr = ui[HarvousLookupWordRequestedUserInfo.parentNoteIdKey] as? String,
-              let nid = UUID(uuidString: idStr),
-              let current = note, current.id == nid,
-              let word = ui[HarvousLookupWordRequestedUserInfo.wordKey] as? String else { return }
-        let loc = (ui[HarvousLookupWordRequestedUserInfo.expandedLocationKey] as? NSNumber)?.intValue
-        let len = (ui[HarvousLookupWordRequestedUserInfo.expandedLengthKey] as? NSNumber)?.intValue
-        guard let loc, let len, len > 0 else { return }
-        let thread = ThreadStore.createReferenceHighlight(
-            parent: current,
-            spaceId: current.resolvedSpaceId(),
-            word: word,
-            expandedAnchorUTF16Range: NSRange(location: loc, length: len),
-            expandedPlainForAnchor: editorState.plainText,
-            modelContext: context
-        )
-        scheduleRefreshThreads(note: current)
-        // Open the highlight dock for the new reference — the dock renders the Easton's entry inline.
-        var stack = studyDockStack
-        stack.openOrFocusHighlight(threadId: thread.id)
-        studyDockStack = stack
-    }
 
     private func saveHighlightFromPanel(for note: Note) {
         guard let session = highlightCaptureSession, session.parentNoteId == note.id else { return }
@@ -908,11 +877,9 @@ struct NoteEditorView: View {
                 let intersectRemovals = threadIdsIntersectingCurrentBodySelection()
                 let clearFormatting = selectionIntersectsClearableRichFormatting()
                 let showErase = !intersectRemovals.isEmpty || clearFormatting
-                let showLookup = proxy.singleWordSelection
-                    .map { eastonsService.hasEntry(forWord: $0) } ?? false
                 // Base = Highlight + New Note + Connect (133pt) + horizontal padding (12).
-                // Each optional pill (Look up, Erase) adds 37pt (36 glyph + 0.5 divider + spacing).
-                let extras = (showLookup ? 37 : 0) + (showErase ? 37 : 0)
+                // Optional Erase pill adds 37pt (36 glyph + 0.5 divider + spacing).
+                let extras = showErase ? 37 : 0
                 let width: CGFloat = 133 + CGFloat(extras)
                 let x = selectionAccessoryX(rect: rect, containerWidth: horizontalClampWidth, width: width)
                 let y = selectionAccessoryY(rect: rect)
@@ -920,10 +887,6 @@ struct NoteEditorView: View {
                     if !intersectRemovals.isEmpty, clearFormatting { return "Erase highlight and formatting" }
                     if !intersectRemovals.isEmpty { return "Remove highlight from text" }
                     return "Clear bold, links, and other formatting"
-                }()
-                let lookupTarget: String? = {
-                    guard let w = proxy.singleWordSelection else { return nil }
-                    return eastonsService.hasEntry(forWord: w) ? w : nil
                 }()
                 SelectionActionBar(
                     morphNamespace: selectionAccessoryNamespace,
@@ -934,28 +897,6 @@ struct NoteEditorView: View {
                         }
                     },
                     onNewStandaloneNote: { proxy.triggerStandaloneNoteFromSelection?() },
-                    onLookup: lookupTarget.map { word in
-                        {
-                            guard let (_, storage) = proxy.textViewPair() else { return }
-                            let storageRange = proxy.bodySelectedUTF16Range
-                            guard case .success(let expRange) = HarvousStudyHighlightMapper.expandedRange(
-                                forStorageSelection: storageRange, in: storage
-                            ), expRange.length > 0 else { return }
-                            let thread = ThreadStore.createReferenceHighlight(
-                                parent: note,
-                                spaceId: note.resolvedSpaceId(),
-                                word: word,
-                                expandedAnchorUTF16Range: expRange,
-                                expandedPlainForAnchor: editorState.plainText,
-                                modelContext: context
-                            )
-                            scheduleRefreshThreads(note: note)
-                            // Open the highlight dock so the user sees the Easton's entry inline.
-                            var stack = studyDockStack
-                            stack.openOrFocusHighlight(threadId: thread.id)
-                            studyDockStack = stack
-                        }
-                    },
                     onEraseInlineFormatting: showErase
                         ? {
                             proxy.triggerRemoveIntersectingStudyHighlightsFromSelection?()
@@ -1477,6 +1418,8 @@ struct NoteEditorView: View {
             scripturePillPrefetchTask = nil
             reconcileStudyHighlightsTask?.cancel()
             reconcileStudyHighlightsTask = nil
+            bodySelectionHostChangedTask?.cancel()
+            bodySelectionHostChangedTask = nil
             refreshThreadsTask?.cancel()
             refreshThreadsTask = nil
             shiftHints.isEditorBodyFocused = false
@@ -1778,6 +1721,14 @@ struct NoteEditorView: View {
         }
     }
 
+    private func deleteCurrentNoteFromInspector() {
+        showInspector.wrappedValue = false
+        #if os(iOS)
+        showInspectorIOS = false
+        #endif
+        deleteCurrentNoteIfPossible()
+    }
+
     private func deleteCurrentNoteIfPossible() {
         guard let n = note else { return }
         autosave.cancel()
@@ -1864,22 +1815,23 @@ struct NoteEditorView: View {
     /// Persists the reference highlight; the saved reference then reopens as a normal highlight
     /// dock in the carousel. The suggestion underline disappears on the next repaint because the
     /// word is now inside a saved highlight (excluded by `ReferenceSuggestionPainter`).
-    private func saveReferenceFromPending(slug: String, storageRange: NSRange) {
+    private func saveReferenceFromPending(slug: String, headword: String, storageRange: NSRange) {
         guard let note else { return }
+        autosave.cancel()
+        persistEditorIntoNote(note)
         guard let (_, storage) = proxy.textViewPair() else { return }
-        guard case .success(let expRange) = HarvousStudyHighlightMapper.expandedRange(
-            forStorageSelection: storageRange, in: storage
-        ), expRange.length > 0 else { return }
-        let plain = editorState.plainText as NSString
-        guard expRange.location != NSNotFound, NSMaxRange(expRange) <= plain.length else { return }
-        let word = plain.substring(with: expRange)
-        guard !word.isEmpty else { return }
+        guard let payload = ReferenceSuggestionPainter.resolveSavePayload(
+            slug: slug,
+            headword: headword,
+            storageRange: storageRange,
+            storage: storage
+        ) else { return }
         let thread = ThreadStore.createReferenceHighlight(
             parent: note,
             spaceId: note.resolvedSpaceId(),
-            word: word,
-            expandedAnchorUTF16Range: expRange,
-            expandedPlainForAnchor: editorState.plainText,
+            word: payload.word,
+            expandedAnchorUTF16Range: payload.expRange,
+            expandedPlainForAnchor: payload.expandedPlain,
             modelContext: context
         )
         scheduleRefreshThreads(note: note)
@@ -1961,6 +1913,13 @@ struct NoteEditorView: View {
                     highlightEntryKind: studyDockHighlightEntryKind(for: entry)
                 )
             },
+            collapsedHeaderChip: { entry in
+                studyDockCollapsedHeaderChip(
+                    entry: entry,
+                    highlightEntryKind: studyDockHighlightEntryKind(for: entry),
+                    referenceSlugByThreadId: studyDockReferenceSlugByThreadId()
+                )
+            },
             collapsedAccentTint: { entry in
                 studyDockCarouselAccentTint(note: note, entry: entry)
             },
@@ -1995,6 +1954,18 @@ struct NoteEditorView: View {
             if !title.isEmpty {
                 map[threadId] = title
             }
+        }
+        return map
+    }
+
+    private func studyDockReferenceSlugByThreadId() -> [UUID: String] {
+        var map: [UUID: String] = [:]
+        for entry in studyDockStack.entries {
+            guard case .highlight(let threadId) = entry.payload,
+                  let thread = ThreadStore.fetch(id: threadId, modelContext: context),
+                  thread.entryKind == .reference else { continue }
+            let word = thread.sourceSnippet.trimmingCharacters(in: .whitespacesAndNewlines)
+            map[threadId] = EastonsDictionaryService.shared.matchedSlug(forWord: word) ?? word.lowercased()
         }
         return map
     }
@@ -2050,13 +2021,13 @@ struct NoteEditorView: View {
             activeScripturePillDockContent(note: note, item: item, entryId: entry.id, isActive: isActive)
         case .highlight(let threadId):
             activeHighlightDockContent(note: note, threadId: threadId, entryId: entry.id, isActive: isActive)
-        case .pendingReference(let slug, _, let storageRange):
+        case .pendingReference(let slug, let headword, let storageRange):
             PendingReferenceDock(
                 slug: slug,
                 isExpanded: isActive ? dockExpandedBinding(entryId: entry.id) : .constant(false),
                 onSave: {
                     closeStudyDockEntry(id: entry.id)
-                    saveReferenceFromPending(slug: slug, storageRange: storageRange)
+                    saveReferenceFromPending(slug: slug, headword: headword, storageRange: storageRange)
                 },
                 onDismiss: { closeStudyDockEntry(id: entry.id) }
             )
@@ -2220,20 +2191,37 @@ struct NoteEditorView: View {
     }
 
     private func reconcileStudyHighlightsPainting(for note: Note) {
+#if os(macOS)
+        // Freeze paint-list updates while the user is typing — range reconciliation on every
+        // keystroke was re-entering `updateNSView` and stalling NSTextView caret layout.
+        if proxy.isActivelyEditingBody { return }
+#endif
         let rows = ThreadStore.fetchAnchoredHighlights(parentNoteId: note.id, modelContext: context)
         let plain = editorState.plainText
-        studyHighlightPaints =
-            rows.compactMap { row in
+        let nextPaints: [StudyHighlightPaint] =
+            rows.compactMap { row -> StudyHighlightPaint? in
                 guard let rr = row.resolveHighlightRangeAgainstExpandedBody(plain) else { return nil }
                 let accent = StudyHighlightAccentToken.decoding(row.highlightAccentRaw)
                 return StudyHighlightPaint(threadId: row.id, entryKind: row.entryKind, accent: accent, expandedUTF16Range: rr)
             }
-            .sorted {
-                let lhs = $0.expandedUTF16Range.location
-                let rhs = $1.expandedUTF16Range.location
-                if lhs != rhs { return lhs < rhs }
-                return $0.threadId.uuidString < $1.threadId.uuidString
+            .sorted { lhs, rhs in
+                let lhsLoc = lhs.expandedUTF16Range.location
+                let rhsLoc = rhs.expandedUTF16Range.location
+                if lhsLoc != rhsLoc { return lhsLoc < rhsLoc }
+                return lhs.threadId.uuidString < rhs.threadId.uuidString
             }
+        let nextSignature = HarvousStudyHighlightMapper.studyHighlightPaintSignature(
+            paints: nextPaints,
+            focusedThreadId: nil,
+            isDark: colorScheme == .dark
+        )
+        let currentSignature = HarvousStudyHighlightMapper.studyHighlightPaintSignature(
+            paints: studyHighlightPaints,
+            focusedThreadId: nil,
+            isDark: colorScheme == .dark
+        )
+        guard nextSignature != currentSignature else { return }
+        studyHighlightPaints = nextPaints
         // Read-only paint reconciliation; never persist here (was calling `saveWithLogging` on every body
         // change and note switch — main-thread stalls and SwiftData contention with no model mutations).
     }
@@ -2275,7 +2263,10 @@ struct NoteEditorView: View {
     /// Defer past layout — `bodySelectionChangeToken` tracks `EditorProxy` selection; mutating `@State` in the
     /// same turn triggers SwiftUI “Modifying state during view update” (see `scheduleSyncIOSNoteFooterSupplement`).
     private func scheduleOnBodySelectionHostChanged() {
-        DispatchQueue.main.async {
+        bodySelectionHostChangedTask?.cancel()
+        bodySelectionHostChangedTask = Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(60))
+            guard !Task.isCancelled else { return }
             onBodySelectionHostChanged()
         }
     }
@@ -2296,10 +2287,16 @@ struct NoteEditorView: View {
             return true
         }
         studyDockStack = stack
-        if let n = note { reconcileStudyHighlightsPainting(for: n) }
     }
 
 #if os(macOS)
+    private func wireMacBodyEditingEndedHandler() {
+        proxy.onBodyEditingEnded = { [noteId = note?.id] in
+            guard let n = note, n.id == noteId else { return }
+            reconcileStudyHighlightsPainting(for: n)
+        }
+    }
+
     private func createConnectedNoteFromKeyboard() {
         guard let parent = note else { return }
         autosave.cancel()
@@ -2441,7 +2438,8 @@ struct NoteEditorView: View {
             snapshot: trailSnapshot,
             currentNoteTitle: resolvedTitle,
             onOpenLinkedNote: { id in openNoteInPlace(id: id) },
-            onConnectionsChanged: { scheduleRefreshThreads(note: note) }
+            onConnectionsChanged: { scheduleRefreshThreads(note: note) },
+            onDeleteConfirmed: { deleteCurrentNoteFromInspector() }
         )
         .inspectorColumnWidth(min: 240, ideal: 280, max: 320)
         #else
@@ -2453,7 +2451,8 @@ struct NoteEditorView: View {
                 snapshot: trailSnapshot,
                 currentNoteTitle: resolvedTitle,
                 onOpenLinkedNote: { id in openNoteInPlace(id: id) },
-                onConnectionsChanged: { scheduleRefreshThreads(note: note) }
+                onConnectionsChanged: { scheduleRefreshThreads(note: note) },
+                onDeleteConfirmed: { deleteCurrentNoteFromInspector() }
             )
             .navigationTitle("Note Details")
             .navigationBarTitleDisplayMode(.inline)

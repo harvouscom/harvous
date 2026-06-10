@@ -3,9 +3,16 @@ import SwiftUI
 // MARK: - Daily passage pill list scroll reserve (macOS sidebar + iOS lists)
 
 enum HarvousDailyPassagePillListLayout {
-    /// Pill card (~72pt) + 12pt gap above iOS search row — used when the pill is pinned below a `List`
-    /// but does not propagate into scroll content insets (macOS sidebar `Spacer` layout, iOS floating chrome, etc.).
-    static let bottomScrollReserve: CGFloat = 84
+    /// `DailyPassagePill.cardContent` — eyebrow, reference (up to 2 lines), orbs, interior padding.
+    static let estimatedCardHeight: CGFloat = 72
+    /// `SidebarPanelView` overlay — `.padding(.bottom, 8)` under the floating pill.
+    static let sidebarOverlayBottomPadding: CGFloat = 8
+    /// Small gap so the last row clears the card shadow, not just the fill.
+    static let scrollClearanceGap: CGFloat = 4
+    /// Bottom inset for any list/scroll surface under a floating daily-passage pill (macOS + iPad sidebar).
+    static let bottomScrollReserve: CGFloat = estimatedCardHeight + sidebarOverlayBottomPadding + scrollClearanceGap
+    /// iOS tab hubs: pill sits above morphing chrome in `safeAreaInset` — same card reserve applies.
+    static let iosFloatingPillScrollReserve: CGFloat = bottomScrollReserve
 }
 
 /// Adds bottom scroll-content inset so the last `List` row clears the daily-passage pill when visible.
@@ -27,6 +34,27 @@ struct HarvousListDailyPassagePillScrollReserveModifier: ViewModifier {
 extension View {
     func harvousListDailyPassagePillScrollReserve() -> some View {
         modifier(HarvousListDailyPassagePillScrollReserveModifier())
+    }
+
+    /// Bottom padding inside `ScrollView` content (e.g. `LazyVGrid`) when `contentMargins` on the
+    /// scroll view is unreliable. Pair with `harvousListDailyPassagePillScrollReserve()` on `List` only.
+    func harvousDailyPassagePillScrollContentBottomPadding() -> some View {
+        modifier(HarvousDailyPassagePillScrollContentBottomPaddingModifier())
+    }
+}
+
+/// Padding at the end of scroll *content* — use on grid stacks inside `ScrollView`, not on `List`.
+private struct HarvousDailyPassagePillScrollContentBottomPaddingModifier: ViewModifier {
+    @AppStorage(VotdService.passageCardDismissedDayUserDefaultsKey) private var dismissedDay: String = ""
+
+    private var bottomPadding: CGFloat {
+        dismissedDay != VotdService.todayCalendarDayKey()
+            ? HarvousDailyPassagePillListLayout.bottomScrollReserve
+            : 0
+    }
+
+    func body(content: Content) -> some View {
+        content.padding(.bottom, bottomPadding)
     }
 }
 
@@ -117,6 +145,13 @@ enum HarvousIOSMorphingChromeLayout {
     /// Extra bottom inset reserved above the chrome row when the daily-passage pill is visible.
     /// See `HarvousDailyPassagePillListLayout.bottomScrollReserve` for the shared constant.
     static let dailyPassagePillBottomScrollReserve: CGFloat = HarvousDailyPassagePillListLayout.bottomScrollReserve
+
+    /// Bottom scroll inset for tab-hub `List` rows and grid scroll content under floating chrome + pill.
+    static func listBottomChromeScrollReserve(pillVisible: Bool) -> CGFloat {
+        let chromeReserve = morphingChromeFooterOccupiedHeightAboveMainColumnBottom
+        let pillReserve: CGFloat = pillVisible ? HarvousDailyPassagePillListLayout.iosFloatingPillScrollReserve : 0
+        return chromeReserve + pillReserve
+    }
 }
 
 /// Adds the right amount of bottom scroll-content inset to a vertical `List` so its last
@@ -131,9 +166,7 @@ struct IOSListBottomChromeReserveModifier: ViewModifier {
     }
 
     private var bottomReserve: CGFloat {
-        let chromeReserve = HarvousIOSMorphingChromeLayout.morphingChromeFooterOccupiedHeightAboveMainColumnBottom
-        let pillReserve: CGFloat = pillVisible ? HarvousDailyPassagePillListLayout.bottomScrollReserve : 0
-        return chromeReserve + pillReserve
+        HarvousIOSMorphingChromeLayout.listBottomChromeScrollReserve(pillVisible: pillVisible)
     }
 
     func body(content: Content) -> some View {
@@ -141,10 +174,30 @@ struct IOSListBottomChromeReserveModifier: ViewModifier {
     }
 }
 
+/// Bottom padding at the end of `ScrollView` content (e.g. collection grids) under floating chrome.
+private struct IOSListBottomChromeScrollContentBottomPaddingModifier: ViewModifier {
+    @AppStorage(VotdService.passageCardDismissedDayUserDefaultsKey) private var dismissedDay: String = ""
+
+    private var bottomPadding: CGFloat {
+        HarvousIOSMorphingChromeLayout.listBottomChromeScrollReserve(
+            pillVisible: dismissedDay != VotdService.todayCalendarDayKey()
+        )
+    }
+
+    func body(content: Content) -> some View {
+        content.padding(.bottom, bottomPadding)
+    }
+}
+
 extension View {
     /// iOS-only — see `IOSListBottomChromeReserveModifier`.
     func iosListBottomChromeReserve() -> some View {
         modifier(IOSListBottomChromeReserveModifier())
+    }
+
+    /// iOS-only — bottom padding inside `ScrollView` grid/list content under floating chrome + pill.
+    func iosListBottomChromeScrollContentBottomPadding() -> some View {
+        modifier(IOSListBottomChromeScrollContentBottomPaddingModifier())
     }
 }
 

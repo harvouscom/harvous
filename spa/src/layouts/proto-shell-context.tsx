@@ -4,9 +4,11 @@ import { PROTO_PANEL_EXIT_MS } from './proto-motion';
 /** Breakpoint sync with prototype-shell.css (899px drawer). */
 const MOBILE_MQ = '(max-width: 899px)';
 const PROTO_SIDEBAR_WIDTH_STORAGE_KEY = 'harvous-prototype-sidebar-width';
-export const PROTO_SIDEBAR_WIDTH_DEFAULT = 280;
-export const PROTO_SIDEBAR_WIDTH_MIN = 250;
+export const PROTO_SIDEBAR_WIDTH_DEFAULT = 260;
+export const PROTO_SIDEBAR_WIDTH_MIN = 260;
 export const PROTO_SIDEBAR_WIDTH_MAX = 420;
+/** Native `SidebarToolbarLayout.narrowColumnToolbarSuppressBelow`. */
+export const PROTO_SIDEBAR_TOOLBAR_SUPPRESS_BELOW = 210;
 
 function clampSidebarWidth(width: number) {
   return Math.min(PROTO_SIDEBAR_WIDTH_MAX, Math.max(PROTO_SIDEBAR_WIDTH_MIN, width));
@@ -25,16 +27,17 @@ function readStoredSidebarWidth() {
   }
 }
 
-export type SidebarListMode = 'notes' | 'folders' | 'highlights' | 'scripture' | 'dictionary' | 'threads';
+export type SidebarListMode = 'notes' | 'folders' | 'highlights' | 'scripture' | 'threads';
 
 const SIDEBAR_LIST_MODE_STORAGE_KEY = 'harvous-prototype-sidebar-list-mode';
 const SIDEBAR_LIST_MODE_DEFAULT: SidebarListMode = 'notes';
-const VALID_MODES = new Set<SidebarListMode>(['notes', 'folders', 'highlights', 'scripture', 'dictionary', 'threads']);
+const VALID_MODES = new Set<SidebarListMode>(['notes', 'folders', 'highlights', 'scripture', 'threads']);
 
 function readStoredSidebarListMode(): SidebarListMode {
   if (typeof window === 'undefined') return SIDEBAR_LIST_MODE_DEFAULT;
   try {
     const raw = localStorage.getItem(SIDEBAR_LIST_MODE_STORAGE_KEY);
+    if (raw === 'dictionary') return SIDEBAR_LIST_MODE_DEFAULT;
     if (raw && VALID_MODES.has(raw as SidebarListMode)) return raw as SidebarListMode;
   } catch { /* ignore */ }
   return SIDEBAR_LIST_MODE_DEFAULT;
@@ -109,9 +112,6 @@ type ProtoShellContextValue = {
   setSidebarListMode: (mode: SidebarListMode) => void;
   sidebarFolderDrilldown: SidebarFolderDrilldown;
   setSidebarFolderDrilldown: (value: SidebarFolderDrilldown) => void;
-  /** Active dictionary entry slug when drilled into a Easton's entry in the sidebar. */
-  sidebarDictionarySlug: string | undefined;
-  setSidebarDictionarySlug: (slug: string | undefined) => void;
   /** Representative note ID of the drilled thread cluster; undefined = showing cluster list. */
   sidebarThreadDrilldownId: string | undefined;
   setSidebarThreadDrilldownId: (id: string | undefined) => void;
@@ -134,6 +134,12 @@ type ProtoShellContextValue = {
   /** Expanded thread → inspector (note details); does not leave a docked thread panel. */
   backFromThreadPanelToInspector: (options?: { popHistory?: boolean }) => void;
   setPrototypeFolderChip: (value: PrototypeFolderChip | null) => void;
+  /** Backend note id after first autosave on `/n/new` — before URL replace. */
+  composePersistedNoteId: string | null;
+  setComposePersistedNoteId: (noteId: string | null) => void;
+  /** Bumped on each explicit compose action so `/n/new` gets a fresh editor session. */
+  composeSessionEpoch: number;
+  beginPrototypeComposeSession: () => number;
   standaloneScripturePassage: StandaloneScripturePassageState | null;
   openStandaloneScripturePassage: (value: StandaloneScripturePassageState) => void;
   dismissStandaloneScripturePassage: () => void;
@@ -177,9 +183,10 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
   const sidebarExitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [sidebarListMode, setSidebarListModeState] = useState<SidebarListMode>(readStoredSidebarListMode);
   const [sidebarFolderDrilldown, setSidebarFolderDrilldown] = useState<SidebarFolderDrilldown>(undefined);
-  const [sidebarDictionarySlug, setSidebarDictionarySlug] = useState<string | undefined>(undefined);
   const [sidebarThreadDrilldownId, setSidebarThreadDrilldownId] = useState<string | undefined>(undefined);
   const [prototypeFolderChip, setPrototypeFolderChipState] = useState<PrototypeFolderChip | null>(null);
+  const [composePersistedNoteId, setComposePersistedNoteIdState] = useState<string | null>(null);
+  const [composeSessionEpoch, setComposeSessionEpoch] = useState(0);
   const [standaloneScripturePassage, setStandaloneScripturePassage] = useState<StandaloneScripturePassageState | null>(
     null,
   );
@@ -194,10 +201,15 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
     const sync = () => {
       const mobile = mq.matches;
       setIsMobileSidebar(mobile);
-      setDrawerOpen(!mobile ? true : false);
-      // Don't touch desktopSidebarCollapsed here: collapse is a desktop-only
-      // user action, so returning to desktop must preserve it rather than
-      // force the sidebar back open (it was clobbering the user's collapse).
+      if (mobile) {
+        setDrawerOpen(false);
+        setDesktopSidebarCollapsed(false);
+        if (sidebarExitTimerRef.current) clearTimeout(sidebarExitTimerRef.current);
+        sidebarExitTimerRef.current = null;
+        setSidebarExiting(false);
+      } else {
+        setDrawerOpen(true);
+      }
     };
     sync();
     mq.addEventListener('change', sync);
@@ -274,7 +286,6 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
     setSidebarListModeState(mode);
     try { localStorage.setItem(SIDEBAR_LIST_MODE_STORAGE_KEY, mode); } catch { /* ignore */ }
     if (mode !== 'folders') setSidebarFolderDrilldown(undefined);
-    if (mode !== 'dictionary') setSidebarDictionarySlug(undefined);
     if (mode !== 'threads') setSidebarThreadDrilldownId(undefined);
   }, []);
   const ensureSidebarExpanded = useCallback(() => {
@@ -416,6 +427,18 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
   const setPrototypeFolderChip = useCallback((value: PrototypeFolderChip | null) => {
     setPrototypeFolderChipState((prev) => (prototypeFolderChipsEqual(prev, value) ? prev : value));
   }, []);
+  const setComposePersistedNoteId = useCallback((noteId: string | null) => {
+    setComposePersistedNoteIdState((prev) => (prev === noteId ? prev : noteId));
+  }, []);
+  const beginPrototypeComposeSession = useCallback(() => {
+    setComposePersistedNoteIdState(null);
+    let next = 0;
+    setComposeSessionEpoch((prev) => {
+      next = prev + 1;
+      return next;
+    });
+    return next;
+  }, []);
   const openStandaloneScripturePassage = useCallback((value: StandaloneScripturePassageState) => {
     setStandaloneScripturePassage(value);
   }, []);
@@ -442,8 +465,6 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
       setSidebarListMode,
       sidebarFolderDrilldown,
       setSidebarFolderDrilldown,
-      sidebarDictionarySlug,
-      setSidebarDictionarySlug,
       sidebarThreadDrilldownId,
       setSidebarThreadDrilldownId,
       ensureSidebarExpanded,
@@ -460,6 +481,10 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
       expandThreadPanel,
       backFromThreadPanelToInspector,
       setPrototypeFolderChip,
+      composePersistedNoteId,
+      setComposePersistedNoteId,
+      composeSessionEpoch,
+      beginPrototypeComposeSession,
       standaloneScripturePassage,
       openStandaloneScripturePassage,
       dismissStandaloneScripturePassage,
@@ -488,8 +513,6 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
       setSidebarListMode,
       sidebarFolderDrilldown,
       setSidebarFolderDrilldown,
-      sidebarDictionarySlug,
-      setSidebarDictionarySlug,
       sidebarThreadDrilldownId,
       ensureSidebarExpanded,
       inspectorOpen,
@@ -505,6 +528,10 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
       expandThreadPanel,
       backFromThreadPanelToInspector,
       setPrototypeFolderChip,
+      composePersistedNoteId,
+      setComposePersistedNoteId,
+      composeSessionEpoch,
+      beginPrototypeComposeSession,
       standaloneScripturePassage,
       openStandaloneScripturePassage,
       dismissStandaloneScripturePassage,

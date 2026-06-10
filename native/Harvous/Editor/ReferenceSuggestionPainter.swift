@@ -9,7 +9,7 @@ import UIKit
 // MARK: - Inline reference suggestions (native)
 //
 // Mirrors the web `TiptapReferenceSuggestion` extension. As the user types, words they
-// already have saved material for — for now Easton's Bible Dictionary people/places — get a
+// already have saved material for — for now Easton's Bible Dictionary entries — get a
 // faint DOTTED underline hint. The hint is presentation-only: it is painted onto the live
 // `NSTextStorage` exactly like `HarvousStudyHighlightMapper.applyHighlights`, and like that
 // painting it is stripped/reapplied and never reaches serialized `note.body`
@@ -29,8 +29,11 @@ enum ReferenceSuggestionPainter {
     /// Tunable — keep in sync with the web `REFERENCE_SUGGESTION_STOPLIST`.
     static let stoplist: Set<String> = ["god", "lord", "jesus", "christ", "spirit"]
 
-    /// Categories surfaced as suggestions. Proper-noun signal only — `thing` is too noisy.
-    static let suggestionCategories: Set<String> = ["person", "place"]
+    /// Minimum token length — keep in sync with web `REFERENCE_SUGGESTION_MIN_LENGTH`.
+    static let minLength = 3
+
+    /// Honorific tokens before a capitalized name — keep in sync with web `PERSON_NAME_HONORIFIC_PREFIXES`.
+    static let honorificPrefixes = PersonNameContextGate.honorificPrefixes
 
     /// True when the first character is an uppercase letter (proper-noun gate).
     static func isCapitalized(_ word: String) -> Bool {
@@ -42,19 +45,28 @@ enum ReferenceSuggestionPainter {
     /// Pure aside from the (main-actor) dictionary lookup, so it is unit-testable.
     static func suggestedSlug(
         for word: String,
-        lookup: (String) -> String?
+        entryLookup: (String) -> EastonsSlugIndexEntry?
     ) -> String? {
-        guard isCapitalized(word) else { return nil }
+        guard word.count >= minLength else { return nil }
         if stoplist.contains(word.lowercased()) { return nil }
-        return lookup(word)
+        guard let entry = entryLookup(word) else { return nil }
+        guard entry.headword.count >= minLength else { return nil }
+        if entry.category == "thing" {
+            return entry.slug
+        }
+        guard isCapitalized(word) else { return nil }
+        return entry.slug
     }
 
-    /// Convenience over the shared dictionary service: returns the slug when `word` resolves to
-    /// a capitalized, non-stoplisted `person`/`place` entry.
-    private static func serviceLookup(_ word: String) -> String? {
-        guard let entry = EastonsDictionaryService.shared.matchedEntry(forWord: word) else { return nil }
-        guard let category = entry.category, suggestionCategories.contains(category) else { return nil }
-        return entry.slug
+    /// Skip dotted hints when the token looks like a person name in running prose (honorific prefix
+    /// and/or a capitalized surname following). Keep in sync with web `shouldSkipPersonNameContext`.
+    static func shouldSkipPersonNameContext(in string: String, wordRange: Range<String.Index>) -> Bool {
+        PersonNameContextGate.shouldSkip(in: string, wordRange: wordRange)
+    }
+
+    /// Convenience over the shared dictionary service: returns the matched index row for `word`.
+    private static func serviceLookup(_ word: String) -> EastonsSlugIndexEntry? {
+        EastonsDictionaryService.shared.matchedEntry(forWord: word)
     }
 
     // MARK: - Paint / cleanup
@@ -98,7 +110,8 @@ enum ReferenceSuggestionPainter {
 
         string.enumerateSubstrings(in: string.startIndex..<string.endIndex, options: .byWords) { sub, subRange, _, _ in
             guard let word = sub, !word.isEmpty else { return }
-            guard let slug = suggestedSlug(for: word, lookup: serviceLookup) else { return }
+            guard let slug = suggestedSlug(for: word, entryLookup: serviceLookup) else { return }
+            if shouldSkipPersonNameContext(in: string, wordRange: subRange) { return }
             let nsRange = NSRange(subRange, in: string)
             guard nsRange.location != NSNotFound, NSMaxRange(nsRange) <= storage.length else { return }
             // Skip words already inside a saved highlight or a scripture pill / attachment.
@@ -120,5 +133,59 @@ enum ReferenceSuggestionPainter {
             return nil
         }
         return (slug, eff)
+    }
+
+    // MARK: - Save payload (pending suggestion → anchored reference highlight)
+
+    /// Re-resolve the live suggestion run at save time (stored range may be stale after edits).
+    static func resolveLiveStorageRange(slug: String, fallback: NSRange, in storage: NSTextStorage) -> NSRange? {
+        guard fallback.length > 0, fallback.location != NSNotFound, NSMaxRange(fallback) <= storage.length else {
+            return nil
+        }
+        let mid = fallback.location + fallback.length / 2
+        for probe in [fallback.location, mid] {
+            if let hit = suggestionAt(storageUTF16Index: probe, in: storage), hit.slug == slug {
+                return hit.range
+            }
+        }
+        var nearest: (range: NSRange, distance: Int)?
+        storage.enumerateAttribute(.harvousReferenceSuggestion, in: NSRange(location: 0, length: storage.length), options: []) { value, range, _ in
+            guard (value as? String) == slug else { return }
+            let distance = abs(range.location - fallback.location)
+            if nearest == nil || distance < nearest!.distance {
+                nearest = (range, distance)
+            }
+        }
+        if let nearest, nearest.distance <= 64 {
+            return nearest.range
+        }
+        if storage.attribute(.harvousReferenceSuggestion, at: fallback.location, effectiveRange: nil) != nil {
+            return fallback
+        }
+        return nil
+    }
+
+    /// Maps a pending suggestion tap into anchor text + expanded-plain coordinates from live storage.
+    static func resolveSavePayload(
+        slug: String,
+        headword: String,
+        storageRange: NSRange,
+        storage: NSTextStorage
+    ) -> (word: String, expRange: NSRange, expandedPlain: String)? {
+        guard let liveRange = resolveLiveStorageRange(slug: slug, fallback: storageRange, in: storage) else { return nil }
+        guard case .success(let expRange) = HarvousStudyHighlightMapper.expandedRange(forStorageSelection: liveRange, in: storage),
+              expRange.length > 0 else { return nil }
+        let expandedPlain = harvousExpandedPlainText(in: storage)
+        let nsExpanded = expandedPlain as NSString
+        guard expRange.location != NSNotFound, NSMaxRange(expRange) <= nsExpanded.length else { return nil }
+        var word = nsExpanded.substring(with: expRange).trimmingCharacters(in: .whitespacesAndNewlines)
+        if word.isEmpty {
+            word = headword
+        } else if EastonsDictionaryService.shared.matchedSlug(forWord: word) == nil,
+                  EastonsDictionaryService.shared.slugIndex[slug] != nil {
+            word = headword
+        }
+        guard !word.isEmpty else { return nil }
+        return (word, expRange, expandedPlain)
     }
 }

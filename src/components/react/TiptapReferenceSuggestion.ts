@@ -4,12 +4,17 @@ import { Decoration, DecorationSet } from '@tiptap/pm/view';
 import type { Node as PMNode } from '@tiptap/pm/model';
 import { lookupWord, type EastonCategory } from '../../../spa/src/hooks/useEastonsSlugIndex';
 import { getBookNameVariations } from '@/utils/scripture-detector';
+import {
+  isCapitalizedToken,
+  shouldSkipPersonNameContext,
+  PERSON_NAME_HONORIFIC_PREFIXES,
+} from '@/utils/person-name-context';
 
 /**
  * Inline reference suggestions ("dotted underline" hints) while typing.
  *
  * As the user writes, words that match something they already have saved — for now,
- * Easton's Bible Dictionary people/places — get a faint, ephemeral underline. The hint is
+ * Easton's Bible Dictionary entries — get a faint, ephemeral underline. The hint is
  * NEVER written into note content: it's a ProseMirror decoration computed at render time
  * from a live scan of the document. Only when the user taps the hint and chooses "Save
  * reference" does it become a persisted `data-reference` highlight mark (handled in
@@ -49,19 +54,33 @@ export const REFERENCE_SUGGESTION_STOPLIST = new Set<string>([
   'spirit',
 ]);
 
-/** Categories we surface as suggestions. Proper-noun signal only — `thing` is too noisy. */
-const SUGGESTION_CATEGORIES = new Set<EastonCategory>(['person', 'place']);
+/** Minimum headword / token length — skips ultra-short index entries like "A" or "Ai". */
+export const REFERENCE_SUGGESTION_MIN_LENGTH = 3;
+
+/** True when an Easton's row is long enough to surface as a suggestion. */
+export function isSuggestibleEastonEntry(entry: { headword: string }): boolean {
+  return entry.headword.length >= REFERENCE_SUGGESTION_MIN_LENGTH;
+}
+
+/** Honorific tokens before a capitalized name — keep in sync with native `PersonNameContextGate`. */
+export const REFERENCE_SUGGESTION_HONORIFIC_PREFIXES = PERSON_NAME_HONORIFIC_PREFIXES;
 
 /** True when the first letter is an uppercase letter (proper-noun gate). */
 export function isCapitalizedWord(word: string): boolean {
-  const first = word.charAt(0);
-  return first !== '' && first === first.toUpperCase() && first !== first.toLowerCase();
+  return isCapitalizedToken(word);
+}
+
+/** Person/place keep the capitalized proper-noun gate; things match in any case. */
+function entryAllowsTokenCase(category: EastonCategory, word: string): boolean {
+  if (category === 'thing') return true;
+  return isCapitalizedWord(word);
 }
 
 /**
- * Dictionary provider: suggests a word only when it is capitalized, not stoplisted, and
- * resolves to an Easton's `person`/`place` entry. `getIndex` is read lazily so the
- * provider works before the index has finished loading.
+ * Dictionary provider: suggests when the token and matched Easton's row meet length
+ * gates, the word is not stoplisted, and person/place tokens are capitalized (things
+ * match regardless of case). `getIndex` is read lazily so the provider works before
+ * the index has finished loading.
  */
 export function createDictionaryReferenceProvider(
   getIndex: () => EastonsIndex,
@@ -69,11 +88,11 @@ export function createDictionaryReferenceProvider(
   return {
     type: 'dictionary',
     match(word) {
-      if (!isCapitalizedWord(word)) return null;
+      if (word.length < REFERENCE_SUGGESTION_MIN_LENGTH) return null;
       if (REFERENCE_SUGGESTION_STOPLIST.has(word.toLowerCase())) return null;
       const entry = lookupWord(word, getIndex());
-      if (!entry) return null;
-      if (!SUGGESTION_CATEGORIES.has(entry.category)) return null;
+      if (!entry || !isSuggestibleEastonEntry(entry)) return null;
+      if (!entryAllowsTokenCase(entry.category, word)) return null;
       return { type: 'dictionary', word, slug: entry.slug };
     },
   };
@@ -102,6 +121,8 @@ function isLikelyScriptureReferenceInProgress(word: string, text: string, wordEn
   return /^\s*\d/.test(after);
 }
 
+export { shouldSkipPersonNameContext } from '@/utils/person-name-context';
+
 /**
  * Build the decoration set for the whole document. Words inside excluded marks are
  * skipped wholesale (marks span entire text-node runs).
@@ -128,6 +149,7 @@ export function buildReferenceSuggestionDecorations(
       }
       if (!match) continue;
       if (isLikelyScriptureReferenceInProgress(word, text, m.index + word.length)) continue;
+      if (shouldSkipPersonNameContext(word, text, m.index, m.index + word.length)) continue;
       const from = pos + m.index;
       const to = from + word.length;
       const attrs: Record<string, string> = {

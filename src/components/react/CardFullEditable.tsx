@@ -33,7 +33,14 @@ import {
   suggestSecondaryCollectionsFromNote,
 } from '@/utils/bible-study-collection-web';
 import { noteFolderChipDisplayState } from '@/utils/note-folder-display';
+import { isPrototypeNoteEditorFocused } from '@/utils/prototype-editor-focused';
+import { isPrototypeDraftPersistNoteIdSwap } from '@/utils/prototype-compose-url';
+import { shouldAllowPrimaryFolderUpdate } from '@/utils/should-allow-primary-folder-update';
 import { stripServerAutoUntitledNoteTitleForDisplay } from '@/utils/server-auto-untitled-note-display';
+
+function plainBodyFromHtml(html: string): string {
+  return html.replace(/<[^>]*>/g, ' ').replace(/&nbsp;/gi, ' ').replace(/\s+/g, ' ').trim();
+}
 
 // Prototype notes use alwaysEditing — load TipTap synchronously so the body is typeable on first paint.
 import TiptapEditorEager from './TiptapEditor';
@@ -324,12 +331,16 @@ export default function CardFullEditable({
   // in-flight save's `finally` block checks this and re-fires protoSaveAsync so
   // trailing edits (typed during a save, or captured by unmount cleanup) aren't lost.
   const protoPendingFlushRef = useRef(false);
+  const folderSuggestSnapshotRef = useRef<{ title: string; body: string }>({ title: '', body: '' });
   const protoSaveAsyncRef = useRef<(opts?: { fromUnmount?: boolean }) => Promise<void>>(async () => {});
   const onSaveRef = useRef(onSave);
   onSaveRef.current = onSave;
   const noteIdRef = useRef(noteId);
   noteIdRef.current = noteId;
+
   const prevNoteIdForEditGuardRef = useRef(noteId);
+  const prevNoteIdForProtoResetRef = useRef(noteId);
+  const prevNoteIdForFolderOpenRef = useRef(noteId);
   const seededEditorForNoteRef = useRef<string | null>(null);
   const handledPersistRemountTickRef = useRef(-1);
   /** User clicked/tapped the body editor — skip any title auto-focus intent for this note. */
@@ -406,9 +417,8 @@ export default function CardFullEditable({
 
   useEffect(() => {
     if (editorChromeMode === 'prototypeNative' && alwaysEditing) {
-      const inBodyEditor =
-        typeof document !== 'undefined' && !!document.activeElement?.closest('.ProseMirror');
-      if (inBodyEditor) return;
+      if (isPrototypeNoteEditorFocused()) return;
+      if (protoPendingFlushRef.current || protoIsSavingRef.current) return;
     }
     setCollectionChrome((prev) => {
       const next = buildCollectionChromeFromInitialProps();
@@ -424,6 +434,11 @@ export default function CardFullEditable({
   // Prototype: apply auto folder once when a note opens (automatic mode), before first autosave.
   useEffect(() => {
     if (editorChromeMode !== 'prototypeNative') return;
+    const prev = prevNoteIdForFolderOpenRef.current;
+    prevNoteIdForFolderOpenRef.current = noteId;
+    if (isPrototypeDraftPersistNoteIdSwap(prev, noteId) && userEditedSinceOpenRef.current) {
+      return;
+    }
     const initialTitle =
       noteType === 'default'
         ? stripServerAutoUntitledNoteTitleForDisplay(title)
@@ -447,10 +462,26 @@ export default function CardFullEditable({
 
   // Reset proto save tracking on note switch so first edit always triggers a save
   useEffect(() => {
-    protoLastSavedRef.current = null;
-    protoIsSavingRef.current = false;
-    protoPendingFlushRef.current = false;
-  }, [noteId]);
+    const prev = prevNoteIdForProtoResetRef.current;
+    prevNoteIdForProtoResetRef.current = noteId;
+    const isDraftPersistSwap =
+      editorChromeMode === 'prototypeNative' &&
+      alwaysEditing &&
+      isPrototypeDraftPersistNoteIdSwap(prev, noteId);
+    if (!isDraftPersistSwap) {
+      protoLastSavedRef.current = null;
+      protoIsSavingRef.current = false;
+      protoPendingFlushRef.current = false;
+      const initialTitle =
+        noteType === 'default'
+          ? stripServerAutoUntitledNoteTitleForDisplay(title)
+          : (title ?? '');
+      folderSuggestSnapshotRef.current = {
+        title: initialTitle,
+        body: plainBodyFromHtml(content ?? ''),
+      };
+    }
+  }, [noteId, noteType, title, content, editorChromeMode, alwaysEditing]);
 
   const onPrototypeScripturePillOpenRequestConsumed = useCallback(() => {
     setPrototypeScripturePillOpenRequest(null);
@@ -473,7 +504,34 @@ export default function CardFullEditable({
         } else {
           bodyForSuggest = editing ? editContent : displayContent;
         }
-        return applyAutoCollectionAfterEdit(prev, titleForSuggest, bodyForSuggest, new Date());
+        const snap = folderSuggestSnapshotRef.current;
+        const plainBody = plainBodyFromHtml(bodyForSuggest);
+        const allowPrimary = shouldAllowPrimaryFolderUpdate(
+          snap.title,
+          titleForSuggest,
+          snap.body,
+          plainBody,
+        );
+        const hadNoPrimary = !prev.primaryCollection;
+        const editorWasFocused = !!editorInstanceRef.current?.isFocused;
+        const next = applyAutoCollectionAfterEdit(prev, titleForSuggest, bodyForSuggest, new Date(), {
+          allowPrimaryUpdate: allowPrimary,
+        });
+        if (allowPrimary) {
+          folderSuggestSnapshotRef.current = { title: titleForSuggest, body: plainBody };
+        }
+        if (hadNoPrimary && next.primaryCollection && editorWasFocused) {
+          requestAnimationFrame(() => {
+            const editor = editorInstanceRef.current;
+            if (!editor || editor.isDestroyed || editor.isFocused) return;
+            try {
+              editor.commands.focus();
+            } catch {
+              /* ignore */
+            }
+          });
+        }
+        return next;
       });
     }, 400);
     return () => window.clearTimeout(timer);
@@ -1811,9 +1869,27 @@ export default function CardFullEditable({
     // persisted alongside the autosave (otherwise it shows transiently then gets
     // wiped by the post-save refetch). Prototype-only; mirrors flushEdits.
     const isProto = editorChromeModeRef.current === 'prototypeNative';
-    const chromeForSave = isProto
-      ? applyAutoCollectionAfterEdit(collectionChromeRef.current, currentTitle, currentContent, new Date())
-      : collectionChromeRef.current;
+    let chromeForSave = collectionChromeRef.current;
+    if (isProto) {
+      const snap = folderSuggestSnapshotRef.current;
+      const plainBody = plainBodyFromHtml(currentContent);
+      const allowPrimary = shouldAllowPrimaryFolderUpdate(
+        snap.title,
+        currentTitle,
+        snap.body,
+        plainBody,
+      );
+      chromeForSave = applyAutoCollectionAfterEdit(
+        collectionChromeRef.current,
+        currentTitle,
+        currentContent,
+        new Date(),
+        { allowPrimaryUpdate: allowPrimary },
+      );
+      if (allowPrimary) {
+        folderSuggestSnapshotRef.current = { title: currentTitle, body: plainBody };
+      }
+    }
     const collectionExtras = isProto
       ? {
           primaryCollection: chromeForSave.primaryCollection,
@@ -1877,25 +1953,25 @@ export default function CardFullEditable({
         } else if (shouldInjectProcessedNoteContent(liveHtml, currentContent) && editor.isFocused) {
           // Save matched but editor still focused — defer pill injection so setContent
           // doesn't reset the caret mid-typing. Re-flush after the user pauses or blurs.
-          if (isMountedRef.current) {
-            setDisplayTitle(currentTitle);
-            setDisplayContent(currentContent);
-          }
           protoPendingFlushRef.current = true;
         } else {
           // User typed during save — we did NOT update protoLastSavedRef to the
           // live content, so the chained re-fire below will see a mismatch and
           // save the trailing characters.
-          if (isMountedRef.current) {
-            setDisplayTitle(currentTitle);
-            setDisplayContent(currentContent);
-          }
           protoPendingFlushRef.current = true;
         }
       } else if (isMountedRef.current) {
-        setDisplayTitle(currentTitle);
-        setDisplayContent(currentContent);
-        setHasChanges(false);
+        const editorFocused =
+          !!editorInstanceRef.current &&
+          !editorInstanceRef.current.isDestroyed &&
+          editorInstanceRef.current.isFocused;
+        if (!editorFocused) {
+          setDisplayTitle(currentTitle);
+          setDisplayContent(currentContent);
+          setHasChanges(false);
+        } else {
+          protoPendingFlushRef.current = true;
+        }
       }
 
       // The server now holds the content we just persisted, so the local draft
@@ -2001,11 +2077,20 @@ export default function CardFullEditable({
         saveNoteDraft(departingNoteId, { title: currentTitle, content: currentContent });
       }
 
+      const snap = folderSuggestSnapshotRef.current;
+      const plainBody = plainBodyFromHtml(currentContent);
+      const allowPrimary = shouldAllowPrimaryFolderUpdate(
+        snap.title,
+        currentTitle,
+        snap.body,
+        plainBody,
+      );
       const chromeForSave = applyAutoCollectionAfterEdit(
         collectionChromeRef.current,
         currentTitle,
         currentContent,
         new Date(),
+        { allowPrimaryUpdate: allowPrimary },
       );
       const collectionKey = `${chromeForSave.primaryCollection ?? ''}|${chromeForSave.secondaryCollections.join(',')}|${chromeForSave.collectionPinned ? 1 : 0}|${chromeForSave.collectionUserOverride ? 1 : 0}`;
 

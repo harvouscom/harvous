@@ -16,6 +16,7 @@ struct StudyDockCarouselView<ActiveContent: View>: View {
     var trailingContentInset: CGFloat = 0
     let collapsedTitle: (StudyDockEntry) -> String
     let collapsedIconAsset: (StudyDockEntry) -> String
+    let collapsedHeaderChip: (StudyDockEntry) -> StudyDockCollapsedHeaderChip?
     let collapsedAccentTint: (StudyDockEntry) -> Color
     @ViewBuilder let renderActiveEntry: (StudyDockEntry) -> ActiveContent
 
@@ -148,7 +149,7 @@ struct StudyDockCarouselView<ActiveContent: View>: View {
         let centersCardInSlot = isExpandedSlot || stack.entries.count == 1
 
         HStack(alignment: .bottom, spacing: 4) {
-            carouselDragHandle(entry: entry)
+            carouselDragHandle(entry: entry, isCompactSlot: !isExpandedSlot)
 
             carouselCardContent(entry: entry, isActive: isActive, centersInSlot: centersCardInSlot)
         }
@@ -183,6 +184,7 @@ struct StudyDockCarouselView<ActiveContent: View>: View {
                 StudyDockCarouselCollapsedCard(
                     title: collapsedTitle(entry),
                     iconAsset: collapsedIconAsset(entry),
+                    headerChip: collapsedHeaderChip(entry),
                     accentTint: collapsedAccentTint(entry),
                     onActivate: { onSelectEntry(entry.id) },
                     onDismiss: { onDismissEntry(entry.id) }
@@ -205,19 +207,11 @@ struct StudyDockCarouselView<ActiveContent: View>: View {
         }
     }
 
-    private func carouselDragHandle(entry: StudyDockEntry) -> some View {
-        HarvousFormatToolbarHairline()
-            .frame(width: 14, height: 22)
-            .padding(.bottom, 10)
-            .frame(width: 14, height: 32, alignment: .bottom)
-            .contentShape(Rectangle())
-            .focusable(false)
-            .onDrag {
-                draggedEntryId = entry.id
-                return NSItemProvider(object: entry.id.uuidString as NSString)
-            }
-            .accessibilityLabel("Reorder")
-            .accessibilityHint("Drag to change dock order")
+    private func carouselDragHandle(entry: StudyDockEntry, isCompactSlot: Bool) -> some View {
+        StudyDockCarouselDragHandle(isCompactSlot: isCompactSlot) {
+            draggedEntryId = entry.id
+            return NSItemProvider(object: entry.id.uuidString as NSString)
+        }
     }
 
     private func scrollExpandedActiveToCenter(scrollProxy: ScrollViewProxy, delayed: Bool) {
@@ -340,5 +334,48 @@ private struct StudyDockCarouselTrackWidthKey: PreferenceKey {
     nonisolated static let defaultValue: CGFloat = 0
     static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
         value = nextValue()
+    }
+}
+
+/// Vertical reorder divider pinned to collapsed card chrome — matches web carousel drag handle.
+private struct StudyDockCarouselDragHandle: View {
+    let isCompactSlot: Bool
+    let onDrag: () -> NSItemProvider
+
+    private var bottomPadding: CGFloat {
+        isCompactSlot
+            ? StudyDockLayoutMetrics.carouselDragHandleBottomPaddingCompact
+            : StudyDockLayoutMetrics.carouselDragHandleBottomPaddingExpanded
+    }
+
+    private var hairlineHeight: CGFloat {
+        max(
+            StudyDockLayoutMetrics.carouselDragHandleMinHairlineHeight,
+            StudyDockLayoutMetrics.collapsedCardChromeHeight - bottomPadding
+        )
+    }
+
+    private var columnHeight: CGFloat {
+        hairlineHeight + bottomPadding
+    }
+
+    var body: some View {
+        RoundedRectangle(cornerRadius: 1, style: .continuous)
+            .fill(Color.primary.opacity(0.14))
+            .frame(
+                width: StudyDockLayoutMetrics.carouselDragHandleHairlineWidth,
+                height: hairlineHeight
+            )
+            .padding(.bottom, bottomPadding)
+            .frame(
+                width: StudyDockLayoutMetrics.carouselDragHandleWidth,
+                height: columnHeight,
+                alignment: .bottom
+            )
+            .contentShape(Rectangle())
+            .focusable(false)
+            .onDrag { onDrag() }
+            .accessibilityLabel("Reorder")
+            .accessibilityHint("Drag to change dock order")
     }
 }

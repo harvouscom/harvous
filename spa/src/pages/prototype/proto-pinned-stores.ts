@@ -1,9 +1,8 @@
 /**
- * localStorage-backed pin stores for prototype sidebar lists.
- * Mirrors native UserDefaults behavior — device-wide for dictionary, space-scoped for highlights.
+ * localStorage-backed pin store for prototype sidebar highlight lists.
+ * Mirrors native UserDefaults behavior — space-scoped for highlights.
  */
 
-const DICT_KEY = 'harvous.prototype.pinnedEastonsSlugs';
 const HIGHLIGHT_KEY_PREFIX = 'harvous.prototype.pinnedHighlightThreadIds.';
 
 function safeRead(key: string): string[] {
@@ -25,23 +24,6 @@ function safeWrite(key: string, ids: string[]): void {
   } catch {
     // quota / storage disabled — ignore
   }
-}
-
-// ── Dictionary (device-wide) ─────────────────────────────────────────────
-
-export function loadPinnedDictionarySlugs(): string[] {
-  return safeRead(DICT_KEY);
-}
-
-export function savePinnedDictionarySlugs(slugs: string[]): void {
-  safeWrite(DICT_KEY, slugs);
-}
-
-export function togglePinnedDictionarySlug(slug: string): string[] {
-  const current = loadPinnedDictionarySlugs();
-  const next = current.includes(slug) ? current.filter((s) => s !== slug) : [...current, slug];
-  savePinnedDictionarySlugs(next);
-  return next;
 }
 
 // ── Highlights (space-scoped) ────────────────────────────────────────────

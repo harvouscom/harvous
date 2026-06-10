@@ -339,7 +339,8 @@ function handlePrototypeKeyboardShortcut(event: KeyboardEvent): boolean {
     }
     if (key === 'k') {
       event.preventDefault();
-      navigateTo(prototypeHref('search'));
+      event.stopImmediatePropagation();
+      window.dispatchEvent(new CustomEvent('prototypeShortcutFocusSidebarSearch'));
       return true;
     }
     if (event.key === ',') {
@@ -382,6 +383,16 @@ function handlePrototypeKeyboardShortcut(event: KeyboardEvent): boolean {
       event.preventDefault();
       event.stopImmediatePropagation();
       window.dispatchEvent(new CustomEvent('prototypeShortcutCycleListMode', { detail: { step: 1 } }));
+      return true;
+    }
+  }
+
+  // Cmd/Ctrl + F — focus sidebar search (native SidebarPanelView parity).
+  if (modifier && key === 'f' && !event.altKey && !event.shiftKey) {
+    if (isPrototypeTypingContext(event)) return false;
+    if (isPrototypeShellPath(path) && !path.startsWith(prototypeHref('search'))) {
+      event.preventDefault();
+      window.dispatchEvent(new CustomEvent('prototypeShortcutFocusSidebarSearch'));
       return true;
     }
   }
@@ -449,6 +460,7 @@ function handleKeyboardShortcut(event: KeyboardEvent): void {
   
   // Cmd/Ctrl + K — Spotlight search (handle before isTypingInInput so it works in editors, like other apps)
   if (modifier && key === 'k' && !event.altKey) {
+    if (isPrototypeRoute(path)) return;
     if (shouldPassThroughToBrowser(event, 'mod-k')) return;
     event.preventDefault();
     window.dispatchEvent(new CustomEvent('openSpotlightSearch'));

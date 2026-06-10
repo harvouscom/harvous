@@ -112,7 +112,6 @@ struct NoteToolbar: View {
                         // Insert
                         group {
                             iconButton("Harvous.Minus") { proxy.insertDivider() }
-                            iconButton("Harvous.Image") { proxy.insertImage() }
                         }
                     }
                 }

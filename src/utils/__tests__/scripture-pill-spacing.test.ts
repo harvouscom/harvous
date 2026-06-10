@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { Schema } from '@tiptap/pm/model';
 import { EditorState } from '@tiptap/pm/state';
-import { collectScripturePillRanges, ensureScripturePillSpacing } from '../scripture-pill-spacing';
+import { collectScripturePillRanges, ensureScripturePillSpacing, rangeCrossesHardBreak } from '../scripture-pill-spacing';
 
 const schema = new Schema({
   nodes: {
@@ -136,5 +136,28 @@ describe('ensureScripturePillSpacing', () => {
     const tr = state.tr;
     expect(ensureScripturePillSpacing(tr, 'scripturePill', 'hydrate')).toBe(false);
     expect(tr.doc.textContent).toBe('tJohn 3:16W');
+  });
+
+  it('rangeCrossesHardBreak detects hard breaks inside the range', () => {
+    const doc = schema.node('doc', null, [
+      schema.node('paragraph', null, [
+        schema.text('intro'),
+        schema.node('hardBreak'),
+        schema.text('Exodus 1:1-22'),
+      ]),
+    ]);
+    let hardBreakPos = -1;
+    let exodusFrom = -1;
+    let exodusTo = -1;
+    doc.descendants((node, pos) => {
+      if (node.type.name === 'hardBreak') hardBreakPos = pos;
+      if (node.isText && node.text === 'Exodus 1:1-22') {
+        exodusFrom = pos;
+        exodusTo = pos + node.nodeSize;
+      }
+    });
+    expect(hardBreakPos).toBeGreaterThan(0);
+    expect(rangeCrossesHardBreak(doc, exodusFrom - 1, exodusTo)).toBe(true);
+    expect(rangeCrossesHardBreak(doc, exodusFrom, exodusTo)).toBe(false);
   });
 });

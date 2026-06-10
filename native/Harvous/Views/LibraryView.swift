@@ -305,9 +305,9 @@ struct LibraryView: View {
             }
             .padding(.horizontal, HarvousCollectionGridLayout.horizontalPadding)
             .padding(.top, HarvousCollectionGridLayout.topPadding)
+            .iosListBottomChromeScrollContentBottomPadding()
         }
         .scrollContentBackground(.hidden)
-        .iosListBottomChromeReserve()
     }
 
     private var emptyState: some View {

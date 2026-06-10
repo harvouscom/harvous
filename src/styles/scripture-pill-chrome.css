@@ -73,6 +73,7 @@
   border: 0.5px solid var(--pds-border-control-soft);
   background: var(--pds-bg-faint);
   overflow: visible;
+  flex-shrink: 0;
 }
 
 .scripture-pill-chrome__reference-scroll {
@@ -188,25 +189,11 @@
 
 /* ─── Passage scroll ─────────────────────────────────────────────────────── */
 
-/* Passage scroll viewport runs edge-to-edge: from the bottom of the reference bar to the
-   bottom of the dock card. The card bottom-padding and body gap are zeroed when expanded;
-   breathing room lives inside the scroll content instead (top/bottom padding here). */
-.scripture-pill-chrome .study-dock-card__body {
-  gap: 0;
-}
-
-/* Remove card bottom padding when passage is visible — scroll runs to card bottom. */
-.scripture-pill-chrome .study-dock-card__card[data-expanded='true'] {
-  padding-bottom: 0;
-  overflow: clip; /* clip passage to the card's 18px border-radius */
-}
-
+/* Passage scroll viewport — max-height + expanded card chrome in study-dock-card.css. */
 .scripture-pill-chrome__passage {
-  overflow-y: auto;
   /* Top: breathing room below the reference bar (inside the scroll, scrolls away). */
   /* Bottom: breathing room after the last verse (inside the scroll). */
   padding: 8px 0 10px;
-  box-sizing: border-box;
   /* tabIndex=-1 makes this focusable so clicks don't bounce back to the editor;
      suppress the default focus ring since this isn't a keyboard-operable control. */
   outline: none;

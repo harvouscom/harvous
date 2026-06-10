@@ -1587,6 +1587,7 @@ struct HarvousEditor: NSViewRepresentable {
             }
             context.coordinator.invalidateDeferredNoteBindingWork()
             context.coordinator.isEditing = false
+            proxy?.isActivelyEditingBody = false
             context.coordinator.suppressFormatBarOnNextBodyCaretUpdate = true
             // Load plain/serialized body synchronously so the view has correct text immediately.
             syncTextViewToDocumentBody(textView, body: documentBody, context: context)
@@ -1614,6 +1615,7 @@ struct HarvousEditor: NSViewRepresentable {
                     guard let tv2 = scrollView.documentView as? HarvousNoteTextView else { return }
                     guard coordinator.boundNoteID == capturedNoteID else { return }
                     coordinator.paintStudyHighlightsIfNeeded(on: tv2, force: true)
+                    coordinator.applyReferenceSuggestionsIfNeeded(on: tv2, force: true)
                     DispatchQueue.main.async { [weak scrollView] in
                         guard let scrollView else { return }
                         guard coordinator.boundNoteID == capturedNoteID else { return }
@@ -1674,7 +1676,10 @@ struct HarvousEditor: NSViewRepresentable {
                 context.coordinator.reapplyScripturePillsToBody(in: textView)
             }
         }
-        context.coordinator.paintStudyHighlightsIfNeeded(on: textView)
+        if !context.coordinator.isEditing {
+            context.coordinator.paintStudyHighlightsIfNeeded(on: textView)
+            context.coordinator.applyReferenceSuggestionsIfNeeded(on: textView)
+        }
         if !context.coordinator.isEditing {
             scrollView.scheduleBodyLayoutHeightPublish(to: proxy)
         }
@@ -1762,6 +1767,7 @@ struct HarvousEditor: NSViewRepresentable {
         private var isDisplayingPlaceholder: Bool = false
         private var debounceTask: Task<Void, Never>?
         private var formatBarHideTask: Task<Void, Never>?
+        private var plainTextBindingCoalesced = false
         private var inlineImageRehydrateTask: Task<Void, Never>?
         /// Bumped on note switch so deferred `Task`s from the previous note cannot write `state.plainText`.
         var noteBindingGeneration: UInt64 = 0
@@ -1773,10 +1779,15 @@ struct HarvousEditor: NSViewRepresentable {
         private var isProgrammaticBodyMutation: Bool { programmaticBodyMutationDepth > 0 }
         /// Last applied highlight paint inputs — avoids strip/reapply on every SwiftUI `updateNSView` during typing.
         private var lastAppliedStudyHighlightSignature: String?
+        /// Last applied reference-suggestion inputs — avoids full-document word scan on every `updateNSView`.
+        private var lastAppliedReferenceSuggestionSignature: String?
         /// Last applied scripture-pill inputs (expanded plain text + theme). Gates the render-pass
         /// `reapplyScripturePillsToBody` so the full regex sweep runs once per real change instead of
         /// every SwiftUI `updateNSView` pass — fixes the 100%-CPU re-entrant render loop on note open/edit.
         fileprivate var lastAppliedPillSignature: String?
+        /// Detected reference ranges + theme — gates typing debounce so strip→reapply does not run when
+        /// only non-scripture text changed (avoids pill flicker while typing past existing pills).
+        private var lastAppliedPillDetectionSignature: String?
         /// Stable (`documentBody` + theme) key of the content for which `updateNSView` last completed its
         /// strip→reapply pass. Caps that pass to once per loaded content so it cannot re-enter when the
         /// expanded storage permanently differs from the saved body (web notes whose translation is
@@ -1796,10 +1807,13 @@ struct HarvousEditor: NSViewRepresentable {
             noteBindingGeneration &+= 1
             debounceTask?.cancel()
             debounceTask = nil
+            plainTextBindingCoalesced = false
             inlineImageRehydrateTask?.cancel()
             inlineImageRehydrateTask = nil
             lastAppliedStudyHighlightSignature = nil
+            lastAppliedReferenceSuggestionSignature = nil
             lastAppliedPillSignature = nil
+            lastAppliedPillDetectionSignature = nil
             lastSettledPillContentKey = nil
             cancelFormatBarHide()
         }
@@ -1856,7 +1870,7 @@ struct HarvousEditor: NSViewRepresentable {
                 // Scope to the bound note (notification carries the note's UUID as `object`).
                 if let uuid = note.object as? UUID, let mine = boundNoteID, uuid != mine { return }
                 guard let tv = textView else { return }
-                detectAndInsertPills(in: tv, text: state.plainText)
+                detectAndInsertPillsIfNeeded(in: tv, text: state.plainText, force: true)
             }
         }
 
@@ -1867,6 +1881,22 @@ struct HarvousEditor: NSViewRepresentable {
                       let tv = textView, let storage = tv.textStorage else { return }
                 applyResolvedURLLinkTitle(title, forHref: href, in: storage)
             }
+        }
+
+        private func currentScripturePillDetectionSignature(in storage: NSTextStorage) -> String {
+            let plain = harvousExpandedPlainText(in: storage)
+            let matches = ScriptureDetector.detect(in: plain)
+            let positions = matches
+                .sorted { $0.range.location < $1.range.location }
+                .map { "\($0.range.location):\($0.range.length):\($0.displayText)" }
+                .joined(separator: ";")
+            return "\(positions)|\(String(describing: scriptureTheme))"
+        }
+
+        private func recordAppliedPillSignatures(from textView: NSTextView) {
+            guard let storage = textView.textStorage else { return }
+            lastAppliedPillDetectionSignature = currentScripturePillDetectionSignature(in: storage)
+            lastAppliedPillSignature = harvousExpandedPlainText(in: storage) + "|" + String(describing: scriptureTheme)
         }
 
         func withProgrammaticBodyMutation(_ work: () -> Void) {
@@ -1889,16 +1919,32 @@ struct HarvousEditor: NSViewRepresentable {
         /// Signature-gated: pill re-application is idempotent, so when the expanded plain text and theme
         /// are unchanged this is a no-op. Skipping it here breaks the SwiftUI render loop where every
         /// `updateNSView` pass re-ran the full `ScriptureDetector` regex (100%-CPU beachball on note open/edit).
-        /// The detection/typing path (`detectAndInsertPills`) is intentionally NOT gated.
         @MainActor
         func reapplyScripturePillsToBody(in textView: NSTextView, paintHighlights: Bool = true) {
             guard let storage = textView.textStorage else { return }
-            let signature = harvousExpandedPlainText(in: storage) + "|" + String(describing: scriptureTheme)
-            if signature == lastAppliedPillSignature { return }
-            detectAndInsertPills(in: textView, text: state.plainText, paintHighlights: paintHighlights)
-            if let st = textView.textStorage {
-                lastAppliedPillSignature = harvousExpandedPlainText(in: st) + "|" + String(describing: scriptureTheme)
+            let expandedSig = harvousExpandedPlainText(in: storage) + "|" + String(describing: scriptureTheme)
+            let detectSig = currentScripturePillDetectionSignature(in: storage)
+            if expandedSig == lastAppliedPillSignature, detectSig == lastAppliedPillDetectionSignature { return }
+            detectAndInsertPillsIfNeeded(in: textView, text: state.plainText, paintHighlights: paintHighlights, force: true)
+        }
+
+        /// Signature-gated pill detection — skips strip→reapply when detected references are unchanged.
+        @MainActor
+        func detectAndInsertPillsIfNeeded(
+            in textView: NSTextView,
+            text: String,
+            paintHighlights: Bool = true,
+            force: Bool = false
+        ) {
+            guard let storage = textView.textStorage else { return }
+            // Strip→reapply while the caret is active visibly flickers attachments; settle on end editing.
+            if isEditing, !force { return }
+            if !force {
+                let detectSig = currentScripturePillDetectionSignature(in: storage)
+                guard detectSig != lastAppliedPillDetectionSignature else { return }
             }
+            detectAndInsertPills(in: textView, text: text, paintHighlights: paintHighlights)
+            recordAppliedPillSignatures(from: textView)
         }
 
         /// Hooks so `EditorProxy` can cancel/restart the idle dismiss timer when the pointer enters/leaves the toolbar.
@@ -2073,9 +2119,6 @@ struct HarvousEditor: NSViewRepresentable {
             }
             let range = tv.selectedRange()
             let hasSelection = range.length > 0
-            let singleWord: String? = hasSelection
-                ? (tv.textStorage.map { EditorProxy.singleWordSelectionText(in: $0, range: range) } ?? nil)
-                : nil
 
             // Compute selection rect while we still have the text view in scope
             var contentPoint: CGPoint? = nil
@@ -2120,12 +2163,15 @@ struct HarvousEditor: NSViewRepresentable {
             Task { @MainActor in
                 capturedProxy?.syncBodyFirstResponderState(textView: tv)
                 capturedProxy?.hasSelection = hasSelection
-                capturedProxy?.singleWordSelection = singleWord
                 capturedProxy?.selectionContentPoint = contentPoint
                 capturedProxy?.selectionViewPoint = selectionViewPoint
                 capturedProxy?.selectionViewportRect = selectionViewportRectLocal
                 capturedProxy?.selectionCaretViewportRect = selectionCaretViewportRectLocal
-                capturedProxy?.refreshFormatState()
+                if hasSelection {
+                    capturedProxy?.refreshFormatState()
+                } else {
+                    capturedProxy?.refreshFormatStateCoalesced()
+                }
                 if !deferPillFocusSync {
                     let adjacent = activeScripturePillFromNSTextViewSelection(tv)
                     if adjacent == nil {
@@ -2202,6 +2248,7 @@ struct HarvousEditor: NSViewRepresentable {
                 pushPlainTextAndRefsFromTextView(tv)
                 applyStudyHighlightPaint(to: tv)
                 lastAppliedStudyHighlightSignature = currentStudyHighlightPaintSignature()
+                applyReferenceSuggestionsIfNeeded(on: tv, force: true)
             }
             proxy.hvNotifyBodyChanged(tv)
             proxy.syncPlainTextBindingFromTextView?(tv)
@@ -2243,6 +2290,7 @@ struct HarvousEditor: NSViewRepresentable {
         func textDidBeginEditing(_ notification: Notification) {
             guard let tv = notification.object as? NSTextView else { return }
             isEditing = true
+            proxy?.isActivelyEditingBody = true
             suppressFormatBarOnNextBodyCaretUpdate = false
             let skipFormatBar = isProgrammaticBodyMutation
             clearPlaceholderForEditingIfNeeded(tv)
@@ -2262,9 +2310,16 @@ struct HarvousEditor: NSViewRepresentable {
 
         func textDidEndEditing(_ notification: Notification) {
             isEditing = false
+            proxy?.isActivelyEditingBody = false
             cancelFormatBarHide()
             guard let tv = notification.object as? NSTextView else { return }
-            paintStudyHighlightsIfNeeded(on: tv)
+            proxy?.onBodyEditingEnded?()
+            if let storage = tv.textStorage {
+                let plain = harvousExpandedPlainText(in: storage)
+                detectAndInsertPillsIfNeeded(in: tv, text: plain, paintHighlights: false, force: true)
+            }
+            paintStudyHighlightsIfNeeded(on: tv, force: true)
+            applyReferenceSuggestionsIfNeeded(on: tv, force: true)
             (tv.enclosingScrollView as? HarvousEditorScrollView)?.scheduleBodyLayoutHeightPublish(to: proxy)
             let placeholder = placeholderText
             Task { @MainActor in
@@ -2277,36 +2332,67 @@ struct HarvousEditor: NSViewRepresentable {
         }
 
         func textDidChange(_ notification: Notification) {
-            guard let tv = notification.object as? NSTextView,
-                  let storage = tv.textStorage else { return }
-            let plain = harvousExpandedPlainText(in: storage)
+            guard let tv = notification.object as? NSTextView else { return }
             // Capture before the deferred `Task`: mutation scope may end before the task runs.
             let isProgrammatic = isProgrammaticBodyMutation
             let bindingGeneration = noteBindingGeneration
 
-            // Debounced scripture detection
+            // Debounced scripture detection (idle / programmatic only — not while actively editing).
             debounceTask?.cancel()
+            guard !isEditing else {
+                schedulePlainTextBindingUpdate(
+                    textView: tv,
+                    bindingGeneration: bindingGeneration,
+                    isProgrammatic: isProgrammatic
+                )
+                return
+            }
             debounceTask = Task { @MainActor in
                 try? await Task.sleep(for: .milliseconds(400))
                 guard !Task.isCancelled else { return }
                 guard bindingGeneration == self.noteBindingGeneration else { return }
                 // Do not mutate storage while IME/marked text or a different document view is active.
                 guard tv === self.textView, !tv.hasMarkedText() else { return }
-                self.detectAndInsertPills(in: tv, text: plain)
+                guard !self.isEditing else { return }
+                guard let storage = tv.textStorage else { return }
+                let plain = harvousExpandedPlainText(in: storage)
+                self.detectAndInsertPillsIfNeeded(in: tv, text: plain, paintHighlights: true)
             }
 
-            // Defer binding + proxy so this isn’t the same run loop as TextKit/NSView layout.
-            Task { @MainActor in
+            schedulePlainTextBindingUpdate(
+                textView: tv,
+                bindingGeneration: bindingGeneration,
+                isProgrammatic: isProgrammatic
+            )
+        }
+
+        /// Coalesces `state.plainText` writes to one per run-loop turn; expands storage off the delegate path.
+        private func schedulePlainTextBindingUpdate(
+            textView tv: NSTextView,
+            bindingGeneration: UInt64,
+            isProgrammatic: Bool
+        ) {
+            if plainTextBindingCoalesced { return }
+            plainTextBindingCoalesced = true
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
+                self.plainTextBindingCoalesced = false
                 guard bindingGeneration == self.noteBindingGeneration else { return }
-                self.state.plainText = plain
+                guard tv === self.textView, let storage = tv.textStorage else { return }
+                let plain = harvousExpandedPlainText(in: storage)
+                if self.state.plainText != plain {
+                    self.state.plainText = plain
+                }
                 if !isProgrammatic {
                     self.proxy?.preferOrbChromeUntilNextFormatSignal = false
                     self.proxy?.formatBarUnlocked = true
                     self.proxy?.showFormatBarForActivity = true
                     self.scheduleFormatBarHide()
                 }
-                self.proxy?.refreshFormatState()
-                (tv.enclosingScrollView as? HarvousEditorScrollView)?.scheduleBodyLayoutHeightPublish(to: self.proxy)
+                self.proxy?.refreshFormatStateCoalesced()
+                if !self.isEditing {
+                    (tv.enclosingScrollView as? HarvousEditorScrollView)?.scheduleBodyLayoutHeightPublish(to: self.proxy)
+                }
             }
         }
 
@@ -2388,7 +2474,6 @@ struct HarvousEditor: NSViewRepresentable {
                 collapseProxySelectionState: { [weak self] in
                     guard let proxy = self?.proxy else { return }
                     proxy.hasSelection = false
-                    proxy.singleWordSelection = nil
                     proxy.selectionViewportRect = nil
                     proxy.selectionCaretViewportRect = nil
                     proxy.refreshFormatState()
@@ -2405,22 +2490,44 @@ struct HarvousEditor: NSViewRepresentable {
             lastAppliedStudyHighlightSignature = signature
         }
 
-        /// Applies highlight attributes while keeping the caret/selection stable (attribute passes can fire selection callbacks).
+        private func currentReferenceSuggestionSignature(for storage: NSTextStorage) -> String {
+            var hasher = Hasher()
+            hasher.combine(studyHighlightsAssumeDarkAppearance)
+            hasher.combine(storage.string)
+            return String(hasher.finalize())
+        }
+
+        /// Repaints inline reference suggestions (Easton's dotted hints) when storage or theme changed.
+        @MainActor
+        func applyReferenceSuggestionsIfNeeded(on textView: NSTextView, force: Bool = false) {
+            guard let storage = textView.textStorage else { return }
+            let signature = currentReferenceSuggestionSignature(for: storage)
+            guard force || signature != lastAppliedReferenceSuggestionSignature else { return }
+            applyReferenceSuggestionsPreservingSelection(on: textView)
+            lastAppliedReferenceSuggestionSignature = signature
+        }
+
+        /// Applies reference suggestions without restoring selection (mirrors iOS — TextKit keeps the live caret).
+        @MainActor
+        private func applyReferenceSuggestionsPreservingSelection(on textView: NSTextView) {
+            let savedDelegate = textView.delegate
+            textView.delegate = nil
+            withProgrammaticBodyMutation {
+                guard let storage = textView.textStorage else { return }
+                ReferenceSuggestionPainter.applySuggestions(storage: storage, isDark: studyHighlightsAssumeDarkAppearance)
+            }
+            textView.delegate = savedDelegate
+        }
+
+        /// Applies highlight attributes without restoring selection (mirrors iOS — avoids caret fighting TextKit).
         @MainActor
         private func paintStudyHighlightsPreservingSelection(on textView: NSTextView) {
-            let savedSelection = textView.selectedRange()
             let savedDelegate = textView.delegate
             textView.delegate = nil
             withProgrammaticBodyMutation {
                 applyStudyHighlightPaint(to: textView)
             }
             textView.delegate = savedDelegate
-            guard savedSelection.location != NSNotFound, let storage = textView.textStorage else { return }
-            let len = storage.length
-            let loc = min(savedSelection.location, len)
-            let end = min(NSMaxRange(savedSelection), len)
-            let safeLen = max(0, end - loc)
-            textView.setSelectedRange(NSRange(location: loc, length: safeLen))
         }
 
         @MainActor
@@ -2439,9 +2546,6 @@ struct HarvousEditor: NSViewRepresentable {
                     focusedThreadId: studyHighlightFocusedThreadId
                 )
             }
-            // Inline reference suggestions (dotted hints) repaint on top of saved highlights;
-            // skipped on words already inside a highlight/pill. Presentation-only, never serialized.
-            ReferenceSuggestionPainter.applySuggestions(storage: storage, isDark: studyHighlightsAssumeDarkAppearance)
         }
 
         @MainActor
@@ -2546,6 +2650,7 @@ struct HarvousEditor: NSViewRepresentable {
             // to avoid a redundant full-document attribute pass.
             if paintHighlights {
                 paintStudyHighlightsIfNeeded(on: textView, force: true)
+                applyReferenceSuggestionsIfNeeded(on: textView, force: true)
             }
 
             // `textDidChange` is not always sent when `textStorage` is edited programmatically. Sync
@@ -2588,10 +2693,6 @@ private final class HarvousBodyTextView: UITextView {
     var onHighlightCaptureAction: (() -> Void)?
     var onNewStandaloneNoteAction: (() -> Void)?
     var onConnectExistingNoteAction: (() -> Void)?
-    var onLookupAction: ((String) -> Void)?
-    /// Set from `updateUIView` on the main actor — the word to look up when selection is exactly one
-    /// Easton's-indexed word. `nil` when selection doesn't qualify (multi-word, no entry, etc.).
-    var singleWordForLookup: String?
     var studyHighlightPaintsSnapshot: [StudyHighlightPaint] = []
     var onRemoveIntersectingStudyHighlightsAction: (() -> Void)?
 
@@ -2721,11 +2822,6 @@ private final class HarvousBodyTextView: UITextView {
             if let hl = onHighlightCaptureAction {
                 front.append(UIAction(title: "Create new note…", image: UIImage(systemName: "highlighter")) { _ in
                     hl()
-                })
-            }
-            if let singleWord = singleWordForLookup, let lookupHandler = onLookupAction {
-                front.append(UIAction(title: "Look up in Bible dictionary", image: UIImage(systemName: "books.vertical")) { _ in
-                    lookupHandler(singleWord)
                 })
             }
             if let handler = onNewStandaloneNoteAction {
@@ -3070,13 +3166,6 @@ struct HarvousEditor: UIViewRepresentable {
             body.onRemoveIntersectingStudyHighlightsAction = { [weak coordinator] in
                 coordinator?.invokeEraseInlineFormattingFromSelectionIfPossible()
             }
-            body.singleWordForLookup = {
-                guard let w = proxy?.singleWordSelection else { return nil }
-                return EastonsDictionaryService.shared.hasEntry(forWord: w) ? w : nil
-            }()
-            body.onLookupAction = { [weak coordinator] word in
-                coordinator?.invokeLookupActionFromEditMenuIfPossible(word: word)
-            }
         }
     }
 
@@ -3309,16 +3398,6 @@ struct HarvousEditor: UIViewRepresentable {
             )
         }
 
-        func invokeLookupActionFromEditMenuIfPossible(word: String) {
-            guard let tv = textView, tv.textColor != .tertiaryLabel else { return }
-            HarvousStandaloneSelectionNote.postLookupWordRequestedIfEligible(
-                storage: tv.textStorage,
-                utf16Selection: tv.selectedRange,
-                word: word,
-                parentNoteId: boundNoteID
-            )
-        }
-
         func invokeNewStandaloneNoteFromEditMenuIfPossible() {
             guard let tv = textView, tv.textColor != .tertiaryLabel else { return }
             let storage = tv.textStorage
@@ -3333,7 +3412,6 @@ struct HarvousEditor: UIViewRepresentable {
                 collapseProxySelectionState: { [weak self] in
                     guard let proxy = self?.proxy else { return }
                     proxy.hasSelection = false
-                    proxy.singleWordSelection = nil
                     proxy.selectionViewportRect = nil
                     proxy.selectionCaretViewportRect = nil
                     proxy.refreshFormatState()
@@ -3752,9 +3830,6 @@ struct HarvousEditor: UIViewRepresentable {
                 let unionRect = startRect.union(endRect)
                 viewportRect = unionRect.isNull || unionRect.isEmpty ? nil : unionRect
             }
-            let singleWord: String? = hasSelection
-                ? EditorProxy.singleWordSelectionText(in: textView.textStorage, range: selectedRange)
-                : nil
             let editorProxy = self.proxy
             Task { @MainActor in
                 let adjacent = activeScripturePillFromUITextViewSelection(textView)
@@ -3762,7 +3837,6 @@ struct HarvousEditor: UIViewRepresentable {
                     editorProxy?.activeScripturePill = nil
                 }
                 editorProxy?.hasSelection = hasSelection
-                editorProxy?.singleWordSelection = singleWord
                 editorProxy?.selectionViewportRect = viewportRect
                 editorProxy?.refreshFormatState()
                 if hasSelection {
@@ -3789,7 +3863,6 @@ struct HarvousEditor: UIViewRepresentable {
             let editorProxy = self.proxy
             Task { @MainActor in
                 editorProxy?.hasSelection = false
-                editorProxy?.singleWordSelection = nil
                 editorProxy?.selectionViewportRect = nil
                 editorProxy?.isBodyFirstResponder = false
                 editorProxy?.showFormatBarForActivity = false
