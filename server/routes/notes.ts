@@ -70,6 +70,7 @@ import { stripHtml } from '@/utils/html-stripper';
 import { deleteNotesCascadeForUser, deleteSingleNoteCascadeForUser } from '../utils/delete-note-cascade';
 import { recordDeletedEntities } from '../utils/sync-deletion-log';
 import { dedupeNoteTagsForResponse, fetchNoteTagsForResponse } from '../utils/tag-helpers';
+import { folderLabelsForTagExclusion } from '@/utils/bible-study-concept-overlaps';
 import {
   normalizeSecondaryLabels,
   parseNoteSecondaryCollections,
@@ -80,6 +81,16 @@ const route = new Hono();
 function noteJsonWithParsedSecondaries<T extends { secondaryCollections?: string | null }>(note: T) {
   const raw = note.secondaryCollections;
   return { ...note, secondaryCollections: parseNoteSecondaryCollections(raw ?? null) };
+}
+
+function folderExcludeLabelsForNote(note: {
+  primaryCollection?: string | null;
+  secondaryCollections?: string | null;
+}): string[] {
+  return folderLabelsForTagExclusion(
+    note.primaryCollection,
+    parseNoteSecondaryCollections(note.secondaryCollections),
+  );
 }
 
 function isOnboardingSystemNote(note: { threadId: string; addedBy: string | null }): boolean {
@@ -309,7 +320,9 @@ route.post('/api/notes/create', requireAuth, rateLimitNoteCreate(), async (c) =>
     // Auto-tag — await so create response includes tags (native parity).
     if (finalNoteType !== 'resource' && !contentEncrypted) {
       try {
-        const r = await generateAutoTags(capitalizedTitle || '', capitalizedContent, auth.userId);
+        const r = await generateAutoTags(capitalizedTitle || '', capitalizedContent, auth.userId, 0.7, {
+          excludeLabels: folderExcludeLabelsForNote(finalNote ?? newNote),
+        });
         if (r.suggestions.length > 0) await applyAutoTags(newNote.id, r.suggestions, auth.userId);
       } catch (err) {
         console.error('[auto-tag] Failed to auto-tag new note:', newNote.id, err);
@@ -387,7 +400,9 @@ route.post('/api/notes/create', requireAuth, rateLimitNoteCreate(), async (c) =>
           try {
             const contentForTagging = updateData.content || newNote.content || '';
             const titleForTagging = updateData.title || capitalizedTitle || '';
-            const r = await generateAutoTags(titleForTagging, contentForTagging, auth.userId, 0.8);
+            const r = await generateAutoTags(titleForTagging, contentForTagging, auth.userId, 0.8, {
+              excludeLabels: folderExcludeLabelsForNote(newNote),
+            });
             if (r.suggestions.length > 0) await applyAutoTags(newNote.id, r.suggestions, auth.userId);
           } catch {}
         }
@@ -538,7 +553,9 @@ route.put('/api/notes/update', requireAuth, rateLimit('write'), async (c) => {
     // Re-tag — await so clients that refetch immediately after PUT see tags (native parity).
     if (!isEncrypted) {
       try {
-        const r = await generateAutoTags(capitalizedTitle || '', capitalizedContent, auth.userId);
+        const r = await generateAutoTags(capitalizedTitle || '', capitalizedContent, auth.userId, 0.7, {
+          excludeLabels: folderExcludeLabelsForNote(updatedNote),
+        });
         if (r.suggestions.length > 0) {
           await removeAutoTags(noteId);
           await applyAutoTags(noteId, r.suggestions, auth.userId);
@@ -1062,19 +1079,27 @@ route.post('/api/notes/auto-tags', requireAuth, rateLimit('write'), async (c) =>
     const { noteId, noteTitle, noteContent, action = 'generate' } = await c.req.json();
     if (!noteId || !noteTitle || !noteContent) return c.json({ error: 'Note ID, title, and content are required' }, 400);
 
+    const noteRow = first(
+      await db.select({
+        primaryCollection: Notes.primaryCollection,
+        secondaryCollections: Notes.secondaryCollections,
+      }).from(Notes).where(and(eq(Notes.id, noteId), eq(Notes.userId, auth.userId))).limit(1),
+    );
+    const excludeLabels = noteRow ? folderExcludeLabelsForNote(noteRow) : [];
+
     let result;
     switch (action) {
       case 'generate':
-        result = await generateAutoTags(noteTitle, noteContent, auth.userId);
+        result = await generateAutoTags(noteTitle, noteContent, auth.userId, 0.7, { excludeLabels });
         break;
       case 'apply': {
-        const suggestions = await generateAutoTags(noteTitle, noteContent, auth.userId);
+        const suggestions = await generateAutoTags(noteTitle, noteContent, auth.userId, 0.7, { excludeLabels });
         const applied = await applyAutoTags(noteId, suggestions.suggestions, auth.userId);
         result = { ...suggestions, applied };
         break;
       }
       case 'regenerate':
-        result = await regenerateAutoTags(noteId, noteTitle, noteContent, auth.userId);
+        result = await regenerateAutoTags(noteId, noteTitle, noteContent, auth.userId, 0.7, { excludeLabels });
         break;
       default:
         return c.json({ error: 'Invalid action' }, 400);

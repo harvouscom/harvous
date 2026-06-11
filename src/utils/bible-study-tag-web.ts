@@ -3,6 +3,7 @@
  * and native `BibleStudyTagSuggester` using the shared keyword corpus.
  */
 
+import { conceptOverlapsAny } from '@/utils/bible-study-concept-overlaps';
 import { stripHtml } from '@/utils/html-stripper';
 import { findKeywordsInTextWithPriority } from '@/utils/bible-study-keywords';
 import { detectPersonTags } from '@/utils/person-tag-detector';
@@ -10,33 +11,10 @@ import { detectPersonTags } from '@/utils/person-tag-detector';
 const DEFAULT_CONFIDENCE_THRESHOLD = 0.7;
 const MAX_TAGS = 12;
 
-function isTagOverlapping(newTag: string, existingTag: string): boolean {
-  const newLower = newTag.toLowerCase();
-  const existingLower = existingTag.toLowerCase();
-  if (newLower === existingLower) return true;
-  if (newLower.includes(existingLower) || existingLower.includes(newLower)) return true;
-  const overlappingPairs = [
-    ['goodness', 'righteousness'],
-    ['grace', 'mercy'],
-    ['love', 'mercy'],
-    ['faith', 'belief'],
-    ['hope', 'faith'],
-    ['peace', 'joy'],
-    ['kingdom of god', 'heaven'],
-    ['resurrection', 'eternal life'],
-    ['eternal life', 'everlasting life'],
-    ['holy spirit', 'spirit'],
-    ['jesus', 'christ'],
-    ['jesus', 'lord'],
-    ['god', 'father'],
-    ['god', 'lord'],
-  ];
-  for (const [tag1, tag2] of overlappingPairs) {
-    if ((newLower === tag1 && existingLower === tag2) || (newLower === tag2 && existingLower === tag1)) {
-      return true;
-    }
-  }
-  return false;
+export interface SuggestAutoTagsOptions {
+  confidenceThreshold?: number;
+  /** Primary + secondary folder labels — excluded from tag suggestions (cascade hierarchy). */
+  excludeFolderLabels?: string[];
 }
 
 export interface SuggestedAutoTag {
@@ -49,8 +27,13 @@ export interface SuggestedAutoTag {
 export function suggestAutoTagsFromNote(
   title: string,
   bodyHtml: string,
-  confidenceThreshold: number = DEFAULT_CONFIDENCE_THRESHOLD,
+  options?: SuggestAutoTagsOptions | number,
 ): SuggestedAutoTag[] {
+  const opts: SuggestAutoTagsOptions =
+    typeof options === 'number' ? { confidenceThreshold: options } : (options ?? {});
+  const confidenceThreshold = opts.confidenceThreshold ?? DEFAULT_CONFIDENCE_THRESHOLD;
+  const excludeFolderLabels = opts.excludeFolderLabels ?? [];
+
   const cleanTitle = (title || '').trim();
   const cleanContent = stripHtml(bodyHtml || '', { preserveSpacing: true }).trim();
   const fullText = `${cleanTitle} ${cleanContent}`.trim();
@@ -67,7 +50,8 @@ export function suggestAutoTagsFromNote(
   for (const { keyword, confidence } of foundKeywords) {
     if (keyword.name.toLowerCase() === 'god') continue;
     if (confidence < confidenceThreshold) continue;
-    if (suggestions.some((existing) => isTagOverlapping(keyword.name, existing.name))) continue;
+    if (conceptOverlapsAny(keyword.name, excludeFolderLabels)) continue;
+    if (suggestions.some((existing) => conceptOverlapsAny(keyword.name, [existing.name]))) continue;
     suggestions.push({ name: keyword.name, category: keyword.category, confidence });
   }
 
@@ -84,6 +68,7 @@ export function suggestAutoTagsFromNote(
   for (const personTag of detectPersonTags(fullText)) {
     const key = personTag.toLowerCase();
     if (enhanced.some((s) => s.name.toLowerCase() === key)) continue;
+    if (conceptOverlapsAny(personTag, excludeFolderLabels)) continue;
     enhanced.push({ name: personTag, category: 'character', confidence: 0.85 });
   }
   enhanced.sort((a, b) => b.confidence - a.confidence);

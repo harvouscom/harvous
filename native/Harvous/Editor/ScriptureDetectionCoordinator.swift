@@ -103,3 +103,110 @@ func scriptureTrailingTranslationAfterReference(
     }
     return nil
 }
+
+// MARK: - Cursor-scoped pill insertion (instant Space/Enter/comma/period)
+
+/// Whether `cursorUTF16` sits inside an existing scripture pill attachment range.
+func cursorIntersectsScripturePill(in storage: NSTextStorage, cursorUTF16: Int) -> Bool {
+    guard storage.length > 0 else { return false }
+    let idx = min(max(0, cursorUTF16 - 1), storage.length - 1)
+    var eff = NSRange()
+    if storage.attribute(.attachment, at: idx, effectiveRange: &eff) is ScripturePillAttachment {
+        return NSLocationInRange(idx, eff)
+    }
+    if cursorUTF16 < storage.length,
+       storage.attribute(.attachment, at: cursorUTF16, effectiveRange: &eff) is ScripturePillAttachment {
+        return NSLocationInRange(cursorUTF16, eff)
+    }
+    return false
+}
+
+#if os(macOS)
+func harvousEditorBackingScale(for textView: NSTextView?) -> CGFloat {
+    textView?.window?.backingScaleFactor
+        ?? textView?.window?.screen?.backingScaleFactor
+        ?? NSScreen.main?.backingScaleFactor
+        ?? 2.0
+}
+#elseif os(iOS)
+func harvousEditorBackingScale(for textView: UITextView?) -> CGFloat {
+    textView?.traitCollection.displayScale ?? UIScreen.main.scale
+}
+#endif
+
+/// Inserts a single scripture pill at the reference ending before `cursorUTF16` without strip→reapply.
+/// Returns the inserted display reference when a pill was created.
+@discardableResult
+func detectAndInsertPillAtCursor(
+    in storage: NSTextStorage,
+    cursorUTF16: Int,
+    isBoundaryTrigger: Bool,
+    theme: HarvousColors.ThemeVariant,
+    pillAccentResolver: ((String) -> StudyHighlightAccentToken?)?,
+    backingScale: CGFloat
+) -> String? {
+    guard cursorUTF16 >= 2 else { return nil }
+    if cursorIntersectsScripturePill(in: storage, cursorUTF16: cursorUTF16) {
+        return nil
+    }
+
+    let plain = storage.string
+    let nsPlain = plain as NSString
+
+    let charBefore: UnicodeScalar? = {
+        guard cursorUTF16 > 0, cursorUTF16 <= nsPlain.length else { return nil }
+        let u = nsPlain.character(at: cursorUTF16 - 1)
+        return UnicodeScalar(u)
+    }()
+    let isNewParagraph: Bool = {
+        guard cursorUTF16 > 0, cursorUTF16 <= nsPlain.length else { return false }
+        let para = nsPlain.paragraphRange(for: NSRange(location: min(cursorUTF16, max(0, nsPlain.length - 1)), length: 0))
+        return cursorUTF16 == para.location && cursorUTF16 > 0
+    }()
+    let isBoundary = isBoundaryTrigger
+        || ScriptureDetector.isScriptureBoundaryInsertion(
+            charBeforeCursor: charBefore,
+            isNewParagraph: isNewParagraph
+        )
+
+    var match = ScriptureDetector.detectReferenceEnding(in: plain, beforeCursorUTF16: cursorUTF16)
+    if match == nil, isBoundaryTrigger {
+        match = ScriptureDetector.detectLastReferenceInWindow(in: plain, beforeCursorUTF16: cursorUTF16)
+    }
+    guard let match else { return nil }
+    guard ScriptureDetector.shouldCreatePillAtBoundary(match: match, isBoundary: isBoundary) else { return nil }
+
+    for pillRange in rangesOfScripturePillAttachments(in: storage) {
+        if NSIntersectionRange(pillRange, match.range).length > 0 { return nil }
+    }
+
+    var replaceRange = match.range
+    var trans = ScriptureReference.defaultTranslation
+    if let suffixPair = scriptureTrailingTranslationAfterReference(match: match, in: plain) {
+        trans = suffixPair.translation
+        replaceRange = NSRange(location: match.range.location, length: match.range.length + suffixPair.suffixUTF16Length)
+    }
+
+    let pill = ScripturePillAttachment(
+        reference: match.displayText,
+        translation: trans,
+        theme: theme,
+        accent: pillAccentResolver?(match.displayText),
+        backingScale: backingScale
+    )
+    let pillStr = NSMutableAttributedString(attachment: pill)
+    let bodyFont = HarvousFonts.noteComposeBodyPlatformFont()
+    var pillAttrs: [NSAttributedString.Key: Any] = [.font: bodyFont]
+    let pillLoc = replaceRange.location
+    if pillLoc < storage.length,
+       let ps = storage.attribute(.paragraphStyle, at: pillLoc, effectiveRange: nil) as? NSParagraphStyle {
+        pillAttrs[.paragraphStyle] = ps
+    }
+    pillStr.addAttributes(pillAttrs, range: NSRange(location: 0, length: pillStr.length))
+
+    storage.beginEditing()
+    storage.replaceCharacters(in: replaceRange, with: pillStr)
+    storage.endEditing()
+
+    return match.displayText
+}

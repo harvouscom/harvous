@@ -13,6 +13,17 @@ import {
 } from '../queries/useNote';
 import { mergeNoteTagsInCache, previewNoteTagsFromContent, type NoteTagRow } from '../../lib/note-tags-cache';
 import type { SpaceNoteRow } from '../queries/useSpace';
+import { isOfflineError } from './withOfflineQueue';
+import { createNoteOffline } from '@/utils/offline-mutations';
+import { getPersistedUserId } from '@/utils/user-id';
+import { isOfflineModeEnabled } from '@/utils/offline-mode';
+
+/** Sentinel the mutationFn returns when the create couldn't reach the server and was queued offline. */
+type OfflineQueuedCreate = { offlineQueued: true };
+type CreateResult = CreateNoteResponse | OfflineQueuedCreate;
+function isOfflineQueuedCreate(data: CreateResult): data is OfflineQueuedCreate {
+  return (data as OfflineQueuedCreate).offlineQueued === true;
+}
 
 function normalizedSpaceIdForApi(spaceId: string): string {
   return spaceId.startsWith('space_') ? spaceId : `space_${spaceId}`;
@@ -73,23 +84,32 @@ export function useCreateSimpleNote() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ spaceId, title = '', content = '<p></p>', noteType = 'default', linkedFromNoteId }: CreateSimpleNoteBody) => {
+    mutationFn: async ({ spaceId, title = '', content = '<p></p>', noteType = 'default', linkedFromNoteId }: CreateSimpleNoteBody): Promise<CreateResult> => {
       const sid = normalizedSpaceIdForApi(spaceId);
-      return api.post<CreateNoteResponse>('/api/notes/create', {
-        spaceId: sid,
-        title,
-        content,
-        noteType,
-        threadId: '',
-        ...(linkedFromNoteId ? { linkedFromNoteId } : {}),
-      });
+      try {
+        return await api.post<CreateNoteResponse>('/api/notes/create', {
+          spaceId: sid,
+          title,
+          content,
+          noteType,
+          threadId: '',
+          ...(linkedFromNoteId ? { linkedFromNoteId } : {}),
+        });
+      } catch (err) {
+        // Offline: don't fail the mutation. onSuccess persists it to the durable queue
+        // (keyed to the optimistic id) so it syncs on reconnect; the optimistic row stays.
+        if (isOfflineError(err)) return { offlineQueued: true };
+        throw err;
+      }
     },
     onMutate: async (variables) => {
       const sid = normalizedSpaceIdForApi(variables.spaceId);
       const key = spaceNotesQueryKey(sid);
       await queryClient.cancelQueries({ queryKey: key });
       const previous = queryClient.getQueryData<InfiniteData<SpaceNotesPage, number>>(key);
-      const optimisticId = `note_pending_${Date.now()}`;
+      // Use the offline-db `local_*` id format so an offline create can adopt this exact id,
+      // which is what lets sync-cache-bridge reconcile it to the server id later.
+      const optimisticId = `local_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
       const optimistic: SpaceNoteRow = {
         id: optimisticId,
         title: variables.title ?? '',
@@ -102,8 +122,26 @@ export function useCreateSimpleNote() {
       prependSpaceNoteToCache(queryClient, sid, optimistic);
       return { previous, sid, optimisticId };
     },
-    onSuccess: (data, variables, context) => {
+    onSuccess: async (data, variables, context) => {
       const sid = normalizedSpaceIdForApi(variables.spaceId);
+
+      // Offline path: the server was unreachable. Persist durably under the optimistic id so
+      // the background loop pushes it on reconnect, and leave the optimistic row in place.
+      if (isOfflineQueuedCreate(data)) {
+        const userId = getPersistedUserId();
+        if (userId && context?.optimisticId && isOfflineModeEnabled()) {
+          await createNoteOffline(userId, {
+            id: context.optimisticId,
+            title: variables.title ?? '',
+            content: variables.content ?? '<p></p>',
+            spaceId: sid,
+            noteType: variables.noteType ?? 'default',
+            linkedFromNoteId: variables.linkedFromNoteId ?? null,
+          });
+        }
+        return;
+      }
+
       const noteId = getNoteIdFromCreateResponse(data);
       const created = data?.note;
       if (context?.optimisticId) {
@@ -126,6 +164,12 @@ export function useCreateSimpleNote() {
             previewNoteTagsFromContent(
               created.title ?? variables.title ?? '',
               created.content ?? variables.content ?? '',
+              {
+                primary: typeof created.primaryCollection === 'string' ? created.primaryCollection : null,
+                secondaries: Array.isArray(created.secondaryCollections)
+                  ? created.secondaryCollections.filter((x): x is string => typeof x === 'string')
+                  : [],
+              },
             ),
           );
         }
@@ -145,10 +189,6 @@ export function useCreateSimpleNote() {
       if (context?.previous && context.sid) {
         queryClient.setQueryData(spaceNotesQueryKey(context.sid), context.previous);
       }
-    },
-    onSettled: (_data, _err, variables) => {
-      const id = normalizedSpaceIdForApi(variables.spaceId);
-      void queryClient.invalidateQueries({ queryKey: ['space', id, 'notes'] });
     },
   });
 }

@@ -246,23 +246,23 @@
   color: var(--pds-text-secondary);
 }
 
-/* ─── Scripture pill (prototype editor) — neutral chip, paragraph-sized type ─ */
+/* ─── Scripture pill (prototype editor) — native mac geometry + accent tint ─ */
 .proto-editor-surface .scripture-pill {
   display: inline-flex !important;
   align-items: center !important;
   border-radius: var(--pds-radius-scripture) !important;
   margin: 0 0.12em !important;
-  padding: 0.08em 0.35em !important;
+  padding: 2px 11px !important;
   font-family: inherit !important;
-  font-size: inherit !important;
-  font-weight: inherit !important;
+  font-size: calc(1em * var(--pds-scripture-pill-font-scale, 0.9375)) !important;
+  font-weight: 500 !important;
   line-height: inherit !important;
   background: var(--pds-bg-section) !important;
   color: var(--pds-text-primary) !important;
-  border: 0.5px solid var(--pds-border) !important;
+  border: none !important;
   text-decoration: none !important;
   cursor: pointer;
-  box-shadow: none !important;
+  box-shadow: var(--scripture-pill-inner-shadow) !important;
 }
 
 .proto-editor-surface .scripture-pill:hover {
@@ -279,17 +279,39 @@
 .proto-editor-surface .scripture-pill[data-scripture-translation]:not([data-scripture-translation-label])::after {
   font-size: 0.68em !important;
   font-weight: 500 !important;
-  margin-left: 0.28em !important;
+  margin-left: 4px !important;
   letter-spacing: 0.02em !important;
   color: var(--pds-text-secondary) !important;
   line-height: 1 !important;
 }
 
-/* data-pill-accent preserved for native parity chrome; render neutrally in prototype */
 .proto-editor-surface .scripture-pill[data-pill-accent] {
-  border-color: var(--pds-border) !important;
+  background: color-mix(in srgb, var(--scripture-pill-accent-tint, var(--study-dock-scripture-pill-neutral)) 7.5%, transparent) !important;
   color: var(--pds-text-primary) !important;
-  background: var(--pds-bg-section) !important;
+}
+
+.proto-editor-surface .scripture-pill[data-pill-accent]:hover {
+  background: color-mix(in srgb, var(--scripture-pill-accent-tint, var(--study-dock-scripture-pill-neutral)) 10%, transparent) !important;
+}
+
+/* Token tint — after shared rules so equal-specificity selectors win on --scripture-pill-accent-tint */
+.proto-editor-surface .scripture-pill[data-pill-accent="neutral"] {
+  --scripture-pill-accent-tint: var(--study-dock-scripture-pill-neutral);
+}
+.proto-editor-surface .scripture-pill[data-pill-accent="warmAmber"] {
+  --scripture-pill-accent-tint: var(--study-dock-accent-warmAmber);
+}
+.proto-editor-surface .scripture-pill[data-pill-accent="skyBlue"] {
+  --scripture-pill-accent-tint: var(--study-dock-accent-skyBlue);
+}
+.proto-editor-surface .scripture-pill[data-pill-accent="violet"] {
+  --scripture-pill-accent-tint: var(--study-dock-accent-violet);
+}
+.proto-editor-surface .scripture-pill[data-pill-accent="mintGreen"] {
+  --scripture-pill-accent-tint: var(--study-dock-accent-mintGreen);
+}
+.proto-editor-surface .scripture-pill[data-pill-accent="coralRose"] {
+  --scripture-pill-accent-tint: var(--study-dock-accent-coralRose);
 }
 
 /* ─── URL link pill (prototype editor) — matches scripture pill visual style ── */
@@ -298,18 +320,18 @@
   align-items: center !important;
   gap: 4px !important;
   border-radius: var(--pds-radius-scripture) !important;
-  padding: 0.08em 0.35em !important;
+  padding: 2px 11px !important;
   font-family: inherit !important;
-  font-size: inherit !important;
+  font-size: calc(1em * var(--pds-scripture-pill-font-scale, 0.9375)) !important;
   font-weight: 500 !important;
   font-variation-settings: "ROND" 0, "wght" 500 !important;
   line-height: inherit !important;
   background: var(--pds-bg-section) !important;
   color: var(--pds-text-primary) !important;
-  border: 0.5px solid var(--pds-border) !important;
+  border: none !important;
   text-decoration: none !important;
   cursor: pointer;
-  box-shadow: none !important;
+  box-shadow: var(--scripture-pill-inner-shadow) !important;
 }
 
 .proto-editor-surface .url-link-pill:hover {
@@ -325,6 +347,13 @@
   color: var(--pds-text-primary) !important;
   caret-color: var(--pds-accent);
   word-break: break-word;
+}
+
+/* Beat global.css `* { user-select: none }` so Cmd+C preserves block structure if the browser handles copy. */
+.proto-editor-surface .ProseMirror,
+.proto-editor-surface .ProseMirror *:not(.scripture-pill):not(.scripture-pill *) {
+  user-select: text;
+  -webkit-user-select: text;
 }
 
 /* Force SF body stack across card surface to prevent inherited Reddit Sans. */

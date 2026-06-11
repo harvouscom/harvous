@@ -1,4 +1,5 @@
 import { useQuery, useInfiniteQuery, useQueryClient, type InfiniteData } from '@tanstack/react-query';
+import { useAuthReady } from '../useAuthReady';
 import { api } from '../../lib/api';
 import { normalizeDate } from '../../../../src/utils/sorting';
 import { HARVOUS_SPACE_NOTES_CACHE_PREFIX } from '@/utils/user-cache-keys';
@@ -184,6 +185,7 @@ export function useSpace(spaceId: string) {
 }
 
 export function useSpaceNotes(spaceId: string, limit = 20) {
+  const authReady = useAuthReady();
   const trimmed = (spaceId ?? '').trim();
   const id = trimmed.startsWith('space_') ? trimmed : trimmed ? `space_${trimmed}` : '';
   const cachedFirstPage = id ? getCachedSpaceNotesFirstPage(id) : undefined;
@@ -206,7 +208,7 @@ export function useSpaceNotes(spaceId: string, limit = 20) {
     getNextPageParam: (lastPage) =>
       lastPage.hasMore ? lastPage.offset + lastPage.limit : undefined,
     initialPageParam: 0,
-    enabled: !!id,
+    enabled: authReady && !!id,
     staleTime: 30_000,
     initialData,
     initialDataUpdatedAt: initialData ? 0 : undefined,

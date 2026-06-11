@@ -71,7 +71,7 @@ enum ReferenceSuggestionPainter {
 
     // MARK: - Paint / cleanup
 
-    static func stripSuggestions(from storage: NSTextStorage, fullDocumentRange: NSRange) {
+    static func stripSuggestions(from storage: NSMutableAttributedString, fullDocumentRange: NSRange) {
         guard fullDocumentRange.length > 0 else { return }
         storage.beginEditing()
         defer { storage.endEditing() }
@@ -96,7 +96,12 @@ enum ReferenceSuggestionPainter {
     /// Repaint suggestions across the whole document. Run AFTER `applyHighlights` so saved
     /// highlights win: words already inside a `.harvousStudyHighlightUUID` run or a scripture
     /// pill attachment are skipped (no double-marking, matching the web mark-exclusion rule).
-    static func applySuggestions(storage: NSTextStorage, isDark: Bool) {
+    static func applySuggestions(
+        storage: NSTextStorage,
+        isDark: Bool,
+        entryLookup: ((String) -> EastonsSlugIndexEntry?)? = nil
+    ) {
+        let lookup = entryLookup ?? { serviceLookup($0) }
         let fullRange = NSRange(location: 0, length: storage.length)
         stripSuggestions(from: storage, fullDocumentRange: fullRange)
         guard storage.length > 0 else { return }
@@ -110,7 +115,7 @@ enum ReferenceSuggestionPainter {
 
         string.enumerateSubstrings(in: string.startIndex..<string.endIndex, options: .byWords) { sub, subRange, _, _ in
             guard let word = sub, !word.isEmpty else { return }
-            guard let slug = suggestedSlug(for: word, entryLookup: serviceLookup) else { return }
+            guard let slug = suggestedSlug(for: word, entryLookup: lookup) else { return }
             if shouldSkipPersonNameContext(in: string, wordRange: subRange) { return }
             let nsRange = NSRange(subRange, in: string)
             guard nsRange.location != NSNotFound, NSMaxRange(nsRange) <= storage.length else { return }
@@ -187,5 +192,81 @@ enum ReferenceSuggestionPainter {
         }
         guard !word.isEmpty else { return nil }
         return (word, expRange, expandedPlain)
+    }
+
+    // MARK: - Passage suggestions (scripture dock)
+
+    private static func passageBaselineOffset(at location: Int, in storage: NSAttributedString) -> CGFloat {
+        guard storage.length > 0, location >= 0, location < storage.length else { return 0 }
+        if let n = storage.attribute(.baselineOffset, at: location, effectiveRange: nil) as? NSNumber {
+            return CGFloat(truncating: n)
+        }
+        if let g = storage.attribute(.baselineOffset, at: location, effectiveRange: nil) as? CGFloat {
+            return g
+        }
+        return 0
+    }
+
+    /// Verse numerals are painted with a positive `baselineOffset` during HTML import.
+    private static func isPassageVerseNumeral(at location: Int, in storage: NSAttributedString) -> Bool {
+        passageBaselineOffset(at: location, in: storage) > 0.05
+    }
+
+    /// Skip Easton's hint when a Bible book name is followed by chapter/verse digits in the same text node.
+    private static func isLikelyScriptureReferenceInProgress(word: String, text: String, wordEndUTF16: Int) -> Bool {
+        guard ScriptureCanonicalBooks.bookIndex(matchingRaw: word) != nil else { return false }
+        let ns = text as NSString
+        guard wordEndUTF16 <= ns.length else { return false }
+        let after = ns.substring(from: wordEndUTF16)
+        return after.range(of: #"^\s*\d"#, options: .regularExpression) != nil
+    }
+
+    private static func intersectsAnyRange(_ range: NSRange, in ranges: [NSRange]) -> Bool {
+        ranges.contains { NSIntersectionRange(range, $0).length > 0 }
+    }
+
+    /// Paints dotted dictionary hints into passage attributed text. Run after saved passage highlights.
+    static func applyPassageSuggestions(
+        to storage: NSMutableAttributedString,
+        isDark: Bool,
+        excludedPaintRanges: [NSRange] = [],
+        entryLookup: ((String) -> EastonsSlugIndexEntry?)? = nil
+    ) {
+        let lookup = entryLookup ?? { serviceLookup($0) }
+        guard EastonsDictionaryService.shared.indexLoadState == .loaded else { return }
+        let fullRange = NSRange(location: 0, length: storage.length)
+        stripSuggestions(from: storage, fullDocumentRange: fullRange)
+        guard storage.length > 0 else { return }
+
+        let underlineColor = suggestionUnderlineColor(isDark: isDark)
+        let dottedStyle = NSUnderlineStyle([.single, .patternDot]).rawValue
+        let string = storage.string
+
+        storage.beginEditing()
+        defer { storage.endEditing() }
+
+        string.enumerateSubstrings(in: string.startIndex..<string.endIndex, options: .byWords) { sub, subRange, _, _ in
+            guard let word = sub, !word.isEmpty else { return }
+            let nsRange = NSRange(subRange, in: string)
+            guard nsRange.location != NSNotFound, NSMaxRange(nsRange) <= storage.length else { return }
+            if isPassageVerseNumeral(at: nsRange.location, in: storage) { return }
+            if intersectsAnyRange(nsRange, in: excludedPaintRanges) { return }
+            guard let slug = suggestedSlug(for: word, entryLookup: lookup) else { return }
+            if shouldSkipPersonNameContext(in: string, wordRange: subRange) { return }
+            if isLikelyScriptureReferenceInProgress(word: word, text: string, wordEndUTF16: NSMaxRange(nsRange)) { return }
+            storage.addAttribute(.harvousReferenceSuggestion, value: slug, range: nsRange)
+            storage.addAttribute(.underlineStyle, value: dottedStyle, range: nsRange)
+            storage.addAttribute(.underlineColor, value: underlineColor, range: nsRange)
+        }
+    }
+
+    /// Hit-test a passage attributed string for an inline suggestion run.
+    static func suggestionAtPassage(storageUTF16Index location: Int, in storage: NSAttributedString) -> (slug: String, range: NSRange)? {
+        guard storage.length > 0, location >= 0, location < storage.length else { return nil }
+        var eff = NSRange()
+        guard let slug = storage.attribute(.harvousReferenceSuggestion, at: location, effectiveRange: &eff) as? String else {
+            return nil
+        }
+        return (slug, eff)
     }
 }

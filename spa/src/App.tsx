@@ -23,6 +23,7 @@ import {
 } from '@/utils/mobile-offline-chip-layout';
 import { subscribeSheetOverlayInset } from '@/utils/sheet-overlay-inset';
 import { useDesktopMainModalPortal } from '@/hooks/useDesktopMainModalPortal';
+import { SyncCacheBridge } from './lib/sync-cache-bridge';
 
 const PWA_INSTALL_INSTRUCTIONS_EVENT = 'showPwaInstallInstructions';
 
@@ -716,6 +717,7 @@ export default function App() {
         <DevApiHealthBanner />
         <ToastSetup />
         <UserIdSync />
+        <SyncCacheBridge />
         <SpaToaster />
         <KeyboardShortcutsInit />
         <SpotlightSearch />

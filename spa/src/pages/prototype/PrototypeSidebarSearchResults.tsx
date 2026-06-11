@@ -5,7 +5,9 @@ import { MIN_SEARCH_QUERY_LENGTH } from '@/utils/search-query';
 import type { SpaceNoteRow } from '../../hooks/queries/useSpace';
 import type { PrototypeHighlightStudyThreadRow } from '../../hooks/queries/usePrototypeSpaceStudyThreadHighlights';
 import type { StudyThreadCluster } from '../../hooks/queries/usePrototypeStudyThreads';
+import { PrototypeListNoMatchEmptyState } from './PrototypeListEmptyState';
 import PrototypeSidebarSearchResultItem from './PrototypeSidebarSearchResultItem';
+import { SIDEBAR_NO_MATCH_COPY } from './sidebar-no-match-copy';
 import {
   SIDEBAR_ELSEWHERE_TYPE_OPTIONS,
   type HighlightKindFilter,
@@ -201,13 +203,13 @@ export default function PrototypeSidebarSearchResults({
       ) : null}
 
       {bothScopesEmpty ? (
-        <p className="proto-caption proto-sidebar-search-section__empty">No results in this space.</p>
+        <PrototypeListNoMatchEmptyState title={SIDEBAR_NO_MATCH_COPY.noResultsInSpace} />
       ) : searchScope === 'active' && activeResults.length === 0 ? (
-        <p className="proto-caption proto-sidebar-search-section__empty">No matches in this view.</p>
+        <PrototypeListNoMatchEmptyState title={SIDEBAR_NO_MATCH_COPY.noMatchesInView} />
       ) : searchScope === 'elsewhere' && ftsQuery.isLoading && debouncedFtsQuery ? (
         <p className="proto-caption proto-sidebar-search-section__empty">Searching notes…</p>
       ) : searchScope === 'elsewhere' && elsewhereResults.length === 0 ? (
-        <p className="proto-caption proto-sidebar-search-section__empty">No other matches.</p>
+        <PrototypeListNoMatchEmptyState title={SIDEBAR_NO_MATCH_COPY.noOtherMatches} />
       ) : (
         <SearchResultSection
           results={visibleResults}

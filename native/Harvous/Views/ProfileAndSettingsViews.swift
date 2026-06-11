@@ -541,8 +541,6 @@ private struct SettingsMyDataView: View {
     @State private var showDeleteConfirm = false
     @State private var isClearing = false
     @State private var isDeleting = false
-    @State private var isRefreshing = false
-    @State private var showRefreshConfirm = false
     @State private var dataActionMessage: String?
     @State private var dataActionError: String?
 
@@ -621,46 +619,9 @@ private struct SettingsMyDataView: View {
                         }
                         .disabled(exportBusy != nil)
 
-                        Text("Downloads a copy of your study from your account.")
+                        Text("Markdown is per-note with folders and highlights; CSV is a flat spreadsheet summary.")
                             .font(HarvousTypography.footnote)
                             .foregroundStyle(.secondary)
-                    }
-                    .listRowBackground(Color.clear)
-                }
-
-                if isSignedIn {
-                    Section {
-                        Button {
-                            dataActionError = nil
-                            dataActionMessage = nil
-                            showRefreshConfirm = true
-                        } label: {
-                            HStack {
-                                Text("Refresh from server…")
-                                if isRefreshing { Spacer(); ProgressView().controlSize(.small) }
-                            }
-                        }
-                        .disabled(isRefreshing || isClearing || isDeleting)
-
-                        Text("Uploads pending changes, then replaces this device's library with your account.")
-                            .font(HarvousTypography.footnote)
-                            .foregroundStyle(.secondary)
-
-                        if HarvousAPIClient.shared.isLocalDevBase {
-                            Text(
-                                "Connected to local dev (\(HarvousEnvironment.apiBaseURL.host ?? "dev")). "
-                                + "Other devices on app.harvous.com will not see changes. "
-                                + "Use the Debug-Prod scheme to sync with production."
-                            )
-                            .font(HarvousTypography.footnote)
-                            .foregroundStyle(.orange)
-                        } else {
-                            Text("API: \(HarvousEnvironment.apiBaseURL.absoluteString)")
-                                .font(HarvousTypography.footnote)
-                                .foregroundStyle(.secondary)
-                        }
-                    } header: {
-                        Text("Sync")
                     }
                     .listRowBackground(Color.clear)
                 }
@@ -701,13 +662,13 @@ private struct SettingsMyDataView: View {
                             dataActionError = nil; dataActionMessage = nil
                             showClearConfirm = true
                         }
-                        .disabled(isClearing || isDeleting || isRefreshing)
+                        .disabled(isClearing || isDeleting)
 
                         Button("Delete account…", role: .destructive) {
                             dataActionError = nil; dataActionMessage = nil
                             showDeleteConfirm = true
                         }
-                        .disabled(isClearing || isDeleting || isRefreshing)
+                        .disabled(isClearing || isDeleting)
 
                         if let dataActionMessage {
                             Text(dataActionMessage)
@@ -743,14 +704,6 @@ private struct SettingsMyDataView: View {
                 dataActionMessage = "Export saved."
             }
             exportDocument = nil
-        }
-        .confirmationDialog(
-            "Upload pending changes, then replace this device's library with your account? Notes on this device that aren't on the server will be uploaded first.",
-            isPresented: $showRefreshConfirm,
-            titleVisibility: .visible
-        ) {
-            Button("Refresh from server") { Task { await refreshFromServer() } }
-            Button("Cancel", role: .cancel) {}
         }
         .confirmationDialog(
             "Clear all notes, folders, and highlights? Your account stays. This can't be undone.",
@@ -852,22 +805,6 @@ private struct SettingsMyDataView: View {
                 ? .commaSeparatedText
                 : (UTType(filenameExtension: "md") ?? .plainText)
             showExporter = true
-        } catch {
-            dataActionError = error.localizedDescription
-        }
-    }
-
-    private func refreshFromServer() async {
-        isRefreshing = true
-        dataActionError = nil
-        dataActionMessage = nil
-        defer { isRefreshing = false }
-        do {
-            try await HarvousSyncService.shared.refreshFromServer(context: modelContext)
-            spaceStore.bootstrapIfNeeded(modelContext: modelContext)
-            dataActionMessage = "Library refreshed from your account."
-        } catch let refreshErr as HarvousSyncRefreshError {
-            dataActionError = refreshErr.localizedDescription
         } catch {
             dataActionError = error.localizedDescription
         }

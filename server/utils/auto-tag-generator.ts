@@ -1,4 +1,5 @@
 import { randomUUID } from 'crypto';
+import { conceptOverlapsAny } from '@/utils/bible-study-concept-overlaps';
 import { findKeywordsInText, findKeywordsInTextWithPriority, BIBLE_STUDY_KEYWORDS, type BibleStudyKeyword } from '@/utils/bible-study-keywords';
 import { db, first, Tags, NoteTags, eq, and, now } from '../db';
 import { getOrCreateTag, noteHasTagWithNormalizedName } from './tag-helpers';
@@ -7,21 +8,7 @@ import { getOrCreateTag, noteHasTagWithNormalizedName } from './tag-helpers';
 export const AUTO_TAG_CONFIDENCE_SYSTEM_AUTOGEN = 0.65;
 
 function isTagOverlapping(newTag: string, existingTag: string): boolean {
-  const newLower = newTag.toLowerCase();
-  const existingLower = existingTag.toLowerCase();
-  if (newLower === existingLower) return true;
-  if (newLower.includes(existingLower) || existingLower.includes(newLower)) return true;
-  const overlappingPairs = [
-    ['goodness', 'righteousness'], ['grace', 'mercy'], ['love', 'mercy'],
-    ['faith', 'belief'], ['hope', 'faith'], ['peace', 'joy'],
-    ['kingdom of god', 'heaven'], ['resurrection', 'eternal life'],
-    ['eternal life', 'everlasting life'], ['holy spirit', 'spirit'],
-    ['jesus', 'christ'], ['jesus', 'lord'], ['god', 'father'], ['god', 'lord']
-  ];
-  for (const [tag1, tag2] of overlappingPairs) {
-    if ((newLower === tag1 && existingLower === tag2) || (newLower === tag2 && existingLower === tag1)) return true;
-  }
-  return false;
+  return conceptOverlapsAny(newTag, [existingTag]);
 }
 
 export interface AutoTagSuggestion {
@@ -39,7 +26,11 @@ export interface AutoTagResult {
 }
 
 export async function generateAutoTags(
-  noteTitle: string, noteContent: string, userId: string, confidenceThreshold: number = 0.7
+  noteTitle: string,
+  noteContent: string,
+  userId: string,
+  confidenceThreshold: number = 0.7,
+  options?: { excludeLabels?: string[] },
 ): Promise<AutoTagResult> {
   try {
     if (!userId) {
@@ -70,12 +61,14 @@ export async function generateAutoTags(
       existingTags = [];
     }
 
+    const excludeLabels = options?.excludeLabels ?? [];
     const existingTagNames = new Set(existingTags.map(tag => tag.name.toLowerCase()));
     const suggestions: AutoTagSuggestion[] = [];
     let highConfidence = 0;
 
     for (const { keyword, confidence } of foundKeywords) {
       if (keyword.name.toLowerCase() === 'god') continue;
+      if (conceptOverlapsAny(keyword.name, excludeLabels)) continue;
       if (confidence >= confidenceThreshold) {
         const isOverlapping = suggestions.some(existing => isTagOverlapping(keyword.name, existing.keyword));
         if (isOverlapping) continue;
@@ -104,6 +97,7 @@ export async function generateAutoTags(
     for (const personTag of detectPersonTags(fullText)) {
       const key = personTag.toLowerCase();
       if (enhancedSuggestions.some(s => s.keyword.toLowerCase() === key)) continue;
+      if (conceptOverlapsAny(personTag, excludeLabels)) continue;
       const isExisting = existingTagNames.has(key);
       const existingTag = isExisting
         ? existingTags.filter(t => t.name.toLowerCase() === key)
@@ -230,7 +224,7 @@ export async function regenerateAutoTags(
   noteContent: string,
   userId: string,
   confidenceThreshold: number = 0.7,
-  options?: { removeAllNoteTagLinks?: boolean }
+  options?: { removeAllNoteTagLinks?: boolean; excludeLabels?: string[] },
 ): Promise<{ applied: number; errors: string[]; suggestionCount: number }> {
   try {
     if (options?.removeAllNoteTagLinks) {
@@ -238,7 +232,9 @@ export async function regenerateAutoTags(
     } else {
       await removeAutoTags(noteId);
     }
-    const result = await generateAutoTags(noteTitle, noteContent, userId, confidenceThreshold);
+    const result = await generateAutoTags(noteTitle, noteContent, userId, confidenceThreshold, {
+      excludeLabels: options?.excludeLabels,
+    });
     const out = await applyAutoTags(noteId, result.suggestions, userId, {
       forceRelink: Boolean(options?.removeAllNoteTagLinks),
     });

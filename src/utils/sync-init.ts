@@ -1,6 +1,6 @@
 import React from 'react';
 import { useUser } from '@clerk/clerk-react';
-import { bootstrapSync, syncNow, needsBootstrap, startBackgroundSync } from './sync-manager';
+import { bootstrapSync, syncNow, needsBootstrap, startBackgroundSync, pushQueue } from './sync-manager';
 import { isOfflineModeEnabled } from './offline-mode';
 import { isPrototypeShellPath } from '@/lib/prototype-path';
 
@@ -45,8 +45,38 @@ export async function initializeSync(
     return;
   }
 
+  // Prototype shell: read path is React Query against the server, so we never bootstrap
+  // or pull the IndexedDB mirror (that work competes with first paint and can OOM the tab).
+  // We DO flush the local mutation queue and run a push-only background loop so notes
+  // created/edited offline reach the server when connectivity returns.
   if (isPrototypeShellRoute()) {
-    return;
+    const flushQueue = async () => {
+      if (navigator.onLine) {
+        try {
+          await pushQueue(userId);
+        } catch (error) {
+          console.error('[initializeSync] Prototype flush failed:', error);
+        }
+      }
+    };
+
+    if (options?.deferInitialWork) {
+      let cleanup: (() => void) | undefined;
+      let cancelled = false;
+      scheduleDeferredWork(async () => {
+        if (cancelled) return;
+        await flushQueue();
+        if (cancelled) return;
+        cleanup = startBackgroundSync(userId, 300000, { pushOnly: true });
+      });
+      return () => {
+        cancelled = true;
+        cleanup?.();
+      };
+    }
+
+    await flushQueue();
+    return startBackgroundSync(userId, 300000, { pushOnly: true });
   }
 
   const runInitialSyncWork = async () => {

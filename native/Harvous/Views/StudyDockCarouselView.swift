@@ -146,10 +146,14 @@ struct StudyDockCarouselView<ActiveContent: View>: View {
         let isExpandedSlot = isActive && entry.expanded
         let slotWidth = widthForEntry(entry, trackWidth: layoutTrackWidth)
         let isDragging = draggedEntryId == entry.id
-        let centersCardInSlot = isExpandedSlot || stack.entries.count == 1
+        let isSingleDock = stack.entries.count == 1
+        let centersCardInSlot = isExpandedSlot || isSingleDock
 
         HStack(alignment: .bottom, spacing: 4) {
-            carouselDragHandle(entry: entry, isCompactSlot: !isExpandedSlot)
+            // A single dock has nothing to reorder — drop the handle so the card centers in the row.
+            if !isSingleDock {
+                carouselDragHandle(entry: entry, isCompactSlot: !isExpandedSlot)
+            }
 
             carouselCardContent(entry: entry, isActive: isActive, centersInSlot: centersCardInSlot)
         }

@@ -258,4 +258,97 @@ struct ScriptureDetector {
         }
         return out
     }
+
+    // MARK: - Cursor-anchored detection (mirrors scripture-pill-position.ts)
+
+    /// Chapter-level reference without verse (e.g. "Exodus 5").
+    static func isChapterOnlyScriptureReference(_ reference: String) -> Bool {
+        !reference.contains(":")
+    }
+
+    /// Space, newline, or cursor at the start of a block after Enter — same boundary role as Space.
+    static func isScriptureBoundaryInsertion(
+        charBeforeCursor: UnicodeScalar?,
+        isNewParagraph: Bool
+    ) -> Bool {
+        if isNewParagraph { return true }
+        guard let scalar = charBeforeCursor else { return false }
+        if CharacterSet.whitespacesAndNewlines.contains(scalar) { return true }
+        return false
+    }
+
+    /// Chapter-only refs pill only at word boundaries; verse refs can pill mid-stream when ending at cursor.
+    static func shouldCreatePillAtBoundary(match: Match?, isBoundary: Bool) -> Bool {
+        guard let match else { return isBoundary }
+        if !isChapterOnlyScriptureReference(match.displayText) { return true }
+        return isBoundary
+    }
+
+    private static func tailAllowsCursorEnding(_ tail: String) -> Bool {
+        if tail.isEmpty { return true }
+        if tail.unicodeScalars.allSatisfy({ CharacterSet.whitespacesAndNewlines.contains($0) }) { return true }
+        let trimmed = tail.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.count == 1, ".,;:".contains(trimmed) { return true }
+        return false
+    }
+
+    /// Reference match in `fullText` whose end aligns with `beforeCursorUTF16` (optional trailing space/punctuation).
+    static func detectReferenceEnding(
+        in fullText: String,
+        beforeCursorUTF16: Int,
+        windowUTF16: Int = 80
+    ) -> Match? {
+        let ns = fullText as NSString
+        let len = ns.length
+        guard beforeCursorUTF16 > 0, beforeCursorUTF16 <= len else { return nil }
+        let start = max(0, beforeCursorUTF16 - windowUTF16)
+        let sliceLen = beforeCursorUTF16 - start
+        guard sliceLen > 0 else { return nil }
+        let slice = ns.substring(with: NSRange(location: start, length: sliceLen))
+        let sliceNS = slice as NSString
+        let matches = detect(in: slice)
+        guard !matches.isEmpty else { return nil }
+
+        let windowLen = sliceNS.length
+        var bestMatch: Match?
+        var bestEnd = -1
+        for m in matches {
+            let endInSlice = NSMaxRange(m.range)
+            let tailLen = windowLen - endInSlice
+            guard tailLen >= 0 else { continue }
+            let tail = tailLen > 0
+                ? sliceNS.substring(with: NSRange(location: endInSlice, length: tailLen))
+                : ""
+            guard tailAllowsCursorEnding(tail) else { continue }
+            if endInSlice > bestEnd {
+                bestEnd = endInSlice
+                bestMatch = Match(
+                    displayText: m.displayText,
+                    range: NSRange(location: start + m.range.location, length: m.range.length)
+                )
+            }
+        }
+        return bestMatch
+    }
+
+    /// Fallback when cursor-ending match fails: last detected ref in the window (comma/period triggers).
+    static func detectLastReferenceInWindow(
+        in fullText: String,
+        beforeCursorUTF16: Int,
+        windowUTF16: Int = 60
+    ) -> Match? {
+        let ns = fullText as NSString
+        let len = ns.length
+        guard beforeCursorUTF16 > 0, beforeCursorUTF16 <= len else { return nil }
+        let start = max(0, beforeCursorUTF16 - windowUTF16)
+        let sliceLen = beforeCursorUTF16 - start
+        guard sliceLen > 0 else { return nil }
+        let slice = ns.substring(with: NSRange(location: start, length: sliceLen))
+        let matches = detect(in: slice)
+        guard let last = matches.last else { return nil }
+        return Match(
+            displayText: last.displayText,
+            range: NSRange(location: start + last.range.location, length: last.range.length)
+        )
+    }
 }

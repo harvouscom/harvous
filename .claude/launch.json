@@ -5,7 +5,8 @@
       "name": "spa",
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "dev:all"],
-      "port": 4322
+      "port": 4322,
+      "autoPort": false
     },
     {
       "name": "site",

@@ -193,6 +193,8 @@ struct NoteEditorView: View {
     @ObservedObject private var eastonsService = EastonsDictionaryService.shared
     /// Passage highlights for the active pill dock reference + translation (library-wide).
     @State private var scripturePassageHighlights: [StudyThread] = []
+    /// Saved passage references (Easton's words) for the active pill dock reference + translation.
+    @State private var scripturePassageReferences: [StudyThread] = []
     /// Prefetch scripture HTML for pills in this note — cancelled when switching notes or on editor disappear.
     @State private var scripturePillPrefetchTask: Task<Void, Never>?
     /// Prefetch Easton's entries for words on this note's existing reference-highlight threads —
@@ -475,6 +477,7 @@ struct NoteEditorView: View {
             // before the index did.
             guard state == .loaded, let n = note else { return }
             scheduleEastonsEntryPrefetch(note: n)
+            proxy.repaintReferenceSuggestions?()
         }
     }
 
@@ -1272,7 +1275,7 @@ struct NoteEditorView: View {
                         // Body — same horizontal inset as title (TextKit defaults add extra leading; zeroed in HarvousEditor)
                         #if os(macOS)
                         HarvousEditor(
-                            state: $editorState,
+                            state: editorState,
                             proxy: proxy,
                             noteID: note.id,
                             documentBody: note.body,
@@ -1312,7 +1315,7 @@ struct NoteEditorView: View {
                         .onChange(of: editorState.plainText) { _, _ in scheduleAutosaveForCanvas(note: note) }
                         #else
                         HarvousEditor(
-                            state: $editorState,
+                            state: editorState,
                             noteID: note.id,
                             documentBody: note.body,
                             placeholder: "Start writing…",
@@ -1815,9 +1818,42 @@ struct NoteEditorView: View {
     /// Persists the reference highlight; the saved reference then reopens as a normal highlight
     /// dock in the carousel. The suggestion underline disappears on the next repaint because the
     /// word is now inside a saved highlight (excluded by `ReferenceSuggestionPainter`).
-    private func saveReferenceFromPending(slug: String, headword: String, storageRange: NSRange) {
+    private func savePassageReferenceFromPending(
+        slug: String,
+        headword: String,
+        context passageContext: PassageReferenceContext,
+        note: Note
+    ) {
+        autosave.cancel()
+        persistEditorIntoNote(note)
+        let word = passageContext.excerpt.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !word.isEmpty else { return }
+        let thread = ThreadStore.createPassageReferenceHighlight(
+            parent: note,
+            spaceId: note.resolvedSpaceId(),
+            referenceRaw: passageContext.canonicalReference,
+            translation: passageContext.translation,
+            word: word,
+            modelContext: context
+        )
+        _ = slug
+        _ = headword
+        scheduleRefreshThreads(note: note)
+        refreshScripturePassageHighlights(item: studyDockStack.activeScripture)
+        var stack = studyDockStack
+        stack.openOrFocusHighlight(threadId: thread.id)
+        studyDockStack = stack
+    }
+
+    private func saveReferenceFromPending(
+        slug: String,
+        headword: String,
+        storageRange: NSRange,
+        replacingPendingEntryId: UUID? = nil
+    ) {
         guard let note else { return }
         autosave.cancel()
+        syncEditorPlainTextFromLiveBody()
         persistEditorIntoNote(note)
         guard let (_, storage) = proxy.textViewPair() else { return }
         guard let payload = ReferenceSuggestionPainter.resolveSavePayload(
@@ -1834,10 +1870,46 @@ struct NoteEditorView: View {
             expandedPlainForAnchor: payload.expandedPlain,
             modelContext: context
         )
+        commitInlineHighlightVisualsAfterSave(thread: thread, expandedRange: payload.expRange, note: note)
         scheduleRefreshThreads(note: note)
         var stack = studyDockStack
+        if let replacingPendingEntryId {
+            stack.entries.removeAll { $0.id == replacingPendingEntryId }
+            if stack.activeId == replacingPendingEntryId {
+                stack.activeId = nil
+            }
+        }
         stack.openOrFocusHighlight(threadId: thread.id)
         studyDockStack = stack
+    }
+
+    private func syncEditorPlainTextFromLiveBody() {
+        guard let (tv, _) = proxy.textViewPair() else { return }
+        proxy.syncPlainTextBindingFromTextView?(tv)
+    }
+
+    /// Immediately paints a freshly saved anchored highlight in the live body (web `setHighlight` parity).
+    private func commitInlineHighlightVisualsAfterSave(thread: StudyThread, expandedRange: NSRange, note: Note) {
+        let accent = StudyHighlightAccentToken.decoding(thread.highlightAccentRaw)
+        let paint = StudyHighlightPaint(
+            threadId: thread.id,
+            entryKind: thread.entryKind,
+            accent: accent,
+            expandedUTF16Range: expandedRange
+        )
+        var next = studyHighlightPaints.filter { $0.threadId != thread.id }
+        next.append(paint)
+        next.sort { lhs, rhs in
+            let lhsLoc = lhs.expandedUTF16Range.location
+            let rhsLoc = rhs.expandedUTF16Range.location
+            if lhsLoc != rhsLoc { return lhsLoc < rhsLoc }
+            return lhs.threadId.uuidString < rhs.threadId.uuidString
+        }
+        studyHighlightPaints = next
+        proxy.syncStudyHighlightPaintsToEditor?(next)
+        // Repaints saved highlights then re-applies dotted suggestions on top (macOS chains both).
+        proxy.repaintStudyHighlights?()
+        reconcileStudyHighlightsPainting(for: note, forceWhileEditing: true)
     }
 
     /// Coalesces multiple rapid calls (note switch, scene-phase transition, highlight events firing together)
@@ -2004,7 +2076,7 @@ struct NoteEditorView: View {
             #else
             return Color(uiColor: token.resolvedAccentUIColor(kind: thread.entryKind, isDark: isDark))
             #endif
-        case .pendingReference:
+        case .pendingReference, .pendingPassageReference:
             let token = StudyHighlightAccentToken.warmAmber
             #if os(macOS)
             return Color(nsColor: token.resolvedAccentNSColor(kind: .reference, isDark: isDark))
@@ -2026,8 +2098,22 @@ struct NoteEditorView: View {
                 slug: slug,
                 isExpanded: isActive ? dockExpandedBinding(entryId: entry.id) : .constant(false),
                 onSave: {
+                    saveReferenceFromPending(
+                        slug: slug,
+                        headword: headword,
+                        storageRange: storageRange,
+                        replacingPendingEntryId: entry.id
+                    )
+                },
+                onDismiss: { closeStudyDockEntry(id: entry.id) }
+            )
+        case .pendingPassageReference(let slug, let headword, let passageContext):
+            PendingReferenceDock(
+                slug: slug,
+                isExpanded: isActive ? dockExpandedBinding(entryId: entry.id) : .constant(false),
+                onSave: {
                     closeStudyDockEntry(id: entry.id)
-                    saveReferenceFromPending(slug: slug, headword: headword, storageRange: storageRange)
+                    savePassageReferenceFromPending(slug: slug, headword: headword, context: passageContext, note: note)
                 },
                 onDismiss: { closeStudyDockEntry(id: entry.id) }
             )
@@ -2040,7 +2126,7 @@ struct NoteEditorView: View {
             EmptyView()
         } else if let dockThread = ThreadStore.fetch(id: threadId, modelContext: context),
                   StudyThread.anchoredHighlightKinds.contains(dockThread.entryKind),
-                  dockThread.hasPersistedHighlightAnchor {
+                  dockThread.hasPersistedHighlightAnchor || dockThread.hasPassageReferenceAnchor {
             ActiveHighlightDock(
                 thread: dockThread,
                 isExpanded: isActive ? dockExpandedBinding(entryId: entryId) : .constant(false),
@@ -2190,11 +2276,11 @@ struct NoteEditorView: View {
         }
     }
 
-    private func reconcileStudyHighlightsPainting(for note: Note) {
+    private func reconcileStudyHighlightsPainting(for note: Note, forceWhileEditing: Bool = false) {
 #if os(macOS)
         // Freeze paint-list updates while the user is typing — range reconciliation on every
         // keystroke was re-entering `updateNSView` and stalling NSTextView caret layout.
-        if proxy.isActivelyEditingBody { return }
+        if !forceWhileEditing, proxy.isActivelyEditingBody { return }
 #endif
         let rows = ThreadStore.fetchAnchoredHighlights(parentNoteId: note.id, modelContext: context)
         let plain = editorState.plainText
@@ -2222,6 +2308,10 @@ struct NoteEditorView: View {
         )
         guard nextSignature != currentSignature else { return }
         studyHighlightPaints = nextPaints
+        if forceWhileEditing {
+            proxy.syncStudyHighlightPaintsToEditor?(nextPaints)
+            proxy.repaintStudyHighlights?()
+        }
         // Read-only paint reconciliation; never persist here (was calling `saveWithLogging` on every body
         // change and note switch — main-thread stalls and SwiftData contention with no model mutations).
     }
@@ -2610,7 +2700,27 @@ struct NoteEditorView: View {
             passageHighlightPaints: scripturePassageHighlights.map {
                 ScripturePassageHighlightPaint(id: $0.id, excerpt: $0.scripturePassageExcerpt ?? "", accentRaw: $0.highlightAccentRaw)
             },
+            passageReferencePaints: scripturePassageReferences.map {
+                ScripturePassageHighlightPaint(id: $0.id, excerpt: $0.scripturePassageExcerpt ?? $0.sourceSnippet, accentRaw: $0.highlightAccentRaw)
+            },
             scripturePassageHighlights: scripturePassageHighlights,
+            scripturePassageReferences: scripturePassageReferences,
+            onPassageReferenceSuggestionTap: { slug, word in
+                var stack = studyDockStack
+                let headword = EastonsDictionaryService.shared.slugIndex[slug]?.headword ?? slug.capitalized
+                let canon = ThreadStore.canonicalScriptureDisplay(fromReferenceRaw: item.reference)
+                stack.openOrFocusPendingPassageReference(
+                    slug: slug,
+                    headword: headword,
+                    context: PassageReferenceContext(
+                        canonicalReference: canon,
+                        translation: item.translation,
+                        sourceNoteId: note.id,
+                        excerpt: word
+                    )
+                )
+                studyDockStack = stack
+            },
             parentNoteId: note.id,
             scriptureTheme: scriptureTheme,
             onDismiss: { closeStudyDockEntry(id: entryId) }
@@ -2623,11 +2733,13 @@ struct NoteEditorView: View {
         guard let entry = studyDockStack.activeEntry,
               case .scripture = entry.payload else {
             scripturePassageHighlights = []
+            scripturePassageReferences = []
             proxy.activeScripturePill = nil
             proxy.preferOrbChromeUntilNextFormatSignal = true
             return
         }
         scripturePassageHighlights = []
+        scripturePassageReferences = []
         closeStudyDockEntry(id: entry.id)
         proxy.activeScripturePill = nil
         proxy.preferOrbChromeUntilNextFormatSignal = true
@@ -2692,10 +2804,16 @@ struct NoteEditorView: View {
     private func refreshScripturePassageHighlights(item: ActiveScripturePillDockItem?) {
         guard let item else {
             scripturePassageHighlights = []
+            scripturePassageReferences = []
             return
         }
         let canon = ThreadStore.canonicalScriptureDisplay(fromReferenceRaw: item.reference)
         scripturePassageHighlights = ThreadStore.fetchScripturePassageHighlights(
+            canonicalReference: canon,
+            translation: item.translation,
+            modelContext: context
+        )
+        scripturePassageReferences = ThreadStore.fetchScripturePassageReferences(
             canonicalReference: canon,
             translation: item.translation,
             modelContext: context

@@ -118,6 +118,13 @@
   pointer-events: auto;
 }
 
+/* Passage text must stay selectable inside the prototype shell (global.css sets * { user-select: none }). */
+.proto-shell__study-dock-layer .scripture-pill-chrome__passage-html,
+.proto-shell__study-dock-layer .scripture-pill-chrome__passage-html *:not(sup.verse-num):not(.reference-suggestion):not(mark[data-reference]) {
+  user-select: text !important;
+  -webkit-user-select: text !important;
+}
+
 /* Study dock cards — opaque surfaces (glass-light reads too translucent over the shell). */
 html.harvous-prototype-route .proto-shell__study-dock-layer .study-dock-card__card {
   background: var(--pds-bg-popover-solid);
@@ -389,6 +396,8 @@ html.harvous-prototype-route .proto-shell__detail-toolbar-cell::after {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
+  display: flex;
+  flex-direction: column;
   background: transparent;
 }
 

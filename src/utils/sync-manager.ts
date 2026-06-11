@@ -1074,6 +1074,24 @@ async function updateEntityId(entityType: string, oldId: string, newId: string, 
         break;
       case 'tag':
         await offlineDB.tags.where('[userId+id]').equals([userId, oldId]).modify({ id: newId });
+
+        // Update any pending noteTag mutations that reference this (newly server-assigned) tagId,
+        // so a tag created offline + assigned in the same batch links to the real tag id on push.
+        const tagNoteTagOps = await offlineDB.syncQueue
+          .where('userId')
+          .equals(userId)
+          .filter(op =>
+            op.entityType === 'noteTag' &&
+            op.data?.tagId === oldId &&
+            op.retryCount < 5
+          )
+          .toArray();
+
+        for (const op of tagNoteTagOps) {
+          await offlineDB.syncQueue.update(op.id!, {
+            data: { ...op.data, tagId: newId }
+          });
+        }
         break;
       case 'noteTag':
         await offlineDB.noteTags.where('[userId+id]').equals([userId, oldId]).modify({ id: newId });
@@ -1084,7 +1102,14 @@ async function updateEntityId(entityType: string, oldId: string, newId: string, 
     if (typeof window !== 'undefined') {
       const currentPath = window.location.pathname;
       const currentItemId = extractIdFromPath(currentPath);
-      
+
+      // Always notify reconciliation listeners (e.g. the prototype SPA's React Query
+      // cache bridge) of a local→server id swap, even when the swapped item is not the
+      // one currently on screen — list/detail caches elsewhere still hold the local id.
+      window.dispatchEvent(new CustomEvent('harvous:entityIdReconciled', {
+        detail: { oldId, newId, entityType },
+      }));
+
       // If user is currently viewing this item, update the URL (both DB ids)
       if (currentItemId === oldId) {
         const newUrl = idToUrl(newId);
@@ -1395,7 +1420,11 @@ export function triggerImmediateSync(userId: string): void {
 /**
  * Start background sync loop
  */
-export function startBackgroundSync(userId: string, intervalMs: number = 300000): () => void {
+export function startBackgroundSync(
+  userId: string,
+  intervalMs: number = 300000,
+  options?: { pushOnly?: boolean },
+): () => void {
   // Clean up any existing sync loop to prevent duplicates
   if (_bgSyncCleanup) {
     _bgSyncCleanup();
@@ -1403,12 +1432,19 @@ export function startBackgroundSync(userId: string, intervalMs: number = 300000)
 
   _bgSyncIntervalMs = intervalMs;
 
+  // The prototype shell reads from React Query (the server), not the IndexedDB mirror,
+  // so its loop only flushes the local mutation queue (push) and never pulls/bootstraps —
+  // pulling would hydrate the read mirror this surface deliberately avoids.
   const sync = async () => {
     // Skip sync when tab is not visible to save serverless invocations
     if (document.visibilityState === 'hidden') return;
     if (navigator.onLine) {
       try {
-        await syncNow(userId);
+        if (options?.pushOnly) {
+          await pushQueue(userId);
+        } else {
+          await syncNow(userId);
+        }
       } catch (error) {
         console.error('Background sync error:', error);
       }

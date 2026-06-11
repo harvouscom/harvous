@@ -4,6 +4,10 @@ import {
   isCapitalizedWord,
   createDictionaryReferenceProvider,
   buildReferenceSuggestionDecorations,
+  findReferenceSuggestionRanges,
+  decoratePassageHtmlWithReferenceSuggestions,
+  decoratePassageHtmlWithSavedHighlights,
+  resolvePassagePaintRanges,
   shouldSkipPersonNameContext,
   isSuggestibleEastonEntry,
   REFERENCE_SUGGESTION_STOPLIST,
@@ -161,6 +165,88 @@ describe('buildReferenceSuggestionDecorations', () => {
     const set = buildReferenceSuggestionDecorations(doc, [lukeProvider]);
     const words = set.find().map((d) => doc.textBetween(d.from, d.to));
     expect(words).not.toContain('Luke');
+  });
+});
+
+describe('findReferenceSuggestionRanges', () => {
+  it('matches a dictionary word and skips a scripture reference in progress', () => {
+    const exodusIndex = makeIndex([
+      { slug: 'bethlehem', headword: 'Bethlehem', category: 'place' },
+      { slug: 'exodus', headword: 'Exodus', category: 'place' },
+    ]);
+    const verseProvider = createDictionaryReferenceProvider(() => exodusIndex);
+    const verse = 'They traveled to Bethlehem. Reading Exodus 1 today.';
+    const ranges = findReferenceSuggestionRanges(verse, [verseProvider]);
+    const words = ranges.map((r) => r.word);
+    expect(words).toContain('Bethlehem');
+    expect(words).not.toContain('Exodus');
+  });
+});
+
+
+describe('decoratePassageHtmlWithReferenceSuggestions', () => {
+  const genesisIndex = makeIndex([
+    { slug: 'jabal', headword: 'Jabal', category: 'person' },
+    { slug: 'jubal', headword: 'Jubal', category: 'person' },
+    { slug: 'genesis', headword: 'Genesis', category: 'thing' },
+  ]);
+  const genesisProvider = createDictionaryReferenceProvider(() => genesisIndex);
+
+  it('wraps dictionary words in reference-suggestion spans', () => {
+    const html =
+      '<sup class="verse-num">20</sup>Adah gave birth to Jabal; his brother\'s name was Jubal.';
+    const out = decoratePassageHtmlWithReferenceSuggestions(html, [genesisProvider]);
+    expect(out).toContain('class="reference-suggestion"');
+    expect(out).toContain('data-reference-word="Jabal"');
+    expect(out).toContain('data-reference-word="Jubal"');
+    expect(out).toContain('>Jabal<');
+    expect(out).toContain('>Jubal<');
+  });
+
+  it('skips Bible book names when chapter digits follow in the same text node', () => {
+    const html = 'Reading Genesis 1 today in the garden.';
+    const out = decoratePassageHtmlWithReferenceSuggestions(html, [genesisProvider]);
+    expect(out).not.toContain('data-reference-word="Genesis"');
+  });
+});
+
+describe('resolvePassagePaintRanges', () => {
+  it('orders duplicate substrings by forward cursor', () => {
+    const text = 'Adam knew Adam again';
+    const paints = [
+      { id: 'a', excerpt: 'Adam', accentRaw: 'warmAmber', entryKind: 'reference' },
+      { id: 'b', excerpt: 'Adam', accentRaw: 'skyBlue', entryKind: 'reference' },
+    ];
+    const ranges = resolvePassagePaintRanges(text, paints);
+    expect(ranges).toHaveLength(2);
+    expect(ranges[0]).toMatchObject({ paint: { id: 'a' }, start: 0, end: 4 });
+    expect(ranges[1]).toMatchObject({ paint: { id: 'b' }, start: 10, end: 14 });
+  });
+});
+
+describe('decoratePassageHtmlWithSavedHighlights', () => {
+  it('wraps a saved reference word with mark[data-reference]', () => {
+    const html = '<p>Adam knew his wife again, and she gave birth to a son.</p>';
+    const out = decoratePassageHtmlWithSavedHighlights(html, [
+      { id: 'thread-1', excerpt: 'Adam', accentRaw: 'warmAmber', entryKind: 'reference' },
+    ]);
+    expect(out).toContain('<mark');
+    expect(out).toContain('data-reference="Adam"');
+    expect(out).toContain('data-color="warmAmber"');
+    expect(out).toContain('data-study-thread-id="thread-1"');
+    expect(out).toContain('>Adam<');
+  });
+
+  it('does not re-suggest a word already inside a saved mark', () => {
+    const genesisIndex = makeIndex([{ slug: 'adam', headword: 'Adam', category: 'person' }]);
+    const genesisProvider = createDictionaryReferenceProvider(() => genesisIndex);
+    const html = '<p>Adam knew his wife again.</p>';
+    const painted = decoratePassageHtmlWithSavedHighlights(html, [
+      { id: 'thread-1', excerpt: 'Adam', accentRaw: 'warmAmber', entryKind: 'reference' },
+    ]);
+    const out = decoratePassageHtmlWithReferenceSuggestions(painted, [genesisProvider]);
+    expect(out).toContain('data-reference="Adam"');
+    expect(out).not.toContain('class="reference-suggestion"');
   });
 });
 

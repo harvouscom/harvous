@@ -395,14 +395,14 @@ Copy into your issue tracker or mark inline when decided.
 ### Data model
 
 - [x] **Classic thread piles → 2.0:** Folders/collections only (Option 1); connected Threads sidebar is manual graph links — see [CLASSIC_TO_2_0_MIGRATION.md](../CLASSIC_TO_2_0_MIGRATION.md)
-- [ ] **Canonical note body:** HTML in Postgres | plain in Postgres | dual storage
-- [ ] **Classic `threadId`:** Sentinel only (proposed) | nullable column later | native gains `threadId`
-- [ ] **StudyThread merge:** Server ids only (proposed) | device-local study stays local-only
+- [x] **Canonical note body:** **HTML in Postgres** (native projects to plain text + round-trips `serverContentHTML`) — see [PHASE_0_DATA_MODEL_ADR.md](./PHASE_0_DATA_MODEL_ADR.md) D1
+- [x] **Classic `threadId`:** **Sentinel only** (`thread_unorganized`) — ADR D2 (already live in sync push)
+- [x] **StudyThread merge:** **Server ids only**, after parent-note link — ADR D4
 
 ### Identity and auth
 
-- [ ] **Auth provider:** Clerk (auth only) | Supabase Auth | deferred connect + Apple v1
-- [ ] **Canonical `userId`:** Clerk id (strategy A) | Supabase UUID (strategy B)
+- [ ] **Auth provider:** Clerk (auth only) | Supabase Auth | deferred connect + Apple v1 *(Phase 1 — not decided here)*
+- [x] **Canonical `userId`:** **Clerk id (strategy A)** — ADR D3b (map by email if provider changes; never rewrite FKs)
 - [ ] **New signups:** Which provider after cutover?
 - [ ] **Native first ship:** ClerkKit | Supabase Swift | local-only then connect
 

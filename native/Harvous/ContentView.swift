@@ -381,6 +381,13 @@ struct MacRootView: View {
                         .ignoresSafeArea()
                 }
             }
+            .overlay(alignment: .bottomLeading) {
+                if isAuthed {
+                    HarvousSyncStatusChip()
+                        .padding(.leading, 16)
+                        .padding(.bottom, 16)
+                }
+            }
             .onOpenURL { url in
                 SpaceStore.queueJoinTokenFromURL(url)
                 HarvousPendingRoute.applyURL(url)
@@ -841,9 +848,16 @@ struct iOSRootView: View {
     @ViewBuilder
     private var iosMorphingChromeInset: some View {
         if bridge.isAuthenticated {
-            MorphingChromeBar()
-                .environmentObject(appRouter)
-                .padding(.bottom, iosKeyboardOccupiesBottom ? 0 : -4)
+            VStack(spacing: 8) {
+                HStack {
+                    HarvousSyncStatusChip()
+                    Spacer(minLength: 0)
+                }
+                .padding(.horizontal, 16)
+                MorphingChromeBar()
+                    .environmentObject(appRouter)
+                    .padding(.bottom, iosKeyboardOccupiesBottom ? 0 : -4)
+            }
         }
     }
 

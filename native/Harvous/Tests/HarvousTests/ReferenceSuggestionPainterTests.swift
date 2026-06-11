@@ -93,4 +93,20 @@ final class ReferenceSuggestionPainterTests: XCTestCase {
         }
         XCTAssertFalse(ReferenceSuggestionPainter.shouldSkipPersonNameContext(in: text, wordRange: swiftRange))
     }
+
+    func testApplySuggestionsPaintsDottedUnderlineAttributes() {
+        let storage = NSTextStorage(string: "Paul went to Bethlehem.")
+        ReferenceSuggestionPainter.applySuggestions(storage: storage, isDark: false, entryLookup: entryLookup)
+
+        let paulRange = (storage.string as NSString).range(of: "Paul")
+        XCTAssertNotEqual(paulRange.location, NSNotFound)
+        XCTAssertEqual(storage.attribute(.harvousReferenceSuggestion, at: paulRange.location, effectiveRange: nil) as? String, "paul")
+        let underlineStyle = storage.attribute(.underlineStyle, at: paulRange.location, effectiveRange: nil) as? Int
+        XCTAssertNotNil(underlineStyle)
+        XCTAssertNotEqual(underlineStyle! & NSUnderlineStyle.patternDot.rawValue, 0)
+
+        let bethlehemRange = (storage.string as NSString).range(of: "Bethlehem")
+        XCTAssertNotEqual(bethlehemRange.location, NSNotFound)
+        XCTAssertEqual(storage.attribute(.harvousReferenceSuggestion, at: bethlehemRange.location, effectiveRange: nil) as? String, "bethlehem")
+    }
 }

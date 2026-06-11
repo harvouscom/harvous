@@ -48,6 +48,8 @@ import {
   prototypeHighlightRecencyIso,
 } from './proto-highlight-subtitle';
 import PrototypeDailyPassagePill from './PrototypeDailyPassagePill';
+import PrototypeListEmptyState, { PrototypeListNoMatchEmptyState } from './PrototypeListEmptyState';
+import { SIDEBAR_NO_MATCH_COPY } from './sidebar-no-match-copy';
 import PrototypeMigrationBanner from './PrototypeMigrationBanner';
 import PrototypeSidebarToolbar from './PrototypeSidebarToolbar';
 import {
@@ -563,12 +565,15 @@ export default function PrototypeSidebar() {
 
   const {
     data: pages,
-    isLoading: notesLoading,
+    isError: notesIsError,
+    isLoading: notesIsLoading,
     fetchNextPage,
     hasNextPage,
     isFetchingNextPage,
     isFetchNextPageError,
   } = useSpaceNotes(homeSpaceId ?? '');
+
+  const notesListReady = !notesIsLoading;
 
   const notesPaginationEnabled =
     !!homeSpaceId && (mode === 'notes' || (mode === 'folders' && activeFolderKey !== undefined));
@@ -1170,10 +1175,20 @@ export default function PrototypeSidebar() {
           <>
             {mode === 'notes' ? (
               <>
-                {notesLoading && notesForMode.length === 0 ? null : notesForMode.length === 0 ? (
+                {notesIsError ? (
                   <p className="proto-caption" style={{ padding: '12px 18px', textAlign: 'center' }}>
-                    {q.trim() ? 'No notes match.' : 'No notes yet.'}
+                    Couldn&apos;t load notes.
                   </p>
+                ) : !notesListReady ? null : notesForMode.length === 0 ? (
+                  q.trim() ? (
+                    <PrototypeListNoMatchEmptyState title={SIDEBAR_NO_MATCH_COPY.noNotesMatch} />
+                  ) : (
+                    <PrototypeListEmptyState
+                      iconName="note-sticky"
+                      title="No Notes"
+                      description="Create your first note to get started."
+                    />
+                  )
                 ) : (
                   <ul className="proto-note-list">
                     {notesForMode.map((row) => (
@@ -1205,7 +1220,11 @@ export default function PrototypeSidebar() {
 
             {mode === 'folders' && activeFolderKey !== undefined ? (
               <>
-                {notesForMode.length === 0 ? (
+                {notesIsError ? (
+                  <p className="proto-caption" style={{ padding: '12px 18px', textAlign: 'center' }}>
+                    Couldn&apos;t load notes.
+                  </p>
+                ) : !notesListReady ? null : notesForMode.length === 0 ? (
                   <p className="proto-caption" style={{ padding: '12px 18px', textAlign: 'center' }}>
                     No notes in this folder.
                   </p>
@@ -1239,14 +1258,20 @@ export default function PrototypeSidebar() {
             ) : null}
 
             {mode === 'folders' && activeFolderKey === undefined ? (
-              notesLoading && filteredFolders.length === 0 ? null : filteredFolders.length === 0 ? (
-                <div className="proto-main-empty" style={{ minHeight: 120 }}>
-                  <svg width="28" height="28" viewBox="0 0 16 16" fill="none" style={{ opacity: 0.28 }}>
-                    <rect x="1" y="4" width="14" height="9" rx="2" stroke="currentColor" strokeWidth="1.4" />
-                    <rect x="3.5" y="2" width="9" height="4" rx="1" stroke="currentColor" strokeWidth="1.2" />
-                  </svg>
-                  <span>No folders yet.</span>
-                </div>
+              notesIsError ? (
+                <p className="proto-caption" style={{ padding: '12px 18px', textAlign: 'center' }}>
+                  Couldn&apos;t load notes.
+                </p>
+              ) : !notesListReady ? null : filteredFolders.length === 0 ? (
+                q.trim() ? (
+                  <PrototypeListNoMatchEmptyState title={SIDEBAR_NO_MATCH_COPY.noFoldersMatch} />
+                ) : (
+                  <PrototypeListEmptyState
+                    iconName="folder"
+                    title="No Folders"
+                    description="Folders created from your notes will appear here."
+                  />
+                )
               ) : (
                 <ul className="proto-collection-grid">
                   {filteredFolders.map((col) => (
@@ -1305,9 +1330,15 @@ export default function PrototypeSidebar() {
                     ) : null}
                   </p>
                 ) : filteredHighlights.length === 0 ? (
-                  <p className="proto-caption" style={{ padding: '12px 18px', textAlign: 'center' }}>
-                    {q.trim() || highlightKindFilter !== 'all' ? 'No highlights match.' : 'No highlights yet.'}
-                  </p>
+                  q.trim() || highlightKindFilter !== 'all' ? (
+                    <PrototypeListNoMatchEmptyState title={SIDEBAR_NO_MATCH_COPY.noHighlightsMatch} />
+                  ) : (
+                    <PrototypeListEmptyState
+                      iconName="highlighter"
+                      title="No Highlights"
+                      description="Selections and passage highlights from your notes appear here."
+                    />
+                  )
                 ) : (
                   <ul className="proto-note-list">
                     {filteredHighlights.map((r) => {
@@ -1388,9 +1419,11 @@ export default function PrototypeSidebar() {
                     Could not load threads.
                   </p>
                 ) : !studyThreadsQuery.data || studyThreadsQuery.data.length === 0 ? (
-                  <p className="proto-caption" style={{ padding: '12px 18px', textAlign: 'center', opacity: 0.7 }}>
-                    No study threads yet. Connect notes together to create threads.
-                  </p>
+                  <PrototypeListEmptyState
+                    iconName="arrow-right-arrow-left"
+                    title="No Threads"
+                    description="Connect notes together to create threads."
+                  />
                 ) : (
                   <ul className="proto-collection-grid">
                     {studyThreadsQuery.data.map((cluster) => {
@@ -1442,9 +1475,15 @@ export default function PrototypeSidebar() {
                     ) : null}
                   </p>
                 ) : filteredScriptureBooks.length === 0 ? (
-                  <div className="proto-main-empty" style={{ minHeight: 120, padding: '12px 18px', textAlign: 'center' }}>
-                    <span>Add scripture references in your notes to build your index.</span>
-                  </div>
+                  q.trim() ? (
+                    <PrototypeListNoMatchEmptyState title={SIDEBAR_NO_MATCH_COPY.noScriptureMatch} />
+                  ) : (
+                    <PrototypeListEmptyState
+                      iconName="book-open"
+                      title="No Scripture References"
+                      description="Add scripture references in your notes to build your index."
+                    />
+                  )
                 ) : (
                   <ul className="proto-collection-grid">
                     {filteredScriptureBooks.map((b) => (
@@ -1508,9 +1547,7 @@ export default function PrototypeSidebar() {
             {mode === 'scripture' && scriptureDrill.level === 'notes' ? (
               <>
                 {notesForScripturePassage.length === 0 ? (
-                  <p className="proto-caption" style={{ padding: '12px 18px', textAlign: 'center' }}>
-                    No notes match.
-                  </p>
+                  <PrototypeListNoMatchEmptyState title={SIDEBAR_NO_MATCH_COPY.noNotesMatch} />
                 ) : (
                   <ul className="proto-note-list">
                     {notesForScripturePassage.map((n) => {

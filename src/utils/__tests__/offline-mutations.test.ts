@@ -17,6 +17,8 @@ import {
   getCachedHighestSimpleNoteId,
   linkNoteToThreadOffline,
   unlinkNoteFromThreadOffline,
+  addTagToNoteOffline,
+  removeTagFromNoteOffline,
 } from '../offline-mutations';
 import { offlineDB } from '../offline-db';
 import { enqueueMutation } from '../sync-manager';
@@ -577,6 +579,171 @@ describe('offline-mutations', () => {
       // Skip: vitest module mocking doesn't work well with internal function calls
       // This quota handling is implicitly tested through real usage
     });
+  });
+});
+
+describe('tag offline writers', () => {
+  const userId = 'tag-user';
+
+  beforeEach(async () => {
+    await offlineDB.tags.clear();
+    await offlineDB.noteTags.clear();
+    await offlineDB.syncQueue.clear();
+    vi.clearAllMocks();
+  });
+
+  afterEach(async () => {
+    vi.restoreAllMocks();
+  });
+
+  it('assigning an existing tag enqueues only a noteTag create (no new tag)', async () => {
+    const noteTagId = await addTagToNoteOffline(userId, {
+      noteId: 'note_1',
+      tagId: 'tag_existing',
+      tagName: 'Faith',
+    });
+
+    expect(noteTagId).toMatch(/^local_/);
+    expect(await offlineDB.tags.count()).toBe(0);
+    const row = await offlineDB.noteTags.get(noteTagId);
+    expect(row?.tagId).toBe('tag_existing');
+
+    expect(enqueueMutation).toHaveBeenCalledTimes(1);
+    expect(enqueueMutation).toHaveBeenCalledWith(
+      userId,
+      expect.objectContaining({
+        operation: 'create',
+        entityType: 'noteTag',
+        data: expect.objectContaining({ noteId: 'note_1', tagId: 'tag_existing' }),
+      }),
+    );
+  });
+
+  it('a brand-new tag enqueues tag then noteTag, both keyed to the same local tag id', async () => {
+    await addTagToNoteOffline(userId, { noteId: 'note_1', tagName: 'Grace' });
+
+    expect(await offlineDB.tags.count()).toBe(1);
+    const tagRow = (await offlineDB.tags.toArray())[0];
+    expect(tagRow.name).toBe('Grace');
+
+    const calls = (enqueueMutation as unknown as { mock: { calls: any[][] } }).mock.calls;
+    expect(calls).toHaveLength(2);
+    expect(calls[0][1]).toMatchObject({ operation: 'create', entityType: 'tag', entityId: tagRow.id });
+    expect(calls[1][1]).toMatchObject({ operation: 'create', entityType: 'noteTag', data: { tagId: tagRow.id } });
+  });
+
+  it('removing a tag enqueues a noteTag delete keyed by noteId + tagId', async () => {
+    await removeTagFromNoteOffline(userId, { noteId: 'note_1', tagId: 'tag_x' });
+    expect(enqueueMutation).toHaveBeenCalledWith(
+      userId,
+      expect.objectContaining({
+        operation: 'delete',
+        entityType: 'noteTag',
+        data: { noteId: 'note_1', tagId: 'tag_x' },
+      }),
+    );
+  });
+});
+
+describe('note offline coalescing & materialization', () => {
+  const userId = 'coalesce-user';
+
+  async function seedNoteRow(id: string) {
+    await offlineDB.notes.add({
+      id,
+      userId,
+      title: 'A',
+      content: '<p>old</p>',
+      threadId: 'thread_unorganized',
+      spaceId: null,
+      simpleNoteId: null,
+      noteType: 'default',
+      addedBy: 'user',
+      isPublic: false,
+      isFeatured: false,
+      order: 0,
+      lastVisited: new Date(),
+      linkedFromNoteId: null,
+      syncStatus: 'pending',
+      lastModified: Date.now(),
+      createdAt: new Date(),
+      updatedAt: null,
+    } as any);
+  }
+
+  async function seedCreateOp(entityId: string) {
+    await offlineDB.syncQueue.add({
+      userId,
+      operation: 'create',
+      entityType: 'note',
+      entityId,
+      data: { title: 'A', content: '<p>old</p>' },
+      retryCount: 0,
+      timestamp: Date.now(),
+      clientMutationId: 'cmid-1',
+    } as any);
+  }
+
+  beforeEach(async () => {
+    await offlineDB.notes.clear();
+    await offlineDB.syncQueue.clear();
+    vi.clearAllMocks();
+  });
+
+  afterEach(async () => {
+    vi.restoreAllMocks();
+  });
+
+  it('editing a not-yet-synced note folds into its pending create (no separate update op)', async () => {
+    await seedNoteRow('local_1');
+    await seedCreateOp('local_1');
+
+    await updateNoteOffline(userId, 'local_1', { content: '<p>new</p>' });
+
+    const ops = await offlineDB.syncQueue.where('userId').equals(userId).toArray();
+    expect(ops).toHaveLength(1);
+    expect(ops[0].operation).toBe('create');
+    expect(ops[0].data.content).toBe('<p>new</p>');
+    expect(enqueueMutation).not.toHaveBeenCalled();
+  });
+
+  it('materializes a row and enqueues an update for an un-mirrored server note (with seed)', async () => {
+    await updateNoteOffline(
+      userId,
+      'note_server',
+      { title: 'T', content: '<p>edited</p>' },
+      { content: '<p>edited</p>', title: 'T' },
+    );
+
+    const row = await offlineDB.notes.get('note_server');
+    expect(row?.content).toBe('<p>edited</p>');
+    expect(enqueueMutation).toHaveBeenCalledWith(
+      userId,
+      expect.objectContaining({ operation: 'update', entityType: 'note', entityId: 'note_server' }),
+    );
+  });
+
+  it('throws for a missing note without a seed (legacy behavior preserved)', async () => {
+    await expect(updateNoteOffline(userId, 'note_missing', { content: 'x' })).rejects.toThrow('Note not found');
+  });
+
+  it('deleting a not-yet-synced note cancels its create (drops ops + row, enqueues nothing)', async () => {
+    await seedNoteRow('local_2');
+    await seedCreateOp('local_2');
+
+    await deleteNoteOffline(userId, 'local_2');
+
+    expect(await offlineDB.syncQueue.where('userId').equals(userId).count()).toBe(0);
+    expect(await offlineDB.notes.get('local_2')).toBeUndefined();
+    expect(enqueueMutation).not.toHaveBeenCalled();
+  });
+
+  it('deleting an un-mirrored server note enqueues a delete op', async () => {
+    await deleteNoteOffline(userId, 'note_gone');
+    expect(enqueueMutation).toHaveBeenCalledWith(
+      userId,
+      expect.objectContaining({ operation: 'delete', entityType: 'note', entityId: 'note_gone' }),
+    );
   });
 });
 

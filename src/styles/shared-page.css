@@ -487,6 +487,207 @@
   opacity: 1 !important;
 }
 
+/* Scripture / URL pills — borderless (matches prototype editor) */
+#shared-note-content .card-full-editable__content-html .scripture-pill,
+#shared-thread-content .card-full-editable__content-html .scripture-pill,
+.shared-page__card-container .card-full-editable__content-html .scripture-pill,
+#shared-note-content .card-full-editable__content-html .url-link-pill,
+#shared-thread-content .card-full-editable__content-html .url-link-pill,
+.shared-page__card-container .card-full-editable__content-html .url-link-pill {
+  border: none !important;
+  box-shadow: var(--scripture-pill-inner-shadow, inset 0 0 3px rgba(0, 0, 0, 0.042)) !important;
+}
+
+/* Default (no accent swatch) — native section gray, not paper/blue */
+#shared-note-content .card-full-editable__content-html .scripture-pill:not([data-pill-accent]),
+#shared-thread-content .card-full-editable__content-html .scripture-pill:not([data-pill-accent]),
+.shared-page__card-container .card-full-editable__content-html .scripture-pill:not([data-pill-accent]),
+#shared-note-content .card-full-editable__content-html .url-link-pill,
+#shared-thread-content .card-full-editable__content-html .url-link-pill,
+.shared-page__card-container .card-full-editable__content-html .url-link-pill {
+  background: var(--pds-bg-section, var(--color-paper)) !important;
+  background-color: var(--pds-bg-section, var(--color-paper)) !important;
+  color: var(--color-deep-grey) !important;
+  border-radius: var(--pds-radius-scripture, 14px) !important;
+  font-weight: 500 !important;
+}
+
+#shared-note-content .card-full-editable__content-html .scripture-pill[data-pill-accent],
+#shared-thread-content .card-full-editable__content-html .scripture-pill[data-pill-accent],
+.shared-page__card-container .card-full-editable__content-html .scripture-pill[data-pill-accent] {
+  background: color-mix(in srgb, var(--scripture-pill-accent-tint, var(--study-dock-scripture-pill-neutral)) 7.5%, transparent) !important;
+  color: var(--color-deep-grey) !important;
+}
+
+#shared-note-content .card-full-editable__content-html .scripture-pill[data-pill-accent="neutral"],
+#shared-thread-content .card-full-editable__content-html .scripture-pill[data-pill-accent="neutral"],
+.shared-page__card-container .card-full-editable__content-html .scripture-pill[data-pill-accent="neutral"] {
+  --scripture-pill-accent-tint: var(--study-dock-scripture-pill-neutral);
+}
+#shared-note-content .card-full-editable__content-html .scripture-pill[data-pill-accent="warmAmber"],
+#shared-thread-content .card-full-editable__content-html .scripture-pill[data-pill-accent="warmAmber"],
+.shared-page__card-container .card-full-editable__content-html .scripture-pill[data-pill-accent="warmAmber"] {
+  --scripture-pill-accent-tint: var(--study-dock-accent-warmAmber);
+}
+#shared-note-content .card-full-editable__content-html .scripture-pill[data-pill-accent="skyBlue"],
+#shared-thread-content .card-full-editable__content-html .scripture-pill[data-pill-accent="skyBlue"],
+.shared-page__card-container .card-full-editable__content-html .scripture-pill[data-pill-accent="skyBlue"] {
+  --scripture-pill-accent-tint: var(--study-dock-accent-skyBlue);
+}
+#shared-note-content .card-full-editable__content-html .scripture-pill[data-pill-accent="violet"],
+#shared-thread-content .card-full-editable__content-html .scripture-pill[data-pill-accent="violet"],
+.shared-page__card-container .card-full-editable__content-html .scripture-pill[data-pill-accent="violet"] {
+  --scripture-pill-accent-tint: var(--study-dock-accent-violet);
+}
+#shared-note-content .card-full-editable__content-html .scripture-pill[data-pill-accent="mintGreen"],
+#shared-thread-content .card-full-editable__content-html .scripture-pill[data-pill-accent="mintGreen"],
+.shared-page__card-container .card-full-editable__content-html .scripture-pill[data-pill-accent="mintGreen"] {
+  --scripture-pill-accent-tint: var(--study-dock-accent-mintGreen);
+}
+#shared-note-content .card-full-editable__content-html .scripture-pill[data-pill-accent="coralRose"],
+#shared-thread-content .card-full-editable__content-html .scripture-pill[data-pill-accent="coralRose"],
+.shared-page__card-container .card-full-editable__content-html .scripture-pill[data-pill-accent="coralRose"] {
+  --scripture-pill-accent-tint: var(--study-dock-accent-coralRose);
+}
+
+/* Translation suffix (e.g. NLT) — muted, matches prototype editor */
+#shared-note-content .card-full-editable__content-html .scripture-pill[data-scripture-translation-label]::after,
+#shared-thread-content .card-full-editable__content-html .scripture-pill[data-scripture-translation-label]::after,
+.shared-page__card-container .card-full-editable__content-html .scripture-pill[data-scripture-translation-label]::after,
+#shared-note-content .card-full-editable__content-html .scripture-pill[data-scripture-translation]:not([data-scripture-translation-label])::after,
+#shared-thread-content .card-full-editable__content-html .scripture-pill[data-scripture-translation]:not([data-scripture-translation-label])::after,
+.shared-page__card-container .card-full-editable__content-html .scripture-pill[data-scripture-translation]:not([data-scripture-translation-label])::after {
+  color: var(--color-pebble-grey) !important;
+  font-size: 0.68em !important;
+  font-weight: 500 !important;
+  margin-left: 4px !important;
+  letter-spacing: 0.02em !important;
+  line-height: 1 !important;
+}
+
+/* Study highlights — app/prototype colored underline (matches prototype-editor.css). */
+#shared-note-content .card-full-editable__content-html mark,
+#shared-thread-content .card-full-editable__content-html mark,
+.shared-page__card-container .card-full-editable__content-html mark {
+  background: transparent !important;
+  background-color: transparent !important;
+  background-image: none !important;
+  color: inherit !important;
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 3px;
+  text-decoration-color: var(--pds-highlight-warm-amber, var(--study-dock-accent-warmAmber));
+  border-radius: 0 !important;
+  padding: 0 !important;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+
+#shared-note-content .card-full-editable__content-html mark[data-color="neutral"],
+#shared-thread-content .card-full-editable__content-html mark[data-color="neutral"],
+.shared-page__card-container .card-full-editable__content-html mark[data-color="neutral"] {
+  text-decoration-color: var(--pds-highlight-neutral, var(--study-dock-accent-neutral));
+}
+#shared-note-content .card-full-editable__content-html mark[data-color="warmAmber"],
+#shared-thread-content .card-full-editable__content-html mark[data-color="warmAmber"],
+.shared-page__card-container .card-full-editable__content-html mark[data-color="warmAmber"] {
+  text-decoration-color: var(--pds-highlight-warm-amber, var(--study-dock-accent-warmAmber));
+}
+#shared-note-content .card-full-editable__content-html mark[data-color="skyBlue"],
+#shared-thread-content .card-full-editable__content-html mark[data-color="skyBlue"],
+.shared-page__card-container .card-full-editable__content-html mark[data-color="skyBlue"] {
+  text-decoration-color: var(--pds-highlight-sky-blue, var(--study-dock-accent-skyBlue));
+}
+#shared-note-content .card-full-editable__content-html mark[data-color="violet"],
+#shared-thread-content .card-full-editable__content-html mark[data-color="violet"],
+.shared-page__card-container .card-full-editable__content-html mark[data-color="violet"] {
+  text-decoration-color: var(--pds-highlight-violet, var(--study-dock-accent-violet));
+}
+#shared-note-content .card-full-editable__content-html mark[data-color="mintGreen"],
+#shared-thread-content .card-full-editable__content-html mark[data-color="mintGreen"],
+.shared-page__card-container .card-full-editable__content-html mark[data-color="mintGreen"] {
+  text-decoration-color: var(--pds-highlight-mint-green, var(--study-dock-accent-mintGreen));
+}
+#shared-note-content .card-full-editable__content-html mark[data-color="coralRose"],
+#shared-thread-content .card-full-editable__content-html mark[data-color="coralRose"],
+.shared-page__card-container .card-full-editable__content-html mark[data-color="coralRose"] {
+  text-decoration-color: var(--pds-highlight-coral-rose, var(--study-dock-accent-coralRose));
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-color-scheme="light"]) #shared-note-content .card-full-editable__content-html mark,
+  :root:not([data-color-scheme="light"]) #shared-thread-content .card-full-editable__content-html mark,
+  :root:not([data-color-scheme="light"]) .shared-page__card-container .card-full-editable__content-html mark {
+    text-shadow: 0 0 12px color-mix(in oklab, var(--pds-highlight-warm-amber, var(--study-dock-accent-warmAmber)) 60%, transparent);
+  }
+  :root:not([data-color-scheme="light"]) #shared-note-content .card-full-editable__content-html mark[data-color="neutral"],
+  :root:not([data-color-scheme="light"]) #shared-thread-content .card-full-editable__content-html mark[data-color="neutral"],
+  :root:not([data-color-scheme="light"]) .shared-page__card-container .card-full-editable__content-html mark[data-color="neutral"] {
+    text-shadow: 0 0 12px color-mix(in oklab, var(--pds-highlight-neutral, var(--study-dock-accent-neutral)) 60%, transparent);
+  }
+  :root:not([data-color-scheme="light"]) #shared-note-content .card-full-editable__content-html mark[data-color="warmAmber"],
+  :root:not([data-color-scheme="light"]) #shared-thread-content .card-full-editable__content-html mark[data-color="warmAmber"],
+  :root:not([data-color-scheme="light"]) .shared-page__card-container .card-full-editable__content-html mark[data-color="warmAmber"] {
+    text-shadow: 0 0 12px color-mix(in oklab, var(--pds-highlight-warm-amber, var(--study-dock-accent-warmAmber)) 60%, transparent);
+  }
+  :root:not([data-color-scheme="light"]) #shared-note-content .card-full-editable__content-html mark[data-color="skyBlue"],
+  :root:not([data-color-scheme="light"]) #shared-thread-content .card-full-editable__content-html mark[data-color="skyBlue"],
+  :root:not([data-color-scheme="light"]) .shared-page__card-container .card-full-editable__content-html mark[data-color="skyBlue"] {
+    text-shadow: 0 0 12px color-mix(in oklab, var(--pds-highlight-sky-blue, var(--study-dock-accent-skyBlue)) 60%, transparent);
+  }
+  :root:not([data-color-scheme="light"]) #shared-note-content .card-full-editable__content-html mark[data-color="violet"],
+  :root:not([data-color-scheme="light"]) #shared-thread-content .card-full-editable__content-html mark[data-color="violet"],
+  :root:not([data-color-scheme="light"]) .shared-page__card-container .card-full-editable__content-html mark[data-color="violet"] {
+    text-shadow: 0 0 12px color-mix(in oklab, var(--pds-highlight-violet, var(--study-dock-accent-violet)) 60%, transparent);
+  }
+  :root:not([data-color-scheme="light"]) #shared-note-content .card-full-editable__content-html mark[data-color="mintGreen"],
+  :root:not([data-color-scheme="light"]) #shared-thread-content .card-full-editable__content-html mark[data-color="mintGreen"],
+  :root:not([data-color-scheme="light"]) .shared-page__card-container .card-full-editable__content-html mark[data-color="mintGreen"] {
+    text-shadow: 0 0 12px color-mix(in oklab, var(--pds-highlight-mint-green, var(--study-dock-accent-mintGreen)) 60%, transparent);
+  }
+  :root:not([data-color-scheme="light"]) #shared-note-content .card-full-editable__content-html mark[data-color="coralRose"],
+  :root:not([data-color-scheme="light"]) #shared-thread-content .card-full-editable__content-html mark[data-color="coralRose"],
+  :root:not([data-color-scheme="light"]) .shared-page__card-container .card-full-editable__content-html mark[data-color="coralRose"] {
+    text-shadow: 0 0 12px color-mix(in oklab, var(--pds-highlight-coral-rose, var(--study-dock-accent-coralRose)) 60%, transparent);
+  }
+}
+
+:root[data-color-scheme="dark"] #shared-note-content .card-full-editable__content-html mark,
+:root[data-color-scheme="dark"] #shared-thread-content .card-full-editable__content-html mark,
+:root[data-color-scheme="dark"] .shared-page__card-container .card-full-editable__content-html mark {
+  text-shadow: 0 0 12px color-mix(in oklab, var(--pds-highlight-warm-amber, var(--study-dock-accent-warmAmber)) 60%, transparent);
+}
+:root[data-color-scheme="dark"] #shared-note-content .card-full-editable__content-html mark[data-color="neutral"],
+:root[data-color-scheme="dark"] #shared-thread-content .card-full-editable__content-html mark[data-color="neutral"],
+:root[data-color-scheme="dark"] .shared-page__card-container .card-full-editable__content-html mark[data-color="neutral"] {
+  text-shadow: 0 0 12px color-mix(in oklab, var(--pds-highlight-neutral, var(--study-dock-accent-neutral)) 60%, transparent);
+}
+:root[data-color-scheme="dark"] #shared-note-content .card-full-editable__content-html mark[data-color="warmAmber"],
+:root[data-color-scheme="dark"] #shared-thread-content .card-full-editable__content-html mark[data-color="warmAmber"],
+:root[data-color-scheme="dark"] .shared-page__card-container .card-full-editable__content-html mark[data-color="warmAmber"] {
+  text-shadow: 0 0 12px color-mix(in oklab, var(--pds-highlight-warm-amber, var(--study-dock-accent-warmAmber)) 60%, transparent);
+}
+:root[data-color-scheme="dark"] #shared-note-content .card-full-editable__content-html mark[data-color="skyBlue"],
+:root[data-color-scheme="dark"] #shared-thread-content .card-full-editable__content-html mark[data-color="skyBlue"],
+:root[data-color-scheme="dark"] .shared-page__card-container .card-full-editable__content-html mark[data-color="skyBlue"] {
+  text-shadow: 0 0 12px color-mix(in oklab, var(--pds-highlight-sky-blue, var(--study-dock-accent-skyBlue)) 60%, transparent);
+}
+:root[data-color-scheme="dark"] #shared-note-content .card-full-editable__content-html mark[data-color="violet"],
+:root[data-color-scheme="dark"] #shared-thread-content .card-full-editable__content-html mark[data-color="violet"],
+:root[data-color-scheme="dark"] .shared-page__card-container .card-full-editable__content-html mark[data-color="violet"] {
+  text-shadow: 0 0 12px color-mix(in oklab, var(--pds-highlight-violet, var(--study-dock-accent-violet)) 60%, transparent);
+}
+:root[data-color-scheme="dark"] #shared-note-content .card-full-editable__content-html mark[data-color="mintGreen"],
+:root[data-color-scheme="dark"] #shared-thread-content .card-full-editable__content-html mark[data-color="mintGreen"],
+:root[data-color-scheme="dark"] .shared-page__card-container .card-full-editable__content-html mark[data-color="mintGreen"] {
+  text-shadow: 0 0 12px color-mix(in oklab, var(--pds-highlight-mint-green, var(--study-dock-accent-mintGreen)) 60%, transparent);
+}
+:root[data-color-scheme="dark"] #shared-note-content .card-full-editable__content-html mark[data-color="coralRose"],
+:root[data-color-scheme="dark"] #shared-thread-content .card-full-editable__content-html mark[data-color="coralRose"],
+:root[data-color-scheme="dark"] .shared-page__card-container .card-full-editable__content-html mark[data-color="coralRose"] {
+  text-shadow: 0 0 12px color-mix(in oklab, var(--pds-highlight-coral-rose, var(--study-dock-accent-coralRose)) 60%, transparent);
+}
+
 /* ==========================================================================
    Condensed Thread Item (join space page)
    ========================================================================== */

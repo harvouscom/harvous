@@ -104,6 +104,15 @@ final class EditorProxy: ObservableObject {
     /// HarvousEditor assigns this so `replaceActiveScripturePill` can refresh `EditorState` before the next platform update syncs stale `plainText` from SwiftUI and wipes the pill.
     var syncPlainTextBindingFromTextView: ((HVTextView) -> Void)?
 
+    /// Repaints inline Easton's reference suggestions (e.g. when the slug index finishes loading).
+    var repaintReferenceSuggestions: (() -> Void)?
+
+    /// Pushes the latest paint list into the live editor coordinator before an immediate repaint.
+    var syncStudyHighlightPaintsToEditor: (([StudyHighlightPaint]) -> Void)?
+
+    /// Forces study-highlight attributes onto live body storage (e.g. after saving a reference suggestion).
+    var repaintStudyHighlights: (() -> Void)?
+
     /// Floating selection pill + SwiftUI invokes these; coordinators forward to contextual-menu handlers.
     var triggerHighlightCapturePrompt: (() -> Void)?
     var triggerStandaloneNoteFromSelection: (() -> Void)?

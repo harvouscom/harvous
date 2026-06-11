@@ -64,6 +64,30 @@ describe('portable-markdown', () => {
     expect(built.studyInserts[0].miniNoteBody).toBe('Key word');
   });
 
+  it('round-trips primary and secondary folders', () => {
+    const md = serializeNoteToPortable(
+      {
+        id: 'note_folder',
+        title: 'Folder note',
+        folder: 'Romans',
+        folders: ['Pauline Epistles', 'Justification'],
+      },
+      '<p>Body text.</p>',
+      [],
+    );
+    expect(md).toContain('folder: Romans');
+    const doc = parsePortableMarkdownDocument(md)!;
+    expect(doc.meta.folder).toBe('Romans');
+    expect(doc.meta.folders).toEqual(['Pauline Epistles', 'Justification']);
+  });
+
+  it('accepts legacy "collection"/"collections" frontmatter aliases', () => {
+    const md = ['---', 'id: legacy_1', 'title: Legacy', 'collection: Genesis', 'collections:', '  - Torah', '---', '', '# Legacy', '', 'Body'].join('\n');
+    const doc = parsePortableMarkdownDocument(md)!;
+    expect(doc.meta.folder).toBe('Genesis');
+    expect(doc.meta.folders).toEqual(['Torah']);
+  });
+
   it('parses bulk export with multiple documents', () => {
     const a = serializeNoteToPortable({ id: 'n1', title: 'One' }, '<p>Alpha</p>', []).trim();
     const b = serializeNoteToPortable({ id: 'n2', title: 'Two' }, '<p>Beta</p>', []).trim();

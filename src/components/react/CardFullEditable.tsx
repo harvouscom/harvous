@@ -93,6 +93,7 @@ import {
 } from '@/utils/prototype-note-empty';
 import { canonicalizeNoteHtmlLineBreaks } from '@/utils/note-html-linebreaks';
 import { shouldInjectProcessedNoteContent } from '@/utils/prototype-editor-save';
+import { contentSyncWouldClobberScripturePillAccent } from '@/utils/scripture-pill-accent-sync';
 import { saveNoteDraft, getNoteDraft, clearNoteDraft } from '@/utils/note-draft-store';
 
 /** TipTap body HTML for editing — empty notes use `<p></p>` so the caret stays on line 1. */
@@ -417,7 +418,8 @@ export default function CardFullEditable({
 
   useEffect(() => {
     if (editorChromeMode === 'prototypeNative' && alwaysEditing) {
-      if (isPrototypeNoteEditorFocused()) return;
+      // Manual folder edits (popover / server) stay authoritative even while typing.
+      if (isPrototypeNoteEditorFocused() && !initialCollectionUserOverride) return;
       if (protoPendingFlushRef.current || protoIsSavingRef.current) return;
     }
     setCollectionChrome((prev) => {
@@ -429,6 +431,7 @@ export default function CardFullEditable({
     buildCollectionChromeFromInitialProps,
     editorChromeMode,
     alwaysEditing,
+    initialCollectionUserOverride,
   ]);
 
   // Prototype: apply auto folder once when a note opens (automatic mode), before first autosave.
@@ -1800,7 +1803,9 @@ export default function CardFullEditable({
             // Pass editorContent (what was actually saved) as finalHtml so applyAfterPersist computes
             // hasChanges = (liveHtml !== editorContent) = true — keeping the follow-up save alive.
             applyAfterPersist(editTitle, editorContent);
-          } else {
+          } else if (
+            !contentSyncWouldClobberScripturePillAccent(liveHtml, saveResult.processedContent)
+          ) {
             hasLocalContentUpdate.current = true;
             skipNextContentSyncRef.current = true;
             editor.commands.setContent(canonicalizeNoteHtmlLineBreaks(saveResult.processedContent), {
@@ -1815,6 +1820,8 @@ export default function CardFullEditable({
                 applyAfterPersist(editTitle, finalContent);
               }
             });
+          } else {
+            applyAfterPersist(editTitle, editorContent);
           }
         } else {
           if (editorInstanceRef.current) {
@@ -1931,7 +1938,11 @@ export default function CardFullEditable({
         const editor = editorInstanceRef.current;
         let liveHtml: string | null = null;
         try { liveHtml = editor.getHTML(); } catch { /* */ }
-        if (shouldInjectProcessedNoteContent(liveHtml, currentContent) && !editor.isFocused) {
+        if (
+          shouldInjectProcessedNoteContent(liveHtml, currentContent) &&
+          !editor.isFocused &&
+          !contentSyncWouldClobberScripturePillAccent(liveHtml, result.processedContent)
+        ) {
           // Safe to inject pills — user hasn't typed since save started and isn't actively editing
           hasLocalContentUpdate.current = true;
           skipNextContentSyncRef.current = true;

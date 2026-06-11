@@ -2,10 +2,11 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react
 import { createPortal } from 'react-dom';
 import Icon from '@/components/react/Icon';
 import ProtoPopoverShell from './ProtoPopoverShell';
+import { PROTO_TOOLBAR_POPOVER_OFFSET } from './proto-toolbar-tokens';
 
 const CARD_WIDTH = 320;
 const VIEWPORT_MARGIN = 12;
-const CARD_OFFSET = 8;
+const CARD_OFFSET = PROTO_TOOLBAR_POPOVER_OFFSET;
 
 interface PrototypeFindInNotePopoverProps {
   noteId: string;

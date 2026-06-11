@@ -3,12 +3,19 @@
  * using client-side keyword corpus (`bible-study-keywords.ts`).
  */
 
+import {
+  conceptOverlaps,
+  dedupeKeywordRowsByConceptOverlap,
+  folderLabelsForTagExclusion,
+} from '@/utils/bible-study-concept-overlaps';
 import { stripHtml } from '@/utils/html-stripper';
 import {
   findKeywordsInTextWithPriority,
   isAutoFolderExcludedKeyword,
   type BibleStudyKeyword,
 } from '@/utils/bible-study-keywords';
+
+export { folderLabelsForTagExclusion };
 
 const MIN_BODY_WORDS = 25;
 const SHORT_NOTE_CONFIDENCE_FLOOR = 0.9;
@@ -50,22 +57,6 @@ function collectionRank(cat: string): number {
   if (cat === 'character') return 4;
   if (cat === 'place') return 5;
   return 10;
-}
-
-function overlapsConcept(a: string, b: string): boolean {
-  const x = a.toLowerCase();
-  const y = b.toLowerCase();
-  if (x === y || x.includes(y) || y.includes(x)) return true;
-  const pairs: [string, string][] = [
-    ['grace', 'mercy'],
-    ['faith', 'belief'],
-    ['jesus', 'christ'],
-    ['prayer', 'intercession'],
-  ];
-  for (const [p, q] of pairs) {
-    if ((x === p && y === q) || (x === q && y === p)) return true;
-  }
-  return false;
 }
 
 interface ScRow {
@@ -162,7 +153,11 @@ function dedupeRowsByKeywordName(rows: ScRow[]): ScRow[] {
     const prev = by.get(k);
     if (!prev || r.confidence > prev.confidence) by.set(k, r);
   }
-  return [...by.values()];
+  return dedupeKeywordRowsByConceptOverlap(
+    [...by.values()],
+    (r) => r.keyword.name,
+    (r) => r.confidence,
+  );
 }
 
 function betterPrimaryRow(a: ScRow, b: ScRow, plainTitle: string, plainBody: string): ScRow {
@@ -193,14 +188,15 @@ function pickPrimaryRowFromDeduped(deduped: ScRow[], plainTitle: string, plainBo
 function isEligibleSecondaryFolder(row: ScRow, plainTitle: string, plainBody: string): boolean {
   const ps = folderPrimaryScore(row, plainTitle, plainBody);
   const cat = row.keyword.category;
+  const inTitle = candidateAppearsInTitle(plainTitle, row.keyword.name);
+  const occ = countKeywordOccurrences(plainTitle, plainBody, row.keyword);
   if (cat === 'character' || cat === 'place') {
-    const inTitle = candidateAppearsInTitle(plainTitle, row.keyword.name);
-    const occ = countKeywordOccurrences(plainTitle, plainBody, row.keyword);
     const strongContext = inTitle || occ >= 3;
     const floor = strongContext ? SECONDARY_MIN_SCORE : SECONDARY_CHARACTER_PLACE_MIN_SCORE;
     return ps >= floor;
   }
-  return ps >= SECONDARY_MIN_SCORE;
+  const strongContext = inTitle || occ >= 2;
+  return strongContext && ps >= SECONDARY_MIN_SCORE;
 }
 
 function suggestSecondaryNamesForPrimary(
@@ -213,14 +209,14 @@ function suggestSecondaryNamesForPrimary(
   const pLow = primaryName.trim().toLowerCase();
   let candidates = deduped.filter(
     (r) =>
-      r.keyword.name.toLowerCase() !== pLow && !overlapsConcept(r.keyword.name, primaryName),
+      r.keyword.name.toLowerCase() !== pLow && !conceptOverlaps(r.keyword.name, primaryName),
   );
   candidates.sort((a, b) => folderPrimaryScore(b, plainTitle, plainBody) - folderPrimaryScore(a, plainTitle, plainBody));
 
   const names: string[] = [];
   for (const r of candidates) {
     if (names.length >= MAX_AUTO_SECONDARIES) break;
-    if (names.some((n) => overlapsConcept(n, r.keyword.name))) continue;
+    if (names.some((n) => conceptOverlaps(n, r.keyword.name))) continue;
     if (!isEligibleSecondaryFolder(r, plainTitle, plainBody)) continue;
     names.push(r.keyword.name);
   }

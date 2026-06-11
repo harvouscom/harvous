@@ -270,7 +270,7 @@ struct StudyHighlightListColumn: View {
                 if filteredRows.isEmpty && baseRows.isEmpty {
                     emptyState
                 } else if filteredRows.isEmpty {
-                    ContentUnavailableView.search(text: searchText)
+                    HarvousEmptyStateView.searchNoMatch(title: SidebarNoMatchCopy.noHighlightsMatch)
                 } else {
                     highlightList
                 }

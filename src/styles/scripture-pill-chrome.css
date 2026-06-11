@@ -190,6 +190,16 @@
 /* ─── Passage scroll ─────────────────────────────────────────────────────── */
 
 /* Passage scroll viewport — max-height + expanded card chrome in study-dock-card.css. */
+/* Beat global.css `* { user-select: none }` on every descendant so drag-select works. */
+.scripture-pill-chrome__passage,
+.scripture-pill-chrome__passage-inner,
+.scripture-pill-chrome__passage-html,
+.scripture-pill-chrome__passage-html *:not(sup.verse-num):not(.reference-suggestion):not(mark[data-reference]) {
+  user-select: text !important;
+  -webkit-user-select: text !important;
+  cursor: text;
+}
+
 .scripture-pill-chrome__passage {
   /* Top: breathing room below the reference bar (inside the scroll, scrolls away). */
   /* Bottom: breathing room after the last verse (inside the scroll). */
@@ -253,11 +263,48 @@
   color: var(--pds-text-primary, #1d1d1f);
 }
 
+/* Passage reference suggestions — tap targets (not drag-select); same dotted hint as note body. */
+.scripture-pill-chrome__passage-html .reference-suggestion {
+  user-select: none !important;
+  -webkit-user-select: none !important;
+  text-decoration: underline dotted;
+  text-decoration-thickness: 1.5px;
+  text-underline-offset: 3px;
+  text-decoration-color: var(--pds-text-tertiary);
+  cursor: pointer;
+  border-radius: 2px;
+}
+
+.scripture-pill-chrome__passage-html .reference-suggestion:hover {
+  text-decoration-color: var(--pds-text-secondary);
+  background: color-mix(in srgb, var(--pds-text-tertiary) 12%, transparent);
+}
+
+/* Saved passage reference — solid underline (parity with note-body mark[data-reference]). */
+.scripture-pill-chrome__passage-html mark[data-reference] {
+  background: transparent !important;
+  color: inherit !important;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 3px;
+  text-decoration-color: var(--pds-highlight-warm-amber);
+  border-radius: 0;
+  padding: 0;
+  user-select: none !important;
+  -webkit-user-select: none !important;
+  cursor: pointer;
+}
+
+.scripture-pill-chrome__passage-html mark[data-color="neutral"] { text-decoration-color: var(--pds-highlight-neutral); }
+.scripture-pill-chrome__passage-html mark[data-color="warmAmber"] { text-decoration-color: var(--pds-highlight-warm-amber); }
+.scripture-pill-chrome__passage-html mark[data-color="skyBlue"] { text-decoration-color: var(--pds-highlight-sky-blue); }
+.scripture-pill-chrome__passage-html mark[data-color="violet"] { text-decoration-color: var(--pds-highlight-violet); }
+.scripture-pill-chrome__passage-html mark[data-color="mintGreen"] { text-decoration-color: var(--pds-highlight-mint-green); }
+.scripture-pill-chrome__passage-html mark[data-color="coralRose"] { text-decoration-color: var(--pds-highlight-coral-rose); }
+
 .scripture-pill-chrome__passage-html {
-  /* Explicitly allow text selection and show the I-beam cursor for the passage. */
-  user-select: text;
-  -webkit-user-select: text;
-  cursor: text;
   font-family: var(
     --pds-font-body,
     "Google Sans Flex",

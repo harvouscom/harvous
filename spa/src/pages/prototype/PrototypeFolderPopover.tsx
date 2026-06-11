@@ -8,10 +8,11 @@ import type { NoteDetail } from '../../hooks/queries/useNote';
 import { useDismissOnOutside } from '../../hooks/usePopoverDismiss';
 import PrototypeFolderTagEditor from './PrototypeFolderTagEditor';
 import ProtoPopoverShell from './ProtoPopoverShell';
+import { PROTO_TOOLBAR_POPOVER_OFFSET } from './proto-toolbar-tokens';
 
 const CARD_WIDTH = 340;
 const VIEWPORT_MARGIN = 12;
-const CARD_OFFSET = 8;
+const CARD_OFFSET = PROTO_TOOLBAR_POPOVER_OFFSET;
 
 interface PrototypeFolderPopoverProps {
   note: NoteDetail;

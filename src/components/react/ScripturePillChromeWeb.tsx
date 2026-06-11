@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 // @ts-ignore — JSON resolveJsonModule
 import bibleChaptersData from '@/data/bible-chapters.json';
@@ -20,6 +20,14 @@ import Icon from '@/components/react/Icon';
 import DockAccentSwatchButton from '@/components/react/DockAccentSwatchButton';
 import ScriptureReferencePickerStrip from '@/components/react/ScriptureReferencePickerStrip';
 import StudyDockCardShell from '@/components/react/StudyDockCardShell';
+import {
+  createDictionaryReferenceProvider,
+  decoratePassageHtmlWithReferenceSuggestions,
+  decoratePassageHtmlWithSavedHighlights,
+  type PassageHighlightPaint,
+  type ReferenceProvider,
+} from '@/components/react/TiptapReferenceSuggestion';
+import { useEastonsSlugIndex } from '../../../spa/src/hooks/useEastonsSlugIndex';
 import '@/styles/harvous-menu-pill.css';
 import '@/styles/study-dock-card.css';
 import '@/styles/scripture-pill-chrome.css';
@@ -77,6 +85,13 @@ export interface ScripturePillChromeWebProps {
   /** Called after the user selects passage text and taps the floating highlight button.
    *  Caller (TiptapEditor) should open a HighlightDockWeb card for the new thread. */
   onPassageHighlightCreated?: (excerpt: string, threadId: string) => void;
+  /** Gate passage reference suggestions to the prototype/native chrome surface. */
+  editorChromeMode?: 'default' | 'prototypeNative';
+  /** Tap a passage suggestion or saved reference mark — caller opens the reference dock. */
+  onOpenPassageReference?: (
+    word: string,
+    opts?: { slug?: string; saved?: boolean; threadId?: string; accent?: StudyHighlightAccentKey },
+  ) => void;
 }
 
 /**
@@ -95,8 +110,15 @@ export default function ScripturePillChromeWeb({
   interactionActive = true,
   animateEnter = true,
   onPassageHighlightCreated,
+  editorChromeMode = 'default',
+  onOpenPassageReference,
 }: ScripturePillChromeWebProps) {
   const books = useMemo(() => orderedCanonBooks(), []);
+  const { data: eastonsIndex } = useEastonsSlugIndex();
+  const referenceProviders = useMemo<ReferenceProvider[]>(
+    () => [createDictionaryReferenceProvider(() => eastonsIndex)],
+    [eastonsIndex],
+  );
 
   const initialParsed = useMemo(() => parseScriptureReference(normalizeScriptureReference(reference.trim()) || reference.trim()), [reference]);
 
@@ -133,7 +155,9 @@ export default function ScripturePillChromeWeb({
   const [creatingHighlight, setCreatingHighlight] = useState(false);
 
   const onApplyRef = useRef(onApply);
-  useLayoutEffect(() => { onApplyRef.current = onApply; });
+  useEffect(() => {
+    onApplyRef.current = onApply;
+  });
 
   useEffect(() => {
     const p = parseScriptureReference(normalizeScriptureReference(reference.trim()) || reference.trim());
@@ -156,6 +180,62 @@ export default function ScripturePillChromeWeb({
   const displayRefString = useMemo(
     () => buildReferenceString(selectedBook, chapter, verseStart, verseEnd, useVerseRange),
     [selectedBook, chapter, verseStart, verseEnd, useVerseRange],
+  );
+
+  const [passageStudyThreads, setPassageStudyThreads] = useState<
+    {
+      id: string;
+      scripturePassageExcerpt: string | null;
+      highlightAccentRaw: string;
+      entryKind: string;
+    }[]
+  >([]);
+  const [passageReferencePaints, setPassageReferencePaints] = useState<PassageHighlightPaint[]>([]);
+
+  const displayPassageHtml = useMemo(() => {
+    if (editorChromeMode !== 'prototypeNative' || !passageHtml) return passageHtml;
+    let html = passageHtml;
+    if (passageReferencePaints.length > 0) {
+      html = decoratePassageHtmlWithSavedHighlights(html, passageReferencePaints);
+    }
+    if (eastonsIndex) {
+      html = decoratePassageHtmlWithReferenceSuggestions(html, referenceProviders);
+    }
+    return html;
+  }, [editorChromeMode, passageHtml, eastonsIndex, referenceProviders, passageReferencePaints]);
+
+  const handlePassageMouseDown = useCallback(
+    (e: React.MouseEvent<HTMLDivElement>) => {
+      const target = e.target as HTMLElement;
+      if (onOpenPassageReference && editorChromeMode === 'prototypeNative') {
+        const savedMark = target.closest('mark[data-reference]') as HTMLElement | null;
+        if (savedMark) {
+          e.preventDefault();
+          e.stopPropagation();
+          const word = savedMark.getAttribute('data-reference') || savedMark.textContent?.trim() || '';
+          if (!word) return;
+          const threadId = savedMark.getAttribute('data-study-thread-id') || undefined;
+          const accentRaw = savedMark.getAttribute('data-color');
+          const accent: StudyHighlightAccentKey =
+            accentRaw && isStudyHighlightAccentKey(accentRaw) ? accentRaw : 'warmAmber';
+          onOpenPassageReference(word, { saved: true, threadId, accent });
+          return;
+        }
+        const suggestionSpan = target.closest('.reference-suggestion') as HTMLElement | null;
+        if (suggestionSpan) {
+          e.preventDefault();
+          e.stopPropagation();
+          const word =
+            suggestionSpan.getAttribute('data-reference-word') || suggestionSpan.textContent?.trim() || '';
+          if (!word) return;
+          const slug = suggestionSpan.getAttribute('data-reference-slug') || undefined;
+          onOpenPassageReference(word, { slug });
+          return;
+        }
+      }
+      // Plain verse text: no focus/stopPropagation — browser starts drag-select natively.
+    },
+    [onOpenPassageReference, editorChromeMode],
   );
 
   const lastApplied = useRef({ ref: displayRefString, trans });
@@ -223,13 +303,51 @@ export default function ScripturePillChromeWeb({
     return Array.from({ length: Math.max(0, vEndCanon - from + 1) }, (_, i) => from + i);
   }, [vEndCanon, verseStart]);
 
-  const [passageStudyThreads, setPassageStudyThreads] = useState<
-    { id: string; scripturePassageExcerpt: string | null; highlightAccentRaw: string; entryKind: string }[]
-  >([]);
+  const applyByScriptureRows = useCallback(
+    (
+      rows: {
+        id: string;
+        entryKind?: string;
+        scripturePassageExcerpt?: string | null;
+        sourceSnippet?: string | null;
+        highlightAccentRaw?: string;
+      }[],
+    ) => {
+      setPassageStudyThreads(
+        rows
+          .filter((r) => r.entryKind === 'scriptureLink')
+          .map((r) => ({
+            id: r.id,
+            scripturePassageExcerpt: r.scripturePassageExcerpt ?? null,
+            highlightAccentRaw: r.highlightAccentRaw ?? 'warmAmber',
+            entryKind: 'scriptureLink',
+          })),
+      );
+      setPassageReferencePaints((prev) => {
+        const fromApi = rows
+          .filter((r) => r.entryKind === 'reference')
+          .map((r) => ({
+            id: r.id,
+            excerpt: (r.scripturePassageExcerpt ?? r.sourceSnippet ?? '').trim(),
+            accentRaw: r.highlightAccentRaw ?? 'warmAmber',
+            entryKind: 'reference',
+          }))
+          .filter((p) => p.excerpt.length > 0);
+        const apiIds = new Set(fromApi.map((p) => p.id));
+        const optimisticOnly = prev.filter((p) => !apiIds.has(p.id));
+        return [...fromApi, ...optimisticOnly];
+      });
+    },
+    [],
+  );
+
+  useEffect(() => {
+    setPassageStudyThreads([]);
+    setPassageReferencePaints([]);
+  }, [sourceNoteId, displayRefString, trans]);
 
   useEffect(() => {
     if (!interactionActive || !isExpanded || !sourceNoteId) {
-      setPassageStudyThreads([]);
       return;
     }
     let cancelled = false;
@@ -244,20 +362,60 @@ export default function ScripturePillChromeWeb({
         const data = await res.json();
         const rows = Array.isArray(data.studyThreads) ? data.studyThreads : [];
         if (cancelled) return;
-        setPassageStudyThreads(rows.filter((r: { entryKind?: string }) => r.entryKind === 'scriptureLink'));
+        applyByScriptureRows(rows);
       } catch {
-        if (!cancelled) setPassageStudyThreads([]);
+        /* keep optimistic paints on fetch failure */
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, [sourceNoteId, displayRefString, trans, interactionActive, isExpanded]);
+  }, [sourceNoteId, displayRefString, trans, interactionActive, isExpanded, applyByScriptureRows]);
+
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent<{
+        sourceNoteId: string;
+        reference: string;
+        translation: string;
+        word: string;
+        threadId: string;
+        accent: string;
+        action: 'save' | 'patch' | 'delete';
+      }>).detail;
+      if (!detail || String(detail.sourceNoteId) !== String(sourceNoteId ?? '')) return;
+      const sessionNorm = normalizeScriptureReference(reference.trim()) ?? reference.trim();
+      const savedNorm = normalizeScriptureReference(detail.reference.trim()) ?? detail.reference.trim();
+      const sessionTrans = translation || trans;
+      if (savedNorm !== sessionNorm || detail.translation !== sessionTrans) return;
+
+      if (detail.action === 'delete') {
+        setPassageReferencePaints((prev) => prev.filter((p) => p.id !== detail.threadId));
+        return;
+      }
+
+      const paint: PassageHighlightPaint = {
+        id: detail.threadId,
+        excerpt: detail.word,
+        accentRaw: detail.accent || 'warmAmber',
+        entryKind: 'reference',
+      };
+      setPassageReferencePaints((prev) => {
+        const idx = prev.findIndex((p) => p.id === detail.threadId);
+        if (idx < 0) return [...prev, paint];
+        const next = [...prev];
+        next[idx] = paint;
+        return next;
+      });
+    };
+    window.addEventListener('passageStudyPaintChanged', handler);
+    return () => window.removeEventListener('passageStudyPaintChanged', handler);
+  }, [sourceNoteId, reference, translation, trans]);
 
   // ── Passage text selection detection ──────────────────────────────────────
   useEffect(() => {
     const scrollEl = passageScrollRef.current;
-    if (!scrollEl || !isExpanded) return;
+    if (!scrollEl || !isExpanded || !interactionActive) return;
 
     const handleMouseUp = () => {
       const sel = window.getSelection();
@@ -272,7 +430,26 @@ export default function ScripturePillChromeWeb({
 
     const handleSelectionChange = () => {
       const sel = window.getSelection();
-      if (!sel || sel.isCollapsed) setPassageSelection(null);
+      if (!sel || sel.rangeCount === 0) {
+        setPassageSelection(null);
+        return;
+      }
+      const range = sel.getRangeAt(0);
+      if (!scrollEl.contains(range.commonAncestorContainer)) {
+        setPassageSelection(null);
+        return;
+      }
+      if (sel.isCollapsed) {
+        setPassageSelection(null);
+        return;
+      }
+      const text = sel.toString().trim();
+      if (!text) {
+        setPassageSelection(null);
+        return;
+      }
+      const rect = range.getBoundingClientRect();
+      setPassageSelection({ text, rect });
     };
 
     const handleScroll = () => setPassageSelection(null);
@@ -285,7 +462,7 @@ export default function ScripturePillChromeWeb({
       document.removeEventListener('selectionchange', handleSelectionChange);
       scrollEl.removeEventListener('scroll', handleScroll);
     };
-  }, [isExpanded]);
+  }, [isExpanded, interactionActive]);
 
   const handleCreatePassageHighlight = useCallback(async () => {
     if (!passageSelection || !sourceNoteId || creatingHighlight) return;
@@ -423,6 +600,7 @@ export default function ScripturePillChromeWeb({
         // tabIndex=-1 makes this a valid focus target on click so the browser
         // doesn't bounce focus back to the editor, allowing text selection.
         tabIndex={-1}
+        onMouseDown={handlePassageMouseDown}
       >
         <div ref={passageContentRef} className="scripture-pill-chrome__passage-inner">
           {loadingPassage ? (
@@ -430,14 +608,14 @@ export default function ScripturePillChromeWeb({
           ) : passageHtml ? (
             <div
               className="scripture-pill-chrome__passage-html"
-              dangerouslySetInnerHTML={{ __html: safeRenderHtml(passageHtml) }}
+              dangerouslySetInnerHTML={{ __html: safeRenderHtml(displayPassageHtml) }}
             />
           ) : (
             <p className="scripture-pill-chrome__passage-status">Could not load this passage.</p>
           )}
           {sourceNoteId && passageStudyThreads.length > 0 ? (
             <div className="scripture-pill-chrome__passage-highlights">
-              <p className="scripture-pill-chrome__section-label">Passage highlights</p>
+              <p className="scripture-pill-chrome__section-label">Passage study</p>
               <ul className="scripture-pill-chrome__study-list">
                 {passageStudyThreads.map((row) => (
                   <li key={row.id} className="scripture-pill-chrome__study-item">

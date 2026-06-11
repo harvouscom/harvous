@@ -25,6 +25,11 @@ import { HighlightCustom } from './TiptapHighlightCustom';
 import { ParagraphCustom } from './TiptapParagraphCustom';
 import { isSelectionActionBarEligible } from './selection-action-bar-eligibility';
 import { contentSyncWouldClobberInlineImage } from './inline-image-insert';
+import { contentSyncWouldClobberScripturePillAccent } from '@/utils/scripture-pill-accent-sync';
+import {
+  noteClipboardPlainTextFromFragment,
+  noteClipboardPlainTextFromRange,
+} from '@/utils/note-clipboard-plain-text';
 
 export { isSelectionActionBarEligible } from './selection-action-bar-eligibility';
 
@@ -237,6 +242,25 @@ function selectionIntersectsScripturePillBoundaries(
   return from < pillTo && to > pillFrom;
 }
 
+/** Resolve live mark range from stored dock boundaries (positions can drift after spacing normalize). */
+function resolveScripturePillMarkRangeFromBoundaries(
+  editor: any,
+  boundaries: { from: number; to: number },
+): { from: number; to: number } {
+  try {
+    const markType = editor?.state?.schema?.marks?.scripturePill;
+    if (!markType) return boundaries;
+    const $from = editor.state.doc.resolve(boundaries.from);
+    const range = getMarkRange($from, markType);
+    if (range && typeof range.from === 'number' && typeof range.to === 'number') {
+      return { from: range.from, to: range.to };
+    }
+  } catch {
+    /* ignore */
+  }
+  return boundaries;
+}
+
 /** Resolve scripture pill boundaries from clicked DOM span (captures-phase handler). */
 function resolveScripturePillDOMRange(editor: any, pillEl: HTMLElement): { from: number; to: number } | null {
   try {
@@ -279,7 +303,7 @@ function findHighlightRangeByStudyThreadId(editor: any, studyId: string): { from
 function studyDockEntryStillValid(editor: any, entry: StudyDockEntry): boolean {
   if (!editor || editor.isDestroyed || !editor.state?.doc) return true;
   if (entry.kind === 'scripture') {
-    const { from, to } = entry.session.boundaries;
+    const { from, to } = resolveScripturePillMarkRangeFromBoundaries(editor, entry.session.boundaries);
     const normRef = normalizeScriptureReference(entry.session.reference);
     let found = false;
     try {
@@ -2063,6 +2087,7 @@ export async function convertNoteLinksToScripturePills(editor: any) {
       const reference = (pillSpan as HTMLElement).getAttribute('data-scripture-reference');
       const noteId = (pillSpan as HTMLElement).getAttribute('data-note-id');
       const pillTranslation = (pillSpan as HTMLElement).getAttribute('data-scripture-translation') || null;
+      const pillAccent = (pillSpan as HTMLElement).getAttribute('data-pill-accent') || null;
       const pillText = pillSpan.textContent || '';
       
       if (!reference || !noteId || !pillText) continue;
@@ -2170,7 +2195,7 @@ export async function convertNoteLinksToScripturePills(editor: any) {
             const markType = editor.state.schema.marks.scripturePill;
             if (markType) {
               tr.removeMark(adjustedPos.from, adjustedPos.to, markType);
-              tr.addMark(adjustedPos.from, adjustedPos.to, markType.create({ reference: normalizedRef, noteId, translation: pillTranslation }));
+              tr.addMark(adjustedPos.from, adjustedPos.to, markType.create({ reference: normalizedRef, noteId, translation: pillTranslation, pillAccent }));
               // Remove noteLink mark if present
               const noteLinkMark = editor.state.schema.marks.noteLink;
               if (noteLinkMark) {
@@ -2183,7 +2208,7 @@ export async function convertNoteLinksToScripturePills(editor: any) {
             editor.chain()
               .setTextSelection(adjustedPos)
               .unsetMark('noteLink')
-              .setMark('scripturePill', { reference: normalizedRef, noteId, translation: pillTranslation })
+              .setMark('scripturePill', { reference: normalizedRef, noteId, translation: pillTranslation, pillAccent })
               .run();
           }
         } catch (e) {
@@ -3555,6 +3580,11 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
   const [contentOverflowing, setContentOverflowing] = useState(false);
   const [contentHasScrolledDown, setContentHasScrolledDown] = useState(false);
   const hiddenInputRef = useRef<HTMLInputElement>(null);
+  /** Coalesces per-keystroke parent `onContentChange` propagation to one call per animation frame so
+   *  rapid typing doesn't re-render the (large) parent on every character. Autosave is debounced
+   *  downstream, so a one-frame delay is immaterial. The hidden input stays synchronous for form submit. */
+  const contentPropagateRafRef = useRef<number | null>(null);
+  const latestNoteHtmlRef = useRef<string>('');
   const editorRef = useRef<any>(null);
   const tiptapContentRef = useRef<HTMLDivElement>(null);
   const createNoteBubbleRef = useRef<HTMLDivElement>(null);
@@ -3565,6 +3595,9 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     snippet: string;
   } | null>(null);
   const skipScriptureDockDismissRef = useRef(false);
+  /** Latest selection-bar evaluation fn, so a dock-stack change can re-run it without forcing the
+   *  listener-registration effect (and its `editor.on`/`document` listeners) to tear down and rewire. */
+  const runSelectionEvalRef = useRef<() => void>(() => {});
   const [studyDockStack, setStudyDockStack] = useState<StudyDockStack>(emptyStudyDockStack);
   const studyDockStackRef = useRef(studyDockStack);
   studyDockStackRef.current = studyDockStack;
@@ -3746,14 +3779,22 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     onUpdate: ({ editor }) => {
       const htmlContent = noteHtmlFromEditor(editor, true);
 
-      // Update hidden input
+      // Update hidden input (kept synchronous so a form submit always reads the latest body).
       if (hiddenInputRef.current) {
         hiddenInputRef.current.value = htmlContent;
       }
 
-      // Notify parent component
+      // Notify parent component — coalesced to one call per animation frame. On rapid typing this
+      // collapses N per-keystroke parent re-renders into one per frame with the latest HTML; autosave
+      // is debounced downstream so the sub-frame delay is immaterial.
       if (onContentChange) {
-        onContentChange(htmlContent);
+        latestNoteHtmlRef.current = htmlContent;
+        if (contentPropagateRafRef.current == null) {
+          contentPropagateRafRef.current = requestAnimationFrame(() => {
+            contentPropagateRafRef.current = null;
+            onContentChange(latestNoteHtmlRef.current);
+          });
+        }
       }
 
       // Auto-capitalize first letter (post-input transformation)
@@ -3892,6 +3933,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     },
     editable: true,
     editorProps: {
+      clipboardTextSerializer: (slice) => noteClipboardPlainTextFromFragment(slice.content),
       attributes: {
         class: 'prose prose-sm max-w-none focus:outline-none [&_ol]:list-decimal [&_ul]:list-disc',
         style: 'font-family: var(--font-sans); font-size: 16px; font-weight: 500; line-height: 1.6; color: var(--color-deep-grey); min-height: 200px;',
@@ -4479,6 +4521,20 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     setStudyDockStack(emptyStudyDockStack());
   }, [sourceNoteId]);
 
+  // Cancel any pending coalesced content propagation when the note changes or the editor unmounts, so
+  // a frame-deferred `onContentChange` from the previous note can never fire against the next one. The
+  // cleanup runs before the new note's effects, so the stale propagation is dropped (the final edit is
+  // already covered by the downstream autosave debounce). Flushing here would be unsafe — it would
+  // propagate the old note's HTML after the parent has switched.
+  useEffect(() => {
+    return () => {
+      if (contentPropagateRafRef.current != null) {
+        cancelAnimationFrame(contentPropagateRafRef.current);
+        contentPropagateRafRef.current = null;
+      }
+    };
+  }, [sourceNoteId]);
+
   useEffect(() => {
     if (!editor || editorChromeMode !== 'prototypeNative') return;
     const prune = () => {
@@ -4544,7 +4600,11 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       }
       return null;
     }
-    return { from, to, snippet: editor.state.doc.textBetween(from, to) };
+    return {
+      from,
+      to,
+      snippet: noteClipboardPlainTextFromRange(editor.state.doc, from, to),
+    };
   }, [selectionActionBar, editor]);
 
   const applyHighlightMark = useCallback(
@@ -4652,6 +4712,42 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       return studyId;
     },
     [editor, editorChromeMode, sourceNoteId, onContentChange],
+  );
+
+  /** Persist a passage reference from the scripture pill dock (study-thread only, no note mark). */
+  const savePassageReference = useCallback(
+    async (
+      word: string,
+      passage: { reference: string; translation: string; sourceNoteId: string },
+    ): Promise<string | null> => {
+      if (editorChromeMode !== 'prototypeNative') return null;
+      const norm = normalizeScriptureReference(passage.reference.trim()) ?? passage.reference.trim();
+      const defaultAccent: StudyHighlightAccentKey = 'warmAmber';
+      try {
+        const res = await fetch(`/api/notes/${passage.sourceNoteId}/study-threads`, {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            entryKind: 'reference',
+            sourceSnippet: word,
+            focusTitle: word,
+            highlightAccentRaw: defaultAccent,
+            scriptureReference: norm,
+            scripturePassageTranslation: passage.translation,
+            scripturePassageExcerpt: word,
+          }),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          return data.studyThread?.id ?? null;
+        }
+      } catch {
+        /* ignore */
+      }
+      return null;
+    },
+    [editorChromeMode],
   );
 
   const handleHoverPreviewOpen = useCallback(() => {
@@ -4858,6 +4954,9 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
 
     const timer = setTimeout(async () => {
       if (!isEditorValid(editor)) return;
+      if (editorChromeMode === 'prototypeNative' && studyDockStackHasEntries(studyDockStackRef.current)) {
+        return;
+      }
       const defaultTrans = getEffectiveDefaultTranslation();
       applyDefaultTranslationToScripturePills(editor, defaultTrans);
       await convertNoteLinksToScripturePills(editor);
@@ -4870,6 +4969,10 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
         const outgoing = canonicalizeNoteHtmlLineBreaks(noteHtmlFromEditor(editor, true));
         pillNormalizeContentRef.current = content;
         if (outgoing !== incoming && !hasLostBlockGaps(incoming, outgoing)) {
+          const liveEditorHtml = noteHtmlFromEditor(editor, true);
+          if (contentSyncWouldClobberScripturePillAccent(liveEditorHtml, outgoing)) {
+            return;
+          }
           if (hiddenInputRef.current) {
             hiddenInputRef.current.value = outgoing;
           }
@@ -4897,6 +5000,14 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     if (isTiptapBodyEmpty(currentContent) && isTiptapBodyEmpty(content)) return;
 
     if (contentSyncWouldClobberInlineImage(currentContent, normalizedContent)) {
+      return;
+    }
+
+    if (contentSyncWouldClobberScripturePillAccent(currentContent, normalizedContent)) {
+      return;
+    }
+
+    if (editorChromeMode === 'prototypeNative' && studyDockStackHasEntries(studyDockStackRef.current)) {
       return;
     }
 
@@ -5037,14 +5148,6 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
         clearSelectionActionBar();
         return;
       }
-      if (
-        editorChromeMode === 'prototypeNative' &&
-        studyDockStackHasEntries(studyDockStackRef.current)
-      ) {
-        setShowCreateNoteButton(false);
-        setSelectionActionBar(null);
-        return;
-      }
       if (isSelectionActionBarEligible(editor)) {
         setShowCreateNoteButton(true);
         // Position floating action bar below the selection (prototype: 8px gap + clamp like native SelectionActionBar)
@@ -5068,7 +5171,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
             const maxCx = vw - inset - barW / 2;
             centerX = Math.min(Math.max(centerX, minCx), maxCx);
           }
-          const snippet = editor.state.doc.textBetween(from, to);
+          const snippet = noteClipboardPlainTextFromRange(editor.state.doc, from, to);
           const nextBar = { top, left: centerX, from, to, snippet };
           selectionBarRangeRef.current = { from, to, snippet };
           setSelectionActionBar(nextBar);
@@ -5083,7 +5186,9 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       }
     };
 
+    runSelectionEvalRef.current = updateSelection;
     editor.on('selectionUpdate', updateSelection);
+    updateSelection();
 
     // Also dismiss on blur/click outside (pointer + mouse for touch parity)
     const handlePointerDownOutside = (e: PointerEvent | MouseEvent) => {
@@ -5117,6 +5222,12 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       document.removeEventListener('pointerdown', handlePointerDownOutside);
     };
   }, [editor, enableCreateNoteFromSelection, editorChromeMode, clearSelectionActionBar]);
+
+  // Re-evaluate the selection action bar when the study dock opens/closes (e.g. re-show it for a still
+  // -active selection after a dock dismiss) without rewiring the listener-registration effect above.
+  useEffect(() => {
+    runSelectionEvalRef.current();
+  }, [studyDockStack]);
 
   /** When CardFullEditable opens the editor from read-only preview after a scripture pill tap (prototype), open the dock once TipTap has rendered the pill in the doc. */
   useEffect(() => {
@@ -5476,17 +5587,45 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
   useEffect(() => {
     if (!editor || editorChromeMode !== 'prototypeNative') return;
 
+    const isPassageInteractionActive = (): boolean => {
+      if (studyDockPointerDownRef.current) return true;
+      const active = document.activeElement;
+      if (active instanceof HTMLElement && active.closest('.scripture-pill-chrome__passage')) {
+        return true;
+      }
+      const sel = window.getSelection();
+      if (!sel || sel.isCollapsed || sel.rangeCount === 0) return false;
+      const node = sel.getRangeAt(0).commonAncestorContainer;
+      const el =
+        node.nodeType === Node.TEXT_NODE
+          ? (node as Text).parentElement
+          : node instanceof HTMLElement
+            ? node
+            : null;
+      return !!el?.closest('.scripture-pill-chrome__passage');
+    };
+
     const dismissIfSelectionLeftPill = () => {
       if (!isEditorValid(editor)) return;
       if (skipScriptureDockDismissRef.current) {
         skipScriptureDockDismissRef.current = false;
         return;
       }
-      setStudyDockStack((stack) => collapseActiveScriptureIfActive(stack));
+      if (isPassageInteractionActive()) return;
+      const stack = studyDockStackRef.current;
+      const active = stack.entries.find((e) => e.id === stack.activeId);
+      if (active?.kind === 'scripture' && active.expanded && !editor.isFocused) {
+        return;
+      }
+      setStudyDockStack((s) => collapseActiveScriptureIfActive(s));
     };
 
     const snapCaretOutsidePill = () => {
       if (!isEditorValid(editor)) return;
+      if (isPassageInteractionActive()) return;
+      const stack = studyDockStackRef.current;
+      const active = stack.entries.find((e) => e.id === stack.activeId);
+      if (active?.kind === 'scripture' && active.expanded && !editor.isFocused) return;
       snapCursorOutsideScripturePill(editor);
     };
 
@@ -5938,8 +6077,16 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
         studyDockPointerDownRef.current = true;
       }
     };
-    const onPointerUp = () => {
-      studyDockPointerDownRef.current = false;
+    const onPointerUp = (e: Event) => {
+      const releasedInPassage = (e.target as HTMLElement | null)?.closest?.('.scripture-pill-chrome__passage');
+      const clearPointerRef = () => {
+        studyDockPointerDownRef.current = false;
+      };
+      if (releasedInPassage) {
+        requestAnimationFrame(clearPointerRef);
+      } else {
+        clearPointerRef();
+      }
       queueMicrotask(() => {
         const ed = editorRef.current;
         if (ed && isEditorValid(ed)) {
@@ -7219,7 +7366,15 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                       }}
                       onPillAccentChange={(nextAccent) => {
                         if (!editor || !isEditorValid(editor) || entry.kind !== 'scripture') return;
-                        const { from, to } = entry.session.boundaries;
+                        skipScriptureDockDismissRef.current = true;
+                        if (contentPropagateRafRef.current != null) {
+                          cancelAnimationFrame(contentPropagateRafRef.current);
+                          contentPropagateRafRef.current = null;
+                        }
+                        const { from, to } = resolveScripturePillMarkRangeFromBoundaries(
+                          editor,
+                          entry.session.boundaries,
+                        );
                         const markType = editor.state.schema.marks.scripturePill;
                         if (!markType) return;
                         let existingMark: any = null;
@@ -7230,6 +7385,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                           }
                         });
                         if (!existingMark) return;
+                        const persistedAccent = nextAccent === 'neutral' ? null : nextAccent;
                         const tr = editor.state.tr;
                         tr.removeMark(from, to, markType);
                         tr.addMark(
@@ -7237,18 +7393,28 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                           to,
                           markType.create({
                             ...existingMark.attrs,
-                            pillAccent: nextAccent,
+                            pillAccent: persistedAccent,
                           }),
                         );
+                        tr.setMeta('addToHistory', false);
                         editor.view.dispatch(tr);
+                        const html = noteHtmlFromEditor(editor, true);
                         if (hiddenInputRef.current) {
-                          hiddenInputRef.current.value = editor.getHTML();
+                          hiddenInputRef.current.value = html;
                         }
-                        onContentChange?.(editor.getHTML());
+                        latestNoteHtmlRef.current = html;
+                        onContentChange?.(html);
                         setStudyDockStack((s) =>
                           updateDockEntry(s, entry.id, (e) =>
                             e.kind === 'scripture'
-                              ? { ...e, session: { ...e.session, pillAccent: nextAccent } }
+                              ? {
+                                  ...e,
+                                  session: {
+                                    ...e.session,
+                                    pillAccent: persistedAccent,
+                                    boundaries: { from, to },
+                                  },
+                                }
                               : e,
                           ),
                         );
@@ -7268,10 +7434,16 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                       onApply={async (nextRef, nextTranslation) => {
                         if (!editor || entry.kind !== 'scripture') return;
                         const sess = entry.session;
-                        const { from, to } = sess.boundaries;
                         try {
                           const markType = editor.state.schema.marks.scripturePill;
                           if (!markType) return;
+
+                          const normRef = normalizeScriptureReference(nextRef);
+                          const { from, to } = resolveScripturePillMarkRangeFromBoundaries(
+                            editor,
+                            sess.boundaries,
+                          );
+
                           let existingMark: any = null;
                           editor.state.doc.nodesBetween(from, to, (node: any) => {
                             if (!existingMark && node.isText) {
@@ -7281,27 +7453,41 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                           });
                           if (!existingMark) return;
 
-                          const normRef = normalizeScriptureReference(nextRef);
+                          const pillAccent =
+                            existingMark.attrs.pillAccent ?? sess.pillAccent ?? null;
+                          const translationUnchanged =
+                            (existingMark.attrs.translation ?? null) === (nextTranslation ?? null);
+                          const refUnchanged =
+                            normalizeScriptureReference(existingMark.attrs.reference) === normRef;
+                          const accentUnchanged =
+                            (existingMark.attrs.pillAccent ?? null) === (pillAccent ?? null);
+                          if (refUnchanged && translationUnchanged && accentUnchanged) {
+                            return;
+                          }
+
                           const tr = editor.state.tr;
                           tr.replaceWith(from, to, editor.state.schema.text(normRef, [
                             markType.create({
                               ...existingMark.attrs,
                               reference: normRef,
                               translation: nextTranslation,
-                              pillAccent: existingMark.attrs.pillAccent ?? null,
+                              pillAccent,
                             }),
                           ]));
+                          tr.setMeta('addToHistory', false);
                           editor.view.dispatch(tr);
 
+                          const html = noteHtmlFromEditor(editor, true);
                           if (hiddenInputRef.current) {
-                            hiddenInputRef.current.value = editor.getHTML();
+                            hiddenInputRef.current.value = html;
                           }
-                          onContentChange?.(editor.getHTML());
+                          latestNoteHtmlRef.current = html;
+                          onContentChange?.(html);
 
                           const noteIdForApi = existingMark.attrs.noteId;
-                          const refUnchanged = normalizeScriptureReference(sess.reference) === normRef;
+                          const sessionRefUnchanged = normalizeScriptureReference(sess.reference) === normRef;
                           if (
-                            refUnchanged &&
+                            sessionRefUnchanged &&
                             noteIdForApi &&
                             noteIdForApi !== 'pending' &&
                             noteIdForApi !== 'null' &&
@@ -7316,6 +7502,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                             window.dispatchEvent(new CustomEvent('noteUpdated', { detail: { noteId: noteIdForApi } }));
                           }
 
+                          const resolved = resolveScripturePillMarkRangeFromBoundaries(editor, { from, to });
                           setStudyDockStack((s) =>
                             updateDockEntry(s, entry.id, (e) =>
                               e.kind === 'scripture'
@@ -7325,8 +7512,8 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                                       ...e.session,
                                       reference: normRef,
                                       translation: nextTranslation,
-                                      boundaries: { from, to: from + normRef.length },
-                                      pillAccent: existingMark.attrs.pillAccent ?? null,
+                                      boundaries: resolved,
+                                      pillAccent,
                                     },
                                   }
                                 : e,
@@ -7347,6 +7534,29 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                             entryKind: 'scriptureLink',
                           }),
                         );
+                      }}
+                      editorChromeMode={editorChromeMode}
+                      onOpenPassageReference={(word, opts) => {
+                        if (!sourceNoteId) return;
+                        const passageCtx = {
+                          reference: entry.session.reference,
+                          translation: entry.session.translation || 'NET',
+                          sourceNoteId,
+                        };
+                        if (opts?.saved && opts.threadId) {
+                          openReferenceDock({
+                            query: word,
+                            passageReference: passageCtx,
+                            passageReferenceSaved: true,
+                            studyThreadEntryId: opts.threadId,
+                            noteHighlightAccent: opts.accent ?? 'warmAmber',
+                          });
+                          return;
+                        }
+                        openReferenceDock({
+                          query: word,
+                          passageReference: passageCtx,
+                        });
                       }}
                     />
                   );
@@ -7484,15 +7694,95 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                         session.noteHighlightAccent as StudyHighlightAccentKey | null | undefined
                       }
                       pendingSuggestion={!!session.pendingSuggestion && !session.noteHighlightRange}
+                      passageReference={
+                        !!session.passageReference && !session.passageReferenceSaved && !session.noteHighlightRange
+                      }
+                      passageReferenceSaved={!!session.passageReferenceSaved && !session.noteHighlightRange}
                       onSaveReference={() => {
+                        if (session.passageReference && !session.passageReferenceSaved) {
+                          void (async () => {
+                            const passage = session.passageReference!;
+                            const defaultAccent: StudyHighlightAccentKey = 'warmAmber';
+                            const studyId = await savePassageReference(session.query, passage);
+                            if (studyId) {
+                              window.dispatchEvent(
+                                new CustomEvent('passageStudyPaintChanged', {
+                                  detail: {
+                                    sourceNoteId: passage.sourceNoteId,
+                                    reference: passage.reference,
+                                    translation: passage.translation,
+                                    word: session.query,
+                                    threadId: studyId,
+                                    accent: defaultAccent,
+                                    action: 'save',
+                                  },
+                                }),
+                              );
+                              setStudyDockStack((s) =>
+                                updateDockEntry(s, entry.id, (e) =>
+                                  e.kind === 'reference'
+                                    ? {
+                                        ...e,
+                                        session: {
+                                          ...e.session,
+                                          studyThreadEntryId: studyId,
+                                          passageReferenceSaved: true,
+                                          noteHighlightAccent: defaultAccent,
+                                        },
+                                      }
+                                    : e,
+                                ),
+                              );
+                            }
+                          })();
+                          return;
+                        }
                         const range = session.pendingSuggestion;
                         if (!range) return;
                         void saveReferenceHighlight(range, session.query);
                       }}
                       onChangeNoteHighlight={(accent) => {
+                        const sid = session.studyThreadEntryId;
+                        if (session.passageReferenceSaved && session.passageReference) {
+                          const passage = session.passageReference;
+                          void (async () => {
+                            if (sid) {
+                              try {
+                                await fetch(`/api/study-threads/${sid}`, {
+                                  method: 'PATCH',
+                                  credentials: 'include',
+                                  headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({ highlightAccentRaw: accent }),
+                                });
+                              } catch {
+                                /* ignore */
+                              }
+                            }
+                            window.dispatchEvent(
+                              new CustomEvent('passageStudyPaintChanged', {
+                                detail: {
+                                  sourceNoteId: passage.sourceNoteId,
+                                  reference: passage.reference,
+                                  translation: passage.translation,
+                                  word: session.query,
+                                  threadId: sid ?? '',
+                                  accent,
+                                  action: 'patch',
+                                },
+                              }),
+                            );
+                            setStudyDockStack((s) =>
+                              updateDockEntry(s, entry.id, (e) =>
+                                e.kind === 'reference'
+                                  ? { ...e, session: { ...e.session, noteHighlightAccent: accent } }
+                                  : e,
+                              ),
+                            );
+                          })();
+                          return;
+                        }
                         if (!editor || !isEditorValid(editor) || !session.noteHighlightRange) return;
                         const { from, to } = session.noteHighlightRange;
-                        const sid = session.studyThreadEntryId;
                         void (async () => {
                           if (sid) {
                             try {
@@ -7528,9 +7818,39 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                         })();
                       }}
                       onRemoveNoteHighlight={() => {
+                        const sid = session.studyThreadEntryId;
+                        if (session.passageReferenceSaved && session.passageReference) {
+                          const passage = session.passageReference;
+                          void (async () => {
+                            if (sid) {
+                              try {
+                                await fetch(`/api/study-threads/${sid}`, {
+                                  method: 'DELETE',
+                                  credentials: 'include',
+                                });
+                              } catch {
+                                /* ignore */
+                              }
+                            }
+                            window.dispatchEvent(
+                              new CustomEvent('passageStudyPaintChanged', {
+                                detail: {
+                                  sourceNoteId: passage.sourceNoteId,
+                                  reference: passage.reference,
+                                  translation: passage.translation,
+                                  word: session.query,
+                                  threadId: sid ?? '',
+                                  accent: session.noteHighlightAccent ?? 'warmAmber',
+                                  action: 'delete',
+                                },
+                              }),
+                            );
+                            setStudyDockStack((s) => closeDockEntry(s, entry.id));
+                          })();
+                          return;
+                        }
                         if (!editor || !isEditorValid(editor) || !session.noteHighlightRange) return;
                         const { from, to } = session.noteHighlightRange;
-                        const sid = session.studyThreadEntryId;
                         void (async () => {
                           if (sid) {
                             try {

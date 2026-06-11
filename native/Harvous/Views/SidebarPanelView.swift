@@ -961,7 +961,7 @@ struct SidebarPanelView: View {
                     scale: .compact
                 )
             } else if filteredScriptureBookRows.isEmpty {
-                ContentUnavailableView.search(text: folderListSearchText)
+                HarvousEmptyStateView.searchNoMatch(title: SidebarNoMatchCopy.noScriptureMatch)
             } else {
                 ScrollView {
                     LazyVGrid(columns: HarvousCollectionGridLayout.columns, spacing: HarvousCollectionGridLayout.spacing) {
@@ -996,7 +996,7 @@ struct SidebarPanelView: View {
     private var scripturePassagesList: some View {
         Group {
             if !folderListSearchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && filteredScriptureReferenceRows.isEmpty {
-                ContentUnavailableView.search(text: folderListSearchText)
+                HarvousEmptyStateView.searchNoMatch(title: SidebarNoMatchCopy.noScriptureMatch)
             } else if scriptureReferenceRowsForBookDrill.isEmpty {
                 HarvousEmptyStateView(
                     iconAsset: "Harvous.BookOpen",
@@ -1050,7 +1050,7 @@ struct SidebarPanelView: View {
                     scale: .compact
                 )
             } else if orderedFilteredFolderRows.isEmpty {
-                ContentUnavailableView.search(text: folderListSearchText)
+                HarvousEmptyStateView.searchNoMatch(title: SidebarNoMatchCopy.noFoldersMatch)
             } else {
                 ScrollView {
                     LazyVGrid(columns: HarvousCollectionGridLayout.columns, spacing: HarvousCollectionGridLayout.spacing) {
@@ -1080,7 +1080,7 @@ struct SidebarPanelView: View {
                     scale: .compact
                 )
             } else if filteredThreadClusters.isEmpty {
-                ContentUnavailableView.search(text: folderListSearchText)
+                HarvousEmptyStateView.searchNoMatch(title: SidebarNoMatchCopy.noThreadsMatch)
             } else {
                 ScrollView {
                     LazyVGrid(columns: HarvousCollectionGridLayout.columns, spacing: HarvousCollectionGridLayout.spacing) {

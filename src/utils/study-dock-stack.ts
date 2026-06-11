@@ -30,6 +30,14 @@ export type ReferenceDockSession = {
   studyThreadEntryId?: string | null;
   /** Set when opened from a typed suggestion that is not yet saved (range of the hinted word). */
   pendingSuggestion?: { from: number; to: number } | null;
+  /** Set when opened from a passage suggestion in the scripture pill dock (study-thread only, no note mark). */
+  passageReference?: {
+    reference: string;
+    translation: string;
+    sourceNoteId: string;
+  } | null;
+  /** Set once a passage reference is saved — drives accent/remove chrome without a note mark. */
+  passageReferenceSaved?: boolean;
 };
 
 export type StudyDockEntry =
@@ -86,6 +94,10 @@ export function referenceDockStableKey(session: ReferenceDockSession): string {
   // (same from/to) collapse to one entry — pending → saved transitions in place.
   const range = session.noteHighlightRange ?? session.pendingSuggestion;
   if (range) return `reference:range:${range.from}-${range.to}`;
+  if (session.passageReference) {
+    const norm = normalizeScriptureReference(session.passageReference.reference) ?? session.passageReference.reference;
+    return `reference:passage:${norm}:${session.passageReference.translation}:${session.query.trim().toLowerCase()}`;
+  }
   return `reference:q:${session.query.trim().toLowerCase()}`;
 }
 

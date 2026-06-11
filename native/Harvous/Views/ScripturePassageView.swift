@@ -35,6 +35,8 @@ struct ScripturePassageView: View {
     var showAttribution: Bool = true
     /// Dock: paint saved passage highlights (under-note-body; cross-note).
     var passageHighlightPaints: [ScripturePassageHighlightPaint] = []
+    /// Dock: paint saved passage *reference* highlights (Easton's words in passage text).
+    var passageReferencePaints: [ScripturePassageHighlightPaint] = []
     /// Dock: normalized selected plain text when range non-empty; empty when there is no text selection.
     var onPassageSelectionChange: ((String) -> Void)? = nil
     /// Dock: bounding rect of the current selection in the passage view's own coordinate space,
@@ -48,8 +50,11 @@ struct ScripturePassageView: View {
     /// iOS dock: invoked when the user chooses Highlight from the system text edit menu; receives
     /// normalized excerpt read synchronously from the text view (not async SwiftUI selection state).
     var onPassageHighlightFromEditMenu: ((String) -> Void)? = nil
+    /// Dock: user tapped a dotted Easton's suggestion in passage text — `(slug, word, utf16Range)`.
+    var onPassageReferenceSuggestionTap: ((String, String, NSRange) -> Void)? = nil
 
     @Environment(\.colorScheme) private var colorScheme
+    @ObservedObject private var eastonsService = EastonsDictionaryService.shared
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var passageAttributed: NSAttributedString?
     @State private var loadError: String?
@@ -64,7 +69,13 @@ struct ScripturePassageView: View {
     /// Stable enough for representable updates — when paints change, re-merge backgrounds into the attributed string.
     private var passagePaintsDigest: Int {
         var h = passageHighlightFocusedThreadId?.hashValue ?? 0
-        for p in passageHighlightPaints {
+        switch eastonsService.indexLoadState {
+        case .idle: h ^= 1
+        case .loading: h ^= 2
+        case .loaded: h ^= 3
+        case .failed: h ^= 4
+        }
+        for p in passageHighlightPaints + passageReferencePaints {
             h ^= p.id.hashValue ^ p.excerpt.hashValue ^ p.accentRaw.hashValue
         }
         return h
@@ -121,17 +132,18 @@ struct ScripturePassageView: View {
                         .foregroundStyle(.secondary)
                         .transition(passageOrErrorTransition)
                 } else if let passageAttributed {
+                    let allPaints = passageHighlightPaints + passageReferencePaints
                     let painted = Self.mergedDisplayAttributed(
                         from: passageAttributed,
                         useReadingTypography: useReadingTypography,
                         useRegularPassageWeight: useRegularPassageWeight,
-                        paints: passageHighlightPaints,
+                        paints: allPaints,
                         isDark: colorScheme == .dark,
                         focusedThreadId: passageHighlightFocusedThreadId
                     )
                     let paintRanges = Self.passageHighlightPaintRanges(
                         in: painted.string,
-                        paints: passageHighlightPaints
+                        paints: allPaints
                     )
                     ScripturePassageFittingTextView(
                         attributed: painted,
@@ -140,6 +152,7 @@ struct ScripturePassageView: View {
                         onSelectionChange: onPassageSelectionChange,
                         onSelectionRectChange: onPassageSelectionRectChange,
                         onPaintTap: onPassageHighlightTap,
+                        onPassageReferenceSuggestionTap: onPassageReferenceSuggestionTap,
                         onHighlightFromEditMenu: onPassageHighlightFromEditMenu
                     )
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -288,7 +301,11 @@ struct ScripturePassageView: View {
             useReadingTypography: useReadingTypography,
             useRegularPassageWeight: useRegularPassageWeight
         )
-        return applyPassageHighlightPainting(to: displayed, paints: paints, isDark: isDark, focusedThreadId: focusedThreadId)
+        let highlighted = applyPassageHighlightPainting(to: displayed, paints: paints, isDark: isDark, focusedThreadId: focusedThreadId)
+        let merged = NSMutableAttributedString(attributedString: highlighted)
+        let excluded = passageHighlightPaintRanges(in: merged.string, paints: paints).map(\.range)
+        ReferenceSuggestionPainter.applyPassageSuggestions(to: merged, isDark: isDark, excludedPaintRanges: excluded)
+        return merged
     }
 
     /// Resolve each paint's actual text range in `raw`. Sorts paints by first-occurrence position
@@ -420,6 +437,7 @@ struct ScripturePassageView: View {
 fileprivate final class ScripturePassageNSTextView: NSTextView {
     var paintRanges: [(id: UUID, range: NSRange)] = []
     var onPaintTap: ((UUID) -> Void)?
+    var onPassageReferenceSuggestionTap: ((String, String, NSRange) -> Void)?
     /// Stored during mouseDown so becomeFirstResponder can re-anchor at the click position.
     /// AppKit calls becomeFirstResponder *inside* the mouseDown tracking-loop setup and may
     /// reset selectedRange (to 0 or to textLength) as part of focus acquisition. By overriding
@@ -454,8 +472,25 @@ fileprivate final class ScripturePassageNSTextView: NSTextView {
 
         pendingAnchorCharIndex = nil
 
+        guard selectedRange().length == 0 else { return }
+
+        if let storage = textStorage,
+           let lm = layoutManager,
+           let tc = textContainer {
+            let local = CGPoint(x: downPoint.x - textContainerOrigin.x,
+                                y: downPoint.y - textContainerOrigin.y)
+            let glyphIndex = lm.glyphIndex(for: local, in: tc)
+            let charIndex = lm.characterIndexForGlyph(at: glyphIndex)
+            if let hit = ReferenceSuggestionPainter.suggestionAtPassage(storageUTF16Index: charIndex, in: storage)
+                ?? (charIndex > 0 ? ReferenceSuggestionPainter.suggestionAtPassage(storageUTF16Index: charIndex - 1, in: storage) : nil) {
+                let word = (storage.string as NSString).substring(with: hit.range)
+                onPassageReferenceSuggestionTap?(hit.slug, word, hit.range)
+                return
+            }
+        }
+
         // If the click landed on a paint range AND the user didn't drag-select, fire the callback.
-        if let id = matchedId, selectedRange().length == 0 {
+        if let id = matchedId {
             onPaintTap?(id)
         }
     }
@@ -480,6 +515,7 @@ private struct ScripturePassageFittingTextView: NSViewRepresentable {
     var onSelectionChange: ((String) -> Void)?
     var onSelectionRectChange: ((CGRect?) -> Void)?
     var onPaintTap: ((UUID) -> Void)?
+    var onPassageReferenceSuggestionTap: ((String, String, NSRange) -> Void)?
     var onHighlightFromEditMenu: ((String) -> Void)? = nil
 
     func makeCoordinator() -> Coordinator {
@@ -501,6 +537,7 @@ private struct ScripturePassageFittingTextView: NSViewRepresentable {
         tv.delegate = context.coordinator
         tv.paintRanges = paintRanges
         tv.onPaintTap = onPaintTap
+        tv.onPassageReferenceSuggestionTap = onPassageReferenceSuggestionTap
         context.coordinator.textView = tv
         context.coordinator.onSelectionChange = onSelectionChange
         context.coordinator.onSelectionRectChange = onSelectionRectChange
@@ -515,6 +552,7 @@ private struct ScripturePassageFittingTextView: NSViewRepresentable {
         context.coordinator.onSelectionRectChange = onSelectionRectChange
         textView.paintRanges = paintRanges
         textView.onPaintTap = onPaintTap
+        textView.onPassageReferenceSuggestionTap = onPassageReferenceSuggestionTap
         if context.coordinator.lastDigest != contentDigest {
             context.coordinator.lastDigest = contentDigest
             // Suspend the delegate while we re-apply the attributed string. Without this,
@@ -634,6 +672,7 @@ private struct ScripturePassageFittingTextView: UIViewRepresentable {
     var onSelectionChange: ((String) -> Void)?
     var onSelectionRectChange: ((CGRect?) -> Void)?
     var onPaintTap: ((UUID) -> Void)?
+    var onPassageReferenceSuggestionTap: ((String, String, NSRange) -> Void)?
     var onHighlightFromEditMenu: ((String) -> Void)?
 
     func makeCoordinator() -> Coordinator {
@@ -654,6 +693,7 @@ private struct ScripturePassageFittingTextView: UIViewRepresentable {
         context.coordinator.onSelectionChange = onSelectionChange
         context.coordinator.onSelectionRectChange = onSelectionRectChange
         context.coordinator.onPaintTap = onPaintTap
+        context.coordinator.onPassageReferenceSuggestionTap = onPassageReferenceSuggestionTap
         context.coordinator.onHighlightFromEditMenu = onHighlightFromEditMenu
         context.coordinator.paintRanges = paintRanges
         context.coordinator.lastDigest = contentDigest
@@ -673,6 +713,7 @@ private struct ScripturePassageFittingTextView: UIViewRepresentable {
         context.coordinator.onSelectionChange = onSelectionChange
         context.coordinator.onSelectionRectChange = onSelectionRectChange
         context.coordinator.onPaintTap = onPaintTap
+        context.coordinator.onPassageReferenceSuggestionTap = onPassageReferenceSuggestionTap
         context.coordinator.onHighlightFromEditMenu = onHighlightFromEditMenu
         context.coordinator.paintRanges = paintRanges
         wireHighlightEditMenu(on: tv, coordinator: context.coordinator)
@@ -722,6 +763,7 @@ private struct ScripturePassageFittingTextView: UIViewRepresentable {
         var onSelectionChange: ((String) -> Void)?
         var onSelectionRectChange: ((CGRect?) -> Void)?
         var onPaintTap: ((UUID) -> Void)?
+        var onPassageReferenceSuggestionTap: ((String, String, NSRange) -> Void)?
         var onHighlightFromEditMenu: ((String) -> Void)?
         var paintRanges: [(id: UUID, range: NSRange)] = []
         var lastDigest: Int = 0
@@ -740,9 +782,7 @@ private struct ScripturePassageFittingTextView: UIViewRepresentable {
 
         @objc func handleTap(_ gesture: UITapGestureRecognizer) {
             guard gesture.state == .ended,
-                  let tv = textView,
-                  let cb = onPaintTap,
-                  !paintRanges.isEmpty else { return }
+                  let tv = textView else { return }
             // Skip if a selection is in progress — avoid hijacking selection completion.
             if tv.selectedRange.length > 0 { return }
             let point = gesture.location(in: tv)
@@ -754,6 +794,15 @@ private struct ScripturePassageFittingTextView: UIViewRepresentable {
             let glyphRect = lm.boundingRect(forGlyphRange: NSRange(location: glyphIndex, length: 1), in: tc)
             guard glyphRect.contains(local) else { return }
             let charIndex = lm.characterIndexForGlyph(at: glyphIndex)
+            let storage = tv.textStorage
+            if let suggestionCb = onPassageReferenceSuggestionTap,
+               let hit = ReferenceSuggestionPainter.suggestionAtPassage(storageUTF16Index: charIndex, in: storage)
+                ?? (charIndex > 0 ? ReferenceSuggestionPainter.suggestionAtPassage(storageUTF16Index: charIndex - 1, in: storage) : nil) {
+                let word = (storage.string as NSString).substring(with: hit.range)
+                suggestionCb(hit.slug, word, hit.range)
+                return
+            }
+            guard let cb = onPaintTap, !paintRanges.isEmpty else { return }
             for entry in paintRanges where NSLocationInRange(charIndex, entry.range) {
                 cb(entry.id)
                 return

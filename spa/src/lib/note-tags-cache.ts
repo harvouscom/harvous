@@ -2,6 +2,7 @@ import type { QueryClient } from '@tanstack/react-query';
 import { api } from './api';
 import type { NoteDetail } from '../hooks/queries/useNote';
 import { setCachedNoteDetail } from '../hooks/queries/useNote';
+import { folderLabelsForTagExclusion } from '@/utils/bible-study-concept-overlaps';
 import {
   suggestAutoTagsFromNote,
   suggestedAutoTagsToNoteTags,
@@ -30,8 +31,16 @@ export function mergeNoteTagsInCache(
 }
 
 /** Client-side preview tags from title + body when the server response omits tags. */
-export function previewNoteTagsFromContent(title: string, content: string): NoteTagPreview[] {
-  return suggestedAutoTagsToNoteTags(suggestAutoTagsFromNote(title, content));
+export function previewNoteTagsFromContent(
+  title: string,
+  content: string,
+  folderLabels?: { primary?: string | null; secondaries?: string[] | null },
+): NoteTagPreview[] {
+  const excludeFolderLabels = folderLabelsForTagExclusion(
+    folderLabels?.primary,
+    folderLabels?.secondaries ?? [],
+  );
+  return suggestedAutoTagsToNoteTags(suggestAutoTagsFromNote(title, content, { excludeFolderLabels }));
 }
 
 export async function fetchNoteTagsFromApi(noteId: string): Promise<NoteTagRow[]> {

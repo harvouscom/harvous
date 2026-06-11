@@ -2,6 +2,14 @@ import Foundation
 
 // MARK: - Per-note study dock carousel (scripture pill + highlight + pending reference)
 
+/// Passage context for a pending reference tapped inside scripture dock text (no note-body anchor).
+struct PassageReferenceContext: Equatable, Hashable, Sendable {
+    let canonicalReference: String
+    let translation: String
+    let sourceNoteId: UUID
+    let excerpt: String
+}
+
 enum StudyDockEntryPayload: Equatable {
     case scripture(ActiveScripturePillDockItem)
     case highlight(threadId: UUID)
@@ -9,6 +17,8 @@ enum StudyDockEntryPayload: Equatable {
     /// headword slug; `headword` is the display label; `storageRange` locates the hinted word so
     /// Save can apply the highlight.
     case pendingReference(slug: String, headword: String, storageRange: NSRange)
+    /// Pending reference from a dotted hint inside a scripture passage (study-thread only, no body anchor).
+    case pendingPassageReference(slug: String, headword: String, context: PassageReferenceContext)
 }
 
 struct StudyDockEntry: Identifiable, Equatable {
@@ -25,6 +35,8 @@ struct StudyDockEntry: Identifiable, Equatable {
             return "highlight:\(threadId.uuidString)"
         case .pendingReference(_, _, let range):
             return "pendingRef:\(range.location)-\(range.length)"
+        case .pendingPassageReference(let slug, _, let context):
+            return "pendingPassageRef:\(slug)-\(context.excerpt)-\(context.canonicalReference)-\(context.translation)"
         }
     }
 }
@@ -101,6 +113,34 @@ struct StudyDockStack: Equatable {
         let entry = StudyDockEntry(
             id: id,
             payload: .pendingReference(slug: slug, headword: headword, storageRange: storageRange),
+            openedAt: Date(),
+            expanded: true
+        )
+        var next = entries.map { var e = $0; e.expanded = false; return e }
+        next.append(entry)
+        trimOldestIfNeeded(&next)
+        entries = next
+        activeId = id
+    }
+
+    mutating func openOrFocusPendingPassageReference(slug: String, headword: String, context: PassageReferenceContext) {
+        let key = "pendingPassageRef:\(slug)-\(context.excerpt)-\(context.canonicalReference)-\(context.translation)"
+        if let existing = entries.first(where: { $0.stableKey == key }) {
+            activeId = existing.id
+            entries = entries.map { entry in
+                var updated = entry
+                updated.expanded = entry.id == existing.id
+                if entry.id == existing.id {
+                    updated.payload = .pendingPassageReference(slug: slug, headword: headword, context: context)
+                }
+                return updated
+            }
+            return
+        }
+        let id = UUID()
+        let entry = StudyDockEntry(
+            id: id,
+            payload: .pendingPassageReference(slug: slug, headword: headword, context: context),
             openedAt: Date(),
             expanded: true
         )
@@ -228,6 +268,8 @@ func studyDockChipLabel(entry: StudyDockEntry, excerptByThreadId: [UUID: String]
         )
     case .pendingReference(_, let headword, _):
         return headword
+    case .pendingPassageReference(_, let headword, _):
+        return headword
     }
 }
 
@@ -247,6 +289,8 @@ func studyDockCollapsedTitle(
             focusTitleByThreadId: focusTitleByThreadId
         )
     case .pendingReference(_, let headword, _):
+        return headword
+    case .pendingPassageReference(_, let headword, _):
         return headword
     }
 }
@@ -276,7 +320,7 @@ func studyDockCollapsedHeaderChip(
         let label = ScriptureReference.displayTranslationLabel(item.translation)
         guard !label.isEmpty else { return nil }
         return .scriptureTranslation(label: label)
-    case .pendingReference(let slug, _, _):
+    case .pendingReference(let slug, _, _), .pendingPassageReference(let slug, _, _):
         return studyDockReferenceCategoryChip(forSlug: slug)
     case .highlight(let threadId):
         guard highlightEntryKind == .reference,
@@ -289,7 +333,7 @@ func studyDockCollapsedIconAsset(entry: StudyDockEntry, highlightEntryKind: Stud
     switch entry.payload {
     case .scripture:
         return "Harvous.BookOpen"
-    case .pendingReference:
+    case .pendingReference, .pendingPassageReference:
         return "Harvous.LinesLeaning"
     case .highlight:
         guard let kind = highlightEntryKind else { return "Harvous.Highlight" }

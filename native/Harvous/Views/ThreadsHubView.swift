@@ -107,7 +107,7 @@ struct ThreadsHubView: View {
                 scale: .compact
             )
         } else if !activeSearchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && filteredClusters.isEmpty {
-            ContentUnavailableView.search(text: activeSearchQuery)
+            HarvousEmptyStateView.searchNoMatch(title: SidebarNoMatchCopy.noThreadsMatch)
         } else {
             threadsFlatList
         }

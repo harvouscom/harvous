@@ -35,6 +35,8 @@ export interface PortableNoteMeta {
   thread?: string | null;
   threadColor?: string | null;
   folder?: string | null;
+  /** Secondary collection labels (excludes primary `folder`). */
+  folders?: string[];
   tags?: string[];
   refs?: string[];
   noteType?: 'default' | 'scripture' | 'resource';
@@ -190,6 +192,7 @@ export function serializeNoteToPortable(
   if (meta.thread) fm.thread = meta.thread;
   if (meta.threadColor) fm.threadColor = meta.threadColor;
   if (meta.folder) fm.folder = meta.folder;
+  if (meta.folders?.length) fm.folders = meta.folders;
   if (meta.tags?.length) fm.tags = meta.tags;
   if (meta.refs?.length) fm.refs = meta.refs;
   if (meta.noteType && meta.noteType !== 'default') fm.noteType = meta.noteType;
@@ -284,6 +287,11 @@ function metaFromFrontmatter(fm: Record<string, unknown>): PortableNoteMeta {
     thread: fm.thread != null ? String(fm.thread) : null,
     threadColor: fm.threadColor != null ? String(fm.threadColor) : null,
     folder: fm.folder != null ? String(fm.folder) : (fm.collection != null ? String(fm.collection) : null),
+    folders: Array.isArray(fm.folders)
+      ? fm.folders.map(String)
+      : Array.isArray(fm.collections)
+        ? fm.collections.map(String)
+        : [],
     tags,
     refs,
     noteType: (fm.noteType as PortableNoteMeta['noteType']) || 'default',

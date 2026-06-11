@@ -6,7 +6,6 @@ import { useQueryClient } from '@tanstack/react-query';
 import CardFullEditable from '../../../../src/components/react/CardFullEditable';
 import SubtleContentMount from '@/components/react/SubtleContentMount';
 import { detectScriptureReferences } from '@/utils/scripture-detector';
-import { updateNoteOfflineIfPresent } from '../../../../src/utils/offline-mutations';
 import { getNoteIdFromCreateResponse, useNote } from '../../hooks/queries/useNote';
 import { useProcessScriptureRefs } from '../../hooks/mutations/useProcessScriptureRefs';
 import { useUpdateNote } from '../../hooks/mutations/useUpdateNote';
@@ -360,7 +359,7 @@ export default function PrototypeNotePage() {
       }
       return;
     }
-    if (isPrototypeNoteEditorFocused()) return;
+    if (isPrototypeNoteEditorFocused() && !note.collectionUserOverride) return;
     const serverChip = noteFolderChipDisplayState({
       primaryCollection: note.primaryCollection ?? null,
       secondaryCollections: note.secondaryCollections ?? [],
@@ -384,6 +383,7 @@ export default function PrototypeNotePage() {
     noteId,
     note?.primaryCollection,
     note?.secondaryCollections,
+    note?.collectionUserOverride,
     setPrototypeFolderChip,
   ]);
 
@@ -593,16 +593,8 @@ export default function PrototypeNotePage() {
         const createdId = await persistDraftNote(newTitle, newContent, collectionExtras);
         return createdId ? { noteId: createdId } : undefined;
       }
-      try {
-        const uid =
-          (window as unknown as { __harvous_userId?: string }).__harvous_userId ||
-          localStorage.getItem('harvous-user-id');
-        if (uid) {
-          await updateNoteOfflineIfPresent(uid, noteId, { title: newTitle, content: newContent });
-        }
-      } catch (err) {
-        console.error('[PrototypeNotePage] offline note update:', err);
-      }
+      // Offline persistence (queue + materialize) is handled by useUpdateNote's runOfflineFirst
+      // path below — no separate offline write here, which would double-queue the edit.
       return updateNoteMutationRef.current.mutateAsync({
         noteId,
         title: newTitle,

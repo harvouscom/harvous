@@ -41,3 +41,34 @@ export function normalizeSecondaryLabels(candidates: string[], primary: string |
   }
   return out;
 }
+
+/**
+ * Split a directory path into a leaf (primary collection) + ancestors (secondary).
+ * e.g. "Pauline Epistles/Romans/Chapter 8" → { primary: "Chapter 8", secondary: ["Pauline Epistles", "Romans"] }.
+ */
+export function collectionsFromPath(folderPath: string | null | undefined): {
+  primary: string | null;
+  secondary: string[];
+} {
+  if (!folderPath) return { primary: null, secondary: [] };
+  const parts = folderPath.split('/').map((p) => p.trim()).filter(Boolean);
+  if (parts.length === 0) return { primary: null, secondary: [] };
+  const primary = parts[parts.length - 1];
+  return { primary, secondary: normalizeSecondaryLabels(parts.slice(0, -1), primary) };
+}
+
+/**
+ * Resolve a note's collections on import. Explicit frontmatter folders win over the
+ * directory structure; folderless content yields null (stays Unsorted, no override).
+ */
+export function resolveImportCollections(
+  metaFolder: string | null | undefined,
+  metaFolders: string[] | null | undefined,
+  folderPath: string | null | undefined,
+): { primary: string | null; secondary: string[] } {
+  const explicitPrimary = typeof metaFolder === 'string' && metaFolder.trim().length > 0 ? metaFolder.trim() : null;
+  if (explicitPrimary) {
+    return { primary: explicitPrimary, secondary: normalizeSecondaryLabels(metaFolders || [], explicitPrimary) };
+  }
+  return collectionsFromPath(folderPath);
+}

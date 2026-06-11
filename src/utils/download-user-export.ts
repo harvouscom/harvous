@@ -77,3 +77,31 @@ export async function fetchAndValidateUserExport(
   const filename = parseExportFilename(response, format);
   return { response, filename };
 }
+
+/**
+ * Download the full backup (.zip). The text/iframe path can't handle binary, so
+ * fetch the zip as a blob (sending Clerk cookies) and save it via an object URL.
+ */
+export async function downloadUserBackupZip(baseUrl?: string): Promise<string> {
+  const url = `${resolveApiBaseUrl(baseUrl)}/api/user/export?format=backup`;
+  const response = await fetch(url, { method: 'GET', credentials: 'include' });
+  if (!response.ok) {
+    throw new Error(`Backup failed: ${response.statusText || String(response.status)}`);
+  }
+  const contentType = (response.headers.get('Content-Type') ?? '').split(';')[0].trim().toLowerCase();
+  if (contentType && contentType !== 'application/zip' && contentType !== 'application/octet-stream') {
+    throw new Error('Backup returned an unexpected content type');
+  }
+  const date = new Date().toISOString().split('T')[0];
+  const filename = parseExportFilename(response, 'markdown').replace(/harvous-export-.*$/, `harvous-backup-${date}.zip`);
+  const blob = await response.blob();
+  const objectUrl = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = objectUrl;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  window.setTimeout(() => URL.revokeObjectURL(objectUrl), IFRAME_CLEANUP_MS);
+  return filename;
+}

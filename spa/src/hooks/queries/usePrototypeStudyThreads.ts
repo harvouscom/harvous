@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
+import { useAuthReady } from '../useAuthReady';
 import { normalizePrototypeApiSpaceId } from '../../utils/prototype-space-api-id';
 import { api } from '../../lib/api';
 
@@ -22,10 +23,11 @@ interface StudyThreadsResponse {
  * Each cluster is labeled by its most-connected note.
  */
 export function usePrototypeStudyThreads(spaceId: string | undefined) {
+  const authReady = useAuthReady();
   const id = normalizePrototypeApiSpaceId(spaceId);
   return useQuery({
     queryKey: ['prototype', 'space', id, 'study-threads'],
-    enabled: Boolean(id),
+    enabled: authReady && Boolean(id),
     queryFn: async () => {
       const res = await api.get<StudyThreadsResponse>(
         `/api/spaces/${encodeURIComponent(id!)}/study-threads`,

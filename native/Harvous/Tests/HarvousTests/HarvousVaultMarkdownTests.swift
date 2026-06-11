@@ -75,6 +75,110 @@ We are saved by ==grace== alone.
     XCTAssertTrue(doc.tags.isEmpty)
   }
 
+  func testBuildMarkdownEmitsFolderAndFoldersNotThreadColor() {
+    let note = Note(title: "Romans 8", body: "No condemnation", spaceId: HarvousSpaceBootstrap.personalHomeSpaceId)
+    note.primaryFolder = "Romans"
+    note.secondaryFolders = ["Pauline Epistles", "New Testament"]
+    note.threadColor = "#ff0000"
+    let md = HarvousVaultMarkdown.buildMarkdown(note: note, spaceName: "Home")
+    XCTAssertTrue(md.contains("folder: Romans"))
+    XCTAssertTrue(md.contains("folders: [Pauline Epistles, New Testament]"))
+    XCTAssertFalse(md.contains("threadColor:"))
+  }
+
+  func testParseDocumentFolders() {
+    let md = """
+---
+title: Romans 8
+folder: Romans
+folders: ["Pauline Epistles", "New Testament"]
+---
+# Romans 8
+
+No condemnation.
+
+"""
+    let doc = HarvousVaultMarkdown.parseDocument(md)
+    XCTAssertEqual(doc.folder, "Romans")
+    XCTAssertEqual(doc.folders, ["Pauline Epistles", "New Testament"])
+  }
+
+  func testParseDocumentLegacyCollectionsKey() {
+    let md = """
+---
+title: X
+collection: Romans
+collections: ["Pauline Epistles"]
+---
+Body
+"""
+    let doc = HarvousVaultMarkdown.parseDocument(md)
+    XCTAssertEqual(doc.folder, "Romans")
+    XCTAssertEqual(doc.folders, ["Pauline Epistles"])
+  }
+
+  func testParseDocumentWebBlockStyleArrays() {
+    // js-yaml dumps arrays as block sequences; native must parse them on web → native import.
+    let md = """
+---
+id: note_a
+title: Grace
+folder: Romans
+folders:
+  - Pauline Epistles
+  - New Testament
+tags:
+  - study
+  - grace
+refs:
+  - Romans 8:1
+---
+# Grace
+
+For by ==grace== you have been saved.
+
+"""
+    let doc = HarvousVaultMarkdown.parseDocument(md)
+    XCTAssertEqual(doc.folder, "Romans")
+    XCTAssertEqual(doc.folders, ["Pauline Epistles", "New Testament"])
+    XCTAssertEqual(doc.tags, ["study", "grace"])
+    XCTAssertEqual(doc.refs, ["Romans 8:1"])
+  }
+
+  func testCollectionsFromPath() {
+    let r = HarvousVaultMarkdown.collectionsFromPath("Pauline Epistles/Romans/Chapter 8")
+    XCTAssertEqual(r.primary, "Chapter 8")
+    XCTAssertEqual(r.secondary, ["Pauline Epistles", "Romans"])
+
+    let empty = HarvousVaultMarkdown.collectionsFromPath(nil)
+    XCTAssertNil(empty.primary)
+    XCTAssertTrue(empty.secondary.isEmpty)
+  }
+
+  func testResolveImportFoldersFrontmatterWins() {
+    // Explicit frontmatter folder overrides directory structure.
+    let r = HarvousVaultMarkdown.resolveImportFolders(
+      metaFolder: "Grace",
+      metaFolders: ["Theology"],
+      folderPath: "Some/Other/Path"
+    )
+    XCTAssertEqual(r.primary, "Grace")
+    XCTAssertEqual(r.secondary, ["Theology"])
+
+    // No frontmatter → derive from path.
+    let p = HarvousVaultMarkdown.resolveImportFolders(metaFolder: nil, metaFolders: [], folderPath: "Vault/Romans")
+    XCTAssertEqual(p.primary, "Romans")
+    XCTAssertEqual(p.secondary, ["Vault"])
+  }
+
+  func testNormalizeSecondaryFolderLabelsExcludesPrimaryAndDedupes() {
+    let out = HarvousVaultMarkdown.normalizeSecondaryFolderLabels(
+      ["Romans", "Theology", "theology", " ", "Grace"],
+      primary: "Romans"
+    )
+    XCTAssertEqual(out, ["Theology", "Grace"])
+  }
+
   func testDatePrefixGregorianYMD() {
     let cal = Calendar(identifier: .gregorian)
     var comps = DateComponents()

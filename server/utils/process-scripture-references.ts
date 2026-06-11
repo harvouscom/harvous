@@ -212,6 +212,7 @@ async function processScriptureReferencesInternal(
 
   // Per-pill translation from any scripture span (pending or resolved) for re-highlighting
   const existingPillTranslations = new Map<string, string>();
+  const existingPillAccents = new Map<string, string>();
   const allPillTranslationPattern = /<span[^>]*data-scripture-reference\s*=\s*["']([^"']+)["'][^>]*>/gi;
   let pillTransMatch;
   while ((pillTransMatch = allPillTranslationPattern.exec(noteContent)) !== null) {
@@ -223,6 +224,14 @@ async function processScriptureReferencesInternal(
       const normalizedRef = normalizeScriptureReference(reference);
       if (!existingPillTranslations.has(normalizedRef)) {
         existingPillTranslations.set(normalizedRef, pillTranslation);
+      }
+    }
+    const accentMatch = fullMatch.match(/data-pill-accent\s*=\s*["']([^"']+)["']/);
+    const pillAccent = accentMatch ? accentMatch[1] : undefined;
+    if (pillAccent) {
+      const normalizedRef = normalizeScriptureReference(reference);
+      if (!existingPillAccents.has(normalizedRef)) {
+        existingPillAccents.set(normalizedRef, pillAccent);
       }
     }
   }
@@ -810,7 +819,7 @@ async function processScriptureReferencesInternal(
       reference,
       noteId,
       translation: pillInfo?.pillTranslation || existingPillTranslations.get(normalizedRef) || translation,
-      accent: pillInfo?.pillAccent,
+      accent: pillInfo?.pillAccent || existingPillAccents.get(normalizedRef),
     };
   });
 
@@ -822,7 +831,7 @@ async function processScriptureReferencesInternal(
     if (!referenceMap.has(referenceForHighlight)) {
       referenceMap.set(referenceForHighlight, existingScriptureNoteId);
       const pillInfo = pendingPills.get(normalizedRef);
-      referencesForHighlighting.push({ reference: referenceForHighlight, noteId: existingScriptureNoteId, translation: pillInfo?.pillTranslation || existingPillTranslations.get(normalizedRef) || translation, accent: pillInfo?.pillAccent });
+      referencesForHighlighting.push({ reference: referenceForHighlight, noteId: existingScriptureNoteId, translation: pillInfo?.pillTranslation || existingPillTranslations.get(normalizedRef) || translation, accent: pillInfo?.pillAccent || existingPillAccents.get(normalizedRef) });
     }
 
     // Ensure junction entry exists for existing references (critical for collapsible list)

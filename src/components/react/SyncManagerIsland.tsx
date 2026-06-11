@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { initializeSync } from '@/utils/sync-init';
+import { initializeSync, isPrototypeShellRoute } from '@/utils/sync-init';
 import { persistUserId, getPersistedUserId } from '@/utils/user-id';
 import { executeOnlineRecovery, onOnlineRecovery, offOnlineRecovery } from '@/utils/network';
-import { syncNow } from '@/utils/sync-manager';
+import { syncNow, pushQueue } from '@/utils/sync-manager';
 import { offlineDB, ensureDatabaseOpen, retryIndexedDBOperation } from '@/utils/offline-db';
 import { isOfflineModeEnabled } from '@/utils/offline-mode';
 import OfflineIndicator from './OfflineIndicator';
@@ -125,7 +125,13 @@ export default function SyncManagerIsland({
         });
 
         if (pendingCount > 0) {
-          await syncNow(userId);
+          // Prototype shell flushes the queue only (push) — it reads from the server via
+          // React Query and must not hydrate the IndexedDB read mirror via syncNow's pull.
+          if (isPrototypeShellRoute()) {
+            await pushQueue(userId);
+          } else {
+            await syncNow(userId);
+          }
         }
       } catch (error) {
         // Silently handle database errors - don't spam console when database is closed

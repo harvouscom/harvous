@@ -32,7 +32,7 @@ import { getAuthenticatedAuth, requireAuth } from '../middleware/auth';
 import {
   db, first, Notes, Threads, Spaces, Tags, NoteTags, NoteThreads, UserMetadata,
   UserXP, Comments, ScriptureMetadata, Members, NoteScriptureReferences, ResourceMetadata,
-  StudyThreadEntries,
+  StudyThreadEntries, NoteConnections,
   eq, and, or, desc, asc, isNotNull, isNull, sql, inArray,
 } from '../db';
 import { nowISO } from '../db/dates';
@@ -55,7 +55,7 @@ import { rateLimit, tryConsumeNoteCreates, getClientIP } from '@/utils/rate-limi
 import { validateName, validateColor } from '@/utils/validation';
 import { hashPinNew, validatePinFormat, verifyPin } from '@/utils/lock-pin-server';
 import { htmlToMarkdown, htmlToPlainText } from '@/utils/html-to-markdown';
-import { generateUserExport, type ExportFormat } from '../utils/export-user-data';
+import { generateUserExport, generateUserBackupZip, type ExportFormat } from '../utils/export-user-data';
 import { generateNoteId, generateThreadId, generateStudyThreadEntryId } from '@/utils/ids';
 import { THREAD_COLORS } from '@/utils/colors';
 import { parseImportFiles, type ParsedImportRow } from '../utils/parse-import-files';
@@ -67,6 +67,7 @@ import { ensureUnorganizedThread } from '../utils/unorganized-thread';
 import { isMyPileDisplayTitle } from '@/utils/my-pile-thread';
 import { deleteNotesCascadeForUser } from '../utils/delete-note-cascade';
 import { getOrCreateTag } from '../utils/tag-helpers';
+import { serializeNoteSecondaryCollections } from '../utils/note-secondary-collections';
 import {
   runPrototypeUserMigration,
   userNeedsCollectionBackfill,
@@ -246,6 +247,17 @@ app.get('/api/user/export', requireAuth, async (c) => {
     const auth = getAuthenticatedAuth(c);
 
     const formatParam = (c.req.query('format') || 'markdown') as string;
+    const timestamp = new Date().toISOString().split('T')[0];
+
+    if (formatParam === 'backup') {
+      const { content, fileExtension } = await generateUserBackupZip(auth.userId);
+      const filename = `harvous-backup-${timestamp}.${fileExtension}`;
+      return new Response(content, {
+        status: 200,
+        headers: { 'Content-Type': 'application/zip', 'Content-Disposition': `attachment; filename="${filename}"` },
+      });
+    }
+
     const format: ExportFormat =
       formatParam === 'csv-threads' ? 'csv-threads' : formatParam === 'text' ? 'text' : 'markdown';
 
@@ -253,7 +265,6 @@ app.get('/api/user/export', requireAuth, async (c) => {
 
     const contentType =
       fileExtension === 'csv' ? 'text/csv' : fileExtension === 'md' ? 'text/markdown' : 'text/plain';
-    const timestamp = new Date().toISOString().split('T')[0];
     const filename = `harvous-export-${timestamp}.${fileExtension}`;
     return new Response(content, {
       status: 200,
@@ -755,6 +766,8 @@ app.post('/api/user/import/preview', requireAuth, async (c) => {
         tagCount: r.tagCount,
         sourceType: r.sourceType,
         folderPath: r.folderPath,
+        primaryCollection: r.primaryCollection,
+        secondaryCollections: r.secondaryCollections,
       })),
       warnings,
       unsupported,
@@ -821,37 +834,37 @@ app.post('/api/user/import', requireAuth, async (c) => {
     let notesImported = 0, threadsCreated = 0, tagsCreated = 0, duplicatesSkipped = 0, highlightsImported = 0;
     const errors: string[] = [];
     const createdThreadIds = new Set<string>();
+    const createdFolders = new Set<string>();
+    // Map portable note id (from frontmatter/manifest) → newly inserted note id, for connection restore.
+    const sourceIdToNewId = new Map<string, string>();
 
     for (let i = 0; i < allParsedNotes.length; i++) {
       try {
-        const { note: parsedNote, folderPath, portableBuild } = allParsedNotes[i];
-        let title: string | null = null, content = '', threadName: string | null = null;
-        let threadColor: string | null = null, tags: string[] = [], createdDate: Date = new Date();
+        const { note: parsedNote, portableBuild, primaryCollection, secondaryCollections } = allParsedNotes[i];
+        let title: string | null = null, content = '', threadColor: string | null = null;
+        let tags: string[] = [], createdDate: Date = new Date();
         let scriptureReference: string | null = null, scriptureTranslation: string | null = null;
+        let sourceId: string | null = null;
+        // Folders come from frontmatter/directory structure (resolved in parseImportFiles).
+        const threadName: string | null = primaryCollection;
 
         if (format === 'csv-threads') {
           const csvNote = parsedNote as ParsedCSVNote;
           title = csvNote.noteTitle || null; content = csvNote.content;
-          let csvThreadName = csvNote.threadTitle || null;
-          if (csvThreadName?.includes('/')) {
-            const parts = csvThreadName.split('/').filter(p => p.trim());
-            csvThreadName = parts.length > 0 ? parts[parts.length - 1] : null;
-          }
-          threadName = folderPath ? getThreadNameFromPath(folderPath, csvThreadName) : csvThreadName;
           threadColor = csvNote.threadColor || null;
           tags = csvNote.tags || [];
           createdDate = parseExportDate(csvNote.createdDate);
         } else {
           const mdNote = parsedNote as ParsedMarkdownNote;
           title = mdNote.title || null;
+          sourceId = mdNote.portable?.meta.id || null;
           if (portableBuild) {
             content = portableBuild.htmlContent;
           } else {
             content = markdownToHtml(mdNote.content);
           }
-          if (mdNote.threadName) {
-            threadName = mdNote.threadName;
-            threadColor = (mdNote.threadColor && THREAD_COLORS.includes(mdNote.threadColor as any)) ? mdNote.threadColor : null;
+          if (mdNote.threadColor && THREAD_COLORS.includes(mdNote.threadColor as any)) {
+            threadColor = mdNote.threadColor;
           }
           tags = mdNote.tags || [];
           createdDate = parseExportDate(mdNote.createdDate);
@@ -876,11 +889,21 @@ app.post('/api/user/import', requireAuth, async (c) => {
         const nextSimpleNoteId: number = i === 0 ? effectiveHighest + 1 : (userMetadata!.highestSimpleNoteId ?? 0) + 1;
         let noteType: 'default' | 'scripture' | 'resource' = scriptureReference ? 'scripture' : 'default';
 
+        const secondarySerialized = serializeNoteSecondaryCollections(secondaryCollections);
         const newNote = first(await db.insert(Notes).values({
           id: generateNoteId(), content: capitalizedContent, title: capitalizedTitle,
           threadId: 'thread_unorganized', spaceId: null, simpleNoteId: nextSimpleNoteId,
           noteType, userId: auth.userId, isPublic: false, createdAt: createdDate, contentEncrypted: false,
+          // Modern folder system (what the 2.0 UI displays). Explicit folders mark an override
+          // so auto-collection suggestion doesn't reshuffle the user's imported structure.
+          primaryCollection: primaryCollection || null,
+          secondaryCollections: secondarySerialized,
+          collectionUserOverride: !!primaryCollection,
         }).returning())!;
+
+        if (sourceId) sourceIdToNewId.set(sourceId, newNote.id);
+        if (primaryCollection) createdFolders.add(primaryCollection);
+        for (const sc of secondaryCollections) createdFolders.add(sc);
 
         await db.update(UserMetadata).set({ highestSimpleNoteId: nextSimpleNoteId, updatedAt: nowISO() })
           .where(eq(UserMetadata.userId, auth.userId));
@@ -895,19 +918,24 @@ app.post('/api/user/import', requireAuth, async (c) => {
             .where(and(eq(Threads.id, threadId), eq(Threads.userId, auth.userId)));
         }
 
+        // Resolve tag ids (sequential for dedup) then insert the note↔tag rows in one batch.
+        const noteTagRows: (typeof NoteTags.$inferInsert)[] = [];
+        const seenTagIds = new Set<string>();
         for (const tagName of tags) {
           try {
             const { tagId, created: tagCreated } = await getOrCreateTag(auth.userId, tagName);
             if (tagCreated) tagsCreated++;
-            const existingRelation = first(await db.select().from(NoteTags)
-              .where(and(eq(NoteTags.noteId, newNote.id), eq(NoteTags.tagId, tagId))).limit(1));
-            if (!existingRelation) {
-              await db.insert(NoteTags).values({
-                id: `note-tag-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-                noteId: newNote.id, tagId, isAutoGenerated: false, confidence: null, createdAt: nowISO()
-              });
-            }
+            if (seenTagIds.has(tagId)) continue;
+            seenTagIds.add(tagId);
+            noteTagRows.push({
+              id: `note-tag-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+              noteId: newNote.id, tagId, isAutoGenerated: false, confidence: null, createdAt: nowISO(),
+            });
           } catch (tagError) { errors.push(`Failed to create tag "${tagName}" for note ${i + 1}`); }
+        }
+        if (noteTagRows.length > 0) {
+          try { await db.insert(NoteTags).values(noteTagRows); }
+          catch (tagError) { errors.push(`Failed to attach tags for note ${i + 1}`); }
         }
 
         if (scriptureReference && noteType === 'scripture') {
@@ -947,7 +975,30 @@ app.post('/api/user/import', requireAuth, async (c) => {
       }
     }
 
-    return c.json({ success: true, notesImported, threadsCreated, tagsCreated, duplicatesSkipped, highlightsImported, errors: errors.length > 0 ? errors : undefined });
+    // Restore the note-connection graph from a backup manifest (ids remapped to new notes).
+    let connectionsImported = 0;
+    if (parsed.connections.length > 0 && sourceIdToNewId.size > 0) {
+      const connRows: (typeof NoteConnections.$inferInsert)[] = [];
+      const seenPairs = new Set<string>();
+      for (const conn of parsed.connections) {
+        const from = sourceIdToNewId.get(conn.fromNoteId);
+        const to = sourceIdToNewId.get(conn.toNoteId);
+        if (!from || !to || from === to) continue;
+        const key = `${from}→${to}`;
+        if (seenPairs.has(key)) continue;
+        seenPairs.add(key);
+        connRows.push({
+          id: `conn-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+          fromNoteId: from, toNoteId: to, userId: auth.userId, spaceId: null, createdAt: nowISO(),
+        });
+      }
+      if (connRows.length > 0) {
+        try { await db.insert(NoteConnections).values(connRows); connectionsImported = connRows.length; }
+        catch (err) { errors.push('Failed to restore some note connections.'); }
+      }
+    }
+
+    return c.json({ success: true, notesImported, threadsCreated, tagsCreated, foldersCreated: createdFolders.size, duplicatesSkipped, highlightsImported, connectionsImported, errors: errors.length > 0 ? errors : undefined });
   } catch (error: any) {
     console.error('Import error:', error);
     return c.json({ error: error.message || 'Failed to import data' }, 500);
@@ -1058,13 +1109,6 @@ function getFolderPath(file: File): string | null {
   return null;
 }
 
-function getThreadNameFromPath(folderPath: string | null, defaultName: string | null): string | null {
-  if (folderPath) {
-    const parts = folderPath.split('/').filter(p => p.trim());
-    return parts.length > 0 ? parts[parts.length - 1] : null;
-  }
-  return defaultName;
-}
 
 function parseExportDate(dateString: string | null): Date {
   if (!dateString) return new Date();

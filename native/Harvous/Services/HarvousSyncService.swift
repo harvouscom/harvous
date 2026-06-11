@@ -76,11 +76,26 @@ final class HarvousSyncService {
     /// True while we're in a known-unreachable state, so repeated polls don't
     /// spam an `error`-level log on every cycle while offline. Flips back on the
     /// next successful pull (logged once as connectivity restored).
-    private var isOffline = false
+    /// `private(set)` so the global `HarvousSyncStatusChip` can observe it.
+    private(set) var isOffline = false
 
     /// True while local-dev writes are deferred (localhost down). Flips back on
     /// the next successful flush upload.
-    private var isWriteOffline = false
+    private(set) var isWriteOffline = false
+
+    /// Observed mirror of `pendingLocalChangeCount` / `stuckNoteCount`, refreshed at
+    /// flush/pull boundaries (and on demand via `refreshCounts`). The count functions
+    /// fetch SwiftData on each call, so we memoize into observed storage that the
+    /// global sync chip can render reactively without re-fetching every frame.
+    private(set) var pendingLocalChanges = 0
+    private(set) var stuckNotes = 0
+
+    /// Recompute the observed `pendingLocalChanges` / `stuckNotes` from SwiftData.
+    /// Call after a flush, after ingest, or from the chip host on a model save.
+    func refreshCounts(context: ModelContext) {
+        pendingLocalChanges = pendingLocalChangeCount(context: context)
+        stuckNotes = stuckNoteCount(context: context)
+    }
 
     /// Tracks the userId the last successful sync was for, so we can detect
     /// account switches (e.g. test→live Clerk keys) and re-bootstrap.
@@ -152,6 +167,35 @@ final class HarvousSyncService {
         )) ?? []
 
         return seenNotes.count + dirtyHighlights.count + HarvousTombstoneQueue.all().count
+    }
+
+    /// Notes that hit a *permanent* server rejection (e.g. content too long) during a
+    /// flush. These were dropped from the dirty set (`needsSync == false`) with a stored
+    /// `syncError`, so they will not retry on their own — surface them and let the user
+    /// trigger `retryStuckNotes`. Pairs with the per-note sync-error banner.
+    func stuckNoteCount(context: ModelContext) -> Int {
+        let stuck = (try? context.fetch(
+            FetchDescriptor<Note>(predicate: #Predicate { $0.syncError != nil })
+        )) ?? []
+        return stuck.count
+    }
+
+    /// Re-queue every note carrying a stored `syncError`: clear the error, mark dirty,
+    /// and flush. Wired to the sync-error banner's "Retry" affordance for batch recovery
+    /// after the underlying cause (e.g. oversized content) is resolved. Returns whether
+    /// any note synced.
+    @discardableResult
+    func retryStuckNotes(context: ModelContext) async -> Bool {
+        let stuck = (try? context.fetch(
+            FetchDescriptor<Note>(predicate: #Predicate { $0.syncError != nil })
+        )) ?? []
+        guard !stuck.isEmpty else { return false }
+        for note in stuck {
+            note.syncError = nil
+            note.needsSync = true
+        }
+        try? context.save()
+        return await flushPending(context: context)
     }
 
     /// Resets local sync state so the next pull does a full bootstrap.
@@ -317,7 +361,10 @@ final class HarvousSyncService {
     /// Rows currently dirty (`needsSync == true`) are skipped — they upload first, then reconcile.
     func ingestBootstrap(context: ModelContext) async {
         isIngesting = true
-        defer { isIngesting = false }
+        defer {
+            isIngesting = false
+            refreshCounts(context: context)
+        }
 
         let pendingNoteDeletes = Set(
             HarvousTombstoneQueue.all()
@@ -577,6 +624,12 @@ final class HarvousSyncService {
         let predicate = #Predicate<Note> { $0.serverId == id }
         let existing = try? context.fetch(FetchDescriptor<Note>(predicate: predicate)).first
         if let existing {
+            // Conflict policy (ADR D6, last-write-wins): a clean local note takes the
+            // server copy wholesale (server is newer-or-equal since we had no local edit).
+            // A dirty local note keeps its local body and only reconciles lightweight
+            // server-owned fields (share/pin/folder), deferring the write to the next
+            // flush — i.e. the actively-edited device wins, last push wins server-side.
+            // v1 is single-user-multi-device, so we never discard an unsynced local edit.
             if existing.needsSync {
                 // Preserve local editor content while still reconciling lightweight server fields
                 // that are commonly changed on other surfaces (share/pin/folder metadata).
@@ -588,7 +641,7 @@ final class HarvousSyncService {
                 if let secondaries = api.secondaryCollections { existing.secondaryFolders = secondaries }
                 if let pinned = api.collectionPinned { existing.isFolderPinned = pinned }
                 if let userOverride = api.collectionUserOverride { existing.isFolderUserOverride = userOverride }
-                if let simpleId = api.simpleNoteId, existing.simpleNoteId == nil { existing.simpleNoteId = simpleId }
+                if let simpleId = api.simpleNoteId { existing.simpleNoteId = simpleId } // ADR D3c: server-authoritative label
                 return
             }
             if let title = api.title { existing.title = title }
@@ -751,6 +804,7 @@ final class HarvousSyncService {
             Logger.app.error("SwiftData save after flush failed: \(error.localizedDescription, privacy: .public)")
         }
         lastFlushAt = Date()
+        refreshCounts(context: context)
         return didSync
     }
 

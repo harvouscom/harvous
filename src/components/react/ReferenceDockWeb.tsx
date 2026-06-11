@@ -54,6 +54,13 @@ export interface ReferenceDockWebProps {
    * prominent "Save reference" action instead of the accent/remove controls.
    */
   pendingSuggestion?: boolean;
+  /**
+   * When true the dock was opened from a passage suggestion in the scripture pill dock —
+   * show "Save reference" to persist a study-thread entry (no note highlight mark).
+   */
+  passageReference?: boolean;
+  /** When true the passage reference was saved — show accent/remove chrome (no note mark). */
+  passageReferenceSaved?: boolean;
   /** Persist the pending suggestion as a real reference. */
   onSaveReference?: () => void;
 }
@@ -145,6 +152,8 @@ export default function ReferenceDockWeb({
   onChangeNoteHighlight,
   onRemoveNoteHighlight,
   pendingSuggestion = false,
+  passageReference = false,
+  passageReferenceSaved = false,
   onSaveReference,
 }: ReferenceDockWebProps) {
   const [query, setQuery] = useState(initialQuery);
@@ -236,10 +245,11 @@ export default function ReferenceDockWeb({
   const headword = entry?.headword ?? trimmed;
   const noteAccent: StudyHighlightAccentKey =
     noteHighlightAccent && isStudyHighlightAccentKey(noteHighlightAccent) ? noteHighlightAccent : 'warmAmber';
-  const accentColor = SCRIPTURE_DOCK_ACCENT_COLORS[noteHighlightRange ? noteAccent : 'neutral'];
+  const savedReferenceHighlight = !!(noteHighlightRange || passageReferenceSaved);
+  const accentColor = SCRIPTURE_DOCK_ACCENT_COLORS[savedReferenceHighlight ? noteAccent : 'neutral'];
 
   const headerActions =
-    pendingSuggestion && onSaveReference ? (
+    (pendingSuggestion || passageReference) && onSaveReference ? (
       <button
         type="button"
         className="study-dock-card__header-btn reference-dock-web__save-orb"
@@ -253,7 +263,7 @@ export default function ReferenceDockWeb({
       >
         <Icon name="check" size={14} />
       </button>
-    ) : noteHighlightRange && (onChangeNoteHighlight || onRemoveNoteHighlight) ? (
+    ) : savedReferenceHighlight && (onChangeNoteHighlight || onRemoveNoteHighlight) ? (
       <>
         {onChangeNoteHighlight ? (
           <DockAccentSwatchButton

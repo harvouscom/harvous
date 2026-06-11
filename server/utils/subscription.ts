@@ -8,6 +8,7 @@
 
 import { db, first, UserMetadata, Notes, eq, and, isNotNull, desc } from '../db';
 import type { Auth } from '../middleware/types';
+import { getTierForAuth } from './tier-limits';
 
 export const UNLIMITED_PLAN_ID = process.env.CLERK_UNLIMITED_PLAN_ID || 'cplan_37aJweoipC2wY2Pa94o7zMdoIyw';
 
@@ -50,8 +51,9 @@ export async function getReferralBonusNotes(userId: string): Promise<number> {
   }
 }
 
-export function hasUnlimitedNotes(auth: Auth): boolean {
-  return auth.has({ feature: 'unlimited_notes' });
+/** DB-backed tier check (transitional Clerk fallback lives in getTierForAuth). */
+export async function hasUnlimitedNotes(auth: Auth): Promise<boolean> {
+  return (await getTierForAuth(auth)) === 'unlimited';
 }
 
 /** All users may create notes; kept for call sites that expect this shape. */
@@ -69,7 +71,7 @@ export async function canCreateNote(
 }
 
 export async function getSubscriptionInfo(userId: string, auth: Auth) {
-  const hasUnlimited = hasUnlimitedNotes(auth);
+  const hasUnlimited = await hasUnlimitedNotes(auth);
   const [currentCount, referralBonusNotes] = await Promise.all([
     getUserNoteCount(userId),
     getReferralBonusNotes(userId),

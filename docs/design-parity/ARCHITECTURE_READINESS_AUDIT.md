@@ -45,7 +45,7 @@ This audit is the backlog companion to [`HARVOUS_BUILD_CONVENTIONS.md`](./HARVOU
 | N3 | **Selection tracking is NSScrollView-coupled** — `selectionViewPoint`/`selectionCaretViewportRect` are viewport-relative; hard to port the editor to a different text surface. | `Editor/EditorProxy.swift` | iOS parity (Tier 4), any non-scrollview editor host. | M | P2 |
 | N4 | **Mixed observation patterns** — `SpaceStore` is legacy `ObservableObject`/`@Published`; peers (`HarvousSyncService`, `HarvousAppearanceStore`, `HarvousClerkBridge`) are `@Observable`. | `Services/SpaceStore.swift` (295 lines) | Consistency; cleaner state as stores grow. | M | P2 |
 | N5 | ✅ **Done (round 2).** ~~Scripture pills rasterized every layout pass~~ — blurred inner-edge stroke now cached (`NSCache`, geometry+appearance+scale key). Variable-font draw still per-render, but the Core Image blur (the expensive step) is cached. | `Editor/ScripturePillAttachment.swift` | Pill-heavy synced notes from web. | M | ✅ |
-| N6 | **Silent sync-error recovery** — error now *shown* (✅ above), but there's still no global "stuck notes" surface or batch retry, and `flushNoteUpdate` permanent failures leave `needsSync=false`. | `Services/HarvousSyncService.swift` (~L787–822) | Cloud sync (Tier 2), collab. | S | P1 |
+| N6 | ✅ **Done.** ~~Silent sync-error recovery~~ — added `stuckNoteCount` (global surface) + `retryStuckNotes` (clears `syncError`, re-marks dirty, re-flushes) in `HarvousSyncService.swift`, wired to the existing sync-error banner. Permanent failures still set `needsSync=false` (correct — they must not retry blindly) but are now recoverable in a batch. | `Services/HarvousSyncService.swift` | Cloud sync (Tier 2), collab. | S | ✅ |
 | N7 | ✅ **Done (round 2).** ~~No destructive color token~~ — added `Color.harvousDestructive` / `Color.harvousWarning`; adopted at sync-error banner + Delete row. Older raw `.red` sites migrate opportunistically. | `DesignSystem/HarvousColors.swift` | Consistent destructive/warning UI. | S | ✅ |
 | N8 | ✅ **Already resolved.** `HarvousApp.makeModelContainer()` logs loudly + `fatalError`s on migration failure (no silent in-memory fallback); DEBUG has a one-time store-relocation retry. Audit entry was stale. | `HarvousApp.swift` L61–125 | Any schema change for cloud sync. | — | ✅ |
 
@@ -68,7 +68,7 @@ Done so far (rounds 1–2 ✅): W6, N5, N7, N8 (was already resolved), plus W3 i
 
 Remaining:
 
-1. **P1 before their features:** W1 (split context) + W2 (decompose sidebar) before more panes/list modes; N1 (attachment protocol) + N2 (editor view-model) before rich media / AI / iOS parity; W8 (optimistic-update convention) before collab; N6 (batch retry / re-queue on permanent fail) before cloud sync.
+1. **P1 before their features:** W1 (split context) + W2 (decompose sidebar) before more panes/list modes; N1 (attachment protocol) + N2 (editor view-model) before rich media / AI / iOS parity; W8 (optimistic-update convention) before collab. ~~N6 (batch retry / re-queue on permanent fail)~~ ✅ done.
 2. **P2 hygiene:** W3 (finish popover migration), W4/W5 (chrome portals, history), N3 (selection protocol), N4 (`SpaceStore` → `@Observable`).
 
 Each remaining P1 item is its own PR-sized change — deliberately left out of the hardening passes to avoid regression risk.

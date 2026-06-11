@@ -317,7 +317,7 @@ struct NoteListColumn: View {
             if rows.isEmpty && base.isEmpty {
                 emptyState
             } else if rows.isEmpty {
-                ContentUnavailableView.search(text: searchText)
+                HarvousEmptyStateView.searchNoMatch(title: SidebarNoMatchCopy.noNotesMatch)
             } else {
                 noteList(rows: rows)
             }

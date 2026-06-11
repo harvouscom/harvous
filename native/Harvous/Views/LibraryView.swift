@@ -290,7 +290,7 @@ struct LibraryView: View {
                 scale: .compact
             )
         } else if !activeSearchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && filteredFolderRows.isEmpty {
-            ContentUnavailableView.search(text: activeSearchQuery)
+            HarvousEmptyStateView.searchNoMatch(title: SidebarNoMatchCopy.noFoldersMatch)
         } else {
             foldersFlatList
         }

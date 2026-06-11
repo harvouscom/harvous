@@ -3,7 +3,7 @@ import { api } from '../../lib/api';
 import { navigationQueryKeyPrefix } from '../queries/useNavigation';
 import { clearCachedNoteDetail, clearNoteParentThreadLocalCache } from '../queries/useNote';
 import { deleteNoteOffline } from '@/utils/offline-mutations';
-import { getPersistedUserId } from '@/utils/user-id';
+import { runOfflineFirst } from './withOfflineQueue';
 import {
   removeSpaceNoteFromCache,
   spaceNotesQueryKey,
@@ -36,17 +36,13 @@ export function useDeleteNote() {
 
   return useMutation({
     mutationFn: async ({ noteId }: DeleteNoteVariables) => {
-      const userId = getPersistedUserId();
-      if (userId) {
-        try {
-          await deleteNoteOffline(userId, noteId);
-        } catch {
-          /* continue with server */
-        }
-      }
-      return api.delete<DeleteNoteResponse>(
-        `/api/notes/delete?noteId=${encodeURIComponent(noteId)}`,
-      );
+      // Online-first: only enqueue the offline delete if the network call fails offline,
+      // otherwise the background loop would push a redundant delete and surface a false failure.
+      return runOfflineFirst({
+        online: () =>
+          api.delete<DeleteNoteResponse>(`/api/notes/delete?noteId=${encodeURIComponent(noteId)}`),
+        offline: (userId) => deleteNoteOffline(userId, noteId),
+      });
     },
     onMutate: async (variables) => {
       const sid = variables.spaceId.startsWith('space_') ? variables.spaceId : `space_${variables.spaceId}`;

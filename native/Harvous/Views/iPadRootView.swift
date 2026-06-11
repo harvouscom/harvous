@@ -269,6 +269,13 @@ struct iPadRootView: View {
                         .environmentObject(appRouter)
                 }
             }
+            .overlay(alignment: .bottomLeading) {
+                if bridge.isAuthenticated {
+                    HarvousSyncStatusChip()
+                        .padding(.leading, 16)
+                        .padding(.bottom, 16)
+                }
+            }
             .sheet(isPresented: $appRouter.iosShowMore, onDismiss: {
                 appRouter.youNavigationStack.removeAll()
                 bridge.refreshProfile()

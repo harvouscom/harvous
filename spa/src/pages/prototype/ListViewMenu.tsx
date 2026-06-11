@@ -2,11 +2,18 @@
  * List view popover — Notes, Folders, Highlights, Scripture (native SidebarPanelView parity).
  * Icon-only trigger lives in the sidebar toolbar cluster (desktop column + mobile drawer header).
  */
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import Icon from '@/components/react/Icon';
 import { useProtoShell, type SidebarListMode } from '../../layouts/proto-shell-context';
-import { usePopoverDismiss } from '../../hooks/usePopoverDismiss';
-import { PROTO_TOOLBAR_ICON_SIZE, PROTO_TOOLBAR_ORB_ICON_SIZE } from './proto-toolbar-tokens';
+import {
+  PROTO_TOOLBAR_ICON_SIZE,
+  PROTO_TOOLBAR_ORB_ICON_SIZE,
+  PROTO_TOOLBAR_POPOVER_OFFSET,
+} from './proto-toolbar-tokens';
 import ProtoPopoverShell from './ProtoPopoverShell';
+
+const MENU_Z_INDEX = 6000;
 
 function listModeShortLabel(mode: SidebarListMode): string {
   switch (mode) {
@@ -56,7 +63,11 @@ export default function ListViewMenu({
   disabled?: boolean;
   variant?: 'icon-only' | 'full';
 }) {
-  const { open, setOpen, rootRef } = usePopoverDismiss<HTMLDivElement>();
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const popoverRef = useRef<HTMLDivElement>(null);
+  const [anchorPos, setAnchorPos] = useState<{ top: number; left: number } | null>(null);
   const {
     sidebarListMode,
     setSidebarListMode,
@@ -73,28 +84,141 @@ export default function ListViewMenu({
 
   const title = listModeTitle(sidebarListMode);
   const iconSize = variant === 'icon-only' ? PROTO_TOOLBAR_ORB_ICON_SIZE : 14;
+  const isPortaled = variant === 'icon-only';
+
+  useLayoutEffect(() => {
+    if (!open || !isPortaled) {
+      setAnchorPos(null);
+      return undefined;
+    }
+
+    const update = () => {
+      const rect = triggerRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      setAnchorPos({ top: rect.bottom + PROTO_TOOLBAR_POPOVER_OFFSET, left: rect.left });
+    };
+
+    update();
+    window.addEventListener('resize', update);
+    window.addEventListener('scroll', update, true);
+    return () => {
+      window.removeEventListener('resize', update);
+      window.removeEventListener('scroll', update, true);
+    };
+  }, [open, isPortaled]);
+
+  useEffect(() => {
+    if (!open) return undefined;
+
+    if (isPortaled) {
+      const onPointerDown = (e: MouseEvent) => {
+        const target = e.target as Node;
+        if (triggerRef.current?.contains(target)) return;
+        if (popoverRef.current?.contains(target)) return;
+        setOpen(false);
+      };
+      const onKeyDown = (e: KeyboardEvent) => {
+        if (e.key === 'Escape') setOpen(false);
+      };
+      document.addEventListener('mousedown', onPointerDown);
+      document.addEventListener('keydown', onKeyDown);
+      return () => {
+        document.removeEventListener('mousedown', onPointerDown);
+        document.removeEventListener('keydown', onKeyDown);
+      };
+    }
+
+    const onPointerDown = (e: MouseEvent) => {
+      const el = rootRef.current;
+      if (el && e.target instanceof Node && !el.contains(e.target)) setOpen(false);
+    };
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpen(false);
+    };
+    document.addEventListener('mousedown', onPointerDown);
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', onPointerDown);
+      document.removeEventListener('keydown', onKeyDown);
+    };
+  }, [open, isPortaled]);
+
+  const menuSection = (
+    <div className="proto-menu-section" role="group">
+      {LIST_MODES.map(([mode, icon, label]) => (
+        <button
+          key={mode}
+          type="button"
+          role="menuitemradio"
+          aria-checked={sidebarListMode === mode}
+          className="proto-menu-item"
+          onClick={() => pick(mode)}
+        >
+          <span className="proto-menu-item__icon" aria-hidden>
+            <Icon name={icon} size={PROTO_TOOLBAR_ICON_SIZE} />
+          </span>
+          <span className="proto-menu-item__label">{label}</span>
+          {sidebarListMode === mode ? (
+            <span className="proto-menu-item__check" aria-hidden>
+              <Icon name="check" size={12} />
+            </span>
+          ) : null}
+        </button>
+      ))}
+    </div>
+  );
+
+  const popoverClassName = [
+    'proto-menu__popover',
+    'proto-menu__popover--list-view',
+    isPortaled
+      ? 'proto-menu__popover--sidebar-toolbar proto-menu__popover--sidebar-toolbar-portal'
+      : 'proto-menu__popover--sidebar-list-view',
+  ]
+    .filter(Boolean)
+    .join(' ');
+
+  const portaledPopover =
+    open && isPortaled && typeof document !== 'undefined'
+      ? createPortal(
+          <ProtoPopoverShell
+            ref={popoverRef}
+            className={popoverClassName}
+            role="menu"
+            aria-label="List view"
+            style={{
+              top: anchorPos?.top ?? -9999,
+              left: anchorPos?.left ?? 0,
+            }}
+          >
+            {menuSection}
+          </ProtoPopoverShell>,
+          document.body,
+        )
+      : null;
 
   return (
     <div
       className={[
         'proto-menu',
-        variant === 'icon-only' ? 'proto-sidebar-toolbar__mode-menu' : 'proto-sidebar-list-view__menu',
+        isPortaled ? 'proto-sidebar-toolbar__mode-menu' : 'proto-sidebar-list-view__menu',
       ]
         .filter(Boolean)
         .join(' ')}
       ref={rootRef}
     >
       <button
+        ref={triggerRef}
         type="button"
         className={
-          variant === 'icon-only'
+          isPortaled
             ? 'proto-toolbar-icon-btn'
             : 'proto-sidebar-list-view__trigger'
         }
         aria-expanded={open}
         aria-haspopup="menu"
         title={title}
-        aria-label={variant === 'icon-only' ? title : undefined}
+        aria-label={isPortaled ? title : undefined}
         disabled={disabled}
         onClick={() => !disabled && setOpen((x) => !x)}
       >
@@ -115,42 +239,12 @@ export default function ListViewMenu({
         ) : null}
       </button>
 
-      {open ? (
-        <ProtoPopoverShell
-          className={[
-            'proto-menu__popover',
-            'proto-menu__popover--list-view',
-            variant === 'icon-only' ? 'proto-menu__popover--sidebar-toolbar' : 'proto-menu__popover--sidebar-list-view',
-          ]
-            .filter(Boolean)
-            .join(' ')}
-          role="menu"
-          aria-label="List view"
-        >
-          <div className="proto-menu-section" role="group">
-            {LIST_MODES.map(([mode, icon, label]) => (
-              <button
-                key={mode}
-                type="button"
-                role="menuitemradio"
-                aria-checked={sidebarListMode === mode}
-                className="proto-menu-item"
-                onClick={() => pick(mode)}
-              >
-                <span className="proto-menu-item__icon" aria-hidden>
-                  <Icon name={icon} size={PROTO_TOOLBAR_ICON_SIZE} />
-                </span>
-                <span className="proto-menu-item__label">{label}</span>
-                {sidebarListMode === mode ? (
-                  <span className="proto-menu-item__check" aria-hidden>
-                    <Icon name="check" size={12} />
-                  </span>
-                ) : null}
-              </button>
-            ))}
-          </div>
+      {open && !isPortaled ? (
+        <ProtoPopoverShell className={popoverClassName} role="menu" aria-label="List view">
+          {menuSection}
         </ProtoPopoverShell>
       ) : null}
+      {portaledPopover}
     </div>
   );
 }

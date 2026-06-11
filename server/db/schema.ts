@@ -249,6 +249,13 @@ export const UserMetadata = pgTable('UserMetadata', {
   defaultTranslation: text('defaultTranslation').notNull().default('NET'),
   /** Last applied onboarding markdown pack version (see ONBOARDING_PACK_VERSION). */
   onboardingPackVersionApplied: integer('onboardingPackVersionApplied').notNull().default(0),
+  /**
+   * Billing tier — DB source of truth (`free` | `unlimited`). Phase 1 of the
+   * Clerk→Stripe migration: tier reads come from here, not the Clerk JWT/Billing
+   * API. Written by the Stripe webhook (future) / admin grant / backfill script.
+   * See docs/native-prototype/PHASE_0_DATA_MODEL_ADR.md and tier-limits.ts.
+   */
+  tier: text('tier').notNull().default('free'),
   createdAt: ts('createdAt').notNull(),
   updatedAt: ts('updatedAt'),
 });

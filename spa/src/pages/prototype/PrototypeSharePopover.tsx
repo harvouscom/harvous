@@ -4,6 +4,7 @@ import Icon from '@/components/react/Icon';
 import { useShareNote } from '../../hooks/mutations/useShareNote';
 import { useDismissOnOutside } from '../../hooks/usePopoverDismiss';
 import ProtoPopoverShell from './ProtoPopoverShell';
+import { PROTO_TOOLBAR_POPOVER_OFFSET } from './proto-toolbar-tokens';
 
 /**
  * Floating share popover anchored under the prototype's share pill. Mirrors
@@ -22,7 +23,7 @@ import ProtoPopoverShell from './ProtoPopoverShell';
 
 const CARD_WIDTH = 320;
 const VIEWPORT_MARGIN = 12;
-const CARD_OFFSET = 8;
+const CARD_OFFSET = PROTO_TOOLBAR_POPOVER_OFFSET;
 
 interface PrototypeSharePopoverProps {
   noteId: string;

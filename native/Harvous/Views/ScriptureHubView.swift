@@ -113,7 +113,7 @@ struct ScriptureHubView: View {
     @ViewBuilder
     private var scripturePassagesBookContent: some View {
         if !activeSearchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && filteredScriptureReferenceRows.isEmpty {
-            ContentUnavailableView.search(text: activeSearchQuery)
+            HarvousEmptyStateView.searchNoMatch(title: SidebarNoMatchCopy.noScriptureMatch)
         } else if scriptureReferenceRowsForBookDrill.isEmpty {
             HarvousEmptyStateView(
                 iconAsset: "Harvous.BookOpen",
@@ -158,7 +158,7 @@ struct ScriptureHubView: View {
                 scale: .compact
             )
         } else if !activeSearchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && filteredScriptureBookRows.isEmpty {
-            ContentUnavailableView.search(text: activeSearchQuery)
+            HarvousEmptyStateView.searchNoMatch(title: SidebarNoMatchCopy.noScriptureMatch)
         } else {
             scriptureFlatList
         }

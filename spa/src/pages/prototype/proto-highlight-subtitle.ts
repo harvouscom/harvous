@@ -66,6 +66,15 @@ export function prototypeHighlightSubtitlePreview(row: StudyThreadEntryDetail, p
     return from ? `${head} — ${from}` : head;
   }
 
+  // Reference highlights (dictionary word saved from a scripture passage): the title already shows
+  // the word, so the subtitle surfaces just the source scripture reference it came from — not the
+  // note title, which typically repeats the word.
+  if (row.entryKind === 'reference') {
+    const ref = (row.scriptureReference ?? '').trim();
+    if (ref) return ref;
+    return from ? `From ${from}` : 'Reference';
+  }
+
   const ann = (row.miniNoteBody ?? '').trim();
   if (ann) return ann;
   const anchor = (row.anchorTextSnapshot ?? '').trim();

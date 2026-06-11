@@ -5,12 +5,13 @@ import { api, apiUrl } from '../../../lib/api';
 import {
   fetchAndValidateUserExport,
   triggerAuthenticatedExportDownload,
+  downloadUserBackupZip,
 } from '@/utils/download-user-export';
-import { clientApiOrigin, refreshClientData } from '../../../lib/refresh-client-data';
+import { refreshClientData } from '../../../lib/refresh-client-data';
 import { SettingsShell, SettingsGroup, SettingsRow } from './SettingsShell';
 
 type ExportFormat = 'markdown' | 'csv-threads';
-type Busy = null | 'export-md' | 'export-csv' | 'import' | 'import-preview' | 'clear' | 'delete' | 'refresh';
+type Busy = null | 'export-md' | 'export-csv' | 'export-backup' | 'import' | 'import-preview' | 'clear' | 'delete';
 
 interface ImportPreviewDoc {
   index: number;
@@ -19,12 +20,15 @@ interface ImportPreviewDoc {
   highlightCount: number;
   tagCount: number;
   sourceType: string;
+  primaryCollection?: string | null;
+  secondaryCollections?: string[];
 }
 
 export default function PrototypeDataPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const folderInputRef = useRef<HTMLInputElement>(null);
   const importFormatRef = useRef<ExportFormat>('markdown');
   const pendingImportFilesRef = useRef<File[]>([]);
   const [busy, setBusy] = useState<Busy>(null);
@@ -54,10 +58,29 @@ export default function PrototypeDataPage() {
     }
   };
 
+  const handleBackupExport = async () => {
+    resetStatus();
+    setBusy('export-backup');
+    try {
+      const filename = await downloadUserBackupZip(import.meta.env.VITE_API_BASE_URL || '');
+      setMessage(`Backup downloaded (${filename}).`);
+    } catch {
+      setError("Couldn't create your backup. Please try again.");
+    } finally {
+      setBusy(null);
+    }
+  };
+
   const handlePickImport = (format: ExportFormat) => {
     resetStatus();
     importFormatRef.current = format;
     fileInputRef.current?.click();
+  };
+
+  const handlePickFolderImport = () => {
+    resetStatus();
+    importFormatRef.current = 'markdown';
+    folderInputRef.current?.click();
   };
 
   const handleImportFiles = async (files: FileList | null) => {
@@ -114,12 +137,20 @@ export default function PrototypeDataPage() {
         error?: string;
         notesImported?: number;
         highlightsImported?: number;
+        foldersCreated?: number;
+        duplicatesSkipped?: number;
       };
       if (!res.ok || data.error) throw new Error(data.error || `Import failed (${res.status})`);
       const parts: string[] = [];
       if (data.notesImported != null) parts.push(`${data.notesImported} note${data.notesImported === 1 ? '' : 's'}`);
       if (data.highlightsImported != null && data.highlightsImported > 0) {
         parts.push(`${data.highlightsImported} highlight${data.highlightsImported === 1 ? '' : 's'}`);
+      }
+      if (data.foldersCreated != null && data.foldersCreated > 0) {
+        parts.push(`${data.foldersCreated} folder${data.foldersCreated === 1 ? '' : 's'}`);
+      }
+      if (data.duplicatesSkipped != null && data.duplicatesSkipped > 0) {
+        parts.push(`${data.duplicatesSkipped} duplicate${data.duplicatesSkipped === 1 ? '' : 's'} skipped`);
       }
       setMessage(parts.length > 0 ? `Import complete (${parts.join(', ')}).` : 'Import complete.');
       setImportPreview(null);
@@ -166,31 +197,23 @@ export default function PrototypeDataPage() {
     }
   };
 
-  const handleRefreshFromServer = async () => {
-    setBusy('refresh');
-    resetStatus();
-    try {
-      await refreshClientData(queryClient);
-      setMessage('Library refreshed from your account.');
-    } catch {
-      setError("Couldn't refresh from the server. Please try again.");
-    } finally {
-      setBusy(null);
-    }
-  };
-
-  const apiOrigin = clientApiOrigin();
-  const isProdOrigin =
-    apiOrigin.includes('app.harvous.com') ||
-    (apiOrigin.includes('harvous.com') && !apiOrigin.includes('localhost'));
-
   return (
     <SettingsShell title="My Data">
       <input
         ref={fileInputRef}
         type="file"
         multiple
-        accept=".md,.markdown,.csv,.txt,.docx,.html,.htm,.pdf"
+        accept=".md,.markdown,.csv,.txt,.docx,.html,.htm,.pdf,.enex,.zip"
+        style={{ display: 'none' }}
+        onChange={(e) => handleImportFiles(e.target.files)}
+      />
+      <input
+        ref={folderInputRef}
+        type="file"
+        // @ts-expect-error non-standard directory-selection attributes
+        webkitdirectory=""
+        directory=""
+        multiple
         style={{ display: 'none' }}
         onChange={(e) => handleImportFiles(e.target.files)}
       />
@@ -203,21 +226,55 @@ export default function PrototypeDataPage() {
         Export
       </div>
       <SettingsGroup>
+        <SettingsRow label="Full backup (.zip)" trailing="none" onClick={handleBackupExport} value={busy === 'export-backup' ? '…' : undefined} />
         <SettingsRow label="Export as Markdown" trailing="none" onClick={() => handleExport('markdown')} value={busy === 'export-md' ? '…' : undefined} />
         <SettingsRow label="Export as CSV" trailing="none" onClick={() => handleExport('csv-threads')} value={busy === 'export-csv' ? '…' : undefined} />
       </SettingsGroup>
+      <p className="pds-caption" style={{ color: 'var(--pds-text-tertiary)', padding: '6px 12px 0', margin: 0 }}>
+        Full backup keeps everything — notes, folders, highlights, annotations, and connections — and re-imports cleanly.
+        Markdown is per-note with highlights; CSV is a flat spreadsheet summary.
+      </p>
 
-      <div className="pds-inspector-label" style={{ padding: '0 12px 6px', textTransform: 'uppercase', color: 'var(--pds-text-tertiary)' }}>
+      <div className="pds-inspector-label" style={{ padding: '16px 12px 6px', textTransform: 'uppercase', color: 'var(--pds-text-tertiary)' }}>
         Import
       </div>
       <SettingsGroup>
-        <SettingsRow label="Import Markdown, Word, HTML, or PDF" trailing="none" onClick={() => handlePickImport('markdown')} value={busy === 'import-preview' || busy === 'import' ? '…' : undefined} />
+        <SettingsRow label="Import files (Markdown, Word, HTML, PDF, .zip)" trailing="none" onClick={() => handlePickImport('markdown')} value={busy === 'import-preview' || busy === 'import' ? '…' : undefined} />
+        <SettingsRow label="Import a folder" trailing="none" onClick={handlePickFolderImport} />
         <SettingsRow label="Import CSV file" trailing="none" onClick={() => handlePickImport('csv-threads')} />
       </SettingsGroup>
+      <p className="pds-caption" style={{ color: 'var(--pds-text-tertiary)', padding: '6px 12px 0', margin: 0 }}>
+        Importing a folder keeps your structure: each subfolder becomes a folder in Harvous.
+      </p>
 
       {importPreview && importPreview.length > 0 ? (
         <div style={{ marginTop: 16, padding: '0 12px' }}>
-          <p className="pds-subheadline" style={{ margin: '0 0 8px' }}>Review import</p>
+          <p className="pds-subheadline" style={{ margin: '0 0 4px' }}>Review import</p>
+          {(() => {
+            const totalHighlights = importPreview.reduce((s, d) => s + (d.highlightCount || 0), 0);
+            const folders = new Set(importPreview.map((d) => d.primaryCollection || 'Unsorted'));
+            const summary = [
+              `${importPreview.length} note${importPreview.length === 1 ? '' : 's'}`,
+              totalHighlights > 0 ? `${totalHighlights} highlight${totalHighlights === 1 ? '' : 's'}` : null,
+              `${folders.size} folder${folders.size === 1 ? '' : 's'}`,
+            ].filter(Boolean).join(' · ');
+            const allSelected = importSelected.size === importPreview.length;
+            return (
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', margin: '0 0 8px' }}>
+                <span className="pds-caption" style={{ color: 'var(--pds-text-secondary)' }}>{summary}</span>
+                <button
+                  type="button"
+                  className="proto-settings-btn proto-settings-btn--secondary"
+                  style={{ padding: '2px 8px', fontSize: '0.75rem' }}
+                  onClick={() =>
+                    setImportSelected(allSelected ? new Set() : new Set(importPreview.map((d) => d.index)))
+                  }
+                >
+                  {allSelected ? 'Select none' : 'Select all'}
+                </button>
+              </div>
+            );
+          })()}
           {importWarnings.length > 0 ? (
             <ul className="pds-caption" style={{ color: 'var(--pds-text-secondary)', margin: '0 0 8px', paddingLeft: 18 }}>
               {importWarnings.map((w) => (
@@ -225,29 +282,35 @@ export default function PrototypeDataPage() {
               ))}
             </ul>
           ) : null}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 240, overflowY: 'auto' }}>
-            {importPreview.map((doc) => (
-              <label key={doc.index} className="proto-note-row" style={{ display: 'flex', gap: 8, alignItems: 'flex-start', cursor: 'pointer' }}>
-                <input
-                  type="checkbox"
-                  checked={importSelected.has(doc.index)}
-                  onChange={(e) => {
-                    setImportSelected((prev) => {
-                      const next = new Set(prev);
-                      if (e.target.checked) next.add(doc.index);
-                      else next.delete(doc.index);
-                      return next;
-                    });
-                  }}
-                />
-                <span>
-                  <span className="pds-list-title" style={{ display: 'block' }}>{doc.title}</span>
-                  <span className="pds-caption" style={{ color: 'var(--pds-text-secondary)' }}>
-                    {doc.fileName} · {doc.highlightCount} highlight{doc.highlightCount === 1 ? '' : 's'} · {doc.sourceType}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 280, overflowY: 'auto' }}>
+            {importPreview.map((doc) => {
+              const meta = [
+                `→ ${doc.primaryCollection || 'Unsorted'}`,
+                doc.highlightCount > 0 ? `${doc.highlightCount} highlight${doc.highlightCount === 1 ? '' : 's'}` : null,
+                doc.tagCount > 0 ? `${doc.tagCount} tag${doc.tagCount === 1 ? '' : 's'}` : null,
+                doc.sourceType,
+              ].filter(Boolean).join(' · ');
+              return (
+                <label key={doc.index} className="proto-note-row" style={{ display: 'flex', gap: 8, alignItems: 'flex-start', cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={importSelected.has(doc.index)}
+                    onChange={(e) => {
+                      setImportSelected((prev) => {
+                        const next = new Set(prev);
+                        if (e.target.checked) next.add(doc.index);
+                        else next.delete(doc.index);
+                        return next;
+                      });
+                    }}
+                  />
+                  <span>
+                    <span className="pds-list-title" style={{ display: 'block' }}>{doc.title}</span>
+                    <span className="pds-caption" style={{ color: 'var(--pds-text-secondary)' }}>{meta}</span>
                   </span>
-                </span>
-              </label>
-            ))}
+                </label>
+              );
+            })}
           </div>
           <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
             <button type="button" className="proto-settings-btn" disabled={busy === 'import' || importSelected.size === 0} onClick={handleConfirmImport}>
@@ -259,32 +322,6 @@ export default function PrototypeDataPage() {
           </div>
         </div>
       ) : null}
-
-      <div className="pds-inspector-label" style={{ padding: '0 12px 6px', textTransform: 'uppercase', color: 'var(--pds-text-tertiary)' }}>
-        Sync
-      </div>
-      <SettingsGroup>
-        <SettingsRow
-          label="Refresh from server"
-          trailing="none"
-          onClick={handleRefreshFromServer}
-          value={busy === 'refresh' ? '…' : undefined}
-        />
-      </SettingsGroup>
-      <p className="pds-caption" style={{ color: 'var(--pds-text-tertiary)', padding: '0 12px 8px', margin: 0 }}>
-        Server: {apiOrigin || 'this app'}
-      </p>
-      {isProdOrigin ? (
-        <p className="pds-caption" style={{ color: 'var(--pds-text-tertiary)', padding: '0 12px 16px', margin: 0 }}>
-          Mac/iOS must use the <strong>Debug-Prod</strong> or <strong>Release</strong> Xcode scheme to sync with this
-          library. The default <strong>Debug</strong> scheme writes to localhost only.
-        </p>
-      ) : (
-        <p className="pds-caption" style={{ color: 'var(--pds-text-tertiary)', padding: '0 12px 16px', margin: 0 }}>
-          Local API — pair with Mac <strong>Debug</strong> and <code>npm run dev</code>. Production devices use
-          app.harvous.com.
-        </p>
-      )}
 
       <div className="pds-inspector-label" style={{ padding: '0 12px 6px', textTransform: 'uppercase', color: 'var(--pds-text-tertiary)' }}>
         Danger zone

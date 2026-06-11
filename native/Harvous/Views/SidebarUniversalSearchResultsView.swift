@@ -110,13 +110,13 @@ struct SidebarUniversalSearchResultsView: View {
             }
 
             if bothScopesEmpty {
-                sectionEmpty("No results in this space.")
+                HarvousEmptyStateView.searchNoMatch(title: SidebarNoMatchCopy.noResultsInSpace)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             } else if searchScope == .active, activeResults.isEmpty {
-                sectionEmpty("No matches in this view.")
+                HarvousEmptyStateView.searchNoMatch(title: SidebarNoMatchCopy.noMatchesInView)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             } else if searchScope == .elsewhere, elsewhereResults.isEmpty {
-                sectionEmpty("No other matches.")
+                HarvousEmptyStateView.searchNoMatch(title: SidebarNoMatchCopy.noOtherMatches)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             } else {
                 searchResultsList {
@@ -194,12 +194,4 @@ struct SidebarUniversalSearchResultsView: View {
         )
     }
 
-    private func sectionEmpty(_ message: String) -> some View {
-        Text(message)
-            .font(HarvousTypography.noteListPreview)
-            .foregroundStyle(.secondary)
-            .frame(maxWidth: .infinity)
-            .padding(.horizontal, HarvousFeedListLayout.listRowHorizontalInset)
-            .padding(.vertical, 8)
-    }
 }

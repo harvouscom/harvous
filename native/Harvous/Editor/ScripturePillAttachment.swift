@@ -8,8 +8,8 @@ import CoreImage
 #endif
 
 // Shared constants so init and renderPill agree on the same values.
-private let kRefSize:  CGFloat = 15   // match body prose size
-private let kTransSize: CGFloat = 11  // translation badge — slightly smaller
+/// Translation badge — ~0.68em of body (web prototype `::after`).
+private let kTranslationSizeRatio: CGFloat = 0.68
 #if os(macOS)
 private let kHPad: CGFloat = 11 // +2 vs iOS — mac proportions
 #else
@@ -19,6 +19,29 @@ private let kVPad: CGFloat = 4   // top/bottom inset inside pill capsule (mac + 
 private let kGap:   CGFloat = 4
 /// Transparent width on each side of the raster so inline prose isn’t flush against the pill edges.
 private let kLineSideMargin: CGFloat = 3
+
+private func scripturePillSnapToPixel(_ value: CGFloat, scale: CGFloat) -> CGFloat {
+    guard scale.isFinite, scale > 0 else { return value }
+    return (value * scale).rounded() / scale
+}
+
+#if os(macOS)
+private func scripturePillReferenceFont() -> NSFont {
+    HarvousFonts.noteComposeBodyPlatformFont()
+}
+
+private func scripturePillTranslationFont(referenceFont: NSFont) -> NSFont {
+    HarvousFonts.system(size: referenceFont.pointSize * kTranslationSizeRatio, weight: 400, design: .default)
+}
+#else
+private func scripturePillReferenceFont() -> UIFont {
+    HarvousFonts.noteComposeBodyPlatformFont()
+}
+
+private func scripturePillTranslationFont(referenceFont: UIFont) -> UIFont {
+    HarvousFonts.system(size: referenceFont.pointSize * kTranslationSizeRatio, weight: 400, design: .default)
+}
+#endif
 
 /// Keep aligned with `HarvousConnectionsCapsuleInnerShadow` in `NoteConnectionsBar.swift`.
 private enum ScripturePillInnerStrokeLikeConnectionsCapsule {
@@ -372,7 +395,12 @@ private func resolvedPillLabelColor(accent: StudyHighlightAccentToken?, pointerH
     if pointerHovered {
         return NSColor.labelColor.withAlphaComponent(HarvousScripturePillStyle.labelOpacityPointerHover)
     }
-    return NSColor.labelColor.withAlphaComponent(HarvousScripturePillStyle.labelOpacity)
+    return NSColor.labelColor.withAlphaComponent(HarvousScripturePillStyle.labelOpacityInlineEditor)
+}
+
+private func resolvedPillTranslationLabelColor(accent: StudyHighlightAccentToken?) -> NSColor {
+    _ = accent
+    return NSColor.secondaryLabelColor.withAlphaComponent(HarvousScripturePillStyle.labelOpacityInlineEditor)
 }
 
 /// NSTextAttachment that renders a scripture reference as an inline rounded-rect pill.
@@ -385,23 +413,30 @@ final class ScripturePillAttachment: NSTextAttachment {
     var accent: StudyHighlightAccentToken?
     /// macOS: true while the pointing device is over this pill in the body editor (full-opacity label).
     private(set) var isPointerHovered: Bool = false
+    private var backingScale: CGFloat
 
     init(reference: String,
          translation: String = ScriptureReference.defaultTranslation,
          theme: HarvousColors.ThemeVariant = .blue,
-         accent: StudyHighlightAccentToken? = nil) {
+         accent: StudyHighlightAccentToken? = nil,
+         backingScale: CGFloat? = nil) {
         self.reference = reference
         self.translation = translation
         self.theme = theme
         self.accent = accent
+        self.backingScale = backingScale ?? NSScreen.main?.backingScaleFactor ?? 2.0
         super.init(data: nil, ofType: nil)
 
-        let img = Self.renderPill(reference: reference, translation: translation, accent: accent, pointerHovered: false)
+        let img = Self.renderPill(
+            reference: reference,
+            translation: translation,
+            accent: accent,
+            pointerHovered: false,
+            backingScale: self.backingScale
+        )
         self.image = img
 
-        // Baseline formula (NSImage flipped:false): draw(at:) places bottom-left of the bbox at y,
-        // so attachment.bounds.origin.y = refFont.descender - kVPad to center the pill on the baseline.
-        let refFont = HarvousFonts.system(size: kRefSize, weight: 500)
+        let refFont = scripturePillReferenceFont()
         self.bounds = CGRect(
             origin: CGPoint(x: 0, y: refFont.descender - kVPad),
             size: img.size
@@ -417,10 +452,11 @@ final class ScripturePillAttachment: NSTextAttachment {
                 reference: self.reference,
                 translation: self.translation,
                 accent: self.accent,
-                pointerHovered: hovered
+                pointerHovered: hovered,
+                backingScale: self.backingScale
             )
             self.image = img
-            let refFont = HarvousFonts.system(size: kRefSize, weight: 500)
+            let refFont = scripturePillReferenceFont()
             self.bounds = CGRect(
                 origin: CGPoint(x: 0, y: refFont.descender - kVPad),
                 size: img.size
@@ -442,10 +478,11 @@ final class ScripturePillAttachment: NSTextAttachment {
                 reference: self.reference,
                 translation: self.translation,
                 accent: self.accent,
-                pointerHovered: self.isPointerHovered
+                pointerHovered: self.isPointerHovered,
+                backingScale: self.backingScale
             )
             self.image = img
-            let refFont = HarvousFonts.system(size: kRefSize, weight: 500)
+            let refFont = scripturePillReferenceFont()
             self.bounds = CGRect(
                 origin: CGPoint(x: 0, y: refFont.descender - kVPad),
                 size: img.size
@@ -459,18 +496,21 @@ final class ScripturePillAttachment: NSTextAttachment {
         reference: String,
         translation: String,
         accent: StudyHighlightAccentToken?,
-        pointerHovered: Bool = false
+        pointerHovered: Bool = false,
+        backingScale: CGFloat? = nil
     ) -> NSImage {
-        let refFont   = HarvousFonts.system(size: kRefSize, weight: 500)
-        let transFont = HarvousFonts.system(size: kTransSize, weight: 400)
+        let scale = backingScale ?? NSScreen.main?.backingScaleFactor ?? 2.0
+        let refFont   = scripturePillReferenceFont()
+        let transFont = scripturePillTranslationFont(referenceFont: refFont)
         let displayTranslation = ScriptureReference.displayTranslationLabel(translation)
         let tint = resolvedPillAccent(accent: accent)
         let label = resolvedPillLabelColor(accent: accent, pointerHovered: pointerHovered)
+        let transLabel = resolvedPillTranslationLabelColor(accent: accent)
 
         let refAttrs: [NSAttributedString.Key: Any]   = [.font: refFont,
                                                           .foregroundColor: label]
         let transAttrs: [NSAttributedString.Key: Any] = [.font: transFont,
-                                                          .foregroundColor: label]
+                                                          .foregroundColor: transLabel]
         let refStr   = NSAttributedString(string: reference,   attributes: refAttrs)
         let transStr = NSAttributedString(string: displayTranslation, attributes: transAttrs)
         let refSize   = refStr.size()
@@ -481,7 +521,6 @@ final class ScripturePillAttachment: NSTextAttachment {
         let h = max(refSize.height, transSize.height) + kVPad * 2
         let size = NSSize(width: ceil(w), height: ceil(h))
 
-        let scale = NSScreen.main?.backingScaleFactor ?? 2.0
         let pixW  = Int(ceil(size.width  * scale))
         let pixH  = Int(ceil(size.height * scale))
         let bitmapRep = NSBitmapImageRep(
@@ -492,13 +531,10 @@ final class ScripturePillAttachment: NSTextAttachment {
             colorSpaceName: .deviceRGB,
             bytesPerRow: 0, bitsPerPixel: 0
         )!
-        // Setting `bitmapRep.size` to the logical point size (while the pixel buffer is `scale`× larger)
-        // makes `NSGraphicsContext(bitmapImageRep:)` install a points→pixels CTM automatically. Drawing
-        // proceeds in points and is rasterized at device resolution — no manual `scaleBy`, which would
-        // double-apply the scale and overflow the pill.
         bitmapRep.size = size
         NSGraphicsContext.saveGraphicsState()
         let bitmapCtx = NSGraphicsContext(bitmapImageRep: bitmapRep)!
+        bitmapCtx.imageInterpolation = .none
         NSGraphicsContext.current = bitmapCtx
 
         let bounds = CGRect(origin: .zero, size: size)
@@ -525,11 +561,11 @@ final class ScripturePillAttachment: NSTextAttachment {
         }
         tint.withAlphaComponent(0.20).setStroke(); pill.lineWidth = 0.5; pill.stroke()
 
-        let refY   = (size.height - refSize.height)   / 2
-        let transY = (size.height - transSize.height) / 2
-        let textX  = kLineSideMargin + kHPad
-        refStr.draw(at:   NSPoint(x: textX,                       y: refY))
-        transStr.draw(at: NSPoint(x: textX + refSize.width + kGap, y: transY))
+        let refY   = scripturePillSnapToPixel((size.height - refSize.height) / 2, scale: scale)
+        let transY = scripturePillSnapToPixel((size.height - transSize.height) / 2, scale: scale)
+        let textX  = scripturePillSnapToPixel(kLineSideMargin + kHPad, scale: scale)
+        refStr.draw(at:   NSPoint(x: textX, y: refY))
+        transStr.draw(at: NSPoint(x: scripturePillSnapToPixel(textX + refSize.width + kGap, scale: scale), y: transY))
 
         NSGraphicsContext.restoreGraphicsState()
         let img = NSImage(size: size)
@@ -550,7 +586,12 @@ private func resolvedPillAccent(accent: StudyHighlightAccentToken?) -> UIColor {
 private func resolvedPillLabelColor(accent: StudyHighlightAccentToken?, pointerHovered: Bool = false) -> UIColor {
     _ = accent
     _ = pointerHovered
-    return UIColor.label.withAlphaComponent(HarvousScripturePillStyle.labelOpacity)
+    return UIColor.label.withAlphaComponent(HarvousScripturePillStyle.labelOpacityInlineEditor)
+}
+
+private func resolvedPillTranslationLabelColor(accent: StudyHighlightAccentToken?) -> UIColor {
+    _ = accent
+    return UIColor.secondaryLabel.withAlphaComponent(HarvousScripturePillStyle.labelOpacityInlineEditor)
 }
 
 /// NSTextAttachment that renders a scripture reference as an inline rounded-rect pill on iOS.
@@ -559,21 +600,30 @@ final class ScripturePillAttachment: NSTextAttachment {
     var translation: String
     var theme: HarvousColors.ThemeVariant
     var accent: StudyHighlightAccentToken?
+    private var backingScale: CGFloat
 
     init(reference: String,
          translation: String = ScriptureReference.defaultTranslation,
          theme: HarvousColors.ThemeVariant = .blue,
-         accent: StudyHighlightAccentToken? = nil) {
+         accent: StudyHighlightAccentToken? = nil,
+         backingScale: CGFloat? = nil) {
         self.reference = reference
         self.translation = translation
         self.theme = theme
         self.accent = accent
+        self.backingScale = backingScale ?? UIScreen.main.scale
         super.init(data: nil, ofType: nil)
 
-        let img = Self.renderPill(reference: reference, translation: translation, accent: accent, pointerHovered: false)
+        let img = Self.renderPill(
+            reference: reference,
+            translation: translation,
+            accent: accent,
+            pointerHovered: false,
+            backingScale: self.backingScale
+        )
         self.image = img
 
-        let refFont = HarvousFonts.system(size: kRefSize, weight: 500)
+        let refFont = scripturePillReferenceFont()
         self.bounds = CGRect(
             origin: CGPoint(x: 0, y: CGFloat(refFont.descender) - kVPad),
             size: img.size
@@ -589,10 +639,11 @@ final class ScripturePillAttachment: NSTextAttachment {
             reference: reference,
             translation: translation,
             accent: accent,
-            pointerHovered: false
+            pointerHovered: false,
+            backingScale: backingScale
         )
         self.image = img
-        let refFont = HarvousFonts.system(size: kRefSize, weight: 500)
+        let refFont = scripturePillReferenceFont()
         self.bounds = CGRect(
             origin: CGPoint(x: 0, y: CGFloat(refFont.descender) - kVPad),
             size: img.size
@@ -605,18 +656,21 @@ final class ScripturePillAttachment: NSTextAttachment {
         reference: String,
         translation: String,
         accent: StudyHighlightAccentToken?,
-        pointerHovered: Bool = false
+        pointerHovered: Bool = false,
+        backingScale: CGFloat? = nil
     ) -> UIImage {
-        let refFont   = HarvousFonts.system(size: kRefSize, weight: 500)
-        let transFont = HarvousFonts.system(size: kTransSize, weight: 400)
+        let scale = backingScale ?? UIScreen.main.scale
+        let refFont   = scripturePillReferenceFont()
+        let transFont = scripturePillTranslationFont(referenceFont: refFont)
         let displayTranslation = ScriptureReference.displayTranslationLabel(translation)
         let tint = resolvedPillAccent(accent: accent)
         let label = resolvedPillLabelColor(accent: accent, pointerHovered: pointerHovered)
+        let transLabel = resolvedPillTranslationLabelColor(accent: accent)
 
         let refAttrs: [NSAttributedString.Key: Any]   = [.font: refFont,
                                                           .foregroundColor: label]
         let transAttrs: [NSAttributedString.Key: Any] = [.font: transFont,
-                                                          .foregroundColor: label]
+                                                          .foregroundColor: transLabel]
         let refStr   = NSAttributedString(string: reference,   attributes: refAttrs)
         let transStr = NSAttributedString(string: displayTranslation, attributes: transAttrs)
         let refSize   = refStr.size()
@@ -627,7 +681,11 @@ final class ScripturePillAttachment: NSTextAttachment {
         let h = max(refSize.height, transSize.height) + kVPad * 2
         let size = CGSize(width: ceil(w), height: ceil(h))
 
-        return UIGraphicsImageRenderer(size: size).image { _ in
+        let format = UIGraphicsImageRendererFormat.default()
+        format.opaque = false
+        format.scale = scale
+        let renderer = UIGraphicsImageRenderer(size: size, format: format)
+        return renderer.image { _ in
             let fullBounds = CGRect(origin: .zero, size: size)
             let pillLayout = CGRect(x: kLineSideMargin, y: 0, width: innerW, height: size.height)
             let pill = UIBezierPath(roundedRect: pillLayout.insetBy(dx: 0.25, dy: 0.25),
@@ -660,11 +718,11 @@ final class ScripturePillAttachment: NSTextAttachment {
             }
             tint.withAlphaComponent(0.20).setStroke(); pill.lineWidth = 0.5; pill.stroke()
 
-            let refY   = (size.height - refSize.height)   / 2
-            let transY = (size.height - transSize.height) / 2
-            let textX = kLineSideMargin + kHPad
-            refStr.draw(at:   CGPoint(x: textX,                       y: refY))
-            transStr.draw(at: CGPoint(x: textX + refSize.width + kGap, y: transY))
+            let refY   = scripturePillSnapToPixel((size.height - refSize.height) / 2, scale: scale)
+            let transY = scripturePillSnapToPixel((size.height - transSize.height) / 2, scale: scale)
+            let textX = scripturePillSnapToPixel(kLineSideMargin + kHPad, scale: scale)
+            refStr.draw(at:   CGPoint(x: textX, y: refY))
+            transStr.draw(at: CGPoint(x: scripturePillSnapToPixel(textX + refSize.width + kGap, scale: scale), y: transY))
         }
     }
 }

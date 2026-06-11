@@ -342,6 +342,8 @@ export async function deleteThreadOffline(userId: string, threadId: string): Pro
  * Create a note offline
  */
 export async function createNoteOffline(userId: string, data: {
+  /** Force the local id (e.g. to match an optimistic React Query cache id). Defaults to a fresh `local_*`. */
+  id?: string;
   title?: string | null;
   content: string;
   threadId?: string;
@@ -358,7 +360,7 @@ export async function createNoteOffline(userId: string, data: {
     throw new Error('Offline mode is disabled. Please enable the offline-mode-enabled feature flag.');
   }
 
-  const localId = `local_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  const localId = data.id ?? `local_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
   const now = Date.now();
 
   // Get or create user metadata for ID allocation
@@ -514,35 +516,122 @@ export async function createNoteOffline(userId: string, data: {
   return localId;
 }
 
+/** First queued note op of a given operation for this note (skips permanently-failed ops). */
+async function pendingNoteOp(
+  userId: string,
+  noteId: string,
+  operation: 'create' | 'update' | 'delete',
+) {
+  return offlineDB.syncQueue
+    .where('userId')
+    .equals(userId)
+    .filter(
+      (op) =>
+        op.entityType === 'note' &&
+        op.entityId === noteId &&
+        op.operation === operation &&
+        op.retryCount < 5,
+    )
+    .first();
+}
+
 /**
- * Update a note offline
+ * Seed used to materialize a server-origin note into IndexedDB on its first offline edit.
+ * The prototype reads from the server (it never bootstraps the local mirror), so an existing
+ * note has no local row; this lets the edit be queued anyway.
  */
-export async function updateNoteOffline(userId: string, noteId: string, updates: Partial<{
-  title: string | null;
+export interface OfflineNoteSeed {
   content: string;
-  spaceId: string | null;
-  isPublic: boolean;
-  isFeatured: boolean;
-  order: number;
-}>): Promise<void> {
+  title?: string | null;
+  spaceId?: string | null;
+  threadId?: string;
+  noteType?: 'default' | 'scripture' | 'resource';
+}
+
+/**
+ * Update a note offline.
+ *
+ * Coalescing keeps the queue consistent with how `pushQueue` reconciles ids on reconnect:
+ * - If the note still has a pending `create` op (offline-authored, not yet synced), the edit is
+ *   folded into that create payload — never a separate `update`, which would reference the
+ *   soon-to-be-replaced `local_*` id and fail permanently ("Note not found") on the server.
+ * - If a pending `update` op already exists, the new fields merge into it.
+ * - Otherwise an `update` op is enqueued.
+ *
+ * `seed` materializes a row for a pre-existing server note the prototype never mirrored, so its
+ * edit can still be queued; without `seed`, a missing row throws (legacy / Classic behavior).
+ */
+export async function updateNoteOffline(
+  userId: string,
+  noteId: string,
+  updates: Partial<{
+    title: string | null;
+    content: string;
+    spaceId: string | null;
+    isPublic: boolean;
+    isFeatured: boolean;
+    order: number;
+  }>,
+  seed?: OfflineNoteSeed,
+): Promise<void> {
   if (!isOfflineModeEnabled()) {
     throw new Error('Offline mode is disabled. Please enable the offline-mode-enabled feature flag.');
   }
 
+  const now = Date.now();
   const note = await offlineDB.notes.where('[userId+id]').equals([userId, noteId]).first();
+
   if (!note) {
-    throw new Error('Note not found');
+    if (!seed) {
+      throw new Error('Note not found');
+    }
+    // Materialize a pending row for a server note we never bootstrapped. No `create` op is
+    // queued — the note already exists server-side, so only the `update` below is sent.
+    const effectiveThreadId =
+      seed.threadId && !seed.threadId.startsWith('thread_onboarding_') ? seed.threadId : 'thread_unorganized';
+    const materialized: OfflineNote = ensureUserPartition<OfflineNote>({
+      id: noteId,
+      title: updates.title ?? seed.title ?? null,
+      content: updates.content ?? seed.content,
+      threadId: effectiveThreadId,
+      spaceId: updates.spaceId ?? seed.spaceId ?? null,
+      simpleNoteId: null,
+      noteType: seed.noteType ?? 'default',
+      addedBy: 'user',
+      isPublic: updates.isPublic ?? false,
+      isFeatured: updates.isFeatured ?? false,
+      order: updates.order ?? 0,
+      lastVisited: new Date(),
+      linkedFromNoteId: null,
+      syncStatus: 'pending',
+      lastModified: now,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    }, userId);
+    await offlineDB.notes.add(materialized);
+  } else {
+    await offlineDB.notes.update(noteId, {
+      ...updates,
+      syncStatus: 'pending',
+      lastModified: now,
+      updatedAt: new Date(),
+    });
   }
 
-  const now = Date.now();
-  await offlineDB.notes.update(noteId, {
-    ...updates,
-    syncStatus: 'pending',
-    lastModified: now,
-    updatedAt: new Date(),
-  });
+  // Fold the edit into a still-pending create so it uploads the latest content as one op.
+  const createOp = await pendingNoteOp(userId, noteId, 'create');
+  if (createOp) {
+    await offlineDB.syncQueue.update(createOp.id!, { data: { ...createOp.data, ...updates } });
+    return;
+  }
 
-  // Queue sync operation
+  // Merge into an existing pending update rather than stacking duplicate ops.
+  const updateOp = await pendingNoteOp(userId, noteId, 'update');
+  if (updateOp) {
+    await offlineDB.syncQueue.update(updateOp.id!, { data: { ...updateOp.data, ...updates } });
+    return;
+  }
+
   await enqueueMutation(userId, {
     operation: 'update',
     entityType: 'note',
@@ -575,26 +664,44 @@ export async function updateNoteOfflineIfPresent(
 }
 
 /**
- * Delete a note offline
+ * Delete a note offline.
+ *
+ * If the note still has a pending `create` op (offline-authored, never synced), the delete
+ * cancels it: every queued op for the note and its local row are dropped and nothing is
+ * enqueued — the note never existed on the server. Otherwise a `delete` op is enqueued (and the
+ * local row marked deleted when present), which also covers pre-existing server notes that were
+ * never mirrored locally.
  */
 export async function deleteNoteOffline(userId: string, noteId: string): Promise<void> {
   if (!isOfflineModeEnabled()) {
     throw new Error('Offline mode is disabled. Please enable the offline-mode-enabled feature flag.');
   }
 
+  const now = Date.now();
   const note = await offlineDB.notes.where('[userId+id]').equals([userId, noteId]).first();
-  if (!note) {
-    throw new Error('Note not found');
+
+  const createOp = await pendingNoteOp(userId, noteId, 'create');
+  if (createOp) {
+    const queuedForNote = await offlineDB.syncQueue
+      .where('userId')
+      .equals(userId)
+      .filter((op) => op.entityType === 'note' && op.entityId === noteId)
+      .toArray();
+    for (const op of queuedForNote) {
+      await offlineDB.syncQueue.delete(op.id!);
+    }
+    if (note) await offlineDB.notes.delete(noteId);
+    return;
   }
 
-  const now = Date.now();
-  await offlineDB.notes.update(noteId, {
-    syncStatus: 'deleted',
-    lastModified: now,
-    updatedAt: new Date(),
-  });
+  if (note) {
+    await offlineDB.notes.update(noteId, {
+      syncStatus: 'deleted',
+      lastModified: now,
+      updatedAt: new Date(),
+    });
+  }
 
-  // Queue sync operation
   await enqueueMutation(userId, {
     operation: 'delete',
     entityType: 'note',
@@ -685,9 +792,114 @@ export async function unlinkNoteFromThreadOffline(userId: string, noteId: string
 }
 
 /**
+ * Assign a tag to a note offline.
+ *
+ * When `tagId` is omitted (a brand-new tag typed offline) a local tag row is created and its
+ * `create` op enqueued first, so the queue pushes tag → noteTag in dependency order. The tag's
+ * local id is rewritten to the server id on sync by `updateEntityId` ('tag' case), which also
+ * rewrites this noteTag op's `data.tagId`. When `tagId` is an existing server id, only the
+ * noteTag link is queued. Returns the local noteTag id. Mirrors `processNoteTagMutation`.
+ */
+export async function addTagToNoteOffline(userId: string, data: {
+  noteId: string;
+  /** Existing tag id (server or local). Omit to create a new local tag. */
+  tagId?: string | null;
+  tagName: string;
+  color?: string | null;
+  category?: string | null;
+  isAutoGenerated?: boolean;
+  confidence?: number | null;
+}): Promise<string> {
+  if (!isOfflineModeEnabled()) {
+    throw new Error('Offline mode is disabled. Please enable the offline-mode-enabled feature flag.');
+  }
+
+  const now = Date.now();
+  let tagId = data.tagId ?? null;
+
+  if (!tagId) {
+    const localTagId = `local_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const tag: OfflineTag = ensureUserPartition<OfflineTag>({
+      id: localTagId,
+      name: data.tagName,
+      color: data.color ?? null,
+      category: data.category ?? null,
+      isSystem: false,
+      syncStatus: 'pending',
+      lastModified: now,
+      createdAt: new Date(),
+      updatedAt: null,
+    }, userId);
+    await offlineDB.tags.add(tag);
+    await enqueueMutation(userId, {
+      operation: 'create',
+      entityType: 'tag',
+      entityId: localTagId,
+      data: { name: data.tagName, color: data.color ?? null, category: data.category ?? null, isSystem: false },
+    });
+    tagId = localTagId;
+  }
+
+  const noteTagId = `local_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  const noteTag: OfflineNoteTag = ensureUserPartition<OfflineNoteTag>({
+    id: noteTagId,
+    noteId: data.noteId,
+    tagId,
+    isAutoGenerated: data.isAutoGenerated ?? false,
+    confidence: data.confidence ?? null,
+    syncStatus: 'pending',
+    lastModified: now,
+    createdAt: new Date(),
+    updatedAt: null,
+  }, userId);
+  await offlineDB.noteTags.add(noteTag);
+  await enqueueMutation(userId, {
+    operation: 'create',
+    entityType: 'noteTag',
+    entityId: noteTagId,
+    data: {
+      noteId: data.noteId,
+      tagId,
+      isAutoGenerated: data.isAutoGenerated ?? false,
+      confidence: data.confidence ?? null,
+    },
+  });
+
+  return noteTagId;
+}
+
+/**
+ * Remove a tag from a note offline. Enqueues a `noteTag` delete keyed by `noteId` + `tagId`
+ * (the shape `processNoteTagMutation`'s delete branch expects). `tagId` must be a real/server
+ * tag id. Also marks any locally-mirrored noteTag rows deleted so the UI stays consistent.
+ */
+export async function removeTagFromNoteOffline(userId: string, data: { noteId: string; tagId: string }): Promise<void> {
+  if (!isOfflineModeEnabled()) {
+    throw new Error('Offline mode is disabled. Please enable the offline-mode-enabled feature flag.');
+  }
+
+  const now = Date.now();
+  const rows = await offlineDB.noteTags
+    .where('userId')
+    .equals(userId)
+    .filter((nt) => nt.noteId === data.noteId && nt.tagId === data.tagId)
+    .toArray();
+  for (const row of rows) {
+    await offlineDB.noteTags.update(row.id, { syncStatus: 'deleted', lastModified: now, updatedAt: new Date() });
+  }
+
+  await enqueueMutation(userId, {
+    operation: 'delete',
+    entityType: 'noteTag',
+    entityId: rows[0]?.id ?? `local_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+    data: { noteId: data.noteId, tagId: data.tagId },
+  });
+}
+
+/**
  * Error types for offline operations
  */
-export type OfflineErrorType = 
+export type OfflineErrorType =
   | 'indexeddb_unavailable'
   | 'quota_exceeded'
   | 'database_error'

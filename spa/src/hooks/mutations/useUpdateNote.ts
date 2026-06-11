@@ -8,6 +8,8 @@ import {
   type NoteTagRow,
 } from '../../lib/note-tags-cache';
 import type { NoteDetail } from '../queries/useNote';
+import { runOfflineFirst } from './withOfflineQueue';
+import { updateNoteOffline } from '@/utils/offline-mutations';
 
 interface UpdateNoteInput {
   noteId: string;
@@ -63,9 +65,31 @@ export function useUpdateNote() {
       if (secondaryCollections !== undefined) body.secondaryCollections = secondaryCollections;
       if (collectionPinned !== undefined) body.collectionPinned = collectionPinned;
       if (collectionUserOverride !== undefined) body.collectionUserOverride = collectionUserOverride;
-      return api.put<UpdateNoteResponse>('/api/notes/update', body as any);
+      // Online-first; if offline, queue the edit. `seed` (from the open note's cache) lets a
+      // pre-existing server note that was never mirrored locally still queue its edit — the
+      // edit coalesces into a pending create for offline-authored notes. Scripture pills are
+      // not processed offline; they resolve on sync.
+      const cached = queryClient.getQueryData<NoteDetail>(['note', noteId]);
+      return runOfflineFirst({
+        online: () => api.put<UpdateNoteResponse>('/api/notes/update', body as any),
+        offline: (userId) =>
+          updateNoteOffline(
+            userId,
+            noteId,
+            { title, content },
+            {
+              content,
+              title,
+              spaceId: cached?.spaceId ?? null,
+              threadId: cached?.threads?.[0]?.id,
+              noteType: (cached?.noteType as 'default' | 'scripture' | 'resource' | undefined) ?? 'default',
+            },
+          ).then(() => undefined),
+      });
     },
-    onSuccess: (data, variables) => {
+    onSuccess: (outcome, variables) => {
+      const data = outcome.online;
+      const queuedOffline = outcome.queued;
       const processed =
         typeof data?.processedContent === 'string' && data.processedContent.length > 0
           ? data.processedContent
@@ -113,7 +137,10 @@ export function useUpdateNote() {
         mergeNoteTagsInCache(
           queryClient,
           variables.noteId,
-          previewNoteTagsFromContent(variables.title, processed),
+          previewNoteTagsFromContent(variables.title, processed, {
+            primary: variables.primaryCollection,
+            secondaries: variables.secondaryCollections,
+          }),
         );
       }
       // The note detail cache was just patched optimistically with the saved
@@ -126,19 +153,33 @@ export function useUpdateNote() {
           title: variables.title,
           content: processed,
           updatedAt: new Date().toISOString(),
+          ...(variables.primaryCollection !== undefined ? { primaryCollection: variables.primaryCollection } : {}),
+          ...(variables.secondaryCollections !== undefined
+            ? { secondaryCollections: variables.secondaryCollections }
+            : {}),
+          ...(variables.collectionPinned !== undefined ? { collectionPinned: variables.collectionPinned } : {}),
+          ...(variables.collectionUserOverride !== undefined
+            ? { collectionUserOverride: variables.collectionUserOverride }
+            : {}),
         });
-        queryClient.invalidateQueries({ queryKey: ['space', affectedSpaceId, 'bootstrap'] });
-      } else {
-        queryClient.invalidateQueries({ queryKey: ['space'] });
       }
-      if (affectedThreadIds.length > 0) {
-        for (const tid of affectedThreadIds) {
-          queryClient.invalidateQueries({ queryKey: ['thread', tid] });
+      // Skip background refetches when the edit was only queued offline — the network is down,
+      // so they would just fail; the optimistic cache patches above already reflect the edit.
+      if (!queuedOffline) {
+        if (affectedSpaceId) {
+          queryClient.invalidateQueries({ queryKey: ['space', affectedSpaceId, 'bootstrap'] });
+        } else {
+          queryClient.invalidateQueries({ queryKey: ['space'] });
         }
-      } else {
-        queryClient.invalidateQueries({ queryKey: ['thread'] });
+        if (affectedThreadIds.length > 0) {
+          for (const tid of affectedThreadIds) {
+            queryClient.invalidateQueries({ queryKey: ['thread', tid] });
+          }
+        } else {
+          queryClient.invalidateQueries({ queryKey: ['thread'] });
+        }
+        queryClient.invalidateQueries({ queryKey: [...navigationQueryKeyPrefix] });
       }
-      queryClient.invalidateQueries({ queryKey: [...navigationQueryKeyPrefix] });
       window.dispatchEvent(
         new CustomEvent('noteUpdated', { detail: { noteId: variables.noteId, source: 'autosave' } }),
       );

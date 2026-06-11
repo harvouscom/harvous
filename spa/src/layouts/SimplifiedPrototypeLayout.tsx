@@ -2,6 +2,7 @@ import PrototypePinPanels from '../pages/prototype/PrototypePinPanels';
 import ReferralCreditInit from '../../../src/components/react/ReferralCreditInit';
 import KeyboardShortcutsInit from '../../../src/components/react/KeyboardShortcutsInit';
 import SyncManagerIsland from '../../../src/components/react/SyncManagerIsland';
+import PrototypeSyncChip from '../components/PrototypeSyncChip';
 import { useRealtimeSync } from '@/hooks/useRealtimeSync';
 import { useAuth, useUser } from '@clerk/clerk-react';
 import { useQueryClient } from '@tanstack/react-query';
@@ -444,6 +445,7 @@ function PrototypeAuthenticatedChrome({ userId }: { userId?: string }) {
         {userId ? (
           <SyncManagerIsland userId={userId} hideOfflineIndicator deferSyncInit />
         ) : null}
+        <PrototypeSyncChip userId={userId} />
         <PrototypeShortcutBridge />
         <KeyboardShortcutsInit />
         <PrototypePinPanels />

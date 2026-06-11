@@ -46,7 +46,11 @@ struct ActiveScripturePillDock: View {
     var onReadPassageFromHighlight: ((String, String) -> Void)?
     /// Saved highlights for this reference + translation (library-wide); paints the passage and drives the list below.
     var passageHighlightPaints: [ScripturePassageHighlightPaint] = []
+    var passageReferencePaints: [ScripturePassageHighlightPaint] = []
     var scripturePassageHighlights: [StudyThread] = []
+    var scripturePassageReferences: [StudyThread] = []
+    /// User tapped a dotted Easton's hint in the passage — `(slug, word)`.
+    var onPassageReferenceSuggestionTap: ((String, String) -> Void)? = nil
     /// Parent note for labeling rows that belong to the open note.
     var parentNoteId: UUID?
     /// Space accent theme — passed through to `ActiveHighlightDock` when an inline highlight is shown.
@@ -502,6 +506,7 @@ struct ActiveScripturePillDock: View {
                 // "Save highlight" button is gone.
                 showAttribution: true,
                 passageHighlightPaints: passageHighlightPaints,
+                passageReferencePaints: passageReferencePaints,
                 onPassageSelectionChange: { newValue in
                     passageSelectionNormalized = newValue
                     if newValue.isEmpty {
@@ -510,11 +515,15 @@ struct ActiveScripturePillDock: View {
                 },
                 onPassageSelectionRectChange: passageSelectionRectHandler,
                 onPassageHighlightTap: { paintId in
-                    guard let thread = scripturePassageHighlights.first(where: { $0.id == paintId }) else { return }
+                    let threads = scripturePassageHighlights + scripturePassageReferences
+                    guard let thread = threads.first(where: { $0.id == paintId }) else { return }
                     tappedPassageHighlight = thread
                 },
                 passageHighlightFocusedThreadId: tappedPassageHighlight?.id,
-                onPassageHighlightFromEditMenu: passageHighlightFromEditMenuHandler
+                onPassageHighlightFromEditMenu: passageHighlightFromEditMenuHandler,
+                onPassageReferenceSuggestionTap: { slug, word, _ in
+                    onPassageReferenceSuggestionTap?(slug, word)
+                }
             )
             .background(GeometryReader { geo in
                 // Read the passage view's frame in the named body space so the overlay (placed

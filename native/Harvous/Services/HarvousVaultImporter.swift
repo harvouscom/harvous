@@ -11,11 +11,26 @@ import UIKit
 struct HarvousImportReport {
     var imported: Int = 0
     var updated: Int = 0
+    var highlightsImported: Int = 0
+    /// Distinct folder labels (primary + secondary) touched during import.
+    var foldersTouched: Set<String> = []
     var skipped: [(url: URL, reason: String)] = []
     var logLines: [String] = []
 
+    /// Notes/highlights/folders counts, matching the web My Data import summary.
     var summaryLine: String {
-        "Imported \(imported), updated \(updated), skipped \(skipped.count)."
+        let notes = imported + updated
+        var parts: [String] = ["\(notes) note\(notes == 1 ? "" : "s")"]
+        if highlightsImported > 0 {
+            parts.append("\(highlightsImported) highlight\(highlightsImported == 1 ? "" : "s")")
+        }
+        if !foldersTouched.isEmpty {
+            parts.append("\(foldersTouched.count) folder\(foldersTouched.count == 1 ? "" : "s")")
+        }
+        if !skipped.isEmpty {
+            parts.append("\(skipped.count) skipped")
+        }
+        return "Import complete (\(parts.joined(separator: ", ")))."
     }
 
     func writeLog(to url: URL) throws {
@@ -104,9 +119,9 @@ enum HarvousVaultImporter {
                                 sourceLabel: file.path
                             )
                             if !doc.highlights.isEmpty {
-                                applyPortableHighlights(doc.highlights, to: note, modelContext: modelContext)
+                                applyPortableHighlights(doc.highlights, to: note, modelContext: modelContext, report: &report)
                             } else {
-                                try restoreHighlightsIfPresent(noteId: note.id, root: root, modelContext: modelContext)
+                                try restoreHighlightsIfPresent(noteId: note.id, root: root, modelContext: modelContext, report: &report)
                             }
                         } catch {
                             report.logLines.append("rebuild read error \(file.lastPathComponent): \(error)")
@@ -132,7 +147,7 @@ enum HarvousVaultImporter {
         return spaces.first?.id
     }
 
-    private static func restoreHighlightsIfPresent(noteId: UUID?, root: URL, modelContext: ModelContext) throws {
+    private static func restoreHighlightsIfPresent(noteId: UUID?, root: URL, modelContext: ModelContext, report: inout HarvousImportReport) throws {
         guard let noteId else { return }
         let fd = FetchDescriptor<Note>(predicate: #Predicate { $0.id == noteId })
         guard let parent = try modelContext.fetch(fd).first else { return }
@@ -151,31 +166,35 @@ enum HarvousVaultImporter {
             let st = dto.makeStudyThread(parent: parent)
             modelContext.insert(st)
         }
+        report.highlightsImported += file.threads.count
     }
 
     private static func importOne(
         url: URL,
         targetSpaceId: UUID,
         modelContext: ModelContext,
-        report: inout HarvousImportReport
+        report: inout HarvousImportReport,
+        folderPath: String = ""
     ) {
         let isDir = (try? url.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) ?? false
         if isDir {
-            importDirectory(url: url, targetSpaceId: targetSpaceId, modelContext: modelContext, report: &report)
+            let name = url.lastPathComponent
+            let dirPath = folderPath.isEmpty ? name : "\(folderPath)/\(name)"
+            importDirectory(url: url, targetSpaceId: targetSpaceId, modelContext: modelContext, report: &report, folderPath: dirPath)
             return
         }
         let ext = url.pathExtension.lowercased()
         switch ext {
         case "md", "markdown", "txt":
-            importMarkdownFile(url: url, targetSpaceId: targetSpaceId, modelContext: modelContext, report: &report)
+            importMarkdownFile(url: url, targetSpaceId: targetSpaceId, modelContext: modelContext, report: &report, folderPath: folderPath)
         case "enex":
             importEnex(url: url, targetSpaceId: targetSpaceId, modelContext: modelContext, report: &report)
         case "html", "htm":
-            importHTML(url: url, title: url.deletingPathExtension().lastPathComponent, targetSpaceId: targetSpaceId, modelContext: modelContext, report: &report)
+            importHTML(url: url, title: url.deletingPathExtension().lastPathComponent, targetSpaceId: targetSpaceId, modelContext: modelContext, report: &report, folderPath: folderPath)
         case "rtf":
-            importAttributedTry(url: url, loader: HarvousVaultImportFormats.loadRTFAttributed, titleFallback: url.deletingPathExtension().lastPathComponent, targetSpaceId: targetSpaceId, modelContext: modelContext, report: &report)
+            importAttributedTry(url: url, loader: HarvousVaultImportFormats.loadRTFAttributed, titleFallback: url.deletingPathExtension().lastPathComponent, targetSpaceId: targetSpaceId, modelContext: modelContext, report: &report, folderPath: folderPath)
         case "docx":
-            importDocx(url: url, titleFallback: url.deletingPathExtension().lastPathComponent, targetSpaceId: targetSpaceId, modelContext: modelContext, report: &report)
+            importDocx(url: url, titleFallback: url.deletingPathExtension().lastPathComponent, targetSpaceId: targetSpaceId, modelContext: modelContext, report: &report, folderPath: folderPath)
         case "csv":
             importCSV(url: url, targetSpaceId: targetSpaceId, modelContext: modelContext, report: &report)
         case "zip":
@@ -211,11 +230,14 @@ enum HarvousVaultImporter {
     }
     #endif
 
+    /// `folderPath` is the import-relative path of `url` (including its own name),
+    /// used to derive note folders (leaf = primary, ancestors = secondary).
     private static func importDirectory(
         url: URL,
         targetSpaceId: UUID,
         modelContext: ModelContext,
-        report: inout HarvousImportReport
+        report: inout HarvousImportReport,
+        folderPath: String = ""
     ) {
         let fm = FileManager.default
         guard let iter = try? fm.contentsOfDirectory(at: url, includingPropertiesForKeys: [.isDirectoryKey], options: [.skipsHiddenFiles]) else {
@@ -226,12 +248,9 @@ enum HarvousVaultImporter {
             let name = child.lastPathComponent
             if name.hasPrefix(".") { continue }
             if skipDirNames.contains(name) { continue }
-            let isDir = (try? child.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory ?? false
-            if isDir {
-                importDirectory(url: child, targetSpaceId: targetSpaceId, modelContext: modelContext, report: &report)
-            } else {
-                importOne(url: child, targetSpaceId: targetSpaceId, modelContext: modelContext, report: &report)
-            }
+            // Children (file or dir) pass through importOne, which appends a dir's
+            // own name to folderPath before recursing.
+            importOne(url: child, targetSpaceId: targetSpaceId, modelContext: modelContext, report: &report, folderPath: folderPath)
         }
     }
 
@@ -239,15 +258,16 @@ enum HarvousVaultImporter {
         url: URL,
         targetSpaceId: UUID,
         modelContext: ModelContext,
-        report: inout HarvousImportReport
+        report: inout HarvousImportReport,
+        folderPath: String = ""
     ) {
         do {
             let raw = try HarvousVaultImportFormats.loadPlainText(from: url)
             let baseTitle = HarvousVaultImportFormats.notionStrippedBasename(url.lastPathComponent)
             let doc = HarvousVaultPortableIngest.parseExternalMarkdown(raw, titleFallback: baseTitle)
-            let (note, _) = applyVaultMirrorDoc(doc: doc, fallbackTitle: baseTitle, targetSpaceId: targetSpaceId, modelContext: modelContext, report: &report, sourceLabel: url.lastPathComponent)
+            let (note, _) = applyVaultMirrorDoc(doc: doc, fallbackTitle: baseTitle, targetSpaceId: targetSpaceId, modelContext: modelContext, report: &report, sourceLabel: url.lastPathComponent, folderPath: folderPath)
             if !doc.highlights.isEmpty {
-                applyPortableHighlights(doc.highlights, to: note, modelContext: modelContext)
+                applyPortableHighlights(doc.highlights, to: note, modelContext: modelContext, report: &report)
             }
         } catch {
             report.skipped.append((url, error.localizedDescription))
@@ -294,14 +314,15 @@ enum HarvousVaultImporter {
         title: String,
         targetSpaceId: UUID,
         modelContext: ModelContext,
-        report: inout HarvousImportReport
+        report: inout HarvousImportReport,
+        folderPath: String = ""
     ) {
         do {
             let html = try HarvousVaultImportFormats.loadPlainText(from: url)
             let doc = HarvousVaultPortableIngest.parseHTML(html, titleFallback: title)
-            let (note, _) = applyVaultMirrorDoc(doc: doc, fallbackTitle: title, targetSpaceId: targetSpaceId, modelContext: modelContext, report: &report, sourceLabel: url.lastPathComponent)
+            let (note, _) = applyVaultMirrorDoc(doc: doc, fallbackTitle: title, targetSpaceId: targetSpaceId, modelContext: modelContext, report: &report, sourceLabel: url.lastPathComponent, folderPath: folderPath)
             if !doc.highlights.isEmpty {
-                applyPortableHighlights(doc.highlights, to: note, modelContext: modelContext)
+                applyPortableHighlights(doc.highlights, to: note, modelContext: modelContext, report: &report)
             }
         } catch {
             report.skipped.append((url, error.localizedDescription))
@@ -313,18 +334,19 @@ enum HarvousVaultImporter {
         titleFallback: String,
         targetSpaceId: UUID,
         modelContext: ModelContext,
-        report: inout HarvousImportReport
+        report: inout HarvousImportReport,
+        folderPath: String = ""
     ) {
         #if os(macOS)
         if let doc = HarvousVaultPortableIngest.parseDocx(at: url, titleFallback: titleFallback) {
-            let (note, _) = applyVaultMirrorDoc(doc: doc, fallbackTitle: titleFallback, targetSpaceId: targetSpaceId, modelContext: modelContext, report: &report, sourceLabel: url.lastPathComponent)
+            let (note, _) = applyVaultMirrorDoc(doc: doc, fallbackTitle: titleFallback, targetSpaceId: targetSpaceId, modelContext: modelContext, report: &report, sourceLabel: url.lastPathComponent, folderPath: folderPath)
             if !doc.highlights.isEmpty {
-                applyPortableHighlights(doc.highlights, to: note, modelContext: modelContext)
+                applyPortableHighlights(doc.highlights, to: note, modelContext: modelContext, report: &report)
             }
             return
         }
         #endif
-        importAttributedTry(url: url, loader: HarvousVaultImportFormats.loadOfficeDocAttributed, titleFallback: titleFallback, targetSpaceId: targetSpaceId, modelContext: modelContext, report: &report)
+        importAttributedTry(url: url, loader: HarvousVaultImportFormats.loadOfficeDocAttributed, titleFallback: titleFallback, targetSpaceId: targetSpaceId, modelContext: modelContext, report: &report, folderPath: folderPath)
     }
 
     private static func importAttributedTry(
@@ -333,12 +355,13 @@ enum HarvousVaultImporter {
         titleFallback: String,
         targetSpaceId: UUID,
         modelContext: ModelContext,
-        report: inout HarvousImportReport
+        report: inout HarvousImportReport,
+        folderPath: String = ""
     ) {
         do {
             let a = try loader(url)
             let doc = HarvousVaultParsedDocument(body: HarvousVaultImportFormats.attributedPlain(a))
-            _ = applyVaultMirrorDoc(doc: doc, fallbackTitle: titleFallback, targetSpaceId: targetSpaceId, modelContext: modelContext, report: &report, sourceLabel: url.lastPathComponent)
+            _ = applyVaultMirrorDoc(doc: doc, fallbackTitle: titleFallback, targetSpaceId: targetSpaceId, modelContext: modelContext, report: &report, sourceLabel: url.lastPathComponent, folderPath: folderPath)
         } catch {
             report.skipped.append((url, error.localizedDescription))
         }
@@ -372,6 +395,7 @@ enum HarvousVaultImporter {
                 if !normThread.isEmpty, !HarvousVaultImportFormats.isMyPileDisplayTitle(normThread) {
                     n.primaryFolder = normThread
                     n.isFolderUserOverride = true
+                    report.foldersTouched.insert(normThread)
                 }
                 if let tc = row.threadColor?.trimmingCharacters(in: .whitespacesAndNewlines), !tc.isEmpty {
                     n.threadColor = tc
@@ -472,7 +496,8 @@ enum HarvousVaultImporter {
         targetSpaceId: UUID,
         modelContext: ModelContext,
         report: inout HarvousImportReport,
-        sourceLabel: String
+        sourceLabel: String,
+        folderPath: String = ""
     ) -> (Note, Bool) {
         let heading = firstHeadingTitle(from: doc.body)
         let title: String = {
@@ -522,9 +547,25 @@ enum HarvousVaultImporter {
         note.body = body
         note.spaceId = targetSpaceId
         if !doc.tags.isEmpty { note.tags = doc.tags }
-        if let c = doc.folder?.trimmingCharacters(in: .whitespacesAndNewlines), !c.isEmpty {
-            note.primaryFolder = c
+        // Frontmatter `folder`/`folders` win over directory structure; leaf = primary,
+        // ancestors = secondary. Folderless content stays Unsorted (no override).
+        let resolvedFolders = HarvousVaultMarkdown.resolveImportFolders(
+            metaFolder: doc.folder,
+            metaFolders: doc.folders,
+            folderPath: folderPath
+        )
+        if let primary = resolvedFolders.primary, !primary.isEmpty {
+            note.primaryFolder = primary
             note.isFolderUserOverride = true
+            report.foldersTouched.insert(primary)
+        }
+        if !resolvedFolders.secondary.isEmpty {
+            let secondary = HarvousVaultMarkdown.normalizeSecondaryFolderLabels(
+                resolvedFolders.secondary,
+                primary: note.primaryFolder
+            )
+            note.secondaryFolders = secondary
+            for label in secondary { report.foldersTouched.insert(label) }
         }
         if let r = doc.rating, (1...7).contains(r) { note.rating = r }
         note.isPinned = doc.pinned
@@ -560,7 +601,8 @@ enum HarvousVaultImporter {
     private static func applyPortableHighlights(
         _ highlights: [HarvousVaultPortableHighlight],
         to note: Note,
-        modelContext: ModelContext
+        modelContext: ModelContext,
+        report: inout HarvousImportReport
     ) {
         guard !highlights.isEmpty else { return }
         for t in note.studyThreads {
@@ -571,6 +613,7 @@ enum HarvousVaultImporter {
             let st = HarvousVaultMarkdown.makeStudyThread(from: h, parent: note)
             modelContext.insert(st)
         }
+        report.highlightsImported += highlights.count
     }
 }
 

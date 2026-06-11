@@ -32,6 +32,8 @@ enum HarvousFeedListLayout {
 enum HarvousScripturePillStyle {
     /// Softer than full `label` so reference + translation read as part of the tinted chip.
     static let labelOpacity: CGFloat = 0.70
+    /// Inline TextKit editor pills — full opacity to match live body prose (web prototype parity).
+    static let labelOpacityInlineEditor: CGFloat = 1.0
     /// Vertical inset inside raster pills; `ScriptureRefChip` matches (mac + iOS).
     static let rasterVerticalInset: CGFloat = 4
 #if os(macOS)

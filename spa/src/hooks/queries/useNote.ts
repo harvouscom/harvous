@@ -81,6 +81,7 @@ export interface NoteDetail {
   resourceImage?: string | null;
   resourceUrl?: string | null;
   simpleNoteId?: number | null;
+  spaceId?: string | null;
   isPublic: boolean;
   shareToken?: string | null;
   userId?: string;
@@ -261,6 +262,7 @@ export function listNoteToNoteDetail(
     contentEncrypted: listNote.contentEncrypted ?? false,
     isPublic: false,
     userId: listNote.userId ?? undefined,
+    spaceId: listNote.spaceId ?? null,
     simpleNoteId: listNote.simpleNoteId ?? undefined,
     createdAt: listNote.createdAt ?? new Date().toISOString(),
     updatedAt: listNote.updatedAt ?? listNote.createdAt ?? new Date().toISOString(),
@@ -322,6 +324,7 @@ export function seedNoteFromList(
     }
     if ('collectionPinned' in prev) merged.collectionPinned = !!prev.collectionPinned;
     if ('collectionUserOverride' in prev) merged.collectionUserOverride = !!prev.collectionUserOverride;
+    if (typeof prev.spaceId === 'string' && prev.spaceId.length > 0) merged.spaceId = prev.spaceId;
   }
   queryClient.setQueryData(['note', listNote.id], merged);
   setCachedNoteDetail(listNote.id, merged);

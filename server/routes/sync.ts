@@ -45,6 +45,7 @@ import { tryConsumeNoteCreates, MAX_NOTE_CREATES_PER_SYNC_PUSH, getClientIP } fr
 import { generateNoteId, generateThreadId, generateSpaceId, generateStudyThreadEntryId } from '@/utils/ids';
 import { ensureUnorganizedThread } from '../utils/unorganized-thread';
 import { detectScripture, getPrimaryReference, normalizeScriptureReference } from '@/utils/scripture-detector';
+import { processScriptureReferences } from '../utils/process-scripture-references';
 import { fetchVerseText } from '../utils/fetch-verse-text';
 import { isStudyThreadEntriesTableMissing, isNoteConnectionsTableMissing } from '../utils/pg-undefined-relation';
 import { deleteSingleNoteCascadeForUser } from '../utils/delete-note-cascade';
@@ -342,6 +343,18 @@ async function processNoteMutation(userId: string, operation: string, entityId: 
       }
     }
 
+    // Generate + persist scripture pill markup so notes authored offline render pills once
+    // synced (the direct /api/notes/create path does this; the sync push must match, or
+    // offline-created scripture stays raw). Awaited — a fire-and-forget promise would be
+    // killed when this serverless handler returns. Encrypted notes are never processed.
+    if (!data.contentEncrypted && typeof noteContent === 'string' && noteContent.trim().length > 0) {
+      try {
+        await processScriptureReferences(newNote.id, userId, threadId, noteContent, 'NET');
+      } catch (err: any) {
+        console.error('[processNoteMutation] scripture processing (create) failed (non-critical):', err?.message ?? err);
+      }
+    }
+
     // Cache the result for idempotency
     if (clientMutationId) {
       processedMutations.set(clientMutationId, { serverId: newNote.id, timestamp: Date.now() });
@@ -422,6 +435,19 @@ async function processNoteMutation(userId: string, operation: string, entityId: 
     }
 
     await db.update(Notes).set(updatePayload as any).where(eq(Notes.id, entityId));
+
+    // Reprocess scripture pills on the updated body (parity with /api/notes/update). Skip when
+    // the note is/became encrypted or no content was sent. Omit threadId so every NoteThreads
+    // row for this note is resolved (multi-thread), matching the direct update path.
+    const willBeEncrypted = typeof data.contentEncrypted === 'boolean' ? data.contentEncrypted : existing.contentEncrypted;
+    if (!willBeEncrypted && typeof data.content === 'string' && data.content.trim().length > 0) {
+      try {
+        await processScriptureReferences(entityId, userId, undefined, data.content, 'NET');
+      } catch (err: any) {
+        console.error('[processNoteMutation] scripture processing (update) failed (non-critical):', err?.message ?? err);
+      }
+    }
+
     return { success: true, entityId, serverId: entityId };
   } else if (operation === 'delete') {
     const deleted = await deleteSingleNoteCascadeForUser(userId, entityId);

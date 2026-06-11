@@ -33,6 +33,8 @@ struct HarvousVaultParsedDocument {
     var tags: [String] = []
     /// Primary folder from YAML `folder:` or legacy `collection:`.
     var folder: String?
+    /// Secondary folder labels from YAML `folders:` or legacy `collections:` (excludes primary).
+    var folders: [String] = []
     var refs: [String] = []
     var pinned: Bool = false
     var rating: Int?
@@ -121,13 +123,28 @@ enum HarvousVaultMarkdown {
         return lines.dropFirst().joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
+    /// Array-valued frontmatter keys that may be emitted as YAML block sequences.
+    private static let blockArrayKeys: Set<String> = ["folders", "collections", "tags", "refs"]
+
     private static func parseFrontmatterLines(_ block: String, into doc: inout HarvousVaultParsedDocument) {
-        for raw in block.split(separator: "\n", omittingEmptySubsequences: false) {
-            let line = String(raw).trimmingCharacters(in: .whitespaces)
+        let lines = block.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
+        var i = 0
+        while i < lines.count {
+            let line = lines[i].trimmingCharacters(in: .whitespaces)
+            i += 1
             guard let colon = line.firstIndex(of: ":") else { continue }
             let key = String(line[..<colon]).trimmingCharacters(in: .whitespaces).lowercased()
             var val = String(line[line.index(after: colon)...]).trimmingCharacters(in: .whitespaces)
             if val.hasPrefix("#") { continue }
+
+            // YAML block sequence (`key:` followed by indented `- item` lines).
+            if val.isEmpty, blockArrayKeys.contains(key) {
+                let items = collectBlockArrayItems(lines, from: &i)
+                if !items.isEmpty {
+                    assignArrayKey(key, items, into: &doc)
+                    continue
+                }
+            }
 
             switch key {
             case "id":
@@ -157,10 +174,8 @@ enum HarvousVaultMarkdown {
                 if doc.folder == nil {
                     doc.folder = stripQuotes(val)
                 }
-            case "tags":
-                doc.tags = parseStringArray(val)
-            case "refs":
-                doc.refs = parseStringArray(val)
+            case "folders", "collections", "tags", "refs":
+                assignArrayKey(key, parseStringArray(val), into: &doc)
             case "pinned":
                 doc.pinned = val.lowercased() == "true" || val == "1"
             case "rating":
@@ -241,14 +256,17 @@ enum HarvousVaultMarkdown {
         lines.append("created: \(created)")
         lines.append("updated: \(updated)")
         lines.append("space: \(quoteYamlString(spaceName))")
-        if let tc = note.threadColor?.trimmingCharacters(in: .whitespacesAndNewlines), !tc.isEmpty {
-            lines.append("threadColor: \(quoteYamlString(tc))")
-        }
         if !note.tags.isEmpty {
             lines.append("tags: [\(tags)]")
         }
-        if let pc = note.primaryFolder?.trimmingCharacters(in: .whitespacesAndNewlines), !pc.isEmpty {
+        let primaryFolder = note.primaryFolder?.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let pc = primaryFolder, !pc.isEmpty {
             lines.append("folder: \(quoteYamlString(pc))")
+        }
+        let secondaryFolders = normalizeSecondaryFolderLabels(note.secondaryFolders, primary: primaryFolder)
+        if !secondaryFolders.isEmpty {
+            let joined = secondaryFolders.map { quoteYamlString($0) }.joined(separator: ", ")
+            lines.append("folders: [\(joined)]")
         }
         if !note.detectedRefs.isEmpty {
             lines.append("refs: [\(refs)]")
@@ -375,6 +393,49 @@ enum HarvousVaultMarkdown {
         )
     }
 
+    /// Trim, drop empties, dedupe case-insensitively, exclude `primary` if present.
+    /// Mirrors `normalizeSecondaryLabels` in `server/utils/note-secondary-collections.ts`.
+    static func normalizeSecondaryFolderLabels(_ candidates: [String], primary: String?) -> [String] {
+        let primaryNorm: String? = {
+            guard let p = primary?.trimmingCharacters(in: .whitespacesAndNewlines), !p.isEmpty else { return nil }
+            return p
+        }()
+        var seen = Set<String>()
+        var out: [String] = []
+        for c in candidates {
+            let t = c.trimmingCharacters(in: .whitespacesAndNewlines)
+            if t.isEmpty { continue }
+            let low = t.lowercased()
+            if let pn = primaryNorm, pn.lowercased() == low { continue }
+            if seen.contains(low) { continue }
+            seen.insert(low)
+            out.append(t)
+        }
+        return out
+    }
+
+    /// Split a directory path into a leaf (primary) + ancestors (secondary).
+    /// Mirrors `collectionsFromPath` in `server/utils/note-secondary-collections.ts`.
+    static func collectionsFromPath(_ folderPath: String?) -> (primary: String?, secondary: [String]) {
+        guard let folderPath, !folderPath.isEmpty else { return (nil, []) }
+        let parts = folderPath.split(separator: "/").map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
+        guard let primary = parts.last else { return (nil, []) }
+        return (primary, normalizeSecondaryFolderLabels(Array(parts.dropLast()), primary: primary))
+    }
+
+    /// Resolve a note's folders on import. Explicit frontmatter folders win over the
+    /// directory structure. Mirrors `resolveImportCollections`.
+    static func resolveImportFolders(metaFolder: String?, metaFolders: [String], folderPath: String?) -> (primary: String?, secondary: [String]) {
+        let explicitPrimary: String? = {
+            guard let p = metaFolder?.trimmingCharacters(in: .whitespacesAndNewlines), !p.isEmpty else { return nil }
+            return p
+        }()
+        if let explicitPrimary {
+            return (explicitPrimary, normalizeSecondaryFolderLabels(metaFolders, primary: explicitPrimary))
+        }
+        return collectionsFromPath(folderPath)
+    }
+
     private static func stripQuotes(_ s: String) -> String {
         var v = s
         if (v.hasPrefix("\"") && v.hasSuffix("\"")) || (v.hasPrefix("'") && v.hasSuffix("'")) {
@@ -382,6 +443,34 @@ enum HarvousVaultMarkdown {
             v.removeLast()
         }
         return v
+    }
+
+    /// Consume consecutive `- item` lines starting at index `i`, advancing `i` past them.
+    private static func collectBlockArrayItems(_ lines: [String], from i: inout Int) -> [String] {
+        var out: [String] = []
+        while i < lines.count {
+            let trimmed = lines[i].trimmingCharacters(in: .whitespaces)
+            guard trimmed.hasPrefix("-") else { break }
+            let item = stripQuotes(String(trimmed.dropFirst()).trimmingCharacters(in: .whitespaces))
+            if !item.isEmpty { out.append(item) }
+            i += 1
+        }
+        return out
+    }
+
+    private static func assignArrayKey(_ key: String, _ items: [String], into doc: inout HarvousVaultParsedDocument) {
+        switch key {
+        case "folders":
+            doc.folders = items
+        case "collections":
+            if doc.folders.isEmpty { doc.folders = items }
+        case "tags":
+            doc.tags = items
+        case "refs":
+            doc.refs = items
+        default:
+            break
+        }
     }
 
     private static func parseStringArray(_ val: String) -> [String] {

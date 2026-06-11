@@ -751,62 +751,155 @@
   padding-bottom: 88px !important;
 }
 
-/* Study highlights — half-height gradient fill matching /site/ `mark` treatment.
-   Default (warmAmber) matches --color-highlight: #ffe8a8 exactly.
-   Other colors use the same bottom-55% gradient with tinted swatches. */
+/* Study highlights — app/prototype colored underline (not site marketing gradient fill).
+   Uses --pds-highlight-* / study-dock accent tokens from study-highlight-accent-colors.css. */
 .public-note-card .card-full-editable__content-html mark {
-  background: linear-gradient(180deg, transparent 55%, #ffe8a8 55%) !important;
+  background: transparent !important;
+  background-color: transparent !important;
+  background-image: none !important;
   color: inherit !important;
-  text-decoration: none !important;
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 3px;
+  text-decoration-color: var(--pds-highlight-warm-amber, var(--study-dock-accent-warmAmber));
   border-radius: 0 !important;
   padding: 0 !important;
   box-decoration-break: clone !important;
   -webkit-box-decoration-break: clone !important;
 }
-.public-note-card .card-full-editable__content-html mark[data-color="neutral"]   { background: linear-gradient(180deg, transparent 55%, rgba(142,142,147,0.35) 55%) !important; }
-.public-note-card .card-full-editable__content-html mark[data-color="warmAmber"] { background: linear-gradient(180deg, transparent 55%, #ffe8a8 55%) !important; }
-.public-note-card .card-full-editable__content-html mark[data-color="skyBlue"]   { background: linear-gradient(180deg, transparent 55%, #b3d9f5 55%) !important; }
-.public-note-card .card-full-editable__content-html mark[data-color="violet"]    { background: linear-gradient(180deg, transparent 55%, #ddd6fe 55%) !important; }
-.public-note-card .card-full-editable__content-html mark[data-color="mintGreen"] { background: linear-gradient(180deg, transparent 55%, #a7f3d0 55%) !important; }
-.public-note-card .card-full-editable__content-html mark[data-color="coralRose"] { background: linear-gradient(180deg, transparent 55%, #fecdd3 55%) !important; }
 
-/* Inline scripture pills inside the note body — adopt the `/site/` accent
-   pill treatment (accent-soft bg + accent text + faint accent ring).
-   Not interactive on the public page — disable pointer events.
-   Reset box-shadow so the inline inset-shadow from stored HTML doesn't bleed through. */
+.public-note-card .card-full-editable__content-html mark[data-color="neutral"] {
+  text-decoration-color: var(--pds-highlight-neutral, var(--study-dock-accent-neutral));
+}
+.public-note-card .card-full-editable__content-html mark[data-color="warmAmber"] {
+  text-decoration-color: var(--pds-highlight-warm-amber, var(--study-dock-accent-warmAmber));
+}
+.public-note-card .card-full-editable__content-html mark[data-color="skyBlue"] {
+  text-decoration-color: var(--pds-highlight-sky-blue, var(--study-dock-accent-skyBlue));
+}
+.public-note-card .card-full-editable__content-html mark[data-color="violet"] {
+  text-decoration-color: var(--pds-highlight-violet, var(--study-dock-accent-violet));
+}
+.public-note-card .card-full-editable__content-html mark[data-color="mintGreen"] {
+  text-decoration-color: var(--pds-highlight-mint-green, var(--study-dock-accent-mintGreen));
+}
+.public-note-card .card-full-editable__content-html mark[data-color="coralRose"] {
+  text-decoration-color: var(--pds-highlight-coral-rose, var(--study-dock-accent-coralRose));
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-color-scheme="light"]) .public-note-card .card-full-editable__content-html mark {
+    text-shadow: 0 0 12px color-mix(in oklab, var(--pds-highlight-warm-amber, var(--study-dock-accent-warmAmber)) 60%, transparent);
+  }
+  :root:not([data-color-scheme="light"]) .public-note-card .card-full-editable__content-html mark[data-color="neutral"] {
+    text-shadow: 0 0 12px color-mix(in oklab, var(--pds-highlight-neutral, var(--study-dock-accent-neutral)) 60%, transparent);
+  }
+  :root:not([data-color-scheme="light"]) .public-note-card .card-full-editable__content-html mark[data-color="warmAmber"] {
+    text-shadow: 0 0 12px color-mix(in oklab, var(--pds-highlight-warm-amber, var(--study-dock-accent-warmAmber)) 60%, transparent);
+  }
+  :root:not([data-color-scheme="light"]) .public-note-card .card-full-editable__content-html mark[data-color="skyBlue"] {
+    text-shadow: 0 0 12px color-mix(in oklab, var(--pds-highlight-sky-blue, var(--study-dock-accent-skyBlue)) 60%, transparent);
+  }
+  :root:not([data-color-scheme="light"]) .public-note-card .card-full-editable__content-html mark[data-color="violet"] {
+    text-shadow: 0 0 12px color-mix(in oklab, var(--pds-highlight-violet, var(--study-dock-accent-violet)) 60%, transparent);
+  }
+  :root:not([data-color-scheme="light"]) .public-note-card .card-full-editable__content-html mark[data-color="mintGreen"] {
+    text-shadow: 0 0 12px color-mix(in oklab, var(--pds-highlight-mint-green, var(--study-dock-accent-mintGreen)) 60%, transparent);
+  }
+  :root:not([data-color-scheme="light"]) .public-note-card .card-full-editable__content-html mark[data-color="coralRose"] {
+    text-shadow: 0 0 12px color-mix(in oklab, var(--pds-highlight-coral-rose, var(--study-dock-accent-coralRose)) 60%, transparent);
+  }
+}
+
+:root[data-color-scheme="dark"] .public-note-card .card-full-editable__content-html mark {
+  text-shadow: 0 0 12px color-mix(in oklab, var(--pds-highlight-warm-amber, var(--study-dock-accent-warmAmber)) 60%, transparent);
+}
+:root[data-color-scheme="dark"] .public-note-card .card-full-editable__content-html mark[data-color="neutral"] {
+  text-shadow: 0 0 12px color-mix(in oklab, var(--pds-highlight-neutral, var(--study-dock-accent-neutral)) 60%, transparent);
+}
+:root[data-color-scheme="dark"] .public-note-card .card-full-editable__content-html mark[data-color="warmAmber"] {
+  text-shadow: 0 0 12px color-mix(in oklab, var(--pds-highlight-warm-amber, var(--study-dock-accent-warmAmber)) 60%, transparent);
+}
+:root[data-color-scheme="dark"] .public-note-card .card-full-editable__content-html mark[data-color="skyBlue"] {
+  text-shadow: 0 0 12px color-mix(in oklab, var(--pds-highlight-sky-blue, var(--study-dock-accent-skyBlue)) 60%, transparent);
+}
+:root[data-color-scheme="dark"] .public-note-card .card-full-editable__content-html mark[data-color="violet"] {
+  text-shadow: 0 0 12px color-mix(in oklab, var(--pds-highlight-violet, var(--study-dock-accent-violet)) 60%, transparent);
+}
+:root[data-color-scheme="dark"] .public-note-card .card-full-editable__content-html mark[data-color="mintGreen"] {
+  text-shadow: 0 0 12px color-mix(in oklab, var(--pds-highlight-mint-green, var(--study-dock-accent-mintGreen)) 60%, transparent);
+}
+:root[data-color-scheme="dark"] .public-note-card .card-full-editable__content-html mark[data-color="coralRose"] {
+  text-shadow: 0 0 12px color-mix(in oklab, var(--pds-highlight-coral-rose, var(--study-dock-accent-coralRose)) 60%, transparent);
+}
+
+/* Inline scripture pills inside the note body — section gray default, no outline.
+   Not interactive on the public page — disable pointer events. */
 .public-note-card .card-full-editable__content-html .scripture-pill,
 .public-note-card .card-full-editable__content-html [data-scripture-pill] {
-  background: var(--site-accent-soft, #e8eefc) !important;
-  color: var(--site-accent) !important;
-  border: 1px solid rgba(56, 105, 230, 0.2) !important;
-  border-radius: 999px !important;
-  padding: 1px 8px !important;
+  background: var(--pds-bg-section, var(--color-paper)) !important;
+  background-color: var(--pds-bg-section, var(--color-paper)) !important;
+  color: var(--site-ink, var(--color-deep-grey)) !important;
+  border: none !important;
+  border-radius: var(--pds-radius-scripture, 14px) !important;
+  padding: 2px 11px !important;
   font-weight: 500 !important;
-  box-shadow: none !important;
+  box-shadow: var(--scripture-pill-inner-shadow, inset 0 0 3px rgba(0, 0, 0, 0.042)) !important;
   pointer-events: none !important;
   cursor: default !important;
 }
 
-/* Translation suffix (::after pseudo-element) should match the pill's accent color. */
-.public-note-card .card-full-editable__content-html .scripture-pill::after,
-.public-note-card .card-full-editable__content-html [data-scripture-pill]::after {
-  color: var(--site-accent) !important;
+.public-note-card .card-full-editable__content-html .scripture-pill[data-pill-accent] {
+  background: color-mix(in srgb, var(--scripture-pill-accent-tint, var(--study-dock-scripture-pill-neutral)) 7.5%, transparent) !important;
+  color: var(--site-ink) !important;
 }
 
-/* URL link chips — same accent pill as scripture refs on public shared notes. */
+.public-note-card .card-full-editable__content-html .scripture-pill[data-pill-accent="neutral"] {
+  --scripture-pill-accent-tint: var(--study-dock-scripture-pill-neutral);
+}
+.public-note-card .card-full-editable__content-html .scripture-pill[data-pill-accent="warmAmber"] {
+  --scripture-pill-accent-tint: var(--study-dock-accent-warmAmber);
+}
+.public-note-card .card-full-editable__content-html .scripture-pill[data-pill-accent="skyBlue"] {
+  --scripture-pill-accent-tint: var(--study-dock-accent-skyBlue);
+}
+.public-note-card .card-full-editable__content-html .scripture-pill[data-pill-accent="violet"] {
+  --scripture-pill-accent-tint: var(--study-dock-accent-violet);
+}
+.public-note-card .card-full-editable__content-html .scripture-pill[data-pill-accent="mintGreen"] {
+  --scripture-pill-accent-tint: var(--study-dock-accent-mintGreen);
+}
+.public-note-card .card-full-editable__content-html .scripture-pill[data-pill-accent="coralRose"] {
+  --scripture-pill-accent-tint: var(--study-dock-accent-coralRose);
+}
+
+/* Translation suffix (e.g. NLT) — muted secondary, not accent blue */
+.public-note-card .card-full-editable__content-html .scripture-pill[data-scripture-translation-label]::after,
+.public-note-card .card-full-editable__content-html .scripture-pill[data-scripture-translation]:not([data-scripture-translation-label])::after,
+.public-note-card .card-full-editable__content-html [data-scripture-pill]::after {
+  color: var(--site-ink-soft) !important;
+  font-size: 0.68em !important;
+  font-weight: 500 !important;
+  margin-left: 4px !important;
+  letter-spacing: 0.02em !important;
+  line-height: 1 !important;
+}
+
+/* URL link chips — same borderless gray pill as scripture refs on public shared notes. */
 .public-page .card-full-editable__content-html .url-link-pill,
 .public-page .card-full-editable__content-html .url-link.url-link-pill {
   display: inline-flex !important;
   align-items: center !important;
   gap: 4px !important;
-  background: var(--site-accent-soft) !important;
-  color: var(--site-accent) !important;
-  border: 1px solid rgba(56, 105, 230, 0.2) !important;
-  border-radius: 999px !important;
-  padding: 1px 8px !important;
+  background: var(--pds-bg-section, var(--color-paper)) !important;
+  background-color: var(--pds-bg-section, var(--color-paper)) !important;
+  color: var(--site-ink, var(--color-deep-grey)) !important;
+  border: none !important;
+  border-radius: var(--pds-radius-scripture, 14px) !important;
+  padding: 2px 11px !important;
   font-weight: 500 !important;
   font-style: normal !important;
-  box-shadow: none !important;
+  box-shadow: var(--scripture-pill-inner-shadow, inset 0 0 3px rgba(0, 0, 0, 0.042)) !important;
   text-decoration: none !important;
   pointer-events: none !important;
   cursor: default !important;
@@ -814,12 +907,12 @@
 }
 
 .public-page .card-full-editable__content-html .url-link-pill::after {
-  background-color: var(--site-accent) !important;
+  background-color: var(--site-ink, var(--color-deep-grey)) !important;
 }
 
 /* Inside highlights, keep pill colors — don't inherit mark text color. */
 .public-page .card-full-editable__content-html mark .url-link-pill {
-  color: var(--site-accent) !important;
+  color: var(--site-ink, var(--color-deep-grey)) !important;
 }
 
 /* Card list-item content inside thread / join / invitation cards. */

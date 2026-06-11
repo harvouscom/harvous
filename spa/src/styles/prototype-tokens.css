@@ -264,7 +264,11 @@
   --pds-radius-format:    8px;
   --pds-radius-menu:     12px;
   --pds-radius-menu-item: 6px;
-  --pds-radius-scripture: 7px;
+  --pds-radius-scripture: 14px;
+  /* Inline pill reference label — native `kRefSize` 15pt @ 16px compose body (`ScripturePillAttachment`). */
+  --pds-scripture-pill-font-scale: 0.9375;
+  /* Native ScripturePillInnerStrokeLikeConnectionsCapsule — blurred perimeter (multiply / softLight). */
+  --scripture-pill-inner-shadow: inset 0 0 3px rgba(0, 0, 0, 0.042);
 
   /* Destructive (delete-style) tints */
   --pds-destructive: oklch(var(--pds-lch-destructive));
@@ -432,6 +436,7 @@ html.harvous-proto-wallpaper-image {
     --pds-lch-accent-pressed: 56% 0.16 265;
     --pds-lch-scripture-fg: 72% 0.14 255;
     --pds-lch-scripture-accent: 62% 0.18 255;
+    --scripture-pill-inner-shadow: inset 0 0 3px rgba(255, 255, 255, 0.036);
 
     --pds-lch-bg-page: 18% 0.01 285;
     --pds-lch-bg-main: 18% 0.01 285;
@@ -607,6 +612,7 @@ html.harvous-proto-wallpaper-image {
   --pds-lch-accent-pressed: 56% 0.16 265;
   --pds-lch-scripture-fg: 72% 0.14 255;
   --pds-lch-scripture-accent: 62% 0.18 255;
+  --scripture-pill-inner-shadow: inset 0 0 3px rgba(255, 255, 255, 0.036);
 
   --pds-lch-bg-page: 18% 0.01 285;
   --pds-lch-bg-main: 18% 0.01 285;

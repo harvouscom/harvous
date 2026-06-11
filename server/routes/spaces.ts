@@ -54,7 +54,7 @@ import {
   canOwnerAddOneMoreSharedSpace,
   canAddMemberToSpace,
   canAddMemberToSpaceByOwnerId,
-  getUserTier,
+  getTierForAuth,
   getTierLimits,
   getSharedSpacesOwnedCount,
   getSpaceMemberCount,
@@ -104,7 +104,13 @@ function studyThreadEligibleForHighlightList(entry: typeof StudyThreadEntries.$i
     entry.entryKindRaw === 'miniNote' &&
     ((entry.sourceSnippet ?? '').trim() !== '' || (entry.anchorTextSnapshot ?? '').trim() !== '');
 
-  return passageHighlight || anchoredHighlight || proseSnippetMiniNote;
+  /** Reference saved from a scripture passage (dictionary word) — no note anchor, but carries the
+   *  word as its excerpt. Mirrors `passageHighlight` so these surface in the highlights list. */
+  const referenceHighlight =
+    entry.entryKindRaw === 'reference' &&
+    ((entry.scripturePassageExcerpt ?? '').trim() !== '' || (entry.sourceSnippet ?? '').trim() !== '');
+
+  return passageHighlight || anchoredHighlight || proseSnippetMiniNote || referenceHighlight;
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -407,6 +413,7 @@ route.get('/api/spaces/:spaceId/study-thread-highlights', requireAuth, async (c)
     const highlightCandidates = or(
       eq(StudyThreadEntries.entryKindRaw, 'scriptureLink'),
       eq(StudyThreadEntries.entryKindRaw, 'miniNote'),
+      eq(StudyThreadEntries.entryKindRaw, 'reference'),
       and(isNotNull(StudyThreadEntries.anchorLocation), isNotNull(StudyThreadEntries.anchorLength), gt(StudyThreadEntries.anchorLength, 0)),
     );
 
@@ -1282,7 +1289,7 @@ route.get('/api/spaces/:spaceId/members', requireAuth, async (c) => {
     }
 
     // Tier limits
-    const tier = getUserTier(auth);
+    const tier = await getTierForAuth(auth);
     const limits = getTierLimits(tier);
 
     return c.json({

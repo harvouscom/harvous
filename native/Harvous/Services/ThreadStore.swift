@@ -379,6 +379,38 @@ enum ThreadStore {
         return thread
     }
 
+    /// Passage reference from the scripture pill dock: keyed by reference + translation + excerpt (no note-body anchor).
+    @MainActor
+    @discardableResult
+    static func createPassageReferenceHighlight(
+        parent: Note,
+        spaceId: UUID,
+        referenceRaw: String,
+        translation: String,
+        word: String,
+        modelContext: ModelContext
+    ) -> StudyThread {
+        let trimmed = word.trimmingCharacters(in: .whitespacesAndNewlines)
+        let display = canonicalScriptureDisplay(fromReferenceRaw: referenceRaw)
+        let excerpt = StudyThread.normalizedPassageExcerpt(trimmed)
+        let thread = StudyThread(
+            spaceId: spaceId,
+            parentNoteId: parent.id,
+            sourceSnippet: trimmed,
+            focusTitle: trimmed,
+            entryKindRaw: StudyThread.EntryKind.reference.rawValue,
+            scriptureReference: display,
+            scripturePassageTranslation: translation,
+            scripturePassageExcerpt: excerpt.isEmpty ? nil : excerpt,
+            highlightAccentRaw: StudyHighlightAccentToken.warmAmber.rawValue,
+            parentNote: parent
+        )
+        modelContext.insert(thread)
+        try? modelContext.saveWithLogging()
+        touchParentNoteIfNeeded(thread, modelContext: modelContext)
+        return thread
+    }
+
     /// Inline reference-lookup highlight anchored to the current body selection (Easton's dictionary look-up flow).
     @MainActor
     @discardableResult
@@ -414,7 +446,37 @@ enum ThreadStore {
         translation: String,
         modelContext: ModelContext
     ) -> [StudyThread] {
-        let kind = StudyThread.EntryKind.scriptureLink.rawValue
+        fetchScripturePassageStudyThreads(
+            canonicalReference: canonicalReference,
+            translation: translation,
+            entryKind: .scriptureLink,
+            modelContext: modelContext
+        )
+    }
+
+    /// Saved passage references (Easton's dictionary words underlined in scripture dock text).
+    @MainActor
+    static func fetchScripturePassageReferences(
+        canonicalReference: String,
+        translation: String,
+        modelContext: ModelContext
+    ) -> [StudyThread] {
+        fetchScripturePassageStudyThreads(
+            canonicalReference: canonicalReference,
+            translation: translation,
+            entryKind: .reference,
+            modelContext: modelContext
+        )
+    }
+
+    @MainActor
+    private static func fetchScripturePassageStudyThreads(
+        canonicalReference: String,
+        translation: String,
+        entryKind: StudyThread.EntryKind,
+        modelContext: ModelContext
+    ) -> [StudyThread] {
+        let kind = entryKind.rawValue
         let ref = canonicalReference
         let descriptor = FetchDescriptor<StudyThread>(
             predicate: #Predicate { t in

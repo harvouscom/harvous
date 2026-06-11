@@ -5,11 +5,23 @@ import AppKit
 import UIKit
 #endif
 
-// MARK: - Shared binding type
+// MARK: - Shared editor model
 
-struct EditorState {
+/// Reference type (was a value `struct`) so a per-keystroke `plainText` write no longer invalidates
+/// the **entire** `NoteEditorView` body via `@State`. As an `@Observable` class, SwiftUI tracks reads
+/// per-property, so only the small scopes that actually read `plainText` re-evaluate — the
+/// `HarvousEditor` representable (which reads `documentBody`/`note.body`, not `plainText`) is no longer
+/// recreated on every keystroke. Coordinators hold the instance directly and re-point it each
+/// `update{NS,UI}View` so it never goes stale after a note-switch `EditorState(...)` reassignment.
+@Observable
+final class EditorState {
     var plainText: String = ""
     var detectedRefs: [String] = []
+
+    init(plainText: String = "", detectedRefs: [String] = []) {
+        self.plainText = plainText
+        self.detectedRefs = detectedRefs
+    }
 }
 
 /// `NSTextStorage.string` uses the object replacement character (U+FFFC) for each `NSTextAttachment`, so
@@ -506,7 +518,14 @@ private func mergedParagraphStyleWithCanonicalLineMetrics(_ saved: NSParagraphSt
 /// when the editor lives in a SwiftUI `ScrollView` — the first `mouseUp` often never reaches this `NSTextView`,
 /// so highlights also register a delayed check + `mouseMoved` release detection to recover the open action when
 /// `mouseUp` is swallowed.
+/// Boundary keystrokes that may materialize a scripture pill (web prototype parity).
+fileprivate enum HarvousScriptureBoundaryTrigger {
+    case space, comma, period, enterBeforeNewline
+}
+
 private final class HarvousNoteTextView: NSTextView {
+    var onScriptureBoundaryTyped: (() -> Void)?
+
     /// UTF-16 attachment range in storage.
     var pillTapHandler: ((String, String, NSRange) -> Void)?
     /// URL pill tap → mirrors `pillTapHandler` but for `URLLinkPillAttachment`. Args are
@@ -789,10 +808,35 @@ private final class HarvousNoteTextView: NSTextView {
         return true
     }
 
+    private func notifyScriptureBoundaryTyped() {
+        onScriptureBoundaryTyped?()
+    }
+
+    private static func scriptureBoundaryTrigger(for insertString: Any) -> HarvousScriptureBoundaryTrigger? {
+        if let s = insertString as? String {
+            switch s {
+            case " ": return .space
+            case ",": return .comma
+            case ".": return .period
+            default: return nil
+            }
+        }
+        if let a = insertString as? NSAttributedString, a.length == 1 {
+            return scriptureBoundaryTrigger(for: a.string)
+        }
+        return nil
+    }
+
     /// Markdown-style list triggers at paragraph start: `- ` / `* ` / `+ ` / `1. ` (space typed to confirm).
     override func insertText(_ insertString: Any, replacementRange: NSRange) {
         if hasMarkedText() {
             super.insertText(insertString, replacementRange: replacementRange)
+            return
+        }
+
+        if let boundary = Self.scriptureBoundaryTrigger(for: insertString), boundary != .space {
+            super.insertText(insertString, replacementRange: replacementRange)
+            notifyScriptureBoundaryTyped()
             return
         }
 
@@ -872,6 +916,7 @@ private final class HarvousNoteTextView: NSTextView {
         }
 
         super.insertText(insertString, replacementRange: replacementRange)
+        notifyScriptureBoundaryTyped()
     }
 
     /// After Return, new paragraphs inherit `• ` / `N+1. ` when the caret was in list body (not inside the prefix).
@@ -881,6 +926,7 @@ private final class HarvousNoteTextView: NSTextView {
             return
         }
         if tryApplyListContinuationOnHardNewline(sender: sender) { return }
+        notifyScriptureBoundaryTyped()
         super.insertNewline(sender)
     }
 
@@ -1287,7 +1333,7 @@ private final class HarvousNoteTextView: NSTextView {
         refreshScripturePillRastersForCurrentAppearance()
     }
 
-    private func refreshScripturePillRastersForCurrentAppearance() {
+    fileprivate func refreshScripturePillRastersForCurrentAppearance() {
         guard let storage = textStorage, storage.length > 0 else { return }
         var idx = 0
         let end = storage.length
@@ -1405,7 +1451,7 @@ final class HarvousEditorScrollView: NSScrollView {
 }
 
 struct HarvousEditor: NSViewRepresentable {
-    @Binding var state: EditorState
+    var state: EditorState
     var proxy: EditorProxy? = nil
     /// When set, a change forces body text to match `state` (e.g. switching notes while the view is still “editing”).
     var noteID: UUID? = nil
@@ -1439,7 +1485,7 @@ struct HarvousEditor: NSViewRepresentable {
     /// Propagates SwiftUI Dynamic Type so `NSTextView` fonts track system text sizing.
     var dynamicTypeSize: DynamicTypeSize = .large
 
-    func makeCoordinator() -> Coordinator { Coordinator(state: $state) }
+    func makeCoordinator() -> Coordinator { Coordinator(state: state) }
 
     @MainActor
     private func syncComposeTypographyForDynamicTypeIfNeeded(in textView: HarvousNoteTextView, context: Context) {
@@ -1523,6 +1569,9 @@ struct HarvousEditor: NSViewRepresentable {
         textView.onPrimaryMouseGestureEndedForSelectionSync = { [weak coordinatorRef] in
             coordinatorRef?.syncActiveScripturePillFromTextViewSelection()
         }
+        textView.onScriptureBoundaryTyped = { [weak coordinatorRef] in
+            coordinatorRef?.handleScriptureBoundaryTyped()
+        }
         proxy?.textView = textView   // wire proxy for toolbar actions
         context.coordinator.wireFormatBarToProxy(proxy)
         if let p = proxy {
@@ -1545,6 +1594,10 @@ struct HarvousEditor: NSViewRepresentable {
     @MainActor
     func updateNSView(_ scrollView: HarvousEditorScrollView, context: Context) {
         let textView = scrollView.documentView as! HarvousNoteTextView
+        // `EditorState` is now a reference type; re-point the coordinator to the current instance so a
+        // note-switch `editorState = EditorState(...)` reassignment can't leave it writing into a stale
+        // object (the previous `@Binding` always read through to the live `@State`).
+        context.coordinator.state = state
         syncComposeTypographyForDynamicTypeIfNeeded(in: textView, context: context)
         let previousTheme = context.coordinator.scriptureTheme
         context.coordinator.scriptureTheme = scriptureTheme
@@ -1565,6 +1618,9 @@ struct HarvousEditor: NSViewRepresentable {
         let coordinatorRef = context.coordinator
         textView.onPrimaryMouseGestureEndedForSelectionSync = { [weak coordinatorRef] in
             coordinatorRef?.syncActiveScripturePillFromTextViewSelection()
+        }
+        textView.onScriptureBoundaryTyped = { [weak coordinatorRef] in
+            coordinatorRef?.handleScriptureBoundaryTyped()
         }
         let coord = context.coordinator
         if let p = proxy {
@@ -1625,6 +1681,21 @@ struct HarvousEditor: NSViewRepresentable {
             }
             // Do not set `isEditing` from “body still first responder” here: it made `textViewDidChangeSelection`
             // think the user was already editing and showed the format bar on layout.
+            return
+        }
+
+        // Active typing: the user owns the buffer, so nothing external needs syncing here. Bail before
+        // the per-keystroke O(n) work below (`pillContentKey` concat, `\u{FFFC}` storage scan, expanded
+        // -plain compare) that produced caret lag on long / pill-heavy notes. A live theme toggle is the
+        // only mutation that must still reach storage while editing; `textDidEndEditing` reconciles
+        // detection + highlights on blur.
+        if context.coordinator.isEditing {
+            if themeChanged, let st = textView.textStorage, st.length > 0 {
+                let plain = harvousExpandedPlainText(in: st)
+                if st.string.contains("\u{FFFC}") || !ScriptureDetector.detect(in: plain).isEmpty {
+                    context.coordinator.reapplyScripturePillsToBody(in: textView)
+                }
+            }
             return
         }
 
@@ -1745,7 +1816,7 @@ struct HarvousEditor: NSViewRepresentable {
 
     @MainActor
     final class Coordinator: NSObject, NSTextViewDelegate, InlineImageRehydrateScheduling {
-        @Binding var state: EditorState
+        var state: EditorState
         weak var textView: NSTextView?
         var proxy: EditorProxy?
         var boundNoteID: UUID?
@@ -1766,6 +1837,8 @@ struct HarvousEditor: NSViewRepresentable {
         /// True when the body shows placeholder copy (see `showPlaceholder`). The view’s `textColor` cannot be used: placeholder uses attributed `.foregroundColor` only.
         private var isDisplayingPlaceholder: Bool = false
         private var debounceTask: Task<Void, Never>?
+        /// Lightweight debounce for inline reference suggestions while the caret is active (no pill strip→reapply).
+        private var referenceSuggestionDebounceTask: Task<Void, Never>?
         private var formatBarHideTask: Task<Void, Never>?
         private var plainTextBindingCoalesced = false
         private var inlineImageRehydrateTask: Task<Void, Never>?
@@ -1807,6 +1880,8 @@ struct HarvousEditor: NSViewRepresentable {
             noteBindingGeneration &+= 1
             debounceTask?.cancel()
             debounceTask = nil
+            referenceSuggestionDebounceTask?.cancel()
+            referenceSuggestionDebounceTask = nil
             plainTextBindingCoalesced = false
             inlineImageRehydrateTask?.cancel()
             inlineImageRehydrateTask = nil
@@ -1840,8 +1915,8 @@ struct HarvousEditor: NSViewRepresentable {
             }
         }
 
-        init(state: Binding<EditorState>) {
-            _state = state
+        init(state: EditorState) {
+            self.state = state
             super.init()
             // When the user changes a pill's accent via `ActiveScripturePillDock` we must re-run pill
             // detection so the new accent is picked up by the resolver and the rendered attachments refresh.
@@ -1961,6 +2036,21 @@ struct HarvousEditor: NSViewRepresentable {
             p.triggerRemoveIntersectingStudyHighlightsFromSelection = { [weak self] in
                 self?.invokeEraseInlineFormattingFromSelectionIfPossible()
             }
+            p.repaintReferenceSuggestions = { [weak self] in
+                guard let self, let tv = self.textView else { return }
+                self.applyReferenceSuggestionsIfNeeded(on: tv, force: true)
+            }
+            p.syncStudyHighlightPaintsToEditor = { [weak self] paints in
+                guard let self else { return }
+                self.studyHighlightPaints = paints
+                if let tv = self.textView as? HarvousNoteTextView {
+                    tv.studyHighlightPaints = paints
+                }
+            }
+            p.repaintStudyHighlights = { [weak self] in
+                guard let self, let tv = self.textView else { return }
+                self.paintStudyHighlightsIfNeeded(on: tv, force: true)
+            }
             p.captureBodySelectionForConnect = { [weak self, weak p] in
                 guard let self, let p, let tv = self.textView, let storage = tv.textStorage else { return }
                 let storageRange = tv.selectedRange()
@@ -2072,7 +2162,43 @@ struct HarvousEditor: NSViewRepresentable {
             } else {
                 tv.font = HarvousFonts.noteComposeBodyNSFont()
                 applyDefaultBodyTypingAttributes(to: tv)
+                (tv as? HarvousNoteTextView)?.refreshScripturePillRastersForCurrentAppearance()
             }
+        }
+
+        /// Instant scripture pill on Space/Enter/comma/period — cursor-scoped, no full-doc strip→reapply.
+        @MainActor
+        fileprivate func handleScriptureBoundaryTyped() {
+            guard let tv = textView, let storage = tv.textStorage else { return }
+            guard !isDisplayingPlaceholder, !isProgrammaticBodyMutation else { return }
+            let cursor = tv.selectedRange().location
+            let scale = harvousEditorBackingScale(for: tv)
+            var insertedRef: String?
+            withProgrammaticBodyMutation {
+                insertedRef = detectAndInsertPillAtCursor(
+                    in: storage,
+                    cursorUTF16: cursor,
+                    isBoundaryTrigger: true,
+                    theme: scriptureTheme,
+                    pillAccentResolver: pillAccentResolver,
+                    backingScale: scale
+                )
+                guard insertedRef != nil else { return }
+                (tv as? HarvousNoteTextView)?.resetScripturePillPointerHoverAfterDocumentMutation()
+                recordAppliedPillSignatures(from: tv)
+                paintStudyHighlightsIfNeeded(on: tv, force: true)
+            }
+            guard insertedRef != nil else { return }
+            let bindingGeneration = noteBindingGeneration
+            let plain = harvousExpandedPlainText(in: storage)
+            let refsOut = ScriptureDetector.uniqueDisplayRefs(in: plain)
+            Task { @MainActor in
+                guard bindingGeneration == self.noteBindingGeneration else { return }
+                if self.state.plainText != plain { self.state.plainText = plain }
+                if self.state.detectedRefs != refsOut { self.state.detectedRefs = refsOut }
+            }
+            onResolvedScripturePillPairs?(scripturePillRefTransPairs(in: storage))
+            proxy?.refreshFormatStateCoalesced()
         }
 
         func showPlaceholder(in textView: NSTextView, text: String) {
@@ -2339,7 +2465,11 @@ struct HarvousEditor: NSViewRepresentable {
 
             // Debounced scripture detection (idle / programmatic only — not while actively editing).
             debounceTask?.cancel()
-            guard !isEditing else {
+            if isEditing {
+                scheduleDebouncedReferenceSuggestionRepaint(
+                    textView: tv,
+                    bindingGeneration: bindingGeneration
+                )
                 schedulePlainTextBindingUpdate(
                     textView: tv,
                     bindingGeneration: bindingGeneration,
@@ -2364,6 +2494,21 @@ struct HarvousEditor: NSViewRepresentable {
                 bindingGeneration: bindingGeneration,
                 isProgrammatic: isProgrammatic
             )
+        }
+
+        /// Repaints dotted Easton's hints while the user is actively editing (attribute-only; no pill strip→reapply).
+        private func scheduleDebouncedReferenceSuggestionRepaint(
+            textView tv: NSTextView,
+            bindingGeneration: UInt64
+        ) {
+            referenceSuggestionDebounceTask?.cancel()
+            referenceSuggestionDebounceTask = Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(400))
+                guard !Task.isCancelled else { return }
+                guard bindingGeneration == self.noteBindingGeneration else { return }
+                guard tv === self.textView, !tv.hasMarkedText() else { return }
+                self.applyReferenceSuggestionsIfNeeded(on: tv, force: true)
+            }
         }
 
         /// Coalesces `state.plainText` writes to one per run-loop turn; expands storage off the delegate path.
@@ -2488,12 +2633,16 @@ struct HarvousEditor: NSViewRepresentable {
             guard force || signature != lastAppliedStudyHighlightSignature else { return }
             paintStudyHighlightsPreservingSelection(on: textView)
             lastAppliedStudyHighlightSignature = signature
+            // Match iOS `paintStudyHighlights` — highlight paint strips/reapplies underlines, so
+            // dotted Easton's hints must be repainted on top (saved highlight wins per-word).
+            applyReferenceSuggestionsIfNeeded(on: textView, force: true)
         }
 
         private func currentReferenceSuggestionSignature(for storage: NSTextStorage) -> String {
             var hasher = Hasher()
             hasher.combine(studyHighlightsAssumeDarkAppearance)
             hasher.combine(storage.string)
+            hasher.combine(currentStudyHighlightPaintSignature())
             return String(hasher.finalize())
         }
 
@@ -2605,7 +2754,8 @@ struct HarvousEditor: NSViewRepresentable {
                     reference: item.displayRef,
                     translation: item.translation,
                     theme: scriptureTheme,
-                    accent: pillAccentResolver?(item.displayRef)
+                    accent: pillAccentResolver?(item.displayRef),
+                    backingScale: harvousEditorBackingScale(for: textView)
                 )
                 let pillStr = NSMutableAttributedString(attachment: pill)
                 let bodyFont: NSFont = HarvousFonts.noteComposeBodyPlatformFont()
@@ -2650,7 +2800,6 @@ struct HarvousEditor: NSViewRepresentable {
             // to avoid a redundant full-document attribute pass.
             if paintHighlights {
                 paintStudyHighlightsIfNeeded(on: textView, force: true)
-                applyReferenceSuggestionsIfNeeded(on: textView, force: true)
             }
 
             // `textDidChange` is not always sent when `textStorage` is edited programmatically. Sync
@@ -2717,7 +2866,7 @@ private final class HarvousBodyTextView: UITextView {
     /// `UIGraphicsImageRenderer` against the trait collection at attachment-creation time, so
     /// label color and inner-edge wash freeze until storage is rebuilt. On a light↔dark toggle
     /// re-render every pill under the new trait and invalidate their glyph rects.
-    private func refreshScripturePillRastersForCurrentAppearance() {
+    fileprivate func refreshScripturePillRastersForCurrentAppearance() {
         let storage = textStorage
         guard storage.length > 0 else { return }
         let lm = layoutManager
@@ -2909,7 +3058,7 @@ private func activeScripturePillFromUITextViewSelection(_ tv: UITextView) -> Act
 }
 
 struct HarvousEditor: UIViewRepresentable {
-    @Binding var state: EditorState
+    var state: EditorState
     var noteID: UUID? = nil
     var documentBody: String = ""
     var placeholder: String = "What are you studying?"
@@ -2956,7 +3105,7 @@ struct HarvousEditor: UIViewRepresentable {
     }
 
     func makeCoordinator() -> Coordinator {
-        let c = Coordinator(state: $state)
+        let c = Coordinator(state: state)
         c.placeholderText = placeholder
         c.proxy = proxy
         return c
@@ -3049,6 +3198,9 @@ struct HarvousEditor: UIViewRepresentable {
     }
 
     func updateUIView(_ textView: UITextView, context: Context) {
+        // `EditorState` is a reference type now; re-point the coordinator to the current instance (see
+        // the macOS `updateNSView` note) so a note-switch reassignment can't leave it writing stale state.
+        context.coordinator.state = state
         syncComposeTypographyForDynamicTypeIfNeeded(in: textView, context: context)
         applyIPadSplitInputAssistantSuppression(to: textView)
         var didSyncBodyFromState = false
@@ -3153,7 +3305,11 @@ struct HarvousEditor: UIViewRepresentable {
                 }
             }
         }
-        context.coordinator.paintStudyHighlights(on: textView)
+        // Match macOS: don't repaint study highlights on every keystroke. While the user is typing
+        // the highlight set can't change; `textDidEndEditing` / highlight mutations repaint on blur.
+        if !context.coordinator.isEditing {
+            context.coordinator.paintStudyHighlights(on: textView)
+        }
         if let body = textView as? HarvousBodyTextView {
             let coordinator = context.coordinator
             body.studyHighlightPaintsSnapshot = studyHighlightPaints
@@ -3171,7 +3327,7 @@ struct HarvousEditor: UIViewRepresentable {
 
     @MainActor
     final class Coordinator: NSObject, UITextViewDelegate, UIGestureRecognizerDelegate, InlineImageRehydrateScheduling {
-        @Binding var state: EditorState
+        var state: EditorState
         weak var textView: UITextView?
         weak var proxy: EditorProxy?
         var boundNoteID: UUID?
@@ -3192,6 +3348,7 @@ struct HarvousEditor: UIViewRepresentable {
         var onResolvedScripturePillPairs: (([(reference: String, translation: String)]) -> Void)?
         var onRemoveStudyHighlightThreadIds: (([UUID]) -> Void)?
         private var debounceTask: Task<Void, Never>?
+        private var referenceSuggestionDebounceTask: Task<Void, Never>?
         private var formatBarHideTask: Task<Void, Never>?
         private var inlineImageRehydrateTask: Task<Void, Never>?
         /// Bumped on note switch so deferred `Task`s from the previous note cannot write `state.plainText`.
@@ -3225,6 +3382,8 @@ struct HarvousEditor: UIViewRepresentable {
             noteBindingGeneration &+= 1
             debounceTask?.cancel()
             debounceTask = nil
+            referenceSuggestionDebounceTask?.cancel()
+            referenceSuggestionDebounceTask = nil
             inlineImageRehydrateTask?.cancel()
             inlineImageRehydrateTask = nil
             lastAppliedPillSignature = nil
@@ -3265,11 +3424,46 @@ struct HarvousEditor: UIViewRepresentable {
                 ]
             } else {
                 applyDefaultBodyTypingAttributes(to: tv)
+                (tv as? HarvousBodyTextView)?.refreshScripturePillRastersForCurrentAppearance()
             }
         }
 
-        init(state: Binding<EditorState>) {
-            _state = state
+        /// Instant scripture pill on Space/Enter/comma/period — cursor-scoped, no full-doc strip→reapply.
+        @MainActor
+        func handleScriptureBoundaryAtCursor(textView tv: UITextView, cursorUTF16: Int, isBoundaryTrigger: Bool) {
+            guard tv.textColor != .tertiaryLabel else { return }
+            guard !isProgrammaticBodyMutation else { return }
+            let storage = tv.textStorage
+            let scale = harvousEditorBackingScale(for: tv)
+            var insertedRef: String?
+            withProgrammaticBodyMutation {
+                insertedRef = detectAndInsertPillAtCursor(
+                    in: storage,
+                    cursorUTF16: cursorUTF16,
+                    isBoundaryTrigger: isBoundaryTrigger,
+                    theme: scriptureTheme,
+                    pillAccentResolver: pillAccentResolver,
+                    backingScale: scale
+                )
+                guard insertedRef != nil else { return }
+                paintStudyHighlights(on: tv)
+            }
+            guard insertedRef != nil else { return }
+            let bindingGeneration = noteBindingGeneration
+            let plain = harvousExpandedPlainText(in: storage)
+            let refsOut = ScriptureDetector.uniqueDisplayRefs(in: plain)
+            tv.invalidateIntrinsicContentSize()
+            Task { @MainActor in
+                guard bindingGeneration == self.noteBindingGeneration else { return }
+                if self.state.plainText != plain { self.state.plainText = plain }
+                if self.state.detectedRefs != refsOut { self.state.detectedRefs = refsOut }
+            }
+            onResolvedScripturePillPairs?(scripturePillRefTransPairs(in: storage))
+            proxy?.refreshFormatState()
+        }
+
+        init(state: EditorState) {
+            self.state = state
             super.init()
             NotificationCenter.default.addObserver(
                 self,
@@ -3322,6 +3516,21 @@ struct HarvousEditor: UIViewRepresentable {
             }
             p.triggerRemoveIntersectingStudyHighlightsFromSelection = { [weak self] in
                 self?.invokeEraseInlineFormattingFromSelectionIfPossible()
+            }
+            p.repaintReferenceSuggestions = { [weak self] in
+                guard let self, let tv = self.textView else { return }
+                self.repaintReferenceSuggestionsOnly(on: tv)
+            }
+            p.syncStudyHighlightPaintsToEditor = { [weak self] paints in
+                guard let self else { return }
+                self.studyHighlightPaints = paints
+                if let body = self.textView as? HarvousBodyTextView {
+                    body.studyHighlightPaintsSnapshot = paints
+                }
+            }
+            p.repaintStudyHighlights = { [weak self] in
+                guard let self, let tv = self.textView else { return }
+                self.paintStudyHighlights(on: tv)
             }
             p.captureBodySelectionForConnect = { [weak self, weak p] in
                 guard let self, let p, let tv = self.textView else { return }
@@ -3688,13 +3897,39 @@ struct HarvousEditor: UIViewRepresentable {
                 }
             }
 
-            if text == "\n", tryApplyListContinuationOnHardNewlineIOS(textView: textView, range: range) {
-                return false
+            if text == "\n" {
+                if tryApplyListContinuationOnHardNewlineIOS(textView: textView, range: range) {
+                    return false
+                }
+                handleScriptureBoundaryAtCursor(textView: textView, cursorUTF16: range.location, isBoundaryTrigger: true)
+                return true
             }
-            if text == " ", tryApplyMarkdownListTriggerIOS(textView: textView, range: range) {
-                return false
+            if text == " " {
+                if tryApplyMarkdownListTriggerIOS(textView: textView, range: range) {
+                    return false
+                }
+                scheduleScriptureBoundaryCheck(in: textView, afterInsertAt: range, text: text)
+                return true
+            }
+            if text == "," || text == "." {
+                scheduleScriptureBoundaryCheck(in: textView, afterInsertAt: range, text: text)
+                return true
             }
             return true
+        }
+
+        /// Defers a cursor-scoped scripture-pill check until after UIKit has applied `text` at `range`,
+        /// so the boundary character (Space/comma/period) is already in storage when detection runs.
+        private func scheduleScriptureBoundaryCheck(in textView: UITextView, afterInsertAt range: NSRange, text: String) {
+            let futureCursor = range.location + (text as NSString).length
+            DispatchQueue.main.async { [weak self, weak textView] in
+                guard let self, let textView, textView === self.textView else { return }
+                self.handleScriptureBoundaryAtCursor(
+                    textView: textView,
+                    cursorUTF16: futureCursor,
+                    isBoundaryTrigger: true
+                )
+            }
         }
 
         /// Return inside a `• `/`N. ` line: insert newline + continuing marker. Return on an empty list item exits the list.
@@ -3859,6 +4094,8 @@ struct HarvousEditor: UIViewRepresentable {
                 textView.text = hint
                 textView.textColor = .tertiaryLabel
                 textView.selectedRange = NSRange(location: 0, length: 0)
+            } else {
+                paintStudyHighlights(on: textView)
             }
             let editorProxy = self.proxy
             Task { @MainActor in
@@ -3886,6 +4123,10 @@ struct HarvousEditor: UIViewRepresentable {
                 self.scheduleFormatBarHide()
             }
 
+            scheduleDebouncedReferenceSuggestionRepaint(
+                textView: textView,
+                bindingGeneration: bindingGeneration
+            )
             debounceTask?.cancel()
             if isWritingToolsActive { return }
             debounceTask = Task { @MainActor in
@@ -3914,6 +4155,29 @@ struct HarvousEditor: UIViewRepresentable {
                 self.state.plainText = plain
                 self.detectAndInsertPills(in: textView, text: plain)
                 self.proxy?.refreshFormatState()
+            }
+        }
+
+        /// Attribute-only suggestion repaint (no highlight strip or pill strip→reapply).
+        @MainActor
+        func repaintReferenceSuggestionsOnly(on textView: UITextView) {
+            ReferenceSuggestionPainter.applySuggestions(
+                storage: textView.textStorage,
+                isDark: studyHighlightsAssumeDarkAppearance
+            )
+        }
+
+        private func scheduleDebouncedReferenceSuggestionRepaint(
+            textView: UITextView,
+            bindingGeneration: UInt64
+        ) {
+            referenceSuggestionDebounceTask?.cancel()
+            referenceSuggestionDebounceTask = Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(400))
+                guard !Task.isCancelled else { return }
+                guard bindingGeneration == self.noteBindingGeneration else { return }
+                guard textView === self.textView, textView.textColor != .tertiaryLabel else { return }
+                self.repaintReferenceSuggestionsOnly(on: textView)
             }
         }
 
@@ -3990,7 +4254,8 @@ struct HarvousEditor: UIViewRepresentable {
                     reference: item.displayRef,
                     translation: item.translation,
                     theme: scriptureTheme,
-                    accent: pillAccentResolver?(item.displayRef)
+                    accent: pillAccentResolver?(item.displayRef),
+                    backingScale: harvousEditorBackingScale(for: textView)
                 )
                 let pillStr = NSMutableAttributedString(attachment: pill)
                 let pillBodyFont = HarvousFonts.noteComposeBodyPlatformFont()

@@ -18,9 +18,9 @@ enum HarvousEmptyStateMetrics {
             #endif
         case .compact:
             #if os(iOS)
-            return 28
+            return 24
             #else
-            return 32
+            return 28
             #endif
         }
     }
@@ -34,7 +34,7 @@ enum HarvousEmptyStateMetrics {
             return 12
             #endif
         case .compact:
-            return 6
+            return 8
         }
     }
 
@@ -184,9 +184,9 @@ struct HarvousEmptyStateView: View {
             #endif
         case .compact:
             #if os(iOS)
-            HarvousFonts.font(size: 15, weight: 600, design: .default)
+            HarvousFonts.font(size: 18, weight: 600, design: .default)
             #else
-            HarvousFonts.font(size: 15, weight: 580, design: .rounded)
+            HarvousFonts.font(size: 18, weight: 580, design: .rounded)
             #endif
         }
     }
@@ -220,6 +220,27 @@ struct HarvousEmptyStateView: View {
             AnyShapeStyle(.secondary)
         }
     }
+
+    /// Sidebar search/filter no-match — magnifying glass + title only.
+    static func searchNoMatch(title: String) -> HarvousEmptyStateView {
+        HarvousEmptyStateView(
+            iconAsset: "Harvous.MagnifyingGlass",
+            title: title,
+            scale: .compact
+        )
+    }
+}
+
+/// Sidebar search/filter no-match copy — keep aligned with web `SIDEBAR_NO_MATCH_COPY`.
+enum SidebarNoMatchCopy {
+    static let noResultsInSpace = "Nothing found here"
+    static let noMatchesInView = "Nothing in this view"
+    static let noOtherMatches = "Nothing elsewhere"
+    static let noNotesMatch = "No notes found"
+    static let noFoldersMatch = "No folders found"
+    static let noHighlightsMatch = "No highlights found"
+    static let noScriptureMatch = "No references found"
+    static let noThreadsMatch = "No threads found"
 }
 
 /// Description line with inline shortcut keycaps (Settings → Keyboard shortcuts style).

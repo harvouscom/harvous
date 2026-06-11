@@ -161,6 +161,14 @@ final class StudyThread {
         return loc >= 0
     }
 
+    /// Passage-only reference highlight (scripture dock dotted hint saved — no note-body anchor).
+    var hasPassageReferenceAnchor: Bool {
+        guard entryKind == .reference else { return false }
+        let excerpt = scripturePassageExcerpt?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let ref = scriptureReference?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return !excerpt.isEmpty && !ref.isEmpty
+    }
+
     /// Pure lookup — returns the best range for this highlight against `expandedPlain`, or `nil` if not found right now.
     /// May repair the stored UTF-16 offsets when drift is detected but the snippet is still locatable
     /// (e.g. text was inserted before the anchor). Never clears anchors — transient empty/mismatched
