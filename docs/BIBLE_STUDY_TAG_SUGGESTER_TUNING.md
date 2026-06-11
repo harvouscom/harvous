@@ -84,14 +84,25 @@ This encodes:
 
 ## 8) Secondary folders vs tags
 
+**Cascade (least → most organizing weight):** primary folder → secondary folders → tags. Folder labels are never duplicated as auto-tags; tags only surface keywords that did not become primary or secondary folders.
+
+Assignment order:
+
+1. Score keyword rows from title + body.
+2. **Concept overlap dedupe** — drop lower-scoring rows when concepts overlap (e.g. `Salvation` vs `Redemption` via synonym). Shared pairs live in [`src/utils/bible-study-concept-overlaps.ts`](../src/utils/bible-study-concept-overlaps.ts); keep native `BibleStudyTagSuggester.overlaps()` in sync.
+3. Pick **primary** from the deduped pool.
+4. Pick **secondaries** from the remainder (exclude primary + overlapping concepts).
+5. Pick **tags** from the remainder, excluding primary + secondary labels (and concept overlaps with those labels).
+
 Auto **secondary folders** use the same keyword pool but **stricter gates** than tags:
 
 - Default minimum folder score: `secondaryMinPrimaryScore` (0.78).
+- **Themes** (`spiritual`, `biblical`, `life`, `book`, `theme`): require **title hit** or **≥ 2 body occurrences** in addition to the score floor (native parity; web `isEligibleSecondaryFolder` in `bible-study-collection-web.ts`).
 - **`character` and `place`**: require **title hit** or **≥ 3 occurrences**, otherwise they need **`secondaryCharacterPlaceMinScore`** (0.88). Incidental people/places can still appear in `note.tags` but should not auto-fill secondary folders.
 
 **Folder-only exclusions:** `God`, `Jesus`, and `Holy Spirit` are too broad for auto primary/secondary folder labels (they appear in almost every devotional note). They are filtered out of folder candidate scoring on web (`isAutoFolderExcludedKeyword` in `bible-study-keywords.ts`) and native (`autoFolderExcludedNames` in `BibleStudyTagSuggester`). Tags may still surface Jesus and Holy Spirit; tags already skip God on web.
 
-Web cards mirror this in `src/utils/bible-study-collection-web.ts` (primary over all deduped keywords; secondary eligibility for character/place uses title, rough occurrence count, and the same score floors).
+Web cards mirror this in `src/utils/bible-study-collection-web.ts` (primary over all deduped keywords; secondary eligibility for character/place uses title, rough occurrence count, and the same score floors). Server re-tagging (`server/utils/auto-tag-generator.ts`) receives `excludeLabels` from the note’s stored primary + secondary collections on create/update.
 
 ## Categories and Their Role
 
@@ -217,6 +228,26 @@ Use these levers in order of impact:
 - Keep overlap pairs focused; overuse can erase useful distinctions.
 - Prefer explicit theological/topic phrases for high precision.
 - Keep category strategy stable so library organization feels predictable across edits.
+
+## Synonym precision (life keywords)
+
+**Intent:** Suppress *incidental* church vocabulary (e.g. `relationship with God`, `fellowship hall`), not notes that are clearly about marriage or friendship. On-topic prose still surfaces **Marriage** / **Friendship** via direct keyword names (`marriage`, `wedding`, `spouse`, `friendship`, `companionship`) and vetted synonyms (`fellowship`, `friendships` — with phrase guards for building names only).
+
+Single-word life synonyms are high-risk in testimony and devotional notes. Prefer multi-word needles (`restore relationship`, `relational conflict`) over bare tokens that double as spiritual language (`relationship` on Marriage was removed for this reason).
+
+**Scoring:** Synonym-only hits score at **80% of base** confidence (`base × 0.8`). Direct keyword-name hits keep full base. Web implements this in `findKeywordsInTextWithPriority` (`confidence` starts at `0`, not `keyword.confidence`).
+
+**Phrase context gates:** When a broad synonym must stay, add a guard in [`src/utils/life-keyword-context.ts`](../src/utils/life-keyword-context.ts) (web) and native `LifeKeywordContextGate.swift` instead of relying on threshold alone. Current patterns:
+
+- Skip **Marriage / Relationships / Reconciliation** when `relationship` appears inside `relationship with God|Christ|Jesus|the Lord|Lord`.
+- Skip **Friendship** when `fellowship` appears inside `fellowship hall` or `church fellowship`.
+
+**When to remove vs gate:** Remove the synonym if it is almost never the intended topic (e.g. `relationship` on Marriage — use the separate **Relationships** row with phrase synonyms). Add a context gate when the word is valid in some prose but commonly incidental in church vocabulary.
+
+**Regression fixtures** (`src/utils/__tests__/bible-study-tag-testimony.test.ts`, native `BibleStudyTagSuggesterFolderTests`):
+
+- **Incidental (Lutheran testimony):** Marriage and Friendship must not appear; John / Salvation / Communion may.
+- **On-topic:** Wedding/spouse prose → primary **Marriage**; friendship/companionship/fellowship prose → primary **Friendship**; `fellowship hall` alone → no Friendship.
 
 ## Debugging Checklist
 

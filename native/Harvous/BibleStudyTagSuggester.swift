@@ -31,7 +31,12 @@ enum BibleStudyTagSuggester {
         } else {
             secondaries = []
         }
-        return (primary, secondaries, analysis.tags)
+        let filteredTags = tagsExcludingFolderMembership(
+            analysis.tags,
+            primaryLabel: secondaryPrimary,
+            secondaryLabels: secondaries
+        )
+        return (primary, secondaries, filteredTags)
     }
 
     /// Recomputes `primaryFolder`, `secondaryFolders`, and `tags` from the note’s title and body.
@@ -43,9 +48,6 @@ enum BibleStudyTagSuggester {
     /// **Manual membership** (`isFolderUserOverride` without pin) freezes both until the user uses auto suggestion again.
     static func applyToNote(_ note: Note, allowPrimaryUpdate: Bool = true, existingFolders: [String] = []) {
         let analysis = analyze(title: note.title, body: note.body)
-        if note.tags != analysis.tags {
-            note.tags = analysis.tags.uniquedPreservingOrderCaseInsensitive()
-        }
 
         // Manual tweaks without lock: preserve primary + secondaries from automation.
         if note.isFolderUserOverride && !note.isFolderPinned {
@@ -57,6 +59,11 @@ enum BibleStudyTagSuggester {
             applyPrimaryMutation(note: note, analysis: analysis, existingFolders: existingFolders)
         }
         refreshAutoSecondaries(note: note, analysis: analysis, existingFolders: existingFolders)
+
+        let tags = tagsExcludingFolderMembership(analysis.tags, note: note)
+        if note.tags != tags {
+            note.tags = tags.uniquedPreservingOrderCaseInsensitive()
+        }
     }
 
     private static func applyPrimaryMutation(note: Note, analysis: Analysis, existingFolders: [String]) {
@@ -142,7 +149,9 @@ enum BibleStudyTagSuggester {
             let resolved = resolveToExistingFolder(s.name, from: existingFolders)
             guard let label = normalizedFolderName(resolved) else { continue }
             if label.caseInsensitiveCompare(primaryLabel) == .orderedSame { continue }
+            if overlaps(label, primaryLabel) { continue }
             if out.contains(where: { $0.caseInsensitiveCompare(label) == .orderedSame }) { continue }
+            if out.contains(where: { overlaps($0, label) }) { continue }
             if !isEligibleSecondaryFolder(s) { continue }
             out.append(label)
         }
@@ -573,7 +582,7 @@ enum BibleStudyTagSuggester {
         a("Family", .life, 0.7, ["relatives", "household"])
         a("Marriage", .life, 0.7, ["wedding", "spouse"])
         a("Parenting", .life, 0.7, ["childrearing", "raising children"])
-        a("Friendship", .life, 0.7, ["companionship", "fellowship"])
+        a("Friendship", .life, 0.7, ["companionship", "fellowship", "friendships"])
         a("Work", .life, 0.7, ["labor", "vocation", "employment"])
         a("Money", .life, 0.7, ["finances", "wealth"])
         a("Suffering", .life, 0.7, ["trial", "hardship", "pain"])
@@ -671,6 +680,7 @@ enum BibleStudyTagSuggester {
         var inTitle = false
         var frequency = 0
         let usePersonGate = row.category == .character
+        let useLifeContextGate = row.category == .life
 
         for piece in [nameLower] + row.synonyms.map({ $0.lowercased() }) {
             let trimmedPiece = piece.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -681,6 +691,9 @@ enum BibleStudyTagSuggester {
             if usePersonGate {
                 titleHits = countPersonAwareNeedleMatches(trimmedPiece, in: title)
                 contentHits = countPersonAwareNeedleMatches(trimmedPiece, in: body)
+            } else if useLifeContextGate {
+                titleHits = countLifeKeywordNeedleMatches(trimmedPiece, keywordName: row.name, in: titleLower)
+                contentHits = countLifeKeywordNeedleMatches(trimmedPiece, keywordName: row.name, in: contentLower)
             } else {
                 titleHits = countBoundedNeedleMatches(trimmedPiece, in: titleLower)
                 contentHits = countBoundedNeedleMatches(trimmedPiece, in: contentLower)
@@ -706,6 +719,25 @@ enum BibleStudyTagSuggester {
             occurrences: max(1, frequency),
             inTitle: inTitle
         )
+    }
+
+    /// Life-category needles with phrase-context guards (aligned with `life-keyword-context.ts`).
+    private static func countLifeKeywordNeedleMatches(_ needleLower: String, keywordName: String, in textLower: String) -> Int {
+        let words = needleLower.split(separator: " ").filter { !$0.isEmpty }.map(String.init)
+        guard !words.isEmpty else { return 0 }
+        let escaped = words.map { NSRegularExpression.escapedPattern(for: $0) }.joined(separator: "\\s+")
+        let pattern = words.count == 1 ? "\\b\(escaped)\\b" : "\\b(?:\(escaped))\\b"
+        guard let re = try? NSRegularExpression(pattern: pattern, options: .caseInsensitive) else { return 0 }
+        var count = 0
+        let n = (textLower as NSString).length
+        re.enumerateMatches(in: textLower, options: [], range: NSRange(location: 0, length: n)) { match, _, _ in
+            guard let match else { return }
+            if LifeKeywordContextGate.shouldSkip(keywordName: keywordName, needle: needleLower, in: textLower, matchRange: match.range) {
+                return
+            }
+            count += 1
+        }
+        return count
     }
 
     /// Whole-word for a single token; phrase-boundary regex for multi-word needles (aligned with `bible-study-keywords.ts`).
@@ -782,7 +814,38 @@ enum BibleStudyTagSuggester {
         return countPersonAwareSingleWordOccurrences(of: book, in: originalText) > 0
     }
 
-    // MARK: - Overlap (subset of server `isTagOverlapping`)
+    private static func tagsExcludingFolderMembership(
+        _ tags: [String],
+        note: Note
+    ) -> [String] {
+        tagsExcludingFolderMembership(
+            tags,
+            primaryLabel: note.primaryFolder,
+            secondaryLabels: note.normalizedSecondaryFolderLabels()
+        )
+    }
+
+    private static func tagsExcludingFolderMembership(
+        _ tags: [String],
+        primaryLabel: String?,
+        secondaryLabels: [String]
+    ) -> [String] {
+        var folderLabels: [String] = []
+        if let primary = normalizedFolderName(primaryLabel) {
+            folderLabels.append(primary)
+        }
+        for s in secondaryLabels {
+            guard let label = normalizedFolderName(s) else { continue }
+            if folderLabels.contains(where: { $0.caseInsensitiveCompare(label) == .orderedSame }) { continue }
+            folderLabels.append(label)
+        }
+        guard !folderLabels.isEmpty else { return tags }
+        return tags.filter { tag in
+            !folderLabels.contains(where: { overlaps(tag, $0) })
+        }
+    }
+
+    // MARK: - Overlap (keep in sync with `src/utils/bible-study-concept-overlaps.ts`)
 
     private static func overlaps(_ a: String, _ b: String) -> Bool {
         let x = a.lowercased()

@@ -2,6 +2,7 @@
 // Organized by categories for better tag management
 
 import { buildKeywordTrie, findWordBoundMatches } from './keyword-trie';
+import { countLifeKeywordNeedleInLowerText } from './life-keyword-context';
 
 export interface BibleStudyKeyword {
   name: string;
@@ -211,9 +212,10 @@ export const BIBLE_STUDY_KEYWORDS: BibleStudyKeyword[] = [
 
   // Life Themes
   { name: 'Family', category: 'life', synonyms: ['relatives', 'household'], confidence: 0.7 },
-  { name: 'Marriage', category: 'life', synonyms: ['wedding', 'union', 'relationship'], confidence: 0.7 },
+  { name: 'Marriage', category: 'life', synonyms: ['wedding', 'spouse'], confidence: 0.7 },
   { name: 'Parenting', category: 'life', synonyms: ['childrearing', 'raising children'], confidence: 0.7 },
-  { name: 'Friendship', category: 'life', synonyms: ['companionship', 'fellowship'], confidence: 0.7 },
+  { name: 'Friendship', category: 'life', synonyms: ['companionship', 'fellowship', 'friendships'], confidence: 0.7 },
+  { name: 'Relationships', category: 'life', synonyms: ['relational conflict', 'restore relationship', 'community'], confidence: 0.7 },
   { name: 'Work', category: 'life', synonyms: ['labor', 'employment', 'vocation'], confidence: 0.7 },
   { name: 'Money', category: 'life', synonyms: ['finances', 'wealth', 'prosperity'], confidence: 0.7 },
   { name: 'Health', category: 'life', synonyms: ['wellness', 'healing'], confidence: 0.7 },
@@ -258,6 +260,13 @@ function keywordNeedleOccursInLowerText(textLower: string, needleRaw: string): n
   return Array.from(matches).length;
 }
 
+function keywordNeedleCountForRow(textLower: string, needleRaw: string, keyword: BibleStudyKeyword): number {
+  if (keyword.category === 'life') {
+    return countLifeKeywordNeedleInLowerText(textLower, needleRaw, keyword.name);
+  }
+  return keywordNeedleOccursInLowerText(textLower, needleRaw);
+}
+
 // Helper function to find keywords in text
 export function findKeywordsInText(text: string): Array<{ keyword: BibleStudyKeyword; confidence: number }> {
   const foundKeywords: Array<{ keyword: BibleStudyKeyword; confidence: number }> = [];
@@ -279,13 +288,13 @@ export function findKeywordsInText(text: string): Array<{ keyword: BibleStudyKey
   for (const keyword of BIBLE_STUDY_KEYWORDS) {
     if (keyword.category === 'book' || keyword.category === 'character') continue;
     let found = false;
-    let confidence = keyword.confidence;
-    if (keywordNeedleOccursInLowerText(textLower, keyword.name) > 0) {
+    let confidence = 0;
+    if (keywordNeedleCountForRow(textLower, keyword.name, keyword) > 0) {
       found = true;
       confidence = keyword.confidence;
     }
     for (const synonym of keyword.synonyms) {
-      if (keywordNeedleOccursInLowerText(textLower, synonym) > 0) {
+      if (keywordNeedleCountForRow(textLower, synonym, keyword) > 0) {
         found = true;
         confidence = Math.max(confidence, keyword.confidence * 0.8);
       }
@@ -322,18 +331,18 @@ export function findKeywordsInTextWithPriority(
   for (const keyword of BIBLE_STUDY_KEYWORDS) {
     if (keyword.category === 'book' || keyword.category === 'character') continue;
     let found = false;
-    let confidence = keyword.confidence;
+    let confidence = 0;
     let foundInTitle = false;
     let foundInContent = false;
     let frequency = 0;
-    const tn = keywordNeedleOccursInLowerText(titleLower ?? '', keyword.name);
+    const tn = keywordNeedleCountForRow(titleLower ?? '', keyword.name, keyword);
     if (tn > 0) {
       foundInTitle = true;
       found = true;
       confidence = keyword.confidence;
       frequency += tn;
     }
-    const cn = keywordNeedleOccursInLowerText(contentLower ?? '', keyword.name);
+    const cn = keywordNeedleCountForRow(contentLower ?? '', keyword.name, keyword);
     if (cn > 0) {
       foundInContent = true;
       found = true;
@@ -341,14 +350,14 @@ export function findKeywordsInTextWithPriority(
       frequency += cn;
     }
     for (const synonym of keyword.synonyms) {
-      const st = keywordNeedleOccursInLowerText(titleLower ?? '', synonym);
+      const st = keywordNeedleCountForRow(titleLower ?? '', synonym, keyword);
       if (st > 0) {
         foundInTitle = true;
         found = true;
         confidence = Math.max(confidence, keyword.confidence * 0.8);
         frequency += st;
       }
-      const sc = keywordNeedleOccursInLowerText(contentLower ?? '', synonym);
+      const sc = keywordNeedleCountForRow(contentLower ?? '', synonym, keyword);
       if (sc > 0) {
         foundInContent = true;
         found = true;

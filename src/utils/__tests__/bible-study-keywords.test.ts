@@ -84,6 +84,25 @@ describe('auto folder exclusions (God / Jesus / Holy Spirit)', () => {
   });
 });
 
+describe('synonym-only confidence', () => {
+  it('scores synonym-only spiritual keyword hits at 80% of base, not full base', () => {
+    const body = 'We trust in the Lord for guidance each morning.';
+    const rows = findKeywordsInTextWithPriority(body, '', body);
+    const faith = rows.find((r) => r.keyword.name === 'Faith');
+    expect(faith).toBeDefined();
+    expect(faith!.confidence).toBeLessThan(0.8);
+    expect(faith!.confidence).toBeCloseTo(0.64, 2);
+  });
+
+  it('scores direct name match at full base confidence', () => {
+    const body = 'We studied communion and the Lord\'s supper today.';
+    const rows = findKeywordsInTextWithPriority(body, '', body);
+    const communion = rows.find((r) => r.keyword.name === 'Communion');
+    expect(communion).toBeDefined();
+    expect(communion!.confidence).toBeGreaterThanOrEqual(0.8);
+  });
+});
+
 describe('person-name context (folder/tag keywords)', () => {
   it('findKeywordsInTextWithPriority skips Luke in honorific person context', () => {
     const title = 'Notes';
