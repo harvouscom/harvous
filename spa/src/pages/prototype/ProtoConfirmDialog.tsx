@@ -1,14 +1,18 @@
-import { useEffect, useId, useRef } from 'react';
+import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import Icon, { type IconName } from '@/components/react/Icon';
+import DeleteConfirmBar from '@/components/react/DeleteConfirmBar';
+import ProtoPopoverShell from './ProtoPopoverShell';
+import { computeAnchoredPopoverPosition } from './proto-popover-position';
+
+const CARD_MIN_WIDTH = 200;
+const CARD_MAX_WIDTH = 320;
+const CARD_MIN_HEIGHT = 44;
+const Z_INDEX = 6000;
 
 export type ProtoConfirmDialogProps = {
-  /** Primary title — matches native `confirmationDialog` title. */
+  /** Trigger element rect — from `getBoundingClientRect()` on the delete control. */
+  anchorRect: DOMRect;
   title: string;
-  /** Optional body copy (native `message:`). */
-  message?: string;
-  /** Optional leading icon; pass `null` to hide. Defaults to warning circle for destructive confirms. */
-  icon?: IconName | null;
   confirmLabel?: string;
   cancelLabel?: string;
   busy?: boolean;
@@ -17,87 +21,78 @@ export type ProtoConfirmDialogProps = {
 };
 
 /**
- * Centered destructive confirmation — native `confirmationDialog` parity for prototype.
- * Portaled above shell chrome; Escape and scrim tap cancel.
+ * Anchored destructive confirmation — single-row delete bar parity for prototype.
+ * Portaled near the trigger; Escape and outside click cancel.
  */
 export default function ProtoConfirmDialog({
+  anchorRect,
   title,
-  message,
-  icon = 'circle-exclamation',
   confirmLabel = 'Delete',
-  cancelLabel = 'Cancel',
+  cancelLabel = 'Keep',
   busy = false,
   onConfirm,
   onCancel,
 }: ProtoConfirmDialogProps) {
   const titleId = useId();
-  const messageId = useId();
-  const cancelRef = useRef<HTMLButtonElement>(null);
+  const cardRef = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
+
+  useLayoutEffect(() => {
+    const el = cardRef.current;
+    if (!el) return;
+    const { width, height } = el.getBoundingClientRect();
+    setPos(computeAnchoredPopoverPosition(anchorRect, width || CARD_MIN_WIDTH, height || CARD_MIN_HEIGHT));
+  }, [anchorRect, title]);
 
   useEffect(() => {
-    cancelRef.current?.focus();
-  }, []);
-
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
+    function onPointerDown(e: PointerEvent) {
+      if (!cardRef.current) return;
+      const target = e.target as Node | null;
+      if (target && !cardRef.current.contains(target)) {
+        if (!busy) onCancel();
+      }
+    }
+    function onKeyDown(e: KeyboardEvent) {
       if (e.key === 'Escape' && !busy) onCancel();
+    }
+    window.addEventListener('pointerdown', onPointerDown, { capture: true });
+    window.addEventListener('keydown', onKeyDown);
+    return () => {
+      window.removeEventListener('pointerdown', onPointerDown, true);
+      window.removeEventListener('keydown', onKeyDown);
     };
-    document.addEventListener('keydown', onKey);
-    return () => document.removeEventListener('keydown', onKey);
   }, [busy, onCancel]);
 
   if (typeof document === 'undefined') return null;
 
   return createPortal(
-    <div
-      className="proto-confirm-dialog-overlay"
-      role="presentation"
-      onClick={() => {
-        if (!busy) onCancel();
+    <ProtoPopoverShell
+      ref={cardRef}
+      role="dialog"
+      aria-modal="false"
+      aria-labelledby={titleId}
+      className="harvous-delete-confirm floating-picker-enter"
+      style={{
+        position: 'fixed',
+        top: pos?.top ?? -9999,
+        left: pos?.left ?? -9999,
+        minWidth: CARD_MIN_WIDTH,
+        maxWidth: CARD_MAX_WIDTH,
+        zIndex: Z_INDEX,
+        pointerEvents: 'auto',
       }}
+      onMouseDown={(e) => e.preventDefault()}
     >
-      <div
-        className="proto-confirm-dialog"
-        role="alertdialog"
-        aria-modal="true"
-        aria-labelledby={titleId}
-        aria-describedby={message ? messageId : undefined}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="proto-confirm-dialog__content">
-          {icon ? (
-            <Icon name={icon} size={40} className="proto-confirm-dialog__icon" aria-hidden />
-          ) : null}
-          <h2 id={titleId} className="proto-confirm-dialog__title">
-            {title}
-          </h2>
-          {message ? (
-            <p id={messageId} className="proto-confirm-dialog__message">
-              {message}
-            </p>
-          ) : null}
-        </div>
-        <div className="proto-confirm-dialog__actions">
-          <button
-            ref={cancelRef}
-            type="button"
-            className="proto-confirm-dialog__btn proto-confirm-dialog__btn--cancel"
-            disabled={busy}
-            onClick={onCancel}
-          >
-            {cancelLabel}
-          </button>
-          <button
-            type="button"
-            className="proto-confirm-dialog__btn proto-confirm-dialog__btn--destructive"
-            disabled={busy}
-            onClick={onConfirm}
-          >
-            {busy ? 'Deleting…' : confirmLabel}
-          </button>
-        </div>
-      </div>
-    </div>,
+      <DeleteConfirmBar
+        titleId={titleId}
+        title={title}
+        confirmLabel={confirmLabel}
+        cancelLabel={cancelLabel}
+        busy={busy}
+        onConfirm={onConfirm}
+        onCancel={onCancel}
+      />
+    </ProtoPopoverShell>,
     document.body,
   );
 }

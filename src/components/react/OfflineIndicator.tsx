@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef, useLayoutEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { offlineDB, ensureDatabaseOpen, retryIndexedDBOperation } from '@/utils/offline-db';
-import { getSyncState, syncNow } from '@/utils/sync-manager';
+import { getSyncState, retryStuckQueue } from '@/utils/sync-manager';
 import { usePersistedUserId } from '@/utils/user-id';
 import { formatBadgeCount } from '@/utils/badge-count';
 import {
@@ -173,7 +173,7 @@ export default function OfflineIndicator({ userId: propUserId }: { userId?: stri
 
     setIsRetrying(true);
     try {
-      const result = await syncNow(userId);
+      const result = await retryStuckQueue(userId);
       if (result.success) {
         setSyncError(null);
         await ensureDatabaseOpen();

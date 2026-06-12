@@ -32,6 +32,7 @@ export default function PrototypeInspectorPane({ note, spaceId = '' }: Prototype
   const [threadsOpen, setThreadsOpen] = useState(false);
   const [threadsAnchorRect, setThreadsAnchorRect] = useState<DOMRect | null>(null);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [deleteAnchorRect, setDeleteAnchorRect] = useState<DOMRect | null>(null);
   const navigate = useNavigate();
   const { closeInspector, closeDrawer, isMobileSidebar } = useProtoShell();
   const deleteNote = useDeleteNote();
@@ -179,7 +180,10 @@ export default function PrototypeInspectorPane({ note, spaceId = '' }: Prototype
             type="button"
             className="proto-inspector-delete-btn"
             disabled={deleteNote.isPending}
-            onClick={() => setDeleteConfirmOpen(true)}
+            onClick={(e) => {
+              setDeleteAnchorRect(e.currentTarget.getBoundingClientRect());
+              setDeleteConfirmOpen(true);
+            }}
           >
             <Icon name="trash-can" size={12} aria-hidden />
             Delete note
@@ -187,15 +191,18 @@ export default function PrototypeInspectorPane({ note, spaceId = '' }: Prototype
         </div>
       ) : null}
 
-      {deleteConfirmOpen ? (
+      {deleteConfirmOpen && deleteAnchorRect ? (
         <ProtoConfirmDialog
-          title="Delete this note"
-          message="This cannot be undone."
+          anchorRect={deleteAnchorRect}
+          title="Delete this note?"
           confirmLabel="Delete"
           busy={deleteNote.isPending}
           onConfirm={onDeleteConfirm}
           onCancel={() => {
-            if (!deleteNote.isPending) setDeleteConfirmOpen(false);
+            if (!deleteNote.isPending) {
+              setDeleteConfirmOpen(false);
+              setDeleteAnchorRect(null);
+            }
           }}
         />
       ) : null}

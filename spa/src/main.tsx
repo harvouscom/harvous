@@ -62,6 +62,7 @@ import '../../node_modules/vaul/style.css';
 import '../../src/styles/global.css';
 /* After global.css so Clerk Manage account modal beats late `button` typography rules. */
 import '../../src/styles/clerk-user-profile.css';
+import '../../src/styles/delete-confirm-bar.css';
 import '../../src/styles/tiptap-editor.css';
 import '../../src/styles/card-full-editable.css';
 import '../../src/styles/auth-gradient.css';

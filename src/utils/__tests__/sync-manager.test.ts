@@ -3,6 +3,7 @@ import {
   bootstrapSync,
   pullChanges,
   pushQueue,
+  retryStuckQueue,
   syncNow,
   needsBootstrap,
   classifySyncError,
@@ -421,6 +422,94 @@ describe('sync-manager', () => {
       expect(queueItems).toHaveLength(1);
       // Note: retry count may not increment in this test scenario
       // expect(queueItems[0].retryCount).toBeGreaterThan(0);
+    });
+  });
+
+  describe('retryStuckQueue', () => {
+    it('should fail when offline', async () => {
+      Object.defineProperty(navigator, 'onLine', {
+        writable: true,
+        value: false,
+      });
+
+      const result = await retryStuckQueue(testUserId);
+      expect(result.success).toBe(false);
+      expect(result.error).toBe('Offline');
+
+      Object.defineProperty(navigator, 'onLine', {
+        writable: true,
+        value: true,
+      });
+    });
+
+    it('should reset stuck items and push on prototype routes', async () => {
+      window.history.pushState({}, '', '/prototype');
+
+      const opId = await offlineDB.syncQueue.add({
+        userId: testUserId,
+        operation: 'create',
+        entityType: 'note',
+        entityId: 'local-note-stuck',
+        data: {
+          title: 'Stuck Note',
+          content: 'Content',
+          threadId: 'thread_unorganized',
+        },
+        timestamp: Date.now(),
+        retryCount: 999,
+        lastError: '[validation] Content too long',
+      });
+
+      const mockResponse = {
+        results: [
+          {
+            success: true,
+            operationId: opId,
+            serverId: 'server-note-stuck',
+          },
+        ],
+      };
+
+      (global.fetch as any).mockResolvedValueOnce(createMockResponse(mockResponse));
+
+      const result = await retryStuckQueue(testUserId);
+      expect(result.success).toBe(true);
+      expect(result.pushedCount).toBe(1);
+      expect(global.fetch).toHaveBeenCalledWith(
+        '/api/sync/push',
+        expect.objectContaining({ method: 'POST' }),
+      );
+
+      const queueItems = await offlineDB.syncQueue.where('userId').equals(testUserId).toArray();
+      expect(queueItems).toHaveLength(0);
+
+      window.history.pushState({}, '', '/');
+    });
+
+    it('should keep reset retry counts when push request fails', async () => {
+      window.history.pushState({}, '', '/prototype');
+
+      await offlineDB.syncQueue.add({
+        userId: testUserId,
+        operation: 'create',
+        entityType: 'note',
+        entityId: 'local-note-stuck-2',
+        data: { title: 'Stuck Note', content: 'Content' },
+        timestamp: Date.now(),
+        retryCount: 999,
+        lastError: '[validation] Content too long',
+      });
+
+      (global.fetch as any).mockResolvedValueOnce(createMockResponse('Server error', false, 500));
+
+      const result = await retryStuckQueue(testUserId);
+      expect(result.success).toBe(false);
+
+      const queueItems = await offlineDB.syncQueue.where('userId').equals(testUserId).toArray();
+      expect(queueItems).toHaveLength(1);
+      expect(queueItems[0].retryCount).toBe(0);
+
+      window.history.pushState({}, '', '/');
     });
   });
 

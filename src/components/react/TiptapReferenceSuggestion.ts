@@ -309,6 +309,7 @@ function wrapPassageRangeWithMark(
     mark.setAttribute('data-reference', referenceWord);
     mark.setAttribute('data-color', accent);
     mark.setAttribute('data-study-thread-id', paint.id);
+    mark.setAttribute('data-entry-kind', paint.entryKind || 'reference');
     mark.textContent = originalText.slice(localStart, localEnd);
     fragment.appendChild(mark);
     if (localEnd < originalText.length) {

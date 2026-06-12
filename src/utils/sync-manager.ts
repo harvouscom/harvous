@@ -21,6 +21,7 @@ import { THREAD_COLORS } from './colors';
 import { safeFetch } from './safe-fetch';
 import { extractIdFromPath, idToUrl } from './url-helpers';
 import { dispatchRemoteSyncCompleted } from './harvous-remote-sync-event';
+import { isPrototypeShellPath } from '@/lib/prototype-path';
 
 export interface SyncResult {
   success: boolean;
@@ -1287,6 +1288,89 @@ async function removeEntityLocally(entityType: string, entityId: string, userId:
 }
 
 /**
+ * Re-queue stuck mutations (retryCount >= 5) and flush. Mirrors native retryStuckNotes:
+ * reset exhausted/permanent failures so pushQueue will pick them up again.
+ */
+/**
+ * Remove stuck or bloated sync-queue rows for one user. Server notes are untouched.
+ * @param entireQueue When true, deletes every queued op (use for unhealthy/bloated queues).
+ */
+export async function clearStuckSyncQueue(
+  userId: string,
+  opts?: { entireQueue?: boolean },
+): Promise<number> {
+  await ensureDatabaseOpen();
+
+  if (opts?.entireQueue) {
+    const removed = await retryIndexedDBOperation(async () => {
+      const all = await offlineDB.syncQueue.where('userId').equals(userId).toArray();
+      await offlineDB.syncQueue.where('userId').equals(userId).delete();
+      return all.length;
+    });
+    await updateSyncState(userId, { syncError: null });
+    return removed;
+  }
+
+  const stuck = await retryIndexedDBOperation(async () =>
+    offlineDB.syncQueue
+      .where('userId')
+      .equals(userId)
+      .filter((op) => op.retryCount >= 5)
+      .toArray(),
+  );
+
+  for (const op of stuck) {
+    await offlineDB.syncQueue.delete(op.id!);
+  }
+  if (stuck.length > 0) {
+    await updateSyncState(userId, { syncError: null });
+  }
+  return stuck.length;
+}
+
+export async function retryStuckQueue(userId: string): Promise<SyncResult> {
+  if (!navigator.onLine) {
+    return { success: false, error: 'Offline' };
+  }
+
+  try {
+    await ensureDatabaseOpen();
+
+    const stuckOps = await retryIndexedDBOperation(async () =>
+      offlineDB.syncQueue
+        .where('userId')
+        .equals(userId)
+        .filter((op) => op.retryCount >= 5)
+        .toArray(),
+    );
+
+    for (const op of stuckOps) {
+      await offlineDB.syncQueue.update(op.id!, {
+        retryCount: 0,
+        lastError: undefined,
+      });
+    }
+
+    await updateSyncState(userId, { syncError: null });
+
+    const onPrototype =
+      typeof window !== 'undefined' && isPrototypeShellPath(window.location.pathname);
+
+    if (onPrototype) {
+      return pushQueue(userId);
+    }
+
+    return syncNow(userId);
+  } catch (error) {
+    console.error('[Sync] retryStuckQueue error:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : String(error),
+    };
+  }
+}
+
+/**
  * Sync now (pull + push)
  */
 export async function syncNow(userId: string): Promise<SyncResult> {
@@ -1337,10 +1421,17 @@ export async function syncNow(userId: string): Promise<SyncResult> {
     // Push queue
     const pushResult = await pushQueue(userId);
 
-    await updateSyncState(userId, { isSyncing: false });
+    // Reflect the push outcome honestly: a connection-level push failure records a real
+    // syncError (so the UI can surface it), and a clean push clears any stale error. Per-op
+    // failures keep pushResult.success === true and are surfaced via the queue's failed count.
+    await updateSyncState(userId, {
+      isSyncing: false,
+      syncError: pushResult.success ? null : pushResult.error ?? 'Sync failed',
+    });
 
     return {
-      success: true,
+      success: pushResult.success,
+      error: pushResult.error,
       pulledCount: pullResult.pulledCount || 0,
       pushedCount: pushResult.pushedCount || 0,
     };

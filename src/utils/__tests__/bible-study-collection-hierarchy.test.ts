@@ -56,4 +56,38 @@ describe('folder / tag hierarchy — secondary gates', () => {
     const secs = suggestSecondaryCollectionsFromNote(title, body, primary);
     expect(secs.length).toBe(0);
   });
+
+  it('caps auto secondary folders at three', () => {
+    const title = 'The patriarchs';
+    const body =
+      '<p>This is about grace. Grace shows up again and again as grace. ' +
+      'Abraham trusted God; Abraham waited; Abraham believed. ' +
+      'Isaac was the promised son; Isaac grew; Isaac later married. ' +
+      'Jacob wrestled; Jacob fled; Jacob returned home. ' +
+      'Joseph dreamed; Joseph suffered; Joseph forgave them.</p>';
+    const primary = suggestPrimaryCollectionFromNote(title, body);
+    expect(primary).toBe('Grace');
+    const secs = suggestSecondaryCollectionsFromNote(title, body, primary);
+    expect(secs.length).toBe(3);
+  });
+});
+
+describe('folder / tag hierarchy — names and generic terms do not beat the real theme', () => {
+  it('keeps a recurring spiritual theme as primary over incidental book and character mentions', () => {
+    const title = 'Study notes';
+    const body =
+      '<p>This passage is really about grace. Grace meets us where we are, and grace keeps ' +
+      'working in us long after. Paul wrote about it in his letter to the Romans.</p>';
+    const primary = suggestPrimaryCollectionFromNote(title, body);
+    expect(primary).toBe('Grace');
+  });
+
+  it('prefers a recurring specific theme over a single generic-theme mention', () => {
+    const title = 'Notes';
+    const body =
+      '<p>We talked a lot about forgiveness today. Forgiveness is hard, but forgiveness ' +
+      'frees us to move forward. I also felt some joy while we prayed together quietly.</p>';
+    const primary = suggestPrimaryCollectionFromNote(title, body);
+    expect(primary).toBe('Forgiveness');
+  });
 });

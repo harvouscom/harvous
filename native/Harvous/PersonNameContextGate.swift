@@ -20,6 +20,10 @@ enum PersonNameContextGate {
            honorificPrefixes.contains(prior.lowercased()) {
             return true
         }
+        let after = string[wordRange.upperBound...]
+        if after.hasPrefix("'s") || after.hasPrefix("'s") || after.hasPrefix("'") {
+            return false
+        }
         if let next = wordToken(in: string, startingAfter: wordRange.upperBound),
            isCapitalized(next),
            next.count >= surnameMinLength {

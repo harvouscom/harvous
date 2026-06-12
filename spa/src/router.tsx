@@ -227,6 +227,9 @@ function buildPrototypeRouteBranch() {
     validateSearch: (search: Record<string, unknown>) => ({
       studyThread: typeof search.studyThread === 'string' ? search.studyThread : undefined,
       reference: typeof search.reference === 'string' ? search.reference : undefined,
+      scriptureRef: typeof search.scriptureRef === 'string' ? search.scriptureRef : undefined,
+      scriptureTranslation:
+        typeof search.scriptureTranslation === 'string' ? search.scriptureTranslation : undefined,
     }),
   });
 

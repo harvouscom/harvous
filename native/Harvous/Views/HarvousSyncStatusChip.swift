@@ -2,9 +2,9 @@ import SwiftUI
 import SwiftData
 
 /// Single global sync-status pill, mirroring the web prototype's chip. Surfaces the offline /
-/// pending / syncing / failed states from `HarvousSyncService`'s observed counts. Hidden when
-/// everything is synced and online. Mounted once per platform surface (iOS chrome, iPad/Mac
-/// detail chrome). The per-note `syncErrorBanner` in NoteInspectorView remains for detail.
+/// saving / failed states from `HarvousSyncService`'s observed counts. Hidden when everything
+/// is synced and online. Mounted once per platform surface (iOS chrome, iPad/Mac detail chrome).
+/// The per-note `syncErrorBanner` in NoteInspectorView remains for detail.
 struct HarvousSyncStatusChip: View {
     @Environment(\.modelContext) private var modelContext
     private let service = HarvousSyncService.shared
@@ -14,15 +14,14 @@ struct HarvousSyncStatusChip: View {
 
     @State private var isRetrying = false
 
-    private enum Variant { case offline, pending, syncing, failed }
+    private enum Variant { case offline, syncing, failed }
 
     private var isSyncing: Bool { service.isFlushing || service.isPulling || service.isIngesting }
 
     private var variant: Variant? {
         if service.stuckNotes > 0 { return .failed }
-        if isSyncing && (service.pendingLocalChanges > 0 || service.isOffline) { return .syncing }
+        if isSyncing || service.pendingLocalChanges > 0 { return .syncing }
         if service.isOffline { return .offline }
-        if service.pendingLocalChanges > 0 { return .pending }
         return nil
     }
 
@@ -85,8 +84,6 @@ struct HarvousSyncStatusChip: View {
         switch variant {
         case .offline:
             HarvousFAGlyph(assetName: "Harvous.Globe", edgePt: 12).foregroundStyle(.secondary)
-        case .pending:
-            HarvousFAGlyph(assetName: "Harvous.CircleUp", edgePt: 12).foregroundStyle(.secondary)
         case .syncing:
             ProgressView().controlSize(.mini)
         case .failed:
@@ -95,17 +92,15 @@ struct HarvousSyncStatusChip: View {
     }
 
     private func label(for variant: Variant) -> String {
-        let n = service.pendingLocalChanges
         switch variant {
         case .offline:
-            return n > 0 ? "Offline · \(n) pending" : "Offline"
-        case .pending:
-            return "\(n) pending"
+            return service.pendingLocalChanges > 0
+                ? "You're offline — saved on this device"
+                : "You're offline"
         case .syncing:
-            return n > 0 ? "Syncing \(n)…" : "Syncing…"
+            return "Saving…"
         case .failed:
-            let s = service.stuckNotes
-            return "\(s) change\(s == 1 ? "" : "s") didn’t sync"
+            return "Couldn't save to the cloud"
         }
     }
 }

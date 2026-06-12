@@ -212,7 +212,11 @@ function PrototypeAuthenticatedChrome({ userId }: { userId?: string }) {
     if (!vv) return undefined;
     const mq = window.matchMedia('(max-width: 899px)');
     const root = document.documentElement;
-    let settleTimer: ReturnType<typeof setTimeout> | undefined;
+    let settleTimers: ReturnType<typeof setTimeout>[] = [];
+    const clearSettleTimers = () => {
+      settleTimers.forEach((t) => clearTimeout(t));
+      settleTimers = [];
+    };
 
     const pinPageScroll = () => {
       if (window.scrollY !== 0 || vv.offsetTop !== 0) {
@@ -241,6 +245,7 @@ function PrototypeAuthenticatedChrome({ userId }: { userId?: string }) {
         .forEach((frame) => {
           frame.style.removeProperty('height');
           frame.style.removeProperty('max-height');
+          frame.style.removeProperty('margin-top');
         });
     };
 
@@ -270,13 +275,16 @@ function PrototypeAuthenticatedChrome({ userId }: { userId?: string }) {
         const visibleHeight = Math.round(effectiveHeight);
         const frameInset =
           parseFloat(getComputedStyle(root).getPropertyValue('--pds-shell-frame-inset')) || 8;
-        // Anchor the frame at its normal top inset (page scroll is locked to the top, so the
-        // visual viewport top aligns with the layout top) and only shrink height from the
-        // bottom. Using vv.offsetTop here pushes the frame down by a stale keyboard-animation
-        // value, leaving an empty gap above the toolbar header.
-        // Subtract only the top inset (not bottom): the frame's bottom edge then reaches the
-        // visual viewport bottom so the in-flow format bar hugs the keyboard / Safari address
-        // pill instead of floating well above it.
+        // Anchor the frame to the *visual* viewport, not the layout top. The frame is normal
+        // flow rooted at the layout top, but iOS can pan the visual viewport (vv.offsetTop > 0)
+        // to reveal the caret even while document scroll is locked — leaving a white strip
+        // below the in-flow format bar. Push the frame's top down by offsetTop so its top still
+        // sits `frameInset` below the visual top AND its bottom reaches the visual bottom (= top
+        // of the keyboard). Height stays `visibleHeight - frameInset`, so growing margin-top does
+        // not clip the header. A stale offsetTop mid-animation could over-push (gap above the top
+        // toolbar), so apply() is re-run across the keyboard/Safari-bar settle window below; the
+        // committed value uses the settled offsetTop.
+        const offsetTop = Math.max(0, Math.round(vv.offsetTop));
         const frameHeight = Math.max(120, visibleHeight - frameInset);
         root.style.setProperty('--proto-visible-viewport-height', `${frameHeight}px`);
         root.setAttribute('data-proto-keyboard-open', '');
@@ -284,6 +292,7 @@ function PrototypeAuthenticatedChrome({ userId }: { userId?: string }) {
         document.querySelectorAll<HTMLElement>('.proto-shell-frame').forEach((frame) => {
           frame.style.height = `${frameHeight}px`;
           frame.style.maxHeight = `${frameHeight}px`;
+          frame.style.marginTop = `${frameInset + offsetTop}px`;
         });
       } else {
         clearKeyboardState();
@@ -298,25 +307,30 @@ function PrototypeAuthenticatedChrome({ userId }: { userId?: string }) {
         pinPageScroll();
       }
     };
-    // visualViewport resize/scroll is the primary signal; focus just nudges a re-apply
-    // (rAF now + one settle after the iOS keyboard animation) instead of a timer cascade.
+    // visualViewport resize/scroll is the primary signal; focus nudges a re-apply across the
+    // settle window. iOS finishes the keyboard animation AND collapses the Safari bottom bar
+    // (which grows vv.height) over a few hundred ms — without re-applying past that, the frame
+    // stays sized to the pre-collapse height and leaves a white strip below the format bar.
     const scheduleSettle = () => {
       requestAnimationFrame(apply);
-      if (settleTimer) clearTimeout(settleTimer);
-      settleTimer = setTimeout(apply, 250);
+      clearSettleTimers();
+      settleTimers = [setTimeout(apply, 150), setTimeout(apply, 450)];
     };
     vv.addEventListener('resize', onViewportChange);
     vv.addEventListener('scroll', onViewportChange);
-    window.addEventListener('resize', updateDockMaxHeight);
+    // Layout-viewport resize also shifts vv.height (Safari bottom-bar collapse, rotation) and
+    // does not always emit a vv resize — route it through apply() so the frame re-anchors, not
+    // just the dock height. vv 'scroll' already covers visual-viewport offset (offsetTop) changes.
+    window.addEventListener('resize', onViewportChange);
     document.addEventListener('focusin', scheduleSettle);
     document.addEventListener('focusout', scheduleSettle);
 
     return () => {
       cancelAnimationFrame(raf);
-      if (settleTimer) clearTimeout(settleTimer);
+      clearSettleTimers();
       vv.removeEventListener('resize', onViewportChange);
       vv.removeEventListener('scroll', onViewportChange);
-      window.removeEventListener('resize', updateDockMaxHeight);
+      window.removeEventListener('resize', onViewportChange);
       document.removeEventListener('focusin', scheduleSettle);
       document.removeEventListener('focusout', scheduleSettle);
       clear();

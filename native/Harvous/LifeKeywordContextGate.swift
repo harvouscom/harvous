@@ -5,8 +5,11 @@ import Foundation
 enum LifeKeywordContextGate {
   private static let spiritualRelationshipPattern =
     #"\brelationship\s+with\s+(?:god|christ|jesus|the\s+lord|lord)\b"#
-  private static let fellowshipHallPattern = #"\bfellowship\s+hall\b"#
-  private static let churchFellowshipPattern = #"\bchurch\s+fellowship\b"#
+    private static let fellowshipHallPattern = #"\bfellowship\s+hall\b"#
+    private static let churchFellowshipPattern = #"\bchurch\s+fellowship\b"#
+    private static let familyChurchAttendancePattern =
+        #"\b(?:my\s+)?family(?:\s+and\s+i)?\s+(?:went|go|goes|attended|attend|used\s+to\s+go)\b[^.]{0,80}\bchurch\b"#
+    private static let familyWentToChurchPattern = #"\bmy\s+family\s+went\s+to\b[^.]{0,60}\bchurch\b"#
 
   static func shouldSkip(keywordName: String, needle: String, in textLower: String, matchRange: NSRange) -> Bool {
     let key = keywordName.lowercased()
@@ -18,13 +21,18 @@ enum LifeKeywordContextGate {
       return true
     }
 
-    if key == "friendship", needleLower == "fellowship" {
-      if range(matchRange, isInsidePattern: fellowshipHallPattern, in: textLower) { return true }
-      if range(matchRange, isInsidePattern: churchFellowshipPattern, in: textLower) { return true }
-    }
+        if key == "friendship", needleLower == "fellowship" {
+            if range(matchRange, isInsidePattern: fellowshipHallPattern, in: textLower) { return true }
+            if range(matchRange, isInsidePattern: churchFellowshipPattern, in: textLower) { return true }
+        }
 
-    return false
-  }
+        if key == "family", needleLower.contains("family") {
+            if range(matchRange, isInsidePattern: familyChurchAttendancePattern, in: textLower) { return true }
+            if range(matchRange, isInsidePattern: familyWentToChurchPattern, in: textLower) { return true }
+        }
+
+        return false
+    }
 
   private static func range(_ matchRange: NSRange, isInsidePattern pattern: String, in textLower: String) -> Bool {
     guard let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) else { return false }

@@ -8,7 +8,12 @@ import {
   dedupeKeywordRowsByConceptOverlap,
   folderLabelsForTagExclusion,
 } from '@/utils/bible-study-concept-overlaps';
+import {
+  isRitualDescriptiveFolderMention,
+  RITUAL_DESCRIPTIVE_FOLDER_SCORE_PENALTY,
+} from '@/utils/folder-keyword-context';
 import { stripHtml } from '@/utils/html-stripper';
+import { countLifeKeywordNeedleInLowerText } from '@/utils/life-keyword-context';
 import {
   findKeywordsInTextWithPriority,
   isAutoFolderExcludedKeyword,
@@ -19,10 +24,11 @@ export { folderLabelsForTagExclusion };
 
 const MIN_BODY_WORDS = 25;
 const SHORT_NOTE_CONFIDENCE_FLOOR = 0.9;
-const AUTO_REPLACE_COOLDOWN_MS = 25_000;
 
 /** When two folder scores are within this band, prefer title hit and category rank. */
 const PRIMARY_SCORE_AMBIGUITY_EPS = 0.04;
+const OPENING_SEGMENT_MAX_WORDS = 120;
+const OPENING_NARRATIVE_FOLDER_BOOST = 0.1;
 
 function normalizeCollectionLabel(value: string | null | undefined): string | null {
   if (!value) return null;
@@ -64,6 +70,42 @@ interface ScRow {
   confidence: number;
 }
 
+/** First paragraph (or first ~120 words) — narrative anchor for testimony-shaped notes. */
+export function extractOpeningSegment(plainTitle: string, plainBody: string): string {
+  const title = (plainTitle || '').trim();
+  const body = (plainBody || '').trim();
+  const firstParagraph = body.split(/\n\s*\n/).filter(Boolean)[0] ?? body;
+  let segment = title ? `${title}\n${firstParagraph}` : firstParagraph;
+  const words = segment.split(/\s+/).filter(Boolean);
+  if (words.length > OPENING_SEGMENT_MAX_WORDS) {
+    segment = words.slice(0, OPENING_SEGMENT_MAX_WORDS).join(' ');
+  }
+  return segment.trim();
+}
+
+function keywordAppearsInText(keyword: BibleStudyKeyword, text: string): boolean {
+  const lower = text.toLowerCase();
+  if (!lower) return false;
+  const needles = [keyword.name, ...keyword.synonyms];
+  const seen = new Set<string>();
+  for (const raw of needles) {
+    const n = raw.trim().toLowerCase();
+    if (!n || seen.has(n)) continue;
+    seen.add(n);
+    if (n.includes(' ') || n.includes('-')) {
+      if (lower.includes(n)) return true;
+    } else {
+      const re = new RegExp(`\\b${escapeRegExp(n)}\\b`, 'i');
+      if (re.test(lower)) return true;
+    }
+  }
+  return false;
+}
+
+function keywordAppearsInOpening(keyword: BibleStudyKeyword, plainTitle: string, plainBody: string): boolean {
+  return keywordAppearsInText(keyword, extractOpeningSegment(plainTitle, plainBody));
+}
+
 function folderPrimaryScore(row: ScRow, plainTitle: string, plainBody: string): number {
   let score = Math.min(1, row.confidence);
   const cat = row.keyword.category;
@@ -74,9 +116,19 @@ function folderPrimaryScore(row: ScRow, plainTitle: string, plainBody: string): 
     case 'spiritual':
     case 'biblical':
     case 'life':
-    case 'theme':
-      score += 0.08;
+    case 'theme': {
+      // Corroboration ladder: a single incidental mention of a broad/generic theme should not
+      // outrank a recurring, note-defining topic. Recurrence earns the full boost.
+      const occ = countKeywordOccurrences(plainTitle, plainBody, row.keyword);
+      if (occ <= 1) {
+        score += 0.03;
+      } else if (occ >= 3) {
+        score += 0.12;
+      } else {
+        score += 0.08;
+      }
       break;
+    }
     case 'character':
     case 'place': {
       const occ = countKeywordOccurrences(plainTitle, plainBody, row.keyword);
@@ -94,6 +146,12 @@ function folderPrimaryScore(row: ScRow, plainTitle: string, plainBody: string): 
     default:
       break;
   }
+  if (keywordAppearsInOpening(row.keyword, plainTitle, plainBody)) {
+    score = Math.min(1.25, score + OPENING_NARRATIVE_FOLDER_BOOST);
+  }
+  if (isRitualDescriptiveFolderMention(row.keyword, plainTitle, plainBody)) {
+    score -= RITUAL_DESCRIPTIVE_FOLDER_SCORE_PENALTY;
+  }
   return score;
 }
 
@@ -103,7 +161,8 @@ function escapeRegExp(s: string): string {
 
 /** Rough occurrence count for folder eligibility (name + synonyms; word-bound for single tokens). */
 function countKeywordOccurrences(plainTitle: string, plainBody: string, keyword: BibleStudyKeyword): number {
-  const corpus = `${plainTitle} ${plainBody}`.toLowerCase();
+  const titleLower = (plainTitle || '').toLowerCase();
+  const bodyLower = (plainBody || '').toLowerCase();
   let total = 0;
   const needles = [keyword.name, ...keyword.synonyms];
   const seen = new Set<string>();
@@ -111,6 +170,12 @@ function countKeywordOccurrences(plainTitle: string, plainBody: string, keyword:
     const n = raw.trim().toLowerCase();
     if (!n || seen.has(n)) continue;
     seen.add(n);
+    if (keyword.category === 'life') {
+      total += countLifeKeywordNeedleInLowerText(titleLower, raw, keyword.name);
+      total += countLifeKeywordNeedleInLowerText(bodyLower, raw, keyword.name);
+      continue;
+    }
+    const corpus = `${titleLower} ${bodyLower}`;
     if (n.includes(' ') || n.includes('-')) {
       let i = 0;
       while ((i = corpus.indexOf(n, i)) !== -1) {
@@ -142,8 +207,11 @@ function normalizeSecondaryList(primary: string | null, raw: string[]): string[]
 }
 
 const SECONDARY_MIN_SCORE = 0.78;
-const SECONDARY_CHARACTER_PLACE_MIN_SCORE = 0.88;
-const MAX_AUTO_SECONDARIES = 5;
+// Weak (single-mention, not-in-title) character/place hits must clear a high bar to become a
+// secondary folder — above the most a lone mention can score (incl. the opening boost) so a name
+// dropped once in passing stays a tag, not a folder.
+const SECONDARY_CHARACTER_PLACE_MIN_SCORE = 0.95;
+const MAX_AUTO_SECONDARIES = 3;
 
 function dedupeRowsByKeywordName(rows: ScRow[]): ScRow[] {
   const by = new Map<string, ScRow>();
@@ -160,9 +228,32 @@ function dedupeRowsByKeywordName(rows: ScRow[]): ScRow[] {
   );
 }
 
+const THEME_PRIMARY_CATEGORIES = new Set(['spiritual', 'biblical', 'life', 'theme']);
+
+function isThemePrimaryCategory(cat: string): boolean {
+  return THEME_PRIMARY_CATEGORIES.has(cat);
+}
+
 function betterPrimaryRow(a: ScRow, b: ScRow, plainTitle: string, plainBody: string): ScRow {
   const sa = folderPrimaryScore(a, plainTitle, plainBody);
   const sb = folderPrimaryScore(b, plainTitle, plainBody);
+
+  const aCharPlace = a.keyword.category === 'character' || a.keyword.category === 'place';
+  const bCharPlace = b.keyword.category === 'character' || b.keyword.category === 'place';
+  if (isThemePrimaryCategory(a.keyword.category) && bCharPlace && !candidateAppearsInTitle(plainTitle, b.keyword.name)) {
+    if (sb - sa < 0.18) return a;
+  }
+  if (isThemePrimaryCategory(b.keyword.category) && aCharPlace && !candidateAppearsInTitle(plainTitle, a.keyword.name)) {
+    if (sa - sb < 0.18) return b;
+  }
+  // A theme outranks a bare Bible-book mention unless the book is materially stronger (native parity).
+  if (isThemePrimaryCategory(a.keyword.category) && b.keyword.category === 'book' && sb - sa < 0.18) {
+    return a;
+  }
+  if (isThemePrimaryCategory(b.keyword.category) && a.keyword.category === 'book' && sa - sb < 0.18) {
+    return b;
+  }
+
   if (Math.abs(sa - sb) > PRIMARY_SCORE_AMBIGUITY_EPS) {
     return sa >= sb ? a : b;
   }
@@ -170,6 +261,11 @@ function betterPrimaryRow(a: ScRow, b: ScRow, plainTitle: string, plainBody: str
   const bTitle = candidateAppearsInTitle(plainTitle, b.keyword.name);
   if (aTitle !== bTitle) {
     return aTitle ? a : b;
+  }
+  const aOpening = keywordAppearsInOpening(a.keyword, plainTitle, plainBody);
+  const bOpening = keywordAppearsInOpening(b.keyword, plainTitle, plainBody);
+  if (aOpening !== bOpening) {
+    return aOpening ? a : b;
   }
   const ra = collectionRank(a.keyword.category);
   const rb = collectionRank(b.keyword.category);
@@ -194,6 +290,10 @@ function isEligibleSecondaryFolder(row: ScRow, plainTitle: string, plainBody: st
     const strongContext = inTitle || occ >= 3;
     const floor = strongContext ? SECONDARY_MIN_SCORE : SECONDARY_CHARACTER_PLACE_MIN_SCORE;
     return ps >= floor;
+  }
+  if (cat === 'life') {
+    const strongContext = inTitle || occ >= 3;
+    return strongContext && ps >= SECONDARY_MIN_SCORE;
   }
   const strongContext = inTitle || occ >= 2;
   return strongContext && ps >= SECONDARY_MIN_SCORE;
@@ -346,14 +446,33 @@ export function applyAutoCollectionAfterEdit(
   if (prev.collectionUserOverride && !prev.collectionPinned) return prev;
 
   const { rows, plainTitle, plainBody } = buildRowsForCollectionSuggest(title, bodyHtml);
-  if (!rows.length) return prev;
-
   const freezePrimary = prev.collectionPinned || prev.collectionUserOverride;
+
+  if (!rows.length) {
+    if (freezePrimary) {
+      const secondaryCollections = suggestSecondaryCollectionsFromNote(title, bodyHtml, prev.primaryCollection);
+      return { ...prev, secondaryCollections };
+    }
+    return {
+      ...prev,
+      primaryCollection: null,
+      secondaryCollections: [],
+      collectionLastAutoUpdatedAtIso: null,
+    };
+  }
 
   const candidate = pickPrimaryKeyword(rows, plainTitle, plainBody)?.name ?? null;
   if (!candidate || !meetsMinimumContext(plainTitle, plainBody, candidate, rows)) {
-    const secsEmpty = suggestSecondaryCollectionsFromNote(title, bodyHtml, prev.primaryCollection);
-    return { ...prev, secondaryCollections: secsEmpty };
+    if (freezePrimary) {
+      const secsEmpty = suggestSecondaryCollectionsFromNote(title, bodyHtml, prev.primaryCollection);
+      return { ...prev, secondaryCollections: secsEmpty };
+    }
+    return {
+      ...prev,
+      primaryCollection: null,
+      secondaryCollections: [],
+      collectionLastAutoUpdatedAtIso: null,
+    };
   }
 
   if (freezePrimary) {
@@ -363,9 +482,6 @@ export function applyAutoCollectionAfterEdit(
 
   const current = normalizeCollectionLabel(prev.primaryCollection);
   const nowIso = now.toISOString();
-  const lastMs = prev.collectionLastAutoUpdatedAtIso ? Date.parse(prev.collectionLastAutoUpdatedAtIso) : NaN;
-  const pastCooldown =
-    !Number.isFinite(lastMs) || Number.isNaN(now.getTime()) ? true : now.getTime() - lastMs >= AUTO_REPLACE_COOLDOWN_MS;
 
   let nextPrimary: string | null = prev.primaryCollection;
   let nextLastAuto = prev.collectionLastAutoUpdatedAtIso;
@@ -380,29 +496,12 @@ export function applyAutoCollectionAfterEdit(
   } else if (current.toLowerCase() === candidate.toLowerCase()) {
     nextPrimary = candidate;
   } else {
-    if (!pastCooldown) {
-      const secs = suggestSecondaryCollectionsFromNote(title, bodyHtml, prev.primaryCollection);
-      return { ...prev, secondaryCollections: secs };
-    }
-
-    const currentScore = scoreForName(current, rows, plainTitle, plainBody);
-    const candidateScore = scoreForName(candidate, rows, plainTitle, plainBody);
-    const materiallyStronger = candidateScore >= currentScore + 0.18;
-    const candRow = rows.find((r) => r.keyword.name.toLowerCase() === candidate.toLowerCase());
-    const strongSignal =
-      !!candRow &&
-      (candRow.confidence >= candRow.keyword.confidence + 0.2 || candRow.confidence >= candidateScore - 0.05);
-
-    if (!(materiallyStronger && strongSignal)) {
-      const secs = suggestSecondaryCollectionsFromNote(title, bodyHtml, prev.primaryCollection);
-      return { ...prev, secondaryCollections: secs };
-    }
-
+    // Auto mode tracks the best candidate. The content-boundary gate (`allowPrimaryUpdate`) is the
+    // only stabilizer — there is no time cooldown or score hysteresis keeping a stale primary.
     if (!allowPrimaryUpdate) {
       const secs = suggestSecondaryCollectionsFromNote(title, bodyHtml, prev.primaryCollection);
       return { ...prev, secondaryCollections: secs };
     }
-
     nextPrimary = candidate;
     nextLastAuto = nowIso;
   }

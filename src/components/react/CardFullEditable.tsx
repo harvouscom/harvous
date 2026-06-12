@@ -24,7 +24,6 @@ import InlinePinUnlock from './InlinePinUnlock';
 /** Collection-only inline bar (`prototypeNative`); tags are edited in Note Details — same on mobile new-note sheet and Mac web. */
 import NoteProductionActionBar from './NoteProductionActionBar';
 import {
-  applyAutoCollectionAfterEdit,
   collectionChromeStatesEqual,
   collectionContextBannerText,
   type CollectionChromeState,
@@ -35,12 +34,14 @@ import {
 import { noteFolderChipDisplayState } from '@/utils/note-folder-display';
 import { isPrototypeNoteEditorFocused } from '@/utils/prototype-editor-focused';
 import { isPrototypeDraftPersistNoteIdSwap } from '@/utils/prototype-compose-url';
+import {
+  applyIdleFolderAutoAssign,
+  clearAutoFolderChrome,
+  noteHasFolderSuggestContent,
+  plainBodyForFolderSnapshot,
+} from '@/utils/prototype-folder-auto-assign';
 import { shouldAllowPrimaryFolderUpdate } from '@/utils/should-allow-primary-folder-update';
 import { stripServerAutoUntitledNoteTitleForDisplay } from '@/utils/server-auto-untitled-note-display';
-
-function plainBodyFromHtml(html: string): string {
-  return html.replace(/<[^>]*>/g, ' ').replace(/&nbsp;/gi, ' ').replace(/\s+/g, ' ').trim();
-}
 
 // Prototype notes use alwaysEditing — load TipTap synchronously so the body is typeable on first paint.
 import TiptapEditorEager from './TiptapEditor';
@@ -95,6 +96,7 @@ import { canonicalizeNoteHtmlLineBreaks } from '@/utils/note-html-linebreaks';
 import { shouldInjectProcessedNoteContent } from '@/utils/prototype-editor-save';
 import { contentSyncWouldClobberScripturePillAccent } from '@/utils/scripture-pill-accent-sync';
 import { saveNoteDraft, getNoteDraft, clearNoteDraft } from '@/utils/note-draft-store';
+import { shouldSkipPrototypeUnloadSave } from '@/utils/prototype-note-save-guard';
 
 /** TipTap body HTML for editing — empty notes use `<p></p>` so the caret stays on line 1. */
 function repairHtmlForEditor(html: string): string {
@@ -176,6 +178,16 @@ interface CardFullEditableProps {
   highlightChromePortalTarget?: HTMLElement | null;
   /** Prototype-only: when set, auto-opens the reference dock for this word once the editor is ready. */
   initialReferenceWord?: string | null;
+  /**
+   * Prototype-only: when set, auto-opens the scripture dock for this reference/translation once
+   * the editor has rendered the matching pill (e.g. navigated from the sidebar Highlights list).
+   */
+  initialScriptureDock?: {
+    reference: string;
+    translation: string | null;
+    /** Distinct per request (e.g. the clicked highlight's id) so re-opens fire each time. */
+    requestKey?: string;
+  } | null;
   /** When set with prototype chrome + column shell, portals the native-like note actions bar here. */
   noteActionsPortalTarget?: HTMLElement | null;
   /** Server-stored Bible study collection (native parity). */
@@ -246,6 +258,7 @@ export default function CardFullEditable({
   highlightChromePortalTarget = null,
   studyDockCarouselPortalTarget = null,
   initialReferenceWord = null,
+  initialScriptureDock = null,
   collectionNavContext = DEFAULT_COLLECTION_NAV_CONTEXT,
   alwaysEditing = false,
   onPrototypeEditorUnmount,
@@ -309,6 +322,8 @@ export default function CardFullEditable({
   const flushEditsRef = useRef<(closeAfter: boolean) => Promise<void>>(async () => {});
   const editTitleRef = useRef(editTitle);
   const editContentRef = useRef(editContent);
+  /** Latest body HTML from TipTap onUpdate — survives RAF cancel + editor destroy on fast nav. */
+  const liveBodyHtmlRef = useRef(editContent);
   editTitleRef.current = editTitle;
   editContentRef.current = editContent;
   // Mirror hasChanges in a ref so the unmount cleanup can read the live value
@@ -338,6 +353,8 @@ export default function CardFullEditable({
   onSaveRef.current = onSave;
   const noteIdRef = useRef(noteId);
   noteIdRef.current = noteId;
+  const serverContentPropRef = useRef(content);
+  serverContentPropRef.current = content;
 
   const prevNoteIdForEditGuardRef = useRef(noteId);
   const prevNoteIdForProtoResetRef = useRef(noteId);
@@ -373,12 +390,13 @@ export default function CardFullEditable({
   );
 
   useEffect(() => {
+    if (prototypeAlwaysEditing) return;
     if (!isContentEditing) {
       setPrototypeBottomChromeMode(
         effectivePrototypeNoteActionsChrome ? 'noteActions' : 'hidden',
       );
     }
-  }, [isContentEditing, effectivePrototypeNoteActionsChrome, setPrototypeBottomChromeMode]);
+  }, [isContentEditing, effectivePrototypeNoteActionsChrome, setPrototypeBottomChromeMode, prototypeAlwaysEditing]);
 
   const [collectionChrome, setCollectionChrome] = useState<CollectionChromeState>({
     primaryCollection: initialPrimaryCollection ?? null,
@@ -450,7 +468,8 @@ export default function CardFullEditable({
     const timer = window.setTimeout(() => {
       setCollectionChrome(prev => {
         if (prev.collectionUserOverride && !prev.collectionPinned) return prev;
-        return applyAutoCollectionAfterEdit(prev, initialTitle, initialContent, new Date());
+        if (!noteHasFolderSuggestContent(initialTitle, initialContent)) return prev;
+        return applyIdleFolderAutoAssign(prev, initialTitle, initialContent, new Date());
       });
     }, 0);
     return () => window.clearTimeout(timer);
@@ -462,6 +481,25 @@ export default function CardFullEditable({
     setPrototypeScripturePillOpenRequest(null);
     lastPrototypeFolderChipRef.current = '';
   }, [noteId]);
+
+  // Open-on-load: when arriving with a scripture-dock request (e.g. tapping a scripture highlight
+  // in the sidebar list), open the dock for that reference once. TiptapEditor's open-request
+  // consumer polls for the matching pill, so this is safe before the note content has rendered.
+  const initialScriptureDockFiredRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (editorChromeMode !== 'prototypeNative' || !initialScriptureDock) return;
+    const key =
+      initialScriptureDock.requestKey ??
+      `${noteId}|${initialScriptureDock.reference}|${initialScriptureDock.translation ?? ''}`;
+    if (initialScriptureDockFiredRef.current === key) return;
+    initialScriptureDockFiredRef.current = key;
+    setPrototypeScripturePillOpenRequest({
+      reference: initialScriptureDock.reference,
+      translation: initialScriptureDock.translation,
+      noteId: noteId ?? null,
+      pillAccent: null,
+    });
+  }, [editorChromeMode, initialScriptureDock, noteId]);
 
   // Reset proto save tracking on note switch so first edit always triggers a save
   useEffect(() => {
@@ -481,7 +519,7 @@ export default function CardFullEditable({
           : (title ?? '');
       folderSuggestSnapshotRef.current = {
         title: initialTitle,
-        body: plainBodyFromHtml(content ?? ''),
+        body: plainBodyForFolderSnapshot(content ?? ''),
       };
     }
   }, [noteId, noteType, title, content, editorChromeMode, alwaysEditing]);
@@ -493,49 +531,30 @@ export default function CardFullEditable({
   useEffect(() => {
     if (editorChromeMode !== 'prototypeNative') return;
     const timer = window.setTimeout(() => {
-      setCollectionChrome(prev => {
-        if (prev.collectionUserOverride && !prev.collectionPinned) return prev;
-        const editing = isTitleEditing || isContentEditing;
-        const titleForSuggest = editing ? editTitle : displayTitle;
-        let bodyForSuggest: string;
-        if (isContentEditing && editorInstanceRef.current && !editorInstanceRef.current.isDestroyed) {
-          try {
-            bodyForSuggest = editorInstanceRef.current.getHTML();
-          } catch {
-            bodyForSuggest = editing ? editContent : displayContent;
-          }
-        } else {
+      const prev = collectionChromeRef.current;
+      if (prev.collectionUserOverride && !prev.collectionPinned) return;
+      const editing = isTitleEditing || isContentEditing;
+      const titleForSuggest = editing ? editTitle : displayTitle;
+      let bodyForSuggest: string;
+      if (isContentEditing && editorInstanceRef.current && !editorInstanceRef.current.isDestroyed) {
+        try {
+          bodyForSuggest = editorInstanceRef.current.getHTML();
+        } catch {
           bodyForSuggest = editing ? editContent : displayContent;
         }
-        const snap = folderSuggestSnapshotRef.current;
-        const plainBody = plainBodyFromHtml(bodyForSuggest);
-        const allowPrimary = shouldAllowPrimaryFolderUpdate(
-          snap.title,
-          titleForSuggest,
-          snap.body,
-          plainBody,
-        );
-        const hadNoPrimary = !prev.primaryCollection;
-        const editorWasFocused = !!editorInstanceRef.current?.isFocused;
-        const next = applyAutoCollectionAfterEdit(prev, titleForSuggest, bodyForSuggest, new Date(), {
-          allowPrimaryUpdate: allowPrimary,
-        });
-        if (allowPrimary) {
-          folderSuggestSnapshotRef.current = { title: titleForSuggest, body: plainBody };
-        }
-        if (hadNoPrimary && next.primaryCollection && editorWasFocused) {
-          requestAnimationFrame(() => {
-            const editor = editorInstanceRef.current;
-            if (!editor || editor.isDestroyed || editor.isFocused) return;
-            try {
-              editor.commands.focus();
-            } catch {
-              /* ignore */
-            }
-          });
-        }
-        return next;
-      });
+      } else {
+        bodyForSuggest = editing ? editContent : displayContent;
+      }
+      // Re-rank the primary only at natural content boundaries (sentence end / newline / title
+      // change / large growth) so it tracks the best candidate without flipping mid-word.
+      const snap = folderSuggestSnapshotRef.current;
+      const plainBody = plainBodyForFolderSnapshot(bodyForSuggest);
+      const allowPrimary = shouldAllowPrimaryFolderUpdate(snap.title, titleForSuggest, snap.body, plainBody);
+      const next = applyIdleFolderAutoAssign(prev, titleForSuggest, bodyForSuggest, new Date(), allowPrimary);
+      if (allowPrimary) {
+        folderSuggestSnapshotRef.current = { title: titleForSuggest, body: plainBody };
+      }
+      setCollectionChrome(next);
     }, 400);
     return () => window.clearTimeout(timer);
   }, [
@@ -573,12 +592,10 @@ export default function CardFullEditable({
     return () => {
       isMountedRef.current = false;
       const currentTitle = editTitleRef.current;
-      const currentContent = (() => {
-        if (editorInstanceRef.current && !editorInstanceRef.current.isDestroyed) {
-          try { return editorInstanceRef.current.getHTML(); } catch { /* */ }
-        }
-        return editContentRef.current;
-      })();
+      const currentContent = noteHtmlForSave(
+        editorInstanceRef.current,
+        liveBodyHtmlRef.current || editContentRef.current,
+      );
       const departingNoteId = noteIdRef.current;
       if (
         editorChromeModeRef.current === 'prototypeNative' &&
@@ -592,6 +609,17 @@ export default function CardFullEditable({
           content: currentContent,
         });
         if (isEffectivelyEmptyPrototypeNote(currentTitle, currentContent)) {
+          return;
+        }
+        const draft = departingNoteId ? getNoteDraft(departingNoteId) : null;
+        if (
+          shouldSkipPrototypeUnloadSave({
+            contentToSave: currentContent,
+            lastSavedContent: protoLastSavedRef.current?.content ?? null,
+            serverContent: serverContentPropRef.current ?? null,
+            draftContent: draft?.content ?? null,
+          })
+        ) {
           return;
         }
         void protoSaveAsyncRef.current({ fromUnmount: true });
@@ -875,8 +903,8 @@ export default function CardFullEditable({
   }, [needsPinUnlock]);
 
   // Prototype route: start in title+body edit (native parity) on note open / unlock — do not depend on title/content
-  // props after mount or edits reset on every server refresh.
-  useEffect(() => {
+  // props after mount or edits reset on every server refresh. useLayoutEffect seeds before TipTap's first paint.
+  useLayoutEffect(() => {
     if (editorChromeMode !== 'prototypeNative' || !alwaysEditing || !effectiveIsEditable) return;
     if (readOnlyLikeScripture || noteType === 'scripture') return;
     if (needsPinUnlock) return;
@@ -1703,7 +1731,7 @@ export default function CardFullEditable({
 
         const chromeForSave =
           editorChromeMode === 'prototypeNative' && effectiveIsEditable
-            ? applyAutoCollectionAfterEdit(collectionChrome, editTitle, editorContent, new Date())
+            ? applyIdleFolderAutoAssign(collectionChrome, editTitle, editorContent, new Date())
             : collectionChrome;
 
         const collectionExtras =
@@ -1868,7 +1896,7 @@ export default function CardFullEditable({
     const currentTitle = editTitleRef.current;
     const currentContent = noteHtmlForSave(
       editorInstanceRef.current,
-      editContentRef.current,
+      liveBodyHtmlRef.current || editContentRef.current,
     );
     const saveNoteId = noteIdRef.current;
 
@@ -1878,24 +1906,26 @@ export default function CardFullEditable({
     const isProto = editorChromeModeRef.current === 'prototypeNative';
     let chromeForSave = collectionChromeRef.current;
     if (isProto) {
+      if (isEffectivelyEmptyPrototypeNote(currentTitle, currentContent)) {
+        chromeForSave = clearAutoFolderChrome(collectionChromeRef.current);
+        folderSuggestSnapshotRef.current = { title: currentTitle, body: '' };
+        if (isMountedRef.current) setCollectionChrome(chromeForSave);
+        return;
+      }
       const snap = folderSuggestSnapshotRef.current;
-      const plainBody = plainBodyFromHtml(currentContent);
-      const allowPrimary = shouldAllowPrimaryFolderUpdate(
-        snap.title,
-        currentTitle,
-        snap.body,
-        plainBody,
-      );
-      chromeForSave = applyAutoCollectionAfterEdit(
+      const plainBody = plainBodyForFolderSnapshot(currentContent);
+      const allowPrimary = shouldAllowPrimaryFolderUpdate(snap.title, currentTitle, snap.body, plainBody);
+      chromeForSave = applyIdleFolderAutoAssign(
         collectionChromeRef.current,
         currentTitle,
         currentContent,
         new Date(),
-        { allowPrimaryUpdate: allowPrimary },
+        allowPrimary,
       );
       if (allowPrimary) {
         folderSuggestSnapshotRef.current = { title: currentTitle, body: plainBody };
       }
+      if (isMountedRef.current) setCollectionChrome(chromeForSave);
     }
     const collectionExtras = isProto
       ? {
@@ -1912,10 +1942,6 @@ export default function CardFullEditable({
     const last = protoLastSavedRef.current;
     if (last && last.title === currentTitle && last.content === currentContent && last.collectionKey === collectionKey) {
       // Natural termination of the recursion chain — nothing new to save.
-      return;
-    }
-
-    if (isEffectivelyEmptyPrototypeNote(currentTitle, currentContent)) {
       return;
     }
 
@@ -1990,7 +2016,10 @@ export default function CardFullEditable({
       // during the save (those stay drafted and the re-fire below will save them).
       try {
         const liveTitle = editTitleRef.current;
-        const liveContent = noteHtmlForSave(editorInstanceRef.current, editContentRef.current);
+        const liveContent = noteHtmlForSave(
+          editorInstanceRef.current,
+          liveBodyHtmlRef.current || editContentRef.current,
+        );
         if (saveNoteId && liveTitle === currentTitle && liveContent === currentContent) {
           clearNoteDraft(saveNoteId);
         }
@@ -2054,7 +2083,10 @@ export default function CardFullEditable({
 
     const timerId = window.setTimeout(() => {
       const titleNow = editTitleRef.current;
-      const contentNow = noteHtmlForSave(editorInstanceRef.current, editContentRef.current);
+      const contentNow = noteHtmlForSave(
+        editorInstanceRef.current,
+        liveBodyHtmlRef.current || editContentRef.current,
+      );
       if (isEffectivelyEmptyPrototypeNote(titleNow, contentNow)) {
         clearNoteDraft(id);
         return;
@@ -2078,8 +2110,27 @@ export default function CardFullEditable({
       if (!departingNoteId || readOnlyLikeScriptureRef.current) return;
 
       const currentTitle = editTitleRef.current;
-      const currentContent = noteHtmlForSave(editorInstanceRef.current, editContentRef.current);
-      if (isEffectivelyEmptyPrototypeNote(currentTitle, currentContent)) return;
+      const currentContent = noteHtmlForSave(
+        editorInstanceRef.current,
+        liveBodyHtmlRef.current || editContentRef.current,
+      );
+      if (isEffectivelyEmptyPrototypeNote(currentTitle, currentContent)) {
+        const cleared = clearAutoFolderChrome(collectionChromeRef.current);
+        if (isMountedRef.current) setCollectionChrome(cleared);
+        return;
+      }
+
+      const draft = getNoteDraft(departingNoteId);
+      if (
+        shouldSkipPrototypeUnloadSave({
+          contentToSave: currentContent,
+          lastSavedContent: protoLastSavedRef.current?.content ?? null,
+          serverContent: serverContentPropRef.current ?? null,
+          draftContent: draft?.content ?? null,
+        })
+      ) {
+        return;
+      }
 
       // Synchronous local backstop first — localStorage survives unload even when
       // the keepalive PUT below is dropped, and it's the *only* recovery path for
@@ -2088,20 +2139,11 @@ export default function CardFullEditable({
         saveNoteDraft(departingNoteId, { title: currentTitle, content: currentContent });
       }
 
-      const snap = folderSuggestSnapshotRef.current;
-      const plainBody = plainBodyFromHtml(currentContent);
-      const allowPrimary = shouldAllowPrimaryFolderUpdate(
-        snap.title,
-        currentTitle,
-        snap.body,
-        plainBody,
-      );
-      const chromeForSave = applyAutoCollectionAfterEdit(
+      const chromeForSave = applyIdleFolderAutoAssign(
         collectionChromeRef.current,
         currentTitle,
         currentContent,
         new Date(),
-        { allowPrimaryUpdate: allowPrimary },
       );
       const collectionKey = `${chromeForSave.primaryCollection ?? ''}|${chromeForSave.secondaryCollections.join(',')}|${chromeForSave.collectionPinned ? 1 : 0}|${chromeForSave.collectionUserOverride ? 1 : 0}`;
 
@@ -2235,12 +2277,18 @@ export default function CardFullEditable({
     }
   };
 
+  const handleLiveBodyHtmlChange = useCallback((newContent: string) => {
+    liveBodyHtmlRef.current = canonicalizeNoteHtmlLineBreaks(newContent);
+  }, []);
+
   const handleContentChange = (newContent: string) => {
     if (editorChromeMode === 'prototypeNative') {
       hasLocalContentUpdate.current = true;
     }
     userEditedSinceOpenRef.current = true;
     const canonical = canonicalizeNoteHtmlLineBreaks(newContent);
+    editContentRef.current = canonical;
+    liveBodyHtmlRef.current = canonical;
     setEditContent(canonical);
     setHasChanges(editTitle !== displayTitle || canonical !== displayContent);
   };
@@ -2285,6 +2333,17 @@ export default function CardFullEditable({
       // to the document end on every click (user had to arrow / triple-click to recover).
       const target = event?.target as HTMLElement | null;
       if (target && target.closest('.ProseMirror')) {
+        return;
+      }
+      // Study-dock chrome is React-portaled out of this subtree, but React portal events still
+      // bubble through THIS handler. Refocusing the editor here yanks DOM focus mid-gesture and
+      // kills drag-select in the dock passage — never steal focus from dock interactions.
+      if (
+        target &&
+        target.closest(
+          '.study-dock-card, .study-dock-carousel, .scripture-pill-chrome, .highlight-dock-web, .reference-dock-web, .scripture-delete-confirm',
+        )
+      ) {
         return;
       }
       // Click landed in the surrounding padding (outside .ProseMirror): focus at the end so
@@ -2714,6 +2773,9 @@ export default function CardFullEditable({
                       toolbarAtBottom={true}
                       toolbarBottomMargin={0}
                       onContentChange={handleContentChange}
+                      onLiveBodyHtmlChange={
+                        editorChromeMode === 'prototypeNative' ? handleLiveBodyHtmlChange : undefined
+                      }
                       scrollPosition={scrollPosition}
                       enableCreateNoteFromSelection={isContentEditing}
                       parentThreadId={parentThreadId}
@@ -3099,6 +3161,9 @@ export default function CardFullEditable({
                     toolbarAtBottom={true}
                     toolbarBottomMargin={0}
                     onContentChange={handleContentChange}
+                    onLiveBodyHtmlChange={
+                      editorChromeMode === 'prototypeNative' ? handleLiveBodyHtmlChange : undefined
+                    }
                     scrollPosition={scrollPosition}
                     enableCreateNoteFromSelection={isContentEditing}
                     parentThreadId={parentThreadId}

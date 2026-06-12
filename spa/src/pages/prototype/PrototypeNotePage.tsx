@@ -52,7 +52,31 @@ export default function PrototypeNotePage() {
     : noteSlugParam.startsWith('note_')
       ? noteSlugParam
       : `note_${noteSlugParam}`;
-  const { reference: initialReferenceWord } = useSearch({ strict: false }) as { reference?: string };
+  const {
+    reference: initialReferenceWord,
+    scriptureRef: initialScriptureRef,
+    scriptureTranslation: initialScriptureTranslation,
+    studyThread: initialStudyThread,
+  } = useSearch({ strict: false }) as {
+    reference?: string;
+    scriptureRef?: string;
+    scriptureTranslation?: string;
+    studyThread?: string;
+  };
+  // Stable object so CardFullEditable's open-on-load effect doesn't refire each render.
+  // `requestKey` (the clicked highlight's studyThread) makes each distinct highlight click
+  // re-open the dock even when it targets the note already on screen.
+  const initialScriptureDock = useMemo(
+    () =>
+      initialScriptureRef
+        ? {
+            reference: initialScriptureRef,
+            translation: initialScriptureTranslation ?? null,
+            requestKey: initialStudyThread ?? initialScriptureRef,
+          }
+        : null,
+    [initialScriptureRef, initialScriptureTranslation, initialStudyThread],
+  );
   const { homeSpaceId } = usePrototypeHomeSpaceId();
   const navigate = useNavigate();
 
@@ -813,6 +837,7 @@ export default function PrototypeNotePage() {
                 formatToolbarPortalTarget={formatToolbarHostEl}
                 studyDockCarouselPortalTarget={studyDockCarouselHostEl}
                 initialReferenceWord={initialReferenceWord || null}
+                initialScriptureDock={initialScriptureDock}
                 onPrototypeChromeModeChange={setEditorChromeMode}
                 initialPrimaryCollection={editorNote.primaryCollection ?? null}
                 initialSecondaryCollections={editorSecondaryCollections}

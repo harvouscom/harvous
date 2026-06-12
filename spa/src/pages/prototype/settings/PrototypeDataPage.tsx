@@ -8,10 +8,21 @@ import {
   downloadUserBackupZip,
 } from '@/utils/download-user-export';
 import { refreshClientData } from '../../../lib/refresh-client-data';
+import { clearStuckSyncQueue } from '@/utils/sync-manager';
+import { getPersistedUserId } from '@/utils/user-id';
 import { SettingsShell, SettingsGroup, SettingsRow } from './SettingsShell';
 
 type ExportFormat = 'markdown' | 'csv-threads';
-type Busy = null | 'export-md' | 'export-csv' | 'export-backup' | 'import' | 'import-preview' | 'clear' | 'delete';
+type Busy =
+  | null
+  | 'export-md'
+  | 'export-csv'
+  | 'export-backup'
+  | 'import'
+  | 'import-preview'
+  | 'clear'
+  | 'clear-sync'
+  | 'delete';
 
 interface ImportPreviewDoc {
   index: number;
@@ -38,7 +49,7 @@ export default function PrototypeDataPage() {
   const [importSelected, setImportSelected] = useState<Set<number>>(new Set());
   const [importWarnings, setImportWarnings] = useState<string[]>([]);
   // Two-step inline confirmation for destructive actions (no dialog framework).
-  const [confirming, setConfirming] = useState<null | 'clear' | 'delete'>(null);
+  const [confirming, setConfirming] = useState<null | 'clear' | 'delete' | 'clear-sync'>(null);
 
   const resetStatus = () => { setMessage(null); setError(null); };
 
@@ -168,6 +179,31 @@ export default function PrototypeDataPage() {
     setImportSelected(new Set());
     setImportWarnings([]);
     pendingImportFilesRef.current = [];
+  };
+
+  const handleClearStuckSyncQueue = async () => {
+    setBusy('clear-sync');
+    resetStatus();
+    const userId = getPersistedUserId();
+    if (!userId) {
+      setError("Couldn't clear the save queue. Please sign in again.");
+      setBusy(null);
+      setConfirming(null);
+      return;
+    }
+    try {
+      const removed = await clearStuckSyncQueue(userId, { entireQueue: true });
+      setMessage(
+        removed > 0
+          ? `Cleared ${removed} stuck save${removed === 1 ? '' : 's'} from this device.`
+          : 'Nothing was waiting to save on this device.',
+      );
+    } catch {
+      setError("Couldn't clear the save queue. Please try again.");
+    } finally {
+      setBusy(null);
+      setConfirming(null);
+    }
   };
 
   const handleClearData = async () => {
@@ -323,7 +359,33 @@ export default function PrototypeDataPage() {
         </div>
       ) : null}
 
-      <div className="pds-inspector-label" style={{ padding: '0 12px 6px', textTransform: 'uppercase', color: 'var(--pds-text-tertiary)' }}>
+      <div className="pds-inspector-label" style={{ padding: '16px 12px 6px', textTransform: 'uppercase', color: 'var(--pds-text-tertiary)' }}>
+        Troubleshooting
+      </div>
+      <SettingsGroup>
+        {confirming === 'clear-sync' ? (
+          <ConfirmRow
+            prompt="Clear the local save queue on this device? Your notes on the server are not deleted."
+            busy={busy === 'clear-sync'}
+            onConfirm={handleClearStuckSyncQueue}
+            onCancel={() => setConfirming(null)}
+          />
+        ) : (
+          <SettingsRow
+            label="Clear stuck save queue"
+            trailing="none"
+            onClick={() => {
+              resetStatus();
+              setConfirming('clear-sync');
+            }}
+          />
+        )}
+      </SettingsGroup>
+      <p className="pds-caption" style={{ color: 'var(--pds-text-tertiary)', padding: '6px 12px 0', margin: 0 }}>
+        Use if saves seem stuck or you see a save warning. This only clears unsent changes waiting on this device.
+      </p>
+
+      <div className="pds-inspector-label" style={{ padding: '16px 12px 6px', textTransform: 'uppercase', color: 'var(--pds-text-tertiary)' }}>
         Danger zone
       </div>
       <SettingsGroup>

@@ -10,6 +10,7 @@ import {
   normalizeEmptyBodyHtmlForEditor,
   preferredCaretPosForEmptyDoc,
 } from '@/utils/prototype-note-empty';
+import { shouldForcePrototypeNoteBodyHydrate } from '@/utils/prototype-note-editor-hydration';
 import Heading from '@tiptap/extension-heading';
 import Placeholder from '@tiptap/extension-placeholder';
 import Underline from '@tiptap/extension-underline';
@@ -30,6 +31,16 @@ import {
   noteClipboardPlainTextFromFragment,
   noteClipboardPlainTextFromRange,
 } from '@/utils/note-clipboard-plain-text';
+import {
+  isEmptyTrailingDocEndSelection,
+  isMeaningfulFormatBodySelection,
+  pickFormatToolbarSelection,
+  runFormatCommandWithPreservedSelection,
+  shouldDeferEditorContentSyncForChromeFocus,
+  type FormatToolbarSelectionRange,
+} from '@/utils/prototype-format-toolbar-selection';
+import { flushCoalescedNoteHtmlOnUnmount } from '@/utils/prototype-note-content-propagation';
+import ScripturePillDeleteConfirm from './ScripturePillDeleteConfirm';
 
 export { isSelectionActionBarEligible } from './selection-action-bar-eligibility';
 
@@ -145,6 +156,8 @@ interface TiptapEditorProps {
   toolbarBottomMargin?: number;
   tabindex?: number;
   onContentChange?: (content: string) => void;
+  /** Synchronous mirror of the latest body HTML (on every doc change) for unmount save. */
+  onLiveBodyHtmlChange?: (content: string) => void;
   scrollPosition?: number;
   enableCreateNoteFromSelection?: boolean;
   parentThreadId?: string;
@@ -3484,6 +3497,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
   toolbarBottomMargin = 12,
   tabindex,
   onContentChange,
+  onLiveBodyHtmlChange,
   scrollPosition,
   enableCreateNoteFromSelection = false,
   parentThreadId,
@@ -3584,6 +3598,8 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
    *  rapid typing doesn't re-render the (large) parent on every character. Autosave is debounced
    *  downstream, so a one-frame delay is immaterial. The hidden input stays synchronous for form submit. */
   const contentPropagateRafRef = useRef<number | null>(null);
+  const onContentChangeRef = useRef(onContentChange);
+  onContentChangeRef.current = onContentChange;
   const latestNoteHtmlRef = useRef<string>('');
   const editorRef = useRef<any>(null);
   const tiptapContentRef = useRef<HTMLDivElement>(null);
@@ -3594,6 +3610,14 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     to: number;
     snippet: string;
   } | null>(null);
+  /** Latest editor selection while focused — survives portaled format-toolbar click focus theft. */
+  const formatToolbarSelectionRef = useRef<FormatToolbarSelectionRange | null>(null);
+  /** Last caret/selection inside meaningful body text — fallback when live/frozen snap to doc end. */
+  const lastInBodySelectionRef = useRef<FormatToolbarSelectionRange | null>(null);
+  /** True for the duration of a format-toolbar press — blocks stale selection snapshots + content sync. */
+  const formatToolbarPointerDownRef = useRef(false);
+  /** Grace window after toolbar use so RAF-deferred parent content sync cannot clobber the editor. */
+  const formatToolbarInteractionUntilRef = useRef(0);
   const skipScriptureDockDismissRef = useRef(false);
   /** Latest selection-bar evaluation fn, so a dock-stack change can re-run it without forcing the
    *  listener-registration effect (and its `editor.on`/`document` listeners) to tear down and rewire. */
@@ -3784,15 +3808,17 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
         hiddenInputRef.current.value = htmlContent;
       }
 
+      latestNoteHtmlRef.current = htmlContent;
+      onLiveBodyHtmlChange?.(htmlContent);
+
       // Notify parent component — coalesced to one call per animation frame. On rapid typing this
       // collapses N per-keystroke parent re-renders into one per frame with the latest HTML; autosave
       // is debounced downstream so the sub-frame delay is immaterial.
       if (onContentChange) {
-        latestNoteHtmlRef.current = htmlContent;
         if (contentPropagateRafRef.current == null) {
           contentPropagateRafRef.current = requestAnimationFrame(() => {
             contentPropagateRafRef.current = null;
-            onContentChange(latestNoteHtmlRef.current);
+            onContentChangeRef.current?.(latestNoteHtmlRef.current);
           });
         }
       }
@@ -4521,17 +4547,19 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     setStudyDockStack(emptyStudyDockStack());
   }, [sourceNoteId]);
 
-  // Cancel any pending coalesced content propagation when the note changes or the editor unmounts, so
-  // a frame-deferred `onContentChange` from the previous note can never fire against the next one. The
-  // cleanup runs before the new note's effects, so the stale propagation is dropped (the final edit is
-  // already covered by the downstream autosave debounce). Flushing here would be unsafe — it would
-  // propagate the old note's HTML after the parent has switched.
+  // On note change / unmount: cancel the pending RAF and flush the latest HTML synchronously so
+  // CardFullEditable's editContentRef is current before the editor is destroyed (child unmounts
+  // before parent). Safe because cleanup runs while the parent card is still mounted.
   useEffect(() => {
     return () => {
-      if (contentPropagateRafRef.current != null) {
-        cancelAnimationFrame(contentPropagateRafRef.current);
-        contentPropagateRafRef.current = null;
-      }
+      const pendingRafId = contentPropagateRafRef.current;
+      contentPropagateRafRef.current = null;
+      flushCoalescedNoteHtmlOnUnmount({
+        pendingRafId,
+        latestHtml: latestNoteHtmlRef.current,
+        onContentChange: onContentChangeRef.current,
+        cancelAnimationFrame,
+      });
     };
   }, [sourceNoteId]);
 
@@ -5012,13 +5040,34 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     }
 
     const isNewNoteEditor = id === 'new-note-content';
-    const shouldForceHydratePrefill =
-      isNewNoteEditor && editor.isEmpty && content.trim().length > 0;
+    const shouldForceHydratePrefill = shouldForcePrototypeNoteBodyHydrate({
+      editorChromeMode,
+      editorId: id,
+      editorIsEmpty: editor.isEmpty,
+      incomingContent: content,
+    });
+
+    // Prototype always-editing note body: remount on note switch (CardFullEditable key).
+    // editContent is a downstream mirror — never rewind live ProseMirror from stale props,
+    // except one-time hydrate when the editor is still empty and props have the saved body.
+    if (editorChromeMode === 'prototypeNative' && id === 'edit-note-content' && !shouldForceHydratePrefill) {
+      return;
+    }
 
     const proseMirrorFocused =
       typeof document !== 'undefined' && !!document.activeElement?.closest('.ProseMirror');
     // Prototype + classic: live ProseMirror wins while focused — never clobber mid-typing.
-    if ((editor.isFocused || (editorChromeMode === 'prototypeNative' && proseMirrorFocused)) && !shouldForceHydratePrefill) {
+    // Also defer while format-toolbar chrome holds focus (portaled bar is outside .ProseMirror).
+    if (
+      shouldDeferEditorContentSyncForChromeFocus({
+        editorIsFocused: editor.isFocused,
+        proseMirrorFocused,
+        formatToolbarPointerDown: formatToolbarPointerDownRef.current,
+        formatToolbarInteractionUntilMs: formatToolbarInteractionUntilRef.current,
+        activeElement: typeof document !== 'undefined' ? document.activeElement : null,
+      }) &&
+      !shouldForceHydratePrefill
+    ) {
       return;
     }
 
@@ -5241,7 +5290,11 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     }
     const req = prototypeScripturePillOpenRequest;
     let cancelled = false;
-    const run = () => {
+    let rafId = 0;
+    // Poll a few frames for the matching pill: when navigated from the sidebar Highlights list the
+    // note content (and its pills) render a little after the editor mounts, so a single rAF can miss.
+    const MAX_ATTEMPTS = 90; // ~1.5s at 60fps
+    const run = (attempt: number) => {
       if (cancelled || !isEditorValid(editor)) return;
       const root = editor.view.dom as HTMLElement;
       const pills = root.querySelectorAll('.scripture-pill');
@@ -5252,7 +5305,10 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
           pillEl = p as HTMLElement;
         }
       });
-      if (!pillEl) return;
+      if (!pillEl) {
+        if (attempt < MAX_ATTEMPTS) rafId = window.requestAnimationFrame(() => run(attempt + 1));
+        return;
+      }
       const boundaries = resolveScripturePillDOMRange(editor, pillEl);
       if (!boundaries || cancelled) return;
       setTranslationPicker(null);
@@ -5267,8 +5323,8 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       setStudyDockStack((s) => openOrFocusScripture(s, session));
       onPrototypeScripturePillOpenRequestConsumed?.();
     };
-    const rafId = window.requestAnimationFrame(() => {
-      window.requestAnimationFrame(run);
+    rafId = window.requestAnimationFrame(() => {
+      rafId = window.requestAnimationFrame(() => run(0));
     });
     return () => {
       cancelled = true;
@@ -5985,6 +6041,12 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       if (relatedTarget?.closest?.('.tiptap-toolbar')) {
         return;
       }
+      if (relatedTarget?.closest?.('[data-prototype-format-toolbar]')) {
+        return;
+      }
+      if (relatedTarget?.closest?.('.proto-editor-bottom-bar')) {
+        return;
+      }
       if (relatedTarget?.closest?.('.scripture-pill-chrome')) {
         return;
       }
@@ -6015,8 +6077,9 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       if (
         !relatedTarget &&
         (studyDockPointerDownRef.current ||
+          formatToolbarPointerDownRef.current ||
           document.activeElement?.closest?.(
-            '.study-dock-card, .study-dock-carousel, .highlight-dock-web, .reference-dock-web, .scripture-pill-chrome, .scripture-delete-confirm',
+            '.study-dock-card, .study-dock-carousel, .highlight-dock-web, .reference-dock-web, .scripture-pill-chrome, .scripture-delete-confirm, [data-prototype-format-toolbar], .proto-editor-bottom-bar, .tiptap-toolbar',
           ))
       ) {
         queueMicrotask(() => {
@@ -6028,15 +6091,16 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       }
       // Small delay to allow focus to return to editor if needed
       setTimeout(() => {
-        if (isEditorValid(editor) && !editor.isFocused) {
-          editorWasFocusedForToolbarRef.current = false;
-          setIsEditorFocused(false);
-          if (editorChromeMode === 'prototypeNative') {
-            setShowFormatBarForActivity(false);
-            if (formatBarHideTimerRef.current) {
-              clearTimeout(formatBarHideTimerRef.current);
-              formatBarHideTimerRef.current = null;
-            }
+        if (!isEditorValid(editor) || editor.isFocused) return;
+        if (formatToolbarPointerDownRef.current) return;
+        if (Date.now() < formatToolbarInteractionUntilRef.current) return;
+        editorWasFocusedForToolbarRef.current = false;
+        setIsEditorFocused(false);
+        if (editorChromeMode === 'prototypeNative') {
+          setShowFormatBarForActivity(false);
+          if (formatBarHideTimerRef.current) {
+            clearTimeout(formatBarHideTimerRef.current);
+            formatBarHideTimerRef.current = null;
           }
         }
       }, 100);
@@ -6181,18 +6245,41 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       }
     };
 
+    const syncFormatToolbarSelection = () => {
+      try {
+        if (formatToolbarPointerDownRef.current) return;
+        if (!isEditorValid(editor)) return;
+        const proseMirrorFocused =
+          typeof document !== 'undefined' && !!document.activeElement?.closest('.ProseMirror');
+        if (!editor.isFocused && !proseMirrorFocused) return;
+        const { from, to } = editor.state.selection;
+        formatToolbarSelectionRef.current = { from, to };
+        const doc = editor.state.doc;
+        if (isMeaningfulFormatBodySelection(doc, from, to)) {
+          lastInBodySelectionRef.current = { from, to };
+        }
+      } catch {
+        /* ignore */
+      }
+    };
+
     const onDocUpdate = ({ transaction }: { transaction: { docChanged: boolean } }) => {
       if (!transaction.docChanged) return;
       bumpFormatToolbarActivity();
     };
 
     syncSel();
+    syncFormatToolbarSelection();
     editor.on('selectionUpdate', syncSel);
+    editor.on('selectionUpdate', syncFormatToolbarSelection);
+    editor.on('focus', syncFormatToolbarSelection);
     editor.on('update', onDocUpdate);
 
     return () => {
       if (editor && !editor.isDestroyed) {
         editor.off('selectionUpdate', syncSel);
+        editor.off('selectionUpdate', syncFormatToolbarSelection);
+        editor.off('focus', syncFormatToolbarSelection);
         editor.off('update', onDocUpdate);
       }
     };
@@ -6264,15 +6351,18 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     (studyDockStack.entries.some((e) => e.expanded) ||
       deleteConfirmPill != null);
 
+  const formatToolbarEngaged =
+    isEditorFocused || showFormatBarForActivity || isPointerOverFormatToolbar;
+
   const shouldShowPrototypeFormatToolbar =
-    editorChromeMode === 'prototypeNative' && isEditorFocused && !studyDockChromeTakesOver;
+    editorChromeMode === 'prototypeNative' && formatToolbarEngaged && !studyDockChromeTakesOver;
 
   /* Prototype column bar: undefined = inline fallback; null = host pending; element = portal target. */
   const columnFormatToolbarPortal = formatToolbarPortalTarget !== undefined;
 
   useEffect(() => {
     if (editorChromeMode !== 'prototypeNative' || !onPrototypeChromeModeChange) return;
-    if (!isEditorFocused) {
+    if (!formatToolbarEngaged) {
       onPrototypeChromeModeChange(prototypeNoteActionsChrome ? 'noteActions' : 'hidden');
       return;
     }
@@ -6285,7 +6375,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     editorChromeMode,
     onPrototypeChromeModeChange,
     prototypeNoteActionsChrome,
-    isEditorFocused,
+    formatToolbarEngaged,
     studyDockChromeTakesOver,
   ]);
 
@@ -6388,13 +6478,85 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     }
   };
 
+  const freezeFormatToolbarSelection = useCallback(() => {
+    if (!editor || !isEditorValid(editor)) return;
+    try {
+      const { from, to } = editor.state.selection;
+      const doc = editor.state.doc;
+      const incoming = { from, to };
+      const existing = formatToolbarSelectionRef.current;
+
+      if (isEmptyTrailingDocEndSelection(doc, from, to)) {
+        if (existing && !isEmptyTrailingDocEndSelection(doc, existing.from, existing.to)) {
+          return;
+        }
+        if (lastInBodySelectionRef.current) {
+          formatToolbarSelectionRef.current = { ...lastInBodySelectionRef.current };
+          return;
+        }
+      }
+
+      formatToolbarSelectionRef.current = incoming;
+    } catch {
+      /* ignore */
+    }
+  }, [editor]);
+
+  const runPrototypeFormatCommand = useCallback(
+    (apply: (chain: ReturnType<typeof editor.chain>) => ReturnType<typeof editor.chain>) => {
+      if (!editor || !isEditorValid(editor)) return;
+      const live = editor.state.selection;
+      const doc = editor.state.doc;
+      const range = pickFormatToolbarSelection({
+        frozen: formatToolbarSelectionRef.current,
+        liveFrom: live.from,
+        liveTo: live.to,
+        docSize: doc.content.size,
+        lastInBody: lastInBodySelectionRef.current,
+        isEmptyTrailingDocEnd: (from, to) => isEmptyTrailingDocEndSelection(doc, from, to),
+      });
+      const ran = runFormatCommandWithPreservedSelection(editor, range, apply);
+      if (!ran && import.meta.env?.DEV) {
+        console.warn('[TiptapEditor] prototype format command failed', { range });
+      } else if (ran) {
+        const htmlContent = noteHtmlFromEditor(editor, true);
+        if (hiddenInputRef.current) {
+          hiddenInputRef.current.value = htmlContent;
+        }
+        latestNoteHtmlRef.current = htmlContent;
+        onContentChange?.(htmlContent);
+      }
+      formatToolbarSelectionRef.current = {
+        from: editor.state.selection.from,
+        to: editor.state.selection.to,
+      };
+      if (
+        isMeaningfulFormatBodySelection(
+          doc,
+          editor.state.selection.from,
+          editor.state.selection.to,
+        )
+      ) {
+        lastInBodySelectionRef.current = { ...formatToolbarSelectionRef.current };
+      }
+      try {
+        editor.view.focus();
+      } catch {
+        /* ignore */
+      }
+    },
+    [editor, onContentChange],
+  );
+
   const ToolbarButton = ({ 
     onClick, 
     isActive, 
     children, 
     title,
     ariaLabel,
-    disabled = false
+    disabled = false,
+    skipPostFocusRestore = false,
+    runCommandOnPointerDown = false,
   }: { 
     onClick: () => void; 
     isActive: boolean; 
@@ -6402,13 +6564,29 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     title: string;
     ariaLabel?: string;
     disabled?: boolean;
+    skipPostFocusRestore?: boolean;
+    /** Portaled toolbar: run on pointerdown before focus can leave ProseMirror. */
+    runCommandOnPointerDown?: boolean;
   }) => {
+    const runToolbarCommand = () => {
+      if (disabled) return;
+      onClick();
+    };
+
     return (
       <button
         type="button"
         disabled={disabled}
         aria-pressed={isActive}
         data-active={isActive ? 'true' : undefined}
+        onPointerDown={(e: React.PointerEvent<HTMLButtonElement>) => {
+          if (disabled) return;
+          e.preventDefault();
+          e.stopPropagation();
+          if (runCommandOnPointerDown) {
+            runToolbarCommand();
+          }
+        }}
         onMouseDown={(e: React.MouseEvent<HTMLButtonElement, MouseEvent>) => {
           if (disabled) return;
           // Use onMouseDown to prevent editor from losing focus
@@ -6419,13 +6597,29 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
           e.currentTarget.style.setProperty('filter', 'brightness(0.97)', 'important');
           e.currentTarget.style.setProperty('transform', 'scale(0.98)', 'important');
           
-          // Execute the command
-          onClick();
+          if (!runCommandOnPointerDown) {
+            runToolbarCommand();
+          }
           
+          if (skipPostFocusRestore) return;
+
           // Ensure editor stays focused after command
           setTimeout(() => {
-            if (editor && !editor.isFocused) {
-              editor.commands.focus();
+            if (!editor || !isEditorValid(editor) || editor.isFocused) return;
+            const doc = editor.state.doc;
+            const range = pickFormatToolbarSelection({
+              frozen: formatToolbarSelectionRef.current,
+              liveFrom: editor.state.selection.from,
+              liveTo: editor.state.selection.to,
+              docSize: doc.content.size,
+              lastInBody: lastInBodySelectionRef.current,
+              isEmptyTrailingDocEnd: (from, to) => isEmptyTrailingDocEndSelection(doc, from, to),
+            });
+            try {
+              editor.chain().setTextSelection({ from: range.from, to: range.to }).run();
+              editor.view.focus();
+            } catch {
+              /* ignore */
             }
           }, 0);
         }}
@@ -6481,12 +6675,12 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
 
   const toggleHeadingLevel = (level: 2 | 3) => {
     if (!editor) return;
-    if (editor.isActive('heading', { level })) {
-      editor.chain().focus().setParagraph().run();
-    } else {
-      editor.chain().focus().setHeading({ level }).run();
-    }
+    runPrototypeFormatCommand((chain) => chain.toggleHeading({ level }));
   };
+
+  const PrototypeToolbarButton = (
+    props: Omit<React.ComponentProps<typeof ToolbarButton>, 'skipPostFocusRestore' | 'runCommandOnPointerDown'>,
+  ) => <ToolbarButton {...props} skipPostFocusRestore runCommandOnPointerDown />;
 
   const renderPrototypeNativeFormatToolbar = (placement: 'top' | 'bottom' | 'portal') => {
     if (!editor) return null;
@@ -6516,6 +6710,17 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
           placement === 'bottom' ? 'tiptap-toolbar--bottom' : ''
         } ${isPortal ? 'tiptap-toolbar--portal' : ''}`}
         style={positionalStyle}
+        onPointerDownCapture={() => {
+          formatToolbarPointerDownRef.current = true;
+          formatToolbarInteractionUntilRef.current = Date.now() + 500;
+          freezeFormatToolbarSelection();
+        }}
+        onPointerUpCapture={() => {
+          formatToolbarPointerDownRef.current = false;
+        }}
+        onPointerCancelCapture={() => {
+          formatToolbarPointerDownRef.current = false;
+        }}
         onMouseEnter={() => {
           setIsPointerOverFormatToolbar(true);
           if (editorChromeMode === 'prototypeNative') bumpFormatToolbarActivity();
@@ -6525,48 +6730,48 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
         <div className="tiptap-toolbar__hscroll">
           <div className="tiptap-toolbar__scroll-region">
             <TiptapToolbarTrack key={toolbarEnterEpoch} compact placement={placement === 'portal' ? 'bottom' : placement}>
-              <ToolbarButton
-                onClick={() => editor.chain().focus().toggleBold().run()}
+              <PrototypeToolbarButton
+                onClick={() => runPrototypeFormatCommand((chain) => chain.toggleBold())}
                 isActive={activeStates.bold}
                 title="Bold"
                 ariaLabel="Toggle bold"
               >
                 <Icon name="bold" size={PROTO_FORMAT_ICON_SIZE} className="proto-toolbar-icon" />
-              </ToolbarButton>
-              <ToolbarButton
-                onClick={() => editor.chain().focus().toggleItalic().run()}
+              </PrototypeToolbarButton>
+              <PrototypeToolbarButton
+                onClick={() => runPrototypeFormatCommand((chain) => chain.toggleItalic())}
                 isActive={activeStates.italic}
                 title="Italic"
                 ariaLabel="Toggle italic"
               >
                 <Icon name="italic" size={PROTO_FORMAT_ICON_SIZE} className="proto-toolbar-icon" />
-              </ToolbarButton>
-              <ToolbarButton
-                onClick={() => editor.chain().focus().toggleStrike().run()}
+              </PrototypeToolbarButton>
+              <PrototypeToolbarButton
+                onClick={() => runPrototypeFormatCommand((chain) => chain.toggleStrike())}
                 isActive={activeStates.strike}
                 title="Strikethrough"
                 ariaLabel="Toggle strikethrough"
               >
                 <Icon name="strikethrough" size={PROTO_FORMAT_ICON_SIZE} className="proto-toolbar-icon" />
-              </ToolbarButton>
+              </PrototypeToolbarButton>
               <FormatToolbarDivider />
-              <ToolbarButton
+              <PrototypeToolbarButton
                 onClick={() => toggleHeadingLevel(2)}
                 isActive={activeStates.headingLevel === 2}
                 title="Heading 2"
                 ariaLabel="Toggle heading 2"
               >
                 <span style={{ fontSize: '13px', fontWeight: 700 }}>H2</span>
-              </ToolbarButton>
-              <ToolbarButton
+              </PrototypeToolbarButton>
+              <PrototypeToolbarButton
                 onClick={() => toggleHeadingLevel(3)}
                 isActive={activeStates.headingLevel === 3}
                 title="Heading 3"
                 ariaLabel="Toggle heading 3"
               >
                 <span style={{ fontSize: '13px', fontWeight: 700 }}>H3</span>
-              </ToolbarButton>
-              <ToolbarButton
+              </PrototypeToolbarButton>
+              <PrototypeToolbarButton
                 onClick={() => {
                   openUrlLinkPrompt();
                 }}
@@ -6576,30 +6781,30 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                 ariaLabel="Add link to selection"
               >
                 <Icon name="link" size={PROTO_FORMAT_ICON_SIZE} className="proto-toolbar-icon" />
-              </ToolbarButton>
+              </PrototypeToolbarButton>
               <FormatToolbarDivider />
-              <ToolbarButton
-                onClick={() => editor.chain().focus().toggleBulletList().run()}
+              <PrototypeToolbarButton
+                onClick={() => runPrototypeFormatCommand((chain) => chain.toggleBulletList())}
                 isActive={activeStates.bulletList}
                 title="Bullet list"
                 ariaLabel="Toggle bullet list"
               >
                 <Icon name="list" size={PROTO_FORMAT_ICON_SIZE} className="proto-toolbar-icon" />
-              </ToolbarButton>
-              <ToolbarButton
-                onClick={() => editor.chain().focus().toggleOrderedList().run()}
+              </PrototypeToolbarButton>
+              <PrototypeToolbarButton
+                onClick={() => runPrototypeFormatCommand((chain) => chain.toggleOrderedList())}
                 isActive={activeStates.orderedList}
                 title="Numbered list"
                 ariaLabel="Toggle numbered list"
               >
                 <Icon name="list-ol" size={PROTO_FORMAT_ICON_SIZE} className="proto-toolbar-icon" />
-              </ToolbarButton>
+              </PrototypeToolbarButton>
               <FormatToolbarDivider />
-              <ToolbarButton
+              <PrototypeToolbarButton
                 onClick={() =>
-                  isInListItem
-                    ? editor.chain().focus().liftListItem('listItem').run()
-                    : editor.chain().focus().decreaseIndent().run()
+                  runPrototypeFormatCommand((chain) =>
+                    isInListItem ? chain.liftListItem('listItem') : chain.decreaseIndent(),
+                  )
                 }
                 isActive={false}
                 disabled={!canLift}
@@ -6607,12 +6812,12 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                 ariaLabel="Outdent"
               >
                 <Icon name="outdent" size={PROTO_FORMAT_ICON_SIZE} className="proto-toolbar-icon" />
-              </ToolbarButton>
-              <ToolbarButton
+              </PrototypeToolbarButton>
+              <PrototypeToolbarButton
                 onClick={() =>
-                  isInListItem
-                    ? editor.chain().focus().sinkListItem('listItem').run()
-                    : editor.chain().focus().increaseIndent().run()
+                  runPrototypeFormatCommand((chain) =>
+                    isInListItem ? chain.sinkListItem('listItem') : chain.increaseIndent(),
+                  )
                 }
                 isActive={false}
                 disabled={!canSink}
@@ -6620,39 +6825,39 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                 ariaLabel="Indent"
               >
                 <Icon name="indent" size={PROTO_FORMAT_ICON_SIZE} className="proto-toolbar-icon" />
-              </ToolbarButton>
+              </PrototypeToolbarButton>
               <FormatToolbarDivider />
-              <ToolbarButton
-                onClick={() => editor.chain().focus().setHorizontalRule().run()}
+              <PrototypeToolbarButton
+                onClick={() => runPrototypeFormatCommand((chain) => chain.setHorizontalRule())}
                 isActive={false}
                 title="Horizontal rule"
                 ariaLabel="Insert horizontal rule"
               >
                 <Icon name="horizontal-rule" size={PROTO_FORMAT_ICON_SIZE} className="proto-toolbar-icon" />
-              </ToolbarButton>
+              </PrototypeToolbarButton>
             </TiptapToolbarTrack>
           </div>
           <div className="tiptap-toolbar__trailing">
             <FormatToolbarDivider />
             <div className="tiptap-toolbar__history">
-              <ToolbarButton
-                onClick={() => editor.chain().focus().undo().run()}
+              <PrototypeToolbarButton
+                onClick={() => runPrototypeFormatCommand((chain) => chain.undo())}
                 isActive={false}
                 disabled={!activeStates.canUndo}
                 title="Undo"
                 ariaLabel="Undo"
               >
                 <Icon name="arrow-rotate-left" size={PROTO_FORMAT_ICON_SIZE} className="proto-toolbar-icon" />
-              </ToolbarButton>
-              <ToolbarButton
-                onClick={() => editor.chain().focus().redo().run()}
+              </PrototypeToolbarButton>
+              <PrototypeToolbarButton
+                onClick={() => runPrototypeFormatCommand((chain) => chain.redo())}
                 isActive={false}
                 disabled={!activeStates.canRedo}
                 title="Redo"
                 ariaLabel="Redo"
               >
                 <Icon name="arrow-rotate-right" size={PROTO_FORMAT_ICON_SIZE} className="proto-toolbar-icon" />
-              </ToolbarButton>
+              </PrototypeToolbarButton>
             </div>
           </div>
         </div>
@@ -7153,65 +7358,22 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
           document.body
         )}
         {/* Delete confirmation floater — appears on first Backspace/Delete near a pill */}
-        {deleteConfirmPill && createPortal(
-          <div
-            data-harvous-bottom-sheet-floating=""
-            className="scripture-delete-confirm floating-picker-enter"
-            style={{
-              position: 'fixed',
-              top: deleteConfirmPill.rect.bottom + 6,
-              left: Math.max(8, deleteConfirmPill.rect.left + deleteConfirmPill.rect.width / 2 - 100),
-              zIndex: 99999,
-              pointerEvents: 'auto',
-              padding: '10px 12px',
-              borderRadius: '10px',
-              backgroundColor: 'var(--color-snow-white)',
-              boxShadow: '0 1px 6px rgba(0,0,0,0.08), 0 4px 16px rgba(0,0,0,0.06)',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '8px',
-              minWidth: '180px',
-              maxWidth: '240px',
+        {deleteConfirmPill ? (
+          <ScripturePillDeleteConfirm
+            anchorRect={deleteConfirmPill.rect}
+            onConfirm={() => {
+              const confirm = deleteConfirmPillRef.current;
+              if (!confirm || !editor) return;
+              setDeleteConfirmPill(null);
+              deleteConfirmPillRef.current = null;
+              editor.chain().deleteRange({ from: confirm.boundaries.start, to: confirm.boundaries.end }).run();
             }}
-            onMouseDown={(e) => e.preventDefault()}
-          >
-            <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--color-charcoal-black)', lineHeight: 1.3 }}>
-              Remove this scripture pill?
-            </span>
-            <div style={{ display: 'flex', gap: '6px' }}>
-              <button
-                type="button"
-                className="btn btn--sm btn--danger"
-                style={{ flex: 1, minHeight: 32, padding: '0 12px', fontSize: '13px', borderRadius: '12px' }}
-                onMouseDown={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  const confirm = deleteConfirmPillRef.current;
-                  if (!confirm || !editor) return;
-                  setDeleteConfirmPill(null);
-                  deleteConfirmPillRef.current = null;
-                  editor.chain().deleteRange({ from: confirm.boundaries.start, to: confirm.boundaries.end }).run();
-                }}
-              >
-                Remove
-              </button>
-              <button
-                type="button"
-                className="btn btn--sm btn--secondary"
-                style={{ flex: 1, minHeight: 32, padding: '0 12px', fontSize: '13px', borderRadius: '12px' }}
-                onMouseDown={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  setDeleteConfirmPill(null);
-                  deleteConfirmPillRef.current = null;
-                }}
-              >
-                Keep
-              </button>
-            </div>
-          </div>,
-          document.body
-        )}
+            onDismiss={() => {
+              setDeleteConfirmPill(null);
+              deleteConfirmPillRef.current = null;
+            }}
+          />
+        ) : null}
         {/* Custom floating translation picker — positioned via pill click event, not BubbleMenu */}
         {/* BubbleMenu can't detect non-inclusive marks at cursor boundary positions */}
         {translationPicker && editorChromeMode !== 'prototypeNative' && createPortal(
@@ -7523,11 +7685,11 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                           console.error('[ScripturePillChrome] apply failed:', err);
                         }
                       }}
-                      onPassageHighlightCreated={(excerpt, threadId) => {
+                      onPassageHighlightCreated={(excerpt, threadId, accent) => {
                         setStudyDockStack((s) =>
                           openOrFocusHighlight(s, {
                             studyThreadEntryId: threadId,
-                            accent: 'warmAmber',
+                            accent: accent ?? 'warmAmber',
                             excerpt,
                             range: null,
                             focusTitle: excerpt.slice(0, 80),
@@ -7538,6 +7700,21 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                       editorChromeMode={editorChromeMode}
                       onOpenPassageReference={(word, opts) => {
                         if (!sourceNoteId) return;
+                        // Inline scriptureLink highlight tapped — open its highlight dock
+                        // (native: tapping a painted excerpt opens ActiveHighlightDock).
+                        if (opts?.saved && opts.threadId && opts.entryKind === 'scriptureLink') {
+                          setStudyDockStack((s) =>
+                            openOrFocusHighlight(s, {
+                              studyThreadEntryId: opts.threadId ?? null,
+                              accent: opts.accent ?? 'warmAmber',
+                              excerpt: word,
+                              range: null,
+                              focusTitle: word.slice(0, 80),
+                              entryKind: 'scriptureLink',
+                            }),
+                          );
+                          return;
+                        }
                         const passageCtx = {
                           reference: entry.session.reference,
                           translation: entry.session.translation || 'NET',

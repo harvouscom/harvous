@@ -52,6 +52,15 @@ describe('Lutheran salvation testimony — tag precision', () => {
     const primary = suggestPrimaryCollectionFromNote('', testimonyHtml());
     expect(primary?.toLowerCase()).not.toBe('marriage');
   });
+
+  it('assigns Salvation as primary for the full Lutheran testimony', () => {
+    const title = '10 years ago';
+    const primary = suggestPrimaryCollectionFromNote(title, testimonyHtml());
+    expect(primary).toBe('Salvation');
+    const secondaries = suggestSecondaryCollectionsFromNote(title, testimonyHtml(), primary);
+    expect(secondaries.map((s) => s.toLowerCase())).not.toContain('family');
+    expect(secondaries.map((s) => s.toLowerCase())).not.toContain('prayer');
+  });
 });
 
 describe('on-topic marriage and friendship — still tagged when clearly the subject', () => {

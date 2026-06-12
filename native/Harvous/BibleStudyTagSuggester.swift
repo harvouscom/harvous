@@ -95,28 +95,19 @@ enum BibleStudyTagSuggester {
             return
         }
 
-        if !isPastAutoFolderCooldown(note: note, now: now) {
-            note.primaryFolder = current
-            return
-        }
-        guard shouldReplacePrimaryFolder(
-            current: current,
-            candidate: scoringName ?? candidate,
-            analysis: analysis,
-            existingFolders: existingFolders
-        ) else {
-            note.primaryFolder = current
-            return
-        }
+        // Auto mode tracks the best candidate. The content-boundary gate in `NoteEditorView`
+        // (`shouldAllowPrimaryFolderUpdate`) is the only stabilizer — no time cooldown or score
+        // hysteresis keeps a stale primary once a stronger topic emerges.
         note.primaryFolder = candidate
         note.folderAutoConfidence = primaryScoreForName(scoringName ?? candidate, in: analysis)
         note.folderLastAutoUpdatedAt = now
     }
 
-    private static let maxAutoSecondaries = 5
+    private static let maxAutoSecondaries = 3
     private static let secondaryMinPrimaryScore: Double = 0.78
-    /// Weak `character` / `place` mentions need a stronger folder score than themes to become secondary folders (tags stay broader).
-    private static let secondaryCharacterPlaceMinScore: Double = 0.88
+    /// Weak (single-mention, not-in-title) `character` / `place` hits must clear a bar above the most a
+    /// lone mention can score (incl. the opening boost) so a name dropped once in passing stays a tag.
+    private static let secondaryCharacterPlaceMinScore: Double = 0.95
     /// When two folder scores are within this band, prefer title presence and category rank (reduces noisy primary flips).
     private static let primaryScoreAmbiguityEpsilon: Double = 0.04
 
@@ -143,7 +134,7 @@ enum BibleStudyTagSuggester {
         existingFolders: [String]
     ) -> [String] {
         var out: [String] = []
-        let ranked = analysis.picked.sorted { primaryScore($0) > primaryScore($1) }
+        let ranked = analysis.picked.sorted { primaryScore($0, in: analysis) > primaryScore($1, in: analysis) }
         for s in ranked {
             guard out.count < maxAutoSecondaries else { break }
             let resolved = resolveToExistingFolder(s.name, from: existingFolders)
@@ -152,7 +143,7 @@ enum BibleStudyTagSuggester {
             if overlaps(label, primaryLabel) { continue }
             if out.contains(where: { $0.caseInsensitiveCompare(label) == .orderedSame }) { continue }
             if out.contains(where: { overlaps($0, label) }) { continue }
-            if !isEligibleSecondaryFolder(s) { continue }
+            if !isEligibleSecondaryFolder(s, in: analysis) { continue }
             out.append(label)
         }
         return out
@@ -172,6 +163,9 @@ enum BibleStudyTagSuggester {
         var picked: [Scored]
         var tags: [String]
         var primaryCandidate: String?
+        var title: String = ""
+        var body: String = ""
+        var openingSegment: String = ""
     }
 
     private enum TagCategory: String, CaseIterable {
@@ -191,13 +185,15 @@ enum BibleStudyTagSuggester {
     }
 
     private static let bibleStudyBoostCategories: Set<TagCategory> = [.spiritual, .biblical, .character, .book]
+    private static let themePrimaryCategories: Set<TagCategory> = [.spiritual, .biblical, .life]
     private static let minimumBodyWordsForAutoFolder = 25
     private static let shortDraftStrongTitleThreshold = 1.02
-    private static let autoFolderCooldown: TimeInterval = 25
     /// Skip pathological bodies that would block the main thread during note open.
     private static let maximumAnalyzeBodyLength = ScriptureDetector.maximumDetectLength
 
     private static let autoFolderExcludedNames: Set<String> = ["god", "jesus", "holy spirit"]
+    private static let openingSegmentMaxWords = 120
+    private static let openingNarrativeFolderBoost: Double = 0.1
 
     private static func isAutoFolderExcluded(_ name: String) -> Bool {
         autoFolderExcludedNames.contains(name.lowercased())
@@ -249,10 +245,15 @@ enum BibleStudyTagSuggester {
         var picked: [Scored] = []
         for s in raw {
             if picked.contains(where: { overlaps(s.name, $0.name) }) { continue }
-            if picked.contains(where: { $0.name.lowercased() == s.name.lowercased() }) { continue }
             var adj = s
             if Self.bibleStudyBoostCategories.contains(adj.category) {
                 adj.confidence = min(1.0, adj.confidence + 0.05)
+            }
+            if let idx = picked.firstIndex(where: { $0.name.lowercased() == adj.name.lowercased() }) {
+                if shouldPreferKeywordRowOverExisting(new: adj, existing: picked[idx]) {
+                    picked[idx] = adj
+                }
+                continue
             }
             picked.append(adj)
         }
@@ -266,15 +267,81 @@ enum BibleStudyTagSuggester {
             if tagNames.count > 12 { tagNames = Array(tagNames.prefix(12)); break }
         }
 
+        let openingSegment = extractOpeningSegment(title: title, body: cappedBody)
+        var shell = Analysis(
+            picked: picked,
+            tags: tagNames,
+            primaryCandidate: nil,
+            title: title,
+            body: cappedBody,
+            openingSegment: openingSegment
+        )
+
         let primary: String?
         if let first = picked.first {
-            let best = picked.dropFirst().reduce(first, betterPrimaryCandidate)
+            let best = picked.dropFirst().reduce(first) { betterPrimaryCandidate($0, $1, in: shell) }
             primary = best.name
         } else {
             primary = nil
         }
+        shell.primaryCandidate = primary
+        return shell
+    }
 
-        return Analysis(picked: picked, tags: tagNames, primaryCandidate: primary)
+    /// When a bible book and character share a name, keep the character row for scoring (John 3:16 ≠ a John study).
+    private static func shouldPreferKeywordRowOverExisting(new: Scored, existing: Scored) -> Bool {
+        if existing.category == .book && new.category == .character { return true }
+        if existing.category == .character && new.category == .book { return false }
+        return new.confidence > existing.confidence
+    }
+
+    /// First paragraph capped at ~120 words — narrative anchor for testimony-shaped notes.
+    private static func extractOpeningSegment(title: String, body: String) -> String {
+        let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedBody = body.trimmingCharacters(in: .whitespacesAndNewlines)
+        let firstParagraph = trimmedBody
+            .components(separatedBy: "\n\n")
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .first(where: { !$0.isEmpty }) ?? trimmedBody
+        var segment = trimmedTitle.isEmpty ? firstParagraph : "\(trimmedTitle)\n\(firstParagraph)"
+        let words = segment.split(whereSeparator: { $0.isWhitespace || $0.isNewline })
+        if words.count > openingSegmentMaxWords {
+            segment = words.prefix(openingSegmentMaxWords).map(String.init).joined(separator: " ")
+        }
+        return segment.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private static func keywordAppearsInOpening(_ name: String, in analysis: Analysis) -> Bool {
+        let opening = analysis.openingSegment.lowercased()
+        guard !opening.isEmpty else { return false }
+        let row = keywordRows.first { $0.name.caseInsensitiveCompare(name) == .orderedSame }
+        var needles = [name]
+        if let row {
+            needles.append(contentsOf: row.synonyms)
+        }
+        var seen = Set<String>()
+        for raw in needles {
+            let needle = raw.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            guard !needle.isEmpty, !seen.contains(needle) else { continue }
+            seen.insert(needle)
+            if needle.contains(" ") || needle.contains("-") {
+                if opening.contains(needle) { return true }
+                continue
+            }
+            guard let regex = try? NSRegularExpression(
+                pattern: "\\b\(NSRegularExpression.escapedPattern(for: needle))\\b",
+                options: .caseInsensitive
+            ) else { continue }
+            let n = (opening as NSString).length
+            if regex.firstMatch(in: opening, range: NSRange(location: 0, length: n)) != nil {
+                return true
+            }
+        }
+        return false
+    }
+
+    private static func isThemePrimaryCategory(_ category: TagCategory) -> Bool {
+        themePrimaryCategories.contains(category)
     }
 
     /// "Pastor Tim" / "Ps Johnson" — not "Psalm 23".
@@ -337,25 +404,6 @@ enum BibleStudyTagSuggester {
         return candidate
     }
 
-    private static func shouldReplacePrimaryFolder(
-        current: String,
-        candidate: String,
-        analysis: Analysis,
-        existingFolders: [String]
-    ) -> Bool {
-        let currentScore: Double
-        if let cur = scoredForLibraryFolderLabel(current, in: analysis, existingFolders: existingFolders) {
-            currentScore = primaryScore(cur)
-        } else {
-            currentScore = primaryScoreForName(current, in: analysis)
-        }
-        guard let candidateScored = scoredForName(candidate, in: analysis) else { return false }
-        let candidateScore = primaryScore(candidateScored)
-        let materiallyStronger = candidateScore >= currentScore + 0.18
-        let strongSignal = candidateScored.occurrences >= 3 || candidateScored.inTitle
-        return materiallyStronger && strongSignal
-    }
-
     private static func meetsMinimumContextForAutoFolder(note: Note, candidate: String?, analysis: Analysis) -> Bool {
         guard let candidate else { return false }
         let wordCount = note.body.split(whereSeparator: { $0.isWhitespace || $0.isNewline }).count
@@ -364,39 +412,13 @@ enum BibleStudyTagSuggester {
         return candidateScore >= shortDraftStrongTitleThreshold
     }
 
-    private static func isPastAutoFolderCooldown(note: Note, now: Date) -> Bool {
-        guard let last = note.folderLastAutoUpdatedAt else { return true }
-        return now.timeIntervalSince(last) >= autoFolderCooldown
-    }
-
     private static func primaryScoreForName(_ name: String, in analysis: Analysis) -> Double {
         guard let scored = scoredForName(name, in: analysis) else { return 0 }
-        return primaryScore(scored)
+        return primaryScore(scored, in: analysis)
     }
 
     private static func scoredForName(_ name: String, in analysis: Analysis) -> Scored? {
         analysis.picked.first { $0.name.caseInsensitiveCompare(name).rawValue == 0 }
-    }
-
-    /// Resolves a persisted library label (e.g. extended name from `resolveToExistingFolder`) to the
-    /// overlap-deduped keyword row so primary replacement compares the true current topic score, not `0`.
-    private static func scoredForLibraryFolderLabel(_ label: String, in analysis: Analysis, existingFolders: [String]) -> Scored? {
-        let norm = normalizedFolderName(label) ?? label
-        if let exact = scoredForName(norm, in: analysis) {
-            return exact
-        }
-        guard !existingFolders.isEmpty else { return nil }
-        var hits: [Scored] = []
-        for s in analysis.picked {
-            guard let resolved = resolveToExistingFolder(s.name, from: existingFolders) else { continue }
-            let r = normalizedFolderName(resolved) ?? resolved
-            if r.caseInsensitiveCompare(norm) == .orderedSame {
-                hits.append(s)
-            }
-        }
-        if hits.isEmpty { return nil }
-        if hits.count == 1 { return hits[0] }
-        return hits.max(by: { primaryScore($0) < primaryScore($1) })
     }
 
     private static func normalizedFolderName(_ value: String?) -> String? {
@@ -406,14 +428,35 @@ enum BibleStudyTagSuggester {
     }
 
     /// Picks the stronger primary folder between two scored rows (`primaryScore`, then title, then category rank when scores are close).
-    private static func betterPrimaryCandidate(_ a: Scored, _ b: Scored) -> Scored {
-        let sa = primaryScore(a)
-        let sb = primaryScore(b)
+    private static func betterPrimaryCandidate(_ a: Scored, _ b: Scored, in analysis: Analysis) -> Scored {
+        let sa = primaryScore(a, in: analysis)
+        let sb = primaryScore(b, in: analysis)
+        if isThemePrimaryCategory(a.category), (b.category == .character || b.category == .place), !b.inTitle {
+            if sb - sa < 0.18 { return a }
+        }
+        if isThemePrimaryCategory(b.category), (a.category == .character || a.category == .place), !a.inTitle {
+            if sa - sb < 0.18 { return b }
+        }
+        if isThemePrimaryCategory(a.category), b.category == .book {
+            if sb - sa < 0.18 { return a }
+        }
+        if isThemePrimaryCategory(b.category), a.category == .book {
+            if sa - sb < 0.18 { return b }
+        }
         if abs(sa - sb) > primaryScoreAmbiguityEpsilon {
             return sa >= sb ? a : b
         }
         if a.inTitle != b.inTitle {
             return a.inTitle ? a : b
+        }
+        if a.inTitle && b.inTitle {
+            if isThemePrimaryCategory(a.category), b.category == .character { return a }
+            if isThemePrimaryCategory(b.category), a.category == .character { return b }
+        }
+        let aOpening = keywordAppearsInOpening(a.name, in: analysis)
+        let bOpening = keywordAppearsInOpening(b.name, in: analysis)
+        if aOpening != bOpening {
+            return aOpening ? a : b
         }
         let ra = folderCategoryRank(a.category)
         let rb = folderCategoryRank(b.category)
@@ -424,13 +467,16 @@ enum BibleStudyTagSuggester {
     }
 
     /// Tags may surface incidental people/places; secondary folders require stronger proof they organize the note.
-    private static func isEligibleSecondaryFolder(_ s: Scored) -> Bool {
-        let ps = primaryScore(s)
+    private static func isEligibleSecondaryFolder(_ s: Scored, in analysis: Analysis) -> Bool {
+        let ps = primaryScore(s, in: analysis)
         switch s.category {
         case .character, .place:
             let strongContext = s.inTitle || s.occurrences >= 3
             let floor = strongContext ? secondaryMinPrimaryScore : secondaryCharacterPlaceMinScore
             return ps >= floor
+        case .life:
+            let strongContext = s.inTitle || s.occurrences >= 3
+            return strongContext && ps >= secondaryMinPrimaryScore
         default:
             // Tags surface every detected theme; folders require evidence the keyword is a real topic — title presence or a repeat in the body.
             let strongContext = s.inTitle || s.occurrences >= 2
@@ -438,11 +484,19 @@ enum BibleStudyTagSuggester {
         }
     }
 
-    private static func primaryScore(_ s: Scored) -> Double {
+    private static func primaryScore(_ s: Scored, in analysis: Analysis) -> Double {
         var score = s.confidence
         switch s.category {
         case .spiritual, .biblical, .life:
-            score += 0.08
+            // Corroboration ladder: a single incidental mention of a broad/generic theme should not
+            // outrank a recurring, note-defining topic. Recurrence earns the full boost.
+            if s.occurrences <= 1 {
+                score += 0.03
+            } else if s.occurrences >= 3 {
+                score += 0.12
+            } else {
+                score += 0.08
+            }
         case .character, .place:
             if s.occurrences <= 1 {
                 score -= 0.12
@@ -455,6 +509,16 @@ enum BibleStudyTagSuggester {
             }
         case .book:
             break
+        }
+        if keywordAppearsInOpening(s.name, in: analysis) {
+            score = min(1.25, score + openingNarrativeFolderBoost)
+        }
+        if FolderKeywordContextGate.isRitualDescriptiveFolderMention(
+            keywordName: s.name,
+            title: analysis.title,
+            body: analysis.body
+        ) {
+            score -= FolderKeywordContextGate.ritualDescriptiveFolderScorePenalty
         }
         return score
     }
@@ -481,7 +545,7 @@ enum BibleStudyTagSuggester {
         a("Grace", .spiritual, 0.8, ["favor", "unmerited favor"])
         a("Mercy", .spiritual, 0.8, ["forgiveness", "pity"])
         a("Forgiveness", .spiritual, 0.8, ["pardon", "reconciliation"])
-        a("Salvation", .spiritual, 0.8, ["redemption", "deliverance"])
+        a("Salvation", .spiritual, 0.8, ["redemption", "deliverance", "salvation call"])
         a("Repentance", .spiritual, 0.8, ["conversion", "turning"])
         a("Worship", .spiritual, 0.8, ["praise", "adoration"])
         a("Praise", .spiritual, 0.8, ["exalt", "glorify"])
@@ -681,6 +745,7 @@ enum BibleStudyTagSuggester {
         var frequency = 0
         let usePersonGate = row.category == .character
         let useLifeContextGate = row.category == .life
+        let useChurchAttendanceGate = nameLower == "church"
 
         for piece in [nameLower] + row.synonyms.map({ $0.lowercased() }) {
             let trimmedPiece = piece.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -694,6 +759,9 @@ enum BibleStudyTagSuggester {
             } else if useLifeContextGate {
                 titleHits = countLifeKeywordNeedleMatches(trimmedPiece, keywordName: row.name, in: titleLower)
                 contentHits = countLifeKeywordNeedleMatches(trimmedPiece, keywordName: row.name, in: contentLower)
+            } else if useChurchAttendanceGate {
+                titleHits = countChurchKeywordNeedleMatches(trimmedPiece, keywordName: row.name, in: titleLower)
+                contentHits = countChurchKeywordNeedleMatches(trimmedPiece, keywordName: row.name, in: contentLower)
             } else {
                 titleHits = countBoundedNeedleMatches(trimmedPiece, in: titleLower)
                 contentHits = countBoundedNeedleMatches(trimmedPiece, in: contentLower)
@@ -719,6 +787,30 @@ enum BibleStudyTagSuggester {
             occurrences: max(1, frequency),
             inTitle: inTitle
         )
+    }
+
+    /// Church needles with attendance-venue guards (native `Church` keyword — web corpus omits it).
+    private static func countChurchKeywordNeedleMatches(_ needleLower: String, keywordName: String, in textLower: String) -> Int {
+        let words = needleLower.split(separator: " ").filter { !$0.isEmpty }.map(String.init)
+        guard !words.isEmpty else { return 0 }
+        let escaped = words.map { NSRegularExpression.escapedPattern(for: $0) }.joined(separator: "\\s+")
+        let pattern = words.count == 1 ? "\\b\(escaped)\\b" : "\\b(?:\(escaped))\\b"
+        guard let re = try? NSRegularExpression(pattern: pattern, options: .caseInsensitive) else { return 0 }
+        var count = 0
+        let n = (textLower as NSString).length
+        re.enumerateMatches(in: textLower, options: [], range: NSRange(location: 0, length: n)) { match, _, _ in
+            guard let match else { return }
+            if FolderKeywordContextGate.shouldSkipChurchAttendance(
+                keywordName: keywordName,
+                needle: needleLower,
+                in: textLower,
+                matchRange: match.range
+            ) {
+                return
+            }
+            count += 1
+        }
+        return count
     }
 
     /// Life-category needles with phrase-context guards (aligned with `life-keyword-context.ts`).

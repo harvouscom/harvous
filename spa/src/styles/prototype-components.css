@@ -3926,155 +3926,53 @@ html.harvous-proto-wallpaper-color .proto-votd-sheet {
   color: inherit !important;
 }
 
-/* ─── Destructive confirmation (native confirmationDialog parity) ───────── */
-.proto-confirm-dialog-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 9960;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 24px 16px;
-  background: var(--pds-overlay-heavy);
-  -webkit-backdrop-filter: blur(6px);
-  backdrop-filter: blur(6px);
-  animation: proto-confirm-overlay-in 0.16s ease-out;
+/* ─── Delete confirm bar — prototype token overrides ───────────────────── */
+html.harvous-prototype-route .harvous-delete-confirm {
+  border-radius: var(--pds-radius-pill);
+  border-color: var(--pds-border-modal-highlight);
+  background: var(--pds-bg-popover-solid);
+  box-shadow: var(--pds-shadow-popover), inset 0 0.5px 0 var(--pds-bg-modal-inset-highlight);
 }
 
-.proto-confirm-dialog {
-  position: relative;
-  isolation: isolate;
-  width: min(340px, 100%);
-  border-radius: var(--pds-radius-card);
-  border: 0.5px solid var(--pds-border-modal-highlight);
-  background: var(--pds-bg-modal);
-  box-shadow: var(--pds-shadow-sheet), inset 0 0.5px 0 var(--pds-bg-modal-inset-highlight);
-  overflow: hidden;
-  transform-origin: center;
-  animation: proto-confirm-pop-in 0.2s cubic-bezier(0.2, 0.8, 0.2, 1);
+html.harvous-proto-wallpaper-image .harvous-delete-confirm,
+html.harvous-proto-wallpaper-color .harvous-delete-confirm {
+  background: var(--pds-bg-popover-solid);
 }
 
-@keyframes proto-confirm-overlay-in {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
-}
-
-@keyframes proto-confirm-pop-in {
-  from {
-    opacity: 0;
-    transform: scale(0.94) translateY(8px);
-  }
-  to {
-    opacity: 1;
-    transform: scale(1) translateY(0);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .proto-confirm-dialog-overlay,
-  .proto-confirm-dialog {
-    animation: none;
-  }
-}
-
-html.harvous-proto-wallpaper-image .proto-confirm-dialog,
-html.harvous-proto-wallpaper-color .proto-confirm-dialog {
-  background: var(--pds-bg-modal);
-}
-
-.proto-confirm-dialog__content {
-  padding: 24px 20px 20px;
-  text-align: center;
-}
-
-.proto-confirm-dialog__icon {
-  color: var(--pds-text-secondary);
-}
-
-html.harvous-prototype-route .proto-confirm-dialog h2.proto-confirm-dialog__title {
-  margin: 12px 0 0;
-  font-family: var(--pds-font-display) !important;
-  font-variation-settings: var(--pds-font-display-variation) !important;
-  font-size: 1.25rem;
-  font-weight: 580 !important;
-  letter-spacing: -0.018em;
-  line-height: 1.2;
-  color: var(--pds-text-primary) !important;
-}
-
-.proto-confirm-dialog__content:not(:has(.proto-confirm-dialog__icon)) .proto-confirm-dialog__title {
-  margin-top: 0;
-}
-
-.proto-confirm-dialog__message {
-  margin: 4px auto 0;
-  max-width: 288px;
+html.harvous-prototype-route .harvous-delete-confirm__title {
   font-family: var(--pds-font-body);
   font-variation-settings: var(--pds-font-body-variation);
-  font-size: 1rem;
-  font-weight: 400;
-  line-height: 1.5;
+  color: var(--pds-text-primary);
+}
+
+html.harvous-prototype-route .harvous-delete-confirm__divider {
+  background: var(--pds-border-control-medium);
+}
+
+html.harvous-prototype-route .harvous-delete-confirm__icon-btn {
   color: var(--pds-text-secondary);
 }
 
-.proto-confirm-dialog__actions {
-  display: flex;
-  flex-direction: row;
-  gap: 0;
-  border-top: 0.5px solid var(--pds-border);
-}
-
-.proto-confirm-dialog__btn {
-  appearance: none;
-  flex: 1 1 0;
-  margin: 0;
-  border: none;
-  background: transparent;
-  font-family: var(--pds-font-body);
-  font-size: 15px;
-  font-weight: 500;
-  line-height: 1.2;
-  cursor: pointer;
-  transition: background 0.12s ease;
-}
-
-.proto-confirm-dialog__btn:disabled {
-  opacity: 0.55;
-  cursor: default;
-}
-
-.proto-confirm-dialog__btn--cancel {
-  padding: 14px 12px;
+html.harvous-prototype-route .harvous-delete-confirm__icon-btn:hover:not(:disabled) {
+  background: var(--pds-bg-hover);
   color: var(--pds-text-primary);
-  background: var(--pds-bg-input);
-  border-right: 0.5px solid var(--pds-border);
 }
 
-.proto-confirm-dialog__btn--cancel:hover:not(:disabled) {
-  background: var(--pds-bg-input-hover, var(--pds-bg-control-hover));
+html.harvous-prototype-route .harvous-delete-confirm__icon-btn:active:not(:disabled) {
+  background: var(--pds-bg-control-hover);
 }
 
-.proto-confirm-dialog__btn--cancel:active:not(:disabled) {
-  transform: scale(0.98);
-}
-
-.proto-confirm-dialog__btn--destructive {
-  padding: 14px 12px;
+html.harvous-prototype-route .harvous-delete-confirm__icon-btn--destructive {
   color: var(--pds-destructive);
-  font-weight: 600;
+}
+
+html.harvous-prototype-route .harvous-delete-confirm__icon-btn--destructive:hover:not(:disabled) {
   background: var(--pds-destructive-bg);
+  color: var(--pds-destructive);
 }
 
-.proto-confirm-dialog__btn--destructive:hover:not(:disabled) {
+html.harvous-prototype-route .harvous-delete-confirm__icon-btn--destructive:active:not(:disabled) {
   background: var(--pds-destructive-bg-strong);
-}
-
-.proto-confirm-dialog__btn--destructive:active:not(:disabled) {
-  transform: scale(0.98);
 }
 
 /* ─── Appearance settings — mini shell preview carousel ──────────────────── */
@@ -4685,4 +4583,94 @@ html.harvous-prototype-route .proto-confirm-dialog h2.proto-confirm-dialog__titl
 
 .proto-study-thread__connect-trigger:hover {
   background: var(--pds-bg-hover, rgba(0, 0, 0, 0.04));
+}
+
+/* ─── Global sync status chip (portaled to body) ─────────────────────────── */
+@keyframes protoSyncChipSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.proto-sync-chip {
+  position: fixed;
+  left: calc(var(--pds-shell-frame-inset, 14px) + max(16px, env(safe-area-inset-left)));
+  bottom: calc(var(--pds-shell-frame-inset, 14px) + 16px + env(safe-area-inset-bottom));
+  z-index: 1000020;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  background: var(--pds-surface-elevated, #fff);
+  color: var(--pds-text-secondary, #555);
+  font-family: var(--pds-font-body, var(--font-sans, system-ui, -apple-system, sans-serif));
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08), 0 8px 24px rgba(0, 0, 0, 0.12);
+  border: 1px solid var(--pds-separator, rgba(0, 0, 0, 0.08));
+  pointer-events: auto;
+}
+
+.proto-sync-chip--error {
+  color: var(--pds-destructive, #c0392b);
+}
+
+.proto-sync-chip__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex: 0 0 auto;
+  box-sizing: border-box;
+  background: #9aa0a6;
+}
+
+.proto-sync-chip--pending .proto-sync-chip__dot {
+  background: #e8a33d;
+}
+
+.proto-sync-chip--syncing .proto-sync-chip__dot {
+  background: transparent;
+  border: 2px solid #3d7de8;
+  border-top-color: transparent;
+}
+
+.proto-sync-chip--success .proto-sync-chip__dot {
+  background: #2ea169;
+}
+
+.proto-sync-chip--error .proto-sync-chip__dot {
+  background: var(--pds-destructive, #c0392b);
+}
+
+.proto-sync-chip__dot--spin {
+  animation: protoSyncChipSpin 0.8s linear infinite;
+}
+
+.proto-sync-chip__label {
+  min-width: 0;
+}
+
+.proto-sync-chip__retry {
+  display: inline-flex;
+  align-items: center;
+  border: none;
+  background: transparent;
+  color: var(--pds-accent, #3d7de8) !important;
+  font: inherit;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0;
+}
+
+.proto-sync-chip__retry:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.proto-sync-chip__retry,
+.proto-sync-chip__retry * {
+  color: var(--pds-accent, #3d7de8) !important;
 }

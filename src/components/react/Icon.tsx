@@ -201,9 +201,32 @@ interface IconProps {
   style?: React.CSSProperties;
 }
 
+// React 19 re-applies innerHTML whenever the `dangerouslySetInnerHTML` object
+// identity changes, replacing the SVG nodes on every render — which churns the
+// DOM and can suppress clicks (a press whose mousedown target gets detached
+// before mouseup never fires `click`). The icon map is static, so cache one
+// stable `{ __html }` object per name+size.
+const markupCache = new Map<string, { __html: string }>();
+
+function getIconMarkup(name: IconName, size: number): { __html: string } {
+  const cacheKey = `${name}|${size}`;
+  let markup = markupCache.get(cacheKey);
+  if (!markup) {
+    // Add width/height attributes to SVG to ensure proper sizing
+    const sizedSvg = icons[name].replace(
+      /<svg\s+/,
+      `<svg width="${size}" height="${size}" style="display:block" `
+    );
+    // Use safe renderer to ensure content is always a valid string
+    markup = { __html: safeRenderHtml(sizedSvg) };
+    markupCache.set(cacheKey, markup);
+  }
+  return markup;
+}
+
 const Icon: React.FC<IconProps> = ({ name, size = 20, className = '', style = {} }) => {
   const svgContent = icons[name];
-  
+
   if (!svgContent) {
     console.warn(`Icon "${name}" not found`);
     return null;
@@ -214,15 +237,6 @@ const Icon: React.FC<IconProps> = ({ name, size = 20, className = '', style = {}
     console.error(`Icon "${name}" has invalid content type:`, typeof svgContent);
     return null;
   }
-
-  // Add width/height attributes to SVG to ensure proper sizing
-  const sizedSvg = svgContent.replace(
-    /<svg\s+/,
-    `<svg width="${size}" height="${size}" style="display:block" `
-  );
-
-  // Use safe renderer to ensure content is always a valid string
-  const safeSvg = safeRenderHtml(sizedSvg);
 
   return (
     <span
@@ -236,7 +250,7 @@ const Icon: React.FC<IconProps> = ({ name, size = 20, className = '', style = {}
         color: 'inherit',
         ...style, // Include opacity in span style so it cascades to SVG
       }}
-      dangerouslySetInnerHTML={{ __html: safeSvg }}
+      dangerouslySetInnerHTML={getIconMarkup(name, size)}
     />
   );
 };

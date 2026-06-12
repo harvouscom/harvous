@@ -84,13 +84,20 @@ export interface ScripturePillChromeWebProps {
   animateEnter?: boolean;
   /** Called after the user selects passage text and taps the floating highlight button.
    *  Caller (TiptapEditor) should open a HighlightDockWeb card for the new thread. */
-  onPassageHighlightCreated?: (excerpt: string, threadId: string) => void;
+  onPassageHighlightCreated?: (excerpt: string, threadId: string, accent?: StudyHighlightAccentKey) => void;
   /** Gate passage reference suggestions to the prototype/native chrome surface. */
   editorChromeMode?: 'default' | 'prototypeNative';
-  /** Tap a passage suggestion or saved reference mark — caller opens the reference dock. */
+  /** Tap a passage suggestion or saved mark — caller opens the reference dock (or, for
+   *  `entryKind: 'scriptureLink'` marks, the highlight dock — native parity). */
   onOpenPassageReference?: (
     word: string,
-    opts?: { slug?: string; saved?: boolean; threadId?: string; accent?: StudyHighlightAccentKey },
+    opts?: {
+      slug?: string;
+      saved?: boolean;
+      threadId?: string;
+      accent?: StudyHighlightAccentKey;
+      entryKind?: string;
+    },
   ) => void;
 }
 
@@ -182,58 +189,85 @@ export default function ScripturePillChromeWeb({
     [selectedBook, chapter, verseStart, verseEnd, useVerseRange],
   );
 
-  const [passageStudyThreads, setPassageStudyThreads] = useState<
-    {
-      id: string;
-      scripturePassageExcerpt: string | null;
-      highlightAccentRaw: string;
-      entryKind: string;
-    }[]
-  >([]);
-  const [passageReferencePaints, setPassageReferencePaints] = useState<PassageHighlightPaint[]>([]);
+  // All saved passage study rows (scriptureLink highlights + reference marks) paint INLINE in
+  // the passage text — native parity (`ScripturePassageView` underline painting). No list UI.
+  const [passagePaints, setPassagePaints] = useState<PassageHighlightPaint[]>([]);
 
   const displayPassageHtml = useMemo(() => {
     if (editorChromeMode !== 'prototypeNative' || !passageHtml) return passageHtml;
     let html = passageHtml;
-    if (passageReferencePaints.length > 0) {
-      html = decoratePassageHtmlWithSavedHighlights(html, passageReferencePaints);
+    if (passagePaints.length > 0) {
+      html = decoratePassageHtmlWithSavedHighlights(html, passagePaints);
     }
     if (eastonsIndex) {
       html = decoratePassageHtmlWithReferenceSuggestions(html, referenceProviders);
     }
     return html;
-  }, [editorChromeMode, passageHtml, eastonsIndex, referenceProviders, passageReferencePaints]);
+  }, [editorChromeMode, passageHtml, eastonsIndex, referenceProviders, passagePaints]);
 
-  const handlePassageMouseDown = useCallback(
+  // Stable `dangerouslySetInnerHTML` object so React only writes innerHTML when the passage
+  // content actually changes. A fresh `{ __html }` literal each render makes React 19 re-apply
+  // innerHTML on every re-render (e.g. the selectionchange → passageSelection state update),
+  // which wipes any in-progress text selection — breaking drag-select inside the dock.
+  const passageHtmlMarkup = useMemo(
+    () => ({ __html: safeRenderHtml(displayPassageHtml) }),
+    [displayPassageHtml],
+  );
+
+  // Tap-vs-drag discrimination: marks and suggestion spans are tap targets, but they must NOT
+  // block drag-select from starting on them (native parity — the whole passage is selectable).
+  // So mousedown only records the pointer origin; the open action runs on click, and only when
+  // the pointer didn't drag and no text selection resulted.
+  const passagePointerDownRef = useRef<{ x: number; y: number } | null>(null);
+  const PASSAGE_TAP_SLOP_PX = 5;
+
+  const handlePassageMouseDown = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    passagePointerDownRef.current = { x: e.clientX, y: e.clientY };
+    // Pull DOM focus out of the (always-editing) TipTap editor into the passage container
+    // (tabIndex=-1). While the editor has focus, ProseMirror's selectionchange sync reclaims
+    // the DOM selection on every change — which kills a drag-select in the dock the moment it
+    // starts. Focus here happens before the browser builds the selection, so the drag survives.
+    if (document.activeElement?.closest?.('.ProseMirror')) {
+      e.currentTarget.focus({ preventScroll: true });
+    }
+    // No preventDefault/stopPropagation anywhere in the passage — browser starts drag-select natively.
+  }, []);
+
+  const handlePassageClick = useCallback(
     (e: React.MouseEvent<HTMLDivElement>) => {
+      const down = passagePointerDownRef.current;
+      passagePointerDownRef.current = null;
+      if (!onOpenPassageReference || editorChromeMode !== 'prototypeNative') return;
+      // Dragged → this was a selection gesture, not a tap.
+      if (down && Math.hypot(e.clientX - down.x, e.clientY - down.y) > PASSAGE_TAP_SLOP_PX) return;
+      const sel = window.getSelection();
+      if (sel && !sel.isCollapsed && sel.toString().trim()) return;
+
       const target = e.target as HTMLElement;
-      if (onOpenPassageReference && editorChromeMode === 'prototypeNative') {
-        const savedMark = target.closest('mark[data-reference]') as HTMLElement | null;
-        if (savedMark) {
-          e.preventDefault();
-          e.stopPropagation();
-          const word = savedMark.getAttribute('data-reference') || savedMark.textContent?.trim() || '';
-          if (!word) return;
-          const threadId = savedMark.getAttribute('data-study-thread-id') || undefined;
-          const accentRaw = savedMark.getAttribute('data-color');
-          const accent: StudyHighlightAccentKey =
-            accentRaw && isStudyHighlightAccentKey(accentRaw) ? accentRaw : 'warmAmber';
-          onOpenPassageReference(word, { saved: true, threadId, accent });
-          return;
-        }
-        const suggestionSpan = target.closest('.reference-suggestion') as HTMLElement | null;
-        if (suggestionSpan) {
-          e.preventDefault();
-          e.stopPropagation();
-          const word =
-            suggestionSpan.getAttribute('data-reference-word') || suggestionSpan.textContent?.trim() || '';
-          if (!word) return;
-          const slug = suggestionSpan.getAttribute('data-reference-slug') || undefined;
-          onOpenPassageReference(word, { slug });
-          return;
-        }
+      const savedMark = target.closest('mark[data-reference]') as HTMLElement | null;
+      if (savedMark) {
+        e.preventDefault();
+        e.stopPropagation();
+        const word = savedMark.getAttribute('data-reference') || savedMark.textContent?.trim() || '';
+        if (!word) return;
+        const threadId = savedMark.getAttribute('data-study-thread-id') || undefined;
+        const entryKind = savedMark.getAttribute('data-entry-kind') || undefined;
+        const accentRaw = savedMark.getAttribute('data-color');
+        const accent: StudyHighlightAccentKey =
+          accentRaw && isStudyHighlightAccentKey(accentRaw) ? accentRaw : 'warmAmber';
+        onOpenPassageReference(word, { saved: true, threadId, accent, entryKind });
+        return;
       }
-      // Plain verse text: no focus/stopPropagation — browser starts drag-select natively.
+      const suggestionSpan = target.closest('.reference-suggestion') as HTMLElement | null;
+      if (suggestionSpan) {
+        e.preventDefault();
+        e.stopPropagation();
+        const word =
+          suggestionSpan.getAttribute('data-reference-word') || suggestionSpan.textContent?.trim() || '';
+        if (!word) return;
+        const slug = suggestionSpan.getAttribute('data-reference-slug') || undefined;
+        onOpenPassageReference(word, { slug });
+      }
     },
     [onOpenPassageReference, editorChromeMode],
   );
@@ -313,24 +347,14 @@ export default function ScripturePillChromeWeb({
         highlightAccentRaw?: string;
       }[],
     ) => {
-      setPassageStudyThreads(
-        rows
-          .filter((r) => r.entryKind === 'scriptureLink')
-          .map((r) => ({
-            id: r.id,
-            scripturePassageExcerpt: r.scripturePassageExcerpt ?? null,
-            highlightAccentRaw: r.highlightAccentRaw ?? 'warmAmber',
-            entryKind: 'scriptureLink',
-          })),
-      );
-      setPassageReferencePaints((prev) => {
+      setPassagePaints((prev) => {
         const fromApi = rows
-          .filter((r) => r.entryKind === 'reference')
+          .filter((r) => r.entryKind === 'scriptureLink' || r.entryKind === 'reference')
           .map((r) => ({
             id: r.id,
             excerpt: (r.scripturePassageExcerpt ?? r.sourceSnippet ?? '').trim(),
             accentRaw: r.highlightAccentRaw ?? 'warmAmber',
-            entryKind: 'reference',
+            entryKind: r.entryKind as string,
           }))
           .filter((p) => p.excerpt.length > 0);
         const apiIds = new Set(fromApi.map((p) => p.id));
@@ -342,8 +366,7 @@ export default function ScripturePillChromeWeb({
   );
 
   useEffect(() => {
-    setPassageStudyThreads([]);
-    setPassageReferencePaints([]);
+    setPassagePaints([]);
   }, [sourceNoteId, displayRefString, trans]);
 
   useEffect(() => {
@@ -390,7 +413,7 @@ export default function ScripturePillChromeWeb({
       if (savedNorm !== sessionNorm || detail.translation !== sessionTrans) return;
 
       if (detail.action === 'delete') {
-        setPassageReferencePaints((prev) => prev.filter((p) => p.id !== detail.threadId));
+        setPassagePaints((prev) => prev.filter((p) => p.id !== detail.threadId));
         return;
       }
 
@@ -400,7 +423,7 @@ export default function ScripturePillChromeWeb({
         accentRaw: detail.accent || 'warmAmber',
         entryKind: 'reference',
       };
-      setPassageReferencePaints((prev) => {
+      setPassagePaints((prev) => {
         const idx = prev.findIndex((p) => p.id === detail.threadId);
         if (idx < 0) return [...prev, paint];
         const next = [...prev];
@@ -467,6 +490,12 @@ export default function ScripturePillChromeWeb({
   const handleCreatePassageHighlight = useCallback(async () => {
     if (!passageSelection || !sourceNoteId || creatingHighlight) return;
     setCreatingHighlight(true);
+    // Native parity (`beginPassageHighlightDraft`): seed from the pill accent when set and
+    // non-neutral, else warm amber.
+    const seedAccent: StudyHighlightAccentKey =
+      initialPillAccent && isStudyHighlightAccentKey(initialPillAccent) && initialPillAccent !== 'neutral'
+        ? initialPillAccent
+        : 'warmAmber';
     try {
       const norm = normalizeScriptureReference(displayRefString) ?? displayRefString;
       const res = await fetch(`/api/notes/${sourceNoteId}/study-threads`, {
@@ -478,7 +507,7 @@ export default function ScripturePillChromeWeb({
           scripturePassageExcerpt: passageSelection.text,
           scriptureReference: norm,
           scripturePassageTranslation: trans,
-          highlightAccentRaw: 'warmAmber',
+          highlightAccentRaw: seedAccent,
           sourceSnippet: passageSelection.text,
           focusTitle: passageSelection.text.slice(0, 80),
         }),
@@ -487,37 +516,27 @@ export default function ScripturePillChromeWeb({
         const data = await res.json();
         const threadId: string | null = data.studyThread?.id ?? null;
         if (threadId) {
-          setPassageStudyThreads((prev) => [
+          // Paint the new highlight inline immediately (native parity — no list UI).
+          setPassagePaints((prev) => [
             ...prev,
             {
               id: threadId,
-              scripturePassageExcerpt: passageSelection.text,
-              highlightAccentRaw: 'warmAmber',
+              excerpt: passageSelection.text,
+              accentRaw: seedAccent,
               entryKind: 'scriptureLink',
             },
           ]);
-          onPassageHighlightCreated?.(passageSelection.text, threadId);
+          onPassageHighlightCreated?.(passageSelection.text, threadId, seedAccent);
         }
       }
     } catch {
-      /* ignore — highlight list will still reflect server state on next load */
+      /* ignore — paints will still reflect server state on next load */
     }
     setPassageSelection(null);
     window.getSelection()?.removeAllRanges();
     setCreatingHighlight(false);
-  }, [passageSelection, sourceNoteId, creatingHighlight, displayRefString, trans, onPassageHighlightCreated]);
+  }, [passageSelection, sourceNoteId, creatingHighlight, displayRefString, trans, onPassageHighlightCreated, initialPillAccent]);
   // ──────────────────────────────────────────────────────────────────────────
-
-  const removePassageStudy = useCallback(async (id: string) => {
-    try {
-      const res = await fetch(`/api/study-threads/${id}`, { method: 'DELETE', credentials: 'include' });
-      if (res.ok) {
-        setPassageStudyThreads((prev) => prev.filter((r) => r.id !== id));
-      }
-    } catch {
-      /* ignore */
-    }
-  }, []);
 
   const selectedSwatchKey: StudyHighlightAccentKey =
     initialPillAccent && isStudyHighlightAccentKey(initialPillAccent) ? initialPillAccent : 'neutral';
@@ -601,6 +620,7 @@ export default function ScripturePillChromeWeb({
         // doesn't bounce focus back to the editor, allowing text selection.
         tabIndex={-1}
         onMouseDown={handlePassageMouseDown}
+        onClick={handlePassageClick}
       >
         <div ref={passageContentRef} className="scripture-pill-chrome__passage-inner">
           {loadingPassage ? (
@@ -608,34 +628,11 @@ export default function ScripturePillChromeWeb({
           ) : passageHtml ? (
             <div
               className="scripture-pill-chrome__passage-html"
-              dangerouslySetInnerHTML={{ __html: safeRenderHtml(displayPassageHtml) }}
+              dangerouslySetInnerHTML={passageHtmlMarkup}
             />
           ) : (
             <p className="scripture-pill-chrome__passage-status">Could not load this passage.</p>
           )}
-          {sourceNoteId && passageStudyThreads.length > 0 ? (
-            <div className="scripture-pill-chrome__passage-highlights">
-              <p className="scripture-pill-chrome__section-label">Passage study</p>
-              <ul className="scripture-pill-chrome__study-list">
-                {passageStudyThreads.map((row) => (
-                  <li key={row.id} className="scripture-pill-chrome__study-item">
-                    <p className="scripture-pill-chrome__study-excerpt">
-                      {row.scripturePassageExcerpt?.trim() || '(passage highlight)'}
-                    </p>
-                    <button
-                      type="button"
-                      className="study-dock-card__header-btn study-dock-card__header-btn--plain"
-                      onMouseDown={(e) => e.preventDefault()}
-                      onClick={() => void removePassageStudy(row.id)}
-                      aria-label="Remove passage highlight"
-                    >
-                      <Icon name="trash-can" size={12} />
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ) : null}
           {translationInfo ? (
             <div className="scripture-pill-chrome__attribution" role="contentinfo" aria-label="Translation attribution">
               <Icon
@@ -680,7 +677,19 @@ export default function ScripturePillChromeWeb({
             <button
               type="button"
               className="study-dock-card__header-btn"
-              onClick={() => void handleCreatePassageHighlight()}
+              // Run on mousedown (StudyDockCardShell pattern): a re-render between mouseup and
+              // click re-applies the Icon's inner SVG, detaching the press target so the browser
+              // never dispatches click. preventDefault also keeps the text selection alive.
+              onMouseDown={(e) => {
+                if (e.button !== 0) return;
+                e.preventDefault();
+                e.stopPropagation();
+                void handleCreatePassageHighlight();
+              }}
+              onClick={(e) => {
+                /* Keyboard activation only — mouse runs on mousedown (detail 0 = key). */
+                if (e.detail === 0) void handleCreatePassageHighlight();
+              }}
               disabled={creatingHighlight}
               aria-label="Highlight selected passage text"
               title="Highlight"

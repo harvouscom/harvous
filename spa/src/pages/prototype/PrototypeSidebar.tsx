@@ -152,7 +152,7 @@ function HighlightRow({
   onOpen: () => void;
   onTogglePin: () => void;
   onSetAccent: (token: string) => void;
-  onDelete: () => void;
+  onDelete: (anchorRect: DOMRect) => void;
   isDeleting: boolean;
 }) {
   const kindIcon = highlightEntryKindIconName(entryKind);
@@ -273,7 +273,7 @@ function HighlightRow({
               onClick={(e) => {
                 e.stopPropagation();
                 setMenuOpen(false);
-                onDelete();
+                onDelete(e.currentTarget.getBoundingClientRect());
               }}
             >
               <span className="proto-menu-item__icon" aria-hidden>
@@ -298,6 +298,7 @@ function PrototypeSidebarNoteRow({
 }: PrototypeSidebarNoteRowProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [deleteAnchorRect, setDeleteAnchorRect] = useState<DOMRect | null>(null);
   const rowRef = useRef<HTMLLIElement>(null);
   const menuRootRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
@@ -341,8 +342,9 @@ function PrototypeSidebarNoteRow({
     );
   };
 
-  const onDeleteRequest = () => {
+  const onDeleteRequest = (anchorRect: DOMRect) => {
     setMenuOpen(false);
+    setDeleteAnchorRect(anchorRect);
     setDeleteConfirmOpen(true);
   };
 
@@ -440,7 +442,7 @@ function PrototypeSidebarNoteRow({
               disabled={deleteNote.isPending}
               onClick={(e) => {
                 e.stopPropagation();
-                onDeleteRequest();
+                onDeleteRequest(e.currentTarget.getBoundingClientRect());
               }}
             >
               <span className="proto-menu-item__icon" aria-hidden>
@@ -451,15 +453,18 @@ function PrototypeSidebarNoteRow({
           </div>
         </PrototypeSidebarRowMenuPopover>
       </div>
-      {deleteConfirmOpen ? (
+      {deleteConfirmOpen && deleteAnchorRect ? (
         <ProtoConfirmDialog
-          title="Delete this note"
-          message="This cannot be undone."
+          anchorRect={deleteAnchorRect}
+          title="Delete this note?"
           confirmLabel="Delete"
           busy={deleteNote.isPending}
           onConfirm={onDeleteConfirm}
           onCancel={() => {
-            if (!deleteNote.isPending) setDeleteConfirmOpen(false);
+            if (!deleteNote.isPending) {
+              setDeleteConfirmOpen(false);
+              setDeleteAnchorRect(null);
+            }
           }}
         />
       ) : null}
@@ -605,7 +610,10 @@ export default function PrototypeSidebar() {
   const [scriptureDrill, setScriptureDrill] = useState<ScriptureDrill>({ level: 'books' });
   const [highlightKindFilter, setHighlightKindFilter] = useState<HighlightKindFilter>('all');
   const [pinnedHighlightIds, setPinnedHighlightIds] = useState<string[]>([]);
-  const [highlightDeleteTarget, setHighlightDeleteTarget] = useState<PrototypeHighlightStudyThreadRow | null>(null);
+  const [highlightDeleteTarget, setHighlightDeleteTarget] = useState<{
+    row: PrototypeHighlightStudyThreadRow;
+    anchorRect: DOMRect;
+  } | null>(null);
 
   useEffect(() => {
     setPinnedHighlightIds(loadPinnedHighlightIds(homeSpaceId ?? undefined));
@@ -940,14 +948,15 @@ export default function PrototypeSidebar() {
     );
   };
 
-  const onRequestDeleteHighlight = (r: PrototypeHighlightStudyThreadRow) => {
-    setHighlightDeleteTarget(r);
+  const onRequestDeleteHighlight = (r: PrototypeHighlightStudyThreadRow, anchorRect: DOMRect) => {
+    setHighlightDeleteTarget({ row: r, anchorRect });
   };
 
   const onConfirmDeleteHighlight = () => {
     if (!homeSpaceId || !highlightDeleteTarget) return;
+    const { row } = highlightDeleteTarget;
     deleteHighlight.mutate(
-      { id: highlightDeleteTarget.id, spaceId: homeSpaceId, parentNoteId: highlightDeleteTarget.parentNoteId },
+      { id: row.id, spaceId: homeSpaceId, parentNoteId: row.parentNoteId },
       {
         onSuccess: () => setHighlightDeleteTarget(null),
         onError: (err) => {
@@ -966,6 +975,19 @@ export default function PrototypeSidebar() {
       const canon = (r.scriptureReference ?? '').trim();
       const trans = (r.scripturePassageTranslation ?? '').trim();
       if (canon && trans) {
+        // Open the scripture dock from the source note instance (parity with tapping the
+        // note's own reference pill) rather than the standalone full-screen passage pane.
+        if (r.parentNoteId) {
+          dismissStandaloneScripturePassage();
+          navigate({
+            to: prototypeNoteRouteTo(),
+            params: { noteId: noteParamSlug(r.parentNoteId) },
+            search: { scriptureRef: canon, scriptureTranslation: trans, studyThread: r.id },
+          });
+          afterNav();
+          return;
+        }
+        // No source note to anchor the dock to — fall back to the standalone passage view.
         if (isPrototypeNotePath(pathname)) {
           navigate({ to: prototypeHomeRouteTo() });
         }
@@ -1363,7 +1385,7 @@ export default function PrototypeSidebar() {
                           onOpen={() => onHighlightRow(r)}
                           onTogglePin={() => togglePinnedHighlight(r.id)}
                           onSetAccent={(token) => onSetHighlightAccent(r, token)}
-                          onDelete={() => onRequestDeleteHighlight(r)}
+                          onDelete={(anchorRect) => onRequestDeleteHighlight(r, anchorRect)}
                           isDeleting={
                             deleteHighlight.isPending &&
                             deleteHighlight.variables?.id === r.id
@@ -1587,9 +1609,9 @@ export default function PrototypeSidebar() {
 
       {highlightDeleteTarget ? (
         <ProtoConfirmDialog
+          anchorRect={highlightDeleteTarget.anchorRect}
           title="Delete highlight?"
-          message="The highlight is removed from the source note. The note itself is kept."
-          confirmLabel="Delete highlight"
+          confirmLabel="Delete"
           busy={deleteHighlight.isPending}
           onConfirm={onConfirmDeleteHighlight}
           onCancel={() => {

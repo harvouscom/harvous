@@ -116,7 +116,7 @@ Native `HarvousAnimation`: `spring` (response 0.32 / damping 0.72), `snappy` (0.
 
 ### Web (`spa/src/pages/prototype/`)
 - **Popovers/menus:** wrap content in the visual-only `ProtoPopoverShell`, and drive open/close with the **`usePopoverDismiss`** hook (`spa/src/hooks/usePopoverDismiss.ts`) — it owns the `open` state, `rootRef`, outside-click, and Escape. (See `ListViewMenu`, `PrototypeNoteMoreMenu`, `AccountMenu`.) Do **not** re-hand-roll the `mousedown`/`keydown` effect.
-- **Destructive confirm:** `ProtoConfirmDialog`.
+- **Destructive confirm:** `ProtoConfirmDialog` — anchored floater (scripture-pill delete parity); callers must pass `anchorRect` from the delete trigger’s `getBoundingClientRect()`.
 - **Editor bottom chrome:** portal into the shell-provided hosts (`formatToolbarHostEl`, `studyDockCarouselHostEl`, `referenceChromeHostEl`) from `proto-shell-context`; add a new mode to `PrototypeEditorChromeMode` rather than a new bar.
 - **Settings categories:** add to the `SETTINGS_CATEGORIES` array — the nav renders from it. This is the model extension pattern to imitate for list-driven UI.
 - **Lists:** reuse the `proto-note-row` / list-row classes and `pds-list-title` / `pds-list-preview` type.

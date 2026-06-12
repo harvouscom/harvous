@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { offlineDB, ensureDatabaseOpen, retryIndexedDBOperation } from '@/utils/offline-db';
-import { getSyncState, syncNow } from '@/utils/sync-manager';
+import { getSyncState, retryStuckQueue, triggerImmediateSync } from '@/utils/sync-manager';
 import { getPersistedUserId } from '@/utils/user-id';
+import { SYNC_QUEUE_UNHEALTHY_THRESHOLD } from '../utils/prototype-sync-chip-copy';
 
 export interface SyncQueueStatus {
   /** Browser is offline. */
@@ -16,6 +17,10 @@ export interface SyncQueueStatus {
   isSyncing: boolean;
   /** Briefly true right after the queue drains following a period of pending work. */
   showAllSynced: boolean;
+  /** True when the pending queue is abnormally large (likely stuck). */
+  queueUnhealthy: boolean;
+  /** True while the chip's Retry action is running. */
+  isRetrying: boolean;
   /** Manually flush the queue (used by the chip's Retry action). */
   retry: () => void;
 }
@@ -36,10 +41,15 @@ export function useSyncQueueStatus(userIdProp?: string | null): SyncQueueStatus 
   const [syncError, setSyncError] = useState<string | null>(null);
   const [isSyncing, setIsSyncing] = useState(false);
   const [showAllSynced, setShowAllSynced] = useState(false);
+  const [queueUnhealthy, setQueueUnhealthy] = useState(false);
+  const [isRetrying, setIsRetrying] = useState(false);
 
   const prevPendingRef = useRef(0);
   const celebrateRef = useRef(false);
   const wentOfflineRef = useRef(false);
+  const checkRef = useRef<(() => Promise<void>) | null>(null);
+  const unhealthyWarnedRef = useRef(false);
+  const autoRetryAttemptedRef = useRef(false);
 
   useEffect(() => {
     const handleOnline = () => setIsOffline(false);
@@ -58,6 +68,9 @@ export function useSyncQueueStatus(userIdProp?: string | null): SyncQueueStatus 
   useEffect(() => {
     if (!userId) return;
 
+    unhealthyWarnedRef.current = false;
+    autoRetryAttemptedRef.current = false;
+
     const countWhere = (filter: (retryCount: number) => boolean) =>
       retryIndexedDBOperation(async () =>
         offlineDB.syncQueue
@@ -71,6 +84,25 @@ export function useSyncQueueStatus(userIdProp?: string | null): SyncQueueStatus 
       try {
         await ensureDatabaseOpen();
         const pending = await countWhere((rc) => rc < 5);
+        const failed = await countWhere((rc) => rc >= 5);
+        const unhealthy = pending > SYNC_QUEUE_UNHEALTHY_THRESHOLD;
+
+        if (unhealthy && !unhealthyWarnedRef.current) {
+          unhealthyWarnedRef.current = true;
+          console.warn('[useSyncQueueStatus] sync queue unhealthy', { pending, userId });
+        }
+
+        // Self-heal: when online with a stuck queue (either abnormally large, or ops that
+        // exhausted their retries), auto-retry once per online episode. Without this, a
+        // transient offline blip that pushes ops to retryCount>=5 leaves the chip stuck on
+        // "Couldn't save to the cloud" forever even after the connection is restored, until the
+        // user manually taps Retry. `autoRetryAttemptedRef` is re-armed on each reconnect
+        // (see handleOnline) so we recover on reconnect but never hammer a permanently-dead op.
+        if ((unhealthy || failed > 0) && navigator.onLine && !autoRetryAttemptedRef.current) {
+          autoRetryAttemptedRef.current = true;
+          triggerImmediateSync(userId);
+          void retryStuckQueue(userId).then(() => checkRef.current?.());
+        }
 
         // Celebrate the moment a non-empty queue drains while online.
         if (celebrateRef.current && prevPendingRef.current > 0 && pending === 0 && navigator.onLine) {
@@ -80,7 +112,8 @@ export function useSyncQueueStatus(userIdProp?: string | null): SyncQueueStatus 
         }
         prevPendingRef.current = pending;
         setPendingCount(pending);
-        setFailedCount(await countWhere((rc) => rc >= 5));
+        setQueueUnhealthy(unhealthy);
+        setFailedCount(failed);
 
         const state = await getSyncState(userId);
         if (state) {
@@ -95,10 +128,14 @@ export function useSyncQueueStatus(userIdProp?: string | null): SyncQueueStatus 
       }
     };
 
+    checkRef.current = check;
     check();
     const interval = setInterval(check, 5000);
 
     const handleOnline = async () => {
+      // Re-arm the one-shot self-heal so reconnecting always gets a fresh auto-retry of any
+      // ops that got stuck while offline.
+      autoRetryAttemptedRef.current = false;
       if (wentOfflineRef.current) {
         try {
           await ensureDatabaseOpen();
@@ -113,6 +150,7 @@ export function useSyncQueueStatus(userIdProp?: string | null): SyncQueueStatus 
     window.addEventListener('online', handleOnline);
 
     return () => {
+      checkRef.current = null;
       clearInterval(interval);
       window.removeEventListener('online', handleOnline);
     };
@@ -120,8 +158,29 @@ export function useSyncQueueStatus(userIdProp?: string | null): SyncQueueStatus 
 
   const retry = useCallback(() => {
     if (!userId || !navigator.onLine) return;
-    void syncNow(userId);
+    void (async () => {
+      setIsRetrying(true);
+      try {
+        await retryStuckQueue(userId);
+        triggerImmediateSync(userId);
+        await checkRef.current?.();
+      } catch (error) {
+        console.error('[useSyncQueueStatus] retry failed:', error);
+      } finally {
+        setIsRetrying(false);
+      }
+    })();
   }, [userId]);
 
-  return { isOffline, pendingCount, failedCount, syncError, isSyncing, showAllSynced, retry };
+  return {
+    isOffline,
+    pendingCount,
+    failedCount,
+    syncError,
+    isSyncing,
+    showAllSynced,
+    queueUnhealthy,
+    isRetrying,
+    retry,
+  };
 }

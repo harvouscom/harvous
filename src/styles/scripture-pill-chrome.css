@@ -190,11 +190,15 @@
 /* ─── Passage scroll ─────────────────────────────────────────────────────── */
 
 /* Passage scroll viewport — max-height + expanded card chrome in study-dock-card.css. */
-/* Beat global.css `* { user-select: none }` on every descendant so drag-select works. */
+/* Beat global.css `* { user-select: none }` on every descendant so drag-select works.
+   Suggestion spans and saved marks stay selectable too (native parity: the whole passage is
+   one selectable text view) — a drag must be able to START on them; tap-open is handled by
+   click-vs-drag logic in ScripturePillChromeWeb. Only verse numbers are excluded (copy
+   cleanliness). */
 .scripture-pill-chrome__passage,
 .scripture-pill-chrome__passage-inner,
 .scripture-pill-chrome__passage-html,
-.scripture-pill-chrome__passage-html *:not(sup.verse-num):not(.reference-suggestion):not(mark[data-reference]) {
+.scripture-pill-chrome__passage-html *:not(sup.verse-num) {
   user-select: text !important;
   -webkit-user-select: text !important;
   cursor: text;
@@ -263,10 +267,8 @@
   color: var(--pds-text-primary, #1d1d1f);
 }
 
-/* Passage reference suggestions — tap targets (not drag-select); same dotted hint as note body. */
+/* Passage reference suggestions — tap targets that stay drag-selectable; dotted hint as note body. */
 .scripture-pill-chrome__passage-html .reference-suggestion {
-  user-select: none !important;
-  -webkit-user-select: none !important;
   text-decoration: underline dotted;
   text-decoration-thickness: 1.5px;
   text-underline-offset: 3px;
@@ -292,9 +294,14 @@
   text-decoration-color: var(--pds-highlight-warm-amber);
   border-radius: 0;
   padding: 0;
-  user-select: none !important;
-  -webkit-user-select: none !important;
   cursor: pointer;
+}
+
+/* Saved passage highlight (scriptureLink) — thicker accent underline, native
+   `NSUnderlineStyle.thick` painting parity (vs the 2px reference-mark underline). */
+.scripture-pill-chrome__passage-html mark[data-entry-kind="scriptureLink"] {
+  text-decoration-thickness: 3px;
+  text-underline-offset: 2px;
 }
 
 .scripture-pill-chrome__passage-html mark[data-color="neutral"] { text-decoration-color: var(--pds-highlight-neutral); }

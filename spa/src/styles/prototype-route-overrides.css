@@ -150,10 +150,13 @@ html.harvous-prototype-route button.proto-inspector-delete-btn path {
   fill: currentColor !important;
 }
 
-/* Confirm dialog — destructive action keeps red text (soft-tinted fill on wide screens) */
-html.harvous-prototype-route button.proto-confirm-dialog__btn--destructive,
-html.harvous-prototype-route button.proto-confirm-dialog__btn--destructive * {
+/* Delete confirm bar — destructive trash icon stays red */
+html.harvous-prototype-route button.harvous-delete-confirm__icon-btn--destructive,
+html.harvous-prototype-route button.harvous-delete-confirm__icon-btn--destructive *,
+html.harvous-prototype-route button.harvous-delete-confirm__icon-btn--destructive svg,
+html.harvous-prototype-route button.harvous-delete-confirm__icon-btn--destructive path {
   color: var(--pds-destructive) !important;
+  fill: currentColor !important;
 }
 
 /* Share popover text actions — accent / destructive link buttons */

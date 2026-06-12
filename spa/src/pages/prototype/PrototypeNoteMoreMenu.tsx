@@ -63,6 +63,7 @@ export default function PrototypeNoteMoreMenu({
 }: PrototypeNoteMoreMenuProps) {
   const { open, setOpen, rootRef } = usePopoverDismiss<HTMLDivElement>();
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [deleteAnchorRect, setDeleteAnchorRect] = useState<DOMRect | null>(null);
   const [pinOverride, setPinOverride] = useState<boolean | null>(null);
   const queryClient = useQueryClient();
   const navigate = useNavigate();
@@ -185,7 +186,8 @@ export default function PrototypeNoteMoreMenu({
                 role="menuitem"
                 className="proto-menu-item proto-menu-item--destructive"
                 disabled={deleteNote.isPending}
-                onClick={() => {
+                onClick={(e) => {
+                  setDeleteAnchorRect(e.currentTarget.getBoundingClientRect());
                   setOpen(false);
                   setDeleteConfirmOpen(true);
                 }}
@@ -200,15 +202,18 @@ export default function PrototypeNoteMoreMenu({
         ) : null}
       </div>
 
-      {deleteConfirmOpen ? (
+      {deleteConfirmOpen && deleteAnchorRect ? (
         <ProtoConfirmDialog
-          title="Delete this note"
-          message="This cannot be undone."
+          anchorRect={deleteAnchorRect}
+          title="Delete this note?"
           confirmLabel="Delete"
           busy={deleteNote.isPending}
           onConfirm={onDeleteConfirm}
           onCancel={() => {
-            if (!deleteNote.isPending) setDeleteConfirmOpen(false);
+            if (!deleteNote.isPending) {
+              setDeleteConfirmOpen(false);
+              setDeleteAnchorRect(null);
+            }
           }}
         />
       ) : null}

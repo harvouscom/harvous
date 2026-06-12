@@ -118,9 +118,10 @@
   pointer-events: auto;
 }
 
-/* Passage text must stay selectable inside the prototype shell (global.css sets * { user-select: none }). */
+/* Passage text must stay selectable inside the prototype shell (global.css sets * { user-select: none }).
+   Suggestion spans and saved marks included — drags must be able to start on them (native parity). */
 .proto-shell__study-dock-layer .scripture-pill-chrome__passage-html,
-.proto-shell__study-dock-layer .scripture-pill-chrome__passage-html *:not(sup.verse-num):not(.reference-suggestion):not(mark[data-reference]) {
+.proto-shell__study-dock-layer .scripture-pill-chrome__passage-html *:not(sup.verse-num) {
   user-select: text !important;
   -webkit-user-select: text !important;
 }
@@ -971,6 +972,7 @@ html.harvous-prototype-route .proto-share-popover,
 html.harvous-prototype-route .proto-find-popover,
 html.harvous-prototype-route .proto-folder-popover,
 html.harvous-prototype-route .proto-connect-note-popover,
+html.harvous-prototype-route .harvous-delete-confirm,
 html.harvous-prototype-route .harvous-menu-pill__menu {
   background: var(--pds-bg-popover-solid);
   background-image: none;

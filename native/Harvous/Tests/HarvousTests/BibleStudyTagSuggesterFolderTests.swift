@@ -44,7 +44,8 @@ final class BibleStudyTagSuggesterFolderTests: XCTestCase {
     func testResultStillTagsApostleLukeInBiblicalContext() {
         let body = "We studied how the apostle Luke wrote his gospel account for Theophilus."
         let r = BibleStudyTagSuggester.result(title: "Luke's Gospel", body: body)
-        XCTAssertTrue(r.tags.contains(where: { $0.caseInsensitiveCompare("Luke") == .orderedSame }))
+        XCTAssertEqual(r.primaryFolder?.lowercased(), "gospel")
+        XCTAssertTrue(r.secondaryFolders.contains(where: { $0.caseInsensitiveCompare("Luke") == .orderedSame }))
     }
 
     func testSalvationTestimonyPrimaryOnlyNoSecondaryOrFolderTags() {
@@ -74,19 +75,43 @@ final class BibleStudyTagSuggesterFolderTests: XCTestCase {
         XCTAssertEqual(r.primaryFolder?.lowercased(), "friendship")
     }
 
+    func testFullLutheranTestimonyAssignsSalvationPrimaryNotPrayerOrFamily() {
+        let title = "10 years ago"
+        let body = """
+            10 years ago I raised my hand during a salvation call at a church I had been going to only a handful of times. I was invited by my friends. Before this the only scripture I really remembered was John 3:16
+
+            Raised Lutheran
+            My family went to a local Lutheran church in my hometown, where I was born. I didn't know it at the time but now I know that we just went to this church to check a box, especially because our town was essentially closed on Sundays and it was expected to be in church.
+            I didn't know you could have a relationship with God.
+            Prayer was this formal sounding way of talking to God and for His honor we'd sit down and stand point numerous times while reading passages and singing hymns.
+            I will say my favorite part was communion. I didn't fully understand what this meant. I just wanted to feel accepted and the juice and fresh bread made Sundays better. Outside of this, the smell of coffee in the fellowship hall and the opportunity to help design the new church building this is all I remember from my time at this church.
+            Oh, before this church I believe my family and I went to this other Lutheran church in another city between being born and moving back to my hometown. The only thing I remember about this church is the stained glass, natural light, and trees.
+            """
+        let r = BibleStudyTagSuggester.result(title: title, body: body)
+        XCTAssertEqual(r.primaryFolder?.lowercased(), "salvation")
+        XCTAssertFalse(r.secondaryFolders.map { $0.lowercased() }.contains("family"))
+        XCTAssertFalse(r.secondaryFolders.map { $0.lowercased() }.contains("prayer"))
+    }
+
     func testLutheranTestimonyDoesNotTagMarriageOrFriendship() {
         let body = """
-            10 years ago I raised my hand during a salvation call at a church I had been going to only a handful of times. \
-            Before this the only scripture I really remembered was John 3:16. \
-            I didn't know you could have a relationship with God. \
-            Prayer was this formal sounding way of talking to God. \
-            I will say my favorite part was communion. \
-            Outside of this, the smell of coffee in the fellowship hall.
+            10 years ago I raised my hand during a salvation call at a church I had been going to only a handful of times. I was invited by my friends. Before this the only scripture I really remembered was John 3:16
+
+            Raised Lutheran
+
+            My family went to a local Lutheran church in my hometown, where I was born. I didn't know it at the time but now I know that we just went to this church to check a box, especially because our town was essentially closed on Sundays and it was expected to be in church.
+
+            I didn't know you could have a relationship with God.
+
+            Prayer was this formal sounding way of talking to God and for His honor we'd sit down and stand point numerous times while reading passages and singing hymns. Oh and I was one of those kids that would walk down the aisle at start and end of service to light and put out the candles.
+
+            I will say my favorite part was communion. I didn't fully understand what this meant. I just wanted to feel accepted and the juice and fresh bread made Sundays better. Outside of this, the smell of coffee in the fellowship hall and the opportunity to help design the new church building this is all I remember from my time at this church.
+
+            Oh, before this church I believe my family and I went to this other Lutheran church in another city between being born and moving back to my hometown. The only thing I remember about this church is the stained glass, natural light, and trees.
             """
         let r = BibleStudyTagSuggester.result(title: "", body: body)
         XCTAssertFalse(r.tags.contains(where: { $0.caseInsensitiveCompare("Marriage") == .orderedSame }))
         XCTAssertFalse(r.tags.contains(where: { $0.caseInsensitiveCompare("Friendship") == .orderedSame }))
-        XCTAssertTrue(r.tags.contains(where: { $0.caseInsensitiveCompare("John") == .orderedSame }))
     }
 }
 

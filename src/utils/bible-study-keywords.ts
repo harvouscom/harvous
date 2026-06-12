@@ -167,7 +167,7 @@ export const BIBLE_STUDY_KEYWORDS: BibleStudyKeyword[] = [
   { name: 'Grace', category: 'spiritual', synonyms: ['favor', 'mercy', 'unmerited favor'], confidence: 0.8 },
   { name: 'Mercy', category: 'spiritual', synonyms: ['compassion', 'forgiveness', 'pity'], confidence: 0.8 },
   { name: 'Forgiveness', category: 'spiritual', synonyms: ['pardon', 'absolution', 'reconciliation'], confidence: 0.8 },
-  { name: 'Salvation', category: 'spiritual', synonyms: ['redemption', 'deliverance', 'rescue'], confidence: 0.8 },
+  { name: 'Salvation', category: 'spiritual', synonyms: ['redemption', 'deliverance', 'rescue', 'salvation call'], confidence: 0.8 },
   { name: 'Repentance', category: 'spiritual', synonyms: ['turning', 'conversion', 'change of heart'], confidence: 0.8 },
   { name: 'Worship', category: 'spiritual', synonyms: ['praise', 'adoration', 'reverence'], confidence: 0.8 },
   { name: 'Praise', category: 'spiritual', synonyms: ['worship', 'glorify', 'exalt'], confidence: 0.8 },
