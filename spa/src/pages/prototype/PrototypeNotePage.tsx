@@ -776,6 +776,27 @@ export default function PrototypeNotePage() {
     .filter(Boolean)
     .join(' ');
 
+  const rightPanelPortalTarget =
+    typeof document !== 'undefined'
+      ? document.querySelector('.proto-shell__right-panel-host') ??
+        document.querySelector('.proto-shell') ??
+        document.body
+      : null;
+
+  const desktopInspectorLayer =
+    showInspectorDesktop && !isDraft && note && rightPanelPortalTarget
+      ? createPortal(
+          <div
+            className={`proto-inspector-desktop${inspectorExiting ? ' proto-inspector-desktop--exiting' : ''}`}
+            role="dialog"
+            aria-label="Note details"
+          >
+            <PrototypeInspectorPane note={note} spaceId={effectiveSpaceId} />
+          </div>,
+          rightPanelPortalTarget,
+        )
+      : null;
+
   const mobileInspectorLayer =
     showInspectorMobile && !isDraft && note && typeof document !== 'undefined'
       ? createPortal(
@@ -857,13 +878,7 @@ export default function PrototypeNotePage() {
         </div>
       </div>
 
-      {/* Inspector — desktop: flex column; mobile: fixed slide-over + backdrop */}
-      {showInspectorDesktop && !isDraft && note ? (
-        <div className={`proto-inspector-desktop${inspectorExiting ? ' proto-inspector-desktop--exiting' : ''}`}>
-          <PrototypeInspectorPane note={note} spaceId={effectiveSpaceId} />
-        </div>
-      ) : null}
-
+      {desktopInspectorLayer}
       {mobileInspectorLayer}
 
     </div>

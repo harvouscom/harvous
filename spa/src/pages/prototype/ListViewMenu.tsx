@@ -69,6 +69,8 @@ export default function ListViewMenu({
   const popoverRef = useRef<HTMLDivElement>(null);
   const [anchorPos, setAnchorPos] = useState<{ top: number; left: number } | null>(null);
   const {
+    sidebarLayer,
+    setSidebarLayer,
     sidebarListMode,
     setSidebarListMode,
     setSidebarFolderDrilldown,
@@ -85,6 +87,19 @@ export default function ListViewMenu({
   const title = listModeTitle(sidebarListMode);
   const iconSize = variant === 'icon-only' ? PROTO_TOOLBAR_ORB_ICON_SIZE : 14;
   const isPortaled = variant === 'icon-only';
+  // Toolbar orb doubles as the list half of the layer toggle; the full variant stays a plain dropdown.
+  const isLayerToggle = variant === 'icon-only';
+  const isActiveLayer = sidebarLayer === 'list';
+
+  const onTriggerClick = () => {
+    if (disabled) return;
+    if (isLayerToggle && !isActiveLayer) {
+      setSidebarLayer('list');
+      ensureSidebarExpanded();
+      return;
+    }
+    setOpen((x) => !x);
+  };
 
   useLayoutEffect(() => {
     if (!open || !isPortaled) {
@@ -158,11 +173,6 @@ export default function ListViewMenu({
             <Icon name={icon} size={PROTO_TOOLBAR_ICON_SIZE} />
           </span>
           <span className="proto-menu-item__label">{label}</span>
-          {sidebarListMode === mode ? (
-            <span className="proto-menu-item__check" aria-hidden>
-              <Icon name="check" size={12} />
-            </span>
-          ) : null}
         </button>
       ))}
     </div>
@@ -215,12 +225,13 @@ export default function ListViewMenu({
             ? 'proto-toolbar-icon-btn'
             : 'proto-sidebar-list-view__trigger'
         }
+        data-active={isLayerToggle ? isActiveLayer : undefined}
         aria-expanded={open}
         aria-haspopup="menu"
         title={title}
         aria-label={isPortaled ? title : undefined}
         disabled={disabled}
-        onClick={() => !disabled && setOpen((x) => !x)}
+        onClick={onTriggerClick}
       >
         {variant === 'full' ? (
           <span className="proto-toolbar-folder-chip__icon" aria-hidden>

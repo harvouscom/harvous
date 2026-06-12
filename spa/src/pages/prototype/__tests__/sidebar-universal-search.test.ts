@@ -95,6 +95,17 @@ describe('sidebar-universal-search', () => {
     expect(results[0].noteId).toBe('note_1');
   });
 
+  it('buildActiveViewResults fuzzy-matches note titles with typos', () => {
+    const results = buildActiveViewResults(baseCtx, 'romns', sampleData, (c) => c.title ?? '');
+    expect(results).toHaveLength(1);
+    expect(results[0].noteId).toBe('note_1');
+  });
+
+  it('buildActiveViewResults returns empty for unrelated queries', () => {
+    const results = buildActiveViewResults(baseCtx, 'zzzzxyzzy', sampleData, (c) => c.title ?? '');
+    expect(results).toHaveLength(0);
+  });
+
   it('activeSearchSectionHeader reflects folder drill', () => {
     const header = activeSearchSectionHeader({
       ...baseCtx,

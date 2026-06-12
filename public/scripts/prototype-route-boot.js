@@ -24,7 +24,6 @@
       path !== '/' &&
       !path.startsWith('/prototype') &&
       !path.startsWith('/n/') &&
-      !path.startsWith('/search') &&
       !path.startsWith('/settings') &&
       !path.startsWith('/space/')
     ) {

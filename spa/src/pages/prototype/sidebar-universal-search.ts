@@ -14,11 +14,11 @@ import {
   prototypeHighlightListTitle,
   prototypeHighlightSubtitlePreview,
 } from './proto-highlight-subtitle';
+import { fuzzyFilter, fuzzyMatches } from './fuzzy-search';
 import type {
   HighlightKindFilter,
   SidebarElsewhereTypeFilter,
   SidebarSearchResult,
-  SidebarSearchResultKind,
 } from './sidebar-search-types';
 import {
   elsewhereTypeFilterMatches,
@@ -77,25 +77,21 @@ export function highlightKindMatches(
   }
 }
 
-function normalizedQuery(q: string): string {
-  return q.trim().toLowerCase();
+function noteSearchTitle(note: { title?: string | null }): string {
+  return stripServerAutoUntitledNoteTitleForDisplay(note.title ?? '') || 'New Note';
 }
 
-function noteMatchesQuery(
-  note: { title?: string | null; content?: string | null },
-  q: string,
-): boolean {
-  const t = normalizedQuery(q);
-  if (!t) return true;
-  const title = (note.title ?? '').toLowerCase();
-  const body = stripHtmlForListPreview(note.content ?? '', 800).toLowerCase();
-  return title.includes(t) || body.includes(t);
+function filterNotesByQuery(notes: SpaceNoteRow[], query: string): SpaceNoteRow[] {
+  const searchable = notes.map((note) => ({
+    note,
+    title: noteSearchTitle(note),
+    body: stripHtmlForListPreview(note.content ?? '', 800),
+  }));
+  return fuzzyFilter(searchable, ['title', 'body'], query).map((entry) => entry.note);
 }
 
-function highlightMatchesQuery(row: PrototypeHighlightStudyThreadRow, q: string): boolean {
-  const t = normalizedQuery(q);
-  if (!t) return true;
-  const hay = [
+function highlightSearchText(row: PrototypeHighlightStudyThreadRow): string {
+  return [
     row.focusTitle,
     row.anchorTextSnapshot,
     row.parentNoteTitle,
@@ -104,26 +100,30 @@ function highlightMatchesQuery(row: PrototypeHighlightStudyThreadRow, q: string)
     row.scriptureReference,
     row.scripturePassageExcerpt,
   ]
-    .join(' ')
-    .toLowerCase();
-  return hay.includes(t);
+    .filter(Boolean)
+    .join(' ');
 }
 
-function matchRank(title: string, q: string): number {
-  const lower = title.toLowerCase();
-  const query = normalizedQuery(q);
-  if (!query) return 0;
-  if (lower.startsWith(query)) return 0;
-  if (lower.includes(query)) return 1;
-  return 2;
+function filterHighlightsByQuery(
+  rows: PrototypeHighlightStudyThreadRow[],
+  query: string,
+): PrototypeHighlightStudyThreadRow[] {
+  const searchable = rows.map((row) => ({ row, searchText: highlightSearchText(row) }));
+  return fuzzyFilter(searchable, ['searchText'], query).map((entry) => entry.row);
 }
 
-function sortByMatchRank(results: SidebarSearchResult[], q: string): SidebarSearchResult[] {
-  return [...results].sort((a, b) => {
-    const rankDiff = matchRank(a.title, q) - matchRank(b.title, q);
-    if (rankDiff !== 0) return rankDiff;
-    return a.title.localeCompare(b.title);
-  });
+function scriptureBookMatchesQuery(book: ScriptureIndexBook, query: string): boolean {
+  if (fuzzyMatches(query, book.title)) return true;
+  return book.passages.some(
+    (p) =>
+      fuzzyMatches(query, p.displayRef) ||
+      p.notes.some((n) => fuzzyMatches(query, n.title)),
+  );
+}
+
+function scripturePassageMatchesQuery(passage: ScriptureIndexPassage, query: string): boolean {
+  if (fuzzyMatches(query, passage.displayRef)) return true;
+  return passage.notes.some((n) => fuzzyMatches(query, n.title));
 }
 
 export function activeSearchSectionHeader(ctx: ActiveSearchContext): string {
@@ -151,8 +151,7 @@ export function activeSearchSectionHeader(ctx: ActiveSearchContext): string {
 }
 
 function noteToResult(note: SpaceNoteRow, subtitle?: string, ftsExcerpt?: string): SidebarSearchResult {
-  const title =
-    stripServerAutoUntitledNoteTitleForDisplay(note.title ?? '') || 'New Note';
+  const title = noteSearchTitle(note);
   return {
     id: sidebarSearchResultStableId('note', note.id),
     kind: 'note',
@@ -218,8 +217,7 @@ function scripturePassageToResult(bookOrder: number, passage: ScriptureIndexPass
 }
 
 function ftsNoteToResult(result: SearchResult): SidebarSearchResult {
-  const title =
-    stripServerAutoUntitledNoteTitleForDisplay(result.title ?? '') || 'New Note';
+  const title = noteSearchTitle(result);
   const excerpt = (result as { excerpt?: string | null }).excerpt ?? undefined;
   return {
     id: sidebarSearchResultStableId('note', result.id),
@@ -243,9 +241,9 @@ export function buildActiveViewResults(
   const { mode } = ctx;
 
   if (mode === 'notes') {
-    return data.notes
-      .filter((n) => noteMatchesQuery(n, query))
-      .map((n) => noteToResult(n, stripHtmlForListPreview(n.content ?? '', 80) || undefined));
+    return filterNotesByQuery(data.notes, query).map((n) =>
+      noteToResult(n, stripHtmlForListPreview(n.content ?? '', 80) || undefined),
+    );
   }
 
   if (mode === 'folders') {
@@ -262,79 +260,77 @@ export function buildActiveViewResults(
         if (ctx.folderDrill === null) return labels.length === 0;
         return labels.includes(ctx.folderDrill);
       });
-      return inFolder
-        .filter((n) => noteMatchesQuery(n, query))
-        .map((n) => noteToResult(n, stripHtmlForListPreview(n.content ?? '', 80) || undefined));
+      return filterNotesByQuery(inFolder, query).map((n) =>
+        noteToResult(n, stripHtmlForListPreview(n.content ?? '', 80) || undefined),
+      );
     }
-    return data.folders
-      .filter((f) => (f.name ?? 'Unsorted').toLowerCase().includes(normalizedQuery(query)))
-      .map(folderToResult);
+    const searchable = data.folders.map((folder) => ({
+      folder,
+      label: folder.name ?? 'Unsorted',
+    }));
+    return fuzzyFilter(searchable, ['label'], query).map((entry) => folderToResult(entry.folder));
   }
 
   if (mode === 'threads') {
     if (ctx.threadDrillId) {
-      return data.threadDrillNodes
-        .filter((node) => {
-          const title = (node.title || node.resourceTitle || '').toLowerCase();
-          return title.includes(normalizedQuery(query));
-        })
-        .map((node) =>
-          noteToResult({
-            id: node.id,
-            title: node.title || node.resourceTitle || null,
-            content: '',
-          } as SpaceNoteRow),
-        );
+      const searchable = data.threadDrillNodes.map((node) => ({
+        node,
+        title: node.title || node.resourceTitle || '',
+      }));
+      return fuzzyFilter(searchable, ['title'], query).map((entry) =>
+        noteToResult({
+          id: entry.node.id,
+          title: entry.node.title || entry.node.resourceTitle || null,
+          content: '',
+        } as SpaceNoteRow),
+      );
     }
-    return data.threadClusters
-      .filter((c) => resolveClusterTitle(c).toLowerCase().includes(normalizedQuery(query)))
-      .map((c) => threadClusterToResult(c, resolveClusterTitle(c)));
+    const searchable = data.threadClusters.map((cluster) => ({
+      cluster,
+      title: resolveClusterTitle(cluster),
+    }));
+    return fuzzyFilter(searchable, ['title'], query).map((entry) =>
+      threadClusterToResult(entry.cluster, entry.title),
+    );
   }
 
   if (mode === 'highlights') {
-    return data.highlights
-      .filter((r) => highlightKindMatches(ctx.highlightKindFilter, r.entryKind))
-      .filter((r) => highlightMatchesQuery(r, query))
-      .map(highlightToResult);
+    const kindFiltered = data.highlights.filter((r) =>
+      highlightKindMatches(ctx.highlightKindFilter, r.entryKind),
+    );
+    return filterHighlightsByQuery(kindFiltered, query).map(highlightToResult);
   }
 
   if (mode === 'scripture') {
     const { scriptureDrill } = ctx;
     if (scriptureDrill.level === 'books') {
       return data.scriptureBooks
-        .filter((b) => {
-          if (b.title.toLowerCase().includes(normalizedQuery(query))) return true;
-          return b.passages.some((p) => {
-            if (p.displayRef.toLowerCase().includes(normalizedQuery(query))) return true;
-            return p.notes.some((n) => (n.title ?? '').toLowerCase().includes(normalizedQuery(query)));
-          });
-        })
+        .filter((book) => scriptureBookMatchesQuery(book, query))
         .map(scriptureBookToResult);
     }
     if (scriptureDrill.level === 'passages') {
       const book = data.scriptureBooks.find((b) => b.bookOrder === scriptureDrill.bookOrder);
       const passages = book?.passages ?? [];
       return passages
-        .filter((p) => {
-          if (p.displayRef.toLowerCase().includes(normalizedQuery(query))) return true;
-          return p.notes.some((n) => (n.title ?? '').toLowerCase().includes(normalizedQuery(query)));
-        })
-        .map((p) => scripturePassageToResult(scriptureDrill.bookOrder, p));
+        .filter((passage) => scripturePassageMatchesQuery(passage, query))
+        .map((passage) => scripturePassageToResult(scriptureDrill.bookOrder, passage));
     }
     if (scriptureDrill.level === 'notes') {
       const book = data.scriptureBooks.find((b) => b.bookOrder === scriptureDrill.bookOrder);
       const passage = book?.passages.find((p) => p.passageKey === scriptureDrill.passageKey);
-      return (passage?.notes ?? [])
-        .filter((n) => (n.title ?? '').toLowerCase().includes(normalizedQuery(query)))
-        .map((n) =>
-          noteToResult({
-            id: n.id,
-            title: n.title,
-            content: '',
-            updatedAt: n.updatedAt,
-            createdAt: n.createdAt,
-          } as SpaceNoteRow),
-        );
+      const searchable = (passage?.notes ?? []).map((note) => ({
+        note,
+        title: note.title ?? '',
+      }));
+      return fuzzyFilter(searchable, ['title'], query).map((entry) =>
+        noteToResult({
+          id: entry.note.id,
+          title: entry.note.title,
+          content: '',
+          updatedAt: entry.note.updatedAt,
+          createdAt: entry.note.createdAt,
+        } as SpaceNoteRow),
+      );
     }
   }
 
@@ -352,10 +348,8 @@ function collectAllElsewhereCandidates(
   const results: SidebarSearchResult[] = [];
   const loadedNoteIds = new Set(data.notes.map((n) => n.id));
 
-  for (const note of data.notes) {
-    if (noteMatchesQuery(note, query)) {
-      results.push(noteToResult(note, stripHtmlForListPreview(note.content ?? '', 80) || undefined));
-    }
+  for (const note of filterNotesByQuery(data.notes, query)) {
+    results.push(noteToResult(note, stripHtmlForListPreview(note.content ?? '', 80) || undefined));
   }
 
   for (const fts of data.ftsNotes ?? []) {
@@ -364,35 +358,40 @@ function collectAllElsewhereCandidates(
     results.push(ftsNoteToResult(fts));
   }
 
-  for (const folder of data.folders) {
-    if ((folder.name ?? 'Unsorted').toLowerCase().includes(normalizedQuery(query))) {
-      results.push(folderToResult(folder));
-    }
+  const folderMatches = fuzzyFilter(
+    data.folders.map((folder) => ({ folder, label: folder.name ?? 'Unsorted' })),
+    ['label'],
+    query,
+  );
+  for (const entry of folderMatches) {
+    results.push(folderToResult(entry.folder));
   }
 
-  for (const cluster of data.threadClusters) {
-    const title = resolveClusterTitle(cluster);
-    if (title.toLowerCase().includes(normalizedQuery(query))) {
-      results.push(threadClusterToResult(cluster, title));
-    }
+  const threadMatches = fuzzyFilter(
+    data.threadClusters.map((cluster) => ({
+      cluster,
+      title: resolveClusterTitle(cluster),
+    })),
+    ['title'],
+    query,
+  );
+  for (const entry of threadMatches) {
+    results.push(threadClusterToResult(entry.cluster, entry.title));
   }
 
-  for (const row of data.highlights) {
-    if (highlightMatchesQuery(row, query)) {
-      results.push(highlightToResult(row));
-    }
+  for (const row of filterHighlightsByQuery(data.highlights, query)) {
+    results.push(highlightToResult(row));
   }
 
   for (const book of data.scriptureBooks) {
-    const bookTitleMatch = book.title.toLowerCase().includes(normalizedQuery(query));
-    if (bookTitleMatch) {
+    if (fuzzyMatches(query, book.title)) {
       results.push(scriptureBookToResult(book));
     }
     for (const passage of book.passages) {
-      const passageMatch =
-        passage.displayRef.toLowerCase().includes(normalizedQuery(query)) ||
-        passage.notes.some((n) => (n.title ?? '').toLowerCase().includes(normalizedQuery(query)));
-      if (passageMatch) {
+      if (
+        fuzzyMatches(query, passage.displayRef) ||
+        passage.notes.some((n) => fuzzyMatches(query, n.title))
+      ) {
         results.push(scripturePassageToResult(book.bookOrder, passage));
       }
     }
@@ -419,7 +418,10 @@ export function buildElsewhereResults(
     if (!deduped.has(r.id)) deduped.set(r.id, r);
   }
 
-  return sortByMatchRank(Array.from(deduped.values()), query).slice(0, SIDEBAR_ELSEWHERE_RESULTS_CAP);
+  return fuzzyFilter(Array.from(deduped.values()), ['title'], query).slice(
+    0,
+    SIDEBAR_ELSEWHERE_RESULTS_CAP,
+  );
 }
 
 export function buildFoldersFromNotes(notes: SpaceNoteRow[]): FolderBucket[] {

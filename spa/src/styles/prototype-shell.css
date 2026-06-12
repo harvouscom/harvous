@@ -330,6 +330,38 @@ html.harvous-prototype-route .proto-shell__detail-toolbar-cell::after {
   overflow: hidden;
 }
 
+/* Right-panel overlay — shares the main column cell, stacks above study docks. */
+@media (min-width: 900px) {
+  .proto-shell__right-panel-host {
+    grid-column: 2;
+    grid-row: 2;
+    min-height: 0;
+    align-self: stretch;
+    position: relative;
+    z-index: 7;
+    pointer-events: none;
+    overflow: visible;
+  }
+
+  .proto-shell__right-panel-host > * {
+    pointer-events: auto;
+  }
+
+  .proto-shell--no-sidebar .proto-shell__right-panel-host {
+    grid-column: 1;
+  }
+
+  .proto-shell--no-sidebar.proto-shell--inspector-open .proto-shell__right-panel-host {
+    grid-column: 1;
+  }
+}
+
+@media (max-width: 899px) {
+  .proto-shell__right-panel-host {
+    display: none;
+  }
+}
+
 .proto-shell__sidebar-resize-handle {
   display: none;
 }

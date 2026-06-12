@@ -11,12 +11,7 @@ import { getNoteIdFromCreateResponse, seedNoteFromCreateResponse } from '../../h
 import type { SpaceNoteRow } from '../../hooks/queries/useSpace';
 import { useVotdToday } from '../../hooks/queries/useVotdToday';
 import { useProtoShell } from '../../layouts/proto-shell-context';
-import {
-  isVotdPassageCardDismissedToday,
-  noteMatchesDailyPassage,
-  setVotdDismissedToday,
-  type VotdToday,
-} from '../../lib/votd-today';
+import { noteMatchesDailyPassage, type VotdToday } from '../../lib/votd-today';
 import { buildVotdScripturePillHtml } from '../../lib/votd-scripture-pill-html';
 import PrototypeVotdPassageSheet from './PrototypeVotdPassageSheet';
 import { noteParamSlug } from './proto-route-slugs';
@@ -32,7 +27,6 @@ export default function PrototypeDailyPassagePill({ homeSpaceId, notes }: Props)
   const createNote = useCreateSimpleNote();
   const { isMobileSidebar, closeDrawer } = useProtoShell();
   const { data: votd, isLoading } = useVotdToday({ enabled: Boolean(homeSpaceId) });
-  const [dismissedToday, setDismissedToday] = useState(isVotdPassageCardDismissedToday);
   const [sheetOpen, setSheetOpen] = useState(false);
 
   const matchingNote = useMemo(() => {
@@ -95,28 +89,13 @@ export default function PrototypeDailyPassagePill({ homeSpaceId, notes }: Props)
     [createNote, homeSpaceId, matchingNote, openNote, queryClient],
   );
 
-  const handleDismiss = () => {
-    setVotdDismissedToday();
-    setDismissedToday(true);
-  };
-
-  if (!homeSpaceId || isLoading || !votd || dismissedToday) {
+  if (!homeSpaceId || isLoading || !votd) {
     return null;
   }
 
   return (
     <>
-      <div className="proto-daily-passage-pill">
-        <button
-          type="button"
-          className="proto-daily-passage-pill__dismiss"
-          aria-label="Dismiss today's passage"
-          onClick={handleDismiss}
-        >
-          <Icon name="xmark" size={10} aria-hidden />
-          <span>Dismiss</span>
-        </button>
-
+      <div className="proto-daily-passage-pill proto-daily-passage-pill--home">
         <div
           className={`proto-daily-passage-pill__content${dailyPassageNoteExists ? ' proto-daily-passage-pill__content--no-add' : ''}`}
         >

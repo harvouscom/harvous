@@ -1,6 +1,13 @@
 import React from 'react';
 import { useUser } from '@clerk/clerk-react';
-import { bootstrapSync, syncNow, needsBootstrap, startBackgroundSync, pushQueue } from './sync-manager';
+import {
+  bootstrapSync,
+  syncNow,
+  needsBootstrap,
+  startBackgroundSync,
+  flushPushQueue,
+  recoverPrototypeSyncQueueIfBloated,
+} from './sync-manager';
 import { isOfflineModeEnabled } from './offline-mode';
 import { isPrototypeShellPath } from '@/lib/prototype-path';
 
@@ -53,7 +60,8 @@ export async function initializeSync(
     const flushQueue = async () => {
       if (navigator.onLine) {
         try {
-          await pushQueue(userId);
+          await recoverPrototypeSyncQueueIfBloated(userId);
+          await flushPushQueue(userId);
         } catch (error) {
           console.error('[initializeSync] Prototype flush failed:', error);
         }

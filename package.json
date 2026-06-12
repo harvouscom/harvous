@@ -109,6 +109,7 @@
     "dotenv": "^17.3.1",
     "drizzle-orm": "^0.45.1",
     "fast-xml-parser": "^5.8.0",
+    "fuse.js": "^7.4.2",
     "hono": "^4.12.1",
     "isomorphic-dompurify": "^2.22.0",
     "js-yaml": "^4.1.1",

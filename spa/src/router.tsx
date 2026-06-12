@@ -16,7 +16,6 @@ import NotePage from './pages/NotePage';
 import SimplifiedPrototypeLayout from './layouts/SimplifiedPrototypeLayout';
 import PrototypeHomePage from './pages/prototype/PrototypeHomePage';
 import PrototypeNotePage from './pages/prototype/PrototypeNotePage';
-import PrototypeSearchPage from './pages/prototype/PrototypeSearchPage';
 
 // Root route — must render Outlet so child routes paint (pathless layouts included).
 const rootRoute = createRootRoute({
@@ -188,13 +187,15 @@ function buildPrototypeRouteBranch() {
     component: PrototypeHomePage,
   });
 
-  const prototypeSearchRoute = createRoute({
+  const prototypeSearchRedirectRoute = createRoute({
     getParentRoute: () => simplifiedPrototypeRoute,
     path: 'search',
-    component: PrototypeSearchPage,
-    validateSearch: (search: Record<string, unknown>) => ({
-      space: typeof search.space === 'string' ? search.space : undefined,
-    }),
+    beforeLoad: () => {
+      throw redirect({
+        to: prototypeHomeRouteTo(),
+        replace: true,
+      });
+    },
   });
 
   const prototypeLegacySpaceNoteRedirectRoute = createRoute({
@@ -303,7 +304,7 @@ function buildPrototypeRouteBranch() {
     prototypeLegacySpaceNoteRedirectRoute,
     prototypeLegacySpaceRedirectRoute,
     prototypeHomeRoute,
-    prototypeSearchRoute,
+    prototypeSearchRedirectRoute,
     prototypeNoteFlatRoute,
     prototypeSettingsRoute.addChildren([
       prototypeSettingsIndexRoute,

@@ -1,6 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { offlineDB, ensureDatabaseOpen, retryIndexedDBOperation } from '@/utils/offline-db';
-import { getSyncState, retryStuckQueue, triggerImmediateSync } from '@/utils/sync-manager';
+import {
+  getSyncState,
+  recoverPrototypeSyncQueueIfBloated,
+  retryStuckQueue,
+  triggerImmediateSync,
+} from '@/utils/sync-manager';
 import { getPersistedUserId } from '@/utils/user-id';
 import { SYNC_QUEUE_UNHEALTHY_THRESHOLD } from '../utils/prototype-sync-chip-copy';
 
@@ -50,6 +55,7 @@ export function useSyncQueueStatus(userIdProp?: string | null): SyncQueueStatus 
   const checkRef = useRef<(() => Promise<void>) | null>(null);
   const unhealthyWarnedRef = useRef(false);
   const autoRetryAttemptedRef = useRef(false);
+  const errorDiagWarnedRef = useRef(false);
 
   useEffect(() => {
     const handleOnline = () => setIsOffline(false);
@@ -100,8 +106,12 @@ export function useSyncQueueStatus(userIdProp?: string | null): SyncQueueStatus 
         // (see handleOnline) so we recover on reconnect but never hammer a permanently-dead op.
         if ((unhealthy || failed > 0) && navigator.onLine && !autoRetryAttemptedRef.current) {
           autoRetryAttemptedRef.current = true;
-          triggerImmediateSync(userId);
-          void retryStuckQueue(userId).then(() => checkRef.current?.());
+          if (unhealthy) {
+            void recoverPrototypeSyncQueueIfBloated(userId).then(() => checkRef.current?.());
+          } else {
+            triggerImmediateSync(userId);
+            void retryStuckQueue(userId).then(() => checkRef.current?.());
+          }
         }
 
         // Celebrate the moment a non-empty queue drains while online.
@@ -116,9 +126,36 @@ export function useSyncQueueStatus(userIdProp?: string | null): SyncQueueStatus 
         setFailedCount(failed);
 
         const state = await getSyncState(userId);
+        const syncErrorValue = state?.syncError ?? null;
         if (state) {
-          setSyncError(state.syncError);
+          setSyncError(syncErrorValue);
           setIsSyncing(!!state.isSyncing);
+        }
+
+        const hasChipError = unhealthy || failed > 0 || !!syncErrorValue;
+        if (hasChipError && !errorDiagWarnedRef.current && import.meta.env.DEV) {
+          errorDiagWarnedRef.current = true;
+          const sampleOps = await retryIndexedDBOperation(async () =>
+            offlineDB.syncQueue
+              .where('userId')
+              .equals(userId)
+              .filter((op) => op.retryCount >= 5 || !!op.lastError)
+              .limit(5)
+              .toArray(),
+          );
+          console.warn('[useSyncQueueStatus] sync chip error state', {
+            pending,
+            failed,
+            syncError: syncErrorValue,
+            sampleLastErrors: sampleOps.map((op) => ({
+              entityType: op.entityType,
+              operation: op.operation,
+              retryCount: op.retryCount,
+              lastError: op.lastError,
+            })),
+          });
+        } else if (!hasChipError) {
+          errorDiagWarnedRef.current = false;
         }
       } catch (error) {
         const name = (error as { name?: string })?.name;
@@ -161,6 +198,7 @@ export function useSyncQueueStatus(userIdProp?: string | null): SyncQueueStatus 
     void (async () => {
       setIsRetrying(true);
       try {
+        await recoverPrototypeSyncQueueIfBloated(userId);
         await retryStuckQueue(userId);
         triggerImmediateSync(userId);
         await checkRef.current?.();

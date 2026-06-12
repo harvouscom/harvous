@@ -29,6 +29,9 @@ function readStoredSidebarWidth() {
 
 export type SidebarListMode = 'notes' | 'folders' | 'highlights' | 'scripture' | 'threads';
 
+/** Sidebar layer — Home space dashboard vs the list views. Only 'space' layer content today is My Home. */
+export type SidebarLayer = 'space' | 'list';
+
 const SIDEBAR_LIST_MODE_STORAGE_KEY = 'harvous-prototype-sidebar-list-mode';
 const SIDEBAR_LIST_MODE_DEFAULT: SidebarListMode = 'notes';
 const VALID_MODES = new Set<SidebarListMode>(['notes', 'folders', 'highlights', 'scripture', 'threads']);
@@ -107,6 +110,9 @@ type ProtoShellContextValue = {
   persistSidebarWidth: (width?: number) => void;
   sidebarWidthMin: number;
   sidebarWidthMax: number;
+  /** Sidebar layer — 'space' shows the Home space view, 'list' shows the list views. Not persisted: fresh loads land on Home. */
+  sidebarLayer: SidebarLayer;
+  setSidebarLayer: (layer: SidebarLayer) => void;
   /** Notes / folders / highlights / scripture sidebar list mode. */
   sidebarListMode: SidebarListMode;
   setSidebarListMode: (mode: SidebarListMode) => void;
@@ -182,6 +188,8 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
   const [sidebarExiting, setSidebarExiting] = useState(false);
   const sidebarExitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [sidebarListMode, setSidebarListModeState] = useState<SidebarListMode>(readStoredSidebarListMode);
+  /** Intentionally not persisted — every fresh load lands on the Home space layer. */
+  const [sidebarLayer, setSidebarLayer] = useState<SidebarLayer>('space');
   const [sidebarFolderDrilldown, setSidebarFolderDrilldown] = useState<SidebarFolderDrilldown>(undefined);
   const [sidebarThreadDrilldownId, setSidebarThreadDrilldownId] = useState<string | undefined>(undefined);
   const [prototypeFolderChip, setPrototypeFolderChipState] = useState<PrototypeFolderChip | null>(null);
@@ -284,6 +292,8 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
   }, [sidebarWidth]);
   const setSidebarListMode = useCallback((mode: SidebarListMode) => {
     setSidebarListModeState(mode);
+    // Picking a list mode always lands on the list layer (flips out of Home).
+    setSidebarLayer('list');
     try { localStorage.setItem(SIDEBAR_LIST_MODE_STORAGE_KEY, mode); } catch { /* ignore */ }
     if (mode !== 'folders') setSidebarFolderDrilldown(undefined);
     if (mode !== 'threads') setSidebarThreadDrilldownId(undefined);
@@ -461,6 +471,8 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
       persistSidebarWidth,
       sidebarWidthMin: PROTO_SIDEBAR_WIDTH_MIN,
       sidebarWidthMax: PROTO_SIDEBAR_WIDTH_MAX,
+      sidebarLayer,
+      setSidebarLayer,
       sidebarListMode,
       setSidebarListMode,
       sidebarFolderDrilldown,
@@ -509,6 +521,7 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
       sidebarWidth,
       setSidebarWidth,
       persistSidebarWidth,
+      sidebarLayer,
       sidebarListMode,
       setSidebarListMode,
       sidebarFolderDrilldown,

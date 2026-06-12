@@ -2,37 +2,18 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react
 import { createPortal } from 'react-dom';
 import Icon from '@/components/react/Icon';
 import ProtoPopoverShell from './ProtoPopoverShell';
+import { computeRightAnchoredPopoverPosition } from './proto-popover-position';
+import { protoPortaledPopoverClassName } from './proto-portaled-popover-classes';
 import { PROTO_TOOLBAR_POPOVER_OFFSET } from './proto-toolbar-tokens';
 
 const CARD_WIDTH = 320;
-const VIEWPORT_MARGIN = 12;
 const CARD_OFFSET = PROTO_TOOLBAR_POPOVER_OFFSET;
 
 interface PrototypeFindInNotePopoverProps {
   noteId: string;
   anchorRect: DOMRect | null;
   onDismiss: () => void;
-}
-
-function computePosition(anchor: DOMRect, cardHeight: number): { top: number; left: number } {
-  if (typeof window === 'undefined') return { top: 0, left: 0 };
-  const vw = window.innerWidth;
-  const vh = window.innerHeight;
-
-  let top = anchor.bottom + CARD_OFFSET;
-  if (top + cardHeight + VIEWPORT_MARGIN > vh) {
-    top = anchor.top - cardHeight - CARD_OFFSET;
-  }
-  if (top < VIEWPORT_MARGIN) {
-    top = VIEWPORT_MARGIN;
-  }
-
-  let left = anchor.right - CARD_WIDTH;
-  if (left < VIEWPORT_MARGIN) left = VIEWPORT_MARGIN;
-  if (left + CARD_WIDTH + VIEWPORT_MARGIN > vw) {
-    left = vw - CARD_WIDTH - VIEWPORT_MARGIN;
-  }
-  return { top, left };
+  exiting?: boolean;
 }
 
 /** In-note find popover — dispatches to TipTap via `prototypeFindInNote`. */
@@ -40,13 +21,14 @@ export default function PrototypeFindInNotePopover({
   noteId,
   anchorRect,
   onDismiss,
+  exiting = false,
 }: PrototypeFindInNotePopoverProps) {
   const [query, setQuery] = useState('');
   const [matchIndex, setMatchIndex] = useState(0);
   const [matchCount, setMatchCount] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
   const cardRef = useRef<HTMLDivElement | null>(null);
-  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
+  const [pos, setPos] = useState<ReturnType<typeof computeRightAnchoredPopoverPosition> | null>(null);
 
   const runFind = useCallback(
     (direction: 'next' | 'prev' | 'same' = 'same') => {
@@ -67,7 +49,7 @@ export default function PrototypeFindInNotePopover({
   useLayoutEffect(() => {
     if (!anchorRect) return;
     const h = cardRef.current?.getBoundingClientRect().height ?? 44;
-    setPos(computePosition(anchorRect, h));
+    setPos(computeRightAnchoredPopoverPosition(anchorRect, CARD_WIDTH, h, CARD_OFFSET));
   }, [anchorRect, query, matchCount]);
 
   useEffect(() => {
@@ -118,7 +100,11 @@ export default function PrototypeFindInNotePopover({
       ref={cardRef}
       role="search"
       aria-label="Find in note"
-      className="proto-find-popover"
+      className={protoPortaledPopoverClassName('proto-find-popover', {
+        exiting,
+        placement: pos?.placement,
+        originAlign: 'right',
+      })}
       style={{
         position: 'fixed',
         top: pos?.top ?? -9999,

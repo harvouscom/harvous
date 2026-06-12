@@ -4,7 +4,8 @@
  * Desktop detail:  [show sidebar when collapsed] [compose] · folder chip · find/share/more · inspector · account
  * Mobile unified: [sidebar toggle] [compose] · … (space + mode live in drawer header)
  */
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
+import { useToolbarAnchoredPopover } from '../../hooks/useToolbarAnchoredPopover';
 import { useNavigate, useRouterState } from '@tanstack/react-router';
 import Icon from '@/components/react/Icon';
 import { usePrototypeHomeSpaceId } from '../../hooks/usePrototypeHomeSpaceId';
@@ -36,11 +37,11 @@ export default function NativeToolbar({ variant = 'detail' }: { variant?: Native
 
   const findButtonRef = useRef<HTMLButtonElement | null>(null);
   const overflowMenuButtonRef = useRef<HTMLButtonElement | null>(null);
-  const [findAnchorRect, setFindAnchorRect] = useState<DOMRect | null>(null);
   const shareButtonRef = useRef<HTMLButtonElement | null>(null);
-  const [shareAnchorRect, setShareAnchorRect] = useState<DOMRect | null>(null);
   const folderChipRef = useRef<HTMLButtonElement | null>(null);
-  const [folderAnchorRect, setFolderAnchorRect] = useState<DOMRect | null>(null);
+  const folderPopover = useToolbarAnchoredPopover();
+  const findPopover = useToolbarAnchoredPopover();
+  const sharePopover = useToolbarAnchoredPopover();
   const { homeSpaceId } = usePrototypeHomeSpaceId();
 
   const prototypeFolderChip = usePrototypeFolderChip();
@@ -134,13 +135,13 @@ export default function NativeToolbar({ variant = 'detail' }: { variant?: Native
 
   const openFindPopover = useCallback(() => {
     const anchor = isMobileSidebar ? overflowMenuButtonRef.current : findButtonRef.current;
-    if (anchor) setFindAnchorRect(anchor.getBoundingClientRect());
-  }, [isMobileSidebar]);
+    findPopover.openFrom(anchor);
+  }, [isMobileSidebar, findPopover.openFrom]);
 
   const openSharePopover = useCallback(() => {
     const anchor = isMobileSidebar ? overflowMenuButtonRef.current : shareButtonRef.current;
-    if (anchor) setShareAnchorRect(anchor.getBoundingClientRect());
-  }, [isMobileSidebar]);
+    sharePopover.openFrom(anchor);
+  }, [isMobileSidebar, sharePopover.openFrom]);
 
   useEffect(() => {
     if (!isOnNotePage || !toolbarNoteId) return;
@@ -213,14 +214,8 @@ export default function NativeToolbar({ variant = 'detail' }: { variant?: Native
               title="Folder — edit folders"
               aria-label={toolbarFolderAriaLabel}
               aria-haspopup="dialog"
-              aria-expanded={folderAnchorRect !== null}
-              onClick={() => {
-                if (folderAnchorRect) {
-                  setFolderAnchorRect(null);
-                } else if (folderChipRef.current) {
-                  setFolderAnchorRect(folderChipRef.current.getBoundingClientRect());
-                }
-              }}
+              aria-expanded={folderPopover.isOpen && !folderPopover.exiting}
+              onClick={() => folderPopover.toggleFrom(folderChipRef.current)}
             >
               <Icon name="folder" size={PROTO_TOOLBAR_FOLDER_CHIP_ICON_SIZE} className="proto-toolbar-folder-chip__icon" aria-hidden />
               {toolbarFolderLabel?.trim() ? (
@@ -232,11 +227,12 @@ export default function NativeToolbar({ variant = 'detail' }: { variant?: Native
                 </span>
               ) : null}
             </button>
-            {folderAnchorRect && toolbarNoteId ? (
+            {folderPopover.isOpen && toolbarNoteId ? (
               <PrototypeFolderPopover
                 note={toolbarNote}
-                anchorRect={folderAnchorRect}
-                onDismiss={() => setFolderAnchorRect(null)}
+                anchorRect={folderPopover.anchorRect}
+                exiting={folderPopover.exiting}
+                onDismiss={folderPopover.dismiss}
               />
             ) : null}
           </>
@@ -255,24 +251,19 @@ export default function NativeToolbar({ variant = 'detail' }: { variant?: Native
                   title="Find in note (Shift+F)"
                   aria-label="Find in note"
                   aria-haspopup="dialog"
-                  aria-expanded={findAnchorRect !== null}
-                  onClick={() => {
-                    if (findAnchorRect) {
-                      setFindAnchorRect(null);
-                    } else {
-                      openFindPopover();
-                    }
-                  }}
+                  aria-expanded={findPopover.isOpen && !findPopover.exiting}
+                  onClick={() => findPopover.toggleFrom(findButtonRef.current)}
                 >
                   <Icon name="magnifying-glass" size={PROTO_TOOLBAR_ORB_ICON_SIZE} />
                 </button>
               </PrototypeToolbarShortcutItem>
             ) : null}
-            {findAnchorRect ? (
+            {findPopover.isOpen ? (
               <PrototypeFindInNotePopover
                 noteId={toolbarNoteId}
-                anchorRect={findAnchorRect}
-                onDismiss={() => setFindAnchorRect(null)}
+                anchorRect={findPopover.anchorRect}
+                exiting={findPopover.exiting}
+                onDismiss={findPopover.dismiss}
               />
             ) : null}
 
@@ -285,14 +276,8 @@ export default function NativeToolbar({ variant = 'detail' }: { variant?: Native
                   title={toolbarNote.isPublic ? 'This note has a share link' : 'Share note'}
                   aria-label={toolbarNote.isPublic ? 'Manage share link' : 'Share note'}
                   aria-haspopup="dialog"
-                  aria-expanded={shareAnchorRect !== null}
-                  onClick={() => {
-                    if (shareAnchorRect) {
-                      setShareAnchorRect(null);
-                    } else {
-                      openSharePopover();
-                    }
-                  }}
+                  aria-expanded={sharePopover.isOpen && !sharePopover.exiting}
+                  onClick={() => sharePopover.toggleFrom(shareButtonRef.current)}
                 >
                   <Icon name="share" size={PROTO_TOOLBAR_ORB_ICON_SIZE} />
                   {toolbarNote.isPublic ? (
@@ -301,13 +286,14 @@ export default function NativeToolbar({ variant = 'detail' }: { variant?: Native
                 </button>
               </>
             ) : null}
-            {shareAnchorRect && toolbarNote && toolbarNoteId ? (
+            {sharePopover.isOpen && toolbarNote && toolbarNoteId ? (
               <PrototypeSharePopover
                 noteId={toolbarNoteId}
                 isPublic={!!toolbarNote.isPublic}
                 shareToken={toolbarNote.shareToken ?? null}
-                anchorRect={shareAnchorRect}
-                onDismiss={() => setShareAnchorRect(null)}
+                anchorRect={sharePopover.anchorRect}
+                exiting={sharePopover.exiting}
+                onDismiss={sharePopover.dismiss}
               />
             ) : null}
 

@@ -1,5 +1,6 @@
-/** Pending ops above this threshold are treated as a stuck/unhealthy queue. */
-export const SYNC_QUEUE_UNHEALTHY_THRESHOLD = 100;
+import { SYNC_QUEUE_UNHEALTHY_THRESHOLD } from '@/utils/sync-manager';
+
+export { SYNC_QUEUE_UNHEALTHY_THRESHOLD };
 
 export type PrototypeSyncChipVariant = 'offline' | 'syncing' | 'success' | 'error';
 

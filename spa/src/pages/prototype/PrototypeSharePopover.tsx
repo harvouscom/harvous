@@ -4,6 +4,8 @@ import Icon from '@/components/react/Icon';
 import { useShareNote } from '../../hooks/mutations/useShareNote';
 import { useDismissOnOutside } from '../../hooks/usePopoverDismiss';
 import ProtoPopoverShell from './ProtoPopoverShell';
+import { computeRightAnchoredPopoverPosition } from './proto-popover-position';
+import { protoPortaledPopoverClassName } from './proto-portaled-popover-classes';
 import { PROTO_TOOLBAR_POPOVER_OFFSET } from './proto-toolbar-tokens';
 
 /**
@@ -22,7 +24,6 @@ import { PROTO_TOOLBAR_POPOVER_OFFSET } from './proto-toolbar-tokens';
  */
 
 const CARD_WIDTH = 320;
-const VIEWPORT_MARGIN = 12;
 const CARD_OFFSET = PROTO_TOOLBAR_POPOVER_OFFSET;
 
 interface PrototypeSharePopoverProps {
@@ -31,32 +32,7 @@ interface PrototypeSharePopoverProps {
   shareToken: string | null;
   anchorRect: DOMRect | null;
   onDismiss: () => void;
-}
-
-function computePosition(
-  anchor: DOMRect,
-  cardHeight: number,
-): { top: number; left: number } {
-  if (typeof window === 'undefined') return { top: 0, left: 0 };
-  const vw = window.innerWidth;
-  const vh = window.innerHeight;
-
-  // Prefer popping *below* the toolbar button. Fall back above if near bottom.
-  let top = anchor.bottom + CARD_OFFSET;
-  if (top + cardHeight + VIEWPORT_MARGIN > vh) {
-    top = anchor.top - cardHeight - CARD_OFFSET;
-  }
-  if (top < VIEWPORT_MARGIN) {
-    top = VIEWPORT_MARGIN;
-  }
-
-  // Right-align the card to the button, keeping it within the viewport.
-  let left = anchor.right - CARD_WIDTH;
-  if (left < VIEWPORT_MARGIN) left = VIEWPORT_MARGIN;
-  if (left + CARD_WIDTH + VIEWPORT_MARGIN > vw) {
-    left = vw - CARD_WIDTH - VIEWPORT_MARGIN;
-  }
-  return { top, left };
+  exiting?: boolean;
 }
 
 export default function PrototypeSharePopover({
@@ -65,10 +41,11 @@ export default function PrototypeSharePopover({
   shareToken,
   anchorRect,
   onDismiss,
+  exiting = false,
 }: PrototypeSharePopoverProps) {
   const shareMutation = useShareNote();
   const cardRef = useRef<HTMLDivElement | null>(null);
-  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
+  const [pos, setPos] = useState<ReturnType<typeof computeRightAnchoredPopoverPosition> | null>(null);
   const [copied, setCopied] = useState(false);
 
   // Build the canonical public URL. The server returns one too, but we
@@ -84,7 +61,7 @@ export default function PrototypeSharePopover({
   useLayoutEffect(() => {
     if (!anchorRect) return;
     const h = cardRef.current?.getBoundingClientRect().height ?? 180;
-    setPos(computePosition(anchorRect, h));
+    setPos(computeRightAnchoredPopoverPosition(anchorRect, CARD_WIDTH, h, CARD_OFFSET));
   }, [anchorRect, isPublic]);
 
   // Dismiss on outside-click and Escape.
@@ -138,7 +115,11 @@ export default function PrototypeSharePopover({
       ref={cardRef}
       role="dialog"
       aria-label="Share note"
-      className="proto-share-popover"
+      className={protoPortaledPopoverClassName('proto-share-popover', {
+        exiting,
+        placement: pos?.placement,
+        originAlign: 'right',
+      })}
       style={{
         position: 'fixed',
         top: pos?.top ?? -9999,

@@ -22,6 +22,10 @@ import { safeFetch } from './safe-fetch';
 import { extractIdFromPath, idToUrl } from './url-helpers';
 import { dispatchRemoteSyncCompleted } from './harvous-remote-sync-event';
 import { isPrototypeShellPath } from '@/lib/prototype-path';
+import { MAX_NOTE_CREATES_PER_SYNC_PUSH } from '@/utils/rate-limit';
+
+/** Pending ops above this threshold are treated as a stuck/unhealthy queue. */
+export const SYNC_QUEUE_UNHEALTHY_THRESHOLD = 100;
 
 export interface SyncResult {
   success: boolean;
@@ -896,6 +900,62 @@ export async function enqueueMutation(userId: string, operation: Omit<SyncOperat
 }
 
 /**
+ * Reflect a push-only outcome in sync state. Connection-level failures set syncError;
+ * successful pushes clear stale errors. Per-op failures are surfaced via the queue's failed count.
+ */
+export async function recordPushQueueOutcome(userId: string, pushResult: SyncResult): Promise<void> {
+  await updateSyncState(userId, {
+    isSyncing: false,
+    syncError: pushResult.success ? null : pushResult.error ?? 'Sync failed',
+  });
+}
+
+/** Push the offline queue and update sync state (prototype push-only paths). */
+export async function flushPushQueue(userId: string): Promise<SyncResult> {
+  const result = await pushQueue(userId);
+  await recordPushQueueOutcome(userId, result);
+  return result;
+}
+
+/**
+ * Prototype is online-first — a bloated local queue cannot drain and blocks the sync chip.
+ * Clears the entire queue when pending exceeds the unhealthy threshold (server data is authoritative).
+ */
+export async function recoverPrototypeSyncQueueIfBloated(userId: string): Promise<number> {
+  if (typeof window === 'undefined' || !isPrototypeShellPath(window.location.pathname)) {
+    return 0;
+  }
+
+  await ensureDatabaseOpen();
+
+  const pending = await retryIndexedDBOperation(async () =>
+    offlineDB.syncQueue
+      .where('userId')
+      .equals(userId)
+      .filter((op) => op.retryCount < 5)
+      .count(),
+  );
+
+  if (pending <= SYNC_QUEUE_UNHEALTHY_THRESHOLD) {
+    return 0;
+  }
+
+  console.warn('[Sync] Clearing bloated prototype sync queue', { pending, userId });
+  return clearStuckSyncQueue(userId, { entireQueue: true });
+}
+
+/** Prototype online-first: drop stale note update/delete ops the server no longer has. */
+export function shouldDropStalePrototypeQueueOp(
+  op: Pick<SyncOperation, 'entityType' | 'operation'>,
+  errorType: SyncErrorType,
+): boolean {
+  if (typeof window === 'undefined') return false;
+  if (!isPrototypeShellPath(window.location.pathname)) return false;
+  if (errorType !== 'not_found') return false;
+  return op.entityType === 'note' && (op.operation === 'update' || op.operation === 'delete');
+}
+
+/**
  * Push queued mutations to server
  */
 export async function pushQueue(userId: string): Promise<SyncResult> {
@@ -904,23 +964,26 @@ export async function pushQueue(userId: string): Promise<SyncResult> {
   }
 
   try {
-    // Get pending mutations (not deleted, retry count < 5)
-    const pendingOps = await offlineDB.syncQueue
+    // Cap in-memory work — never load hundreds of thousands of rows (see recoverPrototypeSyncQueueIfBloated).
+    const fetchCap = MAX_NOTE_CREATES_PER_SYNC_PUSH * 3;
+    const pendingCandidates = await offlineDB.syncQueue
       .where('userId')
       .equals(userId)
-      .filter(op => op.retryCount < 5)
+      .filter((op) => op.retryCount < 5)
+      .limit(fetchCap)
       .toArray();
 
-
-    if (pendingOps.length === 0) {
+    if (pendingCandidates.length === 0) {
       return { success: true, pushedCount: 0 };
     }
 
     // Sort mutations by dependency order to ensure dependencies are processed first
-    const sortedOps = pendingOps.sort((a, b) => {
-      const order: Record<string, number> = { space: 1, thread: 2, note: 3, noteThread: 4, tag: 5, noteTag: 6 };
-      return (order[a.entityType] || 99) - (order[b.entityType] || 99);
-    });
+    const sortedOps = pendingCandidates
+      .sort((a, b) => {
+        const order: Record<string, number> = { space: 1, thread: 2, note: 3, noteThread: 4, tag: 5, noteTag: 6 };
+        return (order[a.entityType] || 99) - (order[b.entityType] || 99);
+      })
+      .slice(0, MAX_NOTE_CREATES_PER_SYNC_PUSH);
 
     // Prepare mutations for batch push
     const mutations = sortedOps.map(op => ({
@@ -947,8 +1010,8 @@ export async function pushQueue(userId: string): Promise<SyncResult> {
       throw new Error(`Push failed: ${response.status} ${response.statusText}`);
     }
 
-    const result = await response.json();
-    const results = result.results || [];
+    const pushPayload = await response.json();
+    const results = pushPayload.results || [];
 
     // Process results and update local state
     let pushedCount = 0;
@@ -999,6 +1062,9 @@ export async function pushQueue(userId: string): Promise<SyncResult> {
             retryCount: op.retryCount + 1,
             lastError: errorMessage,
           });
+        } else if (shouldDropStalePrototypeQueueOp(op, errorType)) {
+          // Prototype reads from the server; a queued edit for a missing note will never apply.
+          await offlineDB.syncQueue.delete(op.id!);
         } else {
           // Permanent errors - mark with high retry count to stop retrying
           // but keep in queue so user can see it failed
@@ -1010,7 +1076,11 @@ export async function pushQueue(userId: string): Promise<SyncResult> {
       }
     }
 
-    return { success: true, pushedCount, results };
+    const pushResult: SyncResult = { success: true, pushedCount, results };
+    if (pendingCandidates.length > sortedOps.length) {
+      triggerImmediateSync(userId);
+    }
+    return pushResult;
   } catch (error) {
     console.error('[Sync] Error pushing queue:', error);
     return {
@@ -1303,9 +1373,9 @@ export async function clearStuckSyncQueue(
 
   if (opts?.entireQueue) {
     const removed = await retryIndexedDBOperation(async () => {
-      const all = await offlineDB.syncQueue.where('userId').equals(userId).toArray();
+      const count = await offlineDB.syncQueue.where('userId').equals(userId).count();
       await offlineDB.syncQueue.where('userId').equals(userId).delete();
-      return all.length;
+      return count;
     });
     await updateSyncState(userId, { syncError: null });
     return removed;
@@ -1357,7 +1427,7 @@ export async function retryStuckQueue(userId: string): Promise<SyncResult> {
       typeof window !== 'undefined' && isPrototypeShellPath(window.location.pathname);
 
     if (onPrototype) {
-      return pushQueue(userId);
+      return flushPushQueue(userId);
     }
 
     return syncNow(userId);
@@ -1420,14 +1490,7 @@ export async function syncNow(userId: string): Promise<SyncResult> {
 
     // Push queue
     const pushResult = await pushQueue(userId);
-
-    // Reflect the push outcome honestly: a connection-level push failure records a real
-    // syncError (so the UI can surface it), and a clean push clears any stale error. Per-op
-    // failures keep pushResult.success === true and are surfaced via the queue's failed count.
-    await updateSyncState(userId, {
-      isSyncing: false,
-      syncError: pushResult.success ? null : pushResult.error ?? 'Sync failed',
-    });
+    await recordPushQueueOutcome(userId, pushResult);
 
     return {
       success: pushResult.success,
@@ -1493,7 +1556,7 @@ export function triggerImmediateSync(userId: string): void {
     try {
       // Push-only (1 API call) instead of syncNow which does pull+push (2 API calls)
       // Pull happens on the next background interval or when tab becomes visible
-      const pushResult = await pushQueue(userId);
+      const pushResult = await flushPushQueue(userId);
       if (pushResult.success && (pushResult.pushedCount ?? 0) > 0) {
         dispatchRemoteSyncCompleted();
       }
@@ -1532,7 +1595,7 @@ export function startBackgroundSync(
     if (navigator.onLine) {
       try {
         if (options?.pushOnly) {
-          await pushQueue(userId);
+          await flushPushQueue(userId);
         } else {
           await syncNow(userId);
         }

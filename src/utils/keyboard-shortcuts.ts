@@ -14,7 +14,6 @@ import {
   isPrototypeShellPath,
   matchPrototypeNoteId,
   prototypeHomePath,
-  prototypeHref,
   prototypeSettingsRouteTo,
 } from '@/lib/prototype-path';
 
@@ -390,7 +389,7 @@ function handlePrototypeKeyboardShortcut(event: KeyboardEvent): boolean {
   // Cmd/Ctrl + F — focus sidebar search (native SidebarPanelView parity).
   if (modifier && key === 'f' && !event.altKey && !event.shiftKey) {
     if (isPrototypeTypingContext(event)) return false;
-    if (isPrototypeShellPath(path) && !path.startsWith(prototypeHref('search'))) {
+    if (isPrototypeShellPath(path)) {
       event.preventDefault();
       window.dispatchEvent(new CustomEvent('prototypeShortcutFocusSidebarSearch'));
       return true;
@@ -422,7 +421,7 @@ function handlePrototypeKeyboardShortcut(event: KeyboardEvent): boolean {
       navigateTo(prototypeHomePath());
       return true;
     }
-    if (isPrototypeNotePath(path) || path.startsWith(prototypeHref('search'))) {
+    if (isPrototypeNotePath(path)) {
       navigateTo(prototypeHomePath());
       return true;
     }

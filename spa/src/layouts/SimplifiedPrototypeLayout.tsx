@@ -46,7 +46,6 @@ import {
 import {
   isPrototypeHomePath,
   isPrototypeNotePath,
-  isPrototypeSearchPath,
   isPrototypeShellPath,
   prototypeHomePath,
   prototypeNoteRouteTo,
@@ -148,20 +147,15 @@ function PrototypeAuthenticatedChrome({ userId }: { userId?: string }) {
     sidebarWidthMin,
     sidebarWidthMax,
     inspectorOpen,
-    setHideSidebar,
+    hideSidebar,
   } = useProtoShell();
   const shellRef = useRef<HTMLDivElement | null>(null);
   const resizeHandleRef = useRef<HTMLDivElement | null>(null);
   const widthRef = useRef(sidebarWidth);
 
-  const hideSidebar = isPrototypeSearchPath(pathname);
   const isNoteRoute = isPrototypeNotePath(pathname);
   // inspector is rendered inline in PrototypeNotePage (flex-row), no extra grid column needed
   void inspectorOpen;
-
-  useEffect(() => {
-    setHideSidebar(hideSidebar);
-  }, [hideSidebar, setHideSidebar]);
 
   useEffect(() => {
     widthRef.current = sidebarWidth;
@@ -527,6 +521,8 @@ function PrototypeAuthenticatedChrome({ userId }: { userId?: string }) {
           </div>
         </main>
 
+        <div className="proto-shell__right-panel-host" aria-hidden={!isNoteRoute} />
+
         {isNoteRoute ? <PrototypeEditorChromeBar /> : null}
         </div>
       </div>
@@ -549,6 +545,8 @@ function PrototypeShortcutBridge() {
     toggleDesktopSidebar,
     toggleInspector,
     ensureSidebarExpanded,
+    sidebarLayer,
+    setSidebarLayer,
     sidebarListMode,
     setSidebarListMode,
     beginPrototypeComposeSession,
@@ -570,6 +568,8 @@ function PrototypeShortcutBridge() {
   }, [isMobileSidebar, toggleDesktopSidebar, toggleDrawer]);
 
   const focusPrototypeNoteList = useCallback(() => {
+    // List-layer target — flip out of Home first so the list exists when the rAF queries it.
+    setSidebarLayer('list');
     ensureSidebarExpanded();
     requestAnimationFrame(() => {
       const target = document.querySelector<HTMLElement>(
@@ -577,24 +577,31 @@ function PrototypeShortcutBridge() {
       );
       target?.focus();
     });
-  }, [ensureSidebarExpanded]);
+  }, [ensureSidebarExpanded, setSidebarLayer]);
 
   const focusPrototypeSidebarSearch = useCallback(() => {
+    setSidebarLayer('list');
     ensureSidebarExpanded();
     requestAnimationFrame(() => {
       document.querySelector<HTMLInputElement>('#proto-sidebar-search-input')?.focus();
     });
-  }, [ensureSidebarExpanded]);
+  }, [ensureSidebarExpanded, setSidebarLayer]);
 
   const cycleListMode = useCallback(
     (step: number) => {
+      // From Home, the first cycle returns to the last-used list view instead of advancing past it.
+      if (sidebarLayer === 'space') {
+        setSidebarListMode(sidebarListMode);
+        ensureSidebarExpanded();
+        return;
+      }
       const order = ['notes', 'folders', 'highlights', 'scripture', 'threads'] as const;
       const currentIndex = Math.max(0, order.indexOf(sidebarListMode));
       const nextIndex = (currentIndex + step + order.length) % order.length;
       setSidebarListMode(order[nextIndex]);
       ensureSidebarExpanded();
     },
-    [ensureSidebarExpanded, setSidebarListMode, sidebarListMode],
+    [ensureSidebarExpanded, setSidebarListMode, sidebarLayer, sidebarListMode],
   );
 
   useEffect(() => {

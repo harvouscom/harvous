@@ -62,7 +62,6 @@ export function isPrototypeShellPath(pathname: string): boolean {
   if (logical === '/' || logical === '') return true;
   return (
     logical.startsWith('/n/') ||
-    logical.startsWith('/search') ||
     logical.startsWith('/settings') ||
     logical.startsWith('/space/')
   );
@@ -75,11 +74,6 @@ export function isPrototypeHomePath(pathname: string): boolean {
 
 export function isPrototypeNotePath(pathname: string): boolean {
   return prototypeLogicalPath(pathname).startsWith('/n/');
-}
-
-export function isPrototypeSearchPath(pathname: string): boolean {
-  const logical = prototypeLogicalPath(pathname);
-  return logical === '/search' || logical.startsWith('/search/');
 }
 
 export function isPrototypeSettingsPath(pathname: string): boolean {
@@ -107,10 +101,6 @@ export function prototypeSettingsRouteTo(): '/settings' | '/prototype/settings' 
 
 export function prototypeSettingsAccountRouteTo(): '/settings/account' | '/prototype/settings/account' {
   return isDedicatedPrototypeHost() ? '/settings/account' : '/prototype/settings/account';
-}
-
-export function prototypeSearchRouteTo(): '/search' | '/prototype/search' {
-  return isDedicatedPrototypeHost() ? '/search' : '/prototype/search';
 }
 
 export function prototypeHomeRouteTo(): '/' | '/prototype/' {

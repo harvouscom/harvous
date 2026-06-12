@@ -1,10 +1,12 @@
 /**
- * Space switcher — prototype is My Home only; other spaces are retired in this shell.
- * Always shows the home orb once auth is ready; static glyph (no dropdown) in all cases.
+ * Space switcher orb — Home layer half of the sidebar layer toggle.
+ * Tapping switches the sidebar to the Home space view. With My Home as the
+ * only space there's no picker menu yet; future spaces/groups add one here.
  */
 import { useMemo } from 'react';
 import Icon from '@/components/react/Icon';
 import ProtoHouseIcon from './ProtoHouseIcon';
+import { useProtoShell } from '../../layouts/proto-shell-context';
 import { PROTO_TOOLBAR_ORB_ICON_SIZE } from './proto-toolbar-tokens';
 
 export default function SpaceSwitcherMenu({
@@ -14,6 +16,8 @@ export default function SpaceSwitcherMenu({
   homeSpaceId: string | null;
   authReady: boolean;
 }) {
+  const { sidebarLayer, setSidebarLayer, ensureSidebarExpanded } = useProtoShell();
+
   const normalizedActive = useMemo(
     () =>
       homeSpaceId == null ? null : homeSpaceId.startsWith('space_') ? homeSpaceId : `space_${homeSpaceId}`,
@@ -33,10 +37,21 @@ export default function SpaceSwitcherMenu({
   );
 
   return (
-    <div className="proto-menu">
-      <span className="proto-space-trigger proto-space-trigger--static" title={triggerTitle} aria-label={triggerTitle}>
+    <div className="proto-menu proto-sidebar-toolbar__mode-menu">
+      <button
+        type="button"
+        className="proto-toolbar-icon-btn"
+        data-active={sidebarLayer === 'space'}
+        title={triggerTitle}
+        aria-label={triggerTitle}
+        disabled={!hasHome}
+        onClick={() => {
+          setSidebarLayer('space');
+          ensureSidebarExpanded();
+        }}
+      >
         {triggerIcon}
-      </span>
+      </button>
     </div>
   );
 }

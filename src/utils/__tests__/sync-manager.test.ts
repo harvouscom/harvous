@@ -3,11 +3,16 @@ import {
   bootstrapSync,
   pullChanges,
   pushQueue,
+  flushPushQueue,
+  recordPushQueueOutcome,
+  recoverPrototypeSyncQueueIfBloated,
+  SYNC_QUEUE_UNHEALTHY_THRESHOLD,
   retryStuckQueue,
   syncNow,
   needsBootstrap,
   classifySyncError,
   shouldRetryError,
+  shouldDropStalePrototypeQueueOp,
   applyBootstrapData,
   applyIncrementalChanges,
   type SyncResult,
@@ -353,9 +358,44 @@ describe('sync-manager', () => {
       expect(result.pushedCount).toBe(0);
     });
 
+    it('pushes at most one batch per call when the queue is large', async () => {
+      const opIds: number[] = [];
+      for (let i = 0; i < 55; i++) {
+        const id = await offlineDB.syncQueue.add({
+          userId: testUserId,
+          operation: 'update',
+          entityType: 'note',
+          entityId: `note_batch_${i}`,
+          data: { title: `Note ${i}`, content: '<p></p>' },
+          timestamp: Date.now() + i,
+          retryCount: 0,
+        });
+        opIds.push(id);
+      }
+
+      const mockResponse = {
+        results: opIds.slice(0, 50).map((operationId) => ({
+          success: true,
+          operationId,
+          serverId: `server_${operationId}`,
+        })),
+      };
+
+      (global.fetch as any).mockResolvedValueOnce(createMockResponse(mockResponse));
+
+      const result = await pushQueue(testUserId);
+      expect(result.success).toBe(true);
+      expect(result.pushedCount).toBe(50);
+
+      const body = JSON.parse((global.fetch as any).mock.calls[0][1].body);
+      expect(body.mutations).toHaveLength(50);
+
+      const remaining = await offlineDB.syncQueue.where('userId').equals(testUserId).count();
+      expect(remaining).toBe(5);
+    });
+
     it('should successfully push queued mutations', async () => {
-      // Add a mutation to the queue
-      await offlineDB.syncQueue.add({
+      const opId = await offlineDB.syncQueue.add({
         userId: testUserId,
         operation: 'create',
         entityType: 'note',
@@ -373,7 +413,7 @@ describe('sync-manager', () => {
         results: [
           {
             success: true,
-            operationId: 1,
+            operationId: opId,
             serverId: 'server-note-1',
           },
         ],
@@ -391,7 +431,7 @@ describe('sync-manager', () => {
     });
 
     it('should handle partial failures in push', async () => {
-      await offlineDB.syncQueue.add({
+      const opId = await offlineDB.syncQueue.add({
         userId: testUserId,
         operation: 'create',
         entityType: 'note',
@@ -405,7 +445,7 @@ describe('sync-manager', () => {
         results: [
           {
             success: false,
-            operationId: 1,
+            operationId: opId,
             error: 'Validation error',
           },
         ],
@@ -422,6 +462,204 @@ describe('sync-manager', () => {
       expect(queueItems).toHaveLength(1);
       // Note: retry count may not increment in this test scenario
       // expect(queueItems[0].retryCount).toBeGreaterThan(0);
+    });
+
+    it('drops stale note update ops on prototype when server returns not found', async () => {
+      window.history.pushState({}, '', '/prototype');
+
+      const opId = await offlineDB.syncQueue.add({
+        userId: testUserId,
+        operation: 'update',
+        entityType: 'note',
+        entityId: 'note_missing',
+        data: { title: 'Stale', content: '<p>x</p>' },
+        timestamp: Date.now(),
+        retryCount: 0,
+      });
+
+      (global.fetch as any).mockResolvedValueOnce(
+        createMockResponse({
+          results: [{ success: false, operationId: opId, error: 'Note not found' }],
+        }),
+      );
+
+      const result = await pushQueue(testUserId);
+      expect(result.success).toBe(true);
+      expect(result.pushedCount).toBe(0);
+
+      const queueItems = await offlineDB.syncQueue.where('userId').equals(testUserId).toArray();
+      expect(queueItems).toHaveLength(0);
+
+      window.history.pushState({}, '', '/');
+    });
+
+    it('keeps permanent failures on classic routes', async () => {
+      window.history.pushState({}, '', '/dashboard');
+
+      const opId = await offlineDB.syncQueue.add({
+        userId: testUserId,
+        operation: 'update',
+        entityType: 'note',
+        entityId: 'note_missing',
+        data: { title: 'Stale', content: '<p>x</p>' },
+        timestamp: Date.now(),
+        retryCount: 0,
+      });
+
+      (global.fetch as any).mockResolvedValueOnce(
+        createMockResponse({
+          results: [{ success: false, operationId: opId, error: 'Note not found' }],
+        }),
+      );
+
+      await pushQueue(testUserId);
+
+      const queueItems = await offlineDB.syncQueue.where('userId').equals(testUserId).toArray();
+      expect(queueItems).toHaveLength(1);
+      expect(queueItems[0].retryCount).toBe(999);
+
+      window.history.pushState({}, '', '/');
+    });
+  });
+
+  describe('shouldDropStalePrototypeQueueOp', () => {
+    it('returns true for prototype note update/delete not_found', () => {
+      window.history.pushState({}, '', '/prototype');
+      expect(
+        shouldDropStalePrototypeQueueOp({ entityType: 'note', operation: 'update' }, 'not_found'),
+      ).toBe(true);
+      expect(
+        shouldDropStalePrototypeQueueOp({ entityType: 'note', operation: 'delete' }, 'not_found'),
+      ).toBe(true);
+      window.history.pushState({}, '', '/');
+    });
+
+    it('returns false outside prototype or for other entity types', () => {
+      window.history.pushState({}, '', '/prototype');
+      expect(
+        shouldDropStalePrototypeQueueOp({ entityType: 'note', operation: 'create' }, 'not_found'),
+      ).toBe(false);
+      expect(
+        shouldDropStalePrototypeQueueOp({ entityType: 'noteThread', operation: 'create' }, 'not_found'),
+      ).toBe(false);
+      window.history.pushState({}, '', '/dashboard');
+      expect(
+        shouldDropStalePrototypeQueueOp({ entityType: 'note', operation: 'update' }, 'not_found'),
+      ).toBe(false);
+      window.history.pushState({}, '', '/');
+    });
+  });
+
+  describe('recordPushQueueOutcome', () => {
+    it('clears syncError after a successful push', async () => {
+      await offlineDB.syncState.add({
+        userId: testUserId,
+        lastSyncCursor: null,
+        lastSyncTimestamp: null,
+        lastBootstrapTimestamp: null,
+        isSyncing: true,
+        syncError: 'Push failed: 502 Bad Gateway',
+      });
+
+      await recordPushQueueOutcome(testUserId, { success: true, pushedCount: 0 });
+
+      const state = await offlineDB.syncState.where('userId').equals(testUserId).first();
+      expect(state?.syncError).toBeNull();
+      expect(state?.isSyncing).toBe(false);
+    });
+
+    it('records connection-level push failures', async () => {
+      await offlineDB.syncState.add({
+        userId: testUserId,
+        lastSyncCursor: null,
+        lastSyncTimestamp: null,
+        lastBootstrapTimestamp: null,
+        isSyncing: false,
+        syncError: null,
+      });
+
+      await recordPushQueueOutcome(testUserId, {
+        success: false,
+        error: 'Push failed: 502 Bad Gateway',
+      });
+
+      const state = await offlineDB.syncState.where('userId').equals(testUserId).first();
+      expect(state?.syncError).toBe('Push failed: 502 Bad Gateway');
+    });
+  });
+
+  describe('recoverPrototypeSyncQueueIfBloated', () => {
+    it('clears the entire queue on prototype when pending exceeds the unhealthy threshold', async () => {
+      window.history.pushState({}, '', '/prototype');
+
+      for (let i = 0; i < SYNC_QUEUE_UNHEALTHY_THRESHOLD + 5; i++) {
+        await offlineDB.syncQueue.add({
+          userId: testUserId,
+          operation: 'update',
+          entityType: 'note',
+          entityId: `note_${i}`,
+          data: { title: `Note ${i}`, content: '<p></p>' },
+          timestamp: Date.now(),
+          retryCount: 0,
+        });
+      }
+
+      const removed = await recoverPrototypeSyncQueueIfBloated(testUserId);
+      expect(removed).toBe(SYNC_QUEUE_UNHEALTHY_THRESHOLD + 5);
+
+      const remaining = await offlineDB.syncQueue.where('userId').equals(testUserId).count();
+      expect(remaining).toBe(0);
+
+      const state = await offlineDB.syncState.where('userId').equals(testUserId).first();
+      expect(state?.syncError).toBeNull();
+
+      window.history.pushState({}, '', '/');
+    });
+
+    it('no-ops below the unhealthy threshold', async () => {
+      window.history.pushState({}, '', '/prototype');
+
+      await offlineDB.syncQueue.add({
+        userId: testUserId,
+        operation: 'update',
+        entityType: 'note',
+        entityId: 'note_ok',
+        data: { title: 'OK', content: '<p></p>' },
+        timestamp: Date.now(),
+        retryCount: 0,
+      });
+
+      const removed = await recoverPrototypeSyncQueueIfBloated(testUserId);
+      expect(removed).toBe(0);
+      expect(await offlineDB.syncQueue.where('userId').equals(testUserId).count()).toBe(1);
+
+      window.history.pushState({}, '', '/');
+    });
+  });
+
+  describe('flushPushQueue', () => {
+    it('updates sync state when the push request fails', async () => {
+      window.history.pushState({}, '', '/prototype');
+
+      await offlineDB.syncQueue.add({
+        userId: testUserId,
+        operation: 'create',
+        entityType: 'note',
+        entityId: 'local-note-flush',
+        data: { title: 'Note', content: 'Content' },
+        timestamp: Date.now(),
+        retryCount: 0,
+      });
+
+      (global.fetch as any).mockResolvedValueOnce(createMockResponse('Server error', false, 502));
+
+      const result = await flushPushQueue(testUserId);
+      expect(result.success).toBe(false);
+
+      const state = await offlineDB.syncState.where('userId').equals(testUserId).first();
+      expect(state?.syncError).toContain('Push failed');
+
+      window.history.pushState({}, '', '/');
     });
   });
 

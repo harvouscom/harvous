@@ -14,6 +14,7 @@ import { noteFolderMembershipLabels } from '@/utils/note-folder-display';
 import { sortNotesByLastVisited } from '@/utils/sorting';
 import { stripServerAutoUntitledNoteTitleForDisplay } from '@/utils/server-auto-untitled-note-display';
 import { isEffectivelyEmptyPrototypeNote } from '@/utils/prototype-note-empty';
+import { computePrototypeNotesListPhase } from '@/utils/prototype-notes-list-phase';
 import { stripHtmlForListPreview } from '@/utils/html-stripper';
 import { useProtoShell } from '../../layouts/proto-shell-context';
 import { usePrototypeHomeSpaceId } from '../../hooks/usePrototypeHomeSpaceId';
@@ -47,7 +48,7 @@ import {
   prototypeHighlightSubtitlePreview,
   prototypeHighlightRecencyIso,
 } from './proto-highlight-subtitle';
-import PrototypeDailyPassagePill from './PrototypeDailyPassagePill';
+import PrototypeSidebarHomeView from './PrototypeSidebarHomeView';
 import PrototypeListEmptyState, { PrototypeListNoMatchEmptyState } from './PrototypeListEmptyState';
 import { SIDEBAR_NO_MATCH_COPY } from './sidebar-no-match-copy';
 import PrototypeMigrationBanner from './PrototypeMigrationBanner';
@@ -504,6 +505,18 @@ function highlightKindMatches(filter: HighlightKindFilter, entryKind: string | n
   }
 }
 
+function ProtoNotesListLoading() {
+  return (
+    <div style={{ padding: '12px 18px', display: 'flex', justifyContent: 'center' }}>
+      <span className="load-more-indicator" aria-label="Loading notes">
+        <span className="load-more-indicator__dot" />
+        <span className="load-more-indicator__dot" />
+        <span className="load-more-indicator__dot" />
+      </span>
+    </div>
+  );
+}
+
 function ProtoNotesPaginationFooter({
   hasNextPage,
   isFetchingNextPage,
@@ -547,6 +560,7 @@ export default function PrototypeSidebar() {
   const {
     closeDrawer,
     isMobileSidebar,
+    sidebarLayer,
     sidebarListMode: mode,
     setSidebarFolderDrilldown: setActiveFolderKey,
     sidebarFolderDrilldown: activeFolderKey,
@@ -560,7 +574,7 @@ export default function PrototypeSidebar() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
-  const { homeSpaceId, navReady } = usePrototypeHomeSpaceId();
+  const { homeSpaceId, navReady, authReady } = usePrototypeHomeSpaceId();
 
   const scrollRootRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -571,14 +585,13 @@ export default function PrototypeSidebar() {
   const {
     data: pages,
     isError: notesIsError,
-    isLoading: notesIsLoading,
+    isPending: notesIsPending,
+    isFetching: notesIsFetching,
     fetchNextPage,
     hasNextPage,
     isFetchingNextPage,
     isFetchNextPageError,
   } = useSpaceNotes(homeSpaceId ?? '');
-
-  const notesListReady = !notesIsLoading;
 
   const notesPaginationEnabled =
     !!homeSpaceId && (mode === 'notes' || (mode === 'folders' && activeFolderKey !== undefined));
@@ -592,13 +605,19 @@ export default function PrototypeSidebar() {
   });
 
   const [q, setQ] = useState('');
-  const searchActive = q.trim().length > 0;
+  const isHomeLayer = sidebarLayer === 'space';
+  const searchActive = !isHomeLayer && q.trim().length > 0;
+
+  // Search belongs to the list layer — drop any stale query when entering Home.
+  useEffect(() => {
+    if (isHomeLayer) setQ('');
+  }, [isHomeLayer]);
 
   const highlightsQuery = usePrototypeSpaceStudyThreadHighlights(
     searchActive || mode === 'highlights' ? homeSpaceId ?? undefined : undefined,
   );
   const scriptureQuery = usePrototypeSpaceScriptureIndex(
-    searchActive || mode === 'scripture' ? homeSpaceId ?? undefined : undefined,
+    searchActive || mode === 'scripture' || isHomeLayer ? homeSpaceId ?? undefined : undefined,
   );
   const studyThreadsQuery = usePrototypeStudyThreads(
     searchActive || mode === 'threads' ? homeSpaceId ?? undefined : undefined,
@@ -707,6 +726,15 @@ export default function PrototypeSidebar() {
       return title.includes(t) || body.includes(t);
     });
   }, [notes, q, activeFolderKey]);
+
+  const notesListPhase = computePrototypeNotesListPhase({
+    homeSpaceId,
+    authReady,
+    isPending: notesIsPending,
+    isFetching: notesIsFetching,
+    noteCount: notes.length,
+    isError: notesIsError,
+  });
 
   const folders = useMemo(() => buildFoldersFromNotes(notes), [notes]);
   const scriptureBooks = scriptureQuery.data ?? [];
@@ -1116,7 +1144,7 @@ export default function PrototypeSidebar() {
   return (
     <div className="proto-sidebar-root">
       {isMobileSidebar ? <PrototypeSidebarToolbar variant="drawer" /> : null}
-      {backTarget ? (
+      {backTarget && !isHomeLayer ? (
         <div className="proto-sidebar-back-row">
           <button type="button" className="proto-sidebar-back-row__button" onClick={backTarget.action}>
             <Icon name="chevron-left" size={13} className="proto-sidebar-back-row__chevron" aria-hidden />
@@ -1127,6 +1155,7 @@ export default function PrototypeSidebar() {
           </button>
         </div>
       ) : null}
+      {!isHomeLayer ? (
       <div className="proto-sidebar-search">
         <div className="proto-sidebar-search__field">
           <span className="proto-sidebar-search__icon" aria-hidden>
@@ -1170,6 +1199,7 @@ export default function PrototypeSidebar() {
           ) : null}
         </div>
       </div>
+      ) : null}
 
       <div ref={scrollRootRef} className="proto-sidebar-scroll">
         {!homeSpaceId ? (
@@ -1178,6 +1208,20 @@ export default function PrototypeSidebar() {
               No My Home yet — finish setup in the classic app
             </p>
           ) : null
+        ) : isHomeLayer ? (
+          <PrototypeSidebarHomeView
+            homeSpaceId={homeSpaceId}
+            notes={notes}
+            notesListPhase={notesListPhase}
+            hasMoreNotes={!!hasNextPage}
+            scriptureBooks={scriptureBooks}
+            onOpenNote={onNoteRow}
+            prefetchNote={prefetchNote}
+            onOpenScripturePassage={(bookOrder) => {
+              setScriptureDrill({ level: 'passages', bookOrder });
+              setSidebarListMode('scripture');
+            }}
+          />
         ) : searchActive ? (
           <PrototypeSidebarSearchResults
             query={q}
@@ -1197,11 +1241,13 @@ export default function PrototypeSidebar() {
           <>
             {mode === 'notes' ? (
               <>
-                {notesIsError ? (
+                {notesListPhase === 'error' ? (
                   <p className="proto-caption" style={{ padding: '12px 18px', textAlign: 'center' }}>
                     Couldn&apos;t load notes.
                   </p>
-                ) : !notesListReady ? null : notesForMode.length === 0 ? (
+                ) : notesListPhase === 'loading' ? (
+                  <ProtoNotesListLoading />
+                ) : notesForMode.length === 0 ? (
                   q.trim() ? (
                     <PrototypeListNoMatchEmptyState title={SIDEBAR_NO_MATCH_COPY.noNotesMatch} />
                   ) : (
@@ -1242,11 +1288,13 @@ export default function PrototypeSidebar() {
 
             {mode === 'folders' && activeFolderKey !== undefined ? (
               <>
-                {notesIsError ? (
+                {notesListPhase === 'error' ? (
                   <p className="proto-caption" style={{ padding: '12px 18px', textAlign: 'center' }}>
                     Couldn&apos;t load notes.
                   </p>
-                ) : !notesListReady ? null : notesForMode.length === 0 ? (
+                ) : notesListPhase === 'loading' ? (
+                  <ProtoNotesListLoading />
+                ) : notesForMode.length === 0 ? (
                   <p className="proto-caption" style={{ padding: '12px 18px', textAlign: 'center' }}>
                     No notes in this folder.
                   </p>
@@ -1280,11 +1328,13 @@ export default function PrototypeSidebar() {
             ) : null}
 
             {mode === 'folders' && activeFolderKey === undefined ? (
-              notesIsError ? (
+              notesListPhase === 'error' ? (
                 <p className="proto-caption" style={{ padding: '12px 18px', textAlign: 'center' }}>
                   Couldn&apos;t load notes.
                 </p>
-              ) : !notesListReady ? null : filteredFolders.length === 0 ? (
+              ) : notesListPhase === 'loading' ? (
+                <ProtoNotesListLoading />
+              ) : filteredFolders.length === 0 ? (
                 q.trim() ? (
                   <PrototypeListNoMatchEmptyState title={SIDEBAR_NO_MATCH_COPY.noFoldersMatch} />
                 ) : (
@@ -1604,7 +1654,6 @@ export default function PrototypeSidebar() {
 
       <div className="proto-sidebar-floating-stack">
         <PrototypeMigrationBanner />
-        <PrototypeDailyPassagePill homeSpaceId={homeSpaceId ?? null} notes={notes} />
       </div>
 
       {highlightDeleteTarget ? (

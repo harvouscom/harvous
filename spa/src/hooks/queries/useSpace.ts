@@ -1,6 +1,8 @@
 import { useQuery, useInfiniteQuery, useQueryClient, type InfiniteData } from '@tanstack/react-query';
+import { useEffect, useRef } from 'react';
 import { useAuthReady } from '../useAuthReady';
-import { api } from '../../lib/api';
+import { api, APIError } from '../../lib/api';
+import { hasClerkSessionCookieHint } from './useProfile';
 import { normalizeDate } from '../../../../src/utils/sorting';
 import { HARVOUS_SPACE_NOTES_CACHE_PREFIX } from '@/utils/user-cache-keys';
 
@@ -194,7 +196,7 @@ export function useSpaceNotes(spaceId: string, limit = 20) {
   const initialData: InfiniteData<SpaceNotesPage, number> | undefined = cachedFirstPage
     ? { pages: [cachedFirstPage], pageParams: [0] }
     : undefined;
-  return useInfiniteQuery({
+  const query = useInfiniteQuery({
     queryKey: ['space', id, 'notes', 'no-legacy-scripture'],
     queryFn: async ({ pageParam = 0 }) => {
       const page = await api.get<SpaceNotesPage>(`/api/spaces/${id}/notes`, {
@@ -212,7 +214,25 @@ export function useSpaceNotes(spaceId: string, limit = 20) {
     staleTime: 30_000,
     initialData,
     initialDataUpdatedAt: initialData ? 0 : undefined,
+    retry: (failureCount, error) => {
+      if (error instanceof APIError && error.status === 401) {
+        return hasClerkSessionCookieHint() && failureCount < 2;
+      }
+      return failureCount < 2;
+    },
+    retryDelay: (attemptIndex) => Math.min(500 * 2 ** attemptIndex, 2000),
   });
+
+  const prevAuthReadyRef = useRef(authReady);
+  useEffect(() => {
+    const wasReady = prevAuthReadyRef.current;
+    prevAuthReadyRef.current = authReady;
+    if (!wasReady && authReady && id) {
+      void query.refetch();
+    }
+  }, [authReady, id, query.refetch]);
+
+  return query;
 }
 
 export function useSpaceMembers(spaceId: string) {
