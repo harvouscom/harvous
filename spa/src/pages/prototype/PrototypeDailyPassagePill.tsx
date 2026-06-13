@@ -9,7 +9,6 @@ import {
 } from '../../hooks/mutations/useCreateSimpleNote';
 import { getNoteIdFromCreateResponse, seedNoteFromCreateResponse } from '../../hooks/queries/useNote';
 import type { SpaceNoteRow } from '../../hooks/queries/useSpace';
-import { useVotdToday } from '../../hooks/queries/useVotdToday';
 import { useProtoShell } from '../../layouts/proto-shell-context';
 import { noteMatchesDailyPassage, type VotdToday } from '../../lib/votd-today';
 import { buildVotdScripturePillHtml } from '../../lib/votd-scripture-pill-html';
@@ -19,20 +18,19 @@ import { noteParamSlug } from './proto-route-slugs';
 type Props = {
   homeSpaceId: string | null;
   notes: SpaceNoteRow[];
+  votd: VotdToday;
 };
 
-export default function PrototypeDailyPassagePill({ homeSpaceId, notes }: Props) {
+export default function PrototypeDailyPassagePill({ homeSpaceId, notes, votd }: Props) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const createNote = useCreateSimpleNote();
   const { isMobileSidebar, closeDrawer } = useProtoShell();
-  const { data: votd, isLoading } = useVotdToday({ enabled: Boolean(homeSpaceId) });
   const [sheetOpen, setSheetOpen] = useState(false);
 
   const matchingNote = useMemo(() => {
-    if (!votd) return undefined;
     return notes.find((n) => noteMatchesDailyPassage(n, votd.reference));
-  }, [notes, votd]);
+  }, [notes, votd.reference]);
 
   const dailyPassageNoteExists = Boolean(matchingNote);
 
@@ -89,7 +87,7 @@ export default function PrototypeDailyPassagePill({ homeSpaceId, notes }: Props)
     [createNote, homeSpaceId, matchingNote, openNote, queryClient],
   );
 
-  if (!homeSpaceId || isLoading || !votd) {
+  if (!homeSpaceId) {
     return null;
   }
 

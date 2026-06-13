@@ -5,6 +5,7 @@
  *   POST   /api/tags/create
  *   DELETE  /api/tags/delete
  *   GET    /api/tags/list
+ *   GET    /api/tags/notes-by-tag
  *   POST   /api/scripture/check-existing
  *   POST   /api/scripture/detect
  *   POST   /api/scripture/fetch-verse
@@ -130,6 +131,36 @@ app.get('/api/tags/list', requireAuth, async (c) => {
     return c.json({ success: true, tags: tagsWithCounts });
   } catch (error) {
     const standardError = handleAPIError(error, { endpoint: '/api/tags/list', action: 'list_tags' });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+
+/** GET /api/tags/notes-by-tag?tagId=&spaceId= — note ids linked to a tag (optional space scope). */
+app.get('/api/tags/notes-by-tag', requireAuth, async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const tagId = c.req.query('tagId')?.trim();
+    const spaceId = c.req.query('spaceId')?.trim() || null;
+
+    if (!tagId) return c.json({ error: 'Tag ID is required' }, 400);
+
+    const tag = first(
+      await db.select({ id: Tags.id }).from(Tags).where(and(eq(Tags.id, tagId), eq(Tags.userId, auth.userId))).limit(1),
+    );
+    if (!tag) return c.json({ error: 'Tag not found' }, 404);
+
+    const filters = [eq(NoteTags.tagId, tagId), eq(Notes.userId, auth.userId)];
+    if (spaceId) filters.push(eq(Notes.spaceId, spaceId));
+
+    const rows = await db
+      .select({ noteId: NoteTags.noteId })
+      .from(NoteTags)
+      .innerJoin(Notes, eq(NoteTags.noteId, Notes.id))
+      .where(and(...filters));
+
+    return c.json({ success: true, noteIds: rows.map((row) => row.noteId) });
+  } catch (error) {
+    const standardError = handleAPIError(error, { endpoint: '/api/tags/notes-by-tag', action: 'list_tag_notes' });
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });

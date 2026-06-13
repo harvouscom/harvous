@@ -16,7 +16,7 @@ import { stripServerAutoUntitledNoteTitleForDisplay } from '@/utils/server-auto-
 import { isEffectivelyEmptyPrototypeNote } from '@/utils/prototype-note-empty';
 import { computePrototypeNotesListPhase } from '@/utils/prototype-notes-list-phase';
 import { stripHtmlForListPreview } from '@/utils/html-stripper';
-import { useProtoShell } from '../../layouts/proto-shell-context';
+import { useProtoShell, type SidebarTagSearchIntent } from '../../layouts/proto-shell-context';
 import { usePrototypeHomeSpaceId } from '../../hooks/usePrototypeHomeSpaceId';
 import { useIntersectionFetchNextPage } from '../../hooks/useIntersectionFetchNextPage';
 import { useListKeyboardNavigation } from '../../hooks/useListKeyboardNavigation';
@@ -40,6 +40,7 @@ import {
 } from '../../hooks/queries/usePrototypeStudyThread';
 import { studyThreadDisplayTitle } from '../../utils/study-thread-display-title';
 import { usePrototypeSpaceScriptureIndex } from '../../hooks/queries/usePrototypeSpaceScriptureIndex';
+import { useTagNoteIds } from '../../hooks/queries/useTagNoteIds';
 import {
   highlightEntryKindAriaLabel,
   highlightEntryKindIconName,
@@ -570,6 +571,8 @@ export default function PrototypeSidebar() {
     standaloneScripturePassage,
     openStandaloneScripturePassage,
     dismissStandaloneScripturePassage,
+    sidebarTagSearchIntent,
+    clearSidebarTagSearchIntent,
   } = useProtoShell();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -605,13 +608,32 @@ export default function PrototypeSidebar() {
   });
 
   const [q, setQ] = useState('');
+  const [tagFilter, setTagFilter] = useState<SidebarTagSearchIntent | null>(null);
   const isHomeLayer = sidebarLayer === 'space';
-  const searchActive = !isHomeLayer && q.trim().length > 0;
+  const tagFilterActive = Boolean(tagFilter);
+  const searchActive = !isHomeLayer && q.trim().length > 0 && !tagFilterActive;
+
+  const tagNoteIdsQuery = useTagNoteIds(tagFilter?.tagId, homeSpaceId ?? undefined);
+  const tagNoteIdSet = useMemo(
+    () => new Set(tagNoteIdsQuery.data?.noteIds ?? []),
+    [tagNoteIdsQuery.data?.noteIds],
+  );
 
   // Search belongs to the list layer — drop any stale query when entering Home.
   useEffect(() => {
-    if (isHomeLayer) setQ('');
+    if (isHomeLayer) {
+      setQ('');
+      setTagFilter(null);
+    }
   }, [isHomeLayer]);
+
+  useEffect(() => {
+    if (!sidebarTagSearchIntent || isHomeLayer) return;
+    setQ(sidebarTagSearchIntent.tagName);
+    setTagFilter(sidebarTagSearchIntent);
+    clearSidebarTagSearchIntent();
+    searchInputRef.current?.focus();
+  }, [sidebarTagSearchIntent, isHomeLayer, clearSidebarTagSearchIntent]);
 
   const highlightsQuery = usePrototypeSpaceStudyThreadHighlights(
     searchActive || mode === 'highlights' ? homeSpaceId ?? undefined : undefined,
@@ -718,6 +740,19 @@ export default function PrototypeSidebar() {
             return labels.includes(activeFolderKey);
           })
         : notes;
+
+    if (tagFilter) {
+      if (!tagNoteIdsQuery.data) return [];
+      const tagged = base.filter((n) => tagNoteIdSet.has(n.id));
+      const t = q.trim().toLowerCase();
+      if (!t || t === tagFilter.tagName.trim().toLowerCase()) return tagged;
+      return tagged.filter((n) => {
+        const title = (n.title ?? '').toLowerCase();
+        const body = stripHtmlPreview(n.content, 800).toLowerCase();
+        return title.includes(t) || body.includes(t);
+      });
+    }
+
     const t = q.trim().toLowerCase();
     if (!t) return base;
     return base.filter((n) => {
@@ -725,7 +760,7 @@ export default function PrototypeSidebar() {
       const body = stripHtmlPreview(n.content, 800).toLowerCase();
       return title.includes(t) || body.includes(t);
     });
-  }, [notes, q, activeFolderKey]);
+  }, [notes, q, activeFolderKey, tagFilter, tagNoteIdsQuery.data, tagNoteIdSet]);
 
   const notesListPhase = computePrototypeNotesListPhase({
     homeSpaceId,
@@ -1167,7 +1202,13 @@ export default function PrototypeSidebar() {
             type="search"
             placeholder="Search"
             value={q}
-            onChange={(e) => setQ(e.target.value)}
+            onChange={(e) => {
+              const next = e.target.value;
+              setQ(next);
+              if (tagFilter && next.trim().toLowerCase() !== tagFilter.tagName.trim().toLowerCase()) {
+                setTagFilter(null);
+              }
+            }}
             onKeyDown={(e) => {
               // Drop from the search field straight into the list results.
               if (e.key === 'ArrowDown') {
@@ -1191,6 +1232,7 @@ export default function PrototypeSidebar() {
               aria-label="Clear search"
               onClick={() => {
                 setQ('');
+                setTagFilter(null);
                 searchInputRef.current?.focus();
               }}
             >
@@ -1215,6 +1257,7 @@ export default function PrototypeSidebar() {
             notesListPhase={notesListPhase}
             hasMoreNotes={!!hasNextPage}
             scriptureBooks={scriptureBooks}
+            scriptureSettled={!scriptureQuery.isPending || scriptureQuery.data != null}
             onOpenNote={onNoteRow}
             prefetchNote={prefetchNote}
             onOpenScripturePassage={(bookOrder) => {
@@ -1245,11 +1288,17 @@ export default function PrototypeSidebar() {
                   <p className="proto-caption" style={{ padding: '12px 18px', textAlign: 'center' }}>
                     Couldn&apos;t load notes.
                   </p>
-                ) : notesListPhase === 'loading' ? (
+                ) : notesListPhase === 'loading' || (tagFilter && tagNoteIdsQuery.isPending) ? (
                   <ProtoNotesListLoading />
                 ) : notesForMode.length === 0 ? (
-                  q.trim() ? (
-                    <PrototypeListNoMatchEmptyState title={SIDEBAR_NO_MATCH_COPY.noNotesMatch} />
+                  q.trim() || tagFilter ? (
+                    <PrototypeListNoMatchEmptyState
+                      title={
+                        tagFilter
+                          ? `No notes tagged “${tagFilter.tagName}”.`
+                          : SIDEBAR_NO_MATCH_COPY.noNotesMatch
+                      }
+                    />
                   ) : (
                     <PrototypeListEmptyState
                       iconName="note-sticky"

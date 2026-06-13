@@ -1,11 +1,17 @@
 import { describe, expect, it } from 'vitest';
 import {
+  computeActivityRhythm,
   computeActivityStreak,
   deriveTopPassages,
+  deriveTopFolders,
   deriveTopTags,
+  formatActivityRhythm,
   formatHomeNoteCount,
+  formatRhythmHour,
   greetingForHour,
   pickContinueNote,
+  pickHomeEncouragement,
+  homePassageGreetingTone,
   type HomeBookInput,
   type HomeTagInput,
 } from '../prototype-home-trends';
@@ -63,7 +69,7 @@ describe('deriveTopTags', () => {
   it('filters system tags and tags without notes', () => {
     const tags = [
       tag({ id: '1', name: 'Faith', noteCount: 3 }),
-      tag({ id: '2', name: 'System', isSystem: true, noteCount: 9 }),
+      tag({ id: '2', name: 'Grace', isSystem: true, noteCount: 9 }),
       tag({ id: '3', name: 'Unused', noteCount: 0 }),
       tag({ id: '4', name: 'Uncounted' }),
     ];
@@ -78,6 +84,28 @@ describe('deriveTopTags', () => {
       tag({ id: '4', name: 'Hope', noteCount: 1 }),
     ];
     expect(deriveTopTags(tags, 3).map((t) => t.name)).toEqual(['Grace', 'Faith', 'Prayer']);
+  });
+});
+
+describe('deriveTopFolders', () => {
+  it('returns empty for notes without folders', () => {
+    expect(deriveTopFolders([{ primaryCollection: null }], 5)).toEqual([]);
+  });
+
+  it('counts folder membership and skips My Pile', () => {
+    expect(
+      deriveTopFolders(
+        [
+          { primaryCollection: 'Salvation', secondaryCollections: ['Grace'] },
+          { primaryCollection: 'Salvation' },
+          { primaryCollection: 'My Pile' },
+        ],
+        5,
+      ),
+    ).toEqual([
+      { name: 'Salvation', noteCount: 2 },
+      { name: 'Grace', noteCount: 1 },
+    ]);
   });
 });
 
@@ -148,6 +176,62 @@ describe('computeActivityStreak', () => {
   });
 });
 
+describe('computeActivityRhythm', () => {
+  const tuesday7pm = (weekOffset = 0) => ({
+    updatedAt: new Date(2026, 5, 9 + weekOffset * 7, 19, 0, 0),
+  });
+
+  it('returns null for empty input and dateless notes', () => {
+    expect(computeActivityRhythm([])).toBeNull();
+    expect(computeActivityRhythm([{ updatedAt: null }])).toBeNull();
+  });
+
+  it('returns null when there are fewer than four samples', () => {
+    expect(computeActivityRhythm([tuesday7pm(), tuesday7pm(), tuesday7pm()])).toBeNull();
+  });
+
+  it('returns null when no day or hour reaches the winner threshold', () => {
+    const notes = [
+      { updatedAt: new Date(2026, 5, 9, 19, 0, 0) },
+      { updatedAt: new Date(2026, 5, 10, 9, 0, 0) },
+      { updatedAt: new Date(2026, 5, 11, 14, 0, 0) },
+      { updatedAt: new Date(2026, 5, 12, 20, 0, 0) },
+    ];
+    expect(computeActivityRhythm(notes)).toBeNull();
+  });
+
+  it('picks the most common weekday and hour when both clear', () => {
+    const notes = [tuesday7pm(), tuesday7pm(1), tuesday7pm(2), { updatedAt: new Date(2026, 5, 10, 9, 0, 0) }];
+    expect(computeActivityRhythm(notes)).toEqual({ dayOfWeek: 2, hour: 19 });
+  });
+
+  it('breaks day ties by most recent activity', () => {
+    const notes = [
+      { updatedAt: new Date(2026, 5, 9, 19, 0, 0) },
+      { updatedAt: new Date(2026, 5, 16, 19, 0, 0) },
+      { updatedAt: new Date(2026, 5, 10, 19, 0, 0) },
+      { updatedAt: new Date(2026, 5, 17, 19, 0, 0) },
+    ];
+    expect(computeActivityRhythm(notes)).toEqual({ dayOfWeek: 3, hour: 19 });
+  });
+});
+
+describe('formatRhythmHour', () => {
+  it('maps 24h to 12h labels', () => {
+    expect(formatRhythmHour(0)).toBe('12 AM');
+    expect(formatRhythmHour(12)).toBe('12 PM');
+    expect(formatRhythmHour(19)).toBe('7 PM');
+  });
+});
+
+describe('formatActivityRhythm', () => {
+  it('formats weekday plural and hour labels', () => {
+    expect(formatActivityRhythm({ dayOfWeek: 2, hour: 19 })).toBe('usually study on Tuesdays, around 7 PM');
+    expect(formatActivityRhythm({ dayOfWeek: 0, hour: 0 })).toBe('usually study on Sundays, around 12 AM');
+    expect(formatActivityRhythm({ dayOfWeek: 0, hour: 12 })).toBe('usually study on Sundays, around 12 PM');
+  });
+});
+
 describe('deriveTopPassages', () => {
   const book = (bookOrder: number, passages: Array<Partial<HomeBookInput['passages'][number]> & { passageKey: string }>): HomeBookInput => ({
     bookOrder,
@@ -198,5 +282,149 @@ describe('deriveTopPassages', () => {
   it('drops passages with zero references and zero notes', () => {
     const books = [book(1, [{ passageKey: 'Genesis 1:1', referenceCount: 0, noteCount: 0 }])];
     expect(deriveTopPassages(books, 5)).toEqual([]);
+  });
+});
+
+describe('homePassageGreetingTone', () => {
+  it('uses single-note tone for one note with no pagination', () => {
+    expect(
+      homePassageGreetingTone({ noteCount: 1, hasMoreNotes: false, referenceCount: 3 }),
+    ).toBe('single-note');
+  });
+
+  it('uses mentioned-once when the passage only appears once across notes', () => {
+    expect(
+      homePassageGreetingTone({ noteCount: 4, hasMoreNotes: false, referenceCount: 1 }),
+    ).toBe('mentioned-once');
+  });
+
+  it('uses returning when the passage is referenced more than once', () => {
+    expect(
+      homePassageGreetingTone({ noteCount: 4, hasMoreNotes: false, referenceCount: 2 }),
+    ).toBe('returning');
+  });
+
+  it('does not treat 1+ notes as single-note', () => {
+    expect(
+      homePassageGreetingTone({ noteCount: 1, hasMoreNotes: true, referenceCount: 1 }),
+    ).toBe('mentioned-once');
+  });
+});
+
+describe('pickHomeEncouragement', () => {
+  const today = new Date(2026, 5, 10, 12, 0, 0);
+
+  const base = {
+    noteCount: 5,
+    hasMoreNotes: false,
+    streak: null as { unit: 'day' | 'week'; count: number } | null,
+    hasTopPassage: false,
+    hour: 14,
+    today,
+  };
+
+  it('returns the first-note closer for a single note with no pagination', () => {
+    expect(pickHomeEncouragement({ ...base, noteCount: 1 })).toBe('It\'s a start.');
+  });
+
+  it('does not treat 1+ notes as first-note', () => {
+    expect(pickHomeEncouragement({ ...base, noteCount: 1, hasMoreNotes: true })).not.toBe(
+      'It\'s a start.',
+    );
+  });
+
+  it('returns week-streak closers by tier when streak is not in the greeting body', () => {
+    expect(pickHomeEncouragement({ ...base, streak: { unit: 'week', count: 2 } })).toBe(
+      'Two weeks now. That adds up.',
+    );
+    expect(pickHomeEncouragement({ ...base, streak: { unit: 'week', count: 3 } })).toBe(
+      'Week after week. That adds up.',
+    );
+    expect(pickHomeEncouragement({ ...base, streak: { unit: 'week', count: 5 } })).toBe(
+      'Week after week. That adds up.',
+    );
+  });
+
+  it('returns day-streak closers by tier when streak is not in the greeting body', () => {
+    expect(pickHomeEncouragement({ ...base, streak: { unit: 'day', count: 2 } })).toBe(
+      'Good to see you keeping at it.',
+    );
+    expect(pickHomeEncouragement({ ...base, streak: { unit: 'day', count: 6 } })).toBe(
+      'Good to see you keeping at it.',
+    );
+    expect(pickHomeEncouragement({ ...base, streak: { unit: 'day', count: 7 } })).toBe('Day after day. That adds up.');
+  });
+
+  it('skips streak closers when streak is already shown in the greeting body', () => {
+    expect(
+      pickHomeEncouragement({
+        ...base,
+        streak: { unit: 'week', count: 3 },
+        streakShownInGreeting: true,
+        hasTopPassage: true,
+      }),
+    ).toBe('Those are worth sitting with.');
+    expect(
+      pickHomeEncouragement({
+        ...base,
+        streak: { unit: 'day', count: 5 },
+        streakShownInGreeting: true,
+        hour: 18,
+      }),
+    ).toBe('Good place to stop for tonight.');
+  });
+
+  it('returns the passage closer when there is no streak', () => {
+    expect(pickHomeEncouragement({ ...base, hasTopPassage: true })).toBe(
+      'Those are worth sitting with.',
+    );
+  });
+
+  it('returns evening and morning closers when there is no streak or passage', () => {
+    expect(pickHomeEncouragement({ ...base, hour: 18 })).toBe('Good place to stop for tonight.');
+    expect(pickHomeEncouragement({ ...base, hour: 23 })).toBe('Good place to stop for tonight.');
+    expect(pickHomeEncouragement({ ...base, hour: 11 })).toBe('Nice way to open the day.');
+  });
+
+  it('prefers streak over time-of-day and passage', () => {
+    expect(
+      pickHomeEncouragement({
+        ...base,
+        streak: { unit: 'day', count: 3 },
+        hasTopPassage: true,
+        hour: 18,
+      }),
+    ).toBe('Good to see you keeping at it.');
+  });
+
+  it('prefers first note over streak', () => {
+    expect(
+      pickHomeEncouragement({
+        ...base,
+        noteCount: 1,
+        streak: { unit: 'week', count: 4 },
+      }),
+    ).toBe('It\'s a start.');
+  });
+
+  it('returns a stable daily pool pick for generic afternoon context', () => {
+    const pool = [
+      'Glad you\'re here.',
+      'It\'ll be here when you need it.',
+      'Keep at your own pace.',
+      'One thought at a time.',
+      'Worth coming back to.',
+      'Whenever you\'re ready.',
+    ];
+    const a = pickHomeEncouragement({ ...base, hour: 14, today: new Date(2026, 5, 10, 12, 0, 0) });
+    const b = pickHomeEncouragement({ ...base, hour: 15, today: new Date(2026, 5, 10, 18, 0, 0) });
+    expect(a).toBe(b);
+    expect(pool).toContain(a);
+  });
+
+  it('can change the pool pick on a different calendar day', () => {
+    const dayA = pickHomeEncouragement({ ...base, hour: 14, today: new Date(2026, 5, 10, 12, 0, 0) });
+    const dayB = pickHomeEncouragement({ ...base, hour: 14, today: new Date(2026, 5, 11, 12, 0, 0) });
+    expect(dayA).not.toBe(dayB);
   });
 });

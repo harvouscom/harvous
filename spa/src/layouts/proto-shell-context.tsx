@@ -49,6 +49,12 @@ function readStoredSidebarListMode(): SidebarListMode {
 /** `undefined` = top-level list; `null` = “No folder” drill-down; `string` = named folder. */
 export type SidebarFolderDrilldown = string | null | undefined;
 
+/** Home greeting tag chip → notes list search prefilled with this tag. */
+export type SidebarTagSearchIntent = {
+  tagId: string;
+  tagName: string;
+};
+
 /** Toolbar folder chip on prototype note routes — driven by note page + editor collection state. */
 export type PrototypeFolderChip = {
   noteId: string;
@@ -123,6 +129,10 @@ type ProtoShellContextValue = {
   setSidebarThreadDrilldownId: (id: string | undefined) => void;
   /** Open mobile drawer or expand desktop sidebar so the list is visible. */
   ensureSidebarExpanded: () => void;
+  /** Pending tag search from Home greeting — consumed by PrototypeSidebar. */
+  sidebarTagSearchIntent: SidebarTagSearchIntent | null;
+  openSidebarTagSearch: (intent: SidebarTagSearchIntent) => void;
+  clearSidebarTagSearchIntent: () => void;
   /** Inspector pane — desktop: inline column; mobile: slide-over on note page. */
   inspectorOpen: boolean;
   /** True during the exit animation window — keep the panel mounted while this is true. */
@@ -192,6 +202,7 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
   const [sidebarLayer, setSidebarLayer] = useState<SidebarLayer>('space');
   const [sidebarFolderDrilldown, setSidebarFolderDrilldown] = useState<SidebarFolderDrilldown>(undefined);
   const [sidebarThreadDrilldownId, setSidebarThreadDrilldownId] = useState<string | undefined>(undefined);
+  const [sidebarTagSearchIntent, setSidebarTagSearchIntent] = useState<SidebarTagSearchIntent | null>(null);
   const [prototypeFolderChip, setPrototypeFolderChipState] = useState<PrototypeFolderChip | null>(null);
   const [composePersistedNoteId, setComposePersistedNoteIdState] = useState<string | null>(null);
   const [composeSessionEpoch, setComposeSessionEpoch] = useState(0);
@@ -303,6 +314,17 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
     if (isMobileSidebar) setDrawerOpen(true);
     else setDesktopSidebarCollapsed(false);
   }, [cancelSidebarExit, isMobileSidebar]);
+  const openSidebarTagSearch = useCallback(
+    (intent: SidebarTagSearchIntent) => {
+      setSidebarTagSearchIntent(intent);
+      setSidebarListMode('notes');
+      ensureSidebarExpanded();
+    },
+    [setSidebarListMode, ensureSidebarExpanded],
+  );
+  const clearSidebarTagSearchIntent = useCallback(() => {
+    setSidebarTagSearchIntent(null);
+  }, []);
 
   useEffect(
     () => () => {
@@ -480,6 +502,9 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
       sidebarThreadDrilldownId,
       setSidebarThreadDrilldownId,
       ensureSidebarExpanded,
+      sidebarTagSearchIntent,
+      openSidebarTagSearch,
+      clearSidebarTagSearchIntent,
       inspectorOpen,
       inspectorExiting,
       toggleInspector,
@@ -528,6 +553,9 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
       setSidebarFolderDrilldown,
       sidebarThreadDrilldownId,
       ensureSidebarExpanded,
+      sidebarTagSearchIntent,
+      openSidebarTagSearch,
+      clearSidebarTagSearchIntent,
       inspectorOpen,
       inspectorExiting,
       toggleInspector,
