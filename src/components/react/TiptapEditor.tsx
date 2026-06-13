@@ -21,6 +21,15 @@ import { NodeSelection, TextSelection } from '@tiptap/pm/state';
 import { DOMSerializer } from '@tiptap/pm/model';
 import { NoteLink } from './TiptapNoteLink';
 import { ScripturePill } from './TiptapScripturePill';
+import {
+  ScriptureDraft,
+  enterScriptureDraftView,
+  confirmScriptureDraftView,
+  cancelScriptureDraftView,
+  getScriptureDraftRange,
+  findDetachedScriptureDraft,
+  SCRIPTURE_DRAFT_CONFIRMED_EVENT,
+} from './TiptapScriptureDraft';
 import { BoldCustom } from './TiptapBoldCustom';
 import { HighlightCustom } from './TiptapHighlightCustom';
 import { ParagraphCustom } from './TiptapParagraphCustom';
@@ -316,14 +325,17 @@ function findHighlightRangeByStudyThreadId(editor: any, studyId: string): { from
 function studyDockEntryStillValid(editor: any, entry: StudyDockEntry): boolean {
   if (!editor || editor.isDestroyed || !editor.state?.doc) return true;
   if (entry.kind === 'scripture') {
+    // Keep the entry valid as long as a scripturePill mark still occupies the resolved
+    // range — do NOT require the mark's reference to equal the (possibly stale) session
+    // reference. The reference legitimately changes while the dock is open (e.g. toggling
+    // a verse range), and onApply rewrites the pill text before the session catches up;
+    // requiring equality here would prune the entry mid-edit and dismiss the dock.
     const { from, to } = resolveScripturePillMarkRangeFromBoundaries(editor, entry.session.boundaries);
-    const normRef = normalizeScriptureReference(entry.session.reference);
     let found = false;
     try {
       editor.state.doc.nodesBetween(from, to, (node: any) => {
         if (found || !node.isText) return;
-        const m = node.marks.find((x: any) => x.type?.name === 'scripturePill');
-        if (m && normalizeScriptureReference(m.attrs.reference) === normRef) {
+        if (node.marks.some((x: any) => x.type?.name === 'scripturePill')) {
           found = true;
         }
       });
@@ -1571,6 +1583,52 @@ function runScriptureDetectionAtCursor(editor: any): void {
       schedulePendingTranslationAfterPillCreation(editor, [{ reference: appliedRef }]);
     }
     absorbOrphanSuffixesAfterPills(editor);
+  } catch {
+    /* ignore */
+  }
+}
+
+// ── Inline edit-mode (draft) detection (prototype) ────────────────────────────
+
+/** A reference (book + chapter) ends at the caret — schedule draft entry even mid-word. */
+function shouldScheduleDraftDetection(doc: any, cursorPos: number): boolean {
+  return detectScriptureReferenceEndingAtCursor(doc, cursorPos) != null;
+}
+
+/** Wrap the reference ending at the caret in the draft mark (caret stays inside it). */
+function enterScriptureDraftAtCursor(editor: any, cursorPos: number): boolean {
+  const doc = editor.state.doc;
+  const cursorResult = detectScriptureReferenceEndingAtCursor(doc, cursorPos);
+  if (!cursorResult) return false;
+  const reference = cursorResult.reference;
+  if (
+    isChapterOnlyScriptureReference(reference) &&
+    isChapterOnlyInsideLongerPill(doc, cursorPos, reference)
+  ) {
+    return false;
+  }
+  const pos =
+    cursorResult.from != null && cursorResult.to != null
+      ? { from: cursorResult.from, to: cursorResult.to }
+      : findScriptureReferenceAtCursor(doc, reference, cursorPos) ||
+        mapReferenceEndInSliceToDocPos(doc, cursorPos, reference);
+  if (!pos) return false;
+  return enterScriptureDraftView(editor.view, pos.from, pos.to);
+}
+
+/** Passive draft detection for the prototype: enter edit-mode instead of committing a pill. */
+function runScriptureDraftDetectionAtCursor(editor: any): void {
+  if (!editor || editor.isDestroyed || !editor.view) return;
+  try {
+    const state = editor.state;
+    const { from, to } = state.selection;
+    if (from !== to || from < 2) return;
+    // Already editing a draft — leave it to the user / confirm gestures.
+    if (getScriptureDraftRange(state)) return;
+    const $from = state.doc.resolve(from);
+    // Don't start a draft inside a committed pill.
+    if ($from.marks().some((m: any) => m.type.name === 'scripturePill')) return;
+    enterScriptureDraftAtCursor(editor, from);
   } catch {
     /* ignore */
   }
@@ -3771,6 +3829,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
         enabled: () => editorChromeModeRef.current === 'prototypeNative',
       }),
       ScripturePill, // Must come before NoteLink so scripture pills are parsed correctly
+      ScriptureDraft, // Inline edit-mode reference (prototype) — confirms into a ScripturePill
       NoteLink,
       UrlLink, // External URL links — parse priority lower so note/scripture spans win
       TextIndent,
@@ -3861,13 +3920,16 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
         if (mobFrom === mobTo && mobFrom >= 2) {
           const $mobFrom = editor.state.doc.resolve(mobFrom);
           const thisEditorId = String(editor.view?.dom?.id || 'default');
+          const draftMode = editorChromeMode === 'prototypeNative';
           const needsScripturePass =
             Array.from(pendingTranslationPills.values()).some(e => e.editorId === thisEditorId) ||
-            shouldSchedulePassiveScriptureDetection(
-              editor.state.doc,
-              mobFrom,
-              isScripturePillBoundaryCursor($mobFrom, editor.state.doc),
-            );
+            (draftMode
+              ? shouldScheduleDraftDetection(editor.state.doc, mobFrom)
+              : shouldSchedulePassiveScriptureDetection(
+                  editor.state.doc,
+                  mobFrom,
+                  isScripturePillBoundaryCursor($mobFrom, editor.state.doc),
+                ));
           if (!needsScripturePass) {
             if (mobileScriptureDetectionTimer.current) {
               clearTimeout(mobileScriptureDetectionTimer.current);
@@ -3879,7 +3941,8 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
             }
             mobileScriptureDetectionTimer.current = setTimeout(() => {
               if (!editor || editor.isDestroyed) return;
-              runScriptureDetectionAtCursor(editor);
+              if (draftMode) runScriptureDraftDetectionAtCursor(editor);
+              else runScriptureDetectionAtCursor(editor);
             }, 250);
           }
         }
@@ -3888,13 +3951,16 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
         if (deskFrom === deskTo && deskFrom >= 2) {
           const $deskFrom = editor.state.doc.resolve(deskFrom);
           const thisEditorId = String(editor.view?.dom?.id || 'default');
+          const draftMode = editorChromeMode === 'prototypeNative';
           const needsScripturePass =
             Array.from(pendingTranslationPills.values()).some((e) => e.editorId === thisEditorId) ||
-            shouldSchedulePassiveScriptureDetection(
-              editor.state.doc,
-              deskFrom,
-              isScripturePillBoundaryCursor($deskFrom, editor.state.doc),
-            );
+            (draftMode
+              ? shouldScheduleDraftDetection(editor.state.doc, deskFrom)
+              : shouldSchedulePassiveScriptureDetection(
+                  editor.state.doc,
+                  deskFrom,
+                  isScripturePillBoundaryCursor($deskFrom, editor.state.doc),
+                ));
           if (needsScripturePass) {
             if (desktopScriptureDetectionTimer.current) {
               clearTimeout(desktopScriptureDetectionTimer.current);
@@ -3902,7 +3968,8 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
             desktopScriptureDetectionTimer.current = setTimeout(() => {
               desktopScriptureDetectionTimer.current = null;
               if (!editor || editor.isDestroyed) return;
-              runScriptureDetectionAtCursor(editor);
+              if (draftMode) runScriptureDraftDetectionAtCursor(editor);
+              else runScriptureDetectionAtCursor(editor);
             }, 250);
           } else if (desktopScriptureDetectionTimer.current) {
             clearTimeout(desktopScriptureDetectionTimer.current);
@@ -3911,10 +3978,12 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
         }
 
         // Orphan suffix absorb when verse/range continuation is typed after a pill.
+        // Skipped in the prototype: inline draft mode is the creation/extend path there,
+        // so the fragile adjacent-merge (the source of the stray-space bug) is unused.
         try {
           const { from, to } = editor.state.selection;
           const charBefore = from >= 2 ? editor.state.doc.textBetween(from - 1, from) : '';
-          if (from === to && /[\d:,\-–—]/.test(charBefore)) {
+          if (editorChromeMode !== 'prototypeNative' && from === to && /[\d:,\-–—]/.test(charBefore)) {
             if (desktopOrphanAbsorbTimer.current) clearTimeout(desktopOrphanAbsorbTimer.current);
             desktopOrphanAbsorbTimer.current = setTimeout(() => {
               desktopOrphanAbsorbTimer.current = null;
@@ -4291,7 +4360,54 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
         if (tryDeleteAdjacentAtomicBlock(editor, view, event)) {
           return true;
         }
-        
+
+        // Inline edit-mode (draft) scripture pill: while the caret is inside a draft, handle
+        // confirm / cancel gestures and keep the reference contiguous. Backspace, arrows,
+        // digits, ':' ',' '-' all fall through to edit the draft normally.
+        const draftRange = getScriptureDraftRange(view.state);
+        if (draftRange) {
+          if (event.key === 'Escape') {
+            event.preventDefault();
+            cancelScriptureDraftView(view);
+            return true;
+          }
+          if (event.key === 'Enter' || event.key === 'NumpadEnter') {
+            event.preventDefault();
+            confirmScriptureDraftView(view);
+            return true;
+          }
+          // Double-space confirms (desktop only — never intercept space on mobile: it breaks
+          // iOS double-space-to-period). A single space stays in the draft.
+          if (event.key === ' ' && !isMobileDevice()) {
+            const caret = view.state.selection.from;
+            const prevChar = caret >= 1 ? view.state.doc.textBetween(caret - 1, caret) : '';
+            if (prevChar === ' ') {
+              event.preventDefault();
+              confirmScriptureDraftView(view);
+              return true;
+            }
+            return false;
+          }
+          // A non-continuation printable char ends the reference: confirm, then type the char
+          // after the committed pill (desktop only — mobile relies on the ✓ button / tap-away).
+          if (
+            !isMobileDevice() &&
+            event.key.length === 1 &&
+            !event.metaKey && !event.ctrlKey && !event.altKey &&
+            event.key !== ' ' &&
+            !isScriptureReferenceContinuationKey(event.key)
+          ) {
+            event.preventDefault();
+            confirmScriptureDraftView(view);
+            const tr = view.state.tr.insertText(event.key);
+            tr.setStoredMarks([]);
+            view.dispatch(tr);
+            return true;
+          }
+          // Other keys (Backspace, arrows, digits, ':' ',' '-') edit the draft in place.
+          return false;
+        }
+
         // Detect scripture references when space, Enter, comma, or period is pressed (desktop only)
         // On mobile, scripture detection happens in onUpdate to avoid interfering
         // with native keyboard behavior (e.g., iOS double-space-to-period)
@@ -4308,7 +4424,9 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
         const allowDetectionAtCursor =
           (!scripturePillMark || (cursorEndingAtKeydown != null && !skipChapterInsideLongerPill)) &&
           !skipChapterInsideLongerPill;
-        if (isDetectionTrigger && from === to && allowDetectionAtCursor && !event.metaKey && !event.ctrlKey && !event.altKey && !isMobileDevice()) {
+        // In the prototype, creation goes through inline draft mode (passive detection +
+        // confirm gestures above), so the keydown commit-on-space path is disabled there.
+        if (isDetectionTrigger && from === to && allowDetectionAtCursor && !event.metaKey && !event.ctrlKey && !event.altKey && !isMobileDevice() && editorChromeModeRef.current !== 'prototypeNative') {
           // Step 1: Resolve any pending translation pill from a previous keypress
           // (Check if user typed a translation abbreviation like "ESV" after the last pill)
           const consumedAbbrev = resolvePendingTranslationPill(editor);
@@ -5691,6 +5809,41 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       if (editor && !editor.isDestroyed) {
         editor.off('selectionUpdate', dismissIfSelectionLeftPill);
         editor.off('selectionUpdate', snapCaretOutsidePill);
+      }
+    };
+  }, [editor, editorChromeMode]);
+
+  // Inline edit-mode (draft) lifecycle: confirm a draft when the caret leaves it or the
+  // editor blurs, and run the translation-abbreviation follow-up after a draft commits.
+  useEffect(() => {
+    if (!editor || editorChromeMode !== 'prototypeNative') return;
+
+    const resolveDetachedDraft = () => {
+      if (!isEditorValid(editor)) return;
+      const detached = findDetachedScriptureDraft(editor.state);
+      if (detached) confirmScriptureDraftView(editor.view, detached.to);
+    };
+    const resolveOnBlur = () => {
+      if (!isEditorValid(editor)) return;
+      // Confirm whichever draft exists (caret-inside or detached).
+      const inside = getScriptureDraftRange(editor.state);
+      const detached = findDetachedScriptureDraft(editor.state);
+      const target = inside ?? detached;
+      if (target) confirmScriptureDraftView(editor.view, target.to);
+    };
+    const onConfirmed = (e: Event) => {
+      const reference = (e as CustomEvent<{ reference: string }>).detail?.reference;
+      if (reference) schedulePendingTranslationAfterPillCreation(editor, [{ reference }]);
+    };
+
+    editor.on('selectionUpdate', resolveDetachedDraft);
+    editor.on('blur', resolveOnBlur);
+    editor.view.dom.addEventListener(SCRIPTURE_DRAFT_CONFIRMED_EVENT, onConfirmed);
+    return () => {
+      if (editor && !editor.isDestroyed) {
+        editor.off('selectionUpdate', resolveDetachedDraft);
+        editor.off('blur', resolveOnBlur);
+        editor.view?.dom?.removeEventListener(SCRIPTURE_DRAFT_CONFIRMED_EVENT, onConfirmed);
       }
     };
   }, [editor, editorChromeMode]);
@@ -7637,6 +7790,10 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                             }),
                           ]));
                           tr.setMeta('addToHistory', false);
+                          // The rewrite moves the caret; suppress the selectionUpdate
+                          // collapse handler for this one programmatic change so editing the
+                          // reference from the dock doesn't collapse the card.
+                          skipScriptureDockDismissRef.current = true;
                           editor.view.dispatch(tr);
 
                           const html = noteHtmlFromEditor(editor, true);

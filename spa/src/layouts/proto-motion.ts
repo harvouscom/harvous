@@ -17,3 +17,10 @@ export const PROTO_PANEL_EXIT_MS = 260;
  * `spa/src/styles/prototype-components.css`.
  */
 export const PROTO_POPOVER_MOTION_MS = 120;
+
+/**
+ * Centered VOTD / migration modals play a scale+fade exit before unmount.
+ * The overlay hook keeps each sheet mounted for exactly this long — MUST stay
+ * in lockstep with `.proto-votd-sheet--motion` in `prototype-components.css`.
+ */
+export const PROTO_VOTD_SHEET_MOTION_MS = 220;

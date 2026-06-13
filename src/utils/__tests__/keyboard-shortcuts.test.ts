@@ -120,8 +120,16 @@ describe('prototype shell shortcuts (Shift + key)', () => {
     expect(appNavigate).toHaveBeenCalledWith('/prototype/settings');
   });
 
-  it('Shift+B → toggle sidebar', () => {
-    expectEvent('prototypeShortcutToggleSidebar', () => press({ key: 'B', code: 'KeyB', shift: true }));
+  it('Shift+S → toggle sidebar', () => {
+    expectEvent('prototypeShortcutToggleSidebar', () => press({ key: 'S', code: 'KeyS', shift: true }));
+  });
+
+  it('Shift+H → show Home layer', () => {
+    expectEvent('prototypeShortcutShowHome', () => press({ key: 'H', code: 'KeyH', shift: true }));
+  });
+
+  it('Shift+L → show list layer', () => {
+    expectEvent('prototypeShortcutShowList', () => press({ key: 'L', code: 'KeyL', shift: true }));
   });
 
   it('Shift+J → focus note list', () => {
@@ -150,6 +158,24 @@ describe('prototype shell shortcuts (Shift + key)', () => {
     document.body.appendChild(editor);
     expectNoEvent('prototypeShortcutNewNote', () => {
       const event = new KeyboardEvent('keydown', { key: 'N', shiftKey: true, bubbles: true, cancelable: true });
+      inner.dispatchEvent(event);
+    });
+  });
+
+  it('Shift+H defers to typing context (does not fire in editor)', () => {
+    const editor = document.createElement('div');
+    editor.className = 'ProseMirror';
+    const inner = document.createElement('div');
+    editor.appendChild(inner);
+    document.body.appendChild(editor);
+    expectNoEvent('prototypeShortcutShowHome', () => {
+      const event = new KeyboardEvent('keydown', {
+        key: 'H',
+        code: 'KeyH',
+        shiftKey: true,
+        bubbles: true,
+        cancelable: true,
+      });
       inner.dispatchEvent(event);
     });
   });

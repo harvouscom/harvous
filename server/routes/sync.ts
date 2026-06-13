@@ -591,6 +591,10 @@ async function processStudyThreadEntryMutation(userId: string, operation: string
       createdAt: now,
       updatedAt: now,
     });
+    await db
+      .update(Notes)
+      .set({ updatedAt: nowISO() })
+      .where(and(eq(Notes.id, parentNoteId), eq(Notes.userId, userId)));
     return { success: true, entityId, serverId: id };
   }
   if (operation === 'update') {
@@ -620,6 +624,10 @@ async function processStudyThreadEntryMutation(userId: string, operation: string
     if (typeof data.isArchived === 'boolean') patch.isArchived = data.isArchived;
     if (typeof data.entryKind === 'string' && ENTRY_KINDS.has(data.entryKind)) patch.entryKindRaw = data.entryKind;
     await db.update(StudyThreadEntries).set(patch as any).where(and(eq(StudyThreadEntries.id, entityId), eq(StudyThreadEntries.userId, userId)));
+    await db
+      .update(Notes)
+      .set({ updatedAt: nowISO() })
+      .where(and(eq(Notes.id, existing.parentNoteId), eq(Notes.userId, userId)));
     return { success: true, entityId, serverId: entityId };
   }
   if (operation === 'delete') {
@@ -628,6 +636,10 @@ async function processStudyThreadEntryMutation(userId: string, operation: string
     );
     if (!existing) return { success: false, error: 'Study thread entry not found' };
     await db.delete(StudyThreadEntries).where(and(eq(StudyThreadEntries.id, entityId), eq(StudyThreadEntries.userId, userId)));
+    await db
+      .update(Notes)
+      .set({ updatedAt: nowISO() })
+      .where(and(eq(Notes.id, existing.parentNoteId), eq(Notes.userId, userId)));
     return { success: true, entityId, serverId: entityId };
   }
   return { success: false, error: `Unknown operation: ${operation}` };

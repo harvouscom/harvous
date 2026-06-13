@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import Icon from '@/components/react/Icon';
+import { useProtoOverlayMotion } from '../../hooks/useProtoOverlayMotion';
 
 type Props = {
   open: boolean;
@@ -17,6 +18,8 @@ function MigrationSidebarChip({ icon, label }: { icon: 'folder' | 'arrow-right-a
 }
 
 export default function PrototypeMigrationSheet({ open, onClose }: Props) {
+  const { mounted, exiting } = useProtoOverlayMotion(open);
+
   useEffect(() => {
     if (!open) return undefined;
     const onKey = (e: KeyboardEvent) => {
@@ -26,12 +29,29 @@ export default function PrototypeMigrationSheet({ open, onClose }: Props) {
     return () => document.removeEventListener('keydown', onKey);
   }, [open, onClose]);
 
-  if (!open || typeof document === 'undefined') return null;
+  if (!mounted || typeof document === 'undefined') return null;
 
   return createPortal(
-    <div className="proto-votd-sheet-overlay" role="presentation" onClick={onClose}>
+    <div
+      className={[
+        'proto-votd-sheet-overlay',
+        'proto-votd-sheet-overlay--motion',
+        exiting ? 'proto-votd-sheet-overlay--exiting' : '',
+      ]
+        .filter(Boolean)
+        .join(' ')}
+      role="presentation"
+      onClick={onClose}
+    >
       <div
-        className="proto-votd-sheet proto-migration-sheet"
+        className={[
+          'proto-votd-sheet',
+          'proto-migration-sheet',
+          'proto-votd-sheet--motion',
+          exiting ? 'proto-votd-sheet--exiting' : '',
+        ]
+          .filter(Boolean)
+          .join(' ')}
         role="dialog"
         aria-label="Folders update"
         onClick={(e) => e.stopPropagation()}

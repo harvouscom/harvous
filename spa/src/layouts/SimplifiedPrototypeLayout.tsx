@@ -604,6 +604,16 @@ function PrototypeShortcutBridge() {
     [ensureSidebarExpanded, setSidebarListMode, sidebarLayer, sidebarListMode],
   );
 
+  const showHomeLayer = useCallback(() => {
+    setSidebarLayer('space');
+    ensureSidebarExpanded();
+  }, [ensureSidebarExpanded, setSidebarLayer]);
+
+  const showListLayer = useCallback(() => {
+    setSidebarLayer('list');
+    ensureSidebarExpanded();
+  }, [ensureSidebarExpanded, setSidebarLayer]);
+
   useEffect(() => {
     const onNewNote = () => createPrototypeNote();
     const onToggleSidebar = () => togglePrototypeSidebar();
@@ -618,6 +628,8 @@ function PrototypeShortcutBridge() {
       const step = custom.detail?.step === -1 ? -1 : 1;
       cycleListMode(step);
     };
+    const onShowHome = () => showHomeLayer();
+    const onShowList = () => showListLayer();
 
     window.addEventListener('prototypeShortcutNewNote', onNewNote);
     window.addEventListener('prototypeShortcutToggleSidebar', onToggleSidebar);
@@ -625,6 +637,8 @@ function PrototypeShortcutBridge() {
     window.addEventListener('prototypeShortcutFocusNoteList', onFocusList);
     window.addEventListener('prototypeShortcutFocusSidebarSearch', onFocusSidebarSearch);
     window.addEventListener('prototypeShortcutCycleListMode', onCycleListMode as EventListener);
+    window.addEventListener('prototypeShortcutShowHome', onShowHome);
+    window.addEventListener('prototypeShortcutShowList', onShowList);
 
     return () => {
       window.removeEventListener('prototypeShortcutNewNote', onNewNote);
@@ -633,6 +647,8 @@ function PrototypeShortcutBridge() {
       window.removeEventListener('prototypeShortcutFocusNoteList', onFocusList);
       window.removeEventListener('prototypeShortcutFocusSidebarSearch', onFocusSidebarSearch);
       window.removeEventListener('prototypeShortcutCycleListMode', onCycleListMode as EventListener);
+      window.removeEventListener('prototypeShortcutShowHome', onShowHome);
+      window.removeEventListener('prototypeShortcutShowList', onShowList);
     };
   }, [
     createPrototypeNote,
@@ -640,6 +656,8 @@ function PrototypeShortcutBridge() {
     focusPrototypeNoteList,
     focusPrototypeSidebarSearch,
     pathname,
+    showHomeLayer,
+    showListLayer,
     toggleInspector,
     togglePrototypeSidebar,
   ]);

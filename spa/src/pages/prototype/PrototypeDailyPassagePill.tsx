@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import { prototypeNoteRouteTo } from '@/lib/prototype-path';
 import { useQueryClient } from '@tanstack/react-query';
@@ -12,6 +12,7 @@ import type { SpaceNoteRow } from '../../hooks/queries/useSpace';
 import { useProtoShell } from '../../layouts/proto-shell-context';
 import { noteMatchesDailyPassage, type VotdToday } from '../../lib/votd-today';
 import { buildVotdScripturePillHtml } from '../../lib/votd-scripture-pill-html';
+import { fetchVerseHtml } from '@/utils/fetch-verse-html';
 import PrototypeVotdPassageSheet from './PrototypeVotdPassageSheet';
 import { noteParamSlug } from './proto-route-slugs';
 
@@ -33,6 +34,10 @@ export default function PrototypeDailyPassagePill({ homeSpaceId, notes, votd }: 
   }, [notes, votd.reference]);
 
   const dailyPassageNoteExists = Boolean(matchingNote);
+
+  useEffect(() => {
+    void fetchVerseHtml(votd.reference, votd.translation);
+  }, [votd.reference, votd.translation]);
 
   const afterNav = useCallback(() => {
     if (isMobileSidebar) closeDrawer();

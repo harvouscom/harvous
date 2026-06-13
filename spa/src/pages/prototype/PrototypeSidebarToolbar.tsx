@@ -30,7 +30,7 @@ export default function PrototypeSidebarToolbar({ variant = 'desktop' }: { varia
           </>
         ) : null}
         {!isDrawer ? (
-          <PrototypeToolbarShortcutItem shortcut="B" showShortcut={showShiftHints}>
+          <PrototypeToolbarShortcutItem shortcut="S" showShortcut={showShiftHints}>
             <button
               type="button"
               className="proto-toolbar-icon-btn"

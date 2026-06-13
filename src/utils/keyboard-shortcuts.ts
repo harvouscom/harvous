@@ -347,10 +347,22 @@ function handlePrototypeKeyboardShortcut(event: KeyboardEvent): boolean {
       navigateTo(prototypeSettingsRouteTo());
       return true;
     }
-    if (key === 'b') {
+    if (key === 's') {
       event.preventDefault();
       event.stopImmediatePropagation();
       window.dispatchEvent(new CustomEvent('prototypeShortcutToggleSidebar'));
+      return true;
+    }
+    if (key === 'h') {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      window.dispatchEvent(new CustomEvent('prototypeShortcutShowHome'));
+      return true;
+    }
+    if (key === 'l') {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      window.dispatchEvent(new CustomEvent('prototypeShortcutShowList'));
       return true;
     }
     if (key === 'j') {
@@ -738,7 +750,9 @@ export function getPrototypeKeyboardShortcutsReference(): KeyboardShortcutRefere
         { action: 'New note', keyParts: [shift, 'N'] },
         { action: 'Search', keyParts: [shift, 'K'] },
         { action: 'Settings', keyParts: [shift, ','] },
-        { action: 'Toggle sidebar', keyParts: [shift, 'B'] },
+        { action: 'Toggle sidebar', keyParts: [shift, 'S'] },
+        { action: 'Show Home', keyParts: [shift, 'H'] },
+        { action: 'Show list', keyParts: [shift, 'L'] },
         { action: 'Focus note list', keyParts: [shift, 'J'] },
         { action: 'Dismiss', keyParts: ['Esc'] },
       ],

@@ -267,6 +267,54 @@
   margin: 0 !important;
 }
 
+/* ─── Inline edit-mode (draft) scripture pill — in-progress, confirm to commit ─ */
+.proto-editor-surface .scripture-pill-draft {
+  background: var(--pds-accent-subtle-bg) !important;
+  border: 1px dashed var(--pds-accent-subtle-border) !important;
+  /* keep total box geometry aligned with the committed pill despite the 1px border */
+  padding: 1px 10px !important;
+  color: var(--pds-text-primary) !important;
+  cursor: text !important;
+}
+
+/* Inline ✓ confirm button rendered as a widget at the draft's trailing edge —
+   blue gradient + white icon, matching the daily passage modal FAB. */
+.proto-editor-surface .scripture-pill-draft__confirm {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  margin: 0 1px 0 4px;
+  padding: 0;
+  vertical-align: baseline;
+  border: none;
+  border-radius: 50%;
+  background: var(--pds-bg-accent-button);
+  color: var(--pds-on-accent);
+  box-shadow: var(--pds-shadow-accent-button);
+  cursor: pointer;
+  -webkit-user-select: none;
+  user-select: none;
+  line-height: 0;
+  transition: filter 0.1s;
+}
+
+/* Beat global.css `button *`, .proto-shell button path, and prototype-route-overrides fill rules. */
+html.harvous-prototype-route .proto-editor-surface .scripture-pill-draft__confirm > svg,
+html.harvous-prototype-route .proto-editor-surface .scripture-pill-draft__confirm svg path {
+  color: var(--pds-on-accent) !important;
+  stroke: var(--pds-on-accent) !important;
+  fill: none !important;
+}
+
+.proto-editor-surface .scripture-pill-draft__confirm:hover {
+  filter: brightness(1.06);
+}
+.proto-editor-surface .scripture-pill-draft__confirm:active {
+  filter: brightness(0.95);
+}
+
 /* Translation suffix (e.g. NET) — smaller, vertically centered with reference via flex parent */
 .proto-editor-surface .scripture-pill[data-scripture-translation-label]::after,
 .proto-editor-surface .scripture-pill[data-scripture-translation]:not([data-scripture-translation-label])::after {
@@ -981,7 +1029,7 @@ html.harvous-prototype-route .proto-shell__study-dock-layer .highlight-dock-web_
 
 .proto-share-popover__primary {
   appearance: none;
-  background: linear-gradient(180deg, #5a92ff 0%, #3869e6 55%, #2456d9 100%);
+  background: var(--pds-bg-accent-button);
   color: var(--pds-on-accent) !important;
   border: 0;
   border-radius: 999px;
@@ -990,9 +1038,10 @@ html.harvous-prototype-route .proto-shell__study-dock-layer .highlight-dock-web_
   font-weight: 600;
   cursor: pointer;
   box-shadow: var(--pds-shadow-accent-button);
+  transition: filter 0.1s;
 }
 .proto-share-popover__primary:hover:not(:disabled) {
-  filter: brightness(1.05);
+  filter: brightness(1.06);
 }
 .proto-share-popover__primary:disabled {
   opacity: 0.7;

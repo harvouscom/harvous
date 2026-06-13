@@ -12,6 +12,8 @@ import {
   PROTO_TOOLBAR_POPOVER_OFFSET,
 } from './proto-toolbar-tokens';
 import ProtoPopoverShell from './ProtoPopoverShell';
+import PrototypeToolbarShortcutItem from './PrototypeToolbarShortcutItem';
+import { usePrototypeShiftHints } from '../../hooks/usePrototypeShiftHints';
 
 const MENU_Z_INDEX = 6000;
 
@@ -76,6 +78,7 @@ export default function ListViewMenu({
     setSidebarFolderDrilldown,
     ensureSidebarExpanded,
   } = useProtoShell();
+  const showShiftHints = usePrototypeShiftHints();
 
   const pick = (mode: SidebarListMode) => {
     setSidebarFolderDrilldown(undefined);
@@ -217,38 +220,43 @@ export default function ListViewMenu({
         .join(' ')}
       ref={rootRef}
     >
-      <button
-        ref={triggerRef}
-        type="button"
-        className={
-          isPortaled
-            ? 'proto-toolbar-icon-btn'
-            : 'proto-sidebar-list-view__trigger'
-        }
-        data-active={isLayerToggle ? isActiveLayer : undefined}
-        aria-expanded={open}
-        aria-haspopup="menu"
-        title={title}
-        aria-label={isPortaled ? title : undefined}
-        disabled={disabled}
-        onClick={onTriggerClick}
-      >
-        {variant === 'full' ? (
+      {isPortaled ? (
+        <PrototypeToolbarShortcutItem shortcut="L" showShortcut={showShiftHints}>
+          <button
+            ref={triggerRef}
+            type="button"
+            className="proto-toolbar-icon-btn"
+            data-active={isActiveLayer}
+            aria-expanded={open}
+            aria-haspopup="menu"
+            title={title}
+            aria-label={title}
+            disabled={disabled}
+            onClick={onTriggerClick}
+          >
+            <ListModeTriggerIcon mode={sidebarListMode} size={iconSize} />
+          </button>
+        </PrototypeToolbarShortcutItem>
+      ) : (
+        <button
+          ref={triggerRef}
+          type="button"
+          className="proto-sidebar-list-view__trigger"
+          aria-expanded={open}
+          aria-haspopup="menu"
+          title={title}
+          disabled={disabled}
+          onClick={onTriggerClick}
+        >
           <span className="proto-toolbar-folder-chip__icon" aria-hidden>
             <ListModeTriggerIcon mode={sidebarListMode} size={iconSize} />
           </span>
-        ) : (
-          <ListModeTriggerIcon mode={sidebarListMode} size={iconSize} />
-        )}
-        {variant === 'full' ? (
-          <>
-            <span className="proto-sidebar-list-view__label">{listModeShortLabel(sidebarListMode)}</span>
-            <span className="proto-sidebar-list-view__chevron" aria-hidden>
-              <Icon name="chevron-down" size={11} />
-            </span>
-          </>
-        ) : null}
-      </button>
+          <span className="proto-sidebar-list-view__label">{listModeShortLabel(sidebarListMode)}</span>
+          <span className="proto-sidebar-list-view__chevron" aria-hidden>
+            <Icon name="chevron-down" size={11} />
+          </span>
+        </button>
+      )}
 
       {open && !isPortaled ? (
         <ProtoPopoverShell className={popoverClassName} role="menu" aria-label="List view">

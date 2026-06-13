@@ -7,6 +7,8 @@ import { useMemo } from 'react';
 import Icon from '@/components/react/Icon';
 import ProtoHouseIcon from './ProtoHouseIcon';
 import { useProtoShell } from '../../layouts/proto-shell-context';
+import { usePrototypeShiftHints } from '../../hooks/usePrototypeShiftHints';
+import PrototypeToolbarShortcutItem from './PrototypeToolbarShortcutItem';
 import { PROTO_TOOLBAR_ORB_ICON_SIZE } from './proto-toolbar-tokens';
 
 export default function SpaceSwitcherMenu({
@@ -17,6 +19,7 @@ export default function SpaceSwitcherMenu({
   authReady: boolean;
 }) {
   const { sidebarLayer, setSidebarLayer, ensureSidebarExpanded } = useProtoShell();
+  const showShiftHints = usePrototypeShiftHints();
 
   const normalizedActive = useMemo(
     () =>
@@ -38,20 +41,22 @@ export default function SpaceSwitcherMenu({
 
   return (
     <div className="proto-menu proto-sidebar-toolbar__mode-menu">
-      <button
-        type="button"
-        className="proto-toolbar-icon-btn"
-        data-active={sidebarLayer === 'space'}
-        title={triggerTitle}
-        aria-label={triggerTitle}
-        disabled={!hasHome}
-        onClick={() => {
-          setSidebarLayer('space');
-          ensureSidebarExpanded();
-        }}
-      >
-        {triggerIcon}
-      </button>
+      <PrototypeToolbarShortcutItem shortcut="H" showShortcut={showShiftHints}>
+        <button
+          type="button"
+          className="proto-toolbar-icon-btn"
+          data-active={sidebarLayer === 'space'}
+          title={triggerTitle}
+          aria-label={triggerTitle}
+          disabled={!hasHome}
+          onClick={() => {
+            setSidebarLayer('space');
+            ensureSidebarExpanded();
+          }}
+        >
+          {triggerIcon}
+        </button>
+      </PrototypeToolbarShortcutItem>
     </div>
   );
 }

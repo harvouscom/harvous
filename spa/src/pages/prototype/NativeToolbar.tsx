@@ -161,7 +161,7 @@ export default function NativeToolbar({ variant = 'detail' }: { variant?: Native
     <div className="proto-toolbar-inner">
       <div className="proto-toolbar-left">
         {isUnified ? (
-          <PrototypeToolbarShortcutItem shortcut="B" showShortcut={showShiftHints}>
+          <PrototypeToolbarShortcutItem shortcut="S" showShortcut={showShiftHints}>
             <button
               type="button"
               className="proto-toolbar-icon-btn"
@@ -178,7 +178,7 @@ export default function NativeToolbar({ variant = 'detail' }: { variant?: Native
           </PrototypeToolbarShortcutItem>
         ) : null}
         {showCollapsedSidebarControls ? (
-          <PrototypeToolbarShortcutItem shortcut="B" showShortcut={showShiftHints}>
+          <PrototypeToolbarShortcutItem shortcut="S" showShortcut={showShiftHints}>
             <button
               type="button"
               className="proto-toolbar-icon-btn"

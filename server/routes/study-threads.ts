@@ -25,10 +25,19 @@ import { handleAPIError } from '@/utils/error-handling';
 import { rateLimit } from '@/utils/rate-limit';
 import { generateStudyThreadEntryId, generateNoteId } from '@/utils/ids';
 import { normalizeScriptureReference } from '@/utils/scripture-detector';
+import { broadcastInvalidation } from '../utils/realtime';
 
 const route = new Hono();
 
 const ENTRY_KINDS = new Set(['workspace', 'miniNote', 'linkedNote', 'scriptureLink', 'reference']);
+
+async function touchParentNoteEditedAt(parentNoteId: string, userId: string) {
+  await db
+    .update(Notes)
+    .set({ updatedAt: nowISO() })
+    .where(and(eq(Notes.id, parentNoteId), eq(Notes.userId, userId)));
+  broadcastInvalidation(userId, { type: 'note:updated', id: parentNoteId });
+}
 
 export function mapStudyRow(row: typeof StudyThreadEntries.$inferSelect) {
   return {
@@ -196,6 +205,8 @@ route.post('/api/notes/:parentNoteId/study-threads', requireAuth, rateLimit('wri
       }
     }
 
+    await touchParentNoteEditedAt(parentNoteId, auth.userId);
+
     const row = first(await db.select().from(StudyThreadEntries).where(eq(StudyThreadEntries.id, id)).limit(1));
     return c.json({ success: true, studyThread: row ? mapStudyRow(row) : null });
   } catch (error: any) {
@@ -249,6 +260,8 @@ route.patch('/api/study-threads/:id', requireAuth, rateLimit('write'), async (c)
       .set(patch as any)
       .where(and(eq(StudyThreadEntries.id, id), eq(StudyThreadEntries.userId, auth.userId)));
 
+    await touchParentNoteEditedAt(existing.parentNoteId, auth.userId);
+
     const row = first(await db.select().from(StudyThreadEntries).where(eq(StudyThreadEntries.id, id)).limit(1));
     return c.json({ success: true, studyThread: row ? mapStudyRow(row) : null });
   } catch (error: any) {
@@ -272,6 +285,8 @@ route.delete('/api/study-threads/:id', requireAuth, rateLimit('write'), async (c
     if (!existing) return c.json({ error: 'Study thread not found' }, 404);
 
     await db.delete(StudyThreadEntries).where(and(eq(StudyThreadEntries.id, id), eq(StudyThreadEntries.userId, auth.userId)));
+
+    await touchParentNoteEditedAt(existing.parentNoteId, auth.userId);
 
     // If this was a linkedNote entry, also remove the mirrored NoteConnections edge.
     if (existing.entryKindRaw === 'linkedNote' && existing.linkedNoteId) {

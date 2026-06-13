@@ -224,6 +224,7 @@
   --pds-selection-bg: #ffe8a8; /* match site --color-highlight */
   --pds-destructive-bg: oklch(var(--pds-lch-destructive) / 0.08);
   --pds-destructive-bg-strong: oklch(var(--pds-lch-destructive) / 0.15);
+  --pds-bg-accent-button: linear-gradient(180deg, #5a92ff 0%, #3869e6 55%, #2456d9 100%);
   --pds-shadow-accent-button:
     inset 0 1px 0 oklch(100% 0 0 / 0.35),
     0 4px 12px -6px oklch(var(--pds-lch-accent) / 0.45);

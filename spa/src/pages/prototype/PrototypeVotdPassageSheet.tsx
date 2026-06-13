@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import Icon from '@/components/react/Icon';
 import { safeRenderHtml } from '@/utils/content-renderer';
-import { fetchVerseHtml } from '@/utils/fetch-verse-html';
+import { fetchVerseHtml, getCachedVerseHtml } from '@/utils/fetch-verse-html';
+import { useProtoOverlayMotion } from '../../hooks/useProtoOverlayMotion';
 import type { VotdToday } from '../../lib/votd-today';
 
 type Props = {
@@ -14,14 +15,28 @@ type Props = {
 };
 
 export default function PrototypeVotdPassageSheet({ votd, open, showsAddFAB, onClose, onAdd }: Props) {
+  const { mounted, exiting } = useProtoOverlayMotion(open);
   const [html, setHtml] = useState('');
   const [loadingPassage, setLoadingPassage] = useState(true);
 
   useEffect(() => {
+    const cached = getCachedVerseHtml(votd.reference, votd.translation);
+    setHtml(cached ?? '');
+    setLoadingPassage(cached == null);
+  }, [votd.reference, votd.translation]);
+
+  useEffect(() => {
     if (!open) return undefined;
     let cancelled = false;
+    const cached = getCachedVerseHtml(votd.reference, votd.translation);
+    if (cached) {
+      setHtml(cached);
+      setLoadingPassage(false);
+      return undefined;
+    }
+
+    setLoadingPassage(true);
     void (async () => {
-      setLoadingPassage(true);
       const h = await fetchVerseHtml(votd.reference, votd.translation);
       if (cancelled) return;
       setHtml(h || '');
@@ -41,16 +56,28 @@ export default function PrototypeVotdPassageSheet({ votd, open, showsAddFAB, onC
     return () => document.removeEventListener('keydown', onKey);
   }, [open, onClose]);
 
-  if (!open || typeof document === 'undefined') return null;
+  if (!mounted || typeof document === 'undefined') return null;
 
   return createPortal(
     <div
-      className="proto-votd-sheet-overlay"
+      className={[
+        'proto-votd-sheet-overlay',
+        'proto-votd-sheet-overlay--motion',
+        exiting ? 'proto-votd-sheet-overlay--exiting' : '',
+      ]
+        .filter(Boolean)
+        .join(' ')}
       role="presentation"
       onClick={onClose}
     >
       <div
-        className="proto-votd-sheet"
+        className={[
+          'proto-votd-sheet',
+          'proto-votd-sheet--motion',
+          exiting ? 'proto-votd-sheet--exiting' : '',
+        ]
+          .filter(Boolean)
+          .join(' ')}
         role="dialog"
         aria-label="Today's passage"
         onClick={(e) => e.stopPropagation()}
