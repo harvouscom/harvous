@@ -23,11 +23,11 @@ import {
   computeActivityRhythm,
   computeActivityStreak,
   countLooseNotes,
+  deriveTopBooks,
   deriveTopFolders,
-  deriveTopPassages,
   deriveTopTags,
   deriveTopThread,
-  formatHomeActivitySummary,
+  formatHomeActivityLeadSuffix,
   formatHomeNoteCount,
   greetingForHour,
   pickContinueNote,
@@ -68,7 +68,7 @@ type Props = {
   scriptureSettled: boolean;
   onOpenNote: (row: SpaceNoteRow) => void;
   prefetchNote: (row: SpaceNoteRow) => void;
-  onOpenScripturePassage: (bookOrder: number) => void;
+  onOpenScriptureBook: (bookOrder: number) => void;
   onOpenHighlight: (row: PrototypeHighlightStudyThreadRow) => void;
 };
 
@@ -106,13 +106,13 @@ function HomeGreeting({
   countForLogic,
   hasMoreForLogic,
   lead,
-  onOpenScripturePassage,
+  onOpenScriptureBook,
 }: {
   notes: SpaceNoteRow[];
   countForLogic: number;
   hasMoreForLogic: boolean;
   lead: HomeLeadTheme;
-  onOpenScripturePassage: (bookOrder: number) => void;
+  onOpenScriptureBook: (bookOrder: number) => void;
 }) {
   const { data: profile } = useProfile();
   const {
@@ -135,8 +135,11 @@ function HomeGreeting({
   const season = useMemo(() => currentLiturgicalSeason(new Date()), []);
 
   const hello = `${greetingForHour(new Date().getHours())}${firstName ? `, ${firstName}` : ''}.`;
-  // Cadence line (rhythm or streak) when there's a signal; no generic encouragement otherwise.
-  const activitySummary = useMemo(() => formatHomeActivitySummary(rhythm, streak), [rhythm, streak]);
+  const activityTail = useMemo(
+    () => formatHomeActivityLeadSuffix(rhythm, streak),
+    [rhythm, streak],
+  );
+  const savedSoFarEnd = activityTail ? <>, {activityTail}.</> : <>.</>;
 
   const singleNoteAddedRel = useMemo(() => {
     if (countForLogic !== 1 || hasMoreForLogic || notes.length === 0) return '';
@@ -202,15 +205,16 @@ function HomeGreeting({
       </button>
     ) : null;
 
-  const passageChip =
-    lead.kind === 'passage' ? (
+  const bookChip =
+    lead.kind === 'book' ? (
       <button
         type="button"
         className="proto-glass-surface proto-home-greeting__chip proto-home-greeting__chip--passage"
-        onClick={() => onOpenScripturePassage(lead.passage.bookOrder)}
+        aria-label={`Open ${lead.book.title} in Scripture`}
+        onClick={() => onOpenScriptureBook(lead.book.bookOrder)}
       >
         <Icon name="book" size={11} aria-hidden />
-        <span>{lead.passage.displayRef}</span>
+        <span>{lead.book.title}</span>
       </button>
     ) : null;
 
@@ -247,26 +251,26 @@ function HomeGreeting({
   const leadSentence = (() => {
     switch (lead.kind) {
       case 'thread':
-        return <>You&apos;ve been working through {threadChip}, with {countChip} saved so far.{' '}</>;
-      case 'passage':
+        return <>You&apos;ve been working through {threadChip}, with {countChip} saved so far{savedSoFarEnd}</>;
+      case 'book':
         if (lead.tone === 'single-note') {
           return (
             <>
-              You added {passageChip}
-              {singleNoteAddedRel ? <> {singleNoteAddedRel}</> : null}. {countChip} saved so far.{' '}
+              You added {bookChip}
+              {singleNoteAddedRel ? <> {singleNoteAddedRel}</> : null}. {countChip} saved so far{savedSoFarEnd}
             </>
           );
         }
         if (lead.tone === 'mentioned-once') {
-          return <>{passageChip} shows up in your notes, with {countChip} saved so far.{' '}</>;
+          return <>{bookChip} shows up in your notes, with {countChip} saved so far{savedSoFarEnd}</>;
         }
-        return <>You keep coming back to {passageChip}, with {countChip} saved so far.{' '}</>;
+        return <>You keep coming back to {bookChip}, with {countChip} saved so far{savedSoFarEnd}</>;
       case 'folder':
-        return <>{folderChip} keeps filling up, with {countChip} saved so far.{' '}</>;
+        return <>{folderChip} keeps filling up, with {countChip} saved so far{savedSoFarEnd}</>;
       case 'tag':
-        return <>{tagChip} keeps showing up in your notes, with {countChip} saved so far.{' '}</>;
+        return <>{tagChip} keeps showing up in your notes, with {countChip} saved so far{savedSoFarEnd}</>;
       default:
-        return <>You have {countChip} saved so far.{' '}</>;
+        return <>You have {countChip} saved so far{savedSoFarEnd}</>;
     }
   })();
 
@@ -275,7 +279,6 @@ function HomeGreeting({
       <p className="proto-home-greeting">
         <span className="proto-home-greeting__hello">{hello}</span>{' '}
         {leadSentence}
-        {activitySummary ? <>{activitySummary}</> : null}
       </p>
       {seasonLine}
     </>
@@ -298,7 +301,7 @@ function HomeNoteCard({
 }) {
   const title = stripServerAutoUntitledNoteTitleForDisplay(note.title?.trim() ?? '') || 'New Note';
   const preview = note.content ? stripHtmlForListPreview(note.content, 90) : '';
-  const rel = protoRelativeCaptionAbbrev(note.lastVisited ?? note.updatedAt ?? note.createdAt ?? null);
+  const rel = protoRelativeCaptionAbbrev(note.updatedAt ?? note.createdAt ?? null);
   return (
     <button
       type="button"
@@ -344,7 +347,7 @@ export default function PrototypeSidebarHomeView({
   scriptureSettled,
   onOpenNote,
   prefetchNote,
-  onOpenScripturePassage,
+  onOpenScriptureBook,
   onOpenHighlight,
 }: Props) {
   const tagsQuery = useTagsList();
@@ -389,21 +392,21 @@ export default function PrototypeSidebarHomeView({
   const hasMoreForLogic = exactTotal != null ? false : hasMoreNotes;
 
   const topThread = useMemo(() => deriveTopThread(threads, 1)[0], [threads]);
-  const topPassage = useMemo(() => deriveTopPassages(scriptureBooks, 1)[0], [scriptureBooks]);
+  const topBook = useMemo(() => deriveTopBooks(scriptureBooks, 1)[0], [scriptureBooks]);
   const topFolder = useMemo(() => deriveTopFolders(notes, 1)[0], [notes]);
   const topTag = useMemo(() => deriveTopTags(tags, 1)[0], [tags]);
   const lead = useMemo(
     () =>
       selectHomeLeadTheme({
         thread: topThread,
-        passage: topPassage,
+        book: topBook,
         folder: topFolder,
         tag: topTag,
         noteCount: countForLogic,
         hasMoreNotes: hasMoreForLogic,
         today: new Date(),
       }),
-    [topThread, topPassage, topFolder, topTag, countForLogic, hasMoreForLogic],
+    [topThread, topBook, topFolder, topTag, countForLogic, hasMoreForLogic],
   );
 
   const continueNote = useMemo(() => pickContinueNote(notes), [notes]);
@@ -440,7 +443,7 @@ export default function PrototypeSidebarHomeView({
           countForLogic={countForLogic}
           hasMoreForLogic={hasMoreForLogic}
           lead={lead}
-          onOpenScripturePassage={onOpenScripturePassage}
+          onOpenScriptureBook={onOpenScriptureBook}
         />
       </div>
 

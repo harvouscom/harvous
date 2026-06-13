@@ -2,24 +2,28 @@ import { describe, expect, it } from 'vitest';
 import {
   computeActivityRhythm,
   computeActivityStreak,
+  deriveTopBooks,
   deriveTopPassages,
   deriveTopFolders,
   deriveTopTags,
   deriveTopThread,
   countLooseNotes,
-  formatActivityRhythm,
-  formatHomeActivitySummary,
+  formatHomeActivityLeadSuffix,
+  formatHomeActivityRhythmSuffix,
+  formatHomeActivityStreakSuffix,
   formatHomeNoteCount,
-  formatRhythmHour,
+  formatRhythmDaypart,
   greetingForHour,
   pickContinueNote,
   pickRevisitNote,
   pickSpotlightThread,
-  homePassageGreetingTone,
+  homeBookGreetingTone,
   selectHomeLeadTheme,
   type HomeBookInput,
+  type HomeBookTrendInput,
   type HomeTagInput,
   type HomeThreadInput,
+  type HomeTopBook,
   type HomeTopFolder,
   type HomeTopPassage,
   type HomeTopTag,
@@ -37,20 +41,36 @@ describe('pickContinueNote', () => {
     expect(pickContinueNote([pinnedStale, unpinnedRecent])).toBe(unpinnedRecent);
   });
 
-  it('uses the newest of lastVisited / updatedAt / createdAt', () => {
+  it('prefers last edit over a more recent visit-only open', () => {
     const visitedLately = {
       id: 'a',
       createdAt: '2026-01-01T00:00:00Z',
       updatedAt: '2026-01-02T00:00:00Z',
       lastVisited: '2026-06-11T00:00:00Z',
     };
-    const editedEarlier = {
+    const editedMoreRecently = {
       id: 'b',
       createdAt: '2026-05-01T00:00:00Z',
       updatedAt: '2026-06-10T00:00:00Z',
       lastVisited: null,
     };
-    expect(pickContinueNote([editedEarlier, visitedLately])).toBe(visitedLately);
+    expect(pickContinueNote([visitedLately, editedMoreRecently])).toBe(editedMoreRecently);
+  });
+
+  it('ignores visit-only bumps when the edit is older', () => {
+    const visitOnly = {
+      id: 'a',
+      createdAt: '2026-06-01T00:00:00Z',
+      updatedAt: '2026-06-01T00:00:00Z',
+      lastVisited: '2026-06-11T00:00:00Z',
+    };
+    const editedLater = {
+      id: 'b',
+      createdAt: '2026-06-05T00:00:00Z',
+      updatedAt: '2026-06-08T00:00:00Z',
+      lastVisited: '2026-06-06T00:00:00Z',
+    };
+    expect(pickContinueNote([visitOnly, editedLater])).toBe(editedLater);
   });
 
   it('keeps the first note on exact timestamp ties', () => {
@@ -90,10 +110,14 @@ describe('pickRevisitNote', () => {
     expect(pickRevisitNote([oldest, next], { ...opts, excludeId: 'a' })?.id).toBe('b');
   });
 
-  it('uses the most-recent of the timestamps when judging age', () => {
-    // created long ago but visited yesterday → too fresh to resurface
-    const revived = { id: 'a', createdAt: '2026-01-01T00:00:00Z', lastVisited: '2026-06-11T00:00:00Z' };
-    expect(pickRevisitNote([revived], opts)).toBeUndefined();
+  it('uses last edit time when judging age, not visit-only opens', () => {
+    const oldEditVisitedYesterday = {
+      id: 'a',
+      createdAt: '2026-01-01T00:00:00Z',
+      updatedAt: '2026-01-01T00:00:00Z',
+      lastVisited: '2026-06-11T00:00:00Z',
+    };
+    expect(pickRevisitNote([oldEditVisitedYesterday], opts)?.id).toBe('a');
   });
 });
 
@@ -235,8 +259,8 @@ describe('deriveTopThread', () => {
 
 describe('selectHomeLeadTheme', () => {
   const thread: HomeTopThread = { id: 't1', title: 'Romans & Grace', noteCount: 4 };
-  const returningPassage: HomeTopPassage = { passageKey: 'jn3', displayRef: 'John 3:16', bookOrder: 43, referenceCount: 5 };
-  const oncePassage: HomeTopPassage = { ...returningPassage, referenceCount: 1 };
+  const returningBook: HomeTopBook = { bookOrder: 45, title: 'Romans', referenceCount: 5, noteCount: 4 };
+  const onceBook: HomeTopBook = { ...returningBook, referenceCount: 1 };
   const folder: HomeTopFolder = { name: 'Sermons', noteCount: 6 };
   const tag: HomeTopTag = { id: 'g1', name: 'Grace', noteCount: 4 };
   const base = { noteCount: 20, hasMoreNotes: true, today: new Date(2026, 5, 10) };
@@ -246,14 +270,14 @@ describe('selectHomeLeadTheme', () => {
   });
 
   it('falls back to strict priority when fewer than two strong signals', () => {
-    // only a weak (mentioned-once) passage + weak folder/tag (noteCount 1)
+    // only a weak (mentioned-once) book + weak folder/tag (noteCount 1)
     const result = selectHomeLeadTheme({
       ...base,
-      passage: oncePassage,
+      book: onceBook,
       folder: { name: 'Misc', noteCount: 1 },
       tag: { id: 'x', name: 'misc', noteCount: 1 },
     });
-    expect(result).toEqual({ kind: 'passage', passage: oncePassage, tone: 'mentioned-once' });
+    expect(result).toEqual({ kind: 'book', book: onceBook, tone: 'mentioned-once' });
   });
 
   it('always prefers a thread when it is the only strong signal', () => {
@@ -264,8 +288,8 @@ describe('selectHomeLeadTheme', () => {
   });
 
   it('rotates the lead across strong signals by calendar day', () => {
-    const input = { ...base, thread, passage: returningPassage, folder, tag };
-    // three strong candidates in priority order: thread, passage, folder, tag → 4 strong here
+    const input = { ...base, thread, book: returningBook, folder, tag };
+    // three strong candidates in priority order: thread, book, folder, tag → 4 strong here
     const day0 = selectHomeLeadTheme({ ...input, today: new Date(2026, 5, 8) }); // dayIndex % 4
     const day1 = selectHomeLeadTheme({ ...input, today: new Date(2026, 5, 9) });
     const day2 = selectHomeLeadTheme({ ...input, today: new Date(2026, 5, 10) });
@@ -277,14 +301,14 @@ describe('selectHomeLeadTheme', () => {
     expect(selectHomeLeadTheme({ ...input, today: new Date(2026, 5, 10) })).toEqual(day2);
   });
 
-  it('surfaces the single-note passage tone', () => {
+  it('surfaces the single-note book tone', () => {
     const result = selectHomeLeadTheme({
       noteCount: 1,
       hasMoreNotes: false,
       today: new Date(2026, 5, 10),
-      passage: oncePassage,
+      book: onceBook,
     });
-    expect(result).toEqual({ kind: 'passage', passage: oncePassage, tone: 'single-note' });
+    expect(result).toEqual({ kind: 'book', book: onceBook, tone: 'single-note' });
   });
 });
 
@@ -401,46 +425,56 @@ describe('computeActivityRhythm', () => {
   });
 });
 
-describe('formatRhythmHour', () => {
-  it('maps 24h to 12h labels', () => {
-    expect(formatRhythmHour(0)).toBe('12 AM');
-    expect(formatRhythmHour(12)).toBe('12 PM');
-    expect(formatRhythmHour(19)).toBe('7 PM');
+describe('formatRhythmDaypart', () => {
+  it('maps hours to daypart labels', () => {
+    expect(formatRhythmDaypart(4)).toBe('nights');
+    expect(formatRhythmDaypart(5)).toBe('mornings');
+    expect(formatRhythmDaypart(11)).toBe('mornings');
+    expect(formatRhythmDaypart(12)).toBe('afternoons');
+    expect(formatRhythmDaypart(17)).toBe('afternoons');
+    expect(formatRhythmDaypart(18)).toBe('evenings');
+    expect(formatRhythmDaypart(21)).toBe('evenings');
+    expect(formatRhythmDaypart(22)).toBe('nights');
+    expect(formatRhythmDaypart(0)).toBe('nights');
   });
 });
 
-describe('formatActivityRhythm', () => {
-  it('formats weekday and hour labels', () => {
-    expect(formatActivityRhythm({ dayOfWeek: 2, hour: 19 })).toBe('usually here on Tuesdays at 7 PM');
-    expect(formatActivityRhythm({ dayOfWeek: 0, hour: 0 })).toBe('usually here on Sundays at 12 AM');
-    expect(formatActivityRhythm({ dayOfWeek: 0, hour: 12 })).toBe('usually here on Sundays at 12 PM');
+describe('formatHomeActivityRhythmSuffix', () => {
+  it('formats weekday and daypart labels', () => {
+    expect(formatHomeActivityRhythmSuffix({ dayOfWeek: 6, hour: 9 })).toBe('mostly on Saturday mornings');
+    expect(formatHomeActivityRhythmSuffix({ dayOfWeek: 2, hour: 19 })).toBe('mostly on Tuesday evenings');
+    expect(formatHomeActivityRhythmSuffix({ dayOfWeek: 0, hour: 0 })).toBe('mostly on Sunday nights');
+    expect(formatHomeActivityRhythmSuffix({ dayOfWeek: 0, hour: 12 })).toBe('mostly on Sunday afternoons');
   });
 });
 
-describe('formatHomeActivitySummary', () => {
+describe('formatHomeActivityStreakSuffix', () => {
+  it('formats day and week streak labels', () => {
+    expect(formatHomeActivityStreakSuffix({ unit: 'week', count: 3 })).toBe('3 weeks in a row');
+    expect(formatHomeActivityStreakSuffix({ unit: 'day', count: 5 })).toBe('5 days in a row');
+  });
+});
+
+describe('formatHomeActivityLeadSuffix', () => {
   it('prefers streak over rhythm when both exist', () => {
     expect(
-      formatHomeActivitySummary({ dayOfWeek: 6, hour: 13 }, { unit: 'week', count: 3 }),
-    ).toBe("You've shown up 3 weeks in a row.");
+      formatHomeActivityLeadSuffix({ dayOfWeek: 6, hour: 13 }, { unit: 'week', count: 3 }),
+    ).toBe('3 weeks in a row');
   });
 
-  it('returns rhythm-only when streak is absent', () => {
-    expect(formatHomeActivitySummary({ dayOfWeek: 2, hour: 19 }, null)).toBe(
-      'You\'re usually here on Tuesdays at 7 PM.',
+  it('returns rhythm suffix when streak is absent', () => {
+    expect(formatHomeActivityLeadSuffix({ dayOfWeek: 2, hour: 19 }, null)).toBe(
+      'mostly on Tuesday evenings',
     );
   });
 
-  it('returns streak-only when rhythm is absent', () => {
-    expect(formatHomeActivitySummary(null, { unit: 'week', count: 3 })).toBe(
-      "You've shown up 3 weeks in a row.",
-    );
-    expect(formatHomeActivitySummary(null, { unit: 'day', count: 5 })).toBe(
-      "You've shown up 5 days in a row.",
-    );
+  it('returns streak suffix when rhythm is absent', () => {
+    expect(formatHomeActivityLeadSuffix(null, { unit: 'week', count: 3 })).toBe('3 weeks in a row');
+    expect(formatHomeActivityLeadSuffix(null, { unit: 'day', count: 5 })).toBe('5 days in a row');
   });
 
   it('returns null when neither rhythm nor streak', () => {
-    expect(formatHomeActivitySummary(null, null)).toBeNull();
+    expect(formatHomeActivityLeadSuffix(null, null)).toBeNull();
   });
 });
 
@@ -497,28 +531,112 @@ describe('deriveTopPassages', () => {
   });
 });
 
-describe('homePassageGreetingTone', () => {
+describe('deriveTopBooks', () => {
+  const book = (
+    bookOrder: number,
+    title: string,
+    referenceCount: number,
+    noteCount: number,
+  ): HomeBookTrendInput => ({
+    bookOrder,
+    title,
+    referenceCount,
+    noteCount,
+  });
+
+  it('returns empty for empty input', () => {
+    expect(deriveTopBooks([], 5)).toEqual([]);
+  });
+
+  it('sorts by referenceCount desc then noteCount desc', () => {
+    const books = [
+      book(43, 'John', 2, 4),
+      book(19, 'Psalms', 5, 1),
+      book(45, 'Romans', 3, 2),
+    ];
+    expect(deriveTopBooks(books, 5).map((b) => b.title)).toEqual(['Psalms', 'Romans', 'John']);
+  });
+
+  it('breaks full ties by canonical book order and applies the limit', () => {
+    const books = [book(43, 'John', 1, 1), book(1, 'Genesis', 1, 1), book(19, 'Psalms', 1, 1)];
+    expect(deriveTopBooks(books, 2).map((b) => b.title)).toEqual(['Genesis', 'Psalms']);
+  });
+
+  it('drops books with zero references and zero notes', () => {
+    expect(deriveTopBooks([book(1, 'Genesis', 0, 0)], 5)).toEqual([]);
+  });
+
+  it('aggregates multiple passages in the same book into one returning signal', () => {
+    const books: HomeBookInput[] = [
+      {
+        bookOrder: 45,
+        passages: [
+          {
+            passageKey: '45:8:28:28',
+            displayRef: 'Romans 8:28',
+            bookOrder: 45,
+            chapter: 8,
+            verseStart: 28,
+            referenceCount: 1,
+            noteCount: 1,
+          },
+          {
+            passageKey: '45:12:1:1',
+            displayRef: 'Romans 12:1',
+            bookOrder: 45,
+            chapter: 12,
+            verseStart: 1,
+            referenceCount: 1,
+            noteCount: 1,
+          },
+        ],
+      },
+    ];
+    const topBook = deriveTopBooks(
+      [{ bookOrder: 45, title: 'Romans', referenceCount: 2, noteCount: 2 }],
+      1,
+    )[0];
+    const topPassage = deriveTopPassages(books, 1)[0];
+    expect(topBook).toEqual({
+      bookOrder: 45,
+      title: 'Romans',
+      referenceCount: 2,
+      noteCount: 2,
+    });
+    expect(topPassage?.referenceCount).toBe(1);
+    expect(
+      selectHomeLeadTheme({
+        noteCount: 4,
+        hasMoreNotes: false,
+        today: new Date(2026, 5, 10),
+        book: topBook,
+      }),
+    ).toEqual({ kind: 'book', book: topBook, tone: 'returning' });
+  });
+});
+
+describe('homeBookGreetingTone', () => {
   it('uses single-note tone for one note with no pagination', () => {
     expect(
-      homePassageGreetingTone({ noteCount: 1, hasMoreNotes: false, referenceCount: 3 }),
+      homeBookGreetingTone({ noteCount: 1, hasMoreNotes: false, referenceCount: 3 }),
     ).toBe('single-note');
   });
 
-  it('uses mentioned-once when the passage only appears once across notes', () => {
+  it('uses mentioned-once when the book only appears once across notes', () => {
     expect(
-      homePassageGreetingTone({ noteCount: 4, hasMoreNotes: false, referenceCount: 1 }),
+      homeBookGreetingTone({ noteCount: 4, hasMoreNotes: false, referenceCount: 1 }),
     ).toBe('mentioned-once');
   });
 
-  it('uses returning when the passage is referenced more than once', () => {
+  it('uses returning when the book is referenced more than once', () => {
     expect(
-      homePassageGreetingTone({ noteCount: 4, hasMoreNotes: false, referenceCount: 2 }),
+      homeBookGreetingTone({ noteCount: 4, hasMoreNotes: false, referenceCount: 2 }),
     ).toBe('returning');
   });
 
   it('does not treat 1+ notes as single-note', () => {
     expect(
-      homePassageGreetingTone({ noteCount: 1, hasMoreNotes: true, referenceCount: 1 }),
+      homeBookGreetingTone({ noteCount: 1, hasMoreNotes: true, referenceCount: 1 }),
     ).toBe('mentioned-once');
   });
 });

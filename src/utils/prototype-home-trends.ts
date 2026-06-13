@@ -55,6 +55,20 @@ export interface HomeTopPassage {
   referenceCount: number;
 }
 
+export interface HomeBookTrendInput {
+  bookOrder: number;
+  title: string;
+  referenceCount: number;
+  noteCount: number;
+}
+
+export interface HomeTopBook {
+  bookOrder: number;
+  title: string;
+  referenceCount: number;
+  noteCount: number;
+}
+
 export interface HomeThreadInput {
   id: string;
   title: string | null;
@@ -79,16 +93,26 @@ function effectiveTime(note: HomeContinueNoteInput): number {
   return t;
 }
 
+/** Last content/metadata edit — excludes visit-only `lastVisited` bumps. */
+function lastEditedTime(note: HomeContinueNoteInput): number {
+  let t = 0;
+  for (const value of [note.updatedAt, note.createdAt]) {
+    const date = value != null ? normalizeDate(value) : null;
+    if (date) t = Math.max(t, date.getTime());
+  }
+  return t;
+}
+
 /**
- * Most recently visited/edited note regardless of pin state — the sidebar's
+ * Most recently edited note regardless of pin state — the sidebar's
  * `sortNotesByLastVisited` floats pinned notes first, so `notes[0]` is the
- * wrong answer for "pick up where you left off".
+ * wrong answer for "pick up where you left off". Visit-only opens are ignored.
  */
 export function pickContinueNote<T extends HomeContinueNoteInput>(notes: T[]): T | undefined {
   let best: T | undefined;
   let bestTime = -1;
   for (const note of notes) {
-    const t = effectiveTime(note);
+    const t = lastEditedTime(note);
     if (t > bestTime) {
       best = note;
       bestTime = t;
@@ -98,8 +122,8 @@ export function pickContinueNote<T extends HomeContinueNoteInput>(notes: T[]): T
 }
 
 /**
- * Oldest note worth resurfacing — the note with the LEAST-recent activity,
- * excluding the continue note and anything touched within `minAgeMs`. Returns
+ * Oldest note worth resurfacing — the note with the LEAST-recent edit,
+ * excluding the continue note and anything edited within `minAgeMs`. Returns
  * undefined when nothing is old enough (keeps the card hidden for fresh spaces).
  */
 export function pickRevisitNote<T extends HomeContinueNoteInput & { id?: string }>(
@@ -111,7 +135,7 @@ export function pickRevisitNote<T extends HomeContinueNoteInput & { id?: string 
   let bestTime = Infinity;
   for (const note of notes) {
     if (excludeId && note.id === excludeId) continue;
-    const t = effectiveTime(note);
+    const t = lastEditedTime(note);
     if (t <= 0) continue;
     if (nowMs - t < minAgeMs) continue;
     if (t < bestTime) {
@@ -206,14 +230,14 @@ export function formatHomeNoteCount(count: number, hasMore: boolean): string {
   return `${count}${hasMore ? '+' : ''} notes`;
 }
 
-/** How strongly the Home greeting can claim a recurring passage habit. */
-export type HomePassageGreetingTone = 'single-note' | 'mentioned-once' | 'returning';
+/** How strongly the Home greeting can claim a recurring scripture habit. */
+export type HomeBookGreetingTone = 'single-note' | 'mentioned-once' | 'returning';
 
-export function homePassageGreetingTone(input: {
+export function homeBookGreetingTone(input: {
   noteCount: number;
   hasMoreNotes: boolean;
   referenceCount: number;
-}): HomePassageGreetingTone {
+}): HomeBookGreetingTone {
   if (input.noteCount === 1 && !input.hasMoreNotes) return 'single-note';
   if (input.referenceCount < 2) return 'mentioned-once';
   return 'returning';
@@ -222,14 +246,14 @@ export function homePassageGreetingTone(input: {
 /** One consolidated greeting lead, chosen from the available trend signals. */
 export type HomeLeadTheme =
   | { kind: 'thread'; thread: HomeTopThread }
-  | { kind: 'passage'; passage: HomeTopPassage; tone: HomePassageGreetingTone }
+  | { kind: 'book'; book: HomeTopBook; tone: HomeBookGreetingTone }
   | { kind: 'folder'; folder: HomeTopFolder }
   | { kind: 'tag'; tag: HomeTopTag }
   | { kind: 'none' };
 
 export interface HomeLeadThemeInput {
   thread?: HomeTopThread;
-  passage?: HomeTopPassage;
+  book?: HomeTopBook;
   folder?: HomeTopFolder;
   tag?: HomeTopTag;
   noteCount: number;
@@ -239,21 +263,21 @@ export interface HomeLeadThemeInput {
 
 /**
  * Picks ONE lead theme for the greeting (keeps it short). Priority is
- * thread > returning passage > folder > tag, but when two or more *strong*
+ * thread > returning book > folder > tag, but when two or more *strong*
  * signals exist the lead rotates by calendar day so Home feels fresh without
- * getting longer. A passage is strong only when it's a recurring reference;
+ * getting longer. A book is strong only when it's a recurring reference;
  * folders/tags need >=2 notes to count as strong.
  */
 export function selectHomeLeadTheme(input: HomeLeadThemeInput): HomeLeadTheme {
-  const { thread, passage, folder, tag, noteCount, hasMoreNotes, today } = input;
-  const passageTone = passage
-    ? homePassageGreetingTone({ noteCount, hasMoreNotes, referenceCount: passage.referenceCount })
+  const { thread, book, folder, tag, noteCount, hasMoreNotes, today } = input;
+  const bookTone = book
+    ? homeBookGreetingTone({ noteCount, hasMoreNotes, referenceCount: book.referenceCount })
     : null;
 
   const candidates: Array<{ theme: HomeLeadTheme; strong: boolean }> = [];
   if (thread) candidates.push({ theme: { kind: 'thread', thread }, strong: true });
-  if (passage && passageTone) {
-    candidates.push({ theme: { kind: 'passage', passage, tone: passageTone }, strong: passageTone === 'returning' });
+  if (book && bookTone) {
+    candidates.push({ theme: { kind: 'book', book, tone: bookTone }, strong: bookTone === 'returning' });
   }
   if (folder) candidates.push({ theme: { kind: 'folder', folder }, strong: folder.noteCount >= 2 });
   if (tag) candidates.push({ theme: { kind: 'tag', tag }, strong: tag.noteCount >= 2 });
@@ -380,33 +404,53 @@ export function computeActivityRhythm(notes: HomeContinueNoteInput[]): HomeActiv
   return { dayOfWeek: dayWinner.bucket, hour: hourWinner.bucket };
 }
 
-export function formatRhythmHour(hour: number): string {
-  const period = hour >= 12 ? 'PM' : 'AM';
-  const h = hour % 12 || 12;
-  return `${h} ${period}`;
+export function formatRhythmDaypart(hour: number): string {
+  if (hour >= 5 && hour < 12) return 'mornings';
+  if (hour >= 12 && hour < 18) return 'afternoons';
+  if (hour >= 18 && hour < 22) return 'evenings';
+  return 'nights';
 }
 
-export function formatActivityRhythm(rhythm: HomeActivityRhythm): string {
+export function formatHomeActivityRhythmSuffix(rhythm: HomeActivityRhythm): string {
   const day = WEEKDAY_NAMES[rhythm.dayOfWeek] ?? 'Unknown';
-  return `usually here on ${day}s at ${formatRhythmHour(rhythm.hour)}`;
+  return `mostly on ${day} ${formatRhythmDaypart(rhythm.hour)}`;
 }
 
 function formatStreakLabel(streak: HomeActivityStreak): string {
   return `${streak.count} ${streak.unit === 'day' ? 'days' : 'weeks'} in a row`;
 }
 
-/** Rhythm + streak for the Home greeting — streak wins when both exist (days/weeks, not active time). */
-export function formatHomeActivitySummary(
+export function formatHomeActivityStreakSuffix(streak: HomeActivityStreak): string {
+  return formatStreakLabel(streak);
+}
+
+/** Streak wins over rhythm — both are comma clauses on the Home lead sentence. */
+export function formatHomeActivityLeadSuffix(
   rhythm: HomeActivityRhythm | null,
   streak: HomeActivityStreak | null,
 ): string | null {
-  if (streak) {
-    return `You've shown up ${formatStreakLabel(streak)}.`;
-  }
-  if (rhythm) {
-    return `You're ${formatActivityRhythm(rhythm)}.`;
-  }
+  if (streak) return formatHomeActivityStreakSuffix(streak);
+  if (rhythm) return formatHomeActivityRhythmSuffix(rhythm);
   return null;
+}
+
+/** Most-referenced books across the space's scripture index, canonical order as tiebreak. */
+export function deriveTopBooks(books: HomeBookTrendInput[], limit: number): HomeTopBook[] {
+  return books
+    .filter((book) => book.referenceCount > 0 || book.noteCount > 0)
+    .sort(
+      (a, b) =>
+        b.referenceCount - a.referenceCount ||
+        b.noteCount - a.noteCount ||
+        a.bookOrder - b.bookOrder,
+    )
+    .slice(0, Math.max(0, limit))
+    .map(({ bookOrder, title, referenceCount, noteCount }) => ({
+      bookOrder,
+      title,
+      referenceCount,
+      noteCount,
+    }));
 }
 
 /** Most-referenced passages across the space's scripture index, canonical order as tiebreak. */

@@ -573,6 +573,7 @@ export default function PrototypeSidebar() {
     dismissStandaloneScripturePassage,
     sidebarTagSearchIntent,
     clearSidebarTagSearchIntent,
+    ensureSidebarExpanded,
   } = useProtoShell();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -1261,9 +1262,10 @@ export default function PrototypeSidebar() {
             scriptureSettled={!scriptureQuery.isPending || scriptureQuery.data != null}
             onOpenNote={onNoteRow}
             prefetchNote={prefetchNote}
-            onOpenScripturePassage={(bookOrder) => {
+            onOpenScriptureBook={(bookOrder) => {
               setScriptureDrill({ level: 'passages', bookOrder });
               setSidebarListMode('scripture');
+              ensureSidebarExpanded();
             }}
             onOpenHighlight={onHighlightRow}
           />
