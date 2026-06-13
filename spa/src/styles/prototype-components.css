@@ -87,6 +87,7 @@
 
 /* ─── Toolbar ────────────────────────────────────────────────────────────── */
 .proto-toolbar-inner {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -102,6 +103,8 @@
   gap: 6px;
   /* Icon-button groups hold their natural size — only the center chip shrinks. */
   flex-shrink: 0;
+  position: relative;
+  z-index: 1;
 }
 
 .proto-toolbar-right {
@@ -109,6 +112,8 @@
   align-items: center;
   gap: 20px;
   flex-shrink: 0;
+  position: relative;
+  z-index: 1;
 }
 
 .proto-toolbar-orb-group--trailing {
@@ -279,11 +284,19 @@ html[data-shift-hints='1'] .proto-toolbar-orb-group {
 }
 
 .proto-toolbar-center {
-  flex: 1;
-  min-width: 0;
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(
+    calc(-50% + var(--proto-toolbar-folder-chip-offset-adjust, 0px)),
+    -50%
+  );
   display: flex;
   align-items: center;
   justify-content: center;
+  max-width: min(240px, 42vw);
+  min-width: 0;
+  pointer-events: none;
 }
 
 .proto-toolbar-folder-chip {
@@ -295,7 +308,8 @@ html[data-shift-hints='1'] .proto-toolbar-orb-group {
   flex-shrink: 1;
   min-width: 0;
   overflow: hidden;
-  max-width: min(240px, 42vw);
+  max-width: 100%;
+  pointer-events: auto;
   height: var(--pds-toolbar-orb-size);
   padding: 0 12px;
   border-radius: var(--pds-radius-pill);

@@ -313,6 +313,8 @@
   --pds-font-body-variation-chip: "ROND" 0, "wght" 500, "opsz" 13;
   /* Toolbar folder chip — scaled with `--pds-toolbar-orb-size`. */
   --pds-toolbar-folder-chip-font-size: 14px;
+  /* Nudge folder chip ±X to fine-tune alignment with editor paper (devtools / per-shell). */
+  --proto-toolbar-folder-chip-offset-adjust: 0px;
   --pds-font-body-variation-toolbar-chip: "ROND" 0, "wght" 500, "opsz" 14;
   /* List rows — HarvousTypography.noteList* (15pt / 12pt · 500 / 400 / 500); sidebar pins same at all widths. */
   --pds-list-title-size: 0.9375rem;
