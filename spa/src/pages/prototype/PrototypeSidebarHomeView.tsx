@@ -34,6 +34,7 @@ import {
   homeContinueCardEyebrow,
   homeLeadCopyLayout,
   homeSpotlightThreadEyebrow,
+  localDayIndex,
   pickContinueNote,
   pickRevisitNote,
   pickSpotlightThread,
@@ -443,18 +444,23 @@ export default function PrototypeSidebarHomeView({
   );
 
   const continueNote = useMemo(() => pickContinueNote(notes), [notes]);
+  const spotlightHighlight = useMemo(() => pickSpotlightHighlight(highlights, homeSpaceId), [highlights, homeSpaceId]);
   const revisitNote = useMemo(
     () =>
-      countForLogic >= REVISIT_MIN_NOTES
-        ? pickRevisitNote(notes, { nowMs: Date.now(), excludeId: continueNote?.id, minAgeMs: REVISIT_MIN_AGE_MS })
+      countForLogic >= REVISIT_MIN_NOTES && !hasMoreNotes
+        ? pickRevisitNote(notes, {
+            nowMs: Date.now(),
+            excludeIds: [continueNote?.id, spotlightHighlight?.parentNoteId].filter((id): id is string => Boolean(id)),
+            minAgeMs: REVISIT_MIN_AGE_MS,
+            rotationDayIndex: localDayIndex(new Date()),
+          })
         : undefined,
-    [notes, continueNote, countForLogic],
+    [notes, continueNote, countForLogic, hasMoreNotes, spotlightHighlight],
   );
   const spotlightThread = useMemo(
     () => pickSpotlightThread(threads, { excludeId: lead.kind === 'thread' ? lead.thread.id : undefined }),
     [threads, lead],
   );
-  const spotlightHighlight = useMemo(() => pickSpotlightHighlight(highlights, homeSpaceId), [highlights, homeSpaceId]);
   const looseCount = useMemo(() => countLooseNotes(notes), [notes]);
 
   if (!contentReady) {

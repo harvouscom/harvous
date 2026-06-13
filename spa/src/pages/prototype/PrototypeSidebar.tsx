@@ -628,6 +628,12 @@ export default function PrototypeSidebar() {
     }
   }, [isHomeLayer]);
 
+  // Home revisit logic needs the full note corpus; prefetch remaining pages in the background.
+  useEffect(() => {
+    if (!isHomeLayer || !hasNextPage || isFetchingNextPage) return;
+    void fetchNextPage();
+  }, [isHomeLayer, hasNextPage, isFetchingNextPage, fetchNextPage]);
+
   useEffect(() => {
     if (!sidebarTagSearchIntent || isHomeLayer) return;
     setQ(sidebarTagSearchIntent.tagName);

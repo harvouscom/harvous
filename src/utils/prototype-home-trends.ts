@@ -123,27 +123,47 @@ export function pickContinueNote<T extends HomeContinueNoteInput>(notes: T[]): T
 
 /**
  * Oldest note worth resurfacing — the note with the LEAST-recent edit,
- * excluding the continue note and anything edited within `minAgeMs`. Returns
+ * excluding blocked ids and anything edited within `minAgeMs`. Returns
  * undefined when nothing is old enough (keeps the card hidden for fresh spaces).
+ * With `rotationDayIndex`, rotates daily among the `rotationPoolSize` stalest candidates.
  */
 export function pickRevisitNote<T extends HomeContinueNoteInput & { id?: string }>(
   notes: T[],
-  options: { nowMs: number; excludeId?: string; minAgeMs: number },
+  options: {
+    nowMs: number;
+    excludeId?: string;
+    excludeIds?: string[];
+    minAgeMs: number;
+    rotationDayIndex?: number;
+    rotationPoolSize?: number;
+  },
 ): T | undefined {
-  const { nowMs, excludeId, minAgeMs } = options;
-  let best: T | undefined;
-  let bestTime = Infinity;
+  const { nowMs, excludeId, excludeIds, minAgeMs, rotationDayIndex, rotationPoolSize = 5 } = options;
+  const excluded = new Set<string>();
+  if (excludeId) excluded.add(excludeId);
+  if (excludeIds) {
+    for (const id of excludeIds) excluded.add(id);
+  }
+
+  const candidates: Array<{ note: T; t: number }> = [];
   for (const note of notes) {
-    if (excludeId && note.id === excludeId) continue;
+    if (note.id && excluded.has(note.id)) continue;
     const t = lastEditedTime(note);
     if (t <= 0) continue;
     if (nowMs - t < minAgeMs) continue;
-    if (t < bestTime) {
-      best = note;
-      bestTime = t;
-    }
+    candidates.push({ note, t });
   }
-  return best;
+  if (candidates.length === 0) return undefined;
+
+  candidates.sort((a, b) => a.t - b.t);
+
+  if (rotationDayIndex == null) {
+    return candidates[0]!.note;
+  }
+
+  const pool = candidates.slice(0, rotationPoolSize);
+  const idx = ((rotationDayIndex % pool.length) + pool.length) % pool.length;
+  return pool[idx]!.note;
 }
 
 /** Top user tags by note count; auto/system tags are folders' job, not greeting chips. */
@@ -377,7 +397,7 @@ export function selectHomeLeadTheme(input: HomeLeadThemeInput): HomeLeadTheme {
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 /** Local-midnight epoch day index — activity counts use calendar days, not 24h windows. */
-function localDayIndex(date: Date): number {
+export function localDayIndex(date: Date): number {
   return Math.floor(new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime() / DAY_MS);
 }
 

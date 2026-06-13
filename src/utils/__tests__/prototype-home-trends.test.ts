@@ -118,6 +118,37 @@ describe('pickRevisitNote', () => {
     expect(pickRevisitNote([oldest, next], { ...opts, excludeId: 'a' })?.id).toBe('b');
   });
 
+  it('excludes multiple ids via excludeIds', () => {
+    const oldest = { id: 'a', updatedAt: '2026-01-01T00:00:00Z' };
+    const next = { id: 'b', updatedAt: '2026-02-01T00:00:00Z' };
+    const third = { id: 'c', updatedAt: '2026-03-01T00:00:00Z' };
+    expect(pickRevisitNote([oldest, next, third], { ...opts, excludeIds: ['a', 'b'] })?.id).toBe('c');
+  });
+
+  it('rotates daily among the stalest candidates', () => {
+    const notes = [
+      { id: 'a', updatedAt: '2026-01-01T00:00:00Z' },
+      { id: 'b', updatedAt: '2026-02-01T00:00:00Z' },
+      { id: 'c', updatedAt: '2026-03-01T00:00:00Z' },
+    ];
+    expect(pickRevisitNote(notes, { ...opts, rotationDayIndex: 0 })?.id).toBe('a');
+    expect(pickRevisitNote(notes, { ...opts, rotationDayIndex: 1 })?.id).toBe('b');
+    expect(pickRevisitNote(notes, { ...opts, rotationDayIndex: 2 })?.id).toBe('c');
+    expect(pickRevisitNote(notes, { ...opts, rotationDayIndex: 3 })?.id).toBe('a');
+  });
+
+  it('limits rotation pool to rotationPoolSize stalest notes', () => {
+    const notes = [
+      { id: 'a', updatedAt: '2026-01-01T00:00:00Z' },
+      { id: 'b', updatedAt: '2026-02-01T00:00:00Z' },
+      { id: 'c', updatedAt: '2026-03-01T00:00:00Z' },
+      { id: 'd', updatedAt: '2026-04-01T00:00:00Z' },
+      { id: 'e', updatedAt: '2026-05-01T00:00:00Z' },
+      { id: 'f', updatedAt: '2026-05-15T00:00:00Z' },
+    ];
+    expect(pickRevisitNote(notes, { ...opts, rotationDayIndex: 5, rotationPoolSize: 5 })?.id).toBe('a');
+  });
+
   it('uses last edit time when judging age, not visit-only opens', () => {
     const oldEditVisitedYesterday = {
       id: 'a',
