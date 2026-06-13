@@ -1,0 +1,89 @@
+/**
+ * Inline scripture pill accent surface — native ScripturePillAttachment parity.
+ * Fill 7.5%, gradient 10%→6.5%, border 20%, neutral default tint.
+ * Scoped to prototype editor + shared note pages (see selectors below).
+ */
+
+:root {
+  --scripture-pill-fill-mix: 7.5%;
+  --scripture-pill-fill-hover-mix: 10%;
+  --scripture-pill-border-mix: 20%;
+  --scripture-pill-gradient-top-mix: 10%;
+  --scripture-pill-gradient-bottom-mix: 6.5%;
+}
+
+/* Surfaces that use native-parity pill accent styling */
+.proto-editor-surface .card-full-editable__content-html .scripture-pill,
+.proto-editor-surface .ProseMirror .scripture-pill,
+#shared-note-content .card-full-editable__content-html .scripture-pill,
+#shared-thread-content .card-full-editable__content-html .scripture-pill,
+.shared-page__card-container .card-full-editable__content-html .scripture-pill {
+  --scripture-pill-accent-tint: var(--study-dock-scripture-pill-neutral);
+  background-color: color-mix(in srgb, var(--scripture-pill-accent-tint) var(--scripture-pill-fill-mix), transparent);
+  background-image: linear-gradient(
+    to bottom,
+    color-mix(in srgb, var(--scripture-pill-accent-tint) var(--scripture-pill-gradient-top-mix), transparent),
+    color-mix(in srgb, var(--scripture-pill-accent-tint) var(--scripture-pill-gradient-bottom-mix), transparent)
+  );
+  border: 0.5px solid color-mix(in srgb, var(--scripture-pill-accent-tint) var(--scripture-pill-border-mix), transparent);
+  box-shadow: var(--scripture-pill-inner-shadow, inset 0 0 3px rgba(0, 0, 0, 0.042));
+}
+
+.proto-editor-surface .card-full-editable__content-html .scripture-pill[data-pill-accent="neutral"],
+.proto-editor-surface .ProseMirror .scripture-pill[data-pill-accent="neutral"],
+#shared-note-content .card-full-editable__content-html .scripture-pill[data-pill-accent="neutral"],
+#shared-thread-content .card-full-editable__content-html .scripture-pill[data-pill-accent="neutral"],
+.shared-page__card-container .card-full-editable__content-html .scripture-pill[data-pill-accent="neutral"] {
+  --scripture-pill-accent-tint: var(--study-dock-scripture-pill-neutral);
+}
+
+.proto-editor-surface .card-full-editable__content-html .scripture-pill[data-pill-accent="warmAmber"],
+.proto-editor-surface .ProseMirror .scripture-pill[data-pill-accent="warmAmber"],
+#shared-note-content .card-full-editable__content-html .scripture-pill[data-pill-accent="warmAmber"],
+#shared-thread-content .card-full-editable__content-html .scripture-pill[data-pill-accent="warmAmber"],
+.shared-page__card-container .card-full-editable__content-html .scripture-pill[data-pill-accent="warmAmber"] {
+  --scripture-pill-accent-tint: var(--study-dock-accent-warmAmber);
+}
+
+.proto-editor-surface .card-full-editable__content-html .scripture-pill[data-pill-accent="skyBlue"],
+.proto-editor-surface .ProseMirror .scripture-pill[data-pill-accent="skyBlue"],
+#shared-note-content .card-full-editable__content-html .scripture-pill[data-pill-accent="skyBlue"],
+#shared-thread-content .card-full-editable__content-html .scripture-pill[data-pill-accent="skyBlue"],
+.shared-page__card-container .card-full-editable__content-html .scripture-pill[data-pill-accent="skyBlue"] {
+  --scripture-pill-accent-tint: var(--study-dock-accent-skyBlue);
+}
+
+.proto-editor-surface .card-full-editable__content-html .scripture-pill[data-pill-accent="violet"],
+.proto-editor-surface .ProseMirror .scripture-pill[data-pill-accent="violet"],
+#shared-note-content .card-full-editable__content-html .scripture-pill[data-pill-accent="violet"],
+#shared-thread-content .card-full-editable__content-html .scripture-pill[data-pill-accent="violet"],
+.shared-page__card-container .card-full-editable__content-html .scripture-pill[data-pill-accent="violet"] {
+  --scripture-pill-accent-tint: var(--study-dock-accent-violet);
+}
+
+.proto-editor-surface .card-full-editable__content-html .scripture-pill[data-pill-accent="mintGreen"],
+.proto-editor-surface .ProseMirror .scripture-pill[data-pill-accent="mintGreen"],
+#shared-note-content .card-full-editable__content-html .scripture-pill[data-pill-accent="mintGreen"],
+#shared-thread-content .card-full-editable__content-html .scripture-pill[data-pill-accent="mintGreen"],
+.shared-page__card-container .card-full-editable__content-html .scripture-pill[data-pill-accent="mintGreen"] {
+  --scripture-pill-accent-tint: var(--study-dock-accent-mintGreen);
+}
+
+.proto-editor-surface .card-full-editable__content-html .scripture-pill[data-pill-accent="coralRose"],
+.proto-editor-surface .ProseMirror .scripture-pill[data-pill-accent="coralRose"],
+#shared-note-content .card-full-editable__content-html .scripture-pill[data-pill-accent="coralRose"],
+#shared-thread-content .card-full-editable__content-html .scripture-pill[data-pill-accent="coralRose"],
+.shared-page__card-container .card-full-editable__content-html .scripture-pill[data-pill-accent="coralRose"] {
+  --scripture-pill-accent-tint: var(--study-dock-accent-coralRose);
+}
+
+/* Prototype editor hover — deepen fill + gradient (shared pages are display-only). */
+.proto-editor-surface .card-full-editable__content-html .scripture-pill:hover,
+.proto-editor-surface .ProseMirror .scripture-pill:hover {
+  background-color: color-mix(in srgb, var(--scripture-pill-accent-tint) var(--scripture-pill-fill-hover-mix), transparent);
+  background-image: linear-gradient(
+    to bottom,
+    color-mix(in srgb, var(--scripture-pill-accent-tint) calc(var(--scripture-pill-gradient-top-mix) + 2.5%), transparent),
+    color-mix(in srgb, var(--scripture-pill-accent-tint) var(--scripture-pill-gradient-bottom-mix), transparent)
+  );
+}

@@ -73,6 +73,7 @@ import '../../src/styles/auth-page-site.css';
 import './styles/public-pages.css';
 /* Study dock accent fills (native parity) — before prototype-tokens aliases. */
 import '../../src/styles/study-highlight-accent-colors.css';
+import '../../src/styles/scripture-pill-accent.css';
 /* Prototype design tokens on :root — needed before lazy layout paints portaled UI. */
 import './styles/prototype-tokens.css';
 

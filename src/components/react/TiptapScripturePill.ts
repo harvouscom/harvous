@@ -169,7 +169,7 @@ export const ScripturePill = Mark.create<ScripturePillOptions>({
     // No min-height — let the pill's height be determined by the same line-height as
     // surrounding text so lines with pills don't have different spacing.
     const baseStyle =
-      'background-color: var(--color-paper); border-radius: 12px; padding: 2px 8px; display: inline-flex; align-items: center; gap: 4px; box-shadow: 0px -3px 0px 0px inset rgba(176,176,176,0.25); font-weight: 500; font-style: normal; font-size: inherit; color: var(--color-deep-grey); vertical-align: baseline; line-height: inherit; user-select: all; white-space: normal; cursor: pointer;';
+      'border-radius: 12px; padding: 2px 8px; display: inline-flex; align-items: center; gap: 4px; font-weight: 500; font-style: normal; font-size: inherit; color: var(--color-deep-grey); vertical-align: baseline; line-height: inherit; user-select: all; white-space: normal; cursor: pointer;';
 
     return [
       'span',

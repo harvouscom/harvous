@@ -487,67 +487,26 @@
   opacity: 1 !important;
 }
 
-/* Scripture / URL pills — borderless (matches prototype editor) */
+/* Scripture pills — accent surface in scripture-pill-accent.css; layout overrides below. */
 #shared-note-content .card-full-editable__content-html .scripture-pill,
 #shared-thread-content .card-full-editable__content-html .scripture-pill,
-.shared-page__card-container .card-full-editable__content-html .scripture-pill,
-#shared-note-content .card-full-editable__content-html .url-link-pill,
-#shared-thread-content .card-full-editable__content-html .url-link-pill,
-.shared-page__card-container .card-full-editable__content-html .url-link-pill {
-  border: none !important;
-  box-shadow: var(--scripture-pill-inner-shadow, inset 0 0 3px rgba(0, 0, 0, 0.042)) !important;
-}
-
-/* Default (no accent swatch) — native section gray, not paper/blue */
-#shared-note-content .card-full-editable__content-html .scripture-pill:not([data-pill-accent]),
-#shared-thread-content .card-full-editable__content-html .scripture-pill:not([data-pill-accent]),
-.shared-page__card-container .card-full-editable__content-html .scripture-pill:not([data-pill-accent]),
-#shared-note-content .card-full-editable__content-html .url-link-pill,
-#shared-thread-content .card-full-editable__content-html .url-link-pill,
-.shared-page__card-container .card-full-editable__content-html .url-link-pill {
-  background: var(--pds-bg-section, var(--color-paper)) !important;
-  background-color: var(--pds-bg-section, var(--color-paper)) !important;
+.shared-page__card-container .card-full-editable__content-html .scripture-pill {
   color: var(--color-deep-grey) !important;
   border-radius: var(--pds-radius-scripture, 14px) !important;
   font-weight: 500 !important;
 }
 
-#shared-note-content .card-full-editable__content-html .scripture-pill[data-pill-accent],
-#shared-thread-content .card-full-editable__content-html .scripture-pill[data-pill-accent],
-.shared-page__card-container .card-full-editable__content-html .scripture-pill[data-pill-accent] {
-  background: color-mix(in srgb, var(--scripture-pill-accent-tint, var(--study-dock-scripture-pill-neutral)) 7.5%, transparent) !important;
+/* URL link pills — neutral section chip (not accent-tinted). */
+#shared-note-content .card-full-editable__content-html .url-link-pill,
+#shared-thread-content .card-full-editable__content-html .url-link-pill,
+.shared-page__card-container .card-full-editable__content-html .url-link-pill {
+  border: none !important;
+  box-shadow: var(--scripture-pill-inner-shadow, inset 0 0 3px rgba(0, 0, 0, 0.042)) !important;
+  background: var(--pds-bg-section, var(--color-paper)) !important;
+  background-color: var(--pds-bg-section, var(--color-paper)) !important;
   color: var(--color-deep-grey) !important;
-}
-
-#shared-note-content .card-full-editable__content-html .scripture-pill[data-pill-accent="neutral"],
-#shared-thread-content .card-full-editable__content-html .scripture-pill[data-pill-accent="neutral"],
-.shared-page__card-container .card-full-editable__content-html .scripture-pill[data-pill-accent="neutral"] {
-  --scripture-pill-accent-tint: var(--study-dock-scripture-pill-neutral);
-}
-#shared-note-content .card-full-editable__content-html .scripture-pill[data-pill-accent="warmAmber"],
-#shared-thread-content .card-full-editable__content-html .scripture-pill[data-pill-accent="warmAmber"],
-.shared-page__card-container .card-full-editable__content-html .scripture-pill[data-pill-accent="warmAmber"] {
-  --scripture-pill-accent-tint: var(--study-dock-accent-warmAmber);
-}
-#shared-note-content .card-full-editable__content-html .scripture-pill[data-pill-accent="skyBlue"],
-#shared-thread-content .card-full-editable__content-html .scripture-pill[data-pill-accent="skyBlue"],
-.shared-page__card-container .card-full-editable__content-html .scripture-pill[data-pill-accent="skyBlue"] {
-  --scripture-pill-accent-tint: var(--study-dock-accent-skyBlue);
-}
-#shared-note-content .card-full-editable__content-html .scripture-pill[data-pill-accent="violet"],
-#shared-thread-content .card-full-editable__content-html .scripture-pill[data-pill-accent="violet"],
-.shared-page__card-container .card-full-editable__content-html .scripture-pill[data-pill-accent="violet"] {
-  --scripture-pill-accent-tint: var(--study-dock-accent-violet);
-}
-#shared-note-content .card-full-editable__content-html .scripture-pill[data-pill-accent="mintGreen"],
-#shared-thread-content .card-full-editable__content-html .scripture-pill[data-pill-accent="mintGreen"],
-.shared-page__card-container .card-full-editable__content-html .scripture-pill[data-pill-accent="mintGreen"] {
-  --scripture-pill-accent-tint: var(--study-dock-accent-mintGreen);
-}
-#shared-note-content .card-full-editable__content-html .scripture-pill[data-pill-accent="coralRose"],
-#shared-thread-content .card-full-editable__content-html .scripture-pill[data-pill-accent="coralRose"],
-.shared-page__card-container .card-full-editable__content-html .scripture-pill[data-pill-accent="coralRose"] {
-  --scripture-pill-accent-tint: var(--study-dock-accent-coralRose);
+  border-radius: var(--pds-radius-scripture, 14px) !important;
+  font-weight: 500 !important;
 }
 
 /* Translation suffix (e.g. NLT) — muted, matches prototype editor */
