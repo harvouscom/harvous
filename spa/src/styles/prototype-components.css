@@ -3740,6 +3740,7 @@ button.proto-home-card--tappable:hover {
 }
 
 .proto-home-card__body:has(.proto-home-card__icon-orb) .proto-home-card__preview,
+.proto-home-card__body:has(.proto-home-card__icon-orb) .proto-home-card__excerpt,
 .proto-home-card__body:has(.proto-home-card__icon-orb) .proto-home-card__meta {
   padding-left: calc(var(--proto-home-card-icon-size, 13px) + 5px);
 }
@@ -3883,6 +3884,42 @@ button.proto-home-greeting__chip--folder {
 }
 
 button.proto-home-greeting__chip--folder:hover {
+  box-shadow: 0 2px 4px rgba(60, 64, 67, 0.08), 0 8px 18px -10px rgba(60, 64, 67, 0.12), var(--pds-glass-rim);
+}
+
+button.proto-home-greeting__chip--thread {
+  cursor: pointer;
+}
+
+button.proto-home-greeting__chip--thread:hover {
+  box-shadow: 0 2px 4px rgba(60, 64, 67, 0.08), 0 8px 18px -10px rgba(60, 64, 67, 0.12), var(--pds-glass-rim);
+}
+
+/* Liturgical season — quiet line under the greeting, calendar glyph + label. */
+.proto-home-greeting__season {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin: 6px 0 0;
+  padding: 3px 10px;
+  border: 0.5px solid var(--pds-border-control);
+  border-radius: 999px;
+  color: var(--pds-text-secondary);
+  font-family: var(--pds-font-body);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.5;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.proto-home-greeting__season svg {
+  display: block;
+  flex-shrink: 0;
+  color: var(--pds-accent);
+}
+
+.proto-home-greeting__season:hover {
   box-shadow: 0 2px 4px rgba(60, 64, 67, 0.08), 0 8px 18px -10px rgba(60, 64, 67, 0.12), var(--pds-glass-rim);
 }
 

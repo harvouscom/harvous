@@ -1256,6 +1256,7 @@ export default function PrototypeSidebar() {
             notes={notes}
             notesListPhase={notesListPhase}
             hasMoreNotes={!!hasNextPage}
+            noteTotal={pages?.pages?.[0]?.total}
             scriptureBooks={scriptureBooks}
             scriptureSettled={!scriptureQuery.isPending || scriptureQuery.data != null}
             onOpenNote={onNoteRow}
@@ -1264,6 +1265,7 @@ export default function PrototypeSidebar() {
               setScriptureDrill({ level: 'passages', bookOrder });
               setSidebarListMode('scripture');
             }}
+            onOpenHighlight={onHighlightRow}
           />
         ) : searchActive ? (
           <PrototypeSidebarSearchResults

@@ -388,7 +388,7 @@ route.get('/api/spaces/:spaceId/notes', requireAuth, async (c) => {
     const result = await getNotesForSpace(spaceId, auth.userId, limit, offset, {
       excludeLegacyScriptureNotes: excludeLegacyScripture,
     });
-    return c.json({ notes: result.notes, hasMore: result.hasMore, offset, limit });
+    return c.json({ notes: result.notes, hasMore: result.hasMore, total: result.total, offset, limit });
   } catch (error: any) {
     const standardError = handleAPIError(error, { endpoint: '/api/spaces/[spaceId]/notes', action: 'get_space_notes' });
     return c.json({ error: standardError.message, code: standardError.code }, 500);

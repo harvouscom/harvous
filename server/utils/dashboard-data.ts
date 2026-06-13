@@ -1436,6 +1436,10 @@ export async function getNotesForSpace(
     const hasMore = sortedAllNotes.length > offset + limit;
     const sortedNotes = sortedAllNotes.slice(offset, offset + limit);
 
+    // True space total (the fetch above is capped at limit+offset+1, so it can't come from `allNotes`).
+    const totalRow = first(await db.select({ value: count() }).from(Notes).where(spaceWhere));
+    const total = totalRow?.value ?? sortedAllNotes.length;
+
     const resourceNoteIds = sortedNotes.filter(n => n.noteType === 'resource').map(n => n.id);
     const scriptureNoteIds = sortedNotes.filter(n => n.noteType === 'scripture').map(n => n.id).filter(Boolean) as string[];
     const noteIds = sortedNotes.map(n => n.id).filter(Boolean) as string[];
@@ -1488,10 +1492,10 @@ export async function getNotesForSpace(
       };
     });
 
-    return { notes: notesWithMeta, hasMore };
+    return { notes: notesWithMeta, hasMore, total };
   } catch (error) {
     console.error("Error fetching notes for space:", error);
-    return { notes: [], hasMore: false };
+    return { notes: [], hasMore: false, total: 0 };
   }
 }
 

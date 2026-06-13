@@ -143,6 +143,8 @@ export interface SpaceNoteRow {
 interface SpaceNotesPage {
   notes: SpaceNoteRow[];
   hasMore: boolean;
+  /** True space note count (first page only on this endpoint). Absent on member/cache-miss paths. */
+  total?: number;
   offset: number;
   limit: number;
 }

@@ -5,17 +5,19 @@ export interface PrototypeHomeContentReadyInput {
   scriptureSettled: boolean;
   tagsSettled: boolean;
   votdSettled: boolean;
+  threadsSettled: boolean;
+  highlightsSettled: boolean;
 }
 
 /**
  * True when the home sidebar can paint its final layout in one pass (no progressive
  * greeting reflow or cards popping in). Notes must be past loading/error; auxiliary
- * queries (scripture index, tags, VOTD) must be settled or already cached.
+ * queries (scripture index, tags, study threads, highlights, VOTD) must be settled or cached.
  */
 export function isPrototypeHomeContentReady(input: PrototypeHomeContentReadyInput): boolean {
-  const { notesListPhase, scriptureSettled, tagsSettled, votdSettled } = input;
+  const { notesListPhase, scriptureSettled, tagsSettled, votdSettled, threadsSettled, highlightsSettled } = input;
   if (notesListPhase === 'loading' || notesListPhase === 'error') return false;
-  if (!scriptureSettled || !tagsSettled || !votdSettled) return false;
+  if (!scriptureSettled || !tagsSettled || !votdSettled || !threadsSettled || !highlightsSettled) return false;
   return notesListPhase === 'list' || notesListPhase === 'empty';
 }
 

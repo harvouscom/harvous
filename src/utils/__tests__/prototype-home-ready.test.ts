@@ -6,6 +6,8 @@ describe('isPrototypeHomeContentReady', () => {
     scriptureSettled: true,
     tagsSettled: true,
     votdSettled: true,
+    threadsSettled: true,
+    highlightsSettled: true,
   };
 
   it('returns false while notes are loading', () => {
@@ -20,31 +22,18 @@ describe('isPrototypeHomeContentReady', () => {
     ).toBe(false);
   });
 
-  it('returns false when auxiliary queries are not settled', () => {
-    expect(
-      isPrototypeHomeContentReady({
-        notesListPhase: 'list',
-        scriptureSettled: false,
-        tagsSettled: true,
-        votdSettled: true,
-      }),
-    ).toBe(false);
-    expect(
-      isPrototypeHomeContentReady({
-        notesListPhase: 'list',
-        scriptureSettled: true,
-        tagsSettled: false,
-        votdSettled: true,
-      }),
-    ).toBe(false);
-    expect(
-      isPrototypeHomeContentReady({
-        notesListPhase: 'list',
-        scriptureSettled: true,
-        tagsSettled: true,
-        votdSettled: false,
-      }),
-    ).toBe(false);
+  it('returns false when any auxiliary query is not settled', () => {
+    for (const flag of [
+      'scriptureSettled',
+      'tagsSettled',
+      'votdSettled',
+      'threadsSettled',
+      'highlightsSettled',
+    ] as const) {
+      expect(
+        isPrototypeHomeContentReady({ notesListPhase: 'list', ...settled, [flag]: false }),
+      ).toBe(false);
+    }
   });
 
   it('returns true for list when all sources are settled', () => {

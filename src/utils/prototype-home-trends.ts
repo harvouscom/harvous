@@ -1,5 +1,6 @@
 import { normalizeDate } from './sorting';
 import { noteFolderMembershipLabels, type NoteFolderLabelSource } from './note-folder-display';
+import { stripServerAutoUntitledNoteTitleForDisplay } from './server-auto-untitled-note-display';
 
 /**
  * Pure helpers for the prototype sidebar Home space view: the "continue where
@@ -54,6 +55,21 @@ export interface HomeTopPassage {
   referenceCount: number;
 }
 
+export interface HomeThreadInput {
+  id: string;
+  title: string | null;
+  suggestedTitle: string | null;
+  hasCustomTitle: boolean;
+  noteCount: number;
+  updatedAt?: string | null;
+}
+
+export interface HomeTopThread {
+  id: string;
+  title: string;
+  noteCount: number;
+}
+
 function effectiveTime(note: HomeContinueNoteInput): number {
   let t = 0;
   for (const value of [note.lastVisited, note.updatedAt, note.createdAt]) {
@@ -74,6 +90,31 @@ export function pickContinueNote<T extends HomeContinueNoteInput>(notes: T[]): T
   for (const note of notes) {
     const t = effectiveTime(note);
     if (t > bestTime) {
+      best = note;
+      bestTime = t;
+    }
+  }
+  return best;
+}
+
+/**
+ * Oldest note worth resurfacing — the note with the LEAST-recent activity,
+ * excluding the continue note and anything touched within `minAgeMs`. Returns
+ * undefined when nothing is old enough (keeps the card hidden for fresh spaces).
+ */
+export function pickRevisitNote<T extends HomeContinueNoteInput & { id?: string }>(
+  notes: T[],
+  options: { nowMs: number; excludeId?: string; minAgeMs: number },
+): T | undefined {
+  const { nowMs, excludeId, minAgeMs } = options;
+  let best: T | undefined;
+  let bestTime = Infinity;
+  for (const note of notes) {
+    if (excludeId && note.id === excludeId) continue;
+    const t = effectiveTime(note);
+    if (t <= 0) continue;
+    if (nowMs - t < minAgeMs) continue;
+    if (t < bestTime) {
       best = note;
       bestTime = t;
     }
@@ -104,6 +145,48 @@ export function deriveTopFolders(notes: NoteFolderLabelSource[], limit: number):
     .map(([name, noteCount]) => ({ name, noteCount }));
 }
 
+/** Notes not filed in any folder — drives the "tidy up" nudge. */
+export function countLooseNotes(notes: NoteFolderLabelSource[]): number {
+  let loose = 0;
+  for (const note of notes) {
+    if (noteFolderMembershipLabels(note).length === 0) loose += 1;
+  }
+  return loose;
+}
+
+/** Resolve a thread's display title (manual override wins), or null if unusable. */
+function resolveThreadTitle(thread: HomeThreadInput): string | null {
+  const raw = thread.hasCustomTitle ? thread.title ?? thread.suggestedTitle : thread.suggestedTitle;
+  const cleaned = stripServerAutoUntitledNoteTitleForDisplay(raw ?? '')?.trim();
+  return cleaned || null;
+}
+
+/**
+ * Top study threads — real clusters of connected notes (>=2) with a usable
+ * title. Threads are the strongest "topic you keep returning to" signal.
+ */
+export function deriveTopThread(threads: HomeThreadInput[], limit = 1): HomeTopThread[] {
+  return threads
+    .map((thread) => ({ thread, title: resolveThreadTitle(thread) }))
+    .filter((t): t is { thread: HomeThreadInput; title: string } => t.title != null && t.thread.noteCount >= 2)
+    .sort(
+      (a, b) =>
+        b.thread.noteCount - a.thread.noteCount ||
+        (normalizeDate(b.thread.updatedAt)?.getTime() ?? 0) - (normalizeDate(a.thread.updatedAt)?.getTime() ?? 0) ||
+        a.title.localeCompare(b.title),
+    )
+    .slice(0, Math.max(0, limit))
+    .map(({ thread, title }) => ({ id: thread.id, title, noteCount: thread.noteCount }));
+}
+
+/** Spotlight thread for the Home card — top titled cluster that isn't the greeting's lead. */
+export function pickSpotlightThread(
+  threads: HomeThreadInput[],
+  options?: { excludeId?: string },
+): HomeTopThread | undefined {
+  return deriveTopThread(threads, threads.length).find((t) => t.id !== options?.excludeId);
+}
+
 export interface HomeActivityStreak {
   unit: 'day' | 'week';
   count: number;
@@ -120,68 +203,6 @@ export function formatHomeNoteCount(count: number, hasMore: boolean): string {
   return `${count}${hasMore ? '+' : ''} notes`;
 }
 
-export interface HomeEncouragementInput {
-  noteCount: number;
-  hasMoreNotes: boolean;
-  streak: HomeActivityStreak | null;
-  /** Streak copy already appears in the greeting body — skip streak closers. */
-  streakShownInGreeting?: boolean;
-  hasTopPassage: boolean;
-  hour: number;
-  today: Date;
-}
-
-const HOME_ENCOURAGEMENT_POOL = [
-  'Glad you\'re here.',
-  'It\'ll be here when you need it.',
-  'Keep at your own pace.',
-  'One thought at a time.',
-  'Worth coming back to.',
-  'Whenever you\'re ready.',
-] as const;
-
-function pickDailyEncouragement(today: Date): string {
-  const index = localDayIndex(today) % HOME_ENCOURAGEMENT_POOL.length;
-  return HOME_ENCOURAGEMENT_POOL[index]!;
-}
-
-/**
- * Closing encouragement for the Home greeting — context-specific when stats
- * give a strong signal, otherwise a daily-stable pick from a small pool.
- */
-export function pickHomeEncouragement(input: HomeEncouragementInput): string {
-  const { noteCount, hasMoreNotes, streak, streakShownInGreeting, hasTopPassage, hour, today } = input;
-
-  if (noteCount === 1 && !hasMoreNotes) {
-    return 'It\'s a start.';
-  }
-
-  if (streak && !streakShownInGreeting) {
-    if (streak.unit === 'week') {
-      if (streak.count >= 3) return 'Week after week. That adds up.';
-      if (streak.count === 2) return 'Two weeks now. That adds up.';
-    }
-    if (streak.unit === 'day') {
-      if (streak.count >= 7) return 'Day after day. That adds up.';
-      if (streak.count >= 2) return 'Good to see you keeping at it.';
-    }
-  }
-
-  if (hasTopPassage) {
-    return 'Those are worth sitting with.';
-  }
-
-  if (hour >= 18) {
-    return 'Good place to stop for tonight.';
-  }
-
-  if (hour < 12) {
-    return 'Nice way to open the day.';
-  }
-
-  return pickDailyEncouragement(today);
-}
-
 /** How strongly the Home greeting can claim a recurring passage habit. */
 export type HomePassageGreetingTone = 'single-note' | 'mentioned-once' | 'returning';
 
@@ -193,6 +214,53 @@ export function homePassageGreetingTone(input: {
   if (input.noteCount === 1 && !input.hasMoreNotes) return 'single-note';
   if (input.referenceCount < 2) return 'mentioned-once';
   return 'returning';
+}
+
+/** One consolidated greeting lead, chosen from the available trend signals. */
+export type HomeLeadTheme =
+  | { kind: 'thread'; thread: HomeTopThread }
+  | { kind: 'passage'; passage: HomeTopPassage; tone: HomePassageGreetingTone }
+  | { kind: 'folder'; folder: HomeTopFolder }
+  | { kind: 'tag'; tag: HomeTopTag }
+  | { kind: 'none' };
+
+export interface HomeLeadThemeInput {
+  thread?: HomeTopThread;
+  passage?: HomeTopPassage;
+  folder?: HomeTopFolder;
+  tag?: HomeTopTag;
+  noteCount: number;
+  hasMoreNotes: boolean;
+  today: Date;
+}
+
+/**
+ * Picks ONE lead theme for the greeting (keeps it short). Priority is
+ * thread > returning passage > folder > tag, but when two or more *strong*
+ * signals exist the lead rotates by calendar day so Home feels fresh without
+ * getting longer. A passage is strong only when it's a recurring reference;
+ * folders/tags need >=2 notes to count as strong.
+ */
+export function selectHomeLeadTheme(input: HomeLeadThemeInput): HomeLeadTheme {
+  const { thread, passage, folder, tag, noteCount, hasMoreNotes, today } = input;
+  const passageTone = passage
+    ? homePassageGreetingTone({ noteCount, hasMoreNotes, referenceCount: passage.referenceCount })
+    : null;
+
+  const candidates: Array<{ theme: HomeLeadTheme; strong: boolean }> = [];
+  if (thread) candidates.push({ theme: { kind: 'thread', thread }, strong: true });
+  if (passage && passageTone) {
+    candidates.push({ theme: { kind: 'passage', passage, tone: passageTone }, strong: passageTone === 'returning' });
+  }
+  if (folder) candidates.push({ theme: { kind: 'folder', folder }, strong: folder.noteCount >= 2 });
+  if (tag) candidates.push({ theme: { kind: 'tag', tag }, strong: tag.noteCount >= 2 });
+
+  const strong = candidates.filter((c) => c.strong);
+  if (strong.length >= 2) {
+    const idx = ((localDayIndex(today) % strong.length) + strong.length) % strong.length;
+    return strong[idx]!.theme;
+  }
+  return candidates[0]?.theme ?? { kind: 'none' };
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -324,16 +392,16 @@ function formatStreakLabel(streak: HomeActivityStreak): string {
   return `${streak.count} ${streak.unit === 'day' ? 'days' : 'weeks'} in a row`;
 }
 
-/** Rhythm + streak for the Home greeting — rhythm wins when both exist (4-line budget). */
+/** Rhythm + streak for the Home greeting — streak wins when both exist (days/weeks, not active time). */
 export function formatHomeActivitySummary(
   rhythm: HomeActivityRhythm | null,
   streak: HomeActivityStreak | null,
 ): string | null {
-  if (rhythm) {
-    return `You're ${formatActivityRhythm(rhythm)}.`;
-  }
   if (streak) {
     return `You've shown up ${formatStreakLabel(streak)}.`;
+  }
+  if (rhythm) {
+    return `You're ${formatActivityRhythm(rhythm)}.`;
   }
   return null;
 }

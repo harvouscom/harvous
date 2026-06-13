@@ -5,16 +5,25 @@ import {
   deriveTopPassages,
   deriveTopFolders,
   deriveTopTags,
+  deriveTopThread,
+  countLooseNotes,
   formatActivityRhythm,
   formatHomeActivitySummary,
   formatHomeNoteCount,
   formatRhythmHour,
   greetingForHour,
   pickContinueNote,
-  pickHomeEncouragement,
+  pickRevisitNote,
+  pickSpotlightThread,
   homePassageGreetingTone,
+  selectHomeLeadTheme,
   type HomeBookInput,
   type HomeTagInput,
+  type HomeThreadInput,
+  type HomeTopFolder,
+  type HomeTopPassage,
+  type HomeTopTag,
+  type HomeTopThread,
 } from '../prototype-home-trends';
 
 describe('pickContinueNote', () => {
@@ -55,6 +64,85 @@ describe('pickContinueNote', () => {
     const dated = { id: 'b', createdAt: '2026-06-01T00:00:00Z' };
     expect(pickContinueNote([dateless, dated])).toBe(dated);
     expect(pickContinueNote([dateless])).toBe(dateless);
+  });
+});
+
+describe('pickRevisitNote', () => {
+  const NOW = Date.parse('2026-06-12T12:00:00Z');
+  const DAY = 24 * 60 * 60 * 1000;
+  const opts = { nowMs: NOW, minAgeMs: 14 * DAY };
+
+  it('returns undefined when nothing is old enough', () => {
+    const recent = { id: 'a', updatedAt: '2026-06-10T00:00:00Z' };
+    expect(pickRevisitNote([recent], opts)).toBeUndefined();
+  });
+
+  it('picks the least-recently active note past the age threshold', () => {
+    const old1 = { id: 'a', updatedAt: '2026-03-01T00:00:00Z' };
+    const old2 = { id: 'b', updatedAt: '2026-01-01T00:00:00Z' };
+    const recent = { id: 'c', updatedAt: '2026-06-11T00:00:00Z' };
+    expect(pickRevisitNote([old1, old2, recent], opts)?.id).toBe('b');
+  });
+
+  it('excludes the continue note', () => {
+    const oldest = { id: 'a', updatedAt: '2026-01-01T00:00:00Z' };
+    const next = { id: 'b', updatedAt: '2026-02-01T00:00:00Z' };
+    expect(pickRevisitNote([oldest, next], { ...opts, excludeId: 'a' })?.id).toBe('b');
+  });
+
+  it('uses the most-recent of the timestamps when judging age', () => {
+    // created long ago but visited yesterday → too fresh to resurface
+    const revived = { id: 'a', createdAt: '2026-01-01T00:00:00Z', lastVisited: '2026-06-11T00:00:00Z' };
+    expect(pickRevisitNote([revived], opts)).toBeUndefined();
+  });
+});
+
+describe('pickSpotlightThread', () => {
+  const thread = (overrides: Partial<HomeThreadInput> & { id: string }): HomeThreadInput => ({
+    title: null,
+    suggestedTitle: 'A thread',
+    hasCustomTitle: false,
+    noteCount: 3,
+    ...overrides,
+  });
+
+  it('returns the top titled cluster', () => {
+    const top = pickSpotlightThread([
+      thread({ id: 'a', suggestedTitle: 'Small', noteCount: 2 }),
+      thread({ id: 'b', suggestedTitle: 'Big', noteCount: 6 }),
+    ]);
+    expect(top?.id).toBe('b');
+  });
+
+  it('skips the excluded (lead) thread', () => {
+    const top = pickSpotlightThread(
+      [
+        thread({ id: 'a', suggestedTitle: 'Lead', noteCount: 6 }),
+        thread({ id: 'b', suggestedTitle: 'Other', noteCount: 4 }),
+      ],
+      { excludeId: 'a' },
+    );
+    expect(top?.id).toBe('b');
+  });
+
+  it('returns undefined when only single-note or untitled clusters remain', () => {
+    expect(pickSpotlightThread([thread({ id: 'a', noteCount: 1 })])).toBeUndefined();
+  });
+});
+
+describe('countLooseNotes', () => {
+  it('counts only notes with no folder membership', () => {
+    const notes = [
+      { primaryCollection: 'Sermons' },
+      { primaryCollection: null },
+      { primaryCollection: null, secondaryCollections: ['Prayer'] },
+      { primaryCollection: null },
+    ];
+    expect(countLooseNotes(notes)).toBe(2);
+  });
+
+  it('returns 0 for an empty list', () => {
+    expect(countLooseNotes([])).toBe(0);
   });
 });
 
@@ -107,6 +195,96 @@ describe('deriveTopFolders', () => {
       { name: 'Salvation', noteCount: 2 },
       { name: 'Grace', noteCount: 1 },
     ]);
+  });
+});
+
+describe('deriveTopThread', () => {
+  const thread = (overrides: Partial<HomeThreadInput> & { id: string }): HomeThreadInput => ({
+    title: null,
+    suggestedTitle: 'Some thread',
+    hasCustomTitle: false,
+    noteCount: 3,
+    ...overrides,
+  });
+
+  it('returns empty for no qualifying threads', () => {
+    expect(deriveTopThread([])).toEqual([]);
+    // single-note "thread" is not a real cluster
+    expect(deriveTopThread([thread({ id: 'a', noteCount: 1 })])).toEqual([]);
+  });
+
+  it('skips threads without a usable title', () => {
+    expect(deriveTopThread([thread({ id: 'a', suggestedTitle: '', hasCustomTitle: false })])).toEqual([]);
+  });
+
+  it('prefers a manual title when hasCustomTitle', () => {
+    const [top] = deriveTopThread([
+      thread({ id: 'a', title: 'Romans & Grace', suggestedTitle: 'Auto title', hasCustomTitle: true }),
+    ]);
+    expect(top).toEqual({ id: 'a', title: 'Romans & Grace', noteCount: 3 });
+  });
+
+  it('sorts by note count desc, then recency', () => {
+    const [top] = deriveTopThread([
+      thread({ id: 'a', suggestedTitle: 'Smaller', noteCount: 2 }),
+      thread({ id: 'b', suggestedTitle: 'Bigger', noteCount: 5 }),
+    ]);
+    expect(top?.id).toBe('b');
+  });
+});
+
+describe('selectHomeLeadTheme', () => {
+  const thread: HomeTopThread = { id: 't1', title: 'Romans & Grace', noteCount: 4 };
+  const returningPassage: HomeTopPassage = { passageKey: 'jn3', displayRef: 'John 3:16', bookOrder: 43, referenceCount: 5 };
+  const oncePassage: HomeTopPassage = { ...returningPassage, referenceCount: 1 };
+  const folder: HomeTopFolder = { name: 'Sermons', noteCount: 6 };
+  const tag: HomeTopTag = { id: 'g1', name: 'Grace', noteCount: 4 };
+  const base = { noteCount: 20, hasMoreNotes: true, today: new Date(2026, 5, 10) };
+
+  it('returns none when nothing is available', () => {
+    expect(selectHomeLeadTheme(base)).toEqual({ kind: 'none' });
+  });
+
+  it('falls back to strict priority when fewer than two strong signals', () => {
+    // only a weak (mentioned-once) passage + weak folder/tag (noteCount 1)
+    const result = selectHomeLeadTheme({
+      ...base,
+      passage: oncePassage,
+      folder: { name: 'Misc', noteCount: 1 },
+      tag: { id: 'x', name: 'misc', noteCount: 1 },
+    });
+    expect(result).toEqual({ kind: 'passage', passage: oncePassage, tone: 'mentioned-once' });
+  });
+
+  it('always prefers a thread when it is the only strong signal', () => {
+    expect(selectHomeLeadTheme({ ...base, thread, folder: { name: 'Misc', noteCount: 1 } })).toEqual({
+      kind: 'thread',
+      thread,
+    });
+  });
+
+  it('rotates the lead across strong signals by calendar day', () => {
+    const input = { ...base, thread, passage: returningPassage, folder, tag };
+    // three strong candidates in priority order: thread, passage, folder, tag → 4 strong here
+    const day0 = selectHomeLeadTheme({ ...input, today: new Date(2026, 5, 8) }); // dayIndex % 4
+    const day1 = selectHomeLeadTheme({ ...input, today: new Date(2026, 5, 9) });
+    const day2 = selectHomeLeadTheme({ ...input, today: new Date(2026, 5, 10) });
+    const day3 = selectHomeLeadTheme({ ...input, today: new Date(2026, 5, 11) });
+    const kinds = [day0, day1, day2, day3].map((t) => t.kind);
+    // four consecutive days cycle through the four strong kinds in order
+    expect(new Set(kinds).size).toBe(4);
+    // stable: same day → same pick
+    expect(selectHomeLeadTheme({ ...input, today: new Date(2026, 5, 10) })).toEqual(day2);
+  });
+
+  it('surfaces the single-note passage tone', () => {
+    const result = selectHomeLeadTheme({
+      noteCount: 1,
+      hasMoreNotes: false,
+      today: new Date(2026, 5, 10),
+      passage: oncePassage,
+    });
+    expect(result).toEqual({ kind: 'passage', passage: oncePassage, tone: 'single-note' });
   });
 });
 
@@ -234,10 +412,10 @@ describe('formatActivityRhythm', () => {
 });
 
 describe('formatHomeActivitySummary', () => {
-  it('prefers rhythm over streak when both exist', () => {
+  it('prefers streak over rhythm when both exist', () => {
     expect(
       formatHomeActivitySummary({ dayOfWeek: 6, hour: 13 }, { unit: 'week', count: 3 }),
-    ).toBe('You\'re usually here on Saturdays at 1 PM.');
+    ).toBe("You've shown up 3 weeks in a row.");
   });
 
   it('returns rhythm-only when streak is absent', () => {
@@ -336,123 +514,5 @@ describe('homePassageGreetingTone', () => {
     expect(
       homePassageGreetingTone({ noteCount: 1, hasMoreNotes: true, referenceCount: 1 }),
     ).toBe('mentioned-once');
-  });
-});
-
-describe('pickHomeEncouragement', () => {
-  const today = new Date(2026, 5, 10, 12, 0, 0);
-
-  const base = {
-    noteCount: 5,
-    hasMoreNotes: false,
-    streak: null as { unit: 'day' | 'week'; count: number } | null,
-    hasTopPassage: false,
-    hour: 14,
-    today,
-  };
-
-  it('returns the first-note closer for a single note with no pagination', () => {
-    expect(pickHomeEncouragement({ ...base, noteCount: 1 })).toBe('It\'s a start.');
-  });
-
-  it('does not treat 1+ notes as first-note', () => {
-    expect(pickHomeEncouragement({ ...base, noteCount: 1, hasMoreNotes: true })).not.toBe(
-      'It\'s a start.',
-    );
-  });
-
-  it('returns week-streak closers by tier when streak is not in the greeting body', () => {
-    expect(pickHomeEncouragement({ ...base, streak: { unit: 'week', count: 2 } })).toBe(
-      'Two weeks now. That adds up.',
-    );
-    expect(pickHomeEncouragement({ ...base, streak: { unit: 'week', count: 3 } })).toBe(
-      'Week after week. That adds up.',
-    );
-    expect(pickHomeEncouragement({ ...base, streak: { unit: 'week', count: 5 } })).toBe(
-      'Week after week. That adds up.',
-    );
-  });
-
-  it('returns day-streak closers by tier when streak is not in the greeting body', () => {
-    expect(pickHomeEncouragement({ ...base, streak: { unit: 'day', count: 2 } })).toBe(
-      'Good to see you keeping at it.',
-    );
-    expect(pickHomeEncouragement({ ...base, streak: { unit: 'day', count: 6 } })).toBe(
-      'Good to see you keeping at it.',
-    );
-    expect(pickHomeEncouragement({ ...base, streak: { unit: 'day', count: 7 } })).toBe('Day after day. That adds up.');
-  });
-
-  it('skips streak closers when streak is already shown in the greeting body', () => {
-    expect(
-      pickHomeEncouragement({
-        ...base,
-        streak: { unit: 'week', count: 3 },
-        streakShownInGreeting: true,
-        hasTopPassage: true,
-      }),
-    ).toBe('Those are worth sitting with.');
-    expect(
-      pickHomeEncouragement({
-        ...base,
-        streak: { unit: 'day', count: 5 },
-        streakShownInGreeting: true,
-        hour: 18,
-      }),
-    ).toBe('Good place to stop for tonight.');
-  });
-
-  it('returns the passage closer when there is no streak', () => {
-    expect(pickHomeEncouragement({ ...base, hasTopPassage: true })).toBe(
-      'Those are worth sitting with.',
-    );
-  });
-
-  it('returns evening and morning closers when there is no streak or passage', () => {
-    expect(pickHomeEncouragement({ ...base, hour: 18 })).toBe('Good place to stop for tonight.');
-    expect(pickHomeEncouragement({ ...base, hour: 23 })).toBe('Good place to stop for tonight.');
-    expect(pickHomeEncouragement({ ...base, hour: 11 })).toBe('Nice way to open the day.');
-  });
-
-  it('prefers streak over time-of-day and passage', () => {
-    expect(
-      pickHomeEncouragement({
-        ...base,
-        streak: { unit: 'day', count: 3 },
-        hasTopPassage: true,
-        hour: 18,
-      }),
-    ).toBe('Good to see you keeping at it.');
-  });
-
-  it('prefers first note over streak', () => {
-    expect(
-      pickHomeEncouragement({
-        ...base,
-        noteCount: 1,
-        streak: { unit: 'week', count: 4 },
-      }),
-    ).toBe('It\'s a start.');
-  });
-
-  it('returns a stable daily pool pick for generic afternoon context', () => {
-    const pool = [
-      'Glad you\'re here.',
-      'It\'ll be here when you need it.',
-      'Keep at your own pace.',
-      'One thought at a time.',
-      'Worth coming back to.',
-      'Whenever you\'re ready.',
-    ];
-    const a = pickHomeEncouragement({ ...base, hour: 14, today: new Date(2026, 5, 10, 12, 0, 0) });
-    const b = pickHomeEncouragement({ ...base, hour: 15, today: new Date(2026, 5, 10, 18, 0, 0) });
-    expect(a).toBe(b);
-    expect(pool).toContain(a);
-  });
-
-  it('can change the pool pick on a different calendar day', () => {
-    const dayA = pickHomeEncouragement({ ...base, hour: 14, today: new Date(2026, 5, 10, 12, 0, 0) });
-    const dayB = pickHomeEncouragement({ ...base, hour: 14, today: new Date(2026, 5, 11, 12, 0, 0) });
-    expect(dayA).not.toBe(dayB);
   });
 });
