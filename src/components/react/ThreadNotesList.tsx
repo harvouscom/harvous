@@ -14,6 +14,7 @@ import { useListKeyboardRoving } from '@/hooks/useListKeyboardRoving';
 import { buildAPIUrl, referrerMatchesPattern } from '@/utils/safe-url';
 import { idToUrl, extractIdFromPath, detectEntityTypeFromPath } from '@/utils/url-helpers';
 import { deleteNoteOffline } from '@/utils/offline-mutations';
+import { clearStudyDockStackLocalCache } from '@/utils/study-dock-stack';
 import { getPersistedUserId } from '@/utils/user-id';
 import { getNotesForThreadLocal } from '@/utils/offline-read-layer';
 import { isNetworkError } from '@/utils/network';
@@ -1224,6 +1225,7 @@ export default function ThreadNotesList({
         return newSet;
       });
       setNotes(prev => prev.filter(note => note.id !== noteToDelete.id));
+      clearStudyDockStackLocalCache(noteToDelete.id);
       
       // Show success message immediately for offline-first experience
       if ((window as any).toast) {

@@ -23,6 +23,11 @@ import { isOnboardingThread } from "@/utils/last-visited-sections";
 import { stripHtmlForCard } from "@/utils/html-stripper";
 import { MY_PILE_THREAD_TITLE } from "@/utils/my-pile-thread";
 import { parseNoteSecondaryCollections } from './note-secondary-collections';
+import {
+  NOT_ONBOARDING_NOTES_THREAD,
+  NOT_ONBOARDING_SYSTEM_NOTES,
+  NOT_ONBOARDING_THREADS,
+} from './purge-onboarding-content';
 
 // ─── Private helpers ────────────────────────────────────────────────────────────
 
@@ -138,7 +143,8 @@ export async function getAllThreadsWithCounts(userId: string) {
     .from(Threads)
     .where(and(
       eq(Threads.userId, userId),
-      ne(Threads.id, "thread_unorganized")
+      ne(Threads.id, "thread_unorganized"),
+      NOT_ONBOARDING_THREADS,
     ))
     .orderBy(
       desc(Threads.isPinned),
@@ -455,7 +461,7 @@ export async function getThreadsWithCountsLimited(userId: string, limit?: number
       lastVisited: Threads.lastVisited,
     })
     .from(Threads)
-    .where(and(eq(Threads.userId, userId), ne(Threads.id, "thread_unorganized")))
+    .where(and(eq(Threads.userId, userId), ne(Threads.id, "thread_unorganized"), NOT_ONBOARDING_THREADS))
     .orderBy(
       desc(Threads.isPinned),
       asc(sql`CASE WHEN ${Threads.lastVisited} IS NOT NULL THEN 0 ELSE 1 END`),
@@ -975,8 +981,19 @@ export async function getAssignedNotesForDashboard(userId: string, limit = 10) {
   try {
     const unorganizedThread = await findUnorganizedThread(userId);
     const whereClause = unorganizedThread
-      ? and(eq(Notes.userId, userId), ne(Notes.noteType, 'scripture'), ne(Notes.threadId, unorganizedThread.id))
-      : and(eq(Notes.userId, userId), ne(Notes.noteType, 'scripture'));
+      ? and(
+          eq(Notes.userId, userId),
+          ne(Notes.noteType, 'scripture'),
+          ne(Notes.threadId, unorganizedThread.id),
+          NOT_ONBOARDING_NOTES_THREAD,
+          NOT_ONBOARDING_SYSTEM_NOTES,
+        )
+      : and(
+          eq(Notes.userId, userId),
+          ne(Notes.noteType, 'scripture'),
+          NOT_ONBOARDING_NOTES_THREAD,
+          NOT_ONBOARDING_SYSTEM_NOTES,
+        );
 
     const notes = await db.select(NOTE_SELECT_COLUMNS)
       .from(Notes).where(whereClause)
@@ -1411,6 +1428,8 @@ export async function getNotesForSpace(
     const spaceWhere = and(
       eq(Notes.spaceId, spaceId),
       eq(Notes.userId, userId),
+      NOT_ONBOARDING_NOTES_THREAD,
+      NOT_ONBOARDING_SYSTEM_NOTES,
       ...(options?.excludeLegacyScriptureNotes ? [ne(Notes.noteType, 'scripture')] : []),
     );
     const allNotes = chronological

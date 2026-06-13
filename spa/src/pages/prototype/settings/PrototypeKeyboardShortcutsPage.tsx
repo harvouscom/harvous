@@ -1,19 +1,14 @@
 import React from 'react';
 import ShortcutKeycap from '@/components/react/ShortcutKeycap';
 import { getPrototypeKeyboardShortcutsReference } from '@/utils/keyboard-shortcuts';
-import { SettingsShell } from './SettingsShell';
+import { SettingsIntro, SettingsShell } from './SettingsShell';
 
 export default function PrototypeKeyboardShortcutsPage() {
   const shortcutGroups = getPrototypeKeyboardShortcutsReference();
 
   return (
-    <SettingsShell title="Keyboard shortcuts">
-      <p className="pds-caption" style={{ margin: '0 0 16px', color: 'var(--pds-text-secondary)' }}>
-        Prototype shortcuts use Shift plus a letter or symbol. Hold Shift alone for a moment to see letter hints
-        on toolbar buttons (Shift is implied). In the note body, Enter starts a new paragraph and Shift+Enter
-        adds a line break inside the current paragraph. Shell shortcuts below apply when focus is outside the
-        editor.
-      </p>
+    <SettingsShell>
+      <SettingsIntro>Hold Shift to see shortcut hints on toolbar buttons.</SettingsIntro>
       <div className="proto-shortcuts-page">
         {shortcutGroups.map((group, groupIndex) => (
           <React.Fragment key={group.heading}>

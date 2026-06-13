@@ -86,6 +86,7 @@ struct SidebarPanelView: View {
     @State private var renameTarget: HarvousFolderRow?
     @State private var renameDraft: String = ""
     @State private var removeConfirmRow: HarvousFolderRow?
+    @State private var folderDrillMemberCountPrev: Int? = nil
     @FocusState private var searchFieldFocused: Bool
     #if os(macOS)
     @State private var sidebarColumnMeasuredWidth: CGFloat = 0
@@ -107,6 +108,14 @@ struct SidebarPanelView: View {
 
     private var folderRows: [HarvousFolderRow] {
         HarvousFolderListIndex.rows(from: notesInActiveSpace)
+    }
+
+    private var activeFolderBucketMemberCount: Int? {
+        guard mode == .folders else { return nil }
+        if case .bucket(let key) = foldersDrill {
+            return HarvousFolderListIndex.memberCount(in: notesInActiveSpace, bucket: key)
+        }
+        return nil
     }
 
     private var threadClusters: [ThreadStore.NoteCluster] {
@@ -744,6 +753,25 @@ struct SidebarPanelView: View {
                     scriptureDrill = .root
                 }
             }
+            .onChange(of: foldersDrill) { _, _ in
+                folderDrillMemberCountPrev = nil
+            }
+            .onChange(of: activeFolderBucketMemberCount) { _, count in
+                guard let count else {
+                    folderDrillMemberCountPrev = nil
+                    return
+                }
+                if let prev = folderDrillMemberCountPrev, prev > 0, count == 0 {
+                    let bucketKey: String?
+                    if case .bucket(let key) = foldersDrill {
+                        bucketKey = key
+                    } else {
+                        bucketKey = nil
+                    }
+                    dismissEmptyFolderDrillIfNeeded(bucket: bucketKey)
+                }
+                folderDrillMemberCountPrev = count
+            }
             .onAppear {
                 reloadPinnedFolderOrder()
             }
@@ -835,6 +863,16 @@ struct SidebarPanelView: View {
         HarvousPinnedFoldersStore.removePinId(row.id, spaceId: sid)
         reloadPinnedFolderOrder()
         removeConfirmRow = nil
+    }
+
+    private func dismissEmptyFolderDrillIfNeeded(bucket: String?) {
+        foldersDrill = .root
+        folderListSearchText = ""
+        if let bucket {
+            let sid = spaceStore.activeSpaceUUID()
+            HarvousPinnedFoldersStore.removePinId(bucket, spaceId: sid)
+            reloadPinnedFolderOrder()
+        }
     }
 
     @ViewBuilder

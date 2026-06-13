@@ -332,7 +332,7 @@ export default function HighlightDockWeb({
       }
     >
       <div className="highlight-dock-web__body">
-        {entryKind === 'miniNote' ? (
+        {entryKind === 'miniNote' || entryKind === 'scriptureLink' ? (
           <textarea
             className="highlight-dock-web__mini-note"
             value={miniNoteBody}

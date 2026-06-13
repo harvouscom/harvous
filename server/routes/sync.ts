@@ -52,6 +52,12 @@ import { deleteSingleNoteCascadeForUser } from '../utils/delete-note-cascade';
 import { loadDeletedEntitiesSince, recordDeletedEntities } from '../utils/sync-deletion-log';
 import { broadcastInvalidationForSyncPush } from '../utils/realtime';
 import { getOrCreateTag, noteHasTagWithNormalizedName } from '../utils/tag-helpers';
+import {
+  NOT_ONBOARDING_NOTES_THREAD,
+  NOT_ONBOARDING_SYSTEM_NOTES,
+  NOT_ONBOARDING_THREADS,
+  NOT_ONBOARDING_JUNCTION_THREAD,
+} from '../utils/purge-onboarding-content';
 
 const app = new Hono();
 
@@ -740,7 +746,7 @@ app.get('/api/sync/bootstrap', requireAuth, async (c) => {
         id: Threads.id, title: Threads.title, subtitle: Threads.subtitle, spaceId: Threads.spaceId,
         color: Threads.color, isPublic: Threads.isPublic, isPinned: Threads.isPinned, order: Threads.order,
         lastVisited: Threads.lastVisited, createdAt: Threads.createdAt, updatedAt: Threads.updatedAt,
-      }).from(Threads).where(eq(Threads.userId, auth.userId)),
+      }).from(Threads).where(and(eq(Threads.userId, auth.userId), NOT_ONBOARDING_THREADS)),
 
       db.select({
         id: Notes.id, title: Notes.title, content: Notes.content, threadId: Notes.threadId,
@@ -758,7 +764,12 @@ app.get('/api/sync/bootstrap', requireAuth, async (c) => {
         studyThreadUserOverride: Notes.studyThreadUserOverride,
         studyThreadPinned: Notes.studyThreadPinned,
         studyThreadLastAutoSuggestedAt: Notes.studyThreadLastAutoSuggestedAt,
-      }).from(Notes).where(and(eq(Notes.userId, auth.userId), ne(Notes.noteType, 'scripture')))
+      }).from(Notes).where(and(
+        eq(Notes.userId, auth.userId),
+        ne(Notes.noteType, 'scripture'),
+        NOT_ONBOARDING_NOTES_THREAD,
+        NOT_ONBOARDING_SYSTEM_NOTES,
+      ))
         // Newest-first so the most relevant notes are included when a user has more
         // than the cap; fetch one extra to detect truncation.
         .orderBy(desc(sql`coalesce(${Notes.updatedAt}, ${Notes.createdAt})`))
@@ -768,7 +779,11 @@ app.get('/api/sync/bootstrap', requireAuth, async (c) => {
         id: NoteThreads.id, noteId: NoteThreads.noteId, threadId: NoteThreads.threadId,
         createdAt: NoteThreads.createdAt,
       }).from(NoteThreads).innerJoin(Notes, eq(Notes.id, NoteThreads.noteId))
-        .where(eq(Notes.userId, auth.userId)),
+        .where(and(
+          eq(Notes.userId, auth.userId),
+          NOT_ONBOARDING_NOTES_THREAD,
+          NOT_ONBOARDING_JUNCTION_THREAD,
+        )),
 
       (async () => {
         try {
@@ -919,7 +934,11 @@ app.get('/api/sync/changes', requireAuth, async (c) => {
         id: Threads.id, title: Threads.title, subtitle: Threads.subtitle, spaceId: Threads.spaceId,
         color: Threads.color, isPublic: Threads.isPublic, isPinned: Threads.isPinned, order: Threads.order,
         lastVisited: Threads.lastVisited, createdAt: Threads.createdAt, updatedAt: Threads.updatedAt,
-      }).from(Threads).where(and(eq(Threads.userId, auth.userId), or(gt(Threads.updatedAt, sinceDate), gt(Threads.createdAt, sinceDate), gt(Threads.lastVisited, sinceDate)))),
+      }).from(Threads).where(and(
+        eq(Threads.userId, auth.userId),
+        NOT_ONBOARDING_THREADS,
+        or(gt(Threads.updatedAt, sinceDate), gt(Threads.createdAt, sinceDate), gt(Threads.lastVisited, sinceDate)),
+      )),
 
       db.select({
         id: Notes.id, title: Notes.title, content: Notes.content, threadId: Notes.threadId,
@@ -937,7 +956,13 @@ app.get('/api/sync/changes', requireAuth, async (c) => {
         studyThreadUserOverride: Notes.studyThreadUserOverride,
         studyThreadPinned: Notes.studyThreadPinned,
         studyThreadLastAutoSuggestedAt: Notes.studyThreadLastAutoSuggestedAt,
-      }).from(Notes).where(and(eq(Notes.userId, auth.userId), ne(Notes.noteType, 'scripture'), or(gt(Notes.updatedAt, sinceDate), gt(Notes.createdAt, sinceDate), gt(Notes.lastVisited, sinceDate))))
+      }).from(Notes).where(and(
+        eq(Notes.userId, auth.userId),
+        ne(Notes.noteType, 'scripture'),
+        NOT_ONBOARDING_NOTES_THREAD,
+        NOT_ONBOARDING_SYSTEM_NOTES,
+        or(gt(Notes.updatedAt, sinceDate), gt(Notes.createdAt, sinceDate), gt(Notes.lastVisited, sinceDate)),
+      ))
         // Oldest-first + cap so a large backlog is paged: the cursor below resumes
         // from the last returned note's timestamp (no data loss; next sync catches up).
         .orderBy(asc(sql`coalesce(${Notes.updatedAt}, ${Notes.createdAt})`))
@@ -946,7 +971,12 @@ app.get('/api/sync/changes', requireAuth, async (c) => {
       db.select({
         id: NoteThreads.id, noteId: NoteThreads.noteId, threadId: NoteThreads.threadId, createdAt: NoteThreads.createdAt,
       }).from(NoteThreads).innerJoin(Notes, eq(Notes.id, NoteThreads.noteId))
-        .where(and(eq(Notes.userId, auth.userId), gt(NoteThreads.createdAt, sinceDate))),
+        .where(and(
+          eq(Notes.userId, auth.userId),
+          NOT_ONBOARDING_NOTES_THREAD,
+          NOT_ONBOARDING_JUNCTION_THREAD,
+          gt(NoteThreads.createdAt, sinceDate),
+        )),
 
       (async () => {
         try {

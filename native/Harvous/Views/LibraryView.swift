@@ -19,6 +19,7 @@ struct LibraryView: View {
     @State private var renameTarget: HarvousFolderRow?
     @State private var renameDraft: String = ""
     @State private var removeConfirmRow: HarvousFolderRow?
+    @State private var folderDrillMemberCountPrev: Int? = nil
 
     /// Drill state lives on `HarvousAppRouter.iosFoldersDrill` so the bottom-chrome chip can read it.
     private var foldersDrill: HarvousIOSFoldersDrill {
@@ -38,6 +39,13 @@ struct LibraryView: View {
 
     private var folderRows: [HarvousFolderRow] {
         HarvousFolderListIndex.rows(from: notesInActiveSpace)
+    }
+
+    private var activeFolderBucketMemberCount: Int? {
+        if case .bucket(let key) = foldersDrill {
+            return HarvousFolderListIndex.memberCount(in: notesInActiveSpace, bucket: key)
+        }
+        return nil
     }
 
     private var filteredFolderRows: [HarvousFolderRow] {
@@ -111,6 +119,25 @@ struct LibraryView: View {
         }
         .onAppear { reloadPinnedFolderOrder() }
         .onChange(of: spaceStore.selectedSpaceId) { _, _ in reloadPinnedFolderOrder() }
+        .onChange(of: appRouter.iosFoldersDrill) { _, _ in
+            folderDrillMemberCountPrev = nil
+        }
+        .onChange(of: activeFolderBucketMemberCount) { _, count in
+            guard let count else {
+                folderDrillMemberCountPrev = nil
+                return
+            }
+            if let prev = folderDrillMemberCountPrev, prev > 0, count == 0 {
+                let bucketKey: String?
+                if case .bucket(let key) = appRouter.iosFoldersDrill {
+                    bucketKey = key
+                } else {
+                    bucketKey = nil
+                }
+                dismissEmptyFolderDrillIfNeeded(bucket: bucketKey)
+            }
+            folderDrillMemberCountPrev = count
+        }
         .sheet(item: $renameTarget) { row in
             renameFolderSheet(for: row)
         }
@@ -192,6 +219,20 @@ struct LibraryView: View {
         HarvousPinnedFoldersStore.removePinId(row.id, spaceId: sid)
         reloadPinnedFolderOrder()
         removeConfirmRow = nil
+    }
+
+    private func dismissEmptyFolderDrillIfNeeded(bucket: String?) {
+        appRouter.iosFoldersDrill = .root
+        if let externalSearchText {
+            externalSearchText.wrappedValue = ""
+        } else {
+            fallbackSearchText = ""
+        }
+        if let bucket {
+            let sid = spaceStore.activeSpaceUUID()
+            HarvousPinnedFoldersStore.removePinId(bucket, spaceId: sid)
+            reloadPinnedFolderOrder()
+        }
     }
 
     @ViewBuilder

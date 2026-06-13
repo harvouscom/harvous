@@ -108,15 +108,20 @@ import { deriveHighlightFocusTitle } from '@/utils/study-thread-focus-title';
 import {
   closeDockEntry,
   collapseActiveScriptureIfActive,
+  deserializeStudyDockStack,
   emptyStudyDockStack,
+  isPersistableStudyDockNoteId,
   moveDockEntryToIndex,
   highlightDockStableKey,
   openOrFocusHighlight,
   openOrFocusReference,
   openOrFocusScripture,
   pruneStudyDockStack,
+  scriptureDockStableKey,
+  serializeStudyDockStack,
   setActiveDockEntry,
   studyDockStackHasEntries,
+  studyDockStackStorageKey,
   updateDockEntry,
   type HighlightDockSession,
   type ReferenceDockSession,
@@ -346,6 +351,10 @@ function studyDockEntryStillValid(editor: any, entry: StudyDockEntry): boolean {
   }
   // Reference docks are user-dismissed (pending hints + saved references both persist while open).
   if (entry.kind === 'reference') return true;
+  // scriptureLink highlights are anchored to a persisted study thread, not an editor range
+  // (passage selections have range: null and no matching highlight mark in the doc). Keep them
+  // user-dismissed so the prune-on-update effect can't racily remove them.
+  if (entry.session.entryKind === 'scriptureLink') return true;
   const sid = entry.session.studyThreadEntryId;
   if (sid && findHighlightRangeByStudyThreadId(editor, sid)) return true;
   const range = entry.session.range;
@@ -3677,12 +3686,32 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
   /** Grace window after toolbar use so RAF-deferred parent content sync cannot clobber the editor. */
   const formatToolbarInteractionUntilRef = useRef(0);
   const skipScriptureDockDismissRef = useRef(false);
+  /** Pending RAF that clears the dock-dismiss suppression window (see suppressScriptureDockDismiss). */
+  const skipScriptureDockDismissRafRef = useRef<number | null>(null);
+  /**
+   * Open a short suppression window so a programmatic pill edit (e.g. verse-range rewrite) does not
+   * collapse the scripture dock. A single-consume boolean can't cover the *cascade* of selection
+   * updates one edit triggers (the rewrite + the caret-snap follow-up), so we keep the flag set for
+   * the rest of the frame and clear it on the next animation frame. Back-to-back calls re-arm the
+   * window rather than letting an earlier clear fire mid-cascade.
+   */
+  const suppressScriptureDockDismiss = useCallback(() => {
+    skipScriptureDockDismissRef.current = true;
+    if (skipScriptureDockDismissRafRef.current != null) {
+      cancelAnimationFrame(skipScriptureDockDismissRafRef.current);
+    }
+    skipScriptureDockDismissRafRef.current = requestAnimationFrame(() => {
+      skipScriptureDockDismissRef.current = false;
+      skipScriptureDockDismissRafRef.current = null;
+    });
+  }, []);
   /** Latest selection-bar evaluation fn, so a dock-stack change can re-run it without forcing the
    *  listener-registration effect (and its `editor.on`/`document` listeners) to tear down and rewire. */
   const runSelectionEvalRef = useRef<() => void>(() => {});
   const [studyDockStack, setStudyDockStack] = useState<StudyDockStack>(emptyStudyDockStack);
   const studyDockStackRef = useRef(studyDockStack);
   studyDockStackRef.current = studyDockStack;
+  const studyDockRehydratedForNoteRef = useRef<string | null>(null);
   const studyDockPortalTarget =
     studyDockCarouselPortalTarget ?? scriptureChromePortalTarget ?? highlightChromePortalTarget;
 
@@ -3695,7 +3724,10 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
   const [selectionExpanded, setSelectionExpanded] = useState(false);
   const [showFormatBarForActivity, setShowFormatBarForActivity] = useState(false);
   const [isPointerOverFormatToolbar, setIsPointerOverFormatToolbar] = useState(false);
+  /** Native `preferOrbChromeUntilNextFormatSignal` parity — suppress format bar after dock chrome relinquishes until body click/typing. */
+  const suppressFormatBarUntilBodySignalRef = useRef(false);
   const formatBarHideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const prevStudyDockChromeTakesOverRef = useRef(false);
   // Debounce timer for mobile scripture detection (mobile runs detection in onUpdate,
   // not the desktop space keydown handler). Referenced in onUpdate's mobile branch.
   const mobileScriptureDetectionTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -4663,6 +4695,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
 
   useEffect(() => {
     setStudyDockStack(emptyStudyDockStack());
+    studyDockRehydratedForNoteRef.current = null;
   }, [sourceNoteId]);
 
   // On note change / unmount: cancel the pending RAF and flush the latest HTML synchronously so
@@ -4693,6 +4726,22 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       }
     };
   }, [editor, editorChromeMode]);
+
+  useEffect(() => {
+    if (editorChromeMode !== 'prototypeNative') return;
+    if (!isPersistableStudyDockNoteId(sourceNoteId)) return;
+    if (studyDockRehydratedForNoteRef.current !== sourceNoteId) return;
+    try {
+      const key = studyDockStackStorageKey(sourceNoteId!);
+      if (studyDockStackHasEntries(studyDockStack)) {
+        localStorage.setItem(key, serializeStudyDockStack(studyDockStack));
+      } else {
+        localStorage.removeItem(key);
+      }
+    } catch {
+      /* ignore quota / disabled storage */
+    }
+  }, [studyDockStack, sourceNoteId, editorChromeMode]);
 
   // Hover preview card for scripture pills + note links (+ urlLink later in Phase A).
   // Adds a new affordance without changing existing click behavior.
@@ -5142,7 +5191,32 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
 
     const normalizedContent = normalizeEmptyBodyHtmlForEditor(content);
     const currentContent = editor.getHTML();
-    if (currentContent === normalizedContent) return;
+
+    const rehydrateStudyDockOnce = () => {
+      if (editorChromeMode !== 'prototypeNative') return;
+      if (!isPersistableStudyDockNoteId(sourceNoteId)) return;
+      if (studyDockRehydratedForNoteRef.current === sourceNoteId) return;
+      studyDockRehydratedForNoteRef.current = sourceNoteId!;
+      try {
+        const key = studyDockStackStorageKey(sourceNoteId!);
+        const stored = deserializeStudyDockStack(localStorage.getItem(key));
+        if (stored && studyDockStackHasEntries(stored)) {
+          const pruned = pruneStudyDockStack(stored, (e) => studyDockEntryStillValid(editor, e));
+          if (studyDockStackHasEntries(pruned)) {
+            setStudyDockStack(pruned);
+          } else {
+            localStorage.removeItem(key);
+          }
+        }
+      } catch {
+        /* ignore */
+      }
+    };
+
+    if (currentContent === normalizedContent) {
+      rehydrateStudyDockOnce();
+      return;
+    }
     if (isTiptapBodyEmpty(currentContent) && isTiptapBodyEmpty(content)) return;
 
     if (contentSyncWouldClobberInlineImage(currentContent, normalizedContent)) {
@@ -5190,6 +5264,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     }
 
     editor.commands.setContent(normalizedContent, { emitUpdate: false });
+    rehydrateStudyDockOnce();
 
     const needsCursorAfterScripturePill =
       isNewNoteEditor && content.includes('scripture-pill');
@@ -5430,7 +5505,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       const boundaries = resolveScripturePillDOMRange(editor, pillEl);
       if (!boundaries || cancelled) return;
       setTranslationPicker(null);
-      skipScriptureDockDismissRef.current = true;
+      suppressScriptureDockDismiss();
       const session: ScripturePillDockSession = {
         boundaries,
         reference: req.reference,
@@ -5484,7 +5559,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
             setTranslationPicker(null);
             const boundaries = resolveScripturePillDOMRange(editor, pillSpan);
             if (boundaries) {
-              skipScriptureDockDismissRef.current = true;
+              suppressScriptureDockDismiss();
               const session: ScripturePillDockSession = {
                 boundaries,
                 reference,
@@ -5781,10 +5856,9 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
 
     const dismissIfSelectionLeftPill = () => {
       if (!isEditorValid(editor)) return;
-      if (skipScriptureDockDismissRef.current) {
-        skipScriptureDockDismissRef.current = false;
-        return;
-      }
+      // Non-consuming guard: the suppression window (suppressScriptureDockDismiss) owns the reset
+      // on a RAF, so the whole cascade of selection updates from one programmatic edit is covered.
+      if (skipScriptureDockDismissRef.current) return;
       if (isPassageInteractionActive()) return;
       const stack = studyDockStackRef.current;
       const active = stack.entries.find((e) => e.id === stack.activeId);
@@ -5796,6 +5870,9 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
 
     const snapCaretOutsidePill = () => {
       if (!isEditorValid(editor)) return;
+      // Honor the suppression window: snapping during a programmatic apply dispatches its own
+      // transaction, which would emit a second selection update and collapse the dock.
+      if (skipScriptureDockDismissRef.current) return;
       if (isPassageInteractionActive()) return;
       const stack = studyDockStackRef.current;
       const active = stack.entries.find((e) => e.id === stack.activeId);
@@ -6178,6 +6255,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       setIsEditorFocused(true);
 
       if (editorChromeMode === 'prototypeNative') {
+        suppressFormatBarUntilBodySignalRef.current = false;
         bumpFormatToolbarActivity();
       }
     };
@@ -6319,6 +6397,21 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     };
   }, [editorChromeMode]);
 
+  /** Clear format-bar suppress when the user clicks the note body (focus may not re-fire if TipTap stayed focused). */
+  useEffect(() => {
+    if (!editor || editorChromeMode !== 'prototypeNative') return;
+    const dom = editor.view.dom;
+    const onBodyPointerDown = () => {
+      if (!suppressFormatBarUntilBodySignalRef.current) return;
+      suppressFormatBarUntilBodySignalRef.current = false;
+      editorWasFocusedForToolbarRef.current = true;
+      setIsEditorFocused(true);
+      bumpFormatToolbarActivity();
+    };
+    dom.addEventListener('mousedown', onBodyPointerDown);
+    return () => dom.removeEventListener('mousedown', onBodyPointerDown);
+  }, [editor, editorChromeMode, bumpFormatToolbarActivity]);
+
   /** Pill delete when DOM focus moved to study-dock chrome but editor selection is still valid. */
   useEffect(() => {
     if (!editor || editorChromeMode !== 'prototypeNative') return;
@@ -6418,6 +6511,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
 
     const onDocUpdate = ({ transaction }: { transaction: { docChanged: boolean } }) => {
       if (!transaction.docChanged) return;
+      suppressFormatBarUntilBodySignalRef.current = false;
       bumpFormatToolbarActivity();
     };
 
@@ -6504,8 +6598,24 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     (studyDockStack.entries.some((e) => e.expanded) ||
       deleteConfirmPill != null);
 
+  if (editorChromeMode !== 'prototypeNative') {
+    suppressFormatBarUntilBodySignalRef.current = false;
+    prevStudyDockChromeTakesOverRef.current = false;
+  } else {
+    const wasTakingOver = prevStudyDockChromeTakesOverRef.current;
+    if (wasTakingOver && !studyDockChromeTakesOver) {
+      suppressFormatBarUntilBodySignalRef.current = true;
+      if (formatBarHideTimerRef.current) {
+        clearTimeout(formatBarHideTimerRef.current);
+        formatBarHideTimerRef.current = null;
+      }
+    }
+    prevStudyDockChromeTakesOverRef.current = studyDockChromeTakesOver;
+  }
+
   const formatToolbarEngaged =
-    isEditorFocused || showFormatBarForActivity || isPointerOverFormatToolbar;
+    !suppressFormatBarUntilBodySignalRef.current &&
+    (isEditorFocused || showFormatBarForActivity || isPointerOverFormatToolbar);
 
   const shouldShowPrototypeFormatToolbar =
     editorChromeMode === 'prototypeNative' && formatToolbarEngaged && !studyDockChromeTakesOver;
@@ -7681,7 +7791,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                       }}
                       onPillAccentChange={(nextAccent) => {
                         if (!editor || !isEditorValid(editor) || entry.kind !== 'scripture') return;
-                        skipScriptureDockDismissRef.current = true;
+                        suppressScriptureDockDismiss();
                         if (contentPropagateRafRef.current != null) {
                           cancelAnimationFrame(contentPropagateRafRef.current);
                           contentPropagateRafRef.current = null;
@@ -7793,7 +7903,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                           // The rewrite moves the caret; suppress the selectionUpdate
                           // collapse handler for this one programmatic change so editing the
                           // reference from the dock doesn't collapse the card.
-                          skipScriptureDockDismissRef.current = true;
+                          suppressScriptureDockDismiss();
                           editor.view.dispatch(tr);
 
                           const html = noteHtmlFromEditor(editor, true);
@@ -7827,6 +7937,9 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                               e.kind === 'scripture'
                                 ? {
                                     ...e,
+                                    // Keep stableKey in sync with the rewritten pill so re-clicking
+                                    // the pill focuses this entry instead of spawning a duplicate.
+                                    stableKey: scriptureDockStableKey(normRef, resolved),
                                     session: {
                                       ...e.session,
                                       reference: normRef,

@@ -5,6 +5,7 @@ import { safeNavigate } from '@/utils/safe-navigate';
 import EraseConfirmDialog from './EraseConfirmDialog';
 import ButtonSmall from './ButtonSmall';
 import { deleteNoteOffline, deleteSpaceOffline } from '@/utils/offline-mutations';
+import { clearStudyDockStackLocalCache } from '@/utils/study-dock-stack';
 import { safeFetch } from '@/utils/safe-fetch';
 import { idToUrl } from '@/utils/url-helpers';
 import { isNetworkError } from '@/utils/network';
@@ -487,6 +488,7 @@ export default function Menu({
         try {
           if (contentType === 'note') {
             await deleteNoteOffline(userId, contentId);
+            clearStudyDockStackLocalCache(contentId);
             deletedOffline = true;
           } else if (contentType === 'space') {
             await deleteSpaceOffline(userId, contentId);
@@ -575,6 +577,9 @@ export default function Menu({
       }
 
       if (response && response.ok) {
+        if (contentType === 'note') {
+          clearStudyDockStackLocalCache(contentId);
+        }
         if (data?.success && typeof data.success === 'string') {
           successMessage = data.success;
         }

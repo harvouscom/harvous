@@ -21,7 +21,8 @@ import type { PrototypeNotesListPhase } from '@/utils/prototype-notes-list-phase
 import { isPrototypeHomeContentReady, isQuerySettled } from '@/utils/prototype-home-ready';
 import {
   computeActivityRhythm,
-  computeActivityStreak,
+  computeLastActivityTime,
+  countWeeklyActivityDays,
   countLooseNotes,
   deriveTopBooks,
   deriveTopFolders,
@@ -30,6 +31,9 @@ import {
   formatHomeActivityLeadSuffix,
   formatHomeNoteCount,
   greetingForHour,
+  homeContinueCardEyebrow,
+  homeLeadCopyLayout,
+  homeSpotlightThreadEyebrow,
   pickContinueNote,
   pickRevisitNote,
   pickSpotlightThread,
@@ -130,14 +134,22 @@ function HomeGreeting({
     return cached || '';
   }, [profile]);
 
-  const streak = useMemo(() => computeActivityStreak(notes, new Date()), [notes]);
   const rhythm = useMemo(() => computeActivityRhythm(notes), [notes]);
+  const weeklyDays = useMemo(() => countWeeklyActivityDays(notes, new Date()), [notes]);
+  const lastActivityMs = useMemo(() => computeLastActivityTime(notes), [notes]);
   const season = useMemo(() => currentLiturgicalSeason(new Date()), []);
 
   const hello = `${greetingForHour(new Date().getHours())}${firstName ? `, ${firstName}` : ''}.`;
   const activityTail = useMemo(
-    () => formatHomeActivityLeadSuffix(rhythm, streak),
-    [rhythm, streak],
+    () =>
+      formatHomeActivityLeadSuffix({
+        rhythm,
+        weeklyDays,
+        lastActivityMs,
+        now: new Date(),
+        totalNoteCount: countForLogic,
+      }),
+    [rhythm, weeklyDays, lastActivityMs, countForLogic],
   );
   const savedSoFarEnd = activityTail ? <>, {activityTail}.</> : <>.</>;
 
@@ -248,30 +260,51 @@ function HomeGreeting({
       </button>
     ) : null;
 
+  const layout = homeLeadCopyLayout(lead);
+  const subjectChip = threadChip || bookChip || folderChip || tagChip;
+
   const leadSentence = (() => {
-    switch (lead.kind) {
-      case 'thread':
-        return <>You&apos;ve been working through {threadChip}, with {countChip} saved so far{savedSoFarEnd}</>;
-      case 'book':
-        if (lead.tone === 'single-note') {
-          return (
+    if (lead.kind === 'book' && lead.tone === 'single-note') {
+      return (
+        <>
+          {layout.beforeChip}
+          {bookChip}
+          {singleNoteAddedRel ? <> {singleNoteAddedRel}</> : null}.
+          {layout.showCount ? (
             <>
-              You added {bookChip}
-              {singleNoteAddedRel ? <> {singleNoteAddedRel}</> : null}. {countChip} saved so far{savedSoFarEnd}
+              {' '}
+              {countChip} saved so far{savedSoFarEnd}
             </>
-          );
-        }
-        if (lead.tone === 'mentioned-once') {
-          return <>{bookChip} shows up in your notes, with {countChip} saved so far{savedSoFarEnd}</>;
-        }
-        return <>You keep coming back to {bookChip}, with {countChip} saved so far{savedSoFarEnd}</>;
-      case 'folder':
-        return <>{folderChip} keeps filling up, with {countChip} saved so far{savedSoFarEnd}</>;
-      case 'tag':
-        return <>{tagChip} keeps showing up in your notes, with {countChip} saved so far{savedSoFarEnd}</>;
-      default:
-        return <>You have {countChip} saved so far{savedSoFarEnd}</>;
+          ) : (
+            savedSoFarEnd
+          )}
+        </>
+      );
     }
+    if (lead.kind === 'none') {
+      return (
+        <>
+          {layout.beforeChip}
+          {countChip}
+          {layout.afterChip}
+          {savedSoFarEnd}
+        </>
+      );
+    }
+    return (
+      <>
+        {layout.beforeChip}
+        {subjectChip}
+        {layout.afterChip}
+        {layout.showCount ? (
+          <>
+            {countChip} saved so far{savedSoFarEnd}
+          </>
+        ) : (
+          savedSoFarEnd
+        )}
+      </>
+    );
   })();
 
   return (
@@ -386,10 +419,10 @@ export default function PrototypeSidebarHomeView({
   const highlights = highlightsQuery.data ?? [];
   const votd = votdQuery.data;
 
-  // Exact server total wins over the loaded-page count when present.
+  // When all pages are loaded, the flat list is authoritative; otherwise prefer server total.
   const exactTotal = noteTotal ?? null;
-  const countForLogic = exactTotal ?? notes.length;
-  const hasMoreForLogic = exactTotal != null ? false : hasMoreNotes;
+  const countForLogic = !hasMoreNotes ? notes.length : (exactTotal ?? notes.length);
+  const hasMoreForLogic = !hasMoreNotes ? false : exactTotal != null ? false : hasMoreNotes;
 
   const topThread = useMemo(() => deriveTopThread(threads, 1)[0], [threads]);
   const topBook = useMemo(() => deriveTopBooks(scriptureBooks, 1)[0], [scriptureBooks]);
@@ -470,7 +503,7 @@ export default function PrototypeSidebarHomeView({
       ) : continueNote ? (
         <div className="proto-home-section">
           <HomeNoteCard
-            eyebrow="Pick up where you left off"
+            eyebrow={homeContinueCardEyebrow(countForLogic)}
             iconName="pen-to-square"
             note={continueNote}
             onOpenNote={onOpenNote}
@@ -526,7 +559,9 @@ export default function PrototypeSidebarHomeView({
             className="proto-glass-surface proto-glass-surface--panel proto-home-card proto-home-card--tappable"
             onClick={() => openThread(spotlightThread.id)}
           >
-            <p className="proto-caption proto-home-card__eyebrow">Pick a study back up</p>
+            <p className="proto-caption proto-home-card__eyebrow">
+              {homeSpotlightThreadEyebrow(spotlightThread.noteCount)}
+            </p>
             <div className="proto-home-card__body">
               <div className="proto-home-card__title-row">
                 <span className="proto-home-card__icon-orb" aria-hidden>

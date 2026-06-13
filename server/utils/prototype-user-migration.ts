@@ -31,12 +31,14 @@ import {
 } from './note-secondary-collections';
 import { isPgUndefinedRelation } from './pg-undefined-relation';
 import { repairMissingNoteThreadJunctionsForUser } from './thread-junction-repair';
+import { purgeOnboardingContentForUser, type PurgeOnboardingResult, NOT_ONBOARDING_NOTES_THREAD, NOT_ONBOARDING_JUNCTION_THREAD } from './purge-onboarding-content';
 
 export interface PrototypeUserMigrationResult {
   junctionsRepaired: number;
   collectionsUpdated: number;
   connectionsMigrated: number;
   connectionsSkipped: number;
+  onboardingPurged: PurgeOnboardingResult;
 }
 
 function isSystemThreadId(threadId: string): boolean {
@@ -44,9 +46,7 @@ function isSystemThreadId(threadId: string): boolean {
 }
 
 /** Exclude per-user onboarding threads (`thread_onboarding_${userId}`). */
-const NOT_ONBOARDING_THREAD = sql`NOT starts_with(${Notes.threadId}::text, 'thread_onboarding_')`;
-
-const NOT_ONBOARDING_JUNCTION_THREAD = sql`NOT starts_with(${NoteThreads.threadId}::text, 'thread_onboarding_')`;
+const NOT_ONBOARDING_THREAD = NOT_ONBOARDING_NOTES_THREAD;
 
 /** Shared eligibility: no existing folder label or manual override. */
 function collectionBackfillEligible(): SQL[] {
@@ -390,10 +390,12 @@ export async function migrateLinkedFromNoteConnectionsForUser(userId: string): P
 
 /** Run migration steps for one authenticated user (additive only). */
 export async function runPrototypeUserMigration(userId: string): Promise<PrototypeUserMigrationResult> {
+  const onboardingPurged = await purgeOnboardingContentForUser(userId);
   const junctionsRepaired = await repairMissingNoteThreadJunctionsForUser(userId);
   const collectionsUpdated = await backfillCollectionsFromThreadsForUser(userId);
   const { migrated, skipped } = await migrateLinkedFromNoteConnectionsForUser(userId);
   return {
+    onboardingPurged,
     junctionsRepaired,
     collectionsUpdated,
     connectionsMigrated: migrated,

@@ -10,7 +10,7 @@ import {
 import { refreshClientData } from '../../../lib/refresh-client-data';
 import { clearStuckSyncQueue } from '@/utils/sync-manager';
 import { getPersistedUserId } from '@/utils/user-id';
-import { SettingsShell, SettingsGroup, SettingsRow } from './SettingsShell';
+import { SettingsGroup, SettingsIntro, SettingsRow, SettingsShell } from './SettingsShell';
 
 type ExportFormat = 'markdown' | 'csv-threads';
 type Busy =
@@ -234,7 +234,7 @@ export default function PrototypeDataPage() {
   };
 
   return (
-    <SettingsShell title="My Data">
+    <SettingsShell>
       <input
         ref={fileInputRef}
         type="file"
@@ -254,9 +254,7 @@ export default function PrototypeDataPage() {
         onChange={(e) => handleImportFiles(e.target.files)}
       />
 
-      <p className="pds-subheadline" style={{ color: 'var(--pds-text-secondary)', margin: '0 0 16px', padding: '0 12px' }}>
-        Export your study, bring notes in from a file, or remove your data.
-      </p>
+      <SettingsIntro>Export, import, or delete your data.</SettingsIntro>
 
       <div className="pds-inspector-label" style={{ padding: '0 12px 6px', textTransform: 'uppercase', color: 'var(--pds-text-tertiary)' }}>
         Export

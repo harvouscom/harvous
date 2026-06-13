@@ -44,7 +44,7 @@ export default function PrototypeAccountPage() {
   if (view === 'security') return <AccountSecurity onBack={back} />;
 
   return (
-    <SettingsShell title="Account">
+    <SettingsShell>
       {/* Identity header — avatar + name + email (mirrors native Mac account screen). */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '4px 12px 20px' }}>
         <span

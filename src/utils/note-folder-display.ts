@@ -38,6 +38,24 @@ export function noteFolderChipAdditionalCount(note: NoteFolderLabelSource): numb
   return labels.length <= 1 ? 0 : labels.length - 1;
 }
 
+/** Whether a note belongs to a folder drill bucket (`null` = Unsorted / no folder). */
+export function noteBelongsToFolderBucket(
+  note: NoteFolderLabelSource,
+  folderKey: string | null,
+): boolean {
+  const labels = noteFolderMembershipLabels(note);
+  if (folderKey === null) return labels.length === 0;
+  return labels.includes(folderKey);
+}
+
+/** Count notes in a folder drill bucket across a loaded note list. */
+export function countNotesInFolderBucket(
+  notes: NoteFolderLabelSource[],
+  folderKey: string | null,
+): number {
+  return notes.filter((note) => noteBelongsToFolderBucket(note, folderKey)).length;
+}
+
 /** Toolbar folder chip: primary label, +N overflow, and full list for accessibility. */
 export function noteFolderChipDisplayState(note: NoteFolderLabelSource): {
   label: string | null;

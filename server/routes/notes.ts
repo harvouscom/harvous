@@ -68,6 +68,7 @@ import { sortByLastVisited } from '@/utils/sorting';
 import { broadcastInvalidation } from '../utils/realtime';
 import { stripHtml } from '@/utils/html-stripper';
 import { deleteNotesCascadeForUser, deleteSingleNoteCascadeForUser } from '../utils/delete-note-cascade';
+import { isOnboardingSystemNote } from '../utils/purge-onboarding-content';
 import { recordDeletedEntities } from '../utils/sync-deletion-log';
 import { dedupeNoteTagsForResponse, fetchNoteTagsForResponse } from '../utils/tag-helpers';
 import { folderLabelsForTagExclusion } from '@/utils/bible-study-concept-overlaps';
@@ -91,10 +92,6 @@ function folderExcludeLabelsForNote(note: {
     note.primaryCollection,
     parseNoteSecondaryCollections(note.secondaryCollections),
   );
-}
-
-function isOnboardingSystemNote(note: { threadId: string; addedBy: string | null }): boolean {
-  return note.threadId.startsWith('thread_onboarding_') && note.addedBy === 'system';
 }
 
 function normalizeOwnedNoteSpaceId(spaceId: string | null): string | null {

@@ -745,7 +745,7 @@ export function getPrototypeKeyboardShortcutsReference(): KeyboardShortcutRefere
 
   return [
     {
-      heading: 'Shell',
+      heading: 'General',
       items: [
         { action: 'New note', keyParts: [shift, 'N'] },
         { action: 'Search', keyParts: [shift, 'K'] },
@@ -758,6 +758,15 @@ export function getPrototypeKeyboardShortcutsReference(): KeyboardShortcutRefere
       ],
     },
     {
+      heading: 'Sidebar',
+      items: [
+        { action: 'Cycle list mode', keyParts: [shift, '← / →'] },
+        { action: 'Move in list', keyParts: ['↑ / ↓'] },
+        { action: 'Jump to first / last', keyParts: ['Home / End'] },
+        { action: 'Open item', keyParts: ['Enter'] },
+      ],
+    },
+    {
       heading: 'Note',
       items: [
         { action: 'Find in note', keyParts: [shift, 'F'] },
@@ -766,16 +775,6 @@ export function getPrototypeKeyboardShortcutsReference(): KeyboardShortcutRefere
         { action: 'New paragraph', keyParts: ['Enter'] },
         { action: 'Line break in paragraph', keyParts: [shift, 'Enter'] },
         { action: 'Title to body', keyParts: ['Enter'] },
-      ],
-    },
-    {
-      heading: 'Sidebar',
-      items: [
-        { action: 'Cycle list mode', keyParts: [shift, '← / →'] },
-        { action: 'Move in list', keyParts: ['↑ / ↓'] },
-        { action: 'Move in list (vim)', keyParts: ['J / K'] },
-        { action: 'Jump to first / last', keyParts: ['Home / End'] },
-        { action: 'Open item', keyParts: ['Enter'] },
       ],
     },
   ];

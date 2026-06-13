@@ -1,4 +1,5 @@
 import { normalizeScriptureReference } from '@/utils/scripture-detector';
+import { HARVOUS_STUDY_DOCK_STACK_PREFIX } from '@/utils/user-cache-keys';
 
 export const STUDY_DOCK_STACK_MAX_ENTRIES = 8;
 
@@ -70,6 +71,62 @@ export type StudyDockStack = {
   entries: StudyDockEntry[];
   activeId: string | null;
 };
+
+export function studyDockStackStorageKey(noteId: string): string {
+  return `${HARVOUS_STUDY_DOCK_STACK_PREFIX}${noteId}`;
+}
+
+export function isPersistableStudyDockNoteId(noteId?: string | null): boolean {
+  return !!noteId && noteId.startsWith('note_');
+}
+
+export function clearStudyDockStackLocalCache(noteId?: string | null): void {
+  if (!isPersistableStudyDockNoteId(noteId)) return;
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.removeItem(studyDockStackStorageKey(noteId!));
+  } catch {
+    /* ignore */
+  }
+}
+
+const STUDY_DOCK_STACK_STORAGE_VERSION = 1;
+
+export function serializeStudyDockStack(stack: StudyDockStack): string {
+  return JSON.stringify({ v: STUDY_DOCK_STACK_STORAGE_VERSION, stack });
+}
+
+function isStudyDockEntry(value: unknown): value is StudyDockEntry {
+  if (!value || typeof value !== 'object') return false;
+  const entry = value as StudyDockEntry;
+  if (typeof entry.id !== 'string' || typeof entry.stableKey !== 'string') return false;
+  if (typeof entry.openedAt !== 'number' || typeof entry.expanded !== 'boolean') return false;
+  if (entry.kind !== 'scripture' && entry.kind !== 'highlight' && entry.kind !== 'reference') return false;
+  if (!entry.session || typeof entry.session !== 'object') return false;
+  return true;
+}
+
+export function deserializeStudyDockStack(raw: string | null): StudyDockStack | null {
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw) as { v?: number; stack?: unknown };
+    if (parsed.v !== STUDY_DOCK_STACK_STORAGE_VERSION) return null;
+    const stack = parsed.stack;
+    if (!stack || typeof stack !== 'object') return null;
+    const { entries, activeId } = stack as StudyDockStack;
+    if (!Array.isArray(entries)) return null;
+    if (activeId !== null && typeof activeId !== 'string') return null;
+    if (!entries.every(isStudyDockEntry)) return null;
+    const trimmedEntries = trimToMaxEntries(entries);
+    let resolvedActiveId = activeId;
+    if (resolvedActiveId && !trimmedEntries.some((e) => e.id === resolvedActiveId)) {
+      resolvedActiveId = trimmedEntries.length > 0 ? trimmedEntries[trimmedEntries.length - 1].id : null;
+    }
+    return { entries: trimmedEntries, activeId: resolvedActiveId };
+  } catch {
+    return null;
+  }
+}
 
 export function emptyStudyDockStack(): StudyDockStack {
   return { entries: [], activeId: null };

@@ -2,6 +2,7 @@ import { useMutation, useQueryClient, type InfiniteData, type QueryClient } from
 import { api } from '../../lib/api';
 import { navigationQueryKeyPrefix } from '../queries/useNavigation';
 import { clearCachedNoteDetail, clearNoteParentThreadLocalCache } from '../queries/useNote';
+import { clearStudyDockStackLocalCache } from '@/utils/study-dock-stack';
 import { deleteNoteOffline } from '@/utils/offline-mutations';
 import { runOfflineFirst } from './withOfflineQueue';
 import {
@@ -14,6 +15,7 @@ function purgeDeletedNoteClientCaches(queryClient: QueryClient, noteId: string) 
   queryClient.removeQueries({ queryKey: ['note', noteId] });
   clearCachedNoteDetail(noteId);
   clearNoteParentThreadLocalCache(noteId);
+  clearStudyDockStackLocalCache(noteId);
 }
 
 interface DeleteNoteVariables {

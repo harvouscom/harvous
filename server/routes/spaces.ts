@@ -68,6 +68,10 @@ import { idToUrl } from '@/utils/url-helpers';
 import { getHarvousSystemUserId } from '../utils/harvous-admin';
 import { normalizeScriptureReference } from '@/utils/scripture-detector';
 import { buildSpaceScriptureIndex } from '../utils/build-space-scripture-index';
+import {
+  NOT_ONBOARDING_NOTES_THREAD,
+  NOT_ONBOARDING_SYSTEM_NOTES,
+} from '../utils/purge-onboarding-content';
 import { buildSpaceReferencesIndex } from '../utils/build-space-references-index';
 import { mapStudyRow } from './study-threads';
 import { isStudyThreadEntriesTableMissing } from '../utils/pg-undefined-relation';
@@ -495,6 +499,8 @@ route.get('/api/spaces/:spaceId/scripture-index', requireAuth, async (c) => {
           eq(Notes.userId, auth.userId),
           eq(Notes.contentEncrypted, false),
           ne(Notes.noteType, 'scripture'),
+          NOT_ONBOARDING_NOTES_THREAD,
+          NOT_ONBOARDING_SYSTEM_NOTES,
         ),
       );
 

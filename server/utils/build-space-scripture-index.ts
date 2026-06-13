@@ -132,16 +132,25 @@ export function buildSpaceScriptureIndex(notes: ScriptureIndexNoteRow[]): SpaceS
 
   const passages = new Map<string, MutablePassage>();
 
-  const ingestRefString = (noteRow: ScriptureIndexNoteRow, refSource: string) => {
+  const resolvePassageRef = (
+    refSource: string,
+  ): { pKey: string; norm: string; bookOrder: number; chapter: number; verseStart: number; verseEnd: number } | null => {
     const norm = normalizeScriptureReference(refSource.trim()) ?? refSource.trim();
     const parsed = parseScriptureReference(norm);
-    if (!parsed) return;
+    if (!parsed) return null;
 
     const bookOrder = bookOrderMap.get(parsed.book);
-    if (bookOrder === undefined) return;
+    if (bookOrder === undefined) return null;
 
     const { chapter, verseStart, verseEnd } = parsedFields(parsed);
-    const pKey = passageKey(bookOrder, chapter, verseStart, verseEnd);
+    return { pKey: passageKey(bookOrder, chapter, verseStart, verseEnd), norm, bookOrder, chapter, verseStart, verseEnd };
+  };
+
+  const ingestPassageRef = (
+    noteRow: ScriptureIndexNoteRow,
+    resolved: NonNullable<ReturnType<typeof resolvePassageRef>>,
+  ) => {
+    const { pKey, norm, bookOrder, chapter, verseStart, verseEnd } = resolved;
 
     let m = passages.get(pKey);
     if (!m) {
@@ -173,13 +182,20 @@ export function buildSpaceScriptureIndex(notes: ScriptureIndexNoteRow[]): SpaceS
     const raw = note.content ?? '';
     const plain = stripHtml(raw);
     const detected = detectScriptureReferences(plain);
+    const uniquePassages = new Map<string, NonNullable<ReturnType<typeof resolvePassageRef>>>();
 
     for (const ref of detected) {
-      ingestRefString(note, ref.reference);
+      const resolved = resolvePassageRef(ref.reference);
+      if (resolved) uniquePassages.set(resolved.pKey, resolved);
     }
 
     for (const attrRef of extractDataScriptureReferences(raw)) {
-      ingestRefString(note, attrRef);
+      const resolved = resolvePassageRef(attrRef);
+      if (resolved) uniquePassages.set(resolved.pKey, resolved);
+    }
+
+    for (const resolved of uniquePassages.values()) {
+      ingestPassageRef(note, resolved);
     }
   }
 

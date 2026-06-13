@@ -1,15 +1,31 @@
 import { useState } from 'react';
 import { Link } from '@tanstack/react-router';
+import Icon from '@/components/react/Icon';
 import { prototypeNoteRouteTo } from '@/lib/prototype-path';
 import { toast } from '@/utils/toast';
 import { useShareNote } from '../../../hooks/mutations/useShareNote';
 import { mySharingQueryKey, useMySharing, type SharedNoteItem } from '../../../hooks/queries/useMySharing';
 import { useQueryClient } from '@tanstack/react-query';
-import { SettingsGroup, SettingsShell } from './SettingsShell';
+import { SettingsGroup, SettingsIntro, SettingsShell } from './SettingsShell';
 import { noteParamSlug } from '../proto-route-slugs';
+
+/** Middle-truncate long share URLs for one-line list preview. */
+function truncateShareUrl(url: string, maxLength = 48): string {
+  if (url.length <= maxLength) return url;
+  try {
+    const parsed = new URL(url);
+    const tail = parsed.pathname + parsed.search;
+    const prefix = `${parsed.host}${tail.slice(0, 8)}`;
+    const suffix = tail.slice(-16);
+    return `${prefix}…${suffix}`;
+  } catch {
+    return `${url.slice(0, maxLength - 1)}…`;
+  }
+}
 
 export default function PrototypeSharingPage() {
   const [disablingId, setDisablingId] = useState<string | null>(null);
+  const [copiedNoteId, setCopiedNoteId] = useState<string | null>(null);
   const sharingQuery = useMySharing();
   const shareNote = useShareNote();
   const queryClient = useQueryClient();
@@ -30,20 +46,21 @@ export default function PrototypeSharingPage() {
     }
   };
 
-  const handleCopyLink = async (url: string) => {
+  const handleCopyLink = async (noteId: string, url: string) => {
     try {
       await navigator.clipboard.writeText(url);
-      toast.success('Link copied');
+      setCopiedNoteId(noteId);
+      window.setTimeout(() => {
+        setCopiedNoteId((current) => (current === noteId ? null : current));
+      }, 1400);
     } catch {
       toast.error('Could not copy link');
     }
   };
 
   return (
-    <SettingsShell title="Sharing">
-      <p className="pds-caption" style={{ margin: '0 0 16px', color: 'var(--pds-text-secondary)' }}>
-        Notes you have shared. Stop sharing to make them private again.
-      </p>
+    <SettingsShell>
+      <SettingsIntro>See what you have shared and stop sharing.</SettingsIntro>
 
       {sharingQuery.isLoading ? (
         <p className="pds-caption" style={{ marginTop: 20, color: 'var(--pds-text-secondary)' }}>Loading…</p>
@@ -63,31 +80,54 @@ export default function PrototypeSharingPage() {
 
       {notes.length > 0 ? (
         <SettingsGroup>
-          {notes.map((note) => (
-            <div key={note.id} className="proto-sharing-row">
-              <Link
-                to={prototypeNoteRouteTo()}
-                params={{ noteId: noteParamSlug(note.id) }}
-                search={{}}
-                className="proto-sharing-row__title"
-              >
-                {note.title || 'Untitled note'}
-              </Link>
-              <div className="proto-sharing-row__actions">
-                <button type="button" className="proto-sharing-action" onClick={() => handleCopyLink(note.shareUrl)}>
-                  Copy link
-                </button>
-                <button
-                  type="button"
-                  className="proto-sharing-action proto-sharing-action--destructive"
-                  disabled={disablingId === note.id}
-                  onClick={() => handleDisableNote(note)}
+          {notes.map((note, index) => {
+            const isCopied = copiedNoteId === note.id;
+            const isLast = index === notes.length - 1;
+
+            return (
+              <div key={note.id} className={`proto-sharing-row${isLast ? ' proto-sharing-row--last' : ''}`}>
+                <Link
+                  to={prototypeNoteRouteTo()}
+                  params={{ noteId: noteParamSlug(note.id) }}
+                  search={{}}
+                  className="proto-sharing-row__title pds-list-title"
                 >
-                  {disablingId === note.id ? '…' : 'Stop sharing'}
-                </button>
+                  {note.title || 'Untitled note'}
+                </Link>
+                <p className="proto-sharing-row__url" title={note.shareUrl}>
+                  {truncateShareUrl(note.shareUrl)}
+                </p>
+                <div className="proto-sharing-row__actions">
+                  <button
+                    type="button"
+                    className="proto-sharing-row__copy"
+                    onClick={() => handleCopyLink(note.id, note.shareUrl)}
+                    aria-label={isCopied ? 'Link copied' : 'Copy share link'}
+                  >
+                    {isCopied ? (
+                      <>
+                        <Icon name="check" size={14} aria-hidden />
+                        Copied
+                      </>
+                    ) : (
+                      <>
+                        <Icon name="copy" size={14} aria-hidden />
+                        Copy link
+                      </>
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    className="proto-sharing-row__stop"
+                    disabled={disablingId === note.id}
+                    onClick={() => handleDisableNote(note)}
+                  >
+                    {disablingId === note.id ? 'Working…' : 'Stop sharing'}
+                  </button>
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </SettingsGroup>
       ) : null}
     </SettingsShell>

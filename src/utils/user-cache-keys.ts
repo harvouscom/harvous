@@ -9,3 +9,5 @@ export const HARVOUS_FEATURED_DISMISSED_CACHE_KEY = 'harvous-featured-dismissed-
 export const HARVOUS_USER_NAMES_KEY = 'harvous-user-names';
 /** Prefix for per-space sidebar notes snapshots (sessionStorage); clear all on sign-out. */
 export const HARVOUS_SPACE_NOTES_CACHE_PREFIX = 'harvous-space-notes-';
+/** Prefix for per-note study-dock carousel stacks (localStorage); keyed by note id. Clear all on sign-out. */
+export const HARVOUS_STUDY_DOCK_STACK_PREFIX = 'harvous-study-dock-';

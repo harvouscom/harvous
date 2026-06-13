@@ -191,7 +191,7 @@ enum HarvousColorSchemePreference: String, CaseIterable {
 
     var label: String {
         switch self {
-        case .system: return "System"
+        case .system: return "Auto"
         case .light: return "Light"
         case .dark: return "Dark"
         }

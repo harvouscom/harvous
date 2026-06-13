@@ -1,4 +1,4 @@
-import { SettingsShell, SettingsGroup, SettingsRow } from './SettingsShell';
+import { SettingsGroup, SettingsIntro, SettingsRow, SettingsShell } from './SettingsShell';
 
 const SUPPORT_EMAIL = 'derek@harvous.com';
 
@@ -10,10 +10,8 @@ function appVersion(): string {
 export default function PrototypeSupportPage() {
   const version = appVersion();
   return (
-    <SettingsShell title="Get Support">
-      <p className="pds-subheadline" style={{ color: 'var(--pds-text-secondary)', margin: '0 0 16px', padding: '0 12px' }}>
-        Questions, bugs, or ideas? We'd love to hear from you.
-      </p>
+    <SettingsShell>
+      <SettingsIntro>Get help or contact us.</SettingsIntro>
       <SettingsGroup>
         <SettingsRow
           label="Reach out to support"

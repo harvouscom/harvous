@@ -7,8 +7,8 @@ import { useProtoShell } from '../../layouts/proto-shell-context';
  * (see prototype-shell.css) so the controls clear the sidebar.
  *
  * Study docks (scripture / highlight / reference) all portal into the single carousel host
- * inside `.proto-shell__study-dock-layer` above this bar — full shell width so the carousel
- * extends behind the sidebar like native.
+ * inside `.proto-shell__study-dock-layer` above this bar — full shell width so docks pass
+ * behind the sidebar; editor-column centering uses --proto-study-dock-center-offset.
  */
 export default function PrototypeEditorChromeBar() {
   const {

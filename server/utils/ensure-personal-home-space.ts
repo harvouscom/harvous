@@ -6,6 +6,7 @@ import { generateSpaceId } from '@/utils/ids';
 import { getThreadGradientCSS } from '@/utils/colors';
 import { db, Spaces, Notes, eq, and, isNull, ne } from '../db';
 import { nowISO } from '../db/dates';
+import { NOT_ONBOARDING_NOTES_THREAD, NOT_ONBOARDING_SYSTEM_NOTES } from './purge-onboarding-content';
 
 const MY_HOME_TITLE = 'My Home';
 
@@ -83,6 +84,8 @@ export async function ensurePersonalHomeSpaceDetailed(
     eq(Notes.userId, userId),
     isNull(Notes.spaceId),
     ne(Notes.noteType, 'scripture'),
+    NOT_ONBOARDING_NOTES_THREAD,
+    NOT_ONBOARDING_SYSTEM_NOTES,
   );
   const nullNotes = await db.select({ id: Notes.id }).from(Notes).where(backfillWhere);
   const nullNotesBackfilled = nullNotes.length;

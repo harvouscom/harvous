@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
   computeActivityRhythm,
-  computeActivityStreak,
+  computeLastActivityTime,
+  countWeeklyActivityDays,
   deriveTopBooks,
   deriveTopPassages,
   deriveTopFolders,
@@ -10,14 +11,21 @@ import {
   countLooseNotes,
   formatHomeActivityLeadSuffix,
   formatHomeActivityRhythmSuffix,
-  formatHomeActivityStreakSuffix,
+  formatHomeLastActivitySuffix,
+  formatHomeWeeklyActivitySuffix,
   formatHomeNoteCount,
   formatRhythmDaypart,
   greetingForHour,
+  homeBookGreetingTone,
+  homeContinueCardEyebrow,
+  homeFolderGreetingTone,
+  homeLeadCopyLayout,
+  homeSpotlightThreadEyebrow,
+  homeTagGreetingTone,
+  homeThreadGreetingTone,
   pickContinueNote,
   pickRevisitNote,
   pickSpotlightThread,
-  homeBookGreetingTone,
   selectHomeLeadTheme,
   type HomeBookInput,
   type HomeBookTrendInput,
@@ -284,6 +292,7 @@ describe('selectHomeLeadTheme', () => {
     expect(selectHomeLeadTheme({ ...base, thread, folder: { name: 'Misc', noteCount: 1 } })).toEqual({
       kind: 'thread',
       thread,
+      tone: 'returning',
     });
   });
 
@@ -338,50 +347,43 @@ describe('formatHomeNoteCount', () => {
   });
 });
 
-describe('computeActivityStreak', () => {
+describe('countWeeklyActivityDays', () => {
   // Wednesday June 10, 2026, local noon — fixed anchor for day/week math.
   const now = new Date(2026, 5, 10, 12, 0, 0);
   const onDay = (daysAgo: number) => ({
     updatedAt: new Date(2026, 5, 10 - daysAgo, 9, 0, 0),
   });
 
+  it('returns 0 for empty input and dateless notes', () => {
+    expect(countWeeklyActivityDays([], now)).toBe(0);
+    expect(countWeeklyActivityDays([{ updatedAt: null }], now)).toBe(0);
+  });
+
+  it('counts distinct activity days in the current calendar week only', () => {
+    expect(countWeeklyActivityDays([onDay(0), onDay(2), onDay(3)], now)).toBe(3);
+    expect(countWeeklyActivityDays([onDay(0), onDay(7)], now)).toBe(1);
+    expect(countWeeklyActivityDays([onDay(7), onDay(8)], now)).toBe(0);
+  });
+});
+
+describe('computeLastActivityTime', () => {
   it('returns null for empty input and dateless notes', () => {
-    expect(computeActivityStreak([], now)).toBeNull();
-    expect(computeActivityStreak([{ updatedAt: null }], now)).toBeNull();
+    expect(computeLastActivityTime([])).toBeNull();
+    expect(computeLastActivityTime([{ updatedAt: null }])).toBeNull();
   });
 
-  it('counts consecutive days ending today', () => {
-    expect(computeActivityStreak([onDay(0), onDay(1), onDay(2)], now)).toEqual({ unit: 'day', count: 3 });
+  it('returns the latest effective timestamp across notes', () => {
+    const older = { updatedAt: new Date(2026, 5, 1, 9, 0, 0) };
+    const newer = { updatedAt: new Date(2026, 5, 10, 9, 0, 0) };
+    expect(computeLastActivityTime([older, newer])).toBe(newer.updatedAt.getTime());
   });
 
-  it('lets the day streak start yesterday when today is quiet', () => {
-    expect(computeActivityStreak([onDay(1), onDay(2)], now)).toEqual({ unit: 'day', count: 2 });
-  });
-
-  it('a gap breaks the day streak', () => {
-    // Active today and 2 days ago — day streak is 1, no week fallback (single week).
-    expect(computeActivityStreak([onDay(0), onDay(2)], now)).toBeNull();
-  });
-
-  it('falls back to a week streak for non-consecutive days across consecutive weeks', () => {
-    // Wed (today), last Thursday (6 days ago), two Mondays back (16 days ago).
-    expect(computeActivityStreak([onDay(0), onDay(6), onDay(16)], now)).toEqual({ unit: 'week', count: 3 });
-  });
-
-  it('a missed week breaks the week streak', () => {
-    // This week + three weeks ago, nothing in between.
-    expect(computeActivityStreak([onDay(0), onDay(21)], now)).toBeNull();
-  });
-
-  it('prefers the day streak over the week streak', () => {
-    // 3 consecutive days spanning into last week would also be a 2-week streak.
-    const notes = [onDay(0), onDay(1), onDay(2), onDay(8)];
-    expect(computeActivityStreak(notes, now)).toEqual({ unit: 'day', count: 3 });
-  });
-
-  it('lets the week streak start last week when this week is quiet', () => {
-    // Last week + the week before, nothing yet this week.
-    expect(computeActivityStreak([onDay(7), onDay(14)], now)).toEqual({ unit: 'week', count: 2 });
+  it('prefers lastVisited over updatedAt when later', () => {
+    const note = {
+      updatedAt: new Date(2026, 5, 1, 9, 0, 0),
+      lastVisited: new Date(2026, 5, 10, 9, 0, 0),
+    };
+    expect(computeLastActivityTime([note])).toBe(note.lastVisited.getTime());
   });
 });
 
@@ -440,41 +442,121 @@ describe('formatRhythmDaypart', () => {
 });
 
 describe('formatHomeActivityRhythmSuffix', () => {
-  it('formats weekday and daypart labels', () => {
-    expect(formatHomeActivityRhythmSuffix({ dayOfWeek: 6, hour: 9 })).toBe('mostly on Saturday mornings');
-    expect(formatHomeActivityRhythmSuffix({ dayOfWeek: 2, hour: 19 })).toBe('mostly on Tuesday evenings');
-    expect(formatHomeActivityRhythmSuffix({ dayOfWeek: 0, hour: 0 })).toBe('mostly on Sunday nights');
-    expect(formatHomeActivityRhythmSuffix({ dayOfWeek: 0, hour: 12 })).toBe('mostly on Sunday afternoons');
+  it('formats weekday and daypart labels with past framing', () => {
+    expect(formatHomeActivityRhythmSuffix({ dayOfWeek: 6, hour: 9 })).toBe('often on Saturday mornings');
+    expect(formatHomeActivityRhythmSuffix({ dayOfWeek: 2, hour: 19 })).toBe('often on Tuesday evenings');
+    expect(formatHomeActivityRhythmSuffix({ dayOfWeek: 0, hour: 0 })).toBe('often on Sunday nights');
+    expect(formatHomeActivityRhythmSuffix({ dayOfWeek: 0, hour: 12 })).toBe('often on Sunday afternoons');
   });
 });
 
-describe('formatHomeActivityStreakSuffix', () => {
-  it('formats day and week streak labels', () => {
-    expect(formatHomeActivityStreakSuffix({ unit: 'week', count: 3 })).toBe('3 weeks in a row');
-    expect(formatHomeActivityStreakSuffix({ unit: 'day', count: 5 })).toBe('5 days in a row');
+describe('formatHomeWeeklyActivitySuffix', () => {
+  it('returns null below two days and formats plural counts', () => {
+    expect(formatHomeWeeklyActivitySuffix(0)).toBeNull();
+    expect(formatHomeWeeklyActivitySuffix(1)).toBeNull();
+    expect(formatHomeWeeklyActivitySuffix(2)).toBe('twice this week');
+    expect(formatHomeWeeklyActivitySuffix(3)).toBe('3 times this week');
+  });
+});
+
+describe('formatHomeLastActivitySuffix', () => {
+  const now = new Date(2026, 5, 10, 12, 0, 0);
+
+  it('formats just now and relative day phrases', () => {
+    expect(formatHomeLastActivitySuffix(now.getTime(), now)).toBe('last here just now');
+    const yesterday = new Date(2026, 5, 9, 12, 0, 0).getTime();
+    expect(formatHomeLastActivitySuffix(yesterday, now)).toBe('last here yesterday');
+    const fourDaysAgo = new Date(2026, 5, 6, 12, 0, 0).getTime();
+    expect(formatHomeLastActivitySuffix(fourDaysAgo, now)).toBe('last here 4 days ago');
   });
 });
 
 describe('formatHomeActivityLeadSuffix', () => {
-  it('prefers streak over rhythm when both exist', () => {
+  const now = new Date(2026, 5, 10, 12, 0, 0);
+  const onDay = (daysAgo: number) => ({
+    updatedAt: new Date(2026, 5, 10 - daysAgo, 9, 0, 0),
+  });
+
+  it('prefers rhythm over weekly count and last visit when the library is large enough', () => {
     expect(
-      formatHomeActivityLeadSuffix({ dayOfWeek: 6, hour: 13 }, { unit: 'week', count: 3 }),
-    ).toBe('3 weeks in a row');
+      formatHomeActivityLeadSuffix({
+        rhythm: { dayOfWeek: 6, hour: 13 },
+        weeklyDays: 3,
+        lastActivityMs: now.getTime(),
+        now,
+        totalNoteCount: 6,
+      }),
+    ).toBe('often on Saturday afternoons');
   });
 
-  it('returns rhythm suffix when streak is absent', () => {
-    expect(formatHomeActivityLeadSuffix({ dayOfWeek: 2, hour: 19 }, null)).toBe(
-      'mostly on Tuesday evenings',
-    );
+  it('suppresses rhythm suffix for small libraries', () => {
+    expect(
+      formatHomeActivityLeadSuffix({
+        rhythm: { dayOfWeek: 6, hour: 13 },
+        weeklyDays: 3,
+        lastActivityMs: now.getTime(),
+        now,
+        totalNoteCount: 4,
+      }),
+    ).toBe('3 times this week');
   });
 
-  it('returns streak suffix when rhythm is absent', () => {
-    expect(formatHomeActivityLeadSuffix(null, { unit: 'week', count: 3 })).toBe('3 weeks in a row');
-    expect(formatHomeActivityLeadSuffix(null, { unit: 'day', count: 5 })).toBe('5 days in a row');
+  it('returns rhythm suffix when other signals are absent and the library is large enough', () => {
+    expect(
+      formatHomeActivityLeadSuffix({
+        rhythm: { dayOfWeek: 2, hour: 19 },
+        weeklyDays: 0,
+        lastActivityMs: null,
+        now,
+        totalNoteCount: 6,
+      }),
+    ).toBe('often on Tuesday evenings');
   });
 
-  it('returns null when neither rhythm nor streak', () => {
-    expect(formatHomeActivityLeadSuffix(null, null)).toBeNull();
+  it('returns weekly count when rhythm is weak and count is at least two', () => {
+    expect(
+      formatHomeActivityLeadSuffix({
+        rhythm: null,
+        weeklyDays: 2,
+        lastActivityMs: now.getTime(),
+        now,
+      }),
+    ).toBe('twice this week');
+  });
+
+  it('returns last visit when rhythm is weak and weekly count is under two', () => {
+    const fourDaysAgo = new Date(2026, 5, 6, 12, 0, 0).getTime();
+    expect(
+      formatHomeActivityLeadSuffix({
+        rhythm: null,
+        weeklyDays: 1,
+        lastActivityMs: fourDaysAgo,
+        now,
+      }),
+    ).toBe('last here 4 days ago');
+  });
+
+  it('uses weekly copy when rhythm is weak and user was active twice this week', () => {
+    const notes = [onDay(0), onDay(2)];
+    expect(
+      formatHomeActivityLeadSuffix({
+        rhythm: computeActivityRhythm(notes),
+        weeklyDays: countWeeklyActivityDays(notes, now),
+        lastActivityMs: computeLastActivityTime(notes),
+        now,
+      }),
+    ).toBe('twice this week');
+  });
+
+  it('returns null when no signal qualifies', () => {
+    expect(
+      formatHomeActivityLeadSuffix({
+        rhythm: null,
+        weeklyDays: 0,
+        lastActivityMs: null,
+        now,
+      }),
+    ).toBeNull();
   });
 });
 
@@ -606,7 +688,7 @@ describe('deriveTopBooks', () => {
     expect(topPassage?.referenceCount).toBe(1);
     expect(
       selectHomeLeadTheme({
-        noteCount: 4,
+        noteCount: 10,
         hasMoreNotes: false,
         today: new Date(2026, 5, 10),
         book: topBook,
@@ -618,25 +700,120 @@ describe('deriveTopBooks', () => {
 describe('homeBookGreetingTone', () => {
   it('uses single-note tone for one note with no pagination', () => {
     expect(
-      homeBookGreetingTone({ noteCount: 1, hasMoreNotes: false, referenceCount: 3 }),
+      homeBookGreetingTone({
+        noteCount: 1,
+        hasMoreNotes: false,
+        referenceCount: 3,
+        bookNoteCount: 1,
+      }),
     ).toBe('single-note');
   });
 
   it('uses mentioned-once when the book only appears once across notes', () => {
     expect(
-      homeBookGreetingTone({ noteCount: 4, hasMoreNotes: false, referenceCount: 1 }),
+      homeBookGreetingTone({
+        noteCount: 4,
+        hasMoreNotes: false,
+        referenceCount: 1,
+        bookNoteCount: 1,
+      }),
     ).toBe('mentioned-once');
   });
 
-  it('uses returning when the book is referenced more than once', () => {
+  it('downgrades returning to mentioned-once for early users', () => {
     expect(
-      homeBookGreetingTone({ noteCount: 4, hasMoreNotes: false, referenceCount: 2 }),
+      homeBookGreetingTone({
+        noteCount: 2,
+        hasMoreNotes: false,
+        referenceCount: 2,
+        bookNoteCount: 2,
+      }),
+    ).toBe('mentioned-once');
+  });
+
+  it('uses returning when the book habit is established', () => {
+    expect(
+      homeBookGreetingTone({
+        noteCount: 10,
+        hasMoreNotes: false,
+        referenceCount: 2,
+        bookNoteCount: 2,
+      }),
     ).toBe('returning');
   });
 
   it('does not treat 1+ notes as single-note', () => {
     expect(
-      homeBookGreetingTone({ noteCount: 1, hasMoreNotes: true, referenceCount: 1 }),
+      homeBookGreetingTone({
+        noteCount: 1,
+        hasMoreNotes: true,
+        referenceCount: 1,
+        bookNoteCount: 1,
+      }),
     ).toBe('mentioned-once');
+  });
+});
+
+describe('homeFolderGreetingTone', () => {
+  it('maps folder note counts to tone tiers', () => {
+    expect(homeFolderGreetingTone(1)).toBe('single');
+    expect(homeFolderGreetingTone(2)).toBe('growing');
+    expect(homeFolderGreetingTone(3)).toBe('returning');
+  });
+});
+
+describe('homeTagGreetingTone', () => {
+  it('maps tag note counts to tone tiers', () => {
+    expect(homeTagGreetingTone(1)).toBe('single');
+    expect(homeTagGreetingTone(2)).toBe('returning');
+  });
+});
+
+describe('homeThreadGreetingTone', () => {
+  it('maps thread note counts to tone tiers', () => {
+    expect(homeThreadGreetingTone(2)).toBe('started');
+    expect(homeThreadGreetingTone(3)).toBe('returning');
+  });
+});
+
+describe('homeLeadCopyLayout', () => {
+  it('uses softer copy for early scripture and folder signals', () => {
+    expect(
+      homeLeadCopyLayout({
+        kind: 'book',
+        book: { bookOrder: 45, title: 'Romans', referenceCount: 1, noteCount: 1 },
+        tone: 'mentioned-once',
+      }).afterChip,
+    ).toBe(' is in your notes, with ');
+    expect(
+      homeLeadCopyLayout({
+        kind: 'folder',
+        folder: { name: 'Sermons', noteCount: 1 },
+        tone: 'single',
+      }).afterChip,
+    ).toBe(' has a note in it, with ');
+  });
+
+  it('uses started thread copy for two-note clusters', () => {
+    expect(
+      homeLeadCopyLayout({
+        kind: 'thread',
+        thread: { id: 't1', title: 'Romans', noteCount: 2 },
+        tone: 'started',
+      }).beforeChip,
+    ).toBe('You started ');
+  });
+});
+
+describe('home card eyebrow helpers', () => {
+  it('softens continue copy for small libraries', () => {
+    expect(homeContinueCardEyebrow(1)).toBe('Your latest note');
+    expect(homeContinueCardEyebrow(2)).toBe('Your latest note');
+    expect(homeContinueCardEyebrow(3)).toBe('Pick up where you left off');
+  });
+
+  it('softens spotlight thread copy for two-note clusters', () => {
+    expect(homeSpotlightThreadEyebrow(2)).toBe('A study taking shape');
+    expect(homeSpotlightThreadEyebrow(4)).toBe('Pick a study back up');
   });
 });

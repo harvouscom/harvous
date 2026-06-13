@@ -5,6 +5,7 @@ import { safeNavigate } from '@/utils/safe-navigate';
 import EraseConfirmDialog from './EraseConfirmDialog';
 import ButtonSmall from './ButtonSmall';
 import { deleteNoteOffline, deleteSpaceOffline } from '@/utils/offline-mutations';
+import { clearStudyDockStackLocalCache } from '@/utils/study-dock-stack';
 import { safeFetch } from '@/utils/safe-fetch';
 import { idToUrl } from '@/utils/url-helpers';
 import { isNetworkError } from '@/utils/network';
@@ -204,6 +205,7 @@ export default function ActionStrip({
         try {
           if (contentType === 'note') {
             await deleteNoteOffline(effectiveUserId, contentId);
+            clearStudyDockStackLocalCache(contentId);
             deletedOffline = true;
           } else if (contentType === 'space') {
             await deleteSpaceOffline(effectiveUserId, contentId);
@@ -247,6 +249,9 @@ export default function ActionStrip({
       }
       const data = await response.json().catch(() => ({}));
       if (response.ok) {
+        if (contentType === 'note') {
+          clearStudyDockStackLocalCache(contentId);
+        }
         if (data?.success && typeof data.success === 'string') {
           successMessage = data.success;
         }

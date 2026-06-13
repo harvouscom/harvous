@@ -95,4 +95,9 @@ enum HarvousFolderListIndex {
         let unpinned = rows.filter { !pinnedSet.contains($0.id) }
         return pinned + unpinned
     }
+
+    /// Notes belonging to a folder drill bucket (`nil` = ungrouped / no folder).
+    static func memberCount(in notes: [Note], bucket: String?) -> Int {
+        notes.filter { $0.noteBelongsToFolderBucket(bucket) }.count
+    }
 }

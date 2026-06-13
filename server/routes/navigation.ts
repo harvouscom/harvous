@@ -15,6 +15,7 @@ import { getThreadGradientCSS } from '@/utils/colors';
 import { handleAPIError } from '@/utils/error-handling';
 import { ensureUnorganizedThread } from '../utils/unorganized-thread';
 import { ensurePersonalHomeSpace } from '../utils/ensure-personal-home-space';
+import { purgeOnboardingContentForUser } from '../utils/purge-onboarding-content';
 import { repairMissingNoteThreadJunctionsForUser } from '../utils/thread-junction-repair';
 import { MY_PILE_THREAD_TITLE } from '@/utils/my-pile-thread';
 
@@ -31,6 +32,7 @@ route.get('/api/navigation/data', async (c) => {
 
     // Ensure user cache exists before reading thread list.
     await getCachedUserData(userId);
+    await purgeOnboardingContentForUser(userId);
     await ensurePersonalHomeSpace(userId);
     // Classic thread lists use NoteThreads junction; heal desynced threadId rows on nav load.
     await repairMissingNoteThreadJunctionsForUser(userId);

@@ -162,6 +162,14 @@ function PrototypeAuthenticatedChrome({ userId }: { userId?: string }) {
   }, [sidebarWidth]);
 
   useEffect(() => {
+    if (!isNoteRoute) return;
+    const track = document.querySelector<HTMLElement>(
+      '.proto-shell__study-dock-layer .study-dock-carousel__track',
+    );
+    updateStudyDockExpandedMaxHeight(track);
+  }, [isNoteRoute, sidebarWidth, desktopSidebarCollapsed, hideSidebar]);
+
+  useEffect(() => {
     if (!userId) return;
     let debounceTimer: ReturnType<typeof setTimeout> | null = null;
     const onRemoteSync = () => {

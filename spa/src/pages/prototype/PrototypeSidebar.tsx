@@ -10,7 +10,7 @@ import { useUpdateHighlight } from '../../hooks/mutations/useUpdateHighlight';
 import { usePinSpaceNote } from '../../hooks/mutations/usePinSpaceNote';
 import { useSpaceNotes, type SpaceNoteRow } from '../../hooks/queries/useSpace';
 import { getNoteQueryOptions, seedNoteFromList, type ListNoteForSeed } from '../../hooks/queries/useNote';
-import { noteFolderMembershipLabels } from '@/utils/note-folder-display';
+import { countNotesInFolderBucket, noteFolderMembershipLabels } from '@/utils/note-folder-display';
 import { sortNotesByLastVisited } from '@/utils/sorting';
 import { stripServerAutoUntitledNoteTitleForDisplay } from '@/utils/server-auto-untitled-note-display';
 import { isEffectivelyEmptyPrototypeNote } from '@/utils/prototype-note-empty';
@@ -773,6 +773,29 @@ export default function PrototypeSidebar() {
   });
 
   const folders = useMemo(() => buildFoldersFromNotes(notes), [notes]);
+  const activeFolderBucketMemberCount = useMemo(() => {
+    if (mode !== 'folders' || activeFolderKey === undefined) return null;
+    return countNotesInFolderBucket(notes, activeFolderKey);
+  }, [mode, activeFolderKey, notes]);
+  const folderDrillMemberCountPrevRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    folderDrillMemberCountPrevRef.current = null;
+  }, [activeFolderKey]);
+
+  useEffect(() => {
+    if (activeFolderBucketMemberCount === null) {
+      folderDrillMemberCountPrevRef.current = null;
+      return;
+    }
+    const prev = folderDrillMemberCountPrevRef.current;
+    if (prev !== null && prev > 0 && activeFolderBucketMemberCount === 0) {
+      setActiveFolderKey(undefined);
+      setQ('');
+    }
+    folderDrillMemberCountPrevRef.current = activeFolderBucketMemberCount;
+  }, [activeFolderBucketMemberCount, setActiveFolderKey]);
+
   const scriptureBooks = scriptureQuery.data ?? [];
 
   const highlightsById = useMemo(() => {

@@ -5,6 +5,7 @@ import {
   HARVOUS_NAV_CACHE_KEY,
   HARVOUS_PROFILE_CACHE_KEY,
   HARVOUS_SPACE_NOTES_CACHE_PREFIX,
+  HARVOUS_STUDY_DOCK_STACK_PREFIX,
   HARVOUS_USER_COLOR_KEY,
   HARVOUS_XP_CACHE_KEY,
 } from '@/utils/user-cache-keys';
@@ -54,6 +55,17 @@ export function clearUserClientStorageCaches() {
   }
   try {
     localStorage.removeItem(HARVOUS_USER_COLOR_KEY);
+  } catch {
+    /* ignore */
+  }
+  // Per-note study-dock carousel stacks (keyed by note id) — remove all by prefix.
+  try {
+    const keys: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && key.startsWith(HARVOUS_STUDY_DOCK_STACK_PREFIX)) keys.push(key);
+    }
+    keys.forEach((k) => localStorage.removeItem(k));
   } catch {
     /* ignore */
   }

@@ -211,11 +211,6 @@ export function pickSpotlightThread(
   return deriveTopThread(threads, threads.length).find((t) => t.id !== options?.excludeId);
 }
 
-export interface HomeActivityStreak {
-  unit: 'day' | 'week';
-  count: number;
-}
-
 /** Local-hour greeting bands: 22–1 Up late, 2–4 Almost morning, 5–11 morning, 12–17 afternoon, 18–21 evening. */
 export function greetingForHour(hour: number): string {
   if (hour >= 22 || hour < 2) return 'Up late';
@@ -233,22 +228,97 @@ export function formatHomeNoteCount(count: number, hasMore: boolean): string {
 /** How strongly the Home greeting can claim a recurring scripture habit. */
 export type HomeBookGreetingTone = 'single-note' | 'mentioned-once' | 'returning';
 
+export type HomeFolderGreetingTone = 'single' | 'growing' | 'returning';
+
+export type HomeTagGreetingTone = 'single' | 'returning';
+
+export type HomeThreadGreetingTone = 'started' | 'returning';
+
+const HOME_EARLY_USER_MAX_NOTES = 4;
+
 export function homeBookGreetingTone(input: {
   noteCount: number;
   hasMoreNotes: boolean;
   referenceCount: number;
+  bookNoteCount: number;
 }): HomeBookGreetingTone {
   if (input.noteCount === 1 && !input.hasMoreNotes) return 'single-note';
-  if (input.referenceCount < 2) return 'mentioned-once';
+  const wouldReturn =
+    (input.bookNoteCount >= 2 && input.referenceCount >= 2) || input.referenceCount >= 3;
+  if (!wouldReturn) return 'mentioned-once';
+  if (input.noteCount <= HOME_EARLY_USER_MAX_NOTES) return 'mentioned-once';
   return 'returning';
+}
+
+export function homeFolderGreetingTone(folderNoteCount: number): HomeFolderGreetingTone {
+  if (folderNoteCount <= 1) return 'single';
+  if (folderNoteCount === 2) return 'growing';
+  return 'returning';
+}
+
+export function homeTagGreetingTone(tagNoteCount: number): HomeTagGreetingTone {
+  return tagNoteCount <= 1 ? 'single' : 'returning';
+}
+
+export function homeThreadGreetingTone(threadNoteCount: number): HomeThreadGreetingTone {
+  return threadNoteCount <= 2 ? 'started' : 'returning';
+}
+
+/** Lead copy segments — chips are rendered in JSX; these are the text around them. */
+export type HomeLeadCopyLayout = {
+  beforeChip: string;
+  afterChip: string;
+  showCount: boolean;
+};
+
+export function homeLeadCopyLayout(lead: HomeLeadTheme): HomeLeadCopyLayout {
+  switch (lead.kind) {
+    case 'thread':
+      return {
+        beforeChip: lead.tone === 'started' ? 'You started ' : "You've been working through ",
+        afterChip: ', with ',
+        showCount: true,
+      };
+    case 'book':
+      if (lead.tone === 'single-note') {
+        return { beforeChip: 'You added ', afterChip: '', showCount: true };
+      }
+      if (lead.tone === 'mentioned-once') {
+        return { beforeChip: '', afterChip: ' is in your notes, with ', showCount: true };
+      }
+      return { beforeChip: 'You keep coming back to ', afterChip: ', with ', showCount: true };
+    case 'folder':
+      if (lead.tone === 'single') {
+        return { beforeChip: '', afterChip: ' has a note in it, with ', showCount: true };
+      }
+      if (lead.tone === 'growing') {
+        return { beforeChip: '', afterChip: ' is starting to fill up, with ', showCount: true };
+      }
+      return { beforeChip: '', afterChip: ' keeps filling up, with ', showCount: true };
+    case 'tag':
+      if (lead.tone === 'single') {
+        return { beforeChip: '', afterChip: ' is on a note, with ', showCount: true };
+      }
+      return { beforeChip: '', afterChip: ' keeps showing up in your notes, with ', showCount: true };
+    default:
+      return { beforeChip: 'You have ', afterChip: ' saved so far', showCount: true };
+  }
+}
+
+export function homeContinueCardEyebrow(noteCount: number): string {
+  return noteCount <= 2 ? 'Your latest note' : 'Pick up where you left off';
+}
+
+export function homeSpotlightThreadEyebrow(threadNoteCount: number): string {
+  return threadNoteCount <= 2 ? 'A study taking shape' : 'Pick a study back up';
 }
 
 /** One consolidated greeting lead, chosen from the available trend signals. */
 export type HomeLeadTheme =
-  | { kind: 'thread'; thread: HomeTopThread }
+  | { kind: 'thread'; thread: HomeTopThread; tone: HomeThreadGreetingTone }
   | { kind: 'book'; book: HomeTopBook; tone: HomeBookGreetingTone }
-  | { kind: 'folder'; folder: HomeTopFolder }
-  | { kind: 'tag'; tag: HomeTopTag }
+  | { kind: 'folder'; folder: HomeTopFolder; tone: HomeFolderGreetingTone }
+  | { kind: 'tag'; tag: HomeTopTag; tone: HomeTagGreetingTone }
   | { kind: 'none' };
 
 export interface HomeLeadThemeInput {
@@ -271,16 +341,30 @@ export interface HomeLeadThemeInput {
 export function selectHomeLeadTheme(input: HomeLeadThemeInput): HomeLeadTheme {
   const { thread, book, folder, tag, noteCount, hasMoreNotes, today } = input;
   const bookTone = book
-    ? homeBookGreetingTone({ noteCount, hasMoreNotes, referenceCount: book.referenceCount })
+    ? homeBookGreetingTone({
+        noteCount,
+        hasMoreNotes,
+        referenceCount: book.referenceCount,
+        bookNoteCount: book.noteCount,
+      })
     : null;
 
   const candidates: Array<{ theme: HomeLeadTheme; strong: boolean }> = [];
-  if (thread) candidates.push({ theme: { kind: 'thread', thread }, strong: true });
+  if (thread) {
+    const tone = homeThreadGreetingTone(thread.noteCount);
+    candidates.push({ theme: { kind: 'thread', thread, tone }, strong: tone === 'returning' });
+  }
   if (book && bookTone) {
     candidates.push({ theme: { kind: 'book', book, tone: bookTone }, strong: bookTone === 'returning' });
   }
-  if (folder) candidates.push({ theme: { kind: 'folder', folder }, strong: folder.noteCount >= 2 });
-  if (tag) candidates.push({ theme: { kind: 'tag', tag }, strong: tag.noteCount >= 2 });
+  if (folder) {
+    const tone = homeFolderGreetingTone(folder.noteCount);
+    candidates.push({ theme: { kind: 'folder', folder, tone }, strong: tone === 'returning' });
+  }
+  if (tag) {
+    const tone = homeTagGreetingTone(tag.noteCount);
+    candidates.push({ theme: { kind: 'tag', tag, tone }, strong: tone === 'returning' });
+  }
 
   const strong = candidates.filter((c) => c.strong);
   if (strong.length >= 2) {
@@ -292,46 +376,41 @@ export function selectHomeLeadTheme(input: HomeLeadThemeInput): HomeLeadTheme {
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-/** Local-midnight epoch day index — streaks count calendar days, not 24h windows. */
+/** Local-midnight epoch day index — activity counts use calendar days, not 24h windows. */
 function localDayIndex(date: Date): number {
   return Math.floor(new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime() / DAY_MS);
 }
 
-/**
- * Note-activity streak for the Home greeting. Prefers a run of consecutive
- * days (allowed to start yesterday if today is quiet so far); when that's
- * under 2 days, falls back to consecutive calendar weeks each holding at
- * least one activity day. Null when neither reaches 2 — the chip is omitted.
- */
-export function computeActivityStreak(notes: HomeContinueNoteInput[], now: Date): HomeActivityStreak | null {
+function collectActiveDayIndices(notes: HomeContinueNoteInput[]): Set<number> {
   const activeDays = new Set<number>();
   for (const note of notes) {
     const t = effectiveTime(note);
     if (t > 0) activeDays.add(localDayIndex(new Date(t)));
   }
-  if (activeDays.size === 0) return null;
+  return activeDays;
+}
 
+/** Distinct local calendar days with note activity in the Sunday-started week containing `now`. */
+export function countWeeklyActivityDays(notes: HomeContinueNoteInput[], now: Date): number {
+  const activeDays = collectActiveDayIndices(notes);
+  if (activeDays.size === 0) return 0;
   const today = localDayIndex(now);
-  let dayStart = activeDays.has(today) ? today : activeDays.has(today - 1) ? today - 1 : null;
-  if (dayStart != null) {
-    let days = 0;
-    while (activeDays.has(dayStart - days)) days += 1;
-    if (days >= 2) return { unit: 'day', count: days };
-  }
-
-  // Weeks anchored to the local Sunday-started week containing `now`; 0 = this
-  // week, -1 = last week. Like days, the run may start last week if this week
-  // is quiet so far.
   const sundayOfThisWeek = today - now.getDay();
-  const activeWeeks = new Set<number>();
-  for (const day of activeDays) activeWeeks.add(Math.floor((day - sundayOfThisWeek) / 7));
-  const weekStart = activeWeeks.has(0) ? 0 : activeWeeks.has(-1) ? -1 : null;
-  if (weekStart != null) {
-    let weeks = 0;
-    while (activeWeeks.has(weekStart - weeks)) weeks += 1;
-    if (weeks >= 2) return { unit: 'week', count: weeks };
+  let count = 0;
+  for (const day of activeDays) {
+    if (Math.floor((day - sundayOfThisWeek) / 7) === 0) count += 1;
   }
-  return null;
+  return count;
+}
+
+/** Latest note activity timestamp from lastVisited, updatedAt, or createdAt. */
+export function computeLastActivityTime(notes: HomeContinueNoteInput[]): number | null {
+  let best = -1;
+  for (const note of notes) {
+    const t = effectiveTime(note);
+    if (t > best) best = t;
+  }
+  return best > 0 ? best : null;
 }
 
 export interface HomeActivityRhythm {
@@ -413,24 +492,63 @@ export function formatRhythmDaypart(hour: number): string {
 
 export function formatHomeActivityRhythmSuffix(rhythm: HomeActivityRhythm): string {
   const day = WEEKDAY_NAMES[rhythm.dayOfWeek] ?? 'Unknown';
-  return `mostly on ${day} ${formatRhythmDaypart(rhythm.hour)}`;
+  return `often on ${day} ${formatRhythmDaypart(rhythm.hour)}`;
 }
 
-function formatStreakLabel(streak: HomeActivityStreak): string {
-  return `${streak.count} ${streak.unit === 'day' ? 'days' : 'weeks'} in a row`;
+export function formatHomeWeeklyActivitySuffix(count: number): string | null {
+  if (count < 2) return null;
+  if (count === 2) return 'twice this week';
+  return `${count} times this week`;
 }
 
-export function formatHomeActivityStreakSuffix(streak: HomeActivityStreak): string {
-  return formatStreakLabel(streak);
+function formatRelativePastPhrase(lastActivityMs: number, now: Date): string {
+  const diffSec = Math.round((now.getTime() - lastActivityMs) / 1000);
+  if (diffSec < 60) return 'just now';
+
+  let unit: Intl.RelativeTimeFormatUnit = 'minute';
+  let value = Math.floor(diffSec / 60);
+  if (value >= 60) {
+    value = Math.floor(value / 60);
+    unit = 'hour';
+    if (value >= 24) {
+      value = Math.floor(value / 24);
+      unit = 'day';
+      if (value >= 14) {
+        value = Math.floor(value / 7);
+        unit = 'week';
+        if (value >= 10) {
+          return new Date(lastActivityMs).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+        }
+      }
+    }
+  }
+  const rtf = new Intl.RelativeTimeFormat(undefined, { numeric: 'auto' });
+  return rtf.format(-value, unit);
 }
 
-/** Streak wins over rhythm — both are comma clauses on the Home lead sentence. */
-export function formatHomeActivityLeadSuffix(
-  rhythm: HomeActivityRhythm | null,
-  streak: HomeActivityStreak | null,
-): string | null {
-  if (streak) return formatHomeActivityStreakSuffix(streak);
-  if (rhythm) return formatHomeActivityRhythmSuffix(rhythm);
+export function formatHomeLastActivitySuffix(lastActivityMs: number, now: Date): string {
+  const relative = formatRelativePastPhrase(lastActivityMs, now);
+  if (relative === 'just now') return 'last here just now';
+  return `last here ${relative}`;
+}
+
+export interface HomeActivityLeadInput {
+  rhythm: HomeActivityRhythm | null;
+  weeklyDays: number;
+  lastActivityMs: number | null;
+  now: Date;
+  totalNoteCount?: number;
+}
+
+const RHYTHM_MIN_TOTAL_NOTES = 6;
+
+/** Rhythm, then weekly activity count, then last visit — comma clauses on the Home lead sentence. */
+export function formatHomeActivityLeadSuffix(input: HomeActivityLeadInput): string | null {
+  const { rhythm, weeklyDays, lastActivityMs, now, totalNoteCount = 0 } = input;
+  if (rhythm && totalNoteCount >= RHYTHM_MIN_TOTAL_NOTES) return formatHomeActivityRhythmSuffix(rhythm);
+  const weekly = formatHomeWeeklyActivitySuffix(weeklyDays);
+  if (weekly) return weekly;
+  if (lastActivityMs != null) return formatHomeLastActivitySuffix(lastActivityMs, now);
   return null;
 }
 

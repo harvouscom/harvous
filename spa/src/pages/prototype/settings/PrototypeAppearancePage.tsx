@@ -26,7 +26,7 @@ import {
   type ProtoSavedImage,
 } from '../../../lib/prototype-background';
 import { AppearancePreviewTile } from './AppearancePreviewTile';
-import { SettingsShell, SettingsGroup } from './SettingsShell';
+import { SettingsGroup, SettingsIntro, SettingsShell } from './SettingsShell';
 
 export default function PrototypeAppearancePage() {
   const [active, setActive] = useState<ProtoBg>(() => readBackground());
@@ -111,11 +111,12 @@ export default function PrototypeAppearancePage() {
   }, [active]);
 
   return (
-    <SettingsShell title="Appearance" appearanceLayout>
+    <SettingsShell appearanceLayout>
       <div className="proto-settings__inset">
-        <p className="pds-list-section-header" style={{ color: 'var(--pds-text-secondary)', margin: '0 0 8px' }}>
-          Color scheme
-        </p>
+        <SettingsIntro>Appearance settings are saved on this browser and device.</SettingsIntro>
+        <div className="pds-inspector-label" style={{ margin: '0 0 8px', color: 'var(--pds-text-tertiary)' }}>
+          Light or Dark
+        </div>
         <SettingsGroup>
           {COLOR_SCHEME_OPTIONS.map(({ value, label }, i) => (
             <button
@@ -138,9 +139,9 @@ export default function PrototypeAppearancePage() {
           ))}
         </SettingsGroup>
 
-        <p className="pds-subheadline" style={{ color: 'var(--pds-text-secondary)', margin: '0 0 16px' }}>
-          Choose a canvas color or photo—the shell glass tints to match. Saved on this device.
-        </p>
+        <div className="pds-inspector-label" style={{ margin: '20px 0 8px', color: 'var(--pds-text-tertiary)' }}>
+          Background
+        </div>
       </div>
 
       <div ref={carouselRef} className="proto-appearance-carousel" role="listbox" aria-label="Background">
@@ -229,7 +230,7 @@ export default function PrototypeAppearancePage() {
 }
 
 const COLOR_SCHEME_OPTIONS: { value: ColorSchemePreference; label: string }[] = [
-  { value: 'system', label: 'System' },
+  { value: 'system', label: 'Auto' },
   { value: 'light', label: 'Light' },
   { value: 'dark', label: 'Dark' },
 ];

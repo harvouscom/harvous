@@ -118,9 +118,9 @@
   cursor: pointer;
 }
 
-/* Expanded active dock: grow into leftover row space; pin to the track baseline when neighbors are taller. */
+/* Expanded active dock: shrink-wrap beside compact neighbors; only-child spans the track. */
 .study-dock-carousel__item--expanded-slot {
-  flex: 1 0 auto;
+  flex: 0 0 auto;
   flex-shrink: 0;
   min-width: 0;
   max-width: 100%;
@@ -133,6 +133,27 @@
 }
 
 /* Single dock collapsed — native `centersCardInSlot` when count == 1; keep max card width centered. */
+.study-dock-carousel__track > .study-dock-carousel__item--expanded-slot:only-child .study-dock-card {
+  --study-dock-max-width: calc(
+    var(--study-dock-paper-width) + 2 * var(--study-dock-paper-overhang) + 24px
+  );
+}
+
+.study-dock-carousel__track > .study-dock-carousel__item--expanded-slot:only-child .study-dock-card__outer {
+  width: 100%;
+  max-width: var(--study-dock-max-width);
+  margin-left: auto;
+  margin-right: auto;
+}
+
+/* With compact neighbors the slot shrink-wraps — no inner auto margins (avoids a wide empty slot). */
+.study-dock-carousel__track > .study-dock-carousel__item--expanded-slot:not(:only-child) .study-dock-card__outer {
+  width: 100%;
+  max-width: var(--study-dock-max-width);
+  margin-left: 0;
+  margin-right: 0;
+}
+
 .study-dock-carousel__track > .study-dock-carousel__item--compact:only-child {
   flex: 1 0 auto;
   width: 100%;
@@ -163,6 +184,11 @@
   max-width: var(--study-dock-max-width);
   margin-left: auto;
   margin-right: auto;
+}
+
+.study-dock-carousel__item--expanded-slot:not(:only-child) .study-dock-card__outer {
+  margin-left: 0;
+  margin-right: 0;
 }
 
 .study-dock-carousel__item--compact .study-dock-card {

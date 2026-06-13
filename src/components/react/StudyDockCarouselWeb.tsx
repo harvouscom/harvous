@@ -3,6 +3,7 @@
 import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { StudyDockEntry, StudyDockStack } from '@/utils/study-dock-stack';
 import {
+  syncStudyDockCenterOffset,
   syncStudyDockDragHandleHeight,
   updateStudyDockExpandedMaxHeight,
 } from '@/utils/study-dock-layout';
@@ -187,44 +188,102 @@ export default function StudyDockCarouselWeb({
     [],
   );
 
+  const scrollActiveToEditorCenter = useCallback(
+    (track: HTMLDivElement, smooth: boolean) => {
+      if (!stack.activeId || !activeExpanded || draggingId) return;
+      const el = track.querySelector<HTMLElement>(`[data-dock-entry-id="${stack.activeId}"]`);
+      if (!el) return;
+
+      if (stack.entries.length === 1) {
+        syncStudyDockCenterOffset(track);
+        return;
+      }
+
+      const paper = document.querySelector('.proto-editor-paper');
+      const card = el.querySelector<HTMLElement>('.study-dock-card__card');
+      if (!(paper instanceof HTMLElement) || !(card instanceof HTMLElement)) {
+        syncStudyDockCenterOffset(track);
+        return;
+      }
+
+      syncStudyDockCenterOffset(track);
+
+      const paperCenterX =
+        paper.getBoundingClientRect().left + paper.getBoundingClientRect().width / 2;
+      const cardRect = card.getBoundingClientRect();
+      const cardCenterX = cardRect.left + cardRect.width / 2;
+      const delta = cardCenterX - paperCenterX;
+      const maxScroll = Math.max(0, track.scrollWidth - track.clientWidth);
+      const left = Math.max(0, Math.min(track.scrollLeft + delta, maxScroll));
+
+      if (smooth) {
+        const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        track.scrollTo({
+          left,
+          behavior: prefersReducedMotion ? 'auto' : 'smooth',
+        });
+      } else {
+        track.scrollLeft = left;
+      }
+    },
+    [activeExpanded, draggingId, stack.activeId, stack.entries.length],
+  );
+
+  useLayoutEffect(() => {
+    const track = trackRef.current;
+    if (!track || stack.entries.length === 0) return;
+    syncStudyDockCenterOffset(track);
+    const afterLayout = window.setTimeout(() => syncStudyDockCenterOffset(track), 340);
+    return () => window.clearTimeout(afterLayout);
+  }, [stack.entries.length, stack.activeId, activeExpanded, currentIds.join(',')]);
+
   useEffect(() => {
     const track = trackRef.current;
     if (!track || !stack.activeId || !activeExpanded || draggingId) return;
 
-    const centerActiveInTrack = () => {
-      const el = track.querySelector<HTMLElement>(`[data-dock-entry-id="${stack.activeId}"]`);
-      if (!el) return;
-      const prefersReducedMotion =
-        typeof window !== 'undefined' &&
-        window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-      const elCenter = el.offsetLeft + el.offsetWidth / 2;
-      const targetLeft = elCenter - track.clientWidth / 2;
-      const maxScroll = Math.max(0, track.scrollWidth - track.clientWidth);
-      track.scrollTo({
-        left: Math.max(0, Math.min(targetLeft, maxScroll)),
-        behavior: prefersReducedMotion ? 'auto' : 'smooth',
-      });
-    };
-
-    centerActiveInTrack();
-    const afterLayout = window.setTimeout(centerActiveInTrack, 340);
+    scrollActiveToEditorCenter(track, true);
+    const afterLayout = window.setTimeout(() => scrollActiveToEditorCenter(track, true), 340);
     return () => window.clearTimeout(afterLayout);
-  }, [stack.activeId, activeExpanded, stack.entries.length, draggingId, currentIds.join(',')]);
+  }, [
+    stack.activeId,
+    activeExpanded,
+    stack.entries.length,
+    draggingId,
+    currentIds.join(','),
+    scrollActiveToEditorCenter,
+  ]);
 
   useEffect(() => {
-    updateStudyDockExpandedMaxHeight();
+    updateStudyDockExpandedMaxHeight(trackRef.current);
     const track = trackRef.current;
     if (!track) return undefined;
 
-    const ro = new ResizeObserver(() => updateStudyDockExpandedMaxHeight());
-    ro.observe(track);
+    const onLayoutChange = () => {
+      updateStudyDockExpandedMaxHeight(track);
+      scrollActiveToEditorCenter(track, false);
+    };
 
-    const afterLayout = window.setTimeout(updateStudyDockExpandedMaxHeight, 360);
+    const ro = new ResizeObserver(onLayoutChange);
+    ro.observe(track);
+    const editorSurface = document.querySelector('.proto-editor-surface');
+    if (editorSurface instanceof HTMLElement) {
+      ro.observe(editorSurface);
+    }
+    const contentWrap = document.querySelector('.proto-editor-content-wrap');
+    if (contentWrap instanceof HTMLElement) {
+      ro.observe(contentWrap);
+    }
+    const paper = document.querySelector('.proto-editor-paper');
+    if (paper instanceof HTMLElement) {
+      ro.observe(paper);
+    }
+
+    const afterLayout = window.setTimeout(() => updateStudyDockExpandedMaxHeight(track), 360);
     return () => {
       ro.disconnect();
       window.clearTimeout(afterLayout);
     };
-  }, [stack.entries.length, stack.activeId, activeExpanded]);
+  }, [stack.entries.length, stack.activeId, activeExpanded, draggingId, scrollActiveToEditorCenter]);
 
   if (stack.entries.length === 0) return null;
 

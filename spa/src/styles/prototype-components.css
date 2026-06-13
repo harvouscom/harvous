@@ -429,6 +429,32 @@ html[data-shift-hints='1'] .proto-toolbar-orb-group {
   display: block;
 }
 
+/* Icon-only orbs — kill font strut so SVG glyphs center in the circle (iOS Safari). */
+.proto-toolbar-icon-btn:not(:has(.proto-profile-orb__photo)),
+.proto-daily-passage-pill__orb,
+.proto-votd-sheet__fab,
+.proto-appearance-preview__check-orb,
+.proto-study-thread__disconnect-btn {
+  line-height: 0;
+}
+
+.proto-toolbar-icon-btn:not(:has(.proto-profile-orb__photo)) > span,
+.proto-daily-passage-pill__orb > span,
+.proto-votd-sheet__fab > span,
+.proto-appearance-preview__check-orb > span,
+.proto-study-thread__disconnect-btn > span {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 0;
+}
+
+.proto-daily-passage-pill__orb svg,
+.proto-study-thread__disconnect-btn svg {
+  flex-shrink: 0;
+  display: block;
+}
+
 .proto-toolbar-icon-btn:hover {
   background: var(--pds-bg-control);
 }
@@ -2973,35 +2999,82 @@ html.harvous-proto-wallpaper-color .proto-settings-modal {
 .proto-sharing-row {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding: 10px 0;
+  gap: 6px;
+  padding: 12px;
   border-bottom: 0.5px solid var(--pds-border-subtle);
+}
+
+.proto-sharing-row--last {
+  border-bottom: none;
 }
 
 .proto-sharing-row__title {
   color: var(--pds-text-primary);
   text-decoration: none;
-  font-size: 15px;
+  min-width: 0;
+}
+
+.proto-sharing-row__title:hover {
+  color: var(--pds-accent);
+}
+
+.proto-sharing-row__url {
+  margin: 0;
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 12px;
+  line-height: 1.35;
+  color: var(--pds-text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .proto-sharing-row__actions {
   display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-top: 2px;
 }
 
-.proto-sharing-action {
-  padding: 4px 10px;
+.proto-sharing-row__copy {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 10px;
+  border: 1px solid var(--pds-border);
   border-radius: 8px;
-  border: 0.5px solid var(--pds-border-control);
-  background: var(--pds-bg-toolbar);
-  color: var(--pds-text-secondary);
-  font-size: 12px;
+  background: var(--pds-bg-page);
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--pds-text-primary);
   cursor: pointer;
+  white-space: nowrap;
 }
 
-.proto-sharing-action--destructive {
+.proto-sharing-row__copy:hover:not(:disabled) {
+  background: var(--pds-bg-subtle);
+}
+
+.proto-sharing-row__stop {
+  appearance: none;
+  background: transparent;
+  border: 0;
+  padding: 4px 2px;
+  font-size: 12.5px;
+  font-weight: 400;
   color: var(--pds-destructive);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.proto-sharing-row__stop:hover:not(:disabled) {
+  text-decoration: underline;
+}
+
+.proto-sharing-row__stop:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
 }
 
 .proto-toolbar-icon-btn {
@@ -3235,13 +3308,6 @@ html.harvous-prototype-route .proto-list-empty-state h2.proto-list-empty-state__
   text-align: left;
 }
 
-.proto-lock-pin-settings__intro {
-  margin: 0 0 16px;
-  font-family: var(--pds-font-body);
-  font-size: 13px;
-  line-height: 1.45;
-  color: var(--pds-text-secondary);
-}
 
 .proto-lock-pin-settings__body {
   padding: 16px;
@@ -3632,7 +3698,7 @@ html.harvous-prototype-route .proto-list-empty-state h2.proto-list-empty-state__
 .proto-home-loading {
   display: flex;
   justify-content: center;
-  padding: 12px 18px;
+  padding: 24px 14px 14px;
 }
 
 @keyframes proto-home-section-in {
@@ -4347,10 +4413,6 @@ html.harvous-prototype-route .harvous-delete-confirm__icon-btn--destructive:acti
 
 /* ─── Appearance settings — mini shell preview carousel ──────────────────── */
 
-.proto-settings__content--appearance > .proto-title-md {
-  padding-inline: 20px;
-}
-
 .proto-settings__inset {
   padding-inline: 20px;
 }
@@ -4366,7 +4428,7 @@ html.harvous-prototype-route .harvous-delete-confirm__icon-btn--destructive:acti
   scrollbar-width: none;
   width: 100%;
   box-sizing: border-box;
-  padding: 4px 20px 20px;
+  padding: 0 20px 20px;
 }
 
 .proto-appearance-carousel::-webkit-scrollbar {

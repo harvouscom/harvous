@@ -3,14 +3,12 @@ import { useNavigate } from '@tanstack/react-router';
 import { prototypeSettingsRouteTo } from '@/lib/prototype-path';
 import { useProfile } from '../../../hooks/queries/useProfile';
 import { useUpdateChurch } from '../../../hooks/mutations/useUpdateChurch';
-import { SettingsShell } from './SettingsShell';
+import { SettingsIntro, SettingsShell } from './SettingsShell';
 
-const labelStyle: React.CSSProperties = {
+const fieldLabelStyle: React.CSSProperties = {
   display: 'block',
-  fontSize: '0.75rem',
-  fontWeight: 600,
-  color: 'var(--pds-text-secondary)',
   marginBottom: 6,
+  color: 'var(--pds-text-tertiary)',
 };
 
 const inputStyle: React.CSSProperties = {
@@ -29,7 +27,7 @@ const inputStyle: React.CSSProperties = {
 function Field(props: { label: string; value: string; placeholder: string; onChange: (v: string) => void }) {
   return (
     <div style={{ marginBottom: 16 }}>
-      <label style={labelStyle}>{props.label}</label>
+      <label className="pds-inspector-label" style={fieldLabelStyle}>{props.label}</label>
       <input
         type="text"
         value={props.value}
@@ -69,10 +67,8 @@ export default function PrototypeChurchPage() {
   };
 
   return (
-    <SettingsShell title="My Church">
-      <p className="pds-subheadline" style={{ color: 'var(--pds-text-secondary)', margin: '0 0 20px' }}>
-        Optional details about your church. These sync across your devices.
-      </p>
+    <SettingsShell>
+      <SettingsIntro>Optional details about your church. These sync across your devices.</SettingsIntro>
 
       <Field label="Church name" value={name} placeholder="e.g. Grace Community Church" onChange={setName} />
       <Field label="City" value={city} placeholder="City" onChange={setCity} />

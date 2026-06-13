@@ -63,7 +63,7 @@
   z-index: 6;
   display: flex;
   flex-direction: column;
-  align-items: center;
+  align-items: stretch;
   justify-content: flex-end;
   gap: 8px;
   padding: 16px 0 0;
@@ -83,15 +83,18 @@
 .proto-shell__study-dock-layer__slot {
   width: 100%;
   display: flex;
-  justify-content: center;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: stretch;
   pointer-events: none;
 }
 
 .proto-shell__study-dock-layer__slot:not(:empty) {
   /* Only dock cards capture clicks — padded/empty slot area must not block the inspector. */
   pointer-events: none;
-  /* Cards start in the main column; the layer still spans behind the sidebar for glass continuity. */
-  padding-left: var(--proto-sidebar-w-clamped);
+  /* Full-width layer — docks pass behind the floating sidebar; paper centering uses
+     --proto-study-dock-center-offset (transform on item-inner), never slot/carousel inset. */
+  padding-left: 0;
   box-sizing: border-box;
 }
 
@@ -127,6 +130,10 @@
 }
 
 /* Study dock cards — opaque surfaces (glass-light reads too translucent over the shell). */
+.proto-shell__study-dock-layer .study-dock-card {
+  --study-dock-paper-width: var(--proto-study-dock-paper-width-measured, 720px);
+}
+
 html.harvous-prototype-route .proto-shell__study-dock-layer .study-dock-card__card {
   background: var(--pds-bg-popover-solid);
   background-image: none;
@@ -144,27 +151,19 @@ html.harvous-prototype-route .proto-shell__study-dock-layer .dock-accent-swatch_
   max-height: var(--proto-dock-expanded-max-height, none);
 }
 
-/* Full-width bar; toolbar content is offset right so it clears the floating sidebar. */
+/* The editor bottom bar belongs to the main column. With a sidebar present, inset the
+   whole bar so its frosted surface + top hairline never paint behind the floating
+   sidebar — otherwise that surface stacks through the translucent panel and reads as a
+   doubled-glass block at the panel's base. Without a sidebar the bar spans full width. */
 .proto-shell__editor-chrome-row .proto-editor-bottom-bar {
   width: 100%;
 }
 
-.proto-shell__editor-chrome-row .proto-editor-bottom-bar__format,
-.proto-shell__editor-chrome-row .proto-editor-bottom-bar__scripture,
-.proto-shell__editor-chrome-row .proto-editor-bottom-bar__highlight,
-.proto-shell__editor-chrome-row .proto-editor-bottom-bar__reference {
-  padding-left: var(--proto-sidebar-w-clamped);
-}
-
-.proto-shell--no-sidebar .proto-shell__editor-chrome-row .proto-editor-bottom-bar__format,
-.proto-shell--no-sidebar .proto-shell__editor-chrome-row .proto-editor-bottom-bar__scripture,
-.proto-shell--no-sidebar .proto-shell__editor-chrome-row .proto-editor-bottom-bar__highlight,
-.proto-shell--no-sidebar .proto-shell__editor-chrome-row .proto-editor-bottom-bar__reference,
-.proto-shell--sidebar-collapsed .proto-shell__editor-chrome-row .proto-editor-bottom-bar__format,
-.proto-shell--sidebar-collapsed .proto-shell__editor-chrome-row .proto-editor-bottom-bar__scripture,
-.proto-shell--sidebar-collapsed .proto-shell__editor-chrome-row .proto-editor-bottom-bar__highlight,
-.proto-shell--sidebar-collapsed .proto-shell__editor-chrome-row .proto-editor-bottom-bar__reference {
-  padding-left: 0;
+.proto-shell--note-chrome:not(.proto-shell--no-sidebar):not(.proto-shell--sidebar-collapsed)
+  .proto-shell__editor-chrome-row
+  .proto-editor-bottom-bar {
+  margin-left: var(--proto-sidebar-w-clamped);
+  width: auto;
 }
 
 /* Inspector column (when open on desktop) */
@@ -824,6 +823,50 @@ html.harvous-prototype-route .proto-shell__detail-toolbar-cell::after {
 }
 
 @media (min-width: 900px) {
+  /* Full-width track — allow single-dock card overhang past track edges. */
+  .proto-shell__study-dock-layer .study-dock-carousel,
+  .proto-shell__study-dock-layer
+    .study-dock-carousel__track:has(> .study-dock-carousel__item:only-child) {
+    overflow: visible;
+  }
+
+  .proto-shell__study-dock-layer
+    .study-dock-carousel__track:has(> .study-dock-carousel__item:only-child) {
+    overflow-x: visible;
+    overflow-y: visible;
+  }
+
+  /* Single dock only — CSS shift keeps the row intact when multiple docks are open. */
+  .proto-shell__study-dock-layer
+    .study-dock-carousel__track
+    > .study-dock-carousel__item:only-child {
+    transform: translateX(var(--proto-study-dock-center-offset, 0px));
+    transition: transform 0.26s cubic-bezier(0.32, 0.72, 0.24, 1);
+  }
+
+  .proto-shell__study-dock-layer .study-dock-carousel__track:has(> .study-dock-carousel__item:only-child) {
+    padding-left: 0;
+    padding-right: 0;
+  }
+
+  .proto-shell__study-dock-layer
+    .study-dock-carousel__track
+    > .study-dock-carousel__item:only-child
+    .study-dock-card__outer {
+    width: 100%;
+    max-width: var(--study-dock-max-width);
+    margin-left: auto;
+    margin-right: auto;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .proto-shell__study-dock-layer
+      .study-dock-carousel__track
+      > .study-dock-carousel__item:only-child {
+      transition: none;
+    }
+  }
+
   /* Grid + chrome padding ease on open and on close (close uses --sidebar-closing). */
   .proto-shell {
     transition: grid-template-columns 0.26s cubic-bezier(0.32, 0.72, 0.24, 1);
@@ -842,7 +885,12 @@ html.harvous-prototype-route .proto-shell__detail-toolbar-cell::after {
   .proto-shell--sidebar-resizing .proto-shell__editor-chrome-row .proto-editor-bottom-bar__format,
   .proto-shell--sidebar-resizing .proto-shell__editor-chrome-row .proto-editor-bottom-bar__scripture,
   .proto-shell--sidebar-resizing .proto-shell__editor-chrome-row .proto-editor-bottom-bar__highlight,
-  .proto-shell--sidebar-resizing .proto-shell__editor-chrome-row .proto-editor-bottom-bar__reference {
+  .proto-shell--sidebar-resizing .proto-shell__editor-chrome-row .proto-editor-bottom-bar__reference,
+  .proto-shell--sidebar-resizing .proto-shell__study-dock-layer__slot:not(:empty),
+  .proto-shell--sidebar-resizing
+    .proto-shell__study-dock-layer
+    .study-dock-carousel__track
+    > .study-dock-carousel__item:only-child {
     transition: none;
   }
 
@@ -922,9 +970,13 @@ html.harvous-prototype-route .proto-shell__detail-toolbar-cell::after {
   .proto-shell__editor-chrome-row .proto-editor-bottom-bar__highlight,
   .proto-shell__editor-chrome-row .proto-editor-bottom-bar__reference,
   .proto-shell__study-dock-layer__slot:not(:empty),
+  .proto-shell__study-dock-layer
+    .study-dock-carousel__track
+    > .study-dock-carousel__item:only-child,
   .proto-shell:has(.proto-note-pane-row--inspector-open) .proto-shell__study-dock-layer__slot:not(:empty) {
     transition:
       padding-left 0.26s cubic-bezier(0.32, 0.72, 0.24, 1),
+      transform 0.26s cubic-bezier(0.32, 0.72, 0.24, 1),
       padding-right var(--pds-inspector-transition-duration) var(--pds-inspector-transition-ease);
   }
 
@@ -932,7 +984,11 @@ html.harvous-prototype-route .proto-shell__detail-toolbar-cell::after {
   .proto-shell--sidebar-collapsed:not(.proto-shell--sidebar-closing) .proto-shell__editor-chrome-row .proto-editor-bottom-bar__scripture,
   .proto-shell--sidebar-collapsed:not(.proto-shell--sidebar-closing) .proto-shell__editor-chrome-row .proto-editor-bottom-bar__highlight,
   .proto-shell--sidebar-collapsed:not(.proto-shell--sidebar-closing) .proto-shell__editor-chrome-row .proto-editor-bottom-bar__reference,
-  .proto-shell--sidebar-collapsed:not(.proto-shell--sidebar-closing) .proto-shell__study-dock-layer__slot:not(:empty) {
+  .proto-shell--sidebar-collapsed:not(.proto-shell--sidebar-closing) .proto-shell__study-dock-layer__slot:not(:empty),
+  .proto-shell--sidebar-collapsed:not(.proto-shell--sidebar-closing)
+    .proto-shell__study-dock-layer
+    .study-dock-carousel__track
+    > .study-dock-carousel__item:only-child {
     transition: none;
   }
 

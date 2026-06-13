@@ -2,7 +2,7 @@ import Icon from '@/components/react/Icon';
 import { TRANSLATION_ORDER, getTranslation } from '@/data/translations';
 import { useProfile } from '../../../hooks/queries/useProfile';
 import { useUpdateTranslation } from '../../../hooks/mutations/useUpdateTranslation';
-import { SettingsShell, SettingsGroup } from './SettingsShell';
+import { SettingsGroup, SettingsIntro, SettingsShell } from './SettingsShell';
 
 export default function PrototypeTranslationPage() {
   const { data: profile } = useProfile();
@@ -15,10 +15,8 @@ export default function PrototypeTranslationPage() {
     'NET';
 
   return (
-    <SettingsShell title="Default translation">
-      <p className="pds-subheadline" style={{ color: 'var(--pds-text-secondary)', margin: '0 0 16px', padding: '0 12px' }}>
-        Used across the app when you read Scripture.
-      </p>
+    <SettingsShell>
+      <SettingsIntro>The translation used across the app.</SettingsIntro>
       <SettingsGroup>
         {TRANSLATION_ORDER.map((id) => {
           const t = getTranslation(id);

@@ -1,18 +1,25 @@
 import type { ReactNode } from 'react';
 import Icon from '@/components/react/Icon';
 
+/** One-line intro under the settings nav/sheet header — matches My Church tone and typography. */
+export function SettingsIntro({ children }: { children: ReactNode }) {
+  return (
+    <p className="pds-subheadline" style={{ color: 'var(--pds-text-secondary)', margin: '0 0 20px' }}>
+      {children}
+    </p>
+  );
+}
+
 /**
  * Shared chrome for prototype Settings pages — minimal PDS style. A centered
- * column with an optional title heading inside the settings modal detail pane
- * or sheet body.
+ * column inside the settings modal detail pane or sheet body. Category titles
+ * live in the settings nav (desktop) or sheet header (mobile), not here.
  */
 export function SettingsShell({
-  title,
   children,
   /** Full detail-pane width; carousel and other edge-to-edge sections sit outside inset padding. */
   appearanceLayout = false,
 }: {
-  title?: string;
   children: ReactNode;
   appearanceLayout?: boolean;
 }) {
@@ -29,9 +36,6 @@ export function SettingsShell({
           : { maxWidth: 480, width: '100%', margin: '0 auto', padding: '24px 20px 64px' }
       }
     >
-      {title ? (
-        <h1 className="proto-title-md" style={{ margin: '0 0 20px' }}>{title}</h1>
-      ) : null}
       {children}
     </div>
   );
@@ -64,7 +68,7 @@ export function SettingsSubScreen({
         >
           <Icon name="chevron-left" size={18} />
         </button>
-        <h1 className="proto-title-md" style={{ margin: 0 }}>{title}</h1>
+        <h1 className="pds-list-title" style={{ margin: 0 }}>{title}</h1>
       </div>
       {children}
     </div>
