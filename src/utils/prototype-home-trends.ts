@@ -317,29 +317,23 @@ export function formatRhythmHour(hour: number): string {
 
 export function formatActivityRhythm(rhythm: HomeActivityRhythm): string {
   const day = WEEKDAY_NAMES[rhythm.dayOfWeek] ?? 'Unknown';
-  return `usually study ${day}s around ${formatRhythmHour(rhythm.hour)}`;
+  return `usually here on ${day}s at ${formatRhythmHour(rhythm.hour)}`;
 }
 
 function formatStreakLabel(streak: HomeActivityStreak): string {
   return `${streak.count} ${streak.unit === 'day' ? 'days' : 'weeks'} in a row`;
 }
 
-/** Rhythm + streak for the Home greeting — one sentence when both exist. */
+/** Rhythm + streak for the Home greeting — rhythm wins when both exist (4-line budget). */
 export function formatHomeActivitySummary(
   rhythm: HomeActivityRhythm | null,
   streak: HomeActivityStreak | null,
 ): string | null {
-  const rhythmPart = rhythm ? formatActivityRhythm(rhythm) : null;
-  const streakPart = streak ? formatStreakLabel(streak) : null;
-
-  if (rhythmPart && streakPart) {
-    return `You ${rhythmPart} — ${streakPart}.`;
+  if (rhythm) {
+    return `You're ${formatActivityRhythm(rhythm)}.`;
   }
-  if (rhythmPart) {
-    return `You ${rhythmPart}.`;
-  }
-  if (streakPart) {
-    return `You've shown up ${streakPart}.`;
+  if (streak) {
+    return `You've shown up ${formatStreakLabel(streak)}.`;
   }
   return null;
 }

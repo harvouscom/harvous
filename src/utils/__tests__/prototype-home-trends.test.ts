@@ -226,23 +226,23 @@ describe('formatRhythmHour', () => {
 });
 
 describe('formatActivityRhythm', () => {
-  it('formats weekday plural and hour labels', () => {
-    expect(formatActivityRhythm({ dayOfWeek: 2, hour: 19 })).toBe('usually study Tuesdays around 7 PM');
-    expect(formatActivityRhythm({ dayOfWeek: 0, hour: 0 })).toBe('usually study Sundays around 12 AM');
-    expect(formatActivityRhythm({ dayOfWeek: 0, hour: 12 })).toBe('usually study Sundays around 12 PM');
+  it('formats weekday and hour labels', () => {
+    expect(formatActivityRhythm({ dayOfWeek: 2, hour: 19 })).toBe('usually here on Tuesdays at 7 PM');
+    expect(formatActivityRhythm({ dayOfWeek: 0, hour: 0 })).toBe('usually here on Sundays at 12 AM');
+    expect(formatActivityRhythm({ dayOfWeek: 0, hour: 12 })).toBe('usually here on Sundays at 12 PM');
   });
 });
 
 describe('formatHomeActivitySummary', () => {
-  it('merges rhythm and streak into one sentence', () => {
+  it('prefers rhythm over streak when both exist', () => {
     expect(
       formatHomeActivitySummary({ dayOfWeek: 6, hour: 13 }, { unit: 'week', count: 3 }),
-    ).toBe('You usually study Saturdays around 1 PM — 3 weeks in a row.');
+    ).toBe('You\'re usually here on Saturdays at 1 PM.');
   });
 
   it('returns rhythm-only when streak is absent', () => {
     expect(formatHomeActivitySummary({ dayOfWeek: 2, hour: 19 }, null)).toBe(
-      'You usually study Tuesdays around 7 PM.',
+      'You\'re usually here on Tuesdays at 7 PM.',
     );
   });
 
