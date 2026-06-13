@@ -6,6 +6,7 @@ import {
   deriveTopFolders,
   deriveTopTags,
   formatActivityRhythm,
+  formatHomeActivitySummary,
   formatHomeNoteCount,
   formatRhythmHour,
   greetingForHour,
@@ -226,9 +227,36 @@ describe('formatRhythmHour', () => {
 
 describe('formatActivityRhythm', () => {
   it('formats weekday plural and hour labels', () => {
-    expect(formatActivityRhythm({ dayOfWeek: 2, hour: 19 })).toBe('usually study on Tuesdays, around 7 PM');
-    expect(formatActivityRhythm({ dayOfWeek: 0, hour: 0 })).toBe('usually study on Sundays, around 12 AM');
-    expect(formatActivityRhythm({ dayOfWeek: 0, hour: 12 })).toBe('usually study on Sundays, around 12 PM');
+    expect(formatActivityRhythm({ dayOfWeek: 2, hour: 19 })).toBe('usually study Tuesdays around 7 PM');
+    expect(formatActivityRhythm({ dayOfWeek: 0, hour: 0 })).toBe('usually study Sundays around 12 AM');
+    expect(formatActivityRhythm({ dayOfWeek: 0, hour: 12 })).toBe('usually study Sundays around 12 PM');
+  });
+});
+
+describe('formatHomeActivitySummary', () => {
+  it('merges rhythm and streak into one sentence', () => {
+    expect(
+      formatHomeActivitySummary({ dayOfWeek: 6, hour: 13 }, { unit: 'week', count: 3 }),
+    ).toBe('You usually study Saturdays around 1 PM — 3 weeks in a row.');
+  });
+
+  it('returns rhythm-only when streak is absent', () => {
+    expect(formatHomeActivitySummary({ dayOfWeek: 2, hour: 19 }, null)).toBe(
+      'You usually study Tuesdays around 7 PM.',
+    );
+  });
+
+  it('returns streak-only when rhythm is absent', () => {
+    expect(formatHomeActivitySummary(null, { unit: 'week', count: 3 })).toBe(
+      "You've shown up 3 weeks in a row.",
+    );
+    expect(formatHomeActivitySummary(null, { unit: 'day', count: 5 })).toBe(
+      "You've shown up 5 days in a row.",
+    );
+  });
+
+  it('returns null when neither rhythm nor streak', () => {
+    expect(formatHomeActivitySummary(null, null)).toBeNull();
   });
 });
 

@@ -23,11 +23,10 @@ import {
   deriveTopPassages,
   deriveTopFolders,
   deriveTopTags,
-  formatActivityRhythm,
+  formatHomeActivitySummary,
   formatHomeNoteCount,
   greetingForHour,
   homePassageGreetingTone,
-  pickHomeEncouragement,
   pickContinueNote,
 } from '@/utils/prototype-home-trends';
 import { stripServerAutoUntitledNoteTitleForDisplay } from '@/utils/server-auto-untitled-note-display';
@@ -87,18 +86,9 @@ function HomeGreeting({
   const rhythm = useMemo(() => computeActivityRhythm(notes), [notes]);
 
   const hello = `${greetingForHour(new Date().getHours())}${firstName ? `, ${firstName}` : ''}.`;
-  const closer = useMemo(
-    () =>
-      pickHomeEncouragement({
-        noteCount: notes.length,
-        hasMoreNotes,
-        streak,
-        streakShownInGreeting: Boolean(streak),
-        hasTopPassage: Boolean(topPassage),
-        hour: new Date().getHours(),
-        today: new Date(),
-      }),
-    [notes.length, hasMoreNotes, streak, topPassage],
+  const activitySummary = useMemo(
+    () => formatHomeActivitySummary(rhythm, streak),
+    [rhythm, streak],
   );
 
   const passageTone = topPassage
@@ -170,11 +160,6 @@ function HomeGreeting({
       <span>{formatHomeNoteCount(notes.length, hasMoreNotes)}</span>
     </button>
   );
-  const streakLabel = streak
-    ? `${streak.count} ${streak.unit === 'day' ? 'days' : 'weeks'} in a row`
-    : null;
-  const rhythmLabel = rhythm ? formatActivityRhythm(rhythm) : null;
-
   return (
     <p className="proto-home-greeting">
       <span className="proto-home-greeting__hello">{hello}</span>{' '}
@@ -214,8 +199,7 @@ function HomeGreeting({
           ) : (
             <>You have {countChip} saved so far. </>
           )}
-          {rhythmLabel ? <>You {rhythmLabel}. </> : null}
-          {streakLabel ? <>You&apos;ve shown up {streakLabel} now. {closer}</> : <>{closer}</>}
+          {activitySummary ? <>{activitySummary} </> : null}
         </>
       ) : null}
     </p>

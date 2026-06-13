@@ -317,7 +317,31 @@ export function formatRhythmHour(hour: number): string {
 
 export function formatActivityRhythm(rhythm: HomeActivityRhythm): string {
   const day = WEEKDAY_NAMES[rhythm.dayOfWeek] ?? 'Unknown';
-  return `usually study on ${day}s, around ${formatRhythmHour(rhythm.hour)}`;
+  return `usually study ${day}s around ${formatRhythmHour(rhythm.hour)}`;
+}
+
+function formatStreakLabel(streak: HomeActivityStreak): string {
+  return `${streak.count} ${streak.unit === 'day' ? 'days' : 'weeks'} in a row`;
+}
+
+/** Rhythm + streak for the Home greeting — one sentence when both exist. */
+export function formatHomeActivitySummary(
+  rhythm: HomeActivityRhythm | null,
+  streak: HomeActivityStreak | null,
+): string | null {
+  const rhythmPart = rhythm ? formatActivityRhythm(rhythm) : null;
+  const streakPart = streak ? formatStreakLabel(streak) : null;
+
+  if (rhythmPart && streakPart) {
+    return `You ${rhythmPart} — ${streakPart}.`;
+  }
+  if (rhythmPart) {
+    return `You ${rhythmPart}.`;
+  }
+  if (streakPart) {
+    return `You've shown up ${streakPart}.`;
+  }
+  return null;
 }
 
 /** Most-referenced passages across the space's scripture index, canonical order as tiebreak. */
