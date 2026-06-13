@@ -192,7 +192,10 @@ export interface HomeActivityStreak {
   count: number;
 }
 
+/** Local-hour greeting bands: 22–1 Up late, 2–4 Almost morning, 5–11 morning, 12–17 afternoon, 18–21 evening. */
 export function greetingForHour(hour: number): string {
+  if (hour >= 22 || hour < 2) return 'Up late';
+  if (hour < 5) return 'Almost morning';
   if (hour < 12) return 'Good morning';
   if (hour < 18) return 'Good afternoon';
   return 'Good evening';

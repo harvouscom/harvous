@@ -290,12 +290,18 @@ describe('selectHomeLeadTheme', () => {
 
 describe('greetingForHour', () => {
   it('maps hour boundaries to the right greeting', () => {
-    expect(greetingForHour(0)).toBe('Good morning');
+    expect(greetingForHour(0)).toBe('Up late');
+    expect(greetingForHour(1)).toBe('Up late');
+    expect(greetingForHour(2)).toBe('Almost morning');
+    expect(greetingForHour(4)).toBe('Almost morning');
+    expect(greetingForHour(5)).toBe('Good morning');
     expect(greetingForHour(11)).toBe('Good morning');
     expect(greetingForHour(12)).toBe('Good afternoon');
     expect(greetingForHour(17)).toBe('Good afternoon');
     expect(greetingForHour(18)).toBe('Good evening');
-    expect(greetingForHour(23)).toBe('Good evening');
+    expect(greetingForHour(21)).toBe('Good evening');
+    expect(greetingForHour(22)).toBe('Up late');
+    expect(greetingForHour(23)).toBe('Up late');
   });
 });
 
