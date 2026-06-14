@@ -493,12 +493,20 @@ describe('formatHomeWeeklyActivitySuffix', () => {
 describe('formatHomeLastActivitySuffix', () => {
   const now = new Date(2026, 5, 10, 12, 0, 0);
 
-  it('formats just now and relative day phrases', () => {
-    expect(formatHomeLastActivitySuffix(now.getTime(), now)).toBe('last here just now');
+  it('skips very recent visits and uses casual day buckets', () => {
+    expect(formatHomeLastActivitySuffix(now.getTime(), now)).toBeNull();
+    const earlierToday = new Date(2026, 5, 10, 9, 0, 0).getTime();
+    expect(formatHomeLastActivitySuffix(earlierToday, now)).toBe('here earlier today');
     const yesterday = new Date(2026, 5, 9, 12, 0, 0).getTime();
-    expect(formatHomeLastActivitySuffix(yesterday, now)).toBe('last here yesterday');
+    expect(formatHomeLastActivitySuffix(yesterday, now)).toBe('here yesterday');
     const fourDaysAgo = new Date(2026, 5, 6, 12, 0, 0).getTime();
-    expect(formatHomeLastActivitySuffix(fourDaysAgo, now)).toBe('last here 4 days ago');
+    expect(formatHomeLastActivitySuffix(fourDaysAgo, now)).toBe('here earlier this week');
+    const tenDaysAgo = new Date(2026, 5, 0, 12, 0, 0).getTime();
+    expect(formatHomeLastActivitySuffix(tenDaysAgo, now)).toBe('here last week');
+    const thirtyDaysAgo = new Date(2026, 4, 11, 12, 0, 0).getTime();
+    expect(formatHomeLastActivitySuffix(thirtyDaysAgo, now)).toBe('been a while');
+    const longGap = new Date(2026, 2, 1, 12, 0, 0).getTime();
+    expect(formatHomeLastActivitySuffix(longGap, now)).toBe('been a long while');
   });
 });
 
@@ -555,6 +563,17 @@ describe('formatHomeActivityLeadSuffix', () => {
     ).toBe('twice this week');
   });
 
+  it('returns null when last visit is within a minute', () => {
+    expect(
+      formatHomeActivityLeadSuffix({
+        rhythm: null,
+        weeklyDays: 1,
+        lastActivityMs: now.getTime(),
+        now,
+      }),
+    ).toBeNull();
+  });
+
   it('returns last visit when rhythm is weak and weekly count is under two', () => {
     const fourDaysAgo = new Date(2026, 5, 6, 12, 0, 0).getTime();
     expect(
@@ -564,7 +583,7 @@ describe('formatHomeActivityLeadSuffix', () => {
         lastActivityMs: fourDaysAgo,
         now,
       }),
-    ).toBe('last here 4 days ago');
+    ).toBe('here earlier this week');
   });
 
   it('uses weekly copy when rhythm is weak and user was active twice this week', () => {

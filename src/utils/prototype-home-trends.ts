@@ -521,35 +521,21 @@ export function formatHomeWeeklyActivitySuffix(count: number): string | null {
   return `${count} times this week`;
 }
 
-function formatRelativePastPhrase(lastActivityMs: number, now: Date): string {
+function formatCasualLastVisitSuffix(lastActivityMs: number, now: Date): string | null {
   const diffSec = Math.round((now.getTime() - lastActivityMs) / 1000);
-  if (diffSec < 60) return 'just now';
+  if (diffSec < 60) return null;
 
-  let unit: Intl.RelativeTimeFormatUnit = 'minute';
-  let value = Math.floor(diffSec / 60);
-  if (value >= 60) {
-    value = Math.floor(value / 60);
-    unit = 'hour';
-    if (value >= 24) {
-      value = Math.floor(value / 24);
-      unit = 'day';
-      if (value >= 14) {
-        value = Math.floor(value / 7);
-        unit = 'week';
-        if (value >= 10) {
-          return new Date(lastActivityMs).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-        }
-      }
-    }
-  }
-  const rtf = new Intl.RelativeTimeFormat(undefined, { numeric: 'auto' });
-  return rtf.format(-value, unit);
+  const dayDiff = localDayIndex(now) - localDayIndex(new Date(lastActivityMs));
+  if (dayDiff === 0) return 'here earlier today';
+  if (dayDiff === 1) return 'here yesterday';
+  if (dayDiff <= 6) return 'here earlier this week';
+  if (dayDiff <= 13) return 'here last week';
+  if (dayDiff <= 59) return 'been a while';
+  return 'been a long while';
 }
 
-export function formatHomeLastActivitySuffix(lastActivityMs: number, now: Date): string {
-  const relative = formatRelativePastPhrase(lastActivityMs, now);
-  if (relative === 'just now') return 'last here just now';
-  return `last here ${relative}`;
+export function formatHomeLastActivitySuffix(lastActivityMs: number, now: Date): string | null {
+  return formatCasualLastVisitSuffix(lastActivityMs, now);
 }
 
 export interface HomeActivityLeadInput {
@@ -568,7 +554,10 @@ export function formatHomeActivityLeadSuffix(input: HomeActivityLeadInput): stri
   if (rhythm && totalNoteCount >= RHYTHM_MIN_TOTAL_NOTES) return formatHomeActivityRhythmSuffix(rhythm);
   const weekly = formatHomeWeeklyActivitySuffix(weeklyDays);
   if (weekly) return weekly;
-  if (lastActivityMs != null) return formatHomeLastActivitySuffix(lastActivityMs, now);
+  if (lastActivityMs != null) {
+    const lastVisit = formatHomeLastActivitySuffix(lastActivityMs, now);
+    if (lastVisit) return lastVisit;
+  }
   return null;
 }
 
