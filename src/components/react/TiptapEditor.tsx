@@ -7019,6 +7019,23 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
               </PrototypeToolbarButton>
               <FormatToolbarDivider />
               <PrototypeToolbarButton
+                onClick={() => runPrototypeFormatCommand((chain) => chain.toggleBulletList())}
+                isActive={activeStates.bulletList}
+                title="Bullet list"
+                ariaLabel="Toggle bullet list"
+              >
+                <Icon name="list" size={PROTO_FORMAT_ICON_SIZE} className="proto-toolbar-icon" />
+              </PrototypeToolbarButton>
+              <PrototypeToolbarButton
+                onClick={() => runPrototypeFormatCommand((chain) => chain.toggleOrderedList())}
+                isActive={activeStates.orderedList}
+                title="Numbered list"
+                ariaLabel="Toggle numbered list"
+              >
+                <Icon name="list-ol" size={PROTO_FORMAT_ICON_SIZE} className="proto-toolbar-icon" />
+              </PrototypeToolbarButton>
+              <FormatToolbarDivider />
+              <PrototypeToolbarButton
                 onClick={() => toggleHeadingLevel(2)}
                 isActive={activeStates.headingLevel === 2}
                 title="Heading 2"
@@ -7044,23 +7061,6 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                 ariaLabel="Add link to selection"
               >
                 <Icon name="link" size={PROTO_FORMAT_ICON_SIZE} className="proto-toolbar-icon" />
-              </PrototypeToolbarButton>
-              <FormatToolbarDivider />
-              <PrototypeToolbarButton
-                onClick={() => runPrototypeFormatCommand((chain) => chain.toggleBulletList())}
-                isActive={activeStates.bulletList}
-                title="Bullet list"
-                ariaLabel="Toggle bullet list"
-              >
-                <Icon name="list" size={PROTO_FORMAT_ICON_SIZE} className="proto-toolbar-icon" />
-              </PrototypeToolbarButton>
-              <PrototypeToolbarButton
-                onClick={() => runPrototypeFormatCommand((chain) => chain.toggleOrderedList())}
-                isActive={activeStates.orderedList}
-                title="Numbered list"
-                ariaLabel="Toggle numbered list"
-              >
-                <Icon name="list-ol" size={PROTO_FORMAT_ICON_SIZE} className="proto-toolbar-icon" />
               </PrototypeToolbarButton>
               <FormatToolbarDivider />
               <PrototypeToolbarButton

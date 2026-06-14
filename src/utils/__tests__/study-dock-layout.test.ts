@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { syncStudyDockCenterOffset } from '../study-dock-layout';
+import { syncFormatToolbarPaperInset, syncStudyDockCenterOffset } from '../study-dock-layout';
 
 function mockMatchMedia(desktop: boolean) {
   vi.stubGlobal(
@@ -122,5 +122,63 @@ describe('syncStudyDockCenterOffset', () => {
     expect(syncStudyDockCenterOffset(track)).toBe(-122);
 
     getComputedStyleSpy.mockRestore();
+  });
+});
+
+describe('syncFormatToolbarPaperInset', () => {
+  beforeEach(() => {
+    document.body.innerHTML = '';
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('returns 0 and removes the CSS variable when paper or chrome row is missing', () => {
+    const shell = document.createElement('div');
+    shell.className = 'proto-shell';
+    shell.style.setProperty('--proto-format-toolbar-paper-inset', '120px');
+    document.body.appendChild(shell);
+
+    expect(syncFormatToolbarPaperInset()).toBe(0);
+    expect(shell.style.getPropertyValue('--proto-format-toolbar-paper-inset')).toBe('');
+  });
+
+  it('measures paper left edge relative to the chrome row', () => {
+    const shell = document.createElement('div');
+    shell.className = 'proto-shell proto-shell--note-chrome';
+    document.body.appendChild(shell);
+
+    const chromeRow = document.createElement('div');
+    chromeRow.className = 'proto-shell__editor-chrome-row';
+    mockRect(chromeRow, { left: 0, width: 1200, height: 44 });
+    document.body.appendChild(chromeRow);
+
+    const paper = document.createElement('div');
+    paper.className = 'proto-editor-paper';
+    mockRect(paper, { left: 340, width: 720, height: 600 });
+    document.body.appendChild(paper);
+
+    expect(syncFormatToolbarPaperInset()).toBe(340);
+    expect(shell.style.getPropertyValue('--proto-format-toolbar-paper-inset')).toBe('340px');
+  });
+
+  it('clamps to 0 when paper sits left of the chrome row', () => {
+    const shell = document.createElement('div');
+    shell.className = 'proto-shell proto-shell--note-chrome';
+    document.body.appendChild(shell);
+
+    const chromeRow = document.createElement('div');
+    chromeRow.className = 'proto-shell__editor-chrome-row';
+    mockRect(chromeRow, { left: 200, width: 1000, height: 44 });
+    document.body.appendChild(chromeRow);
+
+    const paper = document.createElement('div');
+    paper.className = 'proto-editor-paper';
+    mockRect(paper, { left: 100, width: 720, height: 600 });
+    document.body.appendChild(paper);
+
+    expect(syncFormatToolbarPaperInset()).toBe(0);
+    expect(shell.style.getPropertyValue('--proto-format-toolbar-paper-inset')).toBe('0px');
   });
 });

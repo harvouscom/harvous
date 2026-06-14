@@ -9,9 +9,15 @@ import { useQueryClient } from '@tanstack/react-query';
 import { SettingsGroup, SettingsIntro, SettingsShell } from './SettingsShell';
 import { noteParamSlug } from '../proto-route-slugs';
 
+/** Share links in settings omit the protocol prefix. */
+function displayShareUrl(url: string): string {
+  return url.replace(/^https?:\/\//, '');
+}
+
 /** Middle-truncate long share URLs for one-line list preview. */
 function truncateShareUrl(url: string, maxLength = 48): string {
-  if (url.length <= maxLength) return url;
+  const displayUrl = displayShareUrl(url);
+  if (displayUrl.length <= maxLength) return displayUrl;
   try {
     const parsed = new URL(url);
     const tail = parsed.pathname + parsed.search;
@@ -19,12 +25,14 @@ function truncateShareUrl(url: string, maxLength = 48): string {
     const suffix = tail.slice(-16);
     return `${prefix}…${suffix}`;
   } catch {
-    return `${url.slice(0, maxLength - 1)}…`;
+    return `${displayUrl.slice(0, maxLength - 1)}…`;
   }
 }
 
 export default function PrototypeSharingPage() {
   const [disablingId, setDisablingId] = useState<string | null>(null);
+  const [refreshingId, setRefreshingId] = useState<string | null>(null);
+  const [confirmRefreshId, setConfirmRefreshId] = useState<string | null>(null);
   const [copiedNoteId, setCopiedNoteId] = useState<string | null>(null);
   const sharingQuery = useMySharing();
   const shareNote = useShareNote();
@@ -43,6 +51,21 @@ export default function PrototypeSharingPage() {
       toast.error(err instanceof Error ? err.message : 'Could not stop sharing');
     } finally {
       setDisablingId(null);
+    }
+  };
+
+  const handleRefreshNote = async (note: SharedNoteItem) => {
+    setRefreshingId(note.id);
+    try {
+      await shareNote.mutateAsync({ noteId: note.id, action: 'refresh' });
+      await queryClient.invalidateQueries({ queryKey: mySharingQueryKey });
+      setConfirmRefreshId(null);
+      setCopiedNoteId((current) => (current === note.id ? null : current));
+      toast.success('New share link created');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Could not create a new link');
+    } finally {
+      setRefreshingId(null);
     }
   };
 
@@ -83,6 +106,9 @@ export default function PrototypeSharingPage() {
           {notes.map((note, index) => {
             const isCopied = copiedNoteId === note.id;
             const isLast = index === notes.length - 1;
+            const isRefreshing = refreshingId === note.id;
+            const isConfirmingRefresh = confirmRefreshId === note.id;
+            const isRowBusy = disablingId === note.id || isRefreshing;
 
             return (
               <div key={note.id} className={`proto-sharing-row${isLast ? ' proto-sharing-row--last' : ''}`}>
@@ -94,37 +120,74 @@ export default function PrototypeSharingPage() {
                 >
                   {note.title || 'Untitled note'}
                 </Link>
-                <p className="proto-sharing-row__url" title={note.shareUrl}>
+                <p className="proto-sharing-row__url" title={displayShareUrl(note.shareUrl)}>
                   {truncateShareUrl(note.shareUrl)}
                 </p>
-                <div className="proto-sharing-row__actions">
-                  <button
-                    type="button"
-                    className="proto-sharing-row__copy"
-                    onClick={() => handleCopyLink(note.id, note.shareUrl)}
-                    aria-label={isCopied ? 'Link copied' : 'Copy share link'}
-                  >
-                    {isCopied ? (
-                      <>
-                        <Icon name="check" size={14} aria-hidden />
-                        Copied
-                      </>
-                    ) : (
-                      <>
-                        <Icon name="copy" size={14} aria-hidden />
-                        Copy link
-                      </>
-                    )}
-                  </button>
-                  <button
-                    type="button"
-                    className="proto-sharing-row__stop"
-                    disabled={disablingId === note.id}
-                    onClick={() => handleDisableNote(note)}
-                  >
-                    {disablingId === note.id ? 'Working…' : 'Stop sharing'}
-                  </button>
-                </div>
+                {isConfirmingRefresh ? (
+                  <div className="proto-sharing-row__confirm">
+                    <p className="proto-sharing-row__confirm-prompt">
+                      Create a new link? The old link will stop working.
+                    </p>
+                    <div className="proto-sharing-row__confirm-actions">
+                      <button
+                        type="button"
+                        className="proto-sharing-row__confirm-cancel"
+                        disabled={isRowBusy}
+                        onClick={() => setConfirmRefreshId(null)}
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        className="proto-sharing-row__confirm-submit"
+                        disabled={isRowBusy}
+                        onClick={() => handleRefreshNote(note)}
+                      >
+                        {isRefreshing ? 'Working…' : 'Get new link'}
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="proto-sharing-row__actions">
+                    <button
+                      type="button"
+                      className="proto-sharing-row__copy"
+                      onClick={() => handleCopyLink(note.id, note.shareUrl)}
+                      disabled={isRowBusy}
+                      aria-label={isCopied ? 'Link copied' : 'Copy share link'}
+                    >
+                      {isCopied ? (
+                        <>
+                          <Icon name="check" size={14} aria-hidden />
+                          Copied
+                        </>
+                      ) : (
+                        <>
+                          <Icon name="copy" size={14} aria-hidden />
+                          Copy link
+                        </>
+                      )}
+                    </button>
+                    <div className="proto-sharing-row__secondary-actions">
+                      <button
+                        type="button"
+                        className="proto-sharing-row__refresh"
+                        disabled={isRowBusy}
+                        onClick={() => setConfirmRefreshId(note.id)}
+                      >
+                        Get a new link
+                      </button>
+                      <button
+                        type="button"
+                        className="proto-sharing-row__stop"
+                        disabled={isRowBusy}
+                        onClick={() => handleDisableNote(note)}
+                      >
+                        {disablingId === note.id ? 'Working…' : 'Stop sharing'}
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             );
           })}

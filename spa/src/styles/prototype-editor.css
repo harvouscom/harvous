@@ -587,6 +587,7 @@ html.harvous-prototype-route .proto-editor-surface .scripture-pill-draft__confir
 /* The format toolbar host — TiptapEditor portals the toolbar inside this div. */
 .proto-editor-bottom-bar__format {
   width: 100%;
+  min-width: 0;
   align-items: center;
 }
 
@@ -699,7 +700,22 @@ html.harvous-prototype-route .proto-shell__study-dock-layer .highlight-dock-web_
 }
 
 /* Portal-rendered prototype toolbar — full-bleed, no border/radius/shadow. */
-.proto-editor-bottom-bar .tiptap-toolbar--prototype-native,
+.proto-editor-bottom-bar .tiptap-toolbar--prototype-native {
+  position: static !important;
+  border-radius: 0 !important;
+  border: none !important;
+  background: transparent !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  /* Left padding comes from --proto-format-toolbar-paper-inset on the host. */
+  padding: 4px 12px 4px 0 !important;
+  margin: 0 !important;
+  min-height: 44px;
+  width: 100%;
+  align-items: center;
+  display: flex;
+}
+
 .proto-editor-surface .tiptap-toolbar--prototype-native.tiptap-toolbar--portal {
   position: static !important;
   border-radius: 0 !important;
@@ -734,6 +750,7 @@ html.harvous-prototype-route .proto-shell__study-dock-layer .highlight-dock-web_
   align-items: center;
   flex-wrap: nowrap;
   width: 100%;
+  min-width: 0;
   overflow: hidden;
   padding: 4px 0;
 }
@@ -744,7 +761,7 @@ html.harvous-prototype-route .proto-shell__study-dock-layer .highlight-dock-web_
 
 .proto-editor-bottom-bar .tiptap-toolbar--prototype-native .tiptap-toolbar__scroll-region,
 .proto-editor-surface .tiptap-toolbar--prototype-native .tiptap-toolbar__scroll-region {
-  flex: 1 1 auto;
+  flex: 1 1 0%;
   min-width: 0;
   overflow-x: auto;
   overflow-y: hidden;
@@ -764,7 +781,6 @@ html.harvous-prototype-route .proto-shell__study-dock-layer .highlight-dock-web_
   flex-direction: row;
   flex-wrap: nowrap;
   align-items: center;
-  margin-left: auto;
 }
 
 .proto-editor-bottom-bar .tiptap-toolbar--prototype-native .tiptap-toolbar__history,
@@ -788,6 +804,12 @@ html.harvous-prototype-route .proto-shell__study-dock-layer .highlight-dock-web_
   opacity: 0.14;
   transform: scaleX(0.5);
   transform-origin: center;
+}
+
+/* Scroll clip edge should meet the history divider — no leading margin on the trailing separator. */
+.proto-editor-bottom-bar .tiptap-toolbar--prototype-native .tiptap-toolbar__trailing > .tiptap-toolbar__group-divider--prototype:first-child,
+.proto-editor-surface .tiptap-toolbar--prototype-native .tiptap-toolbar__trailing > .tiptap-toolbar__group-divider--prototype:first-child {
+  margin-left: 0;
 }
 
 .proto-editor-bottom-bar .tiptap-toolbar--prototype-native button,

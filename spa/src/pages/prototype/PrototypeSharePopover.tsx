@@ -57,6 +57,11 @@ export default function PrototypeSharePopover({
     return `${window.location.origin}/shared/note/${shareToken}`;
   }, [isPublic, shareToken]);
 
+  const displayShareUrl = useMemo(() => {
+    if (!shareUrl) return '';
+    return shareUrl.replace(/^https?:\/\//, '');
+  }, [shareUrl]);
+
   // Position once the card has measured itself.
   useLayoutEffect(() => {
     if (!anchorRect) return;
@@ -152,7 +157,7 @@ export default function PrototypeSharePopover({
             <input
               type="text"
               readOnly
-              value={shareUrl ?? ''}
+              value={displayShareUrl}
               className="proto-share-popover__url-input"
               onFocus={(e) => e.currentTarget.select()}
               aria-label="Share URL"

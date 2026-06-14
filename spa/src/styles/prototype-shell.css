@@ -151,19 +151,17 @@ html.harvous-prototype-route .proto-shell__study-dock-layer .dock-accent-swatch_
   max-height: var(--proto-dock-expanded-max-height, none);
 }
 
-/* The editor bottom bar belongs to the main column. With a sidebar present, inset the
-   whole bar so its frosted surface + top hairline never paint behind the floating
-   sidebar — otherwise that surface stacks through the translucent panel and reads as a
-   doubled-glass block at the panel's base. Without a sidebar the bar spans full width. */
+/* Full-width bar; frosted surface + top hairline span the shell (behind the floating
+   sidebar). Toolbar content is inset to the paper left edge (--proto-format-toolbar-paper-inset). */
 .proto-shell__editor-chrome-row .proto-editor-bottom-bar {
   width: 100%;
 }
 
-.proto-shell--note-chrome:not(.proto-shell--no-sidebar):not(.proto-shell--sidebar-collapsed)
-  .proto-shell__editor-chrome-row
-  .proto-editor-bottom-bar {
-  margin-left: var(--proto-sidebar-w-clamped);
-  width: auto;
+.proto-shell__editor-chrome-row .proto-editor-bottom-bar__format,
+.proto-shell__editor-chrome-row .proto-editor-bottom-bar__scripture,
+.proto-shell__editor-chrome-row .proto-editor-bottom-bar__highlight,
+.proto-shell__editor-chrome-row .proto-editor-bottom-bar__reference {
+  padding-left: var(--proto-format-toolbar-paper-inset, 0px);
 }
 
 /* Inspector column (when open on desktop) */
@@ -534,14 +532,6 @@ html.harvous-prototype-route .proto-shell__detail-toolbar-cell::after {
 
   /* Drawer sidebar overlays the shell — dock uses full width like the editor column. */
   .proto-shell__study-dock-layer__slot:not(:empty) {
-    padding-left: 0;
-  }
-
-  /* No inline sidebar gutter on mobile — toolbar + docks span the full width. */
-  .proto-shell__editor-chrome-row .proto-editor-bottom-bar__format,
-  .proto-shell__editor-chrome-row .proto-editor-bottom-bar__scripture,
-  .proto-shell__editor-chrome-row .proto-editor-bottom-bar__highlight,
-  .proto-shell__editor-chrome-row .proto-editor-bottom-bar__reference {
     padding-left: 0;
   }
 

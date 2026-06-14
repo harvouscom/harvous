@@ -105,11 +105,12 @@
   align-items: center;
   flex-wrap: nowrap;
   width: 100%;
+  min-width: 0;
   overflow: hidden;
 }
 
 .note-editor-bottom-bar .tiptap-toolbar--prototype-native .tiptap-toolbar__scroll-region {
-  flex: 1 1 auto;
+  flex: 1 1 0%;
   min-width: 0;
   overflow-x: auto;
   overflow-y: hidden;
@@ -126,7 +127,6 @@
   flex-direction: row;
   flex-wrap: nowrap;
   align-items: center;
-  margin-left: auto;
 }
 
 .note-editor-bottom-bar .tiptap-toolbar--prototype-native .tiptap-toolbar__history {

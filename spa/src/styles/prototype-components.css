@@ -3037,6 +3037,13 @@ html.harvous-proto-wallpaper-color .proto-settings-modal {
   padding-top: 2px;
 }
 
+.proto-sharing-row__secondary-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
 .proto-sharing-row__copy {
   display: inline-flex;
   align-items: center;
@@ -3056,6 +3063,32 @@ html.harvous-proto-wallpaper-color .proto-settings-modal {
   background: var(--pds-bg-subtle);
 }
 
+.proto-sharing-row__copy:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.proto-sharing-row__refresh {
+  appearance: none;
+  background: transparent;
+  border: 0;
+  padding: 4px 2px;
+  font-size: 12.5px;
+  font-weight: 400;
+  color: var(--pds-accent);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.proto-sharing-row__refresh:hover:not(:disabled) {
+  text-decoration: underline;
+}
+
+.proto-sharing-row__refresh:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
 .proto-sharing-row__stop {
   appearance: none;
   background: transparent;
@@ -3073,6 +3106,59 @@ html.harvous-proto-wallpaper-color .proto-settings-modal {
 }
 
 .proto-sharing-row__stop:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.proto-sharing-row__confirm {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 2px;
+}
+
+.proto-sharing-row__confirm-prompt {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.4;
+  color: var(--pds-text-secondary);
+}
+
+.proto-sharing-row__confirm-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+.proto-sharing-row__confirm-cancel,
+.proto-sharing-row__confirm-submit {
+  appearance: none;
+  background: transparent;
+  border: 0;
+  padding: 4px 2px;
+  font-size: 12.5px;
+  font-weight: 400;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.proto-sharing-row__confirm-cancel {
+  color: var(--pds-text-secondary);
+}
+
+.proto-sharing-row__confirm-submit {
+  color: var(--pds-accent);
+  font-weight: 600;
+}
+
+.proto-sharing-row__confirm-cancel:hover:not(:disabled),
+.proto-sharing-row__confirm-submit:hover:not(:disabled) {
+  text-decoration: underline;
+}
+
+.proto-sharing-row__confirm-cancel:disabled,
+.proto-sharing-row__confirm-submit:disabled {
   opacity: 0.55;
   cursor: not-allowed;
 }

@@ -140,12 +140,41 @@ export function syncStudyDockCenterOffset(track?: HTMLElement | null): number {
   return offsetPx;
 }
 
+/**
+ * Measure editor paper left edge vs the shell chrome row and sync
+ * `--proto-format-toolbar-paper-inset` on `.proto-shell` for format bar host padding.
+ */
+export function syncFormatToolbarPaperInset(): number {
+  if (typeof document === 'undefined') return 0;
+
+  const shellEl = document.querySelector('.proto-shell');
+  const shell = shellEl instanceof HTMLElement ? shellEl : null;
+  const paperEl = document.querySelector('.proto-editor-paper');
+  const chromeRowEl = document.querySelector('.proto-shell__editor-chrome-row');
+
+  if (
+    !shell ||
+    !(paperEl instanceof HTMLElement) ||
+    !(chromeRowEl instanceof HTMLElement)
+  ) {
+    shell?.style.removeProperty('--proto-format-toolbar-paper-inset');
+    return 0;
+  }
+
+  const paperRect = paperEl.getBoundingClientRect();
+  const chromeRowRect = chromeRowEl.getBoundingClientRect();
+  const insetPx = Math.max(0, Math.round(paperRect.left - chromeRowRect.left));
+  shell.style.setProperty('--proto-format-toolbar-paper-inset', `${insetPx}px`);
+  return insetPx;
+}
+
 /** Recompute expanded study dock max-height and dock center offset (track required for offset). */
 export function updateStudyDockExpandedMaxHeight(track?: HTMLElement | null): void {
   if (typeof document === 'undefined') return;
   if (track instanceof HTMLElement) {
     syncStudyDockCenterOffset(track);
   }
+  syncFormatToolbarPaperInset();
   const chromeRow = document.querySelector('.proto-shell__editor-chrome-row');
   if (!chromeRow) return;
   const rect = chromeRow.getBoundingClientRect();
