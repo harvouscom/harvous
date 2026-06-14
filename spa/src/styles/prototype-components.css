@@ -1144,7 +1144,7 @@ html.harvous-proto-wallpaper-color .proto-sidebar-search__field:focus-within {
 .proto-note-list {
   list-style: none;
   margin: 0;
-  padding: 4px 0 12px;
+  padding: 8px 0 16px;
 }
 
 /*
@@ -1205,15 +1205,53 @@ html.harvous-proto-wallpaper-color .proto-sidebar-search__field:focus-within {
 .proto-note-row:focus-visible {
   outline: none;
 }
-.proto-note-row-item:focus-within {
+/* Keyboard focus only — :focus-within also fires on mouse click, which left clicked
+   rows latched in the highlighted state after the user moved on. :focus-visible matches
+   keyboard/programmatic focus but not pointer clicks. */
+.proto-note-row-item:has(.proto-note-row__main:focus-visible) {
   background: var(--pds-bg-row-hover);
   box-shadow: inset 0 0 0 1.5px var(--pds-border-control-strong);
 }
 /* Selected row — background only (no inset ring), even when the row button has focus. */
-.proto-note-row-item[data-active='true']:focus-within {
+.proto-note-row-item[data-active='true']:has(.proto-note-row__main:focus-visible) {
   background: var(--pds-bg-sidebar-row-selected);
   box-shadow: none;
 }
+
+.proto-note-row-item[data-active='true'][data-keyboard-focus='true']:has(.proto-note-row__main:focus-visible) {
+  background: var(--pds-bg-row-hover);
+  box-shadow: inset 0 0 0 1.5px var(--pds-border-control-strong);
+}
+
+/* Programmatic keyboard nav (Shift+↑/↓) — :focus-visible is unreliable after .focus(). */
+.proto-note-row-item[data-keyboard-focus='true'] {
+  background: var(--pds-bg-row-hover);
+  box-shadow: inset 0 0 0 1.5px var(--pds-border-control-strong);
+  scroll-margin-top: 8px;
+  scroll-margin-bottom: 8px;
+}
+
+/* Keyboard focus uses the same hover chrome as middle rows (not the subtler selected fill). */
+.proto-note-row-item[data-active='true'][data-keyboard-focus='true'] {
+  background: var(--pds-bg-row-hover);
+  box-shadow: inset 0 0 0 1.5px var(--pds-border-control-strong);
+}
+
+.proto-note-row-item[data-keyboard-focus='true'] .proto-note-row__main:focus,
+.proto-note-row-item[data-keyboard-focus='true'] .proto-note-row__main:focus-visible {
+  outline: none;
+  box-shadow: none;
+}
+
+.proto-note-list > li[data-keyboard-focus='true']:not(.proto-note-row-item) > .proto-note-row,
+.proto-note-list > li[data-keyboard-focus='true']:not(.proto-note-row-item) .proto-note-row {
+  background: var(--pds-bg-row-hover);
+  box-shadow: inset 0 0 0 1.5px var(--pds-border-control-strong);
+  border-radius: var(--pds-radius-row);
+  scroll-margin-top: 8px;
+  scroll-margin-bottom: 8px;
+}
+
 .proto-note-row:focus-visible {
   background: var(--pds-bg-row-hover);
   box-shadow: inset 0 0 0 1.5px var(--pds-border-control-strong);
@@ -2019,7 +2057,9 @@ html.harvous-proto-wallpaper-color .proto-fte-field:focus-within {
 
 .proto-fte-field__btn--apply {
   color: var(--pds-on-accent);
-  background: var(--pds-accent, #3869e6);
+  background: var(--pds-bg-accent-button);
+  box-shadow: var(--pds-shadow-accent-button);
+  transition: filter 0.1s, opacity 0.1s;
 }
 .proto-fte-field__btn--apply > span,
 .proto-fte-field__btn--apply svg,
@@ -2029,12 +2069,15 @@ html.harvous-proto-wallpaper-color .proto-fte-field:focus-within {
 }
 
 .proto-fte-field__btn--apply:hover:not(:disabled) {
-  background: var(--pds-accent, #3869e6);
+  filter: brightness(1.06);
+}
+
+.proto-fte-field__btn--apply:active:not(:disabled) {
   filter: brightness(0.95);
 }
 
 .proto-fte-field__btn--apply:disabled {
-  opacity: 0.35;
+  opacity: 0.65;
   cursor: default;
 }
 
@@ -2151,7 +2194,7 @@ html.harvous-proto-wallpaper-color .proto-fte-field:focus-within {
 }
 
 .proto-fte-switch[data-on='true'] {
-  background: var(--pds-accent, #3869e6);
+  background: var(--pds-bg-accent-button);
 }
 
 .proto-fte-switch__thumb {
@@ -2683,6 +2726,22 @@ html.harvous-proto-wallpaper-color .proto-search-input:focus {
 .proto-ref-url-note-btn {
   padding-left: 12px !important;
   opacity: 0.85;
+}
+
+/* Account edit-photo badge — accent gradient matching scripture confirm orb. */
+.proto-account-photo-badge {
+  position: absolute;
+  right: -2px;
+  bottom: -2px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: 2px solid var(--pds-bg-page);
+  border-radius: 50%;
+  background: var(--pds-bg-accent-button);
+  box-shadow: var(--pds-shadow-accent-button);
 }
 
 /* ─── Settings action buttons ─────────────────────────────────────────────── */
@@ -3924,7 +3983,8 @@ button.proto-home-card--tappable:hover {
   white-space: nowrap;
 }
 
-.proto-home-card__preview {
+.proto-home-card__preview,
+.proto-home-card__excerpt {
   margin: 2px 0 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -4012,6 +4072,28 @@ button.proto-home-card--tappable:hover {
 
 button.proto-home-greeting__chip {
   margin: 0;
+  cursor: pointer;
+  transition:
+    background 0.38s cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 0.38s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+button.proto-home-greeting__chip:hover {
+  background: var(--pds-bg-control-strong);
+  box-shadow:
+    0 2px 4px rgba(60, 64, 67, 0.08),
+    0 8px 18px -10px rgba(60, 64, 67, 0.12),
+    var(--pds-glass-rim);
+}
+
+@media (prefers-color-scheme: dark) {
+  html.harvous-prototype-route:not([data-color-scheme='light']) button.proto-home-greeting__chip:hover,
+  html[data-color-scheme='dark'].harvous-prototype-route button.proto-home-greeting__chip:hover {
+    box-shadow:
+      0 2px 4px rgba(0, 0, 0, 0.22),
+      0 8px 18px -10px rgba(0, 0, 0, 0.3),
+      var(--pds-glass-rim);
+  }
 }
 
 .proto-home-greeting__chip svg {
@@ -4022,43 +4104,6 @@ button.proto-home-greeting__chip {
 /* Tappable scripture chip — keeps the scripture text color on the glass surface. */
 button.proto-home-greeting__chip--passage {
   color: var(--pds-scripture-fg);
-  cursor: pointer;
-}
-
-button.proto-home-greeting__chip--passage:hover {
-  box-shadow: var(--pds-paper-shadow), var(--pds-glass-rim);
-}
-
-button.proto-home-greeting__chip--count {
-  cursor: pointer;
-}
-
-button.proto-home-greeting__chip--count:hover {
-  box-shadow: 0 2px 4px rgba(60, 64, 67, 0.08), 0 8px 18px -10px rgba(60, 64, 67, 0.12), var(--pds-glass-rim);
-}
-
-button.proto-home-greeting__chip--tag {
-  cursor: pointer;
-}
-
-button.proto-home-greeting__chip--tag:hover {
-  box-shadow: 0 2px 4px rgba(60, 64, 67, 0.08), 0 8px 18px -10px rgba(60, 64, 67, 0.12), var(--pds-glass-rim);
-}
-
-button.proto-home-greeting__chip--folder {
-  cursor: pointer;
-}
-
-button.proto-home-greeting__chip--folder:hover {
-  box-shadow: 0 2px 4px rgba(60, 64, 67, 0.08), 0 8px 18px -10px rgba(60, 64, 67, 0.12), var(--pds-glass-rim);
-}
-
-button.proto-home-greeting__chip--thread {
-  cursor: pointer;
-}
-
-button.proto-home-greeting__chip--thread:hover {
-  box-shadow: 0 2px 4px rgba(60, 64, 67, 0.08), 0 8px 18px -10px rgba(60, 64, 67, 0.12), var(--pds-glass-rim);
 }
 
 /* Liturgical season — quiet line under the greeting, calendar glyph + label. */
@@ -4099,15 +4144,22 @@ button.proto-home-greeting__chip--thread:hover {
 .proto-collection-grid {
   list-style: none;
   margin: 0;
-  padding: 4px 8px 12px;
+  padding: 8px 8px 16px;
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 8px;
 }
 
+.proto-collection-grid > li {
+  display: flex;
+  min-width: 0;
+}
+
 .proto-collection-card {
   display: flex;
   flex-direction: column;
+  flex: 1;
+  align-self: stretch;
   gap: 8px;
   width: 100%;
   min-height: 80px;
@@ -4140,6 +4192,16 @@ button.proto-home-greeting__chip--thread:hover {
     var(--pds-paper-shadow-subtle),
     var(--pds-glass-rim),
     inset 0 0 0 1.5px var(--pds-border-control-strong);
+}
+
+.proto-collection-grid > li[data-keyboard-focus='true'] .proto-collection-card {
+  outline: none;
+  box-shadow:
+    var(--pds-paper-shadow-subtle),
+    var(--pds-glass-rim),
+    inset 0 0 0 1.5px var(--pds-border-control-strong);
+  scroll-margin-top: 8px;
+  scroll-margin-bottom: 8px;
 }
 
 .proto-collection-card__icon {

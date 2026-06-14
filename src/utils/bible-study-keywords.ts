@@ -210,6 +210,16 @@ export const BIBLE_STUDY_KEYWORDS: BibleStudyKeyword[] = [
   { name: 'Hell', category: 'biblical', synonyms: ['gehenna', 'eternal punishment'], confidence: 0.85 },
   { name: 'Righteousness', category: 'biblical', synonyms: ['righteous', 'righteousness'], confidence: 0.8 },
 
+  // Curated Study Topics — broad survey themes so notes covering many people/places get a
+  // thematic primary folder instead of the first proper noun. Extensible: add common study
+  // topics here. Keep synonyms tight to limit over-triggering. Keep in sync with native corpus.
+  { name: 'Women of the Bible', category: 'biblical', synonyms: ['women', 'woman', 'women in the bible', 'biblical women'], confidence: 0.8 },
+  { name: 'Fruit of the Spirit', category: 'biblical', synonyms: ['fruits of the spirit'], confidence: 0.8 },
+  { name: 'Armor of God', category: 'biblical', synonyms: ['armour of god', 'full armor of god'], confidence: 0.8 },
+  { name: 'Names of God', category: 'biblical', synonyms: ['name of god', 'names of the lord'], confidence: 0.8 },
+  { name: 'The Beatitudes', category: 'biblical', synonyms: ['beatitudes'], confidence: 0.8 },
+  { name: 'Ten Commandments', category: 'biblical', synonyms: ['ten commandments', 'decalogue'], confidence: 0.8 },
+
   // Life Themes
   { name: 'Family', category: 'life', synonyms: ['relatives', 'household'], confidence: 0.7 },
   { name: 'Marriage', category: 'life', synonyms: ['wedding', 'spouse'], confidence: 0.7 },

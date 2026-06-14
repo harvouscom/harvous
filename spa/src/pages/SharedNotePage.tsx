@@ -7,6 +7,7 @@ import SubtleContentMount from '@/components/react/SubtleContentMount';
 import { api } from '../lib/api';
 import { APIError } from '../lib/api';
 import { useAddSharedNote } from '../hooks/mutations/useAddSharedNote';
+import { noteUrlForCurrentSurface } from '@/utils/url-helpers';
 
 interface SharedNoteResponse {
   note: {
@@ -88,7 +89,7 @@ export default function SharedNotePage() {
       if (result.success && result.createdIds?.noteId) {
         showToast('Added to your Harvous!', 'success', 0);
         const id = result.createdIds.noteId;
-        const path = id.startsWith('note_') ? `/note/${id.slice(5)}` : `/${id}`;
+        const path = noteUrlForCurrentSurface(id);
         setTimeout(() => {
           try {
             sessionStorage.removeItem('harvous_pending_redirect');

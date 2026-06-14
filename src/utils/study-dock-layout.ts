@@ -132,6 +132,10 @@ export function syncStudyDockCenterOffset(track?: HTMLElement | null): number {
     const appliedTranslateX = readElementTranslateX(onlyItem);
     const naturalCardCenterX = cardCenterX - appliedTranslateX;
     offsetPx = Math.round(targetCenterX - naturalCardCenterX);
+    // The slot is inset to the main column (clear of the sidebar); never let the single-dock
+    // shift push the card back outside that track, so it always stays fully visible.
+    const maxShift = Math.max(0, (trackRect.width - cardRect.width) / 2);
+    offsetPx = Math.max(-maxShift, Math.min(maxShift, offsetPx));
   } else {
     offsetPx = Math.round(targetCenterX - trackCenterX);
   }

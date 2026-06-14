@@ -187,7 +187,7 @@
   color: var(--pds-text-primary, #1d1d1f);
 }
 
-/* Inline swatch row (reference dock highlight bar) — native resolvedAccent fills */
+/* Inline swatch row — native resolvedAccent fills */
 .highlight-dock-web__swatch {
   width: 26px;
   height: 26px;

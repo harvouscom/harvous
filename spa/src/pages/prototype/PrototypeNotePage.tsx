@@ -57,11 +57,13 @@ export default function PrototypeNotePage() {
     scriptureRef: initialScriptureRef,
     scriptureTranslation: initialScriptureTranslation,
     studyThread: initialStudyThread,
+    highlight: initialHighlightThread,
   } = useSearch({ strict: false }) as {
     reference?: string;
     scriptureRef?: string;
     scriptureTranslation?: string;
     studyThread?: string;
+    highlight?: string;
   };
   // Stable object so CardFullEditable's open-on-load effect doesn't refire each render.
   // `requestKey` (the clicked highlight's studyThread) makes each distinct highlight click
@@ -76,6 +78,14 @@ export default function PrototypeNotePage() {
           }
         : null,
     [initialScriptureRef, initialScriptureTranslation, initialStudyThread],
+  );
+  // Deep-link to a highlight's dock (Home "revisit" card → text / mini-note / connected highlight).
+  const initialHighlightDock = useMemo(
+    () =>
+      initialHighlightThread
+        ? { studyThreadEntryId: initialHighlightThread, requestKey: initialHighlightThread }
+        : null,
+    [initialHighlightThread],
   );
   const { homeSpaceId } = usePrototypeHomeSpaceId();
   const navigate = useNavigate();
@@ -118,11 +128,30 @@ export default function PrototypeNotePage() {
     setComposePersistedNoteId,
     composeSessionEpoch,
     dismissStandaloneScripturePassage,
+    openStandaloneScripturePassage,
     formatToolbarHostEl,
     studyDockCarouselHostEl,
     setEditorChromeMode,
   } = useProtoShell();
   const prevComposeSessionEpochRef = useRef(composeSessionEpoch);
+
+  // Scripture highlight whose parent note has no matching pill: fall back to the standalone passage
+  // pane (focused on the thread) so the tap never silently lands on "just the note".
+  const onScriptureDockUnresolved = useCallback(() => {
+    if (!initialScriptureRef) return;
+    navigate({ to: prototypeHomeRouteTo() });
+    openStandaloneScripturePassage({
+      canonicalReference: initialScriptureRef,
+      translationCode: initialScriptureTranslation ?? '',
+      focusedHighlightThreadId: initialStudyThread ?? '',
+    });
+  }, [
+    navigate,
+    openStandaloneScripturePassage,
+    initialScriptureRef,
+    initialScriptureTranslation,
+    initialStudyThread,
+  ]);
 
   // Dock the inspector side-by-side only when the editor pane is wide enough to
   // seat the editor (max 720px content) beside it (~268px reserve); otherwise let
@@ -859,6 +888,8 @@ export default function PrototypeNotePage() {
                 studyDockCarouselPortalTarget={studyDockCarouselHostEl}
                 initialReferenceWord={initialReferenceWord || null}
                 initialScriptureDock={initialScriptureDock}
+                initialHighlightDock={initialHighlightDock}
+                onScriptureDockUnresolved={onScriptureDockUnresolved}
                 onPrototypeChromeModeChange={setEditorChromeMode}
                 initialPrimaryCollection={editorNote.primaryCollection ?? null}
                 initialSecondaryCollections={editorSecondaryCollections}

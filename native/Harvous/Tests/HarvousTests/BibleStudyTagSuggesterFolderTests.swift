@@ -113,6 +113,58 @@ final class BibleStudyTagSuggesterFolderTests: XCTestCase {
         XCTAssertFalse(r.tags.contains(where: { $0.caseInsensitiveCompare("Marriage") == .orderedSame }))
         XCTAssertFalse(r.tags.contains(where: { $0.caseInsensitiveCompare("Friendship") == .orderedSame }))
     }
+
+    // MARK: - Primary-folder gate for passing person/place mentions
+
+    func testSurveyNoteUsesTopicNotPassingName() {
+        let title = "Women of the Bible"
+        let body =
+            "Women served a great purpose in God's plan as they were actually the first supporters of Jesus. "
+            + "Ruth, Esther, Mary Magdalene, the Samaritan Woman, and the Virgin Mary. "
+            + "I don't really know any scripture about women except the one that is about being quiet. Proverbs 31"
+        let r = BibleStudyTagSuggester.result(title: title, body: body)
+        XCTAssertEqual(r.primaryFolder, "Women of the Bible")
+        XCTAssertNotEqual(r.primaryFolder, "Mary Magdalene")
+        XCTAssertNotEqual(r.primaryFolder, "Ruth")
+    }
+
+    func testTitleNamedRecurringCharacterStaysPrimary() {
+        let title = "Moses"
+        let body =
+            "Moses climbed the mountain to meet with the Lord. Moses spoke to the people below. "
+            + "Moses carried the staff in his hand. Moses listened and Moses obeyed what he heard that day."
+        let r = BibleStudyTagSuggester.result(title: title, body: body)
+        XCTAssertEqual(r.primaryFolder, "Moses")
+    }
+
+    func testRecurringCharacterIsPrimaryWithoutTitle() {
+        let title = ""
+        let body =
+            "David played the harp before the king. David fought the giant in the valley. "
+            + "David became king over the land. David wrote many songs of his own. David danced before the ark."
+        let r = BibleStudyTagSuggester.result(title: title, body: body)
+        XCTAssertEqual(r.primaryFolder, "David")
+    }
+
+    func testLonePassingCharacterYieldsNoPrimary() {
+        let title = ""
+        let body =
+            "Yesterday we walked along the shore and talked for a long while about many ordinary things "
+            + "that happened during the week, and then someone mentioned Peter once before we all went home for dinner."
+        let r = BibleStudyTagSuggester.result(title: title, body: body)
+        XCTAssertNil(r.primaryFolder)
+    }
+
+    func testRecurringCharacterStillAllowedAsSecondary() {
+        let title = "My salvation story"
+        let body =
+            "Salvation changed my life completely. I found salvation through grace alone. "
+            + "Salvation is a free gift offered to everyone. "
+            + "Paul wrote about it often. Paul explained grace clearly. Paul preached salvation boldly."
+        let r = BibleStudyTagSuggester.result(title: title, body: body)
+        XCTAssertEqual(r.primaryFolder?.lowercased(), "salvation")
+        XCTAssertTrue(r.secondaryFolders.contains(where: { $0.caseInsensitiveCompare("Paul") == .orderedSame }))
+    }
 }
 
 private extension String {

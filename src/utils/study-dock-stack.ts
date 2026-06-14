@@ -48,6 +48,8 @@ export type StudyDockEntry =
       stableKey: string;
       openedAt: number;
       expanded: boolean;
+      /** Id of the dock this one was opened from, or null/undefined when opened from the editor. */
+      openedFromDockId?: string | null;
       session: ScripturePillDockSession;
     }
   | {
@@ -56,6 +58,8 @@ export type StudyDockEntry =
       stableKey: string;
       openedAt: number;
       expanded: boolean;
+      /** Id of the dock this one was opened from, or null/undefined when opened from the editor. */
+      openedFromDockId?: string | null;
       session: HighlightDockSession;
     }
   | {
@@ -64,8 +68,15 @@ export type StudyDockEntry =
       stableKey: string;
       openedAt: number;
       expanded: boolean;
+      /** Id of the dock this one was opened from, or null/undefined when opened from the editor. */
+      openedFromDockId?: string | null;
       session: ReferenceDockSession;
     };
+
+/** Options for the open helpers — `openedFromDockId` records the parent dock for close-follow. */
+export type OpenDockOptions = {
+  openedFromDockId?: string | null;
+};
 
 export type StudyDockStack = {
   entries: StudyDockEntry[];
@@ -174,6 +185,7 @@ function trimToMaxEntries(entries: StudyDockEntry[]): StudyDockEntry[] {
 export function openOrFocusScripture(
   stack: StudyDockStack,
   session: ScripturePillDockSession,
+  options?: OpenDockOptions,
 ): StudyDockStack {
   const stableKey = scriptureDockStableKey(session.reference, session.boundaries);
   const existing = stack.entries.find((e) => e.stableKey === stableKey);
@@ -194,6 +206,7 @@ export function openOrFocusScripture(
     stableKey,
     openedAt: Date.now(),
     expanded: true,
+    openedFromDockId: options?.openedFromDockId ?? null,
     session,
   };
   const entries = trimToMaxEntries([
@@ -206,6 +219,7 @@ export function openOrFocusScripture(
 export function openOrFocusHighlight(
   stack: StudyDockStack,
   session: HighlightDockSession,
+  options?: OpenDockOptions,
 ): StudyDockStack {
   const stableKey = highlightDockStableKey(session.studyThreadEntryId, session.range);
   const existing = stack.entries.find((e) => e.stableKey === stableKey);
@@ -226,6 +240,7 @@ export function openOrFocusHighlight(
     stableKey,
     openedAt: Date.now(),
     expanded: true,
+    openedFromDockId: options?.openedFromDockId ?? null,
     session,
   };
   const entries = trimToMaxEntries([
@@ -238,6 +253,7 @@ export function openOrFocusHighlight(
 export function openOrFocusReference(
   stack: StudyDockStack,
   session: ReferenceDockSession,
+  options?: OpenDockOptions,
 ): StudyDockStack {
   const stableKey = referenceDockStableKey(session);
   const existing = stack.entries.find((e) => e.stableKey === stableKey);
@@ -258,6 +274,7 @@ export function openOrFocusReference(
     stableKey,
     openedAt: Date.now(),
     expanded: true,
+    openedFromDockId: options?.openedFromDockId ?? null,
     session,
   };
   const entries = trimToMaxEntries([
@@ -291,25 +308,34 @@ export function setActiveDockEntry(stack: StudyDockStack, id: string): StudyDock
 }
 
 export function closeDockEntry(stack: StudyDockStack, id: string): StudyDockStack {
-  const idx = stack.entries.findIndex((e) => e.id === id);
-  if (idx < 0) return stack;
+  const closing = stack.entries.find((e) => e.id === id);
+  if (!closing) return stack;
   const remaining = stack.entries.filter((e) => e.id !== id);
   if (remaining.length === 0) {
     return emptyStudyDockStack();
   }
-  let activeId = stack.activeId;
-  if (activeId === id) {
-    const next = remaining[remaining.length - 1];
-    activeId = next.id;
+
+  // Closing a background (non-active) dock never changes which dock is expanded.
+  if (stack.activeId !== id) {
+    return { entries: remaining, activeId: stack.activeId };
+  }
+
+  // Closing the active dock: if it was opened from a dock that's still open, return to it.
+  const parentId = closing.openedFromDockId ?? null;
+  const parent = parentId ? remaining.find((e) => e.id === parentId) : null;
+  if (parent) {
     return {
-      entries: remaining.map((e) => ({
-        ...e,
-        expanded: e.id === activeId,
-      })),
-      activeId,
+      entries: remaining.map((e) => ({ ...e, expanded: e.id === parent.id })),
+      activeId: parent.id,
     };
   }
-  return { entries: remaining, activeId };
+
+  // Opened from the editor (or the parent dock is already gone): do NOT auto-open the next
+  // dock — leave the remaining docks collapsed with nothing expanded.
+  return {
+    entries: remaining.map((e) => ({ ...e, expanded: false })),
+    activeId: null,
+  };
 }
 
 /** Collapse the active entry body without removing it from the stack. */

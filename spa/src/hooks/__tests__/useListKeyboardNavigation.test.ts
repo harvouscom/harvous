@@ -1,13 +1,9 @@
 /**
- * Tests for roving keyboard navigation across sidebar list rows.
- *
- * Builds the real row markup (button.proto-note-row__main inside the scroll container),
- * mounts the hook, and drives Arrow / j-k / Home-End to assert focus moves correctly.
+ * Tests for prototype sidebar list row focus movement (Shift+↑/↓).
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { renderHook } from '@testing-library/react';
-import { useListKeyboardNavigation } from '../useListKeyboardNavigation';
+import { moveListRowFocus } from '../useListKeyboardNavigation';
 
 let container: HTMLDivElement;
 let rows: HTMLButtonElement[];
@@ -33,14 +29,7 @@ function buildList(count: number): void {
   document.body.appendChild(container);
 }
 
-function press(target: HTMLElement, key: string, init: KeyboardEventInit = {}): KeyboardEvent {
-  const event = new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true, ...init });
-  target.dispatchEvent(event);
-  return event;
-}
-
 beforeEach(() => {
-  // jsdom has no layout engine; scrollIntoView is called by the hook.
   Element.prototype.scrollIntoView = vi.fn();
   buildList(3);
 });
@@ -50,90 +39,67 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-function mount() {
-  return renderHook(() => useListKeyboardNavigation({ current: container }));
-}
-
-describe('useListKeyboardNavigation', () => {
-  it('ArrowDown / ArrowUp move focus between rows', () => {
-    mount();
+describe('moveListRowFocus', () => {
+  it('moves focus down and up between rows', () => {
     rows[0].focus();
-
-    const down = press(rows[0], 'ArrowDown');
+    expect(moveListRowFocus(container, 1)).toBe(true);
     expect(document.activeElement).toBe(rows[1]);
-    expect(down.defaultPrevented).toBe(true);
 
-    press(rows[1], 'ArrowDown');
+    expect(moveListRowFocus(container, 1)).toBe(true);
     expect(document.activeElement).toBe(rows[2]);
 
-    press(rows[2], 'ArrowUp');
+    expect(moveListRowFocus(container, -1)).toBe(true);
     expect(document.activeElement).toBe(rows[1]);
   });
 
-  it('supports vim j/k aliases', () => {
-    mount();
-    rows[0].focus();
-
-    press(rows[0], 'j');
-    expect(document.activeElement).toBe(rows[1]);
-
-    press(rows[1], 'k');
+  it('focuses first row on step down when no row is focused', () => {
+    document.body.focus();
+    expect(moveListRowFocus(container, 1)).toBe(true);
     expect(document.activeElement).toBe(rows[0]);
   });
 
-  it('Home / End jump to first and last', () => {
-    mount();
+  it('focuses last row on step up when no row is focused', () => {
+    document.body.focus();
+    expect(moveListRowFocus(container, -1)).toBe(true);
+    expect(document.activeElement).toBe(rows[2]);
+  });
+
+  it('jumps to first and last with jump option', () => {
     rows[1].focus();
-
-    press(rows[1], 'End');
+    expect(moveListRowFocus(container, 0, { jump: 'end' })).toBe(true);
     expect(document.activeElement).toBe(rows[2]);
 
-    press(rows[2], 'Home');
+    expect(moveListRowFocus(container, 0, { jump: 'home' })).toBe(true);
     expect(document.activeElement).toBe(rows[0]);
   });
 
-  it('does not wrap past the ends by default (and consumes the key)', () => {
-    mount();
+  it('does not wrap past the ends by default', () => {
     rows[2].focus();
-    const e = press(rows[2], 'ArrowDown');
+    expect(moveListRowFocus(container, 1)).toBe(true);
     expect(document.activeElement).toBe(rows[2]);
-    expect(e.defaultPrevented).toBe(true);
 
     rows[0].focus();
-    press(rows[0], 'ArrowUp');
+    expect(moveListRowFocus(container, -1)).toBe(true);
     expect(document.activeElement).toBe(rows[0]);
   });
 
   it('wraps when enabled', () => {
-    renderHook(() => useListKeyboardNavigation({ current: container }, { wrap: true }));
     rows[2].focus();
-    press(rows[2], 'ArrowDown');
+    expect(moveListRowFocus(container, 1, { wrap: true })).toBe(true);
     expect(document.activeElement).toBe(rows[0]);
 
-    press(rows[0], 'ArrowUp');
+    expect(moveListRowFocus(container, -1, { wrap: true })).toBe(true);
     expect(document.activeElement).toBe(rows[2]);
   });
 
-  it('ignores keys when focus is not on a row (j/k stay free for typing)', () => {
-    mount();
-    const input = document.createElement('input');
-    document.body.appendChild(input);
-    input.focus();
-
-    const e = press(input, 'j');
-    expect(document.activeElement).toBe(input);
-    expect(e.defaultPrevented).toBe(false);
+  it('returns false when container has no rows', () => {
+    document.body.innerHTML = '';
+    container = document.createElement('div');
+    document.body.appendChild(container);
+    expect(moveListRowFocus(container, 1)).toBe(false);
   });
 
-  it('ignores chords with modifiers', () => {
-    mount();
-    rows[0].focus();
-    const e = press(rows[0], 'ArrowDown', { metaKey: true });
-    expect(document.activeElement).toBe(rows[0]);
-    expect(e.defaultPrevented).toBe(false);
-  });
-
-  it('drives anchor rows via a custom rowSelector (search results)', () => {
+  it('supports a custom rowSelector', () => {
     document.body.innerHTML = '';
     container = document.createElement('div');
     const links: HTMLAnchorElement[] = [];
@@ -146,14 +112,9 @@ describe('useListKeyboardNavigation', () => {
     }
     document.body.appendChild(container);
 
-    renderHook(() =>
-      useListKeyboardNavigation({ current: container }, { rowSelector: 'a.proto-search-result-link' }),
-    );
     links[0].focus();
-    press(links[0], 'ArrowDown');
+    expect(moveListRowFocus(container, 1, { rowSelector: 'a.proto-search-result-link' })).toBe(true);
     expect(document.activeElement).toBe(links[1]);
-    press(links[1], 'k');
-    expect(document.activeElement).toBe(links[0]);
   });
 
   it('also drives folder rows (button.proto-note-row)', () => {
@@ -174,9 +135,54 @@ describe('useListKeyboardNavigation', () => {
     container.appendChild(ul);
     document.body.appendChild(container);
 
-    renderHook(() => useListKeyboardNavigation({ current: container }));
     folderRows[0].focus();
-    press(folderRows[0], 'ArrowDown');
+    expect(moveListRowFocus(container, 1)).toBe(true);
     expect(document.activeElement).toBe(folderRows[1]);
+  });
+
+  it('marks keyboard focus on first and last rows', () => {
+    document.body.focus();
+    expect(moveListRowFocus(container, 1)).toBe(true);
+    expect(rows[0].closest('.proto-note-row-item')?.getAttribute('data-keyboard-focus')).toBe('true');
+
+    expect(moveListRowFocus(container, 0, { jump: 'end' })).toBe(true);
+    expect(document.activeElement).toBe(rows[2]);
+    expect(rows[2].closest('.proto-note-row-item')?.getAttribute('data-keyboard-focus')).toBe('true');
+    expect(rows[0].closest('.proto-note-row-item')?.hasAttribute('data-keyboard-focus')).toBe(false);
+  });
+
+  it('walks collection cards in DOM order (left-to-right, top-to-bottom grid)', () => {
+    document.body.innerHTML = '';
+    container = document.createElement('div');
+    container.className = 'proto-sidebar-scroll';
+    const ul = document.createElement('ul');
+    ul.className = 'proto-collection-grid';
+    const cards: HTMLButtonElement[] = [];
+    for (let i = 0; i < 4; i++) {
+      const li = document.createElement('li');
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'proto-collection-card';
+      btn.textContent = `Card ${i}`;
+      li.appendChild(btn);
+      ul.appendChild(li);
+      cards.push(btn);
+    }
+    container.appendChild(ul);
+    document.body.appendChild(container);
+
+    document.body.focus();
+    expect(moveListRowFocus(container, 1)).toBe(true);
+    expect(document.activeElement).toBe(cards[0]);
+
+    expect(moveListRowFocus(container, 1)).toBe(true);
+    expect(document.activeElement).toBe(cards[1]);
+
+    expect(moveListRowFocus(container, 1)).toBe(true);
+    expect(document.activeElement).toBe(cards[2]);
+
+    expect(moveListRowFocus(container, -1)).toBe(true);
+    expect(document.activeElement).toBe(cards[1]);
+    expect(cards[1].closest('li')?.getAttribute('data-keyboard-focus')).toBe('true');
   });
 });

@@ -396,6 +396,18 @@ function handlePrototypeKeyboardShortcut(event: KeyboardEvent): boolean {
       window.dispatchEvent(new CustomEvent('prototypeShortcutCycleListMode', { detail: { step: 1 } }));
       return true;
     }
+    if (code === 'ArrowUp') {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      window.dispatchEvent(new CustomEvent('prototypeShortcutMoveInList', { detail: { step: -1 } }));
+      return true;
+    }
+    if (code === 'ArrowDown') {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      window.dispatchEvent(new CustomEvent('prototypeShortcutMoveInList', { detail: { step: 1 } }));
+      return true;
+    }
   }
 
   // Cmd/Ctrl + F — focus sidebar search (native SidebarPanelView parity).
@@ -761,7 +773,7 @@ export function getPrototypeKeyboardShortcutsReference(): KeyboardShortcutRefere
       heading: 'Sidebar',
       items: [
         { action: 'Cycle list mode', keyParts: [shift, '← / →'] },
-        { action: 'Move in list', keyParts: ['↑ / ↓'] },
+        { action: 'Move in list', keyParts: [shift, '↑ / ↓'] },
         { action: 'Jump to first / last', keyParts: ['Home / End'] },
         { action: 'Open item', keyParts: ['Enter'] },
       ],

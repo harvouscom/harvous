@@ -199,12 +199,13 @@ export function useSpaceNotes(spaceId: string, limit = 20) {
     ? { pages: [cachedFirstPage], pageParams: [0] }
     : undefined;
   const query = useInfiniteQuery({
-    queryKey: ['space', id, 'notes', 'no-legacy-scripture'],
+    queryKey: ['space', id, 'notes', 'no-legacy-scripture', 'updated'],
     queryFn: async ({ pageParam = 0 }) => {
       const page = await api.get<SpaceNotesPage>(`/api/spaces/${id}/notes`, {
         offset: pageParam,
         limit,
         excludeLegacyScripture: 1,
+        sortBy: 'updated',
       });
       if (pageParam === 0 && id) setCachedSpaceNotesFirstPage(id, page);
       return page;

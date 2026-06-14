@@ -157,7 +157,7 @@ function HomeGreeting({
   const singleNoteAddedRel = useMemo(() => {
     if (countForLogic !== 1 || hasMoreForLogic || notes.length === 0) return '';
     const note = notes[0];
-    return protoRelativeCaption(note.lastVisited ?? note.updatedAt ?? note.createdAt ?? null);
+    return protoRelativeCaption(note.updatedAt ?? note.createdAt ?? null);
   }, [notes, countForLogic, hasMoreForLogic]);
 
   const countChip = (

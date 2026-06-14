@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState, type MouseEvent } from 'react';
+import { useEffect, useState, type MouseEvent } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import Icon from '@/components/react/Icon';
 import DockAccentSwatchButton, { SCRIPTURE_DOCK_ACCENT_COLORS } from '@/components/react/DockAccentSwatchButton';
@@ -8,14 +8,9 @@ import StudyDockCardShell from '@/components/react/StudyDockCardShell';
 import { api } from '../../../spa/src/lib/api';
 import { slugCandidates, type EastonCategory } from '../../../spa/src/hooks/useEastonsSlugIndex';
 import type { StudyHighlightAccentKey } from '@/utils/study-highlight-accents';
-import {
-  isStudyHighlightAccentKey,
-  STUDY_HIGHLIGHT_ACCENT_LABELS,
-  STUDY_HIGHLIGHT_SWATCHES_NO_NEUTRAL,
-} from '@/utils/study-highlight-accents';
+import { isStudyHighlightAccentKey, STUDY_HIGHLIGHT_SWATCHES_NO_NEUTRAL } from '@/utils/study-highlight-accents';
 import '@/styles/study-dock-card.css';
 import '@/styles/reference-dock-web.css';
-import '@/styles/highlight-dock-web.css';
 
 interface EastonsEntry {
   slug: string;
@@ -27,13 +22,6 @@ interface EastonsEntry {
 
 interface EntryResponse extends EastonsEntry {
   success: boolean;
-}
-
-interface SavedHighlight {
-  id: string;
-  excerpt: string;
-  accentKey: StudyHighlightAccentKey;
-  createdAt: string;
 }
 
 export interface ReferenceDockWebProps {
@@ -112,27 +100,6 @@ function useEastonsEntry(word: string) {
   });
 }
 
-function storageKey(source: string, slug: string) {
-  return `harvous-ref-hl-${source}-${slug}`;
-}
-
-function loadHighlights(source: string, slug: string): SavedHighlight[] {
-  try {
-    const raw = localStorage.getItem(storageKey(source, slug));
-    return raw ? (JSON.parse(raw) as SavedHighlight[]) : [];
-  } catch {
-    return [];
-  }
-}
-
-function persistHighlights(source: string, slug: string, items: SavedHighlight[]) {
-  try {
-    localStorage.setItem(storageKey(source, slug), JSON.stringify(items));
-  } catch {
-    /* ignore */
-  }
-}
-
 /** Mouse: run on mousedown (preventDefault suppresses the follow-up click). Keyboard: click with detail 0. */
 function runPointerAction(e: MouseEvent, action: () => void) {
   if (e.button !== 0) return;
@@ -167,80 +134,9 @@ export default function ReferenceDockWeb({
     else setInternalExpanded(next);
   };
 
-  const [highlights, setHighlights] = useState<SavedHighlight[]>([]);
-  const [pendingExcerpt, setPendingExcerpt] = useState<string | null>(null);
-  const [selectedAccent, setSelectedAccent] = useState<StudyHighlightAccentKey>('warmAmber');
-  const bodyRef = useRef<HTMLDivElement | null>(null);
-
   useEffect(() => {
     setQuery(initialQuery);
   }, [initialQuery]);
-
-  useEffect(() => {
-    if (entry?.slug) {
-      setHighlights(loadHighlights('eastons', entry.slug));
-    }
-  }, [entry?.slug]);
-
-  const checkSelection = useCallback(() => {
-    const sel = window.getSelection();
-    if (!sel || sel.rangeCount === 0 || !bodyRef.current) {
-      setPendingExcerpt(null);
-      return;
-    }
-    const text = sel.toString().trim();
-    if (!text || text.length < 3) {
-      setPendingExcerpt(null);
-      return;
-    }
-    const range = sel.getRangeAt(0);
-    if (!bodyRef.current.contains(range.commonAncestorContainer)) {
-      setPendingExcerpt(null);
-      return;
-    }
-    setPendingExcerpt(text);
-  }, []);
-
-  useEffect(() => {
-    const el = bodyRef.current;
-    if (!el) return;
-    el.addEventListener('mouseup', checkSelection);
-    el.addEventListener('touchend', checkSelection);
-    return () => {
-      el.removeEventListener('mouseup', checkSelection);
-      el.removeEventListener('touchend', checkSelection);
-    };
-  }, [checkSelection, entry]);
-
-  const saveHighlight = useCallback(() => {
-    if (!pendingExcerpt || !entry) return;
-    const next: SavedHighlight = {
-      id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
-      excerpt: pendingExcerpt,
-      accentKey: selectedAccent,
-      createdAt: new Date().toISOString(),
-    };
-    const updated = [...highlights, next];
-    setHighlights(updated);
-    persistHighlights('eastons', entry.slug, updated);
-    setPendingExcerpt(null);
-    window.getSelection()?.removeAllRanges();
-  }, [pendingExcerpt, entry, selectedAccent, highlights]);
-
-  const removeHighlight = useCallback(
-    (id: string) => {
-      if (!entry) return;
-      const updated = highlights.filter((h) => h.id !== id);
-      setHighlights(updated);
-      persistHighlights('eastons', entry.slug, updated);
-    },
-    [entry, highlights],
-  );
-
-  const dismissPending = useCallback(() => {
-    setPendingExcerpt(null);
-    window.getSelection()?.removeAllRanges();
-  }, []);
 
   const headword = entry?.headword ?? trimmed;
   const noteAccent: StudyHighlightAccentKey =
@@ -323,55 +219,7 @@ export default function ReferenceDockWeb({
           <p className="reference-dock-web__status">No entry found for "{trimmed}".</p>
         ) : (
           <>
-            <div ref={bodyRef} className="reference-dock-web__passage-html">
-              {entry.body}
-            </div>
-
-            {pendingExcerpt ? (
-              <div className="reference-dock-web__highlight-bar">
-                <div className="reference-dock-web__highlight-swatches">
-                  {STUDY_HIGHLIGHT_SWATCHES_NO_NEUTRAL.map((key) => (
-                    <button
-                      key={key}
-                      type="button"
-                      className={`highlight-dock-web__swatch highlight-dock-web__swatch--${key}${
-                        selectedAccent === key ? ' highlight-dock-web__swatch--selected' : ''
-                      }`}
-                      title={STUDY_HIGHLIGHT_ACCENT_LABELS[key]}
-                      aria-label={STUDY_HIGHLIGHT_ACCENT_LABELS[key]}
-                      aria-pressed={selectedAccent === key}
-                      onMouseDown={(e) => runPointerAction(e, () => setSelectedAccent(key))}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        if (e.detail === 0) setSelectedAccent(key);
-                      }}
-                    />
-                  ))}
-                </div>
-                <button
-                  type="button"
-                  className="highlight-dock-web__btn"
-                  onMouseDown={(e) => runPointerAction(e, saveHighlight)}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    if (e.detail === 0) saveHighlight();
-                  }}
-                >
-                  Save
-                </button>
-                <button
-                  type="button"
-                  className="highlight-dock-web__btn highlight-dock-web__btn--plain"
-                  onMouseDown={(e) => runPointerAction(e, dismissPending)}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    if (e.detail === 0) dismissPending();
-                  }}
-                >
-                  Cancel
-                </button>
-              </div>
-            ) : null}
+            <div className="reference-dock-web__passage-html">{entry.body}</div>
 
             {entry.seeAlso.length > 0 ? (
               <div className="reference-dock-web__see-also">
@@ -387,31 +235,6 @@ export default function ReferenceDockWeb({
                   </button>
                 ))}
               </div>
-            ) : null}
-
-            {highlights.length > 0 ? (
-              <ul className="reference-dock-web__highlight-list">
-                {highlights.map((h) => (
-                  <li key={h.id} className="reference-dock-web__highlight-item">
-                    <span
-                      className={`reference-dock-web__highlight-swatch reference-dock-web__highlight-swatch--${h.accentKey}`}
-                      aria-hidden
-                    />
-                    <span className="reference-dock-web__highlight-excerpt">{h.excerpt}</span>
-                    <button
-                      type="button"
-                      className="highlight-dock-web__btn highlight-dock-web__btn--plain"
-                      onMouseDown={(e) => runPointerAction(e, () => removeHighlight(h.id))}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        if (e.detail === 0) removeHighlight(h.id);
-                      }}
-                    >
-                      Remove
-                    </button>
-                  </li>
-                ))}
-              </ul>
             ) : null}
 
             <div className="reference-dock-web__footer">

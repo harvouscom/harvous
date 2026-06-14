@@ -315,6 +315,18 @@ html.harvous-prototype-route .proto-editor-surface .scripture-pill-draft__confir
   filter: brightness(0.95);
 }
 
+@media (prefers-color-scheme: dark) {
+  :root:not([data-color-scheme='light']) .proto-editor-surface .scripture-pill-draft__confirm {
+    background: var(--pds-selection-bg);
+    box-shadow: none;
+  }
+}
+
+:root[data-color-scheme='dark'] .proto-editor-surface .scripture-pill-draft__confirm {
+  background: var(--pds-selection-bg);
+  box-shadow: none;
+}
+
 /* Translation suffix (e.g. NET) — smaller, vertically centered with reference via flex parent */
 .proto-editor-surface .scripture-pill[data-scripture-translation-label]::after,
 .proto-editor-surface .scripture-pill[data-scripture-translation]:not([data-scripture-translation-label])::after {
@@ -499,6 +511,7 @@ html.harvous-prototype-route .proto-editor-surface .scripture-pill-draft__confir
 .proto-editor-surface .ProseMirror mark,
 .proto-editor-surface .card-full-editable__content-html mark {
   background: transparent !important;
+  background-image: none !important;
   color: inherit !important;
   box-decoration-break: clone;
   -webkit-box-decoration-break: clone;
@@ -523,6 +536,66 @@ html.harvous-prototype-route .proto-editor-surface .scripture-pill-draft__confir
 .proto-editor-surface .ProseMirror mark[data-color="coralRose"],
 .proto-editor-surface .card-full-editable__content-html mark[data-color="coralRose"] { text-decoration-color: var(--pds-highlight-coral-rose); }
 
+@media (prefers-color-scheme: dark) {
+  :root:not([data-color-scheme="light"]) .proto-editor-surface .ProseMirror mark,
+  :root:not([data-color-scheme="light"]) .proto-editor-surface .card-full-editable__content-html mark {
+    text-shadow: 0 0 12px color-mix(in oklab, var(--pds-highlight-warm-amber, var(--study-dock-accent-warmAmber)) 60%, transparent);
+  }
+  :root:not([data-color-scheme="light"]) .proto-editor-surface .ProseMirror mark[data-color="neutral"],
+  :root:not([data-color-scheme="light"]) .proto-editor-surface .card-full-editable__content-html mark[data-color="neutral"] {
+    text-shadow: 0 0 12px color-mix(in oklab, var(--pds-highlight-neutral, var(--study-dock-accent-neutral)) 60%, transparent);
+  }
+  :root:not([data-color-scheme="light"]) .proto-editor-surface .ProseMirror mark[data-color="warmAmber"],
+  :root:not([data-color-scheme="light"]) .proto-editor-surface .card-full-editable__content-html mark[data-color="warmAmber"] {
+    text-shadow: 0 0 12px color-mix(in oklab, var(--pds-highlight-warm-amber, var(--study-dock-accent-warmAmber)) 60%, transparent);
+  }
+  :root:not([data-color-scheme="light"]) .proto-editor-surface .ProseMirror mark[data-color="skyBlue"],
+  :root:not([data-color-scheme="light"]) .proto-editor-surface .card-full-editable__content-html mark[data-color="skyBlue"] {
+    text-shadow: 0 0 12px color-mix(in oklab, var(--pds-highlight-sky-blue, var(--study-dock-accent-skyBlue)) 60%, transparent);
+  }
+  :root:not([data-color-scheme="light"]) .proto-editor-surface .ProseMirror mark[data-color="violet"],
+  :root:not([data-color-scheme="light"]) .proto-editor-surface .card-full-editable__content-html mark[data-color="violet"] {
+    text-shadow: 0 0 12px color-mix(in oklab, var(--pds-highlight-violet, var(--study-dock-accent-violet)) 60%, transparent);
+  }
+  :root:not([data-color-scheme="light"]) .proto-editor-surface .ProseMirror mark[data-color="mintGreen"],
+  :root:not([data-color-scheme="light"]) .proto-editor-surface .card-full-editable__content-html mark[data-color="mintGreen"] {
+    text-shadow: 0 0 12px color-mix(in oklab, var(--pds-highlight-mint-green, var(--study-dock-accent-mintGreen)) 60%, transparent);
+  }
+  :root:not([data-color-scheme="light"]) .proto-editor-surface .ProseMirror mark[data-color="coralRose"],
+  :root:not([data-color-scheme="light"]) .proto-editor-surface .card-full-editable__content-html mark[data-color="coralRose"] {
+    text-shadow: 0 0 12px color-mix(in oklab, var(--pds-highlight-coral-rose, var(--study-dock-accent-coralRose)) 60%, transparent);
+  }
+}
+
+:root[data-color-scheme="dark"] .proto-editor-surface .ProseMirror mark,
+:root[data-color-scheme="dark"] .proto-editor-surface .card-full-editable__content-html mark {
+  text-shadow: 0 0 12px color-mix(in oklab, var(--pds-highlight-warm-amber, var(--study-dock-accent-warmAmber)) 60%, transparent);
+}
+:root[data-color-scheme="dark"] .proto-editor-surface .ProseMirror mark[data-color="neutral"],
+:root[data-color-scheme="dark"] .proto-editor-surface .card-full-editable__content-html mark[data-color="neutral"] {
+  text-shadow: 0 0 12px color-mix(in oklab, var(--pds-highlight-neutral, var(--study-dock-accent-neutral)) 60%, transparent);
+}
+:root[data-color-scheme="dark"] .proto-editor-surface .ProseMirror mark[data-color="warmAmber"],
+:root[data-color-scheme="dark"] .proto-editor-surface .card-full-editable__content-html mark[data-color="warmAmber"] {
+  text-shadow: 0 0 12px color-mix(in oklab, var(--pds-highlight-warm-amber, var(--study-dock-accent-warmAmber)) 60%, transparent);
+}
+:root[data-color-scheme="dark"] .proto-editor-surface .ProseMirror mark[data-color="skyBlue"],
+:root[data-color-scheme="dark"] .proto-editor-surface .card-full-editable__content-html mark[data-color="skyBlue"] {
+  text-shadow: 0 0 12px color-mix(in oklab, var(--pds-highlight-sky-blue, var(--study-dock-accent-skyBlue)) 60%, transparent);
+}
+:root[data-color-scheme="dark"] .proto-editor-surface .ProseMirror mark[data-color="violet"],
+:root[data-color-scheme="dark"] .proto-editor-surface .card-full-editable__content-html mark[data-color="violet"] {
+  text-shadow: 0 0 12px color-mix(in oklab, var(--pds-highlight-violet, var(--study-dock-accent-violet)) 60%, transparent);
+}
+:root[data-color-scheme="dark"] .proto-editor-surface .ProseMirror mark[data-color="mintGreen"],
+:root[data-color-scheme="dark"] .proto-editor-surface .card-full-editable__content-html mark[data-color="mintGreen"] {
+  text-shadow: 0 0 12px color-mix(in oklab, var(--pds-highlight-mint-green, var(--study-dock-accent-mintGreen)) 60%, transparent);
+}
+:root[data-color-scheme="dark"] .proto-editor-surface .ProseMirror mark[data-color="coralRose"],
+:root[data-color-scheme="dark"] .proto-editor-surface .card-full-editable__content-html mark[data-color="coralRose"] {
+  text-shadow: 0 0 12px color-mix(in oklab, var(--pds-highlight-coral-rose, var(--study-dock-accent-coralRose)) 60%, transparent);
+}
+
 /* Reference suggestion — an ephemeral "you have this saved" hint shown while typing.
    Faint DOTTED underline, deliberately lighter than a saved reference's solid underline,
    so it reads as a suggestion (tap → "Save reference"), not a committed highlight. */
@@ -543,6 +616,7 @@ html.harvous-prototype-route .proto-editor-surface .scripture-pill-draft__confir
 /* Selection */
 .proto-editor-surface .ProseMirror ::selection {
   background: var(--pds-selection-bg);
+  color: inherit;
 }
 
 /* ─── Card title field (native composeTitleField — 22pt/600/rounded) ──────── */
@@ -944,10 +1018,12 @@ html.harvous-prototype-route .proto-shell__study-dock-layer .highlight-dock-web_
    `--connect` so the action bar stays visually consistent. */
 .proto-note-action-bar__pill--share-active {
   color: var(--pds-on-accent);
-  background: var(--pds-accent, #3869e6);
+  background: var(--pds-bg-accent-button);
+  box-shadow: var(--pds-shadow-accent-button);
+  transition: filter 0.1s;
 }
 .proto-note-action-bar__pill--share-active:hover {
-  background: #2a5ad8;
+  filter: brightness(1.06);
   color: var(--pds-on-accent);
 }
 
@@ -1197,7 +1273,7 @@ html.harvous-prototype-route .proto-shell__study-dock-layer .highlight-dock-web_
   background: transparent;
   color: inherit;
   cursor: pointer;
-  opacity: 0.85;
+  opacity: 1;
 }
 
 .pds-native-selection-bar__btn:hover {
@@ -1217,6 +1293,21 @@ html.harvous-prototype-route .proto-shell__study-dock-layer .highlight-dock-web_
   background: var(--pds-text-primary);
   opacity: 0.14;
   flex-shrink: 0;
+}
+
+html.harvous-prototype-route .pds-native-selection-bar {
+  color: var(--pds-text-primary);
+}
+
+html.harvous-prototype-route .pds-native-selection-bar__btn,
+html.harvous-prototype-route .pds-native-selection-bar__btn * {
+  color: var(--pds-text-primary) !important;
+}
+
+html.harvous-prototype-route .pds-native-selection-bar__btn svg,
+html.harvous-prototype-route .pds-native-selection-bar__btn path {
+  color: var(--pds-text-primary) !important;
+  stroke: currentColor !important;
 }
 
 /*

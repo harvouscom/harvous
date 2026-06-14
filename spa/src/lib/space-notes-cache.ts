@@ -17,7 +17,7 @@ export function normalizeSpaceIdForCache(spaceId: string): string {
 }
 
 export function spaceNotesQueryKey(spaceId: string) {
-  return ['space', normalizeSpaceIdForCache(spaceId), 'notes', 'no-legacy-scripture'] as const;
+  return ['space', normalizeSpaceIdForCache(spaceId), 'notes', 'no-legacy-scripture', 'updated'] as const;
 }
 
 function patchSessionStorageFirstPage(

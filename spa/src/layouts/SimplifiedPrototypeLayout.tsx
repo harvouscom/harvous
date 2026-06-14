@@ -281,13 +281,15 @@ function PrototypeAuthenticatedChrome({ userId }: { userId?: string }) {
         // flow rooted at the layout top, but iOS can pan the visual viewport (vv.offsetTop > 0)
         // to reveal the caret even while document scroll is locked — leaving a white strip
         // below the in-flow format bar. Push the frame's top down by offsetTop so its top still
-        // sits `frameInset` below the visual top AND its bottom reaches the visual bottom (= top
-        // of the keyboard). Height stays `visibleHeight - frameInset`, so growing margin-top does
-        // not clip the header. A stale offsetTop mid-animation could over-push (gap above the top
-        // toolbar), so apply() is re-run across the keyboard/Safari-bar settle window below; the
-        // committed value uses the settled offsetTop.
+        // sits `frameInset` below the visual top. Height subtracts the inset on BOTH ends
+        // (`visibleHeight - frameInset * 2`) so the frame's bottom edge sits `frameInset` above
+        // the keyboard — a blue outer-shell gap that mirrors the top inset, condensing the shell
+        // into a complete rounded card above the keyboard. Growing margin-top does not clip the
+        // header. A stale offsetTop mid-animation could over-push (gap above the top toolbar), so
+        // apply() is re-run across the keyboard/Safari-bar settle window below; the committed
+        // value uses the settled offsetTop.
         const offsetTop = Math.max(0, Math.round(vv.offsetTop));
-        const frameHeight = Math.max(120, visibleHeight - frameInset);
+        const frameHeight = Math.max(120, visibleHeight - frameInset * 2);
         root.style.setProperty('--proto-visible-viewport-height', `${frameHeight}px`);
         root.setAttribute('data-proto-keyboard-open', '');
         lockPageScroll();

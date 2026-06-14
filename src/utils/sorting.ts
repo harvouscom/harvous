@@ -289,3 +289,37 @@ export function sortNotesByLastVisited<T extends {
     return 0;
   });
 }
+
+/**
+ * Prototype / edit-recency note lists: pinned first, then by last content/metadata edit.
+ * Visit-only `lastVisited` bumps do not affect order — only `updatedAt` and `createdAt`.
+ */
+export function sortNotesByLastUpdated<T extends {
+  isPinned?: boolean;
+  updatedAt?: Date | string | null;
+  createdAt?: Date | string | null;
+  id?: string;
+}>(items: T[]): T[] {
+  const effectiveTime = (item: T): number => {
+    let t = 0;
+    for (const value of [item.updatedAt, item.createdAt]) {
+      const date = value != null ? normalizeDate(value) : null;
+      if (date) t = Math.max(t, date.getTime());
+    }
+    return t;
+  };
+  return [...items].sort((a, b) => {
+    if (a.isPinned && !b.isPinned) return -1;
+    if (!a.isPinned && b.isPinned) return 1;
+
+    const aTime = effectiveTime(a);
+    const bTime = effectiveTime(b);
+    if (aTime !== bTime) return bTime - aTime;
+
+    const aId = a.id || '';
+    const bId = b.id || '';
+    if (aId < bId) return -1;
+    if (aId > bId) return 1;
+    return 0;
+  });
+}

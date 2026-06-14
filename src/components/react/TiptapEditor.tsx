@@ -225,6 +225,17 @@ interface TiptapEditorProps {
     pillAccent: string | null;
   } | null;
   onPrototypeScripturePillOpenRequestConsumed?: () => void;
+  /** Prototype: the scripture-pill open request couldn't find a matching pill in the note (poll timed out). */
+  onPrototypeScripturePillOpenRequestUnresolved?: () => void;
+  /**
+   * Prototype: set when the user taps a highlight elsewhere (e.g. the Home "revisit" card); TipTap finds
+   * the matching highlight mark by study-thread id and opens its dock once the editor mounts.
+   */
+  prototypeHighlightOpenRequest?: {
+    studyThreadEntryId: string;
+    requestKey?: string;
+  } | null;
+  onPrototypeHighlightOpenRequestConsumed?: () => void;
 }
 
 const PROTOTYPE_FORMAT_BAR_HIDE_MS = 2000;
@@ -286,6 +297,106 @@ function resolveScripturePillMarkRangeFromBoundaries(
     /* ignore */
   }
   return boundaries;
+}
+
+/** Sync `data-pill-accent` on live pill spans — ProseMirror may skip attr-only mark DOM patches. */
+function syncScripturePillAccentDom(
+  editor: any,
+  from: number,
+  to: number,
+  accent: string | null,
+): void {
+  if (!editor?.view?.domAtPos) return;
+  const markType = editor?.state?.schema?.marks?.scripturePill;
+  if (!markType) return;
+  const seen = new Set<HTMLElement>();
+  try {
+    editor.state.doc.nodesBetween(from, to, (node: any, pos: number) => {
+      if (!node.isText) return;
+      const hasPill = node.marks.some((m: any) => m.type === markType);
+      if (!hasPill) return;
+      const domPos = editor.view.domAtPos(pos);
+      const domNode = domPos.node as Node;
+      const el =
+        domNode.nodeType === Node.ELEMENT_NODE
+          ? (domNode as HTMLElement)
+          : (domNode as Text).parentElement;
+      const pill = el?.closest?.('.scripture-pill') as HTMLElement | null;
+      if (!pill || seen.has(pill)) return;
+      seen.add(pill);
+      if (accent) {
+        pill.setAttribute('data-pill-accent', accent);
+      } else {
+        pill.removeAttribute('data-pill-accent');
+      }
+    });
+  } catch {
+    /* ignore */
+  }
+}
+
+/** Resolve mark + range for accent updates (boundaries can drift after spacing normalize). */
+function resolveScripturePillMarkForAccentChange(
+  editor: any,
+  boundaries: { from: number; to: number },
+  reference?: string | null,
+): { mark: any; from: number; to: number } | null {
+  const markType = editor?.state?.schema?.marks?.scripturePill;
+  if (!markType) return null;
+
+  const { from, to } = resolveScripturePillMarkRangeFromBoundaries(editor, boundaries);
+
+  let existingMark: any = null;
+  editor.state.doc.nodesBetween(from, to, (node: any) => {
+    if (!existingMark && node.isText) {
+      const m = node.marks.find((x: any) => x.type?.name === 'scripturePill');
+      if (m) existingMark = m;
+    }
+  });
+  if (existingMark) return { mark: existingMark, from, to };
+
+  for (const pos of [from, Math.max(0, to - 1)]) {
+    try {
+      const $pos = editor.state.doc.resolve(pos);
+      const range = getMarkRange($pos, markType);
+      if (!range || typeof range.from !== 'number' || typeof range.to !== 'number') continue;
+      let mark: any = null;
+      editor.state.doc.nodesBetween(range.from, range.to, (node: any) => {
+        if (!mark && node.isText) {
+          const m = node.marks.find((x: any) => x.type?.name === 'scripturePill');
+          if (m) mark = m;
+        }
+      });
+      if (mark) return { mark, from: range.from, to: range.to };
+    } catch {
+      /* try next probe */
+    }
+  }
+
+  if (reference && editor.view?.dom) {
+    try {
+      const root = editor.view.dom as HTMLElement;
+      const pills = root.querySelectorAll('.scripture-pill[data-scripture-reference]');
+      for (const pill of pills) {
+        if (pill.getAttribute('data-scripture-reference') !== reference) continue;
+        const domRange = resolveScripturePillDOMRange(editor, pill as HTMLElement);
+        if (!domRange) continue;
+        let mark: any = null;
+        editor.state.doc.nodesBetween(domRange.from, domRange.to, (node: any) => {
+          if (!mark && node.isText) {
+            const m = node.marks.find((x: any) => x.type?.name === 'scripturePill');
+            if (m) mark = m;
+          }
+        });
+        if (mark) return { mark, from: domRange.from, to: domRange.to };
+      }
+    } catch {
+      /* ignore */
+    }
+  }
+
+  debug('[scripture-pill] accent change: could not resolve mark range');
+  return null;
 }
 
 /** Resolve scripture pill boundaries from clicked DOM span (captures-phase handler). */
@@ -3583,6 +3694,9 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
   initialReferenceWord = null,
   prototypeScripturePillOpenRequest = null,
   onPrototypeScripturePillOpenRequestConsumed,
+  onPrototypeScripturePillOpenRequestUnresolved,
+  prototypeHighlightOpenRequest = null,
+  onPrototypeHighlightOpenRequestConsumed,
 }) => {
   const [isLoaded, setIsLoaded] = useState(false);
   const [isEditorFocused, setIsEditorFocused] = useState(false);
@@ -3686,24 +3800,29 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
   /** Grace window after toolbar use so RAF-deferred parent content sync cannot clobber the editor. */
   const formatToolbarInteractionUntilRef = useRef(0);
   const skipScriptureDockDismissRef = useRef(false);
-  /** Pending RAF that clears the dock-dismiss suppression window (see suppressScriptureDockDismiss). */
-  const skipScriptureDockDismissRafRef = useRef<number | null>(null);
+  /** Pending timer that clears the dock-dismiss suppression window (see suppressScriptureDockDismiss). */
+  const skipScriptureDockDismissTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** Timestamp of the last genuine user interaction (pointer/key) inside the editor body. Lets the
+   * scripture-dock dismiss distinguish a user navigating off the pill (should collapse) from a
+   * programmatic caret jump like a post-save setContent injection (must NOT collapse). */
+  const editorBodyInteractedAtRef = useRef(0);
   /**
-   * Open a short suppression window so a programmatic pill edit (e.g. verse-range rewrite) does not
-   * collapse the scripture dock. A single-consume boolean can't cover the *cascade* of selection
-   * updates one edit triggers (the rewrite + the caret-snap follow-up), so we keep the flag set for
-   * the rest of the frame and clear it on the next animation frame. Back-to-back calls re-arm the
-   * window rather than letting an earlier clear fire mid-cascade.
+   * Open a suppression window so a dock-driven pill edit (verse-range/book/chapter/verse rewrite or a
+   * translation change) does not collapse the scripture dock. A single-consume boolean can't cover the
+   * *cascade* of selection updates one change triggers, and a one-frame RAF window closes before the
+   * async paths settle — the translation change awaits a fetch + fires a `noteUpdated` content re-sync,
+   * and the passage refetch re-renders the dock. So we hold the flag for a short trailing window and
+   * re-arm it on back-to-back calls rather than letting an earlier clear fire mid-cascade.
    */
   const suppressScriptureDockDismiss = useCallback(() => {
     skipScriptureDockDismissRef.current = true;
-    if (skipScriptureDockDismissRafRef.current != null) {
-      cancelAnimationFrame(skipScriptureDockDismissRafRef.current);
+    if (skipScriptureDockDismissTimerRef.current != null) {
+      clearTimeout(skipScriptureDockDismissTimerRef.current);
     }
-    skipScriptureDockDismissRafRef.current = requestAnimationFrame(() => {
+    skipScriptureDockDismissTimerRef.current = setTimeout(() => {
       skipScriptureDockDismissRef.current = false;
-      skipScriptureDockDismissRafRef.current = null;
-    });
+      skipScriptureDockDismissTimerRef.current = null;
+    }, 150);
   }, []);
   /** Latest selection-bar evaluation fn, so a dock-stack change can re-run it without forcing the
    *  listener-registration effect (and its `editor.on`/`document` listeners) to tear down and rewire. */
@@ -3717,9 +3836,12 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
 
   // Reference (dictionary) docks now live in the study-dock carousel alongside scripture pills
   // and highlights, instead of a separate floating portal. This opens or focuses one.
-  const openReferenceDock = useCallback((session: ReferenceDockSession) => {
-    setStudyDockStack((s) => openOrFocusReference(s, session));
-  }, []);
+  const openReferenceDock = useCallback(
+    (session: ReferenceDockSession, openedFromDockId?: string | null) => {
+      setStudyDockStack((s) => openOrFocusReference(s, session, { openedFromDockId }));
+    },
+    [],
+  );
 
   const [selectionExpanded, setSelectionExpanded] = useState(false);
   const [showFormatBarForActivity, setShowFormatBarForActivity] = useState(false);
@@ -5390,6 +5512,13 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
         clearSelectionActionBar();
         return;
       }
+      // A dock control rewriting the pill dispatches a transaction whose selectionUpdate
+      // would otherwise pop the floating menu over the dock. Mirror the collapse handlers
+      // (dismissIfSelectionLeftPill) and bail while a dock interaction is in flight — the
+      // studyDockStack-keyed re-eval effect re-shows the bar once the dock closes.
+      if (studyDockPointerDownRef.current || skipScriptureDockDismissRef.current) {
+        return;
+      }
       if (isSelectionActionBarEligible(editor)) {
         setShowCreateNoteButton(true);
         // Position floating action bar below the selection (prototype: 8px gap + clamp like native SelectionActionBar)
@@ -5499,7 +5628,14 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
         }
       });
       if (!pillEl) {
-        if (attempt < MAX_ATTEMPTS) rafId = window.requestAnimationFrame(() => run(attempt + 1));
+        if (attempt < MAX_ATTEMPTS) {
+          rafId = window.requestAnimationFrame(() => run(attempt + 1));
+        } else {
+          // No matching pill in this note — let the host fall back (e.g. standalone passage pane)
+          // rather than silently leaving the user on "just the note".
+          onPrototypeScripturePillOpenRequestConsumed?.();
+          onPrototypeScripturePillOpenRequestUnresolved?.();
+        }
         return;
       }
       const boundaries = resolveScripturePillDOMRange(editor, pillEl);
@@ -5523,7 +5659,171 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       cancelled = true;
       window.cancelAnimationFrame(rafId);
     };
-  }, [editor, editorChromeMode, prototypeScripturePillOpenRequest, onPrototypeScripturePillOpenRequestConsumed]);
+  }, [
+    editor,
+    editorChromeMode,
+    prototypeScripturePillOpenRequest,
+    onPrototypeScripturePillOpenRequestConsumed,
+    onPrototypeScripturePillOpenRequestUnresolved,
+  ]);
+
+  // Open the dock that corresponds to a highlight mark. Shared by the in-editor click handler
+  // and the deep-link consumer below so a tap from elsewhere (e.g. the Home "revisit" card)
+  // opens exactly what an in-note tap would: reference dock, connected-note popup, or highlight dock.
+  const openStudyDockForHighlightMark = useCallback(
+    (markInPm: HTMLElement) => {
+      if (!editor || !isEditorValid(editor)) return;
+      const markColor = markInPm.getAttribute('data-color');
+      const markReference = markInPm.getAttribute('data-reference');
+      // Reference highlights (looked-up words) open the reference dock with highlight controls.
+      // - New format: data-reference="word" (created via "Look up")
+      // - Legacy format: data-color="referenceHighlight" (pre-refactor, word inferred from text)
+      const isReference = !!markReference || markColor === 'referenceHighlight';
+      if (isReference) {
+        const word = markReference || markInPm.textContent?.trim() || '';
+        const markStudyId = markInPm.getAttribute('data-study-thread-id');
+        const noteRange = (() => {
+          try {
+            const pos = editor.view.posAtDOM(markInPm, 0);
+            const $p = editor.state.doc.resolve(pos);
+            const markType = editor.state.schema.marks.highlight;
+            if (!markType) return null;
+            const r = getMarkRange($p, markType);
+            if (r && typeof r.from === 'number' && typeof r.to === 'number') {
+              return { from: r.from, to: r.to };
+            }
+          } catch {
+            /* ignore */
+          }
+          return null;
+        })();
+        const accent = isStudyHighlightAccentKey(markColor) ? markColor : 'warmAmber';
+        openReferenceDock({
+          query: word,
+          noteHighlightRange: noteRange,
+          noteHighlightAccent: accent,
+          studyThreadEntryId: markStudyId,
+        });
+        setTranslationPicker(null);
+        return;
+      }
+      const linkedNoteId = markInPm.getAttribute('data-linked-note-id');
+      if (linkedNoteId) {
+        // Connected-note highlight: show floating popup instead of opening the dock.
+        const studyThreadId = markInPm.getAttribute('data-study-thread-id') ?? '';
+        const accent = isStudyHighlightAccentKey(markColor) ? markColor : 'violet';
+        const domRect = markInPm.getBoundingClientRect();
+        const markRange = (() => {
+          try {
+            const pos = editor.view.posAtDOM(markInPm, 0);
+            const $p = editor.state.doc.resolve(pos);
+            const mType = editor.state.schema.marks.highlight;
+            if (!mType) return null;
+            const r = getMarkRange($p, mType);
+            return r && typeof r.from === 'number' ? { from: r.from, to: r.to } : null;
+          } catch {
+            return null;
+          }
+        })();
+        setConnectedNoteHighlightPopup({
+          studyThreadId,
+          linkedNoteId,
+          accent,
+          anchorRect: {
+            top: domRect.top,
+            left: domRect.left,
+            bottom: domRect.bottom,
+            right: domRect.right,
+            width: domRect.width,
+            height: domRect.height,
+          },
+          from: markRange?.from ?? 0,
+          to: markRange?.to ?? 0,
+        });
+        setTranslationPicker(null);
+        return;
+      }
+      const highlightExcerpt = markInPm.textContent || '';
+      const highlightSession: HighlightDockSession = {
+        studyThreadEntryId: markInPm.getAttribute('data-study-thread-id'),
+        accent: markColor || 'warmAmber',
+        excerpt: highlightExcerpt,
+        entryKind: 'miniNote',
+        focusTitle: deriveHighlightFocusTitle(highlightExcerpt),
+        miniNoteBody: '',
+        range: (() => {
+          try {
+            const pos = editor.view.posAtDOM(markInPm, 0);
+            const $p = editor.state.doc.resolve(pos);
+            const markType = editor.state.schema.marks.highlight;
+            if (!markType) return null;
+            const r = getMarkRange($p, markType);
+            if (r && typeof r.from === 'number' && typeof r.to === 'number') {
+              return { from: r.from, to: r.to };
+            }
+          } catch {
+            /* ignore */
+          }
+          return null;
+        })(),
+      };
+      setStudyDockStack((s) => openOrFocusHighlight(s, highlightSession));
+      setTranslationPicker(null);
+    },
+    [editor, openReferenceDock],
+  );
+
+  /** Deep-link open: when arriving with a highlight-dock request (e.g. tapping a highlight in the Home
+   *  "revisit" card), find the matching highlight mark by study-thread id and open its dock once.
+   *  Polls for the mark like the scripture consumer above, since the note content renders after mount. */
+  const initialHighlightDockFiredRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (
+      !editor ||
+      !isEditorValid(editor) ||
+      editorChromeMode !== 'prototypeNative' ||
+      !prototypeHighlightOpenRequest
+    ) {
+      return;
+    }
+    const req = prototypeHighlightOpenRequest;
+    const key = req.requestKey ?? req.studyThreadEntryId;
+    if (initialHighlightDockFiredRef.current === key) return;
+    let cancelled = false;
+    let rafId = 0;
+    const MAX_ATTEMPTS = 90; // ~1.5s at 60fps
+    const run = (attempt: number) => {
+      if (cancelled || !isEditorValid(editor)) return;
+      const root = editor.view.dom as HTMLElement;
+      const markEl = root.querySelector(
+        `mark[data-study-thread-id="${CSS.escape(req.studyThreadEntryId)}"]`,
+      ) as HTMLElement | null;
+      if (!markEl) {
+        if (attempt < MAX_ATTEMPTS) {
+          rafId = window.requestAnimationFrame(() => run(attempt + 1));
+        } else {
+          onPrototypeHighlightOpenRequestConsumed?.();
+        }
+        return;
+      }
+      initialHighlightDockFiredRef.current = key;
+      openStudyDockForHighlightMark(markEl);
+      onPrototypeHighlightOpenRequestConsumed?.();
+    };
+    rafId = window.requestAnimationFrame(() => {
+      rafId = window.requestAnimationFrame(() => run(0));
+    });
+    return () => {
+      cancelled = true;
+      window.cancelAnimationFrame(rafId);
+    };
+  }, [
+    editor,
+    editorChromeMode,
+    prototypeHighlightOpenRequest,
+    openStudyDockForHighlightMark,
+    onPrototypeHighlightOpenRequestConsumed,
+  ]);
 
   // Handle ALL scripture pill clicks via DOM click handler (both edit and read-only).
   // We use the CAPTURE phase on the wrapper div so our handler fires BEFORE
@@ -5683,93 +5983,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       if (markInPm && editorChromeMode === 'prototypeNative' && editor.isEditable) {
         e.preventDefault();
         e.stopImmediatePropagation();
-        const markColor = markInPm.getAttribute('data-color');
-        const markReference = markInPm.getAttribute('data-reference');
-        // Reference highlights (looked-up words) open the reference dock with highlight controls.
-        // - New format: data-reference="word" (created via "Look up")
-        // - Legacy format: data-color="referenceHighlight" (pre-refactor, word inferred from text)
-        const isReference = !!markReference || markColor === 'referenceHighlight';
-        if (isReference) {
-          const word = markReference || markInPm.textContent?.trim() || '';
-          const markStudyId = markInPm.getAttribute('data-study-thread-id');
-          const noteRange = (() => {
-            try {
-              const pos = editor.view.posAtDOM(markInPm, 0);
-              const $p = editor.state.doc.resolve(pos);
-              const markType = editor.state.schema.marks.highlight;
-              if (!markType) return null;
-              const r = getMarkRange($p, markType);
-              if (r && typeof r.from === 'number' && typeof r.to === 'number') {
-                return { from: r.from, to: r.to };
-              }
-            } catch {
-              /* ignore */
-            }
-            return null;
-          })();
-          const accent = isStudyHighlightAccentKey(markColor) ? markColor : 'warmAmber';
-          openReferenceDock({
-            query: word,
-            noteHighlightRange: noteRange,
-            noteHighlightAccent: accent,
-            studyThreadEntryId: markStudyId,
-          });
-          setTranslationPicker(null);
-          return;
-        }
-        const linkedNoteId = markInPm.getAttribute('data-linked-note-id');
-        if (linkedNoteId) {
-          // Connected-note highlight: show floating popup instead of opening the dock.
-          const studyThreadId = markInPm.getAttribute('data-study-thread-id') ?? '';
-          const accent = isStudyHighlightAccentKey(markColor) ? markColor : 'violet';
-          const domRect = markInPm.getBoundingClientRect();
-          const markRange = (() => {
-            try {
-              const pos = editor.view.posAtDOM(markInPm, 0);
-              const $p = editor.state.doc.resolve(pos);
-              const mType = editor.state.schema.marks.highlight;
-              if (!mType) return null;
-              const r = getMarkRange($p, mType);
-              return r && typeof r.from === 'number' ? { from: r.from, to: r.to } : null;
-            } catch { return null; }
-          })();
-          setConnectedNoteHighlightPopup({
-            studyThreadId,
-            linkedNoteId,
-            accent,
-            anchorRect: { top: domRect.top, left: domRect.left, bottom: domRect.bottom, right: domRect.right, width: domRect.width, height: domRect.height },
-            from: markRange?.from ?? 0,
-            to: markRange?.to ?? 0,
-          });
-          setTranslationPicker(null);
-          return;
-        }
-        const highlightExcerpt = markInPm.textContent || '';
-        const highlightSession: HighlightDockSession = {
-          studyThreadEntryId: markInPm.getAttribute('data-study-thread-id'),
-          accent: markColor || 'warmAmber',
-          excerpt: highlightExcerpt,
-          entryKind: 'miniNote',
-          focusTitle: deriveHighlightFocusTitle(highlightExcerpt),
-          miniNoteBody: '',
-          range: (() => {
-            try {
-              const pos = editor.view.posAtDOM(markInPm, 0);
-              const $p = editor.state.doc.resolve(pos);
-              const markType = editor.state.schema.marks.highlight;
-              if (!markType) return null;
-              const r = getMarkRange($p, markType);
-              if (r && typeof r.from === 'number' && typeof r.to === 'number') {
-                return { from: r.from, to: r.to };
-              }
-            } catch {
-              /* ignore */
-            }
-            return null;
-          })(),
-        };
-        setStudyDockStack((s) => openOrFocusHighlight(s, highlightSession));
-        setTranslationPicker(null);
+        openStudyDockForHighlightMark(markInPm);
       }
     };
 
@@ -5830,7 +6044,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       wrapperDiv.removeEventListener('click', handlePillClick, true);
       document.removeEventListener('mousedown', handleDismiss);
     };
-  }, [editor, editorChromeMode]);
+  }, [editor, editorChromeMode, openStudyDockForHighlightMark]);
 
   /** Close scripture dock when the caret/selection leaves the tapped pill (prototype web). */
   useEffect(() => {
@@ -5865,6 +6079,27 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       if (active?.kind === 'scripture' && active.expanded && !editor.isFocused) {
         return;
       }
+      if (active?.kind === 'scripture') {
+        // Only collapse when the caret/selection has genuinely moved OFF the active pill. Spurious
+        // selectionUpdates (focus re-sync from clicking dock chrome like the accent swatch, or the
+        // snapCaretOutsidePill nudge to the pill edge) keep the caret at/adjacent to the pill.
+        try {
+          const range = resolveScripturePillMarkRangeFromBoundaries(editor, active.session.boundaries);
+          const { from, to } = editor.state.selection;
+          if (from >= range.from - 1 && to <= range.to + 1) {
+            return;
+          }
+        } catch {
+          /* fall through to the interaction check */
+        }
+        // The caret left the pill — but only collapse if a genuine user interaction in the editor
+        // body caused it. A programmatic caret jump (e.g. a post-save setContent injection that
+        // resets the caret to the doc end) fires asynchronously with no preceding pointer/key input
+        // in .ProseMirror, so it must NOT collapse an open dock.
+        if (Date.now() - editorBodyInteractedAtRef.current > 600) {
+          return;
+        }
+      }
       setStudyDockStack((s) => collapseActiveScriptureIfActive(s));
     };
 
@@ -5880,9 +6115,22 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       snapCursorOutsideScripturePill(editor);
     };
 
+    // Record genuine user interaction inside the editor body so dismissIfSelectionLeftPill can tell a
+    // user navigating off the pill from a programmatic caret jump (e.g. post-save setContent).
+    const markEditorBodyInteraction = (e: Event) => {
+      if (e.isTrusted) editorBodyInteractedAtRef.current = Date.now();
+    };
+    const editorDom = editor.view.dom as HTMLElement;
+    editorDom.addEventListener('mousedown', markEditorBodyInteraction, true);
+    editorDom.addEventListener('keydown', markEditorBodyInteraction, true);
+    editorDom.addEventListener('touchstart', markEditorBodyInteraction, { capture: true, passive: true });
+
     editor.on('selectionUpdate', dismissIfSelectionLeftPill);
     editor.on('selectionUpdate', snapCaretOutsidePill);
     return () => {
+      editorDom.removeEventListener('mousedown', markEditorBodyInteraction, true);
+      editorDom.removeEventListener('keydown', markEditorBodyInteraction, true);
+      editorDom.removeEventListener('touchstart', markEditorBodyInteraction, true);
       if (editor && !editor.isDestroyed) {
         editor.off('selectionUpdate', dismissIfSelectionLeftPill);
         editor.off('selectionUpdate', snapCaretOutsidePill);
@@ -6365,19 +6613,27 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
 
   useEffect(() => {
     if (editorChromeMode !== 'prototypeNative') return;
+    // Includes the accent swatch popover, which portals to document.body (outside the dock card).
     const dockSelector =
-      '.study-dock-card, .study-dock-carousel, .highlight-dock-web, .reference-dock-web, .scripture-pill-chrome, .scripture-delete-confirm';
+      '.study-dock-card, .study-dock-carousel, .highlight-dock-web, .reference-dock-web, .scripture-pill-chrome, .scripture-delete-confirm, .dock-accent-swatch, .dock-accent-swatch__popover-anchor';
     const onPointerDown = (e: Event) => {
       if ((e.target as HTMLElement)?.closest?.(dockSelector)) {
         studyDockPointerDownRef.current = true;
+        // Arm the suppression window on any dock-chrome interaction. A click on dock chrome (e.g.
+        // opening the accent swatch popover) emits a ProseMirror selectionUpdate *after* mouseup —
+        // later than a one-frame pointer-ref window — which would otherwise collapse the dock before
+        // the user can pick a color. Controls that edit the pill (translation/range) suppress via
+        // onApply; the swatch trigger only opens a popover, so guard it here.
+        suppressScriptureDockDismiss();
       }
     };
     const onPointerUp = (e: Event) => {
-      const releasedInPassage = (e.target as HTMLElement | null)?.closest?.('.scripture-pill-chrome__passage');
+      const releasedInDock = (e.target as HTMLElement | null)?.closest?.(dockSelector);
       const clearPointerRef = () => {
         studyDockPointerDownRef.current = false;
       };
-      if (releasedInPassage) {
+      if (releasedInDock) {
+        // Defer the clear one frame so the trailing selectionUpdate stays guarded.
         requestAnimationFrame(clearPointerRef);
       } else {
         clearPointerRef();
@@ -6395,7 +6651,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       document.removeEventListener('mousedown', onPointerDown, true);
       document.removeEventListener('mouseup', onPointerUp, true);
     };
-  }, [editorChromeMode]);
+  }, [editorChromeMode, suppressScriptureDockDismiss]);
 
   /** Clear format-bar suppress when the user clicks the note body (focus may not re-fire if TipTap stayed focused). */
   useEffect(() => {
@@ -7796,20 +8052,15 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                           cancelAnimationFrame(contentPropagateRafRef.current);
                           contentPropagateRafRef.current = null;
                         }
-                        const { from, to } = resolveScripturePillMarkRangeFromBoundaries(
+                        const resolved = resolveScripturePillMarkForAccentChange(
                           editor,
                           entry.session.boundaries,
+                          entry.session.reference,
                         );
+                        if (!resolved) return;
+                        const { mark: existingMark, from, to } = resolved;
                         const markType = editor.state.schema.marks.scripturePill;
                         if (!markType) return;
-                        let existingMark: any = null;
-                        editor.state.doc.nodesBetween(from, to, (node: any) => {
-                          if (!existingMark && node.isText) {
-                            const m = node.marks.find((x: any) => x.type?.name === 'scripturePill');
-                            if (m) existingMark = m;
-                          }
-                        });
-                        if (!existingMark) return;
                         const persistedAccent = nextAccent === 'neutral' ? null : nextAccent;
                         const tr = editor.state.tr;
                         tr.removeMark(from, to, markType);
@@ -7823,6 +8074,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                         );
                         tr.setMeta('addToHistory', false);
                         editor.view.dispatch(tr);
+                        syncScripturePillAccentDom(editor, from, to, persistedAccent);
                         const html = noteHtmlFromEditor(editor, true);
                         if (hiddenInputRef.current) {
                           hiddenInputRef.current.value = html;
@@ -7928,6 +8180,10 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                               body: JSON.stringify({ noteId: noteIdForApi, newTranslation: nextTranslation }),
                               credentials: 'include',
                             });
+                            // Re-arm the suppression window: the fetch above can outlast the initial
+                            // window, and the `noteUpdated` content re-sync emits its own selection
+                            // updates that would otherwise collapse the still-open dock.
+                            suppressScriptureDockDismiss();
                             window.dispatchEvent(new CustomEvent('noteUpdated', { detail: { noteId: noteIdForApi } }));
                           }
 
@@ -7957,14 +8213,18 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                       }}
                       onPassageHighlightCreated={(excerpt, threadId, accent) => {
                         setStudyDockStack((s) =>
-                          openOrFocusHighlight(s, {
-                            studyThreadEntryId: threadId,
-                            accent: accent ?? 'warmAmber',
-                            excerpt,
-                            range: null,
-                            focusTitle: excerpt.slice(0, 80),
-                            entryKind: 'scriptureLink',
-                          }),
+                          openOrFocusHighlight(
+                            s,
+                            {
+                              studyThreadEntryId: threadId,
+                              accent: accent ?? 'warmAmber',
+                              excerpt,
+                              range: null,
+                              focusTitle: excerpt.slice(0, 80),
+                              entryKind: 'scriptureLink',
+                            },
+                            { openedFromDockId: entry.id },
+                          ),
                         );
                       }}
                       editorChromeMode={editorChromeMode}
@@ -7974,14 +8234,18 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                         // (native: tapping a painted excerpt opens ActiveHighlightDock).
                         if (opts?.saved && opts.threadId && opts.entryKind === 'scriptureLink') {
                           setStudyDockStack((s) =>
-                            openOrFocusHighlight(s, {
-                              studyThreadEntryId: opts.threadId ?? null,
-                              accent: opts.accent ?? 'warmAmber',
-                              excerpt: word,
-                              range: null,
-                              focusTitle: word.slice(0, 80),
-                              entryKind: 'scriptureLink',
-                            }),
+                            openOrFocusHighlight(
+                              s,
+                              {
+                                studyThreadEntryId: opts.threadId ?? null,
+                                accent: opts.accent ?? 'warmAmber',
+                                excerpt: word,
+                                range: null,
+                                focusTitle: word.slice(0, 80),
+                                entryKind: 'scriptureLink',
+                              },
+                              { openedFromDockId: entry.id },
+                            ),
                           );
                           return;
                         }
@@ -7991,19 +8255,25 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                           sourceNoteId,
                         };
                         if (opts?.saved && opts.threadId) {
-                          openReferenceDock({
-                            query: word,
-                            passageReference: passageCtx,
-                            passageReferenceSaved: true,
-                            studyThreadEntryId: opts.threadId,
-                            noteHighlightAccent: opts.accent ?? 'warmAmber',
-                          });
+                          openReferenceDock(
+                            {
+                              query: word,
+                              passageReference: passageCtx,
+                              passageReferenceSaved: true,
+                              studyThreadEntryId: opts.threadId,
+                              noteHighlightAccent: opts.accent ?? 'warmAmber',
+                            },
+                            entry.id,
+                          );
                           return;
                         }
-                        openReferenceDock({
-                          query: word,
-                          passageReference: passageCtx,
-                        });
+                        openReferenceDock(
+                          {
+                            query: word,
+                            passageReference: passageCtx,
+                          },
+                          entry.id,
+                        );
                       }}
                     />
                   );

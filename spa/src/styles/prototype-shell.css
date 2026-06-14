@@ -92,9 +92,11 @@
 .proto-shell__study-dock-layer__slot:not(:empty) {
   /* Only dock cards capture clicks — padded/empty slot area must not block the inspector. */
   pointer-events: none;
-  /* Full-width layer — docks pass behind the floating sidebar; paper centering uses
-     --proto-study-dock-center-offset (transform on item-inner), never slot/carousel inset. */
-  padding-left: 0;
+  /* Web prototype: keep docks fully visible — confine the band to the main column so cards
+     never slide behind the floating sidebar. Paper alignment is automatic because
+     .proto-editor-content-wrap is margin:0 auto inside the same surface; the single-dock
+     --proto-study-dock-center-offset transform then resolves to ~0. */
+  padding-left: var(--proto-sidebar-w-clamped);
   box-sizing: border-box;
 }
 
@@ -429,6 +431,8 @@ html.harvous-prototype-route .proto-shell__detail-toolbar-cell::after {
   display: flex;
   flex-direction: column;
   background: transparent;
+  scroll-padding-top: 8px;
+  scroll-padding-bottom: 16px;
 }
 
 /* When floating sidebar pills are present, reserve space at the bottom of the scroll
@@ -533,6 +537,15 @@ html.harvous-prototype-route .proto-shell__detail-toolbar-cell::after {
   /* Drawer sidebar overlays the shell — dock uses full width like the editor column. */
   .proto-shell__study-dock-layer__slot:not(:empty) {
     padding-left: 0;
+    transition: padding-left 0.26s cubic-bezier(0.32, 0.72, 0.24, 1);
+  }
+
+  /* …but while the drawer is slid in it floats over the left edge (position:fixed, left:8px,
+     width min(300px, 88vw-16px); see .proto-shell-drawer-sidebar above). Push the dock band's
+     left edge clear of the drawer; the card keeps margin-inline:auto, so a single open dock
+     centers in the leftover space (between the drawer's right edge and the viewport right). */
+  .proto-shell--drawer-open .proto-shell__study-dock-layer__slot:not(:empty) {
+    padding-left: calc(16px + min(300px, 88vw - 16px));
   }
 
   /* Soft keyboard open: shrink the shell frame to the visual viewport (size set via
@@ -543,17 +556,16 @@ html.harvous-prototype-route .proto-shell__detail-toolbar-cell::after {
     overscroll-behavior: none;
   }
 
-  /* Frame stays anchored at its normal top inset (base margin) and only shrinks height
-     from the bottom to sit above the keyboard — no top offset (avoids a gap up top).
-     Height subtracts only the top inset so the frame's bottom edge reaches the visual
-     viewport bottom (in-flow format bar hugs the keyboard). Bottom corners flatten since
-     the frame now meets the viewport edge. */
+  /* Frame stays anchored at its normal top inset (base margin) and shrinks its height to
+     sit above the keyboard. The height (set via visualViewport in layout) subtracts the
+     inset on both ends, so the frame's bottom edge floats `frameInset` above the keyboard —
+     a blue outer-shell gap mirroring the top inset. All four corners keep the base
+     `--pds-shell-frame-radius` so the shell condenses into a complete rounded card; the
+     in-flow format bar is clipped to the rounded bottom by the frame's overflow:hidden. */
   html[data-proto-keyboard-open] .proto-shell-frame {
     overflow: hidden;
-    height: var(--proto-visible-viewport-height, calc(100dvh - var(--pds-shell-frame-inset)));
-    max-height: var(--proto-visible-viewport-height, calc(100dvh - var(--pds-shell-frame-inset)));
-    border-bottom-left-radius: 0;
-    border-bottom-right-radius: 0;
+    height: var(--proto-visible-viewport-height, calc(100dvh - 2 * var(--pds-shell-frame-inset)));
+    max-height: var(--proto-visible-viewport-height, calc(100dvh - 2 * var(--pds-shell-frame-inset)));
   }
 
   /* The format bar stays in normal flow at the bottom of the visual-viewport-sized

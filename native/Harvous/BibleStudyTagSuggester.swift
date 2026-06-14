@@ -277,15 +277,31 @@ enum BibleStudyTagSuggester {
             openingSegment: openingSegment
         )
 
+        // Gate the primary slot to note-defining candidates so a passing person/place mention does
+        // not define the folder. `picked` stays intact for tags and secondaries.
+        let primaryCandidates = picked.filter(isPrimaryEligible)
         let primary: String?
-        if let first = picked.first {
-            let best = picked.dropFirst().reduce(first) { betterPrimaryCandidate($0, $1, in: shell) }
+        if let first = primaryCandidates.first {
+            let best = primaryCandidates.dropFirst().reduce(first) { betterPrimaryCandidate($0, $1, in: shell) }
             primary = best.name
         } else {
             primary = nil
         }
         shell.primaryCandidate = primary
         return shell
+    }
+
+    /// A named person/place may only win the primary folder when the note is genuinely about them:
+    /// they appear in the title, or recur (>= 3 mentions). Themes and book references are always
+    /// primary-eligible (a note studying a book organizes by that book). Keep in sync with web
+    /// `isPrimaryEligibleRow`.
+    private static func isPrimaryEligible(_ s: Scored) -> Bool {
+        switch s.category {
+        case .character, .place:
+            return s.inTitle || s.occurrences >= 3
+        default:
+            return true
+        }
     }
 
     /// When a bible book and character share a name, keep the character row for scoring (John 3:16 ≠ a John study).
@@ -642,6 +658,14 @@ enum BibleStudyTagSuggester {
         a("Providence", .biblical, 0.8, ["god's sovereignty", "god's care"])
         a("Sovereignty", .biblical, 0.8, ["god reigns", "rule of god"])
         a("Covenant Community", .biblical, 0.8, ["people of god", "holy nation"])
+        // Curated study topics — broad survey themes so notes covering many people/places get a
+        // thematic primary folder instead of the first proper noun. Keep in sync with web corpus.
+        a("Women of the Bible", .biblical, 0.8, ["women", "woman", "women in the bible", "biblical women"])
+        a("Fruit of the Spirit", .biblical, 0.8, ["fruits of the spirit"])
+        a("Armor of God", .biblical, 0.8, ["armour of god", "full armor of god"])
+        a("Names of God", .biblical, 0.8, ["name of god", "names of the lord"])
+        a("The Beatitudes", .biblical, 0.8, ["beatitudes"])
+        a("Ten Commandments", .biblical, 0.8, ["ten commandments", "decalogue"])
         // Life
         a("Family", .life, 0.7, ["relatives", "household"])
         a("Marriage", .life, 0.7, ["wedding", "spouse"])

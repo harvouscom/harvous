@@ -177,7 +177,7 @@ Scripture pill dock (`ScripturePillChromeWeb` / native `ActiveScripturePillDock`
 **Reference dock (Easton's):** separate portal slot (not in carousel); same floating card shell (`ReferenceDockWeb` + `StudyDockCardShell`).
 
 - **Header row:** category icon, **headword**, category chip (Person / Place / Thing); when opened from a painted reference highlight, **accent popover** + **trash** in header (replaces flat swatch row).
-- **Expanded body:** dictionary HTML, in-body selection highlight bar, see-also chips, saved highlights list; **chevron** + **X** dismiss (no Done text).
+- **Expanded body:** dictionary HTML (selectable for copy only), see-also chips; **chevron** + **X** dismiss (no Done text).
 
 **Cross-client identity (web Postgres vs native SwiftData):** The macOS/iOS apps store study rows in SwiftData with UUIDs generated on device. The web app persists the same *conceptual* model in Postgres (`StudyThreadEntries`) with server-issued string IDs. Until native reads and writes the shared API, **highlight and scripture-thread rows created on web will not appear in native and vice versa**; merging both sources without a migration would duplicate or mismatch anchors. Treat Postgres as the future shared source of truth only after a deliberate native sync migration.
 

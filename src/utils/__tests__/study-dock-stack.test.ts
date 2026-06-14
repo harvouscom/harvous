@@ -105,13 +105,69 @@ describe('study-dock-stack', () => {
     expect(e.kind === 'reference' ? e.session.noteHighlightRange : null).toEqual({ from: 5, to: 14 });
   });
 
-  it('closeDockEntry activates most recently opened remaining entry', () => {
+  it('closeDockEntry on an editor-opened dock does NOT auto-open the next dock', () => {
+    // Both opened from the editor (no openedFromDockId).
     let stack = openOrFocusScripture(emptyStudyDockStack(), scriptureSession);
     stack = openOrFocusHighlight(stack, highlightSession);
     const highlightId = stack.activeId!;
     stack = closeDockEntry(stack, highlightId);
+    // The remaining scripture dock stays open but collapsed — nothing is auto-expanded.
     expect(stack.entries).toHaveLength(1);
-    expect(stack.activeId).toBe(stack.entries[0].id);
+    expect(stack.activeId).toBeNull();
+    expect(stack.entries[0].expanded).toBe(false);
+  });
+
+  it('closeDockEntry returns to the dock it was opened from', () => {
+    // Scripture dock opened from the editor; reference dock opened FROM the scripture dock.
+    let stack = openOrFocusScripture(emptyStudyDockStack(), scriptureSession);
+    const scriptureId = stack.activeId!;
+    stack = openOrFocusReference(
+      stack,
+      { query: 'Bethlehem', pendingSuggestion: { from: 5, to: 14 } },
+      { openedFromDockId: scriptureId },
+    );
+    const referenceId = stack.activeId!;
+    expect(referenceId).not.toBe(scriptureId);
+
+    stack = closeDockEntry(stack, referenceId);
+    // Closing the reference dock re-activates + expands the scripture dock it came from.
+    expect(stack.entries).toHaveLength(1);
+    expect(stack.activeId).toBe(scriptureId);
+    expect(stack.entries[0].expanded).toBe(true);
+  });
+
+  it('closeDockEntry falls back to no auto-open when the parent dock is already gone', () => {
+    let stack = openOrFocusScripture(emptyStudyDockStack(), scriptureSession);
+    const scriptureId = stack.activeId!;
+    stack = openOrFocusHighlight(stack, highlightSession); // editor-origin, stays open
+    stack = openOrFocusReference(
+      stack,
+      { query: 'Bethlehem', pendingSuggestion: { from: 5, to: 14 } },
+      { openedFromDockId: scriptureId },
+    );
+    const referenceId = stack.activeId!;
+
+    // Close the parent scripture dock first (it is not active, so active stays on reference).
+    stack = closeDockEntry(stack, scriptureId);
+    expect(stack.activeId).toBe(referenceId);
+
+    // Now close the reference dock — its parent is gone, so do NOT auto-open the highlight.
+    stack = closeDockEntry(stack, referenceId);
+    expect(stack.entries).toHaveLength(1);
+    expect(stack.entries[0].kind).toBe('highlight');
+    expect(stack.activeId).toBeNull();
+    expect(stack.entries[0].expanded).toBe(false);
+  });
+
+  it('closeDockEntry on a background dock keeps the active dock expanded', () => {
+    let stack = openOrFocusScripture(emptyStudyDockStack(), scriptureSession);
+    const scriptureId = stack.activeId!;
+    stack = openOrFocusHighlight(stack, highlightSession);
+    const highlightId = stack.activeId!;
+    // Close the non-active scripture dock — the active highlight is untouched.
+    stack = closeDockEntry(stack, scriptureId);
+    expect(stack.entries).toHaveLength(1);
+    expect(stack.activeId).toBe(highlightId);
     expect(stack.entries[0].expanded).toBe(true);
   });
 

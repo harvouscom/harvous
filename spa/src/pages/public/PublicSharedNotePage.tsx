@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from '@tanstack/react-router';
 import { prototypeHomeRouteTo } from '@/lib/prototype-path';
+import { noteUrlForCurrentSurface } from '@/utils/url-helpers';
 import { useAuth } from '@clerk/clerk-react';
 import { useQueryClient } from '@tanstack/react-query';
 import CardFullEditable from '@/components/react/CardFullEditable';
@@ -88,7 +89,7 @@ export default function PublicSharedNotePage() {
       if (result.success && result.createdIds?.noteId) {
         showToast('Added to your Harvous!', 'success', 0);
         const id = result.createdIds.noteId;
-        const path = id.startsWith('note_') ? `/note/${id.slice(5)}` : `/${id}`;
+        const path = noteUrlForCurrentSurface(id);
         setTimeout(() => {
           try {
             sessionStorage.removeItem('harvous_pending_redirect');

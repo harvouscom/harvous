@@ -6,7 +6,7 @@
  *
  * These helpers are the single source of truth for all conversions.
  */
-import { isPrototypeShellPath, prototypeHref } from '@/lib/prototype-path';
+import { isDedicatedPrototypeHost, isPrototypeShellPath, prototypeHref } from '@/lib/prototype-path';
 
 export type EntityType = 'thread' | 'note' | 'space' | 'local';
 
@@ -56,7 +56,7 @@ export function idToUrl(id: string, threadContext?: string, fromNoteId?: string)
  * whereas the classic SPA uses `/note/<id>`. Navigating a highlight→note link
  * to the classic `/note/<id>` path inside the prototype shell falls through to
  * the classic surface and reads as a broken link. This returns the prototype
- * path when in the prototype shell, otherwise defers to `idToUrl`.
+ * path when on `new.harvous.com` or in the prototype shell, otherwise defers to `idToUrl`.
  *
  * `threadContext` / `fromNoteId` query params are classic-only and intentionally
  * omitted from the prototype path.
@@ -66,7 +66,10 @@ export function noteUrlForCurrentSurface(
   threadContext?: string,
   fromNoteId?: string,
 ): string {
-  if (typeof window !== 'undefined' && isPrototypeShellPath(window.location.pathname)) {
+  if (
+    typeof window !== 'undefined' &&
+    (isDedicatedPrototypeHost() || isPrototypeShellPath(window.location.pathname))
+  ) {
     const slug = fullId.startsWith('note_') ? fullId.slice('note_'.length) : fullId;
     return prototypeHref(`n/${slug}`);
   }

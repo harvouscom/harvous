@@ -188,6 +188,17 @@ interface CardFullEditableProps {
     /** Distinct per request (e.g. the clicked highlight's id) so re-opens fire each time. */
     requestKey?: string;
   } | null;
+  /**
+   * Prototype-only: when set, auto-opens the highlight dock for this study-thread entry once the editor
+   * has rendered the matching highlight mark (e.g. navigated from the Home "revisit" card).
+   */
+  initialHighlightDock?: {
+    studyThreadEntryId: string;
+    /** Distinct per request (e.g. the clicked highlight's id) so re-opens fire each time. */
+    requestKey?: string;
+  } | null;
+  /** Prototype-only: the scripture-dock open request couldn't find a matching pill — host may fall back. */
+  onScriptureDockUnresolved?: () => void;
   /** When set with prototype chrome + column shell, portals the native-like note actions bar here. */
   noteActionsPortalTarget?: HTMLElement | null;
   /** Server-stored Bible study collection (native parity). */
@@ -259,6 +270,8 @@ export default function CardFullEditable({
   studyDockCarouselPortalTarget = null,
   initialReferenceWord = null,
   initialScriptureDock = null,
+  initialHighlightDock = null,
+  onScriptureDockUnresolved,
   collectionNavContext = DEFAULT_COLLECTION_NAV_CONTEXT,
   alwaysEditing = false,
   onPrototypeEditorUnmount,
@@ -377,6 +390,10 @@ export default function CardFullEditable({
     noteId: string | null;
     pillAccent: string | null;
   } | null>(null);
+  const [prototypeHighlightOpenRequest, setPrototypeHighlightOpenRequest] = useState<{
+    studyThreadEntryId: string;
+    requestKey?: string;
+  } | null>(null);
   const onPrototypeChromeModeChangeRef = useRef(onPrototypeChromeModeChange);
   useEffect(() => {
     onPrototypeChromeModeChangeRef.current = onPrototypeChromeModeChange;
@@ -479,6 +496,7 @@ export default function CardFullEditable({
 
   useEffect(() => {
     setPrototypeScripturePillOpenRequest(null);
+    setPrototypeHighlightOpenRequest(null);
     lastPrototypeFolderChipRef.current = '';
   }, [noteId]);
 
@@ -500,6 +518,21 @@ export default function CardFullEditable({
       pillAccent: null,
     });
   }, [editorChromeMode, initialScriptureDock, noteId]);
+
+  // Open-on-load: when arriving with a highlight-dock request (e.g. tapping a highlight in the Home
+  // "revisit" card), open the dock for that study-thread entry once. TiptapEditor's consumer polls
+  // for the matching highlight mark, so this is safe before the note content has rendered.
+  const initialHighlightDockFiredRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (editorChromeMode !== 'prototypeNative' || !initialHighlightDock) return;
+    const key = initialHighlightDock.requestKey ?? `${noteId}|${initialHighlightDock.studyThreadEntryId}`;
+    if (initialHighlightDockFiredRef.current === key) return;
+    initialHighlightDockFiredRef.current = key;
+    setPrototypeHighlightOpenRequest({
+      studyThreadEntryId: initialHighlightDock.studyThreadEntryId,
+      requestKey: key,
+    });
+  }, [editorChromeMode, initialHighlightDock, noteId]);
 
   // Reset proto save tracking on note switch so first edit always triggers a save
   useEffect(() => {
@@ -526,6 +559,10 @@ export default function CardFullEditable({
 
   const onPrototypeScripturePillOpenRequestConsumed = useCallback(() => {
     setPrototypeScripturePillOpenRequest(null);
+  }, []);
+
+  const onPrototypeHighlightOpenRequestConsumed = useCallback(() => {
+    setPrototypeHighlightOpenRequest(null);
   }, []);
 
   useEffect(() => {
@@ -1836,9 +1873,31 @@ export default function CardFullEditable({
           ) {
             hasLocalContentUpdate.current = true;
             skipNextContentSyncRef.current = true;
-            editor.commands.setContent(canonicalizeNoteHtmlLineBreaks(saveResult.processedContent), {
-              emitUpdate: false,
-            });
+            // Preserve the caret across the processed-content injection IN ONE transaction. A bare
+            // setContent resets the selection to the doc end; that intermediate selectionUpdate
+            // fires a "caret left the pill" dismiss that collapses an open scripture dock. Restoring
+            // the selection in the same chain means the caret never visits the doc end.
+            const prevFrom = editor.state.selection.from;
+            const prevTo = editor.state.selection.to;
+            editor
+              .chain()
+              .setContent(canonicalizeNoteHtmlLineBreaks(saveResult.processedContent), {
+                emitUpdate: false,
+              })
+              .command(({ tr, dispatch }: { tr: typeof editor.state.tr; dispatch?: (tr: typeof editor.state.tr) => void }) => {
+                if (dispatch) {
+                  const maxPos = tr.doc.content.size;
+                  const from = Math.min(prevFrom, maxPos);
+                  const to = Math.min(prevTo, maxPos);
+                  try {
+                    tr.setSelection(TextSelection.create(tr.doc, from, to));
+                  } catch {
+                    /* positions invalid against the new doc — leave default */
+                  }
+                }
+                return true;
+              })
+              .run();
             requestAnimationFrame(async () => {
               if (editorInstanceRef.current) {
                 const { convertNoteLinksToScripturePills, consumeTrailingTranslationAfterPills } = await import('./TiptapEditor');
@@ -1972,9 +2031,32 @@ export default function CardFullEditable({
           // Safe to inject pills — user hasn't typed since save started and isn't actively editing
           hasLocalContentUpdate.current = true;
           skipNextContentSyncRef.current = true;
-          editor.commands.setContent(canonicalizeNoteHtmlLineBreaks(result.processedContent), {
-            emitUpdate: false,
-          });
+          // Preserve the caret across the processed-content injection IN ONE transaction. A bare
+          // setContent resets the selection to the doc end; that intermediate selectionUpdate fires
+          // a "caret left the pill" dismiss that collapses an open scripture dock (e.g. right after
+          // an accent change). Restoring the selection in the same chain means the caret never
+          // visits the doc end.
+          const protoPrevFrom = editor.state.selection.from;
+          const protoPrevTo = editor.state.selection.to;
+          editor
+            .chain()
+            .setContent(canonicalizeNoteHtmlLineBreaks(result.processedContent), {
+              emitUpdate: false,
+            })
+            .command(({ tr, dispatch }: { tr: typeof editor.state.tr; dispatch?: (tr: typeof editor.state.tr) => void }) => {
+              if (dispatch) {
+                const maxPos = tr.doc.content.size;
+                const from = Math.min(protoPrevFrom, maxPos);
+                const to = Math.min(protoPrevTo, maxPos);
+                try {
+                  tr.setSelection(TextSelection.create(tr.doc, from, to));
+                } catch {
+                  /* positions invalid against the new doc — leave default */
+                }
+              }
+              return true;
+            })
+            .run();
           requestAnimationFrame(async () => {
             if (!editorInstanceRef.current || editorInstanceRef.current.isDestroyed) return;
             if (!isMountedRef.current) return;
@@ -2803,6 +2885,11 @@ export default function CardFullEditable({
                         editorChromeMode === 'prototypeNative' ? prototypeScripturePillOpenRequest : null
                       }
                       onPrototypeScripturePillOpenRequestConsumed={onPrototypeScripturePillOpenRequestConsumed}
+                      onPrototypeScripturePillOpenRequestUnresolved={onScriptureDockUnresolved}
+                      prototypeHighlightOpenRequest={
+                        editorChromeMode === 'prototypeNative' ? prototypeHighlightOpenRequest : null
+                      }
+                      onPrototypeHighlightOpenRequestConsumed={onPrototypeHighlightOpenRequestConsumed}
                       prototypeNoteActionsChrome={effectivePrototypeNoteActionsChrome}
                     />,
                     'min-h-[100px]',
@@ -3191,6 +3278,11 @@ export default function CardFullEditable({
                       editorChromeMode === 'prototypeNative' ? prototypeScripturePillOpenRequest : null
                     }
                     onPrototypeScripturePillOpenRequestConsumed={onPrototypeScripturePillOpenRequestConsumed}
+                    onPrototypeScripturePillOpenRequestUnresolved={onScriptureDockUnresolved}
+                    prototypeHighlightOpenRequest={
+                      editorChromeMode === 'prototypeNative' ? prototypeHighlightOpenRequest : null
+                    }
+                    onPrototypeHighlightOpenRequestConsumed={onPrototypeHighlightOpenRequestConsumed}
                     prototypeNoteActionsChrome={effectivePrototypeNoteActionsChrome}
                   />,
                   'min-h-[200px]',

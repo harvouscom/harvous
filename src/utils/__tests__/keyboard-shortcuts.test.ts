@@ -150,6 +150,20 @@ describe('prototype shell shortcuts (Shift + key)', () => {
     expect(e.detail).toEqual({ step: 1 });
   });
 
+  it('Shift+ArrowUp → move in list backward', () => {
+    const e = expectEvent('prototypeShortcutMoveInList', () =>
+      press({ key: 'ArrowUp', code: 'ArrowUp', shift: true }),
+    );
+    expect(e.detail).toEqual({ step: -1 });
+  });
+
+  it('Shift+ArrowDown → move in list forward', () => {
+    const e = expectEvent('prototypeShortcutMoveInList', () =>
+      press({ key: 'ArrowDown', code: 'ArrowDown', shift: true }),
+    );
+    expect(e.detail).toEqual({ step: 1 });
+  });
+
   it('defers to typing context (does not fire in editor)', () => {
     const editor = document.createElement('div');
     editor.className = 'ProseMirror';
@@ -172,6 +186,24 @@ describe('prototype shell shortcuts (Shift + key)', () => {
       const event = new KeyboardEvent('keydown', {
         key: 'H',
         code: 'KeyH',
+        shiftKey: true,
+        bubbles: true,
+        cancelable: true,
+      });
+      inner.dispatchEvent(event);
+    });
+  });
+
+  it('Shift+ArrowDown defers to typing context (does not fire in editor)', () => {
+    const editor = document.createElement('div');
+    editor.className = 'ProseMirror';
+    const inner = document.createElement('div');
+    editor.appendChild(inner);
+    document.body.appendChild(editor);
+    expectNoEvent('prototypeShortcutMoveInList', () => {
+      const event = new KeyboardEvent('keydown', {
+        key: 'ArrowDown',
+        code: 'ArrowDown',
         shiftKey: true,
         bubbles: true,
         cancelable: true,

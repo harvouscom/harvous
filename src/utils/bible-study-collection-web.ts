@@ -234,6 +234,24 @@ function isThemePrimaryCategory(cat: string): boolean {
   return THEME_PRIMARY_CATEGORIES.has(cat);
 }
 
+/** A named person or place — gated for primary eligibility (books still organize by themselves). */
+function isSpecificCategory(cat: string): boolean {
+  return cat === 'character' || cat === 'place';
+}
+
+/**
+ * A named person/place may only win the *primary* folder when the note is genuinely about them:
+ * they appear in the title, or recur (>= 3 mentions). A single passing mention stays a tag/secondary
+ * rather than defining the folder. Themes and book references are always primary-eligible (a note
+ * studying a book organizes by that book). Keep in sync with native
+ * BibleStudyTagSuggester.isPrimaryEligible.
+ */
+function isPrimaryEligibleRow(row: ScRow, plainTitle: string, plainBody: string): boolean {
+  if (!isSpecificCategory(row.keyword.category)) return true;
+  if (candidateAppearsInTitle(plainTitle, row.keyword.name)) return true;
+  return countKeywordOccurrences(plainTitle, plainBody, row.keyword) >= 3;
+}
+
 function betterPrimaryRow(a: ScRow, b: ScRow, plainTitle: string, plainBody: string): ScRow {
   const sa = folderPrimaryScore(a, plainTitle, plainBody);
   const sb = folderPrimaryScore(b, plainTitle, plainBody);
@@ -277,8 +295,11 @@ function betterPrimaryRow(a: ScRow, b: ScRow, plainTitle: string, plainBody: str
 
 /** Stronger of two rows for primary folder (used to fold full keyword set). */
 function pickPrimaryRowFromDeduped(deduped: ScRow[], plainTitle: string, plainBody: string): ScRow | null {
-  if (!deduped.length) return null;
-  return deduped.reduce((best, cur) => betterPrimaryRow(best, cur, plainTitle, plainBody));
+  // Gate the primary slot to note-defining candidates so a passing person/place mention does not
+  // define the folder. Secondaries/tags are derived separately and still surface these names.
+  const eligible = deduped.filter((row) => isPrimaryEligibleRow(row, plainTitle, plainBody));
+  if (!eligible.length) return null;
+  return eligible.reduce((best, cur) => betterPrimaryRow(best, cur, plainTitle, plainBody));
 }
 
 function isEligibleSecondaryFolder(row: ScRow, plainTitle: string, plainBody: string): boolean {

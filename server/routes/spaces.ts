@@ -388,9 +388,11 @@ route.get('/api/spaces/:spaceId/notes', requireAuth, async (c) => {
     const limit = parseInt(c.req.query('limit') || '20', 10);
     const excludeLegacyScripture =
       c.req.query('excludeLegacyScripture') === '1' || c.req.query('excludeLegacyScripture') === 'true';
+    const sortByLastUpdated = c.req.query('sortBy') === 'updated';
 
     const result = await getNotesForSpace(spaceId, auth.userId, limit, offset, {
       excludeLegacyScriptureNotes: excludeLegacyScripture,
+      sortByLastUpdated,
     });
     return c.json({ notes: result.notes, hasMore: result.hasMore, total: result.total, offset, limit });
   } catch (error: any) {

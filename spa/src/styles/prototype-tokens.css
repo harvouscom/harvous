@@ -462,6 +462,7 @@ html.harvous-proto-wallpaper-image {
     --pds-lch-fill-input-hover: 100% 0 0 / 0.11;
     --pds-lch-fill-row-hover: 100% 0 0 / 0.06;
     --pds-lch-fill-row-selected: 100% 0 0 / 0.1;
+    --pds-selection-bg: color-mix(in srgb, var(--study-dock-accent-warmAmber) 42%, transparent);
     --pds-lch-sidebar-fill-input: 100% 0 0 / 0.1;
     --pds-lch-sidebar-fill-input-hover: 100% 0 0 / 0.13;
     --pds-lch-sidebar-fill-row-selected: 100% 0 0 / 0.11;
@@ -638,6 +639,7 @@ html.harvous-proto-wallpaper-image {
   --pds-lch-fill-input-hover: 100% 0 0 / 0.11;
   --pds-lch-fill-row-hover: 100% 0 0 / 0.06;
   --pds-lch-fill-row-selected: 100% 0 0 / 0.1;
+  --pds-selection-bg: color-mix(in srgb, var(--study-dock-accent-warmAmber) 42%, transparent);
   --pds-lch-sidebar-fill-input: 100% 0 0 / 0.1;
   --pds-lch-sidebar-fill-input-hover: 100% 0 0 / 0.13;
   --pds-lch-sidebar-fill-row-selected: 100% 0 0 / 0.11;

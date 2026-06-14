@@ -11,7 +11,7 @@ import { usePinSpaceNote } from '../../hooks/mutations/usePinSpaceNote';
 import { useSpaceNotes, type SpaceNoteRow } from '../../hooks/queries/useSpace';
 import { getNoteQueryOptions, seedNoteFromList, type ListNoteForSeed } from '../../hooks/queries/useNote';
 import { countNotesInFolderBucket, noteFolderMembershipLabels } from '@/utils/note-folder-display';
-import { sortNotesByLastVisited } from '@/utils/sorting';
+import { sortNotesByLastUpdated } from '@/utils/sorting';
 import { stripServerAutoUntitledNoteTitleForDisplay } from '@/utils/server-auto-untitled-note-display';
 import { isEffectivelyEmptyPrototypeNote } from '@/utils/prototype-note-empty';
 import { computePrototypeNotesListPhase } from '@/utils/prototype-notes-list-phase';
@@ -19,7 +19,7 @@ import { stripHtmlForListPreview } from '@/utils/html-stripper';
 import { useProtoShell, type SidebarTagSearchIntent } from '../../layouts/proto-shell-context';
 import { usePrototypeHomeSpaceId } from '../../hooks/usePrototypeHomeSpaceId';
 import { useIntersectionFetchNextPage } from '../../hooks/useIntersectionFetchNextPage';
-import { useListKeyboardNavigation } from '../../hooks/useListKeyboardNavigation';
+import { moveListRowFocus } from '../../hooks/useListKeyboardNavigation';
 import {
   isPrototypeNotePath,
   matchPrototypeNoteId,
@@ -583,8 +583,16 @@ export default function PrototypeSidebar() {
   const scrollRootRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
-  // Arrow / j-k / Home-End movement between rows once the list is focused (Shift+J).
-  useListKeyboardNavigation(scrollRootRef);
+  useEffect(() => {
+    const onMoveInList = (event: Event) => {
+      const step = (event as CustomEvent<{ step?: number }>).detail?.step ?? 1;
+      const container = scrollRootRef.current;
+      if (!container) return;
+      moveListRowFocus(container, step);
+    };
+    window.addEventListener('prototypeShortcutMoveInList', onMoveInList);
+    return () => window.removeEventListener('prototypeShortcutMoveInList', onMoveInList);
+  }, []);
 
   const {
     data: pages,
@@ -695,7 +703,7 @@ export default function PrototypeSidebar() {
         byId.set(note.id, note);
       }
     }
-    return sortNotesByLastVisited(Array.from(byId.values())).filter(
+    return sortNotesByLastUpdated(Array.from(byId.values())).filter(
       (n) => !isEffectivelyEmptyPrototypeNote(n.title, n.content),
     );
   }, [pages]);
@@ -1098,9 +1106,11 @@ export default function PrototypeSidebar() {
     navigate({
       to: prototypeNoteRouteTo(),
       params: { noteId: noteParamSlug(r.parentNoteId) },
+      // Reference rows open the reference dock (via `reference`); all other highlight kinds open the
+      // highlight dock (via `highlight`), so the tap lands on a dock rather than just the note.
       search: isReferenceRow
         ? { studyThread: r.id, reference: r.sourceSnippet || '' }
-        : { studyThread: r.id },
+        : { highlight: r.id },
     });
     afterNav();
   };
@@ -1242,13 +1252,9 @@ export default function PrototypeSidebar() {
             onKeyDown={(e) => {
               // Drop from the search field straight into the list results.
               if (e.key === 'ArrowDown') {
-                const firstRow = scrollRootRef.current?.querySelector<HTMLElement>(
-                  'button.proto-note-row__main, button.proto-note-row',
-                );
-                if (firstRow) {
+                const scrollRoot = scrollRootRef.current;
+                if (scrollRoot && moveListRowFocus(scrollRoot, 1)) {
                   e.preventDefault();
-                  firstRow.focus();
-                  firstRow.scrollIntoView({ block: 'nearest' });
                 }
               }
             }}

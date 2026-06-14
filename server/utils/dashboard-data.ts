@@ -18,7 +18,7 @@ import {
 import { nowISO } from '../db/dates';
 import { getThreadColorCSS, getThreadGradientCSS } from "@/utils/colors";
 import { getInboxCount as getInboxCountUtil } from "./inbox-data";
-import { sortByLastVisited, sortByCreatedAtAsc, sortOnboardingThreadNotes, sortNotesByLastVisited } from "@/utils/sorting";
+import { sortByLastVisited, sortByCreatedAtAsc, sortOnboardingThreadNotes, sortNotesByLastVisited, sortNotesByLastUpdated } from "@/utils/sorting";
 import { isOnboardingThread } from "@/utils/last-visited-sections";
 import { stripHtmlForCard } from "@/utils/html-stripper";
 import { MY_PILE_THREAD_TITLE } from "@/utils/my-pile-thread";
@@ -1413,6 +1413,8 @@ export async function getThreadsForSpaceBySpaceId(spaceId: string) {
 export type GetNotesForSpaceOptions = {
   /** Omit classic `noteType: scripture` rows (2.0 shell uses pills + scripture index, not legacy scripture notes). */
   excludeLegacyScriptureNotes?: boolean;
+  /** Prototype: sort by last edit (`updatedAt`), not visit time (`lastVisited`). */
+  sortByLastUpdated?: boolean;
 };
 
 export async function getNotesForSpace(
@@ -1432,6 +1434,7 @@ export async function getNotesForSpace(
       NOT_ONBOARDING_SYSTEM_NOTES,
       ...(options?.excludeLegacyScriptureNotes ? [ne(Notes.noteType, 'scripture')] : []),
     );
+    const sortByLastUpdated = options?.sortByLastUpdated === true;
     const allNotes = chronological
       ? await db
           .select(NOTE_LIST_SELECT)
@@ -1439,19 +1442,30 @@ export async function getNotesForSpace(
           .where(spaceWhere)
           .orderBy(desc(Notes.isPinned), asc(Notes.createdAt), asc(Notes.id))
           .limit(fetchLimit)
-      : await db
-          .select(NOTE_LIST_SELECT)
-          .from(Notes)
-          .where(spaceWhere)
-          .orderBy(
-            desc(Notes.isPinned),
-            asc(sql`CASE WHEN ${Notes.lastVisited} IS NOT NULL THEN 0 ELSE 1 END`),
-            desc(Notes.lastVisited), desc(Notes.updatedAt), desc(Notes.createdAt), asc(Notes.id)
-          )
-          .limit(fetchLimit);
+      : sortByLastUpdated
+        ? await db
+            .select(NOTE_LIST_SELECT)
+            .from(Notes)
+            .where(spaceWhere)
+            .orderBy(desc(Notes.isPinned), desc(Notes.updatedAt), desc(Notes.createdAt), asc(Notes.id))
+            .limit(fetchLimit)
+        : await db
+            .select(NOTE_LIST_SELECT)
+            .from(Notes)
+            .where(spaceWhere)
+            .orderBy(
+              desc(Notes.isPinned),
+              asc(sql`CASE WHEN ${Notes.lastVisited} IS NOT NULL THEN 0 ELSE 1 END`),
+              desc(Notes.lastVisited), desc(Notes.updatedAt), desc(Notes.createdAt), asc(Notes.id)
+            )
+            .limit(fetchLimit);
 
     const mapped = allNotes.map(note => ({ ...note, updatedAt: note.updatedAt || note.createdAt, id: note.id || '' }));
-    const sortedAllNotes = chronological ? sortByCreatedAtAsc(mapped) : sortNotesByLastVisited(mapped);
+    const sortedAllNotes = chronological
+      ? sortByCreatedAtAsc(mapped)
+      : sortByLastUpdated
+        ? sortNotesByLastUpdated(mapped)
+        : sortNotesByLastVisited(mapped);
     const hasMore = sortedAllNotes.length > offset + limit;
     const sortedNotes = sortedAllNotes.slice(offset, offset + limit);
 
@@ -1501,7 +1515,9 @@ export async function getNotesForSpace(
       return {
         ...note,
         secondaryCollections: parseNoteSecondaryCollections(note.secondaryCollections),
-        lastUpdated: note.lastVisited || note.updatedAt || note.createdAt,
+        lastUpdated: sortByLastUpdated
+          ? note.updatedAt || note.createdAt
+          : note.lastVisited || note.updatedAt || note.createdAt,
         lastVisited: note.lastVisited,
         resourceTitle: resourceMeta?.sourceTitle || null,
         resourceDescription: resourceMeta?.sourceDescription || null,

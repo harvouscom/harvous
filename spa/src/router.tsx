@@ -231,6 +231,7 @@ function buildPrototypeRouteBranch() {
       scriptureRef: typeof search.scriptureRef === 'string' ? search.scriptureRef : undefined,
       scriptureTranslation:
         typeof search.scriptureTranslation === 'string' ? search.scriptureTranslation : undefined,
+      highlight: typeof search.highlight === 'string' ? search.highlight : undefined,
     }),
   });
 

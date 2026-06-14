@@ -1,72 +1,76 @@
-import { useEffect, type RefObject } from 'react';
-
 /**
- * Roving keyboard navigation for a vertical list of focusable rows.
+ * Focus movement for prototype sidebar list rows (Shift+↑/↓ via global shortcut).
  *
- * Power users focus the list (e.g. Shift+J) and then move with Arrow keys (or j/k,
- * vim-style) and Home/End; Enter/Space open the focused row via its native button.
- * Only fires when a matching row already has focus, so j/k never hijack typing in a
- * search field or anywhere else.
- *
- * Works across every list mode in the sidebar because all primary row actions share
- * the same classes (`button.proto-note-row__main` for notes/highlights,
- * `button.proto-note-row` for folders).
+ * Covers note/highlight rows (`button.proto-note-row__main`), folder drill rows
+ * (`button.proto-note-row`), and 2-up collection grids (`button.proto-collection-card`).
  */
-const DEFAULT_ROW_SELECTOR = 'button.proto-note-row__main, button.proto-note-row';
 
-export function useListKeyboardNavigation(
-  containerRef: RefObject<HTMLElement | null>,
-  options?: { rowSelector?: string; wrap?: boolean; enabled?: boolean },
+export const SIDEBAR_LIST_ROW_SELECTOR =
+  'button.proto-note-row__main, button.proto-note-row, button.proto-collection-card';
+
+export type MoveListRowFocusOptions = {
+  rowSelector?: string;
+  wrap?: boolean;
+  jump?: 'home' | 'end';
+};
+
+function keyboardFocusMarkerFor(control: HTMLElement): HTMLElement {
+  const marked =
+    control.closest('.proto-note-row-item') ??
+    control.closest('.proto-collection-grid > li') ??
+    control.closest('.proto-note-list > li');
+  return (marked ?? control) as HTMLElement;
+}
+
+function clearKeyboardFocusMarkers(container: HTMLElement): void {
+  container.querySelectorAll('[data-keyboard-focus="true"]').forEach((el) => {
+    el.removeAttribute('data-keyboard-focus');
+  });
+}
+
+function focusListControl(
+  control: HTMLElement,
+  container: HTMLElement,
+  index: number,
+  total: number,
 ): void {
-  const rowSelector = options?.rowSelector ?? DEFAULT_ROW_SELECTOR;
+  clearKeyboardFocusMarkers(container);
+  keyboardFocusMarkerFor(control).setAttribute('data-keyboard-focus', 'true');
+  control.focus({ focusVisible: true });
+  // Edge rows sit flush against the scrollport; center them so the full row chrome is visible.
+  const atScrollEdge = index === 0 || index === total - 1;
+  control.scrollIntoView({ block: atScrollEdge ? 'center' : 'nearest' });
+}
+
+/** Move roving focus among list rows inside `container`. Returns false when no rows match. */
+export function moveListRowFocus(
+  container: HTMLElement,
+  step: number,
+  options?: MoveListRowFocusOptions,
+): boolean {
+  const rowSelector = options?.rowSelector ?? SIDEBAR_LIST_ROW_SELECTOR;
   const wrap = options?.wrap ?? false;
-  const enabled = options?.enabled ?? true;
 
-  useEffect(() => {
-    if (!enabled) return;
-    const container = containerRef.current;
-    if (!container) return;
+  const rows = Array.from(container.querySelectorAll<HTMLElement>(rowSelector));
+  if (rows.length === 0) return false;
 
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.metaKey || event.ctrlKey || event.altKey || event.shiftKey) return;
+  const active = document.activeElement;
+  const currentIndex =
+    active instanceof HTMLElement && active.matches(rowSelector) ? rows.indexOf(active) : -1;
 
-      const { key } = event;
-      const isDown = key === 'ArrowDown' || key === 'j';
-      const isUp = key === 'ArrowUp' || key === 'k';
-      const isHome = key === 'Home';
-      const isEnd = key === 'End';
-      if (!isDown && !isUp && !isHome && !isEnd) return;
+  let nextIndex: number;
+  if (options?.jump === 'home') nextIndex = 0;
+  else if (options?.jump === 'end') nextIndex = rows.length - 1;
+  else if (currentIndex === -1) nextIndex = step > 0 ? 0 : rows.length - 1;
+  else {
+    nextIndex = currentIndex + step;
+    if (nextIndex < 0) nextIndex = wrap ? rows.length - 1 : 0;
+    else if (nextIndex >= rows.length) nextIndex = wrap ? 0 : rows.length - 1;
+  }
 
-      const active = document.activeElement;
-      if (!(active instanceof HTMLElement) || !active.matches(rowSelector)) return;
+  const next = rows[nextIndex];
+  if (!next) return false;
 
-      // Sidebar renders only the active list mode, so mounted rows are the visible rows.
-      const rows = Array.from(container.querySelectorAll<HTMLElement>(rowSelector));
-      if (rows.length === 0) return;
-
-      const currentIndex = rows.indexOf(active);
-      if (currentIndex === -1) return;
-
-      let nextIndex: number;
-      if (isHome) nextIndex = 0;
-      else if (isEnd) nextIndex = rows.length - 1;
-      else if (isDown) nextIndex = currentIndex + 1;
-      else nextIndex = currentIndex - 1;
-
-      if (nextIndex < 0) nextIndex = wrap ? rows.length - 1 : 0;
-      else if (nextIndex >= rows.length) nextIndex = wrap ? 0 : rows.length - 1;
-
-      // Consume the key even at the ends so the scroll container does not jump.
-      event.preventDefault();
-
-      const next = rows[nextIndex];
-      if (next && next !== active) {
-        next.focus();
-        next.scrollIntoView({ block: 'nearest' });
-      }
-    };
-
-    container.addEventListener('keydown', onKeyDown);
-    return () => container.removeEventListener('keydown', onKeyDown);
-  }, [containerRef, rowSelector, wrap, enabled]);
+  focusListControl(next, container, nextIndex, rows.length);
+  return true;
 }

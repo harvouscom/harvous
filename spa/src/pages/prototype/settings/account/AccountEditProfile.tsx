@@ -94,23 +94,7 @@ export default function AccountEditProfile({ onBack }: { onBack: () => void }) {
           ) : (
             <Icon name="circle-user" size={56} />
           )}
-          <span
-            aria-hidden
-            className="proto-account-photo-badge"
-            style={{
-              position: 'absolute',
-              right: -2,
-              bottom: -2,
-              width: 28,
-              height: 28,
-              borderRadius: '50%',
-              background: 'var(--pds-accent)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              border: '2px solid var(--pds-bg-page)',
-            }}
-          >
+          <span aria-hidden className="proto-account-photo-badge">
             <Icon name="pen-to-square" size={11} />
           </span>
         </button>
