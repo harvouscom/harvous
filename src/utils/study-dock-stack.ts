@@ -1,3 +1,5 @@
+import { isStudyHighlightAccentKey } from '@/utils/study-highlight-accents';
+import { deriveHighlightFocusTitle } from '@/utils/study-thread-focus-title';
 import { normalizeScriptureReference } from '@/utils/scripture-detector';
 import { HARVOUS_STUDY_DOCK_STACK_PREFIX } from '@/utils/user-cache-keys';
 
@@ -20,6 +22,106 @@ export type HighlightDockSession = {
   miniNoteBody?: string;
   entryKind?: 'miniNote' | 'scriptureLink' | 'reference' | 'linkedNote' | 'workspace';
 };
+
+/** Snapshot passed through deep-link navigation when the editor mark may not be ready yet. */
+export type HighlightDockOpenMetadata = {
+  entryKind?: HighlightDockSession['entryKind'];
+  accent: string;
+  excerpt: string;
+  focusTitle?: string;
+  miniNoteBody?: string;
+  linkedNoteId?: string | null;
+};
+
+/** Minimal study-thread fields needed to build a highlight dock session without a DOM mark. */
+export type HighlightDockStudyThreadSource = {
+  id: string;
+  entryKind?: string | null;
+  highlightAccentRaw?: string | null;
+  anchorTextSnapshot?: string | null;
+  sourceSnippet?: string | null;
+  focusTitle?: string | null;
+  miniNoteBody?: string | null;
+  linkedNoteId?: string | null;
+};
+
+function normalizeHighlightDockEntryKind(
+  entryKind: string | null | undefined,
+): HighlightDockSession['entryKind'] {
+  switch (entryKind) {
+    case 'miniNote':
+    case 'scriptureLink':
+    case 'reference':
+    case 'linkedNote':
+    case 'workspace':
+      return entryKind;
+    default:
+      return 'miniNote';
+  }
+}
+
+export function highlightDockExcerptFromStudyThread(row: HighlightDockStudyThreadSource): string {
+  const anchor = (row.anchorTextSnapshot ?? '').trim();
+  if (anchor) return anchor;
+  const snippet = (row.sourceSnippet ?? '').trim();
+  if (snippet) return snippet;
+  const focus = (row.focusTitle ?? '').trim();
+  if (focus) return focus;
+  const mini = (row.miniNoteBody ?? '').trim();
+  if (mini) return mini;
+  return 'Highlight';
+}
+
+export function buildHighlightDockOpenMetadataFromStudyThread(
+  row: HighlightDockStudyThreadSource,
+): HighlightDockOpenMetadata {
+  const excerpt = highlightDockExcerptFromStudyThread(row);
+  const accent =
+    row.highlightAccentRaw && isStudyHighlightAccentKey(row.highlightAccentRaw)
+      ? row.highlightAccentRaw
+      : 'warmAmber';
+  return {
+    entryKind: normalizeHighlightDockEntryKind(row.entryKind),
+    accent,
+    excerpt,
+    focusTitle: (row.focusTitle ?? '').trim() || deriveHighlightFocusTitle(excerpt),
+    miniNoteBody: row.miniNoteBody ?? '',
+    linkedNoteId: row.linkedNoteId ?? null,
+  };
+}
+
+export function buildHighlightDockSessionForDeepLink(
+  studyThreadEntryId: string,
+  metadata: HighlightDockOpenMetadata | undefined,
+  range: { from: number; to: number } | null,
+): HighlightDockSession {
+  if (metadata) {
+    return {
+      studyThreadEntryId,
+      accent: metadata.accent,
+      excerpt: metadata.excerpt,
+      range,
+      focusTitle: metadata.focusTitle,
+      miniNoteBody: metadata.miniNoteBody,
+      entryKind: metadata.entryKind ?? 'miniNote',
+    };
+  }
+  return {
+    studyThreadEntryId,
+    accent: 'warmAmber',
+    excerpt: '',
+    range,
+    entryKind: 'miniNote',
+  };
+}
+
+export function buildHighlightDockSessionFromStudyThread(
+  row: HighlightDockStudyThreadSource,
+  range?: { from: number; to: number } | null,
+): HighlightDockSession {
+  const metadata = buildHighlightDockOpenMetadataFromStudyThread(row);
+  return buildHighlightDockSessionForDeepLink(row.id, metadata, range ?? null);
+}
 
 /** Dictionary reference dock — either a not-yet-saved suggestion or a saved reference highlight. */
 export type ReferenceDockSession = {

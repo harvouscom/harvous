@@ -19,6 +19,7 @@ import PrototypeMainPaneShell from './PrototypeMainPaneShell';
 import { usePrototypeHomeSpaceId } from '../../hooks/usePrototypeHomeSpaceId';
 import { stripServerAutoUntitledNoteTitleForDisplay } from '@/utils/server-auto-untitled-note-display';
 import { getEffectiveDefaultTranslation } from '@/utils/profile-cache';
+import { buildHighlightDockOpenMetadataFromStudyThread } from '@/utils/study-dock-stack';
 import { isPrototypeNoteEditorFocused } from '@/utils/prototype-editor-focused';
 import { clearNoteDraft } from '@/utils/note-draft-store';
 import {
@@ -79,18 +80,22 @@ export default function PrototypeNotePage() {
         : null,
     [initialScriptureRef, initialScriptureTranslation, initialStudyThread],
   );
-  // Deep-link to a highlight's dock (Home "revisit" card → text / mini-note / connected highlight).
-  const initialHighlightDock = useMemo(
-    () =>
-      initialHighlightThread
-        ? { studyThreadEntryId: initialHighlightThread, requestKey: initialHighlightThread }
-        : null,
-    [initialHighlightThread],
-  );
+
   const { homeSpaceId } = usePrototypeHomeSpaceId();
   const navigate = useNavigate();
 
   const { data: note, isLoading, isError, isFetching } = useNote(isDraft ? '' : noteId);
+
+  // Deep-link to a highlight's dock (Home "revisit" card → text / mini-note / connected highlight).
+  const initialHighlightDock = useMemo(() => {
+    if (!initialHighlightThread) return null;
+    const row = note?.studyThreads?.find((t) => t.id === initialHighlightThread);
+    return {
+      studyThreadEntryId: initialHighlightThread,
+      requestKey: initialHighlightThread,
+      metadata: row ? buildHighlightDockOpenMetadataFromStudyThread(row) : undefined,
+    };
+  }, [initialHighlightThread, note?.studyThreads]);
 
   const editorSecondaryCollections = useMemo(() => {
     if (isDraft) return EMPTY_NOTE_COLLECTIONS;

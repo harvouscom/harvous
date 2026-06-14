@@ -1072,6 +1072,9 @@ export default function PrototypeSidebar() {
 
   const onHighlightRow = (r: PrototypeHighlightStudyThreadRow) => {
     if (!homeSpaceId) return;
+    if (r.parentNoteId) {
+      void queryClient.prefetchQuery(getNoteQueryOptions(r.parentNoteId)).catch(() => {});
+    }
     if (isScripturePassageHighlightRow(r)) {
       const canon = (r.scriptureReference ?? '').trim();
       const trans = (r.scripturePassageTranslation ?? '').trim();

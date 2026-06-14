@@ -528,7 +528,7 @@
 #shared-note-content .card-full-editable__content-html mark,
 #shared-thread-content .card-full-editable__content-html mark,
 .shared-page__card-container .card-full-editable__content-html mark {
-  background: transparent !important;
+  background: none !important;
   background-color: transparent !important;
   background-image: none !important;
   color: inherit !important;
@@ -540,8 +540,9 @@
   padding: 0 !important;
   box-decoration-break: clone;
   -webkit-box-decoration-break: clone;
+  text-shadow: none !important;
+  box-shadow: none !important;
 }
-
 #shared-note-content .card-full-editable__content-html mark[data-color="neutral"],
 #shared-thread-content .card-full-editable__content-html mark[data-color="neutral"],
 .shared-page__card-container .card-full-editable__content-html mark[data-color="neutral"] {
@@ -571,80 +572,6 @@
 #shared-thread-content .card-full-editable__content-html mark[data-color="coralRose"],
 .shared-page__card-container .card-full-editable__content-html mark[data-color="coralRose"] {
   text-decoration-color: var(--pds-highlight-coral-rose, var(--study-dock-accent-coralRose));
-}
-
-@media (prefers-color-scheme: dark) {
-  :root:not([data-color-scheme="light"]) #shared-note-content .card-full-editable__content-html mark,
-  :root:not([data-color-scheme="light"]) #shared-thread-content .card-full-editable__content-html mark,
-  :root:not([data-color-scheme="light"]) .shared-page__card-container .card-full-editable__content-html mark {
-    text-shadow: 0 0 12px color-mix(in oklab, var(--pds-highlight-warm-amber, var(--study-dock-accent-warmAmber)) 60%, transparent);
-  }
-  :root:not([data-color-scheme="light"]) #shared-note-content .card-full-editable__content-html mark[data-color="neutral"],
-  :root:not([data-color-scheme="light"]) #shared-thread-content .card-full-editable__content-html mark[data-color="neutral"],
-  :root:not([data-color-scheme="light"]) .shared-page__card-container .card-full-editable__content-html mark[data-color="neutral"] {
-    text-shadow: 0 0 12px color-mix(in oklab, var(--pds-highlight-neutral, var(--study-dock-accent-neutral)) 60%, transparent);
-  }
-  :root:not([data-color-scheme="light"]) #shared-note-content .card-full-editable__content-html mark[data-color="warmAmber"],
-  :root:not([data-color-scheme="light"]) #shared-thread-content .card-full-editable__content-html mark[data-color="warmAmber"],
-  :root:not([data-color-scheme="light"]) .shared-page__card-container .card-full-editable__content-html mark[data-color="warmAmber"] {
-    text-shadow: 0 0 12px color-mix(in oklab, var(--pds-highlight-warm-amber, var(--study-dock-accent-warmAmber)) 60%, transparent);
-  }
-  :root:not([data-color-scheme="light"]) #shared-note-content .card-full-editable__content-html mark[data-color="skyBlue"],
-  :root:not([data-color-scheme="light"]) #shared-thread-content .card-full-editable__content-html mark[data-color="skyBlue"],
-  :root:not([data-color-scheme="light"]) .shared-page__card-container .card-full-editable__content-html mark[data-color="skyBlue"] {
-    text-shadow: 0 0 12px color-mix(in oklab, var(--pds-highlight-sky-blue, var(--study-dock-accent-skyBlue)) 60%, transparent);
-  }
-  :root:not([data-color-scheme="light"]) #shared-note-content .card-full-editable__content-html mark[data-color="violet"],
-  :root:not([data-color-scheme="light"]) #shared-thread-content .card-full-editable__content-html mark[data-color="violet"],
-  :root:not([data-color-scheme="light"]) .shared-page__card-container .card-full-editable__content-html mark[data-color="violet"] {
-    text-shadow: 0 0 12px color-mix(in oklab, var(--pds-highlight-violet, var(--study-dock-accent-violet)) 60%, transparent);
-  }
-  :root:not([data-color-scheme="light"]) #shared-note-content .card-full-editable__content-html mark[data-color="mintGreen"],
-  :root:not([data-color-scheme="light"]) #shared-thread-content .card-full-editable__content-html mark[data-color="mintGreen"],
-  :root:not([data-color-scheme="light"]) .shared-page__card-container .card-full-editable__content-html mark[data-color="mintGreen"] {
-    text-shadow: 0 0 12px color-mix(in oklab, var(--pds-highlight-mint-green, var(--study-dock-accent-mintGreen)) 60%, transparent);
-  }
-  :root:not([data-color-scheme="light"]) #shared-note-content .card-full-editable__content-html mark[data-color="coralRose"],
-  :root:not([data-color-scheme="light"]) #shared-thread-content .card-full-editable__content-html mark[data-color="coralRose"],
-  :root:not([data-color-scheme="light"]) .shared-page__card-container .card-full-editable__content-html mark[data-color="coralRose"] {
-    text-shadow: 0 0 12px color-mix(in oklab, var(--pds-highlight-coral-rose, var(--study-dock-accent-coralRose)) 60%, transparent);
-  }
-}
-
-:root[data-color-scheme="dark"] #shared-note-content .card-full-editable__content-html mark,
-:root[data-color-scheme="dark"] #shared-thread-content .card-full-editable__content-html mark,
-:root[data-color-scheme="dark"] .shared-page__card-container .card-full-editable__content-html mark {
-  text-shadow: 0 0 12px color-mix(in oklab, var(--pds-highlight-warm-amber, var(--study-dock-accent-warmAmber)) 60%, transparent);
-}
-:root[data-color-scheme="dark"] #shared-note-content .card-full-editable__content-html mark[data-color="neutral"],
-:root[data-color-scheme="dark"] #shared-thread-content .card-full-editable__content-html mark[data-color="neutral"],
-:root[data-color-scheme="dark"] .shared-page__card-container .card-full-editable__content-html mark[data-color="neutral"] {
-  text-shadow: 0 0 12px color-mix(in oklab, var(--pds-highlight-neutral, var(--study-dock-accent-neutral)) 60%, transparent);
-}
-:root[data-color-scheme="dark"] #shared-note-content .card-full-editable__content-html mark[data-color="warmAmber"],
-:root[data-color-scheme="dark"] #shared-thread-content .card-full-editable__content-html mark[data-color="warmAmber"],
-:root[data-color-scheme="dark"] .shared-page__card-container .card-full-editable__content-html mark[data-color="warmAmber"] {
-  text-shadow: 0 0 12px color-mix(in oklab, var(--pds-highlight-warm-amber, var(--study-dock-accent-warmAmber)) 60%, transparent);
-}
-:root[data-color-scheme="dark"] #shared-note-content .card-full-editable__content-html mark[data-color="skyBlue"],
-:root[data-color-scheme="dark"] #shared-thread-content .card-full-editable__content-html mark[data-color="skyBlue"],
-:root[data-color-scheme="dark"] .shared-page__card-container .card-full-editable__content-html mark[data-color="skyBlue"] {
-  text-shadow: 0 0 12px color-mix(in oklab, var(--pds-highlight-sky-blue, var(--study-dock-accent-skyBlue)) 60%, transparent);
-}
-:root[data-color-scheme="dark"] #shared-note-content .card-full-editable__content-html mark[data-color="violet"],
-:root[data-color-scheme="dark"] #shared-thread-content .card-full-editable__content-html mark[data-color="violet"],
-:root[data-color-scheme="dark"] .shared-page__card-container .card-full-editable__content-html mark[data-color="violet"] {
-  text-shadow: 0 0 12px color-mix(in oklab, var(--pds-highlight-violet, var(--study-dock-accent-violet)) 60%, transparent);
-}
-:root[data-color-scheme="dark"] #shared-note-content .card-full-editable__content-html mark[data-color="mintGreen"],
-:root[data-color-scheme="dark"] #shared-thread-content .card-full-editable__content-html mark[data-color="mintGreen"],
-:root[data-color-scheme="dark"] .shared-page__card-container .card-full-editable__content-html mark[data-color="mintGreen"] {
-  text-shadow: 0 0 12px color-mix(in oklab, var(--pds-highlight-mint-green, var(--study-dock-accent-mintGreen)) 60%, transparent);
-}
-:root[data-color-scheme="dark"] #shared-note-content .card-full-editable__content-html mark[data-color="coralRose"],
-:root[data-color-scheme="dark"] #shared-thread-content .card-full-editable__content-html mark[data-color="coralRose"],
-:root[data-color-scheme="dark"] .shared-page__card-container .card-full-editable__content-html mark[data-color="coralRose"] {
-  text-shadow: 0 0 12px color-mix(in oklab, var(--pds-highlight-coral-rose, var(--study-dock-accent-coralRose)) 60%, transparent);
 }
 
 /* ==========================================================================

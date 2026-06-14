@@ -762,8 +762,9 @@
 
 /* Study highlights — app/prototype colored underline (not site marketing gradient fill).
    Uses --pds-highlight-* / study-dock accent tokens from study-highlight-accent-colors.css. */
+.public-page .card-full-editable__content-html mark,
 .public-note-card .card-full-editable__content-html mark {
-  background: transparent !important;
+  background: none !important;
   background-color: transparent !important;
   background-image: none !important;
   color: inherit !important;
@@ -775,71 +776,32 @@
   padding: 0 !important;
   box-decoration-break: clone !important;
   -webkit-box-decoration-break: clone !important;
+  text-shadow: none !important;
+  box-shadow: none !important;
 }
-
+.public-page .card-full-editable__content-html mark[data-color="neutral"],
 .public-note-card .card-full-editable__content-html mark[data-color="neutral"] {
   text-decoration-color: var(--pds-highlight-neutral, var(--study-dock-accent-neutral));
 }
+.public-page .card-full-editable__content-html mark[data-color="warmAmber"],
 .public-note-card .card-full-editable__content-html mark[data-color="warmAmber"] {
   text-decoration-color: var(--pds-highlight-warm-amber, var(--study-dock-accent-warmAmber));
 }
+.public-page .card-full-editable__content-html mark[data-color="skyBlue"],
 .public-note-card .card-full-editable__content-html mark[data-color="skyBlue"] {
   text-decoration-color: var(--pds-highlight-sky-blue, var(--study-dock-accent-skyBlue));
 }
+.public-page .card-full-editable__content-html mark[data-color="violet"],
 .public-note-card .card-full-editable__content-html mark[data-color="violet"] {
   text-decoration-color: var(--pds-highlight-violet, var(--study-dock-accent-violet));
 }
+.public-page .card-full-editable__content-html mark[data-color="mintGreen"],
 .public-note-card .card-full-editable__content-html mark[data-color="mintGreen"] {
   text-decoration-color: var(--pds-highlight-mint-green, var(--study-dock-accent-mintGreen));
 }
+.public-page .card-full-editable__content-html mark[data-color="coralRose"],
 .public-note-card .card-full-editable__content-html mark[data-color="coralRose"] {
   text-decoration-color: var(--pds-highlight-coral-rose, var(--study-dock-accent-coralRose));
-}
-
-@media (prefers-color-scheme: dark) {
-  :root:not([data-color-scheme="light"]) .public-note-card .card-full-editable__content-html mark {
-    text-shadow: 0 0 12px color-mix(in oklab, var(--pds-highlight-warm-amber, var(--study-dock-accent-warmAmber)) 60%, transparent);
-  }
-  :root:not([data-color-scheme="light"]) .public-note-card .card-full-editable__content-html mark[data-color="neutral"] {
-    text-shadow: 0 0 12px color-mix(in oklab, var(--pds-highlight-neutral, var(--study-dock-accent-neutral)) 60%, transparent);
-  }
-  :root:not([data-color-scheme="light"]) .public-note-card .card-full-editable__content-html mark[data-color="warmAmber"] {
-    text-shadow: 0 0 12px color-mix(in oklab, var(--pds-highlight-warm-amber, var(--study-dock-accent-warmAmber)) 60%, transparent);
-  }
-  :root:not([data-color-scheme="light"]) .public-note-card .card-full-editable__content-html mark[data-color="skyBlue"] {
-    text-shadow: 0 0 12px color-mix(in oklab, var(--pds-highlight-sky-blue, var(--study-dock-accent-skyBlue)) 60%, transparent);
-  }
-  :root:not([data-color-scheme="light"]) .public-note-card .card-full-editable__content-html mark[data-color="violet"] {
-    text-shadow: 0 0 12px color-mix(in oklab, var(--pds-highlight-violet, var(--study-dock-accent-violet)) 60%, transparent);
-  }
-  :root:not([data-color-scheme="light"]) .public-note-card .card-full-editable__content-html mark[data-color="mintGreen"] {
-    text-shadow: 0 0 12px color-mix(in oklab, var(--pds-highlight-mint-green, var(--study-dock-accent-mintGreen)) 60%, transparent);
-  }
-  :root:not([data-color-scheme="light"]) .public-note-card .card-full-editable__content-html mark[data-color="coralRose"] {
-    text-shadow: 0 0 12px color-mix(in oklab, var(--pds-highlight-coral-rose, var(--study-dock-accent-coralRose)) 60%, transparent);
-  }
-}
-
-:root[data-color-scheme="dark"] .public-note-card .card-full-editable__content-html mark {
-  text-shadow: 0 0 12px color-mix(in oklab, var(--pds-highlight-warm-amber, var(--study-dock-accent-warmAmber)) 60%, transparent);
-}
-:root[data-color-scheme="dark"] .public-note-card .card-full-editable__content-html mark[data-color="neutral"] {
-  text-shadow: 0 0 12px color-mix(in oklab, var(--pds-highlight-neutral, var(--study-dock-accent-neutral)) 60%, transparent);
-}
-:root[data-color-scheme="dark"] .public-note-card .card-full-editable__content-html mark[data-color="warmAmber"] {
-  text-shadow: 0 0 12px color-mix(in oklab, var(--pds-highlight-warm-amber, var(--study-dock-accent-warmAmber)) 60%, transparent);
-}
-:root[data-color-scheme="dark"] .public-note-card .card-full-editable__content-html mark[data-color="skyBlue"] {
-  text-shadow: 0 0 12px color-mix(in oklab, var(--pds-highlight-sky-blue, var(--study-dock-accent-skyBlue)) 60%, transparent);
-}
-:root[data-color-scheme="dark"] .public-note-card .card-full-editable__content-html mark[data-color="violet"] {
-  text-shadow: 0 0 12px color-mix(in oklab, var(--pds-highlight-violet, var(--study-dock-accent-violet)) 60%, transparent);
-}
-:root[data-color-scheme="dark"] .public-note-card .card-full-editable__content-html mark[data-color="mintGreen"] {
-  text-shadow: 0 0 12px color-mix(in oklab, var(--pds-highlight-mint-green, var(--study-dock-accent-mintGreen)) 60%, transparent);
-}
-:root[data-color-scheme="dark"] .public-note-card .card-full-editable__content-html mark[data-color="coralRose"] {
-  text-shadow: 0 0 12px color-mix(in oklab, var(--pds-highlight-coral-rose, var(--study-dock-accent-coralRose)) 60%, transparent);
 }
 
 /* Inline scripture pills inside the note body — section gray default, no outline.

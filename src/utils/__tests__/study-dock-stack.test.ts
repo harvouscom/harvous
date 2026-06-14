@@ -1,10 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import {
+  buildHighlightDockOpenMetadataFromStudyThread,
+  buildHighlightDockSessionForDeepLink,
+  buildHighlightDockSessionFromStudyThread,
   closeDockEntry,
   collapseActiveScriptureIfActive,
   clearStudyDockStackLocalCache,
   deserializeStudyDockStack,
   emptyStudyDockStack,
+  highlightDockExcerptFromStudyThread,
   highlightDockStableKey,
   isPersistableStudyDockNoteId,
   openOrFocusHighlight,
@@ -269,5 +273,59 @@ describe('study-dock-stack', () => {
     expect(localStorage.getItem('harvous-study-dock-note_x')).toBeNull();
     expect(localStorage.getItem('harvous-study-dock-new-note')).not.toBeNull();
     localStorage.removeItem('harvous-study-dock-new-note');
+  });
+});
+
+describe('highlight dock deep-link helpers', () => {
+  const studyThreadRow = {
+    id: 'st_deep_1',
+    entryKind: 'miniNote',
+    highlightAccentRaw: 'skyBlue',
+    anchorTextSnapshot: 'For God so loved the world',
+    sourceSnippet: 'snippet fallback',
+    focusTitle: 'John 3:16 thought',
+    miniNoteBody: 'My annotation',
+    linkedNoteId: null,
+  };
+
+  it('highlightDockExcerptFromStudyThread prefers anchor snapshot', () => {
+    expect(highlightDockExcerptFromStudyThread(studyThreadRow)).toBe('For God so loved the world');
+  });
+
+  it('buildHighlightDockOpenMetadataFromStudyThread maps accent and title', () => {
+    const metadata = buildHighlightDockOpenMetadataFromStudyThread(studyThreadRow);
+    expect(metadata.accent).toBe('skyBlue');
+    expect(metadata.entryKind).toBe('miniNote');
+    expect(metadata.excerpt).toBe('For God so loved the world');
+    expect(metadata.focusTitle).toBe('John 3:16 thought');
+    expect(metadata.miniNoteBody).toBe('My annotation');
+  });
+
+  it('buildHighlightDockSessionFromStudyThread includes range when provided', () => {
+    const range = { from: 10, to: 42 };
+    const session = buildHighlightDockSessionFromStudyThread(studyThreadRow, range);
+    expect(session.studyThreadEntryId).toBe('st_deep_1');
+    expect(session.range).toEqual(range);
+    expect(session.accent).toBe('skyBlue');
+  });
+
+  it('buildHighlightDockSessionForDeepLink falls back when metadata is missing', () => {
+    const session = buildHighlightDockSessionForDeepLink('st_orphan', undefined, null);
+    expect(session.studyThreadEntryId).toBe('st_orphan');
+    expect(session.accent).toBe('warmAmber');
+    expect(session.range).toBeNull();
+    expect(session.entryKind).toBe('miniNote');
+  });
+
+  it('metadata fallback opens a dock via openOrFocusHighlight', () => {
+    const metadata = buildHighlightDockOpenMetadataFromStudyThread(studyThreadRow);
+    const session = buildHighlightDockSessionForDeepLink('st_deep_1', metadata, null);
+    const stack = openOrFocusHighlight(emptyStudyDockStack(), session);
+    expect(stack.entries).toHaveLength(1);
+    expect(stack.entries[0].kind).toBe('highlight');
+    expect(stack.entries[0].expanded).toBe(true);
+    expect(stack.entries[0].kind === 'highlight' ? stack.entries[0].session.excerpt : '').toBe(
+      'For God so loved the world',
+    );
   });
 });

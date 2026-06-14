@@ -42,6 +42,7 @@ import {
 } from '@/utils/prototype-folder-auto-assign';
 import { shouldAllowPrimaryFolderUpdate } from '@/utils/should-allow-primary-folder-update';
 import { stripServerAutoUntitledNoteTitleForDisplay } from '@/utils/server-auto-untitled-note-display';
+import type { HighlightDockOpenMetadata } from '@/utils/study-dock-stack';
 
 // Prototype notes use alwaysEditing — load TipTap synchronously so the body is typeable on first paint.
 import TiptapEditorEager from './TiptapEditor';
@@ -93,6 +94,7 @@ import {
   normalizeEmptyBodyHtmlForEditor,
 } from '@/utils/prototype-note-empty';
 import { canonicalizeNoteHtmlLineBreaks } from '@/utils/note-html-linebreaks';
+import { stripStudyHighlightMarkInlineBackground } from '@/utils/note-html-highlight-marks';
 import { shouldInjectProcessedNoteContent } from '@/utils/prototype-editor-save';
 import { contentSyncWouldClobberScripturePillAccent } from '@/utils/scripture-pill-accent-sync';
 import { saveNoteDraft, getNoteDraft, clearNoteDraft } from '@/utils/note-draft-store';
@@ -196,6 +198,8 @@ interface CardFullEditableProps {
     studyThreadEntryId: string;
     /** Distinct per request (e.g. the clicked highlight's id) so re-opens fire each time. */
     requestKey?: string;
+    /** Study-thread snapshot for opening the dock when the note mark is not ready yet. */
+    metadata?: HighlightDockOpenMetadata;
   } | null;
   /** Prototype-only: the scripture-dock open request couldn't find a matching pill — host may fall back. */
   onScriptureDockUnresolved?: () => void;
@@ -393,6 +397,7 @@ export default function CardFullEditable({
   const [prototypeHighlightOpenRequest, setPrototypeHighlightOpenRequest] = useState<{
     studyThreadEntryId: string;
     requestKey?: string;
+    metadata?: HighlightDockOpenMetadata;
   } | null>(null);
   const onPrototypeChromeModeChangeRef = useRef(onPrototypeChromeModeChange);
   useEffect(() => {
@@ -531,6 +536,7 @@ export default function CardFullEditable({
     setPrototypeHighlightOpenRequest({
       studyThreadEntryId: initialHighlightDock.studyThreadEntryId,
       requestKey: key,
+      metadata: initialHighlightDock.metadata,
     });
   }, [editorChromeMode, initialHighlightDock, noteId]);
 
@@ -1070,7 +1076,9 @@ export default function CardFullEditable({
   const viewContentHtml = useMemo(() => {
     const raw = displayContent ?? '';
     if (looksLikeEncryptedBlob(raw)) return '';
-    return safeRenderHtml(withScripturePillDisplayLabels(raw));
+    return safeRenderHtml(
+      stripStudyHighlightMarkInlineBackground(withScripturePillDisplayLabels(raw)),
+    );
   }, [displayContent]);
 
   useEffect(() => {
@@ -2141,6 +2149,7 @@ export default function CardFullEditable({
   useEffect(() => {
     if (editorChromeMode !== 'prototypeNative') return;
     if (!effectiveIsEditable) return;
+    if (!userEditedSinceOpenRef.current) return;
 
     const timerId = window.setTimeout(() => { void protoSaveAsync(); }, 700);
     return () => window.clearTimeout(timerId);
@@ -2827,7 +2836,13 @@ export default function CardFullEditable({
                   {effectiveContent && effectiveContent.trim() ? (
                     <div
                       className="card-full-editable__content-html card-image-link__content-text"
-                      dangerouslySetInnerHTML={{ __html: safeRenderHtml(withScripturePillDisplayLabels(effectiveContent)) }}
+                      dangerouslySetInnerHTML={{
+                        __html: safeRenderHtml(
+                          stripStudyHighlightMarkInlineBackground(
+                            withScripturePillDisplayLabels(effectiveContent),
+                          ),
+                        ),
+                      }}
                     />
                   ) : (
                     <p style={{ color: 'var(--color-pebble-grey)', fontStyle: 'italic' }}>Click to add notes...</p>

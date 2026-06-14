@@ -106,6 +106,7 @@ import HighlightDockWeb from './HighlightDockWeb';
 import StudyDockCarouselWeb from './StudyDockCarouselWeb';
 import { deriveHighlightFocusTitle } from '@/utils/study-thread-focus-title';
 import {
+  buildHighlightDockSessionForDeepLink,
   closeDockEntry,
   collapseActiveScriptureIfActive,
   deserializeStudyDockStack,
@@ -123,6 +124,7 @@ import {
   studyDockStackHasEntries,
   studyDockStackStorageKey,
   updateDockEntry,
+  type HighlightDockOpenMetadata,
   type HighlightDockSession,
   type ReferenceDockSession,
   type ScripturePillDockSession,
@@ -234,6 +236,7 @@ interface TiptapEditorProps {
   prototypeHighlightOpenRequest?: {
     studyThreadEntryId: string;
     requestKey?: string;
+    metadata?: HighlightDockOpenMetadata;
   } | null;
   onPrototypeHighlightOpenRequestConsumed?: () => void;
 }
@@ -5776,7 +5779,6 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
   /** Deep-link open: when arriving with a highlight-dock request (e.g. tapping a highlight in the Home
    *  "revisit" card), find the matching highlight mark by study-thread id and open its dock once.
    *  Polls for the mark like the scripture consumer above, since the note content renders after mount. */
-  const initialHighlightDockFiredRef = useRef<string | null>(null);
   useEffect(() => {
     if (
       !editor ||
@@ -5787,28 +5789,35 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       return;
     }
     const req = prototypeHighlightOpenRequest;
-    const key = req.requestKey ?? req.studyThreadEntryId;
-    if (initialHighlightDockFiredRef.current === key) return;
     let cancelled = false;
     let rafId = 0;
-    const MAX_ATTEMPTS = 90; // ~1.5s at 60fps
-    const run = (attempt: number) => {
-      if (cancelled || !isEditorValid(editor)) return;
-      const root = editor.view.dom as HTMLElement;
-      const markEl = root.querySelector(
-        `mark[data-study-thread-id="${CSS.escape(req.studyThreadEntryId)}"]`,
-      ) as HTMLElement | null;
-      if (!markEl) {
-        if (attempt < MAX_ATTEMPTS) {
-          rafId = window.requestAnimationFrame(() => run(attempt + 1));
-        } else {
-          onPrototypeHighlightOpenRequestConsumed?.();
-        }
+    const MAX_ATTEMPTS = 120; // ~2s at 60fps — allow prototype body hydrate to finish
+    const openFromDeepLink = (range: { from: number; to: number } | null, markEl: HTMLElement | null) => {
+      if (markEl) {
+        openStudyDockForHighlightMark(markEl);
         return;
       }
-      initialHighlightDockFiredRef.current = key;
-      openStudyDockForHighlightMark(markEl);
-      onPrototypeHighlightOpenRequestConsumed?.();
+      const session = buildHighlightDockSessionForDeepLink(req.studyThreadEntryId, req.metadata, range);
+      setStudyDockStack((s) => openOrFocusHighlight(s, session));
+    };
+    const run = (attempt: number) => {
+      if (cancelled || !isEditorValid(editor)) return;
+      const range = findHighlightRangeByStudyThreadId(editor, req.studyThreadEntryId);
+      if (range) {
+        const root = editor.view.dom as HTMLElement;
+        const markEl = root.querySelector(
+          `mark[data-study-thread-id="${CSS.escape(req.studyThreadEntryId)}"]`,
+        ) as HTMLElement | null;
+        openFromDeepLink(range, markEl);
+        onPrototypeHighlightOpenRequestConsumed?.();
+        return;
+      }
+      if (attempt < MAX_ATTEMPTS) {
+        rafId = window.requestAnimationFrame(() => run(attempt + 1));
+      } else {
+        openFromDeepLink(null, null);
+        onPrototypeHighlightOpenRequestConsumed?.();
+      }
     };
     rafId = window.requestAnimationFrame(() => {
       rafId = window.requestAnimationFrame(() => run(0));
