@@ -104,7 +104,7 @@ function makeDraftConfirmButton(view: any, pos: number): HTMLElement {
   const onConfirm = (e: Event) => {
     e.preventDefault();
     e.stopPropagation();
-    if (confirmScriptureDraftView(view, pos) == null) confirmAnyScriptureDraftView(view);
+    if (confirmScriptureDraftView(view, pos, { focus: true }) == null) confirmAnyScriptureDraftView(view);
   };
   btn.addEventListener('pointerdown', onConfirm);
   return btn;
@@ -231,12 +231,46 @@ export function expandScriptureDraftView(view: any, from: number, to: number): b
   return true;
 }
 
+/** Reference-continuation characters that can trail a draft (verse/range punctuation). */
+const DRAFT_CONTINUATION_RE = /[\d:,\-–—]/;
+
+/**
+ * Extend `to` forward over a contiguous run of reference-continuation chars in the same
+ * textblock. On iOS the stored draft mark is sometimes dropped, so the range tail (e.g. the
+ * `-3` of `Psalm 27:1-3`) lands as plain text just after the draft; this lets confirm absorb
+ * it. Capped so it never runs away across the block.
+ */
+function extendRangeOverTrailingContinuation(doc: any, to: number, maxScan = 12): number {
+  let end = to;
+  let blockEnd: number;
+  try {
+    const $to = doc.resolve(to);
+    blockEnd = $to.end($to.depth);
+  } catch {
+    return to;
+  }
+  let scanned = 0;
+  while (end < blockEnd && scanned < maxScan) {
+    const ch = doc.textBetween(end, end + 1);
+    if (!ch || !DRAFT_CONTINUATION_RE.test(ch)) break;
+    end += 1;
+    scanned += 1;
+  }
+  return end;
+}
+
 /**
  * Confirm the draft at `atPos` (or the caret). Valid → commit a clean `scripturePill` with one
  * trailing space and caret after it; returns the committed reference. Invalid/empty → drop the
- * draft mark (text stays plain) and return null.
+ * draft mark (text stays plain) and return null. Pass `{ focus: true }` for user-initiated
+ * confirms (✓ button / typed continuation) so the caret renders immediately on iOS — never
+ * from the blur path, which would fight the user leaving the field.
  */
-export function confirmScriptureDraftView(view: any, atPos?: number): string | null {
+export function confirmScriptureDraftView(
+  view: any,
+  atPos?: number,
+  opts?: { focus?: boolean },
+): string | null {
   const { state } = view;
   const draftType = state.schema.marks.scriptureDraft;
   const pillType = state.schema.marks.scripturePill;
@@ -245,7 +279,9 @@ export function confirmScriptureDraftView(view: any, atPos?: number): string | n
   const range = findDraftRange(state, atPos ?? state.selection.from);
   if (!range) return null;
 
-  const rawText = state.doc.textBetween(range.from, range.to);
+  // Absorb any range tail that ended up as plain text just after the draft (iOS).
+  const effectiveTo = Math.max(range.to, extendRangeOverTrailingContinuation(state.doc, range.to));
+  const rawText = state.doc.textBetween(range.from, effectiveTo);
   const reference = draftTextToReference(rawText);
   const tr = state.tr;
 
@@ -261,7 +297,7 @@ export function confirmScriptureDraftView(view: any, atPos?: number): string | n
   const pillNode = state.schema.text(reference, [
     pillType.create({ reference, noteId: 'pending', translation: null, pillAccent: null }),
   ]);
-  tr.replaceWith(range.from, range.to, pillNode);
+  tr.replaceWith(range.from, effectiveTo, pillNode);
 
   const pillEnd = range.from + reference.length;
   // One trailing spacer so prose after the pill is editable (shared pill-spacing rule).
@@ -274,6 +310,14 @@ export function confirmScriptureDraftView(view: any, atPos?: number): string | n
   tr.setStoredMarks([]);
   tr.setMeta('addToHistory', true);
   view.dispatch(tr);
+
+  if (opts?.focus) {
+    try {
+      view.focus();
+    } catch {
+      /* ignore */
+    }
+  }
 
   try {
     view.dom.dispatchEvent(
@@ -297,7 +341,7 @@ export function confirmAnyScriptureDraftView(view: any): string | null {
   const dist = (r: { start: number; end: number }) =>
     Math.min(Math.abs(r.end - caret), Math.abs(r.start - caret));
   const target = ranges.reduce((best, r) => (dist(r) < dist(best) ? r : best), ranges[0]);
-  return confirmScriptureDraftView(view, target.end);
+  return confirmScriptureDraftView(view, target.end, { focus: true });
 }
 
 /** Drop the draft mark at the caret, leaving the text as plain prose (Escape). */

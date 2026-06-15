@@ -106,6 +106,83 @@
   animation: harvous-menu-pill-pop-in 120ms cubic-bezier(0.32, 0.72, 0.24, 1) both;
 }
 
+/* ── Mobile bottom-anchored picker sheet ─────────────────────────────────────── */
+
+.harvous-menu-pill__sheet-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 6000;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.28);
+  animation: harvous-menu-pill-sheet-fade 140ms ease both;
+}
+
+.harvous-menu-pill__sheet {
+  width: 100%;
+  max-width: 560px;
+  max-height: 60vh;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  padding: 6px 10px calc(10px + env(safe-area-inset-bottom, 0px));
+  border-top-left-radius: 16px;
+  border-top-right-radius: 16px;
+  background: var(--pds-bg-popover-solid, var(--pds-bg-page));
+  box-shadow: var(--pds-shadow-popover, 0 -8px 28px rgba(0, 0, 0, 0.18));
+  font-family: var(--pds-font-body, system-ui, sans-serif) !important;
+  animation: harvous-menu-pill-sheet-up 200ms cubic-bezier(0.32, 0.72, 0.24, 1) both;
+}
+
+.harvous-menu-pill__sheet-header {
+  flex-shrink: 0;
+  padding: 8px 8px 6px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--pds-text-tertiary);
+}
+
+.harvous-menu-pill__sheet-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+.harvous-menu-pill__sheet-list::-webkit-scrollbar {
+  display: none;
+}
+
+/* Larger touch targets for sheet rows. */
+.harvous-menu-pill__sheet-list .harvous-menu-pill__item {
+  padding: 12px 12px;
+  font-size: 16px;
+  border-radius: 10px;
+}
+
+@keyframes harvous-menu-pill-sheet-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes harvous-menu-pill-sheet-up {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
 @keyframes harvous-menu-pill-pop-in {
   from {
     opacity: 0;

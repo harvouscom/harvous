@@ -5935,6 +5935,19 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                 pillAccent,
               };
               setStudyDockStack((s) => openOrFocusScripture(s, session));
+              // Tapping a pill should show only the dock — not the keyboard or the formatting
+              // bar. Pills are `user-select: all`, so iOS selects the pill on tap (→ non-empty
+              // selection → formatting bar) and keeps the editor focused (→ keyboard). Blur the
+              // editor and clear the native selection, deferred so it runs AFTER iOS applies the
+              // tap selection. Mirrors the highlight-creation path.
+              requestAnimationFrame(() => {
+                try {
+                  window.getSelection()?.removeAllRanges();
+                } catch {
+                  /* ignore */
+                }
+                releaseEditorFocusForStudyDock();
+              });
             }
           } else {
             setStudyDockStack(emptyStudyDockStack());
@@ -6090,7 +6103,9 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
         target.closest('.scripture-pill') ||
         target.closest('.highlight-dock-web') ||
         target.closest('.study-dock-carousel') ||
-        target.closest('.reference-dock-web')
+        target.closest('.reference-dock-web') ||
+        target.closest('.harvous-menu-pill__sheet-backdrop') ||
+        target.closest('.harvous-menu-pill__menu--portal')
       ) {
         // Keep open
       } else {
@@ -6698,7 +6713,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     if (editorChromeMode !== 'prototypeNative') return;
     // Includes the accent swatch popover, which portals to document.body (outside the dock card).
     const dockSelector =
-      '.study-dock-card, .study-dock-carousel, .highlight-dock-web, .reference-dock-web, .scripture-pill-chrome, .scripture-delete-confirm, .dock-accent-swatch, .dock-accent-swatch__popover-anchor';
+      '.study-dock-card, .study-dock-carousel, .highlight-dock-web, .reference-dock-web, .scripture-pill-chrome, .scripture-delete-confirm, .dock-accent-swatch, .dock-accent-swatch__popover-anchor, .harvous-menu-pill__sheet-backdrop, .harvous-menu-pill__menu--portal';
     const onPointerDown = (e: Event) => {
       if ((e.target as HTMLElement)?.closest?.(dockSelector)) {
         studyDockPointerDownRef.current = true;
