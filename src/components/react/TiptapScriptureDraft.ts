@@ -1,6 +1,5 @@
 import { Mark, getMarkRange } from '@tiptap/core';
-import { Plugin, PluginKey, TextSelection } from '@tiptap/pm/state';
-import { Decoration, DecorationSet } from '@tiptap/pm/view';
+import { TextSelection } from '@tiptap/pm/state';
 import { detectScriptureReferences } from '@/utils/scripture-detector';
 import { collectScripturePillRanges, ensureScripturePillSpacing } from '@/utils/scripture-pill-spacing';
 
@@ -8,8 +7,12 @@ import { collectScripturePillRanges, ensureScripturePillSpacing } from '@/utils/
  * Inline "edit-mode" scripture reference. Unlike the committed `scripturePill` mark
  * (inclusive:false, excludes:'_'), the draft is **inclusive** so characters typed at its
  * right edge join it — the user types the whole reference (e.g. `Exodus 5:1-2`) inside one
- * contiguous, editable region, then confirms (✓ widget / double-space / Enter). Confirming
- * rebuilds the text into a clean normalized committed pill, so no stray-space can appear.
+ * contiguous, editable region, then confirms. Confirming rebuilds the text into a clean
+ * normalized committed pill, so no stray-space can appear.
+ *
+ * The ✓ confirm affordance is rendered OUTSIDE the editor as a floating button (see the
+ * scripture-draft floating button in TiptapEditor.tsx) — never as an inline
+ * `contentEditable=false` widget, which iOS Safari refuses to type next to.
  *
  * Drafts are ephemeral: `parseHTML` matches nothing, so a draft that happens to get
  * serialized (e.g. an unconfirmed draft at autosave) re-hydrates as plain text, never as a
@@ -53,62 +56,7 @@ export const ScriptureDraft = Mark.create<ScriptureDraftOptions>({
       0,
     ];
   },
-
-  addProseMirrorPlugins() {
-    return [
-      new Plugin<DecorationSet>({
-        key: new PluginKey<DecorationSet>('scriptureDraftWidget'),
-        state: {
-          init: (_config, state) => buildDraftWidgetDecorations(state.doc),
-          apply: (tr, oldSet, _oldState, newState) => {
-            if (!tr.docChanged) return oldSet.map(tr.mapping, tr.doc);
-            return buildDraftWidgetDecorations(newState.doc);
-          },
-        },
-        props: {
-          decorations(state) {
-            return this.getState(state);
-          },
-        },
-      }),
-    ];
-  },
 });
-
-// ── Widget (inline ✓ confirm button) ─────────────────────────────────────────
-
-function buildDraftWidgetDecorations(doc: any): DecorationSet {
-  const ranges = collectScripturePillRanges(doc, 'scriptureDraft');
-  if (ranges.length === 0) return DecorationSet.empty;
-  const decorations = ranges.map((r) =>
-    Decoration.widget(r.end, (view) => makeDraftConfirmButton(view, r.end), {
-      side: 1,
-      key: `scripture-draft-confirm-${r.end}`,
-    }),
-  );
-  return DecorationSet.create(doc, decorations);
-}
-
-function makeDraftConfirmButton(view: any, pos: number): HTMLElement {
-  const btn = document.createElement('button');
-  btn.type = 'button';
-  btn.className = 'scripture-pill-draft__confirm';
-  btn.contentEditable = 'false';
-  btn.setAttribute('aria-label', 'Confirm scripture reference');
-  btn.title = 'Confirm';
-  btn.innerHTML =
-    '<svg viewBox="0 0 16 16" width="11" height="11" aria-hidden="true" focusable="false"><path d="M13.5 4.5l-6.5 7-3.5-3.5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
-  // pointerdown covers touch + mouse + pen (mousedown alone is flaky on iOS); preventDefault
-  // keeps the editor selection alive and beats the blur handler. Confirm whichever draft
-  // exists rather than the build-time `pos`, which can be stale after intervening edits.
-  const onConfirm = (e: Event) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (confirmScriptureDraftView(view, pos, { focus: true }) == null) confirmAnyScriptureDraftView(view);
-  };
-  btn.addEventListener('pointerdown', onConfirm);
-  return btn;
-}
 
 // ── Range helpers ─────────────────────────────────────────────────────────────
 
@@ -138,6 +86,21 @@ export function getScriptureDraftRange(state: any): { from: number; to: number }
 
 export function isInsideScriptureDraft(state: any): boolean {
   return getScriptureDraftRange(state) != null;
+}
+
+/**
+ * End position of the draft to anchor the floating ✓ confirm button to (the one nearest the
+ * caret), or null when there is no draft. The button is rendered outside the editor.
+ */
+export function getScriptureDraftAnchorPos(state: any): number | null {
+  const ranges = collectScripturePillRanges(state.doc, 'scriptureDraft');
+  if (ranges.length === 0) return null;
+  const caret = state.selection.from;
+  const target = ranges.reduce(
+    (best, r) => (Math.abs(r.end - caret) < Math.abs(best.end - caret) ? r : best),
+    ranges[0],
+  );
+  return target.end;
 }
 
 /** True when the doc contains a draft mark whose range does NOT contain the caret. */

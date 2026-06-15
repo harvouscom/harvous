@@ -26,8 +26,10 @@ import {
   enterScriptureDraftView,
   expandScriptureDraftView,
   confirmScriptureDraftView,
+  confirmAnyScriptureDraftView,
   cancelScriptureDraftView,
   getScriptureDraftRange,
+  getScriptureDraftAnchorPos,
   findDetachedScriptureDraft,
   SCRIPTURE_DRAFT_CONFIRMED_EVENT,
 } from './TiptapScriptureDraft';
@@ -3769,6 +3771,13 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
 
   // Custom floating selection action bar (replaces BubbleMenu which has reliability issues across Tiptap versions)
   const [selectionActionBar, setSelectionActionBar] = useState<SelectionActionBarState | null>(null);
+  // Floating ✓ confirm for an inline scripture draft (prototype). Rendered OUTSIDE the editor —
+  // an inline contentEditable=false widget blocks iOS text entry next to it.
+  const [scriptureDraftConfirm, setScriptureDraftConfirm] = useState<{
+    top: number;
+    left: number;
+    to: number;
+  } | null>(null);
   const [connectFromSelectionOpen, setConnectFromSelectionOpen] = useState(false);
   const [connectFromSelectionAnchorRect, setConnectFromSelectionAnchorRect] = useState<DOMRect | null>(null);
   const [connectFromSelectionRange, setConnectFromSelectionRange] = useState<{
@@ -6271,6 +6280,54 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     };
   }, [editor, editorChromeMode]);
 
+  // Position the floating ✓ confirm just past the draft end (coordsAtPos), kept in sync with
+  // edits, scroll, and the iOS keyboard (visualViewport). Rendered as a portal below.
+  useEffect(() => {
+    if (!editor || editorChromeMode !== 'prototypeNative') return;
+
+    const updatePos = () => {
+      if (!isEditorValid(editor)) {
+        setScriptureDraftConfirm(null);
+        return;
+      }
+      const to = getScriptureDraftAnchorPos(editor.state);
+      if (to == null) {
+        setScriptureDraftConfirm(null);
+        return;
+      }
+      try {
+        const coords = editor.view.coordsAtPos(to);
+        const vw = typeof window !== 'undefined' ? window.innerWidth : coords.right + 40;
+        setScriptureDraftConfirm({
+          to,
+          top: (coords.top + coords.bottom) / 2,
+          left: Math.min(coords.right + 6, vw - 30),
+        });
+      } catch {
+        setScriptureDraftConfirm(null);
+      }
+    };
+
+    updatePos();
+    editor.on('update', updatePos);
+    editor.on('selectionUpdate', updatePos);
+    window.addEventListener('scroll', updatePos, true);
+    window.addEventListener('resize', updatePos);
+    const vv = typeof window !== 'undefined' ? window.visualViewport : null;
+    vv?.addEventListener('resize', updatePos);
+    vv?.addEventListener('scroll', updatePos);
+    return () => {
+      if (editor && !editor.isDestroyed) {
+        editor.off('update', updatePos);
+        editor.off('selectionUpdate', updatePos);
+      }
+      window.removeEventListener('scroll', updatePos, true);
+      window.removeEventListener('resize', updatePos);
+      vv?.removeEventListener('resize', updatePos);
+      vv?.removeEventListener('scroll', updatePos);
+    };
+  }, [editor, editorChromeMode]);
+
   // Handle create note from selection
   const handleCreateNoteFromSelection = async (
     rangeOverride?: { from: number; to: number },
@@ -7716,6 +7773,46 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
             onRemove={urlLinkPrompt.mode === 'edit' ? removeUrlLinkAtCurrentRange : undefined}
             onCancel={() => setUrlLinkPrompt(null)}
           />,
+          document.body,
+        )}
+        {/* Floating ✓ confirm for an inline scripture draft (prototype). Rendered outside the
+            editor so it never blocks iOS text entry the way an inline non-editable widget did. */}
+        {scriptureDraftConfirm && editorChromeMode === 'prototypeNative' && createPortal(
+          <button
+            type="button"
+            className="scripture-draft-confirm-float"
+            aria-label="Confirm scripture reference"
+            title="Confirm"
+            style={{
+              position: 'fixed',
+              top: scriptureDraftConfirm.top,
+              left: scriptureDraftConfirm.left,
+              zIndex: 99999,
+              pointerEvents: 'auto',
+            }}
+            onPointerDown={(e) => {
+              // preventDefault keeps the editor selection/focus alive and beats the blur handler.
+              e.preventDefault();
+              e.stopPropagation();
+              if (!editor || !isEditorValid(editor)) return;
+              const view = editor.view;
+              const to = scriptureDraftConfirm.to;
+              if (confirmScriptureDraftView(view, to, { focus: true }) == null) {
+                confirmAnyScriptureDraftView(view);
+              }
+            }}
+          >
+            <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true" focusable="false">
+              <path
+                d="M13.5 4.5l-6.5 7-3.5-3.5"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </button>,
           document.body,
         )}
         {/* Custom floating selection action bar — positioned via selectionUpdate event */}

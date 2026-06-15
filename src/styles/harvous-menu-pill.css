@@ -116,6 +116,8 @@
   align-items: flex-end;
   justify-content: center;
   background: rgba(0, 0, 0, 0.28);
+  /* Swallow drags on the dim area so they don't scroll the editor/page behind the sheet. */
+  touch-action: none;
   animation: harvous-menu-pill-sheet-fade 140ms ease both;
 }
 
@@ -146,11 +148,18 @@
 }
 
 .harvous-menu-pill__sheet-list {
+  /* flex + min-height:0 make this a real scroll area inside the capped sheet (without it the
+     list overflows and the gesture falls through to the editor). touch-action keeps the
+     vertical pan on the list; overscroll-behavior stops scroll chaining to the page. */
+  flex: 1 1 auto;
+  min-height: 0;
   margin: 0;
   padding: 0;
   list-style: none;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
+  overscroll-behavior: contain;
   scrollbar-width: none;
 }
 
