@@ -331,9 +331,11 @@
 .harvous-auth-form__input::placeholder {
   color: var(--site-ink-faint);
 }
-.harvous-auth-form__input:focus {
-  border-color: var(--site-accent);
-  box-shadow: 0 0 0 3px rgba(56, 105, 230, 0.12);
+.harvous-auth-form__input:focus,
+.harvous-auth-form__input:focus-visible {
+  border: 1.5px solid var(--site-accent) !important;
+  box-shadow: 0 0 0 3px rgba(56, 105, 230, 0.12) !important;
+  outline: none !important;
 }
 .harvous-auth-form__input--code {
   letter-spacing: 0.08em;
