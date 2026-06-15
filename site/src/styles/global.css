@@ -7,31 +7,19 @@
 @import "./study-highlight-accent-colors.css";
 @import "./app-shell.css";
 
-/* Scorekard — self-hosted display font for h1/h2 */
+/* Roundo — self-hosted variable display font (Pangram Pangram) for marketing
+   headings. The app + the "Harvous" wordmark keep Google Sans Flex (declared in
+   prototype-tokens.css); Roundo gives the marketing site its own brand voice. */
 @font-face {
-  font-family: "Scorekard";
-  src: url("/fonts/scorekard/Scorekard-Regular.woff2") format("woff2");
-  font-weight: 400;
-  font-style: normal;
-  font-display: swap;
-}
-@font-face {
-  font-family: "Scorekard";
-  src: url("/fonts/scorekard/Scorekard-Semibold.woff2") format("woff2");
-  font-weight: 600;
-  font-style: normal;
-  font-display: swap;
-}
-@font-face {
-  font-family: "Scorekard";
-  src: url("/fonts/scorekard/Scorekard-Bold.woff2") format("woff2");
-  font-weight: 700;
+  font-family: "Roundo";
+  src: url("/fonts/roundo/Roundo-Variable.woff2") format("woff2");
+  font-weight: 200 700;
   font-style: normal;
   font-display: swap;
 }
 
 @theme {
-  --font-display: "Scorekard", "Google Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Roundo", "Google Sans Flex", "Google Sans", ui-sans-serif, system-ui, sans-serif;
   --font-sans: "Google Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-italic: "Instrument Serif", "Iowan Old Style", "Georgia", serif;
 
@@ -98,7 +86,67 @@ h3, h4, h5, h6 {
 .font-display {
   font-family: var(--font-display);
   letter-spacing: -0.02em;
-  font-weight: 400;
+  font-weight: 600;
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+   Shared type recipes — reused across the homepage and future pages so there's
+   one source of truth for the eyebrow / section title / lead / hero scale.
+   ────────────────────────────────────────────────────────────────────────── */
+.eyebrow {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--color-ink-faint);
+}
+.section-title {
+  font-family: var(--font-display);
+  font-size: clamp(2rem, 4vw, 3.25rem);
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+  font-weight: 600;
+  color: var(--color-ink);
+}
+/* Hero-scale modifier — pair with .section-title. */
+.display-xl {
+  font-size: clamp(2.75rem, 6vw, 4.5rem);
+  line-height: 1;
+}
+.lead {
+  font-size: 1.0625rem;
+  line-height: 1.6;
+  color: var(--color-ink-soft);
+}
+@media (min-width: 768px) {
+  .lead { font-size: 1.125rem; }
+}
+
+/* Lattice-style soft card tints — derived from the app's highlight accents
+   (study-highlight-accent-colors.css). They sit over paper, so they adapt in
+   dark mode automatically. Pair solid tiles with the vibrant accent + light ink. */
+:root {
+  --tint-amber: color-mix(in oklab, var(--study-dock-accent-warmAmber) 20%, var(--color-paper));
+  --tint-sky: color-mix(in oklab, var(--study-dock-accent-skyBlue) 16%, var(--color-paper));
+  --tint-mint: color-mix(in oklab, var(--study-dock-accent-mintGreen) 16%, var(--color-paper));
+  --tint-violet: color-mix(in oklab, var(--study-dock-accent-violet) 16%, var(--color-paper));
+  --tint-coral: color-mix(in oklab, var(--study-dock-accent-coralRose) 16%, var(--color-paper));
+  --tint-blue: color-mix(in oklab, var(--color-accent) 14%, var(--color-paper));
+}
+
+/* Eyebrow as a small rounded pill (Lattice's section chips). */
+.eyebrow-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 0.32rem 0.72rem;
+  border-radius: 999px;
+  color: var(--color-accent);
+  background: var(--color-accent-soft);
 }
 
 

@@ -16,10 +16,8 @@ import { postAuthRedirectPath } from '../../utils/post-auth-redirect';
  */
 export default function HarvousAuthForm({
   mode,
-  redirectRaw,
 }: {
   mode: 'signIn' | 'signUp';
-  redirectRaw: string | null;
 }) {
   const { isLoaded: signInLoaded, signIn, setActive: setSignInActive } = useSignIn();
   const { isLoaded: signUpLoaded, signUp, setActive: setSignUpActive } = useSignUp();
@@ -134,16 +132,6 @@ export default function HarvousAuthForm({
     setErrorMessage(null);
   }
 
-  const hasCustomRedirect = redirectRaw != null && redirectRaw !== '';
-  const switcherHref =
-    mode === 'signIn'
-      ? hasCustomRedirect
-        ? `/sign-up?redirect_url=${encodeURIComponent(redirectRaw!)}`
-        : '/sign-up'
-      : hasCustomRedirect
-        ? `/sign-in?redirect_url=${encodeURIComponent(redirectRaw!)}`
-        : '/sign-in';
-
   return (
     <div className="harvous-auth-form">
       {step === 'enterEmail' ? (
@@ -215,14 +203,6 @@ export default function HarvousAuthForm({
           {errorMessage}
         </p>
       )}
-
-      {step === 'enterEmail' && (
-        <p className="auth-page__footer-switch">
-          {mode === 'signIn' ? "Don't have an account?" : 'Already have an account?'}
-          <a href={switcherHref}>{mode === 'signIn' ? 'Sign up' : 'Log in'}</a>
-        </p>
-      )}
-      <p className="auth-page__secured-by">Secured by Clerk</p>
     </div>
   );
 }

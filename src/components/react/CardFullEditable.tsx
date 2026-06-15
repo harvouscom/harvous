@@ -37,7 +37,6 @@ import { isPrototypeDraftPersistNoteIdSwap } from '@/utils/prototype-compose-url
 import {
   applyIdleFolderAutoAssign,
   clearAutoFolderChrome,
-  noteHasFolderSuggestContent,
   plainBodyForFolderSnapshot,
 } from '@/utils/prototype-folder-auto-assign';
 import { shouldAllowPrimaryFolderUpdate } from '@/utils/should-allow-primary-folder-update';
@@ -375,7 +374,6 @@ export default function CardFullEditable({
 
   const prevNoteIdForEditGuardRef = useRef(noteId);
   const prevNoteIdForProtoResetRef = useRef(noteId);
-  const prevNoteIdForFolderOpenRef = useRef(noteId);
   const seededEditorForNoteRef = useRef<string | null>(null);
   const handledPersistRemountTickRef = useRef(-1);
   /** User clicked/tapped the body editor — skip any title auto-focus intent for this note. */
@@ -474,30 +472,10 @@ export default function CardFullEditable({
     initialCollectionUserOverride,
   ]);
 
-  // Prototype: apply auto folder once when a note opens (automatic mode), before first autosave.
-  useEffect(() => {
-    if (editorChromeMode !== 'prototypeNative') return;
-    const prev = prevNoteIdForFolderOpenRef.current;
-    prevNoteIdForFolderOpenRef.current = noteId;
-    if (isPrototypeDraftPersistNoteIdSwap(prev, noteId) && userEditedSinceOpenRef.current) {
-      return;
-    }
-    const initialTitle =
-      noteType === 'default'
-        ? stripServerAutoUntitledNoteTitleForDisplay(title)
-        : (title ?? '');
-    const initialContent = content ?? '';
-    const timer = window.setTimeout(() => {
-      setCollectionChrome(prev => {
-        if (prev.collectionUserOverride && !prev.collectionPinned) return prev;
-        if (!noteHasFolderSuggestContent(initialTitle, initialContent)) return prev;
-        return applyIdleFolderAutoAssign(prev, initialTitle, initialContent, new Date());
-      });
-    }, 0);
-    return () => window.clearTimeout(timer);
-    // title/content intentionally omitted — snapshot at note open only
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [noteId, editorChromeMode, noteType]);
+  // Note: we intentionally do NOT auto-assign a folder when a note simply opens.
+  // Opening (viewing) a note must be read-only for folders — re-ranking only happens
+  // after a genuine edit, via the debounce effect below (gated on userEditedSinceOpenRef).
+  // The note's existing saved folder is shown via buildCollectionChromeFromInitialProps.
 
   useEffect(() => {
     setPrototypeScripturePillOpenRequest(null);
@@ -574,6 +552,10 @@ export default function CardFullEditable({
   useEffect(() => {
     if (editorChromeMode !== 'prototypeNative') return;
     const timer = window.setTimeout(() => {
+      // Only re-rank folders after a genuine user edit — never on note open. This effect's
+      // deps populate on mount too, so without this guard merely opening a note would
+      // recompute/clear the folder. Mirrors the autosave guards (userEditedSinceOpenRef).
+      if (!userEditedSinceOpenRef.current) return;
       const prev = collectionChromeRef.current;
       if (prev.collectionUserOverride && !prev.collectionPinned) return;
       const editing = isTitleEditing || isContentEditing;

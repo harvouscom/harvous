@@ -60,9 +60,18 @@ enum BibleStudyTagSuggester {
         }
         refreshAutoSecondaries(note: note, analysis: analysis, existingFolders: existingFolders)
 
-        let tags = tagsExcludingFolderMembership(analysis.tags, note: note)
-        if note.tags != tags {
-            note.tags = tags.uniquedPreservingOrderCaseInsensitive()
+        let autoSuggested = tagsExcludingFolderMembership(analysis.tags, note: note)
+            .filter { !note.isDismissedAutoTag($0) }
+        let autoLower = Set(autoSuggested.map { $0.lowercased() })
+        let analysisLower = Set(analysis.tags.map { $0.lowercased() })
+        let manualKept = note.tags.filter { tag in
+            if note.isDismissedAutoTag(tag) { return false }
+            let lower = tag.lowercased()
+            return !autoLower.contains(lower) && !analysisLower.contains(lower)
+        }
+        let merged = (manualKept + autoSuggested).uniquedPreservingOrderCaseInsensitive()
+        if note.tags != merged {
+            note.tags = merged
         }
     }
 

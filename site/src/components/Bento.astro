@@ -1,0 +1,26 @@
+---
+/**
+ * Bento — responsive 3-column grid for FeatureCards. Cards span 1 or 2 columns
+ * (set on the card) to make a varied, Lattice/Pangram-style mosaic.
+ */
+interface Props {
+  class?: string;
+}
+const { class: className = "" } = Astro.props;
+---
+
+<div class:list={["bento", className]}><slot /></div>
+
+<style>
+  .bento {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+  @media (min-width: 560px) {
+    .bento { grid-template-columns: repeat(2, 1fr); }
+  }
+  @media (min-width: 768px) {
+    .bento { grid-template-columns: repeat(3, 1fr); gap: 1.25rem; }
+  }
+</style>

@@ -104,6 +104,8 @@ export interface NoteDetail {
   collectionPinned?: boolean;
   collectionUserOverride?: boolean;
   collectionLastAutoUpdatedAt?: string | null;
+  /** Normalized auto-tag names the user dismissed on this note. */
+  dismissedAutoTags?: string[];
   studyThreadTitle?: string | null;
   studyThreadUserOverride?: boolean;
   studyThreadPinned?: boolean;

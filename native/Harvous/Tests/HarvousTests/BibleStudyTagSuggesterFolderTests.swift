@@ -165,6 +165,18 @@ final class BibleStudyTagSuggesterFolderTests: XCTestCase {
         XCTAssertEqual(r.primaryFolder?.lowercased(), "salvation")
         XCTAssertTrue(r.secondaryFolders.contains(where: { $0.caseInsensitiveCompare("Paul") == .orderedSame }))
     }
+
+    func testApplyToNoteRespectsDismissedAutoTags() {
+        let note = Note(
+            title: "Salvation testimony",
+            body: "Salvation changed my life. We trust in salvation through grace and prayer daily.",
+            tags: ["Salvation", "Prayer"],
+            dismissedAutoTags: ["salvation"]
+        )
+        BibleStudyTagSuggester.applyToNote(note, allowPrimaryUpdate: false, existingFolders: [])
+        let lower = note.tags.map { $0.lowercased() }
+        XCTAssertFalse(lower.contains("salvation"))
+    }
 }
 
 private extension String {

@@ -23,6 +23,8 @@ final class Note {
     /// Timestamp of the last auto-assignment of primary folder.
     @Attribute(originalName: "collectionLastAutoUpdatedAt") var folderLastAutoUpdatedAt: Date? = nil
     var tags: [String]
+    /// Normalized auto-tag names the user dismissed — excluded from future auto-tag passes.
+    var dismissedAutoTags: [String] = []
     /// User pin (note-level); surface in list/chrome and keep stable under auto-tag churn.
     var isPinned: Bool = false
     /// Scoped to a `Space.id`; `nil` is treated as the default personal home during migration.
@@ -93,6 +95,7 @@ final class Note {
         folderAutoConfidence: Double? = nil,
         folderLastAutoUpdatedAt: Date? = nil,
         tags: [String] = [],
+        dismissedAutoTags: [String] = [],
         spaceId: UUID? = nil,
         cloudId: UUID? = nil,
         needsSync: Bool = false,
@@ -115,6 +118,7 @@ final class Note {
         self.folderLastAutoUpdatedAt = folderLastAutoUpdatedAt
         self.isPinned = isPinned
         self.tags = tags
+        self.dismissedAutoTags = dismissedAutoTags
         self.spaceId = spaceId
         self.cloudId = cloudId
         self.needsSync = needsSync
@@ -250,5 +254,30 @@ extension Note {
     /// Source name for inspector rows where the label is already "Added by".
     var addedBySourceLabel: String {
         addedBy == "harvous" ? "Harvous" : "You"
+    }
+
+    func normalizedDismissedAutoTags() -> [String] {
+        dismissedAutoTags
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
+            .filter { !$0.isEmpty }
+            .uniquedPreservingOrderCaseInsensitive()
+    }
+
+    func isDismissedAutoTag(_ name: String) -> Bool {
+        let key = name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !key.isEmpty else { return false }
+        return normalizedDismissedAutoTags().contains { $0.caseInsensitiveCompare(key) == .orderedSame }
+    }
+
+    func recordDismissedAutoTag(_ name: String) {
+        let key = name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !key.isEmpty else { return }
+        if isDismissedAutoTag(key) { return }
+        dismissedAutoTags.append(key)
+    }
+
+    func clearDismissedAutoTag(_ name: String) {
+        let key = name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        dismissedAutoTags.removeAll { $0.caseInsensitiveCompare(key) == .orderedSame }
     }
 }

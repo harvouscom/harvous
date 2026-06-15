@@ -28,6 +28,9 @@ export default function SignInPage() {
 
   const params = new URLSearchParams(window.location.search);
   const redirectRaw = params.get('redirect_url');
+  const signUpHref = redirectRaw
+    ? `/sign-up?redirect_url=${encodeURIComponent(redirectRaw)}`
+    : '/sign-up';
 
   if (isSignedIn || (!isLoaded && hasClerkSessionCookieHint())) {
     return null;
@@ -52,13 +55,24 @@ export default function SignInPage() {
           </div>
 
           <div className="auth-page__form-section">
-            <div className="auth-page__content-wrapper">
-              <h1 className="auth-page__headline">
-                Open <span className="auth-page__headline-mark">your</span> study Bible.
-              </h1>
-              <div className="auth-page__form-wrapper">
-                <HarvousAuthForm mode="signIn" redirectRaw={redirectRaw} />
+            <div className="auth-letter-stack">
+              <div className="auth-letter-stack__leaf auth-letter-stack__leaf--back" aria-hidden />
+              <div className="auth-letter-stack__leaf auth-letter-stack__leaf--mid" aria-hidden />
+              <div className="auth-letter">
+                <h1 className="auth-page__headline">
+                  Open <span className="auth-page__headline-mark">your</span> study Bible.
+                </h1>
+                <div className="auth-page__form-wrapper">
+                  <HarvousAuthForm mode="signIn" />
+                </div>
               </div>
+            </div>
+
+            <div className="auth-page__footer">
+              <p className="auth-page__footer-switch">
+                Don't have an account?<a href={signUpHref}>Sign up</a>
+              </p>
+              <p className="auth-page__secured-by">Secured by Clerk</p>
             </div>
           </div>
         </div>

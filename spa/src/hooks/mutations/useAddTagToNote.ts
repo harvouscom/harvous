@@ -86,9 +86,12 @@ export function useAddTagToNote() {
       // the note already carries a tag with that name.
       if (previous && !previous.tags?.some((t) => t.name.toLowerCase() === trimmed.toLowerCase())) {
         const existing = existingTags.find((t) => t.name.toLowerCase() === trimmed.toLowerCase());
+        const key = trimmed.toLowerCase();
+        const nextDismissed = (previous.dismissedAutoTags ?? []).filter((d) => d.toLowerCase() !== key);
         queryClient.setQueryData<NoteDetail>(['note', noteId], {
           ...previous,
           tags: [...(previous.tags ?? []), { id: existing?.id ?? `local_tag_${Date.now()}`, name: trimmed }],
+          dismissedAutoTags: nextDismissed,
         });
       }
       return { previous, noteId };

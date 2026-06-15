@@ -558,6 +558,7 @@ struct APINote: Codable, Identifiable, Sendable {
     let secondaryCollections: [String]?
     let collectionPinned: Bool?
     let collectionUserOverride: Bool?
+    let dismissedAutoTags: [String]?
     // Sync metadata
     let simpleNoteId: Int?
     let noteType: String?

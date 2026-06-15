@@ -607,6 +607,7 @@ struct NoteInspectorView: View {
 
         note.tags.append(trimmed)
         note.tags = note.tags.uniquedPreservingOrderCaseInsensitive()
+        note.clearDismissedAutoTag(trimmed)
         note.updatedAt = Date()
         draftTag = ""
         persistInspectorMutation()
@@ -614,6 +615,7 @@ struct NoteInspectorView: View {
 
     private func removeTag(_ tag: String) {
         note.tags.removeAll { $0.caseInsensitiveCompare(tag) == .orderedSame }
+        note.recordDismissedAutoTag(tag)
         note.updatedAt = Date()
         persistInspectorMutation()
     }

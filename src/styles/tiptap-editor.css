@@ -207,6 +207,27 @@
   flex-wrap: nowrap;
 }
 
+/* The leading region is the horizontal scroller; touch-action: pan-x lets the browser
+   own horizontal swipes so a swipe scrolls instead of tapping the button under the finger. */
+.tiptap-toolbar--prototype-native .tiptap-toolbar__scroll-region {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-x;
+  scrollbar-width: none; /* Firefox */
+}
+
+.tiptap-toolbar--prototype-native .tiptap-toolbar__scroll-region::-webkit-scrollbar {
+  display: none; /* Safari/Chrome */
+}
+
+/* Keep the trailing undo/redo group pinned on the right; it never scrolls. */
+.tiptap-toolbar--prototype-native .tiptap-toolbar__trailing {
+  flex: 0 0 auto;
+}
+
 /* Override all conflicting CSS for toolbar buttons */
 .tiptap-toolbar button {
   box-shadow: none !important;

@@ -126,6 +126,9 @@ export function useUpdateNote() {
             ...(variables.secondaryCollections !== undefined ? { secondaryCollections: variables.secondaryCollections } : {}),
             ...(variables.collectionPinned !== undefined ? { collectionPinned: variables.collectionPinned } : {}),
             ...(variables.collectionUserOverride !== undefined ? { collectionUserOverride: variables.collectionUserOverride } : {}),
+            ...(data?.note && Array.isArray((data.note as { dismissedAutoTags?: string[] }).dismissedAutoTags)
+              ? { dismissedAutoTags: (data.note as { dismissedAutoTags: string[] }).dismissedAutoTags }
+              : {}),
           };
         },
       );
@@ -140,6 +143,7 @@ export function useUpdateNote() {
           previewNoteTagsFromContent(variables.title, processed, {
             primary: variables.primaryCollection,
             secondaries: variables.secondaryCollections,
+            dismissedAutoTags: queryClient.getQueryData<NoteDetail>(['note', variables.noteId])?.dismissedAutoTags,
           }),
         );
       }

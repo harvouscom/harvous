@@ -1,0 +1,102 @@
+---
+/**
+ * Section — full-width band, the Lattice-style "color block" primitive.
+ * Sets a tone background from the design tokens, a vertical padding step, and an
+ * optional faded rule divider. Compose with <Container> inside.
+ *
+ *   <Section tone="sky" space="lg" divider="top">
+ *     <Container> … </Container>
+ *   </Section>
+ */
+interface Props {
+  tone?:
+    | "paper"
+    | "warm"
+    | "card"
+    | "sky"
+    | "mint"
+    | "lilac"
+    | "peach"
+    | "pink"
+    | "cream"
+    | "accent"
+    | "ink";
+  space?: "none" | "sm" | "md" | "lg" | "xl";
+  divider?: "none" | "top" | "bottom" | "both";
+  id?: string;
+  class?: string;
+}
+
+const { tone = "paper", space = "lg", divider = "none", id, class: className = "" } = Astro.props;
+
+// Inverted tones flip the local ink tokens so .eyebrow/.section-title/.lead and
+// any token-driven children read correctly on a dark/saturated ground.
+const invert = tone === "accent" || tone === "ink";
+
+const dividerClass =
+  divider === "top"
+    ? "fade-rule-t"
+    : divider === "bottom"
+      ? "fade-rule-b"
+      : divider === "both"
+        ? "fade-rule-y"
+        : "";
+---
+
+<section
+  id={id}
+  class:list={[
+    "section",
+    `section--tone-${tone}`,
+    `section--space-${space}`,
+    invert && "section--invert",
+    dividerClass,
+    className,
+  ]}
+>
+  <slot />
+</section>
+
+<style>
+  .section {
+    position: relative;
+    width: 100%;
+  }
+
+  /* Tones — backgrounds straight from the shared --color-* tokens, so they
+     re-theme light/dark in lockstep with the rest of the page. */
+  .section--tone-paper { background: var(--color-paper); }
+  .section--tone-warm { background: var(--color-warm); }
+  .section--tone-card { background: var(--color-card); }
+  .section--tone-sky { background: var(--color-sky); }
+  .section--tone-mint { background: var(--color-mint); }
+  .section--tone-lilac { background: var(--color-lilac); }
+  .section--tone-peach { background: var(--color-peach); }
+  .section--tone-pink { background: var(--color-pink); }
+  .section--tone-cream { background: var(--color-cream); }
+  .section--tone-accent { background: var(--color-accent); }
+  .section--tone-ink { background: var(--color-ink); }
+
+  /* Inverted ground — remap the ink tokens locally so children adapt. */
+  .section--invert {
+    --color-ink: #ffffff;
+    --color-ink-soft: rgba(255, 255, 255, 0.8);
+    --color-ink-faint: rgba(255, 255, 255, 0.62);
+    --color-rule: rgba(255, 255, 255, 0.18);
+    --color-card: rgba(255, 255, 255, 0.1);
+    color: #ffffff;
+  }
+
+  /* Vertical rhythm — steps up on larger viewports. */
+  .section--space-none { padding-block: 0; }
+  .section--space-sm { padding-block: 2.5rem; }
+  .section--space-md { padding-block: 3.5rem; }
+  .section--space-lg { padding-block: 4.5rem; }
+  .section--space-xl { padding-block: 5rem; }
+  @media (min-width: 768px) {
+    .section--space-sm { padding-block: 3rem; }
+    .section--space-md { padding-block: 5rem; }
+    .section--space-lg { padding-block: 6.5rem; }
+    .section--space-xl { padding-block: 8rem; }
+  }
+</style>

@@ -1,47 +1,96 @@
 ---
-// Closing CTA — warm sunrise glow from the base of the card. Single "Start for free" primary button.
-import CTAButton from "./CTAButton.astro";
+// Closing CTA — a bold brand-blue color block (fixed colors so it stays vivid in
+// both day and night). White heading + a high-contrast white button.
 ---
 
-<section class="px-4 pb-20 pt-4">
-  <div class="cta-card relative mx-auto max-w-6xl overflow-hidden rounded-3xl" data-reveal="scale">
+<section class="cta">
+  <div class="cta-card" data-reveal="scale">
     <div class="cta-glow" aria-hidden="true"></div>
-    <div class="relative px-6 py-20 text-center md:px-16 md:py-28">
-      <h2
-        class="mx-auto max-w-3xl font-display text-4xl leading-[1.05] md:text-6xl"
-        style="color: var(--color-ink);"
-      >
-        Try Harvous.
-      </h2>
-      <p
-        class="mx-auto mt-5 max-w-xl text-lg md:text-xl"
-        style="color: var(--color-ink-soft);"
-      >
+    <div class="cta-inner">
+      <h2 class="cta-title">Try Harvous.</h2>
+      <p class="cta-sub">
         A notes app thoughtfully designed for Bible study — for a practice that isn't just on Sundays.
       </p>
-
-      <div class="mt-10 flex justify-center">
-        <CTAButton href="https://app.harvous.com/sign-up" variant="primary" size="lg" external>
+      <div class="cta-actions">
+        <a class="cta-btn" href="https://app.harvous.com/sign-up" target="_blank" rel="noopener">
           Start for free
-        </CTAButton>
+        </a>
       </div>
+      <p class="cta-fine">Free to use · web, Mac, iPad &amp; iPhone · works offline</p>
     </div>
   </div>
 </section>
 
 <style>
+  .cta {
+    padding: 1.25rem 1.25rem 5rem;
+  }
   .cta-card {
-    background: var(--color-warm);
-    border: 1px solid var(--color-rule);
+    position: relative;
+    margin-inline: auto;
+    max-width: 72rem;
+    overflow: hidden;
+    border-radius: 2rem;
+    background: linear-gradient(155deg, #4f86ff 0%, #3869e6 52%, #2452cf 100%);
+    box-shadow: 0 30px 70px -30px rgba(36, 82, 207, 0.65);
   }
   .cta-glow {
     position: absolute;
     inset: 0;
     pointer-events: none;
-    background: radial-gradient(
-      75% 95% at 50% 118%,
-      color-mix(in oklab, var(--color-highlight) 60%, transparent),
-      transparent 70%
-    );
+    background:
+      radial-gradient(60% 80% at 50% -10%, rgba(255, 255, 255, 0.28), transparent 70%),
+      radial-gradient(70% 90% at 50% 120%, rgba(255, 232, 168, 0.22), transparent 70%);
+  }
+  .cta-inner {
+    position: relative;
+    padding: 4rem 1.5rem;
+    text-align: center;
+    color: #fff;
+  }
+  @media (min-width: 768px) {
+    .cta-inner { padding: 5.5rem 1.5rem; }
+  }
+  .cta-title {
+    color: #fff;
+    font-family: var(--font-display);
+    font-variation-settings: "ROND" 100;
+    font-size: clamp(2.5rem, 5vw, 4rem);
+    line-height: 1;
+    letter-spacing: -0.02em;
+  }
+  .cta-sub {
+    margin: 1.25rem auto 0;
+    max-width: 34rem;
+    font-size: 1.125rem;
+    line-height: 1.55;
+    color: rgba(255, 255, 255, 0.88);
+  }
+  .cta-actions {
+    margin-top: 2rem;
+    display: flex;
+    justify-content: center;
+  }
+  .cta-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 999px;
+    background: #fff;
+    color: #1a1916;
+    font-weight: 600;
+    font-size: 1rem;
+    padding: 0.85rem 1.6rem;
+    box-shadow: 0 10px 24px -10px rgba(0, 0, 0, 0.35);
+    transition: transform 150ms ease, box-shadow 150ms ease;
+  }
+  .cta-btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 14px 30px -10px rgba(0, 0, 0, 0.4);
+  }
+  .cta-fine {
+    margin-top: 1.25rem;
+    font-size: 0.875rem;
+    color: rgba(255, 255, 255, 0.72);
   }
 </style>

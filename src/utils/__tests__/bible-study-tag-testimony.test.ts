@@ -48,6 +48,14 @@ describe('Lutheran salvation testimony — tag precision', () => {
     expect(names.some((n) => n === 'salvation' || n === 'communion' || n === 'prayer')).toBe(true);
   });
 
+  it('excludeTagNames omits dismissed auto tags from preview suggestions', () => {
+    const html = testimonyHtml();
+    const tags = suggestAutoTagsFromNote('', html, { excludeTagNames: ['salvation', 'prayer'] });
+    const names = tags.map((t) => t.name.toLowerCase());
+    expect(names).not.toContain('salvation');
+    expect(names).not.toContain('prayer');
+  });
+
   it('does not assign Marriage as primary folder', () => {
     const primary = suggestPrimaryCollectionFromNote('', testimonyHtml());
     expect(primary?.toLowerCase()).not.toBe('marriage');

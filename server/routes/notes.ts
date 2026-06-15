@@ -70,7 +70,14 @@ import { stripHtml } from '@/utils/html-stripper';
 import { deleteNotesCascadeForUser, deleteSingleNoteCascadeForUser } from '../utils/delete-note-cascade';
 import { isOnboardingSystemNote } from '../utils/purge-onboarding-content';
 import { recordDeletedEntities } from '../utils/sync-deletion-log';
-import { dedupeNoteTagsForResponse, fetchNoteTagsForResponse } from '../utils/tag-helpers';
+import {
+  dedupeNoteTagsForResponse,
+  fetchNoteTagsForResponse,
+  parseDismissedAutoTags,
+  dismissedAutoTagsForNote,
+  autoTagExcludeNames,
+  serializeDismissedAutoTags,
+} from '../utils/tag-helpers';
 import { folderLabelsForTagExclusion } from '@/utils/bible-study-concept-overlaps';
 import {
   normalizeSecondaryLabels,
@@ -79,19 +86,36 @@ import {
 } from '../utils/note-secondary-collections';
 const route = new Hono();
 
-function noteJsonWithParsedSecondaries<T extends { secondaryCollections?: string | null }>(note: T) {
+function noteJsonWithParsedSecondaries<T extends { secondaryCollections?: string | null; dismissedAutoTags?: string | null }>(note: T) {
   const raw = note.secondaryCollections;
-  return { ...note, secondaryCollections: parseNoteSecondaryCollections(raw ?? null) };
+  return {
+    ...note,
+    secondaryCollections: parseNoteSecondaryCollections(raw ?? null),
+    dismissedAutoTags: parseDismissedAutoTags(note.dismissedAutoTags),
+  };
 }
 
 function folderExcludeLabelsForNote(note: {
   primaryCollection?: string | null;
-  secondaryCollections?: string | null;
+  secondaryCollections?: string | null | string[];
 }): string[] {
-  return folderLabelsForTagExclusion(
-    note.primaryCollection,
-    parseNoteSecondaryCollections(note.secondaryCollections),
-  );
+  const secondaries = Array.isArray(note.secondaryCollections)
+    ? note.secondaryCollections
+    : parseNoteSecondaryCollections(note.secondaryCollections);
+  return folderLabelsForTagExclusion(note.primaryCollection, secondaries);
+}
+
+function autoTagExcludeOptionsForNote(note: {
+  primaryCollection?: string | null;
+  secondaryCollections?: string | null | string[];
+  dismissedAutoTags?: string | null;
+}): { excludeLabels: string[]; excludeTagNames: string[] } {
+  const folderLabels = folderExcludeLabelsForNote(note);
+  const dismissed = dismissedAutoTagsForNote(note);
+  return {
+    excludeLabels: folderLabels,
+    excludeTagNames: autoTagExcludeNames(folderLabels, dismissed),
+  };
 }
 
 function normalizeOwnedNoteSpaceId(spaceId: string | null): string | null {
@@ -317,9 +341,8 @@ route.post('/api/notes/create', requireAuth, rateLimitNoteCreate(), async (c) =>
     // Auto-tag — await so create response includes tags (native parity).
     if (finalNoteType !== 'resource' && !contentEncrypted) {
       try {
-        const r = await generateAutoTags(capitalizedTitle || '', capitalizedContent, auth.userId, 0.7, {
-          excludeLabels: folderExcludeLabelsForNote(finalNote ?? newNote),
-        });
+        const tagExcludes = autoTagExcludeOptionsForNote(finalNote ?? newNote);
+        const r = await generateAutoTags(capitalizedTitle || '', capitalizedContent, auth.userId, 0.7, tagExcludes);
         if (r.suggestions.length > 0) await applyAutoTags(newNote.id, r.suggestions, auth.userId);
       } catch (err) {
         console.error('[auto-tag] Failed to auto-tag new note:', newNote.id, err);
@@ -397,9 +420,8 @@ route.post('/api/notes/create', requireAuth, rateLimitNoteCreate(), async (c) =>
           try {
             const contentForTagging = updateData.content || newNote.content || '';
             const titleForTagging = updateData.title || capitalizedTitle || '';
-            const r = await generateAutoTags(titleForTagging, contentForTagging, auth.userId, 0.8, {
-              excludeLabels: folderExcludeLabelsForNote(newNote),
-            });
+            const tagExcludes = autoTagExcludeOptionsForNote(newNote);
+            const r = await generateAutoTags(titleForTagging, contentForTagging, auth.userId, 0.8, tagExcludes);
             if (r.suggestions.length > 0) await applyAutoTags(newNote.id, r.suggestions, auth.userId);
           } catch {}
         }
@@ -474,6 +496,7 @@ route.put('/api/notes/update', requireAuth, rateLimit('write'), async (c) => {
       secondaryCollections: secondaryCollectionsRaw,
       collectionPinned: collectionPinnedRaw,
       collectionUserOverride: collectionUserOverrideRaw,
+      dismissedAutoTags: dismissedAutoTagsRaw,
     } = body;
     if (!noteId) return c.json({ error: 'Note ID is required' }, 400);
 
@@ -526,6 +549,12 @@ route.put('/api/notes/update', requireAuth, rateLimit('write'), async (c) => {
     if (collectionUserOverrideRaw !== undefined) {
       updateData.collectionUserOverride = Boolean(collectionUserOverrideRaw);
     }
+    if (dismissedAutoTagsRaw !== undefined) {
+      const arr = Array.isArray(dismissedAutoTagsRaw)
+        ? dismissedAutoTagsRaw.filter((x: unknown): x is string => typeof x === 'string')
+        : [];
+      updateData.dismissedAutoTags = serializeDismissedAutoTags(arr);
+    }
     if (typeof contentEncrypted === 'boolean') {
       updateData.contentEncrypted = contentEncrypted;
       if (contentEncrypted === true) {
@@ -547,12 +576,14 @@ route.put('/api/notes/update', requireAuth, rateLimit('write'), async (c) => {
         .where(and(inArray(Threads.id, threadIdsToTouch), eq(Threads.userId, auth.userId)));
     }
 
-    // Re-tag — await so clients that refetch immediately after PUT see tags (native parity).
-    if (!isEncrypted) {
+    const titleChanged = capitalizedTitle !== existingNote.title;
+    const contentChanged = capitalizedContent !== existingNote.content;
+
+    // Re-tag only when title or body changed — folder/pin edits must not churn tags.
+    if (!isEncrypted && (titleChanged || contentChanged)) {
       try {
-        const r = await generateAutoTags(capitalizedTitle || '', capitalizedContent, auth.userId, 0.7, {
-          excludeLabels: folderExcludeLabelsForNote(updatedNote),
-        });
+        const tagExcludes = autoTagExcludeOptionsForNote(updatedNote);
+        const r = await generateAutoTags(capitalizedTitle || '', capitalizedContent, auth.userId, 0.7, tagExcludes);
         if (r.suggestions.length > 0) {
           await removeAutoTags(noteId);
           await applyAutoTags(noteId, r.suggestions, auth.userId);
@@ -1080,23 +1111,27 @@ route.post('/api/notes/auto-tags', requireAuth, rateLimit('write'), async (c) =>
       await db.select({
         primaryCollection: Notes.primaryCollection,
         secondaryCollections: Notes.secondaryCollections,
+        dismissedAutoTags: Notes.dismissedAutoTags,
       }).from(Notes).where(and(eq(Notes.id, noteId), eq(Notes.userId, auth.userId))).limit(1),
     );
-    const excludeLabels = noteRow ? folderExcludeLabelsForNote(noteRow) : [];
+    const tagExcludes = noteRow ? autoTagExcludeOptionsForNote(noteRow) : { excludeLabels: [], excludeTagNames: [] };
 
     let result;
     switch (action) {
       case 'generate':
-        result = await generateAutoTags(noteTitle, noteContent, auth.userId, 0.7, { excludeLabels });
+        result = await generateAutoTags(noteTitle, noteContent, auth.userId, 0.7, tagExcludes);
         break;
       case 'apply': {
-        const suggestions = await generateAutoTags(noteTitle, noteContent, auth.userId, 0.7, { excludeLabels });
+        const suggestions = await generateAutoTags(noteTitle, noteContent, auth.userId, 0.7, tagExcludes);
         const applied = await applyAutoTags(noteId, suggestions.suggestions, auth.userId);
         result = { ...suggestions, applied };
         break;
       }
       case 'regenerate':
-        result = await regenerateAutoTags(noteId, noteTitle, noteContent, auth.userId, 0.7, { excludeLabels });
+        result = await regenerateAutoTags(noteId, noteTitle, noteContent, auth.userId, 0.7, {
+          ...tagExcludes,
+          clearDismissed: true,
+        });
         break;
       default:
         return c.json({ error: 'Invalid action' }, 400);
@@ -1954,7 +1989,10 @@ route.post('/api/notes/:id/process-scripture-references', requireAuth, rateLimit
     }
     // Always run as the note owner: lookups, scripture child notes, and metadata are keyed to Notes.userId.
     // Space members may trigger processing for admin/system-owned shared notes; content updates apply for everyone.
-    const result = await processScriptureReferences(noteId, noteRow.userId, threadId, contentOverride, translation || 'NET');
+    // This endpoint is the load/backfill path (opening a note materializes legacy pills) — skip the parent
+    // auto-tag so merely viewing a note never appends new tags. Genuine writes (create/update/sync/import)
+    // call processScriptureReferences directly and keep tagging.
+    const result = await processScriptureReferences(noteId, noteRow.userId, threadId, contentOverride, translation || 'NET', { skipParentAutoTag: true });
     return c.json(result);
   } catch (error: any) {
     console.error('Error processing scripture references:', error);

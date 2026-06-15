@@ -1,0 +1,263 @@
+---
+import AppShell from "./AppShell.astro";
+import Section from "./layout/Section.astro";
+import Container from "./layout/Container.astro";
+import { Icon } from "astro-icon/components";
+
+// Interactive "tour": tab through the core features and the AppShell replica
+// spotlights each one. This is the fully themeable piece (light/dark), so it
+// complements the static hero screenshot. key matches data-spot on AppShell.
+const tabs = [
+  { key: "scripture", icon: "fa6-solid:book-bible", label: "Add Scripture" },
+  { key: "dictionary", icon: "fa6-solid:book-open", label: "Dictionary" },
+  { key: "highlight", icon: "fa6-solid:highlighter", label: "Highlight & annotate" },
+  { key: "folders", icon: "fa6-solid:folder-tree", label: "Auto-organize" },
+  { key: "connect", icon: "fa6-solid:arrow-right-arrow-left", label: "Connect notes" },
+  { key: "passage", icon: "fa6-solid:calendar-days", label: "Daily passage" },
+] as const;
+---
+
+<Section space="lg" class="app-tour" divider="top">
+  <Container size="md">
+    <div class="app-tour__head" data-reveal>
+      <p class="eyebrow">See it in motion</p>
+      <h2 class="section-title">Tap through the tour.</h2>
+      <p class="lead app-tour__lead">
+        Every piece works together in one note. Pick a feature to see where it lives.
+      </p>
+    </div>
+  </Container>
+
+  <!-- Feature tab bar -->
+  <div class="tour-tabbar-wrap" data-reveal>
+    <button type="button" class="tour-arrow" data-dir="prev" aria-label="Previous feature">
+      <svg class="tour-arrow__glyph" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10 3L5 8l5 5"/></svg>
+    </button>
+    <div class="tour-tabbar" role="tablist" aria-label="Feature preview">
+      {tabs.map((t, i) => (
+        <button
+          type="button"
+          class={`tour-tab${i === 0 ? " is-active" : ""}`}
+          data-i={i}
+          data-key={t.key}
+          role="tab"
+          aria-selected={i === 0 ? "true" : "false"}
+        >
+          <Icon name={t.icon} />
+          <span>{t.label}</span>
+        </button>
+      ))}
+    </div>
+    <button type="button" class="tour-arrow tour-arrow--next" data-dir="next" aria-label="Next feature">
+      <svg class="tour-arrow__ring" viewBox="0 0 44 44" aria-hidden="true">
+        <circle class="tour-arrow__ring-track" cx="22" cy="22" r="20" fill="none" stroke-width="2" />
+        <circle class="tour-arrow__ring-progress" cx="22" cy="22" r="20" fill="none" stroke-width="2" pathLength="1" />
+      </svg>
+      <svg class="tour-arrow__glyph" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3l5 5-5 5"/></svg>
+    </button>
+  </div>
+
+  <!-- Big app visual with per-tab spotlight -->
+  <div class="tour-stage feature-showcase" data-active="scripture" data-reveal="scale" style="--reveal-delay: 100ms;">
+    <div class="tour-glow" aria-hidden="true"></div>
+    <AppShell />
+  </div>
+</Section>
+
+<style>
+  .app-tour__head {
+    text-align: center;
+    margin-inline: auto;
+    max-width: 42rem;
+  }
+  .app-tour__head > * + * { margin-top: 0.75rem; }
+  .app-tour__lead { margin-inline: auto; max-width: 32rem; }
+
+  /* Tab bar */
+  .tour-tabbar-wrap {
+    position: relative;
+    z-index: 2;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    max-width: 72rem;
+    margin: 2.25rem auto 1.75rem;
+    padding: 0 1.25rem;
+  }
+  .tour-arrow {
+    flex: none;
+    width: 2.75rem;
+    height: 2.75rem;
+    border-radius: 999px;
+    border: 1px solid var(--color-rule);
+    background: var(--color-card);
+    color: var(--color-ink-soft);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: color 150ms ease, background-color 150ms ease;
+  }
+  .tour-arrow__glyph { width: 1rem; height: 1rem; position: relative; z-index: 1; }
+  .tour-arrow:hover { color: var(--color-ink); background: var(--color-warm); }
+
+  /* Auto-advance progress ring around the next arrow */
+  .tour-arrow--next { position: relative; }
+  .tour-arrow__ring {
+    position: absolute;
+    inset: -1px;
+    width: calc(100% + 2px);
+    height: calc(100% + 2px);
+    transform: rotate(-90deg);
+    pointer-events: none;
+  }
+  .tour-arrow__ring-track { stroke: transparent; }
+  .tour-arrow__ring-progress {
+    stroke: var(--color-accent);
+    stroke-linecap: round;
+    stroke-dasharray: 1;
+    stroke-dashoffset: 1;
+  }
+  .tour-arrow__ring-progress.is-running {
+    animation: tour-ring var(--tour-ring-duration, 4500ms) linear forwards;
+  }
+  @keyframes tour-ring {
+    from { stroke-dashoffset: 1; }
+    to { stroke-dashoffset: 0; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .tour-arrow__ring-progress.is-running { animation: none; }
+  }
+  .tour-tabbar {
+    display: flex;
+    gap: 0.25rem;
+    overflow-x: auto;
+    scrollbar-width: none;
+    border-radius: 999px;
+    padding: 0.35rem;
+    background: color-mix(in oklab, var(--color-ink) 5%, transparent);
+  }
+  .tour-tabbar::-webkit-scrollbar { display: none; }
+  .tour-tab {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.6rem 1rem;
+    border-radius: 999px;
+    font-size: 0.95rem;
+    font-weight: 500;
+    color: var(--color-ink-soft);
+    white-space: nowrap;
+    transition: background-color 180ms ease, color 180ms ease, box-shadow 180ms ease;
+  }
+  .tour-tab svg { width: 1rem; height: 1rem; }
+  .tour-tab.is-active {
+    background: var(--color-card);
+    color: var(--color-accent);
+    box-shadow: var(--shadow-card);
+  }
+
+  /* Big app stage */
+  .tour-stage {
+    position: relative;
+    z-index: 1;
+    max-width: 72rem;
+    margin-inline: auto;
+    padding: 2.5rem 1.25rem 0.5rem;
+    overflow: visible;
+  }
+  .tour-glow {
+    position: absolute;
+    inset: 2.5rem 1.25rem 0.5rem;
+    background: var(--hero-light);
+    z-index: 0;
+    pointer-events: none;
+    border-radius: 14px;
+  }
+  .tour-stage :global(.app-shell) {
+    position: relative;
+    z-index: 1;
+  }
+
+  @media (max-width: 520px) {
+    .tour-arrow { display: none; }
+  }
+</style>
+
+<script>
+  const tour = document.querySelector<HTMLElement>(".app-tour");
+  if (tour) {
+    const tabs = Array.from(tour.querySelectorAll<HTMLButtonElement>(".tour-tab"));
+    const tabbar = tour.querySelector<HTMLElement>(".tour-tabbar");
+    const stage = tour.querySelector<HTMLElement>(".tour-stage");
+    const arrows = Array.from(tour.querySelectorAll<HTMLButtonElement>(".tour-arrow"));
+    const ring = tour.querySelector<SVGElement>(".tour-arrow__ring-progress");
+    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const INTERVAL = 4500;
+    let active = 0;
+    let timer: ReturnType<typeof setInterval> | null = null;
+
+    const restartRing = () => {
+      if (!ring || reduced) return;
+      ring.classList.remove("is-running");
+      void (ring as unknown as HTMLElement).getBoundingClientRect();
+      ring.classList.add("is-running");
+    };
+    const clearRing = () => ring?.classList.remove("is-running");
+
+    const centerTab = (tab: HTMLElement) => {
+      if (!tabbar) return;
+      const left = tab.offsetLeft - (tabbar.clientWidth - tab.offsetWidth) / 2;
+      tabbar.scrollTo({ left, behavior: reduced ? "auto" : "smooth" });
+    };
+
+    const setActive = (i: number) => {
+      active = i;
+      const key = tabs[i].dataset.key;
+      tabs.forEach((t, k) => {
+        t.classList.toggle("is-active", k === i);
+        t.setAttribute("aria-selected", k === i ? "true" : "false");
+      });
+      if (stage) {
+        stage.dataset.active = key || "";
+        stage.querySelectorAll<HTMLElement>("[data-spot]").forEach((el) => {
+          el.classList.toggle("is-active", el.dataset.spot === key);
+        });
+      }
+      centerTab(tabs[i]);
+    };
+
+    const stop = () => {
+      if (timer) {
+        clearInterval(timer);
+        timer = null;
+      }
+      clearRing();
+    };
+    const start = () => {
+      if (reduced || timer) return;
+      timer = setInterval(() => {
+        setActive((active + 1) % tabs.length);
+        restartRing();
+      }, INTERVAL);
+      restartRing();
+    };
+
+    tabs.forEach((tab, i) => {
+      tab.addEventListener("click", () => { stop(); setActive(i); });
+      tab.addEventListener("mouseenter", () => { stop(); setActive(i); });
+    });
+    arrows.forEach((arrow) => {
+      arrow.addEventListener("click", () => {
+        stop();
+        const dir = arrow.dataset.dir === "next" ? 1 : -1;
+        setActive((active + dir + tabs.length) % tabs.length);
+      });
+    });
+    stage?.addEventListener("mouseenter", stop);
+
+    setActive(0);
+    start();
+  }
+</script>

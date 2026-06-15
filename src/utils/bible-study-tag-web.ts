@@ -15,6 +15,8 @@ export interface SuggestAutoTagsOptions {
   confidenceThreshold?: number;
   /** Primary + secondary folder labels — excluded from tag suggestions (cascade hierarchy). */
   excludeFolderLabels?: string[];
+  /** Normalized auto-tag names the user dismissed — excluded from suggestions. */
+  excludeTagNames?: string[];
 }
 
 export interface SuggestedAutoTag {
@@ -33,6 +35,9 @@ export function suggestAutoTagsFromNote(
     typeof options === 'number' ? { confidenceThreshold: options } : (options ?? {});
   const confidenceThreshold = opts.confidenceThreshold ?? DEFAULT_CONFIDENCE_THRESHOLD;
   const excludeFolderLabels = opts.excludeFolderLabels ?? [];
+  const excludeTagNames = opts.excludeTagNames ?? [];
+  const isExcluded = (name: string) =>
+    conceptOverlapsAny(name, excludeFolderLabels) || conceptOverlapsAny(name, excludeTagNames);
 
   const cleanTitle = (title || '').trim();
   const cleanContent = stripHtml(bodyHtml || '', { preserveSpacing: true }).trim();
@@ -50,7 +55,7 @@ export function suggestAutoTagsFromNote(
   for (const { keyword, confidence } of foundKeywords) {
     if (keyword.name.toLowerCase() === 'god') continue;
     if (confidence < confidenceThreshold) continue;
-    if (conceptOverlapsAny(keyword.name, excludeFolderLabels)) continue;
+    if (isExcluded(keyword.name)) continue;
     if (suggestions.some((existing) => conceptOverlapsAny(keyword.name, [existing.name]))) continue;
     suggestions.push({ name: keyword.name, category: keyword.category, confidence });
   }
@@ -68,7 +73,7 @@ export function suggestAutoTagsFromNote(
   for (const personTag of detectPersonTags(fullText)) {
     const key = personTag.toLowerCase();
     if (enhanced.some((s) => s.name.toLowerCase() === key)) continue;
-    if (conceptOverlapsAny(personTag, excludeFolderLabels)) continue;
+    if (isExcluded(personTag)) continue;
     enhanced.push({ name: personTag, category: 'character', confidence: 0.85 });
   }
   enhanced.sort((a, b) => b.confidence - a.confidence);

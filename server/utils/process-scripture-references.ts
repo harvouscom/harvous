@@ -89,17 +89,24 @@ async function addScriptureNoteToParentThreads(scriptureNoteId: string, parentTh
 // to prevent race conditions where two calls both see "no existing scripture" and create duplicates.
 const userProcessingQueue = new Map<string, Promise<any>>();
 
+export interface ProcessScriptureOptions {
+  // When true, skip re-running auto-tag on the parent note. Set on the load/backfill
+  // path (opening a note) so merely viewing a note never appends new tags.
+  skipParentAutoTag?: boolean;
+}
+
 export async function processScriptureReferences(
   noteId: string,
   userId: string,
   threadId?: string | string[],
   contentOverride?: string,
-  translation: string = 'NET'
+  translation: string = 'NET',
+  options?: ProcessScriptureOptions
 ): Promise<{ results: ProcessingResult[]; updatedContent: string }> {
   const prev = userProcessingQueue.get(userId) ?? Promise.resolve();
   const current = prev
     .catch(() => {}) // Don't let a previous failure block the queue
-    .then(() => processScriptureReferencesInternal(noteId, userId, threadId, contentOverride, translation));
+    .then(() => processScriptureReferencesInternal(noteId, userId, threadId, contentOverride, translation, options));
   userProcessingQueue.set(userId, current);
   try {
     return await current;
@@ -116,7 +123,8 @@ async function processScriptureReferencesInternal(
   userId: string,
   threadId?: string | string[],
   contentOverride?: string, // Optional: use this content instead of reading from DB
-  translation: string = 'NET'
+  translation: string = 'NET',
+  options?: ProcessScriptureOptions
 ): Promise<{ results: ProcessingResult[]; updatedContent: string }> {
   // Get the note from database
   const note = first(await db.select()
@@ -1190,17 +1198,39 @@ async function processScriptureReferencesInternal(
     })
     .where(eq(Notes.id, noteId));
 
-  try {
-    const tagTitle = note.title ?? '';
-    const tagResult = await generateAutoTags(tagTitle, updatedContent, userId, AUTO_TAG_CONFIDENCE_SYSTEM_AUTOGEN);
-    if (tagResult.suggestions.length > 0) {
-      await applyAutoTags(noteId, tagResult.suggestions, userId);
+  if (!options?.skipParentAutoTag) {
+    try {
+      const tagTitle = note.title ?? '';
+      let systemUserId: string | null = null;
+      try {
+        const { getHarvousSystemUserId } = await import('./harvous-admin');
+        systemUserId = getHarvousSystemUserId();
+      } catch {
+        systemUserId = null;
+      }
+      const isSystemNote = systemUserId != null && userId === systemUserId;
+      const confidenceThreshold = isSystemNote ? AUTO_TAG_CONFIDENCE_SYSTEM_AUTOGEN : 0.7;
+      const { folderLabelsForTagExclusion } = await import('@/utils/bible-study-concept-overlaps');
+      const { parseNoteSecondaryCollections } = await import('./note-secondary-collections');
+      const { dismissedAutoTagsForNote, autoTagExcludeNames } = await import('./tag-helpers');
+      const folderLabels = folderLabelsForTagExclusion(
+        note.primaryCollection,
+        parseNoteSecondaryCollections(note.secondaryCollections),
+      );
+      const dismissed = dismissedAutoTagsForNote(note);
+      const tagResult = await generateAutoTags(tagTitle, updatedContent, userId, confidenceThreshold, {
+        excludeLabels: folderLabels,
+        excludeTagNames: autoTagExcludeNames(folderLabels, dismissed),
+      });
+      if (tagResult.suggestions.length > 0) {
+        await applyAutoTags(noteId, tagResult.suggestions, userId);
+      }
+    } catch (tagErr: unknown) {
+      console.error(
+        '[processScriptureReferences] Auto-tag parent note failed (non-critical):',
+        tagErr instanceof Error ? tagErr.message : tagErr
+      );
     }
-  } catch (tagErr: unknown) {
-    console.error(
-      '[processScriptureReferences] Auto-tag parent note failed (non-critical):',
-      tagErr instanceof Error ? tagErr.message : tagErr
-    );
   }
 
   return {

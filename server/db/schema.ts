@@ -104,6 +104,8 @@ export const Notes = pgTable(
     /** When true, thread name does not auto-update when the cluster changes (folder `collectionPinned` parity). */
     studyThreadPinned: boolean('studyThreadPinned').notNull().default(false),
     studyThreadLastAutoSuggestedAt: ts('studyThreadLastAutoSuggestedAt'),
+    /** JSON array of normalized auto-tag names the user dismissed (string[]). */
+    dismissedAutoTags: text('dismissedAutoTags'),
   },
   (table) => [
     index('Notes_userIdIndex').on(table.userId),

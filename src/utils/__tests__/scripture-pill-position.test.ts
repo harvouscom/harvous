@@ -25,6 +25,15 @@ function stateFromPlainText(text: string) {
   return EditorState.create({ doc });
 }
 
+function stateFromParagraphs(...lines: string[]) {
+  const doc = schema.node(
+    'doc',
+    null,
+    lines.map((t) => schema.node('paragraph', null, t ? [schema.text(t)] : [])),
+  );
+  return EditorState.create({ doc });
+}
+
 describe('findTextWithFlexibleMatching', () => {
   it('matches en-dash in doc when search uses hyphen', () => {
     const matches = findTextWithFlexibleMatching('See Exodus 1:1–22 here', 'Exodus 1:1-22');
@@ -129,6 +138,29 @@ describe('detectScriptureReferenceEndingAtCursor', () => {
     expect(result).not.toBeNull();
     expect(result!.reference).toBe('Exodus 5');
     expect(state.doc.textBetween(result!.from!, result!.to!)).toBe('Exodus 5');
+  });
+
+  it('detects a reference on a paragraph directly after prose ending in a word char', () => {
+    // Regression: the detection slice must not glue the previous block's last char onto the
+    // reference ("Ps Jared" + "Exodus 5" -> "JaredExodus 5"), which kills the leading \b.
+    const state = stateFromParagraphs('Ps Jared', 'Exodus 5');
+    const cursorPos = state.doc.content.size - 1; // end of "Exodus 5" in the second paragraph
+    expect(state.doc.textBetween(cursorPos - 8, cursorPos)).toBe('Exodus 5');
+    const result = detectScriptureReferenceEndingAtCursor(state.doc, cursorPos);
+    expect(result).not.toBeNull();
+    expect(result!.reference).toBe('Exodus 5');
+    expect(state.doc.textBetween(result!.from!, result!.to!)).toBe('Exodus 5');
+    expect(result!.to).toBe(cursorPos);
+  });
+
+  it('detects a verse reference on a paragraph after prose ending in a word char', () => {
+    const state = stateFromParagraphs('Ps Jared', 'Exodus 5:6-9');
+    const cursorPos = state.doc.content.size - 1;
+    const result = detectScriptureReferenceEndingAtCursor(state.doc, cursorPos);
+    expect(result).not.toBeNull();
+    expect(result!.reference).toBe('Exodus 5:6-9');
+    expect(state.doc.textBetween(result!.from!, result!.to!)).toBe('Exodus 5:6-9');
+    expect(result!.to).toBe(cursorPos);
   });
 
   it('returns verse ref at cursor for Exodus 5:1, not chapter-only prefix', () => {

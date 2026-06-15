@@ -2,7 +2,7 @@ import { randomUUID } from 'crypto';
 import { conceptOverlapsAny } from '@/utils/bible-study-concept-overlaps';
 import { findKeywordsInText, findKeywordsInTextWithPriority, BIBLE_STUDY_KEYWORDS, type BibleStudyKeyword } from '@/utils/bible-study-keywords';
 import { db, first, Tags, NoteTags, eq, and, now } from '../db';
-import { getOrCreateTag, noteHasTagWithNormalizedName } from './tag-helpers';
+import { getOrCreateTag, noteHasTagWithNormalizedName, clearDismissedAutoTags } from './tag-helpers';
 
 /** Confidence threshold for Harvous system user / automated note creation and admin regeneration. */
 export const AUTO_TAG_CONFIDENCE_SYSTEM_AUTOGEN = 0.65;
@@ -30,7 +30,7 @@ export async function generateAutoTags(
   noteContent: string,
   userId: string,
   confidenceThreshold: number = 0.7,
-  options?: { excludeLabels?: string[] },
+  options?: { excludeLabels?: string[]; excludeTagNames?: string[] },
 ): Promise<AutoTagResult> {
   try {
     if (!userId) {
@@ -62,13 +62,16 @@ export async function generateAutoTags(
     }
 
     const excludeLabels = options?.excludeLabels ?? [];
+    const excludeTagNames = options?.excludeTagNames ?? [];
+    const isExcluded = (name: string) =>
+      conceptOverlapsAny(name, excludeLabels) || conceptOverlapsAny(name, excludeTagNames);
     const existingTagNames = new Set(existingTags.map(tag => tag.name.toLowerCase()));
     const suggestions: AutoTagSuggestion[] = [];
     let highConfidence = 0;
 
     for (const { keyword, confidence } of foundKeywords) {
       if (keyword.name.toLowerCase() === 'god') continue;
-      if (conceptOverlapsAny(keyword.name, excludeLabels)) continue;
+      if (isExcluded(keyword.name)) continue;
       if (confidence >= confidenceThreshold) {
         const isOverlapping = suggestions.some(existing => isTagOverlapping(keyword.name, existing.keyword));
         if (isOverlapping) continue;
@@ -97,7 +100,7 @@ export async function generateAutoTags(
     for (const personTag of detectPersonTags(fullText)) {
       const key = personTag.toLowerCase();
       if (enhancedSuggestions.some(s => s.keyword.toLowerCase() === key)) continue;
-      if (conceptOverlapsAny(personTag, excludeLabels)) continue;
+      if (isExcluded(personTag)) continue;
       const isExisting = existingTagNames.has(key);
       const existingTag = isExisting
         ? existingTags.filter(t => t.name.toLowerCase() === key)
@@ -224,9 +227,12 @@ export async function regenerateAutoTags(
   noteContent: string,
   userId: string,
   confidenceThreshold: number = 0.7,
-  options?: { removeAllNoteTagLinks?: boolean; excludeLabels?: string[] },
+  options?: { removeAllNoteTagLinks?: boolean; excludeLabels?: string[]; excludeTagNames?: string[]; clearDismissed?: boolean },
 ): Promise<{ applied: number; errors: string[]; suggestionCount: number }> {
   try {
+    if (options?.clearDismissed !== false) {
+      await clearDismissedAutoTags(noteId);
+    }
     if (options?.removeAllNoteTagLinks) {
       await db.delete(NoteTags).where(eq(NoteTags.noteId, noteId));
     } else {
@@ -234,6 +240,7 @@ export async function regenerateAutoTags(
     }
     const result = await generateAutoTags(noteTitle, noteContent, userId, confidenceThreshold, {
       excludeLabels: options?.excludeLabels,
+      excludeTagNames: options?.excludeTagNames,
     });
     const out = await applyAutoTags(noteId, result.suggestions, userId, {
       forceRelink: Boolean(options?.removeAllNoteTagLinks),

@@ -1,0 +1,88 @@
+---
+/**
+ * FeatureShowcase — a feature presented as a big rounded *card* in one of the
+ * app's vibrant highlight colors (color lives in the card, not a full-bleed
+ * band). Copy on one side, a visual on the other; alternate with `reverse`.
+ * Copy is authored first so it leads on mobile.
+ *
+ *   <FeatureShowcase eyebrow="Scripture pills" title="…" color="sky">
+ *     <Fragment slot="body"> … </Fragment>
+ *     <div slot="visual"> … </div>
+ *   </FeatureShowcase>
+ *
+ * Colors map exactly to the prototype's highlight accents
+ * (study-highlight-accent-colors.css).
+ */
+import Section from "./layout/Section.astro";
+import Container from "./layout/Container.astro";
+import Row from "./layout/Row.astro";
+
+interface Props {
+  eyebrow?: string;
+  title: string;
+  color?: "amber" | "sky" | "mint" | "violet" | "coral";
+  reverse?: boolean;
+  id?: string;
+}
+
+const { eyebrow, title, color = "sky", reverse = false, id } = Astro.props;
+---
+
+<Section space="sm" id={id} class="showcase">
+  <Container size="lg">
+    <div class:list={["fc", `fc--${color}`]}>
+      <Row cols={2} gap="lg" align="center" reverse={reverse}>
+        <div class="showcase__copy" data-reveal>
+          {eyebrow && <p class="eyebrow">{eyebrow}</p>}
+          <h2 class="section-title showcase__title">{title}</h2>
+          <div class="lead showcase__body"><slot name="body" /></div>
+          {Astro.slots.has("cta") && <div class="showcase__cta"><slot name="cta" /></div>}
+        </div>
+
+        <div class="showcase__visual" data-reveal="scale" style="--reveal-delay: 100ms;">
+          <slot name="visual" />
+        </div>
+      </Row>
+    </div>
+  </Container>
+</Section>
+
+<style>
+  .fc {
+    border-radius: 2rem;
+    padding: 2.25rem 1.5rem;
+    box-shadow: var(--shadow-float);
+  }
+  @media (min-width: 768px) {
+    .fc { padding: 3.25rem 3rem; }
+  }
+
+  /* Card fills — the exact prototype highlight accents. */
+  .fc--amber { background: var(--study-dock-accent-warmAmber); }
+  .fc--sky { background: var(--study-dock-accent-skyBlue); }
+  .fc--mint { background: var(--study-dock-accent-mintGreen); }
+  .fc--violet { background: var(--study-dock-accent-violet); }
+  .fc--coral { background: var(--study-dock-accent-coralRose); }
+
+  /* Text contrast is scoped to the copy column only, so the visual slot keeps
+     the normal (themeable) tokens for its own card. */
+  .fc--sky .showcase__copy,
+  .fc--violet .showcase__copy,
+  .fc--coral .showcase__copy {
+    --color-ink: #ffffff;
+    --color-ink-soft: rgba(255, 255, 255, 0.88);
+    --color-ink-faint: rgba(255, 255, 255, 0.74);
+  }
+  .fc--amber .showcase__copy,
+  .fc--mint .showcase__copy {
+    --color-ink: #1a1916;
+    --color-ink-soft: rgba(26, 25, 22, 0.74);
+    --color-ink-faint: rgba(26, 25, 22, 0.58);
+  }
+
+  .showcase__title { margin-top: 0.5rem; }
+  .showcase__body { margin-top: 1rem; }
+  .showcase__body :global(p + p) { margin-top: 0.75rem; }
+  .showcase__cta { margin-top: 1.75rem; }
+  .showcase__visual { position: relative; }
+</style>

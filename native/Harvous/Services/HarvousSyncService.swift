@@ -641,6 +641,7 @@ final class HarvousSyncService {
                 if let secondaries = api.secondaryCollections { existing.secondaryFolders = secondaries }
                 if let pinned = api.collectionPinned { existing.isFolderPinned = pinned }
                 if let userOverride = api.collectionUserOverride { existing.isFolderUserOverride = userOverride }
+                if let dismissed = api.dismissedAutoTags { existing.dismissedAutoTags = dismissed }
                 if let simpleId = api.simpleNoteId { existing.simpleNoteId = simpleId } // ADR D3c: server-authoritative label
                 return
             }
@@ -659,6 +660,7 @@ final class HarvousSyncService {
             if let secondaries = api.secondaryCollections { existing.secondaryFolders = secondaries }
             if let pinned = api.collectionPinned { existing.isFolderPinned = pinned }
             if let userOverride = api.collectionUserOverride { existing.isFolderUserOverride = userOverride }
+            if let dismissed = api.dismissedAutoTags { existing.dismissedAutoTags = dismissed }
             if let simpleId = api.simpleNoteId, existing.simpleNoteId == nil { existing.simpleNoteId = simpleId }
             if let serverUpdated = Self.parseISO8601(api.updatedAt) {
                 existing.updatedAt = serverUpdated
@@ -900,7 +902,8 @@ final class HarvousSyncService {
             primaryCollection: note.primaryFolder,
             secondaryCollections: note.secondaryFolders.isEmpty ? nil : note.secondaryFolders,
             collectionPinned: note.isFolderPinned,
-            collectionUserOverride: note.isFolderUserOverride
+            collectionUserOverride: note.isFolderUserOverride,
+            dismissedAutoTags: note.normalizedDismissedAutoTags().isEmpty ? nil : note.normalizedDismissedAutoTags()
         )
         do {
             let _: NoteEnvelope = try await api.put("/api/notes/update", body: body)
@@ -1075,6 +1078,7 @@ private struct UpdateNotePayload: Encodable {
     let secondaryCollections: [String]?
     let collectionPinned: Bool?
     let collectionUserOverride: Bool?
+    let dismissedAutoTags: [String]?
 }
 
 private struct CreateNotePayload: Encodable {

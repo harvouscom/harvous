@@ -140,6 +140,24 @@ export function mapSliceIndexToDocPos(
 }
 
 /**
+ * Slice start for cursor-anchored reference detection: clamp to the current textblock
+ * start so the previous block's last char never glues onto the reference (which would
+ * kill the detector's leading `\b` word boundary). A reference never spans textblocks,
+ * so this only removes false negatives. Consistent with `mapSliceIndexToDocPos`, which
+ * counts only the text within [sliceFrom, cursorPos].
+ */
+export function scriptureSliceStart(doc: any, cursorPos: number, textWindow: number): number {
+  let blockStart = 1;
+  try {
+    const $pos = doc.resolve(cursorPos);
+    blockStart = $pos.start($pos.depth);
+  } catch {
+    /* fall back to window / doc start */
+  }
+  return Math.max(blockStart, cursorPos - textWindow, 1);
+}
+
+/**
  * Map a reference string within a doc slice ending at cursorPos to absolute doc range.
  */
 export function mapReferenceEndInSliceToDocPos(
@@ -148,7 +166,7 @@ export function mapReferenceEndInSliceToDocPos(
   reference: string,
   textWindow = 80,
 ): { from: number; to: number } | null {
-  const sliceDocFrom = Math.max(1, cursorPos - textWindow);
+  const sliceDocFrom = scriptureSliceStart(doc, cursorPos, textWindow);
   const slice = doc.textBetween(sliceDocFrom, cursorPos);
   const trimmedRef = reference.trim();
   const matches = filterReferenceMatches(slice, findTextWithFlexibleMatching(slice, trimmedRef), trimmedRef);
@@ -175,7 +193,7 @@ export function findScriptureReferenceAtCursor(
   textWindow = 80,
 ): { from: number; to: number } | null {
   const trimmedRef = reference.trim();
-  const sliceDocFrom = Math.max(1, cursorPos - textWindow);
+  const sliceDocFrom = scriptureSliceStart(doc, cursorPos, textWindow);
   const slice = doc.textBetween(sliceDocFrom, cursorPos);
   if (!slice.trim()) return null;
 
@@ -266,7 +284,7 @@ export function detectScriptureReferenceEndingAtCursor(
   cursorPos: number,
   textWindow = 80,
 ): CursorEndingReference | null {
-  const sliceDocFrom = Math.max(1, cursorPos - textWindow);
+  const sliceDocFrom = scriptureSliceStart(doc, cursorPos, textWindow);
   const textBeforeCursor = doc.textBetween(sliceDocFrom, cursorPos);
   const refs = detectScriptureReferences(textBeforeCursor);
   if (refs.length === 0) return null;

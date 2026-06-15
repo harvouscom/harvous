@@ -97,9 +97,10 @@ const harvous = [
   }
   .cmp-col--harvous {
     position: relative;
-    background: var(--color-card);
-    border-color: color-mix(in oklab, var(--color-accent) 45%, transparent);
-    box-shadow: var(--shadow-card);
+    background: linear-gradient(160deg, color-mix(in oklab, var(--color-accent) 88%, white), var(--color-accent));
+    border-color: transparent;
+    box-shadow: 0 18px 44px -16px color-mix(in oklab, var(--color-accent) 60%, transparent);
+    color: #fff;
   }
   @media (min-width: 768px) {
     .cmp-col--harvous { transform: translateY(-0.75rem) scale(1.02); }
@@ -147,7 +148,8 @@ const harvous = [
     line-height: 1.4;
   }
   .cmp-col--other .cmp-list li { color: var(--color-ink-soft); }
-  .cmp-col--harvous .cmp-list li { color: var(--color-ink); font-weight: 500; }
+  .cmp-col--harvous .cmp-col__head { color: #fff; }
+  .cmp-col--harvous .cmp-list li { color: rgba(255, 255, 255, 0.92); font-weight: 500; }
   .cmp-x {
     flex: none;
     width: 1rem;
@@ -160,6 +162,6 @@ const harvous = [
     width: 1rem;
     height: 1rem;
     margin-top: 0.1rem;
-    color: var(--color-accent);
+    color: #fff;
   }
 </style>

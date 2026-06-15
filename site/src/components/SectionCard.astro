@@ -38,16 +38,16 @@ const isPlain = tone === "plain";
   <div class:list={["section-card", isPlain && "section-card--plain"]} data-reveal style={`background: ${bg};`}>
     {(eyebrow || title || lead) && (
       <div class="section-card__head">
-        {eyebrow && <div class="section-card__eyebrow">{eyebrow}</div>}
+        {eyebrow && <div class="eyebrow">{eyebrow}</div>}
         {title && (
           <h2
-            class:list={["section-card__title", balancedTitle && "section-card__title--balanced"]}
+            class:list={["section-title", balancedTitle && "section-card__title--balanced"]}
             style={balancedTitle ? `--section-title-measure: ${balancedTitleMeasure}` : undefined}
           >
             {title}
           </h2>
         )}
-        {lead && <p class="section-card__lead">{lead}</p>}
+        {lead && <p class="lead section-card__lead">{lead}</p>}
       </div>
     )}
     <slot />
@@ -84,29 +84,17 @@ const isPlain = tone === "plain";
     margin-bottom: 2.5rem;
     text-align: center;
   }
-  .section-card__eyebrow {
-    font-size: 0.75rem;
-    text-transform: uppercase;
-    letter-spacing: 0.14em;
-    color: var(--color-ink-faint);
-  }
-  .section-card__title {
-    margin-top: 0.75rem;
-    font-family: var(--font-display);
-    font-size: clamp(2rem, 4vw, 3.25rem);
-    line-height: 1.05;
-    letter-spacing: -0.02em;
-    color: var(--color-ink);
+  /* Vertical rhythm between eyebrow → title → lead. Type now comes from the
+     shared .eyebrow / .section-title / .lead recipes in global.css. */
+  .section-card__head > * + * {
+    margin-top: 0.85rem;
   }
   .section-card__title--balanced {
     margin-inline: auto;
     max-width: var(--section-title-measure, 15ch);
   }
   .section-card__lead {
-    margin: 1rem auto 0;
+    margin-inline: auto;
     max-width: 36rem;
-    font-size: 1.0625rem;
-    line-height: 1.6;
-    color: var(--color-ink-soft);
   }
 </style>

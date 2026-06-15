@@ -98,12 +98,15 @@ function makeDraftConfirmButton(view: any, pos: number): HTMLElement {
   btn.title = 'Confirm';
   btn.innerHTML =
     '<svg viewBox="0 0 16 16" width="11" height="11" aria-hidden="true" focusable="false"><path d="M13.5 4.5l-6.5 7-3.5-3.5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
-  // mousedown + preventDefault keeps the editor selection alive and beats the blur handler.
-  btn.addEventListener('mousedown', (e) => {
+  // pointerdown covers touch + mouse + pen (mousedown alone is flaky on iOS); preventDefault
+  // keeps the editor selection alive and beats the blur handler. Confirm whichever draft
+  // exists rather than the build-time `pos`, which can be stale after intervening edits.
+  const onConfirm = (e: Event) => {
     e.preventDefault();
     e.stopPropagation();
-    confirmScriptureDraftView(view, pos);
-  });
+    if (confirmScriptureDraftView(view, pos) == null) confirmAnyScriptureDraftView(view);
+  };
+  btn.addEventListener('pointerdown', onConfirm);
   return btn;
 }
 
@@ -200,6 +203,35 @@ export function enterScriptureDraftView(view: any, from: number, to: number): bo
 }
 
 /**
+ * Grow the draft to cover [from, to] and place the caret at its (inclusive) end. Used to
+ * re-absorb reference-continuation characters (e.g. `:6-9`) that landed as plain text past
+ * the draft when iOS dropped the stored draft mark. Only grows — callers pass a range that
+ * is a superset of the current draft. Refuses to swallow a committed pill.
+ */
+export function expandScriptureDraftView(view: any, from: number, to: number): boolean {
+  const { state } = view;
+  const draftType = state.schema.marks.scriptureDraft;
+  if (!draftType || to <= from) return false;
+
+  let blocked = false;
+  state.doc.nodesBetween(from, to, (node: any) => {
+    if (node.isText && node.marks.some((m: any) => m.type.name === 'scripturePill')) blocked = true;
+  });
+  if (blocked) return false;
+
+  const tr = state.tr;
+  tr.addMark(from, to, draftType.create({}));
+  const sel = state.selection;
+  if (sel.empty && sel.from >= from && sel.from <= to) {
+    tr.setSelection(TextSelection.create(tr.doc, to));
+    tr.setStoredMarks([draftType.create({})]);
+  }
+  tr.setMeta('addToHistory', true);
+  view.dispatch(tr);
+  return true;
+}
+
+/**
  * Confirm the draft at `atPos` (or the caret). Valid → commit a clean `scripturePill` with one
  * trailing space and caret after it; returns the committed reference. Invalid/empty → drop the
  * draft mark (text stays plain) and return null.
@@ -251,6 +283,21 @@ export function confirmScriptureDraftView(view: any, atPos?: number): string | n
     /* ignore */
   }
   return reference;
+}
+
+/**
+ * Confirm whichever draft currently exists, preferring the one nearest the caret. Robust to
+ * a stale widget position (the ✓ button calls this as a fallback) since it locates the draft
+ * from the live document rather than a captured offset.
+ */
+export function confirmAnyScriptureDraftView(view: any): string | null {
+  const ranges = collectScripturePillRanges(view.state.doc, 'scriptureDraft');
+  if (ranges.length === 0) return null;
+  const caret = view.state.selection.from;
+  const dist = (r: { start: number; end: number }) =>
+    Math.min(Math.abs(r.end - caret), Math.abs(r.start - caret));
+  const target = ranges.reduce((best, r) => (dist(r) < dist(best) ? r : best), ranges[0]);
+  return confirmScriptureDraftView(view, target.end);
 }
 
 /** Drop the draft mark at the caret, leaving the text as plain prose (Escape). */

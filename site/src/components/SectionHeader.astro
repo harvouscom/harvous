@@ -1,0 +1,37 @@
+---
+/**
+ * SectionHeader — Lattice's two-part header: an eyebrow pill + bold title on the
+ * left, a supporting paragraph on the right. Stacks on mobile.
+ */
+interface Props {
+  eyebrow?: string;
+  title: string;
+  lead?: string;
+  class?: string;
+}
+const { eyebrow, title, lead, class: className = "" } = Astro.props;
+---
+
+<div class:list={["section-header", className]} data-reveal>
+  <div class="section-header__main">
+    {eyebrow && <span class="eyebrow-pill">{eyebrow}</span>}
+    <h2 class="section-title section-header__title">{title}</h2>
+  </div>
+  {lead && <p class="lead section-header__lead">{lead}</p>}
+</div>
+
+<style>
+  .section-header {
+    display: grid;
+    gap: 1rem 3rem;
+    align-items: end;
+  }
+  @media (min-width: 900px) {
+    .section-header { grid-template-columns: 1.25fr 1fr; }
+  }
+  .section-header__title { margin-top: 0.85rem; }
+  .section-header__lead { max-width: 34rem; }
+  @media (min-width: 900px) {
+    .section-header__lead { padding-bottom: 0.35rem; }
+  }
+</style>

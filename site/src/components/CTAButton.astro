@@ -1,7 +1,7 @@
 ---
 interface Props {
   href: string;
-  variant?: "primary" | "secondary" | "dark" | "ghost";
+  variant?: "primary" | "secondary" | "dark" | "ghost" | "white";
   size?: "md" | "lg";
   external?: boolean;
   class?: string;
@@ -16,6 +16,7 @@ const variants = {
   secondary: "bg-[var(--color-card)] text-[var(--color-ink)] border border-[var(--color-rule)] hover:bg-[var(--color-warm)]",
   dark: "bg-[var(--color-ink)] text-[var(--color-paper)] hover:opacity-90",
   ghost: "text-[var(--color-ink)] hover:bg-[var(--color-warm)]",
+  white: "bg-white text-[#1a1916] shadow-[0_10px_24px_-10px_rgba(0,0,0,0.35)] hover:bg-white/90",
 };
 
 const sizes = {

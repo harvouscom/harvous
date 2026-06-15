@@ -17,7 +17,8 @@
 .proto-editor-surface .ProseMirror .scripture-pill,
 #shared-note-content .card-full-editable__content-html .scripture-pill,
 #shared-thread-content .card-full-editable__content-html .scripture-pill,
-.shared-page__card-container .card-full-editable__content-html .scripture-pill {
+.shared-page__card-container .card-full-editable__content-html .scripture-pill,
+.public-note-card .card-full-editable__content-html .scripture-pill {
   --scripture-pill-accent-tint: var(--study-dock-scripture-pill-neutral);
   background-color: color-mix(in srgb, var(--scripture-pill-accent-tint) var(--scripture-pill-fill-mix), transparent);
   background-image: linear-gradient(
@@ -33,7 +34,8 @@
 .proto-editor-surface .ProseMirror .scripture-pill[data-pill-accent="neutral"],
 #shared-note-content .card-full-editable__content-html .scripture-pill[data-pill-accent="neutral"],
 #shared-thread-content .card-full-editable__content-html .scripture-pill[data-pill-accent="neutral"],
-.shared-page__card-container .card-full-editable__content-html .scripture-pill[data-pill-accent="neutral"] {
+.shared-page__card-container .card-full-editable__content-html .scripture-pill[data-pill-accent="neutral"],
+.public-note-card .card-full-editable__content-html .scripture-pill[data-pill-accent="neutral"] {
   --scripture-pill-accent-tint: var(--study-dock-scripture-pill-neutral);
 }
 
@@ -41,7 +43,8 @@
 .proto-editor-surface .ProseMirror .scripture-pill[data-pill-accent="warmAmber"],
 #shared-note-content .card-full-editable__content-html .scripture-pill[data-pill-accent="warmAmber"],
 #shared-thread-content .card-full-editable__content-html .scripture-pill[data-pill-accent="warmAmber"],
-.shared-page__card-container .card-full-editable__content-html .scripture-pill[data-pill-accent="warmAmber"] {
+.shared-page__card-container .card-full-editable__content-html .scripture-pill[data-pill-accent="warmAmber"],
+.public-note-card .card-full-editable__content-html .scripture-pill[data-pill-accent="warmAmber"] {
   --scripture-pill-accent-tint: var(--study-dock-accent-warmAmber);
 }
 
@@ -49,7 +52,8 @@
 .proto-editor-surface .ProseMirror .scripture-pill[data-pill-accent="skyBlue"],
 #shared-note-content .card-full-editable__content-html .scripture-pill[data-pill-accent="skyBlue"],
 #shared-thread-content .card-full-editable__content-html .scripture-pill[data-pill-accent="skyBlue"],
-.shared-page__card-container .card-full-editable__content-html .scripture-pill[data-pill-accent="skyBlue"] {
+.shared-page__card-container .card-full-editable__content-html .scripture-pill[data-pill-accent="skyBlue"],
+.public-note-card .card-full-editable__content-html .scripture-pill[data-pill-accent="skyBlue"] {
   --scripture-pill-accent-tint: var(--study-dock-accent-skyBlue);
 }
 
@@ -57,7 +61,8 @@
 .proto-editor-surface .ProseMirror .scripture-pill[data-pill-accent="violet"],
 #shared-note-content .card-full-editable__content-html .scripture-pill[data-pill-accent="violet"],
 #shared-thread-content .card-full-editable__content-html .scripture-pill[data-pill-accent="violet"],
-.shared-page__card-container .card-full-editable__content-html .scripture-pill[data-pill-accent="violet"] {
+.shared-page__card-container .card-full-editable__content-html .scripture-pill[data-pill-accent="violet"],
+.public-note-card .card-full-editable__content-html .scripture-pill[data-pill-accent="violet"] {
   --scripture-pill-accent-tint: var(--study-dock-accent-violet);
 }
 
@@ -65,7 +70,8 @@
 .proto-editor-surface .ProseMirror .scripture-pill[data-pill-accent="mintGreen"],
 #shared-note-content .card-full-editable__content-html .scripture-pill[data-pill-accent="mintGreen"],
 #shared-thread-content .card-full-editable__content-html .scripture-pill[data-pill-accent="mintGreen"],
-.shared-page__card-container .card-full-editable__content-html .scripture-pill[data-pill-accent="mintGreen"] {
+.shared-page__card-container .card-full-editable__content-html .scripture-pill[data-pill-accent="mintGreen"],
+.public-note-card .card-full-editable__content-html .scripture-pill[data-pill-accent="mintGreen"] {
   --scripture-pill-accent-tint: var(--study-dock-accent-mintGreen);
 }
 
@@ -73,7 +79,8 @@
 .proto-editor-surface .ProseMirror .scripture-pill[data-pill-accent="coralRose"],
 #shared-note-content .card-full-editable__content-html .scripture-pill[data-pill-accent="coralRose"],
 #shared-thread-content .card-full-editable__content-html .scripture-pill[data-pill-accent="coralRose"],
-.shared-page__card-container .card-full-editable__content-html .scripture-pill[data-pill-accent="coralRose"] {
+.shared-page__card-container .card-full-editable__content-html .scripture-pill[data-pill-accent="coralRose"],
+.public-note-card .card-full-editable__content-html .scripture-pill[data-pill-accent="coralRose"] {
   --scripture-pill-accent-tint: var(--study-dock-accent-coralRose);
 }
 

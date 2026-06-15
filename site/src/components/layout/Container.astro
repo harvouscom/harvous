@@ -1,0 +1,34 @@
+---
+/**
+ * Container — centered max-width wrapper with consistent horizontal gutters.
+ * Pair inside <Section>. Sizes map to the measures already used across the site.
+ */
+interface Props {
+  size?: "prose" | "sm" | "md" | "lg" | "xl" | "full";
+  class?: string;
+}
+
+const { size = "xl", class: className = "" } = Astro.props;
+---
+
+<div class:list={["container", `container--${size}`, className]}>
+  <slot />
+</div>
+
+<style>
+  .container {
+    margin-inline: auto;
+    width: 100%;
+    padding-inline: 1.25rem;
+  }
+  @media (min-width: 768px) {
+    .container { padding-inline: 2rem; }
+  }
+
+  .container--prose { max-width: 36rem; }
+  .container--sm { max-width: 42rem; }
+  .container--md { max-width: 56rem; }
+  .container--lg { max-width: 64rem; }
+  .container--xl { max-width: 72rem; }
+  .container--full { max-width: none; }
+</style>

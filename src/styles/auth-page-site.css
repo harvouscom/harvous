@@ -149,6 +149,7 @@
 .auth-page.auth-page--site .auth-page__form-section {
   flex: 1 !important;
   display: flex !important;
+  flex-direction: column !important;
   align-items: center !important;
   justify-content: center !important;
   padding: 24px 0 0 !important;
@@ -175,6 +176,85 @@
   display: flex;
   flex-direction: column;
   align-items: stretch;
+}
+
+/* ---------- Shared-note-style letter card ----------
+   The auth form now sits inside a paper "letter" that mirrors the shared-note
+   page (`.public-paper-stack` / `.public-note-card` in public-pages.css): cream
+   paper leaves fanned behind a white card on warm paper, radial-dot grain, and a
+   folded-corner accent. The main card stays upright (the shared note tilts -0.6deg,
+   but a tilted form reads as broken) so the inputs sit straight. */
+
+.auth-page.auth-page--site .auth-letter-stack {
+  position: relative;
+  width: 100%;
+  max-width: 460px;
+  margin: 0 auto;
+  /* Padding reserves room for the rotated leaves so they don't clip. */
+  padding: 10px 16px;
+}
+
+.auth-page.auth-page--site .auth-letter-stack__leaf {
+  position: absolute;
+  inset: 10px 16px;
+  background-color: #fcfbf7;
+  border: 0.5px solid var(--site-rule);
+  box-shadow: 0 8px 24px -12px rgba(20, 18, 12, 0.1);
+  pointer-events: none;
+}
+.auth-page.auth-page--site .auth-letter-stack__leaf--back {
+  /* A touch more rotation + offset than the shared note so the fan still reads
+     behind this shorter card. */
+  transform: rotate(2.6deg) translate(5px, -4px);
+  z-index: 0;
+}
+.auth-page.auth-page--site .auth-letter-stack__leaf--mid {
+  transform: rotate(-2.9deg) translate(-5px, 4px);
+  z-index: 1;
+}
+
+.auth-page.auth-page--site .auth-letter {
+  position: relative;
+  z-index: 2;
+  background-color: var(--site-card);
+  background-image:
+    radial-gradient(rgba(20, 18, 12, 0.025) 1px, transparent 1px),
+    radial-gradient(rgba(20, 18, 12, 0.018) 1px, transparent 1px);
+  background-size: 28px 28px, 17px 17px;
+  background-position: 0 0, 9px 9px;
+  border: 0.5px solid var(--site-rule);
+  box-shadow:
+    0 2px 6px rgba(20, 18, 12, 0.04),
+    0 20px 50px -20px rgba(20, 18, 12, 0.16);
+  padding: 40px 32px 32px;
+  overflow: hidden;
+}
+
+/* Folded-corner accent in the top-right — lift from the shared-note card. */
+.auth-page.auth-page--site .auth-letter::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 40px;
+  height: 40px;
+  background: linear-gradient(
+    225deg,
+    rgba(20, 18, 12, 0.07) 0%,
+    rgba(20, 18, 12, 0.02) 40%,
+    transparent 60%
+  );
+  pointer-events: none;
+  z-index: 5;
+}
+
+/* Headline inside the letter — sized for the card width, balanced so we never
+   strand a single word on its own line. */
+.auth-page.auth-page--site .auth-letter .auth-page__headline {
+  font-size: clamp(2rem, 1.55rem + 1.4vw, 2.5rem) !important;
+  line-height: 1.1 !important;
+  margin: 0 0 22px !important;
+  text-wrap: balance;
 }
 
 /* ---------- Display headline (Scorekard) with marker swipe on "your" ---------- */
@@ -356,12 +436,25 @@
   to { transform: rotate(360deg); }
 }
 
-/* ---------- Footer pieces shared by sign-in + sign-up ---------- */
+/* ---------- Footer pieces shared by sign-in + sign-up ----------
+   Rendered below the letter card (outside the paper stack), styled like the
+   shared-note page's closing footer (`.public-footer--rich`). */
+.auth-page.auth-page--site .auth-page__footer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  max-width: 460px;
+  margin: 0 auto;
+  padding: 20px 0 4px;
+}
+
 .auth-page.auth-page--site .auth-page__footer-switch {
   font-family:
     "Google Sans", "Reddit Sans", ui-sans-serif, system-ui, -apple-system,
     sans-serif;
-  font-size: 13px;
+  font-size: 0.9375rem;
   color: var(--site-ink-soft);
   text-align: center;
   margin: 0;
@@ -382,7 +475,7 @@
   font-size: 11px;
   color: var(--site-ink-faint);
   text-align: center;
-  margin: 8px 0 0;
+  margin: 0;
 }
 
 /* ---------- Reduced motion ---------- */

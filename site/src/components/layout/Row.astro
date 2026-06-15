@@ -1,0 +1,75 @@
+---
+/**
+ * Row — responsive columns. Stacks to one column on mobile, splits at the `md`
+ * breakpoint. `ratio` controls a 2-column split's proportions; `reverse` swaps
+ * the visual order on desktop only (so e.g. copy can be authored first for a
+ * sensible mobile stack, yet sit on the right at desktop).
+ *
+ *   <Row cols={2} ratio="7-5" align="center" reverse>
+ *     <div>copy</div>
+ *     <div>visual</div>
+ *   </Row>
+ */
+interface Props {
+  cols?: 1 | 2 | 3 | 4;
+  ratio?: "6-6" | "5-7" | "7-5";
+  gap?: "sm" | "md" | "lg";
+  align?: "start" | "center" | "stretch";
+  reverse?: boolean;
+  class?: string;
+}
+
+const {
+  cols = 2,
+  ratio = "6-6",
+  gap = "lg",
+  align = "center",
+  reverse = false,
+  class: className = "",
+} = Astro.props;
+---
+
+<div
+  class:list={[
+    "row",
+    `row--cols-${cols}`,
+    cols === 2 && `row--ratio-${ratio}`,
+    `row--gap-${gap}`,
+    `row--align-${align}`,
+    reverse && "row--reverse",
+    className,
+  ]}
+>
+  <slot />
+</div>
+
+<style>
+  .row {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .row--gap-sm { gap: 1rem; }
+  .row--gap-md { gap: 1.5rem; }
+  .row--gap-lg { gap: 2rem; }
+
+  .row--align-start { align-items: start; }
+  .row--align-center { align-items: center; }
+  .row--align-stretch { align-items: stretch; }
+
+  @media (min-width: 768px) {
+    .row--gap-lg { gap: 3rem; }
+    .row--cols-2 { grid-template-columns: 1fr 1fr; }
+    .row--cols-3 { grid-template-columns: repeat(3, 1fr); }
+    .row--cols-4 { grid-template-columns: repeat(4, 1fr); }
+
+    /* Asymmetric 2-up splits */
+    .row--cols-2.row--ratio-5-7 { grid-template-columns: 5fr 7fr; }
+    .row--cols-2.row--ratio-7-5 { grid-template-columns: 7fr 5fr; }
+
+    /* Reverse swaps order at desktop only; mobile keeps source order.
+       Slotted children live in the parent's scope, so target them with :global. */
+    .row--reverse > :global(:first-child) { order: 2; }
+    .row--reverse > :global(:last-child) { order: 1; }
+  }
+</style>

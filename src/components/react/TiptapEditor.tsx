@@ -24,6 +24,7 @@ import { ScripturePill } from './TiptapScripturePill';
 import {
   ScriptureDraft,
   enterScriptureDraftView,
+  expandScriptureDraftView,
   confirmScriptureDraftView,
   cancelScriptureDraftView,
   getScriptureDraftRange,
@@ -145,6 +146,9 @@ import Icon from './Icon';
 
 /** Prototype format toolbar — Font Awesome fill icons (matches proto chrome; not Tabler stroke). */
 const PROTO_FORMAT_ICON_SIZE = 18;
+
+/** Movement (px) past which a toolbar-button press is treated as a scroll, not a tap. */
+const TOOLBAR_TAP_MOVE_THRESHOLD = 10;
 
 // Track pending pill creation to prevent duplicates from concurrent calls
 // This is a module-level Set to track references currently being processed
@@ -1713,22 +1717,37 @@ function runScriptureDetectionAtCursor(editor: any): void {
 
 // ── Inline edit-mode (draft) detection (prototype) ────────────────────────────
 
-/** A reference (book + chapter) ends at the caret — schedule draft entry even mid-word. */
-function shouldScheduleDraftDetection(doc: any, cursorPos: number): boolean {
-  return detectScriptureReferenceEndingAtCursor(doc, cursorPos) != null;
+/**
+ * A reference ends at the caret and should schedule draft entry. Chapter-only refs (e.g.
+ * "Exodus 5") only schedule at a word boundary — otherwise typing "Exodus 5:6-9" would draft
+ * "Exodus 5" the instant the chapter is typed and orphan ":6-9". Mirrors
+ * `shouldSchedulePassiveScriptureDetection`.
+ */
+function shouldScheduleDraftDetection(
+  doc: any,
+  cursorPos: number,
+  isBoundaryCursor: boolean,
+): boolean {
+  const cursorEnding = detectScriptureReferenceEndingAtCursor(doc, cursorPos);
+  if (cursorEnding == null) return false;
+  if (!isChapterOnlyScriptureReference(cursorEnding.reference)) return true;
+  return isBoundaryCursor;
 }
 
 /** Wrap the reference ending at the caret in the draft mark (caret stays inside it). */
-function enterScriptureDraftAtCursor(editor: any, cursorPos: number): boolean {
+function enterScriptureDraftAtCursor(
+  editor: any,
+  cursorPos: number,
+  isBoundaryCursor: boolean,
+): boolean {
   const doc = editor.state.doc;
   const cursorResult = detectScriptureReferenceEndingAtCursor(doc, cursorPos);
   if (!cursorResult) return false;
   const reference = cursorResult.reference;
-  if (
-    isChapterOnlyScriptureReference(reference) &&
-    isChapterOnlyInsideLongerPill(doc, cursorPos, reference)
-  ) {
-    return false;
+  if (isChapterOnlyScriptureReference(reference)) {
+    // Don't draft a bare chapter mid-stream — the user may still be typing the verse.
+    if (!isBoundaryCursor) return false;
+    if (isChapterOnlyInsideLongerPill(doc, cursorPos, reference)) return false;
   }
   const pos =
     cursorResult.from != null && cursorResult.to != null
@@ -1739,19 +1758,46 @@ function enterScriptureDraftAtCursor(editor: any, cursorPos: number): boolean {
   return enterScriptureDraftView(editor.view, pos.from, pos.to);
 }
 
-/** Passive draft detection for the prototype: enter edit-mode instead of committing a pill. */
+/** Grow an existing draft to the full reference now ending at the caret (same block, only larger). */
+function maybeExpandScriptureDraft(
+  editor: any,
+  existing: { from: number; to: number },
+  cursorPos: number,
+): void {
+  const doc = editor.state.doc;
+  const cursorEnding = detectScriptureReferenceEndingAtCursor(doc, cursorPos);
+  if (!cursorEnding || cursorEnding.from == null || cursorEnding.to == null) return;
+  const newFrom = Math.min(existing.from, cursorEnding.from);
+  const newTo = Math.max(existing.to, cursorEnding.to);
+  if (newFrom === existing.from && newTo === existing.to) return;
+  const $a = doc.resolve(existing.from);
+  const $b = doc.resolve(newTo);
+  if ($a.start($a.depth) !== $b.start($b.depth)) return; // same block only
+  expandScriptureDraftView(editor.view, newFrom, newTo);
+}
+
+/**
+ * Passive draft detection for the prototype: enter edit-mode instead of committing a pill.
+ * If a draft already exists, grow it to cover the full reference now ending at the caret so
+ * continuation chars that landed as plain text (iOS dropping the stored draft mark) are
+ * re-absorbed rather than orphaned.
+ */
 function runScriptureDraftDetectionAtCursor(editor: any): void {
   if (!editor || editor.isDestroyed || !editor.view) return;
   try {
     const state = editor.state;
     const { from, to } = state.selection;
     if (from !== to || from < 2) return;
-    // Already editing a draft — leave it to the user / confirm gestures.
-    if (getScriptureDraftRange(state)) return;
     const $from = state.doc.resolve(from);
-    // Don't start a draft inside a committed pill.
+    // Don't start/extend a draft from inside a committed pill.
     if ($from.marks().some((m: any) => m.type.name === 'scripturePill')) return;
-    enterScriptureDraftAtCursor(editor, from);
+
+    const existing = getScriptureDraftRange(state);
+    if (existing) {
+      maybeExpandScriptureDraft(editor, existing, from);
+      return;
+    }
+    enterScriptureDraftAtCursor(editor, from, isScripturePillBoundaryCursor($from, state.doc));
   } catch {
     /* ignore */
   }
@@ -3802,6 +3848,10 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
   const formatToolbarPointerDownRef = useRef(false);
   /** Grace window after toolbar use so RAF-deferred parent content sync cannot clobber the editor. */
   const formatToolbarInteractionUntilRef = useRef(0);
+  /** Pointer start for the active toolbar-button press — used to tell a tap from a horizontal scroll. */
+  const toolbarBtnPointerStartRef = useRef<{ x: number; y: number; id: number } | null>(null);
+  /** True once the active toolbar-button press moves past the tap threshold (i.e. it's a scroll, not a tap). */
+  const toolbarBtnPointerMovedRef = useRef(false);
   const skipScriptureDockDismissRef = useRef(false);
   /** Pending timer that clears the dock-dismiss suppression window (see suppressScriptureDockDismiss). */
   const skipScriptureDockDismissTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -4081,7 +4131,11 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
           const needsScripturePass =
             Array.from(pendingTranslationPills.values()).some(e => e.editorId === thisEditorId) ||
             (draftMode
-              ? shouldScheduleDraftDetection(editor.state.doc, mobFrom)
+              ? shouldScheduleDraftDetection(
+                  editor.state.doc,
+                  mobFrom,
+                  isScripturePillBoundaryCursor($mobFrom, editor.state.doc),
+                )
               : shouldSchedulePassiveScriptureDetection(
                   editor.state.doc,
                   mobFrom,
@@ -4112,7 +4166,11 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
           const needsScripturePass =
             Array.from(pendingTranslationPills.values()).some((e) => e.editorId === thisEditorId) ||
             (draftMode
-              ? shouldScheduleDraftDetection(editor.state.doc, deskFrom)
+              ? shouldScheduleDraftDetection(
+                  editor.state.doc,
+                  deskFrom,
+                  isScripturePillBoundaryCursor($deskFrom, editor.state.doc),
+                )
               : shouldSchedulePassiveScriptureDetection(
                   editor.state.doc,
                   deskFrom,
@@ -6155,7 +6213,23 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     const resolveDetachedDraft = () => {
       if (!isEditorValid(editor)) return;
       const detached = findDetachedScriptureDraft(editor.state);
-      if (detached) confirmScriptureDraftView(editor.view, detached.to);
+      if (!detached) return;
+      // If the caret has only moved past the draft by reference-continuation chars within the
+      // same block (e.g. ":6-9" typed after "Exodus 5" when iOS dropped the stored draft mark),
+      // re-absorb them instead of committing a partial pill.
+      const state = editor.state;
+      const caret = state.selection.from;
+      if (caret > detached.to) {
+        const gap = state.doc.textBetween(detached.to, caret);
+        const $a = state.doc.resolve(detached.from);
+        const $c = state.doc.resolve(caret);
+        const sameBlock = $a.start($a.depth) === $c.start($c.depth);
+        if (sameBlock && /^[\d:,\-–—]+$/.test(gap)) {
+          maybeExpandScriptureDraft(editor, detached, caret);
+          return;
+        }
+      }
+      confirmScriptureDraftView(editor.view, detached.to);
     };
     const resolveOnBlur = () => {
       if (!isEditorValid(editor)) return;
@@ -7084,21 +7158,46 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     ariaLabel,
     disabled = false,
     skipPostFocusRestore = false,
-    runCommandOnPointerDown = false,
-  }: { 
-    onClick: () => void; 
-    isActive: boolean; 
-    children: React.ReactNode; 
+  }: {
+    onClick: () => void;
+    isActive: boolean;
+    children: React.ReactNode;
     title: string;
     ariaLabel?: string;
     disabled?: boolean;
     skipPostFocusRestore?: boolean;
-    /** Portaled toolbar: run on pointerdown before focus can leave ProseMirror. */
-    runCommandOnPointerDown?: boolean;
   }) => {
     const runToolbarCommand = () => {
       if (disabled) return;
       onClick();
+    };
+
+    const setPressedVisual = (el: HTMLButtonElement, pressed: boolean) => {
+      el.style.setProperty('filter', pressed ? 'brightness(0.97)' : 'none', 'important');
+      el.style.setProperty('transform', pressed ? 'scale(0.98)' : 'none', 'important');
+    };
+
+    // Restore ProseMirror focus + selection after a command (portaled toolbar steals focus).
+    const restorePostCommandFocus = () => {
+      if (skipPostFocusRestore) return;
+      setTimeout(() => {
+        if (!editor || !isEditorValid(editor) || editor.isFocused) return;
+        const doc = editor.state.doc;
+        const range = pickFormatToolbarSelection({
+          frozen: formatToolbarSelectionRef.current,
+          liveFrom: editor.state.selection.from,
+          liveTo: editor.state.selection.to,
+          docSize: doc.content.size,
+          lastInBody: lastInBodySelectionRef.current,
+          isEmptyTrailingDocEnd: (from, to) => isEmptyTrailingDocEndSelection(doc, from, to),
+        });
+        try {
+          editor.chain().setTextSelection({ from: range.from, to: range.to }).run();
+          editor.view.focus();
+        } catch {
+          /* ignore */
+        }
+      }, 0);
     };
 
     return (
@@ -7109,47 +7208,56 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
         data-active={isActive ? 'true' : undefined}
         onPointerDown={(e: React.PointerEvent<HTMLButtonElement>) => {
           if (disabled) return;
-          e.preventDefault();
+          // Don't preventDefault here: it would block a native horizontal pan that begins on a
+          // button. The command runs on pointerup, only if the press didn't move (see onPointerUp).
           e.stopPropagation();
-          if (runCommandOnPointerDown) {
-            runToolbarCommand();
+          toolbarBtnPointerStartRef.current = { x: e.clientX, y: e.clientY, id: e.pointerId };
+          toolbarBtnPointerMovedRef.current = false;
+          setPressedVisual(e.currentTarget, true);
+        }}
+        onPointerMove={(e: React.PointerEvent<HTMLButtonElement>) => {
+          const start = toolbarBtnPointerStartRef.current;
+          if (!start || start.id !== e.pointerId || toolbarBtnPointerMovedRef.current) return;
+          const dx = e.clientX - start.x;
+          const dy = e.clientY - start.y;
+          if (dx * dx + dy * dy > TOOLBAR_TAP_MOVE_THRESHOLD * TOOLBAR_TAP_MOVE_THRESHOLD) {
+            // The press turned into a scroll — cancel the pending tap.
+            toolbarBtnPointerMovedRef.current = true;
+            setPressedVisual(e.currentTarget, false);
           }
+        }}
+        onPointerUp={(e: React.PointerEvent<HTMLButtonElement>) => {
+          const start = toolbarBtnPointerStartRef.current;
+          const moved = toolbarBtnPointerMovedRef.current;
+          toolbarBtnPointerStartRef.current = null;
+          toolbarBtnPointerMovedRef.current = false;
+          setPressedVisual(e.currentTarget, false);
+          if (disabled) return;
+          // Only fire on a clean tap; a moved press was a swipe to scroll the toolbar.
+          if (start && start.id === e.pointerId && !moved) {
+            e.preventDefault();
+            e.stopPropagation();
+            runToolbarCommand();
+            restorePostCommandFocus();
+          }
+        }}
+        onPointerCancel={(e: React.PointerEvent<HTMLButtonElement>) => {
+          toolbarBtnPointerStartRef.current = null;
+          toolbarBtnPointerMovedRef.current = false;
+          setPressedVisual(e.currentTarget, false);
+        }}
+        onPointerLeave={(e: React.PointerEvent<HTMLButtonElement>) => {
+          // Pointer left the button mid-press — treat as not-a-tap.
+          if (toolbarBtnPointerStartRef.current?.id === e.pointerId) {
+            toolbarBtnPointerMovedRef.current = true;
+          }
+          setPressedVisual(e.currentTarget, false);
         }}
         onMouseDown={(e: React.MouseEvent<HTMLButtonElement, MouseEvent>) => {
           if (disabled) return;
-          // Use onMouseDown to prevent editor from losing focus
+          // Keep focus in ProseMirror; the command itself runs from onPointerUp.
           e.preventDefault();
           e.stopPropagation();
-          
-          // Visual feedback for click
-          e.currentTarget.style.setProperty('filter', 'brightness(0.97)', 'important');
-          e.currentTarget.style.setProperty('transform', 'scale(0.98)', 'important');
-          
-          if (!runCommandOnPointerDown) {
-            runToolbarCommand();
-          }
-          
-          if (skipPostFocusRestore) return;
-
-          // Ensure editor stays focused after command
-          setTimeout(() => {
-            if (!editor || !isEditorValid(editor) || editor.isFocused) return;
-            const doc = editor.state.doc;
-            const range = pickFormatToolbarSelection({
-              frozen: formatToolbarSelectionRef.current,
-              liveFrom: editor.state.selection.from,
-              liveTo: editor.state.selection.to,
-              docSize: doc.content.size,
-              lastInBody: lastInBodySelectionRef.current,
-              isEmptyTrailingDocEnd: (from, to) => isEmptyTrailingDocEndSelection(doc, from, to),
-            });
-            try {
-              editor.chain().setTextSelection({ from: range.from, to: range.to }).run();
-              editor.view.focus();
-            } catch {
-              /* ignore */
-            }
-          }, 0);
         }}
         onClick={(e: React.MouseEvent<HTMLButtonElement, MouseEvent>) => {
           // Prevent default click behavior
@@ -7177,12 +7285,6 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
           opacity: disabled ? 0.38 : 1,
           transition: '0.2s ease-in-out !important'
         }}
-        onMouseUp={(e: React.MouseEvent<HTMLButtonElement, MouseEvent>) => {
-          if (disabled) return;
-          // Visual feedback for click
-          e.currentTarget.style.setProperty('filter', 'none', 'important');
-          e.currentTarget.style.setProperty('transform', 'none', 'important');
-        }}
       >
         <div 
           style={{ 
@@ -7207,8 +7309,8 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
   };
 
   const PrototypeToolbarButton = (
-    props: Omit<React.ComponentProps<typeof ToolbarButton>, 'skipPostFocusRestore' | 'runCommandOnPointerDown'>,
-  ) => <ToolbarButton {...props} skipPostFocusRestore runCommandOnPointerDown />;
+    props: Omit<React.ComponentProps<typeof ToolbarButton>, 'skipPostFocusRestore'>,
+  ) => <ToolbarButton {...props} skipPostFocusRestore />;
 
   const renderPrototypeNativeFormatToolbar = (placement: 'top' | 'bottom' | 'portal') => {
     if (!editor) return null;

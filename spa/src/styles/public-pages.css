@@ -2,18 +2,9 @@
    Public page shell — shared note, shared thread, join space, invitation.
    Redesigned to mirror the marketing site (`/site/`): warm paper background,
    floating centered Harvous pill at the top (icon + wordmark, with the
-   primary CTA tucked into the right side of the pill), Scorekard display
-   font for titles, and a gradient-blue pill CTA inside cards.
+   primary CTA tucked into the right side of the pill), Google Sans Flex rounded
+   display font for note titles, and a gradient-blue pill CTA inside cards.
    ========================================================================== */
-
-@font-face {
-  font-family: "Google Sans";
-  src: url("/fonts/google-sans-flex/GoogleSansFlex-Variable.woff2")
-    format("woff2-variations");
-  font-weight: 1 1000;
-  font-style: normal;
-  font-display: swap;
-}
 
 /* Local design tokens — mirror `/site/src/styles/global.css`. Scoped to
    `.public-page` so they don't bleed into the rest of the app. */
@@ -656,14 +647,13 @@
   z-index: 1;
 }
 
-/* The main letter — the actual card with note content. Off-white paper,
-   radial-dot grain, slight rotation, layered shadow. Sharp corners like the
-   `/site/` paper-leaf stack (overrides card-full-editable 24px radius). */
+/* The main letter — the actual card with note content. White front sheet on
+   cream fan-out leaves; radial-dot grain, slight rotation, layered shadow. */
 .public-note-card {
   position: relative !important;
   z-index: 2;
   transform: rotate(-0.6deg);
-  background-color: #fcfbf7 !important;
+  background-color: #ffffff !important;
   background-image:
     radial-gradient(rgba(20, 18, 12, 0.025) 1px, transparent 1px),
     radial-gradient(rgba(20, 18, 12, 0.018) 1px, transparent 1px) !important;
@@ -708,9 +698,8 @@
    descendant — use a direct child selector. */
 .public-note-card > .flex.gap-3.items-center p,
 .public-note-card > .flex.gap-3.items-center textarea {
-  font-family:
-    "Scorekard", -apple-system, BlinkMacSystemFont, "SF Pro Display",
-    ui-sans-serif, system-ui, sans-serif !important;
+  font-family: var(--pds-font-display) !important;
+  font-variation-settings: var(--pds-font-display-variation) !important;
   font-weight: 600 !important;
   font-size: 1.75rem !important;
   letter-spacing: -0.02em !important;
@@ -748,9 +737,9 @@
 .public-note-card .public-card__cta {
   background: linear-gradient(
     to top,
-    #fcfbf7 0%,
-    #fcfbf7 52%,
-    rgba(252, 251, 247, 0.88) 72%,
+    #ffffff 0%,
+    #ffffff 52%,
+    rgba(255, 255, 255, 0.88) 72%,
     transparent 100%
   );
 }
@@ -804,44 +793,16 @@
   text-decoration-color: var(--pds-highlight-coral-rose, var(--study-dock-accent-coralRose));
 }
 
-/* Inline scripture pills inside the note body — section gray default, no outline.
+/* Inline scripture pills — accent surface in scripture-pill-accent.css; layout only here.
    Not interactive on the public page — disable pointer events. */
 .public-note-card .card-full-editable__content-html .scripture-pill,
 .public-note-card .card-full-editable__content-html [data-scripture-pill] {
-  background: var(--pds-bg-section, var(--color-paper)) !important;
-  background-color: var(--pds-bg-section, var(--color-paper)) !important;
   color: var(--site-ink, var(--color-deep-grey)) !important;
-  border: none !important;
   border-radius: var(--pds-radius-scripture, 14px) !important;
   padding: 2px 11px !important;
   font-weight: 500 !important;
-  box-shadow: var(--scripture-pill-inner-shadow, inset 0 0 3px rgba(0, 0, 0, 0.042)) !important;
   pointer-events: none !important;
   cursor: default !important;
-}
-
-.public-note-card .card-full-editable__content-html .scripture-pill[data-pill-accent] {
-  background: color-mix(in srgb, var(--scripture-pill-accent-tint, var(--study-dock-scripture-pill-neutral)) 7.5%, transparent) !important;
-  color: var(--site-ink) !important;
-}
-
-.public-note-card .card-full-editable__content-html .scripture-pill[data-pill-accent="neutral"] {
-  --scripture-pill-accent-tint: var(--study-dock-scripture-pill-neutral);
-}
-.public-note-card .card-full-editable__content-html .scripture-pill[data-pill-accent="warmAmber"] {
-  --scripture-pill-accent-tint: var(--study-dock-accent-warmAmber);
-}
-.public-note-card .card-full-editable__content-html .scripture-pill[data-pill-accent="skyBlue"] {
-  --scripture-pill-accent-tint: var(--study-dock-accent-skyBlue);
-}
-.public-note-card .card-full-editable__content-html .scripture-pill[data-pill-accent="violet"] {
-  --scripture-pill-accent-tint: var(--study-dock-accent-violet);
-}
-.public-note-card .card-full-editable__content-html .scripture-pill[data-pill-accent="mintGreen"] {
-  --scripture-pill-accent-tint: var(--study-dock-accent-mintGreen);
-}
-.public-note-card .card-full-editable__content-html .scripture-pill[data-pill-accent="coralRose"] {
-  --scripture-pill-accent-tint: var(--study-dock-accent-coralRose);
 }
 
 /* Translation suffix (e.g. NLT) — muted secondary, not accent blue */

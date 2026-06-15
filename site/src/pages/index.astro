@@ -1,27 +1,19 @@
 ---
 import BaseLayout from "../layouts/BaseLayout.astro";
 import Hero from "../components/Hero.astro";
-import Comparison from "../components/Comparison.astro";
-import SectionCard from "../components/SectionCard.astro";
 import FounderLetter from "../components/FounderLetter.astro";
-import DownloadCTA from "../components/DownloadCTA.astro";
+import Comparison from "../components/Comparison.astro";
+import SectionHeader from "../components/SectionHeader.astro";
+import Bento from "../components/Bento.astro";
+import FeatureCard from "../components/FeatureCard.astro";
+import GradientSection from "../components/GradientSection.astro";
 import TestimonialCard from "../components/TestimonialCard.astro";
 import FaqItem from "../components/FaqItem.astro";
-import { Icon } from "astro-icon/components";
+import Section from "../components/layout/Section.astro";
+import Container from "../components/layout/Container.astro";
+import CTAButton from "../components/CTAButton.astro";
 import { getCollection, render } from "astro:content";
 
-const featureIconMap: Record<string, string> = {
-  "scripture-pills": "fa6-solid:book-bible",
-  "dictionary": "fa6-solid:book-open",
-  "highlights": "fa6-solid:highlighter",
-  "sidebar-modes": "fa6-solid:magnifying-glass",
-  "native-apps": "fa6-solid:folder",
-  "sharing": "fa6-solid:share-nodes",
-  "offline-sync": "fa6-solid:cloud-arrow-down",
-  "daily-passage": "fa6-solid:calendar-days",
-};
-
-const features = (await getCollection("features")).sort((a, b) => a.data.order - b.data.order);
 const faq = (await getCollection("faq")).sort((a, b) => a.data.order - b.data.order);
 const testimonials = (await getCollection("testimonials")).sort((a, b) => a.data.order - b.data.order);
 
@@ -31,13 +23,20 @@ const testimonialContent = await Promise.all(
     return { data: t.data, Content };
   })
 );
-
 const faqContent = await Promise.all(
   faq.map(async (q) => {
     const { Content } = await render(q);
     return { data: q.data, Content };
   })
 );
+
+const useCases = [
+  { href: "/use-cases/daily-journal", label: "Daily journal", sub: "A verse and a few honest lines each morning.", tint: "sky" },
+  { href: "/use-cases/sermon-notes", label: "Sermon notes", sub: "Capture the message while it's fresh.", tint: "amber" },
+  { href: "/use-cases/small-group", label: "Small group", sub: "Keep the week's study in one place.", tint: "mint" },
+  { href: "/use-cases/book-study", label: "Book study", sub: "Work through a book, chapter by chapter.", tint: "violet" },
+  { href: "/use-cases/topical-study", label: "Topical study", sub: "Follow a theme across the whole Bible.", tint: "coral" },
+] as const;
 ---
 
 <BaseLayout>
@@ -47,7 +46,7 @@ const faqContent = await Promise.all(
   <section id="about" class="fade-rule-y">
     <div class="mx-auto max-w-5xl px-8 py-20 md:py-24">
       <div class="mb-12 text-center" data-reveal>
-        <div class="text-xs uppercase tracking-[0.14em] text-[var(--color-ink-faint)]">A letter from Derek</div>
+        <div class="eyebrow">A letter from Derek</div>
         <h2 class="mt-3 font-display text-4xl leading-[1.05] md:text-6xl">
           I made Harvous because I need<br class="hidden md:block" /> to remember the Bible, better.
         </h2>
@@ -56,130 +55,131 @@ const faqContent = await Promise.all(
     </div>
   </section>
 
-  <!-- Core features collage -->
-  <section id="features" class="mx-auto max-w-6xl px-5 py-20">
-    <div class="mx-auto max-w-3xl text-center" data-reveal>
-      <div class="text-xs uppercase tracking-[0.14em] text-[var(--color-ink-faint)]">What's included</div>
-      <h2 class="mt-3 font-display text-4xl leading-[1.05] md:text-6xl">
-        It all comes together.
-      </h2>
-      <p class="mx-auto mt-8 max-w-2xl text-lg leading-relaxed text-[var(--color-ink-soft)]">
-        <strong class="text-[var(--color-ink)]">Auto folders + tags</strong> organize notes as you write. No busywork, no upkeep.
-        <strong class="text-[var(--color-ink)]">Scripture pills</strong> turn every reference into a tap‑able link across 7 translations.
-        <strong class="text-[var(--color-ink)]">Highlights</strong> save the phrases that matter, with annotations for the thoughts you'd otherwise forget.
-        Together, they turn every note into <mark>your own study Bible</mark>.
-      </p>
-    </div>
+  <!-- Features bento -->
+  <Section space="lg" id="features">
+    <Container size="xl">
+      <SectionHeader
+        eyebrow="What's included"
+        title="It all comes together."
+        lead="Auto folders, scripture pills, and highlights work as you write — turning every note into your own study Bible. No busywork, no upkeep."
+      />
+      <Bento class="mt-12">
+        <FeatureCard tint="sky" span={2} label="Scripture pills" sublabel="Type a reference and tap it to read — right in your note, across 7 translations.">
+          <img src="/app-preview/scripture.png" alt="Scripture pills in a Harvous note" loading="lazy" decoding="async" />
+        </FeatureCard>
+        <FeatureCard solid tint="blue" label="7 translations" sublabel="KJV · NKJV · ESV · NIV · NLT · NET · BSB" icon="fa6-solid:book-bible" />
 
-    <!-- Collage of core mocks — single row, overlapping -->
-    <div class="relative mx-auto mt-10 flex max-w-5xl items-center justify-center px-4" data-reveal="scale">
-      <!-- Scripture pill -->
-      <div
-        class="relative z-[3] -mr-6 shrink-0 rotate-[-5deg] rounded-xl bg-[var(--color-card)] px-3.5 py-3 text-sm leading-relaxed shadow-[0_18px_40px_-14px_rgba(20,18,12,0.22)] ring-1 ring-[var(--color-rule)]"
-      >
-        Read it in
-        <span class="mx-0.5 inline-flex items-center rounded-md px-1.5 py-0.5 text-[12px] font-semibold" style="background: var(--color-sky); color: var(--color-sky-ink);">John 3:16</span>
-        first.
-      </div>
+        <FeatureCard tint="amber" label="Highlights & notes" sublabel="Save the phrases that matter, with a note for later.">
+          <img src="/app-preview/highlight.png" alt="A highlighted phrase with an annotation" loading="lazy" decoding="async" />
+        </FeatureCard>
+        <FeatureCard tint="violet" label="Auto folders + tags" sublabel="Organized as you write — by book, theme, and people.">
+          <img src="/app-preview/folders.png" alt="Notes auto-sorted into folders" loading="lazy" decoding="async" />
+        </FeatureCard>
+        <FeatureCard tint="mint" label="Built-in dictionary" sublabel="Look up any word in Easton's, without leaving.">
+          <img src="/app-preview/dictionary.png" alt="A word looked up in the dictionary" loading="lazy" decoding="async" />
+        </FeatureCard>
 
-      <!-- Dictionary card -->
-      <div
-        class="relative z-[4] -mr-6 w-[240px] shrink-0 rotate-[3deg] rounded-xl bg-[var(--color-card)] p-3.5 shadow-[0_18px_40px_-14px_rgba(20,18,12,0.22)] ring-1 ring-[var(--color-rule)]"
-      >
-        <div class="text-[10px] font-semibold uppercase tracking-wider" style="color: var(--color-mint-ink); opacity: 0.7;">Dictionary</div>
-        <div class="mt-0.5 text-[15px] font-semibold text-[var(--color-ink)]">Grace</div>
-        <div class="text-[10px] text-[var(--color-ink-faint)]">Easton's Bible Dictionary, 1897</div>
-        <div class="mt-1.5 text-[11px] leading-snug text-[var(--color-ink-soft)]">
-          (3.) God's forgiving mercy <span style="color: var(--color-mint-ink);">(Rom. 11:6)</span>. (4.) The gospel as distinguished from the law.
-        </div>
-      </div>
+        <FeatureCard tint="coral" label="Daily passage" sublabel="A fresh passage waiting each day.">
+          <img src="/app-preview/passage.png" alt="Today's passage card" loading="lazy" decoding="async" />
+        </FeatureCard>
+        <FeatureCard tint="sky" label="Connect notes" sublabel="Link related notes into a thread you can follow.">
+          <img src="/app-preview/connect.png" alt="A thread of connected notes" loading="lazy" decoding="async" />
+        </FeatureCard>
+        <FeatureCard solid tint="mint" label="Works offline" sublabel="Read and write anywhere — it syncs when you're back." icon="fa6-solid:cloud-arrow-down" />
+      </Bento>
+    </Container>
+  </Section>
 
-      <!-- Highlight + annotation -->
-      <div
-        class="relative z-[2] -mr-6 w-[260px] shrink-0 rotate-[-3deg]"
-      >
-        <div class="rounded-xl bg-[var(--color-card)] px-3.5 py-3 text-sm leading-relaxed text-[var(--color-ink)] shadow-[0_18px_40px_-14px_rgba(20,18,12,0.22)] ring-1 ring-[var(--color-rule)]">
-          We're saved
-          <mark>by grace</mark>
-          through faith — not by works of our own.
-        </div>
-        <div
-          class="absolute -bottom-3 -right-3 rotate-[6deg] rounded-lg bg-[var(--color-card)] px-2.5 py-1.5 text-[11px] font-medium shadow-[0_8px_20px_-10px_rgba(20,18,12,0.22)] ring-1 ring-[var(--color-rule)]"
-          style="color: var(--color-cream-ink);"
-        >
-          <span class="mr-1 inline-block h-1.5 w-1.5 rounded-full align-middle" style="background: var(--pds-highlight-warm-amber, #7a5410);"></span>
-          Annotation
-        </div>
-      </div>
-
-      <!-- Daily passage -->
-      <div
-        class="relative z-[5] w-[210px] shrink-0 rotate-[5deg] rounded-xl bg-[var(--color-card)] p-3.5 shadow-[0_18px_40px_-14px_rgba(20,18,12,0.22)] ring-1 ring-[var(--color-rule)]"
-      >
-        <div class="flex items-center justify-between gap-2">
-          <div>
-            <div class="text-[10px] text-[var(--color-ink-faint)]">Today's Passage</div>
-            <div class="mt-0.5 text-[13px] font-semibold text-[var(--color-ink)]">Proverbs 3:11–12</div>
-          </div>
-          <div class="flex h-9 w-9 flex-col items-center justify-center rounded-md text-xs font-semibold leading-none" style="background: var(--color-lilac); color: var(--color-lilac-ink);">
-            <span class="text-[8px] uppercase tracking-wide opacity-70">May</span>
-            <span class="text-[14px]">22</span>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Feature grid -->
-    <div class="mx-auto mt-14 max-w-5xl grid grid-cols-2 gap-x-8 gap-y-8 sm:grid-cols-4">
-      {features.map((f, i) => {
-        const icon = featureIconMap[f.id] ?? "fa6-solid:circle";
-        return (
-          <div class="flex flex-col gap-2.5" data-reveal style={`--reveal-delay: ${i * 50}ms`}>
-            <div class="flex h-9 w-9 items-center justify-center rounded-xl" style="background: var(--color-accent-soft);">
-              <Icon name={icon} class="h-4 w-4" style="color: var(--color-accent);" />
-            </div>
-            <div class="text-sm font-semibold text-[var(--color-ink)]">{f.data.tagline}</div>
-            <div class="text-xs leading-relaxed text-[var(--color-ink-soft)]">{f.data.title}</div>
-          </div>
-        );
-      })}
-    </div>
-  </section>
+  <!-- Everywhere you study -->
+  <GradientSection
+    gradient="blue"
+    eyebrow="Everywhere you study"
+    title="On every device, even offline."
+    body="Web, Mac, iPad, and iPhone. Your notes sync across all of them — and keep working without a signal."
+  />
 
   <!-- Why Harvous — vs a Bible reader vs a generic notes app -->
   <Comparison />
 
   <!-- Testimonials -->
-  <SectionCard
-    eyebrow="From people using it"
-    tone="plain"
-    balancedTitle
-    title="Helping people with their Bible study."
-  >
-    <div class="mx-auto grid max-w-4xl gap-5 md:grid-cols-3">
-      {testimonialContent.map(({ data, Content }, i) => {
-        const palette = ["lilac", "peach", "mint", "sky"] as const;
-        return (
-          <div data-reveal style={`--reveal-delay: ${i * 80}ms`}>
-            <TestimonialCard name={data.name} when={data.when} tone={palette[i % palette.length]}>
-              <Content />
-            </TestimonialCard>
-          </div>
-        );
-      })}
-    </div>
-  </SectionCard>
+  <Section space="lg" id="testimonials" divider="top">
+    <Container size="lg">
+      <div class="band-head" data-reveal>
+        <span class="eyebrow-pill">From people using it</span>
+        <h2 class="section-title">Helping people with their Bible study.</h2>
+      </div>
+      <div class="t-grid">
+        {testimonialContent.map(({ data, Content }, i) => {
+          const palette = ["lilac", "peach", "mint", "sky"] as const;
+          return (
+            <div data-reveal style={`--reveal-delay: ${i * 80}ms`}>
+              <TestimonialCard name={data.name} when={data.when} tone={palette[i % palette.length]}>
+                <Content />
+              </TestimonialCard>
+            </div>
+          );
+        })}
+      </div>
+    </Container>
+  </Section>
+
+  <!-- Ways people use it -->
+  <Section space="lg">
+    <Container size="xl">
+      <SectionHeader
+        eyebrow="Ways people use it"
+        title="However you study, it fits."
+        lead="Harvous works the same whether you journal alone in the morning or lead a group through a book."
+      />
+      <Bento class="mt-12">
+        {useCases.map((u) => (
+          <FeatureCard tint={u.tint} label={u.label} sublabel={u.sub} href={u.href} />
+        ))}
+      </Bento>
+    </Container>
+  </Section>
 
   <!-- FAQ -->
-  <SectionCard eyebrow="Potentially asked questions" title="Got questions?">
-    <div class="mx-auto grid max-w-4xl gap-x-16 md:grid-cols-2">
-      {faqContent.map(({ data, Content }) => (
-        <FaqItem question={data.question}>
-          <Content />
-        </FaqItem>
-      ))}
-    </div>
-  </SectionCard>
+  <Section space="lg">
+    <Container size="lg">
+      <div class="band-head" data-reveal>
+        <span class="eyebrow-pill">Potentially asked questions</span>
+        <h2 class="section-title">Got questions?</h2>
+      </div>
+      <div class="faq-grid">
+        {faqContent.map(({ data, Content }) => (
+          <FaqItem question={data.question}>
+            <Content />
+          </FaqItem>
+        ))}
+      </div>
+    </Container>
+  </Section>
 
-  <DownloadCTA />
+  <!-- Closing CTA -->
+  <GradientSection
+    gradient="blue"
+    title="Try Harvous."
+    body="A notes app thoughtfully designed for Bible study — for a practice that isn't just on Sundays."
+  >
+    <CTAButton slot="cta" href="https://app.harvous.com/sign-up" variant="white" size="lg" external>
+      Start for free
+    </CTAButton>
+  </GradientSection>
 </BaseLayout>
+
+<style>
+  .band-head {
+    text-align: center;
+    margin-inline: auto;
+    max-width: 42rem;
+    margin-bottom: 2.5rem;
+  }
+  .band-head > * + * { margin-top: 0.85rem; }
+
+  .t-grid { display: grid; gap: 1.25rem; }
+  @media (min-width: 768px) { .t-grid { grid-template-columns: repeat(3, 1fr); } }
+
+  .faq-grid { display: grid; gap: 0 4rem; }
+  @media (min-width: 768px) { .faq-grid { grid-template-columns: repeat(2, 1fr); } }
+</style>

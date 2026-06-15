@@ -34,13 +34,22 @@ export function mergeNoteTagsInCache(
 export function previewNoteTagsFromContent(
   title: string,
   content: string,
-  folderLabels?: { primary?: string | null; secondaries?: string[] | null },
+  folderLabels?: {
+    primary?: string | null;
+    secondaries?: string[] | null;
+    dismissedAutoTags?: string[] | null;
+  },
 ): NoteTagPreview[] {
   const excludeFolderLabels = folderLabelsForTagExclusion(
     folderLabels?.primary,
     folderLabels?.secondaries ?? [],
   );
-  return suggestedAutoTagsToNoteTags(suggestAutoTagsFromNote(title, content, { excludeFolderLabels }));
+  return suggestedAutoTagsToNoteTags(
+    suggestAutoTagsFromNote(title, content, {
+      excludeFolderLabels,
+      excludeTagNames: folderLabels?.dismissedAutoTags ?? [],
+    }),
+  );
 }
 
 export async function fetchNoteTagsFromApi(noteId: string): Promise<NoteTagRow[]> {
