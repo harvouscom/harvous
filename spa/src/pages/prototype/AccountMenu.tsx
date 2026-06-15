@@ -56,7 +56,7 @@ export default function AccountMenu({ iconSize, disabled = false }: { iconSize: 
     <div className="proto-menu" ref={rootRef}>
       <button
         type="button"
-        className="proto-toolbar-icon-btn"
+        className={`proto-toolbar-icon-btn${showProfilePhoto ? ' proto-toolbar-icon-btn--profile-photo' : ''}`}
         aria-expanded={open}
         aria-haspopup="menu"
         disabled={disabled}
@@ -67,16 +67,18 @@ export default function AccountMenu({ iconSize, disabled = false }: { iconSize: 
           setOpen((x) => !x);
         }}
       >
-        {showProfilePhoto ? (
-          <img
-            src={avatarImageUrl!}
-            alt=""
-            className="proto-profile-orb__photo"
-            onError={() => setPhotoLoadFailed(true)}
-          />
-        ) : (
-          <Icon name="circle-user" size={iconSize} />
-        )}
+        <span className="proto-profile-orb" aria-hidden>
+          {showProfilePhoto ? (
+            <img
+              src={avatarImageUrl!}
+              alt=""
+              className="proto-profile-orb__photo"
+              onError={() => setPhotoLoadFailed(true)}
+            />
+          ) : (
+            <Icon name="circle-user" size={iconSize} />
+          )}
+        </span>
       </button>
 
       {open ? (

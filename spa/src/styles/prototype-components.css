@@ -401,8 +401,14 @@ html[data-shift-hints='1'] .proto-toolbar-orb-group {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  box-sizing: border-box;
+  flex-shrink: 0;
   width: var(--pds-toolbar-orb-size);
   height: var(--pds-toolbar-orb-size);
+  min-width: var(--pds-toolbar-orb-size);
+  max-width: var(--pds-toolbar-orb-size);
+  min-height: var(--pds-toolbar-orb-size);
+  max-height: var(--pds-toolbar-orb-size);
   border-radius: var(--pds-radius-pill);
   border: 0.5px solid var(--pds-border-control);
   background: var(--pds-bg-glass-medium);
@@ -502,17 +508,39 @@ html[data-shift-hints='1'] .proto-toolbar-orb-group {
   pointer-events: none;
 }
 
-/* Toolbar account orb — Clerk profile photo fills the control (no glass ring behind it). */
-.proto-toolbar-icon-btn:has(.proto-profile-orb__photo) {
-  padding: 0;
-  border: none;
-  background: transparent;
+/* Toolbar account orb — fixed inner shell (mirrors native HarvousProfileOrb). */
+.proto-toolbar-icon-btn .proto-profile-orb {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  flex: 1 1 auto;
   overflow: hidden;
+  border-radius: inherit;
+  line-height: 0;
 }
 
-.proto-toolbar-icon-btn:has(.proto-profile-orb__photo):hover,
-.proto-toolbar-icon-btn:has(.proto-profile-orb__photo):active {
-  background: transparent;
+/* Profile photo clips inside the same glass orb as the glyph fallback. */
+.proto-toolbar-icon-btn--profile-photo {
+  padding: 0;
+  overflow: hidden;
+  line-height: 0;
+}
+
+.proto-toolbar-icon-btn--profile-photo .proto-profile-orb__photo {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  max-width: none;
+  object-fit: cover;
+  flex-shrink: 1;
 }
 
 .proto-profile-orb__photo {
@@ -521,7 +549,6 @@ html[data-shift-hints='1'] .proto-toolbar-orb-group {
   border-radius: 50%;
   object-fit: cover;
   display: block;
-  flex-shrink: 0;
 }
 
 /* Avatar circle */
@@ -598,7 +625,9 @@ html[data-shift-hints='1'] .proto-toolbar-orb-group {
 /* ─── Popover menu ───────────────────────────────────────────────────────── */
 .proto-menu {
   position: relative;
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
   z-index: 1;
 }
 
