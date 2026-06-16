@@ -103,9 +103,14 @@ export default function HarvousMenuPill({
     updateMenuPosition();
   }, [open, isCoarse, updateMenuPosition, options.length, triggerLabel]);
 
-  // Scroll the selected option into view when the sheet opens.
+  // Opening the sheet: dismiss the iOS keyboard (a focused editor would otherwise leave it
+  // covering the bottom-anchored sheet) and scroll the selected option into view.
   useEffect(() => {
     if (!open || !isCoarse) return;
+    const active = document.activeElement as HTMLElement | null;
+    if (active && (active.isContentEditable || active.tagName === 'INPUT' || active.tagName === 'TEXTAREA')) {
+      active.blur();
+    }
     requestAnimationFrame(() => selectedItemRef.current?.scrollIntoView({ block: 'center' }));
   }, [open, isCoarse]);
 

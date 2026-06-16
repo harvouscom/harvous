@@ -1006,6 +1006,11 @@ button[disabled] {
   transform: translateY(-50%) scale(0.92);
 }
 
+/* Force the check white regardless of inherited color / icon rules. */
+.scripture-draft-confirm-float svg path {
+  stroke: #fff;
+}
+
 @keyframes scripture-draft-confirm-pop {
   from {
     opacity: 0;

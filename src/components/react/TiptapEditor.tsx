@@ -24,7 +24,6 @@ import { ScripturePill } from './TiptapScripturePill';
 import {
   ScriptureDraft,
   enterScriptureDraftView,
-  expandScriptureDraftView,
   confirmScriptureDraftView,
   confirmAnyScriptureDraftView,
   cancelScriptureDraftView,
@@ -1760,29 +1759,11 @@ function enterScriptureDraftAtCursor(
   return enterScriptureDraftView(editor.view, pos.from, pos.to);
 }
 
-/** Grow an existing draft to the full reference now ending at the caret (same block, only larger). */
-function maybeExpandScriptureDraft(
-  editor: any,
-  existing: { from: number; to: number },
-  cursorPos: number,
-): void {
-  const doc = editor.state.doc;
-  const cursorEnding = detectScriptureReferenceEndingAtCursor(doc, cursorPos);
-  if (!cursorEnding || cursorEnding.from == null || cursorEnding.to == null) return;
-  const newFrom = Math.min(existing.from, cursorEnding.from);
-  const newTo = Math.max(existing.to, cursorEnding.to);
-  if (newFrom === existing.from && newTo === existing.to) return;
-  const $a = doc.resolve(existing.from);
-  const $b = doc.resolve(newTo);
-  if ($a.start($a.depth) !== $b.start($b.depth)) return; // same block only
-  expandScriptureDraftView(editor.view, newFrom, newTo);
-}
-
 /**
  * Passive draft detection for the prototype: enter edit-mode instead of committing a pill.
- * If a draft already exists, grow it to cover the full reference now ending at the caret so
- * continuation chars that landed as plain text (iOS dropping the stored draft mark) are
- * re-absorbed rather than orphaned.
+ * One draft at a time — the draft stays fixed to the detected reference; a range tail typed
+ * after it stays plain text and is absorbed when the draft is confirmed (no live growth, which
+ * split into multiple draft pills on iOS).
  */
 function runScriptureDraftDetectionAtCursor(editor: any): void {
   if (!editor || editor.isDestroyed || !editor.view) return;
@@ -1791,14 +1772,10 @@ function runScriptureDraftDetectionAtCursor(editor: any): void {
     const { from, to } = state.selection;
     if (from !== to || from < 2) return;
     const $from = state.doc.resolve(from);
-    // Don't start/extend a draft from inside a committed pill.
+    // Don't start a draft inside a committed pill.
     if ($from.marks().some((m: any) => m.type.name === 'scripturePill')) return;
-
-    const existing = getScriptureDraftRange(state);
-    if (existing) {
-      maybeExpandScriptureDraft(editor, existing, from);
-      return;
-    }
+    // A draft already exists anywhere — leave it (it's confirmed on tap-✓ / detach).
+    if (getScriptureDraftAnchorPos(state) != null) return;
     enterScriptureDraftAtCursor(editor, from, isScripturePillBoundaryCursor($from, state.doc));
   } catch {
     /* ignore */
@@ -6238,9 +6215,10 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       if (!isEditorValid(editor)) return;
       const detached = findDetachedScriptureDraft(editor.state);
       if (!detached) return;
-      // If the caret has only moved past the draft by reference-continuation chars within the
-      // same block (e.g. ":6-9" typed after "Exodus 5" when iOS dropped the stored draft mark),
-      // re-absorb them instead of committing a partial pill.
+      // While the caret has only moved past the draft by reference-continuation chars in the
+      // same block (e.g. typing the "-2" of a range as plain text), wait — don't commit a
+      // partial pill. Confirm (✓ / a non-continuation key / leaving) absorbs the tail via
+      // extendRangeOverTrailingContinuation into one clean pill.
       const state = editor.state;
       const caret = state.selection.from;
       if (caret > detached.to) {
@@ -6249,7 +6227,6 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
         const $c = state.doc.resolve(caret);
         const sameBlock = $a.start($a.depth) === $c.start($c.depth);
         if (sameBlock && /^[\d:,\-–—]+$/.test(gap)) {
-          maybeExpandScriptureDraft(editor, detached, caret);
           return;
         }
       }
@@ -7806,7 +7783,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
               <path
                 d="M13.5 4.5l-6.5 7-3.5-3.5"
                 fill="none"
-                stroke="currentColor"
+                stroke="#fff"
                 strokeWidth="2.2"
                 strokeLinecap="round"
                 strokeLinejoin="round"

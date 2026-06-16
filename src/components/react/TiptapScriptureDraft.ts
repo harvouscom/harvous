@@ -32,8 +32,11 @@ const DRAFT_STYLE =
 export const ScriptureDraft = Mark.create<ScriptureDraftOptions>({
   name: 'scriptureDraft',
 
-  // Typed characters at the right edge join the draft so the reference grows in place.
-  inclusive: true,
+  // Non-inclusive: typed characters at the edge do NOT join the draft. On iOS, growing an
+  // inclusive mark mid-type splits into multiple draft pills (e.g. "Exodus 5:1" + "-2"); instead
+  // the draft stays fixed to the detected reference, range tails stay plain text, and confirm
+  // (extendRangeOverTrailingContinuation) absorbs them into one clean committed pill.
+  inclusive: false,
 
   addOptions() {
     return { HTMLAttributes: {} };
@@ -100,7 +103,9 @@ export function getScriptureDraftAnchorPos(state: any): number | null {
     (best, r) => (Math.abs(r.end - caret) < Math.abs(best.end - caret) ? r : best),
     ranges[0],
   );
-  return target.end;
+  // Anchor past any range tail typed as plain text after the draft (e.g. the "-2" of a range)
+  // so the ✓ sits at the end of the reference-in-progress, not between the pill and the tail.
+  return extendRangeOverTrailingContinuation(state.doc, target.end);
 }
 
 /** True when the doc contains a draft mark whose range does NOT contain the caret. */
@@ -153,41 +158,12 @@ export function enterScriptureDraftView(view: any, from: number, to: number): bo
   const caretInside = sel.empty && sel.from >= from && sel.from <= to;
   const tr = state.tr;
   tr.addMark(from, to, draftType.create({}));
-  // Only snap the caret to the draft end (and keep the draft mark stored so the next
-  // character joins it) when the caret is still within the detected range. If the user has
-  // already typed past it, leave the caret alone — the detached-draft handler will confirm.
+  // Snap the caret to the draft end when it's still within the detected range, but do NOT
+  // store the draft mark — the draft is non-inclusive, so anything typed next (a range tail
+  // like "-2") stays plain text and is absorbed at confirm. This avoids the iOS multi-pill split.
   if (caretInside) {
     tr.setSelection(TextSelection.create(tr.doc, to));
-    tr.setStoredMarks([draftType.create({})]);
-  }
-  tr.setMeta('addToHistory', true);
-  view.dispatch(tr);
-  return true;
-}
-
-/**
- * Grow the draft to cover [from, to] and place the caret at its (inclusive) end. Used to
- * re-absorb reference-continuation characters (e.g. `:6-9`) that landed as plain text past
- * the draft when iOS dropped the stored draft mark. Only grows — callers pass a range that
- * is a superset of the current draft. Refuses to swallow a committed pill.
- */
-export function expandScriptureDraftView(view: any, from: number, to: number): boolean {
-  const { state } = view;
-  const draftType = state.schema.marks.scriptureDraft;
-  if (!draftType || to <= from) return false;
-
-  let blocked = false;
-  state.doc.nodesBetween(from, to, (node: any) => {
-    if (node.isText && node.marks.some((m: any) => m.type.name === 'scripturePill')) blocked = true;
-  });
-  if (blocked) return false;
-
-  const tr = state.tr;
-  tr.addMark(from, to, draftType.create({}));
-  const sel = state.selection;
-  if (sel.empty && sel.from >= from && sel.from <= to) {
-    tr.setSelection(TextSelection.create(tr.doc, to));
-    tr.setStoredMarks([draftType.create({})]);
+    tr.setStoredMarks([]);
   }
   tr.setMeta('addToHistory', true);
   view.dispatch(tr);
