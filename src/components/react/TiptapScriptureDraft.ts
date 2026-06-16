@@ -61,29 +61,33 @@ export const ScriptureDraft = Mark.create<ScriptureDraftOptions>({
   },
 
   addProseMirrorPlugins() {
-    return [
-      new Plugin({
-        key: new PluginKey('scriptureDraftGrow'),
-        // Keep the draft mark covering the full reference-in-progress: after each edit, extend it
-        // over any trailing reference-continuation chars (e.g. the "-2" of a range) that landed as
-        // plain text. Re-derives the span from the text every transaction, so it never relies on
-        // iOS preserving an inclusive mark across keystrokes (which split into multiple draft pills)
-        // — the mark is non-inclusive and this one addMark over the whole span keeps it a single pill.
-        appendTransaction(transactions, _oldState, newState) {
-          if (!transactions.some((t) => t.docChanged)) return null;
-          const draftType = newState.schema.marks.scriptureDraft;
-          if (!draftType) return null;
-          const growth = computeScriptureDraftGrowth(newState.doc, newState.selection.from);
-          if (!growth) return null;
-          const tr = newState.tr;
-          tr.addMark(growth.from, growth.to, draftType.create({}));
-          tr.setMeta('addToHistory', false);
-          return tr;
-        },
-      }),
-    ];
+    return [makeScriptureDraftGrowPlugin()];
   },
 });
+
+/**
+ * Plugin that keeps the draft mark covering the full reference-in-progress: after each edit it
+ * extends the mark over any trailing reference-continuation chars (e.g. the "-2" of a range) that
+ * landed as plain text. Re-derives the span from the text every transaction, so it never relies on
+ * iOS preserving an inclusive mark across keystrokes (which split into multiple draft pills) — the
+ * mark is non-inclusive and one `addMark` over the whole span keeps it a single pill.
+ */
+export function makeScriptureDraftGrowPlugin() {
+  return new Plugin({
+    key: new PluginKey('scriptureDraftGrow'),
+    appendTransaction(transactions, _oldState, newState) {
+      if (!transactions.some((t) => t.docChanged)) return null;
+      const draftType = newState.schema.marks.scriptureDraft;
+      if (!draftType) return null;
+      const growth = computeScriptureDraftGrowth(newState.doc, newState.selection.from);
+      if (!growth) return null;
+      const tr = newState.tr;
+      tr.addMark(growth.from, growth.to, draftType.create({}));
+      tr.setMeta('addToHistory', false);
+      return tr;
+    },
+  });
+}
 
 // ── Range helpers ─────────────────────────────────────────────────────────────
 

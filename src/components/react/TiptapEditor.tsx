@@ -6066,6 +6066,38 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       }, 400);
     };
 
+    // iOS refuses to refocus a contenteditable on the first tap after a programmatic blur
+    // (we blur when a pill tap opens the dock). So a tap *next to* a pill places no caret and
+    // shows no keyboard. If a plain editor tap didn't focus the editor, force focus + caret at
+    // the tapped position. ProseMirror focuses on pointerdown (before click), so isFocused is
+    // already true in the normal case and this no-ops.
+    const focusEditorAtTapFallback = (clientX: number, clientY: number, target: HTMLElement) => {
+      if (!editor || editor.isDestroyed || !editor.isEditable || editor.isFocused) return;
+      if (
+        target.closest('.scripture-pill') ||
+        target.closest('.reference-suggestion') ||
+        target.closest('.study-dock-card') ||
+        target.closest('.study-dock-carousel') ||
+        target.closest('.scripture-pill-chrome') ||
+        target.closest('.reference-dock-web') ||
+        target.closest('.highlight-dock-web') ||
+        target.closest('.harvous-menu-pill__sheet-backdrop')
+      ) {
+        return;
+      }
+      try {
+        const posInfo = editor.view.posAtCoords({ left: clientX, top: clientY });
+        editor.view.focus();
+        if (posInfo) editor.commands.setTextSelection(posInfo.pos);
+      } catch {
+        try {
+          editor.view.focus();
+        } catch {
+          /* ignore */
+        }
+      }
+    };
+
     const handlePillClick = (e: MouseEvent) => {
       const target = e.target as HTMLElement;
       const pillSpan = target.closest('.scripture-pill') as HTMLElement | null;
@@ -6075,6 +6107,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
         return;
       }
       handlePillPointer(e);
+      if (!pillSpan) focusEditorAtTapFallback(e.clientX, e.clientY, target);
     };
 
     const handleDismiss = (e: MouseEvent) => {

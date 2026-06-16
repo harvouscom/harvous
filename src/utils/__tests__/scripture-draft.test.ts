@@ -5,7 +5,9 @@ import {
   draftTextToReference,
   confirmScriptureDraftView,
   computeScriptureDraftGrowth,
+  makeScriptureDraftGrowPlugin,
 } from '@/components/react/TiptapScriptureDraft';
+import { collectScripturePillRanges } from '@/utils/scripture-pill-spacing';
 
 describe('draftTextToReference', () => {
   it('normalizes a complete reference', () => {
@@ -135,5 +137,22 @@ describe('computeScriptureDraftGrowth', () => {
   it('stops at non-continuation text (does not swallow following prose)', () => {
     const { view } = draftView('Exodus 5:1', ' and more');
     expect(computeScriptureDraftGrowth(view.state.doc, view.state.selection.from)).toBeNull();
+  });
+});
+
+describe('makeScriptureDraftGrowPlugin (end-to-end)', () => {
+  it('grows the draft mark over a plain range tail inserted after it, as one pill', () => {
+    const draftMark = draftSchema.marks.scriptureDraft.create();
+    const doc = draftSchema.node('doc', null, [
+      draftSchema.node('paragraph', null, [draftSchema.text('Exodus 5:1', [draftMark])]),
+    ]);
+    let state = EditorState.create({ doc, plugins: [makeScriptureDraftGrowPlugin()] });
+    const draftEnd = 1 + 'Exodus 5:1'.length; // position right after the draft
+    // Insert "-2" as a plain (unmarked) text node — simulates iOS dropping the mark on input.
+    state = state.apply(state.tr.insert(draftEnd, draftSchema.text('-2')));
+    // The plugin's appendTransaction should have extended the mark to cover the whole range.
+    const ranges = collectScripturePillRanges(state.doc, 'scriptureDraft');
+    expect(ranges).toHaveLength(1);
+    expect(state.doc.textBetween(ranges[0].start, ranges[0].end)).toBe('Exodus 5:1-2');
   });
 });
