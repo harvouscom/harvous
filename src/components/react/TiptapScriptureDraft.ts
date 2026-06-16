@@ -1,5 +1,5 @@
 import { Mark, getMarkRange } from '@tiptap/core';
-import { TextSelection } from '@tiptap/pm/state';
+import { Plugin, PluginKey, TextSelection } from '@tiptap/pm/state';
 import { detectScriptureReferences } from '@/utils/scripture-detector';
 import { collectScripturePillRanges, ensureScripturePillSpacing } from '@/utils/scripture-pill-spacing';
 
@@ -57,6 +57,30 @@ export const ScriptureDraft = Mark.create<ScriptureDraftOptions>({
         style: DRAFT_STYLE,
       },
       0,
+    ];
+  },
+
+  addProseMirrorPlugins() {
+    return [
+      new Plugin({
+        key: new PluginKey('scriptureDraftGrow'),
+        // Keep the draft mark covering the full reference-in-progress: after each edit, extend it
+        // over any trailing reference-continuation chars (e.g. the "-2" of a range) that landed as
+        // plain text. Re-derives the span from the text every transaction, so it never relies on
+        // iOS preserving an inclusive mark across keystrokes (which split into multiple draft pills)
+        // — the mark is non-inclusive and this one addMark over the whole span keeps it a single pill.
+        appendTransaction(transactions, _oldState, newState) {
+          if (!transactions.some((t) => t.docChanged)) return null;
+          const draftType = newState.schema.marks.scriptureDraft;
+          if (!draftType) return null;
+          const growth = computeScriptureDraftGrowth(newState.doc, newState.selection.from);
+          if (!growth) return null;
+          const tr = newState.tr;
+          tr.addMark(growth.from, growth.to, draftType.create({}));
+          tr.setMeta('addToHistory', false);
+          return tr;
+        },
+      }),
     ];
   },
 });
@@ -196,6 +220,29 @@ function extendRangeOverTrailingContinuation(doc: any, to: number, maxScan = 12)
     scanned += 1;
   }
   return end;
+}
+
+/**
+ * The mark range the draft should grow to so the pill visually covers the full
+ * reference-in-progress, or null when it already does. Anchors on the draft nearest the caret
+ * and extends over any trailing reference-continuation chars typed as plain text. The plugin
+ * (addProseMirrorPlugins) applies this as one `addMark`, keeping the draft a single pill
+ * regardless of how iOS applied marks to the typed characters.
+ */
+export function computeScriptureDraftGrowth(
+  doc: any,
+  caret: number,
+): { from: number; to: number } | null {
+  const ranges = collectScripturePillRanges(doc, 'scriptureDraft');
+  if (ranges.length === 0) return null;
+  const anchor = ranges.reduce(
+    (best, r) => (Math.abs(r.end - caret) < Math.abs(best.end - caret) ? r : best),
+    ranges[0],
+  );
+  const to = extendRangeOverTrailingContinuation(doc, anchor.end);
+  // Already a single contiguous range with nothing more to absorb.
+  if (ranges.length === 1 && anchor.end === to) return null;
+  return { from: anchor.start, to };
 }
 
 /**

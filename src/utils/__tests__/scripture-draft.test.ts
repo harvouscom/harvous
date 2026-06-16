@@ -4,6 +4,7 @@ import { EditorState, TextSelection } from '@tiptap/pm/state';
 import {
   draftTextToReference,
   confirmScriptureDraftView,
+  computeScriptureDraftGrowth,
 } from '@/components/react/TiptapScriptureDraft';
 
 describe('draftTextToReference', () => {
@@ -113,5 +114,26 @@ describe('confirmScriptureDraftView', () => {
     const ref = confirmScriptureDraftView(view, draftEnd);
     expect(ref).toBe('Psalm 27:1');
     expect(pillText(getState())).toBe('Psalm 27:1');
+  });
+});
+
+describe('computeScriptureDraftGrowth', () => {
+  it('grows the draft over a trailing range tail typed as plain text', () => {
+    // "Exodus 5:1"[draft] + "-2"[plain] — the plugin should mark them as one pill.
+    const { view } = draftView('Exodus 5:1', '-2');
+    const growth = computeScriptureDraftGrowth(view.state.doc, view.state.selection.from);
+    expect(growth).not.toBeNull();
+    expect(growth!.from).toBe(1);
+    expect(view.state.doc.textBetween(growth!.from, growth!.to)).toBe('Exodus 5:1-2');
+  });
+
+  it('returns null when the draft already covers the full reference', () => {
+    const { view } = draftView('Exodus 5:1');
+    expect(computeScriptureDraftGrowth(view.state.doc, view.state.selection.from)).toBeNull();
+  });
+
+  it('stops at non-continuation text (does not swallow following prose)', () => {
+    const { view } = draftView('Exodus 5:1', ' and more');
+    expect(computeScriptureDraftGrowth(view.state.doc, view.state.selection.from)).toBeNull();
   });
 });
