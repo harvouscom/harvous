@@ -8,8 +8,9 @@ npm run dev:spa          # SPA only on port 4322 (proxies /api to 3001). API mus
 npm run dev:all          # Same as dev: API + SPA
 npm run build            # Production build: inject SW version + build:api + build:spa (no Astro)
 npm run build:api        # Bundle Hono API to netlify/functions/api.cjs
-npm run db:sync          # Drizzle Kit push (sync schema to Supabase)
-npm run db:push          # Drizzle Kit push (apply server/db/schema.ts to Supabase)
+npm run db:sync          # Drizzle Kit push (sync schema to Supabase) + auto-enable RLS
+npm run db:push          # Drizzle Kit push (apply server/db/schema.ts to Supabase) + auto-enable RLS
+npm run db:rls           # Enable RLS on all public tables (dynamic; runs automatically after db:push)
 npm run db:check         # Pre-commit schema check (server/db/schema.ts)
 npm run test:e2e         # Playwright e2e (join/invite flows)
 npm run test:e2e:setup   # Seed e2e data then run e2e
@@ -106,6 +107,8 @@ Playwright tests for **join** and **invite** flows live in `e2e/shared-space-joi
 ## Database
 
 Supabase Postgres via Drizzle ORM. Schema in `server/db/schema.ts`. Env: `SUPABASE_DATABASE_URL` (pooler, port 6543 — used at runtime), `SUPABASE_DIRECT_URL` (port 5432 — used by drizzle-kit for migrations). Run `npm run db:push` (drizzle-kit push) pre-deploy, `npm run db:check` pre-commit.
+
+`npm run db:push` now also runs `scripts/run-enable-rls.ts`, which enables Row-Level Security on every public table (Drizzle creates new tables with RLS off by default). This is automatic — no manual SQL-editor step is needed to clear Supabase's `rls_disabled_in_public` advisory. The app's API uses the service-role key (bypasses RLS) and the browser anon client uses Realtime Broadcast only, so RLS with no policies is safe.
 
 **Cross-device instant sync (Realtime):** After mutations, the API broadcasts on Supabase Realtime channel `sync-{userId}` when `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` are set. Web uses `useRealtimeSync` (`VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, Clerk template `supabase`). Native uses `HarvousRealtimeSync` (`HARVOUS_SUPABASE_*` in xcconfig). See [docs/SUPABASE_REALTIME_SETUP.md](docs/SUPABASE_REALTIME_SETUP.md). HTTP sync remains authoritative; 5-minute background poll is still a fallback.
 

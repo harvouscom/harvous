@@ -1,6 +1,11 @@
 -- Enable Row Level Security on all tables.
 -- The service_role key bypasses RLS, so no policies are needed.
 -- This blocks anonymous/anon-key access by default.
+--
+-- NOTE: This file is a manual reference (e.g. for pasting into the Supabase SQL
+-- editor). The source of truth is scripts/run-enable-rls.ts, which discovers all
+-- public tables dynamically and runs automatically after `npm run db:push`.
+-- You should not need to run this by hand.
 
 ALTER TABLE "Spaces" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "Threads" ENABLE ROW LEVEL SECURITY;

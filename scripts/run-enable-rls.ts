@@ -1,12 +1,27 @@
 /**
- * Enable RLS on all public app tables (see scripts/enable-rls.sql).
+ * Enable RLS on every public app table — discovered dynamically.
+ *
+ * Runs automatically after `npm run db:push` (see package.json), so any table
+ * created by `drizzle-kit push` is protected without needing to maintain a list.
  *
  * Usage (from repo root, with Supabase credentials in .env):
  *   npx tsx scripts/run-enable-rls.ts
  */
 import 'dotenv/config';
-import { readFileSync } from 'node:fs';
 import postgres from 'postgres';
+
+/** All public base tables and whether RLS is currently enabled. */
+const publicTablesQuery = (sql: postgres.Sql) => sql<
+  { table_name: string; rls_enabled: boolean }[]
+>`
+  SELECT c.relname AS table_name, c.relrowsecurity AS rls_enabled
+  FROM pg_class c
+  JOIN pg_namespace n ON n.oid = c.relnamespace
+  WHERE n.nspname = 'public'
+    AND c.relkind = 'r'
+    AND NOT c.relname LIKE 'pg_%'
+  ORDER BY c.relname
+`;
 
 async function main() {
   const url = process.env.SUPABASE_DIRECT_URL ?? process.env.SUPABASE_DATABASE_URL;
@@ -15,35 +30,30 @@ async function main() {
     process.exit(1);
   }
 
-  const sqlText = readFileSync('scripts/enable-rls.sql', 'utf8');
-  const statements = sqlText
-    .split(';')
-    .map((s) => s.replace(/--[^\n]*/g, '').trim())
-    .filter(Boolean);
-
   const sql = postgres(url, { max: 1, connect_timeout: 30 });
   try {
-    for (const statement of statements) {
-      await sql.unsafe(`${statement};`);
-      const table = statement.match(/"([^"]+)"/)?.[1];
-      console.log('OK:', table ?? statement.slice(0, 60));
+    const tables = await publicTablesQuery(sql);
+    const needsRls = tables.filter((t) => !t.rls_enabled);
+
+    if (needsRls.length === 0) {
+      console.log(`All ${tables.length} public tables already have RLS enabled.`);
+      return;
     }
 
-    const rows = await sql`
-      SELECT c.relname AS table_name, c.relrowsecurity AS rls_enabled
-      FROM pg_class c
-      JOIN pg_namespace n ON n.oid = c.relnamespace
-      WHERE n.nspname = 'public'
-        AND c.relkind = 'r'
-        AND NOT c.relname LIKE 'pg_%'
-      ORDER BY c.relname
-    `;
+    for (const { table_name } of needsRls) {
+      // Identifier is quoted because table names are mixed-case. ENABLE on a
+      // table that already has RLS is a no-op, so this is idempotent.
+      await sql.unsafe(`ALTER TABLE "${table_name}" ENABLE ROW LEVEL SECURITY;`);
+      console.log('Enabled RLS:', table_name);
+    }
 
-    const disabled = rows.filter((r) => !r.rls_enabled);
-    console.log('Tables checked:', rows.length);
-    console.log('RLS disabled:', disabled.length);
+    const after = await publicTablesQuery(sql);
+    const disabled = after.filter((t) => !t.rls_enabled);
+    console.log('Tables checked:', after.length);
+    console.log('RLS enabled this run:', needsRls.length);
+    console.log('RLS still disabled:', disabled.length);
     if (disabled.length) {
-      console.error('Still disabled:', disabled.map((r) => r.table_name).join(', '));
+      console.error('Still disabled:', disabled.map((t) => t.table_name).join(', '));
       process.exit(1);
     }
     console.log('All public tables have RLS enabled.');
