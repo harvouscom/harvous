@@ -56,3 +56,5 @@ server/data/scripture-knowledge/raw/
 server/data/scripture-knowledge/cross-references.json
 server/data/scripture-knowledge/topics.json
 server/data/scripture-knowledge/topic-verses.json
+server/data/scripture-knowledge/places.json
+server/data/scripture-knowledge/place-refs.json

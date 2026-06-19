@@ -14,6 +14,8 @@ Licensing/attribution: [ATTRIBUTION.md](./ATTRIBUTION.md).
 | `cross-references.json` | no (gitignored) | Full normalized output — regenerate, don't commit (~tens of MB) |
 | `topics.sample.json` / `topic-verses.sample.json` | yes | Small fixtures (one verse's themes) |
 | `topics.json` / `topic-verses.json` | no (gitignored) | Full topic registry + verse edges — regenerate |
+| `places.sample.json` / `place-refs.sample.json` | yes | Small fixtures (one verse's places) |
+| `places.json` / `place-refs.json` | no (gitignored) | Full place registry + verse edges — regenerate |
 | `raw/` | no (gitignored) | Raw dataset downloads (build inputs) |
 
 The full `cross-references.json` is a deterministic derivative of a CC-BY public dataset, so it
@@ -45,16 +47,29 @@ npm run skl:import:topics                # or: npx tsx server/scripts/import-top
 #   (short same-chapter ranges up to --max-span verses are expanded to per-verse edges)
 ```
 
+## Regenerate places
+
+```bash
+# 1. Download the OpenBible geocoding places file (CC-BY)
+mkdir -p server/data/scripture-knowledge/raw
+curl -sL https://raw.githubusercontent.com/openbibleinfo/Bible-Geocoding-Data/master/data/ancient.jsonl \
+  -o server/data/scripture-knowledge/raw/ancient.jsonl
+
+# 2. Normalize → places.json + place-refs.json
+npm run skl:import:places                # or: npx tsx server/scripts/import-places.ts
+```
+
 ## Seed into Supabase
 
 Requires the canonical tables to exist (`npm run db:push`) and DB env vars set. This writes to
 shared reference tables with the service-role key.
 
 ```bash
-npm run skl:seed                        # both cross-references and topics
+npm run skl:seed                        # cross-references, topics, and places
 # selective:
 npx tsx server/scripts/seed-scripture-knowledge.ts topics
 npx tsx server/scripts/seed-scripture-knowledge.ts crossrefs
+npx tsx server/scripts/seed-scripture-knowledge.ts places
 ```
 
 If a full file is absent, the seed falls back to the matching `*.sample.json` for a smoke run.

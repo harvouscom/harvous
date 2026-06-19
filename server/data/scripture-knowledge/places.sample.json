@@ -1,0 +1,23 @@
+[
+  {
+    "id": "place_abana",
+    "slug": "abana",
+    "name": "Abana",
+    "latitude": null,
+    "longitude": null
+  },
+  {
+    "id": "place_damascus",
+    "slug": "damascus",
+    "name": "Damascus",
+    "latitude": null,
+    "longitude": null
+  },
+  {
+    "id": "place_pharpar",
+    "slug": "pharpar",
+    "name": "Pharpar",
+    "latitude": null,
+    "longitude": null
+  }
+]

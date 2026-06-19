@@ -1,0 +1,72 @@
+[
+  {
+    "entityType": "place",
+    "entityId": "place_damascus",
+    "book": "Genesis",
+    "chapter": 14,
+    "verse": 15
+  },
+  {
+    "entityType": "place",
+    "entityId": "place_damascus",
+    "book": "Genesis",
+    "chapter": 15,
+    "verse": 2
+  },
+  {
+    "entityType": "place",
+    "entityId": "place_damascus",
+    "book": "2 Samuel",
+    "chapter": 8,
+    "verse": 5
+  },
+  {
+    "entityType": "place",
+    "entityId": "place_damascus",
+    "book": "2 Samuel",
+    "chapter": 8,
+    "verse": 6
+  },
+  {
+    "entityType": "place",
+    "entityId": "place_damascus",
+    "book": "1 Kings",
+    "chapter": 11,
+    "verse": 24
+  },
+  {
+    "entityType": "place",
+    "entityId": "place_damascus",
+    "book": "1 Kings",
+    "chapter": 15,
+    "verse": 18
+  },
+  {
+    "entityType": "place",
+    "entityId": "place_damascus",
+    "book": "1 Kings",
+    "chapter": 19,
+    "verse": 15
+  },
+  {
+    "entityType": "place",
+    "entityId": "place_damascus",
+    "book": "1 Kings",
+    "chapter": 20,
+    "verse": 34
+  },
+  {
+    "entityType": "place",
+    "entityId": "place_abana",
+    "book": "2 Kings",
+    "chapter": 5,
+    "verse": 12
+  },
+  {
+    "entityType": "place",
+    "entityId": "place_pharpar",
+    "book": "2 Kings",
+    "chapter": 5,
+    "verse": 12
+  }
+]

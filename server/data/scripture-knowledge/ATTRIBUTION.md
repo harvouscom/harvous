@@ -24,10 +24,20 @@ All data is **verse-addressed and translation-agnostic** (it points at reference
 - **Processing:** Numeric verse ids (`bbcccvvv`) decoded to canonical references and validated
   by `server/scripts/import-topics.ts`; short same-chapter ranges expanded to per-verse edges.
 
+## Places — `places.json`, `place-refs.json`
+
+- **Source:** [OpenBible.info Bible Geocoding](https://github.com/openbibleinfo/Bible-Geocoding-Data),
+  file `data/ancient.jsonl`.
+- **License:** Creative Commons Attribution (CC-BY 4.0). Some geometry derives from
+  OpenStreetMap (ODbL).
+- **Attribution:** Place data courtesy of OpenBible.info, used under CC-BY.
+- **Processing:** `server/scripts/import-places.ts` extracts place name + OSIS verse references
+  (coordinates deferred — precise geometry lives in separate per-place geojson files).
+
 ## Planned additions (not yet imported)
 
-- **People:** open "people of the Bible" datasets, e.g. Viz.Bible (CC-BY).
-- **Places:** OpenBible.info Bible Geocoding (CC-BY).
+- **People:** STEPBible TIPNR (Tyndale House, CC-BY 4.0) — proper names with all references; its
+  abbreviated reference format needs a dedicated parser (next pass).
 - **Definitions:** Easton's Bible Dictionary (public domain) — already shipped in
   `server/data/dictionaries/`.
 
