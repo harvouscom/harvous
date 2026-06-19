@@ -50,3 +50,7 @@ native/Harvous/.harvous_ios_derived_data/
 .agents/
 skills-lock.json
 .claude/scheduled_tasks.lock
+
+# Scripture knowledge layer — raw downloads + large generated data (regenerate via scripts)
+server/data/scripture-knowledge/raw/
+server/data/scripture-knowledge/cross-references.json

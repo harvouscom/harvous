@@ -79,5 +79,6 @@ Free users might get 1–3 uses/month to experience it before hitting a paywall.
 ## Related Docs
 
 - [HARVOUS_NORTH_STAR.md](./HARVOUS_NORTH_STAR.md) — "Learn" pillar; this feature fits between Remember and Learn
+- [SCRIPTURE_KNOWLEDGE_LAYER.md](./SCRIPTURE_KNOWLEDGE_LAYER.md) — deterministic knowledge layer that *grounds* this panel (real cross-references and note connections, so the AI reads facts instead of recalling them)
 - [SMS_AND_EMAIL_CAPTURE.md](./SMS_AND_EMAIL_CAPTURE.md) — AI premium tier pattern
 - [SCRIPTURE_NOTES_FUTURE_IMPROVEMENTS.md](./SCRIPTURE_NOTES_FUTURE_IMPROVEMENTS.md) — Other scripture note enhancements

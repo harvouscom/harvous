@@ -52,6 +52,8 @@ Passive resurfacing of what you've saved — no AI required:
 
 The tagline here: **"You saved it. We'll make sure you don't forget it."**
 
+> Substrate: [SCRIPTURE_KNOWLEDGE_LAYER.md](./SCRIPTURE_KNOWLEDGE_LAYER.md) — a shared, deterministic scripture knowledge layer (themes, people, places, cross-references from open datasets) that powers this resurfacing with no AI, and grounds the Learn pillar's AI features.
+
 ### 3. Learn (Active Review)
 Duolingo-style challenges and memory checks built from your own content:
 - Quizzes generated from your notes ("You wrote about grace 8 times — let's test you")

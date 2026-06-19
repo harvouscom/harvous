@@ -30,6 +30,13 @@ These were designed here and are now live. The stub files in this folder point t
   - Future core features: space sharing and groups, then learning (challenges, recall/quizzes, live events)
   - Phase sequence and anti-patterns (not a dumping ground, not fragmented)
 
+### Scripture Intelligence
+
+- **`SCRIPTURE_KNOWLEDGE_LAYER.md`** - Shared canonical knowledge layer (themes, people, places, cross-references) over Scripture, sourced from open datasets (TSK, OpenBible.info, Easton's)
+  - Deterministic connections between a user's notes with no AI at runtime; grounds future AI features
+  - Flagship near-term win: passage-aware auto-folder/auto-tag (uses a note's cited passages, not just its prose)
+  - Phased roadmap: schema + data pipeline → connection layer → auto-tag/folder → resurfacing → suggested threads → AI grounding
+
 ### Mobile Apps
 
 - **`CAPACITOR_STRATEGIC_ANALYSIS.md`** - Strategic analysis for iOS/Android native apps

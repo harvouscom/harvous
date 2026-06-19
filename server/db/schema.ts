@@ -435,6 +435,93 @@ export const BibleVerses = pgTable('BibleVerses', {
   index('BibleVerses_lookup').on(table.translationId, table.book, table.chapter),
 ]);
 
+// ─── Scripture Knowledge Layer (shared canonical reference data) ─────────────────
+// Authored once from open datasets (TSK cross-references; OpenBible.info topics / people /
+// places to follow) and shipped to every user. No `userId` — identical for all users, like
+// BibleVerses. The join key into user data is (book, chapter, verse) against
+// ScriptureMetadata. See docs/future/SCRIPTURE_KNOWLEDGE_LAYER.md.
+
+export const ScriptureCrossReferences = pgTable('ScriptureCrossReferences', {
+  id: text('id').primaryKey(),
+  fromBook: text('fromBook').notNull(),
+  fromChapter: integer('fromChapter').notNull(),
+  fromVerse: integer('fromVerse').notNull(),
+  toBook: text('toBook').notNull(),
+  toChapterStart: integer('toChapterStart').notNull(),
+  toChapterEnd: integer('toChapterEnd').notNull(),
+  toVerseStart: integer('toVerseStart').notNull(),
+  toVerseEnd: integer('toVerseEnd').notNull(),
+  votes: integer('votes').notNull().default(0),
+  source: text('source').notNull().default('TSK'),
+}, (table) => [
+  uniqueIndex('ScriptureCrossReferences_unique').on(
+    table.fromBook, table.fromChapter, table.fromVerse,
+    table.toBook, table.toChapterStart, table.toVerseStart,
+  ),
+  index('ScriptureCrossReferences_from').on(table.fromBook, table.fromChapter, table.fromVerse),
+]);
+
+export const ScriptureTopics = pgTable('ScriptureTopics', {
+  id: text('id').primaryKey(),
+  slug: text('slug').notNull().unique(),
+  label: text('label').notNull(),
+  category: text('category'),
+  source: text('source'),
+});
+
+export const ScriptureTopicVerses = pgTable('ScriptureTopicVerses', {
+  id: text('id').primaryKey(),
+  topicId: text('topicId').notNull(),
+  book: text('book').notNull(),
+  chapter: integer('chapter').notNull(),
+  verse: integer('verse').notNull(),
+  relevance: integer('relevance').notNull().default(0),
+}, (table) => [
+  uniqueIndex('ScriptureTopicVerses_unique').on(table.topicId, table.book, table.chapter, table.verse),
+  index('ScriptureTopicVerses_byVerse').on(table.book, table.chapter, table.verse),
+  index('ScriptureTopicVerses_byTopic').on(table.topicId),
+]);
+
+export const BiblePeople = pgTable('BiblePeople', {
+  id: text('id').primaryKey(),
+  slug: text('slug').notNull().unique(),
+  name: text('name').notNull(),
+  aliases: text('aliases'),
+  source: text('source'),
+});
+
+export const BiblePlaces = pgTable('BiblePlaces', {
+  id: text('id').primaryKey(),
+  slug: text('slug').notNull().unique(),
+  name: text('name').notNull(),
+  aliases: text('aliases'),
+  latitude: real('latitude'),
+  longitude: real('longitude'),
+  source: text('source'),
+});
+
+export const ScriptureEntityRefs = pgTable('ScriptureEntityRefs', {
+  id: text('id').primaryKey(),
+  entityType: text('entityType').notNull(),
+  entityId: text('entityId').notNull(),
+  book: text('book').notNull(),
+  chapter: integer('chapter').notNull(),
+  verse: integer('verse').notNull(),
+}, (table) => [
+  uniqueIndex('ScriptureEntityRefs_unique').on(table.entityType, table.entityId, table.book, table.chapter, table.verse),
+  index('ScriptureEntityRefs_byVerse').on(table.book, table.chapter, table.verse),
+  index('ScriptureEntityRefs_byEntity').on(table.entityType, table.entityId),
+]);
+
+export const TopicRelations = pgTable('TopicRelations', {
+  id: text('id').primaryKey(),
+  fromTopicId: text('fromTopicId').notNull(),
+  toTopicId: text('toTopicId').notNull(),
+  kind: text('kind').notNull().default('related'),
+}, (table) => [
+  uniqueIndex('TopicRelations_unique').on(table.fromTopicId, table.toTopicId, table.kind),
+]);
+
 // ─── ResourceMetadata ──────────────────────────────────────────────────────────
 
 export const ResourceMetadata = pgTable('ResourceMetadata', {

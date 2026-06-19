@@ -57,7 +57,9 @@
     "bible:generate": "node server/data/bibles/_generate_translation.mjs",
     "bible:generate:all": "node server/data/bibles/_generate_all_new_bibles.mjs",
     "bible:download:bolls": "node server/data/bibles/_download_bolls.mjs",
-    "bible:download:bolls:all": "node server/data/bibles/_download_all_bolls.mjs"
+    "bible:download:bolls:all": "node server/data/bibles/_download_all_bolls.mjs",
+    "skl:import:crossrefs": "tsx server/scripts/import-cross-references.ts",
+    "skl:seed": "tsx server/scripts/seed-scripture-knowledge.ts"
   },
   "dependencies": {
     "@capacitor/android": "^8.1.0",
