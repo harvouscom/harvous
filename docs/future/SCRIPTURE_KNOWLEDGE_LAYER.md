@@ -8,7 +8,9 @@ features.
 **Status:** Phase 0 data layer complete — all CC-BY, imported, normalized, and seeded into
 Supabase: cross-references (TSK, 341k), topics (OpenBible, 6.7k topics / 629k verse edges),
 places (OpenBible geocoding, 1.3k places / 8.7k verse edges), and people (STEPBible TIPNR, 3.1k
-people / 11.4k verse edges). The connection layer (Phase 1) is next. See the roadmap at the end.
+people / 11.4k verse edges). The connection layer (Phase 1) has landed —
+`server/utils/scripture-knowledge.ts` (`getKnowledgeForReference`, `getRelatedNotesForNote`).
+Phase 2 (passage-aware auto-folder/auto-tag) is next. See the roadmap at the end.
 
 ---
 
@@ -243,9 +245,10 @@ study-guide scaffolding.
   `server/data/scripture-knowledge/` + importers (TSK, OpenBible) with book-name normalization +
   a seed script mirroring `seed-bible-verses.ts`. *Acceptance:* querying "themes + cross-refs for
   John 3:16" returns sensible rows.
-- **Phase 1 — Connection layer.** Pure, unit-tested server utils (e.g.
-  `getKnowledgeForReference(book, ch, v)`, `getRelatedNotesForNote(noteId)`) joining
-  `ScriptureMetadata` ↔ canonical edges ↔ the user's other notes.
+- **Phase 1 — Connection layer (done).** Pure, unit-tested server utils
+  (`getKnowledgeForReference(book, ch, v)`, `getRelatedNotesForNote(noteId)`) joining
+  `ScriptureMetadata` ↔ canonical edges ↔ the user's other notes. Implemented in
+  `server/utils/scripture-knowledge.ts`; ranking logic isolated in the pure `rankRelatedNotes`.
 - **Phase 2 — Passage-aware auto-folder & auto-tag (recommended first consumer).** Thread
   referenced-passage themes/entities into `generateAutoTags()` /
   `suggestPrimaryCollectionFromNote()` as the second confidence signal. Highest leverage: runs on
