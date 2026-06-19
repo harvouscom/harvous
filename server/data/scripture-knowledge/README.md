@@ -16,6 +16,8 @@ Licensing/attribution: [ATTRIBUTION.md](./ATTRIBUTION.md).
 | `topics.json` / `topic-verses.json` | no (gitignored) | Full topic registry + verse edges — regenerate |
 | `places.sample.json` / `place-refs.sample.json` | yes | Small fixtures (one verse's places) |
 | `places.json` / `place-refs.json` | no (gitignored) | Full place registry + verse edges — regenerate |
+| `people.sample.json` / `person-refs.sample.json` | yes | Small fixtures (one person's refs) |
+| `people.json` / `person-refs.json` | no (gitignored) | Full person registry + verse edges — regenerate |
 | `raw/` | no (gitignored) | Raw dataset downloads (build inputs) |
 
 The full `cross-references.json` is a deterministic derivative of a CC-BY public dataset, so it
@@ -59,17 +61,30 @@ curl -sL https://raw.githubusercontent.com/openbibleinfo/Bible-Geocoding-Data/ma
 npm run skl:import:places                # or: npx tsx server/scripts/import-places.ts
 ```
 
+## Regenerate people
+
+```bash
+# 1. Download the STEPBible TIPNR file (CC-BY) into raw/tipnr.txt
+mkdir -p server/data/scripture-knowledge/raw
+curl -sL "https://raw.githubusercontent.com/STEPBible/STEPBible-Data/master/Proper%20Nouns/TIPNR%20-%20Translators%20Individualised%20Proper%20Names%20with%20all%20References%20-%20STEPBible.org%20CC%20BY.txt" \
+  -o server/data/scripture-knowledge/raw/tipnr.txt
+
+# 2. Normalize → people.json + person-refs.json (ref expansion: src/utils/tipnr-refs.ts)
+npm run skl:import:people                # or: npx tsx server/scripts/import-people.ts
+```
+
 ## Seed into Supabase
 
 Requires the canonical tables to exist (`npm run db:push`) and DB env vars set. This writes to
 shared reference tables with the service-role key.
 
 ```bash
-npm run skl:seed                        # cross-references, topics, and places
+npm run skl:seed                        # cross-references, topics, places, and people
 # selective:
 npx tsx server/scripts/seed-scripture-knowledge.ts topics
 npx tsx server/scripts/seed-scripture-knowledge.ts crossrefs
 npx tsx server/scripts/seed-scripture-knowledge.ts places
+npx tsx server/scripts/seed-scripture-knowledge.ts people
 ```
 
 If a full file is absent, the seed falls back to the matching `*.sample.json` for a smoke run.

@@ -58,3 +58,5 @@ server/data/scripture-knowledge/topics.json
 server/data/scripture-knowledge/topic-verses.json
 server/data/scripture-knowledge/places.json
 server/data/scripture-knowledge/place-refs.json
+server/data/scripture-knowledge/people.json
+server/data/scripture-knowledge/person-refs.json

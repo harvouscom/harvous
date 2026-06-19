@@ -20,7 +20,7 @@ import { readFileSync, existsSync } from 'fs';
 import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { db } from '../db/client';
-import { ScriptureCrossReferences, ScriptureTopics, ScriptureTopicVerses, BiblePlaces, ScriptureEntityRefs } from '../db/schema';
+import { ScriptureCrossReferences, ScriptureTopics, ScriptureTopicVerses, BiblePlaces, BiblePeople, ScriptureEntityRefs } from '../db/schema';
 import type { CrossReferenceRow } from './import-cross-references';
 import type { TopicRow, TopicVerseRow } from './import-topics';
 import type { PlaceRow, EntityRefRow } from './import-places';
@@ -152,11 +152,42 @@ async function seedPlaces(): Promise<void> {
   }));
 }
 
+async function seedPeople(): Promise<void> {
+  const peopleFile = pickFile('people');
+  const refsFile = pickFile('person-refs');
+  if (!peopleFile || !refsFile) {
+    console.warn('No people data. Run import-people.ts first.');
+    return;
+  }
+
+  const people: Array<{ id: string; slug: string; name: string }> = JSON.parse(readFileSync(peopleFile, 'utf-8'));
+  console.log(`Seeding ${people.length.toLocaleString()} people from ${peopleFile}...`);
+  await insertBatched('people', people, BiblePeople, (p) => ({
+    id: p.id,
+    slug: p.slug,
+    name: p.name,
+    aliases: null,
+    source: 'stepbible',
+  }));
+
+  const refs: EntityRefRow[] = JSON.parse(readFileSync(refsFile, 'utf-8'));
+  console.log(`Seeding ${refs.length.toLocaleString()} person→verse edges from ${refsFile}...`);
+  await insertBatched('person-refs', refs, ScriptureEntityRefs, (r) => ({
+    id: `er_${r.entityId}__${slug(r.book)}.${r.chapter}.${r.verse}`,
+    entityType: r.entityType,
+    entityId: r.entityId,
+    book: r.book,
+    chapter: r.chapter,
+    verse: r.verse,
+  }));
+}
+
 async function main() {
   const only = process.argv.slice(2).find((a) => !a.startsWith('--'));
   if (!only || only === 'crossrefs') await seedCrossReferences();
   if (!only || only === 'topics') await seedTopics();
   if (!only || only === 'places') await seedPlaces();
+  if (!only || only === 'people') await seedPeople();
   process.exit(0);
 }
 

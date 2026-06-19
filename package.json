@@ -61,6 +61,7 @@
     "skl:import:crossrefs": "tsx server/scripts/import-cross-references.ts",
     "skl:import:topics": "tsx server/scripts/import-topics.ts",
     "skl:import:places": "tsx server/scripts/import-places.ts",
+    "skl:import:people": "tsx server/scripts/import-people.ts",
     "skl:seed": "tsx server/scripts/seed-scripture-knowledge.ts"
   },
   "dependencies": {

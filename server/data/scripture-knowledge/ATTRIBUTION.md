@@ -34,10 +34,20 @@ All data is **verse-addressed and translation-agnostic** (it points at reference
 - **Processing:** `server/scripts/import-places.ts` extracts place name + OSIS verse references
   (coordinates deferred — precise geometry lives in separate per-place geojson files).
 
+## People — `people.json`, `person-refs.json`
+
+- **Source:** [STEPBible TIPNR](https://github.com/STEPBible/STEPBible-Data) (Translators
+  Individualised Proper Names with all References), Tyndale House Cambridge.
+- **License:** Creative Commons Attribution (CC-BY 4.0). Refer others to github.com/STEPBible as
+  the source of the data.
+- **Attribution:** Data created by www.STEPBible.org based on work at Tyndale House Cambridge,
+  used under CC-BY 4.0.
+- **Processing:** `server/scripts/import-people.ts` parses each person's `– Total` reference list
+  with the tested expander in `src/utils/tipnr-refs.ts` (conservative: anchors "ff"/whole-chapter
+  refs and validates every verse). Coverage favors accuracy over exhaustiveness.
+
 ## Planned additions (not yet imported)
 
-- **People:** STEPBible TIPNR (Tyndale House, CC-BY 4.0) — proper names with all references; its
-  abbreviated reference format needs a dedicated parser (next pass).
 - **Definitions:** Easton's Bible Dictionary (public domain) — already shipped in
   `server/data/dictionaries/`.
 

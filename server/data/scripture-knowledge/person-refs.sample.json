@@ -1,0 +1,86 @@
+[
+  {
+    "entityType": "person",
+    "entityId": "person_moses-h4872",
+    "book": "Exodus",
+    "chapter": 2,
+    "verse": 1
+  },
+  {
+    "entityType": "person",
+    "entityId": "person_moses-h4872",
+    "book": "Exodus",
+    "chapter": 2,
+    "verse": 10
+  },
+  {
+    "entityType": "person",
+    "entityId": "person_moses-h4872",
+    "book": "Exodus",
+    "chapter": 3,
+    "verse": 1
+  },
+  {
+    "entityType": "person",
+    "entityId": "person_moses-h4872",
+    "book": "Exodus",
+    "chapter": 4,
+    "verse": 1
+  },
+  {
+    "entityType": "person",
+    "entityId": "person_moses-h4872",
+    "book": "Exodus",
+    "chapter": 5,
+    "verse": 1
+  },
+  {
+    "entityType": "person",
+    "entityId": "person_moses-h4872",
+    "book": "Exodus",
+    "chapter": 6,
+    "verse": 1
+  },
+  {
+    "entityType": "person",
+    "entityId": "person_moses-h4872",
+    "book": "Exodus",
+    "chapter": 7,
+    "verse": 1
+  },
+  {
+    "entityType": "person",
+    "entityId": "person_moses-h4872",
+    "book": "Exodus",
+    "chapter": 8,
+    "verse": 1
+  },
+  {
+    "entityType": "person",
+    "entityId": "person_moses-h4872",
+    "book": "Exodus",
+    "chapter": 9,
+    "verse": 1
+  },
+  {
+    "entityType": "person",
+    "entityId": "person_moses-h4872",
+    "book": "Exodus",
+    "chapter": 10,
+    "verse": 1
+  },
+  {
+    "entityType": "person",
+    "entityId": "person_moses-h4872",
+    "book": "Exodus",
+    "chapter": 11,
+    "verse": 1
+  },
+  {
+    "entityType": "person",
+    "entityId": "person_moses-h4872",
+    "book": "Exodus",
+    "chapter": 12,
+    "verse": 1
+  }
+]
