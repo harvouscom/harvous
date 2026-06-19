@@ -12,8 +12,9 @@ people / 11.4k verse edges). The connection layer (Phase 1) landed —
 `server/utils/scripture-knowledge.ts` (`getKnowledgeForReference`, `getRelatedNotesForNote`).
 Phase 2 passage-aware auto-tagging landed too — `server/utils/passage-aware-tags.ts` corroborates
 prose tags with passage themes and adds referenced people/places, wired into the
-scripture-processing tag path. Auto-folder enrichment and the Remember/thread surfaces are next.
-See the roadmap at the end.
+scripture-processing tag path, plus a server-side auto-folder gap-fill (files an empty primary
+collection under the dominant cited book). The Remember and study-thread surfaces (Phases 3–4)
+are next. See the roadmap at the end.
 
 ---
 
@@ -252,13 +253,15 @@ study-guide scaffolding.
   (`getKnowledgeForReference(book, ch, v)`, `getRelatedNotesForNote(noteId)`) joining
   `ScriptureMetadata` ↔ canonical edges ↔ the user's other notes. Implemented in
   `server/utils/scripture-knowledge.ts`; ranking logic isolated in the pure `rankRelatedNotes`.
-- **Phase 2 — Passage-aware auto-tag (done) + auto-folder (next).** The tag side landed in
-  `server/utils/passage-aware-tags.ts` (`enrichAutoTagsWithPassages` + the pure, tested
-  `mergePassageTags`): passage themes/entities corroborate prose tags and people/places are added
-  net-new (themes never auto-add — too broad), reusing `conceptOverlaps` dedup and the existing
-  folder/dismissed exclusions; wired into `process-scripture-references.ts`. Remaining: the same
-  enrichment for `suggestPrimaryCollectionFromNote()` (auto-folder) and native parity
-  (`BibleStudyTagSuggester`).
+- **Phase 2 — Passage-aware auto-tag + auto-folder (done).** Tags: `enrichAutoTagsWithPassages`
+  + the pure, tested `mergePassageTags` in `server/utils/passage-aware-tags.ts` — passage
+  themes/entities corroborate prose tags; people/places are added net-new (themes never auto-add —
+  too broad), reusing `conceptOverlaps` dedup and existing folder/dismissed exclusions. Folder:
+  `enrichCollectionWithPassages` gap-fills an *empty* primary collection with the note's dominant
+  cited book (server-side, since the client folder logic can't reach the knowledge layer; only
+  fills, never overrides pinned/user choices). Both wired into `process-scripture-references.ts`.
+  Remaining: surfacing passage themes/entities inside the client/native folder pickers
+  (`BibleStudyTagSuggester` parity).
 - **Phase 3 — Remember surfaces.** Extend `prototype-home-trends.ts` to resurface by shared
   theme / passage / cross-reference.
 - **Phase 4 — Suggested study threads.** Concept-overlap upgrade to `/api/notes/suggest-threads`.

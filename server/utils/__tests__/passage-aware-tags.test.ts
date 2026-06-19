@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { mergePassageTags, type PassageTagCandidate } from '../passage-aware-tags';
+import { mergePassageTags, dominantBook, type PassageTagCandidate } from '../passage-aware-tags';
 import type { AutoTagSuggestion } from '../auto-tag-generator';
+
+const v = (book: string, chapter: number, verse: number) => ({ book, chapter, verse });
 
 const prose = (keyword: string, confidence: number, category = 'spiritual'): AutoTagSuggestion => ({
   keyword,
@@ -52,5 +54,19 @@ describe('mergePassageTags', () => {
     });
     const added = out.filter((s) => s.keyword !== 'Faith').map((s) => s.keyword);
     expect(added).toEqual(['Moses']); // Egypt excluded, Aaron dismissed, cap = 1
+  });
+});
+
+describe('dominantBook', () => {
+  it('returns null for no passages', () => {
+    expect(dominantBook([])).toBeNull();
+  });
+
+  it('picks the most-cited book', () => {
+    expect(dominantBook([v('Romans', 8, 28), v('Romans', 8, 31), v('John', 3, 16)])).toBe('Romans');
+  });
+
+  it('breaks ties by canonical book order', () => {
+    expect(dominantBook([v('John', 3, 16), v('Genesis', 1, 1)])).toBe('Genesis');
   });
 });

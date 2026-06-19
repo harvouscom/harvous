@@ -16,6 +16,8 @@
  */
 
 import { conceptOverlaps } from '@/utils/bible-study-concept-overlaps';
+import { canonicalBookOrder } from '@/utils/scripture-osis';
+import { db, eq, Notes, now } from '../db';
 import { getNotePassages, getKnowledgeForPassages, type VerseKey } from './scripture-knowledge';
 import type { AutoTagSuggestion } from './auto-tag-generator';
 
@@ -126,5 +128,66 @@ export async function enrichAutoTagsWithPassages(
   } catch (err) {
     console.error('[enrichAutoTagsWithPassages] non-critical failure:', err instanceof Error ? err.message : err);
     return proseSuggestions;
+  }
+}
+
+// ─── passage-aware folder (primary collection) ──────────────────────────────────
+
+/** The most-cited book across a note's passages (ties broken by canonical order). Pure. */
+export function dominantBook(passages: VerseKey[]): string | null {
+  if (!passages.length) return null;
+  const counts = new Map<string, number>();
+  for (const p of passages) counts.set(p.book, (counts.get(p.book) ?? 0) + 1);
+
+  let best: string | null = null;
+  let bestCount = -1;
+  let bestOrder = Number.POSITIVE_INFINITY;
+  for (const [book, count] of counts) {
+    const order = canonicalBookOrder(book);
+    if (count > bestCount || (count === bestCount && order < bestOrder)) {
+      best = book;
+      bestCount = count;
+      bestOrder = order;
+    }
+  }
+  return best;
+}
+
+/**
+ * Gap-fill a note's primary collection from its dominant cited book — server-side, because the
+ * client folder logic can't reach the knowledge layer. Deliberately conservative: only fills an
+ * EMPTY primary on a content note that the user hasn't pinned or overridden, so it never fights
+ * the client-authoritative folder system. Non-throwing. Returns the book set, or null.
+ */
+export async function enrichCollectionWithPassages(noteId: string): Promise<string | null> {
+  try {
+    const note = (
+      await db
+        .select({
+          noteType: Notes.noteType,
+          primaryCollection: Notes.primaryCollection,
+          collectionUserOverride: Notes.collectionUserOverride,
+          collectionPinned: Notes.collectionPinned,
+        })
+        .from(Notes)
+        .where(eq(Notes.id, noteId))
+        .limit(1)
+    )[0];
+    if (!note) return null;
+    if (note.noteType === 'scripture') return null;
+    if (note.collectionUserOverride || note.collectionPinned) return null;
+    if (note.primaryCollection && note.primaryCollection.trim()) return null; // gap-fill only
+
+    const book = dominantBook(await getNotePassages(noteId));
+    if (!book) return null;
+
+    await db
+      .update(Notes)
+      .set({ primaryCollection: book, collectionLastAutoUpdatedAt: now(), updatedAt: now() })
+      .where(eq(Notes.id, noteId));
+    return book;
+  } catch (err) {
+    console.error('[enrichCollectionWithPassages] non-critical failure:', err instanceof Error ? err.message : err);
+    return null;
   }
 }

@@ -1224,7 +1224,7 @@ async function processScriptureReferencesInternal(
       });
       // Phase 2: enrich with the note's passage signals (corroborate prose tags; add referenced
       // people/places). Non-throwing — falls back to the prose suggestions on any failure.
-      const { enrichAutoTagsWithPassages } = await import('./passage-aware-tags');
+      const { enrichAutoTagsWithPassages, enrichCollectionWithPassages } = await import('./passage-aware-tags');
       const enrichedSuggestions = await enrichAutoTagsWithPassages(noteId, tagResult.suggestions, {
         threshold: confidenceThreshold,
         excludeLabels: folderLabels,
@@ -1233,6 +1233,8 @@ async function processScriptureReferencesInternal(
       if (enrichedSuggestions.length > 0) {
         await applyAutoTags(noteId, enrichedSuggestions, userId);
       }
+      // Phase 2 (folder): gap-fill an empty primary collection from the dominant cited book.
+      await enrichCollectionWithPassages(noteId);
     } catch (tagErr: unknown) {
       console.error(
         '[processScriptureReferences] Auto-tag parent note failed (non-critical):',
