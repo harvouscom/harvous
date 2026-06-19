@@ -59,6 +59,7 @@
     "bible:download:bolls": "node server/data/bibles/_download_bolls.mjs",
     "bible:download:bolls:all": "node server/data/bibles/_download_all_bolls.mjs",
     "skl:import:crossrefs": "tsx server/scripts/import-cross-references.ts",
+    "skl:import:topics": "tsx server/scripts/import-topics.ts",
     "skl:seed": "tsx server/scripts/seed-scripture-knowledge.ts"
   },
   "dependencies": {

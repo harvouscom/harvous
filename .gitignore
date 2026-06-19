@@ -54,3 +54,5 @@ skills-lock.json
 # Scripture knowledge layer — raw downloads + large generated data (regenerate via scripts)
 server/data/scripture-knowledge/raw/
 server/data/scripture-knowledge/cross-references.json
+server/data/scripture-knowledge/topics.json
+server/data/scripture-knowledge/topic-verses.json

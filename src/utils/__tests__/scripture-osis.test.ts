@@ -6,6 +6,7 @@ import {
   isValidVerse,
   parseOsisVerse,
   parseOsisRange,
+  parseVerseId,
 } from '../scripture-osis';
 
 describe('osisBookToCanonical', () => {
@@ -85,5 +86,20 @@ describe('isValidVerse + canonicalBookOrder', () => {
     expect(canonicalBookOrder('Revelation')).toBe(66);
     expect(canonicalBookOrder('Genesis')).toBeLessThan(canonicalBookOrder('John'));
     expect(canonicalBookOrder('Nope')).toBe(Number.POSITIVE_INFINITY);
+  });
+});
+
+describe('parseVerseId (OpenBible bbcccvvv)', () => {
+  it('decodes numeric verse ids to canonical references', () => {
+    expect(parseVerseId('43003016')).toEqual({ book: 'John', chapter: 3, verse: 16 });
+    expect(parseVerseId('02020001')).toEqual({ book: 'Exodus', chapter: 20, verse: 1 });
+    expect(parseVerseId('48005014')).toEqual({ book: 'Galatians', chapter: 5, verse: 14 });
+    expect(parseVerseId('66022021')).toEqual({ book: 'Revelation', chapter: 22, verse: 21 });
+  });
+
+  it('rejects malformed or out-of-range ids', () => {
+    expect(parseVerseId('123')).toBeNull();
+    expect(parseVerseId('99003016')).toBeNull(); // book 99 does not exist
+    expect(parseVerseId('4300301x')).toBeNull();
   });
 });

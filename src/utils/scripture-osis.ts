@@ -48,6 +48,10 @@ for (const row of bibleChaptersData as BibleChapterRow[]) {
   if (!bookOrder.has(row.book)) bookOrder.set(row.book, row.bookOrder);
 }
 
+// Inverse: canonical order (1–66) → book name.
+const orderToBook = new Map<number, string>();
+for (const [book, order] of bookOrder) orderToBook.set(order, book);
+
 /** Canonical Harvous book name for an OSIS code, or null if unknown. */
 export function osisBookToCanonical(code: string): string | null {
   return OSIS_TO_CANONICAL[code] ?? null;
@@ -56,6 +60,11 @@ export function osisBookToCanonical(code: string): string | null {
 /** Canonical book ordering (1–66) for stable sorting; Infinity for unknown books. */
 export function canonicalBookOrder(book: string): number {
   return bookOrder.get(book) ?? Number.POSITIVE_INFINITY;
+}
+
+/** Canonical Harvous book name for a 1–66 order number, or null if out of range. */
+export function bookByOrder(order: number): string | null {
+  return orderToBook.get(order) ?? null;
 }
 
 /** True when (book, chapter, verse) resolves to a real verse in the canon. */
@@ -81,6 +90,21 @@ export function parseOsisVerse(ref: string): OsisVerse | null {
   const chapter = Number(parts[1]);
   const verse = Number(parts[2]);
   if (!book || !Number.isInteger(chapter) || !Number.isInteger(verse)) return null;
+  return { book, chapter, verse };
+}
+
+/**
+ * Decode an OpenBible numeric verse id `bbcccvvv` (bb = book number 01–66 matching
+ * canonical order, ccc = chapter, vvv = verse) → canonical { book, chapter, verse }.
+ * Used by the topical-data importer.
+ */
+export function parseVerseId(id: string): OsisVerse | null {
+  const digits = id.trim();
+  if (!/^\d{8}$/.test(digits)) return null;
+  const book = bookByOrder(Number(digits.slice(0, 2)));
+  const chapter = Number(digits.slice(2, 5));
+  const verse = Number(digits.slice(5, 8));
+  if (!book || chapter < 1 || verse < 1) return null;
   return { book, chapter, verse };
 }
 

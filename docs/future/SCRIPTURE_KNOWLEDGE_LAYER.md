@@ -5,7 +5,9 @@ cross-references — that lets Harvous make stronger connections between a user'
 **without AI at runtime**, and that serves as the grounding substrate for future AI
 features.
 
-**Status:** Vision doc only. Not started.
+**Status:** Phase 0 in progress — cross-references (TSK, 341k) and topics (OpenBible, 6.7k
+topics / 629k verse edges) imported, normalized, and seeded into Supabase. People/places and
+the connection layer (Phase 1+) are next. See the roadmap at the end.
 
 ---
 

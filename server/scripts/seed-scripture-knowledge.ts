@@ -1,14 +1,17 @@
 /**
  * Seed the shared scripture-knowledge tables from normalized JSON.
  *
- * Currently seeds: ScriptureCrossReferences (from cross-references.json).
- * Topics / people / places follow once their importers land.
+ * Seeds: ScriptureCrossReferences (cross-references.json), ScriptureTopics (topics.json),
+ * ScriptureTopicVerses (topic-verses.json). People / places follow once their importers land.
  *
- * Usage:   npx tsx server/scripts/seed-scripture-knowledge.ts
- * Prereq:  run import-cross-references.ts to produce cross-references.json, and
- *          `npm run db:push` so the canonical tables exist in Supabase.
+ * Usage:
+ *   npx tsx server/scripts/seed-scripture-knowledge.ts            # both
+ *   npx tsx server/scripts/seed-scripture-knowledge.ts topics     # only topics
+ *   npx tsx server/scripts/seed-scripture-knowledge.ts crossrefs  # only cross-references
  *
- * Like BibleVerses, these tables are shared reference data (no userId) written with the
+ * Prereq: run the importers to produce the JSON, and `npm run db:push` so the canonical
+ * tables exist in Supabase. Each loader falls back to a committed *.sample.json for a smoke
+ * run. Like BibleVerses, these are shared reference tables (no userId), written with the
  * service-role key. See docs/future/SCRIPTURE_KNOWLEDGE_LAYER.md.
  */
 
@@ -17,8 +20,9 @@ import { readFileSync, existsSync } from 'fs';
 import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { db } from '../db/client';
-import { ScriptureCrossReferences } from '../db/schema';
+import { ScriptureCrossReferences, ScriptureTopics, ScriptureTopicVerses } from '../db/schema';
 import type { CrossReferenceRow } from './import-cross-references';
+import type { TopicRow, TopicVerseRow } from './import-topics';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -26,48 +30,99 @@ const DATA_DIR = resolve(__dirname, '../data/scripture-knowledge');
 
 const slug = (book: string) => book.replace(/\s+/g, '');
 
+/** Prefer the full generated file; fall back to the committed sample for a smoke seed. */
+function pickFile(name: string): string | null {
+  const full = resolve(DATA_DIR, `${name}.json`);
+  const sample = resolve(DATA_DIR, `${name}.sample.json`);
+  if (existsSync(full)) return full;
+  if (existsSync(sample)) return sample;
+  return null;
+}
+
+async function insertBatched<T>(
+  label: string,
+  rows: T[],
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  table: any,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  toValues: (row: T) => any,
+): Promise<void> {
+  if (!rows.length) return;
+  const BATCH = 1000;
+  let inserted = 0;
+  for (let i = 0; i < rows.length; i += BATCH) {
+    await db.insert(table).values(rows.slice(i, i + BATCH).map(toValues)).onConflictDoNothing();
+    inserted += Math.min(BATCH, rows.length - i);
+    process.stdout.write(`  ${label}: ${inserted.toLocaleString()}/${rows.length.toLocaleString()}\r`);
+  }
+  console.log(`\n  ${label}: upserted ${inserted.toLocaleString()}.`);
+}
+
 function crossRefId(r: CrossReferenceRow): string {
   return `cr_${slug(r.fromBook)}.${r.fromChapter}.${r.fromVerse}__${slug(r.toBook)}.${r.toChapterStart}.${r.toVerseStart}`;
 }
 
+function topicVerseId(r: TopicVerseRow): string {
+  return `tv_${r.topicId}__${slug(r.book)}.${r.chapter}.${r.verse}`;
+}
+
 async function seedCrossReferences(): Promise<void> {
-  // Prefer the full generated file; fall back to the committed sample for a smoke seed.
-  const full = resolve(DATA_DIR, 'cross-references.json');
-  const sample = resolve(DATA_DIR, 'cross-references.sample.json');
-  const file = existsSync(full) ? full : sample;
-  if (!existsSync(file)) {
-    console.warn(`No cross-reference data found. Run import-cross-references.ts first.`);
+  const file = pickFile('cross-references');
+  if (!file) {
+    console.warn('No cross-reference data. Run import-cross-references.ts first.');
+    return;
+  }
+  const rows: CrossReferenceRow[] = JSON.parse(readFileSync(file, 'utf-8'));
+  console.log(`Seeding ${rows.length.toLocaleString()} cross-references from ${file}...`);
+  await insertBatched('cross-refs', rows, ScriptureCrossReferences, (r) => ({
+    id: crossRefId(r),
+    fromBook: r.fromBook,
+    fromChapter: r.fromChapter,
+    fromVerse: r.fromVerse,
+    toBook: r.toBook,
+    toChapterStart: r.toChapterStart,
+    toChapterEnd: r.toChapterEnd,
+    toVerseStart: r.toVerseStart,
+    toVerseEnd: r.toVerseEnd,
+    votes: r.votes,
+    source: 'TSK',
+  }));
+}
+
+async function seedTopics(): Promise<void> {
+  const topicsFile = pickFile('topics');
+  const edgesFile = pickFile('topic-verses');
+  if (!topicsFile || !edgesFile) {
+    console.warn('No topic data. Run import-topics.ts first.');
     return;
   }
 
-  const rows: CrossReferenceRow[] = JSON.parse(readFileSync(file, 'utf-8'));
-  console.log(`Seeding ${rows.length.toLocaleString()} cross-references from ${file}...`);
+  const topics: TopicRow[] = JSON.parse(readFileSync(topicsFile, 'utf-8'));
+  console.log(`Seeding ${topics.length.toLocaleString()} topics from ${topicsFile}...`);
+  await insertBatched('topics', topics, ScriptureTopics, (t) => ({
+    id: t.id,
+    slug: t.slug,
+    label: t.label,
+    category: null,
+    source: 'openbible',
+  }));
 
-  const BATCH = 1000;
-  let inserted = 0;
-  for (let i = 0; i < rows.length; i += BATCH) {
-    const values = rows.slice(i, i + BATCH).map((r) => ({
-      id: crossRefId(r),
-      fromBook: r.fromBook,
-      fromChapter: r.fromChapter,
-      fromVerse: r.fromVerse,
-      toBook: r.toBook,
-      toChapterStart: r.toChapterStart,
-      toChapterEnd: r.toChapterEnd,
-      toVerseStart: r.toVerseStart,
-      toVerseEnd: r.toVerseEnd,
-      votes: r.votes,
-      source: 'TSK',
-    }));
-    await db.insert(ScriptureCrossReferences).values(values).onConflictDoNothing();
-    inserted += values.length;
-    process.stdout.write(`  ${inserted.toLocaleString()}/${rows.length.toLocaleString()}\r`);
-  }
-  console.log(`\nDone. Upserted ${inserted.toLocaleString()} cross-references.`);
+  const edges: TopicVerseRow[] = JSON.parse(readFileSync(edgesFile, 'utf-8'));
+  console.log(`Seeding ${edges.length.toLocaleString()} topic-verse edges from ${edgesFile}...`);
+  await insertBatched('topic-verses', edges, ScriptureTopicVerses, (e) => ({
+    id: topicVerseId(e),
+    topicId: e.topicId,
+    book: e.book,
+    chapter: e.chapter,
+    verse: e.verse,
+    relevance: e.relevance,
+  }));
 }
 
 async function main() {
-  await seedCrossReferences();
+  const only = process.argv.slice(2).find((a) => !a.startsWith('--'));
+  if (!only || only === 'crossrefs') await seedCrossReferences();
+  if (!only || only === 'topics') await seedTopics();
   process.exit(0);
 }
 
