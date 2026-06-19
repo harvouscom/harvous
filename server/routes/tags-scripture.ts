@@ -551,4 +551,18 @@ app.get('/api/note-tags/list', requireAuth, async (c) => {
   }
 });
 
+// Compact passage knowledge for the user's cited verses — themes/people/places per verse.
+// The client caches this (offline) to power passage-aware folder/tag suggestions.
+app.get('/api/scripture/passage-knowledge', requireAuth, async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const { getUserPassageKnowledge } = await import('../utils/scripture-knowledge');
+    const passages = await getUserPassageKnowledge(auth.userId);
+    return c.json({ success: true, passages });
+  } catch (error) {
+    const standardError = handleAPIError(error, { endpoint: '/api/scripture/passage-knowledge', action: 'passage_knowledge' });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+
 export default app;

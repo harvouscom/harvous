@@ -384,3 +384,76 @@ export async function getRelatedNotesForNote(
 
   return rankRelatedNotes(signals, { limit });
 }
+
+// ─── per-user passage knowledge (compact, client-cacheable) ──────────────────────
+
+export interface PassageKnowledgeEntry {
+  themes: string[];
+  people: string[];
+  places: string[];
+}
+
+/** Keyed by "book|chapter|verse". */
+export type UserPassageKnowledge = Record<string, PassageKnowledgeEntry>;
+
+/**
+ * Compact passage knowledge for every verse a user has cited: top themes + the people and places
+ * mentioned. Bounded by the user's distinct references, so it's small enough to ship to the
+ * client (cached offline) for passage-aware folder/tag suggestions without exposing the whole
+ * knowledge layer. Queried in chunks to keep each SQL statement bounded.
+ */
+export async function getUserPassageKnowledge(
+  userId: string,
+  opts: { themesPerVerse?: number } = {},
+): Promise<UserPassageKnowledge> {
+  const themesPerVerse = opts.themesPerVerse ?? 5;
+
+  const cited = await db
+    .select({ book: ScriptureMetadata.book, chapter: ScriptureMetadata.chapter, verse: ScriptureMetadata.verse })
+    .from(ScriptureMetadata)
+    .innerJoin(Notes, eq(ScriptureMetadata.noteId, Notes.id))
+    .where(eq(Notes.userId, userId));
+
+  const verses: VerseKey[] = [];
+  const seen = new Set<string>();
+  for (const r of cited) {
+    const k = verseKey(r);
+    if (!seen.has(k)) { seen.add(k); verses.push(r); }
+  }
+
+  const out: UserPassageKnowledge = {};
+  if (!verses.length) return out;
+  const entry = (k: string): PassageKnowledgeEntry => (out[k] ??= { themes: [], people: [], places: [] });
+
+  const CHUNK = 150;
+  for (let i = 0; i < verses.length; i += CHUNK) {
+    const chunk = verses.slice(i, i + CHUNK);
+
+    const peopleRows = await db
+      .select({ book: ScriptureEntityRefs.book, chapter: ScriptureEntityRefs.chapter, verse: ScriptureEntityRefs.verse, name: BiblePeople.name })
+      .from(ScriptureEntityRefs)
+      .innerJoin(BiblePeople, eq(ScriptureEntityRefs.entityId, BiblePeople.id))
+      .where(and(eq(ScriptureEntityRefs.entityType, 'person'), or(...chunk.map((p) => and(eq(ScriptureEntityRefs.book, p.book), eq(ScriptureEntityRefs.chapter, p.chapter), eq(ScriptureEntityRefs.verse, p.verse))))));
+    for (const r of peopleRows) { const e = entry(verseKey(r)); if (!e.people.includes(r.name)) e.people.push(r.name); }
+
+    const placeRows = await db
+      .select({ book: ScriptureEntityRefs.book, chapter: ScriptureEntityRefs.chapter, verse: ScriptureEntityRefs.verse, name: BiblePlaces.name })
+      .from(ScriptureEntityRefs)
+      .innerJoin(BiblePlaces, eq(ScriptureEntityRefs.entityId, BiblePlaces.id))
+      .where(and(eq(ScriptureEntityRefs.entityType, 'place'), or(...chunk.map((p) => and(eq(ScriptureEntityRefs.book, p.book), eq(ScriptureEntityRefs.chapter, p.chapter), eq(ScriptureEntityRefs.verse, p.verse))))));
+    for (const r of placeRows) { const e = entry(verseKey(r)); if (!e.places.includes(r.name)) e.places.push(r.name); }
+
+    const themeRows = await db
+      .select({ book: ScriptureTopicVerses.book, chapter: ScriptureTopicVerses.chapter, verse: ScriptureTopicVerses.verse, label: ScriptureTopics.label })
+      .from(ScriptureTopicVerses)
+      .innerJoin(ScriptureTopics, eq(ScriptureTopicVerses.topicId, ScriptureTopics.id))
+      .where(or(...chunk.map((p) => and(eq(ScriptureTopicVerses.book, p.book), eq(ScriptureTopicVerses.chapter, p.chapter), eq(ScriptureTopicVerses.verse, p.verse)))))
+      .orderBy(desc(ScriptureTopicVerses.relevance));
+    for (const r of themeRows) {
+      const e = entry(verseKey(r));
+      if (e.themes.length < themesPerVerse) e.themes.push(r.label);
+    }
+  }
+
+  return out;
+}
