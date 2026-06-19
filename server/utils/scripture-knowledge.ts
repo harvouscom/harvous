@@ -151,6 +151,86 @@ export async function getKnowledgeForReference(
   return { reference: { book, chapter, verse }, crossReferences, themes, people, places };
 }
 
+// ─── passage aggregation (for related-notes + passage-aware tagging) ─────────────
+
+/** A note's cited passages — its own ScriptureMetadata plus any linked scripture notes, deduped. */
+export async function getNotePassages(noteId: string): Promise<VerseKey[]> {
+  const linked = await db
+    .select({ sid: NoteScriptureReferences.scriptureNoteId })
+    .from(NoteScriptureReferences)
+    .where(eq(NoteScriptureReferences.noteId, noteId));
+  const ids = [noteId, ...linked.map((l) => l.sid)];
+  const rows = await db
+    .select({ book: ScriptureMetadata.book, chapter: ScriptureMetadata.chapter, verse: ScriptureMetadata.verse })
+    .from(ScriptureMetadata)
+    .where(inArray(ScriptureMetadata.noteId, ids));
+  const seen = new Set<string>();
+  const out: VerseKey[] = [];
+  for (const r of rows) {
+    const k = verseKey(r);
+    if (!seen.has(k)) {
+      seen.add(k);
+      out.push(r);
+    }
+  }
+  return out;
+}
+
+export interface PassagesKnowledge {
+  people: EntityRef[];
+  places: EntityRef[];
+  themes: ThemeRef[];
+}
+
+/** Themes + entities aggregated across a set of passages (deduped; max relevance per theme). */
+export async function getKnowledgeForPassages(
+  passages: VerseKey[],
+  opts: { themeLimit?: number; minRelevance?: number } = {},
+): Promise<PassagesKnowledge> {
+  const { themeLimit = 25, minRelevance = 0 } = opts;
+  const ps = passages.slice(0, 30);
+  if (!ps.length) return { people: [], places: [], themes: [] };
+
+  const entityAt = or(
+    ...ps.map((p) => and(eq(ScriptureEntityRefs.book, p.book), eq(ScriptureEntityRefs.chapter, p.chapter), eq(ScriptureEntityRefs.verse, p.verse))),
+  );
+  const peopleRows = await db
+    .select({ id: BiblePeople.id, slug: BiblePeople.slug, name: BiblePeople.name })
+    .from(ScriptureEntityRefs)
+    .innerJoin(BiblePeople, eq(ScriptureEntityRefs.entityId, BiblePeople.id))
+    .where(and(eq(ScriptureEntityRefs.entityType, 'person'), entityAt));
+  const placeRows = await db
+    .select({ id: BiblePlaces.id, slug: BiblePlaces.slug, name: BiblePlaces.name })
+    .from(ScriptureEntityRefs)
+    .innerJoin(BiblePlaces, eq(ScriptureEntityRefs.entityId, BiblePlaces.id))
+    .where(and(eq(ScriptureEntityRefs.entityType, 'place'), entityAt));
+
+  const topicAt = or(
+    ...ps.map((p) => and(eq(ScriptureTopicVerses.book, p.book), eq(ScriptureTopicVerses.chapter, p.chapter), eq(ScriptureTopicVerses.verse, p.verse))),
+  );
+  const themeRows = await db
+    .select({ topicId: ScriptureTopics.id, slug: ScriptureTopics.slug, label: ScriptureTopics.label, relevance: ScriptureTopicVerses.relevance })
+    .from(ScriptureTopicVerses)
+    .innerJoin(ScriptureTopics, eq(ScriptureTopicVerses.topicId, ScriptureTopics.id))
+    .where(and(topicAt, gte(ScriptureTopicVerses.relevance, minRelevance)))
+    .orderBy(desc(ScriptureTopicVerses.relevance));
+
+  const dedupeEntities = (rows: EntityRef[]) => {
+    const seen = new Set<string>();
+    const out: EntityRef[] = [];
+    for (const r of rows) if (!seen.has(r.id)) { seen.add(r.id); out.push(r); }
+    return out;
+  };
+  const byTopic = new Map<string, ThemeRef>();
+  for (const t of themeRows) {
+    const ex = byTopic.get(t.topicId);
+    if (!ex || t.relevance > ex.relevance) byTopic.set(t.topicId, t);
+  }
+  const themes = [...byTopic.values()].sort((a, b) => b.relevance - a.relevance).slice(0, themeLimit);
+
+  return { people: dedupeEntities(peopleRows), places: dedupeEntities(placeRows), themes };
+}
+
 // ─── rankRelatedNotes (pure) ────────────────────────────────────────────────────
 
 export type RelatedSignalKind = 'passage' | 'crossref' | 'theme';
@@ -234,16 +314,7 @@ export async function getRelatedNotesForNote(
   if (!note) return [];
 
   // Source passages: this note's own ScriptureMetadata plus any linked scripture notes.
-  const linked = await db
-    .select({ sid: NoteScriptureReferences.scriptureNoteId })
-    .from(NoteScriptureReferences)
-    .where(eq(NoteScriptureReferences.noteId, noteId));
-  const sourceNoteIds = [noteId, ...linked.map((l) => l.sid)];
-  const sourcePassages = await db
-    .select({ book: ScriptureMetadata.book, chapter: ScriptureMetadata.chapter, verse: ScriptureMetadata.verse })
-    .from(ScriptureMetadata)
-    .where(inArray(ScriptureMetadata.noteId, sourceNoteIds));
-
+  const sourcePassages = await getNotePassages(noteId);
   const sourceKeys = new Set(sourcePassages.map(verseKey));
   if (sourceKeys.size === 0) return [];
   const passageMatch = [...sourceKeys].slice(0, 50).map((k) => {

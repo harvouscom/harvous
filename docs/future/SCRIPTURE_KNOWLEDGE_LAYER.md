@@ -8,9 +8,12 @@ features.
 **Status:** Phase 0 data layer complete — all CC-BY, imported, normalized, and seeded into
 Supabase: cross-references (TSK, 341k), topics (OpenBible, 6.7k topics / 629k verse edges),
 places (OpenBible geocoding, 1.3k places / 8.7k verse edges), and people (STEPBible TIPNR, 3.1k
-people / 11.4k verse edges). The connection layer (Phase 1) has landed —
+people / 11.4k verse edges). The connection layer (Phase 1) landed —
 `server/utils/scripture-knowledge.ts` (`getKnowledgeForReference`, `getRelatedNotesForNote`).
-Phase 2 (passage-aware auto-folder/auto-tag) is next. See the roadmap at the end.
+Phase 2 passage-aware auto-tagging landed too — `server/utils/passage-aware-tags.ts` corroborates
+prose tags with passage themes and adds referenced people/places, wired into the
+scripture-processing tag path. Auto-folder enrichment and the Remember/thread surfaces are next.
+See the roadmap at the end.
 
 ---
 
@@ -249,10 +252,13 @@ study-guide scaffolding.
   (`getKnowledgeForReference(book, ch, v)`, `getRelatedNotesForNote(noteId)`) joining
   `ScriptureMetadata` ↔ canonical edges ↔ the user's other notes. Implemented in
   `server/utils/scripture-knowledge.ts`; ranking logic isolated in the pure `rankRelatedNotes`.
-- **Phase 2 — Passage-aware auto-folder & auto-tag (recommended first consumer).** Thread
-  referenced-passage themes/entities into `generateAutoTags()` /
-  `suggestPrimaryCollectionFromNote()` as the second confidence signal. Highest leverage: runs on
-  every save, so better data here compounds into every later phase.
+- **Phase 2 — Passage-aware auto-tag (done) + auto-folder (next).** The tag side landed in
+  `server/utils/passage-aware-tags.ts` (`enrichAutoTagsWithPassages` + the pure, tested
+  `mergePassageTags`): passage themes/entities corroborate prose tags and people/places are added
+  net-new (themes never auto-add — too broad), reusing `conceptOverlaps` dedup and the existing
+  folder/dismissed exclusions; wired into `process-scripture-references.ts`. Remaining: the same
+  enrichment for `suggestPrimaryCollectionFromNote()` (auto-folder) and native parity
+  (`BibleStudyTagSuggester`).
 - **Phase 3 — Remember surfaces.** Extend `prototype-home-trends.ts` to resurface by shared
   theme / passage / cross-reference.
 - **Phase 4 — Suggested study threads.** Concept-overlap upgrade to `/api/notes/suggest-threads`.

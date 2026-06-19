@@ -1222,8 +1222,16 @@ async function processScriptureReferencesInternal(
         excludeLabels: folderLabels,
         excludeTagNames: autoTagExcludeNames(folderLabels, dismissed),
       });
-      if (tagResult.suggestions.length > 0) {
-        await applyAutoTags(noteId, tagResult.suggestions, userId);
+      // Phase 2: enrich with the note's passage signals (corroborate prose tags; add referenced
+      // people/places). Non-throwing — falls back to the prose suggestions on any failure.
+      const { enrichAutoTagsWithPassages } = await import('./passage-aware-tags');
+      const enrichedSuggestions = await enrichAutoTagsWithPassages(noteId, tagResult.suggestions, {
+        threshold: confidenceThreshold,
+        excludeLabels: folderLabels,
+        dismissed,
+      });
+      if (enrichedSuggestions.length > 0) {
+        await applyAutoTags(noteId, enrichedSuggestions, userId);
       }
     } catch (tagErr: unknown) {
       console.error(
