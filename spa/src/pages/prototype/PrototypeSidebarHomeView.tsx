@@ -18,6 +18,7 @@ import {
   usePrototypeSpaceStudyThreadHighlights,
   type PrototypeHighlightStudyThreadRow,
 } from '../../hooks/queries/usePrototypeSpaceStudyThreadHighlights';
+import { usePrototypeSpaceScriptureConnections } from '../../hooks/queries/usePrototypeSpaceScriptureConnections';
 import { getCachedUserNames, useProfile } from '../../hooks/queries/useProfile';
 import { useVotdToday } from '../../hooks/queries/useVotdToday';
 import type { PrototypeNotesListPhase } from '@/utils/prototype-notes-list-phase';
@@ -73,6 +74,8 @@ const LOOSE_MIN = 3;
 const chapterSubjects = chapterSubjectsData as Record<string, Record<string, string[]>>;
 // A subject must connect at least this many distinct notes to earn the Home "theme" card.
 const SUBJECT_CONNECTION_MIN = 3;
+// A TSK cross-reference pair must touch at least this many distinct notes.
+const CROSSREF_CONNECTION_MIN = 2;
 
 type Props = {
   homeSpaceId: string;
@@ -400,6 +403,7 @@ export default function PrototypeSidebarHomeView({
   const tagsQuery = useTagsList();
   const threadsQuery = usePrototypeStudyThreads(homeSpaceId);
   const highlightsQuery = usePrototypeSpaceStudyThreadHighlights(homeSpaceId);
+  const crossRefConnectionsQuery = usePrototypeSpaceScriptureConnections(homeSpaceId);
   const votdQuery = useVotdToday({ enabled: Boolean(homeSpaceId) });
 
   const navigate = useNavigate();
@@ -498,11 +502,23 @@ export default function PrototypeSidebarHomeView({
     return top && top.noteCount >= SUBJECT_CONNECTION_MIN ? top : undefined;
   }, [scriptureBooks, hasMoreNotes]);
 
+  const crossRefConnection = useMemo(() => {
+    if (hasMoreNotes) return undefined;
+    const top = crossRefConnectionsQuery.data?.[0];
+    return top && top.noteCount >= CROSSREF_CONNECTION_MIN ? top : undefined;
+  }, [crossRefConnectionsQuery.data, hasMoreNotes]);
+
   const openSubjectConnection = useCallback(() => {
     const leadId = subjectConnection?.notes[0]?.id;
     const leadNote = leadId ? notes.find((note) => note.id === leadId) : undefined;
     if (leadNote) onOpenNote(leadNote);
   }, [subjectConnection, notes, onOpenNote]);
+
+  const openCrossRefConnection = useCallback(() => {
+    const leadId = crossRefConnection?.notes[0]?.id;
+    const leadNote = leadId ? notes.find((note) => note.id === leadId) : undefined;
+    if (leadNote) onOpenNote(leadNote);
+  }, [crossRefConnection, notes, onOpenNote]);
 
   const onCreateFirstNote = useCallback(() => {
     if (!homeSpaceId) return;
@@ -673,6 +689,36 @@ export default function PrototypeSidebarHomeView({
               <div className="proto-home-card__meta">
                 <span className="proto-home-card__meta-item">
                   Across {subjectConnection.noteCount} of your notes
+                </span>
+              </div>
+            </div>
+          </button>
+        </div>
+      ) : null}
+
+      {crossRefConnection ? (
+        <div className="proto-home-section">
+          <button
+            type="button"
+            className="proto-glass-surface proto-glass-surface--panel proto-home-card proto-home-card--tappable"
+            onClick={openCrossRefConnection}
+          >
+            <p className="proto-caption proto-home-card__eyebrow">A cross-reference in your notes</p>
+            <div className="proto-home-card__body">
+              <div className="proto-home-card__title-row">
+                <span className="proto-home-card__icon-orb" aria-hidden>
+                  <Icon name="arrow-right-arrow-left" size={13} />
+                </span>
+                <p className="pds-list-title proto-home-card__title">
+                  {crossRefConnection.from.displayRef} and {crossRefConnection.to.displayRef}
+                </p>
+                <span className="proto-home-card__chevron" aria-hidden>
+                  <Icon name="chevron-right" size={11} />
+                </span>
+              </div>
+              <div className="proto-home-card__meta">
+                <span className="proto-home-card__meta-item">
+                  Across {crossRefConnection.noteCount} of your notes
                 </span>
               </div>
             </div>

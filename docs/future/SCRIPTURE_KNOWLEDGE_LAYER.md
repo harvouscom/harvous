@@ -13,8 +13,10 @@ people / 11.4k verse edges). The connection layer (Phase 1) landed —
 Phase 2 passage-aware auto-tagging landed too — `server/utils/passage-aware-tags.ts` corroborates
 prose tags with passage themes and adds referenced people/places, wired into the
 scripture-processing tag path, plus a server-side auto-folder gap-fill (files an empty primary
-collection under the dominant cited book). The Remember and study-thread surfaces (Phases 3–4)
-are next. See the roadmap at the end.
+collection under the dominant cited book). Phase 3 Remember resurfacing is partially landed:
+shared-theme (`deriveSubjectConnections` on prototype Home) and cross-reference
+(`deriveCrossRefConnections` via `GET /api/spaces/:id/scripture-connections`) cards ship on
+prototype Home; passage resurfacing remains. Phases 4–5 are next. See the roadmap at the end.
 
 ---
 
@@ -262,8 +264,11 @@ study-guide scaffolding.
   fills, never overrides pinned/user choices). Both wired into `process-scripture-references.ts`.
   Remaining: surfacing passage themes/entities inside the client/native folder pickers
   (`BibleStudyTagSuggester` parity).
-- **Phase 3 — Remember surfaces.** Extend `prototype-home-trends.ts` to resurface by shared
-  theme / passage / cross-reference.
+- **Phase 3 — Remember surfaces (partial).** Extend `prototype-home-trends.ts` to resurface by shared
+  theme / passage / cross-reference. **Done:** shared-theme card (`deriveSubjectConnections` +
+  `chapter-subjects.json`) and cross-reference card (`deriveCrossRefConnections` +
+  `build-space-scripture-connections.ts` + `/api/spaces/:id/scripture-connections`). **Remaining:**
+  passage resurfacing.
 - **Phase 4 — Suggested study threads.** Concept-overlap upgrade to `/api/notes/suggest-threads`.
 - **Phase 5 — Ground AI features.** Feed the layer into Give-Me-More-Context and Learn/Challenges
   as retrieval context.

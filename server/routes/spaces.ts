@@ -11,6 +11,7 @@
  *   POST   /api/spaces/:spaceId/threads/remove
  *   GET    /api/spaces/:spaceId/study-thread-highlights
  *   GET    /api/spaces/:spaceId/scripture-index
+ *   GET    /api/spaces/:spaceId/scripture-connections
  *   GET    /api/spaces/:spaceId/study-threads/by-scripture
  *   GET    /api/spaces/:spaceId/study-threads
  *   GET    /api/spaces/:spaceId/connect-note-candidates
@@ -74,6 +75,7 @@ import { idToUrl } from '@/utils/url-helpers';
 import { getHarvousSystemUserId } from '../utils/harvous-admin';
 import { normalizeScriptureReference } from '@/utils/scripture-detector';
 import { buildSpaceScriptureIndex } from '../utils/build-space-scripture-index';
+import { buildSpaceScriptureConnections } from '../utils/build-space-scripture-connections';
 import {
   NOT_ONBOARDING_NOTES_THREAD,
   NOT_ONBOARDING_SYSTEM_NOTES,
@@ -643,6 +645,60 @@ route.get('/api/spaces/:spaceId/scripture-index', requireAuth, async (c) => {
     const standardError = handleAPIError(error, {
       endpoint: '/api/spaces/[spaceId]/scripture-index',
       action: 'scripture_index',
+    });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+
+// ─── GET /api/spaces/:spaceId/scripture-connections ───────────────────────────
+route.get('/api/spaces/:spaceId/scripture-connections', requireAuth, async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const spaceIdNorm = normalizePrototypeSpaceId(requireParam(c, 'spaceId'));
+    try {
+      await requireSpaceAccess(spaceIdNorm, auth.userId);
+    } catch (err) {
+      if (err instanceof SpaceAccessError) return c.json({ error: err.message, code: err.code }, err.status);
+      throw err;
+    }
+
+    const noteRows = await db
+      .select({
+        id: Notes.id,
+        title: Notes.title,
+        content: Notes.content,
+        updatedAt: Notes.updatedAt,
+        createdAt: Notes.createdAt,
+      })
+      .from(Notes)
+      .where(
+        and(
+          eq(Notes.spaceId, spaceIdNorm),
+          eq(Notes.userId, auth.userId),
+          eq(Notes.contentEncrypted, false),
+          ne(Notes.noteType, 'scripture'),
+          NOT_ONBOARDING_NOTES_THREAD,
+          NOT_ONBOARDING_SYSTEM_NOTES,
+        ),
+      );
+
+    const index = buildSpaceScriptureIndex(
+      noteRows.map((n) => ({
+        id: n.id,
+        title: n.title ?? null,
+        content: n.content ?? null,
+        updatedAt: n.updatedAt ? String(n.updatedAt) : null,
+        createdAt: String(n.createdAt),
+      })),
+    );
+
+    const payload = await buildSpaceScriptureConnections(index.books, { limit: 3, minNotes: 2 });
+
+    return c.json({ success: true, ...payload });
+  } catch (error: any) {
+    const standardError = handleAPIError(error, {
+      endpoint: '/api/spaces/[spaceId]/scripture-connections',
+      action: 'scripture_connections',
     });
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }

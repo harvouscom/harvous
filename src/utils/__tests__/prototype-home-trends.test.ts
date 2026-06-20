@@ -4,6 +4,7 @@ import {
   computeLastActivityTime,
   countWeeklyActivityDays,
   deriveSubjectConnections,
+  deriveCrossRefConnections,
   deriveTopBooks,
   deriveTopPassages,
   deriveTopFolders,
@@ -917,5 +918,84 @@ describe('deriveSubjectConnections', () => {
     );
     expect(out).toHaveLength(1);
     expect(out[0]?.subject).toBe('Faith');
+  });
+});
+
+describe('deriveCrossRefConnections', () => {
+  const gen = { passageKey: '1:22:1:1', displayRef: 'Genesis 22:1', bookOrder: 1, notes: [{ id: 'a', updatedAt: '2026-06-01T00:00:00Z' }] };
+  const heb = { passageKey: '58:11:17:17', displayRef: 'Hebrews 11:17', bookOrder: 58, notes: [{ id: 'b', updatedAt: '2026-06-03T00:00:00Z' }] };
+  const rom = { passageKey: '45:4:3:3', displayRef: 'Romans 4:3', bookOrder: 45, notes: [{ id: 'c', updatedAt: '2026-06-02T00:00:00Z' }] };
+
+  it('connects notes on TSK-linked passages', () => {
+    const out = deriveCrossRefConnections(
+      [gen, heb],
+      [{ fromKey: gen.passageKey, toKey: heb.passageKey, votes: 12 }],
+      { limit: 5 },
+    );
+    expect(out).toHaveLength(1);
+    expect(out[0]?.from.displayRef).toBe('Genesis 22:1');
+    expect(out[0]?.to.displayRef).toBe('Hebrews 11:17');
+    expect(out[0]?.noteCount).toBe(2);
+    expect(out[0]?.votes).toBe(12);
+    expect(out[0]?.notes.map((n) => n.id)).toEqual(['b', 'a']);
+  });
+
+  it('excludes pairs touching fewer than minNotes distinct notes', () => {
+    const solo = { ...gen, notes: [{ id: 'a' }] };
+    const alsoA = { ...heb, notes: [{ id: 'a' }] };
+    const out = deriveCrossRefConnections(
+      [solo, alsoA],
+      [{ fromKey: solo.passageKey, toKey: alsoA.passageKey, votes: 5 }],
+      { limit: 5, minNotes: 2 },
+    );
+    expect(out).toEqual([]);
+  });
+
+  it('aggregates votes across multiple TSK edges for the same pair', () => {
+    const out = deriveCrossRefConnections(
+      [gen, heb],
+      [
+        { fromKey: gen.passageKey, toKey: heb.passageKey, votes: 3 },
+        { fromKey: heb.passageKey, toKey: gen.passageKey, votes: 7 },
+      ],
+      { limit: 5 },
+    );
+    expect(out[0]?.votes).toBe(10);
+  });
+
+  it('ranks by combined votes and respects the limit', () => {
+    const out = deriveCrossRefConnections(
+      [gen, heb, rom],
+      [
+        { fromKey: gen.passageKey, toKey: heb.passageKey, votes: 20 },
+        { fromKey: gen.passageKey, toKey: rom.passageKey, votes: 5 },
+      ],
+      { limit: 1 },
+    );
+    expect(out).toHaveLength(1);
+    expect(out[0]?.to.displayRef).toBe('Hebrews 11:17');
+  });
+
+  it('ignores self-referential and unknown passage keys', () => {
+    const out = deriveCrossRefConnections(
+      [gen],
+      [
+        { fromKey: gen.passageKey, toKey: gen.passageKey, votes: 99 },
+        { fromKey: gen.passageKey, toKey: 'missing', votes: 99 },
+      ],
+      { limit: 5 },
+    );
+    expect(out).toEqual([]);
+  });
+
+  it('counts a note once when it cites both passages in the pair', () => {
+    const both = { ...gen, notes: [{ id: 'a' }, { id: 'shared' }] };
+    const other = { ...heb, notes: [{ id: 'shared' }] };
+    const out = deriveCrossRefConnections(
+      [both, other],
+      [{ fromKey: both.passageKey, toKey: other.passageKey, votes: 4 }],
+      { limit: 5, minNotes: 2 },
+    );
+    expect(out[0]?.noteCount).toBe(2);
   });
 });

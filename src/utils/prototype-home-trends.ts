@@ -653,6 +653,104 @@ export function deriveSubjectConnections(
     .map(({ subject, noteCount, notes }) => ({ subject, noteCount, notes }));
 }
 
+/**
+ * "Resurface by cross-reference" (knowledge layer, Phase 3). A passage with its citing notes
+ * plus TSK edges to other cited passages. The consumer resolves edges from the server; this
+ * module stays free of DB access (structural input only).
+ */
+export interface HomeCrossRefPassageInput {
+  passageKey: string;
+  displayRef: string;
+  bookOrder: number;
+  notes: HomeSubjectNoteBrief[];
+}
+
+export interface HomeCrossRefEdge {
+  fromKey: string;
+  toKey: string;
+  votes: number;
+}
+
+export interface HomeCrossRefConnection {
+  from: { passageKey: string; displayRef: string };
+  to: { passageKey: string; displayRef: string };
+  votes: number;
+  noteCount: number;
+  /** Distinct notes across both passages — most recently edited first. */
+  notes: Array<{ id: string; title: string | null }>;
+}
+
+function canonicalPassagePair(a: HomeCrossRefPassageInput, b: HomeCrossRefPassageInput): [HomeCrossRefPassageInput, HomeCrossRefPassageInput] {
+  if (a.bookOrder !== b.bookOrder) return a.bookOrder < b.bookOrder ? [a, b] : [b, a];
+  return a.passageKey <= b.passageKey ? [a, b] : [b, a];
+}
+
+/**
+ * TSK-linked passage pairs in a reader's library: join edges against cited passages, aggregate
+ * votes per undirected pair, and surface pairs touching ≥ `minNotes` distinct notes. Ranked by
+ * combined TSK votes, then reach (note count), then recency — e.g. Genesis 22 ↔ Hebrews 11.
+ */
+export function deriveCrossRefConnections(
+  passages: HomeCrossRefPassageInput[],
+  edges: HomeCrossRefEdge[],
+  options: { limit: number; minNotes?: number; maxNotesPerConnection?: number },
+): HomeCrossRefConnection[] {
+  const { limit, minNotes = 2, maxNotesPerConnection = 6 } = options;
+  const byKey = new Map(passages.map((p) => [p.passageKey, p]));
+
+  const pairVotes = new Map<string, { keys: [string, string]; votes: number }>();
+  for (const edge of edges) {
+    if (edge.fromKey === edge.toKey) continue;
+    const from = byKey.get(edge.fromKey);
+    const to = byKey.get(edge.toKey);
+    if (!from || !to) continue;
+
+    const sorted: [string, string] =
+      edge.fromKey < edge.toKey ? [edge.fromKey, edge.toKey] : [edge.toKey, edge.fromKey];
+    const pairKey = sorted.join('|');
+    const existing = pairVotes.get(pairKey);
+    if (existing) existing.votes += edge.votes;
+    else pairVotes.set(pairKey, { keys: sorted, votes: edge.votes });
+  }
+
+  const connections: Array<HomeCrossRefConnection & { latest: number }> = [];
+  for (const { keys, votes } of pairVotes.values()) {
+    const passA = byKey.get(keys[0])!;
+    const passB = byKey.get(keys[1])!;
+
+    const noteMap = new Map<string, { note: HomeSubjectNoteBrief; t: number }>();
+    for (const note of [...passA.notes, ...passB.notes]) {
+      const t = briefTime(note);
+      const prev = noteMap.get(note.id);
+      if (!prev || t > prev.t) noteMap.set(note.id, { note, t });
+    }
+    if (noteMap.size < minNotes) continue;
+
+    const ranked = [...noteMap.values()].sort((a, b) => b.t - a.t);
+    const [fromPass, toPass] = canonicalPassagePair(passA, passB);
+    connections.push({
+      from: { passageKey: fromPass.passageKey, displayRef: fromPass.displayRef },
+      to: { passageKey: toPass.passageKey, displayRef: toPass.displayRef },
+      votes,
+      noteCount: noteMap.size,
+      latest: ranked[0]?.t ?? 0,
+      notes: ranked.slice(0, maxNotesPerConnection).map(({ note }) => ({ id: note.id, title: note.title ?? null })),
+    });
+  }
+
+  return connections
+    .sort(
+      (a, b) =>
+        b.votes - a.votes ||
+        b.noteCount - a.noteCount ||
+        b.latest - a.latest ||
+        a.from.passageKey.localeCompare(b.from.passageKey) ||
+        a.to.passageKey.localeCompare(b.to.passageKey),
+    )
+    .slice(0, Math.max(0, limit))
+    .map(({ from, to, votes, noteCount, notes }) => ({ from, to, votes, noteCount, notes }));
+}
+
 /** Most-referenced passages across the space's scripture index, canonical order as tiebreak. */
 export function deriveTopPassages(books: HomeBookInput[], limit: number): HomeTopPassage[] {
   return books
