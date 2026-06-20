@@ -3,6 +3,7 @@ import {
   computeActivityRhythm,
   computeLastActivityTime,
   countWeeklyActivityDays,
+  deriveSubjectConnections,
   deriveTopBooks,
   deriveTopPassages,
   deriveTopFolders,
@@ -865,5 +866,56 @@ describe('home card eyebrow helpers', () => {
   it('softens spotlight thread copy for two-note clusters', () => {
     expect(homeSpotlightThreadEyebrow(2)).toBe('A study taking shape');
     expect(homeSpotlightThreadEyebrow(4)).toBe('Pick a study back up');
+  });
+});
+
+describe('deriveSubjectConnections', () => {
+  it('connects notes across different passages that share a curated subject', () => {
+    const out = deriveSubjectConnections(
+      [
+        { subjects: ['New Birth', 'Salvation'], notes: [{ id: 'a', updatedAt: '2026-06-01T00:00:00Z' }] },
+        { subjects: ['New Birth', 'Holy Spirit'], notes: [{ id: 'b', updatedAt: '2026-06-03T00:00:00Z' }] },
+        { subjects: ['New Birth'], notes: [{ id: 'c', updatedAt: '2026-06-02T00:00:00Z' }] },
+      ],
+      { limit: 5 },
+    );
+    const newBirth = out.find((c) => c.subject === 'New Birth');
+    expect(newBirth?.noteCount).toBe(3);
+    // most-recently-edited note leads
+    expect(newBirth?.notes.map((n) => n.id)).toEqual(['b', 'c', 'a']);
+  });
+
+  it('excludes subjects touched by only one note', () => {
+    const out = deriveSubjectConnections(
+      [
+        { subjects: ['Salvation'], notes: [{ id: 'a' }] },
+        { subjects: ['New Birth'], notes: [{ id: 'a' }, { id: 'b' }] },
+      ],
+      { limit: 5 },
+    );
+    expect(out.map((c) => c.subject)).toEqual(['New Birth']);
+  });
+
+  it('counts a note once even when it cites two passages with the same subject', () => {
+    const out = deriveSubjectConnections(
+      [
+        { subjects: ['Faith'], notes: [{ id: 'a' }, { id: 'b' }] },
+        { subjects: ['Faith'], notes: [{ id: 'a' }] }, // same note, another passage
+      ],
+      { limit: 5 },
+    );
+    expect(out[0]?.noteCount).toBe(2);
+  });
+
+  it('ranks connections by reach (note count) and respects the limit', () => {
+    const out = deriveSubjectConnections(
+      [
+        { subjects: ['Faith'], notes: [{ id: 'a' }, { id: 'b' }, { id: 'c' }] },
+        { subjects: ['Grace'], notes: [{ id: 'd' }, { id: 'e' }] },
+      ],
+      { limit: 1 },
+    );
+    expect(out).toHaveLength(1);
+    expect(out[0]?.subject).toBe('Faith');
   });
 });

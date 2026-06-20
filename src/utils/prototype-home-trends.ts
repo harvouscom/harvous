@@ -580,6 +580,79 @@ export function deriveTopBooks(books: HomeBookTrendInput[], limit: number): Home
     }));
 }
 
+/**
+ * "Resurface by shared theme" (knowledge layer, Phase 3). A passage with its curated subjects
+ * (from the static chapter-subjects index) and the notes that cite it. The consumer resolves
+ * subjects per passage; this module stays free of the data file (structural input only).
+ */
+export interface HomeSubjectNoteBrief {
+  id: string;
+  title?: string | null;
+  updatedAt?: string | null;
+  createdAt?: string | null;
+}
+export interface HomeSubjectPassageInput {
+  subjects: string[];
+  notes: HomeSubjectNoteBrief[];
+}
+
+export interface HomeSubjectConnection {
+  subject: string;
+  noteCount: number;
+  /** Distinct notes touching this subject across passages — most recently edited first. */
+  notes: Array<{ id: string; title: string | null }>;
+}
+
+function briefTime(note: HomeSubjectNoteBrief): number {
+  return normalizeDate(note.updatedAt)?.getTime() ?? normalizeDate(note.createdAt)?.getTime() ?? 0;
+}
+
+/**
+ * Latent themes connecting a reader's passages: group the notes that cite each passage by the
+ * passage's curated subject, then surface subjects shared by ≥ `minNotes` *distinct* notes. This
+ * is the connective tissue folders miss — notes on John 3, Romans 8, and 2 Corinthians 5 share
+ * "New Birth" even when filed apart. Ranked by reach (note count), then recency.
+ */
+export function deriveSubjectConnections(
+  passages: HomeSubjectPassageInput[],
+  options: { limit: number; minNotes?: number; maxNotesPerConnection?: number },
+): HomeSubjectConnection[] {
+  const { limit, minNotes = 2, maxNotesPerConnection = 6 } = options;
+  const bySubject = new Map<string, Map<string, { note: HomeSubjectNoteBrief; t: number }>>();
+  for (const passage of passages) {
+    if (!passage.notes.length) continue;
+    for (const subject of passage.subjects) {
+      let notes = bySubject.get(subject);
+      if (!notes) {
+        notes = new Map();
+        bySubject.set(subject, notes);
+      }
+      for (const note of passage.notes) {
+        const t = briefTime(note);
+        const prev = notes.get(note.id);
+        if (!prev || t > prev.t) notes.set(note.id, { note, t });
+      }
+    }
+  }
+
+  const connections: Array<HomeSubjectConnection & { latest: number }> = [];
+  for (const [subject, notes] of bySubject) {
+    if (notes.size < minNotes) continue;
+    const ranked = [...notes.values()].sort((a, b) => b.t - a.t);
+    connections.push({
+      subject,
+      noteCount: notes.size,
+      latest: ranked[0]?.t ?? 0,
+      notes: ranked.slice(0, maxNotesPerConnection).map(({ note }) => ({ id: note.id, title: note.title ?? null })),
+    });
+  }
+
+  return connections
+    .sort((a, b) => b.noteCount - a.noteCount || b.latest - a.latest || a.subject.localeCompare(b.subject))
+    .slice(0, Math.max(0, limit))
+    .map(({ subject, noteCount, notes }) => ({ subject, noteCount, notes }));
+}
+
 /** Most-referenced passages across the space's scripture index, canonical order as tiebreak. */
 export function deriveTopPassages(books: HomeBookInput[], limit: number): HomeTopPassage[] {
   return books
