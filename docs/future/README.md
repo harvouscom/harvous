@@ -37,11 +37,22 @@ These were designed here and are now live. The stub files in this folder point t
   - Flagship near-term win: passage-aware auto-folder/auto-tag (uses a note's cited passages, not just its prose)
   - Phased roadmap: schema + data pipeline → connection layer → auto-tag/folder → resurfacing → suggested threads → AI grounding
 
-- **`SCRIPTURE_AI_GROUNDING_PHASE_5.md`** - Phase 5 decision doc: grounding AI features on the knowledge layer
-  - Shared server-side grounding context builder reused by all AI consumers
-  - Consumer A: Give Me More Context; Consumer B: Learn / quizzes + challenges
-  - First runtime AI path and first paid feature; decision-ready monetization on the existing free/unlimited tier
-  - Open-decisions checklist with a recommended default for each
+- **`SCRIPTURE_AI_GROUNDING_PHASE_5.md`** - Phase 5 decision doc: grounding **Review** (personal AI quizzes) on the knowledge layer
+  - Web-first Mistral Small runtime; shared grounding context builder
+  - Review always paid and individual; GMMC deferred; Compete via Season Pass
+  - Links [MONETIZATION_AND_PRICING.md](./MONETIZATION_AND_PRICING.md) for SKUs
+
+### Monetization & Business Model
+
+- **`MONETIZATION_AND_PRICING.md`** - Canonical product and pricing strategy (Review, Group Sharing, Season Pass, Group Leader, church org principles)
+  - Review vs Compete split; Group Leader hosts spaces without member Review
+  - Planning Center competitive positioning for future church org (pricing TBD)
+
+- **`CLERK_MONETIZATION_ARCHITECTURE.md`** - Technical architecture for monetization (Clerk metadata, Stripe, org patterns)
+
+- **`MONETIZATION_QUICK_START.md`** - Quick reference: SKU table, Review vs Compete, Clerk patterns
+
+- **`MONETIZATION_SUMMARY.md`** - Brief index: church connection + sharing; points to canonical pricing doc
 
 ### Mobile Apps
 
@@ -54,24 +65,6 @@ These were designed here and are now live. The stub files in this folder point t
   - References detailed implementation guide in main docs folder
 
 - **`NETLIFY_FUNCTION_OPTIMIZATION_AND_CAPACITOR_PREP.md`** - Reduce Netlify function usage and align web app with Capacitor-ready architecture (hybrid, caching, centralized API)
-
-### Monetization & Business Model
-
-- **`CLERK_MONETIZATION_ARCHITECTURE.md`** - Complete technical architecture for monetization
-  - Individual user add-ons (stored in Clerk metadata)
-  - Church organizations (Clerk Organizations)
-  - Stripe integration patterns
-  - Feature gating utilities
-
-- **`MONETIZATION_QUICK_START.md`** - Quick reference for monetization questions
-  - How Clerk Organizations work for churches
-  - How add-ons work with Clerk metadata
-  - Architecture summary
-
-- **`MONETIZATION_SUMMARY.md`** - High-level overview
-  - Church connection flow
-  - Sharing & groups infrastructure
-  - Implementation priorities
 
 ### Church Features
 

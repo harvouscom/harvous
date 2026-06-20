@@ -96,6 +96,8 @@ Owner-only endpoints: `update`, `share-link` (POST), `members/invite`, `delete`.
 
 Implementation: [server/utils/tier-limits.ts](../server/utils/tier-limits.ts) (`TIER_LIMITS`, `canCreateSharedSpace`, `canOwnerAddOneMoreSharedSpace`, `canAddMemberToSpace`, etc.). Product summary: [future/SPACE_MODES_PRODUCT.md](future/SPACE_MODES_PRODUCT.md).
 
+**Pricing names:** Paid unlimited shared spaces = customer-facing **Group Sharing** (live today as Premium). **Review** (personal AI from own notes) is a separate always-paid individual product. **Group Leader** (future) pays to host; invited members join spaces without a sharing subscription but buy **Review** individually if they want AI. Canonical SKUs: [future/MONETIZATION_AND_PRICING.md](future/MONETIZATION_AND_PRICING.md).
+
 ---
 
 ## Current Architecture

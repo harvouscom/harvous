@@ -220,13 +220,13 @@ Upgrade `/api/notes/suggest-threads` from string-level Jaccard similarity to *co
 / cross-reference* overlap — notes get grouped by what they're actually about, not by shared
 words.
 
-### Ground AI features
+### Ground AI features (Review)
 
-[Give Me More Context](./GIVE_ME_MORE_CONTEXT.md)'s "Checking cross-references…" and "How does
-this connect to my notes?" steps read real data from this layer instead of asking the model to
-recall it — lower cost, higher accuracy, less hallucination. The Learn/Challenges quiz
-generator gets real connection targets ("which passage connects to Romans 8:28?") and
-study-guide scaffolding.
+**Review** (personal AI quiz sessions from user notes) reads real data from this layer instead of
+asking the model to recall it. Connection-challenge correct answers and distractors come from TSK and
+related-note rows. GMMC is deferred; Compete challenges use deterministic + editorial content. See
+[SCRIPTURE_AI_GROUNDING_PHASE_5.md](./SCRIPTURE_AI_GROUNDING_PHASE_5.md) and
+[MONETIZATION_AND_PRICING.md](./MONETIZATION_AND_PRICING.md).
 
 ---
 
@@ -275,10 +275,11 @@ study-guide scaffolding.
   Jaccard to knowledge-layer scoring: `getRelatedNotesForPassages` + `rankThreadSuggestions`
   (`src/utils/thread-suggestion-ranking.ts`), with passage detection from note text and optional
   `noteId` merge. Response contract unchanged for web prototype + native clients.
-- **Phase 5 — Ground AI features (decision doc).** Feed the layer into Give-Me-More-Context and
-  Learn/Challenges as retrieval context via a shared grounding context builder; first runtime AI path
-  and first paid feature. Design + monetization decisions in
-  [SCRIPTURE_AI_GROUNDING_PHASE_5.md](./SCRIPTURE_AI_GROUNDING_PHASE_5.md).
+- **Phase 5 — Ground AI for Review (decision doc).** Feed the layer into **Review** (personal AI quiz
+  sessions from user notes) via a shared grounding context builder; web-first Mistral runtime. Compete
+  challenges use deterministic + editorial content; GMMC deferred. Design in
+  [SCRIPTURE_AI_GROUNDING_PHASE_5.md](./SCRIPTURE_AI_GROUNDING_PHASE_5.md); pricing in
+  [MONETIZATION_AND_PRICING.md](./MONETIZATION_AND_PRICING.md).
 
 ---
 
@@ -287,8 +288,7 @@ study-guide scaffolding.
 - [HARVOUS_NORTH_STAR.md](./HARVOUS_NORTH_STAR.md) — the Remember and Learn pillars this layer
   serves.
 - [GIVE_ME_MORE_CONTEXT.md](./GIVE_ME_MORE_CONTEXT.md) — AI context panel that this layer grounds.
-- [SCRIPTURE_AI_GROUNDING_PHASE_5.md](./SCRIPTURE_AI_GROUNDING_PHASE_5.md) — Phase 5 design +
-  monetization decisions for grounding AI features on this layer.
+- [MONETIZATION_AND_PRICING.md](./MONETIZATION_AND_PRICING.md) — Phase 5 design + consumer SKUs.
 - [HARVOUS_SDK_AND_FUTURE_ROADMAP.md](./HARVOUS_SDK_AND_FUTURE_ROADMAP.md) — learning features
   (challenges, recall/quizzes) that consume this layer.
 - [SCRIPTURE_NOTES_FUTURE_IMPROVEMENTS.md](./SCRIPTURE_NOTES_FUTURE_IMPROVEMENTS.md) — related

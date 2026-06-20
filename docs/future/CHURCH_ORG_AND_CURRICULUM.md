@@ -62,6 +62,7 @@ This makes it easy to **share threads and notes from the church** to everyone wh
 |-----|-----------------|
 | **CHURCH_CONNECTION_SYSTEM.md** | Church creates Clerk org, matching algorithm (name/city/state), connection requests, accept flow, UserMetadata `connectedChurchId` / `connectedOrgId`, inbox push to connected members. |
 | **SHARING_AND_GROUPS_INFRASTRUCTURE.md** | InboxItem + SharedContent with `sharingType='organization'`, orgId, auto-add to org members’ UserInboxItems. |
+| **MONETIZATION_AND_PRICING.md** | Canonical SKUs: Review, Group Sharing, Season Pass, Group Leader, church principles. |
 | **MONETIZATION_SUMMARY.md** | High-level church connection flow and sharing infrastructure. |
 | **CLERK_MONETIZATION_ARCHITECTURE.md** | Clerk Organizations, feature gating, Stripe, technical architecture. |
 
@@ -77,6 +78,39 @@ This doc adds: **product vision** (church org accounts for curriculum), **two-la
 - **InboxItems / UserInboxItems:** used for church content delivery; link via `sharingType='organization'` and orgId (SHARING_AND_GROUPS_INFRASTRUCTURE.md).
 
 No new schema is proposed here; this doc describes how those pieces support the org + curriculum vision.
+
+---
+
+## Monetization ladder
+
+Canonical consumer pricing: [MONETIZATION_AND_PRICING.md](./MONETIZATION_AND_PRICING.md).
+
+| Stage | Who pays | What members get |
+|---|---|---|
+| **Group Leader** (v1) | Leader (~$15–19/mo est.) | Join leader's **shared spaces** free; **Review** is individual ($4/mo each if they want AI from their own notes) |
+| **Church org** (future) | Church (pricing TBD) | Curriculum to connected members; multiple leader seats; optional **bulk Review seat packs** (each seat still personal) |
+
+**Review is never shared:** AI practice is customized to each person's notes and preferences. A leader or
+church pays to **host and distribute curriculum**, not to substitute for each member's Review subscription.
+Optional church-purchased Review seats **claim** to individual accounts — same product, church as payer.
+
+### Position vs Planning Center
+
+Harvous is **not** a full church management system. [Planning Center](https://www.planningcenter.com/pricing)
+offers modular products (People free, Groups/Services from ~$15/mo each, transparent pricing, no
+contracts). Mid-size churches often spend **$100–300/mo** stacked across modules.
+
+Harvous complements PC on **study memory + curriculum to connected members** — not check-ins,
+scheduling, giving, or facilities. Competitive target: **Groups + curriculum distribution**, not the
+full PC suite. Church org **pricing is not committed**; principles are public modular tiers, free entry
+where possible, and optional Review seat packs. See open decisions in MONETIZATION_AND_PRICING.md Section 7.
+
+**Ladder:** Successful **Group Leader** → church connects → church adopts Harvous org account when
+curriculum + admin needs justify it.
+
+**Draft church tiers (pilot):** Church Connect (free), Church Study ($29–39), Church Study Plus
+($59–79), Church Network ($99–149), plus Review seat packs and church-wide Season Pass add-ons. Full
+detail in [MONETIZATION_AND_PRICING.md](./MONETIZATION_AND_PRICING.md) Section 7.
 
 ---
 

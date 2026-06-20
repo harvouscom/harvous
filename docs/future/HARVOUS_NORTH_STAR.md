@@ -65,6 +65,11 @@ This is where AI earns its keep — generating meaningful questions from your ac
 
 The tagline here: **"Study smarter. Review what's actually yours."**
 
+**Customer-facing name:** **Review** (paid, individual subscription). The Learn pillar is internal
+architecture; users buy **Review** to practice from their own notes. Pricing and SKUs:
+[MONETIZATION_AND_PRICING.md](./MONETIZATION_AND_PRICING.md). Runtime AI: Phase 5
+[SCRIPTURE_AI_GROUNDING_PHASE_5.md](./SCRIPTURE_AI_GROUNDING_PHASE_5.md).
+
 ### 4. Compete (Social Layer)
 Duolingo-style leagues and seasonal challenges — but Bible-specific:
 - Public seasonal challenges available to all Harvous users
@@ -77,6 +82,11 @@ Duolingo-style leagues and seasonal challenges — but Bible-specific:
 This is where having more in Harvous gives you a real advantage — your notes are your preparation. Power users who've been capturing for years are genuinely better equipped.
 
 The tagline here: **"Your notes are your edge."**
+
+**Monetization:** Compete is separate from **Review**. Current season stays **free to play**; full
+study guides and archive depth via **Season Pass** (one-time per season). Personal AI from your notes
+remains **Review**, not bundled into Compete or Group Leader. See
+[MONETIZATION_AND_PRICING.md](./MONETIZATION_AND_PRICING.md).
 
 ---
 

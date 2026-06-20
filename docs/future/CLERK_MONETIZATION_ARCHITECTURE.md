@@ -1,5 +1,10 @@
 # Clerk Monetization Architecture
 
+> **Product SKUs and prices** live in [MONETIZATION_AND_PRICING.md](./MONETIZATION_AND_PRICING.md).
+> This file is **technical** — Clerk metadata, Stripe webhooks, Organizations, feature-gating patterns.
+> The example `ADDONS` block below ($8–12/mo learning courses) is **superseded** by Review / Group
+> Sharing / Season Pass / Group Leader in the pricing doc.
+
 ## Overview
 
 This document outlines how to implement monetization using Clerk Organizations for churches and Clerk metadata for individual user add-ons.

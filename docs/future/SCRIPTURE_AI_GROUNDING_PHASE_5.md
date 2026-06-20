@@ -1,218 +1,189 @@
 # Scripture AI Grounding (Phase 5)
 
 The phase where the deterministic Scripture Knowledge Layer (Phases 0-4) becomes the
-**grounding substrate** for Harvous's first user-facing AI features. The model reads real
-cross-references, real themes, and the user's own related notes instead of recalling facts -
-cheaper, more accurate, and far less prone to fabricating Scripture.
+**grounding substrate** for Harvous's first user-facing AI feature: **Review** — personal, interactive
+quiz sessions from the user's own notes. The model formats questions from real cross-references,
+themes, and related notes instead of recalling facts — cheaper, more accurate, and far less prone to
+fabricating Scripture.
 
 **Status:** Decision doc. Not started. Phases 0-4 of [SCRIPTURE_KNOWLEDGE_LAYER.md](./SCRIPTURE_KNOWLEDGE_LAYER.md)
-are complete (data, connection layer, passage-aware tagging, Remember surfaces, suggested threads).
-This doc exists because Phase 5 introduces (a) the first runtime AI call path in Harvous and (b) a
-paid feature - both of which need product and architecture decisions before any code is written.
+are complete. Phase 5 introduces (a) the first runtime AI call path and (b) the **Review** paid
+product. Product and pricing decisions live in
+[MONETIZATION_AND_PRICING.md](./MONETIZATION_AND_PRICING.md).
 
-**Guiding principle:** AI is optional polish on a deterministic core, never the core itself. Every
-Phase 5 feature must degrade to something useful (or absent) when the AI is unavailable, rate-limited,
-or the user is out of credits.
+**Guiding principle:** AI is optional polish on a deterministic core. Deterministic practice (connection
+MCQ from the knowledge layer) and Compete's free track work without runtime AI. **Review is always paid
+and always individual.**
+
+**Deferred:** [Give Me More Context](./GIVE_ME_MORE_CONTEXT.md) (GMMC) — not v1; may reuse the same
+grounding builder if built later.
 
 ---
 
 ## 1. Where this fits
 
-Phase 5 is the last bullet of the knowledge-layer roadmap: *"Ground AI features. Feed the layer into
-Give-Me-More-Context and Learn/Challenges as retrieval context."* It maps onto the **Learn** pillar of
-[HARVOUS_NORTH_STAR.md](./HARVOUS_NORTH_STAR.md) ("this is where AI earns its keep - generating
-meaningful questions from your actual notes, not generic trivia") and powers the
-[GIVE_ME_MORE_CONTEXT.md](./GIVE_ME_MORE_CONTEXT.md) panel.
+Phase 5 is the last knowledge-layer roadmap bullet: ground AI on the layer for **Review** (customer-facing
+name for the Learn pillar's personal practice). It maps to [HARVOUS_NORTH_STAR.md](./HARVOUS_NORTH_STAR.md)
+— *"Study smarter. Review what's actually yours."*
 
-Two named consumers:
-- **Give Me More Context (GMMC)** - an on-demand AI context panel for any passage the user engages with.
-- **Learn / quizzes + challenges** - active review generated from the user's own saved content.
+**Single v1 consumer:** **Review** — AI-generated quiz sessions from the user's notes (recall prompts,
+connection challenges, fill-in-blank), grounded on the knowledge layer.
 
-Both read from one shared grounding layer (Section 3) and share one billing model (Section 7).
+**Not in v1 runtime scope:**
+
+- **GMMC** — deferred vision doc only.
+- **Compete / curated challenges** — mostly deterministic + editorial content; Season Pass monetization
+  per [MONETIZATION_AND_PRICING.md](./MONETIZATION_AND_PRICING.md), not Mistral at scale for curated
+  guides.
+
+**Platform:** Web-first — SPA calls Hono API; native is a client of the same endpoints. Optional
+on-device Apple Foundation Models on native later ([ScriptureReflectionGenerator](../../native/Harvous/Services/ScriptureReflectionGenerator.swift))
+is not the primary path.
 
 ---
 
 ## 2. Why ground at all
 
-Today nothing in Harvous calls an LLM at runtime - Claude is used only in **offline authoring
-scripts** (`server/scripts/author-subjects.ts`, `npm run bible:generate`). Phase 5 adds the first
-live request path, so we get to set the pattern.
+Today nothing in Harvous calls an LLM at runtime. Claude is used only in **offline authoring scripts**
+(`server/scripts/author-subjects.ts`, `npm run bible:generate`). Phase 5 adds the first live request path.
 
-Most AI Bible tools ask the model to recall cross-references and connections from training data. That
-is the expensive, hallucination-prone path. Harvous already has the facts as indexed rows:
+Harvous already has the facts as indexed rows:
 
-- `ScriptureCrossReferences` (TSK, 341k edges) - real cross-references for a verse.
-- `ScriptureTopicVerses` / `ScriptureTopics` (OpenBible, 6.7k topics) - real themes.
-- `ScriptureEntityRefs` + `BiblePeople` / `BiblePlaces` - real people and places.
-- `getRelatedNotesForPassages(userId, passages)` ([server/utils/scripture-knowledge.ts](./SCRIPTURE_KNOWLEDGE_LAYER.md)) - **the user's own notes** that connect via shared passage, cross-reference, or theme.
+- `ScriptureCrossReferences` (TSK) — real cross-references.
+- `ScriptureTopicVerses` / `ScriptureTopics` (OpenBible) — real themes.
+- `ScriptureEntityRefs` + `BiblePeople` / `BiblePlaces` — people and places.
+- `getRelatedNotesForPassages(userId, passages)` ([server/utils/scripture-knowledge.ts](../../server/utils/scripture-knowledge.ts)) — the user's own connected notes.
 
-Feeding these into the prompt means the model **explains and connects** rather than **recalls**. That
-is cheaper (smaller, cheaper models suffice), more accurate (the cross-references are real), and safer
-(less room to invent a verse).
+The model **writes questions about supplied facts** rather than asserting scripture from memory.
 
 ```mermaid
 flowchart LR
-  Passage["Cited passage(s) + optional noteId"] --> Builder[Grounding context builder]
-  Builder --> KL["Knowledge layer: cross-refs, themes, people, places"]
-  Builder --> Related["getRelatedNotesForPassages: user's own related notes"]
-  KL --> Context[Compact structured context block]
+  Notes["User notes + passages"] --> Builder[Grounding context builder]
+  Builder --> KL["Knowledge layer: cross-refs, themes, entities"]
+  Builder --> Related["getRelatedNotesForPassages"]
+  KL --> Context[Structured context block]
   Related --> Context
   Context --> Prompt[Grounded system prompt]
-  Prompt --> Model[Cost-efficient LLM]
-  Model --> Response["Bite-sized, grounded answer"]
+  Prompt --> Mistral[Mistral Small web API]
+  Mistral --> QuizJSON["Quiz session JSON"]
 ```
 
 ---
 
-## 3. Shared AI-grounding architecture
+## 3. Shared grounding context builder
 
-A single server-side **grounding context builder** that every AI consumer reuses. This is the central
-new primitive of Phase 5.
+One server-side builder reused by Review (and GMMC later if ever built).
 
-**Input:** one or more passages (`VerseKey[]`), an optional `noteId`, and the user's translation
-preference.
+**Input:** note snippets and/or `VerseKey[]`, optional `noteId`, user translation preference.
 
 **Process:**
-- `getKnowledgeForReference(book, chapter, verse)` for a single passage, or `getKnowledgeForPassages(passages)` for a set - cross-references, themes, people, places.
-- `getRelatedNotesForPassages(userId, passages)` - the user's own connected notes (titles + why they connect), so the model can answer "how does this connect to my notes?" from real data.
-- Bounded: cap cross-references/themes/related notes to a token budget; the knowledge layer already exposes limit options (`crossRefLimit`, `themeLimit`, `limit`).
 
-**Output:** a compact, structured context block (not prose) injected into the system prompt - e.g. a
-small JSON/markdown block listing the passage, its top cross-references, top themes, named entities,
-and the user's related note titles.
+- `getKnowledgeForPassages(passages)` — cross-refs, themes, people, places (bounded).
+- `getRelatedNotesForPassages(userId, passages)` — related note titles + connection reasons.
+- Token caps via existing limit options (`crossRefLimit`, `themeLimit`, `limit`).
 
-**Why a shared builder:** GMMC and Learn need the same facts. One builder means one place to tune the
-token budget, one cache, one set of guardrails, and consistent grounding across features.
+**Output:** compact structured block for the system prompt — facts only, not prose.
 
-**New runtime concerns (first user-facing AI):**
-- Server-side only (Hono API). The web prototype and native both call the grounded endpoints over HTTP, so the intelligence ships once with no Swift port (same pattern as Phase 4's suggest-threads).
-- API key handling: `ANTHROPIC_API_KEY` already exists for offline scripts; runtime use needs the same env wiring on Netlify functions.
-- Bundling: the API is a single bundled function (`node_bundler = "none"`), so any AI SDK must bundle cleanly (see AGENTS.md production API contract).
+**Runtime stack:**
 
-**Faith guardrails (non-negotiable, per AGENTS.md "Faith and AI"):**
-- Never fabricate or misrepresent Scripture; ground every cross-reference/connection in real rows.
-- Clearly identify AI output as AI, not a human or pastoral authority.
-- Do not replace human relationships or spiritual practices.
-- Route any reusable passage-summary style copy through theological review (`/theologian-agent`).
-- Defer high-doctrinal-risk output (e.g. authoritative interpretation) - favor background, language, and connection over verdicts.
+- **Model:** Mistral Small (`mistral-small-latest` or successor) via server SDK or REST.
+- **Not at runtime:** OpenAI, Claude (Claude stays offline-only for authoring scripts).
+- **Env:** e.g. `MISTRAL_API_KEY` on Netlify functions (separate from `ANTHROPIC_API_KEY`).
+- **Bundling:** single bundled API function — SDK must bundle cleanly (AGENTS.md contract).
+- **Clients:** web SPA + native call the same `/api/review/...` endpoints.
 
----
+**Session pattern:** generate N questions **once per session**, cache server-side or return session id;
+grade deterministically from stored correct keys — never ask the model to grade.
 
-## 4. Consumer A - Give Me More Context
+**Faith guardrails (AGENTS.md "Faith and AI"):**
 
-See [GIVE_ME_MORE_CONTEXT.md](./GIVE_ME_MORE_CONTEXT.md) for the full UX vision. Phase 5 supplies its
-engine.
-
-- **Entry points:** scripture note view, Verse of the Day, any selected/highlighted passage.
-- **UX:** a bottom sheet showing transparent processing steps ("Checking cross-references...", "How
-  does this connect to my notes?"). With grounding, those steps read **real data** from Section 3
-  rather than asking the model to recall it.
-- **Bite-sized:** 2-3 framing questions (historical/cultural, original language, cross-references,
-  theological angle, connection to my notes) - each surfaces one focused chunk, not a wall of text.
-- **"I'm Feeling Lucky":** skip the questions; the model picks the single most interesting grounded bit.
-- **Model:** cost-efficient (e.g. a Claude Haiku-class model) to keep per-request cost low at scale;
-  validate biblical/historical accuracy before shipping.
-
-The "how does this connect to my notes?" path is the differentiator only Harvous can do well, because
-`getRelatedNotesForPassages` already knows the answer deterministically.
+- Never fabricate verses; correct answers come from grounding data.
+- Identify AI output as AI.
+- Questions reflect user note content, not generic trivia or authoritative doctrine.
 
 ---
 
-## 5. Consumer B - Learn / quizzes + challenges
+## 4. Review product shape
 
-The North Star Learn pillar. Two distinct shapes (per
-[HARVOUS_SDK_AND_FUTURE_ROADMAP.md](./HARVOUS_SDK_AND_FUTURE_ROADMAP.md) section 3.2):
+**Paid SKU:** [MONETIZATION_AND_PRICING.md](./MONETIZATION_AND_PRICING.md) — **Review** $4/mo, always
+individual (own notes, preferences, pace). Not included in Group Leader or church org as shared access.
 
-- **Recall / quizzes from the user's own content:** "You wrote about grace 8 times - let's test you."
-  Fill-in-the-blank, recall prompts, and **connection challenges** ("which passage connects to Romans
-  8:28?") where the correct answer comes from real cross-reference/related-note data, so distractors and
-  answers are grounded, not invented.
-- **Curated challenge study guides:** Harvous authors a thread + study guide for a seasonal challenge;
-  the quiz is built from that curated guide, **not** the user's notes. AI assists authoring/scaffolding,
-  but content is reviewed (lower runtime cost, higher editorial control).
+**Question types:**
 
-Grounding makes user-content quizzes safe: the model generates questions *about* facts we supply, rather
-than asserting facts itself.
+| Type | LLM needed? |
+|---|---|
+| Connection MCQ ("which passage links to X?") | Optional — often fully deterministic from TSK |
+| Recall from user note text | Yes — Mistral formats question from supplied snippet |
+| Fill-in-blank from note | Often template; LLM for variety |
+| Theme / entity match | Deterministic from knowledge layer |
 
----
+**Free tier:** deterministic practice only; **no free AI Review sessions** (optional one-time trial —
+open decision in monetization doc).
 
-## 6. Cost and abuse control
-
-- **Cost drivers:** model choice (Haiku-class default), prompt size (bounded grounding block), and
-  request volume. Grounding keeps prompts small and predictable.
-- **Cache the grounded context:** the knowledge layer is deterministic and shared across users; a
-  passage's cross-references/themes never change. Cache the built context block by passage key so
-  repeated GMMC taps on the same verse don't re-query.
-- **Rate limiting:** reuse the existing `rateLimit` middleware on the new AI endpoints.
-- **Token budgeting:** hard caps on grounding items and max output tokens per request.
-- **Model tiering:** default to the cheap model; reserve any larger model for explicitly premium paths
-  if ever needed.
+**Compete:** separate product — current season free track; **Season Pass** for full curated guide.
+Personal Review complements but does not replace Compete.
 
 ---
 
-## 7. Monetization (decision-ready)
+## 5. Cost and abuse control
 
-AI features are the natural **paid** boundary - they have real marginal cost, unlike the deterministic
-Remember surfaces. Build on the infrastructure that already exists rather than inventing a new pricing
-system:
-
-- `UserMetadata.tier` - `'free' | 'unlimited'` (DB source of truth).
-- `getTierForAuth(auth)` / `getTierForUserId(userId)` ([server/utils/tier-limits.ts](../../server/utils/tier-limits.ts)) - tier resolution with the Clerk -> Stripe transition fallback.
-- `setTierForUserId` (Stripe webhook / admin grant), `UpgradePage.tsx`, and the pricing FAQ already exist.
-
-Recommended defaults for each open decision (all changeable; see Section 8 checklist):
-
-| Decision | Options | Recommendation |
-|---|---|---|
-| Paid boundary | Hard paywall / freemium taste / monthly free credits | **Monthly free AI credits** (e.g. 3-5/month) then premium for effectively-unlimited, matching the GMMC doc's "1-3 uses/month before paywall" idea. Let free users feel the magic first. |
-| Metering unit | Per-request, per-feature credits, or one shared pool | **One shared "AI credits" pool** spanning GMMC + quizzes - simplest mental model, one counter. |
-| Enforcement point | Inline checks vs a gate helper | A **`canUseAiFeature(auth)` helper** analogous to `canCreateSharedSpace`, returning `{ allowed, remaining, reason }`, called by every AI endpoint. |
-| Usage tracking | New `UserMetadata` column vs a usage table | **Schema decision (flagged):** start with a monthly counter on `UserMetadata` (e.g. `aiCreditsUsedThisPeriod` + `aiCreditsPeriodStart`); move to a usage table only if per-event auditing/analytics is needed. |
-| Tier shape | Keep free/unlimited vs add an AI tier | **Fold AI into the existing `unlimited` tier** initially (one upgrade, more value); split out an AI tier only if cost data demands it. |
-| Period reset | Calendar month vs rolling 30 days | **Calendar month**, reset via the stored period-start. |
-
-This keeps the paywall consistent with the current two-tier model and reuses `UpgradePage` for the
-upgrade path.
+- **Cost drivers:** Mistral Small pricing, grounding prompt size, sessions per user.
+- **Cache** grounding blocks by passage key (shared across users).
+- **Rate limit** AI endpoints (`rateLimit` middleware).
+- **Token budget** on grounding + max output tokens per session.
+- **Gate:** `canUseAiFeature(auth)` → `{ allowed, reason }` checks `hasReview` (future entitlement).
 
 ---
 
-## 8. Open decisions checklist
+## 6. Monetization
 
-Actionable list - each has a recommended default above; revisit before building.
+Canonical pricing: [MONETIZATION_AND_PRICING.md](./MONETIZATION_AND_PRICING.md).
 
-- [ ] Paid boundary -> monthly free credits then premium (default 3-5/month free).
-- [ ] Credit unit -> single shared AI-credits pool across GMMC + Learn.
-- [ ] Free credit count and premium allowance (soft cap vs truly unlimited).
-- [ ] Usage tracking storage -> `UserMetadata` counter columns vs usage table.
-- [ ] Gate helper shape -> `canUseAiFeature(auth)` returning remaining + reason.
-- [ ] Tier shape -> fold into `unlimited` vs new AI tier.
-- [ ] Period reset -> calendar month.
-- [ ] Default model + accuracy eval bar before launch.
+| Decision | Recommendation |
+|---|---|
+| Paid boundary | **Review always paid** — no monthly free AI credits |
+| Product name | **Review** (customer); Learn pillar (internal) |
+| vs Group Sharing | Separate SKUs — no bundle; users subscribe to each independently |
+| vs Compete | Season Pass for challenges; Review for personal notes |
+| Group Leader | Pays to host spaces; **does not** include member Review |
+| Enforcement | `canUseAiFeature` / `hasReview` on Review endpoints |
+| Church (future) | Optional bulk Review **seat packs** — each seat still individual |
+
+Existing `UserMetadata.tier` (`free` | `unlimited`) maps to **Group Sharing** today; Review adds a
+separate entitlement when implemented.
+
+---
+
+## 7. Open decisions checklist
+
+- [ ] Mistral model id + structured output schema for quiz sessions.
+- [ ] Accuracy eval fixtures (fabrication rate, answer fidelity, note fidelity).
 - [ ] Grounding token budget (cross-refs / themes / related notes caps).
-- [ ] Context cache strategy + invalidation (per passage key).
-- [ ] Which entry points ship first (GMMC scripture note view vs VOTD vs editor selection).
-- [ ] Theological review process for any reusable AI copy.
+- [ ] Context cache strategy + invalidation.
+- [ ] One-time Review trial on signup (yes/no).
+- [ ] Fair-use session cap for paid Review vs unlimited.
+- [ ] GMMC later: shared Review entitlement vs separate (when/if built).
+- [ ] Native on-device generation: optional fallback vs server-only.
 
 ---
 
-## 9. Phased rollout
+## 8. Phased rollout
 
-1. **Grounding builder + one GMMC endpoint.** Ship the shared context builder and a single grounded
-   GMMC request (e.g. "I'm Feeling Lucky" on a scripture note). Validate biblical accuracy internally
-   before exposing.
-2. **GMMC full panel.** Framing questions, processing-step UI, more entry points.
-3. **Billing.** Wire `canUseAiFeature` + credits + `UpgradePage` once the feature proves valuable.
-4. **Learn / quizzes.** Reuse the same builder for grounded recall and connection challenges.
-5. **Curated challenges.** AI-assisted authoring with editorial review.
+1. **Grounding builder** — pure + server util; unit tests.
+2. **Review session endpoint** — Mistral generates cached quiz set; deterministic grading.
+3. **Review billing** — `hasReview`, upgrade UI, `canUseAiFeature`.
+4. **Deterministic Compete** — free track; Season Pass content pipeline (minimal runtime AI).
+5. **Group Leader** SKU (sharing/admin; members buy Review individually).
 
-Each step is independently valuable and degrades gracefully if AI is off.
+GMMC and full Compete editorial pipeline are not blockers for steps 1–3.
 
 ---
 
 ## Related Docs
 
-- [SCRIPTURE_KNOWLEDGE_LAYER.md](./SCRIPTURE_KNOWLEDGE_LAYER.md) - the deterministic Phases 0-4 substrate this grounds on.
-- [GIVE_ME_MORE_CONTEXT.md](./GIVE_ME_MORE_CONTEXT.md) - Consumer A UX vision.
-- [HARVOUS_NORTH_STAR.md](./HARVOUS_NORTH_STAR.md) - the Learn pillar this serves.
-- [HARVOUS_SDK_AND_FUTURE_ROADMAP.md](./HARVOUS_SDK_AND_FUTURE_ROADMAP.md) - Learn features (challenges, recall/quizzes) sequencing.
-- [../../server/utils/tier-limits.ts](../../server/utils/tier-limits.ts) and [../../server/utils/subscription.ts](../../server/utils/subscription.ts) - existing tier/billing infrastructure to extend.
+- [MONETIZATION_AND_PRICING.md](./MONETIZATION_AND_PRICING.md) — Review, Sharing, Season Pass, Group Leader.
+- [SCRIPTURE_KNOWLEDGE_LAYER.md](./SCRIPTURE_KNOWLEDGE_LAYER.md) — Phases 0-4 substrate.
+- [GIVE_ME_MORE_CONTEXT.md](./GIVE_ME_MORE_CONTEXT.md) — deferred; not v1.
+- [HARVOUS_NORTH_STAR.md](./HARVOUS_NORTH_STAR.md) — Learn / Compete pillars.
+- [HARVOUS_SDK_AND_FUTURE_ROADMAP.md](./HARVOUS_SDK_AND_FUTURE_ROADMAP.md) — challenges vs personal Review.
+- [../../server/utils/tier-limits.ts](../../server/utils/tier-limits.ts) — sharing entitlements today.

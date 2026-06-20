@@ -43,6 +43,8 @@ Canonical business rules below match [SHARED_SPACES_DEV_NOTES.md](../SHARED_SPAC
 
 **Grandfathering:** Users who already exceed a new cap keep existing data; enforcement blocks *new* actions that would violate limits (create shared space, first share/member where applicable).
 
+**Customer-facing names (billing):** Code today uses `UserMetadata.tier` `'free' | 'unlimited'`. The paid tier is marketed as **Group Sharing** ($6/mo · $48/yr). **Review** (personal AI) is a separate subscription — no bundle SKU. See [MONETIZATION_AND_PRICING.md](./MONETIZATION_AND_PRICING.md). **Group Leader** (leader pays to host; members join spaces free; Review stays individual) is a future SKU distinct from Group Sharing.
+
 ---
 
 ## 3. Invariants vs per-mode UX

@@ -66,9 +66,17 @@ Faith-based apps rarely talk to each other. Users end up with notes and highligh
 
 ### 3.2 Learning features
 
-- **Recall / quizzes from user content (later):** Use what the user has saved (notes, scripture notes) to generate quizzes — "quiz me on my study." Optional/secondary to the main learning bet below.
-- **Challenges (primary learning bet):** Harvous creates a **thread with notes** that serves as the **study guide** for a challenge. The challenge is a **timed, Duolingo-style quiz** (interactive, gamified) based on that study guide — **not** generated from the user's own notes. Users study the thread and take the quiz; content is curated by Harvous.
-- **Live public events:** More real-time, participatory experiences — e.g. live challenge, group quiz, or public event so people can participate together.
+Two distinct products (see [MONETIZATION_AND_PRICING.md](./MONETIZATION_AND_PRICING.md)):
+
+- **Review (personal, paid):** AI quiz sessions from the user's own notes — "quiz me on my study."
+  Customer-facing name for the Learn pillar. Always individual; grounded runtime AI in
+  [SCRIPTURE_AI_GROUNDING_PHASE_5.md](./SCRIPTURE_AI_GROUNDING_PHASE_5.md).
+- **Compete / Challenges (communal):** Harvous creates a **thread with notes** as the **study guide**
+  for a seasonal challenge. Timed, Duolingo-style quiz from **curated** content — not from the user's
+  notes. Current season free track; **Season Pass** for full guide. Primary learning *bet* for
+  engagement; separate from personal Review.
+- **Live public events:** More real-time, participatory experiences — e.g. live challenge, group quiz,
+  or public event so people can participate together.
 
 ### 3.3 Sequence
 

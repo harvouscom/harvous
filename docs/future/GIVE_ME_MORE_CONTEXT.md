@@ -2,7 +2,10 @@
 
 An on-demand AI context panel that surfaces bite-sized, relevant background for any scripture the user is engaging with — without overwhelming them.
 
-**Status:** Not started. Vision doc only.
+**Status:** Deferred — not v1. Vision doc only. Phase 5 and paid AI focus on **Review** (personal
+quizzes from user notes); see [SCRIPTURE_AI_GROUNDING_PHASE_5.md](./SCRIPTURE_AI_GROUNDING_PHASE_5.md)
+and [MONETIZATION_AND_PRICING.md](./MONETIZATION_AND_PRICING.md). If GMMC ships later, it may share
+the Review subscription or require a separate product decision.
 
 ---
 
