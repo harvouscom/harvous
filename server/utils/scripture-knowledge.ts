@@ -314,28 +314,37 @@ export interface RelatedNotesOptions {
   maxCrossRefs?: number;
 }
 
-/** The user's other notes that connect to this one via shared passages, cross-refs, or themes. */
-export async function getRelatedNotesForNote(
-  noteId: string,
-  opts: RelatedNotesOptions = {},
+export interface RelatedNotesForPassagesOptions extends RelatedNotesOptions {
+  /** When set, exclude this note from candidate matches (e.g. the source note). */
+  excludeNoteId?: string;
+}
+
+/**
+ * The user's other notes that connect to the given source passages via shared passages,
+ * cross-refs, or themes — the passage-first variant of getRelatedNotesForNote.
+ */
+export async function getRelatedNotesForPassages(
+  userId: string,
+  sourcePassages: VerseKey[],
+  opts: RelatedNotesForPassagesOptions = {},
 ): Promise<RelatedNote[]> {
-  const { limit = 10, maxThemes = 25, maxCrossRefs = 80 } = opts;
+  const { limit = 10, maxThemes = 25, maxCrossRefs = 80, excludeNoteId } = opts;
 
-  const note = (await db.select({ id: Notes.id, userId: Notes.userId }).from(Notes).where(eq(Notes.id, noteId)).limit(1))[0];
-  if (!note) return [];
-
-  // Source passages: this note's own ScriptureMetadata plus any linked scripture notes.
-  const sourcePassages = await getNotePassages(noteId);
-  const sourceKeys = new Set(sourcePassages.map(verseKey));
+  const deduped: VerseKey[] = [];
+  const sourceKeys = new Set<string>();
+  for (const p of sourcePassages) {
+    const k = verseKey(p);
+    if (!sourceKeys.has(k)) {
+      sourceKeys.add(k);
+      deduped.push(p);
+    }
+  }
   if (sourceKeys.size === 0) return [];
-  const passageMatch = [...sourceKeys].slice(0, 50).map((k) => {
-    const [b, c, v] = k.split('|');
-    return { book: b, chapter: Number(c), verse: Number(v) };
-  });
+
+  const passageMatch = deduped.slice(0, 50);
   const anyOf = (b: typeof ScriptureCrossReferences.fromBook | typeof ScriptureTopicVerses.book, c: any, v: any) =>
     or(...passageMatch.map((p) => and(eq(b, p.book), eq(c, p.chapter), eq(v, p.verse))));
 
-  // Cross-reference target verses for the source passages (top by votes).
   const crossRows = await db
     .select({
       book: ScriptureCrossReferences.toBook,
@@ -348,7 +357,6 @@ export async function getRelatedNotesForNote(
     .limit(maxCrossRefs);
   const crossRefKeys = new Set(crossRows.map(verseKey));
 
-  // Top themes for the source passages.
   const themeRows = await db
     .select({ topicId: ScriptureTopicVerses.topicId, relevance: ScriptureTopicVerses.relevance })
     .from(ScriptureTopicVerses)
@@ -357,14 +365,16 @@ export async function getRelatedNotesForNote(
     .limit(maxThemes);
   const themeIds = [...new Set(themeRows.map((t) => t.topicId))];
 
-  // Candidate passages: the user's other (non-scripture) notes and the verses they cite.
+  const candidateWhere = excludeNoteId
+    ? and(eq(Notes.userId, userId), ne(Notes.noteType, 'scripture'), ne(ScriptureMetadata.noteId, excludeNoteId))
+    : and(eq(Notes.userId, userId), ne(Notes.noteType, 'scripture'));
+
   const candidates = await db
     .select({ noteId: ScriptureMetadata.noteId, book: ScriptureMetadata.book, chapter: ScriptureMetadata.chapter, verse: ScriptureMetadata.verse })
     .from(ScriptureMetadata)
     .innerJoin(Notes, eq(ScriptureMetadata.noteId, Notes.id))
-    .where(and(eq(Notes.userId, note.userId), ne(Notes.noteType, 'scripture'), ne(ScriptureMetadata.noteId, noteId)));
+    .where(candidateWhere);
 
-  // Map candidate verse → note ids, so theme hits on a verse can fan out to the notes citing it.
   const verseToNotes = new Map<string, Set<string>>();
   for (const c of candidates) {
     const key = verseKey(c);
@@ -379,7 +389,6 @@ export async function getRelatedNotesForNote(
     if (crossRefKeys.has(key)) signals.push({ noteId: c.noteId, kind: 'crossref', detail: key });
   }
 
-  // Theme overlap: which candidate verses belong to the source's top themes.
   if (themeIds.length && verseToNotes.size) {
     const candidateBooks = [...new Set(candidates.map((c) => c.book))];
     const themeHits = await db
@@ -394,6 +403,20 @@ export async function getRelatedNotesForNote(
   }
 
   return rankRelatedNotes(signals, { limit });
+}
+
+/** The user's other notes that connect to this one via shared passages, cross-refs, or themes. */
+export async function getRelatedNotesForNote(
+  noteId: string,
+  opts: RelatedNotesOptions = {},
+): Promise<RelatedNote[]> {
+  const note = (await db.select({ id: Notes.id, userId: Notes.userId }).from(Notes).where(eq(Notes.id, noteId)).limit(1))[0];
+  if (!note) return [];
+
+  const sourcePassages = await getNotePassages(noteId);
+  if (sourcePassages.length === 0) return [];
+
+  return getRelatedNotesForPassages(note.userId, sourcePassages, { ...opts, excludeNoteId: noteId });
 }
 
 // ─── per-user passage knowledge (compact, client-cacheable) ──────────────────────

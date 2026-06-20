@@ -16,7 +16,9 @@ scripture-processing tag path, plus a server-side auto-folder gap-fill (files an
 collection under the dominant cited book). Phase 3 Remember resurfacing landed on prototype Home:
 shared-theme (`deriveSubjectConnections`), cross-reference (`deriveCrossRefConnections` via
 `GET /api/spaces/:id/scripture-connections`), and passage (`derivePassageConnections`) cards.
-Phases 4–5 are next. See the roadmap at the end.
+Phase 4 suggested study threads landed — `POST /api/notes/suggest-threads` scores threads via
+passage / cross-reference / theme overlap plus `conceptOverlaps` keywords (server-side, shared by
+web prototype and native). Phase 5 is next. See the roadmap at the end.
 
 ---
 
@@ -269,7 +271,10 @@ study-guide scaffolding.
   `chapter-subjects.json`), cross-reference card (`deriveCrossRefConnections` +
   `build-space-scripture-connections.ts` + `/api/spaces/:id/scripture-connections`), passage card
   (`derivePassageConnections` + scripture index).
-- **Phase 4 — Suggested study threads.** Concept-overlap upgrade to `/api/notes/suggest-threads`.
+- **Phase 4 — Suggested study threads (done).** Upgrade `/api/notes/suggest-threads` from string
+  Jaccard to knowledge-layer scoring: `getRelatedNotesForPassages` + `rankThreadSuggestions`
+  (`src/utils/thread-suggestion-ranking.ts`), with passage detection from note text and optional
+  `noteId` merge. Response contract unchanged for web prototype + native clients.
 - **Phase 5 — Ground AI features.** Feed the layer into Give-Me-More-Context and Learn/Challenges
   as retrieval context.
 

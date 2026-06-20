@@ -48,6 +48,11 @@ import { migrateLinkedFromNoteConnectionsForUser } from '../utils/prototype-user
 import { isStudyThreadNamingColumnMissing } from '../utils/pg-undefined-relation';
 import { rateLimit, rateLimitNoteCreate } from '@/utils/rate-limit';
 import { parseScriptureReference, normalizeScriptureReference } from '@/utils/scripture-detector';
+import { findKeywordsInText } from '@/utils/bible-study-keywords';
+import { conceptOverlaps } from '@/utils/bible-study-concept-overlaps';
+import { rankThreadSuggestions, scoreThreadKeywordOverlap } from '@/utils/thread-suggestion-ranking';
+import { getRelatedNotesForPassages, getNotePassages, type VerseKey } from '../utils/scripture-knowledge';
+import { detectVerseKeysFromNoteText } from '../utils/detect-note-passages';
 import { debug } from '@/utils/logger';
 import { getCurrentSeason } from '@/utils/season-helpers';
 import { getThreadGradientCSS } from '@/utils/colors';
@@ -1225,102 +1230,100 @@ route.post('/api/notes/suggest-threads', requireAuth, rateLimit('write'), async 
   try {
     const auth = getAuthenticatedAuth(c);
 
-    const { title, content } = await c.req.json();
+    const body = await c.req.json();
+    const title = typeof body.title === 'string' ? body.title : '';
+    const content = typeof body.content === 'string' ? body.content : '';
+    const noteId = typeof body.noteId === 'string' && body.noteId.trim() ? body.noteId.trim() : undefined;
+
     if (!title && !content) return c.json({ error: 'Title or content is required', code: 'MISSING_CONTENT' }, 400);
     const noteText = `${title || ''} ${content || ''}`.trim();
     if (!noteText) return c.json({ error: 'Note text is required', code: 'EMPTY_CONTENT' }, 400);
 
-    const extractKeywords = (text: string) => text.toLowerCase().split(/\s+/)
-      .filter(w => w.length > 3)
-      .filter(w => !['the','and','for','are','but','not','you','all','can','her','was','one','our','out','day','get','has','him','his','how','its','may','new','now','old','see','two','way','who','boy','did','let','put','say','she','too','use'].includes(w));
-
-    const calculateSimilarity = (t1: string, t2: string) => {
-      const w1 = new Set(t1.toLowerCase().split(/\s+/).filter(w => w.length > 2));
-      const w2 = new Set(t2.toLowerCase().split(/\s+/).filter(w => w.length > 2));
-      const intersection = new Set([...w1].filter(w => w2.has(w)));
-      const union = new Set([...w1, ...w2]);
-      return union.size === 0 ? 0 : intersection.size / union.size;
-    };
-
-    const suggestions: Array<{ threadId: string; title: string; color: string | null; score: number; reason: string }> = [];
-
-    // Strategy 1: Recent threads
-    const recentThreadRelations = await db.select({ threadId: NoteThreads.threadId, createdAt: NoteThreads.createdAt })
-      .from(NoteThreads).innerJoin(Notes, eq(NoteThreads.noteId, Notes.id))
-      .where(eq(Notes.userId, auth.userId)).orderBy(desc(NoteThreads.createdAt)).limit(50);
-    const recentThreadIds = [...new Set(recentThreadRelations.map(r => r.threadId))].filter(id => id !== 'thread_unorganized').slice(0, 10);
-    if (recentThreadIds.length > 0) {
-      const recentThreads = await db.select({ id: Threads.id, title: Threads.title, color: Threads.color })
-        .from(Threads).where(and(inArray(Threads.id, recentThreadIds), eq(Threads.userId, auth.userId)));
-      recentThreads.forEach((thread, idx) => {
-        suggestions.push({ threadId: thread.id, title: thread.title, color: thread.color, score: 0.3 * (1 - idx / recentThreads.length), reason: 'Recently used' });
-      });
+    const passageMap = new Map<string, VerseKey>();
+    for (const v of detectVerseKeysFromNoteText(title, content)) {
+      passageMap.set(`${v.book}|${v.chapter}|${v.verse}`, v);
     }
-
-    // Strategy 2: Keyword matching
-    const keywords = extractKeywords(noteText);
-    if (keywords.length > 0) {
-      const allThreads = await db.select({ id: Threads.id, title: Threads.title, color: Threads.color })
-        .from(Threads).where(eq(Threads.userId, auth.userId));
-      allThreads.forEach(thread => {
-        if (thread.id === 'thread_unorganized') return;
-        const threadKeywords = extractKeywords(thread.title);
-        const matching = keywords.filter(kw => threadKeywords.some(tk => tk.includes(kw) || kw.includes(tk)));
-        if (matching.length > 0) {
-          const score = 0.5 * (matching.length / keywords.length);
-          const existing = suggestions.findIndex(s => s.threadId === thread.id);
-          if (existing >= 0) { suggestions[existing].score = Math.max(suggestions[existing].score, score); suggestions[existing].reason = 'Similar keywords'; }
-          else suggestions.push({ threadId: thread.id, title: thread.title, color: thread.color, score, reason: 'Similar keywords' });
-        }
-      });
+    if (noteId) {
+      for (const v of await getNotePassages(noteId)) {
+        passageMap.set(`${v.book}|${v.chapter}|${v.verse}`, v);
+      }
     }
+    const sourcePassages = [...passageMap.values()];
 
-    // Strategy 3: Similar notes
-    const allUserNotes = await db.select({ id: Notes.id, title: Notes.title, content: Notes.content })
-      .from(Notes).where(eq(Notes.userId, auth.userId)).limit(100);
-    const similarNotes: Array<{ noteId: string; similarity: number }> = [];
-    allUserNotes.forEach(note => {
-      const t = `${note.title || ''} ${note.content || ''}`.trim();
-      if (t) { const s = calculateSimilarity(noteText, t); if (s > 0.2) similarNotes.push({ noteId: note.id, similarity: s }); }
-    });
-    similarNotes.sort((a, b) => b.similarity - a.similarity);
-    const topSimilarNoteIds = similarNotes.slice(0, 10).map(n => n.noteId);
-    if (topSimilarNoteIds.length > 0) {
-      const similarNoteThreads = await db.select({ threadId: NoteThreads.threadId, noteId: NoteThreads.noteId })
-        .from(NoteThreads).where(inArray(NoteThreads.noteId, topSimilarNoteIds));
-      const threadSimMap: Record<string, number> = {};
-      similarNoteThreads.forEach(nt => {
-        if (nt.threadId === 'thread_unorganized') return;
-        const ns = similarNotes.find(n => n.noteId === nt.noteId)?.similarity || 0;
-        threadSimMap[nt.threadId] = Math.max(threadSimMap[nt.threadId] || 0, ns);
-      });
-      const simThreadIds = Object.keys(threadSimMap);
-      if (simThreadIds.length > 0) {
-        const threads = await db.select({ id: Threads.id, title: Threads.title, color: Threads.color })
-          .from(Threads).where(and(inArray(Threads.id, simThreadIds), eq(Threads.userId, auth.userId)));
-        threads.forEach(thread => {
-          const score = 0.7 * threadSimMap[thread.id];
-          const existing = suggestions.findIndex(s => s.threadId === thread.id);
-          if (existing >= 0) { suggestions[existing].score = Math.max(suggestions[existing].score, score); suggestions[existing].reason = 'Similar to your notes'; }
-          else suggestions.push({ threadId: thread.id, title: thread.title, color: thread.color, score, reason: 'Similar to your notes' });
-        });
+    const relatedNotes =
+      sourcePassages.length > 0
+        ? await getRelatedNotesForPassages(auth.userId, sourcePassages, {
+            limit: 15,
+            excludeNoteId: noteId,
+          })
+        : [];
+
+    const relatedNoteIds = relatedNotes.map((r) => r.noteId);
+    const noteIdToThreadIds = new Map<string, string[]>();
+    if (relatedNoteIds.length > 0) {
+      const noteThreadRows = await db
+        .select({ noteId: NoteThreads.noteId, threadId: NoteThreads.threadId })
+        .from(NoteThreads)
+        .where(inArray(NoteThreads.noteId, relatedNoteIds));
+      for (const row of noteThreadRows) {
+        const list = noteIdToThreadIds.get(row.noteId) ?? [];
+        list.push(row.threadId);
+        noteIdToThreadIds.set(row.noteId, list);
       }
     }
 
-    // Deduplicate & sort
-    const unique = suggestions.reduce((acc, curr) => {
-      const ex = acc.find(s => s.threadId === curr.threadId);
-      if (!ex) acc.push(curr);
-      else if (curr.score > ex.score) acc[acc.indexOf(ex)] = curr;
-      return acc;
-    }, [] as typeof suggestions);
-    unique.sort((a, b) => b.score - a.score);
-    const top = unique.slice(0, 5);
+    const recentThreadRelations = await db
+      .select({ threadId: NoteThreads.threadId, createdAt: NoteThreads.createdAt })
+      .from(NoteThreads)
+      .innerJoin(Notes, eq(NoteThreads.noteId, Notes.id))
+      .where(eq(Notes.userId, auth.userId))
+      .orderBy(desc(NoteThreads.createdAt))
+      .limit(50);
+    const recentThreadIds = [...new Set(recentThreadRelations.map((r) => r.threadId))].filter(
+      (id) => id !== 'thread_unorganized',
+    ).slice(0, 10);
+
+    const allThreads = await db
+      .select({ id: Threads.id, title: Threads.title, color: Threads.color })
+      .from(Threads)
+      .where(eq(Threads.userId, auth.userId));
+
+    const noteKeywordNames = findKeywordsInText(noteText).map((k) => k.keyword.name);
+    const keywordNamesFromText = (text: string) => findKeywordsInText(text).map((k) => k.keyword.name);
+
+    const threadKeywordScores = new Map<string, number>();
+    for (const thread of allThreads) {
+      if (thread.id === 'thread_unorganized') continue;
+      const overlap = scoreThreadKeywordOverlap(
+        noteKeywordNames,
+        thread.title,
+        keywordNamesFromText,
+        conceptOverlaps,
+      );
+      if (overlap > 0) threadKeywordScores.set(thread.id, overlap);
+    }
+
+    const ranked = rankThreadSuggestions(
+      {
+        relatedNotes,
+        noteIdToThreadIds,
+        threadKeywordScores,
+        recentThreadIds,
+        threadMeta: allThreads.map((t) => ({ id: t.id, title: t.title, color: t.color })),
+      },
+      { limit: 5 },
+    );
+
+    const metaById = new Map(allThreads.map((t) => [t.id, t]));
+    const top = ranked.map((s) => {
+      const meta = metaById.get(s.threadId)!;
+      return { threadId: s.threadId, title: meta.title, color: meta.color, score: s.score, reason: s.reason };
+    });
 
     return c.json({
       success: true,
-      suggestedThreadIds: top.map(s => s.threadId),
-      suggestedThreads: top.map(s => ({ id: s.threadId, title: s.title, color: s.color, reason: s.reason })),
+      suggestedThreadIds: top.map((s) => s.threadId),
+      suggestedThreads: top.map((s) => ({ id: s.threadId, title: s.title, color: s.color, reason: s.reason })),
     });
   } catch (error) {
     const standardError = handleAPIError(error, { endpoint: '/api/notes/suggest-threads', action: 'suggest_threads' });
