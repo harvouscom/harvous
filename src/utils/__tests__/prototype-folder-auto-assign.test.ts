@@ -107,6 +107,29 @@ describe('applyIdleFolderAutoAssign', () => {
   });
 });
 
+describe('applyIdleFolderAutoAssign — curated subjects (content-first)', () => {
+  const now = new Date('2026-06-11T12:00:00.000Z');
+
+  it('adds curated passage subjects when the prose names no theme', () => {
+    // Cites Romans 8 but says no theme word; Romans 8 subjects: Sanctification / Death / Suffering…
+    const result = applyIdleFolderAutoAssign(emptyChrome, '', '<p>Been sitting with Romans 8:28 today.</p>', now);
+    const all = [result.primaryCollection, ...result.secondaryCollections].filter(Boolean) as string[];
+    expect(all.some((f) => ['Sanctification', 'Death', 'Suffering', 'Holy Spirit'].includes(f))).toBe(true);
+  });
+
+  it('prefers what the note actually says (content) over passage subjects', () => {
+    const result = applyIdleFolderAutoAssign(emptyChrome, '', '<p>Wrestling with fear and anxiety while reading John 3:16.</p>', now);
+    const all = [result.primaryCollection, ...result.secondaryCollections].filter(Boolean) as string[];
+    expect(all).toContain('Fear');
+  });
+
+  it('never adds tag-level specifics (genealogy people) as folders', () => {
+    const result = applyIdleFolderAutoAssign(emptyChrome, '', '<p>Reading the genealogy in Matthew 1:12-13.</p>', now);
+    const all = [result.primaryCollection, ...result.secondaryCollections].filter(Boolean) as string[];
+    expect(all.some((f) => ['Jehoiachin', 'Shealtiel', 'Zerubbabel'].includes(f))).toBe(false);
+  });
+});
+
 describe('clearAutoFolderChrome', () => {
   it('clears auto-assigned folder fields', () => {
     const cleared = clearAutoFolderChrome({
