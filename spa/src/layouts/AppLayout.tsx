@@ -34,6 +34,7 @@ import {
   type NavigationData,
 } from '../hooks/queries/useNavigation';
 import { prefetchFeaturedDismissed } from '../hooks/queries/useFeaturedDismissed';
+import { syncPassageKnowledge } from '../lib/passage-knowledge-sync';
 import {
   useProfile,
   getCachedUserColor,
@@ -160,6 +161,7 @@ export default function AppLayout() {
   useEffect(() => {
     if (!isLoaded || !isSignedIn || !user?.id) return;
     void prefetchFeaturedDismissed(queryClient, user.id);
+    void syncPassageKnowledge(user.id);
   }, [isLoaded, isSignedIn, user?.id, queryClient]);
   const recordThreadVisit = useRecordThreadVisit();
   const recordNoteVisit = useRecordNoteVisit();

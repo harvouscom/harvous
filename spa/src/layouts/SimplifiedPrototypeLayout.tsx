@@ -4,6 +4,7 @@ import KeyboardShortcutsInit from '../../../src/components/react/KeyboardShortcu
 import SyncManagerIsland from '../../../src/components/react/SyncManagerIsland';
 import PrototypeSyncChip from '../components/PrototypeSyncChip';
 import { useRealtimeSync } from '@/hooks/useRealtimeSync';
+import { syncPassageKnowledge } from '../lib/passage-knowledge-sync';
 import { useAuth, useUser } from '@clerk/clerk-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { HARVOUS_REMOTE_SYNC_COMPLETED } from '@/utils/harvous-remote-sync-event';
@@ -110,6 +111,12 @@ export default function SimplifiedPrototypeLayout() {
       /* ignore */
     }
   }, [isLoaded, isSignedIn, navReady, homeSpaceId, pathname]);
+
+  // Cache the user's passage knowledge so folder/tag suggestions can use passage signals.
+  useEffect(() => {
+    if (!isLoaded || !isSignedIn || !user?.id) return;
+    void syncPassageKnowledge(user.id);
+  }, [isLoaded, isSignedIn, user?.id]);
 
   // Render the shell as soon as React mounts — don't gate on Clerk `isLoaded`.
   // Prototype is auth-gated, so returning null while Clerk loads would leave only
