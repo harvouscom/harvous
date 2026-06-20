@@ -9,42 +9,6 @@ import {
 } from '@/utils/bible-study-collection-web';
 import { stripHtml } from '@/utils/html-stripper';
 import { isEffectivelyEmptyPrototypeNote } from '@/utils/prototype-note-empty';
-import { getCachedPassageKnowledge } from '@/utils/passage-knowledge-cache';
-import { passageCandidatesFromText } from '@/utils/passage-tag-candidates';
-
-const MAX_PASSAGE_SECONDARIES = 3;
-
-/**
- * Add passage-derived people/places (from the cached per-user knowledge) as secondary
- * collections — additive and deduped, never touching the primary. Web-only (the native folder
- * suggester is mirrored separately); a cache miss is a no-op, so notes whose passages aren't
- * cached yet fall back cleanly. See docs/future/SCRIPTURE_KNOWLEDGE_LAYER.md (Phase 2 / Option B).
- */
-function withPassageSecondaries(
-  chrome: CollectionChromeState,
-  title: string,
-  bodyHtml: string,
-): CollectionChromeState {
-  const candidates = passageCandidatesFromText(
-    `${title}\n${plainBodyForFolderSnapshot(bodyHtml)}`,
-    getCachedPassageKnowledge(),
-  );
-  if (!candidates.length) return chrome;
-
-  const primaryLow = (chrome.primaryCollection ?? '').trim().toLowerCase();
-  const present = new Set(chrome.secondaryCollections.map((s) => s.trim().toLowerCase()));
-  const additions: string[] = [];
-  for (const c of candidates) {
-    const low = c.keyword.toLowerCase();
-    if (!low || low === primaryLow || present.has(low)) continue;
-    additions.push(c.keyword);
-    present.add(low);
-    if (additions.length >= MAX_PASSAGE_SECONDARIES) break;
-  }
-  return additions.length
-    ? { ...chrome, secondaryCollections: [...chrome.secondaryCollections, ...additions] }
-    : chrome;
-}
 
 /** Plain body for folder snapshots — matches `buildRowsForCollectionSuggest` stripping. */
 export function plainBodyForFolderSnapshot(html: string): string {
@@ -90,11 +54,7 @@ export function applyIdleFolderAutoAssign(
     return clearAutoFolderChrome(prev);
   }
 
-  return withPassageSecondaries(
-    applyAutoCollectionAfterEdit(prev, title, bodyHtml, now, { allowPrimaryUpdate }),
-    title,
-    bodyHtml,
-  );
+  return applyAutoCollectionAfterEdit(prev, title, bodyHtml, now, { allowPrimaryUpdate });
 }
 
 /** True when note-open auto folder should run (saved notes with body text). */
