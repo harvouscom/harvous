@@ -275,8 +275,10 @@ study-guide scaffolding.
   Jaccard to knowledge-layer scoring: `getRelatedNotesForPassages` + `rankThreadSuggestions`
   (`src/utils/thread-suggestion-ranking.ts`), with passage detection from note text and optional
   `noteId` merge. Response contract unchanged for web prototype + native clients.
-- **Phase 5 — Ground AI features.** Feed the layer into Give-Me-More-Context and Learn/Challenges
-  as retrieval context.
+- **Phase 5 — Ground AI features (decision doc).** Feed the layer into Give-Me-More-Context and
+  Learn/Challenges as retrieval context via a shared grounding context builder; first runtime AI path
+  and first paid feature. Design + monetization decisions in
+  [SCRIPTURE_AI_GROUNDING_PHASE_5.md](./SCRIPTURE_AI_GROUNDING_PHASE_5.md).
 
 ---
 
@@ -285,6 +287,8 @@ study-guide scaffolding.
 - [HARVOUS_NORTH_STAR.md](./HARVOUS_NORTH_STAR.md) — the Remember and Learn pillars this layer
   serves.
 - [GIVE_ME_MORE_CONTEXT.md](./GIVE_ME_MORE_CONTEXT.md) — AI context panel that this layer grounds.
+- [SCRIPTURE_AI_GROUNDING_PHASE_5.md](./SCRIPTURE_AI_GROUNDING_PHASE_5.md) — Phase 5 design +
+  monetization decisions for grounding AI features on this layer.
 - [HARVOUS_SDK_AND_FUTURE_ROADMAP.md](./HARVOUS_SDK_AND_FUTURE_ROADMAP.md) — learning features
   (challenges, recall/quizzes) that consume this layer.
 - [SCRIPTURE_NOTES_FUTURE_IMPROVEMENTS.md](./SCRIPTURE_NOTES_FUTURE_IMPROVEMENTS.md) — related

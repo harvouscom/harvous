@@ -37,6 +37,12 @@ These were designed here and are now live. The stub files in this folder point t
   - Flagship near-term win: passage-aware auto-folder/auto-tag (uses a note's cited passages, not just its prose)
   - Phased roadmap: schema + data pipeline → connection layer → auto-tag/folder → resurfacing → suggested threads → AI grounding
 
+- **`SCRIPTURE_AI_GROUNDING_PHASE_5.md`** - Phase 5 decision doc: grounding AI features on the knowledge layer
+  - Shared server-side grounding context builder reused by all AI consumers
+  - Consumer A: Give Me More Context; Consumer B: Learn / quizzes + challenges
+  - First runtime AI path and first paid feature; decision-ready monetization on the existing free/unlimited tier
+  - Open-decisions checklist with a recommended default for each
+
 ### Mobile Apps
 
 - **`CAPACITOR_STRATEGIC_ANALYSIS.md`** - Strategic analysis for iOS/Android native apps
