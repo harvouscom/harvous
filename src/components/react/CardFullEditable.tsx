@@ -11,7 +11,7 @@ import { debug } from '@/utils/logger';
 import { safeRenderHtml } from '@/utils/content-renderer';
 import { getOrCreateScriptureNote } from '@/utils/scripture-note-utils';
 import { getTranslation, getTranslationAbbreviationDisplay } from '@/data/translations';
-import { withScripturePillDisplayLabels, repairScripturePillTranslationsInHtml } from '@/utils/scripture-pill-display';
+import { withScripturePillDisplayLabels, repairScripturePillTranslationsInHtml, sanitizeScripturePillHtml } from '@/utils/scripture-pill-display';
 import { getEffectiveDefaultTranslation } from '@/utils/profile-cache';
 import { getCachedProfileData } from '@/utils/profile-cache';
 import { isNoteUnlocked, lockNote } from '@/utils/note-unlock-state';
@@ -102,7 +102,9 @@ import { shouldSkipPrototypeUnloadSave } from '@/utils/prototype-note-save-guard
 /** TipTap body HTML for editing — empty notes use `<p></p>` so the caret stays on line 1. */
 function repairHtmlForEditor(html: string): string {
   return normalizeEmptyBodyHtmlForEditor(
-    repairScripturePillTranslationsInHtml(html ?? '', getEffectiveDefaultTranslation()),
+    sanitizeScripturePillHtml(
+      repairScripturePillTranslationsInHtml(html ?? '', getEffectiveDefaultTranslation()),
+    ),
   );
 }
 
@@ -179,6 +181,8 @@ interface CardFullEditableProps {
   highlightChromePortalTarget?: HTMLElement | null;
   /** Prototype-only: when set, auto-opens the reference dock for this word once the editor is ready. */
   initialReferenceWord?: string | null;
+  /** Distinct per request (e.g. dockReq nonce) so re-opens fire each time. */
+  initialReferenceRequestKey?: string | null;
   /**
    * Prototype-only: when set, auto-opens the scripture dock for this reference/translation once
    * the editor has rendered the matching pill (e.g. navigated from the sidebar Highlights list).
@@ -200,6 +204,12 @@ interface CardFullEditableProps {
     /** Study-thread snapshot for opening the dock when the note mark is not ready yet. */
     metadata?: HighlightDockOpenMetadata;
   } | null;
+  /** Prototype-only: called after a highlight deep-link dock handoff completes (strip URL search keys). */
+  onHighlightDeepLinkHandoff?: () => void;
+  /** Prototype-only: called after a scripture deep-link dock handoff completes (strip URL search keys). */
+  onScriptureDeepLinkHandoff?: () => void;
+  /** Prototype-only: called after a reference deep-link dock handoff completes (strip URL search keys). */
+  onReferenceDeepLinkHandoff?: () => void;
   /** Prototype-only: the scripture-dock open request couldn't find a matching pill — host may fall back. */
   onScriptureDockUnresolved?: () => void;
   /** When set with prototype chrome + column shell, portals the native-like note actions bar here. */
@@ -272,8 +282,12 @@ export default function CardFullEditable({
   highlightChromePortalTarget = null,
   studyDockCarouselPortalTarget = null,
   initialReferenceWord = null,
+  initialReferenceRequestKey = null,
   initialScriptureDock = null,
   initialHighlightDock = null,
+  onHighlightDeepLinkHandoff,
+  onScriptureDeepLinkHandoff,
+  onReferenceDeepLinkHandoff,
   onScriptureDockUnresolved,
   collectionNavContext = DEFAULT_COLLECTION_NAV_CONTEXT,
   alwaysEditing = false,
@@ -477,7 +491,13 @@ export default function CardFullEditable({
   // after a genuine edit, via the debounce effect below (gated on userEditedSinceOpenRef).
   // The note's existing saved folder is shown via buildCollectionChromeFromInitialProps.
 
+  // Open-on-load fired keys — reset on note switch so a prior note's deep link cannot block the next.
+  const initialScriptureDockFiredRef = useRef<string | null>(null);
+  const initialHighlightDockFiredRef = useRef<string | null>(null);
+
   useEffect(() => {
+    initialScriptureDockFiredRef.current = null;
+    initialHighlightDockFiredRef.current = null;
     setPrototypeScripturePillOpenRequest(null);
     setPrototypeHighlightOpenRequest(null);
     lastPrototypeFolderChipRef.current = '';
@@ -486,9 +506,12 @@ export default function CardFullEditable({
   // Open-on-load: when arriving with a scripture-dock request (e.g. tapping a scripture highlight
   // in the sidebar list), open the dock for that reference once. TiptapEditor's open-request
   // consumer polls for the matching pill, so this is safe before the note content has rendered.
-  const initialScriptureDockFiredRef = useRef<string | null>(null);
   useEffect(() => {
-    if (editorChromeMode !== 'prototypeNative' || !initialScriptureDock) return;
+    if (editorChromeMode !== 'prototypeNative') return;
+    if (!initialScriptureDock) {
+      initialScriptureDockFiredRef.current = null;
+      return;
+    }
     const key =
       initialScriptureDock.requestKey ??
       `${noteId}|${initialScriptureDock.reference}|${initialScriptureDock.translation ?? ''}`;
@@ -505,9 +528,12 @@ export default function CardFullEditable({
   // Open-on-load: when arriving with a highlight-dock request (e.g. tapping a highlight in the Home
   // "revisit" card), open the dock for that study-thread entry once. TiptapEditor's consumer polls
   // for the matching highlight mark, so this is safe before the note content has rendered.
-  const initialHighlightDockFiredRef = useRef<string | null>(null);
   useEffect(() => {
-    if (editorChromeMode !== 'prototypeNative' || !initialHighlightDock) return;
+    if (editorChromeMode !== 'prototypeNative') return;
+    if (!initialHighlightDock) {
+      initialHighlightDockFiredRef.current = null;
+      return;
+    }
     const key = initialHighlightDock.requestKey ?? `${noteId}|${initialHighlightDock.studyThreadEntryId}`;
     if (initialHighlightDockFiredRef.current === key) return;
     initialHighlightDockFiredRef.current = key;
@@ -543,11 +569,13 @@ export default function CardFullEditable({
 
   const onPrototypeScripturePillOpenRequestConsumed = useCallback(() => {
     setPrototypeScripturePillOpenRequest(null);
-  }, []);
+    onScriptureDeepLinkHandoff?.();
+  }, [onScriptureDeepLinkHandoff]);
 
   const onPrototypeHighlightOpenRequestConsumed = useCallback(() => {
     setPrototypeHighlightOpenRequest(null);
-  }, []);
+    onHighlightDeepLinkHandoff?.();
+  }, [onHighlightDeepLinkHandoff]);
 
   useEffect(() => {
     if (editorChromeMode !== 'prototypeNative') return;
@@ -2878,6 +2906,12 @@ export default function CardFullEditable({
                         editorChromeMode === 'prototypeNative' ? highlightChromePortalTarget : null
                       }
                       initialReferenceWord={editorChromeMode === 'prototypeNative' ? initialReferenceWord : null}
+                      initialReferenceRequestKey={
+                        editorChromeMode === 'prototypeNative' ? initialReferenceRequestKey : null
+                      }
+                      onReferenceDeepLinkHandoff={
+                        editorChromeMode === 'prototypeNative' ? onReferenceDeepLinkHandoff : undefined
+                      }
                       prototypeScripturePillOpenRequest={
                         editorChromeMode === 'prototypeNative' ? prototypeScripturePillOpenRequest : null
                       }
@@ -3271,6 +3305,12 @@ export default function CardFullEditable({
                       editorChromeMode === 'prototypeNative' ? highlightChromePortalTarget : null
                     }
                     initialReferenceWord={editorChromeMode === 'prototypeNative' ? initialReferenceWord : null}
+                    initialReferenceRequestKey={
+                      editorChromeMode === 'prototypeNative' ? initialReferenceRequestKey : null
+                    }
+                    onReferenceDeepLinkHandoff={
+                      editorChromeMode === 'prototypeNative' ? onReferenceDeepLinkHandoff : undefined
+                    }
                     prototypeScripturePillOpenRequest={
                       editorChromeMode === 'prototypeNative' ? prototypeScripturePillOpenRequest : null
                     }

@@ -2,11 +2,14 @@
  * Home space view — the 'space' sidebar layer. A greeting with one consolidated
  * lead theme + liturgical-season line, Today's Passage, then a set of cards:
  * continue, a highlight to revisit, an older note to revisit, a study-thread
- * spotlight, and a loose-notes nudge. Each card renders only when it qualifies.
+ * spotlight, a theme connecting your passages, and a loose-notes nudge. Each
+ * card renders only when it qualifies.
  * Copy follows docs/BRAND_VOICE.md — friend-over-coffee, no hype, no em dashes.
  */
-import { useMemo, useRef } from 'react';
+import { useCallback, useMemo, useRef } from 'react';
+import { useNavigate } from '@tanstack/react-router';
 import Icon from '@/components/react/Icon';
+import { prototypeNoteRouteTo } from '@/lib/prototype-path';
 import type { SpaceNoteRow } from '../../hooks/queries/useSpace';
 import type { ScriptureIndexBook } from '../../hooks/queries/usePrototypeSpaceScriptureIndex';
 import { useTagsList } from '../../hooks/queries/useTagsList';
@@ -24,6 +27,7 @@ import {
   computeLastActivityTime,
   countWeeklyActivityDays,
   countLooseNotes,
+  deriveSubjectConnections,
   deriveTopBooks,
   deriveTopFolders,
   deriveTopTags,
@@ -40,7 +44,9 @@ import {
   pickSpotlightThread,
   selectHomeLeadTheme,
   type HomeLeadTheme,
+  type HomeSubjectPassageInput,
 } from '@/utils/prototype-home-trends';
+import chapterSubjectsData from '@/data/chapter-subjects.json';
 import { currentLiturgicalSeason } from '@/utils/liturgical-season';
 import { stripServerAutoUntitledNoteTitleForDisplay } from '@/utils/server-auto-untitled-note-display';
 import { stripHtmlForListPreview } from '@/utils/html-stripper';
@@ -53,6 +59,7 @@ import {
 } from './proto-highlight-subtitle';
 import { loadPinnedHighlightIds } from './proto-pinned-stores';
 import PrototypeDailyPassagePill from './PrototypeDailyPassagePill';
+import { PROTOTYPE_DRAFT_NOTE_SLUG } from './proto-route-slugs';
 import { useProtoShell } from '../../layouts/proto-shell-context';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -62,6 +69,10 @@ const REVISIT_MIN_AGE_MS = 14 * DAY_MS;
 const REVISIT_MIN_NOTES = 5;
 /** Don't nag about loose notes until a few have piled up. */
 const LOOSE_MIN = 3;
+
+const chapterSubjects = chapterSubjectsData as Record<string, Record<string, string[]>>;
+// A subject must connect at least this many distinct notes to earn the Home "theme" card.
+const SUBJECT_CONNECTION_MIN = 3;
 
 type Props = {
   homeSpaceId: string;
@@ -74,6 +85,7 @@ type Props = {
   onOpenNote: (row: SpaceNoteRow) => void;
   prefetchNote: (row: SpaceNoteRow) => void;
   onOpenScriptureBook: (bookOrder: number) => void;
+  onOpenScripturePassage: (bookOrder: number, passageKey: string) => void;
   onOpenHighlight: (row: PrototypeHighlightStudyThreadRow) => void;
 };
 
@@ -382,6 +394,7 @@ export default function PrototypeSidebarHomeView({
   onOpenNote,
   prefetchNote,
   onOpenScriptureBook,
+  onOpenScripturePassage,
   onOpenHighlight,
 }: Props) {
   const tagsQuery = useTagsList();
@@ -389,11 +402,15 @@ export default function PrototypeSidebarHomeView({
   const highlightsQuery = usePrototypeSpaceStudyThreadHighlights(homeSpaceId);
   const votdQuery = useVotdToday({ enabled: Boolean(homeSpaceId) });
 
+  const navigate = useNavigate();
   const {
     setSidebarListMode,
     setSidebarFolderDrilldown,
     setSidebarThreadDrilldownId,
     ensureSidebarExpanded,
+    beginPrototypeComposeSession,
+    isMobileSidebar,
+    closeDrawer,
   } = useProtoShell();
 
   const tagsSettled = isQuerySettled(tagsQuery.isPending, tagsQuery.data != null);
@@ -463,6 +480,40 @@ export default function PrototypeSidebarHomeView({
   );
   const looseCount = useMemo(() => countLooseNotes(notes), [notes]);
 
+  // Phase 3 (knowledge layer): the latent theme connecting the most of your passages. Map each
+  // cited passage to its curated subjects (static chapter index), group the citing notes by
+  // subject, and surface the widest-reaching one. Needs the full note set to be an honest count.
+  const subjectConnection = useMemo(() => {
+    if (hasMoreNotes) return undefined;
+    const passages: HomeSubjectPassageInput[] = [];
+    for (const book of scriptureBooks) {
+      const byChapter = chapterSubjects[book.title];
+      if (!byChapter) continue;
+      for (const passage of book.passages) {
+        const subjects = byChapter[String(passage.chapter)];
+        if (subjects?.length && passage.notes.length) passages.push({ subjects, notes: passage.notes });
+      }
+    }
+    const top = deriveSubjectConnections(passages, { limit: 1 })[0];
+    return top && top.noteCount >= SUBJECT_CONNECTION_MIN ? top : undefined;
+  }, [scriptureBooks, hasMoreNotes]);
+
+  const openSubjectConnection = useCallback(() => {
+    const leadId = subjectConnection?.notes[0]?.id;
+    const leadNote = leadId ? notes.find((note) => note.id === leadId) : undefined;
+    if (leadNote) onOpenNote(leadNote);
+  }, [subjectConnection, notes, onOpenNote]);
+
+  const onCreateFirstNote = useCallback(() => {
+    if (!homeSpaceId) return;
+    if (isMobileSidebar) closeDrawer();
+    beginPrototypeComposeSession();
+    navigate({
+      to: prototypeNoteRouteTo(),
+      params: { noteId: PROTOTYPE_DRAFT_NOTE_SLUG },
+    });
+  }, [beginPrototypeComposeSession, closeDrawer, homeSpaceId, isMobileSidebar, navigate]);
+
   if (!contentReady) {
     return <ProtoHomeLoading />;
   }
@@ -488,23 +539,36 @@ export default function PrototypeSidebarHomeView({
 
       {votd ? (
         <div className="proto-home-section">
-          <PrototypeDailyPassagePill homeSpaceId={homeSpaceId} notes={notes} votd={votd} />
+          <PrototypeDailyPassagePill
+            homeSpaceId={homeSpaceId}
+            notes={notes}
+            votd={votd}
+            scriptureBooks={scriptureBooks}
+            onOpenScripturePassage={onOpenScripturePassage}
+          />
         </div>
       ) : null}
 
       {notesListPhase === 'empty' ? (
         <div className="proto-home-section">
-          <div className="proto-glass-surface proto-glass-surface--panel proto-home-card">
+          <button
+            type="button"
+            className="proto-glass-surface proto-glass-surface--panel proto-home-card proto-home-card--tappable"
+            onClick={onCreateFirstNote}
+          >
             <div className="proto-home-card__body">
               <div className="proto-home-card__title-row">
                 <span className="proto-home-card__icon-orb" aria-hidden>
                   <Icon name="note-sticky" size={13} />
                 </span>
                 <p className="pds-list-title proto-home-card__title">No notes yet</p>
+                <span className="proto-home-card__chevron" aria-hidden>
+                  <Icon name="chevron-right" size={11} />
+                </span>
               </div>
-              <p className="pds-list-preview proto-home-card__preview">Create your first note and your Home will fill in.</p>
+              <p className="pds-list-preview proto-home-card__preview">Create your first note...</p>
             </div>
-          </div>
+          </button>
         </div>
       ) : continueNote ? (
         <div className="proto-home-section">
@@ -581,6 +645,34 @@ export default function PrototypeSidebarHomeView({
               <div className="proto-home-card__meta">
                 <span className="proto-home-card__meta-item">
                   {spotlightThread.noteCount} {spotlightThread.noteCount === 1 ? 'note' : 'notes'}
+                </span>
+              </div>
+            </div>
+          </button>
+        </div>
+      ) : null}
+
+      {subjectConnection ? (
+        <div className="proto-home-section">
+          <button
+            type="button"
+            className="proto-glass-surface proto-glass-surface--panel proto-home-card proto-home-card--tappable"
+            onClick={openSubjectConnection}
+          >
+            <p className="proto-caption proto-home-card__eyebrow">A theme connecting your notes</p>
+            <div className="proto-home-card__body">
+              <div className="proto-home-card__title-row">
+                <span className="proto-home-card__icon-orb" aria-hidden>
+                  <Icon name="link" size={13} />
+                </span>
+                <p className="pds-list-title proto-home-card__title">{subjectConnection.subject}</p>
+                <span className="proto-home-card__chevron" aria-hidden>
+                  <Icon name="chevron-right" size={11} />
+                </span>
+              </div>
+              <div className="proto-home-card__meta">
+                <span className="proto-home-card__meta-item">
+                  Across {subjectConnection.noteCount} of your notes
                 </span>
               </div>
             </div>

@@ -75,14 +75,20 @@ export default function PrototypeMigrationSheet({ open, onClose }: Props) {
 
         <div className="proto-votd-sheet__body proto-migration-sheet__body">
           <p className="proto-migration-sheet__text">
-            Browse notes by your former thread titles under <MigrationSidebarChip icon="folder" label="Folders" />.{' '}
-            <MigrationSidebarChip icon="arrow-right-arrow-left" label="Threads" /> is new—it connects related notes
-            into a study chain, separate from the old threads you used before.
+            You used to organize notes under a thread title. Those titles are{' '}
+            <MigrationSidebarChip icon="folder" label="Folders" /> now. The new{' '}
+            <MigrationSidebarChip icon="arrow-right-arrow-left" label="Threads" /> links related notes so you can
+            follow your study from note to note.
           </p>
-          <p className="proto-migration-sheet__text proto-migration-sheet__text--secondary">
-            Nothing was removed—your notes are still here, grouped under folder names that match your old thread
-            titles.
-          </p>
+          <div className="proto-migration-sheet__disclaimer" role="note">
+            <span className="proto-migration-sheet__disclaimer-icon" aria-hidden>
+              <Icon name="circle-info" size={14} />
+            </span>
+            <p className="proto-migration-sheet__disclaimer-text">
+              Every previous thread is now a locked primary folder. Your notes are unchanged, and you can edit those
+              folders anytime.
+            </p>
+          </div>
         </div>
       </div>
     </div>,

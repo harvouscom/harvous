@@ -232,6 +232,7 @@ function buildPrototypeRouteBranch() {
       scriptureTranslation:
         typeof search.scriptureTranslation === 'string' ? search.scriptureTranslation : undefined,
       highlight: typeof search.highlight === 'string' ? search.highlight : undefined,
+      dockReq: typeof search.dockReq === 'string' ? search.dockReq : undefined,
     }),
   });
 

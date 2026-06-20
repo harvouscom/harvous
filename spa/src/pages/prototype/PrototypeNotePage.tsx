@@ -59,26 +59,28 @@ export default function PrototypeNotePage() {
     scriptureTranslation: initialScriptureTranslation,
     studyThread: initialStudyThread,
     highlight: initialHighlightThread,
+    dockReq,
   } = useSearch({ strict: false }) as {
     reference?: string;
     scriptureRef?: string;
     scriptureTranslation?: string;
     studyThread?: string;
     highlight?: string;
+    dockReq?: string;
   };
   // Stable object so CardFullEditable's open-on-load effect doesn't refire each render.
-  // `requestKey` (the clicked highlight's studyThread) makes each distinct highlight click
-  // re-open the dock even when it targets the note already on screen.
+  // `requestKey` (dockReq nonce from sidebar) makes each home tap re-open the dock even when
+  // it targets the note already on screen or the dock entry already exists in the carousel.
   const initialScriptureDock = useMemo(
     () =>
       initialScriptureRef
         ? {
             reference: initialScriptureRef,
             translation: initialScriptureTranslation ?? null,
-            requestKey: initialStudyThread ?? initialScriptureRef,
+            requestKey: dockReq ?? initialStudyThread ?? initialScriptureRef,
           }
         : null,
-    [initialScriptureRef, initialScriptureTranslation, initialStudyThread],
+    [initialScriptureRef, initialScriptureTranslation, initialStudyThread, dockReq],
   );
 
   const { homeSpaceId } = usePrototypeHomeSpaceId();
@@ -92,10 +94,12 @@ export default function PrototypeNotePage() {
     const row = note?.studyThreads?.find((t) => t.id === initialHighlightThread);
     return {
       studyThreadEntryId: initialHighlightThread,
-      requestKey: initialHighlightThread,
+      requestKey: dockReq ?? initialHighlightThread,
       metadata: row ? buildHighlightDockOpenMetadataFromStudyThread(row) : undefined,
     };
-  }, [initialHighlightThread, note?.studyThreads]);
+  }, [initialHighlightThread, note?.studyThreads, dockReq]);
+
+  const initialReferenceRequestKey = initialReferenceWord ? (dockReq ?? initialReferenceWord) : null;
 
   const editorSecondaryCollections = useMemo(() => {
     if (isDraft) return EMPTY_NOTE_COLLECTIONS;
@@ -139,6 +143,36 @@ export default function PrototypeNotePage() {
     setEditorChromeMode,
   } = useProtoShell();
   const prevComposeSessionEpochRef = useRef(composeSessionEpoch);
+
+  const onHighlightDeepLinkHandoff = useCallback(() => {
+    if (!initialHighlightThread) return;
+    navigate({
+      to: prototypeNoteRouteTo(),
+      params: { noteId: noteSlugParam },
+      search: {},
+      replace: true,
+    });
+  }, [navigate, noteSlugParam, initialHighlightThread]);
+
+  const onScriptureDeepLinkHandoff = useCallback(() => {
+    if (!initialScriptureRef) return;
+    navigate({
+      to: prototypeNoteRouteTo(),
+      params: { noteId: noteSlugParam },
+      search: {},
+      replace: true,
+    });
+  }, [navigate, noteSlugParam, initialScriptureRef]);
+
+  const onReferenceDeepLinkHandoff = useCallback(() => {
+    if (!initialReferenceWord) return;
+    navigate({
+      to: prototypeNoteRouteTo(),
+      params: { noteId: noteSlugParam },
+      search: {},
+      replace: true,
+    });
+  }, [navigate, noteSlugParam, initialReferenceWord]);
 
   // Scripture highlight whose parent note has no matching pill: fall back to the standalone passage
   // pane (focused on the thread) so the tap never silently lands on "just the note".
@@ -892,8 +926,12 @@ export default function PrototypeNotePage() {
                 formatToolbarPortalTarget={formatToolbarHostEl}
                 studyDockCarouselPortalTarget={studyDockCarouselHostEl}
                 initialReferenceWord={initialReferenceWord || null}
+                initialReferenceRequestKey={initialReferenceRequestKey}
                 initialScriptureDock={initialScriptureDock}
                 initialHighlightDock={initialHighlightDock}
+                onHighlightDeepLinkHandoff={onHighlightDeepLinkHandoff}
+                onScriptureDeepLinkHandoff={onScriptureDeepLinkHandoff}
+                onReferenceDeepLinkHandoff={onReferenceDeepLinkHandoff}
                 onScriptureDockUnresolved={onScriptureDockUnresolved}
                 onPrototypeChromeModeChange={setEditorChromeMode}
                 initialPrimaryCollection={editorNote.primaryCollection ?? null}

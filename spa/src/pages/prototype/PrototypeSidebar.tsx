@@ -6,7 +6,8 @@ import { toast } from '@/utils/toast';
 import { APIError } from '../../lib/api';
 import { useDeleteNote } from '../../hooks/mutations/useDeleteNote';
 import { useDeleteHighlight } from '../../hooks/mutations/useDeleteHighlight';
-import { useUpdateHighlight } from '../../hooks/mutations/useUpdateHighlight';
+import { useRemoveFolder } from '../../hooks/mutations/useRemoveFolder';
+import { useRemoveThreadCluster } from '../../hooks/mutations/useRemoveThreadCluster';
 import { usePinSpaceNote } from '../../hooks/mutations/usePinSpaceNote';
 import { useSpaceNotes, type SpaceNoteRow } from '../../hooks/queries/useSpace';
 import { getNoteQueryOptions, seedNoteFromList, type ListNoteForSeed } from '../../hooks/queries/useNote';
@@ -18,6 +19,7 @@ import { computePrototypeNotesListPhase } from '@/utils/prototype-notes-list-pha
 import { stripHtmlForListPreview } from '@/utils/html-stripper';
 import { useProtoShell, type SidebarTagSearchIntent } from '../../layouts/proto-shell-context';
 import { usePrototypeHomeSpaceId } from '../../hooks/usePrototypeHomeSpaceId';
+import { usePrototypeStudyThreadListSyncListener } from '../../hooks/usePrototypeStudyThreadListSyncListener';
 import { useIntersectionFetchNextPage } from '../../hooks/useIntersectionFetchNextPage';
 import { moveListRowFocus } from '../../hooks/useListKeyboardNavigation';
 import {
@@ -33,6 +35,7 @@ import PrototypeSidebarRowMenuPopover from './PrototypeSidebarRowMenuPopover';
 import type { PrototypeHighlightStudyThreadRow } from '../../hooks/queries/usePrototypeSpaceStudyThreadHighlights';
 import { usePrototypeSpaceStudyThreadHighlights } from '../../hooks/queries/usePrototypeSpaceStudyThreadHighlights';
 import { usePrototypeStudyThreads, type StudyThreadCluster } from '../../hooks/queries/usePrototypeStudyThreads';
+import { threadClusterDrillSlug } from '@/utils/thread-cluster-bulk-actions';
 import {
   usePrototypeStudyThread,
   studyThreadQueryKey,
@@ -55,8 +58,17 @@ import { SIDEBAR_NO_MATCH_COPY } from './sidebar-no-match-copy';
 import PrototypeMigrationBanner from './PrototypeMigrationBanner';
 import PrototypeSidebarToolbar from './PrototypeSidebarToolbar';
 import {
+  applyFolderPinOrdering,
+  applyThreadClusterPinOrdering,
+  folderRowId,
+  loadPinnedFolderIds,
   loadPinnedHighlightIds,
+  loadPinnedThreadClusterIds,
+  removePinnedFolderId,
+  removePinnedThreadClusterId,
+  togglePinnedFolderId,
   togglePinnedHighlightId,
+  togglePinnedThreadClusterId,
 } from './proto-pinned-stores';
 import PrototypeSidebarSearchResults from './PrototypeSidebarSearchResults';
 import type { SidebarSearchResult } from './sidebar-search-types';
@@ -67,6 +79,7 @@ import {
 
 
 import { noteParamSlug, normalizeNoteIdFromParam, isPrototypeDraftNoteSlug } from './proto-route-slugs';
+import { PROTOTYPE_NOTE_LIST_NAV_SEARCH } from '@/utils/prototype-sidebar-highlight-active';
 
 function stripHtmlPreview(html: string | null | undefined, max = 80) {
   if (!html) return '';
@@ -120,15 +133,217 @@ type PrototypeSidebarNoteRowProps = {
   onOpenNote: (row: SpaceNoteRow) => void;
 };
 
-/** Native `StudyHighlightAccentToken.pickerChoicesWithNeutral` order + labels. */
-const HIGHLIGHT_ACCENT_SWATCHES: { token: string; label: string; cssVar: string }[] = [
-  { token: 'neutral', label: 'Neutral', cssVar: '--pds-highlight-neutral' },
-  { token: 'warmAmber', label: 'Amber', cssVar: '--pds-highlight-warm-amber' },
-  { token: 'skyBlue', label: 'Sky', cssVar: '--pds-highlight-sky-blue' },
-  { token: 'violet', label: 'Violet', cssVar: '--pds-highlight-violet' },
-  { token: 'mintGreen', label: 'Mint', cssVar: '--pds-highlight-mint-green' },
-  { token: 'coralRose', label: 'Coral', cssVar: '--pds-highlight-coral-rose' },
-];
+function PrototypeSidebarFolderCard({
+  folder,
+  isPinned,
+  onOpen,
+  onTogglePin,
+  onDelete,
+  isDeleting,
+}: {
+  folder: FolderBucket;
+  isPinned: boolean;
+  onOpen: () => void;
+  onTogglePin: () => void;
+  onDelete: (anchorRect: DOMRect) => void;
+  isDeleting: boolean;
+}) {
+  const isNamed = folder.name !== null;
+  const title = folder.name ?? 'Unsorted';
+  const [menuOpen, setMenuOpen] = useState(false);
+  const rowRef = useRef<HTMLLIElement>(null);
+  const menuRootRef = useRef<HTMLDivElement>(null);
+
+  return (
+    <li ref={rowRef} className="proto-collection-grid-item">
+      <button type="button" className="proto-collection-card" onClick={onOpen} aria-label={`${title}, ${folder.count} notes`}>
+        <span className="proto-collection-card__icon">
+          {isPinned ? (
+            <span className="proto-collection-card__pin" aria-hidden>
+              <Icon name="thumbtack" size={11} />
+            </span>
+          ) : null}
+          <Icon name="folder" size={13} aria-hidden />
+        </span>
+        <div className="proto-collection-card__body">
+          <div className="proto-collection-card__title">{title}</div>
+          <div className="proto-collection-card__count">
+            {folder.count} note{folder.count !== 1 ? 's' : ''}
+          </div>
+        </div>
+      </button>
+      {isNamed ? (
+        <div
+          className={`proto-menu proto-collection-card__menu${menuOpen ? ' proto-collection-card__menu--open' : ''}`}
+          ref={menuRootRef}
+        >
+          <button
+            type="button"
+            className="proto-collection-card__menu-trigger"
+            aria-expanded={menuOpen}
+            aria-haspopup="menu"
+            aria-label="Folder actions"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              setMenuOpen((o) => !o);
+            }}
+          >
+            <Icon name="ellipsis-vertical" size={14} />
+          </button>
+          <PrototypeSidebarRowMenuPopover
+            open={menuOpen}
+            rowRef={rowRef}
+            triggerRootRef={menuRootRef}
+            onDismiss={() => setMenuOpen(false)}
+            aria-label="Folder actions"
+          >
+            <div className="proto-menu-section" role="group">
+              <button
+                type="button"
+                role="menuitem"
+                className="proto-menu-item"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setMenuOpen(false);
+                  onTogglePin();
+                }}
+              >
+                <span className="proto-menu-item__icon" aria-hidden>
+                  <Icon name="thumbtack" size={PROTO_TOOLBAR_ICON_SIZE} />
+                </span>
+                <span className="proto-menu-item__label">{isPinned ? 'Unpin folder' : 'Pin folder'}</span>
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                className="proto-menu-item proto-menu-item--destructive"
+                disabled={isDeleting}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setMenuOpen(false);
+                  onDelete(e.currentTarget.getBoundingClientRect());
+                }}
+              >
+                <span className="proto-menu-item__icon" aria-hidden>
+                  <Icon name="trash-can" size={PROTO_TOOLBAR_ICON_SIZE} />
+                </span>
+                <span className="proto-menu-item__label">Delete folder</span>
+              </button>
+            </div>
+          </PrototypeSidebarRowMenuPopover>
+        </div>
+      ) : null}
+    </li>
+  );
+}
+
+function PrototypeSidebarThreadCard({
+  cluster,
+  title,
+  isPinned,
+  onOpen,
+  onTogglePin,
+  onDelete,
+  isDeleting,
+}: {
+  cluster: StudyThreadCluster;
+  title: string;
+  isPinned: boolean;
+  onOpen: () => void;
+  onTogglePin: () => void;
+  onDelete: (anchorRect: DOMRect) => void;
+  isDeleting: boolean;
+}) {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const rowRef = useRef<HTMLLIElement>(null);
+  const menuRootRef = useRef<HTMLDivElement>(null);
+  const preview = `${cluster.noteCount} note${cluster.noteCount !== 1 ? 's' : ''}`;
+
+  return (
+    <li ref={rowRef} className="proto-collection-grid-item">
+      <button
+        type="button"
+        className="proto-collection-card"
+        onClick={onOpen}
+        aria-label={`${title}, ${preview}`}
+      >
+        <span className="proto-collection-card__icon">
+          {isPinned ? (
+            <span className="proto-collection-card__pin" aria-hidden>
+              <Icon name="thumbtack" size={11} />
+            </span>
+          ) : null}
+          <Icon name="arrow-right-arrow-left" size={13} aria-hidden />
+        </span>
+        <div className="proto-collection-card__body">
+          <div className="proto-collection-card__title">{title}</div>
+          <div className="proto-collection-card__count">{preview}</div>
+        </div>
+      </button>
+      <div
+        className={`proto-menu proto-collection-card__menu${menuOpen ? ' proto-collection-card__menu--open' : ''}`}
+        ref={menuRootRef}
+      >
+        <button
+          type="button"
+          className="proto-collection-card__menu-trigger"
+          aria-expanded={menuOpen}
+          aria-haspopup="menu"
+          aria-label="Thread actions"
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            setMenuOpen((o) => !o);
+          }}
+        >
+          <Icon name="ellipsis-vertical" size={14} />
+        </button>
+        <PrototypeSidebarRowMenuPopover
+          open={menuOpen}
+          rowRef={rowRef}
+          triggerRootRef={menuRootRef}
+          onDismiss={() => setMenuOpen(false)}
+          aria-label="Thread actions"
+        >
+          <div className="proto-menu-section" role="group">
+            <button
+              type="button"
+              role="menuitem"
+              className="proto-menu-item"
+              onClick={(e) => {
+                e.stopPropagation();
+                setMenuOpen(false);
+                onTogglePin();
+              }}
+            >
+              <span className="proto-menu-item__icon" aria-hidden>
+                <Icon name="thumbtack" size={PROTO_TOOLBAR_ICON_SIZE} />
+              </span>
+              <span className="proto-menu-item__label">{isPinned ? 'Unpin thread' : 'Pin thread'}</span>
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              className="proto-menu-item proto-menu-item--destructive"
+              disabled={isDeleting}
+              onClick={(e) => {
+                e.stopPropagation();
+                setMenuOpen(false);
+                onDelete(e.currentTarget.getBoundingClientRect());
+              }}
+            >
+              <span className="proto-menu-item__icon" aria-hidden>
+                <Icon name="trash-can" size={PROTO_TOOLBAR_ICON_SIZE} />
+              </span>
+              <span className="proto-menu-item__label">Delete thread</span>
+            </button>
+          </div>
+        </PrototypeSidebarRowMenuPopover>
+      </div>
+    </li>
+  );
+}
 
 function HighlightRow({
   isActive,
@@ -137,10 +352,8 @@ function HighlightRow({
   title,
   rel,
   preview,
-  currentAccent,
   onOpen,
   onTogglePin,
-  onSetAccent,
   onDelete,
   isDeleting,
 }: {
@@ -150,10 +363,8 @@ function HighlightRow({
   title: string;
   rel?: string;
   preview?: string;
-  currentAccent: string | null;
   onOpen: () => void;
   onTogglePin: () => void;
-  onSetAccent: (token: string) => void;
   onDelete: (anchorRect: DOMRect) => void;
   isDeleting: boolean;
 }) {
@@ -232,45 +443,10 @@ function HighlightRow({
               </span>
               <span className="proto-menu-item__label">{isPinned ? 'Unpin highlight' : 'Pin highlight'}</span>
             </button>
-            <div
-              role="group"
-              aria-label="Highlight accent"
-              style={{ display: 'flex', gap: 6, padding: '6px 12px', alignItems: 'center' }}
-            >
-              {HIGHLIGHT_ACCENT_SWATCHES.map((s) => {
-                const selected = currentAccent === s.token;
-                return (
-                  <button
-                    key={s.token}
-                    type="button"
-                    role="menuitemradio"
-                    aria-checked={selected}
-                    aria-label={s.label}
-                    title={s.label}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setMenuOpen(false);
-                      onSetAccent(s.token);
-                    }}
-                    style={{
-                      width: 16,
-                      height: 16,
-                      borderRadius: '50%',
-                      border: selected
-                        ? '2px solid var(--pds-text-primary)'
-                        : '1px solid var(--pds-border-control-medium)',
-                      background: `var(${s.cssVar})`,
-                      padding: 0,
-                      cursor: 'pointer',
-                    }}
-                  />
-                );
-              })}
-            </div>
             <button
               type="button"
               role="menuitem"
-              className="proto-menu-item"
+              className="proto-menu-item proto-menu-item--destructive"
               disabled={isDeleting}
               onClick={(e) => {
                 e.stopPropagation();
@@ -579,6 +755,7 @@ export default function PrototypeSidebar() {
   const queryClient = useQueryClient();
 
   const { homeSpaceId, navReady, authReady } = usePrototypeHomeSpaceId();
+  usePrototypeStudyThreadListSyncListener(homeSpaceId ?? undefined);
 
   const scrollRootRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -666,19 +843,49 @@ export default function PrototypeSidebar() {
   const [scriptureDrill, setScriptureDrill] = useState<ScriptureDrill>({ level: 'books' });
   const [highlightKindFilter, setHighlightKindFilter] = useState<HighlightKindFilter>('all');
   const [pinnedHighlightIds, setPinnedHighlightIds] = useState<string[]>([]);
+  const [pinnedFolderIds, setPinnedFolderIds] = useState<string[]>([]);
+  const [pinnedThreadClusterIds, setPinnedThreadClusterIds] = useState<string[]>([]);
   const [highlightDeleteTarget, setHighlightDeleteTarget] = useState<{
     row: PrototypeHighlightStudyThreadRow;
+    anchorRect: DOMRect;
+  } | null>(null);
+  const [folderDeleteTarget, setFolderDeleteTarget] = useState<{
+    name: string;
+    count: number;
+    anchorRect: DOMRect;
+  } | null>(null);
+  const [threadDeleteTarget, setThreadDeleteTarget] = useState<{
+    cluster: StudyThreadCluster;
+    title: string;
     anchorRect: DOMRect;
   } | null>(null);
 
   useEffect(() => {
     setPinnedHighlightIds(loadPinnedHighlightIds(homeSpaceId ?? undefined));
+    setPinnedFolderIds(loadPinnedFolderIds(homeSpaceId ?? undefined));
+    setPinnedThreadClusterIds(loadPinnedThreadClusterIds(homeSpaceId ?? undefined));
   }, [homeSpaceId]);
 
   const togglePinnedHighlight = useCallback(
     (id: string) => {
       if (!homeSpaceId) return;
       setPinnedHighlightIds(togglePinnedHighlightId(homeSpaceId, id));
+    },
+    [homeSpaceId],
+  );
+
+  const togglePinnedFolder = useCallback(
+    (rowId: string) => {
+      if (!homeSpaceId) return;
+      setPinnedFolderIds(togglePinnedFolderId(homeSpaceId, rowId));
+    },
+    [homeSpaceId],
+  );
+
+  const togglePinnedThreadCluster = useCallback(
+    (clusterId: string) => {
+      if (!homeSpaceId) return;
+      setPinnedThreadClusterIds(togglePinnedThreadClusterId(homeSpaceId, clusterId));
     },
     [homeSpaceId],
   );
@@ -826,9 +1033,21 @@ export default function PrototypeSidebar() {
 
   const filteredFolders = useMemo(() => {
     const t = q.trim().toLowerCase();
-    if (!t) return folders;
-    return folders.filter((c) => (c.name ?? 'Unsorted').toLowerCase().includes(t));
-  }, [folders, q]);
+    const searched = !t ? folders : folders.filter((c) => (c.name ?? 'Unsorted').toLowerCase().includes(t));
+    return applyFolderPinOrdering(searched, pinnedFolderIds);
+  }, [folders, q, pinnedFolderIds]);
+
+  const filteredThreads = useMemo(() => {
+    const rows = studyThreadsQuery.data ?? [];
+    const t = q.trim().toLowerCase();
+    const searched = !t
+      ? rows
+      : rows.filter((cluster) => {
+          const title = resolveClusterListTitle(cluster, activeNoteFullId, queryClient, homeSpaceId).toLowerCase();
+          return title.includes(t);
+        });
+    return applyThreadClusterPinOrdering(searched, pinnedThreadClusterIds);
+  }, [studyThreadsQuery.data, q, pinnedThreadClusterIds, activeNoteFullId, queryClient, homeSpaceId]);
 
   const filteredHighlights = useMemo(() => {
     const rows = highlightsQuery.data ?? [];
@@ -1022,27 +1241,67 @@ export default function PrototypeSidebar() {
     navigate({
       to: prototypeNoteRouteTo(),
       params: { noteId: noteParamSlug(row.id) },
+      search: PROTOTYPE_NOTE_LIST_NAV_SEARCH,
     });
     afterNav();
   };
 
   const deleteHighlight = useDeleteHighlight();
-  const updateHighlight = useUpdateHighlight();
+  const removeFolder = useRemoveFolder();
+  const removeThreadCluster = useRemoveThreadCluster();
 
-  const onSetHighlightAccent = (r: PrototypeHighlightStudyThreadRow, token: string) => {
-    if (!homeSpaceId) return;
-    if (r.highlightAccentRaw === token) return;
-    updateHighlight.mutate(
+  const onRequestDeleteFolder = (folder: FolderBucket, anchorRect: DOMRect) => {
+    if (!folder.name) return;
+    setFolderDeleteTarget({ name: folder.name, count: folder.count, anchorRect });
+  };
+
+  const onConfirmDeleteFolder = () => {
+    if (!homeSpaceId || !folderDeleteTarget) return;
+    const { name } = folderDeleteTarget;
+    removeFolder.mutate(
+      { spaceId: homeSpaceId, folderName: name },
       {
-        id: r.id,
-        spaceId: homeSpaceId,
-        parentNoteId: r.parentNoteId,
-        highlightAccentRaw: token,
-      },
-      {
+        onSuccess: () => {
+          setFolderDeleteTarget(null);
+          setPinnedFolderIds(removePinnedFolderId(homeSpaceId, name));
+          if (activeFolderKey === name) {
+            setActiveFolderKey(undefined);
+            setQ('');
+          }
+        },
         onError: (err) => {
+          setFolderDeleteTarget(null);
           const msg =
-            err instanceof APIError ? err.message : err instanceof Error ? err.message : 'Could not update highlight';
+            err instanceof APIError ? err.message : err instanceof Error ? err.message : 'Could not delete folder';
+          toast.error(msg);
+        },
+      },
+    );
+  };
+
+  const onRequestDeleteThreadCluster = (cluster: StudyThreadCluster, title: string, anchorRect: DOMRect) => {
+    setThreadDeleteTarget({ cluster, title, anchorRect });
+  };
+
+  const onConfirmDeleteThreadCluster = () => {
+    if (!homeSpaceId || !threadDeleteTarget) return;
+    const { cluster } = threadDeleteTarget;
+    removeThreadCluster.mutate(
+      { spaceId: homeSpaceId, memberIds: cluster.memberIds },
+      {
+        onSuccess: () => {
+          setThreadDeleteTarget(null);
+          setPinnedThreadClusterIds(removePinnedThreadClusterId(homeSpaceId, cluster.id));
+          const drillSlug = threadClusterDrillSlug(cluster.id);
+          if (sidebarThreadDrilldownId === drillSlug) {
+            setSidebarThreadDrilldownId(undefined);
+            setQ('');
+          }
+        },
+        onError: (err) => {
+          setThreadDeleteTarget(null);
+          const msg =
+            err instanceof APIError ? err.message : err instanceof Error ? err.message : 'Could not delete thread';
           toast.error(msg);
         },
       },
@@ -1086,7 +1345,12 @@ export default function PrototypeSidebar() {
           navigate({
             to: prototypeNoteRouteTo(),
             params: { noteId: noteParamSlug(r.parentNoteId) },
-            search: { scriptureRef: canon, scriptureTranslation: trans, studyThread: r.id },
+            search: {
+              scriptureRef: canon,
+              scriptureTranslation: trans,
+              studyThread: r.id,
+              dockReq: String(Date.now()),
+            },
           });
           afterNav();
           return;
@@ -1112,8 +1376,8 @@ export default function PrototypeSidebar() {
       // Reference rows open the reference dock (via `reference`); all other highlight kinds open the
       // highlight dock (via `highlight`), so the tap lands on a dock rather than just the note.
       search: isReferenceRow
-        ? { studyThread: r.id, reference: r.sourceSnippet || '' }
-        : { highlight: r.id },
+        ? { studyThread: r.id, reference: r.sourceSnippet || '', dockReq: String(Date.now()) }
+        : { highlight: r.id, dockReq: String(Date.now()) },
     });
     afterNav();
   };
@@ -1123,17 +1387,12 @@ export default function PrototypeSidebar() {
       if (result.kind === 'note' && result.noteId) {
         return !!activeNoteFullId && result.noteId === activeNoteFullId;
       }
-      if (result.kind === 'highlight' && result.highlightId) {
-        const row = highlightsById.get(result.highlightId);
-        if (!row) return false;
-        return (
-          standaloneScripturePassage?.focusedHighlightThreadId === result.highlightId ||
-          (!isScripturePassageHighlightRow(row) && activeNoteFullId === row.parentNoteId)
-        );
+      if (result.kind === 'highlight') {
+        return false;
       }
       return false;
     },
-    [activeNoteFullId, highlightsById, standaloneScripturePassage?.focusedHighlightThreadId],
+    [activeNoteFullId],
   );
 
   const onActivateSearchResult = useCallback(
@@ -1305,6 +1564,11 @@ export default function PrototypeSidebar() {
               setSidebarListMode('scripture');
               ensureSidebarExpanded();
             }}
+            onOpenScripturePassage={(bookOrder, passageKey) => {
+              setScriptureDrill({ level: 'notes', bookOrder, passageKey });
+              setSidebarListMode('scripture');
+              ensureSidebarExpanded();
+            }}
             onOpenHighlight={onHighlightRow}
           />
         ) : searchActive ? (
@@ -1438,23 +1702,17 @@ export default function PrototypeSidebar() {
               ) : (
                 <ul className="proto-collection-grid">
                   {filteredFolders.map((col) => (
-                    <li key={col.name ?? '__none__'}>
-                      <button
-                        type="button"
-                        className="proto-collection-card"
-                        onClick={() => setActiveFolderKey(col.name)}
-                      >
-                        <span className="proto-collection-card__icon">
-                          <Icon name="folder" size={13} aria-hidden />
-                        </span>
-                        <div className="proto-collection-card__body">
-                          <div className="proto-collection-card__title">{col.name ?? 'Unsorted'}</div>
-                          <div className="proto-collection-card__count">
-                            {col.count} note{col.count !== 1 ? 's' : ''}
-                          </div>
-                        </div>
-                      </button>
-                    </li>
+                    <PrototypeSidebarFolderCard
+                      key={col.name ?? '__none__'}
+                      folder={col}
+                      isPinned={col.name !== null && pinnedFolderIds.includes(folderRowId(col.name))}
+                      onOpen={() => setActiveFolderKey(col.name)}
+                      onTogglePin={() => togglePinnedFolder(folderRowId(col.name))}
+                      onDelete={(anchorRect) => onRequestDeleteFolder(col, anchorRect)}
+                      isDeleting={
+                        removeFolder.isPending && removeFolder.variables?.folderName === col.name
+                      }
+                    />
                   ))}
                 </ul>
               )
@@ -1510,22 +1768,17 @@ export default function PrototypeSidebar() {
                       const sub = prototypeHighlightSubtitlePreview(r, r.parentNoteTitle ?? '');
                       const title = prototypeHighlightListTitle(r);
                       const isPinned = pinnedHighlightIds.includes(r.id);
-                      const activeRow =
-                        standaloneScripturePassage?.focusedHighlightThreadId === r.id ||
-                        (!isScripturePassageHighlightRow(r) && activeNoteFullId === r.parentNoteId);
                       return (
                         <HighlightRow
                           key={r.id}
-                          isActive={activeRow}
+                          isActive={false}
                           isPinned={isPinned}
                           entryKind={r.entryKind}
                           title={title}
                           rel={rel}
                           preview={sub}
-                          currentAccent={r.highlightAccentRaw}
                           onOpen={() => onHighlightRow(r)}
                           onTogglePin={() => togglePinnedHighlight(r.id)}
-                          onSetAccent={(token) => onSetHighlightAccent(r, token)}
                           onDelete={(anchorRect) => onRequestDeleteHighlight(r, anchorRect)}
                           isDeleting={
                             deleteHighlight.isPending &&
@@ -1587,35 +1840,36 @@ export default function PrototypeSidebar() {
                     title="No Threads"
                     description="Connect notes together to create threads."
                   />
+                ) : filteredThreads.length === 0 ? (
+                  q.trim() ? (
+                    <PrototypeListNoMatchEmptyState title={SIDEBAR_NO_MATCH_COPY.noThreadsMatch} />
+                  ) : (
+                    <PrototypeListEmptyState
+                      iconName="arrow-right-arrow-left"
+                      title="No Threads"
+                      description="Connect notes together to create threads."
+                    />
+                  )
                 ) : (
                   <ul className="proto-collection-grid">
-                    {studyThreadsQuery.data.map((cluster) => {
+                    {filteredThreads.map((cluster) => {
                       const title = resolveClusterListTitle(
                         cluster,
                         activeNoteFullId,
                         queryClient,
                         homeSpaceId,
                       );
-                      const preview = `${cluster.noteCount} ${cluster.noteCount === 1 ? 'note' : 'notes'}`;
                       return (
-                        <li key={cluster.id}>
-                          <button
-                            type="button"
-                            className="proto-collection-card"
-                            onClick={() => {
-                              const slug = cluster.id.startsWith('note_') ? cluster.id.slice('note_'.length) : cluster.id;
-                              setSidebarThreadDrilldownId(slug);
-                            }}
-                          >
-                            <span className="proto-collection-card__icon">
-                              <Icon name="arrow-right-arrow-left" size={13} aria-hidden />
-                            </span>
-                            <div className="proto-collection-card__body">
-                              <div className="proto-collection-card__title">{title}</div>
-                              <div className="proto-collection-card__count">{preview}</div>
-                            </div>
-                          </button>
-                        </li>
+                        <PrototypeSidebarThreadCard
+                          key={cluster.id}
+                          cluster={cluster}
+                          title={title}
+                          isPinned={pinnedThreadClusterIds.includes(cluster.id)}
+                          onOpen={() => setSidebarThreadDrilldownId(threadClusterDrillSlug(cluster.id))}
+                          onTogglePin={() => togglePinnedThreadCluster(cluster.id)}
+                          onDelete={(anchorRect) => onRequestDeleteThreadCluster(cluster, title, anchorRect)}
+                          isDeleting={removeThreadCluster.isPending && threadDeleteTarget?.cluster.id === cluster.id}
+                        />
                       );
                     })}
                   </ul>
@@ -1756,6 +2010,30 @@ export default function PrototypeSidebar() {
           onConfirm={onConfirmDeleteHighlight}
           onCancel={() => {
             if (!deleteHighlight.isPending) setHighlightDeleteTarget(null);
+          }}
+        />
+      ) : null}
+      {folderDeleteTarget ? (
+        <ProtoConfirmDialog
+          anchorRect={folderDeleteTarget.anchorRect}
+          title="Delete folder?"
+          confirmLabel={`Delete from ${folderDeleteTarget.count} note${folderDeleteTarget.count !== 1 ? 's' : ''}`}
+          busy={removeFolder.isPending}
+          onConfirm={onConfirmDeleteFolder}
+          onCancel={() => {
+            if (!removeFolder.isPending) setFolderDeleteTarget(null);
+          }}
+        />
+      ) : null}
+      {threadDeleteTarget ? (
+        <ProtoConfirmDialog
+          anchorRect={threadDeleteTarget.anchorRect}
+          title="Delete thread?"
+          confirmLabel={`Disconnect ${threadDeleteTarget.cluster.noteCount} note${threadDeleteTarget.cluster.noteCount !== 1 ? 's' : ''}`}
+          busy={removeThreadCluster.isPending}
+          onConfirm={onConfirmDeleteThreadCluster}
+          onCancel={() => {
+            if (!removeThreadCluster.isPending) setThreadDeleteTarget(null);
           }}
         />
       ) : null}

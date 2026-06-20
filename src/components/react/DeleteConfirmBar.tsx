@@ -5,21 +5,26 @@ export type DeleteConfirmBarProps = {
   title: string;
   confirmLabel?: string;
   cancelLabel?: string;
+  editLabel?: string;
   busy?: boolean;
   titleId?: string;
   onConfirm: () => void;
   onCancel: () => void;
+  /** When provided, an Edit (pencil) action is shown before the destructive action. */
+  onEdit?: () => void;
 };
 
-/** Single-row destructive confirm — heading plus trash / dismiss icon actions. */
+/** Single-row destructive confirm — heading plus optional edit, then trash / dismiss icons. */
 export default function DeleteConfirmBar({
   title,
   confirmLabel = 'Delete',
   cancelLabel = 'Keep',
+  editLabel = 'Edit',
   busy = false,
   titleId: titleIdProp,
   onConfirm,
   onCancel,
+  onEdit,
 }: DeleteConfirmBarProps) {
   const generatedTitleId = useId();
   const titleId = titleIdProp ?? generatedTitleId;
@@ -30,6 +35,25 @@ export default function DeleteConfirmBar({
         {title}
       </p>
       <span className="harvous-delete-confirm__divider" aria-hidden />
+      {onEdit ? (
+        <>
+          <button
+            type="button"
+            className="harvous-delete-confirm__icon-btn"
+            disabled={busy}
+            aria-label={editLabel}
+            title={editLabel}
+            onMouseDown={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+            }}
+            onClick={onEdit}
+          >
+            <Icon name="pen" size={13} aria-hidden />
+          </button>
+          <span className="harvous-delete-confirm__divider" aria-hidden />
+        </>
+      ) : null}
       <button
         type="button"
         className="harvous-delete-confirm__icon-btn harvous-delete-confirm__icon-btn--destructive"

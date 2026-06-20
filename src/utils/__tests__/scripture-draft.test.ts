@@ -6,6 +6,7 @@ import {
   confirmScriptureDraftView,
   computeScriptureDraftGrowth,
   makeScriptureDraftGrowPlugin,
+  editScripturePillAsDraft,
 } from '@/components/react/TiptapScriptureDraft';
 import { collectScripturePillRanges } from '@/utils/scripture-pill-spacing';
 
@@ -47,7 +48,12 @@ const draftSchema = new Schema({
     text: { group: 'inline' },
   },
   marks: {
-    scriptureDraft: { inclusive: true, parseDOM: [], toDOM: () => ['span', 0] },
+    scriptureDraft: {
+      attrs: { translation: { default: null }, pillAccent: { default: null } },
+      inclusive: false,
+      parseDOM: [],
+      toDOM: () => ['span', 0],
+    },
     scripturePill: {
       attrs: {
         reference: { default: '' },
@@ -60,6 +66,20 @@ const draftSchema = new Schema({
     },
   },
 });
+
+/** The scripturePill mark instance on the first pilled text node, or null. */
+function pillMark(state: any): any | null {
+  let found: any = null;
+  state.doc.descendants((node: any) => {
+    if (found) return false;
+    if (node.isText) {
+      const m = node.marks?.find((mk: any) => mk.type.name === 'scripturePill');
+      if (m) found = m;
+    }
+    return undefined;
+  });
+  return found;
+}
 
 /** Build a fake EditorView over a paragraph: [draftText](draft mark) + trailingText (plain). */
 function draftView(draftText: string, trailingText = '') {
@@ -117,6 +137,15 @@ describe('confirmScriptureDraftView', () => {
     expect(ref).toBe('Psalm 27:1');
     expect(pillText(getState())).toBe('Psalm 27:1');
   });
+
+  it('consumes a trailing translation abbreviation typed after the reference', () => {
+    const { view, draftEnd, getState } = draftView('Exodus 5:1', ' ESV');
+    confirmScriptureDraftView(view, draftEnd);
+    expect(pillText(getState())).toBe('Exodus 5:1');
+    expect(pillMark(getState())?.attrs.translation).toBe('ESV');
+    // The " ESV" was consumed, not left as prose.
+    expect(getState().doc.textContent.replace(/\s+/g, '')).toBe('Exodus5:1');
+  });
 });
 
 describe('computeScriptureDraftGrowth', () => {
@@ -137,6 +166,62 @@ describe('computeScriptureDraftGrowth', () => {
   it('stops at non-continuation text (does not swallow following prose)', () => {
     const { view } = draftView('Exodus 5:1', ' and more');
     expect(computeScriptureDraftGrowth(view.state.doc, view.state.selection.from)).toBeNull();
+  });
+});
+
+describe('editScripturePillAsDraft', () => {
+  it('converts a committed pill back into a draft over the same text', () => {
+    const pillMark = draftSchema.marks.scripturePill.create({ reference: 'Exodus 5:1', noteId: 'note_1' });
+    const doc = draftSchema.node('doc', null, [
+      draftSchema.node('paragraph', null, [draftSchema.text('Exodus 5:1', [pillMark])]),
+    ]);
+    let state = EditorState.create({ doc });
+    const view = {
+      get state() {
+        return state;
+      },
+      dispatch(tr: any) {
+        state = state.apply(tr);
+      },
+      focus: () => {},
+    };
+    const from = 1;
+    const to = 1 + 'Exodus 5:1'.length;
+    expect(editScripturePillAsDraft(view, from, to)).toBe(true);
+    expect(collectScripturePillRanges(state.doc, 'scripturePill')).toHaveLength(0);
+    const draftRanges = collectScripturePillRanges(state.doc, 'scriptureDraft');
+    expect(draftRanges).toHaveLength(1);
+    expect(state.doc.textBetween(draftRanges[0].start, draftRanges[0].end)).toBe('Exodus 5:1');
+  });
+
+  it('carries the pill translation through edit → re-confirm', () => {
+    const pillM = draftSchema.marks.scripturePill.create({
+      reference: 'Exodus 5:1',
+      noteId: 'note_1',
+      translation: 'NLT',
+    });
+    const doc = draftSchema.node('doc', null, [
+      draftSchema.node('paragraph', null, [draftSchema.text('Exodus 5:1', [pillM])]),
+    ]);
+    let state = EditorState.create({ doc });
+    const view = {
+      get state() {
+        return state;
+      },
+      dispatch(tr: any) {
+        state = state.apply(tr);
+      },
+      dom: { dispatchEvent: () => true },
+      focus: () => {},
+    };
+    const to = 1 + 'Exodus 5:1'.length;
+    editScripturePillAsDraft(view, 1, to);
+    // Draft carries the translation...
+    expect(collectScripturePillRanges(state.doc, 'scriptureDraft')).toHaveLength(1);
+    confirmScriptureDraftView(view, to);
+    // ...and the re-confirmed pill keeps it.
+    expect(pillMark(state)?.attrs.translation).toBe('NLT');
+    expect(pillText(state)).toBe('Exodus 5:1');
   });
 });
 

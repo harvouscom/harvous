@@ -7,12 +7,20 @@ import {
   alertCreateNoteFailure,
   useCreateSimpleNote,
 } from '../../hooks/mutations/useCreateSimpleNote';
-import { getNoteIdFromCreateResponse, seedNoteFromCreateResponse } from '../../hooks/queries/useNote';
+import { getNoteIdFromCreateResponse } from '../../hooks/queries/useNote';
 import type { SpaceNoteRow } from '../../hooks/queries/useSpace';
+import type { ScriptureIndexBook } from '../../hooks/queries/usePrototypeSpaceScriptureIndex';
 import { useProtoShell } from '../../layouts/proto-shell-context';
-import { noteMatchesDailyPassage, type VotdToday } from '../../lib/votd-today';
+import {
+  findPersistedDailyPassageNote,
+  hasDailyPassageNote,
+  noteMatchesDailyPassage,
+  type VotdToday,
+} from '../../lib/votd-today';
 import { buildVotdScripturePillHtml } from '../../lib/votd-scripture-pill-html';
+import { normalizePrototypeApiSpaceId } from '../../utils/prototype-space-api-id';
 import { fetchVerseHtml } from '@/utils/fetch-verse-html';
+import { findScripturePassageWithNotes } from '@/utils/scripture-passage-drill';
 import PrototypeVotdPassageSheet from './PrototypeVotdPassageSheet';
 import { noteParamSlug } from './proto-route-slugs';
 
@@ -20,20 +28,34 @@ type Props = {
   homeSpaceId: string | null;
   notes: SpaceNoteRow[];
   votd: VotdToday;
+  scriptureBooks: ScriptureIndexBook[];
+  onOpenScripturePassage: (bookOrder: number, passageKey: string) => void;
 };
 
-export default function PrototypeDailyPassagePill({ homeSpaceId, notes, votd }: Props) {
+function isOfflineQueuedCreate(res: unknown): boolean {
+  return Boolean(res && typeof res === 'object' && 'offlineQueued' in res && (res as { offlineQueued: boolean }).offlineQueued);
+}
+
+export default function PrototypeDailyPassagePill({
+  homeSpaceId,
+  notes,
+  votd,
+  scriptureBooks,
+  onOpenScripturePassage,
+}: Props) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const createNote = useCreateSimpleNote();
   const { isMobileSidebar, closeDrawer } = useProtoShell();
   const [sheetOpen, setSheetOpen] = useState(false);
 
-  const matchingNote = useMemo(() => {
-    return notes.find((n) => noteMatchesDailyPassage(n, votd.reference));
-  }, [notes, votd.reference]);
+  const matchingNote = useMemo(
+    () => findPersistedDailyPassageNote(notes, votd.reference),
+    [notes, votd.reference],
+  );
 
-  const dailyPassageNoteExists = Boolean(matchingNote);
+  const dailyPassageNoteExists =
+    hasDailyPassageNote(notes, scriptureBooks, votd.reference) && !createNote.isPending;
 
   useEffect(() => {
     void fetchVerseHtml(votd.reference, votd.translation);
@@ -54,11 +76,31 @@ export default function PrototypeDailyPassagePill({ homeSpaceId, notes, votd }: 
     [afterNav, navigate],
   );
 
+  const invalidateScriptureIndex = useCallback(() => {
+    const id = normalizePrototypeApiSpaceId(homeSpaceId ?? undefined);
+    if (id) {
+      void queryClient.invalidateQueries({ queryKey: ['prototype', 'space', id, 'scripture-index'] });
+    }
+  }, [homeSpaceId, queryClient]);
+
+  const openScripturePassageNotes = useCallback(() => {
+    const drill = findScripturePassageWithNotes(scriptureBooks, votd.reference);
+    if (drill) {
+      onOpenScripturePassage(drill.bookOrder, drill.passageKey);
+      afterNav();
+      return;
+    }
+    if (matchingNote) {
+      openNote(matchingNote.id);
+    }
+  }, [afterNav, matchingNote, onOpenScripturePassage, openNote, scriptureBooks, votd.reference]);
+
   const studyNow = useCallback(
     (v: VotdToday) => {
       if (!homeSpaceId) return;
-      if (matchingNote) {
-        openNote(matchingNote.id);
+      const persisted = findPersistedDailyPassageNote(notes, v.reference);
+      if (persisted) {
+        openNote(persisted.id);
         return;
       }
       if (createNote.isPending) return;
@@ -71,15 +113,15 @@ export default function PrototypeDailyPassagePill({ homeSpaceId, notes, votd }: 
         },
         {
           onSuccess: (res) => {
-            const nid = getNoteIdFromCreateResponse(res);
-            const note = res?.note;
-            if (note && typeof note === 'object' && nid) {
-              try {
-                seedNoteFromCreateResponse(queryClient, note as Record<string, unknown> & { id: string }, homeSpaceId);
-              } catch (e) {
-                console.error('[PrototypeDailyPassagePill] seedNoteFromCreateResponse:', e);
-              }
+            if (isOfflineQueuedCreate(res)) {
+              const optimistic = notes.find(
+                (n) => n.id.startsWith('local_') && noteMatchesDailyPassage(n, v.reference),
+              );
+              if (optimistic) openNote(optimistic.id);
+              return;
             }
+            invalidateScriptureIndex();
+            const nid = getNoteIdFromCreateResponse(res);
             if (nid) openNote(nid);
             else alert('Create succeeded but response had no note id.');
           },
@@ -89,7 +131,7 @@ export default function PrototypeDailyPassagePill({ homeSpaceId, notes, votd }: 
         },
       );
     },
-    [createNote, homeSpaceId, matchingNote, openNote, queryClient],
+    [createNote, homeSpaceId, invalidateScriptureIndex, notes, openNote],
   );
 
   if (!homeSpaceId) {
@@ -99,9 +141,7 @@ export default function PrototypeDailyPassagePill({ homeSpaceId, notes, votd }: 
   return (
     <>
       <div className="proto-daily-passage-pill proto-daily-passage-pill--home">
-        <div
-          className={`proto-daily-passage-pill__content${dailyPassageNoteExists ? ' proto-daily-passage-pill__content--no-add' : ''}`}
-        >
+        <div className="proto-daily-passage-pill__content">
           <p className="proto-caption proto-daily-passage-pill__eyebrow">Today&apos;s Passage</p>
           <p className="pds-list-title proto-daily-passage-pill__reference">{votd.reference}</p>
         </div>
@@ -115,7 +155,16 @@ export default function PrototypeDailyPassagePill({ homeSpaceId, notes, votd }: 
           >
             <Icon name="book-open" size={12} />
           </button>
-          {!dailyPassageNoteExists ? (
+          {dailyPassageNoteExists ? (
+            <button
+              type="button"
+              className="proto-daily-passage-pill__orb"
+              aria-label="View notes on this passage"
+              onClick={openScripturePassageNotes}
+            >
+              <Icon name="list" size={12} />
+            </button>
+          ) : (
             <button
               type="button"
               className="proto-daily-passage-pill__orb"
@@ -125,14 +174,14 @@ export default function PrototypeDailyPassagePill({ homeSpaceId, notes, votd }: 
             >
               <Icon name="plus" size={12} />
             </button>
-          ) : null}
+          )}
         </div>
       </div>
 
       <PrototypeVotdPassageSheet
         votd={votd}
         open={sheetOpen}
-        showsAddFAB={!dailyPassageNoteExists}
+        showsAddFAB={!dailyPassageNoteExists && !createNote.isPending}
         onClose={() => setSheetOpen(false)}
         onAdd={() => {
           setSheetOpen(false);

@@ -12,13 +12,16 @@ export type ScripturePillDeleteConfirmProps = {
   anchorRect: DOMRect;
   onConfirm: () => void;
   onDismiss: () => void;
+  /** When provided, an Edit action re-opens the pill for inline editing. */
+  onEdit?: () => void;
 };
 
-/** Portaled scripture-pill delete bar — anchored below the pill. */
+/** Portaled scripture-pill edit/delete bar — anchored below the pill. */
 export default function ScripturePillDeleteConfirm({
   anchorRect,
   onConfirm,
   onDismiss,
+  onEdit,
 }: ScripturePillDeleteConfirmProps) {
   const titleId = useId();
   const cardRef = useRef<HTMLDivElement>(null);
@@ -54,9 +57,11 @@ export default function ScripturePillDeleteConfirm({
     >
       <DeleteConfirmBar
         titleId={titleId}
-        title="Remove this scripture pill?"
+        title={onEdit ? 'Edit or remove this scripture pill?' : 'Remove this scripture pill?'}
         confirmLabel="Remove"
         cancelLabel="Keep"
+        editLabel="Edit"
+        onEdit={onEdit}
         onConfirm={onConfirm}
         onCancel={onDismiss}
       />

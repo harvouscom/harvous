@@ -7,6 +7,8 @@
  *   GET    /api/spaces/items
  *   POST   /api/spaces/:spaceId/update
  *   GET    /api/spaces/:spaceId/notes
+ *   POST   /api/spaces/:spaceId/folders/remove
+ *   POST   /api/spaces/:spaceId/threads/remove
  *   GET    /api/spaces/:spaceId/study-thread-highlights
  *   GET    /api/spaces/:spaceId/scripture-index
  *   GET    /api/spaces/:spaceId/study-threads/by-scripture
@@ -38,7 +40,11 @@ import {
   first,
 } from '../db';
 import { nowISO } from '../db/dates';
-import { parseNoteSecondaryCollections } from '../utils/note-secondary-collections';
+import { parseNoteSecondaryCollections, serializeNoteSecondaryCollections } from '../utils/note-secondary-collections';
+import { computeNoteFolderRemovalPatch } from '@/utils/folder-bulk-actions';
+import { normalizeThreadClusterMemberIds } from '@/utils/thread-cluster-bulk-actions';
+import { broadcastInvalidation } from '../utils/realtime';
+import { recordDeletedEntities } from '../utils/sync-deletion-log';
 import {
   getSpacesWithCounts,
   getNotesForSpace,
@@ -71,6 +77,7 @@ import { buildSpaceScriptureIndex } from '../utils/build-space-scripture-index';
 import {
   NOT_ONBOARDING_NOTES_THREAD,
   NOT_ONBOARDING_SYSTEM_NOTES,
+  isOnboardingSystemNote,
 } from '../utils/purge-onboarding-content';
 import { buildSpaceReferencesIndex } from '../utils/build-space-references-index';
 import { mapStudyRow } from './study-threads';
@@ -82,39 +89,12 @@ import {
 } from '@/utils/suggest-study-thread-title';
 import { fetchStudyThreadNoteRows } from '../utils/study-thread-note-rows';
 import { resolveStudyThreadClusterNaming } from '../utils/study-thread-cluster-naming';
+import { studyThreadEligibleForHighlightList } from '@/utils/study-thread-highlight-eligibility';
 
 const route = new Hono();
 
 function normalizePrototypeSpaceId(spaceIdRaw: string): string {
   return spaceIdRaw.startsWith('space_') ? spaceIdRaw : `space_${spaceIdRaw}`;
-}
-
-/** Matches native StudyHighlightList eligibility (passage underline vs anchored mini/link/scripture rows). */
-function studyThreadEligibleForHighlightList(entry: typeof StudyThreadEntries.$inferSelect): boolean {
-  const passageHighlight =
-    entry.entryKindRaw === 'scriptureLink' &&
-    (entry.scripturePassageExcerpt ?? '').trim() !== '' &&
-    (entry.scripturePassageTranslation ?? '').trim() !== '';
-
-  const anchoredHighlight =
-    ['miniNote', 'linkedNote', 'scriptureLink', 'reference'].includes(entry.entryKindRaw) &&
-    entry.anchorLocation != null &&
-    entry.anchorLocation >= 0 &&
-    entry.anchorLength != null &&
-    entry.anchorLength > 0;
-
-  /** Web prototype historically POSTed miniNotes with snippet/snapshot but omitted anchors — still user-visible highlights. */
-  const proseSnippetMiniNote =
-    entry.entryKindRaw === 'miniNote' &&
-    ((entry.sourceSnippet ?? '').trim() !== '' || (entry.anchorTextSnapshot ?? '').trim() !== '');
-
-  /** Reference saved from a scripture passage (dictionary word) — no note anchor, but carries the
-   *  word as its excerpt. Mirrors `passageHighlight` so these surface in the highlights list. */
-  const referenceHighlight =
-    entry.entryKindRaw === 'reference' &&
-    ((entry.scripturePassageExcerpt ?? '').trim() !== '' || (entry.sourceSnippet ?? '').trim() !== '');
-
-  return passageHighlight || anchoredHighlight || proseSnippetMiniNote || referenceHighlight;
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -401,6 +381,147 @@ route.get('/api/spaces/:spaceId/notes', requireAuth, async (c) => {
   }
 });
 
+// ─── POST /api/spaces/:spaceId/folders/remove ───────────────────────────────
+/** Remove a folder label from all notes in the space (notes are kept; labels move to Unsorted). */
+route.post('/api/spaces/:spaceId/folders/remove', requireAuth, rateLimit('write'), async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const spaceIdNorm = normalizePrototypeSpaceId(requireParam(c, 'spaceId'));
+    try {
+      await requireSpaceAccess(spaceIdNorm, auth.userId);
+    } catch (err) {
+      if (err instanceof SpaceAccessError) return c.json({ error: err.message, code: err.code }, err.status);
+      throw err;
+    }
+
+    const body = await c.req.json().catch(() => ({}));
+    const folderName = typeof body.folderName === 'string' ? body.folderName.trim() : '';
+    if (!folderName) return c.json({ error: 'Folder name is required' }, 400);
+
+    const noteRows = await db
+      .select({
+        id: Notes.id,
+        threadId: Notes.threadId,
+        addedBy: Notes.addedBy,
+        primaryCollection: Notes.primaryCollection,
+        secondaryCollections: Notes.secondaryCollections,
+        collectionPinned: Notes.collectionPinned,
+        collectionUserOverride: Notes.collectionUserOverride,
+      })
+      .from(Notes)
+      .where(
+        and(
+          eq(Notes.spaceId, spaceIdNorm),
+          eq(Notes.userId, auth.userId),
+          NOT_ONBOARDING_NOTES_THREAD,
+          NOT_ONBOARDING_SYSTEM_NOTES,
+        ),
+      );
+
+    let updatedCount = 0;
+    for (const note of noteRows) {
+      if (isOnboardingSystemNote(note)) continue;
+
+      const patch = computeNoteFolderRemovalPatch(
+        {
+          primaryCollection: note.primaryCollection,
+          secondaryCollections: parseNoteSecondaryCollections(note.secondaryCollections),
+          collectionPinned: note.collectionPinned,
+          collectionUserOverride: note.collectionUserOverride,
+        },
+        folderName,
+      );
+      if (!patch) continue;
+
+      const updateData: Record<string, unknown> = {
+        primaryCollection: patch.primaryCollection,
+        secondaryCollections: serializeNoteSecondaryCollections(patch.secondaryCollections),
+        collectionPinned: patch.collectionPinned,
+        collectionUserOverride: patch.collectionUserOverride,
+        updatedAt: nowISO(),
+      };
+      if (patch.collectionLastAutoUpdatedAt === null) {
+        updateData.collectionLastAutoUpdatedAt = null;
+      }
+
+      await db.update(Notes).set(updateData).where(and(eq(Notes.id, note.id), eq(Notes.userId, auth.userId)));
+      updatedCount += 1;
+    }
+
+    return c.json({ success: true, updatedCount });
+  } catch (error: any) {
+    const standardError = handleAPIError(error, {
+      endpoint: '/api/spaces/[spaceId]/folders/remove',
+      action: 'remove_folder',
+    });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+
+// ─── POST /api/spaces/:spaceId/threads/remove ───────────────────────────────
+/** Disconnect all notes in a study-thread cluster (notes are kept). */
+route.post('/api/spaces/:spaceId/threads/remove', requireAuth, rateLimit('write'), async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const spaceIdNorm = normalizePrototypeSpaceId(requireParam(c, 'spaceId'));
+    try {
+      await requireSpaceAccess(spaceIdNorm, auth.userId);
+    } catch (err) {
+      if (err instanceof SpaceAccessError) return c.json({ error: err.message, code: err.code }, err.status);
+      throw err;
+    }
+
+    const body = await c.req.json().catch(() => ({}));
+    const memberIds = normalizeThreadClusterMemberIds(body.memberIds);
+    if (memberIds.length === 0) return c.json({ error: 'memberIds is required' }, 400);
+
+    const memberSet = new Set(memberIds);
+    const edgeRows = await db
+      .select({
+        id: NoteConnections.id,
+        fromNoteId: NoteConnections.fromNoteId,
+        toNoteId: NoteConnections.toNoteId,
+      })
+      .from(NoteConnections)
+      .where(
+        and(
+          eq(NoteConnections.userId, auth.userId),
+          eq(NoteConnections.spaceId, spaceIdNorm),
+          inArray(NoteConnections.fromNoteId, memberIds),
+          inArray(NoteConnections.toNoteId, memberIds),
+        ),
+      );
+
+    const edges = edgeRows.filter(
+      (edge) => memberSet.has(edge.fromNoteId) && memberSet.has(edge.toNoteId),
+    );
+    if (edges.length === 0) {
+      return c.json({ success: true, removedEdgeCount: 0 });
+    }
+
+    const edgeIds = edges.map((edge) => edge.id);
+    await db.delete(NoteConnections).where(inArray(NoteConnections.id, edgeIds));
+    await recordDeletedEntities(auth.userId, 'noteConnection', edgeIds);
+
+    const touchedNoteIds = new Set<string>();
+    for (const edge of edges) {
+      touchedNoteIds.add(edge.fromNoteId);
+      touchedNoteIds.add(edge.toNoteId);
+    }
+    for (const noteId of touchedNoteIds) {
+      broadcastInvalidation(auth.userId, { type: 'note:updated', id: noteId });
+    }
+
+    return c.json({ success: true, removedEdgeCount: edges.length });
+  } catch (error: any) {
+    const standardError = handleAPIError(error, {
+      endpoint: '/api/spaces/[spaceId]/threads/remove',
+      action: 'remove_thread_cluster',
+    });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+
 // ─── GET /api/spaces/:spaceId/study-thread-highlights ───────────────────────
 route.get('/api/spaces/:spaceId/study-thread-highlights', requireAuth, async (c) => {
   try {
@@ -419,6 +540,7 @@ route.get('/api/spaces/:spaceId/study-thread-highlights', requireAuth, async (c)
     const highlightCandidates = or(
       eq(StudyThreadEntries.entryKindRaw, 'scriptureLink'),
       eq(StudyThreadEntries.entryKindRaw, 'miniNote'),
+      eq(StudyThreadEntries.entryKindRaw, 'linkedNote'),
       eq(StudyThreadEntries.entryKindRaw, 'reference'),
       and(isNotNull(StudyThreadEntries.anchorLocation), isNotNull(StudyThreadEntries.anchorLength), gt(StudyThreadEntries.anchorLength, 0)),
     );

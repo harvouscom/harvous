@@ -1,6 +1,10 @@
 import { Mark, getMarkRange } from '@tiptap/core';
 import { Plugin, PluginKey, TextSelection } from '@tiptap/pm/state';
-import { detectScriptureReferences } from '@/utils/scripture-detector';
+import {
+  detectScriptureReferences,
+  matchAnchoredTrailingTranslationAbbreviation,
+} from '@/utils/scripture-detector';
+import { getTranslationAbbreviationDisplay } from '@/data/translations';
 import { collectScripturePillRanges, ensureScripturePillSpacing } from '@/utils/scripture-pill-spacing';
 
 /**
@@ -42,6 +46,30 @@ export const ScriptureDraft = Mark.create<ScriptureDraftOptions>({
     return { HTMLAttributes: {} };
   },
 
+  // Carried from the pill being edited (backspace → Edit) so a re-confirm preserves them.
+  // Ephemeral like the mark itself — never parsed from saved HTML. `translation` also renders
+  // the NLT/ESV label so it stays visible while editing.
+  addAttributes() {
+    return {
+      translation: {
+        default: null,
+        parseHTML: () => null,
+        renderHTML: (attrs: any) =>
+          attrs.translation
+            ? {
+                'data-scripture-translation': attrs.translation,
+                'data-scripture-translation-label': getTranslationAbbreviationDisplay(attrs.translation),
+              }
+            : {},
+      },
+      pillAccent: {
+        default: null,
+        parseHTML: () => null,
+        renderHTML: () => ({}),
+      },
+    };
+  },
+
   // Ephemeral: never re-hydrate a draft from saved HTML — load its text as plain text.
   parseHTML() {
     return [];
@@ -81,12 +109,30 @@ export function makeScriptureDraftGrowPlugin() {
       if (!draftType) return null;
       const growth = computeScriptureDraftGrowth(newState.doc, newState.selection.from);
       if (!growth) return null;
+      // Reuse the existing draft's attrs (e.g. a carried translation) so the regrown span has
+      // identical marks and merges into one pill instead of splitting.
+      const existing = getMarkInstanceAt(newState.doc, growth.from, draftType);
       const tr = newState.tr;
-      tr.addMark(growth.from, growth.to, draftType.create({}));
+      tr.addMark(growth.from, growth.to, draftType.create(existing ? { ...existing.attrs } : {}));
       tr.setMeta('addToHistory', false);
       return tr;
     },
   });
+}
+
+/** The mark instance of `markType` on the text node at `pos` (or just after it), or null. */
+function getMarkInstanceAt(doc: any, pos: number, markType: any): any | null {
+  let found: any = null;
+  const to = Math.min(pos + 1, doc.content.size);
+  doc.nodesBetween(pos, Math.max(to, pos), (node: any) => {
+    if (found) return false;
+    if (node.isText) {
+      const m = node.marks.find((mk: any) => mk.type === markType);
+      if (m) found = m;
+    }
+    return undefined;
+  });
+  return found;
 }
 
 // ── Range helpers ─────────────────────────────────────────────────────────────
@@ -198,6 +244,36 @@ export function enterScriptureDraftView(view: any, from: number, to: number): bo
   return true;
 }
 
+/**
+ * Convert a committed `scripturePill` over [from, to) back into an inline `scriptureDraft` so the
+ * user can fix/extend the reference in place and re-confirm via the floating ✓. Used by the
+ * pill's delete floater "Edit" action.
+ */
+export function editScripturePillAsDraft(view: any, from: number, to: number): boolean {
+  const { state } = view;
+  const pillType = state.schema.marks.scripturePill;
+  const draftType = state.schema.marks.scriptureDraft;
+  if (!pillType || !draftType || to <= from) return false;
+  // Carry the pill's translation + accent into the draft so a re-confirm preserves them.
+  const pillMark = getMarkInstanceAt(state.doc, from, pillType);
+  const carried = pillMark
+    ? { translation: pillMark.attrs.translation ?? null, pillAccent: pillMark.attrs.pillAccent ?? null }
+    : {};
+  const tr = state.tr;
+  tr.removeMark(from, to, pillType);
+  tr.addMark(from, to, draftType.create(carried));
+  tr.setSelection(TextSelection.create(tr.doc, to));
+  tr.setStoredMarks([]);
+  tr.setMeta('addToHistory', true);
+  view.dispatch(tr);
+  try {
+    view.focus();
+  } catch {
+    /* ignore */
+  }
+  return true;
+}
+
 /** Reference-continuation characters that can trail a draft (verse/range punctuation). */
 const DRAFT_CONTINUATION_RE = /[\d:,\-–—]/;
 
@@ -284,10 +360,36 @@ export function confirmScriptureDraftView(
     return null;
   }
 
+  // Preserve the translation/accent carried in from the pill being edited (backspace → Edit).
+  const carried = getMarkInstanceAt(state.doc, range.from, draftType);
+  let translation = carried?.attrs?.translation ?? null;
+  let consumeTo = effectiveTo;
+  // Consume a typed trailing translation abbreviation (e.g. "Exodus 5:6-9 ESV") so typing one
+  // sets/overrides the pill translation. (The space-confirm path uses the pending-translation flow.)
+  try {
+    const $end = state.doc.resolve(effectiveTo);
+    const blockEnd = $end.end($end.depth);
+    if (effectiveTo < blockEnd) {
+      const trailing = matchAnchoredTrailingTranslationAbbreviation(
+        state.doc.textBetween(effectiveTo, blockEnd),
+      );
+      if (trailing) {
+        translation = trailing.canonicalId;
+        consumeTo = effectiveTo + trailing.consumed.length;
+      }
+    }
+  } catch {
+    /* ignore */
+  }
   const pillNode = state.schema.text(reference, [
-    pillType.create({ reference, noteId: 'pending', translation: null, pillAccent: null }),
+    pillType.create({
+      reference,
+      noteId: 'pending',
+      translation,
+      pillAccent: carried?.attrs?.pillAccent ?? null,
+    }),
   ]);
-  tr.replaceWith(range.from, effectiveTo, pillNode);
+  tr.replaceWith(range.from, consumeTo, pillNode);
 
   const pillEnd = range.from + reference.length;
   // One trailing spacer so prose after the pill is editable (shared pill-spacing rule).

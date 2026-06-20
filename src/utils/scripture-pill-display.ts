@@ -1,6 +1,71 @@
 import { getTranslationAbbreviationDisplay } from '@/data/translations';
-import { matchAnchoredTrailingTranslationAbbreviation } from '@/utils/scripture-detector';
+import {
+  matchAnchoredTrailingTranslationAbbreviation,
+  detectScriptureReferences,
+} from '@/utils/scripture-detector';
 import { getEffectiveDefaultTranslation } from '@/utils/profile-cache';
+
+/**
+ * Repairs notes corrupted by an earlier buggy pill create-path. Two symptoms:
+ *  (A) raw pill-attribute markup leaked into the document as literal TEXT
+ *      (e.g. `... data-note-id="note_..." class="scripture-pill..." style="...">`); and
+ *  (B) pill spans wrapping text that isn't a scripture reference (a whole list item).
+ * This unwraps invalid pill spans (keeping their text) and strips the leaked attribute soup from
+ * text nodes. Idempotent — clean HTML is returned unchanged.
+ */
+export function sanitizeScripturePillHtml(html: string): string {
+  if (typeof document === 'undefined' || !html) return html;
+  if (!html.includes('data-scripture-reference') && !html.includes('class="scripture-pill')) {
+    return html;
+  }
+
+  const wrap = document.createElement('div');
+  wrap.innerHTML = html;
+  let modified = false;
+
+  // (B) Unwrap pill spans whose reference attr or visible text isn't a real reference.
+  wrap.querySelectorAll('span[data-scripture-reference]').forEach((node) => {
+    const el = node as HTMLElement;
+    const ref = el.getAttribute('data-scripture-reference');
+    const text = (el.textContent || '').trim();
+    const invalid =
+      !ref ||
+      detectScriptureReferences(ref).length === 0 ||
+      (text.length > 0 && detectScriptureReferences(text).length === 0);
+    if (invalid) {
+      el.replaceWith(document.createTextNode(el.textContent || ''));
+      modified = true;
+    }
+  });
+
+  // (A) Strip leaked pill-attribute soup from text nodes.
+  const textNodes: Text[] = [];
+  const walker = document.createTreeWalker(wrap, NodeFilter.SHOW_TEXT);
+  for (let cur = walker.nextNode(); cur; cur = walker.nextNode()) {
+    textNodes.push(cur as Text);
+  }
+  for (const tn of textNodes) {
+    const raw = tn.textContent || '';
+    if (!/data-note-id="|data-scripture-reference="|class="scripture-pill|style="border-radius: 12px/.test(raw)) {
+      continue;
+    }
+    const cleaned = raw
+      .replace(
+        /\s*data-(?:note-id|scripture-reference|scripture-translation|scripture-translation-label|pill-accent)="[^"]*"/g,
+        '',
+      )
+      .replace(/\s*class="scripture-pill[^"]*"/g, '')
+      .replace(/\s*style="border-radius: 12px[^"]*"/g, '')
+      .replace(/[-\d:,]*"\s*>/g, '') // leftover reference-tail + closing ">"
+      .replace(/\s{2,}/g, ' ');
+    if (cleaned !== raw) {
+      tn.textContent = cleaned;
+      modified = true;
+    }
+  }
+
+  return modified ? wrap.innerHTML : html;
+}
 
 /** Sets `data-scripture-translation-label` on pills that only have canonical id (legacy HTML, server-rendered content). */
 export function ensureScripturePillDisplayLabels(root: ParentNode | null | undefined): void {

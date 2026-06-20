@@ -1,4 +1,9 @@
 import type { SpaceNoteRow } from '../hooks/queries/useSpace';
+import {
+  findScripturePassageWithNotes,
+  type ScriptureIndexBookLike,
+} from '@/utils/scripture-passage-drill';
+import { normalizeScriptureReference } from '@/utils/scripture-detector';
 
 export const VOTD_PASSAGE_CARD_DISMISSED_DAY_KEY = 'votd_passage_card_dismissed_day';
 
@@ -62,6 +67,17 @@ export async function fetchVotdToday(): Promise<VotdToday | null> {
   return { reference, translation };
 }
 
+function refsEquivalent(a: string, b: string): boolean {
+  const na = normalizeScriptureReference(a.trim()) ?? a.trim();
+  const nb = normalizeScriptureReference(b.trim()) ?? b.trim();
+  if (!na || !nb) return false;
+  return na.localeCompare(nb, undefined, { sensitivity: 'accent' }) === 0;
+}
+
+export function isPersistedNoteId(id: string): boolean {
+  return !id.startsWith('local_');
+}
+
 export function noteMatchesDailyPassage(
   row: Pick<SpaceNoteRow, 'title' | 'content'>,
   reference: string,
@@ -69,7 +85,7 @@ export function noteMatchesDailyPassage(
   const ref = reference.trim();
   if (!ref) return false;
   const title = (row.title ?? '').trim();
-  if (title.localeCompare(ref, undefined, { sensitivity: 'accent' }) === 0) {
+  if (title && refsEquivalent(title, ref)) {
     return true;
   }
   const content = row.content ?? '';
@@ -78,9 +94,26 @@ export function noteMatchesDailyPassage(
   let match: RegExpExecArray | null;
   while ((match = pillRefPattern.exec(content)) !== null) {
     const pillRef = (match[1] ?? '').trim();
-    if (pillRef && pillRef.localeCompare(ref, undefined, { sensitivity: 'accent' }) === 0) {
+    if (pillRef && refsEquivalent(pillRef, ref)) {
       return true;
     }
   }
   return false;
+}
+
+export function findPersistedDailyPassageNote(
+  notes: SpaceNoteRow[],
+  reference: string,
+): SpaceNoteRow | undefined {
+  return notes.find((n) => isPersistedNoteId(n.id) && noteMatchesDailyPassage(n, reference));
+}
+
+/** True when a server-backed note (or scripture index) confirms today's passage exists in the space. */
+export function hasDailyPassageNote(
+  notes: SpaceNoteRow[],
+  scriptureBooks: ScriptureIndexBookLike[],
+  reference: string,
+): boolean {
+  if (findScripturePassageWithNotes(scriptureBooks, reference)) return true;
+  return findPersistedDailyPassageNote(notes, reference) != null;
 }

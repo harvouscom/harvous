@@ -3,6 +3,21 @@ import { Plugin, PluginKey, TextSelection } from '@tiptap/pm/state';
 import { getTranslationAbbreviationDisplay } from '@/data/translations';
 import { safeNavigate } from '@/utils/safe-navigate';
 import { idToUrl, extractIdFromPath } from '@/utils/url-helpers';
+import { detectScriptureReferences } from '@/utils/scripture-detector';
+
+/**
+ * A saved pill span is only honored if BOTH its `data-scripture-reference` attribute and its
+ * visible text are actual scripture references. This rejects corrupted/over-broad pills (e.g. a
+ * whole list item "1. Obedience flows from a relationship with God" wrapped as a pill) at parse
+ * time so they load as plain text instead of re-hydrating the corruption.
+ */
+export function pillSpanIsValidReference(reference: string | null, text: string | null): boolean {
+  if (!reference) return false;
+  if (detectScriptureReferences(reference).length === 0) return false;
+  const t = (text || '').trim();
+  if (t && detectScriptureReferences(t).length === 0) return false;
+  return true;
+}
 
 /**
  * Helper function to detect the current thread context from the page
@@ -131,26 +146,28 @@ export const ScripturePill = Mark.create<ScripturePillOptions>({
       {
         tag: 'span[data-scripture-reference]',
         getAttrs: element => {
-          const reference = (element as HTMLElement).getAttribute('data-scripture-reference');
-          const noteId = (element as HTMLElement).getAttribute('data-note-id');
-          if (!reference) {
+          const el = element as HTMLElement;
+          const reference = el.getAttribute('data-scripture-reference');
+          if (!pillSpanIsValidReference(reference, el.textContent)) {
             return false;
           }
-          const translation = (element as HTMLElement).getAttribute('data-scripture-translation');
-          const pillAccent = (element as HTMLElement).getAttribute('data-pill-accent');
+          const noteId = el.getAttribute('data-note-id');
+          const translation = el.getAttribute('data-scripture-translation');
+          const pillAccent = el.getAttribute('data-pill-accent');
           return { reference, noteId: noteId || null, translation: translation || null, pillAccent: pillAccent || null };
         },
       },
       {
         tag: 'span.note-link[data-scripture-reference]',
         getAttrs: (element) => {
-          const noteId = (element as HTMLElement).getAttribute('data-note-id');
-          const reference = (element as HTMLElement).getAttribute('data-scripture-reference');
-          if (!reference) {
+          const el = element as HTMLElement;
+          const reference = el.getAttribute('data-scripture-reference');
+          if (!pillSpanIsValidReference(reference, el.textContent)) {
             return false;
           }
-          const translation = (element as HTMLElement).getAttribute('data-scripture-translation');
-          const pillAccent = (element as HTMLElement).getAttribute('data-pill-accent');
+          const noteId = el.getAttribute('data-note-id');
+          const translation = el.getAttribute('data-scripture-translation');
+          const pillAccent = el.getAttribute('data-pill-accent');
           return { reference, noteId: noteId || null, translation: translation || null, pillAccent: pillAccent || null };
         },
       },
