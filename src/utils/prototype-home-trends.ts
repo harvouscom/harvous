@@ -751,6 +751,83 @@ export function deriveCrossRefConnections(
     .map(({ from, to, votes, noteCount, notes }) => ({ from, to, votes, noteCount, notes }));
 }
 
+/**
+ * "Resurface by passage" (knowledge layer, Phase 3). A cited passage and the notes that
+ * reference it — the consumer maps scripture index passages; this module stays structural only.
+ */
+export interface HomePassageConnectionInput {
+  passageKey: string;
+  displayRef: string;
+  bookOrder: number;
+  chapter: number;
+  verseStart: number;
+  notes: HomeSubjectNoteBrief[];
+}
+
+export interface HomePassageConnection {
+  passageKey: string;
+  displayRef: string;
+  bookOrder: number;
+  noteCount: number;
+  /** Distinct notes citing this passage — most recently edited first. */
+  notes: Array<{ id: string; title: string | null }>;
+}
+
+/**
+ * Passages a reader keeps returning to: dedupe citing notes per passage, keep those with ≥
+ * `minNotes` distinct notes, ranked by reach (note count), then recency, then canonical order.
+ */
+export function derivePassageConnections(
+  passages: HomePassageConnectionInput[],
+  options: { limit: number; minNotes?: number; maxNotesPerConnection?: number },
+): HomePassageConnection[] {
+  const { limit, minNotes = 2, maxNotesPerConnection = 6 } = options;
+
+  const connections: Array<HomePassageConnection & { latest: number; chapter: number; verseStart: number }> = [];
+  for (const passage of passages) {
+    if (!passage.notes.length) continue;
+
+    const noteMap = new Map<string, { note: HomeSubjectNoteBrief; t: number }>();
+    for (const note of passage.notes) {
+      const t = briefTime(note);
+      const prev = noteMap.get(note.id);
+      if (!prev || t > prev.t) noteMap.set(note.id, { note, t });
+    }
+    if (noteMap.size < minNotes) continue;
+
+    const ranked = [...noteMap.values()].sort((a, b) => b.t - a.t);
+    connections.push({
+      passageKey: passage.passageKey,
+      displayRef: passage.displayRef,
+      bookOrder: passage.bookOrder,
+      chapter: passage.chapter,
+      verseStart: passage.verseStart,
+      noteCount: noteMap.size,
+      latest: ranked[0]?.t ?? 0,
+      notes: ranked.slice(0, maxNotesPerConnection).map(({ note }) => ({ id: note.id, title: note.title ?? null })),
+    });
+  }
+
+  return connections
+    .sort(
+      (a, b) =>
+        b.noteCount - a.noteCount ||
+        b.latest - a.latest ||
+        a.bookOrder - b.bookOrder ||
+        a.chapter - b.chapter ||
+        a.verseStart - b.verseStart ||
+        a.passageKey.localeCompare(b.passageKey),
+    )
+    .slice(0, Math.max(0, limit))
+    .map(({ passageKey, displayRef, bookOrder, noteCount, notes }) => ({
+      passageKey,
+      displayRef,
+      bookOrder,
+      noteCount,
+      notes,
+    }));
+}
+
 /** Most-referenced passages across the space's scripture index, canonical order as tiebreak. */
 export function deriveTopPassages(books: HomeBookInput[], limit: number): HomeTopPassage[] {
   return books

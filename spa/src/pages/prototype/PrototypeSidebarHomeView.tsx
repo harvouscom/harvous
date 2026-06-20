@@ -29,6 +29,7 @@ import {
   countWeeklyActivityDays,
   countLooseNotes,
   deriveSubjectConnections,
+  derivePassageConnections,
   deriveTopBooks,
   deriveTopFolders,
   deriveTopTags,
@@ -46,6 +47,7 @@ import {
   selectHomeLeadTheme,
   type HomeLeadTheme,
   type HomeSubjectPassageInput,
+  type HomePassageConnectionInput,
 } from '@/utils/prototype-home-trends';
 import chapterSubjectsData from '@/data/chapter-subjects.json';
 import { currentLiturgicalSeason } from '@/utils/liturgical-season';
@@ -76,6 +78,8 @@ const chapterSubjects = chapterSubjectsData as Record<string, Record<string, str
 const SUBJECT_CONNECTION_MIN = 3;
 // A TSK cross-reference pair must touch at least this many distinct notes.
 const CROSSREF_CONNECTION_MIN = 2;
+// A passage must be cited by at least this many distinct notes to resurface on Home.
+const PASSAGE_CONNECTION_MIN = 2;
 
 type Props = {
   homeSpaceId: string;
@@ -508,6 +512,26 @@ export default function PrototypeSidebarHomeView({
     return top && top.noteCount >= CROSSREF_CONNECTION_MIN ? top : undefined;
   }, [crossRefConnectionsQuery.data, hasMoreNotes]);
 
+  const passageConnection = useMemo(() => {
+    if (hasMoreNotes) return undefined;
+    const passages: HomePassageConnectionInput[] = [];
+    for (const book of scriptureBooks) {
+      for (const passage of book.passages) {
+        if (!passage.notes.length) continue;
+        passages.push({
+          passageKey: passage.passageKey,
+          displayRef: passage.displayRef,
+          bookOrder: passage.bookOrder,
+          chapter: passage.chapter,
+          verseStart: passage.verseStart,
+          notes: passage.notes,
+        });
+      }
+    }
+    const top = derivePassageConnections(passages, { limit: 1 })[0];
+    return top && top.noteCount >= PASSAGE_CONNECTION_MIN ? top : undefined;
+  }, [scriptureBooks, hasMoreNotes]);
+
   const openSubjectConnection = useCallback(() => {
     const leadId = subjectConnection?.notes[0]?.id;
     const leadNote = leadId ? notes.find((note) => note.id === leadId) : undefined;
@@ -519,6 +543,11 @@ export default function PrototypeSidebarHomeView({
     const leadNote = leadId ? notes.find((note) => note.id === leadId) : undefined;
     if (leadNote) onOpenNote(leadNote);
   }, [crossRefConnection, notes, onOpenNote]);
+
+  const openPassageConnection = useCallback(() => {
+    if (!passageConnection) return;
+    onOpenScripturePassage(passageConnection.bookOrder, passageConnection.passageKey);
+  }, [passageConnection, onOpenScripturePassage]);
 
   const onCreateFirstNote = useCallback(() => {
     if (!homeSpaceId) return;
@@ -719,6 +748,34 @@ export default function PrototypeSidebarHomeView({
               <div className="proto-home-card__meta">
                 <span className="proto-home-card__meta-item">
                   Across {crossRefConnection.noteCount} of your notes
+                </span>
+              </div>
+            </div>
+          </button>
+        </div>
+      ) : null}
+
+      {passageConnection ? (
+        <div className="proto-home-section">
+          <button
+            type="button"
+            className="proto-glass-surface proto-glass-surface--panel proto-home-card proto-home-card--tappable"
+            onClick={openPassageConnection}
+          >
+            <p className="proto-caption proto-home-card__eyebrow">A passage you keep returning to</p>
+            <div className="proto-home-card__body">
+              <div className="proto-home-card__title-row">
+                <span className="proto-home-card__icon-orb" aria-hidden>
+                  <Icon name="book" size={13} />
+                </span>
+                <p className="pds-list-title proto-home-card__title">{passageConnection.displayRef}</p>
+                <span className="proto-home-card__chevron" aria-hidden>
+                  <Icon name="chevron-right" size={11} />
+                </span>
+              </div>
+              <div className="proto-home-card__meta">
+                <span className="proto-home-card__meta-item">
+                  Across {passageConnection.noteCount} of your notes
                 </span>
               </div>
             </div>

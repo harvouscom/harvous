@@ -5,6 +5,7 @@ import {
   countWeeklyActivityDays,
   deriveSubjectConnections,
   deriveCrossRefConnections,
+  derivePassageConnections,
   deriveTopBooks,
   deriveTopPassages,
   deriveTopFolders,
@@ -997,5 +998,80 @@ describe('deriveCrossRefConnections', () => {
       { limit: 5, minNotes: 2 },
     );
     expect(out[0]?.noteCount).toBe(2);
+  });
+});
+
+describe('derivePassageConnections', () => {
+  const rom828 = {
+    passageKey: '45:8:28:28',
+    displayRef: 'Romans 8:28',
+    bookOrder: 45,
+    chapter: 8,
+    verseStart: 28,
+    notes: [
+      { id: 'a', updatedAt: '2026-06-01T00:00:00Z' },
+      { id: 'b', updatedAt: '2026-06-03T00:00:00Z' },
+      { id: 'c', updatedAt: '2026-06-02T00:00:00Z' },
+    ],
+  };
+  const john316 = {
+    passageKey: '43:3:16:16',
+    displayRef: 'John 3:16',
+    bookOrder: 43,
+    chapter: 3,
+    verseStart: 16,
+    notes: [
+      { id: 'd', updatedAt: '2026-06-04T00:00:00Z' },
+      { id: 'e', updatedAt: '2026-06-05T00:00:00Z' },
+    ],
+  };
+
+  it('surfaces passages cited by multiple distinct notes', () => {
+    const out = derivePassageConnections([rom828, john316], { limit: 5 });
+    expect(out).toHaveLength(2);
+    expect(out[0]?.displayRef).toBe('Romans 8:28');
+    expect(out[0]?.noteCount).toBe(3);
+    expect(out[0]?.notes.map((n) => n.id)).toEqual(['b', 'c', 'a']);
+  });
+
+  it('excludes passages cited by fewer than minNotes distinct notes', () => {
+    const solo = { ...john316, notes: [{ id: 'd' }] };
+    const out = derivePassageConnections([solo, rom828], { limit: 5, minNotes: 2 });
+    expect(out.map((p) => p.displayRef)).toEqual(['Romans 8:28']);
+  });
+
+  it('dedupes the same note when it appears twice on one passage', () => {
+    const dup = {
+      ...rom828,
+      notes: [
+        { id: 'a', updatedAt: '2026-06-01T00:00:00Z' },
+        { id: 'a', updatedAt: '2026-06-04T00:00:00Z' },
+        { id: 'b', updatedAt: '2026-06-02T00:00:00Z' },
+      ],
+    };
+    const out = derivePassageConnections([dup], { limit: 5 });
+    expect(out[0]?.noteCount).toBe(2);
+    expect(out[0]?.notes[0]?.id).toBe('a');
+  });
+
+  it('ranks by note count and respects the limit', () => {
+    const out = derivePassageConnections([rom828, john316], { limit: 1 });
+    expect(out).toHaveLength(1);
+    expect(out[0]?.displayRef).toBe('Romans 8:28');
+  });
+
+  it('breaks ties by canonical book/chapter/verse order', () => {
+    const ps23 = {
+      passageKey: '19:23:1:1',
+      displayRef: 'Psalm 23:1',
+      bookOrder: 19,
+      chapter: 23,
+      verseStart: 1,
+      notes: [{ id: 'x' }, { id: 'y' }],
+    };
+    const johnSameReach = { ...john316, notes: [{ id: 'p' }, { id: 'q' }] };
+    const out = derivePassageConnections([johnSameReach, ps23], { limit: 5 });
+    expect(out[0]?.displayRef).toBe('Psalm 23:1');
+    expect(out[1]?.displayRef).toBe('John 3:16');
   });
 });
