@@ -4,6 +4,8 @@ import {
   citedVerseKeys,
   passageCandidatesFromVerseKeys,
   passageCandidatesFromText,
+  mergePassageTagSuggestions,
+  type ClientPassageCandidate,
 } from '../passage-tag-candidates';
 import type { PassageKnowledgeMap } from '../passage-knowledge-cache';
 
@@ -50,5 +52,30 @@ describe('passageCandidatesFromText', () => {
   it('resolves candidates from cited references in text', () => {
     const out = passageCandidatesFromText('Studying Exodus 2:10', cache);
     expect(out.map((c) => c.keyword).sort()).toEqual(['Moses', 'Pharaoh']);
+  });
+});
+
+describe('mergePassageTagSuggestions', () => {
+  const person = (name: string): ClientPassageCandidate => ({ keyword: name, category: 'character', kind: 'person' });
+  const place = (name: string): ClientPassageCandidate => ({ keyword: name, category: 'place', kind: 'place' });
+  const theme = (name: string): ClientPassageCandidate => ({ keyword: name, category: 'theme', kind: 'theme' });
+
+  it('adds people/places as net-new tags but never themes', () => {
+    const out = mergePassageTagSuggestions(
+      [{ name: 'Faith', category: 'spiritual', confidence: 0.75 }],
+      [person('Moses'), place('Egypt'), theme('deliverance')],
+    );
+    expect(out.map((t) => t.name).sort()).toEqual(['Egypt', 'Faith', 'Moses']);
+    expect(out.find((t) => t.name === 'Moses')!.confidence).toBe(0.8);
+  });
+
+  it('dedupes against existing tags and respects excludes + cap', () => {
+    const out = mergePassageTagSuggestions(
+      [{ name: 'Moses', category: 'character', confidence: 0.9 }],
+      [person('Moses'), person('Aaron'), place('Egypt'), place('Sinai')],
+      { excludeLabels: ['Egypt'], dismissed: ['aaron'], maxAdd: 1 },
+    );
+    const added = out.filter((t) => t.name !== 'Moses').map((t) => t.name);
+    expect(added).toEqual(['Sinai']); // Moses dup, Egypt excluded, Aaron dismissed, cap 1
   });
 });

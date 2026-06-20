@@ -32,6 +32,7 @@ import {
   BiblePlaces,
   ScriptureEntityRefs,
 } from '../db';
+import { normalizePlaceName } from '@/utils/bible-place-name';
 
 export interface VerseKey {
   book: string;
@@ -148,7 +149,13 @@ export async function getKnowledgeForReference(
     .innerJoin(BiblePlaces, eq(ScriptureEntityRefs.entityId, BiblePlaces.id))
     .where(atVerse('place'));
 
-  return { reference: { book, chapter, verse }, crossReferences, themes, people, places };
+  return {
+    reference: { book, chapter, verse },
+    crossReferences,
+    themes,
+    people,
+    places: places.map((p) => ({ ...p, name: normalizePlaceName(p.name) })),
+  };
 }
 
 // ─── passage aggregation (for related-notes + passage-aware tagging) ─────────────
@@ -228,7 +235,11 @@ export async function getKnowledgeForPassages(
   }
   const themes = [...byTopic.values()].sort((a, b) => b.relevance - a.relevance).slice(0, themeLimit);
 
-  return { people: dedupeEntities(peopleRows), places: dedupeEntities(placeRows), themes };
+  return {
+    people: dedupeEntities(peopleRows),
+    places: dedupeEntities(placeRows).map((p) => ({ ...p, name: normalizePlaceName(p.name) })),
+    themes,
+  };
 }
 
 // ─── rankRelatedNotes (pure) ────────────────────────────────────────────────────
@@ -441,7 +452,11 @@ export async function getUserPassageKnowledge(
       .from(ScriptureEntityRefs)
       .innerJoin(BiblePlaces, eq(ScriptureEntityRefs.entityId, BiblePlaces.id))
       .where(and(eq(ScriptureEntityRefs.entityType, 'place'), or(...chunk.map((p) => and(eq(ScriptureEntityRefs.book, p.book), eq(ScriptureEntityRefs.chapter, p.chapter), eq(ScriptureEntityRefs.verse, p.verse))))));
-    for (const r of placeRows) { const e = entry(verseKey(r)); if (!e.places.includes(r.name)) e.places.push(r.name); }
+    for (const r of placeRows) {
+      const e = entry(verseKey(r));
+      const nm = normalizePlaceName(r.name);
+      if (!e.places.includes(nm)) e.places.push(nm);
+    }
 
     const themeRows = await db
       .select({ book: ScriptureTopicVerses.book, chapter: ScriptureTopicVerses.chapter, verse: ScriptureTopicVerses.verse, label: ScriptureTopics.label })

@@ -8,6 +8,9 @@ import {
   suggestedAutoTagsToNoteTags,
   type NoteTagPreview,
 } from '@/utils/bible-study-tag-web';
+import { passageCandidatesFromText, mergePassageTagSuggestions } from '@/utils/passage-tag-candidates';
+import { getCachedPassageKnowledge } from '@/utils/passage-knowledge-cache';
+import { stripHtml } from '@/utils/html-stripper';
 
 export type NoteTagRow = NoteDetail['tags'][number];
 
@@ -44,12 +47,21 @@ export function previewNoteTagsFromContent(
     folderLabels?.primary,
     folderLabels?.secondaries ?? [],
   );
-  return suggestedAutoTagsToNoteTags(
-    suggestAutoTagsFromNote(title, content, {
-      excludeFolderLabels,
-      excludeTagNames: folderLabels?.dismissedAutoTags ?? [],
-    }),
+  const dismissed = folderLabels?.dismissedAutoTags ?? [];
+  const base = suggestAutoTagsFromNote(title, content, {
+    excludeFolderLabels,
+    excludeTagNames: dismissed,
+  });
+  // Augment with passage people/places from the cached knowledge (mirrors folder secondaries).
+  const candidates = passageCandidatesFromText(
+    `${title}\n${stripHtml(content || '', { preserveSpacing: true })}`,
+    getCachedPassageKnowledge(),
   );
+  const merged = mergePassageTagSuggestions(base, candidates, {
+    excludeLabels: excludeFolderLabels,
+    dismissed,
+  });
+  return suggestedAutoTagsToNoteTags(merged);
 }
 
 export async function fetchNoteTagsFromApi(noteId: string): Promise<NoteTagRow[]> {
