@@ -61,3 +61,5 @@ server/data/scripture-knowledge/place-refs.json
 server/data/scripture-knowledge/people.json
 server/data/scripture-knowledge/person-refs.json
 server/data/scripture-knowledge/subjects.json
+server/data/scripture-knowledge/subjects-ai.json
+server/data/scripture-knowledge/_subjects-batch.json

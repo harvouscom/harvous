@@ -63,6 +63,7 @@
     "skl:import:places": "tsx server/scripts/import-places.ts",
     "skl:import:people": "tsx server/scripts/import-people.ts",
     "skl:import:subjects": "tsx server/scripts/import-subjects.ts",
+    "skl:author:subjects": "tsx server/scripts/author-subjects.ts",
     "skl:seed": "tsx server/scripts/seed-scripture-knowledge.ts"
   },
   "dependencies": {

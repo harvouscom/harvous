@@ -60,12 +60,10 @@ export const SUBJECT_VOCABULARY: Subject[] = [
   { name: 'Covenant', category: 'biblical', synonyms: ['gods promise', 'agreement', 'the new covenant', 'the old covenant'] },
   { name: "God's Sovereignty", category: 'biblical', synonyms: ['god is in control', 'sovereignty of god', 'gods will', 'gods plan', 'predestination', 'providence', 'omnipotence'] },
   { name: "God's Faithfulness", category: 'biblical', synonyms: ['faithfulness of god', 'god keeps his promises', 'promises of god', 'gods promises'] },
-  { name: 'Grace of God', category: 'biblical', synonyms: [] },
   { name: 'Holy Spirit', category: 'biblical', synonyms: ['the spirit', 'gods spirit', 'spirit of god', 'filled with the spirit', 'gifts of the spirit'] },
   { name: 'Spiritual Warfare', category: 'biblical', synonyms: ['the devil', 'satan', 'temptation', 'spiritual battle', 'fighting evil', 'the enemy'] },
   { name: 'Prophecy', category: 'biblical', synonyms: ['prophecies', 'foretelling', 'prophets', 'end times', 'second coming', 'the last days'] },
   { name: 'Heaven', category: 'biblical', synonyms: ['paradise', 'the afterlife'] },
-  { name: 'Worship of God', category: 'biblical', synonyms: [] },
 
   // ── Life / application ───────────────────────────────────────────────────────
   { name: 'Suffering', category: 'life', synonyms: ['pain', 'trials', 'hardship', 'affliction', 'going through hard times', 'persecution'] },
@@ -104,6 +102,44 @@ export const SUBJECT_VOCABULARY: Subject[] = [
   { name: 'The Passion', category: 'narrative', synonyms: ['suffering of christ', 'the cross', 'crucifixion', 'jesus death', 'death of jesus', 'good friday', 'calvary'] },
   { name: 'The Resurrection', category: 'narrative', synonyms: ['jesus rose', 'empty tomb', 'easter', 'risen lord'] },
   { name: 'The Early Church', category: 'narrative', synonyms: ['pentecost', 'the apostles', 'acts of the apostles', 'the first church'] },
+
+  // ── Doctrinal / biblical (expanded) ──────────────────────────────────────────
+  { name: 'Glory of God', category: 'biblical', synonyms: ['gods glory', "god's glory", 'the glory of the lord', 'gods majesty'] },
+  { name: 'Holiness of God', category: 'biblical', synonyms: ['god is holy', 'gods holiness'] },
+  { name: 'The Word of God', category: 'biblical', synonyms: ['scripture', 'gods word', 'the bible', 'reading the bible', 'the scriptures'] },
+  { name: 'Fear of the Lord', category: 'biblical', synonyms: ['fearing god', 'reverence for god', 'godly fear'] },
+  { name: 'Idolatry', category: 'biblical', synonyms: ['idols', 'false gods', 'worshiping idols', 'idol worship'] },
+  { name: 'Temptation', category: 'biblical', synonyms: ['being tempted', 'resisting temptation'] },
+  { name: 'The Church', category: 'biblical', synonyms: ['the body of christ', 'the local church', 'church life', 'gathering of believers'] },
+  { name: 'Spiritual Gifts', category: 'biblical', synonyms: ['gifts of the spirit', 'using your gifts', 'spiritual gift'] },
+  { name: 'Servanthood', category: 'biblical', synonyms: ['serving others', 'service', 'being a servant', 'servant leadership'] },
+  { name: 'Generosity', category: 'biblical', synonyms: ['giving', 'tithing', 'cheerful giver', 'sharing with others'] },
+  { name: 'Assurance', category: 'biblical', synonyms: ['assurance of salvation', 'eternal security', 'security in christ'] },
+  { name: 'Perseverance', category: 'biblical', synonyms: ['endurance', 'standing firm', 'pressing on', 'finishing the race', 'not giving up'] },
+  { name: 'Adoption', category: 'biblical', synonyms: ['children of god', 'sons of god', 'adopted by god', 'gods children'] },
+  { name: 'Unity', category: 'biblical', synonyms: ['oneness', 'unity in the church', 'being united'] },
+  { name: 'Sovereign Grace', category: 'biblical', synonyms: ['election', 'chosen by god', 'gods choosing'] },
+
+  // ── Life / application (expanded) ────────────────────────────────────────────
+  { name: 'Loving Your Enemies', category: 'life', synonyms: ['love your enemies', 'enemies', 'turning the other cheek'] },
+  { name: 'Hospitality', category: 'life', synonyms: ['welcoming others', 'being hospitable'] },
+  { name: 'Integrity', category: 'life', synonyms: ['honesty', 'character', 'being honest', 'uprightness'] },
+  { name: 'Purity', category: 'life', synonyms: ['sexual purity', 'chastity', 'staying pure', 'lust'] },
+  { name: 'Guidance', category: 'life', synonyms: ['gods guidance', 'gods will for my life', 'making decisions', 'direction from god', 'discerning gods will'] },
+  { name: 'Loneliness', category: 'life', synonyms: ['being lonely', 'isolation', 'feeling alone'] },
+  { name: 'Doubt', category: 'life', synonyms: ['doubting', 'questioning faith', 'struggling to believe'] },
+  { name: 'Compassion', category: 'life', synonyms: ['caring for others', 'caring for the poor', 'helping the poor', 'mercy to others'] },
+  { name: 'Rest', category: 'life', synonyms: ['resting in god', 'finding rest', 'gods rest'] },
+
+  // ── Narrative / structural (expanded) ────────────────────────────────────────
+  { name: "Abraham's Covenant", category: 'narrative', synonyms: ['gods promise to abraham', 'abrahamic covenant', 'the call of abraham'] },
+  { name: 'The Tabernacle', category: 'narrative', synonyms: ['tabernacle', 'tent of meeting', 'the ark of the covenant'] },
+  { name: 'The Temple', category: 'narrative', synonyms: ["solomon's temple", 'solomons temple', 'temple of solomon', 'rebuilding the temple', 'the second temple'] },
+  { name: "David's Reign", category: 'narrative', synonyms: ['king david', 'davidic kingdom', 'davidic covenant'] },
+  { name: 'The Prophets', category: 'narrative', synonyms: ['the prophet', 'prophetic word', 'words of the prophets'] },
+  { name: 'The Last Supper', category: 'narrative', synonyms: ['upper room', 'the lord supper instituted', 'breaking bread together'] },
+  { name: 'The Day of the Lord', category: 'narrative', synonyms: ['day of the lord', 'gods coming judgment', 'the great day'] },
+  { name: 'The New Jerusalem', category: 'narrative', synonyms: ['new heaven and new earth', 'the holy city', 'new heavens and a new earth', 'eternity'] },
 ];
 
 // Build a lookup from every name + synonym (normalized) to its subject.
