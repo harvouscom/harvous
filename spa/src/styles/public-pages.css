@@ -717,11 +717,18 @@
   color: var(--site-ink) !important;
 }
 .public-note-card .card-full-editable__content-html p {
-  margin-bottom: 1em;
+  margin: 0 0 0.75em !important;
   font-weight: 400;
 }
+.public-note-card .card-full-editable__content-html p:first-child {
+  margin-top: 0 !important;
+}
 .public-note-card .card-full-editable__content-html p:last-child {
-  margin-bottom: 0;
+  margin-bottom: 0 !important;
+}
+.public-note-card .card-full-editable__content-html p:empty,
+.public-note-card .card-full-editable__content-html p:has(> br:only-child) {
+  min-height: 1.6em;
 }
 
 .public-note-card .card-full-editable__content-html h2,

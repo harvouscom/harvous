@@ -108,6 +108,13 @@ function repairHtmlForEditor(html: string): string {
   );
 }
 
+/** Read-only note body HTML — canonicalize blank lines before pill labels / highlight strip. */
+function prepareReadOnlyNoteBodyHtml(html: string): string {
+  return stripStudyHighlightMarkInlineBackground(
+    withScripturePillDisplayLabels(canonicalizeNoteHtmlLineBreaks(html)),
+  );
+}
+
 /** HTML from TipTap for persistence — blank lines use `<p><br></p>` so they survive save/load. */
 function noteHtmlForSave(editor: { getHTML: () => string; isDestroyed?: boolean } | null, fallback: string): string {
   if (editor && !editor.isDestroyed) {
@@ -1086,9 +1093,7 @@ export default function CardFullEditable({
   const viewContentHtml = useMemo(() => {
     const raw = displayContent ?? '';
     if (looksLikeEncryptedBlob(raw)) return '';
-    return safeRenderHtml(
-      stripStudyHighlightMarkInlineBackground(withScripturePillDisplayLabels(raw)),
-    );
+    return safeRenderHtml(prepareReadOnlyNoteBodyHtml(raw));
   }, [displayContent]);
 
   useEffect(() => {
@@ -2847,11 +2852,7 @@ export default function CardFullEditable({
                     <div
                       className="card-full-editable__content-html card-image-link__content-text"
                       dangerouslySetInnerHTML={{
-                        __html: safeRenderHtml(
-                          stripStudyHighlightMarkInlineBackground(
-                            withScripturePillDisplayLabels(effectiveContent),
-                          ),
-                        ),
+                        __html: safeRenderHtml(prepareReadOnlyNoteBodyHtml(effectiveContent)),
                       }}
                     />
                   ) : (
