@@ -5393,14 +5393,15 @@ html.harvous-prototype-route .harvous-delete-confirm__icon-btn--destructive:acti
   padding: 4px 18px 12px;
   margin: 0;
   font-family: var(--pds-font-body);
-  font-size: 13px;
-  line-height: 1.45;
-  color: var(--pds-text-secondary);
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 1.75;
+  color: var(--pds-text-primary);
 }
 
-.proto-thread-review__intro strong {
-  font-weight: 600;
-  color: var(--pds-text-primary);
+.proto-thread-review__intro .proto-home-greeting__chip {
+  vertical-align: middle;
+  margin: 0 1px;
 }
 
 .proto-thread-review__actions {
@@ -5455,5 +5456,5 @@ html.harvous-prototype-route .harvous-delete-confirm__icon-btn--destructive:acti
 }
 
 .proto-thread-review__btn--ghost:not(:disabled):hover {
-  background: var(--pds-accent-active-bg);
+  background: var(--pds-bg-row-hover);
 }

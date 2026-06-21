@@ -720,7 +720,7 @@ export default function PrototypeSidebarHomeView({
             className="proto-glass-surface proto-glass-surface--panel proto-home-card proto-home-card--tappable"
             onClick={openSubjectConnection}
           >
-            <p className="proto-caption proto-home-card__eyebrow">A possible thread in your notes</p>
+            <p className="proto-caption proto-home-card__eyebrow">A theme taking shape in your notes</p>
             <div className="proto-home-card__body">
               <div className="proto-home-card__title-row">
                 <span className="proto-home-card__icon-orb" aria-hidden>

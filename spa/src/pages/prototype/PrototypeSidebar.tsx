@@ -133,6 +133,8 @@ type PrototypeSidebarNoteRowProps = {
   activeNoteFullId: string | undefined;
   prefetchNote: (row: SpaceNoteRow, opts?: { seedFromList?: boolean }) => void;
   onOpenNote: (row: SpaceNoteRow) => void;
+  /** Hide row overflow menu (e.g. thread-proposal review is read-only). */
+  hideMenu?: boolean;
 };
 
 function PrototypeSidebarFolderCard({
@@ -475,6 +477,7 @@ function PrototypeSidebarNoteRow({
   activeNoteFullId,
   prefetchNote,
   onOpenNote,
+  hideMenu = false,
 }: PrototypeSidebarNoteRowProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
@@ -573,6 +576,7 @@ function PrototypeSidebarNoteRow({
         </div>
         <ProtoListRecencyLine rel={rel} preview={preview} />
       </button>
+      {hideMenu ? null : (
       <div
         className={`proto-menu proto-note-row__menu${menuOpen ? ' proto-note-row__menu--open' : ''}`}
         ref={menuRootRef}
@@ -633,7 +637,8 @@ function PrototypeSidebarNoteRow({
           </div>
         </PrototypeSidebarRowMenuPopover>
       </div>
-      {deleteConfirmOpen && deleteAnchorRect ? (
+      )}
+      {hideMenu ? null : deleteConfirmOpen && deleteAnchorRect ? (
         <ProtoConfirmDialog
           anchorRect={deleteAnchorRect}
           title="Delete this note?"
@@ -1640,7 +1645,11 @@ export default function PrototypeSidebar() {
             <p className="proto-thread-review__intro">
               Connect {sidebarThreadProposal.notes.length}{' '}
               {sidebarThreadProposal.notes.length === 1 ? 'note' : 'notes'} into a thread named{' '}
-              <strong>{sidebarThreadProposal.subject}</strong>?
+              <span className="proto-glass-surface proto-home-greeting__chip proto-home-greeting__chip--thread">
+                <Icon name="arrow-right-arrow-left" size={10} aria-hidden />
+                <span>{sidebarThreadProposal.subject}</span>
+              </span>
+              ?
             </p>
             <ul className="proto-note-list">
               {sidebarThreadProposal.notes.map((note) => {
@@ -1653,6 +1662,7 @@ export default function PrototypeSidebar() {
                     homeSpaceId={homeSpaceId}
                     activeNoteFullId={activeNoteFullId}
                     prefetchNote={prefetchProposalNote}
+                    hideMenu
                     onOpenNote={(r) => {
                       onNoteRow(r);
                     }}

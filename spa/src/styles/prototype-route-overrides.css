@@ -92,7 +92,9 @@ html.harvous-prototype-route button.proto-fte-field__btn--apply *,
 html.harvous-prototype-route button.proto-share-popover__primary,
 html.harvous-prototype-route button.proto-share-popover__primary *,
 html.harvous-prototype-route button.proto-note-action-bar__pill--share-active,
-html.harvous-prototype-route button.proto-note-action-bar__pill--share-active * {
+html.harvous-prototype-route button.proto-note-action-bar__pill--share-active *,
+html.harvous-prototype-route button.proto-thread-review__btn--primary,
+html.harvous-prototype-route button.proto-thread-review__btn--primary * {
   color: var(--pds-on-accent) !important;
   fill: var(--pds-on-accent) !important;
 }

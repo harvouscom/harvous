@@ -94,7 +94,7 @@ async function waitForSubjectCard(page, { reload = false } = {}) {
   await homeView.waitFor({ state: 'visible', timeout: 15_000 }).catch(() => {});
   const card = page
     .locator('.proto-home-card')
-    .filter({ has: page.locator('.proto-home-card__eyebrow', { hasText: 'A possible thread in your notes' }) });
+    .filter({ has: page.locator('.proto-home-card__eyebrow', { hasText: 'A theme taking shape in your notes' }) });
   await card.first().waitFor({ state: 'visible', timeout: 20_000 }).catch(() => {});
   return card;
 }
@@ -127,7 +127,7 @@ try {
 
   let card = page
     .locator('.proto-home-card')
-    .filter({ has: page.locator('.proto-home-card__eyebrow', { hasText: 'A possible thread in your notes' }) });
+    .filter({ has: page.locator('.proto-home-card__eyebrow', { hasText: 'A theme taking shape in your notes' }) });
 
   if ((await card.count()) === 0) {
     console.log('No subject-connection card yet — seeding 3 John 3 notes…');
