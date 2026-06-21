@@ -118,6 +118,7 @@ import {
   isPersistableStudyDockNoteId,
   moveDockEntryToIndex,
   highlightDockStableKey,
+  buildReadOnlyScriptureSession,
   openOrFocusHighlight,
   openOrFocusReference,
   openOrFocusScripture,
@@ -457,6 +458,8 @@ function findHighlightRangeByStudyThreadId(editor: any, studyId: string): { from
 function studyDockEntryStillValid(editor: any, entry: StudyDockEntry): boolean {
   if (!editor || editor.isDestroyed || !editor.state?.doc) return true;
   if (entry.kind === 'scripture') {
+    // Read-only passage cards (cross-refs) aren't tied to a pill mark — always valid.
+    if (entry.session.readOnly || !entry.session.boundaries) return true;
     // Keep the entry valid as long as a scripturePill mark still occupies the resolved
     // range — do NOT require the mark's reference to equal the (possibly stale) session
     // reference. The reference legitimately changes while the dock is open (e.g. toggling
@@ -3889,6 +3892,18 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     [],
   );
 
+  // Open a referenced passage (e.g. a cross-reference) as a NEW read-only carousel card.
+  const openScripturePassage = useCallback(
+    (reference: string, translation: string, openedFromDockId?: string | null) => {
+      setStudyDockStack((s) =>
+        openOrFocusScripture(s, buildReadOnlyScriptureSession(reference, translation, sourceNoteId ?? null), {
+          openedFromDockId,
+        }),
+      );
+    },
+    [sourceNoteId],
+  );
+
   const [selectionExpanded, setSelectionExpanded] = useState(false);
   const [showFormatBarForActivity, setShowFormatBarForActivity] = useState(false);
   const [isPointerOverFormatToolbar, setIsPointerOverFormatToolbar] = useState(false);
@@ -4509,7 +4524,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
         if (!view || !(view as any).docView) {
           return false;
         }
-        
+
         // Handle Cmd+Enter to submit form (dispatch event for parent panels to handle)
         if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
           event.preventDefault();
@@ -6243,7 +6258,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       if (active?.kind === 'scripture' && active.expanded && !editor.isFocused) {
         return;
       }
-      if (active?.kind === 'scripture') {
+      if (active?.kind === 'scripture' && active.session.boundaries && !active.session.readOnly) {
         // Only collapse when the caret/selection has genuinely moved OFF the active pill. Spurious
         // selectionUpdates (focus re-sync from clicking dock chrome like the accent swatch, or the
         // snapCaretOutsidePill nudge to the pill edge) keep the caret at/adjacent to the pill.
@@ -8335,6 +8350,55 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
               }
               renderEntry={(entry, isActive) => {
                 const cardExpanded = isActive && entry.expanded;
+                if (entry.kind === 'scripture' && entry.session.readOnly) {
+                  // Read-only passage card (opened from a cross-reference): no pill write-back,
+                  // no accent/highlight chrome. Cross-refs inside it can chain to more cards.
+                  return (
+                    <ScripturePillChromeWeb
+                      key={entry.id}
+                      reference={entry.session.reference}
+                      translation={entry.session.translation}
+                      sourceNoteId={sourceNoteId ?? null}
+                      interactionActive={isActive}
+                      animateEnter={false}
+                      expanded={cardExpanded}
+                      readOnly
+                      onExpandedChange={(next) => {
+                        setStudyDockStack((s) =>
+                          updateDockEntry(s, entry.id, (e) => ({ ...e, expanded: next })),
+                        );
+                      }}
+                      onDone={() => {
+                        setStudyDockStack((s) => closeDockEntry(s, entry.id));
+                      }}
+                      onApply={() => {
+                        /* read-only — no pill to write */
+                      }}
+                      editorChromeMode={editorChromeMode}
+                      onOpenScripturePassage={(ref, translation) =>
+                        openScripturePassage(ref, translation, entry.id)
+                      }
+                      onOpenPassageReference={(word, opts) => {
+                        if (!sourceNoteId) return;
+                        openReferenceDock(
+                          {
+                            query: word,
+                            passageReference: {
+                              reference: entry.session.reference,
+                              translation: entry.session.translation || 'NET',
+                              sourceNoteId,
+                            },
+                          },
+                          entry.id,
+                        );
+                      }}
+                      onNavigateNote={(noteId) => {
+                        const fullId = noteId.startsWith('note_') ? noteId : `note_${noteId}`;
+                        safeNavigate(noteUrlForCurrentSurface(fullId, undefined, sourceNoteId || undefined));
+                      }}
+                    />
+                  );
+                }
                 if (entry.kind === 'scripture') {
                   return (
                     <ScripturePillChromeWeb
@@ -8360,7 +8424,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                         }
                         const resolved = resolveScripturePillMarkForAccentChange(
                           editor,
-                          entry.session.boundaries,
+                          entry.session.boundaries!,
                           entry.session.reference,
                         );
                         if (!resolved) return;
@@ -8424,7 +8488,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                           const normRef = normalizeScriptureReference(nextRef);
                           const { from, to } = resolveScripturePillMarkRangeFromBoundaries(
                             editor,
-                            sess.boundaries,
+                            sess.boundaries!,
                           );
 
                           let existingMark: any = null;
@@ -8582,6 +8646,13 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                           entry.id,
                         );
                       }}
+                      onNavigateNote={(noteId) => {
+                        const fullId = noteId.startsWith('note_') ? noteId : `note_${noteId}`;
+                        safeNavigate(noteUrlForCurrentSurface(fullId, undefined, sourceNoteId || undefined));
+                      }}
+                      onOpenScripturePassage={(ref, translation) =>
+                        openScripturePassage(ref, translation, entry.id)
+                      }
                     />
                   );
                 }

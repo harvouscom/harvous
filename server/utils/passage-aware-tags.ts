@@ -18,7 +18,12 @@
 import { conceptOverlaps } from '@/utils/bible-study-concept-overlaps';
 import { canonicalBookOrder } from '@/utils/scripture-osis';
 import { db, eq, Notes, now } from '../db';
-import { getNotePassages, getKnowledgeForPassages, type VerseKey } from './scripture-knowledge';
+import {
+  getNotePassages,
+  getKnowledgeForPassages,
+  MIN_THEME_CORROBORATION_RELEVANCE,
+  type VerseKey,
+} from './scripture-knowledge';
 import type { AutoTagSuggestion } from './auto-tag-generator';
 
 export type PassageTagKind = 'person' | 'place' | 'theme';
@@ -33,7 +38,7 @@ export interface PassageTagCandidate {
 const ENTITY_RELEVANCE = 1_000_000; // entities outrank themes for net-new ordering
 const NET_NEW_CONFIDENCE = 0.8; // people/places are accurate proper nouns
 const CORROBORATION_BOOST = 0.1;
-const MIN_THEME_CORROBORATION_RELEVANCE = 50; // ignore weak/incidental topic edges when boosting
+// MIN_THEME_CORROBORATION_RELEVANCE now lives in scripture-knowledge.ts (single source of truth).
 
 export interface MergeOptions {
   boost?: number;

@@ -1,0 +1,128 @@
+/* Passage context strip — a calm, read-only study index below the scripture dock passage.
+   This is a LEARNING / NAVIGATION surface: every row opens a new dock or navigates (no editing).
+   Rows borrow the app's navigation vocabulary — .harvous-menu-pill__item hover + .panel__chevron
+   trailing affordance. No accent fills; neutral throughout so it reads as secondary to the passage. */
+
+.passage-context-strip {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 0.5px solid color-mix(in srgb, var(--pds-text-primary, #1d1d1f) 8%, transparent);
+}
+
+/* ─── Section ─────────────────────────────────────────────────────── */
+
+.passage-context-strip__section {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.passage-context-strip__section-label {
+  margin: 0 0 4px;
+  padding: 0 4px;
+  font-family: var(--pds-font-body, system-ui, sans-serif);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--pds-text-primary, rgba(29, 29, 31, 0.88));
+}
+
+.passage-context-strip__rows {
+  display: flex;
+  flex-direction: column;
+}
+
+/* ─── Navigable row (opens a dock / navigates) ────────────────────── */
+
+.passage-context-strip__row {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  margin: 0;
+  padding: 8px 8px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+  transition: background-color 0.1s ease;
+}
+
+.passage-context-strip__row:hover:not(:disabled) {
+  background: var(--pds-bg-faint, rgba(0, 0, 0, 0.03));
+}
+
+.passage-context-strip__row:active:not(:disabled) {
+  background: var(--pds-bg-chip, rgba(0, 0, 0, 0.05));
+}
+
+.passage-context-strip__row:focus-visible {
+  outline: 2px solid var(--pds-accent-focus-outline-soft, var(--pds-accent, rgb(56, 105, 230)));
+  outline-offset: -2px;
+}
+
+.passage-context-strip__row:disabled {
+  cursor: default;
+}
+
+/* Leading icon previews the destination dock (book = passage, person/pin = entry, note = note) */
+.passage-context-strip__row-icon {
+  flex-shrink: 0;
+  color: var(--pds-text-tertiary, rgba(29, 29, 31, 0.4));
+  transition: color 0.1s ease;
+}
+
+.passage-context-strip__row:hover:not(:disabled) .passage-context-strip__row-icon {
+  color: var(--pds-text-secondary, rgba(29, 29, 31, 0.6));
+}
+
+.passage-context-strip__row-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.passage-context-strip__row-label {
+  flex: 0 1 auto;
+  min-width: 0;
+  font-family: var(--pds-font-body, system-ui, sans-serif);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.3;
+  color: var(--pds-text-primary, rgba(29, 29, 31, 0.92));
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.passage-context-strip__row-secondary {
+  flex: 0 0 auto;
+  font-family: var(--pds-font-body, system-ui, sans-serif);
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--pds-text-tertiary, rgba(29, 29, 31, 0.4));
+  white-space: nowrap;
+}
+
+/* Trailing chevron — faint until hover (panel__chevron idiom) */
+.passage-context-strip__row-chevron {
+  flex-shrink: 0;
+  color: var(--pds-text-tertiary, rgba(29, 29, 31, 0.3));
+  opacity: 0.6;
+  transition: opacity 0.1s ease, transform 0.1s ease;
+}
+
+.passage-context-strip__row:hover:not(:disabled) .passage-context-strip__row-chevron {
+  opacity: 1;
+  transform: translateX(1px);
+}
+
+.passage-context-strip__row:disabled .passage-context-strip__row-chevron {
+  display: none;
+}
+

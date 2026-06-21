@@ -216,7 +216,7 @@
 
 .public-card__title {
   font-family:
-    "Scorekard", "Google Sans", ui-sans-serif, system-ui, sans-serif;
+    "Google Sans Flex", "Google Sans", ui-sans-serif, system-ui, sans-serif;
   font-size: 1.625rem;
   font-weight: 600;
   letter-spacing: -0.02em;
@@ -516,7 +516,7 @@
 
 /* ─── Error state — Hero-styled centered card ───────────────────────────── */
 
-/* Modeled on `/site/` Hero: roomy padding, Scorekard headline, ink-soft body,
+/* Modeled on `/site/` Hero: roomy padding, Google Sans Flex headline, ink-soft body,
    secondary-CTA pill. The icon is a thin paper-grain plate behind the mark
    so it reads as intentional UI, not a stray glyph. */
 .public-error {
@@ -555,7 +555,7 @@
 
 .public-error__title {
   font-family:
-    "Scorekard", "Google Sans", ui-sans-serif, system-ui, sans-serif;
+    "Google Sans Flex", "Google Sans", ui-sans-serif, system-ui, sans-serif;
   font-size: clamp(1.5rem, 1.2rem + 1vw, 1.875rem);
   font-weight: 600;
   letter-spacing: -0.02em;

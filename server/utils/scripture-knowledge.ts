@@ -72,6 +72,13 @@ export interface PassageKnowledge {
 
 const verseKey = (v: VerseKey) => `${v.book}|${v.chapter}|${v.verse}`;
 
+/**
+ * Relevance floor for surfacing an OpenBible topic edge in product UI. OpenBible topic breadth is
+ * noisy; below this an edge is incidental and should not be shown (dock strip) or used to corroborate
+ * a tag (passage-aware-tags). Single source of truth — passage-aware-tags imports this.
+ */
+export const MIN_THEME_CORROBORATION_RELEVANCE = 50;
+
 // ─── getKnowledgeForReference ───────────────────────────────────────────────────
 
 export interface KnowledgeOptions {
@@ -417,6 +424,122 @@ export async function getRelatedNotesForNote(
   if (sourcePassages.length === 0) return [];
 
   return getRelatedNotesForPassages(note.userId, sourcePassages, { ...opts, excludeNoteId: noteId });
+}
+
+// ─── getPassageContext (dock passage context strip) ──────────────────────────────
+
+export interface PassageRelatedNote {
+  noteId: string;
+  title: string;
+  /** Why this note connects — derived from the strongest shared signal. */
+  reason: 'Same passage' | 'Cross-reference' | 'Shared theme';
+}
+
+export interface PassageContext {
+  themes: ThemeRef[];
+  crossReferences: CrossReference[];
+  people: EntityRef[];
+  places: EntityRef[];
+  relatedNotes: PassageRelatedNote[];
+}
+
+export interface PassageContextOptions {
+  excludeNoteId?: string;
+  themeLimit?: number;
+  crossRefLimit?: number;
+  entityLimit?: number;
+  relatedLimit?: number;
+}
+
+/** Strongest shared signal first — matches the SIGNAL_WEIGHT ordering in rankRelatedNotes. Pure. */
+export function relatedNoteReason(r: RelatedNote): PassageRelatedNote['reason'] {
+  if (r.sharedPassages.length) return 'Same passage';
+  if (r.sharedCrossRefs.length) return 'Cross-reference';
+  return 'Shared theme';
+}
+
+/** Merge cross-ref rows by target ref (keep highest votes), sort desc, cap. Pure. */
+export function mergeCrossReferences(rows: CrossReference[], limit: number): CrossReference[] {
+  const byTarget = new Map<string, CrossReference>();
+  for (const cr of rows) {
+    const k = `${cr.book}|${cr.chapterStart}|${cr.verseStart}|${cr.chapterEnd}|${cr.verseEnd}`;
+    const existing = byTarget.get(k);
+    if (!existing || cr.votes > existing.votes) byTarget.set(k, cr);
+  }
+  return [...byTarget.values()].sort((a, b) => b.votes - a.votes).slice(0, limit);
+}
+
+/**
+ * Everything the scripture dock's passage context strip needs for a displayed passage (which may
+ * span a verse range): themes, cross-references, people/places, and the user's other notes that
+ * connect. Composes the existing deterministic read paths — no AI, no new datasets. Themes are
+ * threshold-filtered with MIN_THEME_CORROBORATION_RELEVANCE so weak OpenBible edges never surface.
+ */
+export async function getPassageContext(
+  userId: string,
+  passages: VerseKey[],
+  opts: PassageContextOptions = {},
+): Promise<PassageContext> {
+  const { excludeNoteId, themeLimit = 5, crossRefLimit = 6, entityLimit = 8, relatedLimit = 5 } = opts;
+
+  const ps = passages.slice(0, 30);
+  if (!ps.length) {
+    return { themes: [], crossReferences: [], people: [], places: [], relatedNotes: [] };
+  }
+
+  // Themes + entities aggregated + deduped across the verse range (threshold-filtered themes).
+  const { themes, people, places } = await getKnowledgeForPassages(ps, {
+    minRelevance: MIN_THEME_CORROBORATION_RELEVANCE,
+    themeLimit,
+  });
+
+  // Cross-refs across the range in one query, merged by target ref keeping the highest votes.
+  const fromAnyVerse = or(
+    ...ps.map((p) =>
+      and(
+        eq(ScriptureCrossReferences.fromBook, p.book),
+        eq(ScriptureCrossReferences.fromChapter, p.chapter),
+        eq(ScriptureCrossReferences.fromVerse, p.verse),
+      ),
+    ),
+  );
+  const crossRows = await db
+    .select({
+      book: ScriptureCrossReferences.toBook,
+      chapterStart: ScriptureCrossReferences.toChapterStart,
+      chapterEnd: ScriptureCrossReferences.toChapterEnd,
+      verseStart: ScriptureCrossReferences.toVerseStart,
+      verseEnd: ScriptureCrossReferences.toVerseEnd,
+      votes: ScriptureCrossReferences.votes,
+    })
+    .from(ScriptureCrossReferences)
+    .where(and(fromAnyVerse, gte(ScriptureCrossReferences.votes, 1)))
+    .orderBy(desc(ScriptureCrossReferences.votes));
+  const crossReferences = mergeCrossReferences(crossRows, crossRefLimit);
+
+  // The user's other notes connected to this passage, hydrated with titles + a reason.
+  const related = await getRelatedNotesForPassages(userId, ps, { excludeNoteId, limit: relatedLimit });
+  let relatedNotes: PassageRelatedNote[] = [];
+  if (related.length) {
+    const titleRows = await db
+      .select({ id: Notes.id, title: Notes.title })
+      .from(Notes)
+      .where(inArray(Notes.id, related.map((r) => r.noteId)));
+    const titleById = new Map(titleRows.map((r) => [r.id, r.title]));
+    relatedNotes = related.map((r) => ({
+      noteId: r.noteId,
+      title: titleById.get(r.noteId)?.trim() || 'Untitled note',
+      reason: relatedNoteReason(r),
+    }));
+  }
+
+  return {
+    themes: themes.slice(0, themeLimit),
+    crossReferences,
+    people: people.slice(0, entityLimit),
+    places: places.slice(0, entityLimit),
+    relatedNotes,
+  };
 }
 
 // ─── per-user passage knowledge (compact, client-cacheable) ──────────────────────

@@ -565,4 +565,33 @@ app.get('/api/scripture/passage-knowledge', requireAuth, async (c) => {
   }
 });
 
+// Full passage context for the scripture dock strip — themes, cross-refs, people/places, and the
+// user's other notes that connect to the displayed passage (which may span a verse range).
+app.get('/api/scripture/passage-context', requireAuth, async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const reference = c.req.query('reference')?.trim();
+    const noteId = c.req.query('noteId')?.trim() || undefined;
+    if (!reference) return c.json({ error: 'Reference is required' }, 400);
+
+    const parsed = parseScriptureReference(reference.replace(/,\s+/g, ','));
+    if (!parsed) return c.json({ error: 'Invalid scripture reference format' }, 400);
+
+    // Expand the (possibly ranged) reference into per-verse keys for the knowledge join.
+    const verseStart = Array.isArray(parsed.verse) ? parsed.verse[0] : parsed.verse;
+    const verseEnd = Array.isArray(parsed.verse) ? parsed.verse[1] : verseStart;
+    const passages = [];
+    for (let v = verseStart; v <= verseEnd; v++) {
+      passages.push({ book: parsed.book, chapter: parsed.chapter, verse: v });
+    }
+
+    const { getPassageContext } = await import('../utils/scripture-knowledge');
+    const context = await getPassageContext(auth.userId, passages, { excludeNoteId: noteId });
+    return c.json({ success: true, ...context });
+  } catch (error) {
+    const standardError = handleAPIError(error, { endpoint: '/api/scripture/passage-context', action: 'passage_context' });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+
 export default app;

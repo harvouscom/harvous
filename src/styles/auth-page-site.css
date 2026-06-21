@@ -1,32 +1,11 @@
 /* ==========================================================================
    Auth Page — /site/-inspired redesign (new.harvous.com sign-in/up only).
-   Single-column centered layout (no more two-pane mesh gradient).
+   Two-pane layout: hero image left, letter-card form right.
    Requires `.auth-page.auth-page--site` on the root — classic app/localhost
    auth uses `.auth-page--classic` and forms.css + auth-gradient.css instead.
    ========================================================================== */
 
-/* Bundled marketing-font (`/site/`) — used for display headlines. */
-@font-face {
-  font-family: "Scorekard";
-  src: url("/fonts/scorekard/Scorekard-Regular.woff2") format("woff2");
-  font-weight: 400;
-  font-style: normal;
-  font-display: swap;
-}
-@font-face {
-  font-family: "Scorekard";
-  src: url("/fonts/scorekard/Scorekard-Semibold.woff2") format("woff2");
-  font-weight: 600;
-  font-style: normal;
-  font-display: swap;
-}
-@font-face {
-  font-family: "Scorekard";
-  src: url("/fonts/scorekard/Scorekard-Bold.woff2") format("woff2");
-  font-weight: 700;
-  font-style: normal;
-  font-display: swap;
-}
+/* Google Sans Flex is loaded via prototype-tokens.css (@font-face). */
 
 /* Local design tokens — mirror `/site/src/styles/global.css`. Scoped to
    `.auth-page--site` so the rest of the app keeps its own token system. */
@@ -60,88 +39,62 @@
   display: flex !important;
   flex-direction: column !important;
   gap: 0 !important;
-  padding: 16px 24px 32px;
+  padding: 12px;
 }
 
-/* Kill the old two-pane media query — single column at every width. */
+/* Two-pane at desktop — hero image left, form right. */
 @media (min-width: 1160px) {
   .auth-page.auth-page--site .auth-page__container {
-    flex-direction: column !important;
+    flex-direction: row !important;
   }
 }
 
-/* ---------- Floating top header pill (was `.auth-page.auth-page--site .auth-page__video-section`) ---------- */
+/* ---------- Left pane — hero image ---------- */
 
-.auth-page.auth-page--site .auth-page__video-section,
-.auth-page.auth-page--site .thread-colors-mesh-gradient {
-  flex: 0 0 auto !important;
-  background: transparent !important;
-  background-color: transparent !important;
-  min-height: 0 !important;
-  height: auto !important;
-  border-radius: 0 !important;
-  overflow: visible !important;
-  display: flex !important;
-  justify-content: center !important;
+.auth-page.auth-page--site .auth-page__video-section {
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  border-radius: 0.75rem;
+  overflow: hidden;
+  position: relative;
+  min-height: 120px;
 }
 
-/* The original mesh-gradient overlay layers — disable them. */
-.auth-page.auth-page--site .thread-colors-mesh-gradient::before,
-.auth-page.auth-page--site .thread-colors-mesh-gradient::after {
-  display: none !important;
-  content: none !important;
+@media (min-width: 1160px) {
+  .auth-page.auth-page--site .auth-page__video-section {
+    flex: 1;
+  }
 }
 
 .auth-page.auth-page--site .auth-page__video-overlay {
-  position: static !important;
-  padding: 0 !important;
-  background: transparent !important;
-  width: auto !important;
-  justify-content: center !important;
-  align-items: center !important;
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 10;
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-start;
+  padding: 20px;
 }
 
-/* The link-wrapping-logo becomes the floating Harvous pill (icon + wordmark). */
+/* App icon — top-left of the hero pane, no pill or wordmark. */
 .auth-page.auth-page--site .auth-page__logo-container {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  padding: 7px 16px 7px 8px;
-  background-color: rgba(255, 255, 255, 0.85);
-  border: 0.5px solid var(--site-rule);
-  border-radius: 999px;
-  box-shadow:
-    0 1px 2px rgba(20, 18, 12, 0.04),
-    0 8px 24px -12px rgba(20, 18, 12, 0.12);
-  backdrop-filter: saturate(180%) blur(8px);
-  -webkit-backdrop-filter: saturate(180%) blur(8px);
-  margin-left: 0 !important;
   text-decoration: none !important;
-  color: var(--site-ink) !important;
-  transition: background-color 120ms ease, box-shadow 120ms ease;
-}
-.auth-page.auth-page--site .auth-page__logo-container:hover {
-  background-color: rgba(255, 255, 255, 0.95);
-}
-/* Add a "Harvous" wordmark after the SVG inside the pill. */
-.auth-page.auth-page--site .auth-page__logo-container::after {
-  content: "Harvous";
-  font-family:
-    "Google Sans", "Reddit Sans", ui-sans-serif, system-ui, -apple-system,
-    "Segoe UI", sans-serif;
-  font-size: 15px;
-  font-weight: 600;
-  letter-spacing: -0.2px;
-  color: var(--site-ink);
+  margin-left: 0 !important;
 }
 
-/* App-icon PNG inside the floating pill — matches `/site/` Header.astro. */
 .auth-page.auth-page--site .auth-page__logo {
-  width: 22px !important;
-  height: 22px !important;
-  border-radius: 5px;
+  width: 36px !important;
+  height: 36px !important;
+  border-radius: 8px;
   object-fit: cover;
   display: block;
+  filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.25));
 }
 
 /* ---------- Form section (centered content cluster) ---------- */
@@ -257,11 +210,11 @@
   text-wrap: balance;
 }
 
-/* ---------- Display headline (Scorekard) with marker swipe on "your" ---------- */
+/* ---------- Display headline (Google Sans Flex) with marker swipe on "your" ---------- */
 
 .auth-page.auth-page--site .auth-page__headline {
   font-family:
-    "Scorekard", "Google Sans", ui-sans-serif, system-ui, -apple-system,
+    "Google Sans Flex", "Google Sans", ui-sans-serif, system-ui, -apple-system,
     sans-serif !important;
   font-weight: 600 !important;
   /* Matches `MacSignInView`'s 44pt display — 3.5rem on wide viewports. */

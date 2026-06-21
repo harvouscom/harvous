@@ -42,6 +42,12 @@ These were designed here and are now live. The stub files in this folder point t
   - Review always paid and individual; GMMC deferred; Compete via Season Pass
   - Links [MONETIZATION_AND_PRICING.md](./MONETIZATION_AND_PRICING.md) for SKUs
 
+- **`STUDY_SURFACES_AND_KNOWLEDGE_UX.md`** - UX exploration: Easton's, ISBE expand, topical/knowledge layer surfaces across study docks, Home, sidebar list views, and inspector
+  - Maps lexicon vs passage-graph layers to concrete UI affordances
+  - Candidate datasets: Scripture Interpreting Scripture (phrase cross-refs), Nave's (topic browse), Harvous-authored chains (Thompson-like paths)
+  - Current-state audit, brainstorm by surface, cross-surface flows, prioritization matrix (P0–P3)
+  - Complements the data-layer roadmap in SCRIPTURE_KNOWLEDGE_LAYER.md
+
 ### Monetization & Business Model
 
 - **`MONETIZATION_AND_PRICING.md`** - Canonical product and pricing strategy (Review, Group Sharing, Season Pass, Group Leader, church org principles)

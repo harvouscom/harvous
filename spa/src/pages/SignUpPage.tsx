@@ -1,12 +1,13 @@
 import { isSiteInspiredAuthHost } from '@/lib/prototype-path';
 import { useAuth } from '@clerk/clerk-react';
 import { useNavigate } from '@tanstack/react-router';
-import { useEffect, useRef } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import ClerkPrebuiltAuth from '../components/auth/ClerkPrebuiltAuth';
 import ClassicAuthMeshColumn from '../components/auth/ClassicAuthMeshColumn';
 import HarvousAuthForm from '../components/auth/HarvousAuthForm';
 import { hasClerkSessionCookieHint } from '../hooks/queries/useProfile';
 import { postAuthRedirectPath } from '../utils/post-auth-redirect';
+import { getRandomHeroImage } from '../utils/random-hero-image';
 
 /** Mirror of Astro sign-up.astro: persist ?ref= code as a cookie so
  *  ReferralCreditInit can credit the referrer after the user signs up. */
@@ -26,6 +27,7 @@ export default function SignUpPage() {
   const { isLoaded, isSignedIn } = useAuth();
   const navigate = useNavigate();
   const siteInspired = isSiteInspiredAuthHost();
+  const heroImage = useMemo(() => getRandomHeroImage(), []);
   useReferralCookie();
 
   // Redirect if already signed in.
@@ -51,15 +53,18 @@ export default function SignUpPage() {
     return (
       <div id="sign-up-content" className="auth-page auth-page--site">
         <div className="auth-page__container">
-          <div className="auth-page__video-section thread-colors-mesh-gradient">
-            <div className="auth-page__video-overlay" style={{ padding: '24px' }}>
+          <div
+            className="auth-page__video-section"
+            style={{ backgroundImage: `url(${heroImage})` }}
+          >
+            <div className="auth-page__video-overlay">
               <a href="https://harvous.com" className="auth-page__logo-container">
                 <img
                   src="/icons/app-icon.png"
                   alt="Harvous"
-                  className="auth-page__logo sign-in-logo"
-                  width={22}
-                  height={22}
+                  className="auth-page__logo"
+                  width={36}
+                  height={36}
                 />
               </a>
             </div>

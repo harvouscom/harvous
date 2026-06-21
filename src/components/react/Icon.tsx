@@ -37,6 +37,8 @@ import tableCellsSvg from '@fortawesome/fontawesome-free/svgs/solid/table-cells.
 import tableColumnsSvg from '@fortawesome/fontawesome-free/svgs/solid/table-columns.svg?raw';
 import arrowRightArrowLeftSvg from '@fortawesome/fontawesome-free/svgs/solid/arrow-right-arrow-left.svg?raw';
 import arrowsLeftRightSvg from '@fortawesome/fontawesome-free/svgs/solid/arrows-left-right.svg?raw';
+import arrowsTurnToDotsSvg from '@fortawesome/fontawesome-free/svgs/solid/arrows-turn-to-dots.svg?raw';
+import shuffleSvg from '@fortawesome/fontawesome-free/svgs/solid/shuffle.svg?raw';
 import arrowLeftSvg from '@fortawesome/fontawesome-free/svgs/solid/arrow-left.svg?raw';
 import arrowRightSvg from '@fortawesome/fontawesome-free/svgs/solid/arrow-right.svg?raw';
 import folderSvg from '@fortawesome/fontawesome-free/svgs/solid/folder.svg?raw';
@@ -122,6 +124,8 @@ const icons = {
   'arrow-up-right-from-square': `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="currentColor"><path d="M320 0c-17.7 0-32 14.3-32 32s14.3 32 32 32l82.7 0L201.4 265.4c-12.5 12.5-12.5 32.8 0 45.3s32.8 12.5 45.3 0L448 109.3l0 82.7c0 17.7 14.3 32 32 32s32-14.3 32-32l0-160c0-17.7-14.3-32-32-32L320 0zM80 32C35.8 32 0 67.8 0 112l0 320c0 44.2 35.8 80 80 80l320 0c44.2 0 80-35.8 80-80l0-112c0-17.7-14.3-32-32-32s-32 14.3-32 32l0 112c0 8.8-7.2 16-16 16l-320 0c-8.8 0-16-7.2-16-16l0-320c0-8.8 7.2-16 16-16l112 0c17.7 0 32-14.3 32-32s-14.3-32-32-32l-112 0z"/></svg>`,
   'up-right-and-down-left-from-center': `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="currentColor"><path d="M344 0L488 0c13.3 0 24 10.7 24 24l0 144c0 9.7-5.8 18.5-14.8 22.2s-19.3 1.7-26.2-5.2l-39-39-87 87c-9.4 9.4-24.6 9.4-33.9 0l-32-32c-9.4-9.4-9.4-24.6 0-33.9l87-87L327 41c-6.9-6.9-8.9-17.2-5.2-26.2S334.3 0 344 0zM168 512L24 512c-13.3 0-24-10.7-24-24L0 344c0-9.7 5.8-18.5 14.8-22.2s19.3-1.7 26.2 5.2l39 39 87-87c9.4-9.4 24.6-9.4 33.9 0l32 32c9.4 9.4 9.4 24.6 0 33.9l-87 87 39 39c6.9 6.9 8.9 17.2 5.2 26.2s-12.5 14.8-22.2 14.8z"/></svg>`,
   'arrows-left-right': withCurrentColor(arrowsLeftRightSvg),
+  'arrows-turn-to-dots': withCurrentColor(arrowsTurnToDotsSvg),
+  shuffle: withCurrentColor(shuffleSvg),
   'arrows-left-right-to-line': `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 512" fill="currentColor"><path d="M32 64c17.7 0 32 14.3 32 32l0 320c0 17.7-14.3 32-32 32s-32-14.3-32-32L0 96C0 78.3 14.3 64 32 64zm214.6 73.4c12.5 12.5 12.5 32.8 0 45.3L205.3 224l229.5 0-41.4-41.4c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l96 96c12.5 12.5 12.5 32.8 0 45.3l-96 96c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L434.7 288l-229.5 0 41.4 41.4c12.5 12.5 12.5 32.8 0 45.3s-32.8 12.5-45.3 0l-96-96c-12.5-12.5-12.5-32.8 0-45.3l96-96c12.5-12.5 32.8-12.5 45.3 0zM640 96l0 320c0 17.7-14.3 32-32 32s-32-14.3-32-32l0-320c0-17.7 14.3-32 32-32s32 14.3 32 32z"/></svg>`,
   sort: withCurrentColor(sortSvg),
   

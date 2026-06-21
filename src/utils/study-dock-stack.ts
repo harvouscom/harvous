@@ -6,12 +6,25 @@ import { HARVOUS_STUDY_DOCK_STACK_PREFIX } from '@/utils/user-cache-keys';
 export const STUDY_DOCK_STACK_MAX_ENTRIES = 8;
 
 export type ScripturePillDockSession = {
-  boundaries: { from: number; to: number };
+  /** ProseMirror positions of the pill mark in the note. `null` for a read-only passage card
+   *  (e.g. a cross-reference opened for reading) — there is no pill to edit. */
+  boundaries: { from: number; to: number } | null;
   reference: string;
   translation: string | null;
   noteId: string | null;
   pillAccent: string | null;
+  /** Read-only passage card — no pill write-back, no highlight/study-thread chrome. */
+  readOnly?: boolean;
 };
+
+/** Build a read-only scripture session for opening a referenced passage (cross-ref) as a card. */
+export function buildReadOnlyScriptureSession(
+  reference: string,
+  translation: string | null,
+  sourceNoteId: string | null,
+): ScripturePillDockSession {
+  return { boundaries: null, reference, translation, noteId: sourceNoteId, pillAccent: null, readOnly: true };
+}
 
 export type HighlightDockSession = {
   studyThreadEntryId: string | null;
@@ -245,8 +258,13 @@ export function emptyStudyDockStack(): StudyDockStack {
   return { entries: [], activeId: null };
 }
 
-export function scriptureDockStableKey(reference: string, boundaries: { from: number; to: number }): string {
+export function scriptureDockStableKey(
+  reference: string,
+  boundaries: { from: number; to: number } | null,
+): string {
   const norm = normalizeScriptureReference(reference) ?? reference;
+  // Read-only passage cards have no pill range — dedupe by reference, distinct from editable pills.
+  if (!boundaries) return `scripture:read:${norm}`;
   return `scripture:${norm}:${boundaries.from}-${boundaries.to}`;
 }
 

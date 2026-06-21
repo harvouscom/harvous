@@ -81,6 +81,18 @@
   }
 }
 
+/* Hero-pane icon shadow (shared pages use base .auth-page, not --site). */
+#shared-note-content .auth-page__logo,
+#shared-thread-content .auth-page__logo,
+#shared-space-content .auth-page__logo,
+#invitation-content .auth-page__logo {
+  width: 36px !important;
+  height: 36px !important;
+  border-radius: 8px;
+  object-fit: cover;
+  filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.25));
+}
+
 /* Shared page content section */
 .shared-page__content-section {
   background-color: var(--color-light-paper) !important;

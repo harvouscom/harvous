@@ -20,6 +20,7 @@ import Icon from '@/components/react/Icon';
 import DockAccentSwatchButton from '@/components/react/DockAccentSwatchButton';
 import ScriptureReferencePickerStrip from '@/components/react/ScriptureReferencePickerStrip';
 import StudyDockCardShell from '@/components/react/StudyDockCardShell';
+import PassageContextStrip from '@/components/react/PassageContextStrip';
 import {
   createDictionaryReferenceProvider,
   decoratePassageHtmlWithReferenceSuggestions,
@@ -99,6 +100,12 @@ export interface ScripturePillChromeWebProps {
       entryKind?: string;
     },
   ) => void;
+  /** Related note tapped in the passage context strip — caller navigates to it. */
+  onNavigateNote?: (noteId: string) => void;
+  /** Cross-reference tapped in the context strip — caller opens it as a read-only passage card. */
+  onOpenScripturePassage?: (reference: string, translation: string) => void;
+  /** Read-only passage card (e.g. a cross-reference) — no pill write-back or highlight chrome. */
+  readOnly?: boolean;
 }
 
 /**
@@ -119,6 +126,9 @@ export default function ScripturePillChromeWeb({
   onPassageHighlightCreated,
   editorChromeMode = 'default',
   onOpenPassageReference,
+  onNavigateNote,
+  onOpenScripturePassage,
+  readOnly = false,
 }: ScripturePillChromeWebProps) {
   const books = useMemo(() => orderedCanonBooks(), []);
   const { data: eastonsIndex } = useEastonsSlugIndex();
@@ -145,6 +155,7 @@ export default function ScripturePillChromeWeb({
     initialParsed ? Array.isArray(initialParsed.verse) && initialParsed.verse[0] !== initialParsed.verse[1] : false,
   );
   const [trans, setTrans] = useState(translation || getCachedProfileData()?.defaultTranslation || 'NET');
+  const [showCrossRefs, setShowCrossRefs] = useState(false);
   const [isExpandedInternal, setIsExpandedInternal] = useState(true);
   const isControlledExpanded = expandedControlled !== undefined && onExpandedChange !== undefined;
   const isExpanded = isControlledExpanded ? expandedControlled! : isExpandedInternal;
@@ -275,11 +286,11 @@ export default function ScripturePillChromeWeb({
   const lastApplied = useRef({ ref: displayRefString, trans });
 
   useEffect(() => {
-    if (!interactionActive) return;
+    if (!interactionActive || readOnly) return;
     if (displayRefString === lastApplied.current.ref && trans === lastApplied.current.trans) return;
     lastApplied.current = { ref: displayRefString, trans };
     void onApplyRef.current(normalizeScriptureReference(displayRefString) ?? displayRefString, trans);
-  }, [displayRefString, trans, interactionActive]);
+  }, [displayRefString, trans, interactionActive, readOnly]);
 
   useEffect(() => {
     if (!interactionActive || !isExpanded) {
@@ -370,7 +381,7 @@ export default function ScripturePillChromeWeb({
   }, [sourceNoteId, displayRefString, trans]);
 
   useEffect(() => {
-    if (!interactionActive || !isExpanded || !sourceNoteId) {
+    if (!interactionActive || !isExpanded || !sourceNoteId || readOnly) {
       return;
     }
     let cancelled = false;
@@ -393,7 +404,7 @@ export default function ScripturePillChromeWeb({
     return () => {
       cancelled = true;
     };
-  }, [sourceNoteId, displayRefString, trans, interactionActive, isExpanded, applyByScriptureRows]);
+  }, [sourceNoteId, displayRefString, trans, interactionActive, isExpanded, applyByScriptureRows, readOnly]);
 
   useEffect(() => {
     const handler = (e: Event) => {
@@ -584,9 +595,21 @@ export default function ScripturePillChromeWeb({
         </span>
       }
       headerActions={
-        onPillAccentChange ? (
-          <DockAccentSwatchButton selection={selectedSwatchKey} onSelectionChange={onPillAccentChange} />
-        ) : null
+        <>
+          <button
+            type="button"
+            className={`study-dock-card__header-btn${showCrossRefs ? ' study-dock-card__header-btn--active' : ''}`}
+            onClick={() => setShowCrossRefs((v) => !v)}
+            title={showCrossRefs ? 'Hide cross-references' : 'Show cross-references'}
+            aria-pressed={showCrossRefs}
+            aria-label={showCrossRefs ? 'Hide cross-references' : 'Show cross-references'}
+          >
+            <Icon name="shuffle" size={12} />
+          </button>
+          {onPillAccentChange ? (
+            <DockAccentSwatchButton selection={selectedSwatchKey} onSelectionChange={onPillAccentChange} />
+          ) : null}
+        </>
       }
     >
       <div className="scripture-pill-chrome__reference-bar">
@@ -633,31 +656,26 @@ export default function ScripturePillChromeWeb({
           ) : (
             <p className="scripture-pill-chrome__passage-status">Could not load this passage.</p>
           )}
+          {interactionActive && isExpanded && passageHtml ? (
+            <PassageContextStrip
+              reference={displayRefString}
+              translation={trans}
+              sourceNoteId={sourceNoteId}
+              active={interactionActive && isExpanded}
+              showCrossRefs={showCrossRefs}
+              onOpenScripturePassage={(ref) => onOpenScripturePassage?.(ref, trans)}
+              onOpenEntity={(name, slug) => onOpenPassageReference?.(name, { slug })}
+              onNavigateNote={onNavigateNote}
+            />
+          ) : null}
           {translationInfo ? (
-            <div className="scripture-pill-chrome__attribution" role="contentinfo" aria-label="Translation attribution">
-              <Icon
-                name="circle-info"
-                size={9}
-                className="scripture-pill-chrome__attribution-icon"
-                aria-label="Translation attribution"
-              />
-              <p className="scripture-pill-chrome__attribution-copyright">{translationInfo.copyright}</p>
-              <a
-                href={translationInfo.website}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="scripture-pill-chrome__attribution-link"
-              >
-                {transLabel}
-                <Icon name="arrow-up-right-from-square" size={7} aria-hidden />
-              </a>
-            </div>
+            <p className="scripture-pill-chrome__attribution-subtle">{translationInfo.copyright}</p>
           ) : null}
         </div>
       </div>
     </StudyDockCardShell>
     {/* Floating passage highlight action bar — portal to document.body to escape scroll clip */}
-    {passageSelection && sourceNoteId && passageHtml && typeof document !== 'undefined'
+    {passageSelection && sourceNoteId && passageHtml && !readOnly && typeof document !== 'undefined'
       ? createPortal(
           <div
             className="scripture-pill-chrome__passage-action-bar"

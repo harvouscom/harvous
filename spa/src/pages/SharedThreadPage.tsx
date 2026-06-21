@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef, useCallback } from 'react';
+import { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import { useParams, useNavigate } from '@tanstack/react-router';
 import { useAuth, useUser } from '@clerk/clerk-react';
 import { useQueryClient } from '@tanstack/react-query';
@@ -9,6 +9,7 @@ import SubtleContentMount from '@/components/react/SubtleContentMount';
 import { api, APIError } from '../lib/api';
 import { useAddSharedThread } from '../hooks/mutations/useAddSharedThread';
 import { getThreadGradientCSS } from '../../../src/utils/colors';
+import { getRandomHeroImage } from '../utils/random-hero-image';
 import type { ThreadDetail, ThreadPrefetchData } from '../hooks/queries/useThread';
 
 interface SharedThreadNote {
@@ -52,6 +53,7 @@ export default function SharedThreadPage() {
   const [toastVisible, setToastVisible] = useState(false);
   const [alreadyOwned, setAlreadyOwned] = useState(false);
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const heroImage = useMemo(() => getRandomHeroImage(), []);
 
   const showToast = useCallback((message: string, type: 'success' | 'error' | 'info', duration = 3000) => {
     if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
@@ -180,11 +182,6 @@ export default function SharedThreadPage() {
     await doAdd();
   };
 
-  const HarvousLogo = () => (
-    <svg width="28" height="40" viewBox="0 0 45 64" fill="none" xmlns="http://www.w3.org/2000/svg" aria-label="Harvous">
-      <path d="M44.8037 63.9941H0.0078125V0H44.8037V63.9941ZM34.5645 31.168C25.6988 34.2637 18.5024 41.2949 15.3711 50.543L14.2842 53.752H34.5645V31.168ZM10.2471 37.8643C15.8921 29.2487 24.5827 23.0353 34.5645 20.4824V10.2393H10.2471V37.8643Z" fill="#fff"/>
-    </svg>
-  );
 
   const CircleQuestionIcon = () => (
     <svg width="48" height="48" viewBox="0 0 512 512" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
@@ -202,11 +199,19 @@ export default function SharedThreadPage() {
       {data?.thread && <title>{`${data.thread.title || 'Shared Thread'} | Shared Thread`}</title>}
     <div id="shared-thread-content" className="auth-page">
       <div className="auth-page__container">
-        {/* Left Column: Animated Mesh Gradient Background */}
-        <div className="auth-page__video-section thread-colors-mesh-gradient">
-          <div className="auth-page__video-overlay" style={{ padding: '24px' }}>
+        <div
+          className="auth-page__video-section"
+          style={{ backgroundImage: `url(${heroImage})`, backgroundSize: 'cover', backgroundPosition: 'center' }}
+        >
+          <div className="auth-page__video-overlay" style={{ padding: '20px' }}>
             <a href="https://app.harvous.com" className="auth-page__logo-container">
-              <HarvousLogo />
+              <img
+                src="/icons/app-icon.png"
+                alt="Harvous"
+                className="auth-page__logo"
+                width={36}
+                height={36}
+              />
             </a>
           </div>
         </div>

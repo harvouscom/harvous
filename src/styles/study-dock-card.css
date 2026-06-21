@@ -267,6 +267,11 @@
   outline-offset: 1px;
 }
 
+.study-dock-card__header-btn--active {
+  background: var(--pds-bg-control, rgba(0, 0, 0, 0.055));
+  color: var(--pds-text-primary, #1d1d1f);
+}
+
 .study-dock-card__header-btn--plain {
   border: none;
   background: transparent;

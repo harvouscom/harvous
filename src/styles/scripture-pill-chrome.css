@@ -267,6 +267,16 @@
   color: var(--pds-text-primary, #1d1d1f);
 }
 
+/* Subtle text attribution — replaces the heavy banner for a calmer credit line. */
+.scripture-pill-chrome__attribution-subtle {
+  margin: 8px 0 0;
+  font-family: var(--pds-font-body, system-ui, sans-serif);
+  font-size: 10px;
+  font-weight: 400;
+  color: var(--pds-text-tertiary, rgba(29, 29, 31, 0.35));
+}
+
+
 /* Passage reference suggestions — tap targets that stay drag-selectable; dotted hint as note body. */
 .scripture-pill-chrome__passage-html .reference-suggestion {
   text-decoration: underline dotted;
