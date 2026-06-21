@@ -111,13 +111,10 @@ struct SidebarUniversalSearchResultsView: View {
 
             if bothScopesEmpty {
                 HarvousEmptyStateView.searchNoMatch(title: SidebarNoMatchCopy.noResultsInSpace)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             } else if searchScope == .active, activeResults.isEmpty {
                 HarvousEmptyStateView.searchNoMatch(title: SidebarNoMatchCopy.noMatchesInView)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             } else if searchScope == .elsewhere, elsewhereResults.isEmpty {
                 HarvousEmptyStateView.searchNoMatch(title: SidebarNoMatchCopy.noOtherMatches)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             } else {
                 searchResultsList {
                     ForEach(visibleResults) { result in

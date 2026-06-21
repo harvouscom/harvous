@@ -202,23 +202,25 @@ export default function PrototypeSidebarSearchResults({
         />
       ) : null}
 
-      {bothScopesEmpty ? (
-        <PrototypeListNoMatchEmptyState title={SIDEBAR_NO_MATCH_COPY.noResultsInSpace} />
-      ) : searchScope === 'active' && activeResults.length === 0 ? (
-        <PrototypeListNoMatchEmptyState title={SIDEBAR_NO_MATCH_COPY.noMatchesInView} />
-      ) : searchScope === 'elsewhere' && ftsQuery.isLoading && debouncedFtsQuery ? (
-        <p className="proto-caption proto-sidebar-search-section__empty">Searching notes…</p>
-      ) : searchScope === 'elsewhere' && elsewhereResults.length === 0 ? (
-        <PrototypeListNoMatchEmptyState title={SIDEBAR_NO_MATCH_COPY.noOtherMatches} />
-      ) : (
-        <SearchResultSection
-          results={visibleResults}
-          notesById={notesById}
-          highlightsById={highlightsById}
-          isResultActive={isResultActive}
-          onActivateResult={onActivateResult}
-        />
-      )}
+      <div className="proto-sidebar-search-results__body">
+        {bothScopesEmpty ? (
+          <PrototypeListNoMatchEmptyState title={SIDEBAR_NO_MATCH_COPY.noResultsInSpace} />
+        ) : searchScope === 'active' && activeResults.length === 0 ? (
+          <PrototypeListNoMatchEmptyState title={SIDEBAR_NO_MATCH_COPY.noMatchesInView} />
+        ) : searchScope === 'elsewhere' && ftsQuery.isLoading && debouncedFtsQuery ? (
+          <p className="proto-caption proto-sidebar-search-section__empty">Searching notes…</p>
+        ) : searchScope === 'elsewhere' && elsewhereResults.length === 0 ? (
+          <PrototypeListNoMatchEmptyState title={SIDEBAR_NO_MATCH_COPY.noOtherMatches} />
+        ) : (
+          <SearchResultSection
+            results={visibleResults}
+            notesById={notesById}
+            highlightsById={highlightsById}
+            isResultActive={isResultActive}
+            onActivateResult={onActivateResult}
+          />
+        )}
+      </div>
     </div>
   );
 }

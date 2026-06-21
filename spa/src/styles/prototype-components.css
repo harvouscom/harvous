@@ -1101,7 +1101,26 @@ html.harvous-proto-wallpaper-color .proto-sidebar-search__field:focus-within {
 .proto-sidebar-search-results {
   display: flex;
   flex-direction: column;
+  flex: 1;
+  min-height: 0;
   gap: 0;
+}
+
+.proto-sidebar-search-results__body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.proto-sidebar-search-results__body > .proto-sidebar-search-section__empty {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px 24px;
+  margin: 0;
+  text-align: center;
 }
 
 .proto-sidebar-search-scope .proto-chip-bar {
