@@ -806,8 +806,10 @@ enum ThreadStore {
             ))
         }
 
-        // Sort by most recently updated cluster first.
-        return clusters.sorted { ($0.updatedAt ?? .distantPast) > ($1.updatedAt ?? .distantPast) }
+        // Sort A–Z by cluster title.
+        return clusters.sorted {
+            $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending
+        }
     }
 
     /// Safe to fire-and-forget; idempotent via `aiSuggestedQuestionsGenerated`.

@@ -95,6 +95,7 @@ import {
 import { fetchStudyThreadNoteRows } from '../utils/study-thread-note-rows';
 import { resolveStudyThreadClusterNaming } from '../utils/study-thread-cluster-naming';
 import { studyThreadEligibleForHighlightList } from '@/utils/study-thread-highlight-eligibility';
+import { sortStudyThreadClustersByTitle } from '@/utils/sorting';
 
 const route = new Hono();
 
@@ -923,9 +924,9 @@ route.get('/api/spaces/:spaceId/study-threads', requireAuth, async (c) => {
       };
     };
 
-    // Build response, sorted by component size desc then recency.
-    const threads = components
-      .map((members, i) => {
+    // Build response, sorted A–Z by display title.
+    const threads = sortStudyThreadClustersByTitle(
+      components.map((members, i) => {
         const repId = repIds[i];
         const rep = memberMap.get(repId);
         const memberRows = members
@@ -943,13 +944,8 @@ route.get('/api/spaces/:spaceId/study-threads', requireAuth, async (c) => {
           updatedAt: rep?.updatedAt ? rep.updatedAt.toISOString() : null,
           memberIds: members,
         };
-      })
-      .sort((a, b) => {
-        if (b.noteCount !== a.noteCount) return b.noteCount - a.noteCount;
-        const tA = a.updatedAt ?? '';
-        const tB = b.updatedAt ?? '';
-        return tB.localeCompare(tA);
-      });
+      }),
+    );
 
     return c.json({ threads });
   } catch (error: any) {

@@ -145,4 +145,38 @@ describe('sidebar-universal-search', () => {
     expect(folders.some((f) => f.name === 'Work')).toBe(true);
     expect(folders.some((f) => f.name === null)).toBe(true);
   });
+
+  it('buildFoldersFromNotes sorts named folders A–Z with Unsorted last', () => {
+    const notes = [
+      {
+        id: 'note_a',
+        title: 'Recent Z',
+        content: '',
+        createdAt: '2024-06-01',
+        updatedAt: '2024-06-01',
+        primaryCollection: 'Zeta',
+        secondaryCollections: [],
+      },
+      {
+        id: 'note_b',
+        title: 'Old Alpha',
+        content: '',
+        createdAt: '2024-01-01',
+        updatedAt: '2024-01-01',
+        primaryCollection: 'Alpha',
+        secondaryCollections: [],
+      },
+      {
+        id: 'note_c',
+        title: 'Loose',
+        content: '',
+        createdAt: '2024-03-01',
+        updatedAt: '2024-03-01',
+        primaryCollection: null,
+        secondaryCollections: [],
+      },
+    ] as UniversalSearchData['notes'];
+    const folders = buildFoldersFromNotes(notes);
+    expect(folders.map((f) => f.name)).toEqual(['Alpha', 'Zeta', null]);
+  });
 });

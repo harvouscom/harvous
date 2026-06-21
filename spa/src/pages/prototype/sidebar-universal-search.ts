@@ -8,6 +8,7 @@ import type {
 } from '../../hooks/queries/usePrototypeSpaceScriptureIndex';
 import type { SearchResult } from '@/hooks/useSearch';
 import { noteFolderMembershipLabels } from '@/utils/note-folder-display';
+import { sortFolderBucketsAlphabetically } from '@/utils/sorting';
 import { stripHtmlForListPreview } from '@/utils/html-stripper';
 import { stripServerAutoUntitledNoteTitleForDisplay } from '@/utils/server-auto-untitled-note-display';
 import {
@@ -35,7 +36,6 @@ export type ScriptureDrillState =
 export type FolderBucket = {
   name: string | null;
   count: number;
-  mostRecentIso: string | null;
 };
 
 export type ActiveSearchContext = {
@@ -425,7 +425,7 @@ export function buildElsewhereResults(
 }
 
 export function buildFoldersFromNotes(notes: SpaceNoteRow[]): FolderBucket[] {
-  const buckets = new Map<string, { count: number; mostRecentIso: string | null }>();
+  const buckets = new Map<string, number>();
   for (const note of notes) {
     const n = note as SpaceNoteRow & { primaryCollection?: string | null; secondaryCollections?: string[] };
     const labels = noteFolderMembershipLabels({
@@ -433,25 +433,14 @@ export function buildFoldersFromNotes(notes: SpaceNoteRow[]): FolderBucket[] {
       secondaryCollections: n.secondaryCollections ?? [],
     });
     const keys = labels.length > 0 ? labels : [null];
-    const iso = note.updatedAt ?? note.createdAt ?? null;
     for (const label of keys) {
       const bucketKey = label ?? '__none__';
-      const existing = buckets.get(bucketKey) ?? { count: 0, mostRecentIso: null };
-      existing.count += 1;
-      if (iso && (!existing.mostRecentIso || iso > existing.mostRecentIso)) {
-        existing.mostRecentIso = iso;
-      }
-      buckets.set(bucketKey, existing);
+      buckets.set(bucketKey, (buckets.get(bucketKey) ?? 0) + 1);
     }
   }
   const result: FolderBucket[] = [];
-  buckets.forEach((v, k) => {
-    result.push({ name: k === '__none__' ? null : k, count: v.count, mostRecentIso: v.mostRecentIso });
+  buckets.forEach((count, k) => {
+    result.push({ name: k === '__none__' ? null : k, count });
   });
-  return result.sort((a, b) => {
-    if (a.name === null) return 1;
-    if (b.name === null) return -1;
-    if (a.mostRecentIso && b.mostRecentIso) return b.mostRecentIso.localeCompare(a.mostRecentIso);
-    return 0;
-  });
+  return sortFolderBucketsAlphabetically(result);
 }

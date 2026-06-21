@@ -42,12 +42,9 @@ enum HarvousFolderListIndex {
             )
         }
         .sorted { lhs, rhs in
-            // Ungrouped bucket last; then recency (matches note list: substantive edits bump updatedAt).
+            // Ungrouped bucket last; then A–Z by folder name.
             if lhs.folderLabel == nil, rhs.folderLabel != nil { return false }
             if rhs.folderLabel == nil, lhs.folderLabel != nil { return true }
-            if lhs.mostRecent != rhs.mostRecent {
-                return lhs.mostRecent > rhs.mostRecent
-            }
             return lhs.title.localizedCaseInsensitiveCompare(rhs.title) == .orderedAscending
         }
     }
@@ -79,9 +76,6 @@ enum HarvousFolderListIndex {
             }
             .sorted { lhs, rhs in
                 if lhs.1 != rhs.1 { return lhs.1 > rhs.1 }
-                if lhs.0.mostRecent != rhs.0.mostRecent {
-                    return lhs.0.mostRecent > rhs.0.mostRecent
-                }
                 return lhs.0.title.localizedCaseInsensitiveCompare(rhs.0.title) == .orderedAscending
             }
             .map(\.0)

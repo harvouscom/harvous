@@ -323,3 +323,44 @@ export function sortNotesByLastUpdated<T extends {
     return 0;
   });
 }
+
+/** Prototype sidebar folder buckets: named folders A–Z; Unsorted (`name === null`) last. */
+export function sortFolderBucketsAlphabetically<T extends { name: string | null }>(items: T[]): T[] {
+  return [...items].sort((a, b) => {
+    if (a.name === null && b.name !== null) return 1;
+    if (b.name === null && a.name !== null) return -1;
+    const aLabel = (a.name ?? '').toLowerCase();
+    const bLabel = (b.name ?? '').toLowerCase();
+    const cmp = aLabel.localeCompare(bLabel, undefined, { sensitivity: 'base' });
+    if (cmp !== 0) return cmp;
+    return 0;
+  });
+}
+
+function studyThreadClusterDisplayTitle(item: {
+  title?: string | null;
+  suggestedTitle?: string | null;
+}): string {
+  const title = item.title?.trim();
+  if (title) return title;
+  const suggested = item.suggestedTitle?.trim();
+  if (suggested) return suggested;
+  return 'Untitled';
+}
+
+/** Prototype sidebar study-thread clusters: A–Z by display title; tie-break on id. */
+export function sortStudyThreadClustersByTitle<
+  T extends { id?: string; title?: string | null; suggestedTitle?: string | null },
+>(items: T[]): T[] {
+  return [...items].sort((a, b) => {
+    const aTitle = studyThreadClusterDisplayTitle(a).toLowerCase();
+    const bTitle = studyThreadClusterDisplayTitle(b).toLowerCase();
+    const cmp = aTitle.localeCompare(bTitle, undefined, { sensitivity: 'base' });
+    if (cmp !== 0) return cmp;
+    const aId = a.id || '';
+    const bId = b.id || '';
+    if (aId < bId) return -1;
+    if (aId > bId) return 1;
+    return 0;
+  });
+}

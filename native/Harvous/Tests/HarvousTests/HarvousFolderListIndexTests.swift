@@ -43,4 +43,20 @@ final class HarvousFolderListIndexTests: XCTestCase {
         XCTAssertEqual(HarvousFolderListIndex.memberCount(in: notes, bucket: "My Pile"), 0)
         XCTAssertEqual(HarvousFolderListIndex.memberCount(in: notes, bucket: nil), 1)
     }
+
+    func testRows_sortsNamedFoldersAlphabeticallyWithUngroupedLast() {
+        let alpha = Note(title: "A", body: "")
+        alpha.primaryFolder = "Alpha"
+        alpha.updatedAt = Date(timeIntervalSince1970: 1_000)
+
+        let zeta = Note(title: "Z", body: "")
+        zeta.primaryFolder = "Zeta"
+        zeta.updatedAt = Date(timeIntervalSince1970: 9_000)
+
+        let loose = Note(title: "Loose", body: "")
+        loose.updatedAt = Date(timeIntervalSince1970: 5_000)
+
+        let rows = HarvousFolderListIndex.rows(from: [zeta, loose, alpha])
+        XCTAssertEqual(rows.map(\.folderLabel), ["Alpha", "Zeta", nil])
+    }
 }
