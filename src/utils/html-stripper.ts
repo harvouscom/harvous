@@ -80,6 +80,9 @@ function collapseScripturePillsForPlainText(html: string): string {
     const refContent = m[1];
     const afterSpan = html.slice(m.index + fullSpan.length);
     const { plain, skipAfter } = resolveScripturePillPlainText(fullSpan, refContent, afterSpan);
+    if (out.length > 0 && plain.length > 0 && !/\s$/.test(out) && !/^\s/.test(plain)) {
+      out += ' ';
+    }
     out += plain;
     cursor = m.index + fullSpan.length + skipAfter;
   }
@@ -331,6 +334,9 @@ function markHtmlBlockBoundaries(html: string): string {
   return html
     .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
     .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+    .replace(/\r\n/g, '\n')
+    .replace(/\r/g, '\n')
+    .replace(/<(?:p|div|h[1-6]|li)\b[^>]*>/gi, '\n')
     .replace(/<br\s*\/?>/gi, '\n')
     .replace(/<\/p>/gi, '\n')
     .replace(/<\/div>/gi, '\n')
@@ -342,7 +348,7 @@ function listPreviewSegmentsFromHtml(html: string): string[] {
   const marked = markHtmlBlockBoundaries(html);
   const segments: string[] = [];
   for (const chunk of marked.split('\n')) {
-    const piece = stripHtml(chunk).trim();
+    const piece = stripHtml(chunk, { preserveSpacing: true }).trim();
     if (piece) segments.push(piece);
   }
   if (segments.length > 0) return segments;
@@ -351,7 +357,7 @@ function listPreviewSegmentsFromHtml(html: string): string[] {
 }
 
 /**
- * One-line note list preview: skips empty filler blocks, joins lines with " · ",
+ * One-line note list preview: skips empty filler blocks, joins lines with a space,
  * and keeps adding lines until `maxLength` (or runs out of content).
  */
 export function stripHtmlForListPreview(html: string, maxLength: number = 80): string {
@@ -363,7 +369,7 @@ export function stripHtmlForListPreview(html: string, maxLength: number = 80): s
   const segments = listPreviewSegmentsFromHtml(normalized);
   let out = '';
   for (const segment of segments) {
-    const next = out ? `${out} · ${segment}` : segment;
+    const next = out ? `${out} ${segment}` : segment;
     if (next.length > maxLength) {
       if (!out) return segment.length > maxLength ? `${segment.slice(0, maxLength)}…` : segment;
       break;

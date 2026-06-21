@@ -1527,7 +1527,7 @@ export default function PrototypeSidebar() {
 
   const backTarget: { label: string; kind: string | null; action: () => void } | null = (() => {
     if (sidebarThreadProposal)
-      return { label: sidebarThreadProposal.subject, kind: 'Review', action: closeThreadProposal };
+      return { label: 'Home', kind: null, action: closeThreadProposal };
     if (mode === 'folders' && activeFolderKey !== undefined)
       return { label: activeFolderKey ?? 'Unsorted', kind: 'Folder', action: () => { setActiveFolderKey(undefined); setQ(''); } };
     if (mode === 'threads' && sidebarThreadDrilldownId)
@@ -1642,15 +1642,18 @@ export default function PrototypeSidebar() {
           />
         ) : sidebarThreadProposal ? (
           <div className="proto-thread-review">
-            <p className="proto-thread-review__intro">
-              Connect {sidebarThreadProposal.notes.length}{' '}
-              {sidebarThreadProposal.notes.length === 1 ? 'note' : 'notes'} into a thread named{' '}
-              <span className="proto-glass-surface proto-home-greeting__chip proto-home-greeting__chip--thread">
-                <Icon name="arrow-right-arrow-left" size={10} aria-hidden />
-                <span>{sidebarThreadProposal.subject}</span>
+            <div className="proto-thread-review__header">
+              <span className="proto-home-card__icon-orb" aria-hidden>
+                <Icon name="arrow-right-arrow-left" size={13} />
               </span>
-              ?
-            </p>
+              <div>
+                <p className="proto-thread-review__title">{sidebarThreadProposal.subject}</p>
+                <p className="proto-thread-review__subtitle">
+                  {sidebarThreadProposal.notes.length}{' '}
+                  {sidebarThreadProposal.notes.length === 1 ? 'note shares' : 'notes share'} this theme
+                </p>
+              </div>
+            </div>
             <ul className="proto-note-list">
               {sidebarThreadProposal.notes.map((note) => {
                 const row = resolveDrillNoteRow({ id: note.id, title: note.title });
@@ -1681,7 +1684,7 @@ export default function PrototypeSidebar() {
               </button>
               <button
                 type="button"
-                className="proto-thread-review__btn proto-thread-review__btn--ghost"
+                className="proto-thread-review__dismiss"
                 onClick={closeThreadProposal}
                 disabled={isAcceptingProposal}
               >

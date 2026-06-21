@@ -2,9 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { stripHtmlForListPreview } from '../html-stripper';
 
 describe('stripHtmlForListPreview', () => {
-  it('joins block lines with a middle dot separator', () => {
+  it('joins block lines with a space separator', () => {
     expect(stripHtmlForListPreview('<p>Proverbs 16:9</p><p>Writing about Exodus 5:1-10</p>', 80)).toBe(
-      'Proverbs 16:9 · Writing about Exodus 5:1-10',
+      'Proverbs 16:9 Writing about Exodus 5:1-10',
     );
   });
 
@@ -16,7 +16,7 @@ describe('stripHtmlForListPreview', () => {
 
   it('fills preview from additional lines when the first is short', () => {
     expect(stripHtmlForListPreview('<p>Hi</p><p>Second line here</p><p>Third</p>', 80)).toBe(
-      'Hi · Second line here · Third',
+      'Hi Second line here Third',
     );
   });
 
@@ -48,5 +48,26 @@ describe('stripHtmlForListPreview', () => {
       '<p>Write about <span data-scripture-reference="Exodus 5:1-5" data-note-id="note_1" data-scripture-translation="NET" class="scripture-pill">Exodus 5:1-5</span> NLT and see</p>';
     const preview = stripHtmlForListPreview(html, 80);
     expect(preview).toBe('Write about Exodus 5:1-5 NLT and see');
+  });
+
+  it('joins multi-paragraph notes with scripture pills using spaces', () => {
+    const html =
+      '<p>Ps Jared</p><p><span data-scripture-reference="Exodus 5:1-5" data-scripture-translation="NLT" class="scripture-pill">Exodus 5:1-5</span> NLT</p><p>Pharaoh is a title</p>';
+    const preview = stripHtmlForListPreview(html, 80);
+    expect(preview).toBe('Ps Jared Exodus 5:1-5 NLT Pharaoh is a title');
+    expect(preview).not.toContain('JaredExodus');
+    expect(preview).not.toContain('NLTPharaoh');
+  });
+
+  it('adds space between inline text and scripture pill in one paragraph', () => {
+    const html =
+      '<p>Ps Jared<span data-scripture-reference="Exodus 5:1-5" data-scripture-translation="NLT" class="scripture-pill">Exodus 5:1-5</span> NLTPharaoh is a title</p>';
+    const preview = stripHtmlForListPreview(html, 80);
+    expect(preview).toContain('Ps Jared Exodus 5:1-5 NLT');
+    expect(preview).not.toContain('JaredExodus');
+  });
+
+  it('joins br-separated lines with a space', () => {
+    expect(stripHtmlForListPreview('<p>Line1<br>Line2</p>', 80)).toBe('Line1 Line2');
   });
 });
