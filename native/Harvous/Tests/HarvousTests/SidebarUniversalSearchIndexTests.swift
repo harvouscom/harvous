@@ -85,4 +85,80 @@ final class SidebarUniversalSearchIndexTests: XCTestCase {
         )
         XCTAssertEqual(SidebarUniversalSearchIndex.activeSectionHeader(ctx), "In “Work”")
     }
+
+    func testElsewhereEmptyStateTitle_foldersAllFilter() {
+        let ctx = SidebarUniversalSearchIndex.ActiveContext(
+            mode: .folders,
+            folderDrillLabel: nil,
+            folderDrilledIn: false,
+            threadDrillTitle: nil,
+            threadDrilledIn: false,
+            scriptureBookTitle: nil,
+            scriptureBookIndex: nil,
+            scripturePassageTitle: nil,
+            scriptureDrillLevel: .root,
+            highlightKindFilter: .all
+        )
+        XCTAssertEqual(
+            SidebarUniversalSearchIndex.elsewhereEmptyStateTitle(ctx, typeFilter: .all),
+            "Nothing outside Folders"
+        )
+    }
+
+    func testElsewhereEmptyStateTitle_foldersNotesFilter() {
+        let ctx = SidebarUniversalSearchIndex.ActiveContext(
+            mode: .folders,
+            folderDrillLabel: nil,
+            folderDrilledIn: false,
+            threadDrillTitle: nil,
+            threadDrilledIn: false,
+            scriptureBookTitle: nil,
+            scriptureBookIndex: nil,
+            scripturePassageTitle: nil,
+            scriptureDrillLevel: .root,
+            highlightKindFilter: .all
+        )
+        XCTAssertEqual(
+            SidebarUniversalSearchIndex.elsewhereEmptyStateTitle(ctx, typeFilter: .notes),
+            SidebarNoMatchCopy.noNotesMatch
+        )
+    }
+
+    func testElsewhereEmptyStateTitle_folderDrillAllFilter() {
+        let ctx = SidebarUniversalSearchIndex.ActiveContext(
+            mode: .folders,
+            folderDrillLabel: "Work",
+            folderDrilledIn: true,
+            threadDrillTitle: nil,
+            threadDrilledIn: false,
+            scriptureBookTitle: nil,
+            scriptureBookIndex: nil,
+            scripturePassageTitle: nil,
+            scriptureDrillLevel: .root,
+            highlightKindFilter: .all
+        )
+        XCTAssertEqual(
+            SidebarUniversalSearchIndex.elsewhereEmptyStateTitle(ctx, typeFilter: .all),
+            "Nothing outside “Work”"
+        )
+    }
+
+    func testElsewhereEmptyStateTitle_threadsFilter() {
+        let ctx = SidebarUniversalSearchIndex.ActiveContext(
+            mode: .threads,
+            folderDrillLabel: nil,
+            folderDrilledIn: false,
+            threadDrillTitle: nil,
+            threadDrilledIn: false,
+            scriptureBookTitle: nil,
+            scriptureBookIndex: nil,
+            scripturePassageTitle: nil,
+            scriptureDrillLevel: .root,
+            highlightKindFilter: .all
+        )
+        XCTAssertEqual(
+            SidebarUniversalSearchIndex.elsewhereEmptyStateTitle(ctx, typeFilter: .threads),
+            SidebarNoMatchCopy.noThreadsMatch
+        )
+    }
 }

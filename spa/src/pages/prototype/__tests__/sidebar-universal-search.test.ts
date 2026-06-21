@@ -4,6 +4,7 @@ import {
   buildActiveViewResults,
   buildElsewhereResults,
   buildFoldersFromNotes,
+  elsewhereEmptyStateTitle,
   type ActiveSearchContext,
   type UniversalSearchData,
 } from '../sidebar-universal-search';
@@ -113,6 +114,44 @@ describe('sidebar-universal-search', () => {
       folderDrill: 'Work',
     });
     expect(header).toBe('In “Work”');
+  });
+
+  describe('elsewhereEmptyStateTitle', () => {
+    it('uses tab context when Elsewhere type filter is All', () => {
+      expect(
+        elsewhereEmptyStateTitle(
+          { ...baseCtx, mode: 'folders', folderDrill: undefined },
+          'all',
+        ),
+      ).toBe('Nothing outside Folders');
+    });
+
+    it('uses per-type copy when Elsewhere type filter is specific', () => {
+      expect(
+        elsewhereEmptyStateTitle(
+          { ...baseCtx, mode: 'folders', folderDrill: undefined },
+          'notes',
+        ),
+      ).toBe('No notes found');
+    });
+
+    it('reflects folder drill when type filter is All', () => {
+      expect(
+        elsewhereEmptyStateTitle(
+          { ...baseCtx, mode: 'folders', folderDrill: 'Work' },
+          'all',
+        ),
+      ).toBe('Nothing outside “Work”');
+    });
+
+    it('uses threads copy when Elsewhere type filter is threads', () => {
+      expect(
+        elsewhereEmptyStateTitle(
+          { ...baseCtx, mode: 'threads', threadDrillId: undefined },
+          'threads',
+        ),
+      ).toBe('No threads found');
+    });
   });
 
   it('buildElsewhereResults excludes active section ids', () => {

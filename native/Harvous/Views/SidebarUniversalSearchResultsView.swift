@@ -114,7 +114,12 @@ struct SidebarUniversalSearchResultsView: View {
             } else if searchScope == .active, activeResults.isEmpty {
                 HarvousEmptyStateView.searchNoMatch(title: SidebarNoMatchCopy.noMatchesInView)
             } else if searchScope == .elsewhere, elsewhereResults.isEmpty {
-                HarvousEmptyStateView.searchNoMatch(title: SidebarNoMatchCopy.noOtherMatches)
+                HarvousEmptyStateView.searchNoMatch(
+                    title: SidebarUniversalSearchIndex.elsewhereEmptyStateTitle(
+                        activeContextWithHighlightFilter,
+                        typeFilter: elsewhereTypeFilter
+                    )
+                )
             } else {
                 searchResultsList {
                     ForEach(visibleResults) { result in

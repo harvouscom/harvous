@@ -25,6 +25,7 @@ import {
   elsewhereTypeFilterMatches,
   sidebarSearchResultStableId,
 } from './sidebar-search-types';
+import { SIDEBAR_NO_MATCH_COPY } from './sidebar-no-match-copy';
 
 export const SIDEBAR_ELSEWHERE_RESULTS_CAP = 50;
 
@@ -148,6 +149,51 @@ export function activeSearchSectionHeader(ctx: ActiveSearchContext): string {
     return 'In Scripture';
   }
   return 'In this view';
+}
+
+/** Elsewhere empty-state title — type-filter specific, or mirrors active section when filter is All. */
+export function elsewhereEmptyStateTitle(
+  ctx: ActiveSearchContext,
+  typeFilter: SidebarElsewhereTypeFilter,
+): string {
+  if (typeFilter !== 'all') {
+    switch (typeFilter) {
+      case 'notes':
+        return SIDEBAR_NO_MATCH_COPY.noNotesMatch;
+      case 'folders':
+        return SIDEBAR_NO_MATCH_COPY.noFoldersMatch;
+      case 'threads':
+        return SIDEBAR_NO_MATCH_COPY.noThreadsMatch;
+      case 'highlights':
+        return SIDEBAR_NO_MATCH_COPY.noHighlightsMatch;
+      case 'scripture':
+        return SIDEBAR_NO_MATCH_COPY.noScriptureMatch;
+      default:
+        return SIDEBAR_NO_MATCH_COPY.noOtherMatches;
+    }
+  }
+
+  const { mode, folderDrill, threadDrillTitle, scriptureDrill } = ctx;
+  if (mode === 'notes') return 'Nothing outside Notes';
+  if (mode === 'folders') {
+    if (folderDrill !== undefined) return `Nothing outside “${folderDrill ?? 'Unsorted'}”`;
+    return 'Nothing outside Folders';
+  }
+  if (mode === 'threads') {
+    if (ctx.threadDrillId) return `Nothing outside “${threadDrillTitle?.trim() || 'Thread'}”`;
+    return 'Nothing outside Threads';
+  }
+  if (mode === 'highlights') return 'Nothing outside Highlights';
+  if (mode === 'scripture') {
+    if (scriptureDrill.level === 'notes') {
+      return `Nothing outside “${scriptureDrill.passageTitle?.trim() || 'Passage'}”`;
+    }
+    if (scriptureDrill.level === 'passages') {
+      return `Nothing outside “${scriptureDrill.bookTitle?.trim() || 'Book'}”`;
+    }
+    return 'Nothing outside Scripture';
+  }
+  return SIDEBAR_NO_MATCH_COPY.noOtherMatches;
 }
 
 function noteToResult(note: SpaceNoteRow, subtitle?: string, ftsExcerpt?: string): SidebarSearchResult {

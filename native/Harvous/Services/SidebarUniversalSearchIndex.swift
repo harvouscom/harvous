@@ -99,6 +99,52 @@ enum SidebarUniversalSearchIndex {
         }
     }
 
+    static func elsewhereEmptyStateTitle(
+        _ ctx: ActiveContext,
+        typeFilter: SidebarElsewhereTypeFilter
+    ) -> String {
+        switch typeFilter {
+        case .notes:
+            return SidebarNoMatchCopy.noNotesMatch
+        case .folders:
+            return SidebarNoMatchCopy.noFoldersMatch
+        case .threads:
+            return SidebarNoMatchCopy.noThreadsMatch
+        case .highlights:
+            return SidebarNoMatchCopy.noHighlightsMatch
+        case .scripture:
+            return SidebarNoMatchCopy.noScriptureMatch
+        case .all:
+            break
+        }
+
+        switch ctx.mode {
+        case .notes:
+            return "Nothing outside Notes"
+        case .folders:
+            if ctx.folderDrilledIn {
+                return "Nothing outside “\(ctx.folderDrillLabel ?? "No folder")”"
+            }
+            return "Nothing outside Folders"
+        case .threads:
+            if ctx.threadDrilledIn {
+                return "Nothing outside “\(ctx.threadDrillTitle ?? "Thread")”"
+            }
+            return "Nothing outside Threads"
+        case .highlights:
+            return "Nothing outside Highlights"
+        case .scripture:
+            switch ctx.scriptureDrillLevel {
+            case .root:
+                return "Nothing outside Scripture"
+            case .book:
+                return "Nothing outside “\(ctx.scriptureBookTitle ?? "Book")”"
+            case .passage:
+                return "Nothing outside “\(ctx.scripturePassageTitle ?? "Passage")”"
+            }
+        }
+    }
+
     static func buildActiveResults(query: String, ctx: ActiveContext, data: SearchData) -> [SidebarSearchResult] {
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return [] }

@@ -19,6 +19,7 @@ import {
   activeSearchSectionHeader,
   buildActiveViewResults,
   buildElsewhereResults,
+  elsewhereEmptyStateTitle,
   type ActiveSearchContext,
   type ScriptureDrillState,
   type UniversalSearchData,
@@ -210,7 +211,9 @@ export default function PrototypeSidebarSearchResults({
         ) : searchScope === 'elsewhere' && ftsQuery.isLoading && debouncedFtsQuery ? (
           <p className="proto-caption proto-sidebar-search-section__empty">Searching notes…</p>
         ) : searchScope === 'elsewhere' && elsewhereResults.length === 0 ? (
-          <PrototypeListNoMatchEmptyState title={SIDEBAR_NO_MATCH_COPY.noOtherMatches} />
+          <PrototypeListNoMatchEmptyState
+            title={elsewhereEmptyStateTitle(activeSearchContext, elsewhereTypeFilter)}
+          />
         ) : (
           <SearchResultSection
             results={visibleResults}
