@@ -252,6 +252,18 @@ function isPrimaryEligibleRow(row: ScRow, plainTitle: string, plainBody: string)
   return countKeywordOccurrences(plainTitle, plainBody, row.keyword) >= 3;
 }
 
+/**
+ * A Bible book "defines" the note — and may win the *primary* folder over a theme — only when the
+ * note is genuinely a study of it: the book is in the title, or it recurs (>= 3). A passing citation
+ * never beats a real theme and stays a tag. Mirrors the character/place gate intent in
+ * `isPrimaryEligibleRow`. Keep in sync with native BibleStudyTagSuggester.
+ */
+function isBookDefining(row: ScRow, plainTitle: string, plainBody: string): boolean {
+  if (row.keyword.category !== 'book') return false;
+  if (candidateAppearsInTitle(plainTitle, row.keyword.name)) return true;
+  return countKeywordOccurrences(plainTitle, plainBody, row.keyword) >= 3;
+}
+
 function betterPrimaryRow(a: ScRow, b: ScRow, plainTitle: string, plainBody: string): ScRow {
   const sa = folderPrimaryScore(a, plainTitle, plainBody);
   const sb = folderPrimaryScore(b, plainTitle, plainBody);
@@ -264,11 +276,13 @@ function betterPrimaryRow(a: ScRow, b: ScRow, plainTitle: string, plainBody: str
   if (isThemePrimaryCategory(b.keyword.category) && aCharPlace && !candidateAppearsInTitle(plainTitle, a.keyword.name)) {
     if (sa - sb < 0.18) return b;
   }
-  // A theme outranks a bare Bible-book mention unless the book is materially stronger (native parity).
-  if (isThemePrimaryCategory(a.keyword.category) && b.keyword.category === 'book' && sb - sa < 0.18) {
+  // A theme outranks a Bible-book mention unless the book is the note's subject (book-defining:
+  // in title or recurring). A passing book citation never wins primary over a real theme; a
+  // book-study (defining book) competes on raw score, so its title boost can carry the primary.
+  if (isThemePrimaryCategory(a.keyword.category) && b.keyword.category === 'book' && !isBookDefining(b, plainTitle, plainBody)) {
     return a;
   }
-  if (isThemePrimaryCategory(b.keyword.category) && a.keyword.category === 'book' && sa - sb < 0.18) {
+  if (isThemePrimaryCategory(b.keyword.category) && a.keyword.category === 'book' && !isBookDefining(a, plainTitle, plainBody)) {
     return b;
   }
 
@@ -307,6 +321,9 @@ function isEligibleSecondaryFolder(row: ScRow, plainTitle: string, plainBody: st
   const cat = row.keyword.category;
   const inTitle = candidateAppearsInTitle(plainTitle, row.keyword.name);
   const occ = countKeywordOccurrences(plainTitle, plainBody, row.keyword);
+  // Books are folder-only-when-primary: a cited-but-not-primary book never becomes a secondary
+  // folder — it surfaces as a tag instead. Keep in sync with native BibleStudyTagSuggester.
+  if (cat === 'book') return false;
   if (cat === 'character' || cat === 'place') {
     const strongContext = inTitle || occ >= 3;
     const floor = strongContext ? SECONDARY_MIN_SCORE : SECONDARY_CHARACTER_PLACE_MIN_SCORE;

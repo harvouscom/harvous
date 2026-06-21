@@ -28,7 +28,9 @@ import {
   homeThreadGreetingTone,
   pickContinueNote,
   pickRevisitNote,
+  pickRevisitHighlight,
   pickSpotlightThread,
+  stableStringHash,
   selectHomeLeadTheme,
   type HomeBookInput,
   type HomeBookTrendInput,
@@ -140,7 +142,7 @@ describe('pickRevisitNote', () => {
     expect(pickRevisitNote(notes, { ...opts, rotationDayIndex: 3 })?.id).toBe('a');
   });
 
-  it('limits rotation pool to rotationPoolSize stalest notes', () => {
+  it('floors the rotation pool at the five stalest notes for small spaces', () => {
     const notes = [
       { id: 'a', updatedAt: '2026-01-01T00:00:00Z' },
       { id: 'b', updatedAt: '2026-02-01T00:00:00Z' },
@@ -149,7 +151,49 @@ describe('pickRevisitNote', () => {
       { id: 'e', updatedAt: '2026-05-01T00:00:00Z' },
       { id: 'f', updatedAt: '2026-05-15T00:00:00Z' },
     ];
-    expect(pickRevisitNote(notes, { ...opts, rotationDayIndex: 5, rotationPoolSize: 5 })?.id).toBe('a');
+    // 6 candidates → pool floors at 5 → index 5 % 5 wraps back to the stalest.
+    expect(pickRevisitNote(notes, { ...opts, rotationDayIndex: 5 })?.id).toBe('a');
+  });
+
+  it('grows the rotation pool with the backlog (~25%)', () => {
+    // 40 thin notes, oldest first by month offset → pool = round(40*0.25) = 10.
+    const notes = Array.from({ length: 40 }, (_, i) => ({
+      id: `n${i}`,
+      updatedAt: new Date(Date.parse('2026-01-01T00:00:00Z') + i * DAY).toISOString(),
+    }));
+    // The 10th-stalest note is reachable; an 11th index wraps back into the pool.
+    expect(pickRevisitNote(notes, { ...opts, rotationDayIndex: 9 })?.id).toBe('n9');
+    expect(pickRevisitNote(notes, { ...opts, rotationDayIndex: 10 })?.id).toBe('n0');
+  });
+
+  it('salts rotation so different spaces do not all land on the same pick', () => {
+    const notes = [
+      { id: 'a', updatedAt: '2026-01-01T00:00:00Z' },
+      { id: 'b', updatedAt: '2026-02-01T00:00:00Z' },
+      { id: 'c', updatedAt: '2026-03-01T00:00:00Z' },
+    ];
+    expect(pickRevisitNote(notes, { ...opts, rotationDayIndex: 0, rotationSalt: 0 })?.id).toBe('a');
+    expect(pickRevisitNote(notes, { ...opts, rotationDayIndex: 0, rotationSalt: 1 })?.id).toBe('b');
+    expect(pickRevisitNote(notes, { ...opts, rotationDayIndex: 0, rotationSalt: 2 })?.id).toBe('c');
+  });
+
+  it('prefers substantive study notes over older scratch notes', () => {
+    const oldScratch = { id: 'scratch', updatedAt: '2026-01-01T00:00:00Z', content: '<p>hi</p>' };
+    const scripture = { id: 'verse', updatedAt: '2026-02-01T00:00:00Z', noteType: 'scripture' };
+    const filed = { id: 'filed', updatedAt: '2026-03-01T00:00:00Z', primaryCollection: 'Romans study' };
+    const longBody = {
+      id: 'essay',
+      updatedAt: '2026-04-01T00:00:00Z',
+      content: `<p>${'word '.repeat(40)}</p>`,
+    };
+    // Oldest overall is the scratch note, but the stalest *substantive* note wins.
+    expect(pickRevisitNote([oldScratch, scripture, filed, longBody], opts)?.id).toBe('verse');
+  });
+
+  it('falls back to scratch notes only when no substantive ones qualify', () => {
+    const scratchA = { id: 'a', updatedAt: '2026-01-01T00:00:00Z', content: '<p>ok</p>' };
+    const scratchB = { id: 'b', updatedAt: '2026-02-01T00:00:00Z', content: '<p>ok</p>' };
+    expect(pickRevisitNote([scratchA, scratchB], opts)?.id).toBe('a');
   });
 
   it('uses last edit time when judging age, not visit-only opens', () => {
@@ -160,6 +204,49 @@ describe('pickRevisitNote', () => {
       lastVisited: '2026-06-11T00:00:00Z',
     };
     expect(pickRevisitNote([oldEditVisitedYesterday], opts)?.id).toBe('a');
+  });
+});
+
+describe('pickRevisitHighlight', () => {
+  const recencyIso = (row: { id: string; iso?: string | null }) => row.iso;
+  const rows = [
+    { id: 'newest', iso: '2026-06-10T00:00:00Z' },
+    { id: 'middle', iso: '2026-03-01T00:00:00Z' },
+    { id: 'oldest', iso: '2026-01-01T00:00:00Z' },
+  ];
+
+  it('returns undefined for an empty list', () => {
+    expect(pickRevisitHighlight([], { recencyIso })).toBeUndefined();
+  });
+
+  it('surfaces the OLDEST highlight, not the newest', () => {
+    expect(pickRevisitHighlight(rows, { recencyIso })?.id).toBe('oldest');
+  });
+
+  it('prefers pinned highlights, oldest pinned first', () => {
+    expect(pickRevisitHighlight(rows, { recencyIso, pinnedIds: ['newest'] })?.id).toBe('newest');
+    expect(pickRevisitHighlight(rows, { recencyIso, pinnedIds: ['middle', 'newest'] })?.id).toBe('middle');
+  });
+
+  it('skips cooled-down highlights', () => {
+    expect(pickRevisitHighlight(rows, { recencyIso, excludeIds: ['oldest'] })?.id).toBe('middle');
+  });
+
+  it('rotates daily and respects the salt', () => {
+    expect(pickRevisitHighlight(rows, { recencyIso, rotationDayIndex: 0 })?.id).toBe('oldest');
+    expect(pickRevisitHighlight(rows, { recencyIso, rotationDayIndex: 1 })?.id).toBe('middle');
+    expect(pickRevisitHighlight(rows, { recencyIso, rotationDayIndex: 0, rotationSalt: 1 })?.id).toBe('middle');
+  });
+});
+
+describe('stableStringHash', () => {
+  it('is deterministic and non-negative', () => {
+    expect(stableStringHash('space_abc')).toBe(stableStringHash('space_abc'));
+    expect(stableStringHash('space_abc')).toBeGreaterThanOrEqual(0);
+  });
+
+  it('differs across distinct ids', () => {
+    expect(stableStringHash('space_abc')).not.toBe(stableStringHash('space_xyz'));
   });
 });
 

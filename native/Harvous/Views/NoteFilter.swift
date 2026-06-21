@@ -29,7 +29,8 @@ enum NoteFilter: Hashable, Sendable {
                 bookIndex: p.bookIndex,
                 chapter: p.chapter,
                 verseStart: p.verseStart,
-                verseEnd: p.verseEnd
+                verseEnd: p.verseEnd,
+                endChapter: p.endChapter
             )
         case .urlReference(let href):
             return urlLinkPillDisplayHost(href)

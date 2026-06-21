@@ -34,7 +34,8 @@ struct ScriptureReferenceRow: Identifiable, Hashable, Sendable {
             bookIndex: passage.bookIndex,
             chapter: passage.chapter,
             verseStart: passage.verseStart,
-            verseEnd: passage.verseEnd
+            verseEnd: passage.verseEnd,
+            endChapter: passage.endChapter
         )
     }
 

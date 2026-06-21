@@ -44,7 +44,8 @@ enum ThreadStore {
                 bookIndex: p.bookIndex,
                 chapter: p.chapter,
                 verseStart: p.verseStart,
-                verseEnd: p.verseEnd
+                verseEnd: p.verseEnd,
+                endChapter: p.endChapter
             )
         }
         return trimmed
@@ -301,7 +302,7 @@ enum ThreadStore {
         let trimmedRef = referenceRaw.trimmingCharacters(in: .whitespacesAndNewlines)
         let display: String
         if let p = ScriptureReferenceParser.parse(trimmedRef) {
-            display = ScriptureReferenceParser.format(bookIndex: p.bookIndex, chapter: p.chapter, verseStart: p.verseStart, verseEnd: p.verseEnd)
+            display = ScriptureReferenceParser.format(bookIndex: p.bookIndex, chapter: p.chapter, verseStart: p.verseStart, verseEnd: p.verseEnd, endChapter: p.endChapter)
         } else {
             display = trimmedRef
         }

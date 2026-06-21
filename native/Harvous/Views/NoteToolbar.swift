@@ -88,7 +88,6 @@ struct NoteToolbar: View {
                         group {
                             textButton("H2", size: 14, weight: .bold, isActive: proxy.formatToolbar.headingLevel == 2) { proxy.heading(2) }
                             textButton("H3", size: 14, weight: .bold, isActive: proxy.formatToolbar.headingLevel == 3) { proxy.heading(3) }
-                            iconButton("Harvous.Link") { proxy.addOrEditLink() }
                         }
 
                         NoteToolbarGroupDivider()

@@ -182,6 +182,33 @@ export function getScriptureDraftAnchorPos(state: any): number | null {
   return extendRangeOverTrailingContinuation(state.doc, target.end);
 }
 
+/**
+ * The draft pill's DOM element nearest `pos`, for anchoring the floating ✓ inline beside the pill.
+ * Walks up from the DOM node at the position to the enclosing `.scripture-pill-draft` span; falls
+ * back to the first draft span in the editor. Returns null when no draft span is in the DOM yet.
+ * Used instead of `coordsAtPos` (a thin caret box that renders the ✓ above the taller pill on iOS).
+ */
+export function getScriptureDraftAnchorElement(view: any, pos: number): HTMLElement | null {
+  try {
+    const { node } = view.domAtPos(Math.max(pos - 1, 0));
+    let el: Node | null = node;
+    while (el && el !== view.dom) {
+      if (el instanceof HTMLElement && el.classList?.contains('scripture-pill-draft')) {
+        return el;
+      }
+      el = el.parentNode;
+    }
+  } catch {
+    /* fall through to query fallback */
+  }
+  try {
+    const found = view.dom?.querySelector?.('.scripture-pill-draft');
+    return found instanceof HTMLElement ? found : null;
+  } catch {
+    return null;
+  }
+}
+
 /** True when the doc contains a draft mark whose range does NOT contain the caret. */
 export function findDetachedScriptureDraft(state: any): { from: number; to: number } | null {
   const ranges = collectScripturePillRanges(state.doc, 'scriptureDraft');

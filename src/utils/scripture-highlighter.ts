@@ -10,6 +10,12 @@ function escapeHtmlAttr(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
 }
 
+// Matches any HTML tag EXCEPT block-level/break tags. Used to tolerate inline formatting
+// (<em>, <strong>, <span>, <a>, <mark>, <sup>, …) inside/around a scripture reference without
+// swallowing the block/break tags (<br>, <p>, </p>, <li>, <hr>, …) that carry line breaks.
+const INLINE_TAG =
+  '<(?!/?(?:p|br|hr|div|ul|ol|li|blockquote|h[1-6]|img|figure|pre|table|thead|tbody|tr|td|th)[\\s/>])[^>]+>';
+
 export interface ScriptureReference {
   reference: string;
   noteId: string;
@@ -112,18 +118,20 @@ export function highlightScriptureReferences(
     // Escape special regex characters in the reference
     const escapedReference = reference.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     
-    // Create regex pattern that matches the reference, allowing HTML tags between words
-    // This handles cases like <em>John 3:16</em> or <i>John</i> 3:16
-    // Split reference into tokens (words, numbers, punctuation, spaces)
+    // Create regex pattern that matches the reference, allowing INLINE HTML tags between words
+    // This handles cases like <em>John 3:16</em> or <i>John</i> 3:16.
+    // Crucially, it must NOT consume block/break tags (<br>, <p>, </p>, <li>, ...): a greedy
+    // <[^>]+>* around the reference would otherwise swallow an adjacent line break, and the
+    // replacement (which re-emits only the tag-stripped reference) would drop it — so blank
+    // lines/soft returns next to a pill vanished on every save. INLINE_TAG excludes those.
     const tokens = escapedReference.match(/\S+|\s+/g) || [];
     const flexiblePattern = tokens.map(token => {
       if (/^\s+$/.test(token)) {
-        // Whitespace: allow optional HTML tags around it
-        return `\\s*(?:<[^>]+>)*\\s*`;
+        // Whitespace: allow optional inline HTML tags around it
+        return `\\s*(?:${INLINE_TAG})*\\s*`;
       } else {
-        // Word/number/punctuation: allow optional HTML tags before and after
-        // Use word boundary to prevent partial matches
-        return `(?:<[^>]+>)*${token}(?:<[^>]+>)*`;
+        // Word/number/punctuation: allow optional inline HTML tags before and after
+        return `(?:${INLINE_TAG})*${token}(?:${INLINE_TAG})*`;
       }
     }).join('');
     

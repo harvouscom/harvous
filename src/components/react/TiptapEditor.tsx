@@ -30,6 +30,7 @@ import {
   cancelScriptureDraftView,
   getScriptureDraftRange,
   getScriptureDraftAnchorPos,
+  getScriptureDraftAnchorElement,
   findDetachedScriptureDraft,
   SCRIPTURE_DRAFT_CONFIRMED_EVENT,
 } from './TiptapScriptureDraft';
@@ -6172,6 +6173,17 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
         e.preventDefault();
         e.stopImmediatePropagation();
         openStudyDockForHighlightMark(markInPm);
+        // Tapping a highlight should show only the dock — not the keyboard. Mirror the
+        // scripture-pill path: clear the native tap-selection and blur the editor,
+        // deferred so it runs after iOS/the browser applies the tap selection.
+        requestAnimationFrame(() => {
+          try {
+            window.getSelection()?.removeAllRanges();
+          } catch {
+            /* ignore */
+          }
+          releaseEditorFocusForStudyDock();
+        });
       }
     };
 
@@ -6203,7 +6215,8 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
         target.closest('.scripture-pill-chrome') ||
         target.closest('.reference-dock-web') ||
         target.closest('.highlight-dock-web') ||
-        target.closest('.harvous-menu-pill__sheet-backdrop')
+        target.closest('.harvous-menu-pill__sheet-backdrop') ||
+        target.closest('.ProseMirror mark')
       ) {
         return;
       }
@@ -6428,8 +6441,22 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
         return;
       }
       try {
+        const vw = typeof window !== 'undefined' ? window.innerWidth : 9999;
+        // Anchor the ✓ to the draft pill's DOM rect so it sits inline beside the pill —
+        // vertically centered on the pill, flush to its right edge. coordsAtPos returns a thin
+        // caret box that on iOS renders the button above the taller inline-flex pill.
+        const draftEl = getScriptureDraftAnchorElement(editor.view, to);
+        if (draftEl) {
+          const rect = draftEl.getBoundingClientRect();
+          setScriptureDraftConfirm({
+            to,
+            top: rect.top + rect.height / 2,
+            left: Math.min(rect.right + 6, vw - 30),
+          });
+          return;
+        }
+        // Fallback: the caret coordinate at the draft end.
         const coords = editor.view.coordsAtPos(to);
-        const vw = typeof window !== 'undefined' ? window.innerWidth : coords.right + 40;
         setScriptureDraftConfirm({
           to,
           top: (coords.top + coords.bottom) / 2,
@@ -7523,9 +7550,6 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     const canLift = isInListItem
       ? editor.can().liftListItem('listItem')
       : editor.can().decreaseIndent();
-    const { from, to } = editor.state.selection;
-    const hasTextSelection = from !== to;
-
     const isPortal = placement === 'portal';
     const positionalStyle: React.CSSProperties = isPortal
       ? {}
@@ -7621,17 +7645,6 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                 ariaLabel="Toggle heading 3"
               >
                 <span style={{ fontSize: '13px', fontWeight: 700 }}>H3</span>
-              </PrototypeToolbarButton>
-              <PrototypeToolbarButton
-                onClick={() => {
-                  openUrlLinkPrompt();
-                }}
-                isActive={!!editor?.isActive('urlLink')}
-                disabled={!hasTextSelection}
-                title="Add link to selection"
-                ariaLabel="Add link to selection"
-              >
-                <Icon name="link" size={PROTO_FORMAT_ICON_SIZE} className="proto-toolbar-icon" />
               </PrototypeToolbarButton>
               <FormatToolbarDivider />
               <PrototypeToolbarButton

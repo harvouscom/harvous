@@ -45,7 +45,10 @@ final class BibleStudyTagSuggesterFolderTests: XCTestCase {
         let body = "We studied how the apostle Luke wrote his gospel account for Theophilus."
         let r = BibleStudyTagSuggester.result(title: "Luke's Gospel", body: body)
         XCTAssertEqual(r.primaryFolder?.lowercased(), "gospel")
-        XCTAssertTrue(r.secondaryFolders.contains(where: { $0.caseInsensitiveCompare("Luke") == .orderedSame }))
+        // Books are folder-only-when-primary: the book "Luke" no longer becomes a secondary folder —
+        // it surfaces as a tag instead.
+        XCTAssertFalse(r.secondaryFolders.contains(where: { $0.caseInsensitiveCompare("Luke") == .orderedSame }))
+        XCTAssertTrue(r.tags.contains(where: { $0.caseInsensitiveCompare("Luke") == .orderedSame }))
     }
 
     func testSalvationTestimonyPrimaryOnlyNoSecondaryOrFolderTags() {
@@ -164,6 +167,80 @@ final class BibleStudyTagSuggesterFolderTests: XCTestCase {
         let r = BibleStudyTagSuggester.result(title: title, body: body)
         XCTAssertEqual(r.primaryFolder?.lowercased(), "salvation")
         XCTAssertTrue(r.secondaryFolders.contains(where: { $0.caseInsensitiveCompare("Paul") == .orderedSame }))
+    }
+
+    // MARK: - Bible books are folder-only-when-primary
+
+    // Uses a book whose name does not collide with a Bible character (Ephesians has no character
+    // row), so the test isolates the books-never-secondary rule from book/character name dedup.
+    func testCitedBookStaysOutOfSecondaryFoldersAndBecomesTag() {
+        let title = "Notes on grace"
+        let body =
+            "This passage is really about grace. Grace meets us where we are, and grace keeps "
+            + "working in us. We read Ephesians 2:8 and Ephesians 1:7 together."
+        let r = BibleStudyTagSuggester.result(title: title, body: body)
+        XCTAssertEqual(r.primaryFolder?.lowercased(), "grace")
+        XCTAssertFalse(r.secondaryFolders.contains(where: { $0.caseInsensitiveCompare("Ephesians") == .orderedSame }))
+        XCTAssertTrue(r.tags.contains(where: { $0.caseInsensitiveCompare("Ephesians") == .orderedSame }))
+    }
+
+    func testSingleBookPrimaryKeepsOtherCitedBookAsTagNotSecondary() {
+        let title = "Study notes"
+        let body =
+            "We worked through Romans today. Romans builds its case carefully, and Romans returns "
+            + "again to the same theme. We glanced once at Galatians 5:1 for comparison."
+        let r = BibleStudyTagSuggester.result(title: title, body: body)
+        XCTAssertEqual(r.primaryFolder?.lowercased(), "romans")
+        XCTAssertFalse(r.secondaryFolders.contains(where: { $0.caseInsensitiveCompare("Galatians") == .orderedSame }))
+    }
+
+    func testBookStudyWinsPrimaryWhenBookIsInTitle() {
+        let title = "Ephesians"
+        // Body kept lowercase right after the title so "Ephesians" is not read as a first name
+        // ahead of a capitalized surname (PersonNameContextGate).
+        let body =
+            "this letter, Ephesians, unfolds the riches of our calling. "
+            + "Ephesians shows us how to walk worthy of what we have received."
+        let r = BibleStudyTagSuggester.result(title: title, body: body)
+        XCTAssertEqual(r.primaryFolder?.lowercased(), "ephesians")
+    }
+
+    // A thematic note that cites a numbered book must not turn the book into a folder; the book
+    // becomes a tag. (Uses 1 Corinthians — a numbered book with no colliding character name.)
+    func testNumberedBookCitationNeverBecomesAFolder() {
+        let title = "Notes on grace"
+        let body =
+            "This passage is really about grace. Grace meets us where we are, and grace keeps "
+            + "working in us. We read 1 Corinthians 13:4 and 1 Corinthians 1:4 together."
+        let r = BibleStudyTagSuggester.result(title: title, body: body)
+        XCTAssertEqual(r.primaryFolder?.lowercased(), "grace")
+        XCTAssertFalse(r.secondaryFolders.contains(where: { $0.caseInsensitiveCompare("1 Corinthians") == .orderedSame }))
+        XCTAssertTrue(r.tags.contains(where: { $0.caseInsensitiveCompare("1 Corinthians") == .orderedSame }))
+    }
+
+    // The user's exact case: citing 1 Peter must not leak the apostle "Peter" (whose name is the
+    // tail of the book name) into a folder. The book "1 Peter" becomes a tag; no person folder.
+    func testNumberedBookSharingACharacterNameDoesNotLeakThePerson() {
+        let title = "Notes on grace"
+        let body =
+            "This passage is really about grace. Grace meets us where we are, and grace keeps "
+            + "working in us. We read 1 Peter 2:9 and 1 Peter 1:3 together."
+        let r = BibleStudyTagSuggester.result(title: title, body: body)
+        XCTAssertEqual(r.primaryFolder?.lowercased(), "grace")
+        let secondaryLower = r.secondaryFolders.map { $0.lowercased() }
+        XCTAssertFalse(secondaryLower.contains("1 peter"))
+        XCTAssertFalse(secondaryLower.contains("peter"))
+        XCTAssertFalse(r.tags.contains(where: { $0.caseInsensitiveCompare("Peter") == .orderedSame }))
+    }
+
+    // A genuine reference to the apostle Peter (not part of a numbered book) is still counted.
+    func testApostlePeterStillDetectedOutsideNumberedBook() {
+        let title = "Peter restored"
+        let body =
+            "Peter denied the Lord three times. Later Peter wept bitterly, and Peter was restored "
+            + "by the shore when Jesus asked Peter if he loved him."
+        let r = BibleStudyTagSuggester.result(title: title, body: body)
+        XCTAssertEqual(r.primaryFolder?.lowercased(), "peter")
     }
 
     func testApplyToNoteRespectsDismissedAutoTags() {

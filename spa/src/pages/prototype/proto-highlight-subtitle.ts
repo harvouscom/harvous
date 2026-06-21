@@ -1,3 +1,4 @@
+import type { IconName } from '@/components/react/Icon';
 import type { StudyThreadEntryDetail } from '../../hooks/queries/useNote';
 
 const HIGHLIGHT_LIST_TITLE_MAX = 120;
@@ -89,7 +90,7 @@ export function prototypeHighlightRecencyIso(row: StudyThreadEntryDetail): strin
 }
 
 /** Icon for Highlights list rows — native `StudyHighlightFeedRow.kindGlyphAsset`. */
-export function highlightEntryKindIconName(entryKind: string | null | undefined): string {
+export function highlightEntryKindIconName(entryKind: string | null | undefined): IconName {
   switch (entryKind) {
     case 'linkedNote':
       return 'arrow-right-arrow-left';

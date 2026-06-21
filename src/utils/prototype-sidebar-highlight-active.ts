@@ -33,7 +33,21 @@ export function isSidebarHighlightRowActive(
 }
 
 /** Search params to pass when opening a note from the Notes list (clears highlight deep-link state). */
-export const PROTOTYPE_NOTE_LIST_NAV_SEARCH = {} as const;
+export const PROTOTYPE_NOTE_LIST_NAV_SEARCH: {
+  studyThread: string | undefined;
+  reference: string | undefined;
+  scriptureRef: string | undefined;
+  scriptureTranslation: string | undefined;
+  highlight: string | undefined;
+  dockReq: string | undefined;
+} = {
+  studyThread: undefined,
+  reference: undefined,
+  scriptureRef: undefined,
+  scriptureTranslation: undefined,
+  highlight: undefined,
+  dockReq: undefined,
+};
 
 /** Parse highlight deep-link ids from TanStack Router search (object or query string). */
 export function parsePrototypeNoteHighlightSearch(search: unknown): {

@@ -359,6 +359,9 @@ export const ScriptureMetadata = pgTable('ScriptureMetadata', {
   chapter: integer('chapter').notNull(),
   verse: integer('verse').notNull(),
   verseEnd: integer('verseEnd'),
+  // For cross-chapter ranges (e.g. "Exodus 6:28-7:7"): the chapter the range ends in.
+  // When set, `verseEnd` is the end verse within `chapterEnd`, not `chapter`. Null otherwise.
+  chapterEnd: integer('chapterEnd'),
   translation: text('translation').notNull(),
   originalText: text('originalText').notNull(),
   createdAt: ts('createdAt').notNull(),

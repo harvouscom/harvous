@@ -105,9 +105,9 @@ export function matchLegacyPrototypeSpaceId(pathname: string): string | null {
   return m?.[1] ?? null;
 }
 
-/** TanStack Router `to` for root-level note routes. */
-export function prototypeNoteRouteTo(): '/$noteId' | '/prototype/$noteId' {
-  return isDedicatedPrototypeHost() ? '/$noteId' : '/prototype/$noteId';
+/** TanStack Router `to` for root-level note routes (typed for app.harvous.com route tree at compile time). */
+export function prototypeNoteRouteTo(): '/prototype/$noteId' {
+  return (isDedicatedPrototypeHost() ? '/$noteId' : '/prototype/$noteId') as '/prototype/$noteId';
 }
 
 export function prototypeSettingsRouteTo(): '/settings' | '/prototype/settings' {

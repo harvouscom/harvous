@@ -1804,7 +1804,11 @@ struct NoteEditorView: View {
                     BibleStudyTagSuggester.applyToNote(capturedNote, allowPrimaryUpdate: true, existingFolders: existingFolders)
                     let applied = !(capturedNote.primaryFolder?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true)
                     if applied {
-                        capturedNote.markDirty()
+                        // Auto-folder assignment on open is metadata, not a content edit — flag it for sync
+                        // without bumping updatedAt, so merely opening a note never changes its "last
+                        // updated" sort order. The server-side /api/notes/update flush also preserves
+                        // updatedAt for content-unchanged saves, so this won't be re-stamped on round-trip.
+                        capturedNote.markDirtyMetadata()
                         try? capturedContext.saveWithLogging()
                         HarvousNoteSpotlightIndexer.reindex(note: capturedNote)
                         HarvousVaultExporter.scheduleWrite(note: capturedNote, modelContext: capturedContext)

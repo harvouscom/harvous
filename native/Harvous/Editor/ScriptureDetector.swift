@@ -48,6 +48,12 @@ struct ScriptureDetector {
         return try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive])
     }()
 
+    /// Cross-chapter range: "Exodus 6:28-7:7" (startChapter:startVerse — endChapter:endVerse).
+    private static let crossChapterRegex: NSRegularExpression? = {
+        let pattern = "\\b(\(bookPattern))\\.?\\s+(\\d{1,3}):(\\d{1,3})\\s*\(dashPattern)\\s*(\\d{1,3}):(\\d{1,3})\\b"
+        return try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive])
+    }()
+
     /// Chapter range without colon: "Matthew 5-7"
     private static let chapterRangeRegex: NSRegularExpression? = {
         let pattern = "\\b(\(bookPattern))\\.?\\s+(\\d{1,3})\\s*\(dashPattern)\\s*(\\d{1,3})(?!\\s*:)(?=\\s|$|[^\\d\\w-])"
@@ -66,11 +72,22 @@ struct ScriptureDetector {
     }
 
     /// Raw regex capture for structured editing (book substring as matched, e.g. `1 Cor` or `Philippians`).
+    /// `endChapter` is non-nil only for cross-chapter ranges ("Exodus 6:28-7:7"); when set, `verseEnd`
+    /// is the end verse within `endChapter`, not `chapter`.
     struct ParsedReferenceFields {
         let bookRaw: String
         let chapter: Int
         let verseStart: Int
         let verseEnd: Int?
+        let endChapter: Int?
+
+        init(bookRaw: String, chapter: Int, verseStart: Int, verseEnd: Int?, endChapter: Int? = nil) {
+            self.bookRaw = bookRaw
+            self.chapter = chapter
+            self.verseStart = verseStart
+            self.verseEnd = verseEnd
+            self.endChapter = endChapter
+        }
     }
 
     /// Expanded canonical reference for API/sync (e.g. "Exodus 3" → "Exodus 3:1-22").
@@ -86,9 +103,34 @@ struct ScriptureDetector {
     static func parseReferenceFields(in text: String) -> ParsedReferenceFields? {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return nil }
+        if let cross = parseCrossChapterFields(in: trimmed) { return cross }
         if let verse = parseVerseReferenceFields(in: trimmed) { return verse }
         if let range = parseChapterRangeFields(in: trimmed) { return range }
         return parseChapterOnlyFields(in: trimmed)
+    }
+
+    private static func parseCrossChapterFields(in text: String) -> ParsedReferenceFields? {
+        guard let regex = crossChapterRegex else { return nil }
+        let nsText = text as NSString
+        guard nsText.length > 0, nsText.length <= maximumDetectLength else { return nil }
+        let full = NSRange(location: 0, length: nsText.length)
+        guard let result = regex.firstMatch(in: text, options: [], range: full), result.numberOfRanges >= 6 else { return nil }
+        let bookRaw = nsText.substring(with: result.range(at: 1))
+        guard let startCh = Int(nsText.substring(with: result.range(at: 2))),
+              let startV = Int(nsText.substring(with: result.range(at: 3))),
+              let endCh = Int(nsText.substring(with: result.range(at: 4))),
+              let endV = Int(nsText.substring(with: result.range(at: 5))),
+              (startCh < endCh || (startCh == endCh && startV <= endV)),
+              let bookIndex = ScriptureCanonicalBooks.bookIndex(matchingRaw: bookRaw) else { return nil }
+        let clampedStart = ScriptureCanon.clampChapter(startCh, bookIndex: bookIndex)
+        let clampedEnd = ScriptureCanon.clampChapter(endCh, bookIndex: bookIndex)
+        return ParsedReferenceFields(
+            bookRaw: bookRaw,
+            chapter: clampedStart,
+            verseStart: startV,
+            verseEnd: endV,
+            endChapter: clampedEnd
+        )
     }
 
     private static func parseVerseReferenceFields(in text: String) -> ParsedReferenceFields? {
@@ -151,17 +193,27 @@ struct ScriptureDetector {
 
         var collected: [(range: NSRange, displayText: String, hasColon: Bool)] = []
 
-        func appendMatches(from regex: NSRegularExpression?, hasColon: Bool) {
+        // Spans claimed by a more-specific pass so later passes don't re-match inside them
+        // (e.g. the single-chapter regex would otherwise grab "Exodus 6:28-7" from "Exodus 6:28-7:7").
+        var claimedRanges: [NSRange] = []
+        func overlapsClaimed(_ r: NSRange) -> Bool {
+            claimedRanges.contains { NSIntersectionRange($0, r).length > 0 }
+        }
+
+        func appendMatches(from regex: NSRegularExpression?, hasColon: Bool, claims: Bool = false) {
             guard let regex else { return }
             for result in regex.matches(in: text, range: NSRange(location: 0, length: length)) {
+                if overlapsClaimed(result.range) { continue }
                 let matchText = nsText.substring(with: result.range)
                 if !isValidScriptureContext(text: text, matchIndex: result.range.location, matchLength: result.range.length) {
                     continue
                 }
                 collected.append((result.range, matchText, hasColon))
+                if claims { claimedRanges.append(result.range) }
             }
         }
 
+        appendMatches(from: crossChapterRegex, hasColon: true, claims: true)
         appendMatches(from: referenceRegex, hasColon: true)
         appendMatches(from: chapterRangeRegex, hasColon: false)
         appendMatches(from: chapterOnlyRegex, hasColon: false)

@@ -24,6 +24,10 @@ describe('draftTextToReference', () => {
     expect(draftTextToReference('Exodus 4:18-20')).toBe('Exodus 4:18-20');
   });
 
+  it('canonicalizes a cross-chapter range to one reference', () => {
+    expect(draftTextToReference('Exodus 6:28-7:7')).toBe('Exodus 6:28-7:7');
+  });
+
   it('keeps a chapter-only reference chapter-only (no auto-expand)', () => {
     expect(draftTextToReference('Exodus 5')).toBe('Exodus 5');
   });

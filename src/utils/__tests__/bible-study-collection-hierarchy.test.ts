@@ -91,3 +91,43 @@ describe('folder / tag hierarchy — names and generic terms do not beat the rea
     expect(primary).toBe('Forgiveness');
   });
 });
+
+describe('folder / tag hierarchy — Bible books are folder-only-when-primary', () => {
+  it('keeps a cited book out of secondary folders and surfaces it as a tag instead', () => {
+    const title = 'Notes on grace';
+    const body =
+      '<p>This passage is really about grace. Grace meets us where we are, and grace keeps ' +
+      'working in us. We read 1 Peter 2:9 and 1 Peter 1:3 together.</p>';
+    const primary = suggestPrimaryCollectionFromNote(title, body);
+    expect(primary).toBe('Grace');
+    const secondaries = suggestSecondaryCollectionsFromNote(title, body, primary);
+    expect(secondaries.some((s) => s.toLowerCase() === '1 peter')).toBe(false);
+    // The apostle "Peter" (tail of the book name) must not leak in as a folder from a citation.
+    expect(secondaries.some((s) => s.toLowerCase() === 'peter')).toBe(false);
+
+    const excludeFolderLabels = folderLabelsForTagExclusion(primary, secondaries);
+    const tags = suggestAutoTagsFromNote(title, body, { excludeFolderLabels });
+    const names = tags.map((t) => t.name.toLowerCase());
+    expect(names).toContain('1 peter');
+  });
+
+  it('makes a single book the primary but keeps other cited books as tags, not secondaries', () => {
+    const title = 'Study notes';
+    const body =
+      '<p>We worked through Romans today. Romans builds its case carefully, and Romans returns ' +
+      'again to the same theme. We glanced once at Galatians 5:1 for comparison.</p>';
+    const primary = suggestPrimaryCollectionFromNote(title, body);
+    expect(primary).toBe('Romans');
+    const secondaries = suggestSecondaryCollectionsFromNote(title, body, primary);
+    expect(secondaries.some((s) => s.toLowerCase() === 'galatians')).toBe(false);
+  });
+
+  it('lets a book-study win primary when the book is in the title', () => {
+    const title = '1 Peter';
+    const body =
+      '<p>Peter writes to scattered believers about living hope and holy conduct in a hostile ' +
+      'world. He grounds their identity in being chosen and set apart.</p>';
+    const primary = suggestPrimaryCollectionFromNote(title, body);
+    expect(primary).toBe('1 Peter');
+  });
+});

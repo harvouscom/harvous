@@ -121,13 +121,65 @@ export function pickContinueNote<T extends HomeContinueNoteInput>(notes: T[]): T
   return best;
 }
 
+/** Stable, order-independent hash for seeding per-space rotation salts. */
+export function stableStringHash(s: string): number {
+  let h = 0;
+  for (let i = 0; i < s.length; i += 1) {
+    h = (h * 31 + s.charCodeAt(i)) | 0;
+  }
+  return Math.abs(h);
+}
+
+const REVISIT_POOL_MIN = 5;
+const REVISIT_POOL_MAX = 30;
+
+/** Daily rotation pool grows with the backlog so large spaces don't recycle the same few notes. */
+function scaledRotationPoolSize(candidateCount: number): number {
+  const scaled = Math.round(candidateCount * 0.25);
+  return Math.min(REVISIT_POOL_MAX, Math.max(REVISIT_POOL_MIN, scaled));
+}
+
+/** Pick from an ordered pool by calendar day + per-space salt; `null` index returns the head. */
+function rotatePick<T>(ordered: T[], rotationDayIndex?: number, rotationSalt = 0): T | undefined {
+  if (ordered.length === 0) return undefined;
+  const pool = ordered.slice(0, scaledRotationPoolSize(ordered.length));
+  if (rotationDayIndex == null) return pool[0];
+  const idx = (((rotationDayIndex + rotationSalt) % pool.length) + pool.length) % pool.length;
+  return pool[idx];
+}
+
+const SUBSTANTIVE_CONTENT_MIN = 80;
+
+/** Visible-text length of stored HTML — strips tags/entities so blank scaffolding doesn't count. */
+function htmlTextLength(html: string | null | undefined): number {
+  if (!html) return 0;
+  return html
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/&[a-z]+;/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim().length;
+}
+
+export type RevisitNoteInput = HomeContinueNoteInput &
+  NoteFolderLabelSource & { id?: string; noteType?: string | null; content?: string | null };
+
+/** A note earns "worth another look" over a scratch jotting if it carries real study signal. */
+function isSubstantiveNote(note: RevisitNoteInput): boolean {
+  if ((note.noteType ?? '') === 'scripture') return true;
+  if (noteFolderMembershipLabels(note).length > 0) return true;
+  return htmlTextLength(note.content) >= SUBSTANTIVE_CONTENT_MIN;
+}
+
 /**
- * Oldest note worth resurfacing — the note with the LEAST-recent edit,
- * excluding blocked ids and anything edited within `minAgeMs`. Returns
- * undefined when nothing is old enough (keeps the card hidden for fresh spaces).
- * With `rotationDayIndex`, rotates daily among the `rotationPoolSize` stalest candidates.
+ * Oldest note worth resurfacing — the note with the LEAST-recent edit, excluding
+ * blocked ids and anything edited within `minAgeMs`. Substantive study notes
+ * (scripture / filed / non-trivial body) are preferred over scratch notes; thin
+ * notes only fill the rotation pool when there aren't enough substantive ones.
+ * Returns undefined when nothing qualifies (keeps the card hidden for fresh
+ * spaces). With `rotationDayIndex`, rotates daily over a pool that scales with the
+ * backlog, salted by `rotationSalt` so spaces don't all land on the same pick.
  */
-export function pickRevisitNote<T extends HomeContinueNoteInput & { id?: string }>(
+export function pickRevisitNote<T extends RevisitNoteInput>(
   notes: T[],
   options: {
     nowMs: number;
@@ -135,10 +187,10 @@ export function pickRevisitNote<T extends HomeContinueNoteInput & { id?: string 
     excludeIds?: string[];
     minAgeMs: number;
     rotationDayIndex?: number;
-    rotationPoolSize?: number;
+    rotationSalt?: number;
   },
 ): T | undefined {
-  const { nowMs, excludeId, excludeIds, minAgeMs, rotationDayIndex, rotationPoolSize = 5 } = options;
+  const { nowMs, excludeId, excludeIds, minAgeMs, rotationDayIndex, rotationSalt } = options;
   const excluded = new Set<string>();
   if (excludeId) excluded.add(excludeId);
   if (excludeIds) {
@@ -157,13 +209,44 @@ export function pickRevisitNote<T extends HomeContinueNoteInput & { id?: string 
 
   candidates.sort((a, b) => a.t - b.t);
 
-  if (rotationDayIndex == null) {
-    return candidates[0]!.note;
+  // Substantive notes first (oldest within each bucket); thin notes only backfill the pool.
+  const substantive: T[] = [];
+  const thin: T[] = [];
+  for (const { note } of candidates) {
+    (isSubstantiveNote(note) ? substantive : thin).push(note);
   }
+  return rotatePick([...substantive, ...thin], rotationDayIndex, rotationSalt);
+}
 
-  const pool = candidates.slice(0, rotationPoolSize);
-  const idx = ((rotationDayIndex % pool.length) + pool.length) % pool.length;
-  return pool[idx]!.note;
+/**
+ * Highlight worth resurfacing on Home. Pinned highlights (deliberate saves) come
+ * first, then unpinned; within each bucket the OLDEST-touched surface first so the
+ * card is a genuine recall prompt rather than a duplicate of "Continue". Rotates
+ * daily over a backlog-scaled, salted pool, skipping `excludeIds` (cooldown).
+ */
+export function pickRevisitHighlight<T extends { id: string }>(
+  rows: T[],
+  options: {
+    recencyIso: (row: T) => string | null | undefined;
+    pinnedIds?: Iterable<string>;
+    excludeIds?: Iterable<string>;
+    rotationDayIndex?: number;
+    rotationSalt?: number;
+  },
+): T | undefined {
+  const { recencyIso, rotationDayIndex, rotationSalt } = options;
+  const pinned = new Set(options.pinnedIds ?? []);
+  const excluded = new Set(options.excludeIds ?? []);
+
+  const withTime = rows
+    .filter((row) => !excluded.has(row.id))
+    .map((row) => ({ row, t: Date.parse(recencyIso(row) ?? '') || 0 }));
+  if (withTime.length === 0) return undefined;
+
+  withTime.sort((a, b) => a.t - b.t); // oldest first
+  const pinnedRows = withTime.filter((x) => pinned.has(x.row.id)).map((x) => x.row);
+  const unpinnedRows = withTime.filter((x) => !pinned.has(x.row.id)).map((x) => x.row);
+  return rotatePick([...pinnedRows, ...unpinnedRows], rotationDayIndex, rotationSalt);
 }
 
 /** Top user tags by note count; auto/system tags are folders' job, not greeting chips. */

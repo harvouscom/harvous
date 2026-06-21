@@ -93,6 +93,10 @@ export interface ProcessScriptureOptions {
   // When true, skip re-running auto-tag on the parent note. Set on the load/backfill
   // path (opening a note) so merely viewing a note never appends new tags.
   skipParentAutoTag?: boolean;
+  // When true, do not bump the parent note's updatedAt when persisting highlighted content.
+  // Set on the load/backfill path (opening a note) so merely viewing a note — which materializes
+  // legacy pills — never changes the note's "last updated" sort order.
+  skipUpdatedAt?: boolean;
 }
 
 export async function processScriptureReferences(
@@ -674,6 +678,7 @@ async function processScriptureReferencesInternal(
               chapter: parsed.chapter,
               verse: verseStart,
               verseEnd: verseEnd || null,
+              chapterEnd: parsed.endChapter ?? null, // cross-chapter range end (verseEnd lives in chapterEnd)
               translation: effectiveTranslation,
               originalText: capitalizedContent,
               createdAt: new Date()
@@ -1076,6 +1081,7 @@ async function processScriptureReferencesInternal(
                 chapter: parsed.chapter,
                 verse: verseStart,
                 verseEnd: verseEnd || null,
+                chapterEnd: parsed.endChapter ?? null, // cross-chapter range end (verseEnd lives in chapterEnd)
                 translation,
                 originalText: capitalizedContent,
                 createdAt: new Date()
@@ -1184,19 +1190,26 @@ async function processScriptureReferencesInternal(
     highlightScriptureReferences(noteContent, referencesForHighlighting),
   );
 
-  // Always update note in database with properly highlighted content
-  // This ensures scripture pills always have correct class and data attributes
-  // even if Tiptap's getHTML output was missing some attributes
-  console.log('[processScriptureReferences] Updating note with highlighted content', {
-    noteId,
-    referencesForHighlightingCount: referencesForHighlighting.length
-  });
-  await db.update(Notes)
-    .set({
-      content: updatedContent,
-      updatedAt: new Date()
-    })
-    .where(eq(Notes.id, noteId));
+  // Update note in database with properly highlighted content. This ensures scripture pills always
+  // have correct class and data attributes even if Tiptap's getHTML output was missing some.
+  // Skip the write entirely when the highlighted content is byte-identical to what's stored — the
+  // pills are already correct, so there is nothing to persist (and nothing to re-stamp).
+  const contentChanged = updatedContent !== note.content;
+  if (contentChanged) {
+    console.log('[processScriptureReferences] Updating note with highlighted content', {
+      noteId,
+      referencesForHighlightingCount: referencesForHighlighting.length,
+      skipUpdatedAt: options?.skipUpdatedAt === true,
+    });
+    // On the load/backfill path (skipUpdatedAt) we still persist the materialized pills but must not
+    // bump updatedAt — opening a note must never change its "last updated" sort order.
+    await db.update(Notes)
+      .set({
+        content: updatedContent,
+        ...(options?.skipUpdatedAt ? {} : { updatedAt: new Date() }),
+      })
+      .where(eq(Notes.id, noteId));
+  }
 
   if (!options?.skipParentAutoTag) {
     try {

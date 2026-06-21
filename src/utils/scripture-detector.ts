@@ -158,6 +158,28 @@ export function validateVerseRange(book: string, chapter: number, startVerse: nu
          startVerse <= endVerse;
 }
 
+// Validate a cross-chapter verse range like "Exodus 6:28-7:7":
+// start verse must be valid in the start chapter, end verse valid in the end chapter,
+// and the range must be forward-ordered across chapters.
+export function validateCrossChapterRange(
+  book: string,
+  startChapter: number,
+  startVerse: number,
+  endChapter: number,
+  endVerse: number,
+): boolean {
+  const startRange = getChapterVerseRange(book, startChapter);
+  const endRange = getChapterVerseRange(book, endChapter);
+  if (!startRange || !endRange) {
+    return false;
+  }
+  const startOk = startVerse >= startRange.start && startVerse <= startRange.end;
+  const endOk = endVerse >= endRange.start && endVerse <= endRange.end;
+  const orderOk =
+    startChapter < endChapter || (startChapter === endChapter && startVerse <= endVerse);
+  return startOk && endOk && orderOk;
+}
+
 // Normalize chapter-only reference to include full verse range
 // "Genesis 1" → "Genesis 1:1-31"
 export function normalizeChapterReference(book: string, chapter: number): string | null {
@@ -170,9 +192,12 @@ export function normalizeChapterReference(book: string, chapter: number): string
 
 export interface ScriptureReference {
   book: string;
-  chapter: number;
+  chapter: number; // Start chapter
   verse: number | [number, number]; // Single verse or range
-  reference: string; // Full reference string like "John 3:16" or "John 3:16-17"
+  // Present only for cross-chapter ranges (e.g. "Exodus 6:28-7:7"): the chapter the range ENDS in.
+  // When set, the second element of `verse` (the end verse) belongs to `endChapter`, NOT `chapter`.
+  endChapter?: number;
+  reference: string; // Full reference string like "John 3:16", "John 3:16-17", or "Exodus 6:28-7:7"
 }
 
 export interface ScriptureDetection {
@@ -223,7 +248,16 @@ export const formatBookNameForAPI = (bookName: string): string => {
 
 // Helper function to validate and log warnings for scripture references
 function validateAndWarn(ref: ScriptureReference): ScriptureReference {
-  const { book, chapter, verse } = ref;
+  const { book, chapter, verse, endChapter } = ref;
+
+  // Cross-chapter range: validate start/end verses against their own chapters.
+  if (endChapter != null && Array.isArray(verse)) {
+    const [start, end] = verse;
+    if (!validateCrossChapterRange(book, chapter, start, endChapter, end)) {
+      console.warn(`Invalid cross-chapter range: ${ref.reference}`);
+    }
+    return ref;
+  }
 
   if (Array.isArray(verse)) {
     const [start, end] = verse;
@@ -259,6 +293,29 @@ function validateAndWarn(ref: ScriptureReference): ScriptureReference {
   return ref;
 }
 
+// Resolve a raw book substring (e.g. "Exodus", "1 cor") to its canonical book name, or null.
+function resolveCanonicalBookName(bookPart: string, bookNames: string[]): string | null {
+  const normalizedBookPart = normalizeText(bookPart);
+  for (const bookName of bookNames) {
+    const normalizedBookName = normalizeText(bookName);
+    if (
+      normalizedBookPart === normalizedBookName ||
+      normalizedBookPart.startsWith(normalizedBookName) ||
+      normalizedBookName.startsWith(normalizedBookPart)
+    ) {
+      return (
+        BIBLE_STUDY_KEYWORDS.find(
+          k =>
+            k.category === 'book' &&
+            (k.name.toLowerCase() === bookName.toLowerCase() ||
+              k.synonyms.some(s => s.toLowerCase() === bookName.toLowerCase())),
+        )?.name || bookName
+      );
+    }
+  }
+  return null;
+}
+
 // Parse scripture reference from text
 const parseReference = (match: string): ScriptureReference | null => {
   // Patterns: "John 3:16", "1 Corinthians 13:4-7", "Matthew 26:6-13, 17-30"
@@ -276,6 +333,31 @@ const parseReference = (match: string): ScriptureReference | null => {
 
   const bookNames = getBookNameVariations();
   const normalizedMatch = match.trim();
+
+  // Cross-chapter range: "Exodus 6:28-7:7" (startChapter:startVerse — endChapter:endVerse).
+  // Handled before the single-chapter patterns since those only model one chapter.
+  const crossChapterMatch = normalizedMatch.match(/^(.+?)\s+(\d+):(\d+)\s*[-–—]\s*(\d+):(\d+)$/);
+  if (crossChapterMatch) {
+    const startCh = parseInt(crossChapterMatch[2], 10);
+    const startV = parseInt(crossChapterMatch[3], 10);
+    const endCh = parseInt(crossChapterMatch[4], 10);
+    const endV = parseInt(crossChapterMatch[5], 10);
+    const ordered =
+      ![startCh, startV, endCh, endV].some(n => isNaN(n)) &&
+      (startCh < endCh || (startCh === endCh && startV <= endV));
+    if (ordered) {
+      const canonicalBook = resolveCanonicalBookName(crossChapterMatch[1].trim(), bookNames);
+      if (canonicalBook) {
+        return validateAndWarn({
+          book: canonicalBook,
+          chapter: startCh,
+          verse: [startV, endV] as [number, number],
+          endChapter: endCh,
+          reference: `${canonicalBook} ${startCh}:${startV}-${endCh}:${endV}`,
+        });
+      }
+    }
+  }
 
   for (const pattern of patterns) {
     const matchResult = normalizedMatch.match(pattern);
@@ -575,12 +657,45 @@ export const detectScriptureReferences = (text: string): ScriptureReference[] =>
   );
 
   let match;
-  
+
+  // Character spans claimed by a more-specific pass so later passes don't re-match inside them
+  // (e.g. the single-chapter pattern would otherwise grab "Exodus 6:28-7" from "Exodus 6:28-7:7").
+  const claimedRanges: Array<{ start: number; end: number }> = [];
+  const overlapsClaimed = (start: number, end: number) =>
+    claimedRanges.some(r => start < r.end && r.start < end);
+
+  // Pass 0: cross-chapter ranges (most specific) — "Exodus 6:28-7:7"
+  const crossChapterPattern = new RegExp(
+    `\\b(${escapedBookNames.join('|')})\\s+(\\d+):(\\d+)\\s*${dashPattern}\\s*(\\d+):(\\d+)(?=\\s|$|[^\\d\\w])`,
+    'gi',
+  );
+  while ((match = crossChapterPattern.exec(text)) !== null) {
+    const fullMatch = match[0];
+    const extracted = parseReference(fullMatch.trim());
+    if (extracted && extracted.endChapter != null) {
+      if (!isValidScriptureContext(text, match.index, fullMatch.length)) continue;
+      extracted.reference = fullMatch;
+      const normalizedExtracted = normalizeScriptureReference(extracted.reference);
+      const isDuplicate = references.some(
+        ref => normalizeScriptureReference(ref.reference) === normalizedExtracted,
+      );
+      if (!isDuplicate) {
+        references.push(extracted);
+        claimedRanges.push({ start: match.index, end: match.index + fullMatch.length });
+      }
+    }
+  }
+
   // First, find chapter:verse references (most specific)
   while ((match = referencePattern.exec(text)) !== null) {
     let fullMatch = match[0];
     const originalMatchEnd = match.index + fullMatch.length;
     let adjustedLastIndex = originalMatchEnd;
+
+    // Skip matches that fall inside a span already claimed by the cross-chapter pass.
+    if (overlapsClaimed(match.index, originalMatchEnd)) {
+      continue;
+    }
     
     // Check if the match ends with ", number" and what follows forms a book name
     // This indicates we matched too much (e.g., "Hebrews 13:2, 1" when "1 Peter" follows)
@@ -766,14 +881,15 @@ export const detectScriptureReferencesWithTranslation = (text: string): Scriptur
 };
 
 // Parse scripture reference string into components
-export const parseScriptureReference = (reference: string): { book: string; chapter: number; verse: number | [number, number] } | null => {
+export const parseScriptureReference = (reference: string): { book: string; chapter: number; verse: number | [number, number]; endChapter?: number } | null => {
   const parsed = parseReference(reference);
   if (!parsed) return null;
 
   return {
     book: parsed.book,
     chapter: parsed.chapter,
-    verse: parsed.verse
+    verse: parsed.verse,
+    endChapter: parsed.endChapter,
   };
 };
 

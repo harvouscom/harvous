@@ -12,6 +12,7 @@ import {
   getChapterVerseRange,
   validateVerseNumber,
   validateVerseRange,
+  validateCrossChapterRange,
   normalizeChapterReference,
   matchTrailingTranslationAbbreviation,
   matchAnchoredTrailingTranslationAbbreviation,
@@ -466,5 +467,70 @@ describe('detectScripture', () => {
     const result = await detectScripture('Hello world, this is a test');
     expect(result.isScripture).toBe(false);
     expect(result.type).toBeNull();
+  });
+});
+
+// ─── Cross-chapter ranges ────────────────────────────────
+describe('cross-chapter ranges', () => {
+  it('detects "Exodus 6:28-7:7" as a single reference with endChapter', () => {
+    const refs = detectScriptureReferences('Read Exodus 6:28-7:7 tonight');
+    expect(refs).toHaveLength(1);
+    expect(refs[0].book).toBe('Exodus');
+    expect(refs[0].chapter).toBe(6);
+    expect(refs[0].endChapter).toBe(7);
+    expect(refs[0].verse).toEqual([28, 7]);
+    expect(refs[0].reference).toBe('Exodus 6:28-7:7');
+  });
+
+  it('does not orphan the end chapter into a second pill', () => {
+    const refs = detectScriptureReferences('Exodus 6:28-7:7');
+    expect(refStrings(refs)).toEqual(['Exodus 6:28-7:7']);
+  });
+
+  it('detects "Genesis 1:31-2:3"', () => {
+    const refs = detectScriptureReferences('Genesis 1:31-2:3');
+    expect(refs).toHaveLength(1);
+    expect(refs[0].chapter).toBe(1);
+    expect(refs[0].endChapter).toBe(2);
+    expect(refs[0].verse).toEqual([31, 3]);
+  });
+
+  it('parseScriptureReference surfaces endChapter', () => {
+    const parsed = parseScriptureReference('Exodus 6:28-7:7');
+    expect(parsed).not.toBeNull();
+    expect(parsed!.chapter).toBe(6);
+    expect(parsed!.endChapter).toBe(7);
+    expect(parsed!.verse).toEqual([28, 7]);
+  });
+
+  it('canonicalizes spacing/abbreviation', () => {
+    expect(normalizeScriptureReference('Ex 6:28 - 7:7')).toBe('Exodus 6:28-7:7');
+  });
+
+  it('does not treat a same-chapter range as cross-chapter', () => {
+    const refs = detectScriptureReferences('Exodus 6:28-31');
+    expect(refs).toHaveLength(1);
+    expect(refs[0].endChapter).toBeUndefined();
+    expect(refs[0].verse).toEqual([28, 31]);
+  });
+
+  it('leaves chapter-only ranges ("Matthew 5-7") working', () => {
+    const refs = detectScriptureReferences('Matthew 5-7');
+    expect(refs).toHaveLength(1);
+    expect(refs[0].reference).toBe('Matthew 5-7');
+    expect(refs[0].endChapter).toBeUndefined();
+  });
+
+  it('rejects an out-of-range end verse', () => {
+    // Exodus 7 has 25 verses — 7:99 is invalid, so it should not detect a valid cross-chapter ref.
+    expect(validateCrossChapterRange('Exodus', 6, 28, 7, 99)).toBe(false);
+  });
+
+  it('validates a real cross-chapter range', () => {
+    expect(validateCrossChapterRange('Exodus', 6, 28, 7, 7)).toBe(true);
+  });
+
+  it('rejects a backwards cross-chapter range', () => {
+    expect(validateCrossChapterRange('Exodus', 7, 7, 6, 28)).toBe(false);
   });
 });

@@ -37,8 +37,11 @@ export function useProcessScriptureRefs() {
     onSuccess: (data, variables) => {
       const updated = data?.updatedContent;
       if (typeof updated === 'string' && updated.length > 0) {
+        // Patch the materialized pill content, but preserve the existing updatedAt: this runs on the
+        // view/backfill path (opening a note), and the server intentionally does NOT bump updatedAt
+        // there. Overwriting it here would optimistically reorder the note just for being viewed.
         queryClient.setQueryData<NoteDetail | undefined>(['note', variables.noteId], (old) =>
-          old ? { ...old, content: updated, updatedAt: new Date().toISOString() } : old
+          old ? { ...old, content: updated } : old
         );
       }
       void fetchAndMergeNoteTagsInCache(queryClient, variables.noteId);

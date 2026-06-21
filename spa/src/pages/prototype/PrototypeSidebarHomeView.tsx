@@ -8,8 +8,9 @@
  */
 import { useCallback, useMemo, useRef } from 'react';
 import { useNavigate } from '@tanstack/react-router';
-import Icon from '@/components/react/Icon';
+import Icon, { type IconName } from '@/components/react/Icon';
 import { prototypeNoteRouteTo } from '@/lib/prototype-path';
+import { PROTOTYPE_NOTE_LIST_NAV_SEARCH } from '@/utils/prototype-sidebar-highlight-active';
 import type { SpaceNoteRow } from '../../hooks/queries/useSpace';
 import type { ScriptureIndexBook } from '../../hooks/queries/usePrototypeSpaceScriptureIndex';
 import { useTagsList } from '../../hooks/queries/useTagsList';
@@ -347,7 +348,7 @@ function HomeNoteCard({
   prefetchNote,
 }: {
   eyebrow: string;
-  iconName: string;
+  iconName: IconName;
   note: SpaceNoteRow;
   onOpenNote: (row: SpaceNoteRow) => void;
   prefetchNote: (row: SpaceNoteRow) => void;
@@ -572,6 +573,7 @@ export default function PrototypeSidebarHomeView({
     navigate({
       to: prototypeNoteRouteTo(),
       params: { noteId: PROTOTYPE_DRAFT_NOTE_SLUG },
+      search: PROTOTYPE_NOTE_LIST_NAV_SEARCH,
     });
   }, [beginPrototypeComposeSession, closeDrawer, homeSpaceId, isMobileSidebar, navigate]);
 

@@ -523,7 +523,18 @@ route.put('/api/notes/update', requireAuth, rateLimit('write'), async (c) => {
       : contentForStore.charAt(0).toUpperCase() + contentForStore.slice(1);
     const capitalizedTitle = title ? (title.charAt(0).toUpperCase() + title.slice(1)) : title;
 
-    const updateData: any = { title: capitalizedTitle, content: capitalizedContent, updatedAt: nowISO() };
+    // Only bump updatedAt when the note's actual content changed. Folder/pin/tag/collection edits are
+    // metadata and must not churn the "last updated" sort order. Critically, this is also the endpoint
+    // the native sync push (flushNoteUpdate) and the web editor both flush through — so an auto-folder
+    // assignment applied merely by *opening* a note must not re-stamp updatedAt here.
+    const titleChanged = capitalizedTitle !== existingNote.title;
+    const contentChanged = capitalizedContent !== existingNote.content;
+    const encryptionToggled =
+      typeof contentEncrypted === 'boolean' && contentEncrypted !== existingNote.contentEncrypted;
+    const contentTouched = titleChanged || contentChanged || encryptionToggled;
+
+    const updateData: any = { title: capitalizedTitle, content: capitalizedContent };
+    if (contentTouched) updateData.updatedAt = nowISO();
     let nextPrimaryForSecondaries: string | null = existingNote.primaryCollection ?? null;
     if (primaryCollectionRaw !== undefined) {
       updateData.primaryCollection =
@@ -576,13 +587,10 @@ route.put('/api/notes/update', requireAuth, rateLimit('write'), async (c) => {
     // Update thread timestamps — single bulk UPDATE instead of N sequential round trips.
     const noteThreads = await db.select({ threadId: NoteThreads.threadId }).from(NoteThreads).where(eq(NoteThreads.noteId, noteId));
     const threadIdsToTouch = noteThreads.map((nt) => nt.threadId);
-    if (threadIdsToTouch.length > 0) {
+    if (contentTouched && threadIdsToTouch.length > 0) {
       await db.update(Threads).set({ updatedAt: nowISO() })
         .where(and(inArray(Threads.id, threadIdsToTouch), eq(Threads.userId, auth.userId)));
     }
-
-    const titleChanged = capitalizedTitle !== existingNote.title;
-    const contentChanged = capitalizedContent !== existingNote.content;
 
     // Re-tag only when title or body changed — folder/pin edits must not churn tags.
     if (!isEncrypted && (titleChanged || contentChanged)) {
@@ -1993,9 +2001,10 @@ route.post('/api/notes/:id/process-scripture-references', requireAuth, rateLimit
     // Always run as the note owner: lookups, scripture child notes, and metadata are keyed to Notes.userId.
     // Space members may trigger processing for admin/system-owned shared notes; content updates apply for everyone.
     // This endpoint is the load/backfill path (opening a note materializes legacy pills) — skip the parent
-    // auto-tag so merely viewing a note never appends new tags. Genuine writes (create/update/sync/import)
-    // call processScriptureReferences directly and keep tagging.
-    const result = await processScriptureReferences(noteId, noteRow.userId, threadId, contentOverride, translation || 'NET', { skipParentAutoTag: true });
+    // auto-tag so merely viewing a note never appends new tags, and skip the updatedAt bump so merely
+    // viewing a note never changes its "last updated" sort order. Genuine writes (create/update/sync/import)
+    // call processScriptureReferences directly and keep both tagging and the updatedAt bump.
+    const result = await processScriptureReferences(noteId, noteRow.userId, threadId, contentOverride, translation || 'NET', { skipParentAutoTag: true, skipUpdatedAt: true });
     return c.json(result);
   } catch (error: any) {
     console.error('Error processing scripture references:', error);

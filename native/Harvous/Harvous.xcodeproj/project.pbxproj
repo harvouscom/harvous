@@ -96,6 +96,7 @@
 		30643B6C28BBCF90AE8C6E7E /* NoteInspectorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B01C0F956EDEE14AFA9CFCE4 /* NoteInspectorView.swift */; };
 		319A19A2CB874C7961C1832F /* HarvousAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C9EB3F9EDC45F7ECFC5482C /* HarvousAPI.swift */; };
 		32211D66247CA28A65E4BEE0 /* HarvousPinnedFoldersStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0E092C1AAE9BA2235B5BD28 /* HarvousPinnedFoldersStore.swift */; };
+		326975B394E57F5728904A9A /* HarvousAlphabeticalSortKey.swift in Sources */ = {isa = PBXBuildFile; fileRef = 583A6D00AFAB7F4E98B4D399 /* HarvousAlphabeticalSortKey.swift */; };
 		330DA5D629E1FFA04D9C0728 /* ClerkKit in Frameworks */ = {isa = PBXBuildFile; productRef = F11BF21905D31C1A8C48B73B /* ClerkKit */; };
 		3351A1BA164277C29E29001B /* HarvousTypography.swift in Sources */ = {isa = PBXBuildFile; fileRef = E71DE04A6AE210B9D54FE8A0 /* HarvousTypography.swift */; };
 		355F97737EF82A2D80C31733 /* HarvousPinnedHighlightsStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A095B7E58EB5E0D9E54AA47 /* HarvousPinnedHighlightsStore.swift */; };
@@ -139,6 +140,7 @@
 		5287851FD5AF881EF5C5FCF0 /* HarvousVaultImporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9317A05B9D1F267F5F937F9A /* HarvousVaultImporter.swift */; };
 		52FC0797E465D1D5F756A78D /* HarvousShape.swift in Sources */ = {isa = PBXBuildFile; fileRef = 93BD7793A26926D86217278C /* HarvousShape.swift */; };
 		53485AA96FA3FDB6D0AD7E18 /* ScriptureApplyFeedback.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2CD4564CFE7897AC0499AEEF /* ScriptureApplyFeedback.swift */; };
+		53B78B5BEBE9530A53DB8AB6 /* HarvousAlphabeticalSortKey.swift in Sources */ = {isa = PBXBuildFile; fileRef = 583A6D00AFAB7F4E98B4D399 /* HarvousAlphabeticalSortKey.swift */; };
 		54553F10D2B0C99E657FA641 /* SpotlightSearchView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 92DDE26789E878D4C7F476FA /* SpotlightSearchView.swift */; };
 		54982E74F14FEA35604BAF97 /* IOSHighlightAuthoringSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0FC075712259BDB7D1498A56 /* IOSHighlightAuthoringSheet.swift */; };
 		54E0D5AEE1B3F46D31B2CB6C /* ScripturePassageCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2FD1975E13865A50DFD080B7 /* ScripturePassageCache.swift */; };
@@ -148,6 +150,7 @@
 		5568166DFC4154581BAE0965 /* HarvousEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19A8E6EB0CD972726ED60880 /* HarvousEditor.swift */; };
 		5593485BF337048B71526DA1 /* ClerkKitUI in Frameworks */ = {isa = PBXBuildFile; productRef = EFA0B46F742616358BA66E55 /* ClerkKitUI */; };
 		5628EF520CFC0E17CABDD39F /* StudyDockCarouselCollapsedCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3E13727BBD8978174E5AE2EE /* StudyDockCarouselCollapsedCard.swift */; };
+		564363DD6AC1E38CE8AA3275 /* HarvousFolderListIndexTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 46C09A43262296C1378FB320 /* HarvousFolderListIndexTests.swift */; };
 		56BC7EAC48129F67C89F9636 /* HarvousSyncPruneGuardTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 54CF477BCBFDB872BB4E37AB /* HarvousSyncPruneGuardTests.swift */; };
 		56BE852ADFC48CCECEB7B69F /* HarvousCommands.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1774DF51E262C76E2037DDE /* HarvousCommands.swift */; };
 		5755EBCCB098A034FFC51B61 /* HarvousTombstoneRoutingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1130B7BF82C648498506E71F /* HarvousTombstoneRoutingTests.swift */; };
@@ -427,6 +430,7 @@
 		F69FF5A10E653F4F58817B0A /* HarvousSyncScheduler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5BB20E2EB84205FEDAAD5951 /* HarvousSyncScheduler.swift */; };
 		F73A5A187CD378E2F7AFFF9C /* LayoutSidebarLeft.svg in Resources */ = {isa = PBXBuildFile; fileRef = 5DB2658D76397E8E6B3ADFB3 /* LayoutSidebarLeft.svg */; };
 		F7459175D8BF8B5CE9D8F8E3 /* PersonNameContextGate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 29D6FAAB4F77BFE86A8033E7 /* PersonNameContextGate.swift */; };
+		F90F15D637F8EBD7AB6759AF /* HarvousFolderListIndexTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 46C09A43262296C1378FB320 /* HarvousFolderListIndexTests.swift */; };
 		F95D433B3BBC3B59CDF22911 /* StudyPromptSuggester.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6DB7DD83F92E017190736B0 /* StudyPromptSuggester.swift */; };
 		F95E14BC70B3DD41BFC42854 /* HarvousAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C9EB3F9EDC45F7ECFC5482C /* HarvousAPI.swift */; };
 		F98C8D198E8FCB3484014E86 /* HarvousVaultImporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9317A05B9D1F267F5F937F9A /* HarvousVaultImporter.swift */; };
@@ -531,6 +535,7 @@
 		46079A912ECB2C6341C3358A /* HarvousStandaloneSelectionNote.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HarvousStandaloneSelectionNote.swift; sourceTree = "<group>"; };
 		469F48BD9DD163E6907657F4 /* StudyThread.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudyThread.swift; sourceTree = "<group>"; };
 		46A1A636DA90601D9E72E8F7 /* SettingsSharingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsSharingView.swift; sourceTree = "<group>"; };
+		46C09A43262296C1378FB320 /* HarvousFolderListIndexTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HarvousFolderListIndexTests.swift; sourceTree = "<group>"; };
 		47E69BBE154E0009841CF68C /* SpaceManagementViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpaceManagementViews.swift; sourceTree = "<group>"; };
 		498127C75F54638C23269FD1 /* NoteListColumn.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NoteListColumn.swift; sourceTree = "<group>"; };
 		49F300A0A85468A504510C2C /* HarvousFormatToolbarHairline.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HarvousFormatToolbarHairline.swift; sourceTree = "<group>"; };
@@ -543,6 +548,7 @@
 		54CF477BCBFDB872BB4E37AB /* HarvousSyncPruneGuardTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HarvousSyncPruneGuardTests.swift; sourceTree = "<group>"; };
 		57D7579C95BFE0D3CDBBE2B0 /* HarvousUITests_macOS.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = HarvousUITests_macOS.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		5801BECD03810B0343F2B8D5 /* SidebarSearchResultRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarSearchResultRowView.swift; sourceTree = "<group>"; };
+		583A6D00AFAB7F4E98B4D399 /* HarvousAlphabeticalSortKey.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HarvousAlphabeticalSortKey.swift; sourceTree = "<group>"; };
 		585C46AFD346925C58AA0320 /* HarvousSupabaseConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HarvousSupabaseConfig.swift; sourceTree = "<group>"; };
 		593C2F48E9B13AC1EA6FF24E /* DockExpandedContentEnvironment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DockExpandedContentEnvironment.swift; sourceTree = "<group>"; };
 		595E7301ACD5DE03BE81AC12 /* HarvousVaultMarkdownTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HarvousVaultMarkdownTests.swift; sourceTree = "<group>"; };
@@ -836,6 +842,7 @@
 				D623F0317BE12C8790ABEE1E /* HarvousContentBridgeTests.swift */,
 				CB88BB4BD68BBB80D21FC7E8 /* HarvousCSVImportTests.swift */,
 				8F55A83DE549147834236A1B /* HarvousEditorSyncGuardTests.swift */,
+				46C09A43262296C1378FB320 /* HarvousFolderListIndexTests.swift */,
 				7F4A922B826E2457B2E02B69 /* HarvousHorizontalRuleRoundTripTests.swift */,
 				C31B7768129D5866248031DF /* HarvousNoteShareBuilderTests.swift */,
 				629CDDB0472A9BD43948E2C0 /* HarvousStudyHighlightMapperTests.swift */,
@@ -934,6 +941,7 @@
 		88E05A70C27AC27977D46A52 /* Utils */ = {
 			isa = PBXGroup;
 			children = (
+				583A6D00AFAB7F4E98B4D399 /* HarvousAlphabeticalSortKey.swift */,
 				6AA9819563F9115D712D299B /* HarvousNoteListVisibility.swift */,
 				75C428FBB5ACBE0424FA0262 /* HarvousUnsyncedDraftCleanup.swift */,
 			);
@@ -1358,6 +1366,7 @@
 				057724F1525FFB8F51784A6D /* FolderKeywordContextGate.swift in Sources */,
 				F95E14BC70B3DD41BFC42854 /* HarvousAPI.swift in Sources */,
 				6E945962E66C17336CF364E7 /* HarvousAccessibilityID.swift in Sources */,
+				53B78B5BEBE9530A53DB8AB6 /* HarvousAlphabeticalSortKey.swift in Sources */,
 				11E4CA639E3852FB2B83ED7C /* HarvousApp.swift in Sources */,
 				D8F4EF30B0C44345D1CA2C0E /* HarvousAppRouter.swift in Sources */,
 				00913905611B881E7D93CAEB /* HarvousAppearanceBorders.swift in Sources */,
@@ -1526,6 +1535,7 @@
 				C58F8E722779C804A7B738C8 /* HarvousCSVImportTests.swift in Sources */,
 				7FB384CE131DB9377E2FDC42 /* HarvousContentBridgeTests.swift in Sources */,
 				0B6078732F522299D1EF46E4 /* HarvousEditorSyncGuardTests.swift in Sources */,
+				564363DD6AC1E38CE8AA3275 /* HarvousFolderListIndexTests.swift in Sources */,
 				CB30E206DA901931E8A66541 /* HarvousHorizontalRuleRoundTripTests.swift in Sources */,
 				FCE89579C360AA8E27CA83F5 /* HarvousNoteShareBuilderTests.swift in Sources */,
 				82D5308606E8DB9A22F783A2 /* HarvousStudyHighlightMapperTests.swift in Sources */,
@@ -1548,6 +1558,7 @@
 				A010BBECFA0D4BE4655A5251 /* HarvousCSVImportTests.swift in Sources */,
 				7A747BE0F08A8932AA3793E1 /* HarvousContentBridgeTests.swift in Sources */,
 				CF20D21C60146B4C75148826 /* HarvousEditorSyncGuardTests.swift in Sources */,
+				F90F15D637F8EBD7AB6759AF /* HarvousFolderListIndexTests.swift in Sources */,
 				63914AE5F748A36A745E0D98 /* HarvousHorizontalRuleRoundTripTests.swift in Sources */,
 				3DACBB1E3B6147AA8750ED7C /* HarvousNoteShareBuilderTests.swift in Sources */,
 				71073287D15622D48130979A /* HarvousStudyHighlightMapperTests.swift in Sources */,
@@ -1597,6 +1608,7 @@
 				73AA88CE8295CDFE1898FEC8 /* FolderKeywordContextGate.swift in Sources */,
 				319A19A2CB874C7961C1832F /* HarvousAPI.swift in Sources */,
 				03D2C65AB42ADC6DE8F818AC /* HarvousAccessibilityID.swift in Sources */,
+				326975B394E57F5728904A9A /* HarvousAlphabeticalSortKey.swift in Sources */,
 				F60C8B807A8DBE88FCD14498 /* HarvousApp.swift in Sources */,
 				26BAAB41F9166C35B5A053E0 /* HarvousAppRouter.swift in Sources */,
 				D582A3A4C3E8BE30B62386DA /* HarvousAppearanceBorders.swift in Sources */,

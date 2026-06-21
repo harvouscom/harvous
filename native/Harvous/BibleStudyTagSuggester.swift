@@ -313,6 +313,14 @@ enum BibleStudyTagSuggester {
         }
     }
 
+    /// A Bible book "defines" the note — and may win the primary folder over a theme — only when the
+    /// note is genuinely a study of it: the book is in the title, or it recurs (>= 3). A passing
+    /// citation never beats a real theme and stays a tag. Keep in sync with web `isBookDefining`.
+    private static func isBookDefining(_ s: Scored) -> Bool {
+        guard s.category == .book else { return false }
+        return s.inTitle || s.occurrences >= 3
+    }
+
     /// When a bible book and character share a name, keep the character row for scoring (John 3:16 ≠ a John study).
     private static func shouldPreferKeywordRowOverExisting(new: Scored, existing: Scored) -> Bool {
         if existing.category == .book && new.category == .character { return true }
@@ -462,11 +470,14 @@ enum BibleStudyTagSuggester {
         if isThemePrimaryCategory(b.category), (a.category == .character || a.category == .place), !a.inTitle {
             if sa - sb < 0.18 { return b }
         }
-        if isThemePrimaryCategory(a.category), b.category == .book {
-            if sb - sa < 0.18 { return a }
+        // A theme outranks a Bible-book mention unless the book is the note's subject (book-defining:
+        // in title or recurring). A passing book citation never wins primary over a real theme; a
+        // book-study (defining book) competes on raw score, so its title boost can carry the primary.
+        if isThemePrimaryCategory(a.category), b.category == .book, !isBookDefining(b) {
+            return a
         }
-        if isThemePrimaryCategory(b.category), a.category == .book {
-            if sa - sb < 0.18 { return b }
+        if isThemePrimaryCategory(b.category), a.category == .book, !isBookDefining(a) {
+            return b
         }
         if abs(sa - sb) > primaryScoreAmbiguityEpsilon {
             return sa >= sb ? a : b
@@ -495,6 +506,10 @@ enum BibleStudyTagSuggester {
     private static func isEligibleSecondaryFolder(_ s: Scored, in analysis: Analysis) -> Bool {
         let ps = primaryScore(s, in: analysis)
         switch s.category {
+        case .book:
+            // Books are folder-only-when-primary: a cited-but-not-primary book never becomes a
+            // secondary folder — it surfaces as a tag instead. Keep in sync with web.
+            return false
         case .character, .place:
             let strongContext = s.inTitle || s.occurrences >= 3
             let floor = strongContext ? secondaryMinPrimaryScore : secondaryCharacterPlaceMinScore
@@ -909,9 +924,27 @@ enum BibleStudyTagSuggester {
         re.enumerateMatches(in: text, options: [], range: NSRange(location: 0, length: n)) { match, _, _ in
             guard let match, let swiftRange = Range(match.range, in: text) else { return }
             if PersonNameContextGate.shouldSkip(in: text, wordRange: swiftRange) { return }
+            // A name inside a numbered Bible book (e.g. "Peter" in "1 Peter 2:9") is a scripture
+            // reference, not the person — don't count it toward the character. The book itself is
+            // detected separately via its full multi-word name.
+            if isPartOfNumberedBook(word: word, in: text, wordRange: swiftRange) { return }
             count += 1
         }
         return count
+    }
+
+    /// Lowercased Bible-book names that begin with a number (e.g. "1 peter", "2 john").
+    private static let numberedBookNamesLower: Set<String> = Set(
+        bookNames.map { $0.lowercased() }.filter { $0.first?.isNumber == true }
+    )
+
+    /// True when a single-word person match (e.g. "Peter") is the tail of a numbered Bible-book
+    /// reference (e.g. "1 Peter", "2 John") — so scripture citations are not counted as the person.
+    private static func isPartOfNumberedBook(word: String, in text: String, wordRange: Range<String.Index>) -> Bool {
+        let prefix = text[text.startIndex..<wordRange.lowerBound]
+        guard let m = prefix.range(of: #"(\d+)\s+$"#, options: .regularExpression) else { return false }
+        let number = prefix[m].trimmingCharacters(in: .whitespaces)
+        return numberedBookNamesLower.contains("\(number) \(word)".lowercased())
     }
 
     private static func countWholeWordOccurrences(of word: String, in textLower: String) -> Int {

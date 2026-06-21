@@ -97,9 +97,12 @@ enum ScriptureCanonicalBooks {
         }
     }
 
-    static func displayString(bookIndex: Int, chapter: Int, verseStart: Int, verseEnd: Int?) -> String {
+    static func displayString(bookIndex: Int, chapter: Int, verseStart: Int, verseEnd: Int?, endChapter: Int? = nil) -> String {
         guard bookIndex >= 0, bookIndex < titles.count else { return "" }
         let name = titles[bookIndex]
+        if let endCh = endChapter, endCh != chapter {
+            return "\(name) \(chapter):\(verseStart)-\(endCh):\(verseEnd ?? verseStart)"
+        }
         if let end = verseEnd, end != verseStart {
             return "\(name) \(chapter):\(verseStart)-\(end)"
         }
@@ -107,12 +110,15 @@ enum ScriptureCanonicalBooks {
     }
 }
 
-/// Fields parsed from a reference string such as `John 3:16` or `1 Cor 4:2-5`.
+/// Fields parsed from a reference string such as `John 3:16`, `1 Cor 4:2-5`, or `Exodus 6:28-7:7`.
+/// `endChapter` is non-nil only for cross-chapter ranges; when set, `verseEnd` is the end verse
+/// within `endChapter`, not `chapter`.
 struct ParsedScriptureFields: Equatable, Hashable {
     var bookIndex: Int
     var chapter: Int
     var verseStart: Int
     var verseEnd: Int?
+    var endChapter: Int? = nil
 }
 
 enum ScriptureReferenceParser {
@@ -120,18 +126,37 @@ enum ScriptureReferenceParser {
     static func parse(_ text: String) -> ParsedScriptureFields? {
         guard let raw = ScriptureDetector.parseReferenceFields(in: text) else { return nil }
         guard let bookIndex = ScriptureCanonicalBooks.bookIndex(matchingRaw: raw.bookRaw) else { return nil }
-        return ParsedScriptureFields(bookIndex: bookIndex, chapter: raw.chapter, verseStart: raw.verseStart, verseEnd: raw.verseEnd)
+        return ParsedScriptureFields(bookIndex: bookIndex, chapter: raw.chapter, verseStart: raw.verseStart, verseEnd: raw.verseEnd, endChapter: raw.endChapter)
     }
 
-    /// True when any persisted reference string overlaps `query`'s passage (same book/chapter + verse range intersection).
+    /// Cumulative verse index within a book so cross-chapter ranges compare as monotonic intervals.
+    private static func absoluteVerse(bookIndex: Int, chapter: Int, verse: Int) -> Int {
+        var total = 0
+        if chapter > 1 {
+            for ch in 1..<chapter {
+                total += ScriptureCanon.verseCount(bookIndex: bookIndex, chapter: ch)
+            }
+        }
+        return total + verse
+    }
+
+    /// True when any persisted reference string overlaps `query`'s passage (same book + verse range
+    /// intersection). Handles cross-chapter ranges via a cumulative within-book verse index.
     static func anyDetectedReference(_ refs: [String], overlapsStructured query: ParsedScriptureFields) -> Bool {
+        let qLo = absoluteVerse(bookIndex: query.bookIndex, chapter: query.chapter, verse: query.verseStart)
+        let qHi = absoluteVerse(
+            bookIndex: query.bookIndex,
+            chapter: query.endChapter ?? query.chapter,
+            verse: query.verseEnd ?? query.verseStart
+        )
         for r in refs {
-            guard let p = parse(r) else { continue }
-            guard p.bookIndex == query.bookIndex, p.chapter == query.chapter else { continue }
-            let nLo = p.verseStart
-            let nHi = p.verseEnd ?? p.verseStart
-            let qLo = query.verseStart
-            let qHi = query.verseEnd ?? query.verseStart
+            guard let p = parse(r), p.bookIndex == query.bookIndex else { continue }
+            let nLo = absoluteVerse(bookIndex: p.bookIndex, chapter: p.chapter, verse: p.verseStart)
+            let nHi = absoluteVerse(
+                bookIndex: p.bookIndex,
+                chapter: p.endChapter ?? p.chapter,
+                verse: p.verseEnd ?? p.verseStart
+            )
             if nLo <= qHi && qLo <= nHi {
                 return true
             }
@@ -139,7 +164,7 @@ enum ScriptureReferenceParser {
         return false
     }
 
-    static func format(bookIndex: Int, chapter: Int, verseStart: Int, verseEnd: Int?) -> String {
-        ScriptureCanonicalBooks.displayString(bookIndex: bookIndex, chapter: chapter, verseStart: verseStart, verseEnd: verseEnd)
+    static func format(bookIndex: Int, chapter: Int, verseStart: Int, verseEnd: Int?, endChapter: Int? = nil) -> String {
+        ScriptureCanonicalBooks.displayString(bookIndex: bookIndex, chapter: chapter, verseStart: verseStart, verseEnd: verseEnd, endChapter: endChapter)
     }
 }

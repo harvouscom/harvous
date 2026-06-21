@@ -42,6 +42,43 @@ final class ScriptureReferenceParserTests: XCTestCase {
     XCTAssertEqual(p.verseEnd, 6)
   }
 
+  func testParseCrossChapterRange() {
+    guard let exodusIdx = ScriptureCanonicalBooks.titles.firstIndex(of: "Exodus") else {
+      XCTFail("missing Exodus")
+      return
+    }
+    guard let p = ScriptureReferenceParser.parse("Exodus 6:28-7:7") else {
+      XCTFail("parse failed")
+      return
+    }
+    XCTAssertEqual(p.bookIndex, exodusIdx)
+    XCTAssertEqual(p.chapter, 6)
+    XCTAssertEqual(p.verseStart, 28)
+    XCTAssertEqual(p.verseEnd, 7)
+    XCTAssertEqual(p.endChapter, 7)
+    XCTAssertEqual(
+      ScriptureReferenceParser.format(bookIndex: exodusIdx, chapter: 6, verseStart: 28, verseEnd: 7, endChapter: 7),
+      "Exodus 6:28-7:7"
+    )
+  }
+
+  func testDetectCrossChapterRangeAsSinglePill() {
+    let matches = ScriptureDetector.detect(in: "Read Exodus 6:28-7:7 tonight")
+    XCTAssertEqual(matches.count, 1)
+    XCTAssertEqual(matches.first?.displayText, "Exodus 6:28-7:7")
+  }
+
+  func testCrossChapterOverlapAcrossChapters() {
+    guard let exodusIdx = ScriptureCanonicalBooks.titles.firstIndex(of: "Exodus") else {
+      XCTFail("missing Exodus")
+      return
+    }
+    // A note tagged "Exodus 7:1" should be found by a query spanning Exodus 6:28-7:7.
+    let query = ParsedScriptureFields(bookIndex: exodusIdx, chapter: 6, verseStart: 28, verseEnd: 7, endChapter: 7)
+    XCTAssertTrue(ScriptureReferenceParser.anyDetectedReference(["Exodus 7:1"], overlapsStructured: query))
+    XCTAssertFalse(ScriptureReferenceParser.anyDetectedReference(["Exodus 8:1"], overlapsStructured: query))
+  }
+
   func testOverlapDetection() {
     guard let johnIdx = ScriptureCanonicalBooks.titles.firstIndex(of: "John") else {
       XCTFail("missing John")
