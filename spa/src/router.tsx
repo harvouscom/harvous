@@ -16,6 +16,7 @@ import NotePage from './pages/NotePage';
 import SimplifiedPrototypeLayout from './layouts/SimplifiedPrototypeLayout';
 import PrototypeHomePage from './pages/prototype/PrototypeHomePage';
 import PrototypeNotePage from './pages/prototype/PrototypeNotePage';
+import { noteParamSlug, normalizeNoteIdFromParam } from './pages/prototype/proto-route-slugs';
 
 // Root route — must render Outlet so child routes paint (pathless layouts included).
 const rootRoute = createRootRoute({
@@ -204,7 +205,20 @@ function buildPrototypeRouteBranch() {
     beforeLoad: ({ params }) => {
       throw redirect({
         to: prototypeNoteRouteTo(),
-        params: { noteId: params.noteId },
+        params: { noteId: noteParamSlug(normalizeNoteIdFromParam(params.noteId)) },
+        replace: true,
+      });
+    },
+  });
+
+  // Legacy `/n/<id>` links (old numeric/`/n/` scheme) → root `/<base62-slug>`.
+  const prototypeLegacyFlatNoteRedirectRoute = createRoute({
+    getParentRoute: () => simplifiedPrototypeRoute,
+    path: 'n/$noteId',
+    beforeLoad: ({ params }) => {
+      throw redirect({
+        to: prototypeNoteRouteTo(),
+        params: { noteId: noteParamSlug(normalizeNoteIdFromParam(params.noteId)) },
         replace: true,
       });
     },
@@ -223,7 +237,7 @@ function buildPrototypeRouteBranch() {
 
   const prototypeNoteFlatRoute = createRoute({
     getParentRoute: () => simplifiedPrototypeRoute,
-    path: 'n/$noteId',
+    path: '$noteId',
     component: PrototypeNotePage,
     validateSearch: (search: Record<string, unknown>) => ({
       studyThread: typeof search.studyThread === 'string' ? search.studyThread : undefined,
@@ -305,6 +319,7 @@ function buildPrototypeRouteBranch() {
   return simplifiedPrototypeRoute.addChildren([
     prototypeLegacySpaceNoteRedirectRoute,
     prototypeLegacySpaceRedirectRoute,
+    prototypeLegacyFlatNoteRedirectRoute,
     prototypeHomeRoute,
     prototypeSearchRedirectRoute,
     prototypeNoteFlatRoute,

@@ -8,15 +8,20 @@ import {
 } from '../prototype-draft-compose-session';
 
 describe('isDraftComposeAdoptionTransition', () => {
-  it('detects /n/new → /n/<id> for the adopted compose session', () => {
-    expect(isDraftComposeAdoptionTransition('new', 'abc123', 'note_abc123')).toBe(true);
-    expect(isDraftComposeAdoptionTransition('new', 'note_abc123', 'note_abc123')).toBe(true);
+  // note_1781400844391 base62-encodes to fWdqYzt
+  const adoptedId = 'note_1781400844391';
+  const adoptedSlug = 'fWdqYzt';
+
+  it('detects /new → /<slug> for the adopted compose session', () => {
+    expect(isDraftComposeAdoptionTransition('new', adoptedSlug, adoptedId)).toBe(true);
+    // a full id passed through (defensive) still resolves to itself
+    expect(isDraftComposeAdoptionTransition('new', adoptedId, adoptedId)).toBe(true);
   });
 
   it('returns false for unrelated navigations', () => {
-    expect(isDraftComposeAdoptionTransition('new', 'other', 'note_abc123')).toBe(false);
-    expect(isDraftComposeAdoptionTransition('abc', 'def', 'note_abc123')).toBe(false);
-    expect(isDraftComposeAdoptionTransition('new', 'abc123', null)).toBe(false);
+    expect(isDraftComposeAdoptionTransition('new', 'other', adoptedId)).toBe(false);
+    expect(isDraftComposeAdoptionTransition('abc', 'def', adoptedId)).toBe(false);
+    expect(isDraftComposeAdoptionTransition('new', adoptedSlug, null)).toBe(false);
   });
 });
 

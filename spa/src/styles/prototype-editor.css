@@ -530,23 +530,35 @@ html.harvous-prototype-route .proto-editor-surface .scripture-pill-draft__confir
   text-decoration: underline;
   text-decoration-thickness: 2px;
   text-underline-offset: 3px;
-  text-decoration-color: var(--pds-highlight-warm-amber);
+  /* `--mark-accent` carries the per-highlight color so the spotlight rules below can dim a mark to
+   * neutral and restore its own accent without re-listing every color. */
+  --mark-accent: var(--pds-highlight-warm-amber);
+  text-decoration-color: var(--mark-accent);
   border-radius: 0;
   padding: 0;
 }
 
 .proto-editor-surface .ProseMirror mark[data-color="neutral"],
-.proto-editor-surface .card-full-editable__content-html mark[data-color="neutral"] { text-decoration-color: var(--pds-highlight-neutral); }
+.proto-editor-surface .card-full-editable__content-html mark[data-color="neutral"] { --mark-accent: var(--pds-highlight-neutral); }
 .proto-editor-surface .ProseMirror mark[data-color="warmAmber"],
-.proto-editor-surface .card-full-editable__content-html mark[data-color="warmAmber"] { text-decoration-color: var(--pds-highlight-warm-amber); }
+.proto-editor-surface .card-full-editable__content-html mark[data-color="warmAmber"] { --mark-accent: var(--pds-highlight-warm-amber); }
 .proto-editor-surface .ProseMirror mark[data-color="skyBlue"],
-.proto-editor-surface .card-full-editable__content-html mark[data-color="skyBlue"] { text-decoration-color: var(--pds-highlight-sky-blue); }
+.proto-editor-surface .card-full-editable__content-html mark[data-color="skyBlue"] { --mark-accent: var(--pds-highlight-sky-blue); }
 .proto-editor-surface .ProseMirror mark[data-color="violet"],
-.proto-editor-surface .card-full-editable__content-html mark[data-color="violet"] { text-decoration-color: var(--pds-highlight-violet); }
+.proto-editor-surface .card-full-editable__content-html mark[data-color="violet"] { --mark-accent: var(--pds-highlight-violet); }
 .proto-editor-surface .ProseMirror mark[data-color="mintGreen"],
-.proto-editor-surface .card-full-editable__content-html mark[data-color="mintGreen"] { text-decoration-color: var(--pds-highlight-mint-green); }
+.proto-editor-surface .card-full-editable__content-html mark[data-color="mintGreen"] { --mark-accent: var(--pds-highlight-mint-green); }
 .proto-editor-surface .ProseMirror mark[data-color="coralRose"],
-.proto-editor-surface .card-full-editable__content-html mark[data-color="coralRose"] { text-decoration-color: var(--pds-highlight-coral-rose); }
+.proto-editor-surface .card-full-editable__content-html mark[data-color="coralRose"] { --mark-accent: var(--pds-highlight-coral-rose); }
+
+/* Spotlight: while a highlight (or reference) dock is expanded, only the expanded highlight keeps
+ * its color — every other highlight underline dims to neutral gray so the active one stands out.
+ * `data-dim-highlights="<studyThreadEntryId>"` is set on the ProseMirror root by TiptapEditor, and a
+ * per-id restore rule is injected alongside it (see `dim-highlights` effect). */
+.proto-editor-surface .ProseMirror[data-dim-highlights] mark {
+  text-decoration-color: var(--pds-text-tertiary) !important;
+  text-shadow: none !important;
+}
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-color-scheme="light"]) .proto-editor-surface .ProseMirror mark,

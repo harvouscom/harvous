@@ -1,3 +1,5 @@
+import { decodeNoteSlug } from './ids';
+
 export const PROTOTYPE_DRAFT_NOTE_ID = 'note_draft';
 
 const PROTOTYPE_DRAFT_NOTE_SLUG = 'new';
@@ -6,11 +8,7 @@ function isPrototypeDraftNoteSlug(slug: string): boolean {
   return slug === PROTOTYPE_DRAFT_NOTE_SLUG;
 }
 
-function normalizeNoteIdFromParam(slug: string): string {
-  return slug.startsWith('note_') ? slug : `note_${slug}`;
-}
-
-/** `/n/new` → `/n/<id>` within the same compose session (draft just persisted). */
+/** `/new` → `/<slug>` within the same compose session (draft just persisted). */
 export function isDraftComposeAdoptionTransition(
   prevSlug: string,
   nextSlug: string,
@@ -18,7 +16,7 @@ export function isDraftComposeAdoptionTransition(
 ): boolean {
   if (!isPrototypeDraftNoteSlug(prevSlug)) return false;
   if (!adoptedComposeId) return false;
-  const nextId = normalizeNoteIdFromParam(nextSlug);
+  const nextId = decodeNoteSlug(nextSlug);
   return nextId === adoptedComposeId;
 }
 

@@ -54,17 +54,30 @@ function isNonPrototypeAppPath(logical: string): boolean {
   return NON_PROTOTYPE_PREFIXES.some((p) => logical === p || logical.startsWith(p));
 }
 
+/**
+ * Single-segment shell children that are NOT notes. Notes live at the root layer
+ * (`/<slug>`), so any other single non-reserved segment is treated as a note.
+ */
+const RESERVED_PROTOTYPE_SEGMENTS = new Set(['settings', 'space', 'search']);
+
+/**
+ * The lone path segment of a prototype-shell URL, or null when the path is the
+ * home index, a multi-segment route, or a non-prototype app path.
+ */
+function singlePrototypeSegment(pathname: string): string | null {
+  const logical = prototypeLogicalPath(pathname);
+  if (isNonPrototypeAppPath(logical)) return null;
+  const trimmed = logical.replace(/^\/+/, '').replace(/\/+$/, '');
+  if (trimmed === '' || trimmed.includes('/')) return null;
+  return trimmed;
+}
+
 export function isPrototypeShellPath(pathname: string): boolean {
   if (pathname.startsWith('/prototype')) return true;
   if (!isDedicatedPrototypeHost()) return false;
-  const logical = prototypeLogicalPath(pathname);
-  if (isNonPrototypeAppPath(logical)) return false;
-  if (logical === '/' || logical === '') return true;
-  return (
-    logical.startsWith('/n/') ||
-    logical.startsWith('/settings') ||
-    logical.startsWith('/space/')
-  );
+  // On the dedicated host every path that isn't an explicit non-prototype app
+  // path (auth, sharing, api, …) belongs to the prototype shell.
+  return !isNonPrototypeAppPath(prototypeLogicalPath(pathname));
 }
 
 export function isPrototypeHomePath(pathname: string): boolean {
@@ -73,7 +86,8 @@ export function isPrototypeHomePath(pathname: string): boolean {
 }
 
 export function isPrototypeNotePath(pathname: string): boolean {
-  return prototypeLogicalPath(pathname).startsWith('/n/');
+  const seg = singlePrototypeSegment(pathname);
+  return seg != null && !RESERVED_PROTOTYPE_SEGMENTS.has(seg);
 }
 
 export function isPrototypeSettingsPath(pathname: string): boolean {
@@ -81,8 +95,9 @@ export function isPrototypeSettingsPath(pathname: string): boolean {
 }
 
 export function matchPrototypeNoteId(pathname: string): string | null {
-  const m = prototypeLogicalPath(pathname).match(/^\/n\/([^/]+)/);
-  return m?.[1] ?? null;
+  const seg = singlePrototypeSegment(pathname);
+  if (seg == null || RESERVED_PROTOTYPE_SEGMENTS.has(seg)) return null;
+  return seg;
 }
 
 export function matchLegacyPrototypeSpaceId(pathname: string): string | null {
@@ -90,9 +105,9 @@ export function matchLegacyPrototypeSpaceId(pathname: string): string | null {
   return m?.[1] ?? null;
 }
 
-/** TanStack Router `to` for flat note routes. */
-export function prototypeNoteRouteTo(): '/n/$noteId' | '/prototype/n/$noteId' {
-  return isDedicatedPrototypeHost() ? '/n/$noteId' : '/prototype/n/$noteId';
+/** TanStack Router `to` for root-level note routes. */
+export function prototypeNoteRouteTo(): '/$noteId' | '/prototype/$noteId' {
+  return isDedicatedPrototypeHost() ? '/$noteId' : '/prototype/$noteId';
 }
 
 export function prototypeSettingsRouteTo(): '/settings' | '/prototype/settings' {

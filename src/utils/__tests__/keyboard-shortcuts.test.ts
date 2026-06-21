@@ -214,7 +214,7 @@ describe('prototype shell shortcuts (Shift + key)', () => {
 });
 
 describe('prototype note shortcuts (Shift + key, on a note route)', () => {
-  beforeEach(() => setPath('/prototype/n/note_abc123'));
+  beforeEach(() => setPath('/prototype/note_abc123'));
 
   it('Shift+F → find in note (carries noteId)', () => {
     const e = expectEvent('prototypeOpenFindInNote', () => press({ key: 'F', code: 'KeyF', shift: true }));

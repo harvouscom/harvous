@@ -67,16 +67,61 @@ export function generateMemberId(): string {
   return generateTimestampId("member");
 }
 
+// Shared base62 alphabet (URL-safe, no ambiguous separators).
+const BASE62_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+
 // Generate a URL-safe share token for public sharing
 // Uses Web Crypto API for secure random generation
 export function generateShareToken(): string {
-  const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
   const length = 12; // Short enough for URLs, long enough for uniqueness (62^12 possibilities)
   const bytes = new Uint8Array(length);
   crypto.getRandomValues(bytes);
   return Array.from(bytes)
-    .map(b => alphabet[b % alphabet.length])
+    .map(b => BASE62_ALPHABET[b % BASE62_ALPHABET.length])
     .join('');
+}
+
+function base62Encode(value: number): string {
+  if (value === 0) return BASE62_ALPHABET[0];
+  let n = value;
+  let out = '';
+  while (n > 0) {
+    out = BASE62_ALPHABET[n % 62] + out;
+    n = Math.floor(n / 62);
+  }
+  return out;
+}
+
+function base62Decode(slug: string): number {
+  let n = 0;
+  for (const ch of slug) {
+    const idx = BASE62_ALPHABET.indexOf(ch);
+    if (idx === -1) return NaN;
+    n = n * 62 + idx;
+  }
+  return n;
+}
+
+/**
+ * Prototype note URL slug ⇄ note id.
+ *
+ * Internal note ids stay `note_<timestamp>` (shared with native/offline/classic
+ * sync); the prototype URL shows a short, random-looking base62 encoding of the
+ * timestamp instead of the raw number. The mapping is reversible and stateless —
+ * no DB column. Falls back gracefully for non-timestamp ids and legacy links.
+ */
+export function encodeNoteSlug(id: string): string {
+  const m = /^note_(\d+)$/.exec(id);
+  if (!m) return id.startsWith('note_') ? id.slice('note_'.length) : id;
+  return base62Encode(Number(m[1]));
+}
+
+export function decodeNoteSlug(slug: string): string {
+  if (slug.startsWith('note_')) return slug; // already a full id (defensive)
+  if (/^\d{11,}$/.test(slug)) return `note_${slug}`; // legacy raw-timestamp URL
+  const n = base62Decode(slug);
+  if (!Number.isFinite(n) || n <= 0) return `note_${slug}`; // not base62 → passthrough
+  return `note_${n}`;
 }
 
 // Validate share token format

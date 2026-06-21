@@ -7,6 +7,7 @@
  * These helpers are the single source of truth for all conversions.
  */
 import { isDedicatedPrototypeHost, isPrototypeShellPath, prototypeHref } from '@/lib/prototype-path';
+import { encodeNoteSlug } from './ids';
 
 export type EntityType = 'thread' | 'note' | 'space' | 'local';
 
@@ -52,7 +53,7 @@ export function idToUrl(id: string, threadContext?: string, fromNoteId?: string)
 /**
  * Build a note URL for the surface the user is currently on.
  *
- * The 2.0 prototype shell routes notes at `/n/<id>` (see prototype-path.ts),
+ * The 2.0 prototype shell routes notes at the root `/<slug>` (see prototype-path.ts),
  * whereas the classic SPA uses `/note/<id>`. Navigating a highlight→note link
  * to the classic `/note/<id>` path inside the prototype shell falls through to
  * the classic surface and reads as a broken link. This returns the prototype
@@ -70,8 +71,7 @@ export function noteUrlForCurrentSurface(
     typeof window !== 'undefined' &&
     (isDedicatedPrototypeHost() || isPrototypeShellPath(window.location.pathname))
   ) {
-    const slug = fullId.startsWith('note_') ? fullId.slice('note_'.length) : fullId;
-    return prototypeHref(`n/${slug}`);
+    return prototypeHref(encodeNoteSlug(fullId));
   }
   return idToUrl(fullId, threadContext, fromNoteId);
 }

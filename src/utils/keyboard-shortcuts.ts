@@ -8,6 +8,7 @@
 import { getBackTarget, popNavStack } from './nav-stack';
 import { cycleTabNavStep, navigatePersistentNavStep } from './keyboard-navigation-helpers';
 import { detectEntityTypeFromPath, extractIdFromPath, idToUrl } from './url-helpers';
+import { decodeNoteSlug } from './ids';
 import {
   isPrototypeNotePath,
   isClassicAppSurface,
@@ -306,7 +307,7 @@ function tryHierarchyNavigateBack(): boolean {
 function extractPrototypeNoteId(path: string): string | null {
   const slug = matchPrototypeNoteId(path);
   if (!slug) return null;
-  return slug.startsWith('note_') ? slug : `note_${slug}`;
+  return decodeNoteSlug(slug);
 }
 
 /** Hold Shift alone this long (ms) to show toolbar key hints without firing a shortcut. */

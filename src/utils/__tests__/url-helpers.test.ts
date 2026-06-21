@@ -18,9 +18,10 @@ describe('noteUrlForCurrentSurface', () => {
     });
   });
 
-  it('returns /n/:slug on new.harvous.com from a shared note page', () => {
+  it('returns root /:base62-slug on new.harvous.com from a shared note page', () => {
     mockLocation('new.harvous.com', '/shared/note/abc123');
-    expect(noteUrlForCurrentSurface('note_1781400844391')).toBe('/n/1781400844391');
+    // note_1781400844391 base62-encodes to fWdqYzt
+    expect(noteUrlForCurrentSurface('note_1781400844391')).toBe('/fWdqYzt');
   });
 
   it('returns classic /note/:slug on app.harvous.com from a shared note page', () => {
@@ -28,8 +29,8 @@ describe('noteUrlForCurrentSurface', () => {
     expect(noteUrlForCurrentSurface('note_1781400844391')).toBe('/note/1781400844391');
   });
 
-  it('returns /prototype/n/:slug on app.harvous.com inside the prototype shell', () => {
-    mockLocation('app.harvous.com', '/prototype/n/abc');
-    expect(noteUrlForCurrentSurface('note_abc')).toBe('/prototype/n/abc');
+  it('returns /prototype/:slug on app.harvous.com inside the prototype shell', () => {
+    mockLocation('app.harvous.com', '/prototype/fWdqYzt');
+    expect(noteUrlForCurrentSurface('note_1781400844391')).toBe('/prototype/fWdqYzt');
   });
 });

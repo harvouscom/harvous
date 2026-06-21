@@ -32,7 +32,7 @@ import {
   COMPOSE_URL_IDLE_MS,
   type PendingComposeUrlReplace,
 } from '@/utils/prototype-compose-url';
-import { isPrototypeDraftNoteSlug, noteParamSlug } from './proto-route-slugs';
+import { isPrototypeDraftNoteSlug, noteParamSlug, normalizeNoteIdFromParam } from './proto-route-slugs';
 
 const DRAFT_NOTE_ID = 'note_draft';
 const EMPTY_NOTE_COLLECTIONS: string[] = [];
@@ -48,11 +48,7 @@ const MAX_SCRIPTURE_REPROCESS_ATTEMPTS = 3;
 export default function PrototypeNotePage() {
   const { noteId: noteSlugParam } = useParams({ strict: false }) as { noteId: string };
   const isDraft = isPrototypeDraftNoteSlug(noteSlugParam);
-  const noteId = isDraft
-    ? DRAFT_NOTE_ID
-    : noteSlugParam.startsWith('note_')
-      ? noteSlugParam
-      : `note_${noteSlugParam}`;
+  const noteId = isDraft ? DRAFT_NOTE_ID : normalizeNoteIdFromParam(noteSlugParam);
   const {
     reference: initialReferenceWord,
     scriptureRef: initialScriptureRef,

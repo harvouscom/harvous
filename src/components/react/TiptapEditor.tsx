@@ -5725,6 +5725,50 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     runSelectionEvalRef.current();
   }, [studyDockStack]);
 
+  // Spotlight the expanded highlight: while a highlight/reference dock is expanded, dim every other
+  // highlight underline to neutral so only the active one keeps its color (prototype only). We tag the
+  // ProseMirror root with `data-dim-highlights="<id>"` (CSS dims all marks) and inject a per-id restore
+  // rule — driving it via attribute + injected style survives ProseMirror re-renders without mutating
+  // individual mark nodes. Scripture docks don't apply: pills aren't `<mark>` elements.
+  const dimHighlightStyleRef = useRef<HTMLStyleElement | null>(null);
+  useEffect(() => {
+    if (!editor || !isEditorValid(editor)) return;
+    const dom = editor.view.dom as HTMLElement;
+    const active = studyDockStack.entries.find((e) => e.id === studyDockStack.activeId);
+    const activeHighlightId =
+      active &&
+      active.expanded &&
+      (active.kind === 'highlight' || active.kind === 'reference')
+        ? active.session.studyThreadEntryId ?? null
+        : null;
+
+    if (activeHighlightId) {
+      dom.setAttribute('data-dim-highlights', activeHighlightId);
+      if (!dimHighlightStyleRef.current) {
+        const el = document.createElement('style');
+        el.dataset.dimHighlights = '';
+        document.head.appendChild(el);
+        dimHighlightStyleRef.current = el;
+      }
+      const esc =
+        typeof CSS !== 'undefined' && CSS.escape ? CSS.escape(activeHighlightId) : activeHighlightId;
+      dimHighlightStyleRef.current.textContent =
+        `.proto-editor-surface .ProseMirror[data-dim-highlights="${esc}"] mark[data-study-thread-id="${esc}"]` +
+        `{text-decoration-color:var(--mark-accent)!important}`;
+    } else {
+      dom.removeAttribute('data-dim-highlights');
+      if (dimHighlightStyleRef.current) dimHighlightStyleRef.current.textContent = '';
+    }
+  }, [editor, studyDockStack]);
+
+  useEffect(
+    () => () => {
+      dimHighlightStyleRef.current?.remove();
+      dimHighlightStyleRef.current = null;
+    },
+    [],
+  );
+
   /** When CardFullEditable opens the editor from read-only preview after a scripture pill tap (prototype), open the dock once TipTap has rendered the pill in the doc. */
   useEffect(() => {
     if (
