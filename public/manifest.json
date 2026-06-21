@@ -2,8 +2,7 @@
   "name": "Harvous",
   "short_name": "Harvous",
   "icons": [
-    {"src": "/favicon.svg", "type": "image/svg+xml", "sizes": "512x512"},
-    {"src": "/favicon.png", "type": "image/png", "sizes": "512x512"}
+    {"src": "/images/harvous-2-icon.png", "type": "image/png", "sizes": "512x512", "purpose": "any"}
   ],
   "start_url": "/",
   "display": "standalone",

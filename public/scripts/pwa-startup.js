@@ -101,12 +101,95 @@ function trackPWASessionStart() {
   }
 }
 
+var PWA_SHELL_RELOAD_KEY = 'harvous_pwa_shell_reload';
+var PWA_SHELL_WATCHDOG_MS = 7000;
+
+function isPrototypeShellRoute() {
+  var path = window.location.pathname;
+  var host = window.location.hostname;
+  if (host === 'new.harvous.com') {
+    if (path.indexOf('/sign-in') === 0 || path.indexOf('/sign-up') === 0) return false;
+    return (
+      path === '/' ||
+      path.indexOf('/prototype') === 0 ||
+      path.indexOf('/n/') === 0 ||
+      path.indexOf('/settings') === 0 ||
+      path.indexOf('/space/') === 0
+    );
+  }
+  return path.indexOf('/prototype') === 0;
+}
+
+function hasPrototypeShellMounted() {
+  if (document.querySelector('.proto-shell-frame')) return true;
+  var root = document.getElementById('root');
+  return !!(root && root.children.length > 0);
+}
+
+function reloadOnceForMissingShell() {
+  if (!isStandalone || !isPrototypeShellRoute()) return;
+  if (hasPrototypeShellMounted()) return;
+  try {
+    if (sessionStorage.getItem(PWA_SHELL_RELOAD_KEY)) return;
+    sessionStorage.setItem(PWA_SHELL_RELOAD_KEY, '1');
+  } catch (e) {
+    return;
+  }
+  window.location.reload();
+}
+
+var shellWatchdogTimer = null;
+
+function scheduleShellWatchdog() {
+  if (!isStandalone || !isPrototypeShellRoute()) return;
+  if (shellWatchdogTimer) clearTimeout(shellWatchdogTimer);
+  shellWatchdogTimer = setTimeout(function () {
+    shellWatchdogTimer = null;
+    reloadOnceForMissingShell();
+  }, PWA_SHELL_WATCHDOG_MS);
+}
+
+function clearShellWatchdog() {
+  if (shellWatchdogTimer) {
+    clearTimeout(shellWatchdogTimer);
+    shellWatchdogTimer = null;
+  }
+}
+
+function onShellMaybeReady() {
+  if (hasPrototypeShellMounted()) {
+    clearShellWatchdog();
+    try {
+      sessionStorage.removeItem(PWA_SHELL_RELOAD_KEY);
+    } catch (e) {
+      /* ignore */
+    }
+  }
+}
+
 /**
  * Initialize the PWA
  */
 function initPWA() {
   // Track session start for PWA launch detection
   trackPWASessionStart();
+
+  // iOS bfcache: restored WebViews can leave the boot canvas without a live SPA.
+  window.addEventListener('pageshow', function (event) {
+    if (event.persisted && isStandalone) {
+      window.location.reload();
+    }
+  });
+
+  if (isStandalone) {
+    scheduleShellWatchdog();
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', onShellMaybeReady);
+    } else {
+      onShellMaybeReady();
+    }
+    window.addEventListener('load', onShellMaybeReady);
+  }
   
   // Touch event optimization
   document.addEventListener('touchstart', () => {}, { passive: true });
@@ -117,6 +200,10 @@ function initPWA() {
       isWarmedUp = false;
       warmUpApp();
       warmUpAPI();
+      if (isStandalone) {
+        onShellMaybeReady();
+        scheduleShellWatchdog();
+      }
       // iOS WebKit: force compositor repaint when returning from background (avoids black flash)
       try {
         if (document.body) {

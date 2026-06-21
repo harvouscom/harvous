@@ -9,7 +9,7 @@ import { useAuth, useUser } from '@clerk/clerk-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { HARVOUS_REMOTE_SYNC_COMPLETED } from '@/utils/harvous-remote-sync-event';
 import { refreshPrototypeLists } from '../lib/refresh-client-data';
-import { Outlet, useRouter, useRouterState } from '@tanstack/react-router';
+import { Outlet, useRouterState } from '@tanstack/react-router';
 import {
   useCallback,
   useEffect,
@@ -57,7 +57,6 @@ import {
 export default function SimplifiedPrototypeLayout() {
   const { isLoaded, isSignedIn } = useAuth();
   const { user } = useUser();
-  const router = useRouter();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const searchRaw = useRouterState({ select: (s) => s.location.search });
   const { homeSpaceId, navReady } = usePrototypeHomeSpaceId();
@@ -97,12 +96,21 @@ export default function SimplifiedPrototypeLayout() {
       typeof window !== 'undefined'
         ? `${window.location.pathname}${window.location.search || ''}`
         : prototypeHomePath();
-    router.navigate({
-      to: '/sign-in',
-      search: { redirect_url: path },
-      replace: true,
-    });
-  }, [isLoaded, isSignedIn, hasSessionCookie, router]);
+    const redirectUrl = `/sign-in?redirect_url=${encodeURIComponent(path)}`;
+    window.location.replace(redirectUrl);
+  }, [isLoaded, isSignedIn, hasSessionCookie]);
+
+  const lastServiceWorkerNavCheckRef = useRef(0);
+  const SW_UPDATE_CHECK_THROTTLE_MS = 90_000;
+
+  useEffect(() => {
+    if (!isLoaded || !isSignedIn) return;
+    const now = Date.now();
+    if (now - lastServiceWorkerNavCheckRef.current < SW_UPDATE_CHECK_THROTTLE_MS) return;
+    lastServiceWorkerNavCheckRef.current = now;
+    const check = window.__harvousCheckServiceWorkerUpdate;
+    if (typeof check === 'function') check();
+  }, [isLoaded, isSignedIn, pathname]);
 
   useEffect(() => {
     if (!isLoaded || !isSignedIn) return;
@@ -129,7 +137,7 @@ export default function SimplifiedPrototypeLayout() {
     !isLoaded || hasSessionCookie || (isLoaded && isSignedIn);
 
   if (!shouldShowShell) {
-    return null;
+    return <div className="proto-shell-frame simplified-prototype-root" aria-hidden="true" />;
   }
 
   return (
