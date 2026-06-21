@@ -7,6 +7,8 @@ import { APIError } from '../../lib/api';
 import { useDeleteNote } from '../../hooks/mutations/useDeleteNote';
 import { useDeleteHighlight } from '../../hooks/mutations/useDeleteHighlight';
 import { useRemoveFolder } from '../../hooks/mutations/useRemoveFolder';
+import { useRemoveNoteFromFolder } from '../../hooks/mutations/useRemoveNoteFromFolder';
+import { useRemoveNoteFromThreadCluster } from '../../hooks/mutations/useRemoveNoteFromThreadCluster';
 import { useRemoveThreadCluster } from '../../hooks/mutations/useRemoveThreadCluster';
 import { useConnectNote } from '../../hooks/mutations/useConnectNote';
 import { useUpdateStudyThreadTitle } from '../../hooks/mutations/useUpdateStudyThreadTitle';
@@ -135,6 +137,10 @@ type PrototypeSidebarNoteRowProps = {
   onOpenNote: (row: SpaceNoteRow) => void;
   /** Hide row overflow menu (e.g. thread-proposal review is read-only). */
   hideMenu?: boolean;
+  /** Thread drilldown — show remove-from-thread for this cluster. */
+  threadRemoval?: { memberIds: string[] };
+  /** Named folder drilldown — show remove-from-folder. */
+  folderRemoval?: { folderName: string };
 };
 
 function PrototypeSidebarFolderCard({
@@ -478,6 +484,8 @@ function PrototypeSidebarNoteRow({
   prefetchNote,
   onOpenNote,
   hideMenu = false,
+  threadRemoval,
+  folderRemoval,
 }: PrototypeSidebarNoteRowProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
@@ -488,6 +496,10 @@ function PrototypeSidebarNoteRow({
   const { closeDrawer, isMobileSidebar } = useProtoShell();
   const pinNote = usePinSpaceNote();
   const deleteNote = useDeleteNote();
+  const removeFromThread = useRemoveNoteFromThreadCluster();
+  const removeFromFolder = useRemoveNoteFromFolder();
+
+  const containerActionPending = removeFromThread.isPending || removeFromFolder.isPending;
 
   const hoverPrefetchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const cancelHoverPrefetch = useCallback(() => {
@@ -519,6 +531,36 @@ function PrototypeSidebarNoteRow({
       {
         onError: (err) => {
           const msg = err instanceof APIError ? err.message : err instanceof Error ? err.message : 'Could not update pin';
+          toast.error(msg);
+        },
+      },
+    );
+  };
+
+  const onRemoveFromThread = () => {
+    if (!threadRemoval) return;
+    setMenuOpen(false);
+    removeFromThread.mutate(
+      { spaceId: homeSpaceId, memberIds: threadRemoval.memberIds, noteId: row.id },
+      {
+        onError: (err) => {
+          const msg =
+            err instanceof APIError ? err.message : err instanceof Error ? err.message : 'Could not remove from thread';
+          toast.error(msg);
+        },
+      },
+    );
+  };
+
+  const onRemoveFromFolder = () => {
+    if (!folderRemoval) return;
+    setMenuOpen(false);
+    removeFromFolder.mutate(
+      { row, folderName: folderRemoval.folderName, spaceId: homeSpaceId },
+      {
+        onError: (err) => {
+          const msg =
+            err instanceof APIError ? err.message : err instanceof Error ? err.message : 'Could not remove from folder';
           toast.error(msg);
         },
       },
@@ -587,7 +629,7 @@ function PrototypeSidebarNoteRow({
           aria-expanded={menuOpen}
           aria-haspopup="menu"
           aria-label="Note actions"
-          disabled={pinNote.isPending || deleteNote.isPending}
+          disabled={pinNote.isPending || deleteNote.isPending || containerActionPending}
           onClick={(e) => {
             e.preventDefault();
             e.stopPropagation();
@@ -619,6 +661,40 @@ function PrototypeSidebarNoteRow({
               </span>
               <span className="proto-menu-item__label">{pinned ? 'Unpin note' : 'Pin note'}</span>
             </button>
+            {threadRemoval ? (
+              <button
+                type="button"
+                role="menuitem"
+                className="proto-menu-item"
+                disabled={removeFromThread.isPending}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onRemoveFromThread();
+                }}
+              >
+                <span className="proto-menu-item__icon" aria-hidden>
+                  <Icon name="arrow-right-arrow-left" size={PROTO_TOOLBAR_ICON_SIZE} />
+                </span>
+                <span className="proto-menu-item__label">Remove from thread</span>
+              </button>
+            ) : null}
+            {folderRemoval ? (
+              <button
+                type="button"
+                role="menuitem"
+                className="proto-menu-item"
+                disabled={removeFromFolder.isPending}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onRemoveFromFolder();
+                }}
+              >
+                <span className="proto-menu-item__icon" aria-hidden>
+                  <Icon name="folder" size={PROTO_TOOLBAR_ICON_SIZE} />
+                </span>
+                <span className="proto-menu-item__label">Remove from folder</span>
+              </button>
+            ) : null}
             <button
               type="button"
               role="menuitem"
@@ -849,6 +925,10 @@ export default function PrototypeSidebar() {
   const threadDrillQuery = usePrototypeStudyThread(
     (searchActive || mode === 'threads') && sidebarThreadDrilldownId ? sidebarThreadDrilldownId : undefined,
     homeSpaceId,
+  );
+  const threadDrillMemberIds = useMemo(
+    () => threadDrillQuery.data?.nodes.map((n) => n.id) ?? [],
+    [threadDrillQuery.data?.nodes],
   );
   const [scriptureDrill, setScriptureDrill] = useState<ScriptureDrill>({ level: 'books' });
   const [highlightKindFilter, setHighlightKindFilter] = useState<HighlightKindFilter>('all');
@@ -1647,14 +1727,17 @@ export default function PrototypeSidebar() {
                 <Icon name="arrow-right-arrow-left" size={13} />
               </span>
               <div>
-                <p className="proto-thread-review__title">{sidebarThreadProposal.subject}</p>
+                <div className="proto-thread-review__title-row">
+                  <p className="proto-thread-review__title">{sidebarThreadProposal.subject}</p>
+                  <span className="proto-thread-review__badge">Suggested</span>
+                </div>
                 <p className="proto-thread-review__subtitle">
                   {sidebarThreadProposal.notes.length}{' '}
                   {sidebarThreadProposal.notes.length === 1 ? 'note shares' : 'notes share'} this theme
                 </p>
               </div>
             </div>
-            <ul className="proto-note-list">
+            <ul className="proto-note-list proto-thread-review__list">
               {sidebarThreadProposal.notes.map((note) => {
                 const row = resolveDrillNoteRow({ id: note.id, title: note.title });
                 return (
@@ -1676,19 +1759,19 @@ export default function PrototypeSidebar() {
             <div className="proto-thread-review__actions">
               <button
                 type="button"
-                className="proto-thread-review__btn proto-thread-review__btn--primary"
-                onClick={handleAcceptThreadProposal}
-                disabled={isAcceptingProposal}
-              >
-                {isAcceptingProposal ? 'Creating…' : 'Create thread'}
-              </button>
-              <button
-                type="button"
                 className="proto-thread-review__dismiss"
                 onClick={closeThreadProposal}
                 disabled={isAcceptingProposal}
               >
                 Not now
+              </button>
+              <button
+                type="button"
+                className="proto-thread-review__btn proto-thread-review__btn--primary"
+                onClick={handleAcceptThreadProposal}
+                disabled={isAcceptingProposal}
+              >
+                {isAcceptingProposal ? 'Creating…' : 'Create thread'}
               </button>
             </div>
           </div>
@@ -1784,6 +1867,9 @@ export default function PrototypeSidebar() {
                         homeSpaceId={homeSpaceId}
                         activeNoteFullId={activeNoteFullId}
                         prefetchNote={prefetchNote}
+                        folderRemoval={
+                          typeof activeFolderKey === 'string' ? { folderName: activeFolderKey } : undefined
+                        }
                         onOpenNote={(r) => {
                           onNoteRow(r);
                         }}
@@ -1938,6 +2024,7 @@ export default function PrototypeSidebar() {
                           homeSpaceId={homeSpaceId}
                           activeNoteFullId={activeNoteFullId}
                           prefetchNote={prefetchNote}
+                          threadRemoval={{ memberIds: threadDrillMemberIds }}
                           onOpenNote={(r) => {
                             onNoteRow(r);
                           }}

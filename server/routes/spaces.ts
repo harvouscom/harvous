@@ -43,7 +43,10 @@ import {
 import { nowISO } from '../db/dates';
 import { parseNoteSecondaryCollections, serializeNoteSecondaryCollections } from '../utils/note-secondary-collections';
 import { computeNoteFolderRemovalPatch } from '@/utils/folder-bulk-actions';
-import { normalizeThreadClusterMemberIds } from '@/utils/thread-cluster-bulk-actions';
+import {
+  filterThreadClusterEdgesForRemoval,
+  normalizeThreadClusterMemberIds,
+} from '@/utils/thread-cluster-bulk-actions';
 import { broadcastInvalidation } from '../utils/realtime';
 import { recordDeletedEntities } from '../utils/sync-deletion-log';
 import {
@@ -461,7 +464,7 @@ route.post('/api/spaces/:spaceId/folders/remove', requireAuth, rateLimit('write'
 });
 
 // ─── POST /api/spaces/:spaceId/threads/remove ───────────────────────────────
-/** Disconnect all notes in a study-thread cluster (notes are kept). */
+/** Disconnect all notes in a study-thread cluster, or one note from the cluster (notes are kept). */
 route.post('/api/spaces/:spaceId/threads/remove', requireAuth, rateLimit('write'), async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
@@ -476,8 +479,8 @@ route.post('/api/spaces/:spaceId/threads/remove', requireAuth, rateLimit('write'
     const body = await c.req.json().catch(() => ({}));
     const memberIds = normalizeThreadClusterMemberIds(body.memberIds);
     if (memberIds.length === 0) return c.json({ error: 'memberIds is required' }, 400);
+    const noteId = typeof body.noteId === 'string' ? body.noteId.trim() : '';
 
-    const memberSet = new Set(memberIds);
     const edgeRows = await db
       .select({
         id: NoteConnections.id,
@@ -494,8 +497,12 @@ route.post('/api/spaces/:spaceId/threads/remove', requireAuth, rateLimit('write'
         ),
       );
 
-    const edges = edgeRows.filter(
-      (edge) => memberSet.has(edge.fromNoteId) && memberSet.has(edge.toNoteId),
+    const edgesToRemove = filterThreadClusterEdgesForRemoval(edgeRows, memberIds, noteId || null);
+    const edges = edgeRows.filter((edge) =>
+      edgesToRemove.some(
+        (candidate) =>
+          candidate.fromNoteId === edge.fromNoteId && candidate.toNoteId === edge.toNoteId,
+      ),
     );
     if (edges.length === 0) {
       return c.json({ success: true, removedEdgeCount: 0 });
