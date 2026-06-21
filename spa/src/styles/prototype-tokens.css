@@ -823,7 +823,6 @@ html[data-color-scheme="dark"].harvous-proto-wallpaper-image {
 html.harvous-prototype-route {
   --font-sans: var(--pds-font-body);
   --font-mono: var(--pds-font-mono);
-  color-scheme: light dark;
   /* User-customizable canvas behind the shell card (see lib/prototype-background.ts).
      Vars unset → falls back to theme default. */
   background-color: var(--pds-canvas-bg, var(--pds-canvas-default)) !important;

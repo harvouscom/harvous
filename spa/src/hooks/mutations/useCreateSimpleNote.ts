@@ -7,6 +7,7 @@ import {
   spaceNotesQueryKey,
   type SpaceNotesPage,
 } from '../../lib/space-notes-cache';
+import { invalidatePrototypeSpaceDerivedQueries } from '../../lib/prototype-space-query-keys';
 import {
   getNoteIdFromCreateResponse,
   seedNoteFromCreateResponse,
@@ -181,6 +182,7 @@ export function useCreateSimpleNote() {
       }
       queryClient.invalidateQueries({ queryKey: ['space', sid, 'bootstrap'] });
       queryClient.invalidateQueries({ queryKey: [...navigationQueryKeyPrefix] });
+      invalidatePrototypeSpaceDerivedQueries(queryClient, sid);
       if (variables.linkedFromNoteId) {
         queryClient.invalidateQueries({ queryKey: ['note', variables.linkedFromNoteId] });
       }

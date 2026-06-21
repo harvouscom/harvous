@@ -8,6 +8,7 @@ import {
   type NoteTagRow,
 } from '../../lib/note-tags-cache';
 import type { NoteDetail } from '../queries/useNote';
+import { invalidatePrototypeSpaceDerivedQueries } from '../../lib/prototype-space-query-keys';
 import { runOfflineFirst } from './withOfflineQueue';
 import { updateNoteOffline } from '@/utils/offline-mutations';
 
@@ -183,6 +184,7 @@ export function useUpdateNote() {
           queryClient.invalidateQueries({ queryKey: ['thread'] });
         }
         queryClient.invalidateQueries({ queryKey: [...navigationQueryKeyPrefix] });
+        invalidatePrototypeSpaceDerivedQueries(queryClient, affectedSpaceId);
       }
       window.dispatchEvent(
         new CustomEvent('noteUpdated', { detail: { noteId: variables.noteId, source: 'autosave' } }),

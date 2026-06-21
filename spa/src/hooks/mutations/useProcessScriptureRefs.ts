@@ -2,6 +2,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../lib/api';
 import type { NoteDetail } from '../queries/useNote';
 import { fetchAndMergeNoteTagsInCache } from '../../lib/note-tags-cache';
+import { invalidatePrototypeSpaceDerivedQueries } from '../../lib/prototype-space-query-keys';
 import { getEffectiveDefaultTranslation } from '@/utils/profile-cache';
 
 interface ProcessScriptureInput {
@@ -41,6 +42,8 @@ export function useProcessScriptureRefs() {
         );
       }
       void fetchAndMergeNoteTagsInCache(queryClient, variables.noteId);
+      const cached = queryClient.getQueryData<NoteDetail | undefined>(['note', variables.noteId]);
+      invalidatePrototypeSpaceDerivedQueries(queryClient, cached?.spaceId);
     },
   });
 }

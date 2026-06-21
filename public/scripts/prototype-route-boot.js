@@ -15,6 +15,18 @@
  */
 (function prototypeRouteBoot() {
   if (typeof window === 'undefined' || typeof document === 'undefined') return;
+
+  var PROTO_COLOR_SCHEME_KEY = 'harvous-proto-color-scheme';
+  var root = document.documentElement;
+
+  /* Apply stored color scheme on every page load (before route early returns). */
+  try {
+    var colorSchemePref = localStorage.getItem(PROTO_COLOR_SCHEME_KEY);
+    if (colorSchemePref === 'light' || colorSchemePref === 'dark') {
+      root.setAttribute('data-color-scheme', colorSchemePref);
+    }
+  } catch (e) { /* ignore — localStorage may be unavailable */ }
+
   var path = window.location.pathname;
   var host = window.location.hostname;
   var onDedicated = host === 'new.harvous.com';
@@ -34,7 +46,6 @@
   }
 
   var PROTO_BG_KEY = 'harvous-proto-bg';
-  var PROTO_COLOR_SCHEME_KEY = 'harvous-proto-color-scheme';
   var MAX_IMAGE_DATA_URL_CHARS = 1600000;
   var PROTO_ROUTE_CLASS = 'harvous-prototype-route';
   var WALLPAPER_CLASS = 'harvous-proto-wallpaper';
@@ -43,16 +54,7 @@
   /** Theme-aware fallback; resolved from critical :root tokens below. */
   var DEFAULT_CANVAS_BG = 'var(--pds-canvas-default)';
 
-  var root = document.documentElement;
   root.classList.add(PROTO_ROUTE_CLASS);
-
-  /* Apply stored color scheme preference before any CSS loads. */
-  try {
-    var colorSchemePref = localStorage.getItem(PROTO_COLOR_SCHEME_KEY);
-    if (colorSchemePref === 'light' || colorSchemePref === 'dark') {
-      root.setAttribute('data-color-scheme', colorSchemePref);
-    }
-  } catch (e) { /* ignore — localStorage may be unavailable */ }
 
   /* Critical CSS so the canvas vars + empty shell card paint before the bundle's
      prototype-tokens.css / prototype-shell.css load. Mirrors the html/body/#root
@@ -109,7 +111,7 @@
       '}' +
       'html.' +
       PROTO_ROUTE_CLASS +
-      '{--pds-shell-frame-inset:14px;--pds-shell-frame-radius:18px;background-color:var(--pds-canvas-bg,var(--pds-canvas-default)) !important;background-image:var(--pds-canvas-image,none) !important;background-size:cover;background-position:center;background-repeat:no-repeat;background-attachment:fixed;color-scheme:light dark}' +
+      '{--pds-shell-frame-inset:14px;--pds-shell-frame-radius:18px;background-color:var(--pds-canvas-bg,var(--pds-canvas-default)) !important;background-image:var(--pds-canvas-image,none) !important;background-size:cover;background-position:center;background-repeat:no-repeat;background-attachment:fixed}' +
       '@media (max-width:899px){html.' +
       PROTO_ROUTE_CLASS +
       '{--pds-shell-frame-inset:8px}}' +

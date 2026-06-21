@@ -5380,3 +5380,80 @@ html.harvous-prototype-route .harvous-delete-confirm__icon-btn--destructive:acti
 .proto-sync-chip__retry * {
   color: var(--pds-accent, #3d7de8) !important;
 }
+
+/* ─── Proposed-thread review layer (Home theme card → review) ─────────────── */
+.proto-thread-review {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.proto-thread-review__intro {
+  flex-shrink: 0;
+  padding: 4px 18px 12px;
+  margin: 0;
+  font-family: var(--pds-font-body);
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--pds-text-secondary);
+}
+
+.proto-thread-review__intro strong {
+  font-weight: 600;
+  color: var(--pds-text-primary);
+}
+
+.proto-thread-review__actions {
+  flex-shrink: 0;
+  display: flex;
+  gap: 8px;
+  padding: 12px 18px 16px;
+}
+
+.proto-thread-review__btn {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 34px;
+  padding: 0 14px;
+  border: 1px solid transparent;
+  border-radius: var(--pds-radius-button);
+  font-family: var(--pds-font-body);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: filter 0.1s, background 0.1s;
+}
+
+.proto-thread-review__btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.proto-thread-review__btn--primary {
+  background: var(--pds-bg-accent-button, var(--pds-accent));
+  color: var(--pds-on-accent);
+  box-shadow: var(--pds-shadow-accent-button);
+}
+
+.proto-thread-review__btn--primary > span,
+.proto-thread-review__btn--primary svg,
+.proto-thread-review__btn--primary svg path {
+  color: var(--pds-on-accent) !important;
+  fill: var(--pds-on-accent) !important;
+}
+
+.proto-thread-review__btn--primary:not(:disabled):hover {
+  filter: brightness(1.06);
+}
+
+.proto-thread-review__btn--ghost {
+  background: transparent;
+  border-color: var(--pds-border-control);
+  color: var(--pds-text-primary);
+}
+
+.proto-thread-review__btn--ghost:not(:disabled):hover {
+  background: var(--pds-accent-active-bg);
+}

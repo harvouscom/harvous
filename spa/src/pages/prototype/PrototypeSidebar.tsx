@@ -8,6 +8,8 @@ import { useDeleteNote } from '../../hooks/mutations/useDeleteNote';
 import { useDeleteHighlight } from '../../hooks/mutations/useDeleteHighlight';
 import { useRemoveFolder } from '../../hooks/mutations/useRemoveFolder';
 import { useRemoveThreadCluster } from '../../hooks/mutations/useRemoveThreadCluster';
+import { useConnectNote } from '../../hooks/mutations/useConnectNote';
+import { useUpdateStudyThreadTitle } from '../../hooks/mutations/useUpdateStudyThreadTitle';
 import { usePinSpaceNote } from '../../hooks/mutations/usePinSpaceNote';
 import { useSpaceNotes, type SpaceNoteRow } from '../../hooks/queries/useSpace';
 import { getNoteQueryOptions, seedNoteFromList, type ListNoteForSeed } from '../../hooks/queries/useNote';
@@ -743,6 +745,9 @@ export default function PrototypeSidebar() {
     sidebarFolderDrilldown: activeFolderKey,
     sidebarThreadDrilldownId,
     setSidebarThreadDrilldownId,
+    sidebarThreadProposal,
+    setSidebarThreadProposal,
+    setSidebarLayer,
     setSidebarListMode,
     standaloneScripturePassage,
     openStandaloneScripturePassage,
@@ -939,6 +944,55 @@ export default function PrototypeSidebar() {
     },
     [notesById],
   );
+
+  // --- Proposed-thread review layer (from a Home theme card) ---
+  const connectNoteMutation = useConnectNote();
+  const updateThreadTitleMutation = useUpdateStudyThreadTitle();
+  const [isAcceptingProposal, setIsAcceptingProposal] = useState(false);
+
+  const closeThreadProposal = useCallback(() => {
+    setSidebarThreadProposal(undefined);
+    setSidebarLayer('space'); // return to Home (where the proposal was launched)
+    setQ('');
+  }, [setSidebarThreadProposal, setSidebarLayer]);
+
+  const handleAcceptThreadProposal = useCallback(async () => {
+    if (!homeSpaceId || !sidebarThreadProposal) return;
+    const [first, ...rest] = sidebarThreadProposal.notes.map((n) => n.id);
+    if (!first) return;
+    setIsAcceptingProposal(true);
+    try {
+      // Star-connect: each other note becomes a child of `first`, forming one
+      // connected component. `first` ends as highest-degree (representative) node.
+      for (const linkedNoteId of rest) {
+        await connectNoteMutation.mutateAsync({ parentNoteId: first, linkedNoteId, spaceId: homeSpaceId });
+      }
+      // Name the cluster after the theme (the rep note carries the title).
+      await updateThreadTitleMutation.mutateAsync({
+        repNoteId: first,
+        spaceId: homeSpaceId,
+        title: sidebarThreadProposal.subject,
+        userOverride: true,
+      });
+      try { window.toast?.success('Thread created'); } catch { /* ignore */ }
+      setSidebarThreadProposal(undefined);
+      setSidebarListMode('threads'); // flips to the list layer
+      setSidebarThreadDrilldownId(threadClusterDrillSlug(first));
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Could not create thread';
+      try { window.toast?.error(msg); } catch { /* ignore */ }
+    } finally {
+      setIsAcceptingProposal(false);
+    }
+  }, [
+    homeSpaceId,
+    sidebarThreadProposal,
+    connectNoteMutation,
+    updateThreadTitleMutation,
+    setSidebarThreadProposal,
+    setSidebarListMode,
+    setSidebarThreadDrilldownId,
+  ]);
 
   const noteSlugFromPath = matchPrototypeNoteId(pathname);
   const activeNoteSlug = noteSlugFromPath;
@@ -1230,6 +1284,14 @@ export default function PrototypeSidebar() {
     [queryClient, homeSpaceId],
   );
 
+  const prefetchProposalNote = useCallback(
+    (row: SpaceNoteRow, opts?: { seedFromList?: boolean }) => {
+      if (!notesById.has(row.id)) return;
+      prefetchNote(row, opts);
+    },
+    [notesById, prefetchNote],
+  );
+
   const afterNav = useCallback(() => {
     if (isMobileSidebar) closeDrawer();
   }, [closeDrawer, isMobileSidebar]);
@@ -1459,6 +1521,8 @@ export default function PrototypeSidebar() {
   );
 
   const backTarget: { label: string; kind: string | null; action: () => void } | null = (() => {
+    if (sidebarThreadProposal)
+      return { label: sidebarThreadProposal.subject, kind: 'Review', action: closeThreadProposal };
     if (mode === 'folders' && activeFolderKey !== undefined)
       return { label: activeFolderKey ?? 'Unsorted', kind: 'Folder', action: () => { setActiveFolderKey(undefined); setQ(''); } };
     if (mode === 'threads' && sidebarThreadDrilldownId)
@@ -1492,7 +1556,7 @@ export default function PrototypeSidebar() {
           </button>
         </div>
       ) : null}
-      {!isHomeLayer ? (
+      {!isHomeLayer && !sidebarThreadProposal ? (
       <div className="proto-sidebar-search">
         <div className="proto-sidebar-search__field">
           <span className="proto-sidebar-search__icon" aria-hidden>
@@ -1571,6 +1635,50 @@ export default function PrototypeSidebar() {
             }}
             onOpenHighlight={onHighlightRow}
           />
+        ) : sidebarThreadProposal ? (
+          <div className="proto-thread-review">
+            <p className="proto-thread-review__intro">
+              Connect {sidebarThreadProposal.notes.length}{' '}
+              {sidebarThreadProposal.notes.length === 1 ? 'note' : 'notes'} into a thread named{' '}
+              <strong>{sidebarThreadProposal.subject}</strong>?
+            </p>
+            <ul className="proto-note-list">
+              {sidebarThreadProposal.notes.map((note) => {
+                const row = resolveDrillNoteRow({ id: note.id, title: note.title });
+                return (
+                  <PrototypeSidebarNoteRow
+                    key={note.id}
+                    row={row}
+                    active={!!(activeNoteFullId && note.id === activeNoteFullId)}
+                    homeSpaceId={homeSpaceId}
+                    activeNoteFullId={activeNoteFullId}
+                    prefetchNote={prefetchProposalNote}
+                    onOpenNote={(r) => {
+                      onNoteRow(r);
+                    }}
+                  />
+                );
+              })}
+            </ul>
+            <div className="proto-thread-review__actions">
+              <button
+                type="button"
+                className="proto-thread-review__btn proto-thread-review__btn--primary"
+                onClick={handleAcceptThreadProposal}
+                disabled={isAcceptingProposal}
+              >
+                {isAcceptingProposal ? 'Creating…' : 'Create thread'}
+              </button>
+              <button
+                type="button"
+                className="proto-thread-review__btn proto-thread-review__btn--ghost"
+                onClick={closeThreadProposal}
+                disabled={isAcceptingProposal}
+              >
+                Not now
+              </button>
+            </div>
+          </div>
         ) : searchActive ? (
           <PrototypeSidebarSearchResults
             query={q}

@@ -32,6 +32,14 @@ export type SidebarListMode = 'notes' | 'folders' | 'highlights' | 'scripture' |
 /** Sidebar layer — Home space dashboard vs the list views. Only 'space' layer content today is My Home. */
 export type SidebarLayer = 'space' | 'list';
 
+/** A proposed thread surfaced from a Home theme card, pending user review/accept. */
+export interface ThreadProposal {
+  /** Proposed thread title (the theme/subject). */
+  subject: string;
+  /** Notes that would be connected into the thread. */
+  notes: Array<{ id: string; title: string | null }>;
+}
+
 const SIDEBAR_LIST_MODE_STORAGE_KEY = 'harvous-prototype-sidebar-list-mode';
 const SIDEBAR_LIST_MODE_DEFAULT: SidebarListMode = 'notes';
 const VALID_MODES = new Set<SidebarListMode>(['notes', 'folders', 'highlights', 'scripture', 'threads']);
@@ -127,6 +135,9 @@ type ProtoShellContextValue = {
   /** Representative note ID of the drilled thread cluster; undefined = showing cluster list. */
   sidebarThreadDrilldownId: string | undefined;
   setSidebarThreadDrilldownId: (id: string | undefined) => void;
+  /** Proposed thread under review (from a Home theme card); undefined = no review open. Not persisted. */
+  sidebarThreadProposal: ThreadProposal | undefined;
+  setSidebarThreadProposal: (proposal: ThreadProposal | undefined) => void;
   /** Open mobile drawer or expand desktop sidebar so the list is visible. */
   ensureSidebarExpanded: () => void;
   /** Pending tag search from Home greeting — consumed by PrototypeSidebar. */
@@ -202,6 +213,8 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
   const [sidebarLayer, setSidebarLayer] = useState<SidebarLayer>('space');
   const [sidebarFolderDrilldown, setSidebarFolderDrilldown] = useState<SidebarFolderDrilldown>(undefined);
   const [sidebarThreadDrilldownId, setSidebarThreadDrilldownId] = useState<string | undefined>(undefined);
+  /** Transient — a Home theme card's proposed thread awaiting review. Never persisted. */
+  const [sidebarThreadProposal, setSidebarThreadProposal] = useState<ThreadProposal | undefined>(undefined);
   const [sidebarTagSearchIntent, setSidebarTagSearchIntent] = useState<SidebarTagSearchIntent | null>(null);
   const [prototypeFolderChip, setPrototypeFolderChipState] = useState<PrototypeFolderChip | null>(null);
   const [composePersistedNoteId, setComposePersistedNoteIdState] = useState<string | null>(null);
@@ -501,6 +514,8 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
       setSidebarFolderDrilldown,
       sidebarThreadDrilldownId,
       setSidebarThreadDrilldownId,
+      sidebarThreadProposal,
+      setSidebarThreadProposal,
       ensureSidebarExpanded,
       sidebarTagSearchIntent,
       openSidebarTagSearch,
@@ -552,6 +567,7 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
       sidebarFolderDrilldown,
       setSidebarFolderDrilldown,
       sidebarThreadDrilldownId,
+      sidebarThreadProposal,
       ensureSidebarExpanded,
       sidebarTagSearchIntent,
       openSidebarTagSearch,

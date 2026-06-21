@@ -38,10 +38,12 @@ import { ProtoMigrationProvider } from './proto-migration-context';
 import { ProtoShellProvider, useProtoShell } from './proto-shell-context';
 import {
   applyBackgroundWithImageTint,
+  applyColorSchemePreference,
   clearBackgroundVars,
   getColorSchemeSnapshot,
   PROTO_ROUTE_CLASS,
   readBackground,
+  readColorSchemePreference,
   subscribeColorScheme,
 } from '../lib/prototype-background';
 import {
@@ -75,11 +77,13 @@ export default function SimplifiedPrototypeLayout() {
 
   useLayoutEffect(() => {
     const el = document.documentElement;
+    applyColorSchemePreference(readColorSchemePreference());
     el.classList.add(PROTO_ROUTE_CLASS);
     void applyBackgroundWithImageTint(readBackground());
     return () => {
       el.classList.remove(PROTO_ROUTE_CLASS);
       clearBackgroundVars();
+      applyColorSchemePreference('system');
     };
   }, []);
 

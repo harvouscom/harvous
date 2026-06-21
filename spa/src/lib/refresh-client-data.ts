@@ -1,6 +1,7 @@
 import type { QueryClient } from '@tanstack/react-query';
 import { navigationQueryKeyPrefix, NAV_SESSION_CACHE_KEY } from '../hooks/queries/useNavigation';
 import { clearAllSessionSpaceCaches } from '../hooks/queries/useSpace';
+import { invalidatePrototypeSpaceDerivedQueries } from './prototype-space-query-keys';
 
 /** Current API origin used by the SPA (prod when deployed, or VITE_API_BASE_URL in dev). */
 export function clientApiOrigin(): string {
@@ -28,6 +29,7 @@ export async function refreshPrototypeLists(
   });
   if (homeSpaceId) {
     await queryClient.invalidateQueries({ queryKey: ['space', homeSpaceId, 'notes'] });
+    invalidatePrototypeSpaceDerivedQueries(queryClient, homeSpaceId);
   } else {
     await queryClient.invalidateQueries({
       queryKey: ['space'],

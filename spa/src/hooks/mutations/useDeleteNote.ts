@@ -10,6 +10,7 @@ import {
   spaceNotesQueryKey,
   type SpaceNotesPage,
 } from '../../lib/space-notes-cache';
+import { invalidatePrototypeSpaceDerivedQueries } from '../../lib/prototype-space-query-keys';
 
 function purgeDeletedNoteClientCaches(queryClient: QueryClient, noteId: string) {
   queryClient.removeQueries({ queryKey: ['note', noteId] });
@@ -65,6 +66,7 @@ export function useDeleteNote() {
       purgeDeletedNoteClientCaches(queryClient, variables.noteId);
       queryClient.invalidateQueries({ queryKey: ['space', sid, 'bootstrap'] });
       queryClient.invalidateQueries({ queryKey: [...navigationQueryKeyPrefix] });
+      invalidatePrototypeSpaceDerivedQueries(queryClient, sid);
       try {
         window.dispatchEvent(
           new CustomEvent('noteDeleted', { detail: { noteId: variables.noteId, threadId: 'thread_unorganized' } }),

@@ -413,8 +413,10 @@ export default function PrototypeSidebarHomeView({
   const navigate = useNavigate();
   const {
     setSidebarListMode,
+    setSidebarLayer,
     setSidebarFolderDrilldown,
     setSidebarThreadDrilldownId,
+    setSidebarThreadProposal,
     ensureSidebarExpanded,
     beginPrototypeComposeSession,
     isMobileSidebar,
@@ -487,6 +489,7 @@ export default function PrototypeSidebarHomeView({
     [threads, lead],
   );
   const looseCount = useMemo(() => countLooseNotes(notes), [notes]);
+  const loadedNoteIds = useMemo(() => new Set(notes.map((n) => n.id)), [notes]);
 
   // Phase 3 (knowledge layer): the latent theme connecting the most of your passages. Map each
   // cited passage to its curated subjects (static chapter index), group the citing notes by
@@ -499,12 +502,13 @@ export default function PrototypeSidebarHomeView({
       if (!byChapter) continue;
       for (const passage of book.passages) {
         const subjects = byChapter[String(passage.chapter)];
-        if (subjects?.length && passage.notes.length) passages.push({ subjects, notes: passage.notes });
+        const loadedNotes = passage.notes.filter((n) => loadedNoteIds.has(n.id));
+        if (subjects?.length && loadedNotes.length) passages.push({ subjects, notes: loadedNotes });
       }
     }
     const top = deriveSubjectConnections(passages, { limit: 1 })[0];
     return top && top.noteCount >= SUBJECT_CONNECTION_MIN ? top : undefined;
-  }, [scriptureBooks, hasMoreNotes]);
+  }, [scriptureBooks, hasMoreNotes, loadedNoteIds]);
 
   const crossRefConnection = useMemo(() => {
     if (hasMoreNotes) return undefined;
@@ -533,10 +537,22 @@ export default function PrototypeSidebarHomeView({
   }, [scriptureBooks, hasMoreNotes]);
 
   const openSubjectConnection = useCallback(() => {
-    const leadId = subjectConnection?.notes[0]?.id;
-    const leadNote = leadId ? notes.find((note) => note.id === leadId) : undefined;
-    if (leadNote) onOpenNote(leadNote);
-  }, [subjectConnection, notes, onOpenNote]);
+    if (!subjectConnection) return;
+    const proposalNotes = subjectConnection.notes.filter((n) => loadedNoteIds.has(n.id));
+    if (proposalNotes.length < SUBJECT_CONNECTION_MIN) return;
+    setSidebarThreadProposal({
+      subject: subjectConnection.subject,
+      notes: proposalNotes,
+    });
+    setSidebarLayer('list');
+    ensureSidebarExpanded();
+  }, [
+    subjectConnection,
+    loadedNoteIds,
+    setSidebarLayer,
+    setSidebarThreadProposal,
+    ensureSidebarExpanded,
+  ]);
 
   const openCrossRefConnection = useCallback(() => {
     const leadId = crossRefConnection?.notes[0]?.id;
@@ -704,11 +720,11 @@ export default function PrototypeSidebarHomeView({
             className="proto-glass-surface proto-glass-surface--panel proto-home-card proto-home-card--tappable"
             onClick={openSubjectConnection}
           >
-            <p className="proto-caption proto-home-card__eyebrow">A theme connecting your notes</p>
+            <p className="proto-caption proto-home-card__eyebrow">A possible thread in your notes</p>
             <div className="proto-home-card__body">
               <div className="proto-home-card__title-row">
                 <span className="proto-home-card__icon-orb" aria-hidden>
-                  <Icon name="link" size={13} />
+                  <Icon name="arrow-right-arrow-left" size={13} />
                 </span>
                 <p className="pds-list-title proto-home-card__title">{subjectConnection.subject}</p>
                 <span className="proto-home-card__chevron" aria-hidden>
