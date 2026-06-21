@@ -59,4 +59,18 @@ final class HarvousFolderListIndexTests: XCTestCase {
         let rows = HarvousFolderListIndex.rows(from: [zeta, loose, alpha])
         XCTAssertEqual(rows.map(\.folderLabel), ["Alpha", "Zeta", nil])
     }
+
+    func testRows_sortsNumberPrefixedFoldersByFirstLetter() {
+        let john = Note(title: "J", body: "")
+        john.primaryFolder = "1 John"
+
+        let corinthians = Note(title: "C", body: "")
+        corinthians.primaryFolder = "2 Corinthians"
+
+        let romans = Note(title: "R", body: "")
+        romans.primaryFolder = "Romans"
+
+        let rows = HarvousFolderListIndex.rows(from: [romans, john, corinthians])
+        XCTAssertEqual(rows.map(\.folderLabel), ["2 Corinthians", "1 John", "Romans"])
+    }
 }

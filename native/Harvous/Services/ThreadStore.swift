@@ -806,9 +806,9 @@ enum ThreadStore {
             ))
         }
 
-        // Sort A–Z by cluster title.
+        // Sort A–Z by cluster title (number-prefixed titles sort from first letter).
         return clusters.sorted {
-            $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending
+            HarvousAlphabeticalSortKey.compareLabels($0.title, $1.title) == .orderedAscending
         }
     }
 

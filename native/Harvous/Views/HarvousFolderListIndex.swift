@@ -45,7 +45,7 @@ enum HarvousFolderListIndex {
             // Ungrouped bucket last; then A–Z by folder name.
             if lhs.folderLabel == nil, rhs.folderLabel != nil { return false }
             if rhs.folderLabel == nil, lhs.folderLabel != nil { return true }
-            return lhs.title.localizedCaseInsensitiveCompare(rhs.title) == .orderedAscending
+            return HarvousAlphabeticalSortKey.compareLabels(lhs.title, rhs.title) == .orderedAscending
         }
     }
 
@@ -76,7 +76,7 @@ enum HarvousFolderListIndex {
             }
             .sorted { lhs, rhs in
                 if lhs.1 != rhs.1 { return lhs.1 > rhs.1 }
-                return lhs.0.title.localizedCaseInsensitiveCompare(rhs.0.title) == .orderedAscending
+                return HarvousAlphabeticalSortKey.compareLabels(lhs.0.title, rhs.0.title) == .orderedAscending
             }
             .map(\.0)
     }
