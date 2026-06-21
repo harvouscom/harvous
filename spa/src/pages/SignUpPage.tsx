@@ -60,7 +60,7 @@ export default function SignUpPage() {
             <div className="auth-page__video-overlay">
               <a href="https://harvous.com" className="auth-page__logo-container">
                 <img
-                  src="/icons/app-icon.png"
+                  src="/images/harvous-2-icon.png"
                   alt="Harvous"
                   className="auth-page__logo"
                   width={36}
@@ -86,7 +86,7 @@ export default function SignUpPage() {
 
             <div className="auth-page__footer">
               <p className="auth-page__footer-switch">
-                Already have an account?<a href={signInHref}>Log in</a>
+                Already have an account?<a href={signInHref}>Log in →</a>
               </p>
               <p className="auth-page__secured-by">Secured by Clerk</p>
             </div>

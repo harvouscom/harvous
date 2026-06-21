@@ -1,8 +1,8 @@
 /* ==========================================================================
    Public page shell — shared note, shared thread, join space, invitation.
    Redesigned to mirror the marketing site (`/site/`): warm paper background,
-   floating centered Harvous pill at the top (icon + wordmark, with the
-   primary CTA tucked into the right side of the pill), Google Sans Flex rounded
+   floating centered app-icon pill at the top (icon + CTA inside one capsule),
+   Google Sans Flex rounded
    display font for note titles, and a gradient-blue pill CTA inside cards.
    ========================================================================== */
 
@@ -62,11 +62,19 @@
 /* THE outer floating capsule — mirrors `/site/` Header.astro exactly:
    brand chip, then nav links, then the CTA all inside ONE rounded
    white-glass pill. */
+.public-page .harvous-app-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 12px;
+  object-fit: cover;
+  display: block;
+}
+
 .public-toolbar__pill {
   display: inline-flex;
   align-items: center;
-  gap: 20px;
-  padding: 6px 6px 6px 18px;
+  gap: 8px;
+  padding: 6px 6px 6px 10px;
   background: rgba(255, 255, 255, 0.85);
   border: 0.5px solid var(--site-rule);
   border-radius: 999px;
@@ -77,11 +85,11 @@
   -webkit-backdrop-filter: saturate(180%) blur(8px);
 }
 
-/* Brand chip inside the pill — icon + wordmark, no separate background. */
+/* Brand link inside the pill — app icon only, no wordmark. */
 .public-toolbar__brand {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: 0;
   text-decoration: none;
   color: var(--site-ink);
   user-select: none;
@@ -114,24 +122,27 @@
   color: var(--site-ink);
 }
 
-/* CTA pill ("Open app" / "Sign in") inside the outer pill — white with
-   subtle border, matches `/site/` "Try free" treatment. */
+/* CTA pill ("Open app" / "Sign in") — matches prototype "Not now" dismiss
+   styling; keeps the public nav pill radius (999px). */
 .public-toolbar__cta {
-  font-family:
-    "Google Sans", "Reddit Sans", ui-sans-serif, system-ui, sans-serif;
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--site-ink);
-  background: var(--site-card);
-  padding: 7px 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 36px;
+  padding: 0 14px;
   border-radius: 999px;
-  border: 0.5px solid var(--site-rule);
+  border: 1px solid var(--pds-border-control);
+  background: var(--pds-bg-sidebar-input);
+  box-shadow: var(--pds-glass-rim);
+  font-family: var(--pds-font-body);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--pds-text-primary);
   text-decoration: none;
-  box-shadow: 0 1px 2px rgba(20, 18, 12, 0.04);
-  transition: background-color 120ms ease;
+  transition: background 0.1s;
 }
 .public-toolbar__cta:hover {
-  background: var(--site-warm);
+  background: var(--pds-bg-sidebar-input-hover);
 }
 
 /* ─── Body ──────────────────────────────────────────────────────────────── */
@@ -514,22 +525,77 @@
   text-decoration: underline;
 }
 
-/* ─── Error state — Hero-styled centered card ───────────────────────────── */
+/* ─── Error state — paper-stack card ────────────────────────────────────── */
 
-/* Modeled on `/site/` Hero: roomy padding, Google Sans Flex headline, ink-soft body,
-   secondary-CTA pill. The icon is a thin paper-grain plate behind the mark
-   so it reads as intentional UI, not a stray glyph. */
+/* The not-found / unavailable state now lives *inside* the same paper-stack
+   motif as a real shared note (fanned leaves + rotated cream card), so the
+   empty state reads as part of the letter-card design rather than a bare hero.
+   `.public-error` is just the column wrapper holding the stack and the footer;
+   `.public-error-card` is the front sheet (lifted from `.public-note-card`). */
 .public-error {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+/* The error stack carries short content rather than a tall note, so let the
+   card size to its content and center it in the available space — overrides the
+   base `.public-paper-stack` `flex: 1` / `min-height` (hence the doubled class
+   for specificity). */
+.public-paper-stack.public-paper-stack--error {
+  flex: 0 0 auto;
+  min-height: 0;
+  margin-top: auto;
+  margin-bottom: auto;
+}
+
+/* Front sheet — same paper recipe as `.public-note-card` (white sheet, radial
+   dot grain, slight rotation, layered shadow, folded corner), but laid out to
+   center the short icon/title/message/CTA stack. */
+.public-error-card {
+  position: relative;
+  z-index: 2;
+  transform: rotate(-0.6deg);
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 18px;
   text-align: center;
-  padding: clamp(56px, 12vh, 120px) 20px;
-  flex: 1;
-  max-width: 560px;
-  margin: 0 auto;
+  gap: 18px;
+  /* Keep a sheet-like proportion even with short content, so the card reads as
+     a page of paper rather than a thin banner. */
+  min-height: 380px;
+  padding: clamp(40px, 6vh, 64px) 28px;
+  background-color: #ffffff;
+  background-image:
+    radial-gradient(rgba(20, 18, 12, 0.025) 1px, transparent 1px),
+    radial-gradient(rgba(20, 18, 12, 0.018) 1px, transparent 1px);
+  background-size: 28px 28px, 17px 17px;
+  background-position: 0 0, 9px 9px;
+  border-radius: 0;
+  border: 0.5px solid var(--site-rule);
+  box-shadow:
+    0 2px 6px rgba(20, 18, 12, 0.04),
+    0 20px 50px -20px rgba(20, 18, 12, 0.16);
+}
+
+/* Folded-corner accent in the top-right — matches `.public-note-card::before`. */
+.public-error-card::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 40px;
+  height: 40px;
+  background: linear-gradient(
+    225deg,
+    rgba(20, 18, 12, 0.07) 0%,
+    rgba(20, 18, 12, 0.02) 40%,
+    transparent 60%
+  );
+  pointer-events: none;
+  z-index: 5;
 }
 
 .public-error__icon {
@@ -551,6 +617,11 @@
 .public-error__icon svg {
   width: 30px;
   height: 30px;
+}
+/* Emoji-glyph variants (invitation expired/accepted) sit in the same chip. */
+.public-error__glyph {
+  font-size: 2rem;
+  line-height: 1;
 }
 
 .public-error__title {
@@ -574,30 +645,30 @@
   line-height: 1.55;
 }
 
-/* Secondary CTA pill — matches `/site/` CTAButton `variant="secondary"`:
-   white surface, rule border, ink text, warm hover. */
+/* CTA — text link in the same accent style as the footer's "Try free →"
+   (see `.public-footer__cta`), not a boxed pill, so the card reads as part of
+   the new letter design rather than old error-dialog UI. */
 .public-error__link {
   display: inline-flex;
   align-items: center;
-  justify-content: center;
-  gap: 6px;
+  gap: 4px;
   font-family:
     "Google Sans", "Reddit Sans", ui-sans-serif, system-ui, sans-serif;
   font-size: 0.9375rem;
   font-weight: 600;
-  color: var(--site-ink);
-  background: var(--site-card);
-  padding: 10px 18px;
-  border-radius: 999px;
-  border: 0.5px solid var(--site-rule);
+  color: var(--site-accent);
   text-decoration: none;
-  box-shadow: 0 1px 2px rgba(20, 18, 12, 0.04);
-  transition: background-color 120ms ease, transform 120ms ease;
-  margin-top: 4px;
+  margin-top: 2px;
 }
 .public-error__link:hover {
-  background: var(--site-warm);
-  text-decoration: none;
+  text-decoration: underline;
+}
+/* Forward arrow nudges on hover — matches the footer CTA affordance. */
+.public-error__link-arrow {
+  transition: transform 120ms ease;
+}
+.public-error__link:hover .public-error__link-arrow {
+  transform: translateX(2px);
 }
 
 /* ─── Note-page CardFullEditable integration ────────────────────────────── */

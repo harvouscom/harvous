@@ -1,33 +1,28 @@
+import type { ReactNode } from 'react';
 import { prototypeHomePath } from '@/lib/prototype-path';
 
 /** Shared icons for public pages. */
 
 /**
- * Harvous app-icon mark — matches the `/site/` navbar exactly (`Header.astro`
- * uses `<img src="/icons/app-icon.png" class="h-6 w-6 rounded-md" />`).
- * The PNG is bundled under `spa/public/icons/app-icon.png`.
+ * Harvous app-icon mark — same PNG as site-inspired sign-in/up (`/images/harvous-2-icon.png`).
+ * Styling (size, iOS-like corner radius) lives in `.harvous-app-icon` CSS.
  */
-export function HarvousLogoMark({ size = 22 }: { size?: number }) {
+export function HarvousLogoMark({ size = 36 }: { size?: number }) {
   return (
     <img
-      src="/icons/app-icon.png"
+      src="/images/harvous-2-icon.png"
       alt="Harvous"
+      className="harvous-app-icon"
       width={size}
       height={size}
-      style={{
-        width: size,
-        height: size,
-        borderRadius: 5,
-        display: 'block',
-        objectFit: 'cover',
-      }}
+      style={{ width: size, height: size }}
     />
   );
 }
 
 /**
  * Floating navbar pill rendered on every public/shared page. Contains the
- * Harvous brand chip and a CTA pill at the right ("Open app" when signed in,
+ * app icon and a CTA pill at the right ("Open app" when signed in,
  * "Sign in" when not — the shared-page equivalent of the site's "Try free").
  */
 export function PublicTopBar({ isSignedIn }: { isSignedIn: boolean }) {
@@ -36,8 +31,7 @@ export function PublicTopBar({ isSignedIn }: { isSignedIn: boolean }) {
     <nav className="public-toolbar">
       <div className="public-toolbar__pill">
         <a href="https://harvous.com" className="public-toolbar__brand">
-          <span className="public-toolbar__icon"><HarvousLogoMark size={22} /></span>
-          <span className="public-toolbar__wordmark">Harvous</span>
+          <HarvousLogoMark />
         </a>
         {isSignedIn ? (
           <a href={prototypeHomePath()} className="public-toolbar__cta">
@@ -56,10 +50,75 @@ export function PublicTopBar({ isSignedIn }: { isSignedIn: boolean }) {
   );
 }
 
-export function CircleQuestionIcon() {
+/**
+ * Shared "not found / unavailable" state for every public page. Renders the
+ * error content *inside* the shared-note paper-stack motif (two fanned leaves
+ * behind a rotated cream-paper card with dot grain + folded corner — see
+ * `.public-paper-stack` / `.public-error-card` in `public-pages.css`) so the
+ * empty state reads as part of the same letter-card design as a real note.
+ */
+export function PublicErrorState({
+  icon,
+  title,
+  message,
+  ctaHref,
+  ctaLabel,
+  ctaTarget,
+  showFooter = true,
+  footerLead = 'New to Harvous? Make your own study Bible.',
+}: {
+  icon?: ReactNode;
+  title: string;
+  message: ReactNode;
+  /** Optional in-paper CTA. Omit on not-found states so the only call to
+      action is the marketing footer below the card. */
+  ctaHref?: string;
+  ctaLabel?: string;
+  /** Set to "_blank" for external (marketing) links. */
+  ctaTarget?: '_blank';
+  /** Show the "Make your own study Bible · Try free →" footer. Suppress for
+      signed-in flows (e.g. invitation expired/accepted). */
+  showFooter?: boolean;
+  footerLead?: string;
+}) {
   return (
-    <svg width="44" height="44" viewBox="0 0 512 512" fill="currentColor" xmlns="http://www.w3.org/2000/svg" aria-hidden>
-      <path d="M256 512A256 256 0 1 0 256 0a256 256 0 1 0 0 512zM169.8 165.3c7.9-22.3 29.1-37.3 52.8-37.3h58.3c34.9 0 63.1 28.3 63.1 63.1c0 22.6-12.1 43.5-31.7 54.8L280 264.4c-.2 13-10.9 23.6-24 23.6c-13.3 0-24-10.7-24-24V250.5c0-8.6 4.6-16.5 12.1-20.8l44.3-25.4c4.7-2.7 7.6-7.7 7.6-13.1c0-8.4-6.8-15.1-15.1-15.1H222.6c-3.4 0-6.4 2.1-7.5 5.3l-.4 1.2c-4.4 12.5-18.2 19-30.6 14.6s-19-18.2-14.6-30.6l.4-1.2zM224 352a32 32 0 1 1 64 0 32 32 0 1 1 -64 0z"/>
-    </svg>
+    <div className="public-error">
+      <div className="public-paper-stack public-paper-stack--error">
+        <div className="public-paper-stack__leaf public-paper-stack__leaf--back" aria-hidden />
+        <div className="public-paper-stack__leaf public-paper-stack__leaf--mid" aria-hidden />
+        <div className="public-error-card">
+          {icon && <div className="public-error__icon">{icon}</div>}
+          <h1 className="public-error__title">{title}</h1>
+          <p className="public-error__message">{message}</p>
+          {ctaHref && ctaLabel && (
+            <a
+              className="public-error__link"
+              href={ctaHref}
+              {...(ctaTarget === '_blank'
+                ? { target: '_blank', rel: 'noopener noreferrer' }
+                : {})}
+            >
+              {ctaLabel}
+              <span aria-hidden="true" className="public-error__link-arrow">→</span>
+            </a>
+          )}
+        </div>
+      </div>
+      {showFooter && (
+        <div className="public-footer public-footer--rich">
+          <span className="public-footer__tag">
+            {footerLead}{' '}
+            <a
+              href="https://harvous.com"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="public-footer__cta"
+            >
+              Try free →
+            </a>
+          </span>
+        </div>
+      )}
+    </div>
   );
 }

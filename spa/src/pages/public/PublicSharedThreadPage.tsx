@@ -10,7 +10,7 @@ import { api } from '../../lib/api';
 import { useAddSharedThread } from '../../hooks/mutations/useAddSharedThread';
 import { getThreadGradientCSS } from '@/utils/colors';
 import type { ThreadDetail, ThreadPrefetchData } from '../../hooks/queries/useThread';
-import { PublicTopBar, CircleQuestionIcon } from './public-shared';
+import { PublicTopBar, PublicErrorState } from './public-shared';
 
 interface SharedThreadNote {
   id: string;
@@ -148,14 +148,10 @@ export default function PublicSharedThreadPage() {
             {isLoading ? (
               <div className="page-loading" />
             ) : (error || !thread) ? (
-              <div className="public-error">
-                <div className="public-error__icon"><CircleQuestionIcon /></div>
-                <h1 className="public-error__title">This thread isn't available</h1>
-                <p className="public-error__message">
-                  Hmm, we can't find this thread. The link might have expired or the owner made it private.
-                </p>
-                <a href="https://harvous.com" className="public-error__link">Learn more about Harvous</a>
-              </div>
+              <PublicErrorState
+                title="This thread isn't available"
+                message="Hmm, we can't find this thread. The link might have expired or the owner made it private."
+              />
             ) : (
               <SubtleContentMount variant="fade">
                 <>

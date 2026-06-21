@@ -8,7 +8,7 @@ import CardFullEditable from '@/components/react/CardFullEditable';
 import SubtleContentMount from '@/components/react/SubtleContentMount';
 import { api, APIError } from '../../lib/api';
 import { useAddSharedNote } from '../../hooks/mutations/useAddSharedNote';
-import { PublicTopBar, CircleQuestionIcon } from './public-shared';
+import { PublicTopBar, PublicErrorState } from './public-shared';
 
 interface SharedNoteResponse {
   note: {
@@ -142,14 +142,10 @@ export default function PublicSharedNotePage() {
             {isLoading ? (
               <div className="page-loading" />
             ) : (error || !note) ? (
-              <div className="public-error">
-                <div className="public-error__icon"><CircleQuestionIcon /></div>
-                <h1 className="public-error__title">This note isn't available</h1>
-                <p className="public-error__message">
-                  Hmm, we can't find this note. The link might have expired or the owner made it private.
-                </p>
-                <a href="https://harvous.com" className="public-error__link">Learn more about Harvous</a>
-              </div>
+              <PublicErrorState
+                title="This note isn't available"
+                message="Hmm, we can't find this note. The link might have expired or the owner made it private."
+              />
             ) : (
               <SubtleContentMount variant="fade">
                 <>

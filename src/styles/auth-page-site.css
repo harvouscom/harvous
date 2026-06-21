@@ -91,7 +91,7 @@
 .auth-page.auth-page--site .auth-page__logo {
   width: 36px !important;
   height: 36px !important;
-  border-radius: 8px;
+  border-radius: 12px;
   object-fit: cover;
   display: block;
   filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.25));
@@ -413,12 +413,16 @@
   color: var(--site-ink-soft);
   text-align: center;
   margin: 0;
+  /* Narrow wrap so the prompt + CTA balance into a centered two-line block,
+     matching the shared-note footer (`.public-footer__tag`). */
+  max-width: 280px;
 }
 .auth-page.auth-page--site .auth-page__footer-switch a {
   color: var(--site-accent);
   font-weight: 600;
   text-decoration: none;
   margin-left: 4px;
+  white-space: nowrap;
 }
 .auth-page.auth-page--site .auth-page__footer-switch a:hover {
   text-decoration: underline;

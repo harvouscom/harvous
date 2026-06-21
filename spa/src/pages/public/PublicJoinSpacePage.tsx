@@ -9,7 +9,7 @@ import { useJoinSpace } from '../../hooks/mutations/useJoinSpace';
 import { navigationQueryKeyPrefix } from '../../hooks/queries/useNavigation';
 import { idToUrl } from '@/utils/url-helpers';
 import { formatBadgeCount } from '@/utils/badge-count';
-import { PublicTopBar, CircleQuestionIcon } from './public-shared';
+import { PublicTopBar, PublicErrorState } from './public-shared';
 
 interface SpacePreview {
   id: string;
@@ -117,14 +117,10 @@ export default function PublicJoinSpacePage() {
             {isLoading ? (
               <div className="page-loading" />
             ) : (error || !space) ? (
-              <div className="public-error">
-                <div className="public-error__icon"><CircleQuestionIcon /></div>
-                <h1 className="public-error__title">This space isn't available</h1>
-                <p className="public-error__message">
-                  Hmm, we can't find this space. The link might have expired or the owner made it private.
-                </p>
-                <a href="https://harvous.com" className="public-error__link">Learn more about Harvous</a>
-              </div>
+              <PublicErrorState
+                title="This space isn't available"
+                message="Hmm, we can't find this space. The link might have expired or the owner made it private."
+              />
             ) : (
               <SubtleContentMount>
                 <>

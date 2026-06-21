@@ -8,7 +8,7 @@ import { useAcceptInvitation } from '../../hooks/mutations/useAcceptInvitation';
 import { navigationQueryKeyPrefix } from '../../hooks/queries/useNavigation';
 import { idToUrl } from '@/utils/url-helpers';
 import { prototypeHomePath, prototypeHomeRouteTo } from '@/lib/prototype-path';
-import { PublicTopBar, CircleQuestionIcon } from './public-shared';
+import { PublicTopBar, PublicErrorState } from './public-shared';
 
 interface InvitationResponse {
   invitation: {
@@ -107,34 +107,28 @@ export default function PublicInvitationPage() {
             {isLoading ? (
               <div className="page-loading" />
             ) : (error === 'not_found' || (!data && !error)) ? (
-              <div className="public-error">
-                <div className="public-error__icon"><CircleQuestionIcon /></div>
-                <h1 className="public-error__title">This invitation isn't available</h1>
-                <p className="public-error__message">
-                  Hmm, we can't find this invitation. The link might be invalid or the invitation may have been cancelled.
-                </p>
-                <a href="https://harvous.com" className="public-error__link">Learn more about Harvous</a>
-              </div>
+              <PublicErrorState
+                title="This invitation isn't available"
+                message="Hmm, we can't find this invitation. The link might be invalid or the invitation may have been cancelled."
+              />
             ) : isExpiredError ? (
-              <div className="public-error">
-                <div className="public-error__icon" style={{ fontSize: '2.5rem' }}>⏰</div>
-                <h1 className="public-error__title">This invitation has expired</h1>
-                <p className="public-error__message">
-                  This invitation link is no longer valid. Please request a new invitation from the space owner.
-                </p>
-                <a href={prototypeHomePath()} className="public-error__link">Go to app</a>
-              </div>
+              <PublicErrorState
+                icon={<span className="public-error__glyph">⏰</span>}
+                title="This invitation has expired"
+                message="This invitation link is no longer valid. Please request a new invitation from the space owner."
+                ctaHref={prototypeHomePath()}
+                ctaLabel="Go to app"
+                showFooter={false}
+              />
             ) : (error === 'already_used' || isAlreadyUsed) ? (
-              <div className="public-error">
-                <div className="public-error__icon" style={{ fontSize: '2.5rem' }}>✓</div>
-                <h1 className="public-error__title">
-                  {errorMessage || `This invitation has been ${invitation?.status || 'used'}`}
-                </h1>
-                <p className="public-error__message">
-                  This invitation link has already been used and is no longer active.
-                </p>
-                <a href={prototypeHomePath()} className="public-error__link">Go to app</a>
-              </div>
+              <PublicErrorState
+                icon={<span className="public-error__glyph">✓</span>}
+                title={errorMessage || `This invitation has been ${invitation?.status || 'used'}`}
+                message="This invitation link has already been used and is no longer active."
+                ctaHref={prototypeHomePath()}
+                ctaLabel="Go to app"
+                showFooter={false}
+              />
             ) : invitation ? (
               <SubtleContentMount>
                 <>
