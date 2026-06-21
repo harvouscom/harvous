@@ -357,6 +357,12 @@
   /* Main column lacks sidebar-cell 8px margin — tuned to match search field top */
   --pds-editor-paper-inset-top: 17px;
   --pds-editor-paper-inset-x: 0;
+  --pds-editor-paper-padding-top: 48px;
+  --pds-editor-paper-padding-x: 32px;
+  --pds-editor-paper-padding-bottom: 80px;
+  --pds-editor-paper-padding-top-narrow: 28px;
+  --pds-editor-paper-padding-x-narrow: 12px;
+  --pds-editor-paper-padding-x-compact: 8px;
   --pds-paper-grain-a: rgba(20, 18, 12, 0.025);
   --pds-paper-grain-b: rgba(20, 18, 12, 0.018);
   --pds-paper-fold-a: rgba(20, 18, 12, 0.07);

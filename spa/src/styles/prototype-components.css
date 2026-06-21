@@ -5452,7 +5452,7 @@ html.harvous-prototype-route .harvous-delete-confirm__icon-btn--destructive:acti
   align-items: center;
   gap: 8px;
   padding: 12px 18px 16px;
-  background: var(--pds-bg);
+  background: var(--pds-bg-page);
   border-top: 1px solid var(--pds-border-soft);
 }
 
@@ -5495,6 +5495,7 @@ html.harvous-prototype-route .harvous-delete-confirm__icon-btn--destructive:acti
 }
 
 .proto-thread-review__dismiss {
+  appearance: none;
   flex-shrink: 0;
   display: inline-flex;
   align-items: center;
@@ -5503,7 +5504,8 @@ html.harvous-prototype-route .harvous-delete-confirm__icon-btn--destructive:acti
   padding: 0 14px;
   border: 1px solid var(--pds-border-control);
   border-radius: var(--pds-radius-button);
-  background: var(--pds-bg);
+  background: var(--pds-bg-sidebar-input);
+  box-shadow: var(--pds-glass-rim);
   font-family: var(--pds-font-body);
   font-size: 13px;
   font-weight: 500;
@@ -5513,7 +5515,7 @@ html.harvous-prototype-route .harvous-delete-confirm__icon-btn--destructive:acti
 }
 
 .proto-thread-review__dismiss:not(:disabled):hover {
-  background: var(--pds-bg-control-strong, rgba(0, 0, 0, 0.04));
+  background: var(--pds-bg-sidebar-input-hover);
 }
 
 .proto-thread-review__dismiss:disabled {

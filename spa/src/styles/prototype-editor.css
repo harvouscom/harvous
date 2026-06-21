@@ -116,18 +116,24 @@
   border: none;
   border-radius: 0;
   box-shadow: var(--pds-paper-shadow-subtle);
-  padding: 32px 32px 80px;
+  padding: var(--pds-editor-paper-padding-top)
+    var(--pds-editor-paper-padding-x)
+    var(--pds-editor-paper-padding-bottom);
 }
 
 @container proto-editor-scroll (max-width: 640px) {
   .proto-editor-paper {
-    padding: 20px 12px 80px;
+    padding: var(--pds-editor-paper-padding-top-narrow)
+      var(--pds-editor-paper-padding-x-narrow)
+      var(--pds-editor-paper-padding-bottom);
   }
 }
 
 @container proto-editor-scroll (max-width: 480px) {
   .proto-editor-paper {
-    padding: 20px 8px 80px;
+    padding: var(--pds-editor-paper-padding-top-narrow)
+      var(--pds-editor-paper-padding-x-compact)
+      var(--pds-editor-paper-padding-bottom);
   }
 }
 
@@ -201,18 +207,24 @@
   flex-direction: column;
   gap: 12px;
   box-sizing: border-box;
-  padding: 32px;
+  padding: var(--pds-editor-paper-padding-top)
+    var(--pds-editor-paper-padding-x)
+    var(--pds-editor-paper-padding-bottom);
 }
 
 @container proto-editor-scroll (max-width: 640px) {
   .proto-editor-loading-inner {
-    padding: 20px 12px;
+    padding: var(--pds-editor-paper-padding-top-narrow)
+      var(--pds-editor-paper-padding-x-narrow)
+      var(--pds-editor-paper-padding-bottom);
   }
 }
 
 @container proto-editor-scroll (max-width: 480px) {
   .proto-editor-loading-inner {
-    padding: 20px 8px;
+    padding: var(--pds-editor-paper-padding-top-narrow)
+      var(--pds-editor-paper-padding-x-compact)
+      var(--pds-editor-paper-padding-bottom);
   }
 }
 
@@ -1130,7 +1142,7 @@ html.harvous-prototype-route .proto-shell__study-dock-layer .highlight-dock-web_
   background: var(--pds-bg-accent-button);
   color: var(--pds-on-accent) !important;
   border: 0;
-  border-radius: 999px;
+  border-radius: var(--pds-radius-button);
   padding: 10px 14px;
   font-size: 13.5px;
   font-weight: 600;
