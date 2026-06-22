@@ -54,9 +54,7 @@
 /* ---------- Hero backdrop — bleeds behind the letter stack ---------- */
 
 .auth-page.auth-page--site .auth-page__video-section {
-  background-size: cover;
-  background-position: center;
-  background-repeat: no-repeat;
+  background-color: var(--site-warm);
   border-radius: 0.75rem 0.75rem 0 0;
   overflow: hidden;
   position: absolute;
@@ -66,6 +64,21 @@
   height: var(--auth-hero-height);
   min-height: 280px;
   max-height: 420px;
+}
+
+.auth-page.auth-page--site .auth-page__hero-bg {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  opacity: 0;
+  transition: opacity 0.22s ease;
+}
+
+.auth-page.auth-page--site .auth-page__hero-bg--ready {
+  opacity: 1;
 }
 
 /* Soft fade into the paper background below the bleed zone. */
@@ -99,14 +112,14 @@
   align-items: center;
   text-decoration: none !important;
   margin-left: 0 !important;
-  animation: harvous-auth-logo-in 0.62s cubic-bezier(0.22, 1, 0.36, 1) both;
-  animation-delay: 0.06s;
+  animation: harvous-auth-logo-in 0.38s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: 0.03s;
 }
 
 @keyframes harvous-auth-logo-in {
   0% {
     opacity: 0;
-    transform: translateY(-28px) scale(0.76);
+    transform: translateY(-20px) scale(0.82);
   }
   72% {
     opacity: 1;
@@ -510,5 +523,13 @@
   .auth-page.auth-page--site .auth-page__logo-container {
     animation: none !important;
     transition: none !important;
+  }
+
+  .auth-page.auth-page--site .auth-page__hero-bg {
+    transition: none !important;
+  }
+
+  .auth-page.auth-page--site .auth-page__hero-bg--ready {
+    opacity: 1;
   }
 }

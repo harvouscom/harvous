@@ -1,13 +1,13 @@
 import { isSiteInspiredAuthHost } from '@/lib/prototype-path';
 import { useAuth } from '@clerk/clerk-react';
 import { useNavigate } from '@tanstack/react-router';
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import ClerkPrebuiltAuth from '../components/auth/ClerkPrebuiltAuth';
 import ClassicAuthMeshColumn from '../components/auth/ClassicAuthMeshColumn';
 import HarvousAuthForm from '../components/auth/HarvousAuthForm';
 import { hasClerkSessionCookieHint } from '../hooks/queries/useProfile';
+import { useAuthHeroImage } from '../hooks/useAuthHeroImage';
 import { postAuthRedirectPath } from '../utils/post-auth-redirect';
-import { getRandomHeroImage } from '../utils/random-hero-image';
 
 /** Mirror of Astro sign-up.astro: persist ?ref= code as a cookie so
  *  ReferralCreditInit can credit the referrer after the user signs up. */
@@ -27,7 +27,7 @@ export default function SignUpPage() {
   const { isLoaded, isSignedIn } = useAuth();
   const navigate = useNavigate();
   const siteInspired = isSiteInspiredAuthHost();
-  const heroImage = useMemo(() => getRandomHeroImage(), []);
+  const { heroImage, isReady: isHeroReady } = useAuthHeroImage();
   useReferralCookie();
 
   // Redirect if already signed in.
@@ -53,10 +53,12 @@ export default function SignUpPage() {
     return (
       <div id="sign-up-content" className="auth-page auth-page--site">
         <div className="auth-page__container">
-          <div
-            className="auth-page__video-section"
-            style={{ backgroundImage: `url(${heroImage})` }}
-          >
+          <div className="auth-page__video-section">
+            <div
+              className={`auth-page__hero-bg${isHeroReady ? ' auth-page__hero-bg--ready' : ''}`}
+              style={isHeroReady ? { backgroundImage: `url(${heroImage})` } : undefined}
+              aria-hidden
+            />
             <div className="auth-page__video-overlay">
               <a href="https://harvous.com" className="auth-page__logo-container">
                 <img
