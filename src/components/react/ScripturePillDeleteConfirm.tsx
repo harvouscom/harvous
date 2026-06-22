@@ -4,7 +4,7 @@ import { computeAnchoredPopoverPosition } from '@/utils/anchored-popover-positio
 import DeleteConfirmBar from './DeleteConfirmBar';
 
 const CARD_MIN_WIDTH = 200;
-const CARD_MAX_WIDTH = 320;
+const CARD_MAX_WIDTH = 360;
 const CARD_MIN_HEIGHT = 44;
 const Z_INDEX = 99999;
 

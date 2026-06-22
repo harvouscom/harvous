@@ -2,7 +2,7 @@
 
 .harvous-delete-confirm {
   min-width: 200px;
-  max-width: 320px;
+  max-width: 360px;
   border-radius: 22px;
   border: 0.5px solid rgba(0, 0, 0, 0.1);
   background: var(--color-snow-white);
@@ -40,6 +40,11 @@
   font-weight: 600;
   line-height: 1.3;
   color: var(--color-charcoal-black);
+}
+
+.scripture-delete-confirm .harvous-delete-confirm__title {
+  padding: 2px 14px 2px 16px;
+  line-height: 1.4;
 }
 
 .harvous-delete-confirm__divider {
