@@ -20,6 +20,7 @@
   --site-accent-soft: #e8eefc;
   --site-warm: #f1ede2;
   --site-highlight: #ffe8a8;
+  --auth-mobile-hero-height: 50vh;
 }
 
 /* ---------- Root container ---------- */
@@ -63,7 +64,28 @@
 
 @media (min-width: 1160px) {
   .auth-page.auth-page--site .auth-page__video-section {
+    position: relative;
+    height: auto;
+    min-height: 0;
     flex: 1;
+  }
+
+  .auth-page.auth-page--site .auth-page__video-section::after {
+    content: none;
+  }
+
+  .auth-page.auth-page--site .auth-page__video-overlay {
+    align-items: center;
+    justify-content: center;
+    padding-top: 0;
+  }
+
+  .auth-page.auth-page--site .auth-page__form-section {
+    padding-top: 24px !important;
+  }
+
+  .auth-page.auth-page--site .auth-letter-stack {
+    margin-top: 0;
   }
 }
 
@@ -79,7 +101,7 @@
   justify-content: center;
 }
 
-/* App icon — centered on the hero pane, no pill or wordmark. */
+/* App icon — top-center on mobile hero bleed; centered on desktop hero pane. */
 .auth-page.auth-page--site .auth-page__logo-container {
   display: inline-flex;
   align-items: center;
@@ -152,6 +174,52 @@
   margin: 0 auto;
   /* Padding reserves room for the rotated leaves so they don't clip. */
   padding: 10px 16px;
+}
+
+/* Mobile — hero bleeds behind the letter stack; icon stays pinned at top. */
+@media (max-width: 1159px) {
+  .auth-page.auth-page--site .auth-page__container {
+    position: relative;
+  }
+
+  .auth-page.auth-page--site .auth-page__video-section {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: var(--auth-mobile-hero-height);
+    min-height: 280px;
+    max-height: 420px;
+  }
+
+  /* Soft fade into the paper background below the bleed zone. */
+  .auth-page.auth-page--site .auth-page__video-section::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 72px;
+    background: linear-gradient(to bottom, transparent, var(--site-paper));
+    pointer-events: none;
+    z-index: 1;
+  }
+
+  .auth-page.auth-page--site .auth-page__video-overlay {
+    align-items: flex-start;
+    justify-content: center;
+    padding-top: 28px;
+  }
+
+  .auth-page.auth-page--site .auth-page__form-section {
+    position: relative;
+    z-index: 1;
+    padding-top: 112px !important;
+  }
+
+  .auth-page.auth-page--site .auth-letter-stack {
+    margin-top: -40px;
+  }
 }
 
 .auth-page.auth-page--site .auth-letter-stack__leaf {
