@@ -56,7 +56,19 @@ function maxChapterForBook(book: string): number {
   return max || 1;
 }
 
-function buildReferenceString(book: string, chapter: number, verseStart: number, verseEnd: number, useRange: boolean): string {
+function buildReferenceString(
+  book: string,
+  chapter: number,
+  verseStart: number,
+  endChapter: number,
+  verseEnd: number,
+  useRange: boolean,
+): string {
+  if (useRange && endChapter !== chapter) {
+    // Cross-chapter range: end verse belongs to endChapter (e.g. "Exodus 6:28-7:7").
+    const raw = `${book} ${chapter}:${verseStart}-${endChapter}:${verseEnd}`;
+    return normalizeScriptureReference(raw) ?? raw;
+  }
   if (useRange && verseEnd !== verseStart) {
     return normalizeScriptureReference(`${book} ${chapter}:${verseStart}-${verseEnd}`) ?? `${book} ${chapter}:${verseStart}-${verseEnd}`;
   }
@@ -141,6 +153,7 @@ export default function ScripturePillChromeWeb({
 
   const [selectedBook, setSelectedBook] = useState(initialParsed?.book ?? 'John');
   const [chapter, setChapter] = useState(initialParsed?.chapter ?? 1);
+  const [endChapter, setEndChapter] = useState(initialParsed?.endChapter ?? initialParsed?.chapter ?? 1);
   const [verseStart, setVerseStart] = useState(() => {
     if (!initialParsed) return 1;
     const v = initialParsed.verse;
@@ -151,9 +164,12 @@ export default function ScripturePillChromeWeb({
     const v = initialParsed.verse;
     return Array.isArray(v) ? v[1] : v;
   });
-  const [useVerseRange, setUseVerseRange] = useState(() =>
-    initialParsed ? Array.isArray(initialParsed.verse) && initialParsed.verse[0] !== initialParsed.verse[1] : false,
-  );
+  const [useVerseRange, setUseVerseRange] = useState(() => {
+    if (!initialParsed) return false;
+    const crossChapter = initialParsed.endChapter != null && initialParsed.endChapter !== initialParsed.chapter;
+    const verseRange = Array.isArray(initialParsed.verse) && initialParsed.verse[0] !== initialParsed.verse[1];
+    return crossChapter || verseRange;
+  });
   const [trans, setTrans] = useState(translation || getCachedProfileData()?.defaultTranslation || 'NET');
   const [showCrossRefs, setShowCrossRefs] = useState(false);
   const [isExpandedInternal, setIsExpandedInternal] = useState(true);
@@ -182,10 +198,13 @@ export default function ScripturePillChromeWeb({
     if (p) {
       setSelectedBook(p.book);
       setChapter(p.chapter);
+      const endCh = p.endChapter ?? p.chapter;
+      setEndChapter(endCh);
       if (Array.isArray(p.verse)) {
+        // For a cross-chapter range, p.verse[1] is the end verse within endChapter.
         setVerseStart(p.verse[0]);
         setVerseEnd(p.verse[1]);
-        setUseVerseRange(p.verse[0] !== p.verse[1]);
+        setUseVerseRange(endCh !== p.chapter || p.verse[0] !== p.verse[1]);
       } else {
         setVerseStart(p.verse);
         setVerseEnd(p.verse);
@@ -196,8 +215,8 @@ export default function ScripturePillChromeWeb({
   }, [reference, translation]);
 
   const displayRefString = useMemo(
-    () => buildReferenceString(selectedBook, chapter, verseStart, verseEnd, useVerseRange),
-    [selectedBook, chapter, verseStart, verseEnd, useVerseRange],
+    () => buildReferenceString(selectedBook, chapter, verseStart, endChapter, verseEnd, useVerseRange),
+    [selectedBook, chapter, verseStart, endChapter, verseEnd, useVerseRange],
   );
 
   // All saved passage study rows (scriptureLink highlights + reference marks) paint INLINE in
@@ -315,38 +334,57 @@ export default function ScripturePillChromeWeb({
   const verseBoundsForChapter = getChapterVerseRange(selectedBook, chapter);
   const vStartCanon = verseBoundsForChapter?.start ?? 1;
   const vEndCanon = verseBoundsForChapter?.end ?? 176;
+  const verseBoundsForEndChapter = getChapterVerseRange(selectedBook, endChapter);
+  const veStartCanon = verseBoundsForEndChapter?.start ?? 1;
+  const veEndCanon = verseBoundsForEndChapter?.end ?? 176;
 
   const clampVerses = useCallback(() => {
     let ch = chapter;
     if (ch < 1) ch = 1;
     if (ch > maxChapter) ch = maxChapter;
     setChapter(ch);
+    // End chapter is forward-ordered and never before the start chapter.
+    let endCh = useVerseRange ? endChapter : ch;
+    if (endCh < ch) endCh = ch;
+    if (endCh > maxChapter) endCh = maxChapter;
+    setEndChapter(endCh);
+
     let vs = verseStart;
     let ve = useVerseRange ? verseEnd : verseStart;
-    const vb = getChapterVerseRange(selectedBook, ch);
-    if (!vb) return;
-    if (vs < vb.start) vs = vb.start;
-    if (vs > vb.end) vs = vb.end;
-    if (ve < vb.start) ve = vb.start;
-    if (ve > vb.end) ve = vb.end;
-    if (ve < vs) ve = vs;
+    const startVb = getChapterVerseRange(selectedBook, ch);
+    if (startVb) {
+      if (vs < startVb.start) vs = startVb.start;
+      if (vs > startVb.end) vs = startVb.end;
+    }
+    const endVb = getChapterVerseRange(selectedBook, endCh);
+    if (endVb) {
+      if (ve < endVb.start) ve = endVb.start;
+      if (ve > endVb.end) ve = endVb.end;
+    }
+    // Same-chapter range must stay forward-ordered; cross-chapter end verse is independent.
+    if (endCh === ch && ve < vs) ve = vs;
     setVerseStart(vs);
     setVerseEnd(ve);
-  }, [chapter, maxChapter, selectedBook, useVerseRange, verseEnd, verseStart]);
+  }, [chapter, endChapter, maxChapter, selectedBook, useVerseRange, verseEnd, verseStart]);
 
   useEffect(() => {
     clampVerses();
-  }, [clampVerses, selectedBook, chapter]);
+  }, [clampVerses, selectedBook, chapter, endChapter]);
 
   const chapterNums = useMemo(() => Array.from({ length: maxChapter }, (_, i) => i + 1), [maxChapter]);
+  const endChapterNums = useMemo(
+    () => Array.from({ length: Math.max(0, maxChapter - chapter + 1) }, (_, i) => chapter + i),
+    [maxChapter, chapter],
+  );
   const verseNums = useMemo(
     () => Array.from({ length: Math.max(0, vEndCanon - vStartCanon + 1) }, (_, i) => vStartCanon + i),
     [vEndCanon, vStartCanon],
   );
   const endVerseNums = useMemo(() => {
-    const from = verseStart;
-    return Array.from({ length: Math.max(0, vEndCanon - from + 1) }, (_, i) => from + i);
-  }, [vEndCanon, verseStart]);
+    // Same chapter: end verse can't precede the start verse. Cross-chapter: full chapter.
+    const from = endChapter === chapter ? verseStart : veStartCanon;
+    return Array.from({ length: Math.max(0, veEndCanon - from + 1) }, (_, i) => from + i);
+  }, [endChapter, chapter, verseStart, veStartCanon, veEndCanon]);
 
   const applyByScriptureRows = useCallback(
     (
@@ -562,10 +600,16 @@ export default function ScripturePillChromeWeb({
 
   const handleToggleVerseRange = useCallback(() => {
     setUseVerseRange((prev) => {
-      if (!prev) setVerseEnd(verseStart);
+      if (!prev) {
+        setVerseEnd(verseStart);
+        setEndChapter(chapter);
+      } else {
+        // Collapsing to a single verse drops any cross-chapter end.
+        setEndChapter(chapter);
+      }
       return !prev;
     });
-  }, [verseStart]);
+  }, [verseStart, chapter]);
 
   const translationInfo = TRANSLATIONS[trans];
   const transLabel = (translationInfo?.abbreviation ?? trans).toUpperCase();
@@ -624,8 +668,12 @@ export default function ScripturePillChromeWeb({
           verseNums={verseNums}
           onVerseStartChange={(v) => {
             setVerseStart(v);
-            setVerseEnd((end) => (useVerseRange && end < v ? v : end));
+            // Only keep the end verse ahead of the start within the same chapter.
+            setVerseEnd((end) => (useVerseRange && endChapter === chapter && end < v ? v : end));
           }}
+          endChapter={endChapter}
+          endChapterNums={endChapterNums}
+          onEndChapterChange={setEndChapter}
           verseEnd={verseEnd}
           endVerseNums={endVerseNums}
           onVerseEndChange={setVerseEnd}

@@ -15,6 +15,9 @@ export interface ScriptureReferencePickerStripProps {
   verseStart: number;
   verseNums: number[];
   onVerseStartChange: (verse: number) => void;
+  endChapter: number;
+  endChapterNums: number[];
+  onEndChapterChange: (chapter: number) => void;
   verseEnd: number;
   endVerseNums: number[];
   onVerseEndChange: (verse: number) => void;
@@ -34,6 +37,9 @@ export default function ScriptureReferencePickerStrip({
   verseStart,
   verseNums,
   onVerseStartChange,
+  endChapter,
+  endChapterNums,
+  onEndChapterChange,
   verseEnd,
   endVerseNums,
   onVerseEndChange,
@@ -56,6 +62,11 @@ export default function ScriptureReferencePickerStrip({
   const chapterOptions = useMemo(
     () => chapterNums.map((c) => ({ value: String(c), label: String(c) })),
     [chapterNums],
+  );
+
+  const endChapterOptions = useMemo(
+    () => endChapterNums.map((c) => ({ value: String(c), label: String(c) })),
+    [endChapterNums],
   );
 
   const verseOptions = useMemo(
@@ -108,6 +119,17 @@ export default function ScriptureReferencePickerStrip({
             <>
               <span className="scripture-pill-chrome__meta scripture-pill-chrome__meta--dash" aria-hidden>
                 –
+              </span>
+              <HarvousMenuPill
+                ariaLabel="End chapter"
+                variant="compact"
+                monospaceDigits
+                value={String(endChapter)}
+                options={endChapterOptions}
+                onChange={(v) => onEndChapterChange(parseInt(v, 10))}
+              />
+              <span className="scripture-pill-chrome__meta scripture-pill-chrome__meta--colon" aria-hidden>
+                :
               </span>
               <HarvousMenuPill
                 ariaLabel="End verse"
