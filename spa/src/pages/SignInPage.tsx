@@ -52,8 +52,8 @@ export default function SignInPage() {
                   src="/images/harvous-2-icon.png"
                   alt="Harvous"
                   className="auth-page__logo"
-                  width={36}
-                  height={36}
+                  width={64}
+                  height={64}
                 />
               </a>
             </div>
