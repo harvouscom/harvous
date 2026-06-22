@@ -23,7 +23,7 @@
   --auth-container-max-width: 960px;
   --auth-hero-height: 50vh;
   --auth-desktop-icon-size: 96px;
-  --auth-desktop-outer-padding-top: 48px;
+  --auth-desktop-outer-padding-top: 24px;
 }
 
 /* ---------- Root container ---------- */
