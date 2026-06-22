@@ -1,4 +1,4 @@
-import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import DeleteConfirmBar from '@/components/react/DeleteConfirmBar';
 import ProtoPopoverShell from './ProtoPopoverShell';
@@ -12,7 +12,7 @@ const Z_INDEX = 6000;
 export type ProtoConfirmDialogProps = {
   /** Trigger element rect — from `getBoundingClientRect()` on the delete control. */
   anchorRect: DOMRect;
-  title: string;
+  title?: string;
   confirmLabel?: string;
   cancelLabel?: string;
   busy?: boolean;
@@ -33,7 +33,6 @@ export default function ProtoConfirmDialog({
   onConfirm,
   onCancel,
 }: ProtoConfirmDialogProps) {
-  const titleId = useId();
   const cardRef = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
 
@@ -42,7 +41,7 @@ export default function ProtoConfirmDialog({
     if (!el) return;
     const { width, height } = el.getBoundingClientRect();
     setPos(computeAnchoredPopoverPosition(anchorRect, width || CARD_MIN_WIDTH, height || CARD_MIN_HEIGHT));
-  }, [anchorRect, title]);
+  }, [anchorRect]);
 
   useEffect(() => {
     function onPointerDown(e: PointerEvent) {
@@ -70,7 +69,7 @@ export default function ProtoConfirmDialog({
       ref={cardRef}
       role="dialog"
       aria-modal="false"
-      aria-labelledby={titleId}
+      aria-label={title || 'Confirm delete'}
       className="harvous-delete-confirm floating-picker-enter"
       style={{
         position: 'fixed',
@@ -84,7 +83,6 @@ export default function ProtoConfirmDialog({
       onMouseDown={(e) => e.preventDefault()}
     >
       <DeleteConfirmBar
-        titleId={titleId}
         title={title}
         confirmLabel={confirmLabel}
         cancelLabel={cancelLabel}

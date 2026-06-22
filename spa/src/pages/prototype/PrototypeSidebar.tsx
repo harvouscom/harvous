@@ -717,7 +717,6 @@ function PrototypeSidebarNoteRow({
       {hideMenu ? null : deleteConfirmOpen && deleteAnchorRect ? (
         <ProtoConfirmDialog
           anchorRect={deleteAnchorRect}
-          title="Delete this note?"
           confirmLabel="Delete"
           busy={deleteNote.isPending}
           onConfirm={onDeleteConfirm}
@@ -2212,7 +2211,6 @@ export default function PrototypeSidebar() {
       {highlightDeleteTarget ? (
         <ProtoConfirmDialog
           anchorRect={highlightDeleteTarget.anchorRect}
-          title="Delete highlight?"
           confirmLabel="Delete"
           busy={deleteHighlight.isPending}
           onConfirm={onConfirmDeleteHighlight}
@@ -2224,7 +2222,6 @@ export default function PrototypeSidebar() {
       {folderDeleteTarget ? (
         <ProtoConfirmDialog
           anchorRect={folderDeleteTarget.anchorRect}
-          title="Delete folder?"
           confirmLabel={`Delete from ${folderDeleteTarget.count} note${folderDeleteTarget.count !== 1 ? 's' : ''}`}
           busy={removeFolder.isPending}
           onConfirm={onConfirmDeleteFolder}
@@ -2236,7 +2233,6 @@ export default function PrototypeSidebar() {
       {threadDeleteTarget ? (
         <ProtoConfirmDialog
           anchorRect={threadDeleteTarget.anchorRect}
-          title="Delete thread?"
           confirmLabel={`Disconnect ${threadDeleteTarget.cluster.noteCount} note${threadDeleteTarget.cluster.noteCount !== 1 ? 's' : ''}`}
           busy={removeThreadCluster.isPending}
           onConfirm={onConfirmDeleteThreadCluster}

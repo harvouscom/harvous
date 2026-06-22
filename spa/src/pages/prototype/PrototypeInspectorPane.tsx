@@ -194,7 +194,6 @@ export default function PrototypeInspectorPane({ note, spaceId = '' }: Prototype
       {deleteConfirmOpen && deleteAnchorRect ? (
         <ProtoConfirmDialog
           anchorRect={deleteAnchorRect}
-          title="Delete this note?"
           confirmLabel="Delete"
           busy={deleteNote.isPending}
           onConfirm={onDeleteConfirm}

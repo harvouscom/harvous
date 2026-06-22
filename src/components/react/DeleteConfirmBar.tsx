@@ -2,7 +2,7 @@ import { useId } from 'react';
 import Icon from '@/components/react/Icon';
 
 export type DeleteConfirmBarProps = {
-  title: string;
+  title?: string;
   confirmLabel?: string;
   cancelLabel?: string;
   editLabel?: string;
@@ -31,10 +31,14 @@ export default function DeleteConfirmBar({
 
   return (
     <>
-      <p id={titleId} className="harvous-delete-confirm__title">
-        {title}
-      </p>
-      <span className="harvous-delete-confirm__divider" aria-hidden />
+      {title ? (
+        <>
+          <p id={titleId} className="harvous-delete-confirm__title">
+            {title}
+          </p>
+          <span className="harvous-delete-confirm__divider" aria-hidden />
+        </>
+      ) : null}
       {onEdit ? (
         <>
           <button

@@ -1,10 +1,10 @@
-import { useId, useLayoutEffect, useRef, useState } from 'react';
+import { useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { computeAnchoredPopoverPosition } from '@/utils/anchored-popover-position';
 import DeleteConfirmBar from './DeleteConfirmBar';
 
 const CARD_MIN_WIDTH = 200;
-const CARD_MAX_WIDTH = 360;
+const CARD_MAX_WIDTH = 320;
 const CARD_MIN_HEIGHT = 44;
 const Z_INDEX = 99999;
 
@@ -23,7 +23,6 @@ export default function ScripturePillDeleteConfirm({
   onDismiss,
   onEdit,
 }: ScripturePillDeleteConfirmProps) {
-  const titleId = useId();
   const cardRef = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
 
@@ -42,7 +41,7 @@ export default function ScripturePillDeleteConfirm({
       data-harvous-bottom-sheet-floating=""
       role="dialog"
       aria-modal="false"
-      aria-labelledby={titleId}
+      aria-label="Scripture pill actions"
       className="harvous-delete-confirm scripture-delete-confirm floating-picker-enter"
       style={{
         position: 'fixed',
@@ -56,8 +55,6 @@ export default function ScripturePillDeleteConfirm({
       onMouseDown={(e) => e.preventDefault()}
     >
       <DeleteConfirmBar
-        titleId={titleId}
-        title={onEdit ? 'Edit or remove this scripture pill?' : 'Remove this scripture pill?'}
         confirmLabel="Remove"
         cancelLabel="Keep"
         editLabel="Edit"

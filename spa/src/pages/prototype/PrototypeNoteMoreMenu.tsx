@@ -205,7 +205,6 @@ export default function PrototypeNoteMoreMenu({
       {deleteConfirmOpen && deleteAnchorRect ? (
         <ProtoConfirmDialog
           anchorRect={deleteAnchorRect}
-          title="Delete this note?"
           confirmLabel="Delete"
           busy={deleteNote.isPending}
           onConfirm={onDeleteConfirm}
