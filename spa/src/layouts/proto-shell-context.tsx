@@ -4,8 +4,8 @@ import { PROTO_PANEL_EXIT_MS } from './proto-motion';
 /** Breakpoint sync with prototype-shell.css (899px drawer). */
 const MOBILE_MQ = '(max-width: 899px)';
 const PROTO_SIDEBAR_WIDTH_STORAGE_KEY = 'harvous-prototype-sidebar-width';
-export const PROTO_SIDEBAR_WIDTH_DEFAULT = 260;
-export const PROTO_SIDEBAR_WIDTH_MIN = 260;
+export const PROTO_SIDEBAR_WIDTH_DEFAULT = 280;
+export const PROTO_SIDEBAR_WIDTH_MIN = 280;
 export const PROTO_SIDEBAR_WIDTH_MAX = 420;
 /** Native `SidebarToolbarLayout.narrowColumnToolbarSuppressBelow`. */
 export const PROTO_SIDEBAR_TOOLBAR_SUPPRESS_BELOW = 210;

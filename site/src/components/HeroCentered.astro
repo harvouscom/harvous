@@ -1,0 +1,112 @@
+---
+/**
+ * HeroCentered — matches the Figma "Home" frame. Centered stack on plain paper:
+ * app icon → display headline (Google Sans Flex, the "note" word is a cycling
+ * pill) → "Start free" button → the product shot framed by the auth hero image.
+ *
+ * Per the frame, the auth image (AI_Bg_045) is NOT a background band behind the
+ * heading — it's the colorful frame *around the product screenshot*. Swap
+ * /app-preview/hero.png with a fresh capture (My Home + an open note).
+ */
+import Container from "./layout/Container.astro";
+import HeroPillCycle from "./HeroPillCycle.astro";
+---
+
+<section class="hero">
+  <Container size="xl">
+    <div class="hero__inner">
+      <h1 class="hero__title" data-reveal>
+        <span class="hero__line">Your study Bible</span>
+        <span class="hero__line">one&nbsp;<HeroPillCycle />&nbsp;</span>
+        <span class="hero__line">at a time</span>
+      </h1>
+
+      <a
+        class="hero__cta"
+        href="https://app.harvous.com/sign-up"
+        target="_blank"
+        rel="noopener"
+        data-reveal
+        style="--reveal-delay: 80ms;"
+      >
+        Start free
+      </a>
+
+      <div class="hero__shotwrap" data-reveal="scale" style="--reveal-delay: 160ms;">
+        <img
+          class="hero__shot"
+          src="/app-preview/hero.png"
+          alt="The Harvous app: My Home on the left and an open note on the right — scripture shown as tap-able pills, a highlighted phrase, and today's passage."
+          loading="eager"
+          decoding="async"
+        />
+      </div>
+    </div>
+  </Container>
+</section>
+
+<style>
+  .hero {
+    background: var(--color-paper);
+  }
+  .hero__inner {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    padding-top: clamp(2.5rem, 6vw, 4.5rem);
+    padding-bottom: clamp(2.5rem, 5vw, 3.5rem);
+  }
+
+  .hero__title {
+    font-family: "Google Sans Flex", "Google Sans", ui-sans-serif, system-ui, sans-serif;
+    font-weight: 600;
+    font-variation-settings: "wdth" 100, "ROND" 0;
+    letter-spacing: -0.02em;
+    font-size: clamp(2.5rem, 6.5vw, 4rem);
+    line-height: 1.1;
+    color: var(--color-ink);
+    text-align: center;
+  }
+  .hero__line { display: block; }
+
+  .hero__cta {
+    margin-top: clamp(1.75rem, 4vw, 2.5rem);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 48px;
+    padding: 0 27px;
+    border-radius: 999px;
+    font-family: "Google Sans", ui-sans-serif, system-ui, sans-serif;
+    font-weight: 500;
+    font-size: 18px;
+    color: #fff;
+    text-decoration: none;
+    background: linear-gradient(171deg, #2bb5ff 7%, #006eff 93%);
+    box-shadow: 0 1px 0 rgba(255, 255, 255, 0.3) inset, 0 10px 24px -10px rgba(0, 110, 255, 0.6);
+    transition: filter 120ms ease;
+  }
+  .hero__cta:hover { filter: brightness(1.05); }
+
+  /* Product shot framed by the auth hero image (AI_Bg_045). */
+  .hero__shotwrap {
+    margin-top: clamp(2.5rem, 6vw, 4.5rem);
+    width: 100%;
+    max-width: 1120px;
+    border-radius: clamp(28px, 4vw, 56px);
+    overflow: hidden;
+    padding: clamp(12px, 2.2vw, 28px) clamp(20px, 5vw, 64px);
+    background-image: url("/images/auth-hero/ai_bg_045.webp");
+    background-size: cover;
+    background-position: center;
+    box-shadow: var(--shadow-float);
+  }
+  .hero__shot {
+    width: 100%;
+    height: auto;
+    display: block;
+    border-radius: clamp(8px, 1.2vw, 14px);
+    box-shadow: 0 20px 50px -24px rgba(20, 18, 12, 0.5);
+  }
+</style>

@@ -994,6 +994,8 @@ route.get('/api/spaces/:spaceId/connect-note-candidates', requireAuth, async (c)
         title: Notes.title,
         noteType: Notes.noteType,
         updatedAt: Notes.updatedAt,
+        createdAt: Notes.createdAt,
+        content: sql<string>`LEFT(${Notes.content}, 250)`.as('content'),
       })
       .from(Notes)
       .where(and(...filters))
@@ -1005,6 +1007,9 @@ route.get('/api/spaces/:spaceId/connect-note-candidates', requireAuth, async (c)
         id: r.id,
         title: r.title ?? '',
         noteType: r.noteType || 'default',
+        updatedAt: r.updatedAt ? r.updatedAt.toISOString() : null,
+        createdAt: r.createdAt ? r.createdAt.toISOString() : null,
+        content: r.content ?? '',
       })),
     });
   } catch (error: any) {

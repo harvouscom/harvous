@@ -1,4 +1,7 @@
 import appearancePresetsCatalog from '../../../shared/appearance-presets.json';
+import appearanceImagePresetsCatalog, {
+  type AppearanceImagePresetsCatalog as ImagePresetsCatalogJson,
+} from './appearance-image-presets-data';
 
 /**
  * Device-local customization of the canvas behind the prototype shell card
@@ -6,31 +9,28 @@ import appearancePresetsCatalog from '../../../shared/appearance-presets.json';
  * localStorage and applied as CSS custom properties on the document root —
  * `--pds-canvas-bg` / `--pds-canvas-image`, consumed by `prototype-tokens.css`.
  *
- * No backend: per-device only. Images are stored as data URLs, so we cap their
- * size to stay well under the ~5 MB localStorage quota.
+ * Custom uploads are data URLs (capped for localStorage). Image presets use
+ * static URLs from public/images/prototype-backgrounds/{light|dark}/.
  *
  * First-paint boot (before React): keep active key/parsing in sync with
- * `public/scripts/prototype-route-boot.js`. Saved-image archive is settings-only.
+ * `public/scripts/prototype-route-boot.js` and `prototype-image-presets-catalog.js`.
+ * Saved-image archive is settings-only (custom upload).
  */
 
 export type ProtoBg =
   | { kind: 'color'; value: string }
   | {
-      kind: 'image';
-      value: string /* data URL */;
-      /** Averaged shell tint (hex) so glass matches color-preset behavior. */
+      kind: 'image-preset';
+      presetId: string;
+      /** Averaged or catalog shell tint (hex). */
       tint?: string;
     }
   | null;
 
-/** Archived upload so switching to a color preset does not discard the photo. */
-export type ProtoSavedImage = {
-  value: string /* data URL */;
-  tint?: string;
-};
-
+/** @deprecated Single-key storage — kept for migration from older versions. */
 export const PROTO_BG_KEY = 'harvous-proto-bg';
-export const PROTO_SAVED_IMAGE_KEY = 'harvous-proto-bg-saved-image';
+export const PROTO_BG_LIGHT_KEY = 'harvous-proto-bg-light';
+export const PROTO_BG_DARK_KEY = 'harvous-proto-bg-dark';
 
 /** `<html>` class while `/prototype/*` is active (see prototype-tokens.css). */
 export const PROTO_ROUTE_CLASS = 'harvous-prototype-route';
@@ -48,10 +48,8 @@ const CANVAS_DEFAULT_DARK_HEX = appearancePresetsCatalog.canvasDefaultDarkHex;
 const LEGACY_PAPER_LIGHT_HEX = appearancePresetsCatalog.legacyPaperLightHex;
 const LEGACY_PAPER_DARK_HEX = appearancePresetsCatalog.legacyPaperDarkHex;
 
-/** Reject uploads larger than this (data URLs inflate ~33% over raw bytes). */
-export const MAX_IMAGE_BYTES = 3 * 1024 * 1024; // 3 MB
-/** Guardrail for persisted data-URL size (very large values can crash browser tabs). */
-export const MAX_IMAGE_DATA_URL_CHARS = 1_600_000;
+/** @deprecated Only used for parsing legacy single-key values during migration. */
+const MAX_IMAGE_DATA_URL_CHARS = 1_600_000;
 
 export type BgPreset = {
   label: string;
@@ -65,6 +63,27 @@ export type BgPreset = {
 
 /** Solid-color presets — shared with native via `shared/appearance-presets.json`. */
 export const BG_PRESETS: BgPreset[] = appearancePresetsCatalog.presets;
+
+export type BgImagePreset = {
+  id: string;
+  label: string;
+  file: string;
+  mode: 'light' | 'dark';
+  tintLight?: string | null;
+  tintDark?: string | null;
+};
+
+export type AppearanceImagePresetsCatalog = ImagePresetsCatalogJson;
+
+const IMAGE_PRESETS_CATALOG = appearanceImagePresetsCatalog as AppearanceImagePresetsCatalog;
+
+/** Static image wallpapers — catalog in shared/appearance-image-presets.json. */
+export const IMAGE_PRESETS: BgImagePreset[] = IMAGE_PRESETS_CATALOG.presets;
+
+export const IMAGE_PRESETS_LIGHT: BgImagePreset[] = IMAGE_PRESETS.filter((p) => p.mode === 'light');
+export const IMAGE_PRESETS_DARK: BgImagePreset[] = IMAGE_PRESETS.filter((p) => p.mode === 'dark');
+
+export const IMAGE_PRESETS_BASE_PATH = IMAGE_PRESETS_CATALOG.basePath;
 
 // ─── Color scheme preference ─────────────────────────────────────────────────
 
@@ -166,24 +185,41 @@ export function isPresetSelected(preset: BgPreset, bg: ProtoBg): boolean {
   return candidates.includes(bg.value);
 }
 
-/** Map stored bg to the correct variant for the current OS scheme (no storage write). */
-export function resolveBackgroundForScheme(bg: ProtoBg): ProtoBg {
-  if (bg === null) return null;
-  if (bg.kind === 'image') return bg;
-  for (const preset of BG_PRESETS) {
-    if (isPresetSelected(preset, bg)) {
-      return presetApplyValue(preset);
-    }
-  }
-  return bg;
+export function imagePresetById(id: string): BgImagePreset | undefined {
+  return IMAGE_PRESETS.find((preset) => preset.id === id);
 }
 
-export function isPhotoSelected(bg: ProtoBg): boolean {
-  return bg?.kind === 'image';
+/** Static URL for a catalog image preset (mode is intrinsic to the preset). */
+export function imagePresetUrl(preset: BgImagePreset): string {
+  return `${IMAGE_PRESETS_BASE_PATH}/${preset.mode}/${preset.file}`;
 }
 
-export function isPhotoAvailable(savedImage: ProtoSavedImage | null): boolean {
-  return savedImage !== null && savedImage.value.length > 0;
+/** Value to persist when the user picks an image preset. */
+export function imagePresetApplyValue(preset: BgImagePreset): ProtoBg {
+  return { kind: 'image-preset', presetId: preset.id };
+}
+
+export function isImagePresetSelected(preset: BgImagePreset, bg: ProtoBg): boolean {
+  return bg?.kind === 'image-preset' && bg.presetId === preset.id;
+}
+
+/** Optional catalog tint for the preset's intrinsic mode. */
+export function imagePresetCatalogTint(preset: BgImagePreset): string | undefined {
+  const raw = preset.mode === 'dark' ? preset.tintDark : preset.tintLight;
+  return typeof raw === 'string' && raw.length > 0 ? raw : undefined;
+}
+
+// ─── Internal helpers ────────────────────────────────────────────────────────
+
+type ImageWallpaperBg = Extract<ProtoBg, { kind: 'image-preset' }>;
+
+function isImageWallpaper(bg: NonNullable<ProtoBg>): bg is ImageWallpaperBg {
+  return bg.kind === 'image-preset';
+}
+
+function wallpaperImageUrl(bg: ImageWallpaperBg): string {
+  const preset = imagePresetById(bg.presetId);
+  return preset ? imagePresetUrl(preset) : '';
 }
 
 function migrateLegacyPaper(bg: ProtoBg): ProtoBg {
@@ -194,30 +230,23 @@ function migrateLegacyPaper(bg: ProtoBg): ProtoBg {
   return bg;
 }
 
+function normalizeImagePresetId(id: string): string {
+  if (id === 'mist') return 'meadow';
+  if (id === 'shade' || id === 'stone' || id === 'dusk') return 'cinder';
+  return id;
+}
+
 function parseProtoBg(raw: string | null): ProtoBg {
   if (!raw) return null;
   try {
-    const parsed = JSON.parse(raw) as ProtoBg;
-    if (
-      parsed &&
-      (parsed.kind === 'color' || parsed.kind === 'image') &&
-      typeof parsed.value === 'string'
-    ) {
-      if (parsed.kind === 'image' && parsed.value.length > MAX_IMAGE_DATA_URL_CHARS) {
-        return null;
-      }
-      if (parsed.kind === 'color') {
-        const migrated = migrateLegacyPaper(parsed);
-        if (migrated === null && parsed !== null) {
-          try {
-            localStorage.removeItem(PROTO_BG_KEY);
-          } catch {
-            /* ignore */
-          }
-        }
-        return migrated;
-      }
-      return parsed;
+    const parsed = JSON.parse(raw);
+    if (parsed && parsed.kind === 'image-preset' && typeof parsed.presetId === 'string') {
+      const presetId = normalizeImagePresetId(parsed.presetId);
+      if (!imagePresetById(presetId)) return null;
+      return presetId === parsed.presetId ? parsed : { ...parsed, presetId };
+    }
+    if (parsed && parsed.kind === 'color' && typeof parsed.value === 'string') {
+      return migrateLegacyPaper(parsed);
     }
     return null;
   } catch {
@@ -225,12 +254,15 @@ function parseProtoBg(raw: string | null): ProtoBg {
   }
 }
 
-function parseSavedImage(raw: string | null): ProtoSavedImage | null {
+/** Parse the old single-key value (may contain legacy `kind: 'image'` entries). */
+function parseLegacyBg(raw: string | null): { kind: 'color'; value: string } | null {
   if (!raw) return null;
   try {
-    const parsed = JSON.parse(raw) as ProtoSavedImage;
-    if (parsed && typeof parsed.value === 'string') {
-      if (parsed.value.length > MAX_IMAGE_DATA_URL_CHARS) return null;
+    const parsed = JSON.parse(raw);
+    if (parsed && parsed.kind === 'color' && typeof parsed.value === 'string') {
+      if (parsed.value === LEGACY_PAPER_LIGHT_HEX || parsed.value === LEGACY_PAPER_DARK_HEX) {
+        return null;
+      }
       return parsed;
     }
     return null;
@@ -239,108 +271,66 @@ function parseSavedImage(raw: string | null): ProtoSavedImage | null {
   }
 }
 
-/** Copy active image into the archive when upgrading from the single-key model. */
-function migrateSavedImageFromActive(active: ProtoBg): void {
-  if (active?.kind !== 'image') return;
-  if (parseSavedImage(localStorage.getItem(PROTO_SAVED_IMAGE_KEY))) return;
-  writeSavedImage({ value: active.value, tint: active.tint });
-}
-
-/** Read the saved preference, tolerating missing/corrupt values. */
-export function readBackground(): ProtoBg {
+/** One-time migration: resolve the old single-key color for a specific mode. */
+function migrateLegacyToMode(mode: 'light' | 'dark'): ProtoBg {
   if (typeof localStorage === 'undefined') return null;
   try {
-    const parsed = parseProtoBg(localStorage.getItem(PROTO_BG_KEY));
-    if (parsed?.kind === 'image' && parsed.value.length > MAX_IMAGE_DATA_URL_CHARS) {
-      localStorage.removeItem(PROTO_BG_KEY);
-      return null;
+    const legacy = parseLegacyBg(localStorage.getItem(PROTO_BG_KEY));
+    if (!legacy) return null;
+    for (const preset of BG_PRESETS) {
+      const candidates = [preset.light, preset.dark].filter((v): v is string => typeof v === 'string');
+      if (candidates.includes(legacy.value)) {
+        const resolved = mode === 'dark'
+          ? (preset.dark !== undefined ? preset.dark : preset.light)
+          : preset.light;
+        return resolved === null ? null : { kind: 'color', value: resolved };
+      }
     }
-    if (parsed?.kind === 'image') migrateSavedImageFromActive(parsed);
-    return parsed;
+    return legacy;
   } catch {
     return null;
   }
 }
 
-/** Read the archived photo (independent of the active color/image choice). */
-export function readSavedImage(): ProtoSavedImage | null {
+// ─── Per-mode read / write ───────────────────────────────────────────────────
+
+function modeKey(mode: 'light' | 'dark'): string {
+  return mode === 'dark' ? PROTO_BG_DARK_KEY : PROTO_BG_LIGHT_KEY;
+}
+
+export function readBackgroundForMode(mode: 'light' | 'dark'): ProtoBg {
   if (typeof localStorage === 'undefined') return null;
   try {
-    const active = parseProtoBg(localStorage.getItem(PROTO_BG_KEY));
-    if (active?.kind === 'image') migrateSavedImageFromActive(active);
-    return parseSavedImage(localStorage.getItem(PROTO_SAVED_IMAGE_KEY));
+    const raw = localStorage.getItem(modeKey(mode));
+    if (raw !== null) return parseProtoBg(raw);
+    return migrateLegacyToMode(mode);
   } catch {
     return null;
   }
 }
 
-/** Persist the active background (or clear it when `null`). */
-export function writeBackground(bg: ProtoBg): void {
-  setActiveBackground(bg);
-}
-
-/** Persist the active background (or clear it when `null`). */
-export function setActiveBackground(bg: ProtoBg): void {
+export function writeBackgroundForMode(mode: 'light' | 'dark', bg: ProtoBg): void {
   try {
+    const key = modeKey(mode);
     if (bg === null) {
-      localStorage.removeItem(PROTO_BG_KEY);
+      localStorage.removeItem(key);
     } else {
-      if (bg.kind === 'image' && bg.value.length > MAX_IMAGE_DATA_URL_CHARS) {
-        localStorage.removeItem(PROTO_BG_KEY);
+      if (bg.kind === 'image-preset' && !imagePresetById(bg.presetId)) {
+        localStorage.removeItem(key);
         return;
       }
-      localStorage.setItem(PROTO_BG_KEY, JSON.stringify(bg));
+      localStorage.setItem(key, JSON.stringify(bg));
     }
   } catch {
     /* ignore (private mode / quota) */
   }
 }
 
-/** Persist or clear the archived photo. */
-export function writeSavedImage(image: ProtoSavedImage | null): void {
-  try {
-    if (image === null) {
-      localStorage.removeItem(PROTO_SAVED_IMAGE_KEY);
-    } else {
-      if (image.value.length > MAX_IMAGE_DATA_URL_CHARS) {
-        localStorage.removeItem(PROTO_SAVED_IMAGE_KEY);
-        return;
-      }
-      localStorage.setItem(PROTO_SAVED_IMAGE_KEY, JSON.stringify(image));
-    }
-  } catch {
-    /* ignore (private mode / quota) */
-  }
+export function readActiveBackground(): ProtoBg {
+  return readBackgroundForMode(isDarkAppearance() ? 'dark' : 'light');
 }
 
-/** Archive an upload and make it the active wallpaper. */
-export function saveUploadedImage(dataUrl: string, tint?: string): ProtoBg {
-  const saved: ProtoSavedImage = { value: dataUrl, tint };
-  writeSavedImage(saved);
-  const active: ProtoBg = { kind: 'image', value: dataUrl, tint };
-  setActiveBackground(active);
-  return active;
-}
-
-/** Restore the archived photo as the active wallpaper. Returns null when none saved. */
-export function selectSavedImage(): ProtoBg | null {
-  const saved = readSavedImage();
-  if (!saved) return null;
-  const active: ProtoBg = { kind: 'image', value: saved.value, tint: saved.tint };
-  setActiveBackground(active);
-  return active;
-}
-
-/** Clear the archived photo; reset active to Paper when it was the wallpaper. */
-export function removeSavedImage(): ProtoBg {
-  const active = parseProtoBg(localStorage.getItem(PROTO_BG_KEY));
-  writeSavedImage(null);
-  if (active?.kind === 'image') {
-    setActiveBackground(null);
-    return null;
-  }
-  return active;
-}
+// ─── Wallpaper classes ───────────────────────────────────────────────────────
 
 /** Image wallpaper: full chrome material overrides. */
 export const WALLPAPER_CLASS = 'harvous-proto-wallpaper';
@@ -353,57 +343,67 @@ const TINT_SAMPLE_EDGE = 32;
 
 /** Apply classes and canvas vars synchronously (image uses stored tint or theme default until sampled). */
 export function applyBackground(bg: ProtoBg): void {
-  const resolved = resolveBackgroundForScheme(bg);
   const root = document.documentElement;
   const style = root.style;
 
-  if (resolved === null) {
+  if (bg === null) {
     clearBackgroundVars();
     return;
   }
-  if (resolved.kind === 'color') {
-    style.setProperty('--pds-canvas-bg', resolved.value);
+  if (bg.kind === 'color') {
+    style.setProperty('--pds-canvas-bg', bg.value);
     style.removeProperty('--pds-canvas-image');
-  } else {
-    style.setProperty('--pds-canvas-bg', imageCanvasTint(resolved));
-    style.setProperty('--pds-canvas-image', `url("${resolved.value}")`);
+    root.classList.remove(WALLPAPER_CLASS, WALLPAPER_IMAGE_CLASS, WALLPAPER_COLOR_CLASS);
+    root.classList.add(WALLPAPER_COLOR_CLASS);
+    return;
   }
 
-  root.classList.remove(WALLPAPER_CLASS, WALLPAPER_IMAGE_CLASS, WALLPAPER_COLOR_CLASS);
-  if (resolved.kind === 'color') {
-    root.classList.add(WALLPAPER_COLOR_CLASS);
-  } else if (resolved.kind === 'image') {
-    root.classList.add(WALLPAPER_CLASS, WALLPAPER_IMAGE_CLASS);
+  const url = wallpaperImageUrl(bg);
+  style.setProperty('--pds-canvas-bg', imageCanvasTint(bg));
+  if (url) {
+    style.setProperty('--pds-canvas-image', `url("${url}")`);
+  } else {
+    style.removeProperty('--pds-canvas-image');
   }
+  root.classList.remove(WALLPAPER_CLASS, WALLPAPER_IMAGE_CLASS, WALLPAPER_COLOR_CLASS);
+  root.classList.add(WALLPAPER_CLASS, WALLPAPER_IMAGE_CLASS);
 }
 
 /** Apply background and, for images, sample + persist a shell tint when missing. */
 export async function applyBackgroundWithImageTint(bg: ProtoBg): Promise<void> {
-  const resolved = resolveBackgroundForScheme(bg);
   applyBackground(bg);
-  if (resolved?.kind !== 'image') return;
+  if (!bg || !isImageWallpaper(bg)) return;
 
-  const rawTint = bg.tint ?? (await sampleImageTint(bg.value));
-  const canvasTint = tintForAppearance(rawTint);
+  const url = wallpaperImageUrl(bg);
+  if (!url) return;
+
+  const preset = imagePresetById(bg.presetId);
+  const catalogTint = preset ? imagePresetCatalogTint(preset) : undefined;
+  const rawTint = bg.tint;
+  const sampledTint = rawTint ?? catalogTint ?? (await sampleImageTint(url));
+  const canvasTint = tintForAppearance(sampledTint);
   document.documentElement.style.setProperty('--pds-canvas-bg', canvasTint);
 
-  if (bg.tint !== rawTint) {
-    const updated = { kind: 'image' as const, value: bg.value, tint: rawTint };
-    setActiveBackground(updated);
-    writeSavedImage({ value: bg.value, tint: rawTint });
+  if (rawTint !== sampledTint) {
+    const updated: ProtoBg = { kind: 'image-preset', presetId: bg.presetId, tint: sampledTint };
+    const mode = preset?.mode ?? (isDarkAppearance() ? 'dark' : 'light');
+    writeBackgroundForMode(mode, updated);
   }
 }
 
-function imageCanvasTint(bg: Extract<ProtoBg, { kind: 'image' }>): string {
+function imageCanvasTint(bg: ImageWallpaperBg): string {
   if (bg.tint) return tintForAppearance(bg.tint);
+  const preset = imagePresetById(bg.presetId);
+  const catalogTint = preset ? imagePresetCatalogTint(preset) : undefined;
+  if (catalogTint) return tintForAppearance(catalogTint);
   return DEFAULT_CANVAS_BG;
 }
 
 /** Average color from a downscaled decode — used for shell glass, not the html wallpaper. */
-export async function sampleImageTint(dataUrl: string): Promise<string> {
+export async function sampleImageTint(imageSrc: string): Promise<string> {
   if (typeof document === 'undefined') return '#f7f6f3';
   try {
-    const img = await loadImageForTint(dataUrl);
+    const img = await loadImageForTint(imageSrc);
     const canvas = document.createElement('canvas');
     const edge = TINT_SAMPLE_EDGE;
     canvas.width = edge;

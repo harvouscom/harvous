@@ -1,0 +1,82 @@
+---
+/**
+ * HeroPillCycle — the cycling headline pill: note → scripture → highlight →
+ * folder → thread, auto-advancing on a timer. Both the chip color/icon AND the
+ * word change together (each pill is a full ContentPill).
+ *
+ * Improvement over the prototype mp4: the pills are stacked in one inline-grid
+ * cell, so the slot is sized to the widest pill and stays put — the headline
+ * doesn't jitter horizontally on each swap. Pills crossfade with a small rise.
+ * Honors prefers-reduced-motion (freezes on `note`).
+ */
+import ContentPill from "./ContentPill.astro";
+
+const TYPES = ["note", "scripture", "highlight", "folder", "thread"] as const;
+---
+
+<span class="pillcycle" data-pillcycle>
+  {TYPES.map((type, i) => (
+    <span class:list={["pillcycle__item", i === 0 && "is-active"]} data-pill-item>
+      <ContentPill type={type} />
+    </span>
+  ))}
+</span>
+
+<style>
+  .pillcycle {
+    position: relative;
+    display: inline-flex;
+    vertical-align: baseline;
+    white-space: nowrap;
+  }
+  /* The active pill is in-flow, so it hugs "one … at a time" tightly (no gap)
+     and the line reflows to its width. Inactive pills overlay it, centered and
+     faded. Sequential timing: the outgoing pill fades out first, the incoming
+     one fades + rises in after a delay — so two tinted chips never sit visible
+     together, and the width morph happens during the blank beat. */
+  .pillcycle__item {
+    opacity: 0;
+    transform: translateY(0.32em);
+    transition:
+      opacity 220ms ease,
+      transform 220ms ease;
+    will-change: opacity, transform;
+  }
+  .pillcycle__item:not(.is-active) {
+    position: absolute;
+    inset: 0;
+    margin: auto;
+    width: max-content;
+    height: max-content;
+    transform: translateY(0.32em);
+    pointer-events: none;
+  }
+  .pillcycle__item.is-active {
+    position: relative;
+    opacity: 1;
+    transform: translateY(0);
+    transition:
+      opacity 360ms ease 240ms,
+      transform 460ms cubic-bezier(0.22, 1, 0.36, 1) 240ms;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .pillcycle__item { transition: none; }
+  }
+</style>
+
+<script>
+  const INTERVAL = 2000;
+  document.querySelectorAll<HTMLElement>("[data-pillcycle]").forEach((root) => {
+    const items = Array.from(root.querySelectorAll<HTMLElement>("[data-pill-item]"));
+    if (items.length < 2) return;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+
+    let i = 0;
+    setInterval(() => {
+      items[i].classList.remove("is-active");
+      i = (i + 1) % items.length;
+      items[i].classList.add("is-active");
+    }, INTERVAL);
+  });
+</script>

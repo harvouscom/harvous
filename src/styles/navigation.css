@@ -1700,7 +1700,7 @@ button.space-btn .space-btn__text {
 }
 
 .space-mismatch-banner__btn--primary {
-  background: var(--color-bold-blue);
+  background: linear-gradient(171deg, #2bb5ff 7%, #006eff 93%);
   color: white;
 }
 

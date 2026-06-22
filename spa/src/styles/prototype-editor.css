@@ -1024,7 +1024,7 @@ html.harvous-prototype-route .proto-shell__study-dock-layer .highlight-dock-web_
   transition: background 0.1s, color 0.1s;
 }
 
-.proto-note-action-bar__pill:hover {
+.proto-note-action-bar__pill:hover:not(.proto-note-action-bar__pill--share-active) {
   background: var(--pds-bg-control-strong);
   color: var(--pds-text-primary);
 }
@@ -1047,6 +1047,7 @@ html.harvous-prototype-route .proto-shell__study-dock-layer .highlight-dock-web_
   transition: filter 0.1s;
 }
 .proto-note-action-bar__pill--share-active:hover {
+  background: var(--pds-bg-accent-button);
   filter: brightness(1.06);
   color: var(--pds-on-accent);
 }

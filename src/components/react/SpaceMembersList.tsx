@@ -340,7 +340,7 @@ export default function SpaceMembersList({
         {/* Footer */}
         <div className="flex-row p-4 border-t border-[var(--color-fog-white)] shrink-0" style={{ gap: '0.75rem' }}>
           <button
-            className="flex-fill px-6 py-3 bg-[var(--color-bold-blue)] text-white border-none rounded-xl text-[14px] font-semibold cursor-pointer hover:opacity-90 transition-opacity"
+            className="flex-fill px-6 py-3 bg-[var(--color-bold-blue)] text-white border-none rounded-full text-[14px] font-semibold cursor-pointer hover:opacity-90 transition-opacity"
             onClick={onClose}
           >
             Done

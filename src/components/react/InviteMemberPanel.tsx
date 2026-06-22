@@ -206,7 +206,7 @@ export default function InviteMemberPanel({
                 onClick={(e) => (e.target as HTMLInputElement).select()}
               />
               <button
-                className="px-5 bg-[var(--color-bold-blue)] text-white border-none rounded-xl text-[14px] font-medium cursor-pointer hover:opacity-90 transition-opacity"
+                className="px-5 bg-[var(--color-bold-blue)] text-white border-none rounded-full text-[14px] font-medium cursor-pointer hover:opacity-90 transition-opacity"
                 onClick={copyToClipboard}
               >
                 Copy
@@ -288,7 +288,7 @@ export default function InviteMemberPanel({
         <div className="flex-row p-4 border-t border-[var(--color-fog-white)]" style={{ gap: '0.75rem' }}>
           {inviteLink ? (
             <button
-              className="flex-fill px-6 py-3 bg-[var(--color-bold-blue)] text-white border-none rounded-xl text-[14px] font-semibold cursor-pointer hover:opacity-90 transition-opacity"
+              className="flex-fill px-6 py-3 bg-[var(--color-bold-blue)] text-white border-none rounded-full text-[14px] font-semibold cursor-pointer hover:opacity-90 transition-opacity"
               onClick={onClose}
             >
               Done
@@ -296,14 +296,14 @@ export default function InviteMemberPanel({
           ) : (
             <>
               <button
-                className="flex-fill px-6 py-3 bg-[var(--color-fog-white)] text-[var(--color-deep-grey)] border-none rounded-xl text-[14px] font-semibold cursor-pointer hover:bg-[var(--color-soft-gray)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className="flex-fill px-6 py-3 bg-[var(--color-fog-white)] text-[var(--color-deep-grey)] border-none rounded-full text-[14px] font-semibold cursor-pointer hover:bg-[var(--color-soft-gray)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 onClick={onClose}
                 disabled={loading}
               >
                 Cancel
               </button>
               <button
-                className="flex-fill px-6 py-3 bg-[var(--color-bold-blue)] text-white border-none rounded-xl text-[14px] font-semibold cursor-pointer hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
+                className="flex-fill px-6 py-3 bg-[var(--color-bold-blue)] text-white border-none rounded-full text-[14px] font-semibold cursor-pointer hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
                 onClick={handleInvite}
                 disabled={loading}
               >

@@ -719,7 +719,7 @@ html.ios-pwa .modal-overlay {
 
 .modal-btn {
   padding: 0.5rem 1rem;  /* py-2 px-4 */
-  border-radius: 0.5rem;  /* rounded-lg */
+  border-radius: 999px;
   font-weight: 500;
   transition: background-color 0.15s, opacity 0.15s;
   cursor: pointer;
@@ -744,11 +744,11 @@ html.ios-pwa .modal-overlay {
 }
 
 .modal-btn--primary {
-  background-color: var(--color-bold-blue);
+  background: linear-gradient(171deg, #2bb5ff 7%, #006eff 93%);
   color: white;
 
   &:hover {
-    opacity: 0.9;
+    filter: brightness(1.05);
   }
 }
 

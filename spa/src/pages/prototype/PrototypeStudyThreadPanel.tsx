@@ -20,6 +20,7 @@ import { prototypeNoteRouteTo } from '@/lib/prototype-path';
 import { noteParamSlug } from './proto-route-slugs';
 import { stripServerAutoUntitledNoteTitleForDisplay } from '@/utils/server-auto-untitled-note-display';
 import { stripHtmlForCard } from '@/utils/html-stripper';
+import { protoRelativeCaptionAbbrev } from './proto-time';
 import { studyThreadDisplayTitle } from '../../utils/study-thread-display-title';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -65,6 +66,7 @@ function PanelNoteRow({ node, isFocus, showDisconnect, focusNoteId, edges, onOpe
   const edge = showDisconnect ? findEdge(focusNoteId, node.id, edges) : undefined;
   const title = nodeDisplayTitle(node);
   const preview = nodePreview(node);
+  const rel = protoRelativeCaptionAbbrev(node.updatedAt);
 
   const handleDisconnect = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -92,9 +94,14 @@ function PanelNoteRow({ node, isFocus, showDisconnect, focusNoteId, edges, onOpe
       >
         <div className="proto-note-row__title-line">
           <span className="pds-list-title proto-note-row__title-text">{title}</span>
+          {isFocus ? <span className="proto-side-panel__current-badge">Current</span> : null}
         </div>
-        {preview ? (
-          <div className="pds-list-preview proto-note-row__preview">{preview}</div>
+        {(rel || preview) ? (
+          <div className="pds-list-preview proto-note-row__preview">
+            {rel ? <span className="pds-list-timestamp">{rel}</span> : null}
+            {rel && preview ? '  ' : null}
+            {preview ? <span>{preview}</span> : null}
+          </div>
         ) : null}
       </button>
 
@@ -196,7 +203,7 @@ export default function PrototypeStudyThreadPanel({ noteId, spaceId }: Prototype
       {/* ── Minimal header: label + actions only ─────────────────────────── */}
       <div className="proto-side-panel__header proto-side-panel__header--minimal">
         <span className="proto-side-panel__header-label">
-          <Icon name="arrow-right-arrow-left" size={11} aria-hidden />
+          <Icon name="arrow-right-arrow-left" size={13} aria-hidden />
           Threads
         </span>
         <div className="proto-side-panel__header-actions">
@@ -330,8 +337,8 @@ export default function PrototypeStudyThreadPanel({ noteId, spaceId }: Prototype
 
             {/* Connected notes section */}
             <section className="proto-inspector-section">
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-                <p className="proto-inspector-section-title" style={{ marginBottom: 0 }}>
+              <div className="proto-side-panel__section-header">
+                <p className="proto-inspector-section-title">
                   {nodeCount > 0 ? `${nodeCount} ${nodeCount === 1 ? 'note' : 'notes'}` : 'Connected notes'}
                 </p>
                 {effectiveSpaceId ? (
@@ -357,7 +364,9 @@ export default function PrototypeStudyThreadPanel({ noteId, spaceId }: Prototype
                   ))}
                 </ul>
               ) : (
-                <p className="proto-inspector-muted">No notes connected yet.</p>
+                <div className="proto-side-panel__empty">
+                  <p className="proto-inspector-muted">No notes connected yet.</p>
+                </div>
               )}
             </section>
           </>

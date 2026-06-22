@@ -11,7 +11,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 1.5rem;
+  border-radius: 999px;
   cursor: pointer;
   font-family: var(--font-sans) !important;
   font-weight: 600 !important;
@@ -88,7 +88,7 @@
   font-size: 14px;
   line-height: 0;
   min-height: 40px;
-  border-radius: 1rem;
+  border-radius: 999px;
   box-shadow:
     0px -4px 0px 0px hsla(0, 0%, 0%, 0.1) inset,
     0px 2px 2px 0px hsla(0, 0%, 0%, 0.25);
@@ -106,9 +106,9 @@
    Button Variants (Colors)
    ========================================================================== */
 
-/* Primary (Default) - Bold Blue */
+/* Primary (Default) - Site-matched blue gradient */
 .btn--primary {
-  background-color: var(--color-bold-blue);
+  background: linear-gradient(171deg, #2bb5ff 7%, #006eff 93%);
   color: white !important;
 
   & .btn__content,
@@ -120,7 +120,7 @@
   }
 
   &:active {
-    background-color: var(--color-navy);
+    background: linear-gradient(171deg, #1fa8f0 7%, #005ce0 93%);
   }
 }
 
@@ -277,7 +277,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 1.5rem;
+  border-radius: 999px;
   cursor: pointer;
   font-family: var(--font-sans) !important;
   font-weight: 600 !important;
@@ -285,7 +285,7 @@
   line-height: 0;
   white-space: nowrap;
   color: var(--color-fog-white);
-  background-color: var(--color-bold-blue);
+  background: linear-gradient(171deg, #2bb5ff 7%, #006eff 93%);
   height: 64px;
   padding: 1.5rem 1.5rem 1.75rem;
   box-shadow: 0px 4px 4px 0px rgba(0, 0, 0, 0.25);
@@ -319,7 +319,7 @@
   position: absolute;
   inset: 0;
   pointer-events: none;
-  border-radius: 1.5rem;
+  border-radius: 999px;
   transition: box-shadow 0.125s ease-in-out;
   box-shadow: 0px -8px 0px 0px rgba(0, 0, 0, 0.1) inset;
 

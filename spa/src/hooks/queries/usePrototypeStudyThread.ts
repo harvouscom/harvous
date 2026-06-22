@@ -13,6 +13,7 @@ export interface StudyThreadNodeFlat {
   resourceTitle: string | null;
   resourceDescription: string | null;
   resourceImage: string | null;
+  updatedAt: string | null;
 }
 
 /** A directed edge in the study thread graph. */

@@ -1,122 +1,103 @@
-import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import { useState, useSyncExternalStore } from 'react';
 import Icon from '@/components/react/Icon';
 import {
   BG_PRESETS,
-  MAX_IMAGE_BYTES,
+  IMAGE_PRESETS_LIGHT,
+  IMAGE_PRESETS_DARK,
   applyBackgroundWithImageTint,
   getColorSchemeSnapshot,
-  isPhotoAvailable,
-  isPhotoSelected,
-  isPresetSelected,
-  presetApplyValue,
+  imagePresetApplyValue,
+  imagePresetById,
+  imagePresetUrl,
+  isImagePresetSelected,
   presetDisplayLabel,
-  presetSwatchColor,
-  readBackground,
+  readActiveBackground,
+  readBackgroundForMode,
   readColorSchemePreference,
-  readSavedImage,
-  removeSavedImage,
-  saveUploadedImage,
-  selectSavedImage,
-  setActiveBackground,
   subscribeColorScheme,
+  writeBackgroundForMode,
   writeColorSchemePreference,
+  type BgImagePreset,
   type BgPreset,
   type ColorSchemePreference,
   type ProtoBg,
-  type ProtoSavedImage,
 } from '../../../lib/prototype-background';
 import { AppearancePreviewTile } from './AppearancePreviewTile';
-import { SettingsGroup, SettingsIntro, SettingsShell } from './SettingsShell';
+import { SettingsGroup, SettingsShell } from './SettingsShell';
+
+type BgKind = 'colors' | 'photos';
 
 export default function PrototypeAppearancePage() {
-  const [active, setActive] = useState<ProtoBg>(() => readBackground());
-  const [savedImage, setSavedImage] = useState<ProtoSavedImage | null>(() => readSavedImage());
-  const [error, setError] = useState<string | null>(null);
+  const [lightBg, setLightBg] = useState<ProtoBg>(() => readBackgroundForMode('light'));
+  const [darkBg, setDarkBg] = useState<ProtoBg>(() => readBackgroundForMode('dark'));
   const [colorSchemePref, setColorSchemePref] = useState<ColorSchemePreference>(() => readColorSchemePreference());
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const colorScheme = useSyncExternalStore(subscribeColorScheme, getColorSchemeSnapshot, () => 'light');
+  const colorScheme = useSyncExternalStore(subscribeColorScheme, getColorSchemeSnapshot, () => 'light' as const);
+
+  const effectiveMode: 'light' | 'dark' =
+    colorSchemePref === 'light' ? 'light' : colorSchemePref === 'dark' ? 'dark' : colorScheme;
+
+  const [editingMode, setEditingMode] = useState<'light' | 'dark'>(effectiveMode);
+  const [bgKind, setBgKind] = useState<BgKind>(() => {
+    const bg = effectiveMode === 'dark' ? readBackgroundForMode('dark') : readBackgroundForMode('light');
+    return bg?.kind === 'image-preset' ? 'photos' : 'colors';
+  });
+
+  const isAuto = colorSchemePref === 'system';
+
+  const activeBg = editingMode === 'dark' ? darkBg : lightBg;
+  const imagePresets = editingMode === 'dark' ? IMAGE_PRESETS_DARK : IMAGE_PRESETS_LIGHT;
 
   const onPickColorScheme = (pref: ColorSchemePreference) => {
     setColorSchemePref(pref);
     writeColorSchemePreference(pref);
-    // Re-apply canvas so preset color switches to the new scheme's variant.
-    void applyBackgroundWithImageTint(readBackground());
+    const newMode = pref === 'light' ? 'light' : pref === 'dark' ? 'dark' : getColorSchemeSnapshot();
+    setEditingMode(newMode);
+    const bg = readBackgroundForMode(newMode);
+    setBgKind(bg?.kind === 'image-preset' ? 'photos' : 'colors');
+    void applyBackgroundWithImageTint(readActiveBackground());
   };
 
-  const applyActive = (next: ProtoBg) => {
-    setError(null);
-    setActive(next);
-    setActiveBackground(next);
-    void applyBackgroundWithImageTint(next);
+  const applyForMode = (mode: 'light' | 'dark', next: ProtoBg) => {
+    if (mode === 'light') setLightBg(next);
+    else setDarkBg(next);
+    writeBackgroundForMode(mode, next);
+    void applyBackgroundWithImageTint(readActiveBackground());
   };
 
-  const onPickPreset = (preset: (typeof BG_PRESETS)[number]) => {
-    applyActive(presetApplyValue(preset));
+  const onPickColorPreset = (preset: BgPreset) => {
+    const value = editingMode === 'dark'
+      ? (preset.dark !== undefined ? preset.dark : preset.light)
+      : preset.light;
+    const next: ProtoBg = value === null ? null : { kind: 'color', value };
+    applyForMode(editingMode, next);
   };
 
-  const onPickPhoto = () => {
-    if (!isPhotoAvailable(savedImage)) {
-      fileInputRef.current?.click();
-      return;
-    }
-    const next = selectSavedImage();
-    if (!next) return;
-    setError(null);
-    setActive(next);
-    void applyBackgroundWithImageTint(next);
+  const onPickImagePreset = (preset: BgImagePreset) => {
+    applyForMode(preset.mode, imagePresetApplyValue(preset));
   };
 
-  const onRemoveImage = () => {
-    setError(null);
-    const next = removeSavedImage();
-    setSavedImage(null);
-    setActive(next);
-    void applyBackgroundWithImageTint(next);
+  const onSwitchEditingMode = (mode: 'light' | 'dark') => {
+    setEditingMode(mode);
+    const bg = readBackgroundForMode(mode);
+    setBgKind(bg?.kind === 'image-preset' ? 'photos' : 'colors');
   };
 
-  const onPickFile = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    e.target.value = '';
-    if (!file) return;
-    if (file.size > MAX_IMAGE_BYTES) {
-      setError('Image is too large. Please pick one under 3 MB.');
-      return;
-    }
-    const reader = new FileReader();
-    reader.onload = async () => {
-      const result = typeof reader.result === 'string' ? reader.result : null;
-      if (!result) return;
-      try {
-        const optimized = await optimizeWallpaperDataUrl(result);
-        setError(null);
-        const next = saveUploadedImage(optimized);
-        setSavedImage({ value: optimized });
-        setActive(next);
-        void applyBackgroundWithImageTint(next);
-      } catch {
-        setError("Couldn't process that image. Please try another.");
-      }
-    };
-    reader.onerror = () => setError("Couldn't read that image. Please try another.");
-    reader.readAsDataURL(file);
+  const onSwitchBgKind = (kind: BgKind) => {
+    setBgKind(kind);
   };
-
-  const hasSavedImage = isPhotoAvailable(savedImage);
-  const carouselRef = useRef<HTMLDivElement>(null);
-
-  const carouselOptions = useMemo(() => orderAppearanceOptions(active), [active]);
-
-  useEffect(() => {
-    carouselRef.current?.scrollTo({ left: 0, behavior: 'smooth' });
-  }, [active]);
 
   return (
     <SettingsShell appearanceLayout>
+      <ActiveHero
+        lightBg={lightBg}
+        darkBg={darkBg}
+        isAuto={isAuto}
+        effectiveMode={effectiveMode}
+        editingMode={editingMode}
+        onTapCard={isAuto ? onSwitchEditingMode : undefined}
+      />
+
       <div className="proto-settings__inset">
-        <SettingsIntro>Appearance settings are saved on this browser and device.</SettingsIntro>
-        <div className="pds-inspector-label" style={{ margin: '0 0 8px', color: 'var(--pds-text-tertiary)' }}>
-          Light or Dark
-        </div>
         <SettingsGroup>
           {COLOR_SCHEME_OPTIONS.map(({ value, label }, i) => (
             <button
@@ -139,100 +120,207 @@ export default function PrototypeAppearancePage() {
           ))}
         </SettingsGroup>
 
-        <div className="pds-inspector-label" style={{ margin: '20px 0 8px', color: 'var(--pds-text-tertiary)' }}>
-          Background
+        <div style={{ margin: '16px 0 0' }}>
+          <SegmentedControl
+            options={BG_KIND_OPTIONS}
+            value={bgKind}
+            onChange={onSwitchBgKind}
+          />
         </div>
       </div>
 
-      <div ref={carouselRef} className="proto-appearance-carousel" role="listbox" aria-label="Background">
-        {carouselOptions.map((option) => {
-          if (option.kind === 'preset') {
-            const preset = option.preset;
-            return (
-              <AppearancePreviewTile
-                key={preset.label}
-                label={presetDisplayLabel(preset, colorScheme)}
-                selected={isPresetSelected(preset, active)}
-                canvasColor={presetSwatchColor(preset)}
-                onClick={() => onPickPreset(preset)}
-              />
-            );
-          }
-          return (
-            <AppearancePreviewTile
-              key="photo"
-              label="Photo"
-              selected={isPhotoSelected(active)}
-              canvasColor={hasSavedImage ? undefined : 'var(--pds-bg-control)'}
-              canvasImageUrl={hasSavedImage ? savedImage!.value : undefined}
-              photoEmpty={!hasSavedImage}
-              glassMode="image"
-              onClick={onPickPhoto}
-            />
-          );
-        })}
-      </div>
-
-      <div className="proto-settings__inset">
-      {hasSavedImage ? (
-        <SettingsGroup>
-          <button
-            type="button"
-            className="proto-note-row"
-            onClick={() => fileInputRef.current?.click()}
-            style={rowStyle}
-          >
-            <span style={{ minWidth: 0, display: 'flex', alignItems: 'center', gap: 10 }}>
-              <span
-                aria-hidden
-                style={{
-                  width: 36,
-                  height: 36,
-                  borderRadius: 6,
-                  flexShrink: 0,
-                  backgroundImage: `url("${savedImage!.value}")`,
-                  backgroundSize: 'cover',
-                  backgroundPosition: 'center',
-                  border: '0.5px solid var(--pds-border)',
-                }}
-              />
-              <span className="pds-list-title">Replace image</span>
-            </span>
-            <span style={{ display: 'flex', color: 'var(--pds-text-tertiary)' }} aria-hidden>
-              <Icon name="chevron-right" size={12} />
-            </span>
-          </button>
-          <button
-            type="button"
-            className="proto-note-row"
-            onClick={onRemoveImage}
-            style={{ ...rowStyle, color: 'var(--pds-destructive)' }}
-          >
-            <span className="pds-list-title" style={{ color: 'var(--pds-destructive)' }}>Remove image</span>
-          </button>
-        </SettingsGroup>
-      ) : null}
-
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept="image/*"
-        onChange={onPickFile}
-        style={{ display: 'none' }}
+      <BgCarousel
+        mode={editingMode}
+        bgKind={bgKind}
+        activeBg={activeBg}
+        imagePresets={imagePresets}
+        colorScheme={editingMode}
+        onPickColor={onPickColorPreset}
+        onPickImage={onPickImagePreset}
       />
-
-      {error ? (
-        <p style={{ color: 'var(--pds-destructive)', fontSize: '0.8125rem', padding: '8px 0 0' }}>{error}</p>
-      ) : null}
-      </div>
     </SettingsShell>
   );
 }
+
+// ─── Segmented control ──────────────────────────────────────────────────────
+
+type SegmentedControlProps<T extends string> = {
+  options: { value: T; label: string }[];
+  value: T;
+  onChange: (value: T) => void;
+};
+
+function SegmentedControl<T extends string>({ options, value, onChange }: SegmentedControlProps<T>) {
+  return (
+    <div className="proto-appearance-segmented" role="radiogroup">
+      {options.map((opt) => (
+        <button
+          key={opt.value}
+          type="button"
+          role="radio"
+          aria-checked={value === opt.value}
+          className={`proto-appearance-segmented__btn${value === opt.value ? ' proto-appearance-segmented__btn--active' : ''}`}
+          onClick={() => onChange(opt.value)}
+        >
+          {opt.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+// ─── Active background hero ─────────────────────────────────────────────────
+
+type ActiveHeroProps = {
+  lightBg: ProtoBg;
+  darkBg: ProtoBg;
+  isAuto: boolean;
+  effectiveMode: 'light' | 'dark';
+  editingMode: 'light' | 'dark';
+  onTapCard?: (mode: 'light' | 'dark') => void;
+};
+
+function ActiveHero({ lightBg, darkBg, isAuto, effectiveMode, editingMode, onTapCard }: ActiveHeroProps) {
+  const cards: { mode: 'light' | 'dark'; bg: ProtoBg }[] = isAuto
+    ? [{ mode: 'light', bg: lightBg }, { mode: 'dark', bg: darkBg }]
+    : [{ mode: effectiveMode, bg: effectiveMode === 'dark' ? darkBg : lightBg }];
+
+  return (
+    <div className={`proto-appearance-hero${cards.length === 1 ? ' proto-appearance-hero--single' : ''}`}>
+      {cards.map(({ mode, bg }) => {
+        const { name, swatchColor, swatchImageUrl } = describeBg(bg, mode);
+        const isEditing = isAuto && editingMode === mode;
+        const Tag = onTapCard ? 'button' : 'div';
+        return (
+          <Tag
+            key={mode}
+            type={onTapCard ? 'button' : undefined}
+            className={`proto-appearance-hero__card${isEditing ? ' proto-appearance-hero__card--editing' : ''}`}
+            onClick={onTapCard ? () => onTapCard(mode) : undefined}
+          >
+            <div
+              className={`proto-appearance-hero__canvas proto-appearance-hero__canvas--${mode}`}
+              style={{
+                backgroundColor: swatchColor,
+                ...(swatchImageUrl ? { backgroundImage: `url("${swatchImageUrl}")` } : {}),
+              }}
+            >
+              <div className="proto-appearance-hero__shell">
+                <span className="proto-appearance-hero__toolbar" />
+                <span className="proto-appearance-hero__body">
+                  <span className="proto-appearance-hero__sidebar" />
+                  <span className="proto-appearance-hero__main" />
+                </span>
+              </div>
+              {isEditing ? (
+                <span className="proto-appearance-hero__check" aria-label="Editing">
+                  <Icon name="check" size={12} />
+                </span>
+              ) : null}
+            </div>
+            <div className="proto-appearance-hero__label">
+              {isAuto ? (
+                <span className="proto-appearance-hero__mode">{mode === 'dark' ? 'Dark' : 'Light'}</span>
+              ) : null}
+              <span className="proto-appearance-hero__name">{name}</span>
+            </div>
+          </Tag>
+        );
+      })}
+    </div>
+  );
+}
+
+function describeBg(bg: ProtoBg, mode: 'light' | 'dark'): { name: string; swatchColor: string; swatchImageUrl?: string } {
+  if (bg === null) {
+    const preset = BG_PRESETS[0];
+    const fallback = mode === 'dark' ? '#050509' : '#fcfbf7';
+    return { name: presetDisplayLabel(preset, mode), swatchColor: fallback };
+  }
+  if (bg.kind === 'color') {
+    for (const preset of BG_PRESETS) {
+      const modeValue = mode === 'dark'
+        ? (preset.dark !== undefined ? preset.dark : preset.light)
+        : preset.light;
+      if (modeValue === bg.value) {
+        return { name: presetDisplayLabel(preset, mode), swatchColor: bg.value };
+      }
+    }
+    return { name: bg.value, swatchColor: bg.value };
+  }
+  const preset = imagePresetById(bg.presetId);
+  if (preset) {
+    return { name: preset.label, swatchColor: 'transparent', swatchImageUrl: imagePresetUrl(preset) };
+  }
+  return { name: 'Custom', swatchColor: mode === 'dark' ? '#050509' : '#fcfbf7' };
+}
+
+// ─── Background carousel ────────────────────────────────────────────────────
+
+type BgCarouselProps = {
+  mode: 'light' | 'dark';
+  bgKind: BgKind;
+  activeBg: ProtoBg;
+  imagePresets: BgImagePreset[];
+  colorScheme: 'light' | 'dark';
+  onPickColor: (preset: BgPreset) => void;
+  onPickImage: (preset: BgImagePreset) => void;
+};
+
+function BgCarousel({ mode, bgKind, activeBg, imagePresets, colorScheme, onPickColor, onPickImage }: BgCarouselProps) {
+  if (bgKind === 'photos') {
+    return (
+      <div
+        className="proto-appearance-carousel"
+        role="listbox"
+        aria-label={`${mode} photo background`}
+        style={{ marginTop: 12 }}
+      >
+        {imagePresets.map((preset) => (
+          <AppearancePreviewTile
+            key={preset.id}
+            label={preset.label}
+            selected={isImagePresetSelected(preset, activeBg)}
+            canvasImageUrl={imagePresetUrl(preset)}
+            glassMode="image"
+            onClick={() => onPickImage(preset)}
+          />
+        ))}
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className="proto-appearance-carousel proto-appearance-carousel--colors"
+      role="listbox"
+      aria-label={`${mode} color background`}
+      style={{ marginTop: 12 }}
+    >
+      {BG_PRESETS.map((preset) => (
+        <AppearancePreviewTile
+          key={preset.label}
+          label={presetDisplayLabel(preset, colorScheme)}
+          selected={isColorPresetSelectedForMode(preset, activeBg, mode)}
+          canvasColor={modeSwatchColor(preset, mode)}
+          onClick={() => onPickColor(preset)}
+        />
+      ))}
+    </div>
+  );
+}
+
+// ─── Constants ──────────────────────────────────────────────────────────────
 
 const COLOR_SCHEME_OPTIONS: { value: ColorSchemePreference; label: string }[] = [
   { value: 'system', label: 'Auto' },
   { value: 'light', label: 'Light' },
   { value: 'dark', label: 'Dark' },
+];
+
+const BG_KIND_OPTIONS: { value: BgKind; label: string }[] = [
+  { value: 'colors', label: 'Colors' },
+  { value: 'photos', label: 'Imagery' },
 ];
 
 const rowStyle: React.CSSProperties = {
@@ -249,43 +337,22 @@ const rowStyle: React.CSSProperties = {
   color: 'var(--pds-text-primary)',
 };
 
-async function optimizeWallpaperDataUrl(source: string): Promise<string> {
-  const img = await loadImage(source);
-  const MAX_EDGE = 1600;
-  const largest = Math.max(img.width, img.height);
-  const scale = largest > MAX_EDGE ? MAX_EDGE / largest : 1;
-  const targetW = Math.max(1, Math.round(img.width * scale));
-  const targetH = Math.max(1, Math.round(img.height * scale));
+// ─── Helpers ────────────────────────────────────────────────────────────────
 
-  const canvas = document.createElement('canvas');
-  canvas.width = targetW;
-  canvas.height = targetH;
-  const ctx = canvas.getContext('2d');
-  if (!ctx) return source;
-  ctx.drawImage(img, 0, 0, targetW, targetH);
-
-  return canvas.toDataURL('image/jpeg', 0.82) || canvas.toDataURL('image/png');
+function modeSwatchColor(preset: BgPreset, mode: 'light' | 'dark'): string {
+  if (mode === 'dark' && preset.dark !== undefined) {
+    return preset.dark === null ? 'var(--pds-canvas-default)' : preset.dark;
+  }
+  return preset.light === null ? 'var(--pds-canvas-default)' : preset.light;
 }
 
-function loadImage(src: string): Promise<HTMLImageElement> {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    img.onload = () => resolve(img);
-    img.onerror = () => reject(new Error('image-load-failed'));
-    img.src = src;
-  });
-}
-
-type AppearanceOption = { kind: 'preset'; preset: BgPreset } | { kind: 'photo' };
-
-function orderAppearanceOptions(active: ProtoBg): AppearanceOption[] {
-  const options: AppearanceOption[] = [
-    ...BG_PRESETS.map((preset) => ({ kind: 'preset' as const, preset })),
-    { kind: 'photo' as const },
-  ];
-  const activeIndex = options.findIndex((option) =>
-    option.kind === 'photo' ? isPhotoSelected(active) : isPresetSelected(option.preset, active),
-  );
-  if (activeIndex <= 0) return options;
-  return [options[activeIndex], ...options.slice(0, activeIndex), ...options.slice(activeIndex + 1)];
+function isColorPresetSelectedForMode(preset: BgPreset, bg: ProtoBg, mode: 'light' | 'dark'): boolean {
+  const isPaperPreset =
+    preset.light === null && (preset.dark === null || preset.dark === undefined);
+  if (isPaperPreset) return bg === null;
+  if (bg?.kind !== 'color') return false;
+  const modeValue = mode === 'dark'
+    ? (preset.dark !== undefined ? preset.dark : preset.light)
+    : preset.light;
+  return modeValue === bg.value;
 }

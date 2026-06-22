@@ -868,6 +868,7 @@ route.get('/api/notes/:id/thread', requireAuth, async (c) => {
         resourceTitle: rm?.sourceTitle ?? null,
         resourceDescription: rm?.sourceDescription ?? null,
         resourceImage: rm?.sourceImage ?? null,
+        updatedAt: n.updatedAt ? n.updatedAt.toISOString() : null,
       };
     });
 

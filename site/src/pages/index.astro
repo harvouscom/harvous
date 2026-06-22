@@ -1,185 +1,101 @@
 ---
 import BaseLayout from "../layouts/BaseLayout.astro";
-import Hero from "../components/Hero.astro";
+import HeroCentered from "../components/HeroCentered.astro";
+import ProductCard from "../components/ProductCard.astro";
 import FounderLetter from "../components/FounderLetter.astro";
-import Comparison from "../components/Comparison.astro";
-import SectionHeader from "../components/SectionHeader.astro";
-import Bento from "../components/Bento.astro";
-import FeatureCard from "../components/FeatureCard.astro";
-import GradientSection from "../components/GradientSection.astro";
-import TestimonialCard from "../components/TestimonialCard.astro";
-import FaqItem from "../components/FaqItem.astro";
-import Section from "../components/layout/Section.astro";
 import Container from "../components/layout/Container.astro";
-import CTAButton from "../components/CTAButton.astro";
-import { getCollection, render } from "astro:content";
 
-const faq = (await getCollection("faq")).sort((a, b) => a.data.order - b.data.order);
-const testimonials = (await getCollection("testimonials")).sort((a, b) => a.data.order - b.data.order);
-
-const testimonialContent = await Promise.all(
-  testimonials.map(async (t) => {
-    const { Content } = await render(t);
-    return { data: t.data, Content };
-  })
-);
-const faqContent = await Promise.all(
-  faq.map(async (q) => {
-    const { Content } = await render(q);
-    return { data: q.data, Content };
-  })
-);
-
-const useCases = [
-  { href: "/use-cases/daily-journal", label: "Daily journal", sub: "A verse and a few honest lines each morning.", tint: "sky" },
-  { href: "/use-cases/sermon-notes", label: "Sermon notes", sub: "Capture the message while it's fresh.", tint: "amber" },
-  { href: "/use-cases/small-group", label: "Small group", sub: "Keep the week's study in one place.", tint: "mint" },
-  { href: "/use-cases/book-study", label: "Book study", sub: "Work through a book, chapter by chapter.", tint: "violet" },
-  { href: "/use-cases/topical-study", label: "Topical study", sub: "Follow a theme across the whole Bible.", tint: "coral" },
+// Feature cards — copy + pills straight from the Figma "Home" frame. Screenshots
+// are stand-ins from /app-preview; swap for fresh captures.
+const cards = [
+  {
+    pills: ["note"],
+    title: "Take notes like Google Docs",
+    body: "Rich text formatting is, of course, there from creating headings to adding bullets, dividers, and links.",
+    image: "/app-preview/hero.png",
+    imageAlt: "Writing a note in Harvous with rich-text formatting",
+  },
+  {
+    pills: ["scripture"],
+    title: "Just type the reference",
+    body: "Instead of a Bible reader just type the Scripture reference you want and open it. Available in 11 English translations.",
+    image: "/app-preview/scripture.png",
+    imageAlt: "A scripture reference opened inline with a translation picker",
+  },
+  {
+    pills: ["highlight"],
+    title: "Highlight text and annotate",
+    body: "Select text to highlight and add an annotation. You can even do this within the Scripture you add.",
+    image: "/app-preview/highlight.png",
+    imageAlt: "A highlighted phrase with an annotation",
+  },
+  {
+    pills: ["folder", "thread"],
+    title: "Auto or manually organized",
+    body: "Notes, by default, automatically organize into folders with tags. Manually connect notes together to create threads.",
+    image: "/app-preview/folders.png",
+    imageAlt: "Notes auto-organized into folders, with threads connecting them",
+  },
 ] as const;
 ---
 
 <BaseLayout>
-  <Hero />
+  <HeroCentered />
 
-  <!-- Founder letter -->
-  <section id="about" class="fade-rule-y">
-    <div class="mx-auto max-w-5xl px-8 py-20 md:py-24">
-      <div class="mb-12 text-center" data-reveal>
-        <div class="eyebrow">A letter from Derek</div>
-        <h2 class="mt-3 font-display text-4xl leading-[1.05] md:text-6xl">
-          I made Harvous because I need<br class="hidden md:block" /> to remember the Bible, better.
-        </h2>
+  <!-- Intro heading + horizontal card carousel (matches the Figma frame). -->
+  <section class="intro">
+    <Container size="xl">
+      <h2 class="intro__title" data-reveal>
+        Harvous is a notes app<br class="hidden sm:block" /> made for Bible study
+      </h2>
+    </Container>
+
+    <div class="cards" data-reveal style="--reveal-delay: 80ms;">
+      <div class="cards__track">
+        {cards.map((c) => (
+          <ProductCard pills={c.pills} title={c.title} body={c.body} image={c.image} imageAlt={c.imageAlt} />
+        ))}
       </div>
-      <FounderLetter />
     </div>
   </section>
 
-  <!-- Features bento -->
-  <Section space="lg" id="features">
-    <Container size="xl">
-      <SectionHeader
-        eyebrow="What's included"
-        title="It all comes together."
-        lead="Auto folders, scripture pills, and highlights work as you write — turning every note into your own study Bible. No busywork, no upkeep."
-      />
-      <Bento class="mt-12">
-        <FeatureCard tint="sky" span={2} label="Scripture pills" sublabel="Type a reference and tap it to read — right in your note, across 7 translations.">
-          <img src="/app-preview/scripture.png" alt="Scripture pills in a Harvous note" loading="lazy" decoding="async" />
-        </FeatureCard>
-        <FeatureCard solid tint="blue" label="7 translations" sublabel="KJV · NKJV · ESV · NIV · NLT · NET · BSB" icon="fa6-solid:book-bible" />
-
-        <FeatureCard tint="amber" label="Highlights & notes" sublabel="Save the phrases that matter, with a note for later.">
-          <img src="/app-preview/highlight.png" alt="A highlighted phrase with an annotation" loading="lazy" decoding="async" />
-        </FeatureCard>
-        <FeatureCard tint="violet" label="Auto folders + tags" sublabel="Organized as you write — by book, theme, and people.">
-          <img src="/app-preview/folders.png" alt="Notes auto-sorted into folders" loading="lazy" decoding="async" />
-        </FeatureCard>
-        <FeatureCard tint="mint" label="Built-in dictionary" sublabel="Look up any word in Easton's, without leaving.">
-          <img src="/app-preview/dictionary.png" alt="A word looked up in the dictionary" loading="lazy" decoding="async" />
-        </FeatureCard>
-
-        <FeatureCard tint="coral" label="Daily passage" sublabel="A fresh passage waiting each day.">
-          <img src="/app-preview/passage.png" alt="Today's passage card" loading="lazy" decoding="async" />
-        </FeatureCard>
-        <FeatureCard tint="sky" label="Connect notes" sublabel="Link related notes into a thread you can follow.">
-          <img src="/app-preview/connect.png" alt="A thread of connected notes" loading="lazy" decoding="async" />
-        </FeatureCard>
-        <FeatureCard solid tint="mint" label="Works offline" sublabel="Read and write anywhere — it syncs when you're back." icon="fa6-solid:cloud-arrow-down" />
-      </Bento>
+  <!-- Founder letter (closes the frame). -->
+  <section class="letter">
+    <Container size="md">
+      <FounderLetter />
     </Container>
-  </Section>
-
-  <!-- Everywhere you study -->
-  <GradientSection
-    gradient="blue"
-    eyebrow="Everywhere you study"
-    title="On every device, even offline."
-    body="Web, Mac, iPad, and iPhone. Your notes sync across all of them — and keep working without a signal."
-  />
-
-  <!-- Why Harvous — vs a Bible reader vs a generic notes app -->
-  <Comparison />
-
-  <!-- Testimonials -->
-  <Section space="lg" id="testimonials" divider="top">
-    <Container size="lg">
-      <div class="band-head" data-reveal>
-        <span class="eyebrow-pill">From people using it</span>
-        <h2 class="section-title">Helping people with their Bible study.</h2>
-      </div>
-      <div class="t-grid">
-        {testimonialContent.map(({ data, Content }, i) => {
-          const palette = ["lilac", "peach", "mint", "sky"] as const;
-          return (
-            <div data-reveal style={`--reveal-delay: ${i * 80}ms`}>
-              <TestimonialCard name={data.name} when={data.when} tone={palette[i % palette.length]}>
-                <Content />
-              </TestimonialCard>
-            </div>
-          );
-        })}
-      </div>
-    </Container>
-  </Section>
-
-  <!-- Ways people use it -->
-  <Section space="lg">
-    <Container size="xl">
-      <SectionHeader
-        eyebrow="Ways people use it"
-        title="However you study, it fits."
-        lead="Harvous works the same whether you journal alone in the morning or lead a group through a book."
-      />
-      <Bento class="mt-12">
-        {useCases.map((u) => (
-          <FeatureCard tint={u.tint} label={u.label} sublabel={u.sub} href={u.href} />
-        ))}
-      </Bento>
-    </Container>
-  </Section>
-
-  <!-- FAQ -->
-  <Section space="lg">
-    <Container size="lg">
-      <div class="band-head" data-reveal>
-        <span class="eyebrow-pill">Potentially asked questions</span>
-        <h2 class="section-title">Got questions?</h2>
-      </div>
-      <div class="faq-grid">
-        {faqContent.map(({ data, Content }) => (
-          <FaqItem question={data.question}>
-            <Content />
-          </FaqItem>
-        ))}
-      </div>
-    </Container>
-  </Section>
-
-  <!-- Closing CTA -->
-  <GradientSection
-    gradient="blue"
-    title="Try Harvous."
-    body="A notes app thoughtfully designed for Bible study — for a practice that isn't just on Sundays."
-  >
-    <CTAButton slot="cta" href="https://app.harvous.com/sign-up" variant="white" size="lg" external>
-      Start for free
-    </CTAButton>
-  </GradientSection>
+  </section>
 </BaseLayout>
 
 <style>
-  .band-head {
+  .intro { padding-block: clamp(3rem, 8vw, 6rem); }
+  .intro__title {
     text-align: center;
-    margin-inline: auto;
-    max-width: 42rem;
-    margin-bottom: 2.5rem;
+    font-family: "Google Sans Flex", "Google Sans", ui-sans-serif, system-ui, sans-serif;
+    font-weight: 600;
+    font-variation-settings: "wdth" 100, "ROND" 0;
+    font-size: clamp(2rem, 5vw, 3rem);
+    line-height: 1.1;
+    letter-spacing: -0.02em;
+    color: var(--color-ink);
   }
-  .band-head > * + * { margin-top: 0.85rem; }
 
-  .t-grid { display: grid; gap: 1.25rem; }
-  @media (min-width: 768px) { .t-grid { grid-template-columns: repeat(3, 1fr); } }
+  /* Horizontal carousel: first card aligns to the container's left edge, the
+     row bleeds off the right. Scroll-snap on touch. */
+  .cards {
+    margin-top: clamp(2rem, 5vw, 3.5rem);
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    -webkit-overflow-scrolling: touch;
+    padding-block: 0.5rem 1.5rem;
+    padding-left: max(1.25rem, calc((100vw - 72rem) / 2));
+    padding-right: 1.25rem;
+  }
+  .cards__track { display: flex; gap: 3rem; width: max-content; }
+  .cards__track > :global(*) {
+    flex: 0 0 clamp(300px, 82vw, 527px);
+    scroll-snap-align: start;
+  }
 
-  .faq-grid { display: grid; gap: 0 4rem; }
-  @media (min-width: 768px) { .faq-grid { grid-template-columns: repeat(2, 1fr); } }
+  .letter { padding-block: clamp(2rem, 6vw, 4.5rem) clamp(3rem, 8vw, 6rem); }
 </style>

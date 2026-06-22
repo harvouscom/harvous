@@ -11,7 +11,8 @@
  *
  * Frame geometry mirrors `.proto-shell-frame` in prototype-shell.css.
  * Keep active key/parsing in sync with spa/src/lib/prototype-background.ts
- * (saved-image archive key is settings-only — not read here).
+ * and public/scripts/prototype-image-presets-catalog.js (generated from
+ * shared/appearance-image-presets.json). Saved-image archive is settings-only.
  */
 (function prototypeRouteBoot() {
   if (typeof window === 'undefined' || typeof document === 'undefined') return;
@@ -46,7 +47,8 @@
   }
 
   var PROTO_BG_KEY = 'harvous-proto-bg';
-  var MAX_IMAGE_DATA_URL_CHARS = 1600000;
+  var PROTO_BG_LIGHT_KEY = 'harvous-proto-bg-light';
+  var PROTO_BG_DARK_KEY = 'harvous-proto-bg-dark';
   var PROTO_ROUTE_CLASS = 'harvous-prototype-route';
   var WALLPAPER_CLASS = 'harvous-proto-wallpaper';
   var WALLPAPER_IMAGE_CLASS = 'harvous-proto-wallpaper-image';
@@ -142,25 +144,46 @@
   var LEGACY_PAPER_LIGHT_HEX = '#f7f6f3';
   var LEGACY_PAPER_DARK_HEX = '#1a1a1c';
 
-  function readBackground() {
+  function isDarkAppearance() {
+    var attr = root.getAttribute('data-color-scheme');
+    if (attr === 'dark') return true;
+    if (attr === 'light') return false;
+    return window.matchMedia('(prefers-color-scheme: dark)').matches;
+  }
+
+  function imagePresetCatalog() {
+    return window.__HARVOUS_APPEARANCE_IMAGE_PRESETS || { basePath: '/images/prototype-backgrounds', presets: [] };
+  }
+
+  function imagePresetById(id) {
+    var catalog = imagePresetCatalog();
+    for (var i = 0; i < catalog.presets.length; i++) {
+      if (catalog.presets[i].id === id) return catalog.presets[i];
+    }
+    return null;
+  }
+
+  function imagePresetUrl(preset) {
+    var catalog = imagePresetCatalog();
+    return catalog.basePath + '/' + (preset.mode || 'light') + '/' + preset.file;
+  }
+
+  function parseBg(raw) {
+    if (!raw) return null;
     try {
-      var raw = localStorage.getItem(PROTO_BG_KEY);
-      if (!raw) return null;
       var parsed = JSON.parse(raw);
-      if (
-        parsed &&
-        (parsed.kind === 'color' || parsed.kind === 'image') &&
-        typeof parsed.value === 'string'
-      ) {
-        if (parsed.kind === 'image' && parsed.value.length > MAX_IMAGE_DATA_URL_CHARS) {
-          localStorage.removeItem(PROTO_BG_KEY);
-          return null;
-        }
-        if (
-          parsed.kind === 'color' &&
-          (parsed.value === LEGACY_PAPER_LIGHT_HEX || parsed.value === LEGACY_PAPER_DARK_HEX)
-        ) {
-          localStorage.removeItem(PROTO_BG_KEY);
+      if (parsed && parsed.kind === 'image-preset' && typeof parsed.presetId === 'string') {
+        var presetId =
+          parsed.presetId === 'mist'
+            ? 'meadow'
+            : parsed.presetId === 'shade' || parsed.presetId === 'stone' || parsed.presetId === 'dusk'
+              ? 'cinder'
+              : parsed.presetId;
+        if (!imagePresetById(presetId)) return null;
+        return presetId === parsed.presetId ? parsed : { kind: 'image-preset', presetId: presetId, tint: parsed.tint };
+      }
+      if (parsed && parsed.kind === 'color' && typeof parsed.value === 'string') {
+        if (parsed.value === LEGACY_PAPER_LIGHT_HEX || parsed.value === LEGACY_PAPER_DARK_HEX) {
           return null;
         }
         return parsed;
@@ -169,6 +192,23 @@
     } catch (e) {
       return null;
     }
+  }
+
+  function readBackground() {
+    try {
+      var modeKey = isDarkAppearance() ? PROTO_BG_DARK_KEY : PROTO_BG_LIGHT_KEY;
+      var raw = localStorage.getItem(modeKey);
+      if (raw !== null) return parseBg(raw);
+      return parseBg(localStorage.getItem(PROTO_BG_KEY));
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function wallpaperImageUrl(bg) {
+    if (bg.kind === 'image') return bg.value;
+    var preset = imagePresetById(bg.presetId);
+    return preset ? imagePresetUrl(preset) : '';
   }
 
   function applyBackground(bg) {
@@ -185,11 +225,17 @@
       style.setProperty('--pds-canvas-bg', bg.value);
       style.removeProperty('--pds-canvas-image');
       root.classList.add(WALLPAPER_COLOR_CLASS);
-    } else {
-      style.setProperty('--pds-canvas-bg', DEFAULT_CANVAS_BG);
-      style.setProperty('--pds-canvas-image', 'url("' + bg.value + '")');
-      root.classList.add(WALLPAPER_CLASS, WALLPAPER_IMAGE_CLASS);
+      return;
     }
+
+    var url = wallpaperImageUrl(bg);
+    style.setProperty('--pds-canvas-bg', DEFAULT_CANVAS_BG);
+    if (url) {
+      style.setProperty('--pds-canvas-image', 'url("' + url + '")');
+    } else {
+      style.removeProperty('--pds-canvas-image');
+    }
+    root.classList.add(WALLPAPER_CLASS, WALLPAPER_IMAGE_CLASS);
   }
 
   applyBackground(readBackground());

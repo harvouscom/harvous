@@ -1,0 +1,68 @@
+---
+/**
+ * ContentPill — the brand content-type chip (note / scripture / highlight /
+ * folder / thread). Colors, icons, and the 10%-opacity tint are taken directly
+ * from the Figma "Home" frame so the site is pixel-true to the design. Reused by
+ * HeroPillCycle (the cycling headline pill) and the product cards.
+ *
+ * Sizes via `em` — the surrounding font-size controls the pill scale (huge in
+ * the hero heading, small in the cards). Icon is 0.5em of the word (per frame).
+ */
+import { Icon } from "astro-icon/components";
+
+type PillType = "note" | "scripture" | "highlight" | "folder" | "thread";
+
+interface Props {
+  type: PillType;
+  class?: string;
+}
+
+const { type, class: className = "" } = Astro.props;
+
+const PILLS: Record<PillType, { word: string; icon: string }> = {
+  note: { word: "note", icon: "fa6-solid:note-sticky" },
+  scripture: { word: "scripture", icon: "fa6-solid:book" },
+  highlight: { word: "highlight", icon: "fa6-solid:highlighter" },
+  folder: { word: "folder", icon: "fa6-solid:folder" },
+  thread: { word: "thread", icon: "fa6-solid:arrow-right-arrow-left" },
+};
+
+const { word, icon } = PILLS[type];
+---
+
+<span class:list={["cpill", `cpill--${type}`, className]}>
+  <span class="cpill__icon"><Icon name={icon} /></span>
+  <span class="cpill__word">{word}</span>
+</span>
+
+<style>
+  .cpill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.22em;
+    border-radius: 999px;
+    padding: 0.16em 0.4em;
+    font-family: "Google Sans Flex", "Google Sans", ui-sans-serif, system-ui, sans-serif;
+    font-weight: 600;
+    line-height: 1;
+    white-space: nowrap;
+    letter-spacing: -0.02em;
+    color: var(--pill);
+    background: color-mix(in srgb, var(--pill) 10%, transparent);
+    font-variation-settings: "wdth" 100, "ROND" 0;
+  }
+  .cpill__icon {
+    display: inline-flex;
+    font-size: 0.5em;
+    color: var(--pill);
+  }
+  .cpill__icon :global(svg) { width: 1em; height: 1em; display: block; }
+  .cpill__word { display: inline-block; }
+
+  /* Exact frame palette */
+  .cpill--note      { --pill: #2a9ed6; }
+  .cpill--scripture { --pill: #9250c0; }
+  .cpill--highlight { --pill: #f0c814; }
+  .cpill--folder    { --pill: #e84f83; }
+  .cpill--thread    { --pill: #26c01c; }
+</style>

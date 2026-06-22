@@ -8075,22 +8075,6 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                 >
                   <Icon name="highlighter" size={14} />
                 </button>
-                <span className="pds-native-selection-bar__rule" aria-hidden />
-                <button
-                  type="button"
-                  className="pds-native-selection-bar__btn"
-                  title="New Harvous note from selection"
-                  aria-label="New Harvous note from selection"
-                  onMouseDown={(e: React.MouseEvent) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    const range = resolveSelectionBarRange();
-                    void handleCreateNoteFromSelection(range ? { from: range.from, to: range.to } : undefined);
-                    clearSelectionActionBar();
-                  }}
-                >
-                  <Icon name="pen-to-square" size={14} />
-                </button>
                 {sourceNoteId && spaceId ? (
                   <>
                     <span className="pds-native-selection-bar__rule" aria-hidden />
@@ -8099,7 +8083,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                       className="pds-native-selection-bar__btn"
                       title="Connect existing note to selection"
                       aria-label="Connect existing note to selection"
-                      onMouseDown={(e: React.MouseEvent) => {
+                      onPointerDownCapture={(e: React.PointerEvent) => {
                         e.preventDefault();
                         e.stopPropagation();
                         const range = resolveSelectionBarRange();
@@ -8126,6 +8110,22 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                     </button>
                   </>
                 ) : null}
+                <span className="pds-native-selection-bar__rule" aria-hidden />
+                <button
+                  type="button"
+                  className="pds-native-selection-bar__btn"
+                  title="New Harvous note from selection"
+                  aria-label="New Harvous note from selection"
+                  onPointerDownCapture={(e: React.PointerEvent) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    const range = resolveSelectionBarRange();
+                    void handleCreateNoteFromSelection(range ? { from: range.from, to: range.to } : undefined);
+                    clearSelectionActionBar();
+                  }}
+                >
+                  <Icon name="pen-to-square" size={14} />
+                </button>
                 {selectionActionBar &&
                 rangeHasHighlightMark(editor, selectionActionBar.from, selectionActionBar.to) ? (
                   <>
@@ -8135,7 +8135,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                       className="pds-native-selection-bar__btn"
                       title="Clear highlight from selection"
                       aria-label="Clear highlight from selection"
-                      onMouseDown={(e: React.MouseEvent) => {
+                      onPointerDownCapture={(e: React.PointerEvent) => {
                         e.preventDefault();
                         e.stopPropagation();
                         const range = resolveSelectionBarRange();

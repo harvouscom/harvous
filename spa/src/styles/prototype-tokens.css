@@ -224,10 +224,10 @@
   --pds-selection-bg: #ffe8a8; /* match site --color-highlight */
   --pds-destructive-bg: oklch(var(--pds-lch-destructive) / 0.08);
   --pds-destructive-bg-strong: oklch(var(--pds-lch-destructive) / 0.15);
-  --pds-bg-accent-button: linear-gradient(180deg, #5a92ff 0%, #3869e6 55%, #2456d9 100%);
+  --pds-bg-accent-button: linear-gradient(171deg, #2bb5ff 7%, #006eff 93%);
   --pds-shadow-accent-button:
-    inset 0 1px 0 oklch(100% 0 0 / 0.35),
-    0 4px 12px -6px oklch(var(--pds-lch-accent) / 0.45);
+    inset 0 1px 0 rgba(255, 255, 255, 0.3),
+    0 10px 24px -10px rgba(0, 110, 255, 0.6);
   --pds-shadow-destructive-button:
     inset 0 1px 0 oklch(100% 0 0 / 0.25),
     0 4px 12px -6px oklch(var(--pds-lch-destructive) / 0.45);
@@ -258,7 +258,7 @@
 
   /* Radii — HarvousShape */
   --pds-radius-card:     20px;
-  --pds-radius-button:   12px;
+  --pds-radius-button:   999px;
   --pds-radius-input:    10px;
   --pds-radius-pill:     999px;
   --pds-radius-row:      10px;
@@ -329,7 +329,7 @@
   --pds-toolbar-h: 46px;
   --pds-footer-h:  36px;
   --pds-sidebar-w: 280px;
-  --pds-sidebar-min-w: 260px;
+  --pds-sidebar-min-w: 280px;
   --pds-sidebar-max-w: 420px;
   --pds-inspector-w: 260px;
   --pds-inspector-reserve-w: calc(var(--pds-inspector-w) + 8px);

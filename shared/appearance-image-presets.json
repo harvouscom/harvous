@@ -1,0 +1,15 @@
+{
+  "basePath": "/images/prototype-backgrounds",
+  "presets": [
+    { "id": "breeze", "label": "Breeze", "file": "ai_bg_053.webp", "mode": "light" },
+    { "id": "drift", "label": "Drift", "file": "ai_bg_047.webp", "mode": "light" },
+    { "id": "meadow", "label": "Meadow", "file": "ai_bg_051.webp", "mode": "light" },
+    { "id": "dawn", "label": "Dawn", "file": "ai_bg_045.webp", "mode": "light" },
+    { "id": "halo", "label": "Halo", "file": "ai_bg_050.webp", "mode": "light" },
+    { "id": "cinder", "label": "Cinder", "file": "ai_bg_074.webp", "mode": "dark" },
+    { "id": "caldera", "label": "Caldera", "file": "ai_bg_046.webp", "mode": "dark" },
+    { "id": "depths", "label": "Depths", "file": "ai_bg_052.webp", "mode": "dark" },
+    { "id": "flare", "label": "Flare", "file": "ai_bg_059.webp", "mode": "dark" },
+    { "id": "twilight", "label": "Twilight", "file": "ai_bg_060.webp", "mode": "dark" }
+  ]
+}

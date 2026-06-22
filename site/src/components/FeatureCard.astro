@@ -7,6 +7,7 @@
  * `span` controls desktop column span within <Bento> (1 or 2).
  */
 import { Icon } from "astro-icon/components";
+import ContentPill from "./ContentPill.astro";
 
 interface Props {
   tint?: "sky" | "amber" | "mint" | "violet" | "coral" | "blue" | "paper";
@@ -16,8 +17,10 @@ interface Props {
   span?: 1 | 2;
   solid?: boolean;
   icon?: string;
+  /** Brand content-type pill shown above the label (soft variant only). */
+  pillType?: "note" | "scripture" | "highlight" | "folder" | "thread";
 }
-const { tint = "paper", label, sublabel, href, span = 1, solid = false, icon } = Astro.props;
+const { tint = "paper", label, sublabel, href, span = 1, solid = false, icon, pillType } = Astro.props;
 const Tag = href ? "a" : "div";
 ---
 
@@ -34,6 +37,7 @@ const Tag = href ? "a" : "div";
   ) : (
     <>
       <div class="fcard__head">
+        {pillType && <div class="fcard__pill"><ContentPill type={pillType} /></div>}
         <div class="fcard__label">{label}</div>
         {sublabel && <div class="fcard__sub">{sublabel}</div>}
       </div>
@@ -67,6 +71,7 @@ const Tag = href ? "a" : "div";
   .fcard--coral { background: var(--tint-coral); }
   .fcard--blue { background: var(--tint-blue); }
 
+  .fcard__pill { margin-bottom: 0.85rem; }
   .fcard__label { font-weight: 600; font-size: 1.05rem; color: var(--color-ink); }
   .fcard__sub { margin-top: 0.3rem; font-size: 0.9rem; line-height: 1.5; color: var(--color-ink-soft); }
   .fcard__visual { margin-top: auto; }

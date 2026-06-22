@@ -142,7 +142,7 @@ export default function PrototypeInspectorPane({ note, spaceId = '' }: Prototype
               className="proto-inspector-view-thread"
               onClick={(e) => { setThreadsAnchorRect(e.currentTarget.getBoundingClientRect()); setThreadsOpen(true); }}
             >
-              <Icon name="eye" size={11} aria-hidden />
+              <Icon name="arrow-right-arrow-left" size={11} aria-hidden />
               <span>Open thread</span>
             </button>
           </>

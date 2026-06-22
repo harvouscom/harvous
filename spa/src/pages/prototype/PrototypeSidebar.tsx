@@ -1082,9 +1082,7 @@ export default function PrototypeSidebar() {
   const activeNoteSlug = noteSlugFromPath;
   const activeNoteFullId =
     activeNoteSlug && !isPrototypeDraftNoteSlug(activeNoteSlug)
-      ? activeNoteSlug.startsWith('note_')
-        ? activeNoteSlug
-        : `note_${activeNoteSlug}`
+      ? normalizeNoteIdFromParam(activeNoteSlug)
       : undefined;
 
   const notesForMode = useMemo(() => {

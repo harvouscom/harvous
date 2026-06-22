@@ -10,14 +10,19 @@ import { navigationQueryKeyPrefix } from '../../hooks/queries/useNavigation';
 import Icon from '@/components/react/Icon';
 import PrototypeSearchInput from './components/PrototypeSearchInput';
 import { stripServerAutoUntitledNoteTitleForDisplay } from '@/utils/server-auto-untitled-note-display';
+import { stripHtmlForListPreview } from '@/utils/html-stripper';
 import ProtoPopoverShell from './ProtoPopoverShell';
 import { useDismissOnOutside } from '../../hooks/usePopoverDismiss';
 import { useProtoShell } from '../../layouts/proto-shell-context';
+import { protoRelativeCaptionAbbrev } from './proto-time';
 
 export interface ConnectNoteCandidate {
   id: string;
   title: string;
   noteType: string;
+  updatedAt: string | null;
+  createdAt: string | null;
+  content: string | null;
 }
 
 interface ConnectNoteCandidatesResponse {
@@ -192,7 +197,7 @@ export default function PrototypeConnectNoteSheet({
       {/* Header — matches threads popover minimal header */}
       <div className="proto-study-thread-popover__header">
         <div className="proto-study-thread-popover__title-row">
-          <Icon name="arrow-right-arrow-left" size={12} aria-hidden />
+          <Icon name="arrow-right-arrow-left" size={13} aria-hidden />
           <span className="proto-study-thread-popover__title">Connect note</span>
         </div>
         <button
@@ -221,11 +226,11 @@ export default function PrototypeConnectNoteSheet({
 
       <div className="proto-connect-note-sheet__scroll" role="region" aria-label="Notes to connect">
         {isLoading && notes.length === 0 ? (
-          <p className="proto-inspector-muted" style={{ padding: '8px 14px' }}>Loading…</p>
+          <p className="proto-inspector-muted proto-connect-note-sheet__status">Loading…</p>
         ) : isSearching ? (
-          <p className="proto-inspector-muted" style={{ padding: '8px 14px' }}>Searching…</p>
+          <p className="proto-inspector-muted proto-connect-note-sheet__status">Searching…</p>
         ) : showEmpty ? (
-          <p className="proto-inspector-muted" style={{ padding: '8px 14px' }}>No notes match "{debouncedTrim}".</p>
+          <p className="proto-inspector-muted proto-connect-note-sheet__status">No notes match &ldquo;{debouncedTrim}&rdquo;.</p>
         ) : (
           <section className="proto-inspector-section">
             {showRecent && notes.length > 0 ? (
@@ -234,6 +239,8 @@ export default function PrototypeConnectNoteSheet({
             <ul className="proto-side-panel__note-list">
               {notes.map((n) => {
                 const title = stripServerAutoUntitledNoteTitleForDisplay((n.title ?? '').trim()) || 'New Note';
+                const rel = protoRelativeCaptionAbbrev(n.updatedAt ?? n.createdAt);
+                const preview = n.content ? stripHtmlForListPreview(n.content, 80) : '';
                 return (
                   <li key={n.id} className="proto-note-row-item">
                     <button
@@ -246,6 +253,13 @@ export default function PrototypeConnectNoteSheet({
                       <div className="proto-note-row__title-line">
                         <span className="pds-list-title proto-note-row__title-text">{title}</span>
                       </div>
+                      {(rel || preview) ? (
+                        <div className="pds-list-preview proto-note-row__preview">
+                          {rel ? <span className="pds-list-timestamp">{rel}</span> : null}
+                          {rel && preview ? '  ' : null}
+                          {preview ? <span>{preview}</span> : null}
+                        </div>
+                      ) : null}
                     </button>
                   </li>
                 );

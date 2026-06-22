@@ -65,7 +65,7 @@ export default class PanelErrorBoundary extends Component<
             </p>
             <button
               onClick={this.handleRetry}
-              className="px-4 py-2 bg-[var(--color-bold-blue)] text-white rounded-lg hover:opacity-90 transition-opacity font-medium"
+              className="px-4 py-2 bg-[var(--color-bold-blue)] text-white rounded-full hover:opacity-90 transition-opacity font-medium"
             >
               Try Again
             </button>

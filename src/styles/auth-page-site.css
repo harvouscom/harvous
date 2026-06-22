@@ -376,13 +376,12 @@
   text-align: center;
 }
 
-/* Gradient blue CTA pill — same treatment as `MacSignInView`'s primary. */
+/* Gradient blue CTA pill — matches the `/site/` hero button gradient. */
 .harvous-auth-form__primary {
   background: linear-gradient(
-    180deg,
-    #5a92ff 0%,
-    #3869e6 55%,
-    #2456d9 100%
+    171deg,
+    #2bb5ff 7%,
+    #006eff 93%
   ) !important;
   color: #ffffff !important;
   border-radius: 999px;
@@ -395,8 +394,8 @@
   height: 46px;
   border: 0;
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.32),
-    0 4px 12px -4px rgba(56, 105, 230, 0.45);
+    inset 0 1px 0 rgba(255, 255, 255, 0.3),
+    0 10px 24px -10px rgba(0, 110, 255, 0.6);
   transition: filter 120ms ease, background 120ms ease;
   cursor: pointer;
   display: inline-flex;
@@ -412,13 +411,12 @@
    label, making it look greyish on top of the blue. */
 .harvous-auth-form__primary:disabled {
   background: linear-gradient(
-    180deg,
-    #a9c2ff 0%,
-    #8aa6f0 55%,
-    #7e9ce6 100%
+    171deg,
+    #8fd8ff 7%,
+    #6aadff 93%
   ) !important;
   cursor: not-allowed;
-  box-shadow: 0 2px 8px -4px rgba(56, 105, 230, 0.3);
+  box-shadow: 0 2px 8px -4px rgba(0, 110, 255, 0.3);
   color: #ffffff !important;
   -webkit-text-fill-color: #ffffff;
 }

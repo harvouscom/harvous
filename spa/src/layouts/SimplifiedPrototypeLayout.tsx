@@ -42,7 +42,7 @@ import {
   clearBackgroundVars,
   getColorSchemeSnapshot,
   PROTO_ROUTE_CLASS,
-  readBackground,
+  readActiveBackground,
   readColorSchemePreference,
   subscribeColorScheme,
 } from '../lib/prototype-background';
@@ -78,7 +78,7 @@ export default function SimplifiedPrototypeLayout() {
     const el = document.documentElement;
     applyColorSchemePreference(readColorSchemePreference());
     el.classList.add(PROTO_ROUTE_CLASS);
-    void applyBackgroundWithImageTint(readBackground());
+    void applyBackgroundWithImageTint(readActiveBackground());
     return () => {
       el.classList.remove(PROTO_ROUTE_CLASS);
       clearBackgroundVars();
@@ -87,7 +87,7 @@ export default function SimplifiedPrototypeLayout() {
   }, []);
 
   useEffect(() => {
-    void applyBackgroundWithImageTint(readBackground());
+    void applyBackgroundWithImageTint(readActiveBackground());
   }, [colorScheme]);
 
   useEffect(() => {
