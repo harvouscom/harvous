@@ -1,7 +1,6 @@
 /* Shared single-row delete confirm — scripture pill + prototype delete floater */
 
 .harvous-delete-confirm {
-  min-width: 200px;
   max-width: 320px;
   border-radius: 22px;
   border: 0.5px solid rgba(0, 0, 0, 0.1);

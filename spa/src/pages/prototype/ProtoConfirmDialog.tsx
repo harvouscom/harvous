@@ -75,7 +75,6 @@ export default function ProtoConfirmDialog({
         position: 'fixed',
         top: pos?.top ?? -9999,
         left: pos?.left ?? -9999,
-        minWidth: CARD_MIN_WIDTH,
         maxWidth: CARD_MAX_WIDTH,
         zIndex: Z_INDEX,
         pointerEvents: 'auto',
