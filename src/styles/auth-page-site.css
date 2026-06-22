@@ -1,6 +1,6 @@
 /* ==========================================================================
    Auth Page — /site/-inspired redesign (new.harvous.com sign-in/up only).
-   Two-pane layout: hero image left, letter-card form right.
+   Centered card (max 960px): hero image bleeds behind the letter-card form.
    Requires `.auth-page.auth-page--site` on the root — classic app/localhost
    auth uses `.auth-page--classic` and forms.css + auth-gradient.css instead.
    ========================================================================== */
@@ -20,7 +20,8 @@
   --site-accent-soft: #e8eefc;
   --site-warm: #f1ede2;
   --site-highlight: #ffe8a8;
-  --auth-mobile-hero-height: 50vh;
+  --auth-container-max-width: 960px;
+  --auth-hero-height: 50vh;
 }
 
 /* ---------- Root container ---------- */
@@ -41,16 +42,14 @@
   flex-direction: column !important;
   gap: 0 !important;
   padding: 12px;
+  max-width: var(--auth-container-max-width);
+  margin-left: auto;
+  margin-right: auto;
+  position: relative;
+  width: 100%;
 }
 
-/* Two-pane at desktop — hero image left, form right. */
-@media (min-width: 1160px) {
-  .auth-page.auth-page--site .auth-page__container {
-    flex-direction: row !important;
-  }
-}
-
-/* ---------- Left pane — hero image ---------- */
+/* ---------- Hero backdrop — bleeds behind the letter stack ---------- */
 
 .auth-page.auth-page--site .auth-page__video-section {
   background-size: cover;
@@ -58,35 +57,26 @@
   background-repeat: no-repeat;
   border-radius: 0.75rem;
   overflow: hidden;
-  position: relative;
-  min-height: 120px;
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: var(--auth-hero-height);
+  min-height: 280px;
+  max-height: 420px;
 }
 
-@media (min-width: 1160px) {
-  .auth-page.auth-page--site .auth-page__video-section {
-    position: relative;
-    height: auto;
-    min-height: 0;
-    flex: 1;
-  }
-
-  .auth-page.auth-page--site .auth-page__video-section::after {
-    content: none;
-  }
-
-  .auth-page.auth-page--site .auth-page__video-overlay {
-    align-items: center;
-    justify-content: center;
-    padding-top: 0;
-  }
-
-  .auth-page.auth-page--site .auth-page__form-section {
-    padding-top: 24px !important;
-  }
-
-  .auth-page.auth-page--site .auth-letter-stack {
-    margin-top: 0;
-  }
+/* Soft fade into the paper background below the bleed zone. */
+.auth-page.auth-page--site .auth-page__video-section::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 72px;
+  background: linear-gradient(to bottom, transparent, var(--site-paper));
+  pointer-events: none;
+  z-index: 1;
 }
 
 .auth-page.auth-page--site .auth-page__video-overlay {
@@ -97,11 +87,11 @@
   bottom: 0;
   z-index: 10;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
 }
 
-/* App icon — top-center on mobile hero bleed; centered on desktop hero pane. */
+/* App icon — top-center on the hero bleed; 64px mobile, 128px at 960px+. */
 .auth-page.auth-page--site .auth-page__logo-container {
   display: inline-flex;
   align-items: center;
@@ -118,14 +108,6 @@
   filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.25));
 }
 
-@media (min-width: 1160px) {
-  .auth-page.auth-page--site .auth-page__logo {
-    width: 128px !important;
-    height: 128px !important;
-    border-radius: 43px;
-  }
-}
-
 /* ---------- Form section (centered content cluster) ---------- */
 
 .auth-page.auth-page--site .auth-page__form-section {
@@ -134,9 +116,41 @@
   flex-direction: column !important;
   align-items: center !important;
   justify-content: center !important;
-  padding: 24px 0 0 !important;
+  padding: 0 !important;
   background-color: transparent !important;
   min-height: 0 !important;
+  position: relative;
+  z-index: 1;
+}
+
+@media (max-width: 959px) {
+  .auth-page.auth-page--site .auth-page__video-overlay {
+    padding-top: 28px;
+  }
+
+  .auth-page.auth-page--site .auth-page__form-section {
+    padding-top: 112px !important;
+  }
+}
+
+@media (min-width: 960px) {
+  .auth-page.auth-page--site .auth-page__video-section {
+    max-height: 480px;
+  }
+
+  .auth-page.auth-page--site .auth-page__video-overlay {
+    padding-top: 40px;
+  }
+
+  .auth-page.auth-page--site .auth-page__form-section {
+    padding-top: 180px !important;
+  }
+
+  .auth-page.auth-page--site .auth-page__logo {
+    width: 128px !important;
+    height: 128px !important;
+    border-radius: 43px;
+  }
 }
 
 /* Outer wrapper — wide enough for the headline to sit on one line on
@@ -171,55 +185,9 @@
   position: relative;
   width: 100%;
   max-width: 460px;
-  margin: 0 auto;
+  margin: -40px auto 0;
   /* Padding reserves room for the rotated leaves so they don't clip. */
   padding: 10px 16px;
-}
-
-/* Mobile — hero bleeds behind the letter stack; icon stays pinned at top. */
-@media (max-width: 1159px) {
-  .auth-page.auth-page--site .auth-page__container {
-    position: relative;
-  }
-
-  .auth-page.auth-page--site .auth-page__video-section {
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    height: var(--auth-mobile-hero-height);
-    min-height: 280px;
-    max-height: 420px;
-  }
-
-  /* Soft fade into the paper background below the bleed zone. */
-  .auth-page.auth-page--site .auth-page__video-section::after {
-    content: "";
-    position: absolute;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    height: 72px;
-    background: linear-gradient(to bottom, transparent, var(--site-paper));
-    pointer-events: none;
-    z-index: 1;
-  }
-
-  .auth-page.auth-page--site .auth-page__video-overlay {
-    align-items: flex-start;
-    justify-content: center;
-    padding-top: 28px;
-  }
-
-  .auth-page.auth-page--site .auth-page__form-section {
-    position: relative;
-    z-index: 1;
-    padding-top: 112px !important;
-  }
-
-  .auth-page.auth-page--site .auth-letter-stack {
-    margin-top: -40px;
-  }
 }
 
 .auth-page.auth-page--site .auth-letter-stack__leaf {
