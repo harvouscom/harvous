@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, type MouseEvent } from 'react';
+import { useEffect, useMemo, useState, type MouseEvent } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import Icon from '@/components/react/Icon';
 import DockAccentSwatchButton, { SCRIPTURE_DOCK_ACCENT_COLORS } from '@/components/react/DockAccentSwatchButton';
@@ -9,6 +9,7 @@ import { api } from '../../../spa/src/lib/api';
 import { slugCandidates, type EastonCategory } from '../../../spa/src/hooks/useEastonsSlugIndex';
 import type { StudyHighlightAccentKey } from '@/utils/study-highlight-accents';
 import { isStudyHighlightAccentKey, STUDY_HIGHLIGHT_SWATCHES_NO_NEUTRAL } from '@/utils/study-highlight-accents';
+import { detectEastonsScriptureRefs } from '@/utils/eastons-scripture-refs';
 import '@/styles/study-dock-card.css';
 import '@/styles/reference-dock-web.css';
 
@@ -51,6 +52,8 @@ export interface ReferenceDockWebProps {
   passageReferenceSaved?: boolean;
   /** Persist the pending suggestion as a real reference. */
   onSaveReference?: () => void;
+  /** Scripture reference tapped in the body — open it as a read-only passage card. */
+  onOpenScripturePassage?: (reference: string) => void;
 }
 
 function categoryIcon(cat: EastonCategory) {
@@ -122,6 +125,7 @@ export default function ReferenceDockWeb({
   passageReference = false,
   passageReferenceSaved = false,
   onSaveReference,
+  onOpenScripturePassage,
 }: ReferenceDockWebProps) {
   const [query, setQuery] = useState(initialQuery);
   const trimmed = query.trim();
@@ -133,10 +137,16 @@ export default function ReferenceDockWeb({
     if (onExpandedChange) onExpandedChange(next);
     else setInternalExpanded(next);
   };
+  const [showScriptureRefs, setShowScriptureRefs] = useState(false);
 
   useEffect(() => {
     setQuery(initialQuery);
   }, [initialQuery]);
+
+  const scriptureRefs = useMemo(
+    () => (entry ? detectEastonsScriptureRefs(entry.body, entry.headword) : []),
+    [entry],
+  );
 
   const headword = entry?.headword ?? trimmed;
   const noteAccent: StudyHighlightAccentKey =
@@ -144,23 +154,41 @@ export default function ReferenceDockWeb({
   const savedReferenceHighlight = !!(noteHighlightRange || passageReferenceSaved);
   const accentColor = SCRIPTURE_DOCK_ACCENT_COLORS[savedReferenceHighlight ? noteAccent : 'neutral'];
 
-  const headerActions =
-    (pendingSuggestion || passageReference) && onSaveReference ? (
+  const scriptureRefToggle =
+    scriptureRefs.length > 0 && onOpenScripturePassage ? (
       <button
         type="button"
-        className="study-dock-card__header-btn reference-dock-web__save-orb"
-        onMouseDown={(e) => runPointerAction(e, onSaveReference)}
-        onClick={(e) => {
-          e.stopPropagation();
-          if (e.detail === 0) onSaveReference();
-        }}
-        aria-label="Save reference"
-        title="Save reference"
+        className={`study-dock-card__header-btn${showScriptureRefs ? ' study-dock-card__header-btn--active' : ''}`}
+        onClick={() => setShowScriptureRefs((v) => !v)}
+        title={showScriptureRefs ? 'Hide referenced passages' : 'Show referenced passages'}
+        aria-pressed={showScriptureRefs}
+        aria-label={showScriptureRefs ? 'Hide referenced passages' : 'Show referenced passages'}
       >
-        <Icon name="check" size={14} />
+        <Icon name="shuffle" size={12} />
       </button>
+    ) : null;
+
+  const headerActions =
+    (pendingSuggestion || passageReference) && onSaveReference ? (
+      <>
+        {scriptureRefToggle}
+        <button
+          type="button"
+          className="study-dock-card__header-btn reference-dock-web__save-orb"
+          onMouseDown={(e) => runPointerAction(e, onSaveReference)}
+          onClick={(e) => {
+            e.stopPropagation();
+            if (e.detail === 0) onSaveReference();
+          }}
+          aria-label="Save reference"
+          title="Save reference"
+        >
+          <Icon name="check" size={14} />
+        </button>
+      </>
     ) : savedReferenceHighlight && (onChangeNoteHighlight || onRemoveNoteHighlight) ? (
       <>
+        {scriptureRefToggle}
         {onChangeNoteHighlight ? (
           <DockAccentSwatchButton
             selection={noteAccent}
@@ -183,6 +211,8 @@ export default function ReferenceDockWeb({
           </button>
         ) : null}
       </>
+    ) : scriptureRefToggle ? (
+      scriptureRefToggle
     ) : null;
 
   return (
@@ -220,6 +250,26 @@ export default function ReferenceDockWeb({
         ) : (
           <>
             <div className="reference-dock-web__passage-html">{entry.body}</div>
+
+            {showScriptureRefs && scriptureRefs.length > 0 && onOpenScripturePassage ? (
+              <div className="reference-dock-web__scripture-refs">
+                <p className="reference-dock-web__scripture-refs-label">Referenced passages</p>
+                <div className="reference-dock-web__scripture-refs-rows">
+                  {scriptureRefs.map((ref) => (
+                    <button
+                      key={ref.canonical}
+                      type="button"
+                      className="reference-dock-web__scripture-ref-row"
+                      onClick={() => onOpenScripturePassage(ref.canonical)}
+                    >
+                      <Icon name="book-open" size={13} className="reference-dock-web__scripture-ref-icon" aria-hidden />
+                      <span className="reference-dock-web__scripture-ref-label">{ref.canonical}</span>
+                      <Icon name="chevron-right" size={11} className="reference-dock-web__scripture-ref-chevron" aria-hidden />
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ) : null}
 
             {entry.seeAlso.length > 0 ? (
               <div className="reference-dock-web__see-also">

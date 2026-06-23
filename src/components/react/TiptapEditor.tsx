@@ -9029,6 +9029,9 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                       onDone={() => {
                         setStudyDockStack((s) => closeDockEntry(s, entry.id));
                       }}
+                      onOpenScripturePassage={(ref) =>
+                        openScripturePassage(ref, 'KJV', entry.id)
+                      }
                     />
                   );
                 }

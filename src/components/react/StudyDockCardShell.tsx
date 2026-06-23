@@ -1,8 +1,99 @@
 'use client';
 
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import Icon from '@/components/react/Icon';
 import '@/styles/study-dock-card.css';
+
+const NARROW_BREAKPOINT = 420;
+
+function useNarrowViewport(breakpoint: number): boolean {
+  const [narrow, setNarrow] = useState(
+    () => typeof window !== 'undefined' && window.innerWidth <= breakpoint,
+  );
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const mql = window.matchMedia(`(max-width: ${breakpoint}px)`);
+    const handler = (e: MediaQueryListEvent) => setNarrow(e.matches);
+    setNarrow(mql.matches);
+    mql.addEventListener('change', handler);
+    return () => mql.removeEventListener('change', handler);
+  }, [breakpoint]);
+  return narrow;
+}
+
+function OverflowMenu({ children }: { children: React.ReactNode }) {
+  const [open, setOpen] = useState(false);
+  const [pos, setPos] = useState<{ top: number; right: number } | null>(null);
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const popRef = useRef<HTMLDivElement>(null);
+
+  const updatePos = useCallback(() => {
+    const el = btnRef.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    setPos({ top: r.bottom + 6, right: window.innerWidth - r.right });
+  }, []);
+
+  useLayoutEffect(() => {
+    if (!open) { setPos(null); return; }
+    updatePos();
+  }, [open, updatePos]);
+
+  useEffect(() => {
+    if (!open) return;
+    const dismiss = (e: MouseEvent | TouchEvent) => {
+      const t = e.target as Node | null;
+      if (!t) return;
+      if (btnRef.current?.contains(t)) return;
+      if (popRef.current?.contains(t)) return;
+      setOpen(false);
+    };
+    const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false); };
+    document.addEventListener('mousedown', dismiss);
+    document.addEventListener('touchstart', dismiss, { passive: true });
+    document.addEventListener('keydown', esc);
+    window.addEventListener('resize', updatePos);
+    window.addEventListener('scroll', updatePos, true);
+    return () => {
+      document.removeEventListener('mousedown', dismiss);
+      document.removeEventListener('touchstart', dismiss);
+      document.removeEventListener('keydown', esc);
+      window.removeEventListener('resize', updatePos);
+      window.removeEventListener('scroll', updatePos, true);
+    };
+  }, [open, updatePos]);
+
+  return (
+    <>
+      <button
+        ref={btnRef}
+        type="button"
+        className="study-dock-card__header-btn study-dock-card__overflow-trigger"
+        aria-label="More actions"
+        aria-expanded={open}
+        aria-haspopup="menu"
+        onMouseDown={(e) => e.preventDefault()}
+        onClick={() => setOpen((v) => !v)}
+      >
+        <Icon name="ellipsis" size={12} />
+      </button>
+      {open && pos && typeof document !== 'undefined'
+        ? createPortal(
+            <div
+              ref={popRef}
+              className="study-dock-card__overflow-popover"
+              role="menu"
+              style={{ position: 'fixed', top: pos.top, right: pos.right }}
+            >
+              {children}
+            </div>,
+            document.body,
+          )
+        : null}
+    </>
+  );
+}
 
 /** Matches `--study-dock-motion-spring-layer` duration for exit-before-dismiss. */
 const DOCK_EXIT_MS = 320;
@@ -48,6 +139,7 @@ export default function StudyDockCardShell({
   headerActions,
   children,
 }: StudyDockCardShellProps) {
+  const isNarrow = useNarrowViewport(NARROW_BREAKPOINT);
   const [isExiting, setIsExiting] = useState(false);
   const [showEnter, setShowEnter] = useState(animateEnter);
   const exitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -165,10 +257,14 @@ export default function StudyDockCardShell({
             ) : null}
             <div className="study-dock-card__header-actions" onClick={stopHeaderActionClickBubble}>
               {expanded && headerActions ? (
-                <>
-                  {headerActions}
-                  <span className="study-dock-card__header-divider" aria-hidden />
-                </>
+                isNarrow ? (
+                  <OverflowMenu>{headerActions}</OverflowMenu>
+                ) : (
+                  <>
+                    {headerActions}
+                    <span className="study-dock-card__header-divider" aria-hidden />
+                  </>
+                )
               ) : null}
               {expanded ? (
                 <button
