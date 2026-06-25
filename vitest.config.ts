@@ -27,6 +27,9 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
+      // The real `app-navigate` shim imports the SPA router (unloadable under jsdom); stub it so tests
+      // can import shared components/utilities that reference it lazily.
+      'app-navigate': path.resolve(__dirname, './src/utils/__tests__/app-navigate-stub.ts'),
     },
   },
 });

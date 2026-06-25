@@ -1052,6 +1052,17 @@ html.harvous-prototype-route .proto-shell__study-dock-layer .highlight-dock-web_
   color: var(--pds-on-accent);
 }
 
+/* ─── Find in note highlights (CSS Custom Highlight API) ───────────────────
+   Painted via ::highlight() so matches show regardless of `user-select` — this
+   is why matches inside scripture pills (user-select:none) highlight too. */
+::highlight(proto-find-match) {
+  background-color: color-mix(in srgb, var(--pds-selection-bg) 55%, transparent);
+}
+::highlight(proto-find-active) {
+  background-color: var(--pds-selection-bg);
+  color: inherit;
+}
+
 /* ─── Find in note popover (createPortal'd to document.body) ───────────── */
 .proto-find-popover {
   background: var(--pds-bg-popover-solid);

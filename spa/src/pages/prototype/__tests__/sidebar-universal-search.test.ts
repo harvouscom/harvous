@@ -185,6 +185,63 @@ describe('sidebar-universal-search', () => {
     expect(folders.some((f) => f.name === null)).toBe(true);
   });
 
+  it('buildFoldersFromNotes collapses apostrophe variants into one bucket', () => {
+    const notes = [
+      {
+        id: 'n1',
+        title: 'Carol one',
+        content: '',
+        createdAt: '2024-01-01',
+        updatedAt: '2024-01-01',
+        primaryCollection: 'O’ Holy Night', // curly apostrophe
+        secondaryCollections: [],
+      },
+      {
+        id: 'n2',
+        title: 'Carol two',
+        content: '',
+        createdAt: '2024-01-02',
+        updatedAt: '2024-01-02',
+        primaryCollection: "O' Holy Night", // straight apostrophe
+        secondaryCollections: [],
+      },
+    ] as UniversalSearchData['notes'];
+    const folders = buildFoldersFromNotes(notes);
+    const holy = folders.filter((f) => (f.name ?? '').toLowerCase().includes('holy night'));
+    expect(holy).toHaveLength(1);
+    expect(holy[0].count).toBe(2);
+    // Canonical display name is the first-seen original label (curly variant from n1).
+    expect(holy[0].name).toBe('O’ Holy Night');
+  });
+
+  it('folder drill surfaces notes from every apostrophe variant of the folder', () => {
+    const notes = [
+      {
+        id: 'n1',
+        title: 'Carol one',
+        content: '<p>x</p>',
+        createdAt: '2024-01-01',
+        updatedAt: '2024-01-01',
+        primaryCollection: 'O’ Holy Night', // curly
+        secondaryCollections: [],
+      },
+      {
+        id: 'n2',
+        title: 'Carol two',
+        content: '<p>y</p>',
+        createdAt: '2024-01-02',
+        updatedAt: '2024-01-02',
+        primaryCollection: "O' Holy Night", // straight
+        secondaryCollections: [],
+      },
+    ] as UniversalSearchData['notes'];
+    const data: UniversalSearchData = { ...sampleData, notes, folders: buildFoldersFromNotes(notes) };
+    // Drill into the straight-apostrophe variant; both notes must appear.
+    const ctx: ActiveSearchContext = { ...baseCtx, mode: 'folders', folderDrill: "O' Holy Night" };
+    const results = buildActiveViewResults(ctx, 'carol', data, (c) => c.title ?? '');
+    expect(results.map((r) => r.noteId).sort()).toEqual(['n1', 'n2']);
+  });
+
   it('buildFoldersFromNotes sorts named folders A–Z with Unsorted last', () => {
     const notes = [
       {

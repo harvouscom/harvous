@@ -7,7 +7,7 @@ import type {
   ScriptureIndexPassage,
 } from '../../hooks/queries/usePrototypeSpaceScriptureIndex';
 import type { SearchResult } from '@/hooks/useSearch';
-import { noteFolderMembershipLabels } from '@/utils/note-folder-display';
+import { noteFolderMembershipLabels, noteBelongsToFolderBucket, normalizeFolderKey } from '@/utils/note-folder-display';
 import { sortFolderBucketsAlphabetically } from '@/utils/sorting';
 import { stripHtmlForListPreview } from '@/utils/html-stripper';
 import { stripServerAutoUntitledNoteTitleForDisplay } from '@/utils/server-auto-untitled-note-display';
@@ -299,12 +299,15 @@ export function buildActiveViewResults(
           primaryCollection?: string | null;
           secondaryCollections?: string[];
         };
-        const labels = noteFolderMembershipLabels({
-          primaryCollection: enriched.primaryCollection ?? null,
-          secondaryCollections: enriched.secondaryCollections ?? [],
-        });
-        if (ctx.folderDrill === null) return labels.length === 0;
-        return labels.includes(ctx.folderDrill);
+        // noteBelongsToFolderBucket compares on the normalized key, so a collapsed bucket surfaces
+        // notes from every apostrophe/whitespace/case variant of the folder name.
+        return noteBelongsToFolderBucket(
+          {
+            primaryCollection: enriched.primaryCollection ?? null,
+            secondaryCollections: enriched.secondaryCollections ?? [],
+          },
+          ctx.folderDrill ?? null,
+        );
       });
       return filterNotesByQuery(inFolder, query).map((n) =>
         noteToResult(n, stripHtmlForListPreview(n.content ?? '', 80) || undefined),
@@ -471,22 +474,26 @@ export function buildElsewhereResults(
 }
 
 export function buildFoldersFromNotes(notes: SpaceNoteRow[]): FolderBucket[] {
-  const buckets = new Map<string, number>();
+  // Bucket by the normalized key so apostrophe/whitespace/case variants of the same folder collapse
+  // into one entry; keep the first-seen original label as the canonical display name.
+  const buckets = new Map<string, { name: string | null; count: number }>();
   for (const note of notes) {
     const n = note as SpaceNoteRow & { primaryCollection?: string | null; secondaryCollections?: string[] };
     const labels = noteFolderMembershipLabels({
       primaryCollection: n.primaryCollection ?? null,
       secondaryCollections: n.secondaryCollections ?? [],
     });
-    const keys = labels.length > 0 ? labels : [null];
+    const keys: (string | null)[] = labels.length > 0 ? labels : [null];
     for (const label of keys) {
-      const bucketKey = label ?? '__none__';
-      buckets.set(bucketKey, (buckets.get(bucketKey) ?? 0) + 1);
+      const bucketKey = label === null ? '__none__' : normalizeFolderKey(label);
+      const existing = buckets.get(bucketKey);
+      if (existing) existing.count += 1;
+      else buckets.set(bucketKey, { name: label, count: 1 });
     }
   }
   const result: FolderBucket[] = [];
-  buckets.forEach((count, k) => {
-    result.push({ name: k === '__none__' ? null : k, count });
+  buckets.forEach(({ name, count }) => {
+    result.push({ name, count });
   });
   return sortFolderBucketsAlphabetically(result);
 }

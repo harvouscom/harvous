@@ -11,6 +11,21 @@ export type NoteFolderLabelSource = {
   secondaryCollections?: string[] | null;
 };
 
+/**
+ * Comparison key that folds typographic-quote / whitespace / case variants of a folder label so e.g.
+ * "O' Holy Night" (curly ’) and "O' Holy Night" (straight ') are treated as the same folder. Used for
+ * bucketing and membership comparison only — never replaces the stored or displayed label.
+ */
+export function normalizeFolderKey(label: string | null | undefined): string {
+  if (!label) return '';
+  return label
+    .replace(/[‘’ʼ′`´]/g, "'") // ‘ ’ ʼ ′ ` ´ → '
+    .replace(/[“”″]/g, '"') // “ ” ″ → "
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase();
+}
+
 /** Ordered folder labels (primary, then secondaries). Skips My Pile; dedupes. Used for folder index + drill-down. */
 export function noteFolderMembershipLabels(note: NoteFolderLabelSource): string[] {
   const out: string[] = [];
@@ -45,7 +60,10 @@ export function noteBelongsToFolderBucket(
 ): boolean {
   const labels = noteFolderMembershipLabels(note);
   if (folderKey === null) return labels.length === 0;
-  return labels.includes(folderKey);
+  // Compare on the normalized key so a bucket surfaces notes whose labels differ only by apostrophe
+  // style / whitespace / case (the same variants buildFoldersFromNotes collapses into one bucket).
+  const target = normalizeFolderKey(folderKey);
+  return labels.some((label) => normalizeFolderKey(label) === target);
 }
 
 /** Count notes in a folder drill bucket across a loaded note list. */

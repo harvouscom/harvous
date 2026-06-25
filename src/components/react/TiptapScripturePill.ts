@@ -262,6 +262,10 @@ export const ScripturePill = Mark.create<ScripturePillOptions>({
           const beforeInPill = before.node?.marks.some((m: any) => m.type === markType) ?? false;
 
           if (!afterInPill && !beforeInPill) return null;
+          // Collapsed cursor at a pill's LEFT edge (pill is the next node, nothing pill-y before it)
+          // is already OUTSIDE the pill — e.g. the start of a note that begins with a pill. Snapping it
+          // to the pill end would make the front unreachable by ArrowLeft / Home / click. Leave it.
+          if (afterInPill && !beforeInPill && sel.empty) return null;
           // Cursor right after pill with nothing following — visually inside the pill box.
           // Can't fix here (inserting a paragraph would mark the note as changed); handled
           // by CardFullEditable.handleEditorReady and snapCursorOutsideScripturePill instead.

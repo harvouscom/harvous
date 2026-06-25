@@ -748,6 +748,13 @@ export function snapCursorOutsideScripturePill(editor: any): void {
 
     if (!afterInPill && !beforeInPill) return;
 
+    // A collapsed caret resting at a pill's LEFT edge (the pill is the next node, with nothing pill-y
+    // before it) is already OUTSIDE the pill — e.g. the start of a note that begins with a pill.
+    // Snapping it to the pill's end would make the front unreachable by ArrowLeft / Home / click and
+    // break navigation to the start. Leave it here; inclusive:false keeps any typed text out of the
+    // pill. (A caret genuinely INSIDE the pill is beforeInPill && afterInPill and still snaps below.)
+    if (sel.empty && afterInPill && !beforeInPill) return;
+
     // Cursor right after pill: insert a trailing space when prose follows flush
     // against the pill so the caret has a non-pill landing spot.
     if (beforeInPill && !afterInPill) {

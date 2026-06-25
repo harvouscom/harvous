@@ -79,6 +79,19 @@
   --proto-glass-blur: var(--pds-glass-blur);
 }
 
+/* Solidify the sidebar's bottom edge so the translucent panel doesn't reveal the
+   format bar bleeding through where the two overlap. Top stays glassy; the layer
+   sits behind the scroll content (z-index 0) so cards/pills aren't dimmed. */
+.proto-sidebar-root::before {
+  background:
+    var(--pds-glass-panel-frost),
+    linear-gradient(
+      to bottom,
+      transparent calc(100% - 160px),
+      var(--pds-canvas-bg, var(--pds-canvas-default)) 100%
+    );
+}
+
 /* Small toolbar controls. */
 .proto-glass-surface--control {
   --proto-glass-blur: var(--pds-glass-blur-control);

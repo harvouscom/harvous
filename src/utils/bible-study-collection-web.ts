@@ -32,7 +32,14 @@ const OPENING_NARRATIVE_FOLDER_BOOST = 0.1;
 
 function normalizeCollectionLabel(value: string | null | undefined): string | null {
   if (!value) return null;
-  const t = value.trim();
+  // Canonicalize typographic apostrophes/quotes to ASCII and collapse internal whitespace (preserve
+  // casing) so newly assigned folder names don't diverge into "O' Holy Night" (curly ’) vs
+  // "O' Holy Night" (straight ') duplicates. Bucketing/comparison also normalizes via normalizeFolderKey.
+  const t = value
+    .replace(/[‘’ʼ′`´]/g, "'")
+    .replace(/[“”″]/g, '"')
+    .replace(/\s+/g, ' ')
+    .trim();
   return t.length ? t : null;
 }
 

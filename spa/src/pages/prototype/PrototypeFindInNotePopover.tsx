@@ -5,6 +5,7 @@ import ProtoPopoverShell from './ProtoPopoverShell';
 import { computeRightAnchoredPopoverPosition } from './proto-popover-position';
 import { protoPortaledPopoverClassName } from './proto-portaled-popover-classes';
 import { PROTO_TOOLBAR_POPOVER_OFFSET } from './proto-toolbar-tokens';
+import { clearProtoFind, runProtoFind } from '../../lib/proto-find-in-view';
 
 const CARD_WIDTH = 320;
 const CARD_OFFSET = PROTO_TOOLBAR_POPOVER_OFFSET;
@@ -33,17 +34,20 @@ export default function PrototypeFindInNotePopover({
   const runFind = useCallback(
     (direction: 'next' | 'prev' | 'same' = 'same') => {
       const q = query.trim();
-      if (!q) return;
+      if (!q) {
+        clearProtoFind();
+        setMatchCount(0);
+        setMatchIndex(0);
+        return;
+      }
       let idx = matchIndex;
       if (direction === 'next' && matchCount > 0) idx = (matchIndex + 1) % matchCount;
       if (direction === 'prev' && matchCount > 0) idx = (matchIndex - 1 + matchCount) % matchCount;
-      window.dispatchEvent(
-        new CustomEvent('prototypeFindInNote', {
-          detail: { noteId, query: q, matchIndex: idx },
-        }),
-      );
+      const { count, index } = runProtoFind(q, idx);
+      setMatchCount(count);
+      setMatchIndex(index);
     },
-    [noteId, query, matchIndex, matchCount],
+    [query, matchIndex, matchCount],
   );
 
   useLayoutEffect(() => {
@@ -56,16 +60,25 @@ export default function PrototypeFindInNotePopover({
     requestAnimationFrame(() => inputRef.current?.focus());
   }, [anchorRect]);
 
+  // Debounced live search as the query changes; resets to the first match.
   useEffect(() => {
-    const onResult = (e: Event) => {
-      const d = (e as CustomEvent).detail;
-      if (!d || String(d.noteId) !== String(noteId)) return;
-      setMatchCount(Number(d.count) || 0);
-      setMatchIndex(Number(d.index) || 0);
-    };
-    window.addEventListener('prototypeFindInNoteResult', onResult as EventListener);
-    return () => window.removeEventListener('prototypeFindInNoteResult', onResult as EventListener);
-  }, [noteId]);
+    const q = query.trim();
+    if (!q) {
+      clearProtoFind();
+      setMatchCount(0);
+      setMatchIndex(0);
+      return;
+    }
+    const t = setTimeout(() => {
+      const { count, index } = runProtoFind(q, 0);
+      setMatchCount(count);
+      setMatchIndex(index);
+    }, 120);
+    return () => clearTimeout(t);
+  }, [query]);
+
+  // Clear highlights when the popover closes.
+  useEffect(() => () => clearProtoFind(), []);
 
   useEffect(() => {
     function onPointerDown(e: PointerEvent) {
@@ -115,15 +128,11 @@ export default function PrototypeFindInNotePopover({
     >
       <input
         ref={inputRef}
-        type="search"
+        type="text"
         className="proto-find-popover__input"
         placeholder="Find in note"
         value={query}
-        onChange={(e) => {
-          setQuery(e.target.value);
-          setMatchIndex(0);
-          setMatchCount(0);
-        }}
+        onChange={(e) => setQuery(e.target.value)}
         onKeyDown={(e) => {
           if (e.key === 'Enter') {
             e.preventDefault();
