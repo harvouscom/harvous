@@ -14,6 +14,7 @@ import {
   readActiveBackground,
   readBackgroundForMode,
   readColorSchemePreference,
+  schedulePushAppearanceToAccount,
   subscribeColorScheme,
   writeBackgroundForMode,
   writeColorSchemePreference,
@@ -55,6 +56,7 @@ export default function PrototypeAppearancePage() {
     const bg = readBackgroundForMode(newMode);
     setBgKind(bg?.kind === 'image-preset' ? 'photos' : 'colors');
     void applyBackgroundWithImageTint(readActiveBackground());
+    schedulePushAppearanceToAccount();
   };
 
   const applyForMode = (mode: 'light' | 'dark', next: ProtoBg) => {
@@ -62,6 +64,7 @@ export default function PrototypeAppearancePage() {
     else setDarkBg(next);
     writeBackgroundForMode(mode, next);
     void applyBackgroundWithImageTint(readActiveBackground());
+    schedulePushAppearanceToAccount();
   };
 
   const onPickColorPreset = (preset: BgPreset) => {

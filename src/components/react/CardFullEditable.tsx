@@ -2387,15 +2387,21 @@ export default function CardFullEditable({
     liveBodyHtmlRef.current = canonicalizeNoteHtmlLineBreaks(newContent);
   }, []);
 
-  const handleContentChange = (newContent: string) => {
-    if (editorChromeMode === 'prototypeNative') {
+  const handleContentChange = (newContent: string, meta?: { programmatic?: boolean }) => {
+    const isProto = editorChromeMode === 'prototypeNative';
+    if (isProto) {
       hasLocalContentUpdate.current = true;
     }
-    userEditedSinceOpenRef.current = true;
     const canonical = canonicalizeNoteHtmlLineBreaks(newContent);
     editContentRef.current = canonical;
     liveBodyHtmlRef.current = canonical;
     setEditContent(canonical);
+    // Prototype: programmatic emissions (open-time pill/translation normalization, orphan-highlight
+    // backfill) are NOT user edits. Marking them dirty would fire the autosave on mere open, which
+    // re-stamps `updatedAt` and reorders the Notes/Home lists to the top. Keep the synced content
+    // (above) but skip the dirty flag + save so opening a note never changes its sort position.
+    if (isProto && meta?.programmatic) return;
+    userEditedSinceOpenRef.current = true;
     setHasChanges(editTitle !== displayTitle || canonical !== displayContent);
   };
 

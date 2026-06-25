@@ -524,11 +524,13 @@ app.get('/api/user/get-profile', requireAuth, async (c) => {
 
     let churchData = { churchName: null as string | null, churchCity: null as string | null, churchState: null as string | null, churchCountry: null as string | null };
     let defaultTranslation = 'NET';
+    let appearanceSettings: string | null = null;
     try {
       const um = first(await db.select().from(UserMetadata).where(eq(UserMetadata.userId, auth.userId)).limit(1));
       if (um) {
         churchData = { churchName: um.churchName ?? null, churchCity: um.churchCity ?? null, churchState: um.churchState ?? null, churchCountry: um.churchCountry ?? null };
         defaultTranslation = um.defaultTranslation ?? 'NET';
+        appearanceSettings = um.appearanceSettings ?? null;
       }
     } catch (_) { /* non-fatal */ }
 
@@ -560,10 +562,58 @@ app.get('/api/user/get-profile', requireAuth, async (c) => {
       emailVerified,
       churchName: churchData.churchName, churchCity: churchData.churchCity, churchState: churchData.churchState, churchCountry: churchData.churchCountry,
       defaultTranslation,
+      appearanceSettings,
       hasLockPinSet
     });
   } catch (error) {
     const e = handleAPIError(error, { endpoint: '/api/user/get-profile', action: 'get_user_profile' });
+    return c.json({ error: e.message, code: e.code }, 500);
+  }
+});
+
+// ─── POST /api/user/update-appearance ────────────────────────────────────────
+
+/** Structural guard for a stored ProtoBg (color | image-preset | null). */
+function isValidProtoBg(v: unknown): boolean {
+  if (v === null) return true;
+  if (!v || typeof v !== 'object') return false;
+  const bg = v as Record<string, unknown>;
+  if (bg.kind === 'color') {
+    return typeof bg.value === 'string' && /^#[0-9a-fA-F]{3,8}$/.test(bg.value);
+  }
+  if (bg.kind === 'image-preset') {
+    if (typeof bg.presetId !== 'string' || bg.presetId.length > 64) return false;
+    return bg.tint === undefined || (typeof bg.tint === 'string' && /^#[0-9a-fA-F]{3,8}$/.test(bg.tint));
+  }
+  return false;
+}
+
+app.post('/api/user/update-appearance', requireAuth, rateLimit('write'), async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const body = await c.req.json();
+    const { colorScheme, bgLight, bgDark } = body ?? {};
+
+    if (colorScheme !== 'system' && colorScheme !== 'light' && colorScheme !== 'dark') {
+      return c.json({ error: 'Invalid colorScheme' }, 400);
+    }
+    if (!isValidProtoBg(bgLight) || !isValidProtoBg(bgDark)) {
+      return c.json({ error: 'Invalid background' }, 400);
+    }
+
+    const appearanceSettings = JSON.stringify({
+      colorScheme,
+      bgLight: bgLight ?? null,
+      bgDark: bgDark ?? null,
+    });
+
+    await db.update(UserMetadata)
+      .set({ appearanceSettings, updatedAt: nowISO() })
+      .where(eq(UserMetadata.userId, auth.userId));
+
+    return c.json({ success: true, appearanceSettings });
+  } catch (error) {
+    const e = handleAPIError(error, { endpoint: '/api/user/update-appearance', action: 'update_appearance' });
     return c.json({ error: e.message, code: e.code }, 500);
   }
 });

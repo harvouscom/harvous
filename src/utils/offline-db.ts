@@ -101,6 +101,8 @@ export interface OfflineUserMetadata extends BaseOfflineEntity {
   currentSeason: string | null;
   lastMonthlyVisit: Date | null;
   churchAddedAt: Date | null;
+  /** Account-synced appearance preferences (JSON string) or null if never set. */
+  appearanceSettings: string | null;
 }
 
 // Sync operation for mutation queue

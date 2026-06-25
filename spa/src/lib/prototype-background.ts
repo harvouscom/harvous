@@ -2,6 +2,11 @@ import appearancePresetsCatalog from '../../../shared/appearance-presets.json';
 import appearanceImagePresetsCatalog, {
   type AppearanceImagePresetsCatalog as ImagePresetsCatalogJson,
 } from './appearance-image-presets-data';
+import { api } from './api';
+import {
+  HARVOUS_APPEARANCE_ACCOUNT_SYNC,
+  type AppearanceAccountSyncDetail,
+} from '@/utils/harvous-appearance-account-event';
 
 /**
  * Device-local customization of the canvas behind the prototype shell card
@@ -480,4 +485,140 @@ export function clearBackgroundVars(): void {
   root.style.removeProperty('--pds-canvas-bg');
   root.style.removeProperty('--pds-canvas-image');
   root.classList.remove(WALLPAPER_CLASS, WALLPAPER_IMAGE_CLASS, WALLPAPER_COLOR_CLASS);
+}
+
+// ─── Account sync (cross-device) ─────────────────────────────────────────────
+//
+// The account (`UserMetadata.appearanceSettings`) is the source of truth;
+// the three localStorage keys above are this device's first-paint cache. The
+// shared sync layer applies the column on bootstrap/changes/realtime and emits
+// `HARVOUS_APPEARANCE_ACCOUNT_SYNC`; here we hydrate the cache + repaint.
+//
+// "Account always wins" — except (a) when the account has never stored
+// appearance (`null`), we seed it once from this device, and (b) while a local
+// edit is still un-pushed (offline), the pending marker suppresses hydration so
+// the edit isn't clobbered before it reaches the server.
+
+/** localStorage marker holding a serialized local edit awaiting push to the account. */
+export const PROTO_APPEARANCE_PENDING_KEY = 'harvous-proto-appearance-pending';
+const APPEARANCE_UPDATE_ENDPOINT = '/api/user/update-appearance';
+
+export interface AccountAppearanceSettings {
+  colorScheme: ColorSchemePreference;
+  bgLight: ProtoBg;
+  bgDark: ProtoBg;
+}
+
+/** Snapshot the device's current local appearance for pushing to the account. */
+export function readLocalAppearanceSettings(): AccountAppearanceSettings {
+  return {
+    colorScheme: readColorSchemePreference(),
+    bgLight: readBackgroundForMode('light'),
+    bgDark: readBackgroundForMode('dark'),
+  };
+}
+
+function serializeAppearance(s: AccountAppearanceSettings): string {
+  return JSON.stringify({ colorScheme: s.colorScheme, bgLight: s.bgLight, bgDark: s.bgDark });
+}
+
+/** Parse + validate the account JSON, reusing `parseProtoBg` for the backgrounds. */
+function parseAccountAppearance(raw: string | null): AccountAppearanceSettings | null {
+  if (!raw) return null;
+  try {
+    const obj = JSON.parse(raw) as Record<string, unknown>;
+    if (!obj || typeof obj !== 'object') return null;
+    const cs = obj.colorScheme;
+    const colorScheme: ColorSchemePreference = cs === 'light' || cs === 'dark' ? cs : 'system';
+    return {
+      colorScheme,
+      bgLight: parseProtoBg(obj.bgLight == null ? null : JSON.stringify(obj.bgLight)),
+      bgDark: parseProtoBg(obj.bgDark == null ? null : JSON.stringify(obj.bgDark)),
+    };
+  } catch {
+    return null;
+  }
+}
+
+function readPendingAppearance(): string | null {
+  try { return localStorage.getItem(PROTO_APPEARANCE_PENDING_KEY); } catch { return null; }
+}
+function setPendingAppearance(raw: string): void {
+  try { localStorage.setItem(PROTO_APPEARANCE_PENDING_KEY, raw); } catch { /* ignore */ }
+}
+function clearPendingAppearance(): void {
+  try { localStorage.removeItem(PROTO_APPEARANCE_PENDING_KEY); } catch { /* ignore */ }
+}
+
+/** Push any pending local edit to the account. Keeps the marker on failure (offline) so it retries. */
+async function flushPendingAppearance(): Promise<void> {
+  const raw = readPendingAppearance();
+  if (!raw) return;
+  const parsed = parseAccountAppearance(raw);
+  if (!parsed) { clearPendingAppearance(); return; }
+  try {
+    await api.post(APPEARANCE_UPDATE_ENDPOINT, {
+      colorScheme: parsed.colorScheme,
+      bgLight: parsed.bgLight,
+      bgDark: parsed.bgDark,
+    });
+    // Only clear if no newer edit landed while the request was in flight.
+    if (readPendingAppearance() === raw) clearPendingAppearance();
+  } catch {
+    /* keep pending; retried on `online` / next init */
+  }
+}
+
+let pushDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+
+/**
+ * Write-through: persist the device's current local appearance to the account.
+ * Marks it pending synchronously (durable across reload/offline), then debounces
+ * the network flush so rapid preset taps collapse into one request.
+ */
+export function schedulePushAppearanceToAccount(delayMs = 500): void {
+  setPendingAppearance(serializeAppearance(readLocalAppearanceSettings()));
+  if (pushDebounceTimer) clearTimeout(pushDebounceTimer);
+  pushDebounceTimer = setTimeout(() => { void flushPendingAppearance(); }, delayMs);
+}
+
+/**
+ * Apply an account appearance value to this device: write the localStorage cache
+ * and repaint. No-op when a local edit is still pending (local wins until pushed).
+ */
+export function hydrateAppearanceFromAccount(raw: string | null): void {
+  if (readPendingAppearance()) return;
+  const settings = parseAccountAppearance(raw);
+  if (!settings) return;
+  writeColorSchemePreference(settings.colorScheme); // applies scheme + fires change event
+  writeBackgroundForMode('light', settings.bgLight);
+  writeBackgroundForMode('dark', settings.bgDark);
+  void applyBackgroundWithImageTint(readActiveBackground());
+}
+
+let appearanceSeedAttempted = false;
+
+/** Route an account-sync payload: seed when the account is empty, else hydrate. */
+function handleAppearanceAccountSync(raw: string | null): void {
+  if (raw == null) {
+    if (appearanceSeedAttempted) return;
+    appearanceSeedAttempted = true;
+    schedulePushAppearanceToAccount(0); // seed from this device once
+    return;
+  }
+  hydrateAppearanceFromAccount(raw);
+}
+
+let appearanceAccountSyncInit = false;
+
+/** Wire account → device appearance sync. Idempotent; call once on prototype mount. */
+export function initAppearanceAccountSync(): void {
+  if (appearanceAccountSyncInit || typeof window === 'undefined') return;
+  appearanceAccountSyncInit = true;
+  window.addEventListener(HARVOUS_APPEARANCE_ACCOUNT_SYNC, (e) => {
+    const detail = (e as CustomEvent<AppearanceAccountSyncDetail>).detail;
+    handleAppearanceAccountSync(detail?.appearanceSettings ?? null);
+  });
+  window.addEventListener('online', () => { void flushPendingAppearance(); });
+  void flushPendingAppearance(); // flush an edit left pending from a previous session
 }

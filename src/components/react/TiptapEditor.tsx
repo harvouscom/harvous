@@ -82,6 +82,7 @@ import {
   mergeReferenceWithOrphanSuffix,
 } from '@/utils/scripture-pill-orphan';
 import { findAdjacentPillBoundaries } from '@/utils/scripture-pill-adjacent';
+import { rangeContainsScripturePillMark } from '@/utils/scripture-pill-range';
 import { hasBlockGapAfter, hasLostBlockGaps } from '@/utils/scripture-pill-block-gaps';
 import {
   ensureScripturePillSpacing,
@@ -182,7 +183,12 @@ interface TiptapEditorProps {
   /** When toolbarAtBottom, margin below the toolbar in px. Default 12. Use 0 when the parent provides the gap (e.g. Save/Cancel row has top margin). */
   toolbarBottomMargin?: number;
   tabindex?: number;
-  onContentChange?: (content: string) => void;
+  /**
+   * Notify the parent of new body HTML. `meta.programmatic` is set for emissions that are NOT user
+   * edits — open-time pill/translation normalization, orphan-highlight backfill — so consumers can
+   * sync content without treating it as a dirtying edit (which would re-save and bump `updatedAt`).
+   */
+  onContentChange?: (content: string, meta?: { programmatic?: boolean }) => void;
   /** Synchronous mirror of the latest body HTML (on every doc change) for unmount save. */
   onLiveBodyHtmlChange?: (content: string) => void;
   scrollPosition?: number;
@@ -1904,6 +1910,15 @@ function createPendingPillsForReferences(
           }
 
           {
+            // Data-loss safety net (duplicate-reference bug): we only reach this "create a fresh
+            // pill" branch when no pill was detected at the anchor, but non-inclusive mark detection
+            // at boundaries is unreliable, so the resolved range can still land on an EXISTING pill —
+            // e.g. typing the same chapter ("John 3") a second time can resolve back onto the first
+            // pill. applyScripturePillToRange would then tr.replaceWith over it and destroy it.
+            // Reliably re-scan the target range against the live transaction doc and skip if any node
+            // already carries a scripturePill mark (legit extension goes through the branch above).
+            if (rangeContainsScripturePillMark(tr.doc, adjustedPos.from, adjustedPos.to)) continue;
+
             const pillTranslation = translation || null;
 
             applyScripturePillToRange(tr, markType, adjustedPos.from, adjustedPos.to, reference, {
@@ -5084,7 +5099,8 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       if (hiddenInputRef.current) {
         hiddenInputRef.current.value = editor.getHTML();
       }
-      onContentChange?.(editor.getHTML());
+      // Orphan-highlight backfill is an automatic open-time repair, not a user edit.
+      onContentChange?.(editor.getHTML(), { programmatic: true });
     });
   }, [editor, editorChromeMode, sourceNoteId, spaceId, applyHighlightMark, onContentChange]);
 
@@ -5419,7 +5435,8 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
           if (hiddenInputRef.current) {
             hiddenInputRef.current.value = outgoing;
           }
-          onContentChange?.(outgoing);
+          // Hydrate-time pill normalization (translation pills, link→pill, spacing) — not a user edit.
+          onContentChange?.(outgoing, { programmatic: true });
         }
       } catch {
         /* ignore */
@@ -5572,7 +5589,8 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
         if (hiddenInputRef.current) {
           hiddenInputRef.current.value = html;
         }
-        onContentChange?.(html);
+        // Default-translation change repaints existing pills — not a user edit.
+        onContentChange?.(html, { programmatic: true });
       } catch {
         /* ignore */
       }

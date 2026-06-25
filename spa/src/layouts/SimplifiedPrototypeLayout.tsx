@@ -41,6 +41,7 @@ import {
   applyColorSchemePreference,
   clearBackgroundVars,
   getColorSchemeSnapshot,
+  initAppearanceAccountSync,
   PROTO_ROUTE_CLASS,
   readActiveBackground,
   readColorSchemePreference,
@@ -79,6 +80,7 @@ export default function SimplifiedPrototypeLayout() {
     applyColorSchemePreference(readColorSchemePreference());
     el.classList.add(PROTO_ROUTE_CLASS);
     void applyBackgroundWithImageTint(readActiveBackground());
+    initAppearanceAccountSync();
     return () => {
       el.classList.remove(PROTO_ROUTE_CLASS);
       clearBackgroundVars();

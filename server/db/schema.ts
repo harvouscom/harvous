@@ -249,6 +249,13 @@ export const UserMetadata = pgTable('UserMetadata', {
   lockPinSalt: text('lockPinSalt'),
   lockPinHash: text('lockPinHash'),
   defaultTranslation: text('defaultTranslation').notNull().default('NET'),
+  /**
+   * Device-synced appearance preferences (prototype canvas). JSON string:
+   * `{ colorScheme: 'system'|'light'|'dark', bgLight: ProtoBg, bgDark: ProtoBg }`.
+   * `null` = never set (triggers a one-time seed from the device's localStorage).
+   * Account is source of truth; localStorage is the per-device first-paint cache.
+   */
+  appearanceSettings: text('appearanceSettings'),
   /** Last applied onboarding markdown pack version (see ONBOARDING_PACK_VERSION). */
   onboardingPackVersionApplied: integer('onboardingPackVersionApplied').notNull().default(0),
   /**

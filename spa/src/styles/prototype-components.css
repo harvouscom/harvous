@@ -529,6 +529,9 @@ html[data-shift-hints='1'] .proto-toolbar-orb-group {
   padding: 0;
   overflow: hidden;
   line-height: 0;
+  /* The photo fills the orb edge-to-edge, so the icon-only control border would
+     read as an unwanted thin ring around the avatar — drop it for the photo variant. */
+  border-color: transparent;
 }
 
 .proto-toolbar-icon-btn--profile-photo .proto-profile-orb__photo {

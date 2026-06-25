@@ -1542,6 +1542,12 @@ export default function PrototypeSidebar() {
   const onActivateSearchResult = useCallback(
     (result: SidebarSearchResult) => {
       if (!homeSpaceId) return;
+      // Selecting a result should leave search mode entirely: clear the query (and any tag filter)
+      // so the sidebar returns to the normal list rather than keeping the note "attached" to the
+      // search results. Clearing `q` also unmounts PrototypeSidebarSearchResults, which resets its
+      // local 'active'/'elsewhere' scope so the next search no longer starts stuck on "Elsewhere".
+      setQ('');
+      setTagFilter(null);
       switch (result.kind) {
         case 'note': {
           if (!result.noteId) return;

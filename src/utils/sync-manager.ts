@@ -21,6 +21,7 @@ import { THREAD_COLORS } from './colors';
 import { safeFetch } from './safe-fetch';
 import { extractIdFromPath, idToUrl } from './url-helpers';
 import { dispatchRemoteSyncCompleted } from './harvous-remote-sync-event';
+import { dispatchAppearanceAccountSync } from './harvous-appearance-account-event';
 import { isPrototypeShellPath } from '@/lib/prototype-path';
 import { MAX_NOTE_CREATES_PER_SYNC_PUSH } from '@/utils/rate-limit';
 
@@ -324,6 +325,7 @@ export async function applyBootstrapData(userId: string, bootstrapData: any): Pr
         currentSeason: um.currentSeason ?? getCurrentSeason(),
         lastMonthlyVisit: um.lastMonthlyVisit ? new Date(um.lastMonthlyVisit) : null,
         churchAddedAt: um.churchAddedAt ? new Date(um.churchAddedAt) : null,
+        appearanceSettings: um.appearanceSettings ?? null,
         syncStatus: 'synced',
         lastModified: new Date(um.updatedAt || um.createdAt).getTime(),
         serverVersion: new Date(um.updatedAt || um.createdAt).getTime(),
@@ -331,6 +333,7 @@ export async function applyBootstrapData(userId: string, bootstrapData: any): Pr
         updatedAt: um.updatedAt ? new Date(um.updatedAt) : null,
       }, userId);
       await offlineDB.userMetadata.put(userMetadata);
+      dispatchAppearanceAccountSync(um.appearanceSettings ?? null);
 
       // Cache highestSimpleNoteId in localStorage for instant offline access
       if (um.highestSimpleNoteId !== undefined) {
@@ -582,6 +585,7 @@ export async function applyIncrementalChanges(userId: string, changes: any): Pro
           currentSeason: um.currentSeason ?? getCurrentSeason(),
           lastMonthlyVisit: um.lastMonthlyVisit ? new Date(um.lastMonthlyVisit) : null,
           churchAddedAt: um.churchAddedAt ? new Date(um.churchAddedAt) : null,
+          appearanceSettings: um.appearanceSettings ?? null,
           syncStatus: 'synced',
           lastModified,
           serverVersion: lastModified,
@@ -589,12 +593,13 @@ export async function applyIncrementalChanges(userId: string, changes: any): Pro
           updatedAt: um.updatedAt ? new Date(um.updatedAt) : null,
         }, userId);
         await offlineDB.userMetadata.put(userMetadata);
-        
+        dispatchAppearanceAccountSync(um.appearanceSettings ?? null);
+
         // Cache highestSimpleNoteId in localStorage for instant offline access
         if (um.highestSimpleNoteId !== undefined) {
           cacheHighestSimpleNoteId(userId, um.highestSimpleNoteId);
         }
-        
+
         appliedCount++;
       }
     }

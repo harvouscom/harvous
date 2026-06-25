@@ -618,6 +618,10 @@ async function processScriptureReferencesInternal(
               referralCode: null,
               lockPinSalt: null,
               lockPinHash: null,
+              defaultTranslation: 'NET',
+              appearanceSettings: null,
+              onboardingPackVersionApplied: 0,
+              tier: 'free',
               createdAt: new Date(),
               updatedAt: null
             };
@@ -1023,6 +1027,10 @@ async function processScriptureReferencesInternal(
                 referralCode: null,
                 lockPinSalt: null,
                 lockPinHash: null,
+                defaultTranslation: 'NET',
+                appearanceSettings: null,
+                onboardingPackVersionApplied: 0,
+                tier: 'free',
                 createdAt: new Date(),
                 updatedAt: null
               };
