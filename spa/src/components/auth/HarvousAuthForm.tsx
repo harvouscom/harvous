@@ -1,7 +1,30 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useSyncExternalStore } from 'react';
 import { useSignIn, useSignUp } from '@clerk/clerk-react';
+import type { SignUpResource } from '@clerk/types';
 import { useNavigate } from '@tanstack/react-router';
+import { getColorSchemeSnapshot, subscribeColorScheme } from '../../lib/prototype-background';
 import { postAuthRedirectPath } from '../../utils/post-auth-redirect';
+
+function incompleteSignUpMessage(signUp: SignUpResource, status: string): string {
+  if (import.meta.env.DEV) {
+    console.warn('[HarvousAuthForm] sign-up incomplete', {
+      status,
+      missingFields: signUp.missingFields,
+      unverifiedFields: signUp.unverifiedFields,
+    });
+  }
+  if (status === 'missing_requirements') {
+    const missing = signUp.missingFields ?? [];
+    if (missing.some((field) => field === 'captcha' || field === 'bot_detection')) {
+      return 'Complete the verification check above, then try again.';
+    }
+    if (missing.length > 0) {
+      return 'Additional information is required to finish sign-up. Please go back and try again.';
+    }
+    return 'Complete any verification checks on the previous step, then try again.';
+  }
+  return 'Could not complete sign-up. Please try again.';
+}
 
 /**
  * Custom Clerk-headless auth form that drives `useSignIn()` / `useSignUp()`
@@ -22,6 +45,8 @@ export default function HarvousAuthForm({
   const { isLoaded: signInLoaded, signIn, setActive: setSignInActive } = useSignIn();
   const { isLoaded: signUpLoaded, signUp, setActive: setSignUpActive } = useSignUp();
   const navigate = useNavigate();
+  const colorScheme = useSyncExternalStore(subscribeColorScheme, getColorSchemeSnapshot, () => 'light');
+  const captchaTheme = colorScheme === 'dark' ? 'dark' : 'light';
 
   type Step = 'enterEmail' | 'enterCode';
   const [step, setStep] = useState<Step>('enterEmail');
@@ -116,7 +141,7 @@ export default function HarvousAuthForm({
           await setSignUpActive({ session: result.createdSessionId });
           redirectAfterAuth();
         } else {
-          setErrorMessage('Could not complete sign-up. Please try again.');
+          setErrorMessage(incompleteSignUpMessage(signUp, result.status));
         }
       }
     } catch (err: any) {
@@ -147,6 +172,14 @@ export default function HarvousAuthForm({
             onChange={(e) => setEmail(e.target.value)}
             aria-label="Email address"
           />
+          {mode === 'signUp' ? (
+            <div
+              id="clerk-captcha"
+              className="harvous-auth-form__captcha"
+              data-cl-theme={captchaTheme}
+              data-cl-size="normal"
+            />
+          ) : null}
           <button
             type="submit"
             className="harvous-auth-form__primary"

@@ -341,6 +341,17 @@
   gap: 10px;
 }
 
+/* Clerk bot sign-up protection mounts Smart CAPTCHA into #clerk-captcha. */
+.harvous-auth-form__captcha {
+  display: flex;
+  justify-content: center;
+  min-height: 0;
+  margin: 2px 0 4px;
+}
+.harvous-auth-form__captcha:empty {
+  display: none;
+}
+
 .harvous-auth-form__input {
   appearance: none;
   -webkit-appearance: none;
