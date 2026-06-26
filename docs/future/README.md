@@ -42,6 +42,12 @@ These were designed here and are now live. The stub files in this folder point t
   - Review always paid and individual; GMMC deferred; Compete via Season Pass
   - Links [MONETIZATION_AND_PRICING.md](./MONETIZATION_AND_PRICING.md) for SKUs
 
+- **`MEMORY_LAYER_ASSESSMENT.md`** - Honest assessment of the memory layer vs. a "scripture-centered memory graph" vision + roadmap
+  - Scorecard: canonical knowledge graph is built; resurfacing intelligence on top is half-built (strong on structure, thin on time/narrative)
+  - Three co-equal workstreams: passage memory fingerprints (substrate) → forgetting-aware resurfacing → recall trails & study arcs ("living commentary")
+  - Deterministic-first, server-derived for native parity; persist per-note fingerprint but no edge-graph visualization
+  - Reuses existing `prototype-home-trends.ts`, `scripture-knowledge.ts`, `passage-aware-tags.ts`, `study-thread-graph.ts`
+
 - **`STUDY_SURFACES_AND_KNOWLEDGE_UX.md`** - UX exploration: Easton's, ISBE expand, topical/knowledge layer surfaces across study docks, Home, sidebar list views, and inspector
   - Maps lexicon vs passage-graph layers to concrete UI affordances
   - Candidate datasets: Scripture Interpreting Scripture (phrase cross-refs), Nave's (topic browse), Harvous-authored chains (Thompson-like paths)

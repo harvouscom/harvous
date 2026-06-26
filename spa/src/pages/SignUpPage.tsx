@@ -78,7 +78,7 @@ export default function SignUpPage() {
               <div className="auth-letter-stack__leaf auth-letter-stack__leaf--mid" aria-hidden />
               <div className="auth-letter">
                 <h1 className="auth-page__headline">
-                  Create <span className="auth-page__headline-mark">your</span> study Bible.
+                  Make <span className="auth-page__headline-mark">your</span> study Bible.
                 </h1>
                 <div className="auth-page__form-wrapper">
                   <HarvousAuthForm mode="signUp" />
