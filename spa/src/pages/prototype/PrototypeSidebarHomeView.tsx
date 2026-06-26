@@ -6,8 +6,10 @@
  * card renders only when it qualifies.
  * Copy follows docs/BRAND_VOICE.md — friend-over-coffee, no hype, no em dashes.
  */
+import { useUser } from '@clerk/clerk-react';
 import { useCallback, useMemo, useRef } from 'react';
 import { useNavigate } from '@tanstack/react-router';
+import { resolveProfileFirstName } from '@/utils/nav-avatar-initials';
 import Icon, { type IconName } from '@/components/react/Icon';
 import { prototypeNoteRouteTo } from '@/lib/prototype-path';
 import { PROTOTYPE_NOTE_LIST_NAV_SEARCH } from '@/utils/prototype-sidebar-highlight-active';
@@ -20,7 +22,7 @@ import {
   type PrototypeHighlightStudyThreadRow,
 } from '../../hooks/queries/usePrototypeSpaceStudyThreadHighlights';
 import { usePrototypeSpaceScriptureConnections } from '../../hooks/queries/usePrototypeSpaceScriptureConnections';
-import { getCachedUserNames, useProfile } from '../../hooks/queries/useProfile';
+import { useProfile } from '../../hooks/queries/useProfile';
 import { useVotdToday } from '../../hooks/queries/useVotdToday';
 import type { PrototypeNotesListPhase } from '@/utils/prototype-notes-list-phase';
 import { isPrototypeHomeContentReady, isQuerySettled } from '@/utils/prototype-home-ready';
@@ -67,6 +69,8 @@ import { useNoteFingerprints } from '../../hooks/queries/useNoteFingerprints';
 import PrototypeDailyPassagePill from './PrototypeDailyPassagePill';
 import { PROTOTYPE_DRAFT_NOTE_SLUG } from './proto-route-slugs';
 import { useProtoShell } from '../../layouts/proto-shell-context';
+import { HOME_INTRO_LIST_MODES } from './proto-sidebar-list-modes';
+import { HOME_NEW_USER_GREETING_BODY } from '@/utils/prototype-home-greeting-copy';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 /** Resurface a note only after it's gone quiet for two weeks. */
@@ -141,6 +145,7 @@ function HomeGreeting({
   lead: HomeLeadTheme;
   onOpenScriptureBook: (bookOrder: number) => void;
 }) {
+  const { user } = useUser();
   const { data: profile } = useProfile();
   const {
     setSidebarListMode,
@@ -150,12 +155,10 @@ function HomeGreeting({
     openSidebarTagSearch,
   } = useProtoShell();
 
-  const firstName = useMemo(() => {
-    const fromProfile = profile?.firstName?.trim() || profile?.displayName?.split(' ')[0]?.trim();
-    if (fromProfile && fromProfile !== 'User') return fromProfile;
-    const cached = getCachedUserNames()?.firstName?.trim();
-    return cached || '';
-  }, [profile]);
+  const firstName = useMemo(
+    () => resolveProfileFirstName(user, profile),
+    [user, profile],
+  );
 
   const rhythm = useMemo(() => computeActivityRhythm(notes), [notes]);
   const weeklyDays = useMemo(() => countWeeklyActivityDays(notes, new Date()), [notes]);
@@ -215,8 +218,25 @@ function HomeGreeting({
       <>
         <p className="proto-home-greeting">
           <span className="proto-home-greeting__hello">{hello}</span>{' '}
-          Welcome in. Save a thought whenever it comes, and Home fills in from there.
+          {HOME_NEW_USER_GREETING_BODY}
         </p>
+        <div className="proto-home-greeting__chip-row" role="navigation" aria-label="Browse library">
+          {HOME_INTRO_LIST_MODES.map(({ mode, icon, label }) => (
+            <button
+              key={mode}
+              type="button"
+              className="proto-glass-surface proto-home-greeting__chip proto-home-greeting__chip--nav"
+              aria-label={`Open ${label} list`}
+              onClick={() => {
+                setSidebarListMode(mode);
+                ensureSidebarExpanded();
+              }}
+            >
+              <Icon name={icon} size={10} aria-hidden />
+              <span>{label}</span>
+            </button>
+          ))}
+        </div>
         {seasonLine}
       </>
     );

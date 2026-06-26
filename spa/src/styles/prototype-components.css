@@ -4179,6 +4179,17 @@ button.proto-home-greeting__chip:hover {
   flex-shrink: 0;
 }
 
+.proto-home-greeting__chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 4px 4px 2px;
+}
+
+.proto-home-greeting__chip-row .proto-home-greeting__chip {
+  transform: none;
+}
+
 /* Tappable scripture chip — keeps the scripture text color on the glass surface. */
 button.proto-home-greeting__chip--passage {
   color: var(--pds-scripture-fg);

@@ -14,6 +14,7 @@ import {
 import ProtoPopoverShell from './ProtoPopoverShell';
 import PrototypeToolbarShortcutItem from './PrototypeToolbarShortcutItem';
 import { usePrototypeShiftHints } from '../../hooks/usePrototypeShiftHints';
+import { SIDEBAR_LIST_MODES } from './proto-sidebar-list-modes';
 
 const MENU_Z_INDEX = 6000;
 
@@ -49,14 +50,6 @@ function ListModeTriggerIcon({ mode, size }: { mode: SidebarListMode; size: numb
     default:           return <Icon name="note-sticky" size={size} />;
   }
 }
-
-const LIST_MODES = [
-  ['notes', 'note-sticky', 'Notes'],
-  ['folders', 'folder', 'Folders'],
-  ['threads', 'arrow-right-arrow-left', 'Threads'],
-  ['highlights', 'highlighter', 'Highlights'],
-  ['scripture', 'book', 'Scripture'],
-] as const;
 
 export default function ListViewMenu({
   disabled,
@@ -163,7 +156,7 @@ export default function ListViewMenu({
 
   const menuSection = (
     <div className="proto-menu-section" role="group">
-      {LIST_MODES.map(([mode, icon, label]) => (
+      {SIDEBAR_LIST_MODES.map(({ mode, icon, label }) => (
         <button
           key={mode}
           type="button"
