@@ -66,6 +66,8 @@
   width: 100%;
   box-sizing: border-box;
   padding: 24px 12px 16px;
+  /* This allows for the dock to not be immediately hidden by the sidebar */
+  padding-left: var(--proto-sidebar-w-clamped);
   scroll-padding-inline: 12px;
   scrollbar-width: none;
   -ms-overflow-style: none;
@@ -101,11 +103,6 @@
   .study-dock-carousel__item--enter .study-dock-card__outer {
     animation: none;
   }
-}
-
-study-dock-carousel__item.study-dock-carousel__item--expanded-slot {
-  /*margin-left: var(--proto-sidebar-w-clamped);*/
-  padding-left: var(--proto-sidebar-w-clamped) !important;
 }
 
 /* Collapsed cards: equal share when all collapsed; fixed min width when an expanded dock is open. */
