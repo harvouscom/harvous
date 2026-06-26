@@ -55,8 +55,37 @@ html.harvous-prototype-route [class*='proto-'] button path {
   fill: currentColor !important;
 }
 
-/* Secondary copy inside buttons */
+/* List row preview lines inside buttons — beat blanket `button *` primary above.
+   Timestamp stays secondary; excerpt body uses list-preview (native secondary / tertiary). */
+html.harvous-prototype-route button.proto-note-row__main .proto-note-row__preview,
+html.harvous-prototype-route button.proto-note-row__main .proto-note-row__preview *,
+html.harvous-prototype-route button.proto-note-row__main .pds-list-preview,
+html.harvous-prototype-route button.proto-note-row__main .pds-list-preview *,
+html.harvous-prototype-route button.proto-thread-trail__step-main .proto-thread-trail__preview,
+html.harvous-prototype-route button.proto-thread-trail__step-main .proto-thread-trail__preview *,
+html.harvous-prototype-route button.proto-thread-trail__step-main .pds-list-preview,
+html.harvous-prototype-route button.proto-thread-trail__step-main .pds-list-preview *,
+html.harvous-prototype-route .proto-note-row .pds-list-preview,
+html.harvous-prototype-route .proto-note-row .pds-list-preview *,
 html.harvous-prototype-route [class*='proto-'] button .pds-list-preview,
+html.harvous-prototype-route [class*='proto-'] button .pds-list-preview *,
+html.harvous-prototype-route [class*='proto-'] button .proto-note-row__preview,
+html.harvous-prototype-route [class*='proto-'] button .proto-note-row__preview *,
+html.harvous-prototype-route [class*='proto-'] button .proto-thread-trail__preview,
+html.harvous-prototype-route [class*='proto-'] button .proto-thread-trail__preview * {
+  color: var(--pds-text-list-preview) !important;
+}
+
+html.harvous-prototype-route button.proto-note-row__main .pds-list-preview .pds-list-timestamp,
+html.harvous-prototype-route button.proto-note-row__main .proto-note-row__preview .pds-list-timestamp,
+html.harvous-prototype-route button.proto-thread-trail__step-main .pds-list-preview .pds-list-timestamp,
+html.harvous-prototype-route button.proto-thread-trail__step-main .proto-thread-trail__preview .pds-list-timestamp,
+html.harvous-prototype-route [class*='proto-'] button .pds-list-preview .pds-list-timestamp,
+html.harvous-prototype-route [class*='proto-'] button .proto-note-row__preview .pds-list-timestamp,
+html.harvous-prototype-route [class*='proto-'] button .proto-thread-trail__preview .pds-list-timestamp {
+  color: var(--pds-text-secondary) !important;
+}
+
 html.harvous-prototype-route [class*='proto-'] button .pds-caption,
 html.harvous-prototype-route [class*='proto-'] button .proto-caption,
 html.harvous-prototype-route [class*='proto-'] button .proto-footnote {
@@ -95,6 +124,16 @@ html.harvous-prototype-route button.proto-note-action-bar__pill--share-active,
 html.harvous-prototype-route button.proto-note-action-bar__pill--share-active *,
 html.harvous-prototype-route button.proto-thread-review__btn--primary,
 html.harvous-prototype-route button.proto-thread-review__btn--primary * {
+  color: var(--pds-on-accent) !important;
+  fill: var(--pds-on-accent) !important;
+}
+
+/* Accent check orb inside list rows — white glyph (beats blanket `[class*='proto-'] button *`) */
+html.harvous-prototype-route [class*='proto-'] button .proto-accent-check-orb,
+html.harvous-prototype-route [class*='proto-'] button .proto-accent-check-orb *,
+html.harvous-prototype-route [class*='proto-'] button .proto-accent-check-orb span,
+html.harvous-prototype-route [class*='proto-'] button .proto-accent-check-orb svg,
+html.harvous-prototype-route [class*='proto-'] button .proto-accent-check-orb path {
   color: var(--pds-on-accent) !important;
   fill: var(--pds-on-accent) !important;
 }

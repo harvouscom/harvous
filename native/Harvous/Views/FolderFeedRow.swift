@@ -43,7 +43,7 @@ struct FolderFeedRow: View {
 
             Text(subtitleText)
                 .font(HarvousTypography.noteListPreview)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(.tertiary)
                 .lineLimit(1)
         }
         .padding(.vertical, 8)
@@ -68,7 +68,7 @@ struct FolderFeedRow: View {
 
             Text(subtitleText)
                 .font(HarvousTypography.noteListPreview)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(.tertiary)
                 .lineLimit(1)
                 .multilineTextAlignment(.leading)
         }

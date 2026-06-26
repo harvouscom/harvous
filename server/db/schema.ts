@@ -30,6 +30,8 @@ export const Spaces = pgTable(
     order: integer('order').notNull().default(0),
     shareToken: text('shareToken'),
     shareTokenCreatedAt: ts('shareTokenCreatedAt'),
+    /** JSON string[] — folder labels with zero notes (prototype empty-folder registry). */
+    prototypeEmptyFolderLabels: text('prototypeEmptyFolderLabels'),
   },
   (table) => [
     index('Spaces_userIdIndex').on(table.userId),

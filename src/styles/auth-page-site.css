@@ -548,21 +548,3 @@
     opacity: 1;
   }
 }
-
-/* Dev environment badge (Clerk test key) — shared with prototype-components.css */
-.proto-dev-badge {
-  position: fixed;
-  bottom: 12px;
-  right: 12px;
-  z-index: 9999;
-  padding: 2px 9px;
-  border-radius: 999px;
-  font-size: 12px;
-  font-weight: 600;
-  line-height: 1.5;
-  color: #fff;
-  background: linear-gradient(171deg, #f0943c 7%, #c0561a 93%);
-  opacity: 0.85;
-  pointer-events: none;
-  user-select: none;
-}

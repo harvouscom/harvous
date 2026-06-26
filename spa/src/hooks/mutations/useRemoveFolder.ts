@@ -2,6 +2,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../lib/api';
 import { spaceNotesQueryKey } from '../../lib/space-notes-cache';
 import { normalizePrototypeApiSpaceId } from '../../utils/prototype-space-api-id';
+import { prototypeFolderRegistryQueryKey } from './usePrototypeFolderRegistry';
 
 interface RemoveFolderInput {
   spaceId: string;
@@ -27,6 +28,7 @@ export function useRemoveFolder() {
     onSuccess: (_data, variables) => {
       const sid = normalizePrototypeApiSpaceId(variables.spaceId);
       queryClient.invalidateQueries({ queryKey: spaceNotesQueryKey(sid) });
+      queryClient.invalidateQueries({ queryKey: prototypeFolderRegistryQueryKey(sid) });
     },
   });
 }

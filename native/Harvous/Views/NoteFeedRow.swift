@@ -49,7 +49,7 @@ struct NoteFeedRow: View {
                         Text("  ")
                         Text(note.excerpt)
                             .font(HarvousTypography.noteListPreview)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(.tertiary)
                             .lineLimit(1)
                     }
                 }
@@ -88,7 +88,7 @@ struct NoteFeedRow: View {
             // Single-line preview matches macOS sidebar rows (`sidebarCompact`); keeps hub scan density consistent.
             Text(conversationPreview)
                 .font(HarvousTypography.noteListPreview)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(.tertiary)
                 .lineLimit(1)
                 .multilineTextAlignment(.leading)
         }

@@ -151,6 +151,11 @@ type ProtoShellContextValue = {
   toggleInspector: () => void;
   openInspector: () => void;
   closeInspector: () => void;
+  /** Study thread popover from inspector — persists while switching notes in the sidebar. */
+  studyThreadPopoverOpen: boolean;
+  studyThreadPopoverAnchorRect: DOMRect | null;
+  openStudyThreadPopover: (anchorRect?: DOMRect | null) => void;
+  closeStudyThreadPopover: () => void;
   /** Study thread panel — reusable expandable right-side layer over a note. */
   threadPanelNoteId: string | null;
   threadPanelExiting: boolean;
@@ -199,6 +204,8 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
   const [inspectorOpen, setInspectorOpen] = useState(false);
   const [inspectorExiting, setInspectorExiting] = useState(false);
   const inspectorExitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [studyThreadPopoverOpen, setStudyThreadPopoverOpen] = useState(false);
+  const [studyThreadPopoverAnchorRect, setStudyThreadPopoverAnchorRect] = useState<DOMRect | null>(null);
   const [threadPanelNoteId, setThreadPanelNoteId] = useState<string | null>(null);
   const [threadPanelExiting, setThreadPanelExiting] = useState(false);
   const [threadPanelExpanded, setThreadPanelExpanded] = useState(false);
@@ -347,14 +354,25 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
     },
     [],
   );
+  const closeStudyThreadPopover = useCallback(() => {
+    setStudyThreadPopoverOpen(false);
+    setStudyThreadPopoverAnchorRect(null);
+  }, []);
+
+  const openStudyThreadPopover = useCallback((anchorRect: DOMRect | null = null) => {
+    setStudyThreadPopoverAnchorRect(anchorRect);
+    setStudyThreadPopoverOpen(true);
+  }, []);
+
   const closeInspector = useCallback(() => {
     if (inspectorExitTimerRef.current) clearTimeout(inspectorExitTimerRef.current);
+    closeStudyThreadPopover();
     setInspectorExiting(true);
     inspectorExitTimerRef.current = setTimeout(() => {
       setInspectorOpen(false);
       setInspectorExiting(false);
     }, PROTO_PANEL_EXIT_MS);
-  }, []);
+  }, [closeStudyThreadPopover]);
 
   const openInspector = useCallback(() => {
     if (inspectorExitTimerRef.current) clearTimeout(inspectorExitTimerRef.current);
@@ -455,6 +473,7 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
       if (prev) {
         // Closing — trigger exit animation
         if (inspectorExitTimerRef.current) clearTimeout(inspectorExitTimerRef.current);
+        closeStudyThreadPopover();
         setInspectorExiting(true);
         inspectorExitTimerRef.current = setTimeout(() => {
           setInspectorOpen(false);
@@ -468,7 +487,7 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
       setInspectorExiting(false);
       return true;
     });
-  }, []);
+  }, [closeStudyThreadPopover]);
   const setPrototypeFolderChip = useCallback((value: PrototypeFolderChip | null) => {
     setPrototypeFolderChipState((prev) => (prototypeFolderChipsEqual(prev, value) ? prev : value));
   }, []);
@@ -525,6 +544,10 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
       toggleInspector,
       openInspector,
       closeInspector,
+      studyThreadPopoverOpen,
+      studyThreadPopoverAnchorRect,
+      openStudyThreadPopover,
+      closeStudyThreadPopover,
       threadPanelNoteId,
       threadPanelExiting,
       threadPanelExpanded,
@@ -577,6 +600,10 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
       toggleInspector,
       openInspector,
       closeInspector,
+      studyThreadPopoverOpen,
+      studyThreadPopoverAnchorRect,
+      openStudyThreadPopover,
+      closeStudyThreadPopover,
       threadPanelNoteId,
       threadPanelExiting,
       threadPanelExpanded,

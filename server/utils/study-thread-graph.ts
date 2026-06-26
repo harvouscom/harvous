@@ -1,6 +1,6 @@
 import { db, NoteConnections, eq, and, or, inArray } from '../db';
 
-export type StudyThreadGraphEdge = { fromId: string; toId: string };
+export type StudyThreadGraphEdge = { fromId: string; toId: string; createdAt: string };
 
 export type StudyThreadGraph = {
   nodeIds: string[];
@@ -37,13 +37,21 @@ export async function collectStudyThreadGraph(
     }
 
     const edgeRows = await db
-      .select({ fromNoteId: NoteConnections.fromNoteId, toNoteId: NoteConnections.toNoteId })
+      .select({
+        fromNoteId: NoteConnections.fromNoteId,
+        toNoteId: NoteConnections.toNoteId,
+        createdAt: NoteConnections.createdAt,
+      })
       .from(NoteConnections)
       .where(and(...edgeConditions));
 
     const next: string[] = [];
     for (const edge of edgeRows) {
-      collectedEdges.push({ fromId: edge.fromNoteId, toId: edge.toNoteId });
+      collectedEdges.push({
+        fromId: edge.fromNoteId,
+        toId: edge.toNoteId,
+        createdAt: edge.createdAt.toISOString(),
+      });
       for (const neighbor of [edge.fromNoteId, edge.toNoteId]) {
         if (!visited.has(neighbor) && visited.size < maxNodes) {
           visited.add(neighbor);

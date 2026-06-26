@@ -85,7 +85,7 @@ export default function AccountMenu({ iconSize, disabled = false }: { iconSize: 
           <div style={{ padding: '8px 10px 10px', borderBottom: '0.5px solid var(--pds-border)', marginBottom: 4 }}>
             <div className="pds-list-title" style={{ color: 'var(--pds-text-primary)' }}>{name}</div>
             {email ? (
-              <div className="pds-list-preview" style={{ color: 'var(--pds-text-secondary)', marginTop: 2 }}>{email}</div>
+              <div className="pds-list-preview" style={{ marginTop: 2 }}>{email}</div>
             ) : null}
           </div>
 

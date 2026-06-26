@@ -64,7 +64,7 @@ struct CollectionGridCard: View {
 
                 Text(subtitle)
                     .font(HarvousTypography.noteListPreview)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(.tertiary)
                     .lineLimit(2)
                     .multilineTextAlignment(.leading)
             }

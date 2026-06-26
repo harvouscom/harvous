@@ -65,7 +65,7 @@ struct StudyHighlightFeedRow: View {
                         Text("  ")
                         Text(subtitle)
                             .font(HarvousTypography.noteListPreview)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(.tertiary)
                             .lineLimit(1)
                     }
                 }
@@ -102,7 +102,7 @@ struct StudyHighlightFeedRow: View {
 
             Text(conversationPreview)
                 .font(HarvousTypography.noteListPreview)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(.tertiary)
                 .lineLimit(1)
                 .multilineTextAlignment(.leading)
         }

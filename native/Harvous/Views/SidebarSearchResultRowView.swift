@@ -60,7 +60,7 @@ struct SidebarSearchResultRowView: View {
             if let subtitle = result.subtitle, !subtitle.isEmpty {
                 Text(subtitle)
                     .font(HarvousTypography.noteListPreview)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(.tertiary)
                     .lineLimit(result.kind == .scriptureBook ? 2 : 1)
             }
         }

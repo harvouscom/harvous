@@ -20,6 +20,7 @@ export interface StudyThreadNodeFlat {
 export interface StudyThreadEdge {
   fromId: string;
   toId: string;
+  createdAt?: string | null;
 }
 
 export interface StudyThreadResponse {

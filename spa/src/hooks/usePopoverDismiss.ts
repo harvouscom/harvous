@@ -55,20 +55,29 @@ export function usePopoverDismiss<T extends HTMLElement = HTMLDivElement>(initia
  * Use this for portaled popovers (where the floating content is NOT a DOM child of
  * the trigger); use `usePopoverDismiss` for inline menus that own their open state.
  */
+export type DismissOnOutsideOptions = {
+  /** Clicks inside matching elements do not dismiss (e.g. sidebar while switching notes). */
+  ignoreSelector?: string;
+};
+
 export function useDismissOnOutside<T extends HTMLElement = HTMLElement>(
   ref: { current: T | null },
   onDismiss: () => void,
   enabled = true,
+  options?: DismissOnOutsideOptions,
 ) {
   const onDismissRef = useRef(onDismiss);
   onDismissRef.current = onDismiss;
+  const ignoreSelector = options?.ignoreSelector;
 
   useEffect(() => {
     if (!enabled) return undefined;
     const onPointerDown = (e: PointerEvent) => {
       const el = ref.current;
       const target = e.target as Node | null;
-      if (el && target && !el.contains(target)) onDismissRef.current();
+      if (!el || !target || el.contains(target)) return;
+      if (ignoreSelector && target instanceof Element && target.closest(ignoreSelector)) return;
+      onDismissRef.current();
     };
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onDismissRef.current();
@@ -79,5 +88,5 @@ export function useDismissOnOutside<T extends HTMLElement = HTMLElement>(
       window.removeEventListener('pointerdown', onPointerDown, { capture: true } as EventListenerOptions);
       window.removeEventListener('keydown', onKeyDown);
     };
-  }, [ref, enabled]);
+  }, [ref, enabled, ignoreSelector]);
 }

@@ -346,6 +346,34 @@
   line-height: inherit;
 }
 
+.scripture-pill-chrome__passage-html p {
+  margin: 0;
+}
+
+/* Cross-chapter passage segments — chapter label uses translation chip styling. */
+.scripture-pill-chrome__passage-html .passage-chapter-block + .passage-chapter-divider {
+  margin: 16px 0;
+}
+
+.scripture-pill-chrome__passage-html .passage-chapter-divider {
+  margin: 0;
+  border: none;
+  border-top: 1px solid var(--pds-border, rgba(0, 0, 0, 0.06));
+  opacity: 1;
+}
+
+.scripture-pill-chrome__passage-html .passage-chapter-heading {
+  margin: 18px 0 0;
+}
+
+.scripture-pill-chrome__passage-html .passage-chapter-block:first-child .passage-chapter-heading {
+  margin-top: 0;
+}
+
+.scripture-pill-chrome__passage-html .passage-chapter-verses {
+  margin-top: 6px;
+}
+
 /* Verse number superscripts — override the server-emitted inline style.
    `vertical-align: super` is font-metric-dependent and shifts inconsistently when the
    preceding text ends in characters like ) that have unusual vertical metrics (tall

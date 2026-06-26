@@ -11,6 +11,9 @@ import { deriveHighlightFocusTitle } from '@/utils/study-thread-focus-title';
 import '@/styles/study-dock-card.css';
 import '@/styles/highlight-dock-web.css';
 
+/** Temporary — set true when Respond prompt chips are ready to ship. */
+const HIGHLIGHT_DOCK_RESPOND_ENABLED = false;
+
 export type HighlightDockEntryKind = 'miniNote' | 'scriptureLink' | 'reference' | 'linkedNote' | 'workspace';
 
 export interface HighlightDockWebProps {
@@ -349,7 +352,7 @@ export default function HighlightDockWeb({
         ) : null}
       </div>
 
-      {prompts.length > 0 ? (
+      {HIGHLIGHT_DOCK_RESPOND_ENABLED && prompts.length > 0 ? (
         <div className="highlight-dock-web__respond" ref={respondRef}>
           <button
             type="button"

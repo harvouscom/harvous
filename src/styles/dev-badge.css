@@ -1,0 +1,178 @@
+/* Dev environment badge (Clerk pk_test_) — soft rotating orange mesh. */
+
+.proto-dev-badge {
+  position: fixed;
+  bottom: 12px;
+  right: 12px;
+  z-index: 9999;
+  border-radius: 999px;
+  pointer-events: none;
+  user-select: none;
+  /* Tight cast shadow — same recipe as --pds-shadow-accent-button, scaled for the small pill. */
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.32),
+    0 5px 14px -11px rgb(240 125 45 / 0.28);
+}
+
+.proto-dev-badge__surface {
+  position: relative;
+  padding: 2px 10px;
+  border-radius: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.5;
+  letter-spacing: 0.04em;
+  color: var(--pds-text-primary, #1a1a1a);
+  isolation: isolate;
+  overflow: hidden;
+  background: color-mix(
+    in oklch,
+    var(--pds-thread-orange, #f5dcc0) 32%,
+    var(--pds-canvas-default, #faf9f7) 68%
+  );
+}
+
+.proto-dev-badge__surface::before,
+.proto-dev-badge__surface::after {
+  content: '';
+  position: absolute;
+  inset: -120%;
+  z-index: -1;
+  border-radius: inherit;
+  will-change: transform;
+  filter: blur(6px);
+}
+
+/* Primary mesh — orange + amber only (adjacent hues, no harsh contrast) */
+.proto-dev-badge__surface::before {
+  background:
+    radial-gradient(
+      ellipse 85% 72% at 18% 72%,
+      color-mix(in oklch, var(--pds-thread-orange, #f5dcc0) 52%, transparent) 0%,
+      transparent 72%
+    ),
+    radial-gradient(
+      ellipse 82% 70% at 82% 68%,
+      color-mix(in oklch, var(--pds-thread-yellow, #f5ecc0) 48%, transparent) 0%,
+      transparent 70%
+    ),
+    radial-gradient(
+      ellipse 84% 74% at 52% 14%,
+      color-mix(in oklch, var(--pds-thread-orange, #f5dcc0) 44%, transparent) 0%,
+      transparent 68%
+    ),
+    radial-gradient(
+      ellipse 80% 68% at 8% 28%,
+      color-mix(in oklch, var(--pds-thread-yellow, #f5ecc0) 40%, transparent) 0%,
+      transparent 66%
+    ),
+    radial-gradient(
+      ellipse 82% 70% at 88% 32%,
+      color-mix(in oklch, var(--pds-thread-orange, #f5dcc0) 46%, transparent) 0%,
+      transparent 68%
+    );
+  animation: proto-dev-mesh-rotate 32s linear infinite;
+}
+
+/* Offset layer — slower counter-rotation for depth */
+.proto-dev-badge__surface::after {
+  background:
+    radial-gradient(
+      ellipse 88% 76% at 62% 78%,
+      color-mix(in oklch, var(--pds-thread-yellow, #f5ecc0) 38%, transparent) 0%,
+      transparent 74%
+    ),
+    radial-gradient(
+      ellipse 84% 72% at 24% 22%,
+      color-mix(in oklch, var(--pds-thread-orange, #f5dcc0) 36%, transparent) 0%,
+      transparent 70%
+    ),
+    radial-gradient(
+      ellipse 86% 74% at 92% 58%,
+      color-mix(in oklch, var(--pds-thread-yellow, #f5ecc0) 34%, transparent) 0%,
+      transparent 68%
+    ),
+    radial-gradient(
+      ellipse 82% 70% at 44% 46%,
+      color-mix(in oklch, var(--pds-thread-orange, #f5dcc0) 32%, transparent) 0%,
+      transparent 66%
+    );
+  opacity: 0.82;
+  filter: blur(8px);
+  animation: proto-dev-mesh-rotate-reverse 48s linear infinite;
+}
+
+@keyframes proto-dev-mesh-rotate {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes proto-dev-mesh-rotate-reverse {
+  from {
+    transform: rotate(360deg);
+  }
+  to {
+    transform: rotate(0deg);
+  }
+}
+
+/* Dark mesh reads better with light label */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-color-scheme='light']) .proto-dev-badge {
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 0.2),
+      0 5px 14px -11px rgb(255 130 50 / 0.34);
+  }
+
+  :root:not([data-color-scheme='light']) .proto-dev-badge__surface {
+    color: var(--pds-on-accent, #fff);
+    text-shadow: 0 1px 2px rgb(0 0 0 / 0.35);
+    background: color-mix(
+      in oklch,
+      var(--pds-thread-orange, #8a5a28) 42%,
+      var(--pds-canvas-default, #1a1a1f) 58%
+    );
+  }
+}
+
+:root[data-color-scheme='dark'] .proto-dev-badge {
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.2),
+    0 5px 14px -11px rgb(255 130 50 / 0.34);
+}
+
+:root[data-color-scheme='dark'] .proto-dev-badge__surface {
+  color: var(--pds-on-accent, #fff);
+  text-shadow: 0 1px 2px rgb(0 0 0 / 0.35);
+  background: color-mix(
+    in oklch,
+    var(--pds-thread-orange, #8a5a28) 42%,
+    var(--pds-canvas-default, #1a1a1f) 58%
+  );
+}
+
+:root[data-color-scheme='light'] .proto-dev-badge__surface {
+  color: var(--pds-text-primary, #1a1a1a);
+  text-shadow: none;
+  background: color-mix(
+    in oklch,
+    var(--pds-thread-orange, #f5dcc0) 32%,
+    var(--pds-canvas-default, #faf9f7) 68%
+  );
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .proto-dev-badge__surface::before,
+  .proto-dev-badge__surface::after {
+    animation: none;
+    transform: none;
+  }
+
+  .proto-dev-badge__surface::after {
+    opacity: 0.55;
+  }
+}

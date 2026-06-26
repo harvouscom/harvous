@@ -14,7 +14,9 @@ import { useProtoShell } from '../../layouts/proto-shell-context';
 import {
   findPersistedDailyPassageNote,
   hasDailyPassageNote,
+  isVotdPassageCardDismissedToday,
   noteMatchesDailyPassage,
+  setVotdDismissedToday,
   type VotdToday,
 } from '../../lib/votd-today';
 import { buildVotdScripturePillHtml } from '../../lib/votd-scripture-pill-html';
@@ -47,6 +49,7 @@ export default function PrototypeDailyPassagePill({
   const queryClient = useQueryClient();
   const createNote = useCreateSimpleNote();
   const { isMobileSidebar, closeDrawer } = useProtoShell();
+  const [dismissedToday, setDismissedToday] = useState(isVotdPassageCardDismissedToday);
   const [sheetOpen, setSheetOpen] = useState(false);
 
   const matchingNote = useMemo(
@@ -134,13 +137,29 @@ export default function PrototypeDailyPassagePill({
     [createNote, homeSpaceId, invalidateScriptureIndex, notes, openNote],
   );
 
-  if (!homeSpaceId) {
+  const handleDismiss = useCallback(() => {
+    setVotdDismissedToday();
+    setDismissedToday(true);
+    setSheetOpen(false);
+  }, []);
+
+  if (!homeSpaceId || dismissedToday) {
     return null;
   }
 
   return (
     <>
       <div className="proto-daily-passage-pill proto-daily-passage-pill--home">
+        <button
+          type="button"
+          className="proto-daily-passage-pill__dismiss"
+          aria-label="Dismiss today's passage"
+          onClick={handleDismiss}
+        >
+          <Icon name="xmark" size={10} aria-hidden />
+          <span>Dismiss</span>
+        </button>
+
         <div className="proto-daily-passage-pill__content">
           <p className="proto-caption proto-daily-passage-pill__eyebrow">Today&apos;s Passage</p>
           <p className="pds-list-title proto-daily-passage-pill__reference">{votd.reference}</p>

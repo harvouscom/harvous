@@ -1,9 +1,14 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import {
   findPersistedDailyPassageNote,
+  getVotdDismissedDay,
   hasDailyPassageNote,
   isPersistedNoteId,
+  isVotdPassageCardDismissedToday,
   noteMatchesDailyPassage,
+  setVotdDismissedToday,
+  todayCalendarDayKey,
+  VOTD_PASSAGE_CARD_DISMISSED_DAY_KEY,
 } from '../../../spa/src/lib/votd-today';
 import type { SpaceNoteRow } from '../../../spa/src/hooks/queries/useSpace';
 import type { ScriptureIndexBookLike } from '@/utils/scripture-passage-drill';
@@ -22,6 +27,34 @@ function note(
 
 const pillContent = (ref: string) =>
   `<p><span data-scripture-reference="${ref}" class="scripture-pill">${ref}</span></p>`;
+
+describe('votd passage card dismiss', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-06-26T15:00:00-05:00'));
+    localStorage.clear();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    localStorage.clear();
+  });
+
+  it('is not dismissed when localStorage is empty', () => {
+    expect(isVotdPassageCardDismissedToday()).toBe(false);
+  });
+
+  it('persists dismissal for the local calendar day', () => {
+    setVotdDismissedToday();
+    expect(getVotdDismissedDay()).toBe(todayCalendarDayKey());
+    expect(isVotdPassageCardDismissedToday()).toBe(true);
+  });
+
+  it('is not dismissed when stored day differs from today', () => {
+    localStorage.setItem(VOTD_PASSAGE_CARD_DISMISSED_DAY_KEY, '2026-06-25');
+    expect(isVotdPassageCardDismissedToday()).toBe(false);
+  });
+});
 
 describe('isPersistedNoteId', () => {
   it('rejects optimistic local ids', () => {

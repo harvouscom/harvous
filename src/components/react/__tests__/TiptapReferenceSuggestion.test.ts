@@ -9,6 +9,7 @@ import {
   decoratePassageHtmlWithSavedHighlights,
   resolvePassagePaintRanges,
   shouldSkipPersonNameContext,
+  isLikelyChapterHeadingLabel,
   isSuggestibleEastonEntry,
   REFERENCE_SUGGESTION_STOPLIST,
   REFERENCE_SUGGESTION_MIN_LENGTH,
@@ -181,6 +182,23 @@ describe('findReferenceSuggestionRanges', () => {
     expect(words).toContain('Bethlehem');
     expect(words).not.toContain('Exodus');
   });
+
+  it('skips "Chapter" when followed by chapter digits (passage heading label)', () => {
+    const chapterIndex = makeIndex([{ slug: 'chapter', headword: 'Chapter', category: 'thing' }]);
+    const chapterProvider = createDictionaryReferenceProvider(() => chapterIndex);
+    const ranges = findReferenceSuggestionRanges('Chapter 6', [chapterProvider]);
+    expect(ranges.map((r) => r.word)).not.toContain('Chapter');
+  });
+});
+
+describe('isLikelyChapterHeadingLabel', () => {
+  it('is true for "Chapter" followed by digits', () => {
+    expect(isLikelyChapterHeadingLabel('Chapter', 'Chapter 6', 7)).toBe(true);
+  });
+
+  it('is false for standalone "Chapter"', () => {
+    expect(isLikelyChapterHeadingLabel('Chapter', 'Chapter of Acts', 7)).toBe(false);
+  });
 });
 
 
@@ -207,6 +225,16 @@ describe('decoratePassageHtmlWithReferenceSuggestions', () => {
     const html = 'Reading Genesis 1 today in the garden.';
     const out = decoratePassageHtmlWithReferenceSuggestions(html, [genesisProvider]);
     expect(out).not.toContain('data-reference-word="Genesis"');
+  });
+
+  it('does not suggest dictionary matches inside cross-chapter passage heading chips', () => {
+    const chapterIndex = makeIndex([{ slug: 'chapter', headword: 'Chapter', category: 'thing' }]);
+    const chapterProvider = createDictionaryReferenceProvider(() => chapterIndex);
+    const html =
+      '<div class="passage-chapter-block"><p class="passage-chapter-heading"><span class="scripture-pill-chrome__trans-chip" aria-label="Chapter 6">CH 6</span></p><p class="passage-chapter-verses"><sup class="verse-num">28</sup>On that day Moses spoke.</p></div>';
+    const out = decoratePassageHtmlWithReferenceSuggestions(html, [chapterProvider]);
+    expect(out).not.toContain('class="reference-suggestion"');
+    expect(out).toContain('>CH 6<');
   });
 });
 

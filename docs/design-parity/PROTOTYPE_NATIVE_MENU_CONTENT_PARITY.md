@@ -100,6 +100,24 @@ Matches native `SidebarPanelView` collections section.
 | Back from collection to list | `proto-sidebar-back-btn` | ✅ implemented |
 | Collection → search filter | Universal sidebar search; active folder section when drilled | ✅ implemented |
 | "No collection" bucket | Shown as "No collection" row | ✅ implemented |
+| New folder (empty registry) | **New folder** button + `PrototypeCreateFolderSheet` | ✅ implemented |
+| Add notes to folder drilldown | **Add notes** in back row + empty-state CTA | ✅ implemented |
+| Remove note from folder | Row menu in folder drilldown | ✅ implemented |
+| Delete folder | Folder card menu | ✅ implemented |
+
+---
+
+## 5b. Sidebar — Threads Mode
+
+| Native element | Prototype | Status |
+|---|---|---|
+| Thread cluster grid | `proto-collection-grid` thread cards | ✅ implemented |
+| Drill-down into thread | Click card → connected notes list | ✅ implemented |
+| New thread (name + notes) | **New thread** button + `PrototypeCreateThreadSheet` | ✅ implemented |
+| Add notes to thread drilldown | **Add notes** in back row + empty-state CTA | ✅ implemented |
+| Remove note from thread | Row menu in thread drilldown | ✅ implemented |
+| Delete thread cluster | Thread card menu | ✅ implemented |
+| Singleton titled thread (1 note) | `GET study-threads` includes manual single-note threads | ✅ implemented (web); ⏳ native deferred |
 
 ---
 

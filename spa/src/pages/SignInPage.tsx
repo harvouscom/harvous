@@ -2,6 +2,7 @@ import { isSiteInspiredAuthHost } from '@/lib/prototype-path';
 import { useAuth } from '@clerk/clerk-react';
 import { useNavigate } from '@tanstack/react-router';
 import { useEffect } from 'react';
+import DevModeBadge from '../components/DevModeBadge';
 import ClerkPrebuiltAuth from '../components/auth/ClerkPrebuiltAuth';
 import ClassicAuthMeshColumn from '../components/auth/ClassicAuthMeshColumn';
 import HarvousAuthForm from '../components/auth/HarvousAuthForm';
@@ -38,12 +39,10 @@ export default function SignInPage() {
     return null;
   }
 
-  const isDevClerk = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY?.startsWith('pk_test_');
-
   if (siteInspired) {
     return (
       <div id="sign-in-content" className="auth-page auth-page--site">
-        {isDevClerk ? <div className="proto-dev-badge">DEV</div> : null}
+        <DevModeBadge />
         <div className="auth-page__container">
           <div className="auth-page__video-section">
             <div

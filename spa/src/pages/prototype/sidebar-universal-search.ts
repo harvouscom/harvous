@@ -497,3 +497,24 @@ export function buildFoldersFromNotes(notes: SpaceNoteRow[]): FolderBucket[] {
   });
   return sortFolderBucketsAlphabetically(result);
 }
+
+/** Merge empty-folder registry labels into note-derived folder buckets. */
+export function mergeFoldersWithRegistry(
+  fromNotes: FolderBucket[],
+  registryLabels: string[],
+): FolderBucket[] {
+  if (registryLabels.length === 0) return fromNotes;
+  const byKey = new Map<string, FolderBucket>();
+  for (const bucket of fromNotes) {
+    const key = bucket.name === null ? '__none__' : normalizeFolderKey(bucket.name);
+    byKey.set(key, bucket);
+  }
+  for (const label of registryLabels) {
+    const trimmed = label.trim();
+    if (!trimmed) continue;
+    const key = normalizeFolderKey(trimmed);
+    if (byKey.has(key)) continue;
+    byKey.set(key, { name: trimmed, count: 0 });
+  }
+  return sortFolderBucketsAlphabetically([...byKey.values()]);
+}

@@ -1,3 +1,4 @@
+import DevModeBadge from '../components/DevModeBadge';
 import PrototypePinPanels from '../pages/prototype/PrototypePinPanels';
 import ReferralCreditInit from '../../../src/components/react/ReferralCreditInit';
 import KeyboardShortcutsInit from '../../../src/components/react/KeyboardShortcutsInit';
@@ -477,15 +478,12 @@ function PrototypeAuthenticatedChrome({ userId }: { userId?: string }) {
     .filter(Boolean)
     .join(' ');
 
-  const isDevClerk = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY?.startsWith('pk_test_');
 
   return (
     <>
       <div className="proto-shell-frame simplified-prototype-root">
         <div ref={shellRef} className={shellMods} style={shellStyle}>
-        {isDevClerk ? (
-          <div className="proto-dev-badge">DEV</div>
-        ) : null}
+        <DevModeBadge />
         {userId ? (
           <SyncManagerIsland userId={userId} hideOfflineIndicator deferSyncInit />
         ) : null}

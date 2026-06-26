@@ -1,26 +1,55 @@
-import React from 'react';
+import React, { useState } from 'react';
+import '@/styles/scripture-pill-chrome.css';
+import Icon from './Icon';
 import SquareButton from './SquareButton';
+import { toast } from '@/utils/toast';
+import {
+  buildFeedbackMailto,
+  buildFounderMailto,
+  FOUNDER_EMAIL,
+  type FeedbackTopic,
+} from '@/utils/support-mailto';
+import { useProfile } from '../../../spa/src/hooks/queries/useProfile';
 
 interface GetSupportPanelProps {
   onClose?: () => void;
   version?: string;
-  helpCenterUrl?: string;
-  supportUrl?: string;
-  feedbackUrl?: string;
   inBottomSheet?: boolean;
 }
 
-export default function GetSupportPanel({ 
+const TOPICS: FeedbackTopic[] = ['Bug', 'Idea', 'Question'];
+
+const inputStyle: React.CSSProperties = {
+  width: '100%',
+  boxSizing: 'border-box',
+  padding: '10px 14px',
+  border: '0.5px solid var(--color-border, rgba(0,0,0,0.12))',
+  borderRadius: 12,
+  background: 'var(--color-bg-subtle, rgba(0,0,0,0.04))',
+  fontFamily: 'var(--font-sans)',
+  fontSize: '0.9375rem',
+  lineHeight: 1.45,
+  color: 'var(--color-deep-grey)',
+  resize: 'vertical',
+  minHeight: 120,
+  outline: 'none',
+};
+
+export default function GetSupportPanel({
   onClose,
   version,
-  helpCenterUrl = 'https://help.harvous.com',
-  supportUrl = 'https://support.harvous.com',
-  feedbackUrl = 'https://feedback.harvous.com',
-  inBottomSheet = false
+  inBottomSheet = false,
 }: GetSupportPanelProps) {
-  // Use window.__APP_VERSION__ as fallback (set by service-worker-manager.js)
-  const displayVersion = version || (typeof window !== 'undefined' && (window as any).__APP_VERSION__) || 'Unknown';
-  // Handle close
+  const { data: profile } = useProfile();
+  const displayVersion =
+    version || (typeof window !== 'undefined' && (window as { __APP_VERSION__?: string }).__APP_VERSION__) || 'Unknown';
+
+  const [emailCopied, setEmailCopied] = useState(false);
+  const [topic, setTopic] = useState<FeedbackTopic | undefined>();
+  const [message, setMessage] = useState('');
+
+  const canSend = message.trim().length > 0;
+
   const handleClose = () => {
     if (onClose) {
       onClose();
@@ -29,132 +58,190 @@ export default function GetSupportPanel({
     }
   };
 
-  // Handle external link clicks
-  const handleExternalLink = (url: string) => {
-    window.open(url, '_blank', 'noopener,noreferrer');
+  const handleCopyEmail = async () => {
+    try {
+      await navigator.clipboard.writeText(FOUNDER_EMAIL);
+      setEmailCopied(true);
+      window.setTimeout(() => setEmailCopied(false), 1400);
+    } catch {
+      toast.error('Could not copy email');
+    }
   };
 
-  // Handle email link clicks
-  const handleEmailLink = (subject: string) => {
-    const email = 'derek@harvous.com';
-    const mailtoLink = `mailto:${email}?subject=${encodeURIComponent(subject)}`;
-    window.location.href = mailtoLink;
+  const handleSend = () => {
+    if (!canSend) return;
+    window.location.href = buildFeedbackMailto({
+      message,
+      topic,
+      profile: profile
+        ? { firstName: profile.firstName, lastName: profile.lastName, email: profile.email }
+        : undefined,
+      version: displayVersion !== 'Unknown' ? displayVersion : undefined,
+      pageUrl: window.location.href,
+    });
   };
 
   return (
-    <>
-      <div className={`panel-wrapper ${inBottomSheet ? 'panel-wrapper--bottom-sheet' : ''}`}>
-        {/* Content area - expands on mobile, fits content on desktop */}
-        <div className={inBottomSheet ? "flex-fill flex-stack" : "flex-stack"} style={{ gap: 0 }}>
-          {/* Panel container */}
-          <div className={`panel ${inBottomSheet ? 'panel--bottom-sheet' : ''}`}>
-            {/* Header section */}
-            <div className="panel__header">
-              <div className="panel__title">
-                <p>Get Support</p>
-              </div>
+    <div className={`panel-wrapper ${inBottomSheet ? 'panel-wrapper--bottom-sheet' : ''}`}>
+      <div className={inBottomSheet ? 'flex-fill flex-stack' : 'flex-stack'} style={{ gap: 0 }}>
+        <div className={`panel ${inBottomSheet ? 'panel--bottom-sheet' : ''}`}>
+          <div className="panel__header">
+            <div className="panel__title">
+              <p>Get Support</p>
             </div>
-            
-            {/* Content area */}
-            <div className={`panel__body ${inBottomSheet ? 'panel__body--bottom-sheet' : ''}`}>
-              <div className={`panel__content ${inBottomSheet ? 'panel__content--bottom-sheet' : ''}`}>
-                <div className="panel__content-scroll">
-                {/* Visit our help center button */}
-                <button
-                  type="button"
-                  onClick={() => handleExternalLink(helpCenterUrl)}
-                  disabled
-                  className="space-button relative rounded-3xl h-[64px] cursor-not-allowed transition-[scale,shadow] duration-200 pl-4 w-full opacity-50"
-                  style={{ backgroundImage: 'var(--color-gradient-gray)', paddingRight: '8px' }}
-                >
-                  <div className="panel__list-item">
-                    <div className="panel__list-item-text">
-                      <span className="panel__list-item-label">
-                        Visit our help center
-                      </span>
-                    </div>
-                    <div className="panel__list-item-icon">
-                      <div className="panel__list-item-icon-wrapper">
-                        <div className="panel__external-icon">
-                          <svg viewBox="0 0 512 512">
-                            <path d="M320 0c-17.7 0-32 14.3-32 32s14.3 32 32 32l82.7 0L201.4 265.4c-12.5 12.5-12.5 32.8 0 45.3s32.8 12.5 45.3 0L448 109.3l0 82.7c0 17.7 14.3 32 32 32s32-14.3 32-32l0-160c0-17.7-14.3-32-32-32L320 0zM80 32C35.8 32 0 67.8 0 112L0 432c0 44.2 35.8 80 80 80l320 0c44.2 0 80-35.8 80-80l0-112c0-17.7-14.3-32-32-32s-32 14.3-32 32l0 112c0 8.8-7.2 16-16 16L80 448c-8.8 0-16-7.2-16-16l0-320c0-8.8 7.2-16 16-16l112 0c17.7 0 32-14.3 32-32s-14.3-32-32-32L80 32z"/>
-                          </svg>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </button>
+          </div>
 
-                {/* Reach out to support button */}
-                <button
-                  type="button"
-                  onClick={() => handleEmailLink('Reach out to support')}
-                  className="space-button relative rounded-3xl h-[64px] cursor-pointer transition-[scale,shadow] duration-200 pl-4 w-full"
-                  style={{ backgroundImage: 'var(--color-gradient-gray)', paddingRight: '8px' }}
-                >
-                  <div className="panel__list-item">
-                    <div className="panel__list-item-text">
-                      <span className="panel__list-item-label">
-                        Reach out to support
-                      </span>
-                    </div>
-                    <div className="panel__list-item-icon">
-                      <div className="panel__list-item-icon-wrapper">
-                        <div className="panel__external-icon">
-                          <svg viewBox="0 0 512 512">
-                            <path d="M320 0c-17.7 0-32 14.3-32 32s14.3 32 32 32l82.7 0L201.4 265.4c-12.5 12.5-12.5 32.8 0 45.3s32.8 12.5 45.3 0L448 109.3l0 82.7c0 17.7 14.3 32 32 32s32-14.3 32-32l0-160c0-17.7-14.3-32-32-32L320 0zM80 32C35.8 32 0 67.8 0 112L0 432c0 44.2 35.8 80 80 80l320 0c44.2 0 80-35.8 80-80l0-112c0-17.7-14.3-32-32-32s-32 14.3-32 32l0 112c0 8.8-7.2 16-16 16L80 448c-8.8 0-16-7.2-16-16l0-320c0-8.8 7.2-16 16-16l112 0c17.7 0 32-14.3 32-32s-14.3-32-32-32L80 32z"/>
-                          </svg>
-                        </div>
-                      </div>
-                    </div>
+          <div className={`panel__body ${inBottomSheet ? 'panel__body--bottom-sheet' : ''}`}>
+            <div className={`panel__content ${inBottomSheet ? 'panel__content--bottom-sheet' : ''}`}>
+              <div className="panel__content-scroll">
+                <div style={{ display: 'flex', gap: 14, alignItems: 'flex-start', marginBottom: 20, padding: '0 4px', minWidth: 0 }}>
+                  <img
+                    src="/derek-avatar.jpeg"
+                    alt="Derek Castelli"
+                    style={{ width: 52, height: 52, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }}
+                  />
+                  <div style={{ minWidth: 0, flex: '1 1 0' }}>
+                    <p style={{ margin: '0 0 8px', fontSize: '0.9375rem', lineHeight: 1.45, color: 'var(--color-medium-grey)', overflowWrap: 'anywhere' }}>
+                      I&apos;m Derek, the founder. Questions, bugs, ideas — I read everything myself. Let me know how I can help.
+                    </p>
+                    <p style={{ margin: 0, display: 'flex', flexDirection: 'column', gap: 2 }}>
+                      <span style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--color-deep-grey)' }}>Derek Castelli</span>
+                      <span style={{ fontSize: '0.8125rem', color: 'var(--color-medium-grey)' }}>Founder of Harvous</span>
+                    </p>
                   </div>
-                </button>
-
-                {/* Submit feedback button */}
-                <button
-                  type="button"
-                  onClick={() => handleEmailLink('Submit feedback')}
-                  className="space-button relative rounded-3xl h-[64px] cursor-pointer transition-[scale,shadow] duration-200 pl-4 w-full"
-                  style={{ backgroundImage: 'var(--color-gradient-gray)', paddingRight: '8px' }}
-                >
-                  <div className="panel__list-item">
-                    <div className="panel__list-item-text">
-                      <span className="panel__list-item-label">
-                        Submit feedback
-                      </span>
-                    </div>
-                    <div className="panel__list-item-icon">
-                      <div className="panel__list-item-icon-wrapper">
-                        <div className="panel__external-icon">
-                          <svg viewBox="0 0 512 512">
-                            <path d="M320 0c-17.7 0-32 14.3-32 32s14.3 32 32 32l82.7 0L201.4 265.4c-12.5 12.5-12.5 32.8 0 45.3s32.8 12.5 45.3 0L448 109.3l0 82.7c0 17.7 14.3 32 32 32s32-14.3 32-32l0-160c0-17.7-14.3-32-32-32L320 0zM80 32C35.8 32 0 67.8 0 112L0 432c0 44.2 35.8 80 80 80l320 0c44.2 0 80-35.8 80-80l0-112c0-17.7-14.3-32-32-32s-32 14.3-32 32l0 112c0 8.8-7.2 16-16 16L80 448c-8.8 0-16-7.2-16-16l0-320c0-8.8 7.2-16 16-16l112 0c17.7 0 32-14.3 32-32s-14.3-32-32-32L80 32z"/>
-                          </svg>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </button>
-
-                {/* Version text */}
-                <div className="panel__footer">
-                  <p>Version {displayVersion}</p>
                 </div>
+
+                <div
+                  className="space-button relative rounded-3xl cursor-default pl-4 w-full"
+                  style={{ backgroundImage: 'var(--color-gradient-gray)', paddingRight: 8, minHeight: 56, marginBottom: 16 }}
+                >
+                  <div className="panel__list-item" style={{ padding: '8px 0', flexWrap: 'wrap', minWidth: 0 }}>
+                    <div className="panel__list-item-text" style={{ minWidth: 0, flex: '1 1 12rem' }}>
+                      <a
+                        href={buildFounderMailto()}
+                        className="panel__list-item-label"
+                        style={{ textDecoration: 'none', color: 'inherit', overflowWrap: 'anywhere' }}
+                      >
+                        {FOUNDER_EMAIL}
+                      </a>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleCopyEmail}
+                      aria-label={emailCopied ? 'Email copied' : 'Copy email address'}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 6,
+                        padding: '6px 10px',
+                        border: '0.5px solid var(--color-border, rgba(0,0,0,0.12))',
+                        borderRadius: 999,
+                        background: 'var(--color-bg, #fff)',
+                        fontSize: '0.8125rem',
+                        fontWeight: 500,
+                        cursor: 'pointer',
+                        flexShrink: 0,
+                      }}
+                    >
+                      {emailCopied ? (
+                        <>
+                          <Icon name="check" size={14} aria-hidden />
+                          Copied
+                        </>
+                      ) : (
+                        <>
+                          <Icon name="copy" size={14} aria-hidden />
+                          Copy
+                        </>
+                      )}
+                    </button>
+                  </div>
                 </div>
+
+                <div style={{ padding: '0 4px' }}>
+                  <p style={{ margin: '0 0 10px', fontSize: '0.75rem', fontWeight: 600, color: 'var(--color-medium-grey)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                    Send a note
+                  </p>
+                  <div
+                    style={{
+                      display: 'flex',
+                      borderRadius: 9,
+                      background: 'var(--pds-bg-control, rgba(0,0,0,0.06))',
+                      padding: 3,
+                      gap: 2,
+                      marginBottom: 12,
+                    }}
+                    role="group"
+                    aria-label="Feedback type"
+                  >
+                    {TOPICS.map((t) => {
+                      const isActive = topic === t;
+                      return (
+                      <button
+                        key={t}
+                        type="button"
+                        aria-pressed={isActive}
+                        onClick={() => setTopic((current) => (current === t ? undefined : t))}
+                        style={{
+                          flex: 1,
+                          border: 'none',
+                          borderRadius: 7,
+                          padding: '5px 12px',
+                          background: isActive ? 'var(--pds-bg-page, #fff)' : 'transparent',
+                          fontSize: '0.8125rem',
+                          fontWeight: isActive ? 600 : 500,
+                          color: isActive
+                            ? 'var(--pds-text-primary, var(--color-deep-grey))'
+                            : 'var(--color-medium-grey)',
+                          cursor: 'pointer',
+                          boxShadow: isActive ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
+                        }}
+                      >
+                        {t}
+                      </button>
+                      );
+                    })}
+                  </div>
+                  <textarea
+                    value={message}
+                    onChange={(e) => setMessage(e.target.value)}
+                    placeholder="What's on your mind?"
+                    rows={5}
+                    style={{ ...inputStyle, marginBottom: 12 }}
+                  />
+                  <button
+                    type="button"
+                    disabled={!canSend}
+                    onClick={handleSend}
+                    className="space-button relative rounded-3xl h-[48px] cursor-pointer transition-[scale,shadow] duration-200 w-full"
+                    style={{
+                      backgroundImage: 'var(--color-gradient-gray)',
+                      opacity: canSend ? 1 : 0.5,
+                      cursor: canSend ? 'pointer' : 'not-allowed',
+                      border: 'none',
+                      fontFamily: 'var(--font-sans)',
+                      fontSize: '0.9375rem',
+                      fontWeight: 600,
+                      color: 'var(--color-deep-grey)',
+                    }}
+                  >
+                    Send
+                  </button>
+                </div>
+
+                <footer className="scripture-pill-chrome__attribution" style={{ marginTop: 24 }}>
+                  <Icon name="circle-info" size={9} className="scripture-pill-chrome__attribution-icon" aria-hidden />
+                  <p className="scripture-pill-chrome__attribution-copyright">Version {displayVersion}</p>
+                </footer>
               </div>
             </div>
           </div>
         </div>
-
-        {/* Bottom buttons */}
-        <div className="panel__footer--buttons">
-          {/* Back button - SquareButton Back variant */}
-          <SquareButton 
-            variant="Back"
-            onClick={handleClose}
-            inBottomSheet={inBottomSheet}
-          />
-        </div>
       </div>
-    </>
+
+      <div className="panel__footer--buttons">
+        <SquareButton variant="Back" onClick={handleClose} inBottomSheet={inBottomSheet} />
+      </div>
+    </div>
   );
 }

@@ -15,6 +15,7 @@ import { useProtoShell } from '../../layouts/proto-shell-context';
 import { noteFolderChipDisplayState } from '@/utils/note-folder-display';
 import { isEffectivelyEmptyPrototypeNote } from '@/utils/prototype-note-empty';
 import PrototypeInspectorPane from './PrototypeInspectorPane';
+import PrototypeStudyThreadPopover from './PrototypeStudyThreadPopover';
 import PrototypeMainPaneShell from './PrototypeMainPaneShell';
 import { usePrototypeHomeSpaceId } from '../../hooks/usePrototypeHomeSpaceId';
 import { stripServerAutoUntitledNoteTitleForDisplay } from '@/utils/server-auto-untitled-note-display';
@@ -137,6 +138,9 @@ export default function PrototypeNotePage() {
     formatToolbarHostEl,
     studyDockCarouselHostEl,
     setEditorChromeMode,
+    studyThreadPopoverOpen,
+    studyThreadPopoverAnchorRect,
+    closeStudyThreadPopover,
   } = useProtoShell();
   const prevComposeSessionEpochRef = useRef(composeSessionEpoch);
 
@@ -737,6 +741,21 @@ export default function PrototypeNotePage() {
     return () => document.removeEventListener('keydown', onKey);
   }, [inspectorOpen, isMobileSidebar, closeInspector]);
 
+  useEffect(() => () => closeStudyThreadPopover(), [closeStudyThreadPopover]);
+
+  const studyThreadPopoverLayer =
+    !isDraft && studyThreadPopoverOpen ? (
+      <PrototypeStudyThreadPopover
+        open={studyThreadPopoverOpen}
+        onOpenChange={(open) => {
+          if (!open) closeStudyThreadPopover();
+        }}
+        noteId={noteId}
+        spaceId={effectiveSpaceId}
+        anchorRect={studyThreadPopoverAnchorRect}
+      />
+    ) : null;
+
   /* Loading — use PDS shimmer, no SPA card-full class. Keep editor mounted when this
    * page instance just persisted a draft (note may still be seeding in React Query). */
   const keepEditorDuringPersistedDraftLoad = shouldKeepEditorDuringPersistedDraftLoad(
@@ -746,7 +765,9 @@ export default function PrototypeNotePage() {
   );
   if (!isDraft && isLoading && !note && !keepEditorDuringPersistedDraftLoad) {
     return (
-      <PrototypeMainPaneShell>
+      <>
+        {studyThreadPopoverLayer}
+        <PrototypeMainPaneShell>
         <div className="proto-editor-surface">
           <div className="proto-editor-loading">
             <div className="proto-editor-loading-wrap">
@@ -760,14 +781,18 @@ export default function PrototypeNotePage() {
           </div>
         </div>
       </PrototypeMainPaneShell>
+      </>
     );
   }
 
   if (!isDraft && !note && !keepEditorDuringPersistedDraftLoad) {
     return (
-      <PrototypeMainPaneShell>
-        <div className="proto-editor-surface proto-editor-error">Note not found.</div>
-      </PrototypeMainPaneShell>
+      <>
+        {studyThreadPopoverLayer}
+        <PrototypeMainPaneShell>
+          <div className="proto-editor-surface proto-editor-error">Note not found.</div>
+        </PrototypeMainPaneShell>
+      </>
     );
   }
 
@@ -887,6 +912,8 @@ export default function PrototypeNotePage() {
       : null;
 
   return (
+    <>
+    {studyThreadPopoverLayer}
     <PrototypeMainPaneShell>
     <div
       ref={notePaneRowRef}
@@ -956,5 +983,6 @@ export default function PrototypeNotePage() {
 
     </div>
     </PrototypeMainPaneShell>
+    </>
   );
 }

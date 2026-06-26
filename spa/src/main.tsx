@@ -70,6 +70,7 @@ import '../../src/styles/shared-page.css';
 // `/site/`-inspired redesign for auth + shared pages. Imported AFTER
 // `auth-gradient.css` so its `.auth-page__*` overrides win the cascade.
 import '../../src/styles/auth-page-site.css';
+import '../../src/styles/dev-badge.css';
 import './styles/public-pages.css';
 /* Study dock accent fills (native parity) — before prototype-tokens aliases. */
 import '../../src/styles/study-highlight-accent-colors.css';

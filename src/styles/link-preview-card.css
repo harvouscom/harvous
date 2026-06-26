@@ -52,7 +52,7 @@
 
 .link-preview-card__excerpt {
   font-size: 12px;
-  opacity: 0.75;
+  color: var(--pds-text-list-preview, rgba(0, 0, 0, 0.38));
   overflow: hidden;
   display: -webkit-box;
   -webkit-line-clamp: 3;

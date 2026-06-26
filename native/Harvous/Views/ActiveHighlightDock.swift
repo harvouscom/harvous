@@ -1,6 +1,11 @@
 import SwiftData
 import SwiftUI
 
+/// Temporary — set `true` when Respond prompt chips are ready to ship.
+private enum HighlightDockRespondFeature {
+    static let isEnabled = false
+}
+
 // MARK: - Active highlight capsule (bottom morph surface)
 
 /// Bottom capsule — shows exactly one anchored highlight when pinned or explicitly activated (e.g. keyboard).
@@ -455,7 +460,7 @@ struct ActiveHighlightDock: View {
 
         // Respond chips — outside the vertical ScrollView so the horizontal scroll row can bleed
         // past the dock's .padding(.horizontal, 12) via the negative offset below.
-        if !thread.suggestedQuestions.isEmpty {
+        if HighlightDockRespondFeature.isEnabled, !thread.suggestedQuestions.isEmpty {
             responsePromptsRow
                 .padding(.horizontal, -12)
         }

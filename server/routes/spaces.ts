@@ -44,6 +44,13 @@ import { nowISO } from '../db/dates';
 import { parseNoteSecondaryCollections, serializeNoteSecondaryCollections } from '../utils/note-secondary-collections';
 import { computeNoteFolderRemovalPatch } from '@/utils/folder-bulk-actions';
 import {
+  addPrototypeEmptyFolderLabel,
+  isReservedPrototypeFolderLabel,
+  parsePrototypeEmptyFolderLabels,
+  removePrototypeEmptyFolderLabel,
+  serializePrototypeEmptyFolderLabels,
+} from '../utils/prototype-empty-folder-labels';
+import {
   filterThreadClusterEdgesForRemoval,
   normalizeThreadClusterMemberIds,
 } from '@/utils/thread-cluster-bulk-actions';
@@ -387,6 +394,126 @@ route.get('/api/spaces/:spaceId/notes', requireAuth, async (c) => {
   }
 });
 
+// ─── GET /api/spaces/:spaceId/folder-registry ───────────────────────────────
+/** Empty-folder labels for prototype sidebar (labels with zero notes). */
+route.get('/api/spaces/:spaceId/folder-registry', requireAuth, async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const spaceIdNorm = normalizePrototypeSpaceId(requireParam(c, 'spaceId'));
+    try {
+      await requireSpaceAccess(spaceIdNorm, auth.userId);
+    } catch (err) {
+      if (err instanceof SpaceAccessError) return c.json({ error: err.message, code: err.code }, err.status);
+      throw err;
+    }
+
+    const row = await db
+      .select({ prototypeEmptyFolderLabels: Spaces.prototypeEmptyFolderLabels })
+      .from(Spaces)
+      .where(and(eq(Spaces.id, spaceIdNorm), eq(Spaces.userId, auth.userId)))
+      .limit(1);
+    const labels = parsePrototypeEmptyFolderLabels(row[0]?.prototypeEmptyFolderLabels);
+    return c.json({ labels });
+  } catch (error: any) {
+    const standardError = handleAPIError(error, {
+      endpoint: '/api/spaces/[spaceId]/folder-registry',
+      action: 'get_folder_registry',
+    });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+
+// ─── POST /api/spaces/:spaceId/folders/create ───────────────────────────────
+/** Register an empty folder label (prototype). */
+route.post('/api/spaces/:spaceId/folders/create', requireAuth, rateLimit('write'), async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const spaceIdNorm = normalizePrototypeSpaceId(requireParam(c, 'spaceId'));
+    try {
+      await requireSpaceAccess(spaceIdNorm, auth.userId);
+    } catch (err) {
+      if (err instanceof SpaceAccessError) return c.json({ error: err.message, code: err.code }, err.status);
+      throw err;
+    }
+
+    const body = await c.req.json().catch(() => ({}));
+    const folderName = typeof body.folderName === 'string' ? body.folderName.trim() : '';
+    if (!folderName) return c.json({ error: 'Folder name is required' }, 400);
+    if (isReservedPrototypeFolderLabel(folderName)) {
+      return c.json({ error: 'That folder name is reserved' }, 400);
+    }
+
+    const row = await db
+      .select({ prototypeEmptyFolderLabels: Spaces.prototypeEmptyFolderLabels })
+      .from(Spaces)
+      .where(and(eq(Spaces.id, spaceIdNorm), eq(Spaces.userId, auth.userId)))
+      .limit(1);
+    if (!row[0]) return c.json({ error: 'Space not found' }, 404);
+
+    const current = parsePrototypeEmptyFolderLabels(row[0].prototypeEmptyFolderLabels);
+    const next = addPrototypeEmptyFolderLabel(current, folderName);
+    await db
+      .update(Spaces)
+      .set({
+        prototypeEmptyFolderLabels: serializePrototypeEmptyFolderLabels(next),
+        updatedAt: nowISO(),
+      })
+      .where(and(eq(Spaces.id, spaceIdNorm), eq(Spaces.userId, auth.userId)));
+
+    return c.json({ success: true, labels: next });
+  } catch (error: any) {
+    const standardError = handleAPIError(error, {
+      endpoint: '/api/spaces/[spaceId]/folders/create',
+      action: 'create_folder',
+    });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+
+// ─── POST /api/spaces/:spaceId/folder-registry/remove-label ─────────────────
+/** Remove a label from the empty-folder registry (after notes carry it). */
+route.post('/api/spaces/:spaceId/folder-registry/remove-label', requireAuth, rateLimit('write'), async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const spaceIdNorm = normalizePrototypeSpaceId(requireParam(c, 'spaceId'));
+    try {
+      await requireSpaceAccess(spaceIdNorm, auth.userId);
+    } catch (err) {
+      if (err instanceof SpaceAccessError) return c.json({ error: err.message, code: err.code }, err.status);
+      throw err;
+    }
+
+    const body = await c.req.json().catch(() => ({}));
+    const folderName = typeof body.folderName === 'string' ? body.folderName.trim() : '';
+    if (!folderName) return c.json({ error: 'Folder name is required' }, 400);
+
+    const row = await db
+      .select({ prototypeEmptyFolderLabels: Spaces.prototypeEmptyFolderLabels })
+      .from(Spaces)
+      .where(and(eq(Spaces.id, spaceIdNorm), eq(Spaces.userId, auth.userId)))
+      .limit(1);
+    if (!row[0]) return c.json({ error: 'Space not found' }, 404);
+
+    const current = parsePrototypeEmptyFolderLabels(row[0].prototypeEmptyFolderLabels);
+    const next = removePrototypeEmptyFolderLabel(current, folderName);
+    await db
+      .update(Spaces)
+      .set({
+        prototypeEmptyFolderLabels: serializePrototypeEmptyFolderLabels(next),
+        updatedAt: nowISO(),
+      })
+      .where(and(eq(Spaces.id, spaceIdNorm), eq(Spaces.userId, auth.userId)));
+
+    return c.json({ success: true, labels: next });
+  } catch (error: any) {
+    const standardError = handleAPIError(error, {
+      endpoint: '/api/spaces/[spaceId]/folder-registry/remove-label',
+      action: 'remove_folder_registry_label',
+    });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+
 // ─── POST /api/spaces/:spaceId/folders/remove ───────────────────────────────
 /** Remove a folder label from all notes in the space (notes are kept; labels move to Unsorted). */
 route.post('/api/spaces/:spaceId/folders/remove', requireAuth, rateLimit('write'), async (c) => {
@@ -452,6 +579,25 @@ route.post('/api/spaces/:spaceId/folders/remove', requireAuth, rateLimit('write'
 
       await db.update(Notes).set(updateData).where(and(eq(Notes.id, note.id), eq(Notes.userId, auth.userId)));
       updatedCount += 1;
+    }
+
+    const spaceRow = await db
+      .select({ prototypeEmptyFolderLabels: Spaces.prototypeEmptyFolderLabels })
+      .from(Spaces)
+      .where(and(eq(Spaces.id, spaceIdNorm), eq(Spaces.userId, auth.userId)))
+      .limit(1);
+    if (spaceRow[0]) {
+      const current = parsePrototypeEmptyFolderLabels(spaceRow[0].prototypeEmptyFolderLabels);
+      const next = removePrototypeEmptyFolderLabel(current, folderName);
+      if (next.length !== current.length) {
+        await db
+          .update(Spaces)
+          .set({
+            prototypeEmptyFolderLabels: serializePrototypeEmptyFolderLabels(next),
+            updatedAt: nowISO(),
+          })
+          .where(and(eq(Spaces.id, spaceIdNorm), eq(Spaces.userId, auth.userId)));
+      }
     }
 
     return c.json({ success: true, updatedCount });
@@ -843,10 +989,6 @@ route.get('/api/spaces/:spaceId/study-threads', requireAuth, async (c) => {
       .from(NoteConnections)
       .where(and(eq(NoteConnections.userId, auth.userId), eq(NoteConnections.spaceId, spaceIdNorm)));
 
-    if (edges.length === 0) {
-      return c.json({ threads: [] });
-    }
-
     // Build adjacency list and degree count.
     const adj = new Map<string, Set<string>>();
     const degree = new Map<string, number>();
@@ -881,10 +1023,11 @@ route.get('/api/spaces/:spaceId/study-threads', requireAuth, async (c) => {
       components.push(component);
     }
 
+    const connectedNodeIds = new Set(components.flat());
     const repIds = components.map((members) => pickStudyThreadRepresentativeNoteId(members, degree)!);
 
-    const allMemberIds = [...new Set(components.flat())];
-    const memberRows = await fetchStudyThreadNoteRows(allMemberIds, auth.userId);
+    const allMemberIds = [...connectedNodeIds];
+    const memberRows = allMemberIds.length > 0 ? await fetchStudyThreadNoteRows(allMemberIds, auth.userId) : [];
 
     const memberMap = new Map(memberRows.map((r) => [r.id, r]));
 
@@ -924,16 +1067,16 @@ route.get('/api/spaces/:spaceId/study-threads', requireAuth, async (c) => {
       };
     };
 
-    // Build response, sorted A–Z by display title.
-    const threads = sortStudyThreadClustersByTitle(
+    // Build response from connected components, then merge singleton titled notes.
+    const connectedThreads = sortStudyThreadClustersByTitle(
       components.map((members, i) => {
         const repId = repIds[i];
         const rep = memberMap.get(repId);
-        const memberRows = members
+        const clusterMemberRows = members
           .map((id) => memberMap.get(id))
           .filter((row): row is NonNullable<typeof row> => row != null);
         const suggestNodes = members.map(toSuggestNode).filter((n): n is StudyThreadSuggestNode => n != null);
-        const naming = resolveStudyThreadClusterNaming(memberRows, suggestNodes, repId);
+        const naming = resolveStudyThreadClusterNaming(clusterMemberRows, suggestNodes, repId);
         return {
           id: repId,
           title: naming.threadTitle,
@@ -946,6 +1089,45 @@ route.get('/api/spaces/:spaceId/study-threads', requireAuth, async (c) => {
         };
       }),
     );
+
+    const singletonRows = await db
+      .select({
+        id: Notes.id,
+        title: Notes.title,
+        content: Notes.content,
+        noteType: Notes.noteType,
+        updatedAt: Notes.updatedAt,
+        studyThreadTitle: Notes.studyThreadTitle,
+        studyThreadUserOverride: Notes.studyThreadUserOverride,
+        studyThreadPinned: Notes.studyThreadPinned,
+      })
+      .from(Notes)
+      .where(
+        and(
+          eq(Notes.userId, auth.userId),
+          eq(Notes.spaceId, spaceIdNorm),
+          eq(Notes.studyThreadUserOverride, true),
+          isNotNull(Notes.studyThreadTitle),
+          sql`TRIM(COALESCE(${Notes.studyThreadTitle}, '')) <> ''`,
+          NOT_ONBOARDING_NOTES_THREAD,
+          NOT_ONBOARDING_SYSTEM_NOTES,
+        ),
+      );
+
+    const singletonThreads = singletonRows
+      .filter((row) => !connectedNodeIds.has(row.id))
+      .map((row) => ({
+        id: row.id,
+        title: (row.studyThreadTitle ?? '').trim() || null,
+        suggestedTitle: row.title?.trim() || null,
+        hasCustomTitle: true,
+        studyThreadPinned: Boolean(row.studyThreadPinned),
+        noteCount: 1,
+        updatedAt: row.updatedAt ? row.updatedAt.toISOString() : null,
+        memberIds: [row.id],
+      }));
+
+    const threads = sortStudyThreadClustersByTitle([...connectedThreads, ...singletonThreads]);
 
     return c.json({ threads });
   } catch (error: any) {

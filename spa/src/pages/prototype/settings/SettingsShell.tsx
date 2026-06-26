@@ -1,5 +1,6 @@
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import Icon from '@/components/react/Icon';
+import { toast } from '@/utils/toast';
 
 /** One-line intro under the settings nav/sheet header — matches My Church tone and typography. */
 export function SettingsIntro({ children }: { children: ReactNode }) {
@@ -96,29 +97,16 @@ export function SettingsRow({
       type="button"
       onClick={onClick}
       className={destructive ? 'proto-note-row proto-note-row--destructive' : 'proto-note-row'}
-      style={{
-        width: '100%',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        gap: 12,
-        padding: '12px 12px',
-        border: 'none',
-        background: 'transparent',
-        textAlign: 'left',
-        cursor: 'pointer',
-        color: destructive ? 'var(--pds-destructive)' : 'var(--pds-text-primary)',
-      }}
     >
-      <span style={{ minWidth: 0 }}>
+      <span className="proto-settings-list-row__main">
         <span className="pds-list-title" style={{ display: 'block', color: destructive ? 'var(--pds-destructive)' : 'var(--pds-text-primary)' }}>{label}</span>
         {sublabel ? (
-          <span className="pds-list-preview" style={{ display: 'block', marginTop: 2, color: 'var(--pds-text-secondary)' }}>
+          <span className="pds-list-preview" style={{ display: 'block', marginTop: 2 }}>
             {sublabel}
           </span>
         ) : null}
       </span>
-      <span style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+      <span className="proto-settings-list-row__trailing">
         {value ? (
           <span className="pds-caption" style={{ color: 'var(--pds-text-secondary)' }}>{value}</span>
         ) : null}
@@ -129,6 +117,88 @@ export function SettingsRow({
         ) : null}
       </span>
     </button>
+  );
+}
+
+/** Value on the left, pill copy button on the right — used for email, share links, etc. */
+export function SettingsCopyRow({
+  value,
+  copyValue,
+  href,
+  hrefTarget,
+  title,
+  mono = false,
+  copyLabel = 'Copy',
+  copiedLabel = 'Copied',
+  copyErrorMessage = 'Could not copy',
+  disabled = false,
+  layout = 'default',
+}: {
+  value: string;
+  copyValue?: string;
+  href?: string;
+  hrefTarget?: '_blank' | '_self';
+  title?: string;
+  mono?: boolean;
+  copyLabel?: string;
+  copiedLabel?: string;
+  copyErrorMessage?: string;
+  disabled?: boolean;
+  /** `field` — URL + copy in one rounded control (sharing cards). */
+  layout?: 'default' | 'field';
+}) {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = async () => {
+    if (disabled) return;
+    try {
+      await navigator.clipboard.writeText(copyValue ?? value);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1400);
+    } catch {
+      toast.error(copyErrorMessage);
+    }
+  };
+
+  const valueClassName = `proto-copy-row__value${mono ? ' proto-copy-row__value--mono' : ''}`;
+
+  return (
+    <div className={`proto-copy-row${layout === 'field' ? ' proto-copy-row--field' : ''}`}>
+      {href ? (
+        <a
+          className={valueClassName}
+          href={href}
+          target={hrefTarget}
+          rel={hrefTarget === '_blank' ? 'noopener noreferrer' : undefined}
+          title={title ?? value}
+        >
+          {value}
+        </a>
+      ) : (
+        <span className={valueClassName} title={title ?? value}>
+          {value}
+        </span>
+      )}
+      <button
+        type="button"
+        className="proto-copy-row__copy"
+        onClick={handleCopy}
+        disabled={disabled}
+        aria-label={copied ? copiedLabel : copyLabel}
+      >
+        {copied ? (
+          <>
+            <Icon name="check" size={14} aria-hidden />
+            {copiedLabel}
+          </>
+        ) : (
+          <>
+            <Icon name="copy" size={14} aria-hidden />
+            {copyLabel}
+          </>
+        )}
+      </button>
+    </div>
   );
 }
 

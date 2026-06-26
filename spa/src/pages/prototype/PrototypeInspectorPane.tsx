@@ -16,7 +16,6 @@ import { useDeleteNote } from '../../hooks/mutations/useDeleteNote';
 import { useDisconnectNote } from '../../hooks/mutations/useDisconnectNote';
 import { useProtoShell } from '../../layouts/proto-shell-context';
 import PrototypeConnectNoteSheet from './PrototypeConnectNoteSheet';
-import PrototypeStudyThreadPopover from './PrototypeStudyThreadPopover';
 import PrototypeFolderTagEditor from './PrototypeFolderTagEditor';
 import ProtoConfirmDialog from './ProtoConfirmDialog';
 import { noteParamSlug } from './proto-route-slugs';
@@ -29,12 +28,10 @@ interface PrototypeInspectorPaneProps {
 export default function PrototypeInspectorPane({ note, spaceId = '' }: PrototypeInspectorPaneProps) {
   const [connectOpen, setConnectOpen] = useState(false);
   const [connectAnchorRect, setConnectAnchorRect] = useState<DOMRect | null>(null);
-  const [threadsOpen, setThreadsOpen] = useState(false);
-  const [threadsAnchorRect, setThreadsAnchorRect] = useState<DOMRect | null>(null);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deleteAnchorRect, setDeleteAnchorRect] = useState<DOMRect | null>(null);
   const navigate = useNavigate();
-  const { closeInspector, closeDrawer, isMobileSidebar } = useProtoShell();
+  const { closeInspector, closeDrawer, isMobileSidebar, openStudyThreadPopover } = useProtoShell();
   const deleteNote = useDeleteNote();
 
   const onDeleteConfirm = () => {
@@ -140,7 +137,7 @@ export default function PrototypeInspectorPane({ note, spaceId = '' }: Prototype
             <button
               type="button"
               className="proto-inspector-view-thread"
-              onClick={(e) => { setThreadsAnchorRect(e.currentTarget.getBoundingClientRect()); setThreadsOpen(true); }}
+              onClick={(e) => openStudyThreadPopover(e.currentTarget.getBoundingClientRect())}
             >
               <Icon name="arrow-right-arrow-left" size={11} aria-hidden />
               <span>Open thread</span>
@@ -165,14 +162,6 @@ export default function PrototypeInspectorPane({ note, spaceId = '' }: Prototype
           anchorRect={connectAnchorRect}
         />
       ) : null}
-
-      <PrototypeStudyThreadPopover
-        open={threadsOpen}
-        onOpenChange={setThreadsOpen}
-        noteId={note.id}
-        spaceId={spaceId ?? ''}
-        anchorRect={threadsAnchorRect}
-      />
 
       {spaceId ? (
         <div className="proto-inspector-delete">

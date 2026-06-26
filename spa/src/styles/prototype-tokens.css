@@ -40,6 +40,8 @@
 
   --pds-lch-text-primary: 24% 0.01 285;
   --pds-lch-text-secondary: 24% 0.01 285 / 0.5;
+  /* List row excerpt — one step lighter than secondary (timestamps stay secondary). */
+  --pds-lch-text-list-preview: 24% 0.01 285 / 0.38;
   --pds-lch-text-tertiary: 24% 0.01 285 / 0.32;
   --pds-lch-text-muted: 0% 0 0 / 0.5;
   --pds-lch-text-muted-strong: 0% 0 0 / 0.75;
@@ -235,6 +237,7 @@
   /* Text */
   --pds-text-primary: oklch(var(--pds-lch-text-primary));
   --pds-text-secondary: oklch(var(--pds-lch-text-secondary));
+  --pds-text-list-preview: oklch(var(--pds-lch-text-list-preview));
   --pds-text-tertiary: oklch(var(--pds-lch-text-tertiary));
   --pds-text-muted: oklch(var(--pds-lch-text-muted));
   --pds-text-muted-strong: oklch(var(--pds-lch-text-muted-strong));
@@ -457,6 +460,7 @@ html.harvous-proto-wallpaper-image {
 
     --pds-lch-text-primary: 96% 0 0;
     --pds-lch-text-secondary: 96% 0 0 / 0.55;
+    --pds-lch-text-list-preview: 96% 0 0 / 0.42;
     --pds-lch-text-tertiary: 96% 0 0 / 0.38;
     --pds-lch-text-muted: 100% 0 0 / 0.55;
     --pds-lch-text-muted-strong: 100% 0 0 / 0.78;
@@ -634,6 +638,7 @@ html.harvous-proto-wallpaper-image {
 
   --pds-lch-text-primary: 96% 0 0;
   --pds-lch-text-secondary: 96% 0 0 / 0.55;
+  --pds-lch-text-list-preview: 96% 0 0 / 0.42;
   --pds-lch-text-tertiary: 96% 0 0 / 0.38;
   --pds-lch-text-muted: 100% 0 0 / 0.55;
   --pds-lch-text-muted-strong: 100% 0 0 / 0.78;
@@ -1011,7 +1016,7 @@ html.harvous-prototype-route [data-sonner-toast] [data-description] {
   font-synthesis: none;
   font-variation-settings: var(--pds-font-body-variation-list-preview);
   line-height: 1.35;
-  color: var(--pds-text-secondary);
+  color: var(--pds-text-list-preview);
 }
 
 /* HarvousTypography.noteListTimestamp — same size as preview · 500 */
@@ -1150,7 +1155,7 @@ html.harvous-prototype-route [data-sonner-toast] [data-description] {
   font-size: 0.75rem;
   font-weight: 400;
   line-height: 1.35;
-  color: var(--pds-text-secondary);
+  color: var(--pds-text-list-preview);
 }
 
 .proto-caption {

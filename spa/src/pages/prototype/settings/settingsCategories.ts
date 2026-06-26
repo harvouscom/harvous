@@ -68,7 +68,7 @@ export const SETTINGS_CATEGORIES: SettingsCategory[] = [
     title: 'Get Support',
     route: prototypeHref('settings/support'),
     icon: 'circle-info',
-    footnote: 'Get help or contact us.',
+    footnote: 'Reach Derek directly.',
   },
   {
     key: 'keyboardShortcuts',

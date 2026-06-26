@@ -221,6 +221,15 @@ enum ReferenceSuggestionPainter {
         return after.range(of: #"^\s*\d"#, options: .regularExpression) != nil
     }
 
+    /// Skip Easton's hint on "Chapter" when it is a passage heading label (e.g. "Chapter 6").
+    private static func isLikelyChapterHeadingLabel(word: String, text: String, wordEndUTF16: Int) -> Bool {
+        guard word.lowercased() == "chapter" else { return false }
+        let ns = text as NSString
+        guard wordEndUTF16 <= ns.length else { return false }
+        let after = ns.substring(from: wordEndUTF16)
+        return after.range(of: #"^\s*\d"#, options: .regularExpression) != nil
+    }
+
     private static func intersectsAnyRange(_ range: NSRange, in ranges: [NSRange]) -> Bool {
         ranges.contains { NSIntersectionRange(range, $0).length > 0 }
     }
@@ -254,6 +263,7 @@ enum ReferenceSuggestionPainter {
             guard let slug = suggestedSlug(for: word, entryLookup: lookup) else { return }
             if shouldSkipPersonNameContext(in: string, wordRange: subRange) { return }
             if isLikelyScriptureReferenceInProgress(word: word, text: string, wordEndUTF16: NSMaxRange(nsRange)) { return }
+            if isLikelyChapterHeadingLabel(word: word, text: string, wordEndUTF16: NSMaxRange(nsRange)) { return }
             storage.addAttribute(.harvousReferenceSuggestion, value: slug, range: nsRange)
             storage.addAttribute(.underlineStyle, value: dottedStyle, range: nsRange)
             storage.addAttribute(.underlineColor, value: underlineColor, range: nsRange)

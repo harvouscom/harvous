@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  computeNoteFolderAdditionPatch,
   computeNoteFolderRemovalPatch,
   noteInNamedFolderBucket,
 } from '../folder-bulk-actions';
@@ -71,5 +72,44 @@ describe('computeNoteFolderRemovalPatch', () => {
   it('matches bucket name case-insensitively', () => {
     const patch = computeNoteFolderRemovalPatch({ primaryCollection: 'ROMANS' }, 'romans');
     expect(patch?.primaryCollection).toBe(null);
+  });
+});
+
+describe('computeNoteFolderAdditionPatch', () => {
+  it('sets primary when note has no folder labels', () => {
+    const patch = computeNoteFolderAdditionPatch({ primaryCollection: null, secondaryCollections: [] }, 'Romans');
+    expect(patch).toEqual({
+      primaryCollection: 'Romans',
+      secondaryCollections: [],
+      collectionUserOverride: true,
+    });
+  });
+
+  it('appends secondary when note already has a primary', () => {
+    const patch = computeNoteFolderAdditionPatch(
+      { primaryCollection: 'Paul', secondaryCollections: ['Epistles'] },
+      'Romans',
+    );
+    expect(patch).toEqual({
+      primaryCollection: 'Paul',
+      secondaryCollections: ['Epistles', 'Romans'],
+      collectionUserOverride: true,
+    });
+  });
+
+  it('returns null when note is already in bucket', () => {
+    expect(computeNoteFolderAdditionPatch({ primaryCollection: 'Romans' }, 'Romans')).toBe(null);
+  });
+
+  it('returns null for empty folder name', () => {
+    expect(computeNoteFolderAdditionPatch({ primaryCollection: null }, '  ')).toBe(null);
+  });
+
+  it('does not duplicate secondary when case differs', () => {
+    const patch = computeNoteFolderAdditionPatch(
+      { primaryCollection: 'Paul', secondaryCollections: ['romans'] },
+      'Romans',
+    );
+    expect(patch).toBe(null);
   });
 });

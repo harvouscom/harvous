@@ -61,10 +61,14 @@ export async function fetchVerseText(reference: string, translation: string = 'N
       throw cacheReadErr;
     }
   }
+  const isCrossChapter = parsed.endChapter != null && Array.isArray(parsed.verse);
   if (
     cached?.content &&
     cached.content.length > 0 &&
-    cached.content.includes('<sup class="verse-num"')
+    cached.content.includes('<sup class="verse-num"') &&
+    (!isCrossChapter ||
+      (cached.content.includes('passage-chapter-heading') &&
+        cached.content.includes('scripture-pill-chrome__trans-chip')))
   ) {
     return cached.content;
   }
@@ -72,8 +76,7 @@ export async function fetchVerseText(reference: string, translation: string = 'N
   // Render one verse as a superscript number + text (shared markup).
   const verseSpan = (verse: number, text: string) =>
     `<sup class="verse-num" style="font-size:0.55em; line-height:0; vertical-align:super;">${verse}</sup>${text}`;
-  const chapterDivider =
-    '<hr style="margin: 1rem 0; border: none; border-top: 1px solid var(--color-stone-grey); opacity: 0.3;" />';
+  const chapterDivider = '<hr class="passage-chapter-divider" />';
 
   // Persist the formatted result to VerseTextCache and return it.
   const cacheAndReturn = async (content: string): Promise<string> => {
@@ -145,8 +148,12 @@ export async function fetchVerseText(reference: string, translation: string = 'N
         .filter((v) => v.chapter === seg.chapter)
         .sort((a, b) => a.verse - b.verse);
       if (chapterVerses.length === 0) return;
-      parts.push(`<p><strong>Chapter ${seg.chapter}</strong></p>`);
-      parts.push(`<p>${chapterVerses.map((v) => verseSpan(v.verse, v.text)).join(' ')}</p>`);
+      parts.push('<div class="passage-chapter-block">');
+      parts.push(
+        `<p class="passage-chapter-heading"><span class="scripture-pill-chrome__trans-chip" aria-label="Chapter ${seg.chapter}">CH ${seg.chapter}</span></p>`,
+      );
+      parts.push(`<p class="passage-chapter-verses">${chapterVerses.map((v) => verseSpan(v.verse, v.text)).join(' ')}</p>`);
+      parts.push('</div>');
       if (index < segments.length - 1) parts.push(chapterDivider);
     });
     return cacheAndReturn(parts.join(''));

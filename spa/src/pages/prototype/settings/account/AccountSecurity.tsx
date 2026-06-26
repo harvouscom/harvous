@@ -106,7 +106,7 @@ export default function AccountSecurity({ onBack }: { onBack: () => void }) {
                     ) : null}
                   </span>
                   {loc ? (
-                    <span className="pds-list-preview" style={{ display: 'block', marginTop: 2, color: 'var(--pds-text-secondary)' }}>
+                    <span className="pds-list-preview" style={{ display: 'block', marginTop: 2 }}>
                       {loc}
                     </span>
                   ) : null}

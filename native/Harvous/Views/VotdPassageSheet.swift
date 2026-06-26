@@ -73,7 +73,7 @@ struct VotdPassageSheet: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Today's Passage")
                         .font(HarvousTypography.noteListPreview)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(.tertiary)
                     HStack(alignment: .firstTextBaseline, spacing: 8) {
                         Text(votd.reference)
                             .font(HarvousFonts.font(size: 17, weight: .semibold, design: .default))

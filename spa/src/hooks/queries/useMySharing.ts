@@ -4,6 +4,9 @@ import { api } from '../../lib/api';
 export interface SharedNoteItem {
   id: string;
   title: string;
+  preview?: string;
+  updatedAt?: string | null;
+  createdAt?: string;
   shareToken: string;
   shareUrl: string;
 }

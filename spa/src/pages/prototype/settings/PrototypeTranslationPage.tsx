@@ -26,34 +26,26 @@ export default function PrototypeTranslationPage() {
               key={id}
               type="button"
               className="proto-note-row"
+              data-active={isSelected ? 'true' : undefined}
               onClick={() => {
                 if (updateTranslation.isPending || isSelected) return;
                 updateTranslation.mutate(id);
               }}
-              style={{
-                width: '100%',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                gap: 12,
-                padding: '12px',
-                border: 'none',
-                background: 'transparent',
-                textAlign: 'left',
-                cursor: 'pointer',
-                color: 'var(--pds-text-primary)',
-              }}
             >
-              <span style={{ minWidth: 0 }}>
+              <span className="proto-settings-list-row__main">
                 <span className="pds-list-title" style={{ display: 'block' }}>{t?.abbreviation ?? id}</span>
                 {t?.name ? (
-                  <span className="pds-list-preview" style={{ display: 'block', marginTop: 2, color: 'var(--pds-text-secondary)' }}>
+                  <span className="pds-list-preview" style={{ display: 'block', marginTop: 2 }}>
                     {t.name}
                   </span>
                 ) : null}
               </span>
-              <span style={{ display: 'flex', alignItems: 'center', flexShrink: 0, color: 'var(--pds-accent)', width: 16 }} aria-hidden>
-                {isSelected ? <Icon name="check" size={14} /> : null}
+              <span className="proto-settings-list-row__trailing proto-settings-list-row__trailing--orb" aria-hidden>
+                {isSelected ? (
+                  <span className="proto-accent-check-orb">
+                    <Icon name="check" size={11} />
+                  </span>
+                ) : null}
               </span>
             </button>
           );

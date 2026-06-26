@@ -15,7 +15,7 @@ import { useUpdateStudyThreadTitle } from '../../hooks/mutations/useUpdateStudyT
 import { usePinSpaceNote } from '../../hooks/mutations/usePinSpaceNote';
 import { useSpaceNotes, type SpaceNoteRow } from '../../hooks/queries/useSpace';
 import { getNoteQueryOptions, seedNoteFromList, type ListNoteForSeed } from '../../hooks/queries/useNote';
-import { countNotesInFolderBucket, noteFolderMembershipLabels } from '@/utils/note-folder-display';
+import { countNotesInFolderBucket, noteBelongsToFolderBucket, noteFolderMembershipLabels } from '@/utils/note-folder-display';
 import { sortNotesByLastUpdated } from '@/utils/sorting';
 import { stripServerAutoUntitledNoteTitleForDisplay } from '@/utils/server-auto-untitled-note-display';
 import { isEffectivelyEmptyPrototypeNote } from '@/utils/prototype-note-empty';
@@ -35,6 +35,7 @@ import {
 import { protoRelativeCaptionAbbrev } from './proto-time';
 import { PROTO_TOOLBAR_ICON_SIZE } from './proto-toolbar-tokens';
 import ProtoConfirmDialog from './ProtoConfirmDialog';
+import ProtoThreadTrailOrb from './ProtoThreadTrailOrb';
 import PrototypeSidebarRowMenuPopover from './PrototypeSidebarRowMenuPopover';
 import type { PrototypeHighlightStudyThreadRow } from '../../hooks/queries/usePrototypeSpaceStudyThreadHighlights';
 import { usePrototypeSpaceStudyThreadHighlights } from '../../hooks/queries/usePrototypeSpaceStudyThreadHighlights';
@@ -78,8 +79,13 @@ import PrototypeSidebarSearchResults from './PrototypeSidebarSearchResults';
 import type { SidebarSearchResult } from './sidebar-search-types';
 import {
   buildFoldersFromNotes,
+  mergeFoldersWithRegistry,
   type ActiveSearchContext,
 } from './sidebar-universal-search';
+import { usePrototypeFolderRegistry } from '../../hooks/mutations/usePrototypeFolderRegistry';
+import PrototypeAddNotesSheet from './PrototypeAddNotesSheet';
+import PrototypeCreateFolderSheet from './PrototypeCreateFolderSheet';
+import PrototypeCreateThreadSheet from './PrototypeCreateThreadSheet';
 
 
 import { noteParamSlug, normalizeNoteIdFromParam, isPrototypeDraftNoteSlug } from './proto-route-slugs';
@@ -141,6 +147,8 @@ type PrototypeSidebarNoteRowProps = {
   threadRemoval?: { memberIds: string[] };
   /** Named folder drilldown — show remove-from-folder. */
   folderRemoval?: { folderName: string };
+  /** Vertical trail dots + spine (folder drilldown). */
+  trailLayout?: boolean;
 };
 
 function PrototypeSidebarFolderCard({
@@ -486,6 +494,7 @@ function PrototypeSidebarNoteRow({
   hideMenu = false,
   threadRemoval,
   folderRemoval,
+  trailLayout = false,
 }: PrototypeSidebarNoteRowProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
@@ -594,31 +603,50 @@ function PrototypeSidebarNoteRow({
     );
   };
 
-  return (
-    <li ref={rowRef} className="proto-note-row-item" data-active={active ? 'true' : 'false'}>
-      <button
-        type="button"
-        className="proto-note-row__main"
-        onClick={() => {
-          cancelHoverPrefetch();
-          onOpenNote(row);
-        }}
-        onMouseEnter={scheduleHoverPrefetch}
-        onMouseLeave={cancelHoverPrefetch}
-        onFocus={scheduleHoverPrefetch}
-        onBlur={cancelHoverPrefetch}
-      >
-        <div className="proto-note-row__title-line">
-          {pinned ? (
-            <span className="proto-note-row__pin" aria-hidden>
-              <Icon name="thumbtack" size={12} />
-            </span>
-          ) : null}
-          <span className="pds-list-title proto-note-row__title-text">{title}</span>
-        </div>
+  const rowMainClass = trailLayout ? 'proto-thread-trail__step-main proto-note-row__main' : 'proto-note-row__main';
+
+  const mainButton = (
+    <button
+      type="button"
+      className={rowMainClass}
+      onClick={() => {
+        cancelHoverPrefetch();
+        onOpenNote(row);
+      }}
+      onMouseEnter={scheduleHoverPrefetch}
+      onMouseLeave={cancelHoverPrefetch}
+      onFocus={scheduleHoverPrefetch}
+      onBlur={cancelHoverPrefetch}
+    >
+      <div className={trailLayout ? 'proto-thread-trail__title-line' : 'proto-note-row__title-line'}>
+        {pinned && !trailLayout ? (
+          <span className="proto-note-row__pin" aria-hidden>
+            <Icon name="thumbtack" size={12} />
+          </span>
+        ) : null}
+        <span className="pds-list-title proto-note-row__title-text">{title}</span>
+        {trailLayout && active ? <span className="proto-side-panel__current-badge">Current</span> : null}
+        {trailLayout && pinned ? (
+          <span className="proto-note-row__pin" aria-hidden>
+            <Icon name="thumbtack" size={12} />
+          </span>
+        ) : null}
+      </div>
+      {trailLayout ? (
+        rel || preview ? (
+          <div className="pds-list-preview proto-thread-trail__preview">
+            {rel ? <span className="pds-list-timestamp">{rel}</span> : null}
+            {rel && preview ? '  ' : null}
+            {preview ? <span>{preview}</span> : null}
+          </div>
+        ) : null
+      ) : (
         <ProtoListRecencyLine rel={rel} preview={preview} />
-      </button>
-      {hideMenu ? null : (
+      )}
+    </button>
+  );
+
+  const menuBlock = hideMenu ? null : (
       <div
         className={`proto-menu proto-note-row__menu${menuOpen ? ' proto-note-row__menu--open' : ''}`}
         ref={menuRootRef}
@@ -713,21 +741,48 @@ function PrototypeSidebarNoteRow({
           </div>
         </PrototypeSidebarRowMenuPopover>
       </div>
-      )}
-      {hideMenu ? null : deleteConfirmOpen && deleteAnchorRect ? (
-        <ProtoConfirmDialog
-          anchorRect={deleteAnchorRect}
-          confirmLabel="Delete"
-          busy={deleteNote.isPending}
-          onConfirm={onDeleteConfirm}
-          onCancel={() => {
-            if (!deleteNote.isPending) {
-              setDeleteConfirmOpen(false);
-              setDeleteAnchorRect(null);
-            }
-          }}
-        />
-      ) : null}
+  );
+
+  const deleteDialog =
+    hideMenu || !deleteConfirmOpen || !deleteAnchorRect ? null : (
+      <ProtoConfirmDialog
+        anchorRect={deleteAnchorRect}
+        confirmLabel="Delete"
+        busy={deleteNote.isPending}
+        onConfirm={onDeleteConfirm}
+        onCancel={() => {
+          if (!deleteNote.isPending) {
+            setDeleteConfirmOpen(false);
+            setDeleteAnchorRect(null);
+          }
+        }}
+      />
+    );
+
+  if (trailLayout) {
+    return (
+      <li
+        ref={rowRef}
+        className={`proto-thread-trail__step${active ? ' proto-thread-trail__step--focus' : ''}`}
+        data-active={active ? 'true' : 'false'}
+        role="listitem"
+        aria-current={active ? 'true' : undefined}
+      >
+        <ProtoThreadTrailOrb active={active} />
+        <div className="proto-thread-trail__step-body">
+          {mainButton}
+          {menuBlock ? <div className="proto-thread-trail__step-actions">{menuBlock}</div> : null}
+        </div>
+        {deleteDialog}
+      </li>
+    );
+  }
+
+  return (
+    <li ref={rowRef} className="proto-note-row-item" data-active={active ? 'true' : 'false'}>
+      {mainButton}
+      {menuBlock}
+      {deleteDialog}
     </li>
   );
 }
@@ -867,6 +922,8 @@ export default function PrototypeSidebar() {
     isFetchNextPageError,
   } = useSpaceNotes(homeSpaceId ?? '');
 
+  const folderRegistryQuery = usePrototypeFolderRegistry(homeSpaceId ?? undefined);
+
   const notesPaginationEnabled =
     !!homeSpaceId && (mode === 'notes' || (mode === 'folders' && activeFolderKey !== undefined));
 
@@ -880,6 +937,9 @@ export default function PrototypeSidebar() {
 
   const [q, setQ] = useState('');
   const [tagFilter, setTagFilter] = useState<SidebarTagSearchIntent | null>(null);
+  const [addNotesSheetOpen, setAddNotesSheetOpen] = useState(false);
+  const [createFolderSheetOpen, setCreateFolderSheetOpen] = useState(false);
+  const [createThreadSheetOpen, setCreateThreadSheetOpen] = useState(false);
   const isHomeLayer = sidebarLayer === 'space';
   const tagFilterActive = Boolean(tagFilter);
   const searchActive = !isHomeLayer && q.trim().length > 0 && !tagFilterActive;
@@ -929,6 +989,7 @@ export default function PrototypeSidebar() {
     () => threadDrillQuery.data?.nodes.map((n) => n.id) ?? [],
     [threadDrillQuery.data?.nodes],
   );
+
   const [scriptureDrill, setScriptureDrill] = useState<ScriptureDrill>({ level: 'books' });
   const [highlightKindFilter, setHighlightKindFilter] = useState<HighlightKindFilter>('all');
   const [pinnedHighlightIds, setPinnedHighlightIds] = useState<string[]>([]);
@@ -1009,6 +1070,25 @@ export default function PrototypeSidebar() {
     for (const n of notes) m.set(n.id, n);
     return m;
   }, [notes]);
+
+  const activeFolderMemberIds = useMemo(() => {
+    if (mode !== 'folders' || activeFolderKey === undefined || activeFolderKey === null) return [];
+    return notes
+      .filter((n) =>
+        noteBelongsToFolderBucket(
+          {
+            primaryCollection: n.primaryCollection ?? null,
+            secondaryCollections: n.secondaryCollections ?? [],
+          },
+          activeFolderKey,
+        ),
+      )
+      .map((n) => n.id);
+  }, [mode, activeFolderKey, notes]);
+
+  const showFolderAddNotes =
+    mode === 'folders' && activeFolderKey !== undefined && typeof activeFolderKey === 'string';
+  const showThreadAddNotes = mode === 'threads' && Boolean(sidebarThreadDrilldownId);
 
   // Thread/scripture drill rows carry only id+title (±dates), but we render them with the
   // same PrototypeSidebarNoteRow as the Notes/Folders lists. Resolve the full loaded note so
@@ -1129,7 +1209,10 @@ export default function PrototypeSidebar() {
     isError: notesIsError,
   });
 
-  const folders = useMemo(() => buildFoldersFromNotes(notes), [notes]);
+  const folders = useMemo(
+    () => mergeFoldersWithRegistry(buildFoldersFromNotes(notes), folderRegistryQuery.data ?? []),
+    [notes, folderRegistryQuery.data],
+  );
   const activeFolderBucketMemberCount = useMemo(() => {
     if (mode !== 'folders' || activeFolderKey === undefined) return null;
     return countNotesInFolderBucket(notes, activeFolderKey);
@@ -1642,6 +1725,18 @@ export default function PrototypeSidebar() {
             ) : null}
             <span className="proto-sidebar-back-row__label">{backTarget.label}</span>
           </button>
+          {showFolderAddNotes || showThreadAddNotes ? (
+            <button
+              type="button"
+              className="proto-sidebar-back-row__add"
+              onClick={() => setAddNotesSheetOpen(true)}
+              aria-label="Add notes"
+              title="Add notes"
+            >
+              <Icon name="plus" size={13} aria-hidden />
+              <span>Add notes</span>
+            </button>
+          ) : null}
         </div>
       ) : null}
       {!isHomeLayer && !sidebarThreadProposal ? (
@@ -1857,11 +1952,22 @@ export default function PrototypeSidebar() {
                 ) : notesListPhase === 'loading' ? (
                   <ProtoNotesListLoading />
                 ) : notesForMode.length === 0 ? (
-                  <p className="proto-caption" style={{ padding: '12px 18px', textAlign: 'center' }}>
-                    No notes in this folder.
-                  </p>
+                  <div className="proto-drill-empty">
+                    <p className="proto-caption" style={{ padding: '12px 18px', textAlign: 'center' }}>
+                      No notes in this folder.
+                    </p>
+                    {typeof activeFolderKey === 'string' ? (
+                      <button
+                        type="button"
+                        className="proto-drill-empty__cta"
+                        onClick={() => setAddNotesSheetOpen(true)}
+                      >
+                        Add notes
+                      </button>
+                    ) : null}
+                  </div>
                 ) : (
-                  <ul className="proto-note-list">
+                  <ul className="proto-note-list proto-thread-trail__spine proto-folder-note-trail" role="list">
                     {notesForMode.map((row) => (
                       <PrototypeSidebarNoteRow
                         key={row.id}
@@ -1870,6 +1976,7 @@ export default function PrototypeSidebar() {
                         homeSpaceId={homeSpaceId}
                         activeNoteFullId={activeNoteFullId}
                         prefetchNote={prefetchNote}
+                        trailLayout
                         folderRemoval={
                           typeof activeFolderKey === 'string' ? { folderName: activeFolderKey } : undefined
                         }
@@ -1903,14 +2010,36 @@ export default function PrototypeSidebar() {
                 q.trim() ? (
                   <PrototypeListNoMatchEmptyState title={SIDEBAR_NO_MATCH_COPY.noFoldersMatch} />
                 ) : (
-                  <PrototypeListEmptyState
-                    iconName="folder"
-                    title="No Folders"
-                    description="Folders created from your notes will appear here."
-                  />
+                  <div className="proto-list-create-empty">
+                    <PrototypeListEmptyState
+                      iconName="folder"
+                      title="No Folders"
+                      description="Create a folder to organize notes, then add them when you're ready."
+                    />
+                    <button
+                      type="button"
+                      className="proto-list-create-empty__btn"
+                      onClick={() => setCreateFolderSheetOpen(true)}
+                    >
+                      New folder
+                    </button>
+                  </div>
                 )
               ) : (
-                <ul className="proto-collection-grid">
+                <>
+                  {!q.trim() ? (
+                    <div className="proto-collection-grid-actions">
+                      <button
+                        type="button"
+                        className="proto-collection-grid-actions__btn"
+                        onClick={() => setCreateFolderSheetOpen(true)}
+                      >
+                        <Icon name="plus" size={12} aria-hidden />
+                        New folder
+                      </button>
+                    </div>
+                  ) : null}
+                  <ul className="proto-collection-grid">
                   {filteredFolders.map((col) => (
                     <PrototypeSidebarFolderCard
                       key={col.name ?? '__none__'}
@@ -1925,6 +2054,7 @@ export default function PrototypeSidebar() {
                     />
                   ))}
                 </ul>
+                </>
               )
             ) : null}
 
@@ -2009,9 +2139,18 @@ export default function PrototypeSidebar() {
                     Could not load thread.
                   </p>
                 ) : !threadDrillQuery.data?.nodes.length ? (
-                  <p className="proto-caption" style={{ padding: '12px 18px', textAlign: 'center', opacity: 0.7 }}>
-                    No notes in this thread.
-                  </p>
+                  <div className="proto-drill-empty">
+                    <p className="proto-caption" style={{ padding: '12px 18px', textAlign: 'center', opacity: 0.7 }}>
+                      No notes in this thread.
+                    </p>
+                    <button
+                      type="button"
+                      className="proto-drill-empty__cta"
+                      onClick={() => setAddNotesSheetOpen(true)}
+                    >
+                      Add notes
+                    </button>
+                  </div>
                 ) : (
                   <ul className="proto-note-list">
                     {threadDrillQuery.data.nodes.map((node) => {
@@ -2046,23 +2185,54 @@ export default function PrototypeSidebar() {
                     Could not load threads.
                   </p>
                 ) : !studyThreadsQuery.data || studyThreadsQuery.data.length === 0 ? (
-                  <PrototypeListEmptyState
-                    iconName="arrow-right-arrow-left"
-                    title="No Threads"
-                    description="Connect notes together to create threads."
-                  />
+                  <div className="proto-list-create-empty">
+                    <PrototypeListEmptyState
+                      iconName="arrow-right-arrow-left"
+                      title="No Threads"
+                      description="Name a thread and pick notes to connect them."
+                    />
+                    <button
+                      type="button"
+                      className="proto-list-create-empty__btn"
+                      onClick={() => setCreateThreadSheetOpen(true)}
+                    >
+                      New thread
+                    </button>
+                  </div>
                 ) : filteredThreads.length === 0 ? (
                   q.trim() ? (
                     <PrototypeListNoMatchEmptyState title={SIDEBAR_NO_MATCH_COPY.noThreadsMatch} />
                   ) : (
-                    <PrototypeListEmptyState
-                      iconName="arrow-right-arrow-left"
-                      title="No Threads"
-                      description="Connect notes together to create threads."
-                    />
+                    <div className="proto-list-create-empty">
+                      <PrototypeListEmptyState
+                        iconName="arrow-right-arrow-left"
+                        title="No Threads"
+                        description="Name a thread and pick notes to connect them."
+                      />
+                      <button
+                        type="button"
+                        className="proto-list-create-empty__btn"
+                        onClick={() => setCreateThreadSheetOpen(true)}
+                      >
+                        New thread
+                      </button>
+                    </div>
                   )
                 ) : (
-                  <ul className="proto-collection-grid">
+                  <>
+                    {!q.trim() ? (
+                      <div className="proto-collection-grid-actions">
+                        <button
+                          type="button"
+                          className="proto-collection-grid-actions__btn"
+                          onClick={() => setCreateThreadSheetOpen(true)}
+                        >
+                          <Icon name="plus" size={12} aria-hidden />
+                          New thread
+                        </button>
+                      </div>
+                    ) : null}
+                    <ul className="proto-collection-grid">
                     {filteredThreads.map((cluster) => {
                       const title = resolveClusterListTitle(
                         cluster,
@@ -2084,6 +2254,7 @@ export default function PrototypeSidebar() {
                       );
                     })}
                   </ul>
+                  </>
                 )}
               </>
             ) : null}
@@ -2244,6 +2415,46 @@ export default function PrototypeSidebar() {
             if (!removeThreadCluster.isPending) setThreadDeleteTarget(null);
           }}
         />
+      ) : null}
+      {homeSpaceId ? (
+        <>
+          <PrototypeAddNotesSheet
+            open={addNotesSheetOpen}
+            onOpenChange={setAddNotesSheetOpen}
+            spaceId={homeSpaceId}
+            mode={showThreadAddNotes ? 'thread' : 'folder'}
+            folderName={typeof activeFolderKey === 'string' ? activeFolderKey : undefined}
+            threadRepNoteId={
+              threadDrillQuery.data?.repNoteId ??
+              (sidebarThreadDrilldownId ? normalizeNoteIdFromParam(sidebarThreadDrilldownId) : undefined)
+            }
+            threadMemberIds={threadDrillMemberIds}
+            excludeNoteIds={showThreadAddNotes ? threadDrillMemberIds : activeFolderMemberIds}
+            notesById={notesById}
+            spaceNotes={notes}
+          />
+          <PrototypeCreateFolderSheet
+            open={createFolderSheetOpen}
+            onOpenChange={setCreateFolderSheetOpen}
+            spaceId={homeSpaceId}
+            spaceNotes={notes}
+            notesById={notesById}
+            onCreated={(folderName) => {
+              setSidebarListMode('folders');
+              setActiveFolderKey(folderName);
+            }}
+          />
+          <PrototypeCreateThreadSheet
+            open={createThreadSheetOpen}
+            onOpenChange={setCreateThreadSheetOpen}
+            spaceId={homeSpaceId}
+            spaceNotes={notes}
+            onCreated={(repNoteId) => {
+              setSidebarListMode('threads');
+              setSidebarThreadDrilldownId(threadClusterDrillSlug(repNoteId));
+            }}
+          />
+        </>
       ) : null}
     </div>
   );

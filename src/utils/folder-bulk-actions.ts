@@ -14,6 +14,12 @@ export type NoteFolderRemovalPatch = {
   collectionLastAutoUpdatedAt?: null;
 };
 
+export type NoteFolderAdditionPatch = {
+  primaryCollection: string | null;
+  secondaryCollections: string[];
+  collectionUserOverride: boolean;
+};
+
 function folderLabelsEqual(a: string, b: string): boolean {
   return a.trim().toLowerCase() === b.trim().toLowerCase();
 }
@@ -64,6 +70,41 @@ export function computeNoteFolderRemovalPatch(
     collectionPinned: fullyUnlabeled ? false : Boolean(note.collectionPinned),
     collectionUserOverride: fullyUnlabeled ? false : Boolean(note.collectionUserOverride),
     ...(fullyUnlabeled ? { collectionLastAutoUpdatedAt: null as const } : {}),
+  };
+}
+
+/**
+ * Compute collection-field updates to add `folderName` to a note.
+ * Returns null when the note is already in the bucket or folderName is empty.
+ */
+export function computeNoteFolderAdditionPatch(
+  note: NoteFolderFields,
+  folderName: string,
+): NoteFolderAdditionPatch | null {
+  const bucket = folderName.trim();
+  if (!bucket) return null;
+  if (noteInNamedFolderBucket(note, bucket)) return null;
+
+  const primary = readPrimary(note);
+  if (!primary) {
+    return {
+      primaryCollection: bucket,
+      secondaryCollections: readSecondaries(note)
+        .map((s) => s.trim())
+        .filter((s) => s.length > 0),
+      collectionUserOverride: true,
+    };
+  }
+
+  const nextSecondaries = [...readSecondaries(note).map((s) => s.trim()).filter((s) => s.length > 0)];
+  if (!nextSecondaries.some((s) => folderLabelsEqual(s, bucket))) {
+    nextSecondaries.push(bucket);
+  }
+
+  return {
+    primaryCollection: primary,
+    secondaryCollections: nextSecondaries,
+    collectionUserOverride: true,
   };
 }
 

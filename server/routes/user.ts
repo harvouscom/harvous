@@ -74,6 +74,7 @@ import {
   userNeedsCollectionBackfill,
 } from '../utils/prototype-user-migration';
 import { isNoteConnectionsTableMissing } from '../utils/pg-undefined-relation';
+import { stripHtmlForListPreview } from '@/utils/html-stripper';
 
 const app = new Hono();
 
@@ -1089,7 +1090,14 @@ app.get('/api/profile/my-sharing', requireAuth, async (c) => {
       db.select({ id: Threads.id, title: Threads.title, color: Threads.color, shareToken: Threads.shareToken })
         .from(Threads).where(and(eq(Threads.userId, auth.userId), isNotNull(Threads.shareToken)))
         .orderBy(desc(Threads.shareTokenCreatedAt)),
-      db.select({ id: Notes.id, title: Notes.title, content: Notes.content, shareToken: Notes.shareToken })
+      db.select({
+        id: Notes.id,
+        title: Notes.title,
+        content: Notes.content,
+        shareToken: Notes.shareToken,
+        updatedAt: Notes.updatedAt,
+        createdAt: Notes.createdAt,
+      })
         .from(Notes).where(and(eq(Notes.userId, auth.userId), eq(Notes.noteType, 'default'), isNotNull(Notes.shareToken)))
         .orderBy(desc(Notes.shareTokenCreatedAt))
     ]);
@@ -1105,9 +1113,15 @@ app.get('/api/profile/my-sharing', requireAuth, async (c) => {
       .filter((n): n is typeof n & { shareToken: string } => n.shareToken != null)
       .map(n => {
         const title = n.title?.trim() || (n.content?.split('\n')[0]?.trim().slice(0, 80) || 'Untitled note');
+        const preview = n.content ? stripHtmlForListPreview(n.content, 80) : undefined;
         return {
-          id: n.id, title: title.length > 80 ? title.slice(0, 77) + '...' : title,
-          shareToken: n.shareToken, shareUrl: `${origin}/shared/note/${n.shareToken}`
+          id: n.id,
+          title: title.length > 80 ? title.slice(0, 77) + '...' : title,
+          preview: preview || undefined,
+          updatedAt: n.updatedAt ?? undefined,
+          createdAt: n.createdAt,
+          shareToken: n.shareToken,
+          shareUrl: `${origin}/shared/note/${n.shareToken}`,
         };
       });
 

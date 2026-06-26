@@ -10,110 +10,18 @@ import { Drawer, DrawerContent } from '@/components/ui/drawer';
 import Icon from '@/components/react/Icon';
 import ProtoPopoverShell from './ProtoPopoverShell';
 import PrototypeConnectNoteSheet from './PrototypeConnectNoteSheet';
+import PrototypeStudyThreadTrail from './PrototypeStudyThreadTrail';
 import { useDismissOnOutside } from '../../hooks/usePopoverDismiss';
 import { usePrototypeHomeSpaceId } from '../../hooks/usePrototypeHomeSpaceId';
 import {
   usePrototypeStudyThread,
-  type StudyThreadNodeFlat,
-  type StudyThreadEdge,
 } from '../../hooks/queries/usePrototypeStudyThread';
-import { useDisconnectNote } from '../../hooks/mutations/useDisconnectNote';
 import { useUpdateStudyThreadTitle } from '../../hooks/mutations/useUpdateStudyThreadTitle';
 import { useProtoShell } from '../../layouts/proto-shell-context';
 import { prototypeNoteRouteTo } from '@/lib/prototype-path';
 import { noteParamSlug } from './proto-route-slugs';
 import { stripServerAutoUntitledNoteTitleForDisplay } from '@/utils/server-auto-untitled-note-display';
-import { stripHtmlForCard } from '@/utils/html-stripper';
 import { studyThreadDisplayTitle } from '../../utils/study-thread-display-title';
-
-// ─── helpers ──────────────────────────────────────────────────────────────────
-
-function nodeDisplayTitle(node: StudyThreadNodeFlat): string {
-  return (
-    (node.noteType === 'resource' && node.resourceTitle ? node.resourceTitle : null) ??
-    stripServerAutoUntitledNoteTitleForDisplay(node.title) ??
-    `Note N${node.simpleNoteId?.toString().padStart(3, '0') ?? ''}`
-  );
-}
-
-function nodePreview(node: StudyThreadNodeFlat): string {
-  const raw = node.noteType === 'resource' && node.resourceDescription
-    ? node.resourceDescription
-    : node.content ?? '';
-  return stripHtmlForCard(raw, false).slice(0, 100);
-}
-
-function findEdge(aId: string, bId: string, edges: StudyThreadEdge[]): StudyThreadEdge | undefined {
-  return edges.find(
-    (e) => (e.fromId === aId && e.toId === bId) || (e.fromId === bId && e.toId === aId),
-  );
-}
-
-// ─── PanelNoteRow ─────────────────────────────────────────────────────────────
-
-interface PanelNoteRowProps {
-  node: StudyThreadNodeFlat;
-  isFocus?: boolean;
-  showDisconnect?: boolean;
-  focusNoteId: string;
-  edges: StudyThreadEdge[];
-  onOpen: (id: string) => void;
-}
-
-function PanelNoteRow({ node, isFocus, showDisconnect, focusNoteId, edges, onOpen }: PanelNoteRowProps) {
-  const disconnectNote = useDisconnectNote();
-  const [confirmDisconnect, setConfirmDisconnect] = useState(false);
-  const confirmTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const edge = showDisconnect ? findEdge(focusNoteId, node.id, edges) : undefined;
-  const title = nodeDisplayTitle(node);
-  const preview = nodePreview(node);
-
-  const handleDisconnect = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (!edge) return;
-    if (!confirmDisconnect) {
-      setConfirmDisconnect(true);
-      confirmTimerRef.current = setTimeout(() => setConfirmDisconnect(false), 2500);
-      return;
-    }
-    if (confirmTimerRef.current) clearTimeout(confirmTimerRef.current);
-    setConfirmDisconnect(false);
-    disconnectNote.mutate({ fromNoteId: edge.fromId, toNoteId: edge.toId });
-  };
-
-  return (
-    <li className="proto-note-row-item" data-active={isFocus ? 'true' : 'false'}>
-      <button
-        type="button"
-        className="proto-note-row__main"
-        onClick={() => onOpen(node.id)}
-        aria-label={`Open ${title}`}
-      >
-        <div className="proto-note-row__title-line">
-          <span className="pds-list-title proto-note-row__title-text">{title}</span>
-        </div>
-        {preview ? (
-          <div className="pds-list-preview proto-note-row__preview">{preview}</div>
-        ) : null}
-      </button>
-      {edge ? (
-        <div className="proto-note-row__menu">
-          <button
-            type="button"
-            className={`proto-side-panel__action-btn proto-side-panel__disconnect-row-btn${confirmDisconnect ? ' proto-side-panel__disconnect-row-btn--confirm' : ''}`}
-            title={confirmDisconnect ? 'Tap again to confirm' : 'Disconnect'}
-            aria-label={confirmDisconnect ? `Confirm disconnect ${title}` : `Disconnect ${title}`}
-            disabled={disconnectNote.isPending}
-            onClick={handleDisconnect}
-          >
-            <Icon name={confirmDisconnect ? 'trash-can' : 'arrow-right-arrow-left'} size={11} aria-hidden />
-          </button>
-        </div>
-      ) : null}
-    </li>
-  );
-}
 
 // ─── Main popover ─────────────────────────────────────────────────────────────
 
@@ -186,12 +94,8 @@ export default function PrototypeStudyThreadPopover({
     updateTitle.mutate({ repNoteId, spaceId: effectiveSpaceId, pinned: !isLocked });
   };
 
-  const focusNode = thread?.nodes.find((n) => n.id === noteId) ?? null;
-  const connectedNodes = thread?.nodes.filter((n) => n.id !== noteId) ?? [];
-
   const openNote = (id: string) => {
     navigate({ to: prototypeNoteRouteTo(), params: { noteId: noteParamSlug(id) } });
-    onOpenChange(false);
   };
 
   // ── Popover positioning (mirrors PrototypeConnectNoteSheet) ────────────────
@@ -225,7 +129,9 @@ export default function PrototypeStudyThreadPopover({
     setPosition({ top, left });
   }, [anchorRect, shouldUsePopover, nodeCount, isLoading]);
 
-  useDismissOnOutside(cardRef, () => onOpenChange(false), shouldUsePopover);
+  useDismissOnOutside(cardRef, () => onOpenChange(false), shouldUsePopover, {
+    ignoreSelector: '.proto-sidebar-root, .proto-inspector, .proto-inspector-mobile-panel, .proto-inspector-desktop',
+  });
 
   // ── Content ────────────────────────────────────────────────────────────────
   const content = (
@@ -320,18 +226,12 @@ export default function PrototypeStudyThreadPopover({
                   </button>
                 ) : null}
               </div>
-              {focusNode || connectedNodes.length > 0 ? (
-                <ul className="proto-side-panel__note-list">
-                  {focusNode ? (
-                    <PanelNoteRow node={focusNode} isFocus focusNoteId={noteId} edges={thread.edges} onOpen={openNote} />
-                  ) : null}
-                  {connectedNodes.map((node) => (
-                    <PanelNoteRow key={node.id} node={node} showDisconnect focusNoteId={noteId} edges={thread.edges} onOpen={openNote} />
-                  ))}
-                </ul>
-              ) : (
-                <p className="proto-inspector-muted">No notes connected yet.</p>
-              )}
+              <PrototypeStudyThreadTrail
+                focusNoteId={noteId}
+                nodes={thread.nodes}
+                edges={thread.edges}
+                onOpen={openNote}
+              />
             </section>
           </>
         )}

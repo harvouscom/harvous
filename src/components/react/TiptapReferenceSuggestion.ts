@@ -142,6 +142,7 @@ export function findReferenceSuggestionRanges(
     }
     if (!match) continue;
     if (isLikelyScriptureReferenceInProgress(word, text, m.index + word.length)) continue;
+    if (isLikelyChapterHeadingLabel(word, text, m.index + word.length)) continue;
     if (shouldSkipPersonNameContext(word, text, m.index, m.index + word.length)) continue;
     ranges.push({
       start: m.index,
@@ -161,10 +162,17 @@ function isLikelyScriptureReferenceInProgress(word: string, text: string, wordEn
   return /^\s*\d/.test(after);
 }
 
+/** Skip Easton's hint on "Chapter" when it is a passage heading label (e.g. "Chapter 6"). */
+export function isLikelyChapterHeadingLabel(word: string, text: string, wordEndInText: number): boolean {
+  if (word.toLowerCase() !== 'chapter') return false;
+  const after = text.slice(wordEndInText);
+  return /^\s*\d/.test(after);
+}
+
 export { shouldSkipPersonNameContext } from '@/utils/person-name-context';
 
 const PASSAGE_SUGGESTION_SKIP_SELECTOR =
-  'sup.verse-num, .reference-suggestion, mark, .highlight, .scripture-pill-chrome__passage-highlights, .scripture-pill-chrome__attribution';
+  'sup.verse-num, .reference-suggestion, mark, .highlight, .scripture-pill-chrome__passage-highlights, .scripture-pill-chrome__attribution, .passage-chapter-heading, .scripture-pill-chrome__trans-chip';
 
 function shouldSkipPassageSuggestionTextNode(node: Text): boolean {
   let parent: HTMLElement | null = node.parentElement;
