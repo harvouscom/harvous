@@ -477,10 +477,15 @@ function PrototypeAuthenticatedChrome({ userId }: { userId?: string }) {
     .filter(Boolean)
     .join(' ');
 
+  const isDevClerk = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY?.startsWith('pk_test_');
+
   return (
     <>
       <div className="proto-shell-frame simplified-prototype-root">
         <div ref={shellRef} className={shellMods} style={shellStyle}>
+        {isDevClerk ? (
+          <div className="proto-dev-badge">DEV</div>
+        ) : null}
         {userId ? (
           <SyncManagerIsland userId={userId} hideOfflineIndicator deferSyncInit />
         ) : null}

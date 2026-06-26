@@ -49,9 +49,12 @@ export default function SignUpPage() {
     return null;
   }
 
+  const isDevClerk = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY?.startsWith('pk_test_');
+
   if (siteInspired) {
     return (
       <div id="sign-up-content" className="auth-page auth-page--site">
+        {isDevClerk ? <div className="proto-dev-badge">DEV</div> : null}
         <div className="auth-page__container">
           <div className="auth-page__video-section">
             <div

@@ -1,4 +1,4 @@
-const DEDICATED_PROTOTYPE_HOSTS = new Set(['app.harvous.com', 'new.harvous.com']);
+const DEDICATED_PROTOTYPE_HOSTS = new Set(['app.harvous.com', 'new.harvous.com', 'localhost']);
 
 export function isDedicatedPrototypeHost(hostname?: string): boolean {
   const h = hostname ?? (typeof window !== 'undefined' ? window.location.hostname : '');
