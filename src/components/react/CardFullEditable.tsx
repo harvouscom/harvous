@@ -154,6 +154,7 @@ interface CardFullEditableProps {
       collectionPinned?: boolean;
       collectionUserOverride?: boolean;
     },
+    saveOptions?: { bumpUpdatedAt?: boolean },
   ) => Promise<any>;
   footer?: React.ReactNode;
   // Props for shared note CTA footer
@@ -1513,11 +1514,13 @@ export default function CardFullEditable({
       hasLocalContentUpdate.current = true;
       setDisplayContent(stripped);
       setEditContent(stripped);
+      // Persist the content change but don't reorder lists — this is an automated cleanup (link to a
+      // deleted note), not a user edit.
       if (onSave) {
-        onSave(editTitle, stripped).catch(() => {});
+        onSave(editTitle, stripped, undefined, { bumpUpdatedAt: false }).catch(() => {});
       } else {
         const globalCallback = (window as any).noteSaveCallback;
-        if (globalCallback) globalCallback(editTitle, stripped);
+        if (globalCallback) globalCallback(editTitle, stripped, undefined, { bumpUpdatedAt: false });
       }
       // Drive immediate UI update and persist for sessionStorage fallback if card remounts
       try {
@@ -1552,11 +1555,12 @@ export default function CardFullEditable({
       hasLocalContentUpdate.current = true;
       setDisplayContent(result);
       setEditContent(result);
+      // Persist the stripped links but don't reorder lists — automated cleanup, not a user edit.
       if (onSave) {
-        onSave(editTitle, result).catch(() => {});
+        onSave(editTitle, result, undefined, { bumpUpdatedAt: false }).catch(() => {});
       } else {
         const globalCallback = (window as any).noteSaveCallback;
-        if (globalCallback) globalCallback(editTitle, result);
+        if (globalCallback) globalCallback(editTitle, result, undefined, { bumpUpdatedAt: false });
       }
       const remaining = deletedIds.filter(id => !strippedIds.includes(id));
       sessionStorage.setItem(DELETED_NOTE_IDS_KEY, JSON.stringify(remaining));

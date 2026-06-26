@@ -21,6 +21,7 @@ interface UpdateNoteInput {
   secondaryCollections?: string[];
   collectionPinned?: boolean;
   collectionUserOverride?: boolean;
+  bumpUpdatedAt?: boolean;
 }
 
 interface UpdateNoteResponse {
@@ -61,6 +62,7 @@ export function useUpdateNote() {
         collectionUserOverride,
       } = input;
       const body: Record<string, unknown> = { noteId, title, content };
+      if (input.bumpUpdatedAt === false) body.bumpUpdatedAt = false;
       if (scriptureVersion !== undefined) body.scriptureVersion = scriptureVersion;
       if (primaryCollection !== undefined) body.primaryCollection = primaryCollection;
       if (secondaryCollections !== undefined) body.secondaryCollections = secondaryCollections;

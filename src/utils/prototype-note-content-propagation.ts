@@ -2,14 +2,15 @@
 export function flushCoalescedNoteHtmlOnUnmount(opts: {
   pendingRafId: number | null;
   latestHtml: string;
-  onContentChange?: (html: string) => void;
+  onContentChange?: (html: string, meta?: { programmatic?: boolean }) => void;
   cancelAnimationFrame: (id: number) => void;
+  wasUserEdit?: boolean;
 }): void {
   if (opts.pendingRafId != null) {
     opts.cancelAnimationFrame(opts.pendingRafId);
   }
   if (opts.latestHtml && opts.onContentChange) {
-    opts.onContentChange(opts.latestHtml);
+    opts.onContentChange(opts.latestHtml, opts.wasUserEdit ? undefined : { programmatic: true });
   }
 }
 

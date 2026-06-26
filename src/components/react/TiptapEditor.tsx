@@ -82,7 +82,7 @@ import {
   mergeReferenceWithOrphanSuffix,
 } from '@/utils/scripture-pill-orphan';
 import { findAdjacentPillBoundaries } from '@/utils/scripture-pill-adjacent';
-import { rangeContainsScripturePillMark } from '@/utils/scripture-pill-range';
+import { rangeContainsScripturePillMark, scripturePillSkipLeftTarget } from '@/utils/scripture-pill-range';
 import { hasBlockGapAfter, hasLostBlockGaps } from '@/utils/scripture-pill-block-gaps';
 import {
   ensureScripturePillSpacing,
@@ -3850,6 +3850,12 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
   const onContentChangeRef = useRef(onContentChange);
   onContentChangeRef.current = onContentChange;
   const latestNoteHtmlRef = useRef<string>('');
+  // True when a genuine, user-initiated DOM content edit (beforeinput/paste/drop/cut) occurred. Lets
+  // onUpdate tell real edits from PROGRAMMATIC doc changes (hydrate pill/translation/spacing
+  // normalization, etc.) so the latter don't mark the note dirty and re-stamp updatedAt on mere view.
+  // Reset each time onUpdate consumes it; `pendingEmitUserEditRef` carries it across the rAF coalesce.
+  const sawUserContentInputRef = useRef(false);
+  const pendingEmitUserEditRef = useRef(false);
   const editorRef = useRef<any>(null);
   const tiptapContentRef = useRef<HTMLDivElement>(null);
   const createNoteBubbleRef = useRef<HTMLDivElement>(null);
@@ -4108,6 +4114,14 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       latestNoteHtmlRef.current = htmlContent;
       onLiveBodyHtmlChange?.(htmlContent);
 
+      // Classify this change: a doc change preceded by a trusted DOM input event is a real user edit;
+      // anything else (hydrate normalization, programmatic dispatches) is programmatic and must NOT
+      // mark the note dirty. Accumulate across the rAF coalesce so a mixed frame counts as a user edit.
+      if (sawUserContentInputRef.current) {
+        pendingEmitUserEditRef.current = true;
+        sawUserContentInputRef.current = false;
+      }
+
       // Notify parent component — coalesced to one call per animation frame. On rapid typing this
       // collapses N per-keystroke parent re-renders into one per frame with the latest HTML; autosave
       // is debounced downstream so the sub-frame delay is immaterial.
@@ -4115,7 +4129,13 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
         if (contentPropagateRafRef.current == null) {
           contentPropagateRafRef.current = requestAnimationFrame(() => {
             contentPropagateRafRef.current = null;
-            onContentChangeRef.current?.(latestNoteHtmlRef.current);
+            const wasUserEdit = pendingEmitUserEditRef.current;
+            pendingEmitUserEditRef.current = false;
+            // Programmatic emissions stay un-dirtied by CardFullEditable.handleContentChange.
+            onContentChangeRef.current?.(
+              latestNoteHtmlRef.current,
+              wasUserEdit ? undefined : { programmatic: true },
+            );
           });
         }
       }
@@ -4587,16 +4607,13 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
               }
             }
           } else {
-            const childBeforeInfo = parent.childBefore(parentOffset);
-            if (childBeforeInfo.node &&
-                childBeforeInfo.offset + childBeforeInfo.node.nodeSize === parentOffset &&
-                childBeforeInfo.node.marks.some((m: any) => m.type.name === 'scripturePill')) {
-              const boundaries = findPillBoundaries(view.state.doc, from - 1);
-              if (boundaries) {
-                event.preventDefault();
-                editor.commands.setTextSelection(boundaries.start);
-                return true;
-              }
+            // Cross a pill leftward in one press — even when the caret sits after the pill's invisible
+            // trailing spacer (otherwise the first ArrowLeft only crosses the spacer and looks inert).
+            const target = scripturePillSkipLeftTarget(view.state.doc, from);
+            if (target != null) {
+              event.preventDefault();
+              editor.commands.setTextSelection(target);
+              return true;
             }
           }
         }
@@ -4934,6 +4951,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
         latestHtml: latestNoteHtmlRef.current,
         onContentChange: onContentChangeRef.current,
         cancelAnimationFrame,
+        wasUserEdit: pendingEmitUserEditRef.current,
       });
     };
   }, [sourceNoteId]);
@@ -6381,10 +6399,20 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     const markEditorBodyInteraction = (e: Event) => {
       if (e.isTrusted) editorBodyInteractedAtRef.current = Date.now();
     };
+    // Flag genuine, user-initiated CONTENT edits. `beforeinput` fires for typing, deletion, paste and
+    // IME — but NOT for programmatic transactions — so onUpdate can treat any doc change without a
+    // preceding trusted input as programmatic (hydrate normalization, etc.) and not mark the note dirty.
+    const markUserContentInput = (e: Event) => {
+      if (e.isTrusted) sawUserContentInputRef.current = true;
+    };
     const editorDom = editor.view.dom as HTMLElement;
     editorDom.addEventListener('mousedown', markEditorBodyInteraction, true);
     editorDom.addEventListener('keydown', markEditorBodyInteraction, true);
     editorDom.addEventListener('touchstart', markEditorBodyInteraction, { capture: true, passive: true });
+    editorDom.addEventListener('beforeinput', markUserContentInput, true);
+    editorDom.addEventListener('paste', markUserContentInput, true);
+    editorDom.addEventListener('drop', markUserContentInput, true);
+    editorDom.addEventListener('cut', markUserContentInput, true);
 
     editor.on('selectionUpdate', dismissIfSelectionLeftPill);
     editor.on('selectionUpdate', snapCaretOutsidePill);
@@ -6392,6 +6420,10 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       editorDom.removeEventListener('mousedown', markEditorBodyInteraction, true);
       editorDom.removeEventListener('keydown', markEditorBodyInteraction, true);
       editorDom.removeEventListener('touchstart', markEditorBodyInteraction, true);
+      editorDom.removeEventListener('beforeinput', markUserContentInput, true);
+      editorDom.removeEventListener('paste', markUserContentInput, true);
+      editorDom.removeEventListener('drop', markUserContentInput, true);
+      editorDom.removeEventListener('cut', markUserContentInput, true);
       if (editor && !editor.isDestroyed) {
         editor.off('selectionUpdate', dismissIfSelectionLeftPill);
         editor.off('selectionUpdate', snapCaretOutsidePill);

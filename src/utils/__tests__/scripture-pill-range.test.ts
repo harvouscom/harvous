@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { Schema } from '@tiptap/pm/model';
-import { rangeContainsScripturePillMark } from '../scripture-pill-range';
+import { rangeContainsScripturePillMark, scripturePillSkipLeftTarget } from '../scripture-pill-range';
 
 const schema = new Schema({
   nodes: {
@@ -74,5 +74,34 @@ describe('rangeContainsScripturePillMark', () => {
     expect(rangeContainsScripturePillMark(doc, -10, 9999)).toBe(true);
     expect(rangeContainsScripturePillMark(doc, 5, 2)).toBe(false);
     expect(rangeContainsScripturePillMark(null, 0, 1)).toBe(false);
+  });
+});
+
+describe('scripturePillSkipLeftTarget', () => {
+  it('jumps before a pill flush against the caret (mid-text)', () => {
+    const { doc, pillFrom, pillTo } = docWithPill('Not ', 'Genesis 1:1-2', '');
+    // Caret immediately after the pill → target is the position before the pill.
+    expect(scripturePillSkipLeftTarget(doc, pillTo)).toBe(pillFrom);
+  });
+
+  it('jumps before a pill at the very start of the block', () => {
+    const { doc, pillTo } = docWithPill('', 'Genesis 1:1-2', '');
+    expect(scripturePillSkipLeftTarget(doc, pillTo)).toBe(1);
+  });
+
+  it('crosses the pill in one step when the caret sits after a trailing spacer', () => {
+    const { doc, pillFrom, pillTo } = docWithPill('Not ', 'Genesis 1:1-2', ' ');
+    const afterSpace = pillTo + 1; // caret after the formatting spacer
+    expect(scripturePillSkipLeftTarget(doc, afterSpace)).toBe(pillFrom);
+    // And flush against the pill (between pill and spacer) also targets before the pill.
+    expect(scripturePillSkipLeftTarget(doc, pillTo)).toBe(pillFrom);
+  });
+
+  it('returns null when no pill is immediately to the left', () => {
+    const { doc } = docWithPill('Not ', 'Genesis 1:1-2', ' world');
+    // Caret at the very end sits in " world" — no pill (or pill+space) to the left.
+    expect(scripturePillSkipLeftTarget(doc, doc.content.size)).toBeNull();
+    // Caret at the start of the doc — nothing to the left.
+    expect(scripturePillSkipLeftTarget(doc, 0)).toBeNull();
   });
 });

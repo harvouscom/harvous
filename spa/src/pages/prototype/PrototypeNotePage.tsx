@@ -673,6 +673,7 @@ export default function PrototypeNotePage() {
         collectionPinned?: boolean;
         collectionUserOverride?: boolean;
       },
+      saveOptions?: { bumpUpdatedAt?: boolean },
     ) => {
       if (isEffectivelyEmptyPrototypeNote(newTitle, newContent)) {
         return;
@@ -689,6 +690,7 @@ export default function PrototypeNotePage() {
         content: newContent,
         scriptureVersion: getEffectiveDefaultTranslation(),
         ...(collectionExtras ?? {}),
+        ...(saveOptions?.bumpUpdatedAt === false ? { bumpUpdatedAt: false } : {}),
       });
     },
     [isDraft, noteId, persistDraftNote],
@@ -716,6 +718,7 @@ export default function PrototypeNotePage() {
             collectionPinned?: boolean;
             collectionUserOverride?: boolean;
           },
+          saveOptions?: { bumpUpdatedAt?: boolean },
         ) => Promise<unknown>;
       }
     ).noteSaveCallback = handleNoteSave;

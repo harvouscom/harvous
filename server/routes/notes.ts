@@ -502,6 +502,7 @@ route.put('/api/notes/update', requireAuth, rateLimit('write'), async (c) => {
       collectionPinned: collectionPinnedRaw,
       collectionUserOverride: collectionUserOverrideRaw,
       dismissedAutoTags: dismissedAutoTagsRaw,
+      bumpUpdatedAt: bumpUpdatedAtRaw,
     } = body;
     if (!noteId) return c.json({ error: 'Note ID is required' }, 400);
 
@@ -527,14 +528,21 @@ route.put('/api/notes/update', requireAuth, rateLimit('write'), async (c) => {
     // metadata and must not churn the "last updated" sort order. Critically, this is also the endpoint
     // the native sync push (flushNoteUpdate) and the web editor both flush through — so an auto-folder
     // assignment applied merely by *opening* a note must not re-stamp updatedAt here.
+    //
+    // The client may explicitly pass `bumpUpdatedAt: false` for normalization-only / cleanup saves
+    // (e.g. link-stripping, pill hydration) that should persist content without reordering lists.
+    // updatedAt doubles as the sync watermark, so suppressing it means the change won't propagate via
+    // delta sync until the next real edit — acceptable for deterministic normalization (recomputed per
+    // device).
     const titleChanged = capitalizedTitle !== existingNote.title;
     const contentChanged = capitalizedContent !== existingNote.content;
     const encryptionToggled =
       typeof contentEncrypted === 'boolean' && contentEncrypted !== existingNote.contentEncrypted;
     const contentTouched = titleChanged || contentChanged || encryptionToggled;
+    const shouldBumpUpdatedAt = bumpUpdatedAtRaw === false ? false : contentTouched;
 
     const updateData: any = { title: capitalizedTitle, content: capitalizedContent };
-    if (contentTouched) updateData.updatedAt = nowISO();
+    if (shouldBumpUpdatedAt) updateData.updatedAt = nowISO();
     let nextPrimaryForSecondaries: string | null = existingNote.primaryCollection ?? null;
     if (primaryCollectionRaw !== undefined) {
       updateData.primaryCollection =
@@ -587,13 +595,14 @@ route.put('/api/notes/update', requireAuth, rateLimit('write'), async (c) => {
     // Update thread timestamps — single bulk UPDATE instead of N sequential round trips.
     const noteThreads = await db.select({ threadId: NoteThreads.threadId }).from(NoteThreads).where(eq(NoteThreads.noteId, noteId));
     const threadIdsToTouch = noteThreads.map((nt) => nt.threadId);
-    if (contentTouched && threadIdsToTouch.length > 0) {
+    if (shouldBumpUpdatedAt && threadIdsToTouch.length > 0) {
       await db.update(Threads).set({ updatedAt: nowISO() })
         .where(and(inArray(Threads.id, threadIdsToTouch), eq(Threads.userId, auth.userId)));
     }
 
-    // Re-tag only when title or body changed — folder/pin edits must not churn tags.
-    if (!isEncrypted && (titleChanged || contentChanged)) {
+    // Re-tag only when title or body changed AND updatedAt is being bumped (a real edit, not
+    // normalization-only) — folder/pin edits and non-bumping saves must not churn tags.
+    if (!isEncrypted && shouldBumpUpdatedAt && (titleChanged || contentChanged)) {
       try {
         const tagExcludes = autoTagExcludeOptionsForNote(updatedNote);
         const r = await generateAutoTags(capitalizedTitle || '', capitalizedContent, auth.userId, 0.7, tagExcludes);
