@@ -75,6 +75,7 @@ import { stripHtml } from '@/utils/html-stripper';
 import { deleteNotesCascadeForUser, deleteSingleNoteCascadeForUser } from '../utils/delete-note-cascade';
 import { isOnboardingSystemNote } from '../utils/purge-onboarding-content';
 import { recordDeletedEntities } from '../utils/sync-deletion-log';
+import { getUserNoteFingerprints } from '../utils/note-fingerprint';
 import {
   dedupeNoteTagsForResponse,
   fetchNoteTagsForResponse,
@@ -1118,6 +1119,29 @@ route.get('/api/notes/recent', requireAuth, async (c) => {
     return c.json(formattedNotes);
   } catch (error) {
     const standardError = handleAPIError(error, { endpoint: '/api/notes/recent', action: 'get_recent_notes' });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+
+// ─── GET /api/notes/fingerprints ────────────────────────────────────────────
+// Memory layer: the user's passage memory fingerprints (meaning + tone + themes per note).
+// Powers forgetting-aware resurfacing (Workstream B) on the Home view and the inspector read-out.
+route.get('/api/notes/fingerprints', requireAuth, async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const fingerprints = await getUserNoteFingerprints(auth.userId);
+    const compact = fingerprints.map((f) => ({
+      noteId: f.noteId,
+      meaningWeight: f.meaningWeight,
+      emotionalTone: f.emotionalTone,
+      themes: f.themes,
+      people: f.people,
+      places: f.places,
+      passageCount: f.passageCount,
+    }));
+    return c.json({ success: true, fingerprints: compact });
+  } catch (error) {
+    const standardError = handleAPIError(error, { endpoint: '/api/notes/fingerprints', action: 'get_fingerprints' });
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });

@@ -28,6 +28,7 @@ import {
   homeThreadGreetingTone,
   pickContinueNote,
   pickRevisitNote,
+  forgettingAwarePriority,
   pickRevisitHighlight,
   pickSpotlightThread,
   stableStringHash,
@@ -1160,5 +1161,74 @@ describe('derivePassageConnections', () => {
     const out = derivePassageConnections([johnSameReach, ps23], { limit: 5 });
     expect(out[0]?.displayRef).toBe('Psalm 23:1');
     expect(out[1]?.displayRef).toBe('John 3:16');
+  });
+});
+
+describe('forgettingAwarePriority', () => {
+  it('is ~0 for a freshly-touched note (high retrievability)', () => {
+    expect(forgettingAwarePriority(1, 0, 10)).toBeCloseTo(0, 5);
+  });
+
+  it('rises toward meaningWeight as a note fades', () => {
+    const faded = forgettingAwarePriority(0.8, 60, 10); // Δt >> stability → R≈0
+    expect(faded).toBeGreaterThan(0.7);
+    expect(faded).toBeLessThanOrEqual(0.8);
+  });
+
+  it('ranks a meaningful faded note above a thin one at the same age', () => {
+    const meaningful = forgettingAwarePriority(0.9, 30, 10);
+    const thin = forgettingAwarePriority(0.2, 30, 10);
+    expect(meaningful).toBeGreaterThan(thin);
+  });
+
+  it('longer stability lowers priority (recently re-engaged notes wait longer)', () => {
+    const shortStability = forgettingAwarePriority(0.8, 30, 10);
+    const longStability = forgettingAwarePriority(0.8, 30, 90);
+    expect(shortStability).toBeGreaterThan(longStability);
+  });
+
+  it('clamps meaningWeight into [0,1]', () => {
+    expect(forgettingAwarePriority(5, 100, 10)).toBeLessThanOrEqual(1);
+    expect(forgettingAwarePriority(-5, 100, 10)).toBe(0);
+  });
+});
+
+describe('pickRevisitNote forgetting-aware mode', () => {
+  const DAY = 24 * 60 * 60 * 1000;
+  const now = Date.now();
+  const note = (id: string, ageDays: number, content = 'x'.repeat(120)) => ({
+    id,
+    content,
+    updatedAt: new Date(now - ageDays * DAY),
+  });
+
+  it('prefers the high-meaning note over an equally-aged thin one', () => {
+    const notes = [note('rich', 30), note('thin', 30)];
+    const pick = pickRevisitNote(notes, {
+      nowMs: now,
+      minAgeMs: 14 * DAY,
+      meaningWeightById: { rich: 0.9, thin: 0.1 },
+    });
+    expect(pick?.id).toBe('rich');
+  });
+
+  it('falls back to substance-based meaning when a note has no fingerprint entry', () => {
+    const notes = [note('substantive', 30, 'x'.repeat(200)), note('scratch', 30, 'hi')];
+    const pick = pickRevisitNote(notes, {
+      nowMs: now,
+      minAgeMs: 14 * DAY,
+      meaningWeightById: {}, // empty → both use fallback; substantive (0.5) beats scratch (0.25)
+    });
+    expect(pick?.id).toBe('substantive');
+  });
+
+  it('still respects the minimum-age gate', () => {
+    const notes = [note('fresh', 2)];
+    const pick = pickRevisitNote(notes, {
+      nowMs: now,
+      minAgeMs: 14 * DAY,
+      meaningWeightById: { fresh: 1 },
+    });
+    expect(pick).toBeUndefined();
   });
 });

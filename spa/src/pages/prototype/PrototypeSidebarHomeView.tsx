@@ -62,6 +62,8 @@ import {
   prototypeHighlightSubtitlePreview,
 } from './proto-highlight-subtitle';
 import { loadPinnedHighlightIds } from './proto-pinned-stores';
+import { stabilityById, recordRecallEngaged } from './proto-recall-stability';
+import { useNoteFingerprints } from '../../hooks/queries/useNoteFingerprints';
 import PrototypeDailyPassagePill from './PrototypeDailyPassagePill';
 import { PROTOTYPE_DRAFT_NOTE_SLUG } from './proto-route-slugs';
 import { useProtoShell } from '../../layouts/proto-shell-context';
@@ -471,6 +473,12 @@ export default function PrototypeSidebarHomeView({
     [topThread, topBook, topFolder, topTag, countForLogic, hasMoreForLogic],
   );
 
+  // Memory layer Workstream B: forgetting-aware resurfacing. meaningWeight (server fingerprints) +
+  // per-note stability (lengthened each time the user re-engages a recall) rank the "Worth another
+  // look" pick toward meaningful, fading notes. Degrades to recency logic before fingerprints exist.
+  const { meaningWeightById } = useNoteFingerprints();
+  const recallStability = useMemo(() => stabilityById(homeSpaceId), [homeSpaceId]);
+
   const continueNote = useMemo(() => pickContinueNote(notes), [notes]);
   const spotlightHighlight = useMemo(() => pickSpotlightHighlight(highlights, homeSpaceId), [highlights, homeSpaceId]);
   const revisitNote = useMemo(
@@ -481,9 +489,20 @@ export default function PrototypeSidebarHomeView({
             excludeIds: [continueNote?.id, spotlightHighlight?.parentNoteId].filter((id): id is string => Boolean(id)),
             minAgeMs: REVISIT_MIN_AGE_MS,
             rotationDayIndex: localDayIndex(new Date()),
+            meaningWeightById,
+            stabilityById: recallStability,
           })
         : undefined,
-    [notes, continueNote, countForLogic, hasMoreNotes, spotlightHighlight],
+    [notes, continueNote, countForLogic, hasMoreNotes, spotlightHighlight, meaningWeightById, recallStability],
+  );
+
+  // Opening the resurfaced note re-engages it: lengthen its forgetting interval before routing.
+  const handleOpenRevisitNote = useCallback(
+    (row: SpaceNoteRow) => {
+      recordRecallEngaged(homeSpaceId, row.id);
+      onOpenNote(row);
+    },
+    [homeSpaceId, onOpenNote],
   );
   const spotlightThread = useMemo(
     () => pickSpotlightThread(threads, { excludeId: lead.kind === 'thread' ? lead.thread.id : undefined }),
@@ -679,7 +698,7 @@ export default function PrototypeSidebarHomeView({
             eyebrow="Worth another look"
             iconName="arrow-rotate-left"
             note={revisitNote}
-            onOpenNote={onOpenNote}
+            onOpenNote={handleOpenRevisitNote}
             prefetchNote={prefetchNote}
           />
         </div>

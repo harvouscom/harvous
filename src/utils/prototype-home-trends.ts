@@ -170,6 +170,33 @@ function isSubstantiveNote(note: RevisitNoteInput): boolean {
   return htmlTextLength(note.content) >= SUBSTANTIVE_CONTENT_MIN;
 }
 
+/** Default forgetting-curve stability (days) for a note the user hasn't re-engaged via recall. */
+export const DEFAULT_BASE_STABILITY_DAYS = 10;
+
+/**
+ * Forgetting-aware resurfacing priority (memory layer Workstream B). Higher = resurface sooner.
+ * Combines how much study a note represents (`meaningWeight`, 0..1, from its server fingerprint)
+ * with how faded it is: retrievability R = exp(-Δt / stability) decays as a note goes untouched, so
+ * priority = meaningWeight × (1 − R) peaks for meaningful notes the user is about to forget. Pure.
+ * Stability lengthens each time the user re-engages a note, pushing its next resurfacing further out.
+ */
+export function forgettingAwarePriority(
+  meaningWeight: number,
+  daysSinceTouch: number,
+  stabilityDays: number,
+): number {
+  const mw = Math.min(1, Math.max(0, meaningWeight));
+  const stability = Math.max(1, stabilityDays);
+  const days = Math.max(0, daysSinceTouch);
+  const retrievability = Math.exp(-days / stability);
+  return mw * (1 - retrievability);
+}
+
+/** Meaning fallback when a note has no fingerprint yet (pre-backfill): substance-based, mid-range. */
+function fallbackMeaningWeight(note: RevisitNoteInput): number {
+  return isSubstantiveNote(note) ? 0.5 : 0.25;
+}
+
 /**
  * Oldest note worth resurfacing — the note with the LEAST-recent edit, excluding
  * blocked ids and anything edited within `minAgeMs`. Substantive study notes
@@ -188,9 +215,17 @@ export function pickRevisitNote<T extends RevisitNoteInput>(
     minAgeMs: number;
     rotationDayIndex?: number;
     rotationSalt?: number;
+    /**
+     * Memory layer Workstream B: when provided, eligible notes are ranked by forgetting-aware
+     * priority (meaning × fadedness) instead of plain oldest-first. Notes without an entry fall
+     * back to a substance-based meaning, so the card degrades gracefully before fingerprints exist.
+     */
+    meaningWeightById?: Record<string, number>;
+    stabilityById?: Record<string, number>;
+    baseStabilityDays?: number;
   },
 ): T | undefined {
-  const { nowMs, excludeId, excludeIds, minAgeMs, rotationDayIndex, rotationSalt } = options;
+  const { nowMs, excludeId, excludeIds, minAgeMs, rotationDayIndex, rotationSalt, meaningWeightById } = options;
   const excluded = new Set<string>();
   if (excludeId) excluded.add(excludeId);
   if (excludeIds) {
@@ -206,6 +241,22 @@ export function pickRevisitNote<T extends RevisitNoteInput>(
     candidates.push({ note, t });
   }
   if (candidates.length === 0) return undefined;
+
+  // Forgetting-aware ranking: meaningful-but-fading notes first. Ties → oldest edit → stable by id.
+  if (meaningWeightById) {
+    const baseStability = options.baseStabilityDays ?? DEFAULT_BASE_STABILITY_DAYS;
+    const scored = candidates.map(({ note, t }) => {
+      const id = note.id;
+      const mw = id != null && meaningWeightById[id] != null ? meaningWeightById[id] : fallbackMeaningWeight(note);
+      const stability = id != null && options.stabilityById?.[id] != null ? options.stabilityById[id]! : baseStability;
+      const daysSinceTouch = (nowMs - t) / DAY_MS;
+      return { note, t, priority: forgettingAwarePriority(mw, daysSinceTouch, stability) };
+    });
+    scored.sort(
+      (a, b) => b.priority - a.priority || a.t - b.t || (a.note.id ?? '').localeCompare(b.note.id ?? ''),
+    );
+    return rotatePick(scored.map((s) => s.note), rotationDayIndex, rotationSalt);
+  }
 
   candidates.sort((a, b) => a.t - b.t);
 
