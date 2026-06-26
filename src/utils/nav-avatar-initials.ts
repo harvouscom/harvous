@@ -1,3 +1,5 @@
+import { HARVOUS_USER_NAMES_KEY } from '@/utils/user-cache-keys';
+
 /**
  * Initials for the nav avatar. Clerk's user.name fields often hydrate after first paint;
  * profile from React Query can supply cached first/last immediately on repeat visits.
@@ -84,4 +86,67 @@ export function getNavDisplayName(
   }
 
   return 'User';
+}
+
+function readCachedUserNames(): { firstName: string; lastName: string } | null {
+  if (typeof localStorage === 'undefined') return null;
+  try {
+    const raw = localStorage.getItem(HARVOUS_USER_NAMES_KEY);
+    return raw ? (JSON.parse(raw) as { firstName: string; lastName: string }) : null;
+  } catch {
+    return null;
+  }
+}
+
+function pickFirstName(
+  user: NavAvatarUserSlice | null | undefined,
+  profile: NavAvatarProfileSlice | null | undefined,
+): string {
+  const fromProfile = profile?.firstName?.trim();
+  if (fromProfile && fromProfile !== 'User') return fromProfile;
+
+  const fromDisplay = profile?.displayName?.split(' ')[0]?.trim();
+  if (fromDisplay && fromDisplay !== 'User') return fromDisplay;
+
+  const fromClerk = user?.firstName?.trim();
+  if (fromClerk) return fromClerk;
+
+  return readCachedUserNames()?.firstName?.trim() ?? '';
+}
+
+function pickLastName(
+  user: NavAvatarUserSlice | null | undefined,
+  profile: NavAvatarProfileSlice | null | undefined,
+): string {
+  const fromProfile = profile?.lastName?.trim();
+  if (fromProfile) return fromProfile;
+
+  const fromClerk = user?.lastName?.trim();
+  if (fromClerk) return fromClerk;
+
+  return readCachedUserNames()?.lastName?.trim() ?? '';
+}
+
+/** First name for home greeting — profile API, then Clerk, then localStorage cache. */
+export function resolveProfileFirstName(
+  user: NavAvatarUserSlice | null | undefined,
+  profile: NavAvatarProfileSlice | null | undefined,
+): string {
+  return pickFirstName(user, profile);
+}
+
+/** Full name for account menu — profile API, then Clerk, then localStorage cache. */
+export function resolveProfileFullName(
+  user: NavAvatarUserSlice | null | undefined,
+  profile: NavAvatarProfileSlice | null | undefined,
+): string {
+  const first = pickFirstName(user, profile);
+  const last = pickLastName(user, profile);
+  const full = [first, last].filter(Boolean).join(' ').trim();
+  if (full) return full;
+
+  const abbreviated = getNavDisplayName(user, profile);
+  if (abbreviated !== 'User') return abbreviated;
+
+  return 'Your account';
 }

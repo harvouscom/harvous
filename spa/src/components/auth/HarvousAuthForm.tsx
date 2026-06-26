@@ -1,7 +1,9 @@
 import { useState, useEffect, useSyncExternalStore } from 'react';
 import { useSignIn, useSignUp } from '@clerk/clerk-react';
 import type { SignUpResource } from '@clerk/types';
+import { useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
+import { seedProfileNamesAfterSignUp } from '../../hooks/queries/useProfile';
 import { getColorSchemeSnapshot, subscribeColorScheme } from '../../lib/prototype-background';
 import { postAuthRedirectPath } from '../../utils/post-auth-redirect';
 
@@ -69,6 +71,7 @@ export default function HarvousAuthForm({
   const { isLoaded: signInLoaded, signIn, setActive: setSignInActive } = useSignIn();
   const { isLoaded: signUpLoaded, signUp, setActive: setSignUpActive } = useSignUp();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const colorScheme = useSyncExternalStore(subscribeColorScheme, getColorSchemeSnapshot, () => 'light');
   const captchaTheme = colorScheme === 'dark' ? 'dark' : 'light';
 
@@ -116,6 +119,19 @@ export default function HarvousAuthForm({
     const params = new URLSearchParams(window.location.search);
     const target = postAuthRedirectPath(params.get('redirect_url'));
     navigate({ to: target as any });
+  }
+
+  async function finishSignUp(sessionId: string, createdUserId: string | null) {
+    await setSignUpActive({ session: sessionId });
+    if (createdUserId) {
+      seedProfileNamesAfterSignUp(createdUserId, {
+        firstName: firstName.trim(),
+        lastName: lastName.trim(),
+        email: email.trim(),
+      });
+      void queryClient.invalidateQueries({ queryKey: ['profile'] });
+    }
+    redirectAfterAuth();
   }
 
   async function beginEmailFlow(e: React.FormEvent) {
@@ -182,8 +198,7 @@ export default function HarvousAuthForm({
           });
         }
         if (result.status === 'complete' && result.createdSessionId) {
-          await setSignUpActive({ session: result.createdSessionId });
-          redirectAfterAuth();
+          await finishSignUp(result.createdSessionId, result.createdUserId ?? signUp.createdUserId ?? null);
         } else {
           setErrorMessage(incompleteSignUpMessage(result, result.status));
         }

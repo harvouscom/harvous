@@ -122,6 +122,41 @@ export function updateCachedProfile(updates: Partial<UserProfile>) {
   if (updates.userColor) setCachedUserColor(updates.userColor);
 }
 
+/** Optimistic profile names after sign-up — before get-profile backfills UserMetadata. */
+export function seedProfileNamesAfterSignUp(
+  userId: string,
+  names: { firstName: string; lastName: string; email?: string },
+) {
+  const firstName = names.firstName.trim();
+  const lastName = names.lastName.trim();
+  const email = names.email?.trim() ?? '';
+  setCachedUserNames(firstName, lastName);
+  const displayName = `${firstName} ${lastName.charAt(0)}`.trim() || firstName || 'User';
+  setCachedProfile({
+    id: userId,
+    firstName,
+    lastName,
+    email,
+    profileImageUrl: null,
+    displayName,
+    userColor: getCachedUserColor() ?? 'blue',
+    church: null,
+    defaultTranslation: 'NET',
+  });
+  updateCachedProfileData({
+    firstName,
+    lastName,
+    email,
+    userColor: getCachedUserColor() ?? 'blue',
+    profileImageUrl: null,
+    emailVerified: false,
+    churchName: null,
+    churchCity: null,
+    churchState: null,
+    defaultTranslation: 'NET',
+  });
+}
+
 export interface UserProfile {
   id: string;
   firstName: string | null;

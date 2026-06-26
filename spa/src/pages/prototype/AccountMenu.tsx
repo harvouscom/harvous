@@ -8,6 +8,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useRouterState } from '@tanstack/react-router';
 import Icon from '@/components/react/Icon';
+import { resolveProfileFullName } from '@/utils/nav-avatar-initials';
 import { resolveClerkProfileImageUrl } from '../../lib/clerk-profile-image';
 import { prototypeSettingsRouteTo } from '@/lib/prototype-path';
 import { storeSettingsOpenerPath } from '../../lib/prototype-settings-opener';
@@ -45,11 +46,8 @@ export default function AccountMenu({ iconSize, disabled = false }: { iconSize: 
     );
   }, [user?.hasImage, user?.id, queryClient]);
 
-  const name =
-    [profile?.firstName, profile?.lastName].filter(Boolean).join(' ').trim() ||
-    profile?.displayName ||
-    'Your account';
-  const email = profile?.email ?? '';
+  const name = useMemo(() => resolveProfileFullName(user, profile), [user, profile]);
+  const email = profile?.email ?? user?.primaryEmailAddress?.emailAddress ?? '';
   const showProfilePhoto = Boolean(avatarImageUrl) && !photoLoadFailed;
 
   return (

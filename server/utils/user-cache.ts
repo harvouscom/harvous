@@ -50,7 +50,10 @@ export async function getCachedUserData(userId: string): Promise<CachedUserData>
     const isExplicitlyStale = userMetadata?.clerkDataUpdatedAt &&
       new Date(userMetadata.clerkDataUpdatedAt).getTime() < new Date('2023-01-01').getTime();
 
-    if (userMetadata && isCacheFresh && !isExplicitlyStale) {
+    const namesMissing =
+      !userMetadata?.firstName?.trim() && !userMetadata?.lastName?.trim();
+
+    if (userMetadata && isCacheFresh && !isExplicitlyStale && !namesMissing) {
       return {
         firstName: userMetadata.firstName || '',
         lastName: userMetadata.lastName || '',
