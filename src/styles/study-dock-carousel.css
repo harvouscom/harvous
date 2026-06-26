@@ -9,9 +9,10 @@
     var(--study-dock-carousel-compact-floor),
     calc(
       (
-          100% - var(--study-dock-carousel-track-pad-x) -
-            (var(--study-dock-carousel-visible-slots) - 1) * var(--study-dock-carousel-gap)
-        ) / var(--study-dock-carousel-visible-slots)
+          100% - var(--study-dock-carousel-track-pad-x) - (var(--study-dock-carousel-visible-slots) - 1) *
+            var(--study-dock-carousel-gap)
+        ) /
+        var(--study-dock-carousel-visible-slots)
     )
   );
   --study-dock-motion-spring-layer: 320ms cubic-bezier(0.34, 1.08, 0.64, 1);
@@ -102,6 +103,10 @@
   }
 }
 
+study-dock-carousel__item.study-dock-carousel__item--expanded-slot {
+  margin-left: var(--proto-sidebar-w-clamped);
+}
+
 /* Collapsed cards: equal share when all collapsed; fixed min width when an expanded dock is open. */
 .study-dock-carousel__item--compact {
   flex: 1 1 var(--study-dock-carousel-compact-min);
@@ -134,9 +139,7 @@
 
 /* Single dock collapsed — native `centersCardInSlot` when count == 1; keep max card width centered. */
 .study-dock-carousel__track > .study-dock-carousel__item--expanded-slot:only-child .study-dock-card {
-  --study-dock-max-width: calc(
-    var(--study-dock-paper-width) + 2 * var(--study-dock-paper-overhang) + 24px
-  );
+  --study-dock-max-width: calc(var(--study-dock-paper-width) + 2 * var(--study-dock-paper-overhang) + 24px);
 }
 
 .study-dock-carousel__track > .study-dock-carousel__item--expanded-slot:only-child .study-dock-card__outer {
@@ -160,9 +163,7 @@
 }
 
 .study-dock-carousel__track > .study-dock-carousel__item--compact:only-child .study-dock-card {
-  --study-dock-max-width: calc(
-    var(--study-dock-paper-width) + 2 * var(--study-dock-paper-overhang) + 24px
-  );
+  --study-dock-max-width: calc(var(--study-dock-paper-width) + 2 * var(--study-dock-paper-overhang) + 24px);
 }
 
 .study-dock-carousel__track > .study-dock-carousel__item--compact:only-child .study-dock-card__outer {
@@ -223,7 +224,7 @@
 }
 
 .study-dock-carousel__drag-handle::before {
-  content: '';
+  content: "";
   display: block;
   width: 2px;
   flex: 1 1 auto;
