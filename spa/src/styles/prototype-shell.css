@@ -154,7 +154,8 @@ html.harvous-prototype-route .proto-shell__study-dock-layer .dock-accent-swatch_
 }
 
 /* Full-width bar; frosted surface + top hairline span the shell (behind the floating
-   sidebar). Toolbar content is inset to the paper left edge (--proto-format-toolbar-paper-inset). */
+   sidebar). Toolbar content is inset to the paper edges (--proto-format-toolbar-paper-inset
+   and --proto-format-toolbar-paper-right-inset). */
 .proto-shell__editor-chrome-row .proto-editor-bottom-bar {
   width: 100%;
 }
@@ -176,6 +177,7 @@ html.harvous-prototype-route .proto-shell__study-dock-layer .dock-accent-swatch_
 .proto-shell__editor-chrome-row .proto-editor-bottom-bar__highlight,
 .proto-shell__editor-chrome-row .proto-editor-bottom-bar__reference {
   padding-left: var(--proto-format-toolbar-paper-inset, 0px);
+  padding-right: var(--proto-format-toolbar-paper-right-inset, 0px);
 }
 
 /* Inspector column (when open on desktop) */
@@ -999,8 +1001,8 @@ html.harvous-prototype-route .proto-shell__detail-toolbar-cell::after {
   .proto-shell:has(.proto-note-pane-row--inspector-open) .proto-shell__study-dock-layer__slot:not(:empty) {
     transition:
       padding-left 0.26s cubic-bezier(0.32, 0.72, 0.24, 1),
-      transform 0.26s cubic-bezier(0.32, 0.72, 0.24, 1),
-      padding-right var(--pds-inspector-transition-duration) var(--pds-inspector-transition-ease);
+      padding-right 0.26s cubic-bezier(0.32, 0.72, 0.24, 1),
+      transform 0.26s cubic-bezier(0.32, 0.72, 0.24, 1);
   }
 
   .proto-shell--sidebar-collapsed:not(.proto-shell--sidebar-closing)

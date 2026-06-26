@@ -145,8 +145,9 @@ export function syncStudyDockCenterOffset(track?: HTMLElement | null): number {
 }
 
 /**
- * Measure editor paper left edge vs the shell chrome row and sync
- * `--proto-format-toolbar-paper-inset` on `.proto-shell` for format bar host padding.
+ * Measure editor paper edges vs the shell chrome row and sync
+ * `--proto-format-toolbar-paper-inset` / `--proto-format-toolbar-paper-right-inset`
+ * on `.proto-shell` for format bar host padding.
  */
 export function syncFormatToolbarPaperInset(): number {
   if (typeof document === 'undefined') return 0;
@@ -162,13 +163,16 @@ export function syncFormatToolbarPaperInset(): number {
     !(chromeRowEl instanceof HTMLElement)
   ) {
     shell?.style.removeProperty('--proto-format-toolbar-paper-inset');
+    shell?.style.removeProperty('--proto-format-toolbar-paper-right-inset');
     return 0;
   }
 
   const paperRect = paperEl.getBoundingClientRect();
   const chromeRowRect = chromeRowEl.getBoundingClientRect();
   const insetPx = Math.max(0, Math.round(paperRect.left - chromeRowRect.left));
+  const rightInsetPx = Math.max(0, Math.round(chromeRowRect.right - paperRect.right));
   shell.style.setProperty('--proto-format-toolbar-paper-inset', `${insetPx}px`);
+  shell.style.setProperty('--proto-format-toolbar-paper-right-inset', `${rightInsetPx}px`);
   return insetPx;
 }
 

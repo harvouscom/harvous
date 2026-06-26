@@ -134,17 +134,19 @@ describe('syncFormatToolbarPaperInset', () => {
     vi.unstubAllGlobals();
   });
 
-  it('returns 0 and removes the CSS variable when paper or chrome row is missing', () => {
+  it('returns 0 and removes the CSS variables when paper or chrome row is missing', () => {
     const shell = document.createElement('div');
     shell.className = 'proto-shell';
     shell.style.setProperty('--proto-format-toolbar-paper-inset', '120px');
+    shell.style.setProperty('--proto-format-toolbar-paper-right-inset', '80px');
     document.body.appendChild(shell);
 
     expect(syncFormatToolbarPaperInset()).toBe(0);
     expect(shell.style.getPropertyValue('--proto-format-toolbar-paper-inset')).toBe('');
+    expect(shell.style.getPropertyValue('--proto-format-toolbar-paper-right-inset')).toBe('');
   });
 
-  it('measures paper left edge relative to the chrome row', () => {
+  it('measures paper left and right edges relative to the chrome row', () => {
     const shell = document.createElement('div');
     shell.className = 'proto-shell proto-shell--note-chrome';
     document.body.appendChild(shell);
@@ -161,6 +163,7 @@ describe('syncFormatToolbarPaperInset', () => {
 
     expect(syncFormatToolbarPaperInset()).toBe(340);
     expect(shell.style.getPropertyValue('--proto-format-toolbar-paper-inset')).toBe('340px');
+    expect(shell.style.getPropertyValue('--proto-format-toolbar-paper-right-inset')).toBe('140px');
   });
 
   it('clamps to 0 when paper sits left of the chrome row', () => {
@@ -180,5 +183,6 @@ describe('syncFormatToolbarPaperInset', () => {
 
     expect(syncFormatToolbarPaperInset()).toBe(0);
     expect(shell.style.getPropertyValue('--proto-format-toolbar-paper-inset')).toBe('0px');
+    expect(shell.style.getPropertyValue('--proto-format-toolbar-paper-right-inset')).toBe('380px');
   });
 });

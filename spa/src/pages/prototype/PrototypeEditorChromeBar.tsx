@@ -4,7 +4,8 @@ import { useProtoShell } from '../../layouts/proto-shell-context';
  * Shell-level editor chrome — a single full-width bar (grid row 3) that spans the
  * whole app shell. The floating sidebar card sits in front of it (higher z-index),
  * so the bar reads as passing behind the sidebar; toolbar content is inset to the
- * paper left edge via --proto-format-toolbar-paper-inset (study-dock-layout.ts).
+ * paper left/right edges via --proto-format-toolbar-paper-inset and
+ * --proto-format-toolbar-paper-right-inset (study-dock-layout.ts).
  *
  * Study docks (scripture / highlight / reference) all portal into the single carousel host
  * inside `.proto-shell__study-dock-layer` above this bar — full shell width so docks pass

@@ -838,8 +838,8 @@ html.harvous-prototype-route .proto-shell__study-dock-layer .highlight-dock-web_
   background: transparent !important;
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
-  /* Left padding comes from --proto-format-toolbar-paper-inset on the host. */
-  padding: 4px 12px 4px 0 !important;
+  /* Horizontal padding comes from paper insets on the host. */
+  padding: 4px 0 !important;
   margin: 0 !important;
   min-height: 44px;
   width: 100%;
@@ -854,7 +854,7 @@ html.harvous-prototype-route .proto-shell__study-dock-layer .highlight-dock-web_
   background: transparent !important;
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
-  padding: 4px 12px !important;
+  padding: 4px 0 !important;
   margin: 0 !important;
   min-height: 44px;
   width: 100%;
