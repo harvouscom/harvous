@@ -356,15 +356,28 @@ function listPreviewSegmentsFromHtml(html: string): string[] {
   return fallback ? [fallback] : [];
 }
 
+/** LEFT(content) truncation can split a pill mid-tag; collapse only when the tail is incomplete. */
+function repairTruncatedHtmlForListPreview(html: string): string {
+  if (!html.includes('data-scripture-reference') || !/<[^>]*$/.test(html)) return html;
+  let s = html;
+  const partialRef = s.match(/data-scripture-reference\s*=\s*["']([^"'>]*)/i)?.[1]?.trim();
+  if (partialRef) {
+    s = s.replace(/<span\b[\s\S]*$/i, `${partialRef} `);
+  }
+  s = s.replace(/<[^>]*$/g, '');
+  s = s.replace(/<p\b[^>]*$/gi, '');
+  return s;
+}
+
 /**
  * One-line note list preview: skips empty filler blocks, joins lines with a space,
  * and keeps adding lines until `maxLength` (or runs out of content).
  */
 export function stripHtmlForListPreview(html: string, maxLength: number = 80): string {
   if (!html) return '';
-  let normalized = html;
-  if (typeof document !== 'undefined' && html.includes('data-scripture-reference')) {
-    normalized = repairScripturePillTranslationsInHtml(html, getEffectiveDefaultTranslation());
+  let normalized = repairTruncatedHtmlForListPreview(html);
+  if (typeof document !== 'undefined' && normalized.includes('data-scripture-reference')) {
+    normalized = repairScripturePillTranslationsInHtml(normalized, getEffectiveDefaultTranslation());
   }
   const segments = listPreviewSegmentsFromHtml(normalized);
   let out = '';

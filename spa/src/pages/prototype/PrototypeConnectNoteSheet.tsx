@@ -1,33 +1,17 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
 import { Drawer, DrawerContent } from '@/components/ui/drawer';
-import { api } from '../../lib/api';
-import { useDebouncedSearchState } from '../../hooks/useDebouncedSearchState';
 import { useConnectNote } from '../../hooks/mutations/useConnectNote';
 import { useCreateHighlight } from '../../hooks/mutations/useCreateHighlight';
 import { navigationQueryKeyPrefix } from '../../hooks/queries/useNavigation';
 import Icon from '@/components/react/Icon';
-import PrototypeSearchInput from './components/PrototypeSearchInput';
-import { stripServerAutoUntitledNoteTitleForDisplay } from '@/utils/server-auto-untitled-note-display';
-import { stripHtmlForListPreview } from '@/utils/html-stripper';
 import ProtoPopoverShell from './ProtoPopoverShell';
 import { useDismissOnOutside } from '../../hooks/usePopoverDismiss';
 import { useProtoShell } from '../../layouts/proto-shell-context';
-import { protoRelativeCaptionAbbrev } from './proto-time';
-
-export interface ConnectNoteCandidate {
-  id: string;
-  title: string;
-  noteType: string;
-  updatedAt: string | null;
-  createdAt: string | null;
-  content: string | null;
-}
-
-interface ConnectNoteCandidatesResponse {
-  notes: ConnectNoteCandidate[];
-}
+import { PrototypeAddNotesPicker, type AddNotesCandidate } from './PrototypeAddNotesSheet';
+import type { SpaceNoteRow } from '../../hooks/queries/useSpace';
+import { computeAnchoredPopoverPosition } from './proto-anchored-popover-position';
 
 export interface ConnectNoteAnchorInfo {
   sourceSnippet: string;
@@ -46,6 +30,8 @@ export interface PrototypeConnectNoteSheetProps {
   anchorInfo?: ConnectNoteAnchorInfo;
   /** Called on success when anchorInfo is provided — passes back the study thread ID so the caller can apply a TipTap mark. */
   onConnectedWithThread?: (studyThreadId: string, linkedNoteId: string, linkedNoteTitle: string) => void;
+  /** Optional loaded space notes — enables Unsorted / All notes scope toggle. */
+  spaceNotes?: SpaceNoteRow[];
 }
 
 function normalizedSpacePathId(spaceId: string): string {
@@ -60,47 +46,39 @@ export default function PrototypeConnectNoteSheet({
   anchorRect = null,
   anchorInfo,
   onConnectedWithThread,
+  spaceNotes = [],
 }: PrototypeConnectNoteSheetProps) {
   const { isMobileSidebar } = useProtoShell();
-  const { input: searchInput, setInput: setSearchInput, debounced, clear } = useDebouncedSearchState(280);
   const queryClient = useQueryClient();
   const connectMutation = useConnectNote();
   const createHighlightMutation = useCreateHighlight();
   const cardRef = useRef<HTMLDivElement | null>(null);
+  const anchorRectRef = useRef(anchorRect);
+  anchorRectRef.current = anchorRect;
   const [position, setPosition] = useState<{ top: number; left: number } | null>(null);
   const [connectError, setConnectError] = useState<string | null>(null);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [selectedNote, setSelectedNote] = useState<AddNotesCandidate | null>(null);
 
   const sidPath = normalizedSpacePathId(spaceId);
-  const debouncedTrim = debounced.trim();
+  const isPending = connectMutation.isPending || createHighlightMutation.isPending;
+  const canSubmit = selectedIds.length === 1 && !isPending;
 
   useEffect(() => {
     if (!open) {
-      clear();
       setConnectError(null);
+      setSelectedIds([]);
+      setSelectedNote(null);
     }
-  }, [open, clear]);
-
-  // Fetch candidates: always-on (empty q = recent notes), or filtered by search query.
-  const { data, isLoading, isFetching } = useQuery({
-    queryKey: ['connectNoteCandidates', sidPath, parentNoteId, debouncedTrim] as const,
-    queryFn: () =>
-      api.get<ConnectNoteCandidatesResponse>(
-        `/api/spaces/${encodeURIComponent(sidPath)}/connect-note-candidates`,
-        { q: debouncedTrim, excludeNoteId: parentNoteId, limit: 15 },
-      ),
-    enabled: open,
-    staleTime: 10_000,
-  });
-
-  const notes = data?.notes ?? [];
-  const isSearching = debouncedTrim.length >= 1 && (isLoading || isFetching) && notes.length === 0;
-  const showEmpty = debouncedTrim.length >= 1 && !isLoading && !isFetching && notes.length === 0;
-  const showRecent = debouncedTrim.length === 0;
+  }, [open]);
 
   const shouldUseSheetPresentation =
     isMobileSidebar && typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches;
 
-  const handlePick = (linkedNoteId: string, linkedNoteTitle: string) => {
+  const handleConnect = () => {
+    const linkedNoteId = selectedIds[0];
+    if (!linkedNoteId) return;
+    const linkedNoteTitle = selectedNote?.title ?? '';
     setConnectError(null);
     if (anchorInfo) {
       createHighlightMutation.mutate(
@@ -122,20 +100,24 @@ export default function PrototypeConnectNoteSheet({
             if (threadId) {
               onConnectedWithThread?.(threadId, linkedNoteId, linkedNoteTitle);
             }
-            // Invalidate the same queries useConnectNote does so sidebar/inspector update
-            const sid = sidPath;
             queryClient.invalidateQueries({ queryKey: ['note', linkedNoteId] });
-            queryClient.invalidateQueries({ queryKey: ['prototype', 'space', sid, 'study-threads'] });
-            queryClient.invalidateQueries({ queryKey: ['space', sid, 'notes'] });
-            queryClient.invalidateQueries({ queryKey: ['space', sid, 'bootstrap'] });
+            queryClient.invalidateQueries({ queryKey: ['prototype', 'space', sidPath, 'study-threads'] });
+            queryClient.invalidateQueries({ queryKey: ['space', sidPath, 'notes'] });
+            queryClient.invalidateQueries({ queryKey: ['space', sidPath, 'bootstrap'] });
             queryClient.invalidateQueries({ queryKey: ['connectNoteCandidates'] });
             queryClient.invalidateQueries({ queryKey: [...navigationQueryKeyPrefix] });
             try {
               window.dispatchEvent(new CustomEvent('noteUpdated', { detail: { noteId: parentNoteId } }));
               window.dispatchEvent(new CustomEvent('noteUpdated', { detail: { noteId: linkedNoteId } }));
-            } catch { /* ignore */ }
+            } catch {
+              /* ignore */
+            }
             onOpenChange(false);
-            try { window.toast?.success('Note connected'); } catch { /* ignore */ }
+            try {
+              window.toast?.success('Note connected');
+            } catch {
+              /* ignore */
+            }
           },
           onError: (err) => {
             const msg = err instanceof Error ? err.message : 'Could not connect that note.';
@@ -149,7 +131,11 @@ export default function PrototypeConnectNoteSheet({
         {
           onSuccess: () => {
             onOpenChange(false);
-            try { window.toast?.success('Note connected'); } catch { /* ignore */ }
+            try {
+              window.toast?.success('Note connected');
+            } catch {
+              /* ignore */
+            }
           },
           onError: (err) => {
             const msg = err instanceof Error ? err.message : 'Could not connect that note.';
@@ -162,39 +148,40 @@ export default function PrototypeConnectNoteSheet({
 
   const shouldUsePopover = open && !shouldUseSheetPresentation;
 
-  useLayoutEffect(() => {
-    if (!shouldUsePopover) return;
-    const cardHeight = cardRef.current?.getBoundingClientRect().height ?? 400;
-    const cardWidth = cardRef.current?.getBoundingClientRect().width ?? 340;
-    const viewportMargin = 12;
-    const offset = 8;
-    const vw = window.innerWidth;
-    const vh = window.innerHeight;
-    const activeEl = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    const activeRect = activeEl?.getBoundingClientRect() ?? null;
-    const effectiveAnchor = anchorRect ?? activeRect;
+  const syncPopoverPosition = () => {
+    const card = cardRef.current;
+    if (!card) return;
+    setPosition(computeAnchoredPopoverPosition(card, anchorRectRef.current));
+  };
 
-    let top: number;
-    let left: number;
-    if (effectiveAnchor) {
-      top = effectiveAnchor.bottom + offset;
-      if (top + cardHeight + viewportMargin > vh) top = effectiveAnchor.top - cardHeight - offset;
-      if (top < viewportMargin) top = viewportMargin;
-      left = effectiveAnchor.left;
-      if (left + cardWidth + viewportMargin > vw) left = vw - cardWidth - viewportMargin;
-      if (left < viewportMargin) left = viewportMargin;
-    } else {
-      left = Math.max(viewportMargin, (vw - cardWidth) / 2);
-      top = Math.max(viewportMargin, Math.min(vh - cardHeight - viewportMargin, vh * 0.2));
+  useLayoutEffect(() => {
+    if (!shouldUsePopover) {
+      setPosition(null);
+      return;
     }
-    setPosition({ top, left });
-  }, [anchorRect, shouldUsePopover, notes.length, isLoading, isFetching]);
+    syncPopoverPosition();
+  }, [shouldUsePopover, anchorRect, selectedIds.length, connectError]);
+
+  useEffect(() => {
+    if (!shouldUsePopover) return undefined;
+    const card = cardRef.current;
+    if (!card) return undefined;
+    const ro = new ResizeObserver(() => syncPopoverPosition());
+    ro.observe(card);
+    const onResize = () => syncPopoverPosition();
+    window.addEventListener('resize', onResize);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener('resize', onResize);
+    };
+  }, [shouldUsePopover, open]);
 
   useDismissOnOutside(cardRef, () => onOpenChange(false), shouldUsePopover);
 
+  if (!open) return null;
+
   const content = (
     <>
-      {/* Header — matches threads popover minimal header */}
       <div className="proto-study-thread-popover__header">
         <div className="proto-study-thread-popover__title-row">
           <Icon name="arrow-right-arrow-left" size={13} aria-hidden />
@@ -211,62 +198,35 @@ export default function PrototypeConnectNoteSheet({
         </button>
       </div>
 
-      <div className="proto-connect-note-sheet__search-wrap">
-        <PrototypeSearchInput
-          value={searchInput}
-          onChange={(v) => { setSearchInput(v); setConnectError(null); }}
-          placeholder="Search notes…"
-          autoFocus={open}
-        />
-      </div>
+      <PrototypeAddNotesPicker
+        key={open ? 'open' : 'closed'}
+        spaceId={spaceId}
+        spaceNotes={spaceNotes}
+        excludeNoteIds={[parentNoteId]}
+        selectedIds={selectedIds}
+        onSelectedIdsChange={setSelectedIds}
+        onSelectedNoteChange={setSelectedNote}
+        selectionMode="single"
+        listShell="scoped"
+        showListScopeToggle={spaceNotes.length > 0}
+        isPending={isPending}
+      />
 
       {connectError ? (
-        <p className="proto-connect-note-sheet__error" role="alert">{connectError}</p>
+        <p className="proto-connect-note-sheet__error" role="alert">
+          {connectError}
+        </p>
       ) : null}
 
-      <div className="proto-connect-note-sheet__scroll" role="region" aria-label="Notes to connect">
-        {isLoading && notes.length === 0 ? (
-          <p className="proto-inspector-muted proto-connect-note-sheet__status">Loading…</p>
-        ) : isSearching ? (
-          <p className="proto-inspector-muted proto-connect-note-sheet__status">Searching…</p>
-        ) : showEmpty ? (
-          <p className="proto-inspector-muted proto-connect-note-sheet__status">No notes match &ldquo;{debouncedTrim}&rdquo;.</p>
-        ) : (
-          <section className="proto-inspector-section">
-            {showRecent && notes.length > 0 ? (
-              <p className="proto-inspector-section-title">Recent</p>
-            ) : null}
-            <ul className="proto-side-panel__note-list">
-              {notes.map((n) => {
-                const title = stripServerAutoUntitledNoteTitleForDisplay((n.title ?? '').trim()) || 'New Note';
-                const rel = protoRelativeCaptionAbbrev(n.updatedAt ?? n.createdAt);
-                const preview = n.content ? stripHtmlForListPreview(n.content, 80) : '';
-                return (
-                  <li key={n.id} className="proto-note-row-item">
-                    <button
-                      type="button"
-                      disabled={connectMutation.isPending || createHighlightMutation.isPending}
-                      className="proto-note-row__main"
-                      onMouseDown={(e) => e.preventDefault()}
-                      onClick={() => handlePick(n.id, n.title)}
-                    >
-                      <div className="proto-note-row__title-line">
-                        <span className="pds-list-title proto-note-row__title-text">{title}</span>
-                      </div>
-                      {(rel || preview) ? (
-                        <div className="pds-list-preview proto-note-row__preview">
-                          {rel ? <span className="pds-list-timestamp">{rel}</span> : null}
-                          {rel && preview ? '  ' : null}
-                          {preview ? <span>{preview}</span> : null}
-                        </div>
-                      ) : null}
-                    </button>
-                  </li>
-                );
-              })}
-            </ul>
-          </section>
-        )}
+      <div className="proto-add-notes-sheet__footer">
+        <button
+          type="button"
+          className="proto-share-popover__primary"
+          disabled={!canSubmit}
+          onClick={() => handleConnect()}
+        >
+          {isPending ? 'Connecting…' : 'Connect'}
+        </button>
       </div>
     </>
   );
@@ -285,7 +245,7 @@ export default function PrototypeConnectNoteSheet({
           zIndex: 6000,
         }}
       >
-        <div className="proto-connect-note-sheet proto-connect-note-sheet--popover">{content}</div>
+        <div className="proto-connect-note-sheet proto-connect-note-sheet--popover proto-add-notes-sheet">{content}</div>
       </ProtoPopoverShell>,
       document.body,
     );
@@ -296,7 +256,7 @@ export default function PrototypeConnectNoteSheet({
       <DrawerContent
         onOverlayClick={() => onOpenChange(false)}
         overlayClassName="proto-connect-note-sheet-overlay"
-        className="proto-connect-note-sheet"
+        className="proto-connect-note-sheet proto-add-notes-sheet"
       >
         {content}
       </DrawerContent>

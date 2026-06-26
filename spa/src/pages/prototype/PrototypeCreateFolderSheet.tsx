@@ -121,7 +121,7 @@ export default function PrototypeCreateFolderSheet({
             setFolderName(e.target.value);
             setActionError(null);
           }}
-          placeholder="e.g. Romans study"
+          placeholder="e.g. Going through Genesis"
           autoFocus={open}
         />
       </div>

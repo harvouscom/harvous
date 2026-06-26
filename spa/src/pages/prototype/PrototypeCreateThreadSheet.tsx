@@ -10,6 +10,8 @@ import { useProtoShell } from '../../layouts/proto-shell-context';
 import { PrototypeAddNotesPicker } from './PrototypeAddNotesSheet';
 import type { SpaceNoteRow } from '../../hooks/queries/useSpace';
 
+const MIN_THREAD_NOTES = 2;
+
 export interface PrototypeCreateThreadSheetProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -43,7 +45,7 @@ export default function PrototypeCreateThreadSheet({
   }, [open]);
 
   const isPending = connectNote.isPending || updateTitle.isPending;
-  const canSubmit = threadName.trim().length > 0 && selectedIds.length >= 1 && !isPending;
+  const canSubmit = threadName.trim().length > 0 && selectedIds.length >= MIN_THREAD_NOTES && !isPending;
 
   const shouldUseSheetPresentation =
     isMobileSidebar && typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches;
@@ -51,8 +53,9 @@ export default function PrototypeCreateThreadSheet({
 
   const handleSubmit = async () => {
     const title = threadName.trim();
+    if (!title || selectedIds.length < MIN_THREAD_NOTES) return;
     const [first, ...rest] = selectedIds;
-    if (!title || !first) return;
+    if (!first) return;
     setActionError(null);
     try {
       for (const linkedNoteId of rest) {
@@ -122,13 +125,13 @@ export default function PrototypeCreateThreadSheet({
             setThreadName(e.target.value);
             setActionError(null);
           }}
-          placeholder="e.g. Grace in Romans"
+          placeholder="e.g. Letters to the church"
           autoFocus={open}
         />
       </div>
 
       <p className="proto-inspector-section-title proto-create-folder-sheet__notes-label">
-        Choose notes (at least 1)
+        Choose notes (at least {MIN_THREAD_NOTES})
       </p>
 
       <PrototypeAddNotesPicker

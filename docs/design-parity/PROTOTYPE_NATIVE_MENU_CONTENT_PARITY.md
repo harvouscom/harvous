@@ -150,6 +150,7 @@ Matches native `NoteInspectorView` sections.
 | Added by (note source attribution) | `InspectorRow` + native `infoRow` via `formatNoteAddedBySource` / `addedBySourceLabel` | ✅ implemented |
 | Note type, thread, visibility | Shown when non-default | ✅ implemented |
 | Delete note (bottom destructive control) | `proto-inspector-delete-btn` | ✅ implemented |
+| Connect note (linked notes) | `PrototypeConnectNoteSheet` — shared add-notes picker (scoped list, selection orbs, Connect footer); same visual system as New thread | ✅ implemented |
 
 ---
 

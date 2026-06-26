@@ -22,6 +22,7 @@ import { prototypeNoteRouteTo } from '@/lib/prototype-path';
 import { noteParamSlug } from './proto-route-slugs';
 import { stripServerAutoUntitledNoteTitleForDisplay } from '@/utils/server-auto-untitled-note-display';
 import { studyThreadDisplayTitle } from '../../utils/study-thread-display-title';
+import { computeAnchoredPopoverPosition } from './proto-anchored-popover-position';
 
 // ─── Main popover ─────────────────────────────────────────────────────────────
 
@@ -46,6 +47,8 @@ export default function PrototypeStudyThreadPopover({
   const effectiveSpaceId = (spaceId && spaceId.trim().length > 0 ? spaceId : null) ?? homeSpaceId ?? null;
 
   const cardRef = useRef<HTMLDivElement | null>(null);
+  const anchorRectRef = useRef(anchorRect);
+  anchorRectRef.current = anchorRect;
   const [position, setPosition] = useState<{ top: number; left: number } | null>(null);
 
   const [connectOpen, setConnectOpen] = useState(false);
@@ -103,31 +106,38 @@ export default function PrototypeStudyThreadPopover({
     isMobileSidebar && typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches;
   const shouldUsePopover = open && !shouldUseSheetPresentation;
 
-  useLayoutEffect(() => {
-    if (!shouldUsePopover) return;
-    const CARD_W = 400;
-    const cardHeight = cardRef.current?.getBoundingClientRect().height ?? 480;
-    const margin = 12;
-    const offset = 8;
-    const vw = window.innerWidth;
-    const vh = window.innerHeight;
-    const effectiveAnchor = anchorRect;
+  const syncPopoverPosition = () => {
+    const card = cardRef.current;
+    if (!card) return;
+    setPosition(
+      computeAnchoredPopoverPosition(card, anchorRectRef.current, {
+        maxHeightPx: 600,
+        vhFraction: 0.8,
+      }),
+    );
+  };
 
-    let top: number;
-    let left: number;
-    if (effectiveAnchor) {
-      top = effectiveAnchor.bottom + offset;
-      if (top + cardHeight + margin > vh) top = effectiveAnchor.top - cardHeight - offset;
-      if (top < margin) top = margin;
-      left = effectiveAnchor.left;
-      if (left + CARD_W + margin > vw) left = vw - CARD_W - margin;
-      if (left < margin) left = margin;
-    } else {
-      left = Math.max(margin, (vw - CARD_W) / 2);
-      top = Math.max(margin, Math.min(vh - cardHeight - margin, vh * 0.15));
+  useLayoutEffect(() => {
+    if (!shouldUsePopover) {
+      setPosition(null);
+      return;
     }
-    setPosition({ top, left });
-  }, [anchorRect, shouldUsePopover, nodeCount, isLoading]);
+    syncPopoverPosition();
+  }, [shouldUsePopover, anchorRect, nodeCount, isLoading, isError, connectOpen, titleDraft, editingTitle]);
+
+  useEffect(() => {
+    if (!shouldUsePopover) return undefined;
+    const card = cardRef.current;
+    if (!card) return undefined;
+    const ro = new ResizeObserver(() => syncPopoverPosition());
+    ro.observe(card);
+    const onResize = () => syncPopoverPosition();
+    window.addEventListener('resize', onResize);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener('resize', onResize);
+    };
+  }, [shouldUsePopover, open]);
 
   useDismissOnOutside(cardRef, () => onOpenChange(false), shouldUsePopover, {
     ignoreSelector: '.proto-sidebar-root, .proto-inspector, .proto-inspector-mobile-panel, .proto-inspector-desktop',

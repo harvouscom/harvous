@@ -124,7 +124,6 @@ function AddNotesListBody({
   isPending,
   isSearching,
   showEmpty,
-  showRecent,
   debouncedTrim,
   isLoading,
   emptyHint,
@@ -211,8 +210,12 @@ export function PrototypeAddNotesPicker({
   excludeNoteIds = [],
   selectedIds,
   onSelectedIdsChange,
+  onSelectedNoteChange,
   showListScopeToggle = false,
   defaultListScope = 'unsorted',
+  selectionMode = 'multiple',
+  listShell = 'plain',
+  isPending = false,
 }: {
   spaceId: string;
   /** Loaded space notes — primary list source (unsorted / all). */
@@ -220,8 +223,13 @@ export function PrototypeAddNotesPicker({
   excludeNoteIds?: string[];
   selectedIds: string[];
   onSelectedIdsChange: (ids: string[]) => void;
+  /** Fires when the selected note changes (single-select / last toggled in multi). */
+  onSelectedNoteChange?: (candidate: AddNotesCandidate | null) => void;
   showListScopeToggle?: boolean;
   defaultListScope?: AddNotesListScope;
+  selectionMode?: 'single' | 'multiple';
+  listShell?: 'scoped' | 'plain';
+  isPending?: boolean;
 }) {
   const { input: searchInput, setInput: setSearchInput, debounced } = useDebouncedSearchState(280);
   const [listScope, setListScope] = useState<AddNotesListScope>(defaultListScope);
@@ -230,12 +238,17 @@ export function PrototypeAddNotesPicker({
   const excludeSet = useMemo(() => new Set(excludeNoteIds), [excludeNoteIds]);
 
   const useLocalNotes = spaceNotes.length > 0;
+  const excludeNoteId = excludeNoteIds[0];
   const { data, isLoading, isFetching } = useQuery({
-    queryKey: ['connectNoteCandidates', sidPath, 'add-notes', debouncedTrim] as const,
+    queryKey: ['connectNoteCandidates', sidPath, 'add-notes', debouncedTrim, excludeNoteId ?? ''] as const,
     queryFn: () =>
       api.get<ConnectNoteCandidatesResponse>(
         `/api/spaces/${encodeURIComponent(sidPath)}/connect-note-candidates`,
-        { q: debouncedTrim, limit: 20 },
+        {
+          q: debouncedTrim,
+          limit: 20,
+          ...(excludeNoteId ? { excludeNoteId } : {}),
+        },
       ),
     enabled: !useLocalNotes || debouncedTrim.length > 0,
     staleTime: 10_000,
@@ -285,63 +298,87 @@ export function PrototypeAddNotesPicker({
   const isSearching =
     debouncedTrim.length >= 1 && (isLoading || isFetching) && notes.length === 0 && !useLocalNotes;
   const showEmpty = !isSearching && notes.length === 0;
-  const emptyHint =
-    listScope === 'unsorted'
+  const emptyHint = useLocalNotes
+    ? listScope === 'unsorted'
       ? 'No unsorted notes — everything is already in a folder.'
-      : 'No notes in this space yet.';
+      : 'No notes in this space yet.'
+    : 'No notes available to connect.';
 
   const toggle = (id: string) => {
+    const candidate = notes.find((n) => n.id === id) ?? null;
+    if (selectionMode === 'single') {
+      const nextIds = selectedSet.has(id) ? [] : [id];
+      onSelectedIdsChange(nextIds);
+      onSelectedNoteChange?.(nextIds.length > 0 ? candidate : null);
+      return;
+    }
     if (selectedSet.has(id)) {
-      onSelectedIdsChange(selectedIds.filter((x) => x !== id));
+      const nextIds = selectedIds.filter((x) => x !== id);
+      onSelectedIdsChange(nextIds);
+      onSelectedNoteChange?.(nextIds.length > 0 ? notes.find((n) => n.id === nextIds[nextIds.length - 1]) ?? null : null);
     } else {
       onSelectedIdsChange([...selectedIds, id]);
+      onSelectedNoteChange?.(candidate);
     }
   };
 
+  const listBody = (
+    <AddNotesListBody
+      notes={notes}
+      selectedIds={selectedSet}
+      onToggle={toggle}
+      isPending={isPending}
+      isSearching={isSearching}
+      showEmpty={showEmpty}
+      debouncedTrim={debouncedTrim}
+      isLoading={!useLocalNotes && isLoading && notes.length === 0}
+      emptyHint={emptyHint}
+    />
+  );
+
+  const useScopedShell = listShell === 'scoped' || (showListScopeToggle && debouncedTrim.length === 0);
+
   return (
     <>
-      <div className="proto-connect-note-sheet__search-wrap">
-        <PrototypeSearchInput
-          value={searchInput}
-          onChange={setSearchInput}
-          placeholder="Search notes…"
-        />
-      </div>
-      {showListScopeToggle && debouncedTrim.length === 0 ? (
+      {useScopedShell ? (
         <div className="proto-add-notes-sheet__scoped-list">
-          <AddNotesScopeChipBar selectedId={listScope} onSelect={setListScope} />
+          {showListScopeToggle && debouncedTrim.length === 0 ? (
+            <AddNotesScopeChipBar selectedId={listScope} onSelect={setListScope} />
+          ) : null}
+          <div className="proto-connect-note-sheet__search-wrap proto-add-notes-sheet__search-in-panel">
+            <PrototypeSearchInput
+              value={searchInput}
+              onChange={setSearchInput}
+              placeholder="Search notes…"
+            />
+          </div>
           <div
             className="proto-add-notes-sheet__scoped-list-body"
             role="region"
-            aria-label={listScope === 'unsorted' ? 'Unsorted notes' : 'All notes'}
+            aria-label={
+              showListScopeToggle && debouncedTrim.length === 0
+                ? listScope === 'unsorted'
+                  ? 'Unsorted notes'
+                  : 'All notes'
+                : 'Notes to connect'
+            }
           >
-            <AddNotesListBody
-              notes={notes}
-              selectedIds={selectedSet}
-              onToggle={toggle}
-              isPending={false}
-              isSearching={isSearching}
-              showEmpty={showEmpty}
-              debouncedTrim={debouncedTrim}
-              isLoading={!useLocalNotes && isLoading && notes.length === 0}
-              emptyHint={emptyHint}
-            />
+            {listBody}
           </div>
         </div>
       ) : (
-        <div className="proto-connect-note-sheet__scroll" role="region" aria-label="Notes to add">
-          <AddNotesListBody
-            notes={notes}
-            selectedIds={selectedSet}
-            onToggle={toggle}
-            isPending={false}
-            isSearching={isSearching}
-            showEmpty={showEmpty}
-            debouncedTrim={debouncedTrim}
-            isLoading={!useLocalNotes && isLoading && notes.length === 0}
-            emptyHint={emptyHint}
-          />
-        </div>
+        <>
+          <div className="proto-connect-note-sheet__search-wrap">
+            <PrototypeSearchInput
+              value={searchInput}
+              onChange={setSearchInput}
+              placeholder="Search notes…"
+            />
+          </div>
+          <div className="proto-connect-note-sheet__scroll" role="region" aria-label="Notes to add">
+            {listBody}
+          </div>
+        </>
       )}
     </>
   );

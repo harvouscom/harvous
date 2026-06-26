@@ -2825,16 +2825,6 @@ html.harvous-proto-wallpaper-color .proto-search-input:focus {
   padding: 10px 12px 0;
 }
 
-.proto-connect-note-sheet__section-label {
-  font-family: var(--pds-font-body);
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--pds-text-tertiary);
-  margin: 4px 2px 6px;
-}
-
 .proto-connect-note-sheet__error {
   font-family: var(--pds-font-body);
   font-size: 13px;
@@ -2964,9 +2954,24 @@ html.harvous-proto-wallpaper-color .proto-search-input:focus {
   background: var(--pds-bg-ghost);
 }
 
+/* Connect note / add-notes — body is only the scoped panel; breathe below header */
+.proto-add-notes-sheet:not(.proto-create-folder-sheet):not(.proto-create-thread-sheet)
+  > .proto-add-notes-sheet__scoped-list {
+  margin-top: 10px;
+}
+
 .proto-add-notes-sheet__scoped-list .proto-add-notes-sheet__scope {
   flex-shrink: 0;
   padding: 8px 8px 6px;
+}
+
+.proto-add-notes-sheet__scoped-list .proto-add-notes-sheet__search-in-panel {
+  flex-shrink: 0;
+  padding: 0 8px 6px;
+}
+
+.proto-add-notes-sheet__scoped-list .proto-add-notes-sheet__search-in-panel .proto-search-input-wrap {
+  margin-bottom: 0;
 }
 
 .proto-add-notes-sheet__scoped-list .proto-chip-bar {

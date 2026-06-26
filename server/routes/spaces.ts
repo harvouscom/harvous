@@ -103,6 +103,7 @@ import { fetchStudyThreadNoteRows } from '../utils/study-thread-note-rows';
 import { resolveStudyThreadClusterNaming } from '../utils/study-thread-cluster-naming';
 import { studyThreadEligibleForHighlightList } from '@/utils/study-thread-highlight-eligibility';
 import { sortStudyThreadClustersByTitle } from '@/utils/sorting';
+import { stripHtmlForListPreview } from '@/utils/html-stripper';
 
 const route = new Hono();
 
@@ -1177,7 +1178,7 @@ route.get('/api/spaces/:spaceId/connect-note-candidates', requireAuth, async (c)
         noteType: Notes.noteType,
         updatedAt: Notes.updatedAt,
         createdAt: Notes.createdAt,
-        content: sql<string>`LEFT(${Notes.content}, 250)`.as('content'),
+        content: Notes.content,
       })
       .from(Notes)
       .where(and(...filters))
@@ -1191,7 +1192,7 @@ route.get('/api/spaces/:spaceId/connect-note-candidates', requireAuth, async (c)
         noteType: r.noteType || 'default',
         updatedAt: r.updatedAt ? r.updatedAt.toISOString() : null,
         createdAt: r.createdAt ? r.createdAt.toISOString() : null,
-        content: r.content ?? '',
+        content: r.content ? stripHtmlForListPreview(r.content, 80) : '',
       })),
     });
   } catch (error: any) {

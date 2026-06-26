@@ -70,4 +70,16 @@ describe('stripHtmlForListPreview', () => {
   it('joins br-separated lines with a space', () => {
     expect(stripHtmlForListPreview('<p>Line1<br>Line2</p>', 80)).toBe('Line1 Line2');
   });
+
+  it('handles truncated scripture pill HTML (LEFT content mid-tag)', () => {
+    const truncated =
+      '<p><span data-scripture-reference="Matthew 1:1" data-note-id="note_1" data-scripture-translation="NET" class="scripture-pill">Matthew 1:1</span> rest</p>'.slice(
+        0,
+        45,
+      );
+    const preview = stripHtmlForListPreview(truncated, 80);
+    expect(preview).toContain('Matthew 1:');
+    expect(preview).not.toContain('data-scripture-reference');
+    expect(preview).not.toContain('<span');
+  });
 });
