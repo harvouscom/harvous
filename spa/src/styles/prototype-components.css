@@ -5858,20 +5858,32 @@ button.proto-appearance-hero__card {
   );
 }
 
-.proto-paper-stack--in-view .proto-paper-leaf {
+.proto-paper-stack--fanned .proto-paper-leaf {
   transform: rotate(var(--proto-paper-rot, 0deg));
 }
 
-.proto-paper-stack--in-view .proto-paper-leaf--back {
+.proto-paper-stack--fanned .proto-paper-leaf--back {
   transition-delay: 60ms;
 }
 
-.proto-paper-stack--in-view .proto-paper-leaf--mid {
+.proto-paper-stack--fanned .proto-paper-leaf--mid {
   transition-delay: 180ms;
 }
 
-.proto-paper-stack--in-view .proto-paper-leaf--main {
+.proto-paper-stack--fanned .proto-paper-leaf--main {
   transition-delay: 300ms;
+}
+
+.proto-paper-stack:not(.proto-paper-stack--fanned) .proto-paper-leaf--main {
+  transition-delay: 0ms;
+}
+
+.proto-paper-stack:not(.proto-paper-stack--fanned) .proto-paper-leaf--mid {
+  transition-delay: 80ms;
+}
+
+.proto-paper-stack:not(.proto-paper-stack--fanned) .proto-paper-leaf--back {
+  transition-delay: 160ms;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -5919,6 +5931,17 @@ button.proto-appearance-hero__card {
   opacity: 0.8;
 }
 
+/* Dark ink on transparent PNG — invert on night paper (see site global.css .signature-img). */
+:root[data-color-scheme="dark"] .proto-founder-letter__signature {
+  filter: invert(1) brightness(1.7);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-color-scheme="light"]) .proto-founder-letter__signature {
+    filter: invert(1) brightness(1.7);
+  }
+}
+
 .proto-founder-letter__byline {
   display: flex;
   align-items: center;
@@ -5945,31 +5968,64 @@ button.proto-appearance-hero__card {
   color: var(--pds-text-secondary);
 }
 
-.proto-founder-letter-overlay {
-  background: color-mix(in srgb, var(--pds-paper-desk) 88%, var(--pds-overlay-heavy));
-}
-
 .proto-founder-letter-sheet {
   position: relative;
-  width: min(720px, 100%);
+  width: 100%;
+  max-width: 910px;
   max-height: min(90vh, 860px);
-  border-radius: var(--pds-shell-frame-radius);
-  background: var(--pds-paper-desk);
-  overflow: hidden;
-  box-shadow: var(--pds-shadow-sheet);
+  --proto-founder-letter-paper: var(--pds-paper-desk);
+  background: transparent;
+  overflow: visible;
+  box-shadow: none;
+}
+
+.proto-founder-letter-sheet .proto-paper-leaf {
+  background-color: var(--proto-founder-letter-paper);
+}
+
+.proto-founder-letter-sheet .proto-paper-leaf--main {
+  --proto-founder-letter-pad-y: 40px;
+  --proto-founder-letter-pad-x: 24px;
+  max-height: min(calc(90vh - 92px), 768px);
+  padding: 0 var(--proto-founder-letter-pad-x);
+  display: flex;
+  flex-direction: column;
+  background-color: var(--proto-founder-letter-paper);
+}
+
+.proto-founder-letter-sheet .proto-founder-letter__scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  padding-top: var(--proto-founder-letter-pad-y);
+  padding-bottom: var(--proto-founder-letter-pad-y);
+}
+
+@media (min-width: 640px) {
+  .proto-founder-letter-sheet .proto-paper-leaf--main {
+    --proto-founder-letter-pad-y: 56px;
+    --proto-founder-letter-pad-x: 56px;
+  }
+}
+
+@media (min-width: 900px) {
+  .proto-founder-letter-sheet {
+    width: 75%;
+  }
 }
 
 .proto-founder-letter-sheet__close {
   position: absolute;
-  top: 12px;
-  right: 12px;
+  top: 0;
+  right: 0;
   z-index: 3;
 }
 
 .proto-founder-letter-sheet__body {
-  max-height: min(90vh, 860px);
-  overflow: auto;
-  padding: 48px 12px 24px;
+  overflow: visible;
+  padding: 40px 0 24px;
 }
 
 /* ─── Dev environment badge ─────────────────────────────────────────────── */

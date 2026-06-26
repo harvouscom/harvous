@@ -1,16 +1,18 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { PROTO_VOTD_SHEET_MOTION_MS } from '../layouts/proto-motion';
 
-function overlayMotionMs(): number {
-  if (typeof window === 'undefined') return PROTO_VOTD_SHEET_MOTION_MS;
-  return window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : PROTO_VOTD_SHEET_MOTION_MS;
+function overlayMotionMs(exitMs?: number): number {
+  const ms = exitMs ?? PROTO_VOTD_SHEET_MOTION_MS;
+  if (typeof window === 'undefined') return ms;
+  return window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : ms;
 }
 
 /**
  * Keeps a portaled overlay + dialog mounted during exit so CSS can play before unmount.
  * Driven by the parent's `open` prop — no API change required at call sites.
  */
-export function useProtoOverlayMotion(open: boolean) {
+export function useProtoOverlayMotion(open: boolean, options?: { exitMs?: number }) {
+  const exitMs = options?.exitMs;
   const [mounted, setMounted] = useState(open);
   const [exiting, setExiting] = useState(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -41,8 +43,8 @@ export function useProtoOverlayMotion(open: boolean) {
       setExiting(false);
       exitStartedRef.current = false;
       timerRef.current = null;
-    }, overlayMotionMs());
-  }, [open, mounted, clearExitTimer]);
+    }, overlayMotionMs(exitMs));
+  }, [open, mounted, clearExitTimer, exitMs]);
 
   useEffect(() => () => clearExitTimer(), [clearExitTimer]);
 

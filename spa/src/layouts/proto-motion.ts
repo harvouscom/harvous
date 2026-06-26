@@ -24,3 +24,9 @@ export const PROTO_POPOVER_MOTION_MS = 120;
  * in lockstep with `.proto-votd-sheet--motion` in `prototype-components.css`.
  */
 export const PROTO_VOTD_SHEET_MOTION_MS = 220;
+
+/** Founder letter paper leaf fan — MUST stay in lockstep with `.proto-paper-leaf` transition in prototype-components.css. */
+export const PROTO_FOUNDER_LETTER_PAPER_MS = 900;
+
+/** Founder letter sheet unmount delay — paper fan-back + small buffer. */
+export const PROTO_FOUNDER_LETTER_SHEET_EXIT_MS = 920;
