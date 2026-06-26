@@ -274,20 +274,6 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
     [],
   );
 
-  const toggleDrawer = useCallback(() => {
-    setDrawerOpen((prev) => {
-      if (prev) {
-        beginSidebarClose(() => setDrawerOpen(false));
-        return true;
-      }
-      cancelSidebarExit();
-      return true;
-    });
-  }, [beginSidebarClose, cancelSidebarExit]);
-  const openDrawer = useCallback(() => {
-    cancelSidebarExit();
-    setDrawerOpen(true);
-  }, [cancelSidebarExit]);
   const closeDrawer = useCallback(() => {
     setDrawerOpen((prev) => {
       if (!prev) return false;
@@ -329,19 +315,6 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
     if (mode !== 'folders') setSidebarFolderDrilldown(undefined);
     if (mode !== 'threads') setSidebarThreadDrilldownId(undefined);
   }, []);
-  const ensureSidebarExpanded = useCallback(() => {
-    cancelSidebarExit();
-    if (isMobileSidebar) setDrawerOpen(true);
-    else setDesktopSidebarCollapsed(false);
-  }, [cancelSidebarExit, isMobileSidebar]);
-  const openSidebarTagSearch = useCallback(
-    (intent: SidebarTagSearchIntent) => {
-      setSidebarTagSearchIntent(intent);
-      setSidebarListMode('notes');
-      ensureSidebarExpanded();
-    },
-    [setSidebarListMode, ensureSidebarExpanded],
-  );
   const clearSidebarTagSearchIntent = useCallback(() => {
     setSidebarTagSearchIntent(null);
   }, []);
@@ -382,7 +355,9 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
     if (threadPanelExitTimerRef.current) clearTimeout(threadPanelExitTimerRef.current);
     setThreadPanelExiting(false);
     setThreadPanelNoteId(null);
-  }, []);
+    // Mobile: one overlay at a time — sidebar drawer yields to the inspector.
+    if (isMobileSidebar && drawerOpen) closeDrawer();
+  }, [closeDrawer, drawerOpen, isMobileSidebar]);
 
   const pushThreadPanelExpandedHistory = useCallback(() => {
     if (typeof window === 'undefined') return;
@@ -438,6 +413,57 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
     beginThreadPanelClose();
   }, [beginThreadPanelClose]);
 
+  const dismissMobileRightPanels = useCallback(() => {
+    if (!isMobileSidebar) return;
+    if (inspectorOpen || inspectorExiting) closeInspector();
+    if (threadPanelNoteId || threadPanelExiting) closeThreadPanel();
+  }, [
+    closeInspector,
+    closeThreadPanel,
+    inspectorExiting,
+    inspectorOpen,
+    isMobileSidebar,
+    threadPanelExiting,
+    threadPanelNoteId,
+  ]);
+
+  const toggleDrawer = useCallback(() => {
+    if (!drawerOpen) dismissMobileRightPanels();
+    setDrawerOpen((prev) => {
+      if (prev) {
+        beginSidebarClose(() => setDrawerOpen(false));
+        return true;
+      }
+      cancelSidebarExit();
+      return true;
+    });
+  }, [beginSidebarClose, cancelSidebarExit, dismissMobileRightPanels, drawerOpen]);
+
+  const openDrawer = useCallback(() => {
+    dismissMobileRightPanels();
+    cancelSidebarExit();
+    setDrawerOpen(true);
+  }, [cancelSidebarExit, dismissMobileRightPanels]);
+
+  const ensureSidebarExpanded = useCallback(() => {
+    cancelSidebarExit();
+    if (isMobileSidebar) {
+      dismissMobileRightPanels();
+      setDrawerOpen(true);
+    } else {
+      setDesktopSidebarCollapsed(false);
+    }
+  }, [cancelSidebarExit, dismissMobileRightPanels, isMobileSidebar]);
+
+  const openSidebarTagSearch = useCallback(
+    (intent: SidebarTagSearchIntent) => {
+      setSidebarTagSearchIntent(intent);
+      setSidebarListMode('notes');
+      ensureSidebarExpanded();
+    },
+    [setSidebarListMode, ensureSidebarExpanded],
+  );
+
   const expandThreadPanel = useCallback(() => {
     setThreadPanelExpanded(true);
     pushThreadPanelExpandedHistory();
@@ -482,12 +508,13 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
         // Return true to keep open until timer fires
         return true;
       }
-      // Opening — cancel any in-progress exit
+      // Opening — cancel any in-progress exit; mobile drawer yields to inspector.
+      if (isMobileSidebar && drawerOpen) closeDrawer();
       if (inspectorExitTimerRef.current) clearTimeout(inspectorExitTimerRef.current);
       setInspectorExiting(false);
       return true;
     });
-  }, [closeStudyThreadPopover]);
+  }, [closeDrawer, closeStudyThreadPopover, drawerOpen, isMobileSidebar]);
   const setPrototypeFolderChip = useCallback((value: PrototypeFolderChip | null) => {
     setPrototypeFolderChipState((prev) => (prototypeFolderChipsEqual(prev, value) ? prev : value));
   }, []);
