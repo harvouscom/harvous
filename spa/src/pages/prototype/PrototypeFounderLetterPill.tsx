@@ -54,7 +54,7 @@ export default function PrototypeFounderLetterPill() {
 
         <div className="proto-daily-passage-pill__content proto-daily-passage-pill__content--no-add">
           <p className="proto-caption proto-daily-passage-pill__eyebrow">From the founder</p>
-          <p className="pds-list-title proto-daily-passage-pill__reference">Why I built Harvous</p>
+          <p className="pds-list-title proto-daily-passage-pill__reference">Why I made Harvous</p>
         </div>
 
         <div className="proto-daily-passage-pill__orbs">
