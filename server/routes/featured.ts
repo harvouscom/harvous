@@ -26,6 +26,7 @@ import {
   shouldExcludeDevSampleFeaturedItems,
 } from '../constants/dev-featured-samples';
 import { getLocalCalendarDateString, isValidIanaTimeZone } from '../utils/votd-local-date';
+import { getUserDefaultTranslation } from '../utils/votd-user-translation';
 
 const app = new Hono();
 
@@ -241,14 +242,7 @@ app.get('/api/featured/items', async (c) => {
 
     // VOTD: return verse text in the user's preferred translation so the client does not need a
     // second fetch (avoids visible verse swap when catalog translation differs from UserMetadata).
-    const userMetaRow = first(
-      await db
-        .select({ defaultTranslation: UserMetadata.defaultTranslation })
-        .from(UserMetadata)
-        .where(eq(UserMetadata.userId, auth.userId))
-        .limit(1),
-    );
-    const preferredTranslation = (userMetaRow?.defaultTranslation?.trim() || 'NET');
+    const preferredTranslation = await getUserDefaultTranslation(auth.userId);
     for (let idx = 0; idx < items.length; idx++) {
       const row = items[idx];
       if (row.contentType !== 'votd' || !row.metadata) continue;

@@ -3633,15 +3633,18 @@ function FormatToolbarDivider() {
 function TiptapToolbarTrack({
   placement,
   compact = false,
+  skipEnterAnimation = false,
   children,
 }: {
   placement: 'top' | 'bottom';
   compact?: boolean;
+  skipEnterAnimation?: boolean;
   children: React.ReactNode;
 }) {
   const [enterArmed, setEnterArmed] = useState(false);
 
   useLayoutEffect(() => {
+    if (skipEnterAnimation) return;
     setEnterArmed(false);
     const raf1 = requestAnimationFrame(() => {
       setEnterArmed(true);
@@ -3649,16 +3652,18 @@ function TiptapToolbarTrack({
     return () => {
       cancelAnimationFrame(raf1);
     };
-  }, [placement]);
+  }, [placement, skipEnterAnimation]);
 
   const prepClass =
     placement === 'top' ? 'tiptap-toolbar__track--enter-prep-top' : 'tiptap-toolbar__track--enter-prep-bottom';
   const runClass =
     placement === 'top' ? 'tiptap-toolbar__track--enter-from-top' : 'tiptap-toolbar__track--enter-from-bottom';
 
+  const animClass = skipEnterAnimation ? '' : enterArmed ? runClass : prepClass;
+
   return (
     <div
-      className={`tiptap-toolbar__track flex items-center flex-nowrap ${compact ? '' : 'w-full min-w-0'} ${enterArmed ? runClass : prepClass}`}
+      className={`tiptap-toolbar__track flex items-center flex-nowrap ${compact ? '' : 'w-full min-w-0'} ${animClass}`}
     >
       {children}
     </div>
@@ -7644,7 +7649,12 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       >
         <div className="tiptap-toolbar__hscroll">
           <div className="tiptap-toolbar__scroll-region">
-            <TiptapToolbarTrack key={toolbarEnterEpoch} compact placement={placement === 'portal' ? 'bottom' : placement}>
+            <TiptapToolbarTrack
+              key={toolbarEnterEpoch}
+              compact
+              skipEnterAnimation={isPortal}
+              placement={placement === 'portal' ? 'bottom' : placement}
+            >
               <PrototypeToolbarButton
                 onClick={() => runPrototypeFormatCommand((chain) => chain.toggleBold())}
                 isActive={activeStates.bold}

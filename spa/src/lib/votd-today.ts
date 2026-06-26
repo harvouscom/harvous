@@ -57,6 +57,7 @@ export function isVotdPassageCardDismissedToday(): boolean {
 export async function fetchVotdToday(): Promise<VotdToday | null> {
   const tz = browserIanaTimeZone();
   const res = await fetch(`/api/votd/today?tz=${encodeURIComponent(tz)}`, {
+    credentials: 'include',
     headers: { 'X-Votd-Timezone': tz },
   });
   if (!res.ok) return null;

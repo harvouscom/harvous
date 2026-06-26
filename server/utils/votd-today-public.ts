@@ -1,12 +1,18 @@
 /**
- * Shared handler for GET /api/votd/today (public, unauthenticated).
+ * Shared handler for GET /api/votd/today.
  * Used by the health route module so the endpoint ships in the same bundle slice as /api/health.
+ *
+ * Unauthenticated: returns catalog translation from VotdPublishHistory (public cache).
+ * Authenticated: returns UserMetadata.defaultTranslation so sidebar/native daily passage
+ * matches the dashboard featured VOTD card.
  */
 import type { Context } from 'hono';
 import { db, desc, eq, first, lte } from '../db';
 import { now } from '../db/dates';
 import { VotdPublishHistory } from '../db/schema';
+import { getAuth } from '../middleware/auth';
 import { getLocalCalendarDateString, isValidIanaTimeZone } from './votd-local-date';
+import { getUserDefaultTranslation } from './votd-user-translation';
 
 export async function votdTodayPublicHandler(c: Context) {
   try {
@@ -44,8 +50,17 @@ export async function votdTodayPublicHandler(c: Context) {
       }
     }
 
-    c.res.headers.set('Cache-Control', 'public, max-age=3600, stale-while-revalidate=300');
-    return c.json(row ? { reference: row.reference, translation: row.translation ?? 'NET' } : { reference: null });
+    const auth = getAuth(c);
+    let translation = row?.translation?.trim() || 'NET';
+    if (auth.userId) {
+      translation = await getUserDefaultTranslation(auth.userId);
+      c.res.headers.set('Cache-Control', 'private, max-age=3600, stale-while-revalidate=300');
+      c.res.headers.append('Vary', 'Authorization, Cookie');
+    } else {
+      c.res.headers.set('Cache-Control', 'public, max-age=3600, stale-while-revalidate=300');
+    }
+
+    return c.json(row ? { reference: row.reference, translation } : { reference: null });
   } catch {
     c.res.headers.set('Cache-Control', 'public, max-age=60');
     return c.json({ reference: null });

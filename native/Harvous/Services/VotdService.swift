@@ -82,15 +82,12 @@ enum VotdService {
     static func fetchToday() async -> VotdToday? {
         let key = dateKey()
         let refKey = "votd_ref_\(key)"
-        let transKey = "votd_translation_\(key)"
         if let ref = UserDefaults.standard.string(forKey: refKey), !ref.isEmpty {
-            let translation = UserDefaults.standard.string(forKey: transKey) ?? "NET"
-            return VotdToday(reference: ref, translation: translation)
+            return VotdToday(reference: ref, translation: ScriptureReference.defaultTranslation)
         }
         guard let fetched = await VotdFetchCoordinator.shared.singleFlight({ await fetchFromNetwork() }) else { return nil }
         UserDefaults.standard.set(fetched.reference, forKey: refKey)
-        UserDefaults.standard.set(fetched.translation, forKey: transKey)
-        return fetched
+        return VotdToday(reference: fetched.reference, translation: ScriptureReference.defaultTranslation)
     }
 
     private static func fetchFromNetwork() async -> VotdToday? {
@@ -120,6 +117,9 @@ enum VotdService {
             request.timeoutInterval = 2.5
         }
         request.setValue(ianaTz, forHTTPHeaderField: "X-Votd-Timezone")
+        if let token = await HarvousClerkBridge.shared.bearerToken() {
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        }
         do {
             let (data, response) = try await urlSession.data(for: request)
             if isLocal {

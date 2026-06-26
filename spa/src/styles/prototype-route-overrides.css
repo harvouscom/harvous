@@ -184,9 +184,15 @@ html.harvous-prototype-route [class*='proto-'] h6 {
 }
 
 /* Sheet dialog titles (daily passage + migration) — beat global `h2 { font-weight: 700 }` */
+html.harvous-prototype-route h2.proto-votd-sheet__reference-row,
 html.harvous-prototype-route h2.proto-votd-sheet__reference {
   font-family: var(--pds-font-display) !important;
   font-weight: 600 !important;
+}
+
+html.harvous-prototype-route h2.proto-votd-sheet__reference-row .proto-votd-sheet__reference {
+  font-family: inherit !important;
+  font-weight: inherit !important;
 }
 
 html.harvous-prototype-route .proto-settings-modal__title {

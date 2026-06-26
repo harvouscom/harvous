@@ -26,7 +26,10 @@ export default function PrototypeTranslationPage() {
               key={id}
               type="button"
               className="proto-note-row"
-              onClick={() => { if (!isSelected) updateTranslation.mutate(id); }}
+              onClick={() => {
+                if (updateTranslation.isPending || isSelected) return;
+                updateTranslation.mutate(id);
+              }}
               style={{
                 width: '100%',
                 display: 'flex',

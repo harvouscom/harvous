@@ -60,12 +60,18 @@
   min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
-  /* Keep the caret clear of the in-flow format toolbar when typing near the bottom. */
+  /* Keep the caret clear of the format toolbar when typing near the bottom. */
   scroll-padding-bottom: 24px;
   display: flex;
   flex-direction: column;
   container-type: inline-size;
   container-name: proto-editor-scroll;
+}
+
+/* When the format bar floats over the paper (overlay, not in-flow), give the caret extra
+   bottom clearance so typing near the end isn't hidden behind the bar. */
+.proto-shell:has(.proto-editor-bottom-bar[data-mode='format']) .proto-editor-scroll {
+  scroll-padding-bottom: 64px;
 }
 
 /* SubtleContentMount (variant="fade") wraps the card — make its inner div a flex
@@ -680,6 +686,33 @@ html.harvous-prototype-route .proto-editor-surface .scripture-pill-draft__confir
   backdrop-filter: var(--pds-glass-blur);
   font-family: var(--pds-font-body);
   z-index: 5;
+}
+
+/* Whole-bar enter: the frosted formatting bar slides + fades in as one unit (frost + toolbar
+   together). The portaled toolbar's own track animation is skipped in this placement so the
+   options don't animate separately inside the bar. Re-runs each time the bar enters format mode
+   because the attribute selector starts matching again. */
+@keyframes proto-editor-bottom-bar-enter {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.proto-editor-bottom-bar[data-mode='format'] {
+  animation: proto-editor-bottom-bar-enter 0.42s cubic-bezier(0.22, 1, 0.36, 1) both;
+  will-change: transform, opacity;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .proto-editor-bottom-bar[data-mode='format'] {
+    animation: none;
+    will-change: auto;
+  }
 }
 
 /* The format toolbar host — TiptapEditor portals the toolbar inside this div. */

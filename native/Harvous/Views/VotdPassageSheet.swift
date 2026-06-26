@@ -24,12 +24,47 @@ struct VotdPassageSheet: View {
     @Environment(\.dismiss) private var dismiss
 
     private var passageScrollBottomInset: CGFloat {
-        guard showsAddFAB else { return Metrics.scrollBottomInsetNoFAB }
-        return Metrics.fabSide + Metrics.fabBottomPadding + 8
+        Metrics.scrollBottomInsetNoFAB
+    }
+
+    private var attributionFooterTrailingPadding: CGFloat {
+        showsAddFAB ? Metrics.fabSide + Metrics.fabTrailingPadding + 4 : 0
     }
 
     private var attribution: ScriptureReference.TranslationAttribution? {
         ScriptureReference.attribution(for: votd.translation)
+    }
+
+    @ViewBuilder
+    private func attributionFooter(_ attribution: ScriptureReference.TranslationAttribution) -> some View {
+        HStack(alignment: .center, spacing: 10) {
+            HarvousFAGlyph(assetName: "Harvous.CircleInfo", edgePt: 9)
+                .foregroundStyle(.secondary)
+                .accessibilityLabel("Translation attribution")
+
+            Text(attribution.copyright)
+                .font(HarvousFonts.font(size: 10, weight: .medium, design: .default))
+                .foregroundStyle(.secondary)
+                .lineLimit(2)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+            if let websiteURL = URL(string: attribution.website) {
+                Link(destination: websiteURL) {
+                    HStack(spacing: 3) {
+                        Text(ScriptureReference.displayTranslationLabel(votd.translation))
+                            .font(HarvousFonts.font(size: 9, weight: .semibold, design: .default))
+                        HarvousFAGlyph(assetName: "Harvous.ArrowUpRight", edgePt: 7)
+                    }
+                    .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(.leading, Metrics.sheetHorizontalPadding)
+        .padding(.trailing, Metrics.sheetHorizontalPadding + attributionFooterTrailingPadding)
+        .padding(.vertical, 8)
+        .background(Color.primary.opacity(0.03))
     }
 
     var body: some View {
@@ -39,8 +74,19 @@ struct VotdPassageSheet: View {
                     Text("Today's Passage")
                         .font(HarvousTypography.noteListPreview)
                         .foregroundStyle(.secondary)
-                    Text(votd.reference)
-                        .font(HarvousFonts.font(size: 17, weight: .semibold, design: .default))
+                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                        Text(votd.reference)
+                            .font(HarvousFonts.font(size: 17, weight: .semibold, design: .default))
+                            .lineLimit(1)
+                            .truncationMode(.tail)
+                            .layoutPriority(0)
+                        StudyDockHeaderChipView(
+                            chip: .scriptureTranslation(
+                                label: ScriptureReference.displayTranslationLabel(votd.translation)
+                            )
+                        )
+                        .layoutPriority(1)
+                    }
                 }
                 Spacer(minLength: 0)
                 Button {
@@ -58,20 +104,27 @@ struct VotdPassageSheet: View {
             Divider()
 
             ZStack(alignment: .bottomTrailing) {
-                ScrollView {
-                    ScripturePassageView(
-                        reference: votd.reference,
-                        translation: votd.translation,
-                        showHeader: false,
-                        useReadingTypography: true,
-                        useRegularPassageWeight: true,
-                        showAttribution: false
-                    )
-                    .padding(.horizontal, Metrics.sheetHorizontalPadding)
-                    .padding(.top, Metrics.sectionTopPadding)
-                    .padding(.bottom, passageScrollBottomInset)
+                VStack(spacing: 0) {
+                    ScrollView {
+                        ScripturePassageView(
+                            reference: votd.reference,
+                            translation: votd.translation,
+                            showHeader: false,
+                            useReadingTypography: true,
+                            useRegularPassageWeight: true,
+                            showAttribution: false
+                        )
+                        .padding(.horizontal, Metrics.sheetHorizontalPadding)
+                        .padding(.top, Metrics.sectionTopPadding)
+                        .padding(.bottom, passageScrollBottomInset)
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+                    if let attribution {
+                        Divider()
+                        attributionFooter(attribution)
+                    }
                 }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
 
                 if showsAddFAB {
                     Button(action: onAdd) {
@@ -88,34 +141,6 @@ struct VotdPassageSheet: View {
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-
-            if let attribution {
-                Divider()
-                HStack(alignment: .center, spacing: 10) {
-                    HarvousFAGlyph(assetName: "Harvous.CircleInfo", edgePt: 9)
-                        .foregroundStyle(.secondary)
-                    Text(attribution.copyright)
-                        .font(HarvousFonts.font(size: 10, weight: .medium, design: .default))
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                        .truncationMode(.tail)
-                    Spacer(minLength: 0)
-                    if let url = URL(string: attribution.website) {
-                        Link(destination: url) {
-                            HStack(spacing: 3) {
-                                Text(ScriptureReference.displayTranslationLabel(votd.translation))
-                                    .font(HarvousFonts.font(size: 9, weight: .semibold, design: .default))
-                                HarvousFAGlyph(assetName: "Harvous.ArrowUpRight", edgePt: 7)
-                            }
-                            .foregroundStyle(.secondary)
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
-                .padding(.horizontal, 28)
-                .padding(.vertical, 8)
-                .background(Color.primary.opacity(0.03))
-            }
         }
         .frame(minWidth: 300, idealWidth: 360, maxWidth: 460)
         #if os(iOS)

@@ -1,7 +1,10 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@clerk/clerk-react';
 import { api } from '../../lib/api';
-import { updateCachedProfile } from '../queries/useProfile';
+import type { VotdToday } from '../../lib/votd-today';
+import { votdTodayQueryKey } from '../queries/useVotdToday';
+import { featuredItemsQueryKey } from '../queries/useFeaturedItems';
+import { updateCachedProfile, type UserProfile } from '../queries/useProfile';
 import { getCachedProfileData, getEffectiveDefaultTranslation, updateCachedProfileData } from '@/utils/profile-cache';
 
 interface UpdateTranslationResponse {
@@ -9,24 +12,70 @@ interface UpdateTranslationResponse {
   error?: string;
 }
 
+interface UpdateTranslationContext {
+  previousProfile: UserProfile | undefined;
+  previousVotd: VotdToday | null | undefined;
+  previousDefault: string;
+}
+
+function profileQueryKey(userId: string | null | undefined) {
+  return ['profile', userId ?? 'none'] as const;
+}
+
 /**
  * Persist the user's default Bible translation. Mirrors the classic-web
- * DefaultTranslationPanel against `POST /api/user/update-translation`. On success
- * the cached profile is patched and the profile query invalidated so every surface
- * reflects the change.
+ * DefaultTranslationPanel against `POST /api/user/update-translation`. Optimistically
+ * patches React Query + sessionStorage so prototype settings UI does not flicker
+ * between mutation end and profile refetch.
  */
 export function useUpdateTranslation() {
   const queryClient = useQueryClient();
   const { userId } = useAuth();
+  const key = profileQueryKey(userId);
 
   return useMutation({
     mutationFn: async (defaultTranslation: string) =>
       api.post<UpdateTranslationResponse>('/api/user/update-translation', { defaultTranslation }),
-    onSuccess: (_data, defaultTranslation) => {
-      const previousDefault = getCachedProfileData()?.defaultTranslation ?? getEffectiveDefaultTranslation();
+    onMutate: async (defaultTranslation) => {
+      await queryClient.cancelQueries({ queryKey: key });
+
+      const previousProfile = queryClient.getQueryData<UserProfile>(key);
+      const previousVotd = queryClient.getQueryData<VotdToday | null>(votdTodayQueryKey);
+      const previousDefault =
+        previousProfile?.defaultTranslation ??
+        getCachedProfileData()?.defaultTranslation ??
+        getEffectiveDefaultTranslation();
+
+      queryClient.setQueryData<UserProfile | undefined>(key, (prev) =>
+        prev ? { ...prev, defaultTranslation } : prev,
+      );
+
+      if (previousVotd != null) {
+        queryClient.setQueryData<VotdToday | null>(votdTodayQueryKey, {
+          ...previousVotd,
+          translation: defaultTranslation,
+        });
+      }
+
       updateCachedProfile({ defaultTranslation });
       updateCachedProfileData({ defaultTranslation });
-      void queryClient.invalidateQueries({ queryKey: ['profile', userId ?? 'none'] });
+
+      return { previousProfile, previousVotd, previousDefault } satisfies UpdateTranslationContext;
+    },
+    onError: (_err, _defaultTranslation, context) => {
+      if (!context) return;
+      queryClient.setQueryData(key, context.previousProfile);
+      if (context.previousVotd !== undefined) {
+        queryClient.setQueryData(votdTodayQueryKey, context.previousVotd);
+      }
+      updateCachedProfile({ defaultTranslation: context.previousDefault });
+      updateCachedProfileData({ defaultTranslation: context.previousDefault });
+    },
+    onSuccess: (_data, defaultTranslation, context) => {
+      const previousDefault = context?.previousDefault ?? getEffectiveDefaultTranslation();
+      void queryClient.invalidateQueries({ queryKey: key });
+      void queryClient.invalidateQueries({ queryKey: votdTodayQueryKey });
+      void queryClient.invalidateQueries({ queryKey: featuredItemsQueryKey });
       try {
         window.dispatchEvent(
           new CustomEvent('defaultTranslationChanged', {

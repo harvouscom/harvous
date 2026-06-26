@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import Icon from '@/components/react/Icon';
+import { getTranslationAbbreviationDisplay, TRANSLATIONS } from '@/data/translations';
 import { safeRenderHtml } from '@/utils/content-renderer';
 import { fetchVerseHtml, getCachedVerseHtml } from '@/utils/fetch-verse-html';
 import { useProtoOverlayMotion } from '../../hooks/useProtoOverlayMotion';
 import type { VotdToday } from '../../lib/votd-today';
+import '@/styles/scripture-pill-chrome.css';
 
 type Props = {
   votd: VotdToday;
@@ -18,6 +20,9 @@ export default function PrototypeVotdPassageSheet({ votd, open, showsAddFAB, onC
   const { mounted, exiting } = useProtoOverlayMotion(open);
   const [html, setHtml] = useState('');
   const [loadingPassage, setLoadingPassage] = useState(true);
+  const translationLabel = getTranslationAbbreviationDisplay(votd.translation);
+  const translationInfo = TRANSLATIONS[votd.translation];
+  const translationCopyright = translationInfo?.copyright;
 
   useEffect(() => {
     const cached = getCachedVerseHtml(votd.reference, votd.translation);
@@ -85,7 +90,12 @@ export default function PrototypeVotdPassageSheet({ votd, open, showsAddFAB, onC
         <header className="proto-votd-sheet__header">
           <div className="proto-votd-sheet__header-text">
             <p className="proto-caption proto-votd-sheet__eyebrow">Today&apos;s Passage</p>
-            <h2 className="proto-votd-sheet__reference">{votd.reference}</h2>
+            <h2 className="proto-votd-sheet__reference-row scripture-pill-chrome__header-label">
+              <span className="proto-votd-sheet__reference scripture-pill-chrome__title-text">{votd.reference}</span>
+              <span className="scripture-pill-chrome__trans-chip" aria-label={`Translation ${translationLabel}`}>
+                {translationLabel}
+              </span>
+            </h2>
           </div>
           <button
             type="button"
@@ -104,13 +114,42 @@ export default function PrototypeVotdPassageSheet({ votd, open, showsAddFAB, onC
             <p className="proto-caption">Loading passage…</p>
           ) : html ? (
             <div
-              className="proto-votd-sheet__html"
+              className="proto-votd-sheet__html scripture-pill-chrome__passage-html"
               dangerouslySetInnerHTML={{ __html: safeRenderHtml(html) }}
             />
           ) : (
             <p className="proto-caption">Could not load this passage.</p>
           )}
         </div>
+
+        {translationCopyright ? (
+          <>
+            <div className="proto-votd-sheet__divider" aria-hidden />
+            <footer
+              className={[
+                'proto-votd-sheet__attribution',
+                'scripture-pill-chrome__attribution',
+                showsAddFAB ? 'proto-votd-sheet__attribution--fab' : '',
+              ]
+                .filter(Boolean)
+                .join(' ')}
+            >
+              <Icon name="circle-info" size={9} className="scripture-pill-chrome__attribution-icon" aria-hidden />
+              <p className="scripture-pill-chrome__attribution-copyright">{translationCopyright}</p>
+              {translationInfo?.website ? (
+                <a
+                  className="scripture-pill-chrome__attribution-link"
+                  href={translationInfo.website}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  {translationLabel}
+                  <Icon name="arrow-up-right-from-square" size={7} aria-hidden />
+                </a>
+              ) : null}
+            </footer>
+          </>
+        ) : null}
 
         {showsAddFAB ? (
           <button

@@ -74,6 +74,17 @@ export default function DefaultTranslationPanel({
         // Update profile cache
         updateCachedProfileData({ defaultTranslation: selectedTranslation });
         void queryClient.invalidateQueries({ queryKey: ['profile'] });
+        void queryClient.invalidateQueries({ queryKey: ['votd', 'today'] });
+        void queryClient.invalidateQueries({ queryKey: ['featured-items'] });
+        try {
+          window.dispatchEvent(
+            new CustomEvent('defaultTranslationChanged', {
+              detail: { defaultTranslation: selectedTranslation, previousDefault: originalTranslation },
+            }),
+          );
+        } catch {
+          /* ignore */
+        }
 
         // Show success toast
         window.dispatchEvent(

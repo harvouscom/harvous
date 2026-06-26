@@ -159,6 +159,18 @@ html.harvous-prototype-route .proto-shell__study-dock-layer .dock-accent-swatch_
   width: 100%;
 }
 
+/* Format toolbar floats as a layer over the bottom of the editor paper instead of
+   occupying grid row 3 (which would shrink the paper). Taking the bar out of flow
+   collapses the auto row to 0, so the paper (row 2) keeps full height and the bar
+   overlays its bottom edge. Chrome row z-index (1) stays below the sidebar (2), so the
+   bar still passes behind the sidebar card. */
+.proto-shell__editor-chrome-row .proto-editor-bottom-bar[data-mode='format'] {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+}
+
 .proto-shell__editor-chrome-row .proto-editor-bottom-bar__format,
 .proto-shell__editor-chrome-row .proto-editor-bottom-bar__scripture,
 .proto-shell__editor-chrome-row .proto-editor-bottom-bar__highlight,

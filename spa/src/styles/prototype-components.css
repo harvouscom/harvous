@@ -4508,6 +4508,7 @@ button.proto-home-greeting__chip--passage {
 .proto-votd-sheet__header,
 .proto-votd-sheet__divider,
 .proto-votd-sheet__body,
+.proto-votd-sheet__attribution,
 .proto-votd-sheet__fab {
   position: relative;
   z-index: 1;
@@ -4529,10 +4530,17 @@ html.harvous-proto-wallpaper-color .proto-votd-sheet {
 
 .proto-votd-sheet__header-text {
   min-width: 0;
+  flex: 1 1 auto;
 }
 
 .proto-votd-sheet__eyebrow {
   margin: 0 0 2px;
+}
+
+.proto-votd-sheet__reference-row {
+  max-width: 100%;
+  margin: 0;
+  font-weight: inherit;
 }
 
 .proto-votd-sheet__reference {
@@ -4562,7 +4570,23 @@ html.harvous-proto-wallpaper-color .proto-votd-sheet {
 }
 
 .proto-votd-sheet__body--fab {
-  padding-bottom: 72px;
+  padding-bottom: 20px;
+}
+
+/* Pinned translation credit — sheet bottom, scripture dock banner parity. */
+.proto-votd-sheet__attribution {
+  flex-shrink: 0;
+  margin-top: 0;
+  border-radius: 0;
+  border-left: none;
+  border-right: none;
+  border-bottom: none;
+  padding: 8px 20px 12px;
+  background: color-mix(in srgb, var(--pds-text-primary, #1d1d1f) 3%, transparent);
+}
+
+.proto-votd-sheet__attribution--fab {
+  padding-right: 68px;
 }
 
 .proto-votd-sheet__html {
