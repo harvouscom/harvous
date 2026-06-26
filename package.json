@@ -64,7 +64,8 @@
     "skl:import:people": "tsx server/scripts/import-people.ts",
     "skl:import:subjects": "tsx server/scripts/import-subjects.ts",
     "skl:author:subjects": "tsx server/scripts/author-subjects.ts",
-    "skl:seed": "tsx server/scripts/seed-scripture-knowledge.ts"
+    "skl:seed": "tsx server/scripts/seed-scripture-knowledge.ts",
+    "fingerprints:backfill": "tsx server/scripts/backfill-note-fingerprints.ts"
   },
   "dependencies": {
     "@capacitor/android": "^8.1.0",

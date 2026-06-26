@@ -29,6 +29,7 @@ export {
   NoteTags,
   ScriptureMetadata,
   NoteScriptureReferences,
+  NoteFingerprints,
   NoteConnections,
   VerseTextCache,
   BibleTranslations,

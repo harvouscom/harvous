@@ -387,6 +387,36 @@ export const NoteScriptureReferences = pgTable('NoteScriptureReferences', {
   uniqueIndex('NoteScriptureReferences_uniqueNoteScripture').on(table.noteId, table.scriptureNoteId),
 ]);
 
+// ─── NoteFingerprints (per-note semantic profile — memory layer Workstream A) ──
+// One server-derived "passage memory fingerprint" per user note: the assembled themes, people,
+// places, and emotional tone of a note, plus a composite `meaningWeight`. Recomputed in the
+// scripture-processing pipeline on each real save. Kept in a side table (not on Notes) so it
+// never bloats the offline Notes sync payload and stays clearly server-owned. Consumed by
+// forgetting-aware resurfacing (B) and study arcs (C). See docs/future/MEMORY_LAYER_ASSESSMENT.md.
+
+export const NoteFingerprints = pgTable('NoteFingerprints', {
+  noteId: text('noteId').primaryKey(),
+  userId: text('userId').notNull(),
+  /** JSON array of theme labels (string[]), prose tags + passage themes, deduped. */
+  themes: text('themes'),
+  /** JSON array of people names (string[]) from the note's cited passages. */
+  people: text('people'),
+  /** JSON array of place names (string[]) from the note's cited passages. */
+  places: text('places'),
+  /** Distinct passage count (own + linked scripture notes). */
+  passageCount: integer('passageCount').notNull().default(0),
+  /** Dominant emotional tone slug, or null when no clear signal. */
+  emotionalTone: text('emotionalTone'),
+  /** JSON object of tone slug -> match count (string), for transparency. */
+  toneScores: text('toneScores'),
+  /** Composite meaning score in [0,1] — body depth, passages, highlights, tags, deliberate org. */
+  meaningWeight: real('meaningWeight').notNull().default(0),
+  computedAt: ts('computedAt').notNull(),
+}, (table) => [
+  index('NoteFingerprints_userIdIndex').on(table.userId),
+  index('NoteFingerprints_userId_meaningWeightIndex').on(table.userId, table.meaningWeight),
+]);
+
 // ─── NoteConnections (many-to-many note connection graph) ──────────────────────
 // Replaces the single-parent linkedFromNoteId tree with a proper join table.
 // fromNoteId = "context/source" note; toNoteId = "connected" note.

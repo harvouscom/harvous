@@ -47,6 +47,10 @@ export function isSyncDeletedEntitiesTableMissing(error: unknown): boolean {
   return isPgUndefinedRelation(error, 'SyncDeletedEntities');
 }
 
+export function isNoteFingerprintsTableMissing(error: unknown): boolean {
+  return isPgUndefinedRelation(error, 'NoteFingerprints');
+}
+
 /** Postgres undefined_column (42703) — schema not pushed yet. */
 export function isPgUndefinedColumn(error: unknown, columnName: string): boolean {
   const needles = [`column "${columnName}" does not exist`, `column ${columnName} does not exist`];

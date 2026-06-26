@@ -1256,6 +1256,11 @@ async function processScriptureReferencesInternal(
       }
       // Phase 2 (folder): gap-fill an empty primary collection from the dominant cited book.
       await enrichCollectionWithPassages(noteId);
+      // Workstream A (memory layer): recompute this note's passage memory fingerprint
+      // (themes/people/places + emotional tone + meaningWeight). Non-throwing on its own; the
+      // substrate forgetting-aware resurfacing and study arcs read from.
+      const { computeAndStoreNoteFingerprint } = await import('./note-fingerprint');
+      await computeAndStoreNoteFingerprint(noteId, userId);
     } catch (tagErr: unknown) {
       console.error(
         '[processScriptureReferences] Auto-tag parent note failed (non-critical):',
