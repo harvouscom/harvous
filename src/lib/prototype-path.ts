@@ -1,15 +1,11 @@
-/**
- * Production 2.0 shell — prototype routes at `/` (not `/prototype`).
- * At host cutover, change to `app.harvous.com` and sunset Classic routes on that host.
- */
-export const DEDICATED_PROTOTYPE_HOST = 'app.harvous.com';
+const DEDICATED_PROTOTYPE_HOSTS = new Set(['app.harvous.com', 'new.harvous.com']);
 
 export function isDedicatedPrototypeHost(hostname?: string): boolean {
   const h = hostname ?? (typeof window !== 'undefined' ? window.location.hostname : '');
-  return h === DEDICATED_PROTOTYPE_HOST;
+  return DEDICATED_PROTOTYPE_HOSTS.has(h);
 }
 
-/** Site-inspired sign-in/up (custom form) — `new.harvous.com` only; app/localhost use Clerk prebuilt. */
+/** Site-inspired sign-in/up (custom form) on dedicated prototype hosts; localhost uses Clerk prebuilt. */
 export function isSiteInspiredAuthHost(hostname?: string): boolean {
   return isDedicatedPrototypeHost(hostname);
 }

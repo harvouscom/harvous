@@ -17,11 +17,11 @@
   # Plan ID is inlined into SPA bundle by Vite; it's a public plan identifier, not a secret
   SECRETS_SCAN_OMIT_KEYS = "VITE_CLERK_UNLIMITED_PLAN_ID,CLERK_UNLIMITED_PLAN_ID"
 
-# Retire new.harvous.com — permanent redirect all traffic to app.harvous.com.
+# Prototype hosts: strip /prototype prefix from legacy bookmarks.
 [[redirects]]
-  from = "https://new.harvous.com/*"
-  to = "https://app.harvous.com/:splat"
-  status = 301
+  from = "https://new.harvous.com/prototype/*"
+  to = "https://new.harvous.com/:splat"
+  status = 302
   force = true
 
 # Strip /prototype prefix from legacy bookmarks on the dedicated host.
@@ -92,3 +92,8 @@
 # Note: For scheduled functions, configure in Netlify dashboard:
 # Site Settings > Functions > Scheduled Functions
 # Or use an external cron service to call /api/inbox/auto-archive daily
+
+# Branch deploy: staging → new.harvous.com (dev Clerk, production DB).
+# Assign new.harvous.com as branch domain in Netlify dashboard.
+[context.staging]
+  command = "npm ci && node scripts/inject-sw-cache-version.js && npm run build:api && npm run build:spa"
