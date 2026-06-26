@@ -104,7 +104,8 @@
 }
 
 study-dock-carousel__item.study-dock-carousel__item--expanded-slot {
-  margin-left: var(--proto-sidebar-w-clamped);
+  /*margin-left: var(--proto-sidebar-w-clamped);*/
+  padding-left: var(--proto-sidebar-w-clamped) !important;
 }
 
 /* Collapsed cards: equal share when all collapsed; fixed min width when an expanded dock is open. */
