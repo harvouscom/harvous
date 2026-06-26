@@ -5,6 +5,14 @@ import { useNavigate } from '@tanstack/react-router';
 import { getColorSchemeSnapshot, subscribeColorScheme } from '../../lib/prototype-background';
 import { postAuthRedirectPath } from '../../utils/post-auth-redirect';
 
+function missingIncludesName(missing: string[], part: 'first' | 'last'): boolean {
+  const keys =
+    part === 'first'
+      ? ['first_name', 'firstName']
+      : ['last_name', 'lastName'];
+  return missing.some((field) => keys.includes(field));
+}
+
 function incompleteSignUpMessage(signUp: SignUpResource, status: string): string {
   if (import.meta.env.DEV) {
     console.warn('[HarvousAuthForm] sign-up incomplete', {
@@ -18,12 +26,27 @@ function incompleteSignUpMessage(signUp: SignUpResource, status: string): string
     if (missing.some((field) => field === 'captcha' || field === 'bot_detection')) {
       return 'Complete the verification check above, then try again.';
     }
+    if (missingIncludesName(missing, 'first') || missingIncludesName(missing, 'last')) {
+      return 'Enter your first and last name, then try again.';
+    }
     if (missing.length > 0) {
       return 'Additional information is required to finish sign-up. Please go back and try again.';
     }
     return 'Complete any verification checks on the previous step, then try again.';
   }
   return 'Could not complete sign-up. Please try again.';
+}
+
+async function applyMissingSignUpProfile(
+  signUp: SignUpResource,
+  profile: { firstName: string; lastName: string }
+): Promise<SignUpResource> {
+  const missing = signUp.missingFields ?? [];
+  const patch: { firstName?: string; lastName?: string } = {};
+  if (missingIncludesName(missing, 'first')) patch.firstName = profile.firstName;
+  if (missingIncludesName(missing, 'last')) patch.lastName = profile.lastName;
+  if (Object.keys(patch).length === 0) return signUp;
+  return signUp.update(patch);
 }
 
 /**
@@ -33,9 +56,10 @@ function incompleteSignUpMessage(signUp: SignUpResource, status: string): string
  * Replaces Clerk's prebuilt `<SignIn>` / `<SignUp>` components so no Clerk
  * card chrome, dev-mode striped banner, or built-in CTAs leak SPA styling.
  *
- * Two steps:
- *   1. Enter email → Clerk sends a 6-digit one-time code.
+ * Sign-up steps:
+ *   1. Enter name + email → Clerk sends a 6-digit one-time code.
  *   2. Enter code → activate the new session, redirect.
+ * Sign-in steps: email → code.
  */
 export default function HarvousAuthForm({
   mode,
@@ -51,6 +75,8 @@ export default function HarvousAuthForm({
   type Step = 'enterEmail' | 'enterCode';
   const [step, setStep] = useState<Step>('enterEmail');
   const [email, setEmail] = useState('');
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
   const [code, setCode] = useState('');
   const [isBusy, setIsBusy] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -70,6 +96,12 @@ export default function HarvousAuthForm({
   };
   const ready =
     mode === 'signIn' ? signInLoaded && !!signIn : signUpLoaded && !!signUp;
+  const signUpProfileReady =
+    firstName.trim().length > 0 && lastName.trim().length > 0;
+  const canBeginEmailFlow =
+    mode === 'signIn'
+      ? isValidEmail(email)
+      : isValidEmail(email) && signUpProfileReady;
 
   function friendlyError(err: any): string {
     const m: string =
@@ -88,11 +120,13 @@ export default function HarvousAuthForm({
 
   async function beginEmailFlow(e: React.FormEvent) {
     e.preventDefault();
-    if (!ready || !isValidEmail(email)) return;
+    if (!ready || !canBeginEmailFlow) return;
     setIsBusy(true);
     setErrorMessage(null);
     try {
       const trimmed = email.trim();
+      const trimmedFirstName = firstName.trim();
+      const trimmedLastName = lastName.trim();
       if (mode === 'signIn' && signIn) {
         const attempt = await signIn.create({ identifier: trimmed });
         const factor = attempt.supportedFirstFactors?.find(
@@ -106,7 +140,11 @@ export default function HarvousAuthForm({
           emailAddressId: factor.emailAddressId,
         });
       } else if (mode === 'signUp' && signUp) {
-        await signUp.create({ emailAddress: trimmed });
+        await signUp.create({
+          emailAddress: trimmed,
+          firstName: trimmedFirstName,
+          lastName: trimmedLastName,
+        });
         await signUp.prepareEmailAddressVerification({ strategy: 'email_code' });
       }
       setStep('enterCode');
@@ -136,12 +174,18 @@ export default function HarvousAuthForm({
           setErrorMessage('Could not complete log-in. Please try again.');
         }
       } else if (mode === 'signUp' && signUp) {
-        const result = await signUp.attemptEmailAddressVerification({ code: trimmed });
+        let result = await signUp.attemptEmailAddressVerification({ code: trimmed });
+        if (result.status === 'missing_requirements') {
+          result = await applyMissingSignUpProfile(result, {
+            firstName: firstName.trim(),
+            lastName: lastName.trim(),
+          });
+        }
         if (result.status === 'complete' && result.createdSessionId) {
           await setSignUpActive({ session: result.createdSessionId });
           redirectAfterAuth();
         } else {
-          setErrorMessage(incompleteSignUpMessage(signUp, result.status));
+          setErrorMessage(incompleteSignUpMessage(result, result.status));
         }
       }
     } catch (err: any) {
@@ -161,11 +205,34 @@ export default function HarvousAuthForm({
     <div className="harvous-auth-form">
       {step === 'enterEmail' ? (
         <form onSubmit={beginEmailFlow} className="harvous-auth-form__inner">
+          {mode === 'signUp' ? (
+            <div className="harvous-auth-form__name-row">
+              <input
+                type="text"
+                autoComplete="given-name"
+                autoFocus
+                placeholder="First name"
+                className="harvous-auth-form__input"
+                value={firstName}
+                onChange={(e) => setFirstName(e.target.value)}
+                aria-label="First name"
+              />
+              <input
+                type="text"
+                autoComplete="family-name"
+                placeholder="Last name"
+                className="harvous-auth-form__input"
+                value={lastName}
+                onChange={(e) => setLastName(e.target.value)}
+                aria-label="Last name"
+              />
+            </div>
+          ) : null}
           <input
             type="email"
             inputMode="email"
             autoComplete="email"
-            autoFocus
+            autoFocus={mode === 'signIn'}
             placeholder="Enter your email"
             className="harvous-auth-form__input"
             value={email}
@@ -183,7 +250,7 @@ export default function HarvousAuthForm({
           <button
             type="submit"
             className="harvous-auth-form__primary"
-            disabled={isBusy || !ready || !isValidEmail(email)}
+            disabled={isBusy || !ready || !canBeginEmailFlow}
           >
             {isBusy ? (
               <span className="harvous-auth-form__spinner" aria-hidden />

@@ -352,6 +352,12 @@
   display: none;
 }
 
+.harvous-auth-form__name-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
 .harvous-auth-form__input {
   appearance: none;
   -webkit-appearance: none;
