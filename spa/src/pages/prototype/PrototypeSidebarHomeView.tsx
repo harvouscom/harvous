@@ -67,6 +67,7 @@ import { loadPinnedHighlightIds } from './proto-pinned-stores';
 import { stabilityById, recordRecallEngaged } from './proto-recall-stability';
 import { useNoteFingerprints } from '../../hooks/queries/useNoteFingerprints';
 import PrototypeDailyPassagePill from './PrototypeDailyPassagePill';
+import PrototypeFounderLetterPill from './PrototypeFounderLetterPill';
 import { PROTOTYPE_DRAFT_NOTE_SLUG } from './proto-route-slugs';
 import { useProtoShell } from '../../layouts/proto-shell-context';
 import { HOME_INTRO_LIST_MODES, type SidebarListModeEntry } from './proto-sidebar-list-modes';
@@ -245,9 +246,9 @@ function HomeGreeting({
       <>
         <p className="proto-home-greeting">
           <span className="proto-home-greeting__hello">{hello}</span>{' '}
-          Welcome to Harvous, your notebook for Bible study. Write {introListChip('notes')} beside a
-          verse in {introListChip('scripture')}, follow Today&apos;s Passage, and gather{' '}
-          {introListChip('highlights')} and {introListChip('threads')} as your library grows.
+          Welcome to Harvous. Write {introListChip('notes')} beside a verse in{' '}
+          {introListChip('scripture')}, follow Today&apos;s Passage, and create{' '}
+          {introListChip('highlights')} and {introListChip('threads')}.
         </p>
         {seasonLine}
       </>
@@ -649,6 +650,10 @@ export default function PrototypeSidebarHomeView({
           lead={lead}
           onOpenScriptureBook={onOpenScriptureBook}
         />
+      </div>
+
+      <div className="proto-home-section">
+        <PrototypeFounderLetterPill />
       </div>
 
       {votd ? (
