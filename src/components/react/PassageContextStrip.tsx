@@ -122,7 +122,7 @@ export default function PassageContextStrip({
 }: PassageContextStripProps) {
   const [ctx, setCtx] = useState<PassageContext | null>(null);
   const [loading, setLoading] = useState(false);
-  const firedReadyRef = useRef(false);
+  const prevCrossRefsVisibleRef = useRef(false);
 
   useEffect(() => {
     if (!active || !reference) {
@@ -172,12 +172,16 @@ export default function PassageContextStrip({
   const hasCrossRefs = !!ctx && showCrossRefs && ctx.crossReferences.length > 0;
   const hasNotes = !!ctx && ctx.relatedNotes.length > 0;
 
+  // Fire on every false→true transition of cross-refs visibility, not just once:
+  // the strip stays mounted across toggles (only the section inside shows/hides), so a
+  // fire-once flag would only scroll the first time. Async first load (ctx arrives after
+  // the toggle) and cached repeats both surface as this transition.
   useEffect(() => {
-    if (!firedReadyRef.current && (hasCrossRefs || hasNotes)) {
-      firedReadyRef.current = true;
+    if (hasCrossRefs && !prevCrossRefsVisibleRef.current) {
       onContentReady?.();
     }
-  }, [hasCrossRefs, hasNotes, onContentReady]);
+    prevCrossRefsVisibleRef.current = hasCrossRefs;
+  }, [hasCrossRefs, onContentReady]);
 
   if (!active) return null;
   if (loading && !ctx) return null;

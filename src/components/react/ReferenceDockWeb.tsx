@@ -147,7 +147,7 @@ export default function ReferenceDockWeb({
   useEffect(() => {
     if (showScriptureRefs && !prevShowScriptureRefs.current) {
       requestAnimationFrame(() => {
-        scriptureRefsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        scriptureRefsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
       });
     }
     prevShowScriptureRefs.current = showScriptureRefs;

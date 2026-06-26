@@ -601,7 +601,7 @@ export default function ScripturePillChromeWeb({
   const handleContextStripReady = useCallback(() => {
     requestAnimationFrame(() => {
       const strip = passageScrollRef.current?.querySelector('.passage-context-strip');
-      if (strip) strip.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      if (strip) strip.scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
   }, []);
 
