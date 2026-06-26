@@ -217,7 +217,6 @@ export function serializeNoteToPortable(
       if (h.linkedNoteTitle) row.linkedNoteTitle = h.linkedNoteTitle;
       return row;
     });
-    fm.highlightsJSON = JSON.stringify(fm.highlights);
   }
 
   let body = htmlToPortableBody(htmlContent);
@@ -356,8 +355,23 @@ export function parsePortableMarkdownExport(content: string): PortableNoteDocume
   const trimmed = content.trim();
   if (!trimmed) return docs;
 
-  const parts = trimmed.split(/\n\n(?=---\n)/);
-  for (const part of parts) {
+  // Candidate boundaries are blank-line-separated `---` lines, but a `---` horizontal rule inside
+  // a note body matches too. A real boundary must parse as a frontmatter block (open + close →
+  // object); anything else is a body fragment, so fold it back onto the previous note instead of
+  // dropping it (which would silently lose content).
+  const rawParts = trimmed.split(/\n\n(?=---\r?\n)/);
+  const merged: string[] = [];
+  for (const part of rawParts) {
+    if (parseFrontmatterBlock(part) != null) {
+      merged.push(part);
+    } else if (merged.length > 0) {
+      merged[merged.length - 1] += `\n\n${part}`;
+    } else {
+      merged.push(part);
+    }
+  }
+
+  for (const part of merged) {
     const doc = parsePortableMarkdownDocument(part.trim());
     if (doc) docs.push(doc);
   }

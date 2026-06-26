@@ -16,6 +16,7 @@ import {
   inArray,
 } from '../db';
 import { htmlToPlainText } from '../../src/utils/html-to-markdown';
+import { dedupeById } from './import-dedupe';
 import { parseNoteSecondaryCollections } from './note-secondary-collections';
 import {
   serializeNoteToPortable,
@@ -38,7 +39,7 @@ export async function generateUserExport(
   userId: string,
   format: ExportFormat
 ): Promise<{ content: string; fileExtension: string }> {
-  const allNotes = await db
+  const allNotes = dedupeById(await db
     .select({
       id: Notes.id,
       title: Notes.title,
@@ -53,7 +54,7 @@ export async function generateUserExport(
     })
     .from(Notes)
     .where(eq(Notes.userId, userId))
-    .orderBy(desc(Notes.createdAt));
+    .orderBy(desc(Notes.createdAt)));
 
   const noteTagsMap = new Map<string, Array<{ name: string; category?: string }>>();
   if (allNotes.length > 0) {
@@ -206,7 +207,7 @@ function safePathSegment(name: string): string {
 export async function generateUserBackupZip(
   userId: string,
 ): Promise<{ content: ArrayBuffer; fileExtension: string }> {
-  const allNotes = await db
+  const allNotes = dedupeById(await db
     .select({
       id: Notes.id,
       title: Notes.title,
@@ -221,7 +222,7 @@ export async function generateUserBackupZip(
     })
     .from(Notes)
     .where(eq(Notes.userId, userId))
-    .orderBy(desc(Notes.createdAt));
+    .orderBy(desc(Notes.createdAt)));
 
   const noteTagsMap = new Map<string, string[]>();
   if (allNotes.length > 0) {

@@ -60,10 +60,16 @@ function setupDom() {
     </div>
     <div class="proto-shell__study-dock-layer">
       <div class="study-dock-card__body" data-collapsed="false">
-        <p class="excerpt">Lean not on your own understanding but trust him.</p>
+        <button class="study-dock-card__header-btn">Trust toggle label</button>
+        <div class="scripture-pill-chrome__passage-html">
+          <p>Lean not on your own understanding but trust him.</p>
+        </div>
+        <p class="scripture-pill-chrome__attribution-subtle">Scripture quotations from the Trust Standard Version, copyright holder.</p>
       </div>
       <div class="study-dock-card__body" data-collapsed="true">
-        <p class="excerpt">This collapsed card also says trust but is hidden.</p>
+        <div class="scripture-pill-chrome__passage-html">
+          <p>This collapsed card also says trust but is hidden.</p>
+        </div>
       </div>
     </div>
   `;
@@ -79,11 +85,20 @@ describe('runProtoFind', () => {
 
   it('counts matches across editor body, scripture pills, and visible dock content', () => {
     setupDom();
-    // "trust": editor body "Trust", pill-adjacent "trust", visible dock "trust"
-    // (collapsed dock match excluded). Case-insensitive.
+    // "trust": editor body "Trust", pill-adjacent "trust", visible dock passage "trust".
+    // Excluded: the collapsed card, the button label, and the attribution credit —
+    // all of which also contain "Trust". Case-insensitive.
     const res = runProtoFind('trust', 0);
     expect(res.count).toBe(3);
     expect(res.index).toBe(0);
+  });
+
+  it('ignores dock credit/fine-print and UI-label text', () => {
+    setupDom();
+    // "copyright" lives only in the attribution credit line.
+    expect(runProtoFind('copyright', 0).count).toBe(0);
+    // "toggle label" lives only in a dock button.
+    expect(runProtoFind('toggle label', 0).count).toBe(0);
   });
 
   it('highlights a match whose text lives inside a scripture pill', () => {

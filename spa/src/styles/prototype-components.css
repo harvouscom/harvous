@@ -87,7 +87,8 @@
     var(--pds-glass-panel-frost),
     linear-gradient(
       to bottom,
-      transparent calc(100% - 160px),
+      transparent 30%,
+      color-mix(in oklch, var(--pds-canvas-bg, var(--pds-canvas-default)) 55%, transparent) 72%,
       var(--pds-canvas-bg, var(--pds-canvas-default)) 100%
     );
 }
@@ -544,7 +545,7 @@ html[data-shift-hints='1'] .proto-toolbar-orb-group {
   line-height: 0;
   /* The photo fills the orb edge-to-edge, so the icon-only control border would
      read as an unwanted thin ring around the avatar — drop it for the photo variant. */
-  border-color: transparent;
+  border: none;
 }
 
 .proto-toolbar-icon-btn--profile-photo .proto-profile-orb__photo {

@@ -671,6 +671,15 @@ export default function CardFullEditable({
         if (isEffectivelyEmptyPrototypeNote(currentTitle, currentContent)) {
           return;
         }
+        // Only persist on unmount when the user actually edited THIS note. Leaving a note remounts the
+        // editor (keyed by noteId), so without this guard a pure view bumps updatedAt: the editor's
+        // hydrate-time pill/translation normalization makes the live HTML differ cosmetically from the
+        // stored copy, and that diff would PUT on leave and re-stamp updatedAt (reordering the lists).
+        // A genuine edit sets userEditedSinceOpenRef, so trailing edits made just before navigating
+        // away are still flushed here.
+        if (!userEditedSinceOpenRef.current) {
+          return;
+        }
         const draft = departingNoteId ? getNoteDraft(departingNoteId) : null;
         if (
           shouldSkipPrototypeUnloadSave({
@@ -2238,12 +2247,14 @@ export default function CardFullEditable({
         return;
       }
 
+      // A pure view (no genuine edit) must never write on tab close/hide — mirror the unmount guard so
+      // closing the tab while only reading a note can't bump updatedAt via normalization drift.
+      if (!userEditedSinceOpenRef.current) return;
+
       // Synchronous local backstop first — localStorage survives unload even when
       // the keepalive PUT below is dropped, and it's the *only* recovery path for
       // a brand-new (note_draft) note, which has no server id to PUT against.
-      if (userEditedSinceOpenRef.current) {
-        saveNoteDraft(departingNoteId, { title: currentTitle, content: currentContent });
-      }
+      saveNoteDraft(departingNoteId, { title: currentTitle, content: currentContent });
 
       const chromeForSave = applyIdleFolderAutoAssign(
         collectionChromeRef.current,

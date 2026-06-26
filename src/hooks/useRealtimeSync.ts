@@ -93,6 +93,18 @@ async function applyInvalidation(
     return;
   }
 
+  if (type === 'userMetadata:updated') {
+    if (isPrototypeShellRoute()) {
+      const { fetchAndHydrateAppearanceFromProfile } = await import(
+        '../../spa/src/lib/prototype-background'
+      );
+      void fetchAndHydrateAppearanceFromProfile();
+    } else {
+      try { await syncNow(userId); } catch { /* non-fatal */ }
+    }
+    return;
+  }
+
   if (type === 'sync:batch') {
     if (isPrototypeShellRoute()) {
       const { refreshPrototypeLists } = await import('../../spa/src/lib/refresh-client-data');

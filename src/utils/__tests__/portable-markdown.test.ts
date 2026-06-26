@@ -97,6 +97,58 @@ describe('portable-markdown', () => {
     expect(docs[1].meta.title).toBe('Two');
   });
 
+  it('keeps a note whose body contains a "---" horizontal rule as a single document', () => {
+    // A `---` HR inside the body looks like a note boundary to the splitter; the fold-back logic
+    // must reattach the tail rather than drop it.
+    const a = [
+      '---',
+      'id: hr1',
+      'title: Has rule',
+      '---',
+      '',
+      '# Has rule',
+      '',
+      'Before the rule.',
+      '',
+      '---',
+      '',
+      'After the rule.',
+    ].join('\n');
+    const b = serializeNoteToPortable({ id: 'hr2', title: 'Next' }, '<p>Beta</p>', []).trim();
+    const docs = parsePortableMarkdownExport(`${a}\n\n${b}`);
+    expect(docs).toHaveLength(2);
+    expect(docs[0].meta.id).toBe('hr1');
+    expect(docs[0].body).toContain('Before the rule.');
+    expect(docs[0].body).toContain('After the rule.');
+    expect(docs[1].meta.id).toBe('hr2');
+  });
+
+  it('no longer writes highlightsJSON but highlights still round-trip', () => {
+    const md = serializeNoteToPortable({ id: 'h_note', title: 'H' }, '<p>Body of grace.</p>', sampleHighlights);
+    expect(md).not.toContain('highlightsJSON');
+    const doc = parsePortableMarkdownDocument(md)!;
+    expect(doc.highlights).toHaveLength(1);
+    expect(doc.highlights[0].annotation).toBe('The hinge of the gospel.');
+  });
+
+  it('still reads legacy highlightsJSON when YAML highlights are absent (backward compat)', () => {
+    const md = [
+      '---',
+      'id: legacy_h',
+      'title: Legacy highlights',
+      `highlightsJSON: '${JSON.stringify([{ kind: 'miniNote', accent: 'warmAmber', anchorText: 'grace', annotation: 'Old.' }])}'`,
+      '---',
+      '',
+      '# Legacy highlights',
+      '',
+      'Body about grace.',
+    ].join('\n');
+    const doc = parsePortableMarkdownDocument(md)!;
+    expect(doc.highlights).toHaveLength(1);
+    expect(doc.highlights[0].anchorText).toBe('grace');
+    expect(doc.highlights[0].annotation).toBe('Old.');
+  });
+
   it('applyHighlightMarksToMarkdownBody wraps ==text==', () => {
     const html = applyHighlightMarksToMarkdownBody(
       'Say ==hello== there',

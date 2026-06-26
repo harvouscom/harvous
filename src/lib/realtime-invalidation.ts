@@ -9,6 +9,7 @@ export type RealtimeInvalidationType =
   | 'thread:updated'
   | 'thread:deleted'
   | 'space:updated'
+  | 'userMetadata:updated'
   | 'sync:batch';
 
 /**
@@ -51,6 +52,7 @@ export function isRealtimeInvalidationPayload(value: unknown): value is Realtime
     t === 'thread:updated' ||
     t === 'thread:deleted' ||
     t === 'space:updated' ||
+    t === 'userMetadata:updated' ||
     t === 'sync:batch'
   );
 }

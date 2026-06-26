@@ -18,8 +18,32 @@ import { findTextWithFlexibleMatching } from '@/utils/scripture-pill-position';
 const MATCH_HIGHLIGHT = 'proto-find-match';
 const ACTIVE_HIGHLIGHT = 'proto-find-active';
 
-// Search roots in visual/document order: editor first, then the dock layer below it.
-const SEARCH_ROOT_SELECTORS = ['.proto-editor-surface .ProseMirror', '.proto-shell__study-dock-layer'];
+interface SearchScope {
+  /** The container to search. */
+  rootSelector: string;
+  /**
+   * When set, only text inside descendants matching these selectors is searched.
+   * Used for the dock so credit/fine-print and UI labels (attribution, copyright,
+   * status messages, headers, buttons, "Respond"/"See also", chips) are ignored
+   * — only the actual study content is matched.
+   */
+  contentSelectors?: string[];
+}
+
+// Search scopes in visual/document order: the note editor first, then the dock
+// layer below it. The editor searches all of its text; the dock is restricted to
+// its content bodies.
+const SEARCH_SCOPES: SearchScope[] = [
+  { rootSelector: '.proto-editor-surface .ProseMirror' },
+  {
+    rootSelector: '.proto-shell__study-dock-layer',
+    contentSelectors: [
+      '.scripture-pill-chrome__passage-html', // scripture passage text
+      '.reference-dock-web__passage-html', // reference definition body
+      '.highlight-dock-web__excerpt-text', // highlight excerpt
+    ],
+  },
+];
 
 interface TextSpan {
   node: Text;
@@ -39,6 +63,16 @@ function isTextNodeVisible(node: Text): boolean {
   range.selectNodeContents(node);
   const rect = range.getBoundingClientRect();
   return rect.width > 0 && rect.height > 0;
+}
+
+/** Resolve the element(s) to walk for a scope (the root, or its content subtrees). */
+function scopeElements(scope: SearchScope): Element[] {
+  const root = document.querySelector(scope.rootSelector);
+  if (!root) return [];
+  if (!scope.contentSelectors?.length) return [root];
+  const matched = Array.from(root.querySelectorAll(scope.contentSelectors.join(',')));
+  // Drop any element nested inside another matched element to avoid double-walking.
+  return matched.filter((el) => !matched.some((other) => other !== el && other.contains(el)));
 }
 
 /** Collect visible text nodes under a root into a flat string + offset map. */
@@ -111,13 +145,13 @@ export function runProtoFind(query: string, activeIndex: number): { count: numbe
   let combinedText = '';
   const spans: TextSpan[] = [];
   let offset = 0;
-  for (const selector of SEARCH_ROOT_SELECTORS) {
-    const root = document.querySelector(selector);
-    if (!root) continue;
-    const collected = collectSpans(root, offset);
-    combinedText += collected.text;
-    spans.push(...collected.spans);
-    offset = collected.nextOffset;
+  for (const scope of SEARCH_SCOPES) {
+    for (const el of scopeElements(scope)) {
+      const collected = collectSpans(el, offset);
+      combinedText += collected.text;
+      spans.push(...collected.spans);
+      offset = collected.nextOffset;
+    }
   }
 
   if (!combinedText) return { count: 0, index: 0 };

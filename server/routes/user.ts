@@ -54,7 +54,7 @@ import { handleAPIError } from '@/utils/error-handling';
 import { rateLimit, tryConsumeNoteCreates, getClientIP } from '@/utils/rate-limit';
 import { validateName, validateColor } from '@/utils/validation';
 import { hashPinNew, validatePinFormat, verifyPin } from '@/utils/lock-pin-server';
-import { htmlToMarkdown, htmlToPlainText } from '@/utils/html-to-markdown';
+import { matchDuplicateNoteId } from '../utils/import-dedupe';
 import { generateUserExport, generateUserBackupZip, type ExportFormat } from '../utils/export-user-data';
 import { generateNoteId, generateThreadId, generateStudyThreadEntryId } from '@/utils/ids';
 import { THREAD_COLORS } from '@/utils/colors';
@@ -64,6 +64,7 @@ import type { ParsedCSVNote } from '@/utils/csv-parser';
 import { markdownToHtml } from '@/utils/markdown-to-html';
 import { parseScriptureReference } from '@/utils/scripture-detector';
 import { ensureUnorganizedThread } from '../utils/unorganized-thread';
+import { broadcastInvalidation } from '../utils/realtime';
 import { isMyPileDisplayTitle } from '@/utils/my-pile-thread';
 import { deleteNotesCascadeForUser } from '../utils/delete-note-cascade';
 import { getOrCreateTag } from '../utils/tag-helpers';
@@ -611,6 +612,8 @@ app.post('/api/user/update-appearance', requireAuth, rateLimit('write'), async (
       .set({ appearanceSettings, updatedAt: nowISO() })
       .where(eq(UserMetadata.userId, auth.userId));
 
+    broadcastInvalidation(auth.userId, { type: 'userMetadata:updated' });
+
     return c.json({ success: true, appearanceSettings });
   } catch (error) {
     const e = handleAPIError(error, { endpoint: '/api/user/update-appearance', action: 'update_appearance' });
@@ -925,7 +928,26 @@ app.post('/api/user/import', requireAuth, async (c) => {
         const capitalizedContent = content.charAt(0).toUpperCase() + content.slice(1);
         const capitalizedTitle = title ? (title.charAt(0).toUpperCase() + title.slice(1)) : null;
 
-        if (await isDuplicateNote(auth.userId, capitalizedTitle, capitalizedContent)) { duplicatesSkipped++; continue; }
+        // Idempotent re-import: a backup carries the original note id (sourceId). If that note
+        // already exists for this user, skip it (don't clobber edits) and map the id so any
+        // connections to/from it still restore. Cross-account imports won't match — the id won't
+        // exist under this user — so the note inserts fresh below.
+        if (sourceId) {
+          const existingById = first(
+            await db.select({ id: Notes.id }).from(Notes)
+              .where(and(eq(Notes.id, sourceId), eq(Notes.userId, auth.userId))).limit(1),
+          );
+          if (existingById) { sourceIdToNewId.set(sourceId, existingById.id); duplicatesSkipped++; continue; }
+        }
+
+        // Fall back to content-based dedup. Map the source id to the matched note so connections
+        // survive even when the row was created without a preserved id.
+        const dupId = await findDuplicateNoteId(auth.userId, capitalizedTitle, capitalizedContent);
+        if (dupId) {
+          if (sourceId) sourceIdToNewId.set(sourceId, dupId);
+          duplicatesSkipped++;
+          continue;
+        }
 
         const slot = tryConsumeNoteCreates(auth.userId, getClientIP(c.req.raw), 1);
         if (!slot.allowed) {
@@ -1197,19 +1219,11 @@ async function getOrCreateThread(userId: string, threadTitle: string, threadColo
   return newThread.id;
 }
 
-async function isDuplicateNote(userId: string, title: string | null, content: string): Promise<boolean> {
-  const normalizedContent = htmlToPlainText(content).toLowerCase().replace(/\s+/g, ' ').trim();
-  const normalizedTitle = (title || '').toLowerCase().trim();
-
+/** Returns the id of an existing note with matching normalized title + plaintext content, else null. */
+async function findDuplicateNoteId(userId: string, title: string | null, content: string): Promise<string | null> {
   const existingNotes = await db.select({ id: Notes.id, title: Notes.title, content: Notes.content })
     .from(Notes).where(eq(Notes.userId, userId));
-
-  for (const note of existingNotes) {
-    const et = (note.title || '').toLowerCase().trim();
-    const ec = htmlToPlainText(note.content || '').toLowerCase().replace(/\s+/g, ' ').trim();
-    if (et === normalizedTitle && ec === normalizedContent) return true;
-  }
-  return false;
+  return matchDuplicateNoteId(existingNotes, title, content);
 }
 
 export default app;

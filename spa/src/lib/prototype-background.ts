@@ -611,14 +611,30 @@ function handleAppearanceAccountSync(raw: string | null): void {
 
 let appearanceAccountSyncInit = false;
 
+/**
+ * Fetch `appearanceSettings` from the profile endpoint and hydrate/seed.
+ * Used both on init and when a `userMetadata:updated` realtime event arrives.
+ */
+export async function fetchAndHydrateAppearanceFromProfile(): Promise<void> {
+  try {
+    const profile = await api.get<{ appearanceSettings?: string | null }>('/api/user/get-profile');
+    handleAppearanceAccountSync(profile.appearanceSettings ?? null);
+  } catch {
+    /* offline or not signed in — local cache is fine */
+  }
+}
+
 /** Wire account → device appearance sync. Idempotent; call once on prototype mount. */
 export function initAppearanceAccountSync(): void {
   if (appearanceAccountSyncInit || typeof window === 'undefined') return;
   appearanceAccountSyncInit = true;
+  // Listen for events from the IndexedDB sync path (non-prototype routes).
   window.addEventListener(HARVOUS_APPEARANCE_ACCOUNT_SYNC, (e) => {
     const detail = (e as CustomEvent<AppearanceAccountSyncDetail>).detail;
     handleAppearanceAccountSync(detail?.appearanceSettings ?? null);
   });
   window.addEventListener('online', () => { void flushPendingAppearance(); });
   void flushPendingAppearance(); // flush an edit left pending from a previous session
+  // The prototype shell skips IndexedDB bootstrap, so fetch the account value directly.
+  void fetchAndHydrateAppearanceFromProfile();
 }

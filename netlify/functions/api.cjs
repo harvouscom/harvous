@@ -163482,6 +163482,34 @@ function htmlToPlainText(html) {
   }
 }
 
+// server/utils/import-dedupe.ts
+function normalizeContent(content) {
+  return htmlToPlainText(content || "").toLowerCase().replace(/\s+/g, " ").trim();
+}
+function normalizeTitle(title) {
+  return (title || "").toLowerCase().trim();
+}
+function noteDedupeKey(title, content) {
+  return `${normalizeTitle(title)}\0${normalizeContent(content)}`;
+}
+function matchDuplicateNoteId(existing, title, content) {
+  const key2 = noteDedupeKey(title, content);
+  for (const note of existing) {
+    if (noteDedupeKey(note.title, note.content) === key2) return note.id;
+  }
+  return null;
+}
+function dedupeById(rows) {
+  const seen = /* @__PURE__ */ new Set();
+  const out = [];
+  for (const row of rows) {
+    if (seen.has(row.id)) continue;
+    seen.add(row.id);
+    out.push(row);
+  }
+  return out;
+}
+
 // server/utils/export-user-data.ts
 var import_jszip = __toESM(require_lib14(), 1);
 init_db2();
@@ -166250,7 +166278,6 @@ function serializeNoteToPortable(meta, htmlContent, highlights) {
       if (h.linkedNoteTitle) row.linkedNoteTitle = h.linkedNoteTitle;
       return row;
     });
-    fm.highlightsJSON = JSON.stringify(fm.highlights);
   }
   let body = htmlToPortableBody(htmlContent);
   body = ensureInlineHighlights(body, highlights);
@@ -166367,8 +166394,20 @@ function parsePortableMarkdownExport(content) {
   const docs = [];
   const trimmed = content.trim();
   if (!trimmed) return docs;
-  const parts = trimmed.split(/\n\n(?=---\n)/);
-  for (const part of parts) {
+  const rawParts = trimmed.split(/\n\n(?=---\r?\n)/);
+  const merged = [];
+  for (const part of rawParts) {
+    if (parseFrontmatterBlock(part) != null) {
+      merged.push(part);
+    } else if (merged.length > 0) {
+      merged[merged.length - 1] += `
+
+${part}`;
+    } else {
+      merged.push(part);
+    }
+  }
+  for (const part of merged) {
     const doc = parsePortableMarkdownDocument(part.trim());
     if (doc) docs.push(doc);
   }
@@ -166503,7 +166542,7 @@ function isoOrNull(value) {
   return value instanceof Date ? value.toISOString() : String(value);
 }
 async function generateUserExport(userId, format) {
-  const allNotes = await db.select({
+  const allNotes = dedupeById(await db.select({
     id: Notes.id,
     title: Notes.title,
     content: Notes.content,
@@ -166514,7 +166553,7 @@ async function generateUserExport(userId, format) {
     noteType: Notes.noteType,
     createdAt: Notes.createdAt,
     updatedAt: Notes.updatedAt
-  }).from(Notes).where(eq(Notes.userId, userId)).orderBy(desc(Notes.createdAt));
+  }).from(Notes).where(eq(Notes.userId, userId)).orderBy(desc(Notes.createdAt)));
   const noteTagsMap = /* @__PURE__ */ new Map();
   if (allNotes.length > 0) {
     const allNoteTags = await db.select({
@@ -166629,7 +166668,7 @@ function safePathSegment(name) {
   return (name || "").replace(/[/\\:*?"<>|]/g, "-").replace(/\s+/g, " ").trim().slice(0, 120) || "Untitled";
 }
 async function generateUserBackupZip(userId) {
-  const allNotes = await db.select({
+  const allNotes = dedupeById(await db.select({
     id: Notes.id,
     title: Notes.title,
     content: Notes.content,
@@ -166640,7 +166679,7 @@ async function generateUserBackupZip(userId) {
     noteType: Notes.noteType,
     createdAt: Notes.createdAt,
     updatedAt: Notes.updatedAt
-  }).from(Notes).where(eq(Notes.userId, userId)).orderBy(desc(Notes.createdAt));
+  }).from(Notes).where(eq(Notes.userId, userId)).orderBy(desc(Notes.createdAt)));
   const noteTagsMap = /* @__PURE__ */ new Map();
   if (allNotes.length > 0) {
     const allNoteTags = await db.select({ noteId: NoteTags.noteId, tagName: Tags.name }).from(NoteTags).innerJoin(Tags, eq(NoteTags.tagId, Tags.id)).where(eq(Tags.userId, userId));
@@ -171811,6 +171850,7 @@ app.post("/api/user/update-appearance", requireAuth, rateLimit("write"), async (
       bgDark: bgDark ?? null
     });
     await db.update(UserMetadata).set({ appearanceSettings, updatedAt: nowISO() }).where(eq(UserMetadata.userId, auth.userId));
+    broadcastInvalidation(auth.userId, { type: "userMetadata:updated" });
     return c.json({ success: true, appearanceSettings });
   } catch (error) {
     const e = handleAPIError(error, { endpoint: "/api/user/update-appearance", action: "update_appearance" });
@@ -172048,7 +172088,19 @@ app.post("/api/user/import", requireAuth, async (c) => {
         }
         const capitalizedContent = content.charAt(0).toUpperCase() + content.slice(1);
         const capitalizedTitle = title ? title.charAt(0).toUpperCase() + title.slice(1) : null;
-        if (await isDuplicateNote(auth.userId, capitalizedTitle, capitalizedContent)) {
+        if (sourceId) {
+          const existingById = first(
+            await db.select({ id: Notes.id }).from(Notes).where(and(eq(Notes.id, sourceId), eq(Notes.userId, auth.userId))).limit(1)
+          );
+          if (existingById) {
+            sourceIdToNewId.set(sourceId, existingById.id);
+            duplicatesSkipped++;
+            continue;
+          }
+        }
+        const dupId = await findDuplicateNoteId(auth.userId, capitalizedTitle, capitalizedContent);
+        if (dupId) {
+          if (sourceId) sourceIdToNewId.set(sourceId, dupId);
           duplicatesSkipped++;
           continue;
         }
@@ -172314,16 +172366,9 @@ async function getOrCreateThread(userId, threadTitle, threadColor) {
   }).returning());
   return newThread.id;
 }
-async function isDuplicateNote(userId, title, content) {
-  const normalizedContent = htmlToPlainText(content).toLowerCase().replace(/\s+/g, " ").trim();
-  const normalizedTitle = (title || "").toLowerCase().trim();
+async function findDuplicateNoteId(userId, title, content) {
   const existingNotes = await db.select({ id: Notes.id, title: Notes.title, content: Notes.content }).from(Notes).where(eq(Notes.userId, userId));
-  for (const note of existingNotes) {
-    const et2 = (note.title || "").toLowerCase().trim();
-    const ec = htmlToPlainText(note.content || "").toLowerCase().replace(/\s+/g, " ").trim();
-    if (et2 === normalizedTitle && ec === normalizedContent) return true;
-  }
-  return false;
+  return matchDuplicateNoteId(existingNotes, title, content);
 }
 var user_default = app;
 
