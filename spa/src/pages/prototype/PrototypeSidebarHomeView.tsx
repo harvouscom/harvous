@@ -69,8 +69,8 @@ import { useNoteFingerprints } from '../../hooks/queries/useNoteFingerprints';
 import PrototypeDailyPassagePill from './PrototypeDailyPassagePill';
 import { PROTOTYPE_DRAFT_NOTE_SLUG } from './proto-route-slugs';
 import { useProtoShell } from '../../layouts/proto-shell-context';
-import { HOME_INTRO_LIST_MODES } from './proto-sidebar-list-modes';
-import { HOME_NEW_USER_GREETING_BODY } from '@/utils/prototype-home-greeting-copy';
+import { HOME_INTRO_LIST_MODES, type SidebarListModeEntry } from './proto-sidebar-list-modes';
+import type { SidebarListMode } from '../../layouts/proto-shell-context';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 /** Resurface a note only after it's gone quiet for two weeks. */
@@ -214,29 +214,41 @@ function HomeGreeting({
 
   // Brand new space — keep it warm, the empty-state card below carries the CTA.
   if (countForLogic === 0) {
+    const introModeByKey = Object.fromEntries(
+      HOME_INTRO_LIST_MODES.map((entry) => [entry.mode, entry]),
+    ) as Record<SidebarListMode, SidebarListModeEntry | undefined>;
+
+    const introListChip = (mode: SidebarListMode) => {
+      const entry = introModeByKey[mode];
+      if (!entry) return null;
+      const chipClass =
+        mode === 'scripture'
+          ? 'proto-glass-surface proto-home-greeting__chip proto-home-greeting__chip--passage'
+          : 'proto-glass-surface proto-home-greeting__chip';
+      return (
+        <button
+          type="button"
+          className={chipClass}
+          aria-label={`Open ${entry.label} list`}
+          onClick={() => {
+            setSidebarListMode(mode);
+            ensureSidebarExpanded();
+          }}
+        >
+          <Icon name={entry.icon} size={10} aria-hidden />
+          <span>{entry.label}</span>
+        </button>
+      );
+    };
+
     return (
       <>
         <p className="proto-home-greeting">
           <span className="proto-home-greeting__hello">{hello}</span>{' '}
-          {HOME_NEW_USER_GREETING_BODY}
+          Welcome to Harvous, your notebook for Bible study. Write {introListChip('notes')} beside a
+          verse in {introListChip('scripture')}, follow Today&apos;s Passage, and gather{' '}
+          {introListChip('highlights')} and {introListChip('threads')} as your library grows.
         </p>
-        <div className="proto-home-greeting__chip-row" role="navigation" aria-label="Browse library">
-          {HOME_INTRO_LIST_MODES.map(({ mode, icon, label }) => (
-            <button
-              key={mode}
-              type="button"
-              className="proto-glass-surface proto-home-greeting__chip proto-home-greeting__chip--nav"
-              aria-label={`Open ${label} list`}
-              onClick={() => {
-                setSidebarListMode(mode);
-                ensureSidebarExpanded();
-              }}
-            >
-              <Icon name={icon} size={10} aria-hidden />
-              <span>{label}</span>
-            </button>
-          ))}
-        </div>
         {seasonLine}
       </>
     );

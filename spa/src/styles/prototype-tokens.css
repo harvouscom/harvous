@@ -328,8 +328,8 @@
   --pds-toolbar-orb-size: 30px;
   --pds-toolbar-h: 46px;
   --pds-footer-h:  36px;
-  --pds-sidebar-w: 280px;
-  --pds-sidebar-min-w: 280px;
+  --pds-sidebar-w: 304px;
+  --pds-sidebar-min-w: 304px;
   --pds-sidebar-max-w: 420px;
   --pds-inspector-w: 260px;
   --pds-inspector-reserve-w: calc(var(--pds-inspector-w) + 8px);
