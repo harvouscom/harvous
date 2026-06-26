@@ -246,8 +246,8 @@ function HomeGreeting({
       <>
         <p className="proto-home-greeting">
           <span className="proto-home-greeting__hello">{hello}</span>{' '}
-          Welcome to Harvous. Write {introListChip('notes')} beside a verse in{' '}
-          {introListChip('scripture')}, follow Today&apos;s Passage, and create{' '}
+          Welcome to Harvous. Write {introListChip('notes')} as you add{' '}
+          {introListChip('scripture')}, open Today&apos;s Passage, and create{' '}
           {introListChip('highlights')} and {introListChip('threads')}.
         </p>
         {seasonLine}
