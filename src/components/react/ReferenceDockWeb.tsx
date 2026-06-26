@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState, type MouseEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type MouseEvent } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import Icon from '@/components/react/Icon';
 import DockAccentSwatchButton, { SCRIPTURE_DOCK_ACCENT_COLORS } from '@/components/react/DockAccentSwatchButton';
@@ -18,7 +18,6 @@ interface EastonsEntry {
   headword: string;
   category: EastonCategory;
   body: string;
-  seeAlso: string[];
 }
 
 interface EntryResponse extends EastonsEntry {
@@ -138,10 +137,21 @@ export default function ReferenceDockWeb({
     else setInternalExpanded(next);
   };
   const [showScriptureRefs, setShowScriptureRefs] = useState(false);
+  const scriptureRefsRef = useRef<HTMLDivElement>(null);
+  const prevShowScriptureRefs = useRef(false);
 
   useEffect(() => {
     setQuery(initialQuery);
   }, [initialQuery]);
+
+  useEffect(() => {
+    if (showScriptureRefs && !prevShowScriptureRefs.current) {
+      requestAnimationFrame(() => {
+        scriptureRefsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      });
+    }
+    prevShowScriptureRefs.current = showScriptureRefs;
+  }, [showScriptureRefs]);
 
   const scriptureRefs = useMemo(
     () => (entry ? detectEastonsScriptureRefs(entry.body, entry.headword) : []),
@@ -252,7 +262,7 @@ export default function ReferenceDockWeb({
             <div className="reference-dock-web__passage-html">{entry.body}</div>
 
             {showScriptureRefs && scriptureRefs.length > 0 && onOpenScripturePassage ? (
-              <div className="reference-dock-web__scripture-refs">
+              <div ref={scriptureRefsRef} className="reference-dock-web__scripture-refs">
                 <p className="reference-dock-web__scripture-refs-label">Referenced passages</p>
                 <div className="reference-dock-web__scripture-refs-rows">
                   {scriptureRefs.map((ref) => (
@@ -268,22 +278,6 @@ export default function ReferenceDockWeb({
                     </button>
                   ))}
                 </div>
-              </div>
-            ) : null}
-
-            {entry.seeAlso.length > 0 ? (
-              <div className="reference-dock-web__see-also">
-                <span className="reference-dock-web__see-also-label">See also</span>
-                {entry.seeAlso.slice(0, 8).map((ref) => (
-                  <button
-                    key={ref}
-                    type="button"
-                    className="reference-dock-web__see-also-chip"
-                    onClick={() => setQuery(ref)}
-                  >
-                    {ref}
-                  </button>
-                ))}
               </div>
             ) : null}
 

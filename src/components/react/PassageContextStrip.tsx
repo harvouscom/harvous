@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import Icon from '@/components/react/Icon';
 import '@/styles/passage-context-strip.css';
 
@@ -49,6 +49,8 @@ export interface PassageContextStripProps {
   onOpenEntity: (name: string, slug?: string) => void;
   /** Related note tapped — navigate to it. Absent → notes render non-interactive. */
   onNavigateNote?: (noteId: string) => void;
+  /** Fires once when the strip first renders displayable content (scroll-into-view hook). */
+  onContentReady?: () => void;
 }
 
 const contextCache = new Map<string, PassageContext>();
@@ -116,9 +118,11 @@ export default function PassageContextStrip({
   onOpenScripturePassage,
   onOpenEntity,
   onNavigateNote,
+  onContentReady,
 }: PassageContextStripProps) {
   const [ctx, setCtx] = useState<PassageContext | null>(null);
   const [loading, setLoading] = useState(false);
+  const firedReadyRef = useRef(false);
 
   useEffect(() => {
     if (!active || !reference) {
@@ -163,12 +167,22 @@ export default function PassageContextStrip({
     };
   }, [active, reference, translation, sourceNoteId]);
 
+  // Computed with null guards so these (and the effect below) stay above the early
+  // returns — hooks must run unconditionally on every render (Rules of Hooks).
+  const hasCrossRefs = !!ctx && showCrossRefs && ctx.crossReferences.length > 0;
+  const hasNotes = !!ctx && ctx.relatedNotes.length > 0;
+
+  useEffect(() => {
+    if (!firedReadyRef.current && (hasCrossRefs || hasNotes)) {
+      firedReadyRef.current = true;
+      onContentReady?.();
+    }
+  }, [hasCrossRefs, hasNotes, onContentReady]);
+
   if (!active) return null;
   if (loading && !ctx) return null;
   if (!ctx) return null;
 
-  const hasCrossRefs = showCrossRefs && ctx.crossReferences.length > 0;
-  const hasNotes = ctx.relatedNotes.length > 0;
   if (!hasCrossRefs && !hasNotes) return null;
 
   return (

@@ -107,7 +107,8 @@ var PWA_SHELL_WATCHDOG_MS = 7000;
 function isPrototypeShellRoute() {
   var path = window.location.pathname;
   var host = window.location.hostname;
-  if (host === 'new.harvous.com') {
+  var protoHosts = ['new.harvous.com', 'app.harvous.com'];
+  if (protoHosts.indexOf(host) >= 0) {
     if (path.indexOf('/sign-in') === 0 || path.indexOf('/sign-up') === 0) return false;
     return (
       path === '/' ||

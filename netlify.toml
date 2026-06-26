@@ -17,11 +17,16 @@
   # Plan ID is inlined into SPA bundle by Vite; it's a public plan identifier, not a secret
   SECRETS_SCAN_OMIT_KEYS = "VITE_CLERK_UNLIMITED_PLAN_ID,CLERK_UNLIMITED_PLAN_ID"
 
-# new.harvous.com serves the 2.0 shell at / (SPA host routing). Classic app stays on app.harvous.com.
-# Optional: strip legacy /prototype bookmarks on the new host only.
+# Prototype hosts: strip /prototype prefix from legacy bookmarks.
 [[redirects]]
   from = "https://new.harvous.com/prototype/*"
   to = "https://new.harvous.com/:splat"
+  status = 302
+  force = true
+
+[[redirects]]
+  from = "https://app.harvous.com/prototype/*"
+  to = "https://app.harvous.com/:splat"
   status = 302
   force = true
 

@@ -30,7 +30,8 @@
 
   var path = window.location.pathname;
   var host = window.location.hostname;
-  var onDedicated = host === 'new.harvous.com';
+  var protoHosts = ['new.harvous.com', 'app.harvous.com'];
+  var onDedicated = protoHosts.indexOf(host) >= 0;
   if (onDedicated) {
     if (path.indexOf('/sign-in') === 0 || path.indexOf('/sign-up') === 0) return;
     if (

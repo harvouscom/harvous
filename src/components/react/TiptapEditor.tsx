@@ -8978,16 +8978,20 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                             }
                           }
                           if (!editor || !isEditorValid(editor)) return;
-                          editor
-                            .chain()
-                            .focus()
-                            .setTextSelection({ from, to })
-                            .setHighlight({
+                          const markType = editor.state.schema.marks.highlight;
+                          if (!markType) return;
+                          const tr = editor.state.tr;
+                          tr.removeMark(from, to, markType);
+                          tr.addMark(
+                            from,
+                            to,
+                            markType.create({
                               color: accent,
                               reference: session.query,
                               studyThreadEntryId: sid || undefined,
-                            })
-                            .run();
+                            }),
+                          );
+                          editor.view.dispatch(tr);
                           onContentChange?.(editor.getHTML());
                           setStudyDockStack((s) =>
                             updateDockEntry(s, entry.id, (e) =>

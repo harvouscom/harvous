@@ -2,7 +2,7 @@
  * Production 2.0 shell — prototype routes at `/` (not `/prototype`).
  * At host cutover, change to `app.harvous.com` and sunset Classic routes on that host.
  */
-export const DEDICATED_PROTOTYPE_HOST = 'new.harvous.com';
+export const DEDICATED_PROTOTYPE_HOST = 'app.harvous.com';
 
 export function isDedicatedPrototypeHost(hostname?: string): boolean {
   const h = hostname ?? (typeof window !== 'undefined' ? window.location.hostname : '');

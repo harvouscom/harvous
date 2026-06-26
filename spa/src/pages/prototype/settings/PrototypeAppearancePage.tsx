@@ -71,7 +71,7 @@ export default function PrototypeAppearancePage() {
     const value = editingMode === 'dark'
       ? (preset.dark !== undefined ? preset.dark : preset.light)
       : preset.light;
-    const next: ProtoBg = value === null ? null : { kind: 'color', value };
+    const next: ProtoBg = value === null ? null : { kind: 'color', value, presetId: preset.id };
     applyForMode(editingMode, next);
   };
 
@@ -241,11 +241,9 @@ function describeBg(bg: ProtoBg, mode: 'light' | 'dark'): { name: string; swatch
     return { name: presetDisplayLabel(preset, mode), swatchColor: fallback };
   }
   if (bg.kind === 'color') {
-    for (const preset of BG_PRESETS) {
-      const modeValue = mode === 'dark'
-        ? (preset.dark !== undefined ? preset.dark : preset.light)
-        : preset.light;
-      if (modeValue === bg.value) {
+    if (bg.presetId) {
+      const preset = BG_PRESETS.find((p) => p.id === bg.presetId);
+      if (preset) {
         return { name: presetDisplayLabel(preset, mode), swatchColor: bg.value };
       }
     }
@@ -349,13 +347,11 @@ function modeSwatchColor(preset: BgPreset, mode: 'light' | 'dark'): string {
   return preset.light === null ? 'var(--pds-canvas-default)' : preset.light;
 }
 
-function isColorPresetSelectedForMode(preset: BgPreset, bg: ProtoBg, mode: 'light' | 'dark'): boolean {
+function isColorPresetSelectedForMode(preset: BgPreset, bg: ProtoBg, _mode: 'light' | 'dark'): boolean {
   const isPaperPreset =
     preset.light === null && (preset.dark === null || preset.dark === undefined);
   if (isPaperPreset) return bg === null;
   if (bg?.kind !== 'color') return false;
-  const modeValue = mode === 'dark'
-    ? (preset.dark !== undefined ? preset.dark : preset.light)
-    : preset.light;
-  return modeValue === bg.value;
+  if (bg.presetId) return bg.presetId === preset.id;
+  return false;
 }

@@ -6,12 +6,12 @@
   "legacyPaperLightHex": "#f7f6f3",
   "legacyPaperDarkHex": "#1a1a1c",
   "presets": [
-    { "label": "Paper", "darkLabel": "Night", "light": null, "dark": null },
-    { "label": "Sky", "darkLabel": "Night", "light": "#c2dcf8", "dark": "#152536" },
-    { "label": "Lilac", "darkLabel": "Dusk", "light": "#dec5ed", "dark": "#2a2438" },
-    { "label": "Peach", "darkLabel": "Ember", "light": "#fbc8ad", "dark": "#382820" },
-    { "label": "Mint", "darkLabel": "Pine", "light": "#c9e3b8", "dark": "#1e2e22" },
-    { "label": "Pink", "darkLabel": "Plum", "light": "#f3c8e0", "dark": "#382030" },
-    { "label": "Cream", "darkLabel": "Umber", "light": "#f6ecd6", "dark": "#2e2818" }
+    { "id": "paper", "label": "Paper", "darkLabel": "Night", "light": null, "dark": null },
+    { "id": "sky", "label": "Sky", "darkLabel": "Night", "light": "#d7eaff", "dark": "#152536" },
+    { "id": "lilac", "label": "Lilac", "darkLabel": "Dusk", "light": "#f3dfff", "dark": "#2a2438" },
+    { "id": "peach", "label": "Peach", "darkLabel": "Ember", "light": "#ffe1d1", "dark": "#382820" },
+    { "id": "mint", "label": "Mint", "darkLabel": "Pine", "light": "#dbf0cd", "dark": "#1e2e22" },
+    { "id": "pink", "label": "Pink", "darkLabel": "Plum", "light": "#ffddef", "dark": "#382030" },
+    { "id": "cream", "label": "Cream", "darkLabel": "Umber", "light": "#efe7d6", "dark": "#2e2818" }
   ]
 }

@@ -23,7 +23,7 @@ import {
  */
 
 export type ProtoBg =
-  | { kind: 'color'; value: string }
+  | { kind: 'color'; value: string; presetId?: string }
   | {
       kind: 'image-preset';
       presetId: string;
@@ -57,6 +57,7 @@ const LEGACY_PAPER_DARK_HEX = appearancePresetsCatalog.legacyPaperDarkHex;
 const MAX_IMAGE_DATA_URL_CHARS = 1_600_000;
 
 export type BgPreset = {
+  id: string;
   label: string;
   /** Carousel label in dark mode; falls back to `label`. */
   darkLabel?: string;
@@ -67,7 +68,53 @@ export type BgPreset = {
 };
 
 /** Solid-color presets — shared with native via `shared/appearance-presets.json`. */
-export const BG_PRESETS: BgPreset[] = appearancePresetsCatalog.presets;
+export const BG_PRESETS: BgPreset[] = appearancePresetsCatalog.presets as BgPreset[];
+
+/** Look up a color preset by id. */
+export function colorPresetById(id: string): BgPreset | undefined {
+  return BG_PRESETS.find((p) => p.id === id);
+}
+
+/**
+ * Resolve a stored `ProtoBg` color value against the current catalog.
+ * If `presetId` is present and the preset exists, return the catalog's current
+ * hex for the given mode — so updating `appearance-presets.json` propagates to
+ * every user without re-picking. Falls back to the stored `value`.
+ */
+function resolveColorPreset(bg: { kind: 'color'; value: string; presetId?: string }, mode: 'light' | 'dark'): ProtoBg {
+  if (bg.presetId) {
+    const preset = colorPresetById(bg.presetId);
+    if (preset) {
+      const resolved = mode === 'dark'
+        ? (preset.dark !== undefined ? preset.dark : preset.light)
+        : preset.light;
+      return resolved === null ? null : { kind: 'color', value: resolved, presetId: bg.presetId };
+    }
+  }
+  return bg;
+}
+
+/**
+ * Reverse map: old hex values that once shipped as preset colors → preset id.
+ * Lets us auto-attach a `presetId` to existing stored values so they track
+ * future catalog updates.
+ */
+const LEGACY_COLOR_HEX_TO_PRESET_ID: Record<string, string> = {
+  // Pre-June-2026 values
+  '#c2dcf8': 'sky', '#152536': 'sky',
+  '#dec5ed': 'lilac', '#2a2438': 'lilac',
+  '#fbc8ad': 'peach', '#382820': 'peach',
+  '#c9e3b8': 'mint', '#1e2e22': 'mint',
+  '#f3c8e0': 'pink', '#382030': 'pink',
+  '#f6ecd6': 'cream', '#2e2818': 'cream',
+};
+
+// Also add current hex values so fresh picks resolve correctly on read.
+for (const preset of BG_PRESETS) {
+  if (preset.id === 'paper') continue;
+  if (preset.light) LEGACY_COLOR_HEX_TO_PRESET_ID[preset.light] = preset.id;
+  if (preset.dark) LEGACY_COLOR_HEX_TO_PRESET_ID[preset.dark] = preset.id;
+}
 
 export type BgImagePreset = {
   id: string;
@@ -251,7 +298,13 @@ function parseProtoBg(raw: string | null): ProtoBg {
       return presetId === parsed.presetId ? parsed : { ...parsed, presetId };
     }
     if (parsed && parsed.kind === 'color' && typeof parsed.value === 'string') {
-      return migrateLegacyPaper(parsed);
+      const bg = migrateLegacyPaper(parsed);
+      if (!bg) return null;
+      if (!bg.presetId) {
+        const inferredId = LEGACY_COLOR_HEX_TO_PRESET_ID[bg.value.toLowerCase()];
+        if (inferredId) return { ...bg, presetId: inferredId };
+      }
+      return bg;
     }
     return null;
   } catch {
@@ -307,8 +360,9 @@ export function readBackgroundForMode(mode: 'light' | 'dark'): ProtoBg {
   if (typeof localStorage === 'undefined') return null;
   try {
     const raw = localStorage.getItem(modeKey(mode));
-    if (raw !== null) return parseProtoBg(raw);
-    return migrateLegacyToMode(mode);
+    const bg = raw !== null ? parseProtoBg(raw) : migrateLegacyToMode(mode);
+    if (bg?.kind === 'color') return resolveColorPreset(bg, mode);
+    return bg;
   } catch {
     return null;
   }

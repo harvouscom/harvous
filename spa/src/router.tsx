@@ -4,6 +4,7 @@ import {
   isDedicatedPrototypeHost,
   prototypeHomeRouteTo,
   prototypeNoteRouteTo,
+  prototypeSettingsAccountRouteTo,
 } from '@/lib/prototype-path';
 import AppLayout from './layouts/AppLayout';
 import AuthLayout from './layouts/AuthLayout';
@@ -346,6 +347,62 @@ const dedicatedDashboardRedirectRoute = createRoute({
   },
 });
 
+/** Redirect routes for classic URLs when the dedicated prototype host is active. */
+function buildClassicRedirectRoutes() {
+  const classicNoteRedirect = createRoute({
+    getParentRoute: () => rootRoute,
+    path: '/note/$noteId',
+    beforeLoad: ({ params }) => {
+      throw redirect({
+        to: prototypeNoteRouteTo(),
+        params: { noteId: noteParamSlug(params.noteId) },
+        replace: true,
+      });
+    },
+  });
+
+  const classicThreadRedirect = createRoute({
+    getParentRoute: () => rootRoute,
+    path: '/thread/$threadId',
+    beforeLoad: () => {
+      throw redirect({ to: '/', replace: true });
+    },
+  });
+
+  const classicSpaceRedirect = createRoute({
+    getParentRoute: () => rootRoute,
+    path: '/space/$spaceId',
+    beforeLoad: () => {
+      throw redirect({ to: '/', replace: true });
+    },
+  });
+
+  const classicProfileRedirect = createRoute({
+    getParentRoute: () => rootRoute,
+    path: '/profile',
+    beforeLoad: () => {
+      throw redirect({ to: prototypeSettingsAccountRouteTo(), replace: true });
+    },
+  });
+
+  const classicSearchRedirect = createRoute({
+    getParentRoute: () => rootRoute,
+    path: '/search',
+    beforeLoad: () => {
+      throw redirect({ to: '/', replace: true });
+    },
+  });
+
+  return [
+    dedicatedDashboardRedirectRoute,
+    classicNoteRedirect,
+    classicThreadRedirect,
+    classicSpaceRedirect,
+    classicProfileRedirect,
+    classicSearchRedirect,
+  ];
+}
+
 // 404 catch-all — must be last
 const notFoundRoute = createRoute({
   getParentRoute: () => rootRoute,
@@ -373,7 +430,7 @@ function buildRouteTree() {
       signInRoute.addChildren([signInSplatRoute]),
       signUpRoute.addChildren([signUpSplatRoute]),
     ]),
-    ...(onDedicatedHost ? [dedicatedDashboardRedirectRoute] : [classicAppRoutes]),
+    ...(onDedicatedHost ? buildClassicRedirectRoutes() : [classicAppRoutes]),
     upgradeRoute,
     joinSpaceRoute,
     sharedNoteRoute,

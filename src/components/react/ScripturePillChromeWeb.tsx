@@ -598,6 +598,13 @@ export default function ScripturePillChromeWeb({
     }
   }, [isControlledExpanded, isExpanded, onExpandedChange]);
 
+  const handleContextStripReady = useCallback(() => {
+    requestAnimationFrame(() => {
+      const strip = passageScrollRef.current?.querySelector('.passage-context-strip');
+      if (strip) strip.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    });
+  }, []);
+
   const handleToggleVerseRange = useCallback(() => {
     setUseVerseRange((prev) => {
       if (!prev) {
@@ -714,6 +721,7 @@ export default function ScripturePillChromeWeb({
               onOpenScripturePassage={(ref) => onOpenScripturePassage?.(ref, trans)}
               onOpenEntity={(name, slug) => onOpenPassageReference?.(name, { slug })}
               onNavigateNote={onNavigateNote}
+              onContentReady={handleContextStripReady}
             />
           ) : null}
           {translationInfo ? (
