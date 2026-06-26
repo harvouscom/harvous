@@ -2,27 +2,53 @@
 
 Harvous stores full-Bible text as JSON arrays of `{ "book", "chapter", "verse", "text" }` (canonical book names match `src/data/bible-chapters.json`). These files are **not** read at runtime in production; they are **imported into Postgres** via `server/scripts/seed-bible-verses.ts`, and the app serves text from the `BibleVerses` table.
 
-## Reproducible generators in this repo
+## Data sources
 
-| Translation | Script | Notes |
-|-------------|--------|--------|
-| **NET** | `node server/data/bibles/_download_net.mjs` | Uses [labs.bible.org](https://labs.bible.org) (NET only). Writes `NET.json`. |
-| **ESV, NIV, KJV, NKJV, NLT, BSB** | *(committed JSON — same approach as below)* | AI-generated verse text per chapter, saved as Harvous JSON. |
-| **NASB 1995, CSB, AMP, MSG** | `npm run bible:generate -- NASB` or `npm run bible:generate:all` | AI generation via Claude (`ANTHROPIC_API_KEY` in `.env`). Resumes from partial files if interrupted. |
+| Translation | Source | Notes |
+|-------------|--------|-------|
+| **KJV** | Public-domain text (committed) | Clean, no Strong's numbers. Do **not** re-download from Bolls — Bolls serves the Strong's-numbered KJV. |
+| **ESV, NIV, NLT, NKJV, BSB, NET** | Downloaded from [Bolls.life](https://bolls.life) API | `npm run bible:download:bolls -- ESV` (no API key required) |
+| **NASB 1995, CSB, AMP, MSG** | Downloaded from [Bolls.life](https://bolls.life) API | `npm run bible:download:bolls -- NASB` (no API key required) |
+| **NET** (alt) | [labs.bible.org](https://labs.bible.org) | `node server/data/bibles/_download_net.mjs` (NET only) |
 
-### Generating NASB 1995 / CSB / AMP / MSG
+### Downloading / re-downloading from Bolls.life
 
-1. Add **`ANTHROPIC_API_KEY`** to `.env`.
-2. Run one translation: **`npm run bible:generate -- NASB`** (translation id `NASB` = NASB 1995 in app metadata)
-   Or all four in sequence: **`npm run bible:generate:all`**
-   (Each translation: ~1,189 chapter API calls, roughly 25–40 min. Auto-resumes if interrupted.)
-3. Run **`npx tsx server/scripts/seed-bible-verses.ts`** to load into Postgres.
+One translation (deletes existing file first to force a clean re-download):
 
-Scripts load `.env` from the repo root automatically.
+```bash
+rm server/data/bibles/CSB.json
+npm run bible:download:bolls -- CSB
+```
+
+All ten Bolls-sourced translations in sequence:
+
+```bash
+npm run bible:download:bolls:all
+```
+
+Then seed into Postgres:
+
+```bash
+npx tsx server/scripts/seed-bible-verses.ts        # all translations
+npx tsx server/scripts/seed-bible-verses.ts CSB     # one translation
+```
+
+### Alternative download paths (API.Bible, AI generation)
+
+The repo also contains `_download_api_bible.mjs` (requires `API_BIBLE_KEY`) and `_generate_translation.mjs` (AI generation via Claude). These exist as alternative pipelines but the committed JSON files are sourced from Bolls.life.
+
+### Versification notes
+
+Not all translations have the same verse count. This is expected:
+
+- **NLT** (~31,064 verses): merges consecutive verse pairs in census/genealogy passages (e.g. Numbers 1:20–21 → verse 20 only)
+- **MSG** (~31,015 verses): merges verse ranges freely as a paraphrase
+- **ESV, NIV, BSB, CSB, NET** (~31,086 verses): omit a handful of verses that textual critics consider later additions
+- **KJV, NKJV** (31,102 verses): traditional full versification
 
 ## After generating or updating a `.json` file
 
-1. Run the seed against the target database (all translations with files, or one):
+1. Run the seed against the target database:
 
    ```bash
    npx tsx server/scripts/seed-bible-verses.ts
@@ -30,13 +56,3 @@ Scripts load `.env` from the repo root automatically.
    ```
 
 2. Ensure the translation id exists in `src/data/translations.ts` (registry + copyright strings).
-
-## Listing bible IDs (API.Bible)
-
-Prefer **`npm run bible:list-api-bibles`** (prints all English bibles your key can access). Or:
-
-```bash
-curl -sS -H "api-key: $API_BIBLE_KEY" "https://api.scripture.api.bible/v1/bibles?name=NASB"  # pick NASB 1995 from results
-```
-
-Use the `id` field from a bible your application is allowed to access.

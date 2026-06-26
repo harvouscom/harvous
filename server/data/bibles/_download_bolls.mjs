@@ -21,7 +21,14 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '../../..');
 
 // Map our translation IDs to Bolls.life translation codes
+// KJV excluded — bolls serves Strong's-numbered KJV; our KJV is from a clean public-domain source.
 const BOLLS_CODES = {
+  ESV:  'ESV',    // English Standard Version (2016)
+  NIV:  'NIV2011',// New International Version (2011)
+  NLT:  'NLT',   // New Living Translation (2015)
+  NKJV: 'NKJV',  // New King James Version (1982)
+  BSB:  'BSB',    // Berean Standard Bible (2020)
+  NET:  'NET',    // NET Bible (2019)
   NASB: 'NASB',   // New American Standard Bible (1995)
   CSB:  'CSB17',  // Christian Standard Bible (2017)
   AMP:  'AMP',    // Amplified Bible (2015)
@@ -40,7 +47,8 @@ function canonicalize(bollsName) {
 
 function stripHtml(html) {
   return html
-    .replace(/<[^>]*>/g, '')                 // strip all HTML tags
+    .replace(/<[^>]*>/g, ' ')               // replace HTML tags with spaces (prevents word concatenation)
+    .replace(/\[\d+\]/g, '')                 // strip bracketed footnote anchors (e.g. [5] in CSB)
     .replace(/[\u2460-\u24FF]/g, '')          // strip circled letter/number cross-reference markers (e.g. ⓒ in CSB)
     .replace(/&nbsp;/g, ' ')
     .replace(/&amp;/g, '&')

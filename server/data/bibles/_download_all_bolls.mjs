@@ -1,5 +1,5 @@
 /**
- * Download NASB.json (NASB 1995), CSB.json, AMP.json, MSG.json from Bolls.life API in sequence.
+ * Download all Bolls.life-sourced translations in sequence.
  * No API key required.
  *
  * Usage: npm run bible:download:bolls:all
@@ -13,7 +13,8 @@ import { fileURLToPath } from 'url';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '../../..');
 
-const IDS = ['NASB', 'CSB', 'AMP', 'MSG'];
+// KJV excluded — bolls serves Strong's-numbered KJV; our KJV is from a clean public-domain source.
+const IDS = ['ESV', 'NIV', 'NLT', 'NKJV', 'BSB', 'NET', 'NASB', 'CSB', 'AMP', 'MSG'];
 
 function runNode(scriptPath, args) {
   return new Promise((resolve, reject) => {
