@@ -1192,27 +1192,51 @@ export function studyArcToneLabel(tone: string | null): string | null {
 // proto-recall-cooldown. See docs/future/MEMORY_LAYER_ASSESSMENT.md.
 
 export type RecallOpportunityKind =
+  // Revisit kinds — resurface something you've already written.
   | 'revisitNote'
   | 'highlight'
   | 'arc'
   | 'passage'
   | 'crossref'
-  | 'subject';
+  | 'subject'
+  // Generative kinds — prompt you to create/do something new.
+  | 'continueBook'
+  | 'studyPerson'
+  | 'annotateHighlight'
+  | 'reflection'
+  | 'crossrefGap'
+  | 'connectNotes';
 
 /** Kinds that summarize a trend across notes — eligible for the greeting trend line. */
 export const RECALL_TREND_KINDS: readonly RecallOpportunityKind[] = ['arc', 'passage', 'crossref', 'subject'];
+
+/** Generative kinds — "go make something new" rather than "revisit". Get a distinct card accent. */
+export const RECALL_GENERATIVE_KINDS: readonly RecallOpportunityKind[] = [
+  'continueBook',
+  'studyPerson',
+  'annotateHighlight',
+  'reflection',
+  'crossrefGap',
+  'connectNotes',
+];
 
 export function isRecallTrendKind(kind: RecallOpportunityKind): boolean {
   return RECALL_TREND_KINDS.includes(kind);
 }
 
+export function isRecallGenerativeKind(kind: RecallOpportunityKind): boolean {
+  return RECALL_GENERATIVE_KINDS.includes(kind);
+}
+
 /** Minimal shape the selection logic needs; the view extends this with display + tap handlers. */
 export interface RecallCandidate {
-  /** Stable id for snooze + React key: note/highlight id, or synthetic ('arc:grace', 'passage:John 3:16'). */
+  /** Stable id for snooze + React key: note/highlight id, or synthetic ('arc:grace', 'book:Romans:8'). */
   id: string;
   kind: RecallOpportunityKind;
   /** Strength within its kind (normalized ~0..1 so kinds compare sensibly). */
   score: number;
+  /** Generative ("go make something new") vs revisit — drives a distinct card accent. */
+  isGenerative?: boolean;
 }
 
 export interface SelectRecallOptions {
@@ -1357,4 +1381,162 @@ export function recallTrendGreetingParts(input: RecallTrendLineInput): RecallTre
     default:
       return null;
   }
+}
+
+// ─── Generative recall: pure derivations ─────────────────────────────────────────
+// Cards that prompt creating something new, computed from data already on Home. Each derive is pure;
+// the view turns the result into a RecallOpportunity (display + tap → seed a draft note / annotate).
+
+/** Universal names too broad to suggest "start a note about them". Shared with study arcs. */
+const GENERATIVE_PERSON_DENYLIST = new Set(['god', 'jesus', 'christ', 'holy spirit', 'lord', 'the lord']);
+
+// 1. Continue the book ──────────────────────────────────────────────────────────
+
+export interface ContinueBookInput {
+  /** Book title, e.g. "Romans". */
+  book: string;
+  bookOrder: number;
+  /** Chapters of this book the user has cited (any order, may repeat). */
+  citedChapters: number[];
+}
+
+export interface ContinueBookSuggestion {
+  book: string;
+  bookOrder: number;
+  nextChapter: number;
+  citedCount: number;
+}
+
+/**
+ * For each book the user is working through, the next unstudied chapter — the first chapter in
+ * 1..N (N = canonical chapter count) they haven't cited. Books fully cited up to N are skipped.
+ * Ranked by how many distinct chapters they've cited (most-invested book first). Pure.
+ */
+export function deriveContinueBook(
+  books: ContinueBookInput[],
+  chapterCounts: Map<string, number>,
+  opts: { limit?: number } = {},
+): ContinueBookSuggestion[] {
+  const { limit = 3 } = opts;
+  const out: ContinueBookSuggestion[] = [];
+  for (const b of books) {
+    const total = chapterCounts.get(b.book);
+    if (!total) continue;
+    const cited = new Set(b.citedChapters.filter((c) => c >= 1 && c <= total));
+    if (cited.size === 0) continue;
+    let next: number | null = null;
+    for (let c = 1; c <= total; c++) {
+      if (!cited.has(c)) {
+        next = c;
+        break;
+      }
+    }
+    if (next == null) continue; // book fully cited
+    out.push({ book: b.book, bookOrder: b.bookOrder, nextChapter: next, citedCount: cited.size });
+  }
+  out.sort((a, b) => b.citedCount - a.citedCount || a.bookOrder - b.bookOrder);
+  return out.slice(0, Math.max(0, limit));
+}
+
+// 2. Study a recurring person ─────────────────────────────────────────────────────
+
+export interface RecurringPersonInput {
+  noteId: string;
+  title: string | null;
+  /** Fingerprint people for this note. */
+  people: string[];
+}
+
+export interface RecurringPersonSuggestion {
+  name: string;
+  noteCount: number;
+}
+
+/**
+ * A person who appears across several notes but has no note "about" them yet (proxy: no note title
+ * contains their name). Universal names are excluded. Ranked by reach. Pure. Suggests a focused study.
+ */
+export function deriveRecurringPerson(
+  notes: RecurringPersonInput[],
+  opts: { minNotes?: number; limit?: number } = {},
+): RecurringPersonSuggestion[] {
+  const { minNotes = 3, limit = 3 } = opts;
+
+  const noteIdsByPerson = new Map<string, { display: string; ids: Set<string> }>();
+  const titledPeople = new Set<string>();
+  for (const note of notes) {
+    const title = (note.title ?? '').toLowerCase();
+    const seen = new Set<string>();
+    for (const raw of note.people ?? []) {
+      const name = raw.trim();
+      if (!name) continue;
+      const key = name.toLowerCase();
+      if (GENERATIVE_PERSON_DENYLIST.has(key) || seen.has(key)) continue;
+      seen.add(key);
+      const entry = noteIdsByPerson.get(key) ?? { display: name, ids: new Set<string>() };
+      entry.ids.add(note.noteId);
+      noteIdsByPerson.set(key, entry);
+      if (title.includes(key)) titledPeople.add(key);
+    }
+  }
+
+  const out: RecurringPersonSuggestion[] = [];
+  for (const [key, entry] of noteIdsByPerson) {
+    if (titledPeople.has(key)) continue; // already has a note about them
+    if (entry.ids.size < minNotes) continue;
+    out.push({ name: entry.display, noteCount: entry.ids.size });
+  }
+  out.sort((a, b) => b.noteCount - a.noteCount || a.name.localeCompare(b.name));
+  return out.slice(0, Math.max(0, limit));
+}
+
+// 3. Finish a bare highlight ──────────────────────────────────────────────────────
+
+export interface BareHighlightInput {
+  id: string;
+  miniNoteBody?: string | null;
+  notesBody?: string | null;
+  /** Touch time (ms) — oldest unannotated surfaces first. */
+  recencyMs?: number;
+}
+
+/** True when a highlight has no annotation (both annotation fields empty). Pure. */
+export function isHighlightUnannotated(h: BareHighlightInput): boolean {
+  return !(h.miniNoteBody ?? '').trim() && !(h.notesBody ?? '').trim();
+}
+
+/** Oldest-touched highlight that was never annotated — a gentle "add a thought" nudge. Pure. */
+export function pickBareHighlight<T extends BareHighlightInput>(highlights: T[]): T | undefined {
+  const unannotated = highlights.filter(isHighlightUnannotated);
+  if (unannotated.length === 0) return undefined;
+  return [...unannotated].sort((a, b) => (a.recencyMs ?? 0) - (b.recencyMs ?? 0))[0];
+}
+
+// 4. Reflection prompt (season / theme) ───────────────────────────────────────────
+
+export interface ReflectionPrompt {
+  source: 'season' | 'theme';
+  /** The draft-note title to seed, e.g. "Advent reflection" or "Prayer on Suffering". */
+  title: string;
+  /** Short label for the card (season name or theme). */
+  label: string;
+}
+
+/**
+ * A "start a reflection" prompt: the liturgical season if one is active (timely), otherwise a prayer
+ * on the theme the user has been sitting in. Returns undefined when neither signal is present. Pure.
+ */
+export function deriveReflectionPrompt(input: {
+  seasonLabel?: string | null;
+  arcTheme?: string | null;
+}): ReflectionPrompt | undefined {
+  const season = (input.seasonLabel ?? '').trim();
+  if (season) {
+    return { source: 'season', title: `${season} reflection`, label: season };
+  }
+  const theme = (input.arcTheme ?? '').trim();
+  if (theme) {
+    return { source: 'theme', title: `Prayer on ${theme}`, label: theme };
+  }
+  return undefined;
 }

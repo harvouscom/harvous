@@ -6794,3 +6794,8 @@ button.proto-appearance-hero__card {
   background: var(--pds-text-secondary);
   transform: scale(1.25);
 }
+
+/* Generative recall cards ("go make something new") — a quiet accent edge vs. revisit cards. */
+.proto-recall-card--generative {
+  border-left: 2px solid var(--pds-accent-focus-border);
+}

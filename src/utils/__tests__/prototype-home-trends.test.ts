@@ -36,6 +36,10 @@ import {
   selectRecallOpportunities,
   pickRecallTrend,
   recallTrendLine,
+  deriveContinueBook,
+  deriveRecurringPerson,
+  pickBareHighlight,
+  deriveReflectionPrompt,
   recallTrendGreetingParts,
   pickRevisitHighlight,
   pickSpotlightThread,
@@ -1528,5 +1532,107 @@ describe('recallTrendGreetingParts', () => {
   it('returns null when required labels are missing', () => {
     expect(recallTrendGreetingParts({ kind: 'arc', theme: '' })).toBeNull();
     expect(recallTrendGreetingParts({ kind: 'crossref', fromRef: 'A', toRef: '' })).toBeNull();
+  });
+});
+
+describe('deriveContinueBook', () => {
+  const counts = new Map<string, number>([['Romans', 16], ['Jude', 1], ['Matthew', 28]]);
+
+  it('suggests the next chapter after a contiguous run', () => {
+    const out = deriveContinueBook([{ book: 'Romans', bookOrder: 45, citedChapters: [1, 2, 3, 4, 5, 6, 7] }], counts);
+    expect(out[0]).toMatchObject({ book: 'Romans', nextChapter: 8, citedCount: 7 });
+  });
+
+  it('fills the first gap when the user skipped a chapter', () => {
+    const out = deriveContinueBook([{ book: 'Romans', bookOrder: 45, citedChapters: [1, 3, 5] }], counts);
+    expect(out[0].nextChapter).toBe(2);
+  });
+
+  it('skips a fully-cited book and an unknown book', () => {
+    const out = deriveContinueBook(
+      [
+        { book: 'Jude', bookOrder: 65, citedChapters: [1] },
+        { book: 'Nonsense', bookOrder: 99, citedChapters: [1] },
+      ],
+      counts,
+    );
+    expect(out).toEqual([]);
+  });
+
+  it('ranks the most-studied book first', () => {
+    const out = deriveContinueBook(
+      [
+        { book: 'Matthew', bookOrder: 40, citedChapters: [1, 2] },
+        { book: 'Romans', bookOrder: 45, citedChapters: [1, 2, 3, 4] },
+      ],
+      counts,
+    );
+    expect(out.map((s) => s.book)).toEqual(['Romans', 'Matthew']);
+  });
+});
+
+describe('deriveRecurringPerson', () => {
+  it('suggests a person in enough notes with no note about them', () => {
+    const out = deriveRecurringPerson([
+      { noteId: 'a', title: 'Exodus thoughts', people: ['Moses', 'Aaron'] },
+      { noteId: 'b', title: 'The plagues', people: ['Moses', 'Pharaoh'] },
+      { noteId: 'c', title: 'Red Sea', people: ['Moses'] },
+    ]);
+    expect(out[0]).toMatchObject({ name: 'Moses', noteCount: 3 });
+  });
+
+  it('excludes a person who already has a note titled after them', () => {
+    const out = deriveRecurringPerson([
+      { noteId: 'a', title: 'Moses the deliverer', people: ['Moses'] },
+      { noteId: 'b', title: 'x', people: ['Moses'] },
+      { noteId: 'c', title: 'y', people: ['Moses'] },
+    ]);
+    expect(out).toEqual([]);
+  });
+
+  it('excludes universal names and below-threshold people', () => {
+    const out = deriveRecurringPerson([
+      { noteId: 'a', title: '', people: ['Jesus', 'Lydia'] },
+      { noteId: 'b', title: '', people: ['Jesus'] },
+      { noteId: 'c', title: '', people: ['Jesus'] },
+    ]);
+    expect(out).toEqual([]); // Jesus denylisted, Lydia only in 1 note
+  });
+});
+
+describe('pickBareHighlight', () => {
+  it('picks the oldest unannotated highlight', () => {
+    const out = pickBareHighlight([
+      { id: 'annotated', miniNoteBody: 'a thought', recencyMs: 1 },
+      { id: 'bare-new', miniNoteBody: '', notesBody: '', recencyMs: 100 },
+      { id: 'bare-old', miniNoteBody: null, notesBody: '  ', recencyMs: 50 },
+    ]);
+    expect(out?.id).toBe('bare-old');
+  });
+
+  it('returns undefined when every highlight is annotated', () => {
+    expect(pickBareHighlight([{ id: 'x', notesBody: 'reflection' }])).toBeUndefined();
+  });
+});
+
+describe('deriveReflectionPrompt', () => {
+  it('prefers the liturgical season when present', () => {
+    expect(deriveReflectionPrompt({ seasonLabel: 'Advent', arcTheme: 'Suffering' })).toEqual({
+      source: 'season',
+      title: 'Advent reflection',
+      label: 'Advent',
+    });
+  });
+
+  it('falls back to a prayer on the current theme', () => {
+    expect(deriveReflectionPrompt({ arcTheme: 'Suffering' })).toEqual({
+      source: 'theme',
+      title: 'Prayer on Suffering',
+      label: 'Suffering',
+    });
+  });
+
+  it('returns undefined with no season or theme', () => {
+    expect(deriveReflectionPrompt({})).toBeUndefined();
   });
 });

@@ -54,6 +54,10 @@ import {
   selectRecallOpportunities,
   pickRecallTrend,
   recallTrendGreetingParts,
+  deriveContinueBook,
+  deriveRecurringPerson,
+  pickBareHighlight,
+  deriveReflectionPrompt,
   studyArcSinceLabel,
   studyArcToneLabel,
   type HomeLeadTheme,
@@ -80,7 +84,11 @@ import PrototypeRecallCarousel, { type RecallOpportunity } from './PrototypeReca
 import { useNoteFingerprints } from '../../hooks/queries/useNoteFingerprints';
 import PrototypeDailyPassagePill from './PrototypeDailyPassagePill';
 import PrototypeFounderLetterPill from './PrototypeFounderLetterPill';
-import { PROTOTYPE_DRAFT_NOTE_SLUG } from './proto-route-slugs';
+import { PROTOTYPE_DRAFT_NOTE_SLUG, noteParamSlug } from './proto-route-slugs';
+import { bibleBookChapterCounts } from '@/utils/bible-book-chapters';
+import { buildVotdScripturePillHtml } from '../../lib/votd-scripture-pill-html';
+import { useCreateSimpleNote, alertCreateNoteFailure } from '../../hooks/mutations/useCreateSimpleNote';
+import { getNoteIdFromCreateResponse } from '../../hooks/queries/useNote';
 import { useProtoShell } from '../../layouts/proto-shell-context';
 import { HOME_INTRO_LIST_MODES, type SidebarListModeEntry } from './proto-sidebar-list-modes';
 import type { SidebarListMode } from '../../layouts/proto-shell-context';
@@ -791,6 +799,70 @@ export default function PrototypeSidebarHomeView({
     ensureSidebarExpanded();
   }, [studyArc, notes, setSidebarLayer, setSidebarThreadProposal, ensureSidebarExpanded]);
 
+  // ── Generative recall: seed a draft note + derive prompts (Phase 1, client-side) ──
+  const season = useMemo(() => currentLiturgicalSeason(new Date()), []);
+
+  // Create a seeded note (title + optional scripture pill) and open it. PrototypeNotePage (which catches
+  // `openNewNotePanel`) isn't mounted on Home, so we create directly here, like its handler does.
+  const createDraftNote = useCreateSimpleNote();
+  const startDraftNote = useCallback(
+    async (opts: { title?: string; contentHtml?: string }) => {
+      if (!homeSpaceId) return;
+      if (isMobileSidebar) closeDrawer();
+      try {
+        const res = await createDraftNote.mutateAsync({
+          spaceId: homeSpaceId,
+          title: opts.title ?? '',
+          content: opts.contentHtml || '<p></p>',
+        });
+        const createdId = getNoteIdFromCreateResponse(res);
+        if (createdId) {
+          navigate({
+            to: prototypeNoteRouteTo(),
+            params: { noteId: noteParamSlug(createdId) },
+            search: PROTOTYPE_NOTE_LIST_NAV_SEARCH,
+          });
+        }
+      } catch (err) {
+        alertCreateNoteFailure(err);
+      }
+    },
+    [homeSpaceId, isMobileSidebar, closeDrawer, createDraftNote, navigate],
+  );
+
+  const continueBookSuggestion = useMemo(() => {
+    if (hasMoreNotes) return undefined;
+    const input = scriptureBooks.map((b) => ({
+      book: b.title,
+      bookOrder: b.bookOrder,
+      citedChapters: b.passages.map((p) => p.chapter),
+    }));
+    return deriveContinueBook(input, bibleBookChapterCounts(), { limit: 1 })[0];
+  }, [scriptureBooks, hasMoreNotes]);
+
+  const recurringPerson = useMemo(() => {
+    if (hasMoreNotes) return undefined;
+    const input = notes.map((n) => ({
+      noteId: n.id,
+      title: n.title ?? null,
+      people: fingerprintsById.get(n.id)?.people ?? [],
+    }));
+    return deriveRecurringPerson(input, { limit: 1 })[0];
+  }, [notes, fingerprintsById, hasMoreNotes]);
+
+  const bareHighlight = useMemo(() => {
+    const withRecency = highlights.map((h) => ({
+      ...h,
+      recencyMs: Date.parse(prototypeHighlightRecencyIso(h) ?? '') || 0,
+    }));
+    return pickBareHighlight(withRecency);
+  }, [highlights]);
+
+  const reflectionPrompt = useMemo(
+    () => deriveReflectionPrompt({ seasonLabel: season?.label, arcTheme: studyArc?.theme }),
+    [season, studyArc],
+  );
+
   // ── Recall carousel (Home resurfacing) ──
   // Fold the per-kind recall/trend memos above into one varied, ranked, snoozable carousel. Each
   // opportunity is enriched with its fingerprint theme/tone where we have it; only snoozing
@@ -895,6 +967,65 @@ export default function PrototypeSidebarHomeView({
       });
     }
 
+    // ── Generative opportunities ("go make something new") ──
+    if (continueBookSuggestion) {
+      const ref = `${continueBookSuggestion.book} ${continueBookSuggestion.nextChapter}`;
+      out.push({
+        id: `book:${continueBookSuggestion.book}:${continueBookSuggestion.nextChapter}`,
+        kind: 'continueBook',
+        isGenerative: true,
+        score: Math.min(0.85, 0.5 + continueBookSuggestion.citedCount / 20),
+        eyebrow: `Keep going in ${continueBookSuggestion.book}`,
+        title: ref,
+        meta: `You've studied ${continueBookSuggestion.citedCount} ${continueBookSuggestion.citedCount === 1 ? 'chapter' : 'chapters'} — start the next?`,
+        iconName: 'book',
+        onOpen: () => startDraftNote({ title: ref, contentHtml: buildVotdScripturePillHtml(ref, 'NET') }),
+      });
+    }
+
+    if (recurringPerson) {
+      out.push({
+        id: `person:${recurringPerson.name.toLowerCase()}`,
+        kind: 'studyPerson',
+        isGenerative: true,
+        score: Math.min(0.8, 0.45 + recurringPerson.noteCount / 20),
+        eyebrow: 'Someone you keep meeting',
+        title: recurringPerson.name,
+        meta: `Across ${recurringPerson.noteCount} of your notes — start a study?`,
+        iconName: 'circle-user',
+        onOpen: () => startDraftNote({ title: recurringPerson.name }),
+      });
+    }
+
+    if (bareHighlight && bareHighlight.id !== spotlightHighlight?.id) {
+      out.push({
+        id: `annotate:${bareHighlight.id}`,
+        kind: 'annotateHighlight',
+        isGenerative: true,
+        score: 0.5,
+        eyebrow: 'Add a thought',
+        title: prototypeHighlightListTitle(bareHighlight),
+        meta: 'You highlighted this but never reflected on it',
+        iconName: 'pen-to-square',
+        onOpen: () => onOpenHighlight(bareHighlight),
+      });
+    }
+
+    if (reflectionPrompt) {
+      const isSeason = reflectionPrompt.source === 'season';
+      out.push({
+        id: `reflection:${reflectionPrompt.source}:${reflectionPrompt.label.toLowerCase()}`,
+        kind: 'reflection',
+        isGenerative: true,
+        score: isSeason ? 0.6 : 0.45,
+        eyebrow: isSeason ? `It's ${reflectionPrompt.label}` : 'A prayer to write',
+        title: reflectionPrompt.title,
+        meta: isSeason ? 'Start a reflection for the season' : 'Bring this stretch of study to prayer',
+        iconName: isSeason ? 'calendar' : 'pen-to-square',
+        onOpen: () => startDraftNote({ title: reflectionPrompt.title }),
+      });
+    }
+
     return out;
   }, [
     continueNote,
@@ -914,6 +1045,11 @@ export default function PrototypeSidebarHomeView({
     openSubjectConnection,
     openCrossRefConnection,
     openPassageConnection,
+    continueBookSuggestion,
+    recurringPerson,
+    bareHighlight,
+    reflectionPrompt,
+    startDraftNote,
   ]);
 
   const recallOpportunities = useMemo(
