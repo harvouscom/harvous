@@ -33,6 +33,7 @@ import {
   countLooseNotes,
   deriveSubjectConnections,
   derivePassageConnections,
+  deriveStudyArcs,
   deriveTopBooks,
   deriveTopFolders,
   deriveTopTags,
@@ -48,9 +49,12 @@ import {
   pickRevisitNote,
   pickSpotlightThread,
   selectHomeLeadTheme,
+  studyArcSinceLabel,
+  studyArcToneLabel,
   type HomeLeadTheme,
   type HomeSubjectPassageInput,
   type HomePassageConnectionInput,
+  type StudyArcNoteInput,
 } from '@/utils/prototype-home-trends';
 import chapterSubjectsData from '@/data/chapter-subjects.json';
 import { currentLiturgicalSeason } from '@/utils/liturgical-season';
@@ -509,7 +513,7 @@ export default function PrototypeSidebarHomeView({
   // Memory layer Workstream B: forgetting-aware resurfacing. meaningWeight (server fingerprints) +
   // per-note stability (lengthened each time the user re-engages a recall) rank the "Worth another
   // look" pick toward meaningful, fading notes. Degrades to recency logic before fingerprints exist.
-  const { meaningWeightById } = useNoteFingerprints();
+  const { meaningWeightById, fingerprintsById } = useNoteFingerprints();
   const recallStability = useMemo(() => stabilityById(homeSpaceId), [homeSpaceId]);
 
   const continueNote = useMemo(() => pickContinueNote(notes), [notes]);
@@ -617,6 +621,39 @@ export default function PrototypeSidebarHomeView({
     if (!passageConnection) return;
     onOpenScripturePassage(passageConnection.bookOrder, passageConnection.passageKey);
   }, [passageConnection, onOpenScripturePassage]);
+
+  // Memory layer Workstream C: a study arc — a theme that keeps returning across your notes over
+  // weeks or months ("living commentary on your life"). Joins each note's fingerprint themes/tone
+  // (Workstream A) with its timestamp; needs the full note set to count honestly. Tapping opens the
+  // note where the thread began.
+  const studyArc = useMemo(() => {
+    if (hasMoreNotes) return undefined;
+    const arcNotes: StudyArcNoteInput[] = notes.map((n) => {
+      const fp = fingerprintsById.get(n.id);
+      return {
+        id: n.id,
+        createdAt: n.createdAt,
+        updatedAt: n.updatedAt,
+        themes: fp?.themes ?? [],
+        emotionalTone: fp?.emotionalTone ?? null,
+      };
+    });
+    return deriveStudyArcs(arcNotes, { nowMs: Date.now(), limit: 1 })[0];
+  }, [notes, fingerprintsById, hasMoreNotes]);
+
+  const studyArcCopy = useMemo(() => {
+    if (!studyArc) return null;
+    const since = studyArcSinceLabel(studyArc.firstMs, Date.now());
+    const tone = studyArcToneLabel(studyArc.dominantTone);
+    const base = `Across ${studyArc.noteCount} notes since ${since}`;
+    return tone ? `${base} · ${tone}` : base;
+  }, [studyArc]);
+
+  const openStudyArc = useCallback(() => {
+    const originId = studyArc?.noteIds[0];
+    const originNote = originId ? notes.find((n) => n.id === originId) : undefined;
+    if (originNote) onOpenNote(originNote);
+  }, [studyArc, notes, onOpenNote]);
 
   const onCreateFirstNote = useCallback(() => {
     if (!homeSpaceId) return;
@@ -793,6 +830,32 @@ export default function PrototypeSidebarHomeView({
                 <span className="proto-home-card__meta-item">
                   Across {subjectConnection.noteCount} of your notes
                 </span>
+              </div>
+            </div>
+          </button>
+        </div>
+      ) : null}
+
+      {studyArc ? (
+        <div className="proto-home-section">
+          <button
+            type="button"
+            className="proto-glass-surface proto-glass-surface--panel proto-home-card proto-home-card--tappable"
+            onClick={openStudyArc}
+          >
+            <p className="proto-caption proto-home-card__eyebrow">A through-line in your study</p>
+            <div className="proto-home-card__body">
+              <div className="proto-home-card__title-row">
+                <span className="proto-home-card__icon-orb" aria-hidden>
+                  <Icon name="arrows-turn-to-dots" size={13} />
+                </span>
+                <p className="pds-list-title proto-home-card__title">{studyArc.theme}</p>
+                <span className="proto-home-card__chevron" aria-hidden>
+                  <Icon name="chevron-right" size={11} />
+                </span>
+              </div>
+              <div className="proto-home-card__meta">
+                <span className="proto-home-card__meta-item">{studyArcCopy}</span>
               </div>
             </div>
           </button>

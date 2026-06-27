@@ -29,6 +29,9 @@ import {
   pickContinueNote,
   pickRevisitNote,
   forgettingAwarePriority,
+  deriveStudyArcs,
+  studyArcSinceLabel,
+  studyArcToneLabel,
   pickRevisitHighlight,
   pickSpotlightThread,
   stableStringHash,
@@ -1230,5 +1233,86 @@ describe('pickRevisitNote forgetting-aware mode', () => {
       meaningWeightById: { fresh: 1 },
     });
     expect(pick).toBeUndefined();
+  });
+});
+
+describe('deriveStudyArcs', () => {
+  const DAY = 24 * 60 * 60 * 1000;
+  const NOW = Date.parse('2026-06-30T12:00:00Z');
+  const daysAgo = (n: number) => new Date(NOW - n * DAY).toISOString();
+  const note = (id: string, ageDays: number, themes: string[], emotionalTone: string | null = null) => ({
+    id,
+    createdAt: daysAgo(ageDays),
+    themes,
+    emotionalTone,
+  });
+
+  it('returns nothing when no theme recurs enough', () => {
+    const notes = [note('a', 10, ['Hope']), note('b', 40, ['Grace'])];
+    expect(deriveStudyArcs(notes, { nowMs: NOW })).toEqual([]);
+  });
+
+  it('surfaces a theme that recurs across notes and time', () => {
+    const notes = [
+      note('a', 150, ['Suffering', 'Romans']),
+      note('b', 90, ['Suffering']),
+      note('c', 20, ['Suffering', 'Hope']),
+    ];
+    const [arc] = deriveStudyArcs(notes, { nowMs: NOW });
+    expect(arc.theme).toBe('Suffering');
+    expect(arc.noteCount).toBe(3);
+    expect(arc.noteIds).toEqual(['a', 'b', 'c']); // ordered earliest → latest
+    expect(arc.spanDays).toBeGreaterThan(21);
+  });
+
+  it('ignores a theme confined to a single sitting (span below threshold)', () => {
+    const notes = [
+      note('a', 30, ['Obedience']),
+      note('b', 29, ['Obedience']),
+      note('c', 28, ['Obedience']),
+    ];
+    expect(deriveStudyArcs(notes, { nowMs: NOW })).toEqual([]);
+  });
+
+  it('excludes universal denylist themes', () => {
+    const notes = [note('a', 150, ['Jesus']), note('b', 80, ['Jesus']), note('c', 10, ['Jesus'])];
+    expect(deriveStudyArcs(notes, { nowMs: NOW })).toEqual([]);
+  });
+
+  it('reports the dominant emotional tone across the arc', () => {
+    const notes = [
+      note('a', 150, ['Suffering'], 'lament'),
+      note('b', 90, ['Suffering'], 'lament'),
+      note('c', 20, ['Suffering'], 'hope'),
+    ];
+    const [arc] = deriveStudyArcs(notes, { nowMs: NOW });
+    expect(arc.dominantTone).toBe('lament');
+  });
+
+  it('respects the recency window', () => {
+    const notes = [
+      note('old', 400, ['Mercy']),
+      note('a', 150, ['Mercy']),
+      note('b', 80, ['Mercy']),
+      note('c', 20, ['Mercy']),
+    ];
+    const [arc] = deriveStudyArcs(notes, { nowMs: NOW });
+    expect(arc.noteCount).toBe(3); // the 400-day-old note is outside the 180-day window
+    expect(arc.noteIds).toEqual(['a', 'b', 'c']);
+  });
+});
+
+describe('study arc formatters', () => {
+  const NOW = Date.parse('2026-06-30T12:00:00Z');
+  it('labels the start month within the same year', () => {
+    expect(studyArcSinceLabel(Date.parse('2026-01-15T00:00:00Z'), NOW)).toBe('January');
+  });
+  it('includes the year for an earlier-year start', () => {
+    expect(studyArcSinceLabel(Date.parse('2025-11-15T00:00:00Z'), NOW)).toBe('November 2025');
+  });
+  it('maps tone to a human through-line phrase', () => {
+    expect(studyArcToneLabel('lament')).toBe('often in lament');
+    expect(studyArcToneLabel(null)).toBeNull();
+    expect(studyArcToneLabel('unknown')).toBeNull();
   });
 });

@@ -983,3 +983,162 @@ export function deriveTopPassages(books: HomeBookInput[], limit: number): HomeTo
       referenceCount: passage.referenceCount,
     }));
 }
+
+// ─── Study arcs (memory layer Workstream C: "living commentary on your life") ─────
+// A study arc is a theme that keeps returning across a user's notes OVER TIME — not a single
+// session, but a thread of attention spanning weeks or months. Built purely from each note's
+// fingerprint themes (Workstream A) joined with its timestamp, so it surfaces "what God has been
+// teaching you lately" grounded entirely in the user's own study. Pure + deterministic.
+
+export interface StudyArcNoteInput {
+  id: string;
+  createdAt?: Date | string | null;
+  updatedAt?: Date | string | null;
+  /** Fingerprint themes for this note (prose tags + passage themes). */
+  themes: string[];
+  /** Fingerprint emotional tone, if any — used for the arc's through-line. */
+  emotionalTone?: string | null;
+}
+
+export interface StudyArc {
+  theme: string;
+  /** Distinct notes touching this theme within the window. */
+  noteCount: number;
+  firstMs: number;
+  lastMs: number;
+  spanDays: number;
+  /** Most common emotional tone across the arc's notes, or null. */
+  dominantTone: string | null;
+  /** Note ids ordered earliest → latest (the arc's path). */
+  noteIds: string[];
+}
+
+export interface StudyArcOptions {
+  nowMs: number;
+  /** How far back an arc may reach. Default ~6 months. */
+  windowMs?: number;
+  /** Minimum distinct notes for a theme to count as an arc. */
+  minNotes?: number;
+  /** Minimum first→last span so a single study session isn't mistaken for an arc. */
+  minSpanDays?: number;
+  limit?: number;
+}
+
+/** Themes too universal to be "a theme God's been teaching you" — they'd match almost everything. */
+const ARC_THEME_DENYLIST = new Set(['god', 'jesus', 'christ', 'holy spirit', 'lord']);
+
+const ARC_WINDOW_MS = 180 * DAY_MS;
+
+/** A note's position in an arc: when it was written (createdAt), falling back to last edit. */
+function arcNoteTime(note: StudyArcNoteInput): number {
+  return normalizeDate(note.createdAt)?.getTime() ?? normalizeDate(note.updatedAt)?.getTime() ?? 0;
+}
+
+/** Most frequent non-null value; null on empty or a tie at the top. Pure. */
+export function pickDominantTone(tones: Array<string | null | undefined>): string | null {
+  const counts = new Map<string, number>();
+  for (const t of tones) {
+    if (!t) continue;
+    counts.set(t, (counts.get(t) ?? 0) + 1);
+  }
+  let best: string | null = null;
+  let bestCount = 0;
+  let tied = false;
+  for (const [tone, c] of counts) {
+    if (c > bestCount) {
+      best = tone;
+      bestCount = c;
+      tied = false;
+    } else if (c === bestCount) {
+      tied = true;
+    }
+  }
+  return tied ? null : best;
+}
+
+/**
+ * The strongest recurring theme-over-time in a user's recent notes. Joins each note's fingerprint
+ * themes with its timestamp, groups by theme, and keeps those spanning enough notes AND enough time
+ * to be a genuine arc (not one sitting). Ranked by reach, then duration. Returns up to `limit`.
+ */
+export function deriveStudyArcs(notes: StudyArcNoteInput[], options: StudyArcOptions): StudyArc[] {
+  const { nowMs, windowMs = ARC_WINDOW_MS, minNotes = 3, minSpanDays = 21, limit = 1 } = options;
+  const windowStart = nowMs - windowMs;
+
+  const byTheme = new Map<string, { label: string; entries: Array<{ id: string; t: number; tone: string | null }> }>();
+  const idsPerTheme = new Map<string, Set<string>>();
+
+  for (const note of notes) {
+    const t = arcNoteTime(note);
+    if (t <= 0 || t < windowStart || t > nowMs) continue;
+    const tone = note.emotionalTone ?? null;
+    const seenThemes = new Set<string>();
+    for (const raw of note.themes ?? []) {
+      const label = raw.trim();
+      if (!label) continue;
+      const key = label.toLowerCase();
+      if (ARC_THEME_DENYLIST.has(key) || seenThemes.has(key)) continue;
+      seenThemes.add(key);
+
+      let ids = idsPerTheme.get(key);
+      if (!ids) {
+        ids = new Set();
+        idsPerTheme.set(key, ids);
+      }
+      if (ids.has(note.id)) continue;
+      ids.add(note.id);
+
+      let bucket = byTheme.get(key);
+      if (!bucket) {
+        bucket = { label, entries: [] };
+        byTheme.set(key, bucket);
+      }
+      bucket.entries.push({ id: note.id, t, tone });
+    }
+  }
+
+  const arcs: StudyArc[] = [];
+  for (const { label, entries } of byTheme.values()) {
+    if (entries.length < minNotes) continue;
+    entries.sort((a, b) => a.t - b.t || a.id.localeCompare(b.id));
+    const firstMs = entries[0]!.t;
+    const lastMs = entries[entries.length - 1]!.t;
+    const spanDays = (lastMs - firstMs) / DAY_MS;
+    if (spanDays < minSpanDays) continue;
+    arcs.push({
+      theme: label,
+      noteCount: entries.length,
+      firstMs,
+      lastMs,
+      spanDays,
+      dominantTone: pickDominantTone(entries.map((e) => e.tone)),
+      noteIds: entries.map((e) => e.id),
+    });
+  }
+
+  arcs.sort((a, b) => b.noteCount - a.noteCount || b.spanDays - a.spanDays || a.theme.localeCompare(b.theme));
+  return arcs.slice(0, Math.max(0, limit));
+}
+
+/** Month name an arc began in, e.g. "January" (same year) or "January 2026" (earlier year). */
+export function studyArcSinceLabel(firstMs: number, nowMs: number): string {
+  const start = new Date(firstMs);
+  const month = start.toLocaleString('en-US', { month: 'long' });
+  return start.getFullYear() === new Date(nowMs).getFullYear() ? month : `${month} ${start.getFullYear()}`;
+}
+
+/** Human phrase for an arc's emotional through-line, or null when there's no clear tone. */
+export function studyArcToneLabel(tone: string | null): string | null {
+  if (!tone) return null;
+  const map: Record<string, string> = {
+    lament: 'often in lament',
+    joy: 'often in joy',
+    fear: 'often wrestling with fear',
+    gratitude: 'often in gratitude',
+    hope: 'often reaching for hope',
+    conviction: 'often under conviction',
+    awe: 'often in awe',
+    peace: 'often settling into peace',
+  };
+  return map[tone] ?? null;
+}
