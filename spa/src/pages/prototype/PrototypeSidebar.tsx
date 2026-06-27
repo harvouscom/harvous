@@ -21,7 +21,7 @@ import { stripServerAutoUntitledNoteTitleForDisplay } from '@/utils/server-auto-
 import { isEffectivelyEmptyPrototypeNote } from '@/utils/prototype-note-empty';
 import { computePrototypeNotesListPhase } from '@/utils/prototype-notes-list-phase';
 import { stripHtmlForListPreview } from '@/utils/html-stripper';
-import { useProtoShell, type SidebarTagSearchIntent } from '../../layouts/proto-shell-context';
+import { useProtoShell, type SidebarTagSearchIntent, type ThreadProposal } from '../../layouts/proto-shell-context';
 import { usePrototypeHomeSpaceId } from '../../hooks/usePrototypeHomeSpaceId';
 import { usePrototypeStudyThreadListSyncListener } from '../../hooks/usePrototypeStudyThreadListSyncListener';
 import { useIntersectionFetchNextPage } from '../../hooks/useIntersectionFetchNextPage';
@@ -867,6 +867,18 @@ function ProtoNotesPaginationFooter({
       ) : null}
     </div>
   );
+}
+
+function threadProposalSubtitle(proposal: ThreadProposal): string {
+  const n = proposal.notes.length;
+  switch (proposal.variant) {
+    case 'arc':
+      return `${n} ${n === 1 ? 'note' : 'notes'} · a through-line in your study`;
+    case 'crossref':
+      return `${n} ${n === 1 ? 'note connects' : 'notes connect'} these passages`;
+    default:
+      return `${n} ${n === 1 ? 'note shares' : 'notes share'} this theme`;
+  }
 }
 
 export default function PrototypeSidebar() {
@@ -1837,10 +1849,7 @@ export default function PrototypeSidebar() {
                   <p className="proto-thread-review__title">{sidebarThreadProposal.subject}</p>
                   <span className="proto-thread-review__badge">Suggested</span>
                 </div>
-                <p className="proto-thread-review__subtitle">
-                  {sidebarThreadProposal.notes.length}{' '}
-                  {sidebarThreadProposal.notes.length === 1 ? 'note shares' : 'notes share'} this theme
-                </p>
+                <p className="proto-thread-review__subtitle">{threadProposalSubtitle(sidebarThreadProposal)}</p>
               </div>
             </div>
             <ul className="proto-note-list proto-thread-review__list">

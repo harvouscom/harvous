@@ -38,6 +38,8 @@ export interface ThreadProposal {
   subject: string;
   /** Notes that would be connected into the thread. */
   notes: Array<{ id: string; title: string | null }>;
+  /** Drives review copy; defaults to subject-style. */
+  variant?: 'subject' | 'arc' | 'crossref';
 }
 
 const SIDEBAR_LIST_MODE_STORAGE_KEY = 'harvous-prototype-sidebar-list-mode';

@@ -72,7 +72,7 @@ import {
 } from './proto-highlight-subtitle';
 import { loadPinnedHighlightIds } from './proto-pinned-stores';
 import { stabilityById, recordRecallEngaged } from './proto-recall-stability';
-import { activeCooldownIds, recordRecallSnoozed, recordRecallOpened } from './proto-recall-cooldown';
+import { activeCooldownIds, recordRecallSnoozed } from './proto-recall-cooldown';
 import PrototypeRecallCarousel, { type RecallOpportunity } from './PrototypeRecallCarousel';
 import { useNoteFingerprints } from '../../hooks/queries/useNoteFingerprints';
 import PrototypeDailyPassagePill from './PrototypeDailyPassagePill';
@@ -620,10 +620,23 @@ export default function PrototypeSidebarHomeView({
   ]);
 
   const openCrossRefConnection = useCallback(() => {
-    const leadId = crossRefConnection?.notes[0]?.id;
-    const leadNote = leadId ? notes.find((note) => note.id === leadId) : undefined;
-    if (leadNote) onOpenNote(leadNote);
-  }, [crossRefConnection, notes, onOpenNote]);
+    if (!crossRefConnection) return;
+    const proposalNotes = crossRefConnection.notes.filter((n) => loadedNoteIds.has(n.id));
+    if (proposalNotes.length < CROSSREF_CONNECTION_MIN) return;
+    setSidebarThreadProposal({
+      subject: `${crossRefConnection.from.displayRef} and ${crossRefConnection.to.displayRef}`,
+      notes: proposalNotes,
+      variant: 'crossref',
+    });
+    setSidebarLayer('list');
+    ensureSidebarExpanded();
+  }, [
+    crossRefConnection,
+    loadedNoteIds,
+    setSidebarLayer,
+    setSidebarThreadProposal,
+    ensureSidebarExpanded,
+  ]);
 
   const openPassageConnection = useCallback(() => {
     if (!passageConnection) return;
@@ -633,7 +646,7 @@ export default function PrototypeSidebarHomeView({
   // Memory layer Workstream C: a study arc — a theme that keeps returning across your notes over
   // weeks or months ("living commentary on your life"). Joins each note's fingerprint themes/tone
   // (Workstream A) with its timestamp; needs the full note set to count honestly. Tapping opens the
-  // note where the thread began.
+  // thread-review dialog listing notes in the arc.
   const studyArc = useMemo(() => {
     if (hasMoreNotes) return undefined;
     const arcNotes: StudyArcNoteInput[] = notes.map((n) => {
@@ -658,14 +671,24 @@ export default function PrototypeSidebarHomeView({
   }, [studyArc]);
 
   const openStudyArc = useCallback(() => {
-    const originId = studyArc?.noteIds[0];
-    const originNote = originId ? notes.find((n) => n.id === originId) : undefined;
-    if (originNote) onOpenNote(originNote);
-  }, [studyArc, notes, onOpenNote]);
+    if (!studyArc) return;
+    const proposalNotes = studyArc.noteIds
+      .map((id) => notes.find((n) => n.id === id))
+      .filter((n): n is SpaceNoteRow => Boolean(n))
+      .map((n) => ({ id: n.id, title: n.title ?? null }));
+    if (proposalNotes.length === 0) return;
+    setSidebarThreadProposal({
+      subject: studyArc.theme,
+      notes: proposalNotes,
+      variant: 'arc',
+    });
+    setSidebarLayer('list');
+    ensureSidebarExpanded();
+  }, [studyArc, notes, setSidebarLayer, setSidebarThreadProposal, ensureSidebarExpanded]);
 
   // ── Recall carousel (Home resurfacing) ──
   // Fold the per-kind recall/trend memos above into one varied, ranked, snoozable carousel. Each
-  // opportunity is enriched with its fingerprint theme/tone where we have it; opening or snoozing
+  // opportunity is enriched with its fingerprint theme/tone where we have it; only snoozing
   // ("not now") rests it via the recall-cooldown store; the set rotates daily.
   const [recallTick, setRecallTick] = useState(0);
   const recallDayIndex = useMemo(() => localDayIndex(new Date()), []);
@@ -677,10 +700,6 @@ export default function PrototypeSidebarHomeView({
 
   const recallCandidates = useMemo<RecallOpportunity[]>(() => {
     const out: RecallOpportunity[] = [];
-    const wrapOpen = (id: string, action: () => void) => () => {
-      recordRecallOpened(homeSpaceId, id, recallDayIndex);
-      action();
-    };
 
     if (revisitNote) {
       const fp = fingerprintsById.get(revisitNote.id);
@@ -695,7 +714,7 @@ export default function PrototypeSidebarHomeView({
         title: stripServerAutoUntitledNoteTitleForDisplay(revisitNote.title?.trim() ?? '') || 'New Note',
         meta,
         iconName: 'arrow-rotate-left',
-        onOpen: wrapOpen(revisitNote.id, () => handleOpenRevisitNote(revisitNote)),
+        onOpen: () => handleOpenRevisitNote(revisitNote),
       });
     }
 
@@ -708,7 +727,7 @@ export default function PrototypeSidebarHomeView({
         title: prototypeHighlightListTitle(spotlightHighlight),
         meta: prototypeHighlightSubtitlePreview(spotlightHighlight, spotlightHighlight.parentNoteTitle),
         iconName: highlightEntryKindIconName(spotlightHighlight.entryKind),
-        onOpen: wrapOpen(spotlightHighlight.id, () => onOpenHighlight(spotlightHighlight)),
+        onOpen: () => onOpenHighlight(spotlightHighlight),
       });
     }
 
@@ -722,7 +741,7 @@ export default function PrototypeSidebarHomeView({
         title: studyArc.theme,
         meta: studyArcCopy ?? '',
         iconName: 'arrows-turn-to-dots',
-        onOpen: wrapOpen(id, openStudyArc),
+        onOpen: openStudyArc,
       });
     }
 
@@ -736,7 +755,7 @@ export default function PrototypeSidebarHomeView({
         title: subjectConnection.subject,
         meta: `Across ${subjectConnection.noteCount} of your notes`,
         iconName: 'arrow-right-arrow-left',
-        onOpen: wrapOpen(id, openSubjectConnection),
+        onOpen: openSubjectConnection,
       });
     }
 
@@ -750,7 +769,7 @@ export default function PrototypeSidebarHomeView({
         title: `${crossRefConnection.from.displayRef} and ${crossRefConnection.to.displayRef}`,
         meta: `Across ${crossRefConnection.noteCount} of your notes`,
         iconName: 'arrow-right-arrow-left',
-        onOpen: wrapOpen(id, openCrossRefConnection),
+        onOpen: openCrossRefConnection,
       });
     }
 
@@ -764,7 +783,7 @@ export default function PrototypeSidebarHomeView({
         title: passageConnection.displayRef,
         meta: `Across ${passageConnection.noteCount} of your notes`,
         iconName: 'book',
-        onOpen: wrapOpen(id, openPassageConnection),
+        onOpen: openPassageConnection,
       });
     }
 
@@ -779,8 +798,6 @@ export default function PrototypeSidebarHomeView({
     passageConnection,
     fingerprintsById,
     meaningWeightById,
-    homeSpaceId,
-    recallDayIndex,
     handleOpenRevisitNote,
     onOpenHighlight,
     openStudyArc,
