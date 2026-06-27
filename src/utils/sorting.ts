@@ -290,6 +290,34 @@ export function sortNotesByLastVisited<T extends {
   });
 }
 
+type DrillNoteRecencySource = {
+  updatedAt?: Date | string | null;
+  createdAt?: Date | string | null;
+  isPinned?: boolean;
+};
+
+/**
+ * Sidebar drill lists (scripture passage notes, thread members) carry brief rows from
+ * derived indexes while row captions use the live paginated notes query. Merge loaded
+ * note timestamps before sorting so order matches displayed "modified" times.
+ */
+export function sortDrillNoteBriefsByLastUpdated<
+  T extends { id: string; updatedAt?: Date | string | null; createdAt?: Date | string | null },
+>(briefs: T[], loadedNotesById?: ReadonlyMap<string, DrillNoteRecencySource>): T[] {
+  return sortNotesByLastUpdated(
+    briefs.map((brief) => {
+      const full = loadedNotesById?.get(brief.id);
+      if (!full) return brief;
+      return {
+        ...brief,
+        updatedAt: full.updatedAt ?? brief.updatedAt,
+        createdAt: full.createdAt ?? brief.createdAt,
+        isPinned: full.isPinned,
+      };
+    }),
+  );
+}
+
 /**
  * Prototype / edit-recency note lists: pinned first, then by last content/metadata edit.
  * Visit-only `lastVisited` bumps do not affect order — only `updatedAt` and `createdAt`.

@@ -543,7 +543,7 @@ html[data-shift-hints='1'] .proto-toolbar-orb-group {
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background: var(--pds-accent);
+  background: var(--pds-accent-indicator);
   box-shadow: 0 0 0 1.5px var(--pds-bg-page);
   pointer-events: none;
 }
@@ -4380,6 +4380,11 @@ button.proto-home-card--tappable:hover {
     var(--pds-glass-rim);
 }
 
+button.proto-home-card--tappable:focus-visible {
+  outline: 2px solid var(--pds-accent-focus-border);
+  outline-offset: 2px;
+}
+
 @media (prefers-color-scheme: dark) {
   html.harvous-prototype-route:not([data-color-scheme='light']) button.proto-home-card--tappable:hover,
   html[data-color-scheme='dark'].harvous-prototype-route button.proto-home-card--tappable:hover {
@@ -4543,6 +4548,11 @@ button.proto-home-greeting__chip:hover {
     0 2px 4px rgba(60, 64, 67, 0.08),
     0 8px 18px -10px rgba(60, 64, 67, 0.12),
     var(--pds-glass-rim);
+}
+
+button.proto-home-greeting__chip:focus-visible {
+  outline: 2px solid var(--pds-accent-focus-border);
+  outline-offset: 2px;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -5355,7 +5365,7 @@ button.proto-appearance-hero__card {
 }
 
 .proto-appearance-preview:focus-visible {
-  outline: 2px solid var(--pds-accent);
+  outline: 2px solid var(--pds-accent-focus-outline);
   outline-offset: 3px;
   border-radius: 10px;
 }

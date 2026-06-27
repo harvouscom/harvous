@@ -182,9 +182,12 @@
   --pds-bg-modal-wash: oklch(var(--pds-lch-modal-wash));
   --pds-bg-surface-glass: oklch(var(--pds-lch-bg-page) / 0.8);
   --pds-bg-surface-glass-strong: oklch(var(--pds-lch-bg-page) / 0.7);
-  /* Keyboard focus — full primary blue (matches accent pill buttons). */
-  --pds-accent-focus-border: var(--pds-accent);
-  --pds-accent-focus-ring: var(--pds-accent);
+  --pds-accent-gradient-start: #2bb5ff;
+  --pds-accent-gradient-end: #006eff;
+  /* Signal blue — focus rings, share-active dot, etc. (gradient endpoints; flips in dark). */
+  --pds-accent-indicator: var(--pds-accent-gradient-end);
+  --pds-accent-focus-border: var(--pds-accent-indicator);
+  --pds-accent-focus-ring: var(--pds-accent-indicator);
   --pds-accent-subtle-bg: oklch(var(--pds-lch-accent) / 0.06);
   --pds-accent-subtle-border: oklch(var(--pds-lch-accent) / 0.2);
   --pds-shadow-chip-selected: 0 1px 2px oklch(var(--pds-lch-shadow-popover-b));
@@ -214,9 +217,9 @@
   --pds-glass-rim:
     inset 0 0.5px 0 oklch(100% 0 0 / 0.6),
     inset 0 -0.5px 0 oklch(0% 0 0 / 0.04);
-  --pds-accent-focus-outline: var(--pds-accent);
-  --pds-accent-focus-outline-soft: var(--pds-accent);
-  --pds-accent-focus-outline-row: var(--pds-accent);
+  --pds-accent-focus-outline: var(--pds-accent-indicator);
+  --pds-accent-focus-outline-soft: var(--pds-accent-indicator);
+  --pds-accent-focus-outline-row: var(--pds-accent-indicator);
   --pds-accent-active-bg-strong: oklch(var(--pds-lch-accent) / 0.1);
   --pds-accent-active-border: var(--pds-accent);
   --pds-accent-active-ring: var(--pds-accent);
@@ -226,7 +229,11 @@
   --pds-selection-bg: #ffe8a8; /* match site --color-highlight */
   --pds-destructive-bg: oklch(var(--pds-lch-destructive) / 0.08);
   --pds-destructive-bg-strong: oklch(var(--pds-lch-destructive) / 0.15);
-  --pds-bg-accent-button: linear-gradient(171deg, #2bb5ff 7%, #006eff 93%);
+  --pds-bg-accent-button: linear-gradient(
+    171deg,
+    var(--pds-accent-gradient-start) 7%,
+    var(--pds-accent-gradient-end) 93%
+  );
   --pds-shadow-accent-button:
     inset 0 1px 0 rgba(255, 255, 255, 0.3),
     0 10px 24px -10px rgba(0, 110, 255, 0.6);
@@ -444,6 +451,7 @@ html.harvous-proto-wallpaper-image {
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-color-scheme="light"]) {
+    --pds-accent-indicator: var(--pds-accent-gradient-start);
     --pds-lch-accent: 62% 0.16 265;
     --pds-lch-accent-pressed: 56% 0.16 265;
     --pds-lch-scripture-fg: 72% 0.14 255;
@@ -622,6 +630,7 @@ html.harvous-proto-wallpaper-image {
 /* ─── Forced dark mode (overrides system light) ──────────────────────────── */
 
 :root[data-color-scheme="dark"] {
+  --pds-accent-indicator: var(--pds-accent-gradient-start);
   --pds-lch-accent: 62% 0.16 265;
   --pds-lch-accent-pressed: 56% 0.16 265;
   --pds-lch-scripture-fg: 72% 0.14 255;

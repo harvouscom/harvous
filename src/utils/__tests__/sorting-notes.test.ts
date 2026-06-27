@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { sortNotesByLastUpdated, sortNotesByLastVisited } from '../sorting';
+import {
+  sortDrillNoteBriefsByLastUpdated,
+  sortNotesByLastUpdated,
+  sortNotesByLastVisited,
+} from '../sorting';
 
 describe('sortNotesByLastUpdated', () => {
   it('ignores visit-only bumps when a note was edited more recently', () => {
@@ -41,6 +45,21 @@ describe('sortNotesByLastUpdated', () => {
     const sorted = sortNotesByLastUpdated([second, first]);
     expect(sorted[0]).toBe(first);
     expect(sorted[1]).toBe(second);
+  });
+});
+
+describe('sortDrillNoteBriefsByLastUpdated', () => {
+  it('prefers loaded note timestamps over stale brief rows', () => {
+    const briefs = [
+      { id: 'old-index', title: 'Older', updatedAt: '2026-06-01T00:00:00Z', createdAt: '2026-06-01T00:00:00Z' },
+      { id: 'fresh-index', title: 'Newer', updatedAt: '2026-06-02T00:00:00Z', createdAt: '2026-06-02T00:00:00Z' },
+    ];
+    const loaded = new Map([
+      ['old-index', { updatedAt: '2026-06-10T00:00:00Z', createdAt: '2026-06-01T00:00:00Z' }],
+      ['fresh-index', { updatedAt: '2026-06-03T00:00:00Z', createdAt: '2026-06-02T00:00:00Z' }],
+    ]);
+    const sorted = sortDrillNoteBriefsByLastUpdated(briefs, loaded);
+    expect(sorted.map((row) => row.id)).toEqual(['old-index', 'fresh-index']);
   });
 });
 

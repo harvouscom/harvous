@@ -16,7 +16,7 @@ import { usePinSpaceNote } from '../../hooks/mutations/usePinSpaceNote';
 import { useSpaceNotes, type SpaceNoteRow } from '../../hooks/queries/useSpace';
 import { getNoteQueryOptions, seedNoteFromList, type ListNoteForSeed } from '../../hooks/queries/useNote';
 import { countNotesInFolderBucket, noteBelongsToFolderBucket, noteFolderMembershipLabels } from '@/utils/note-folder-display';
-import { sortNotesByLastUpdated } from '@/utils/sorting';
+import { sortDrillNoteBriefsByLastUpdated, sortNotesByLastUpdated } from '@/utils/sorting';
 import { stripServerAutoUntitledNoteTitleForDisplay } from '@/utils/server-auto-untitled-note-display';
 import { isEffectivelyEmptyPrototypeNote } from '@/utils/prototype-note-empty';
 import { computePrototypeNotesListPhase } from '@/utils/prototype-notes-list-phase';
@@ -1330,9 +1330,17 @@ export default function PrototypeSidebar() {
     const passage = book?.passages.find((p) => p.passageKey === scriptureDrill.passageKey);
     const noteRows = passage?.notes ?? [];
     const t = q.trim().toLowerCase();
-    if (!t) return noteRows;
-    return noteRows.filter((n) => (n.title ?? '').toLowerCase().includes(t));
-  }, [scriptureBooks, scriptureDrill, q]);
+    const filtered = !t
+      ? noteRows
+      : noteRows.filter((n) => (n.title ?? '').toLowerCase().includes(t));
+    return sortDrillNoteBriefsByLastUpdated(filtered, notesById);
+  }, [scriptureBooks, scriptureDrill, q, notesById]);
+
+  const threadDrillNodesSorted = useMemo(() => {
+    const nodes = threadDrillQuery.data?.nodes ?? [];
+    if (nodes.length === 0) return nodes;
+    return sortDrillNoteBriefsByLastUpdated(nodes, notesById);
+  }, [threadDrillQuery.data?.nodes, notesById]);
 
   const scriptureNotesPassageTitle =
     scriptureDrill.level === 'notes'
@@ -2138,7 +2146,7 @@ export default function PrototypeSidebar() {
                   <p className="proto-caption" style={{ padding: '12px 18px', textAlign: 'center' }}>
                     Could not load thread.
                   </p>
-                ) : !threadDrillQuery.data?.nodes.length ? (
+                ) : threadDrillNodesSorted.length === 0 ? (
                   <div className="proto-drill-empty">
                     <p className="proto-caption" style={{ padding: '12px 18px', textAlign: 'center', opacity: 0.7 }}>
                       No notes in this thread.
@@ -2153,7 +2161,7 @@ export default function PrototypeSidebar() {
                   </div>
                 ) : (
                   <ul className="proto-note-list">
-                    {threadDrillQuery.data.nodes.map((node) => {
+                    {threadDrillNodesSorted.map((node) => {
                       const row = resolveDrillNoteRow({
                         id: node.id,
                         title: node.title || node.resourceTitle || null,
