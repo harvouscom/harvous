@@ -76,6 +76,8 @@ import { deleteNotesCascadeForUser, deleteSingleNoteCascadeForUser } from '../ut
 import { isOnboardingSystemNote } from '../utils/purge-onboarding-content';
 import { recordDeletedEntities } from '../utils/sync-deletion-log';
 import { getUserNoteFingerprints } from '../utils/note-fingerprint';
+import { getCrossRefGaps } from '../utils/crossref-gaps';
+import { getConnectSuggestions } from '../utils/connect-suggestions';
 import { recordNoteRecallEngaged } from '../utils/note-recall-state';
 import {
   dedupeNoteTagsForResponse,
@@ -1161,6 +1163,34 @@ route.get('/api/notes/fingerprints', requireAuth, async (c) => {
     return c.json({ success: true, fingerprints: compact });
   } catch (error) {
     const standardError = handleAPIError(error, { endpoint: '/api/notes/fingerprints', action: 'get_fingerprints' });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+
+// ─── GET /api/notes/crossref-gaps ──────────────────────────────────────────────
+// Generative recall Phase 2: passages cross-referenced FROM the user's cited passages that they
+// haven't written about yet. Powers the "unwritten cross-reference" card in the recall carousel.
+route.get('/api/notes/crossref-gaps', requireAuth, async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const gaps = await getCrossRefGaps(auth.userId, { limit: 5 });
+    return c.json({ success: true, gaps });
+  } catch (error) {
+    const standardError = handleAPIError(error, { endpoint: '/api/notes/crossref-gaps', action: 'get_crossref_gaps' });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+
+// ─── GET /api/notes/connect-suggestions ───────────────────────────────────────
+// Generative recall Phase 2: strongly-related note pairs with no existing connection edge.
+// Powers the "connect two related notes" card; one-tap creates the edge via POST /api/notes/connect-link.
+route.get('/api/notes/connect-suggestions', requireAuth, async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const suggestions = await getConnectSuggestions(auth.userId, { limit: 3 });
+    return c.json({ success: true, suggestions });
+  } catch (error) {
+    const standardError = handleAPIError(error, { endpoint: '/api/notes/connect-suggestions', action: 'get_connect_suggestions' });
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });

@@ -82,6 +82,9 @@ import { stabilityById, recordRecallEngaged, mergeStabilityMaps } from './proto-
 import { activeCooldownIds, recordRecallSnoozed } from './proto-recall-cooldown';
 import PrototypeRecallCarousel, { type RecallOpportunity } from './PrototypeRecallCarousel';
 import { useNoteFingerprints } from '../../hooks/queries/useNoteFingerprints';
+import { useCrossRefGaps } from '../../hooks/queries/useCrossRefGaps';
+import { useConnectSuggestions } from '../../hooks/queries/useConnectSuggestions';
+import { useConnectNote } from '../../hooks/mutations/useConnectNote';
 import PrototypeDailyPassagePill from './PrototypeDailyPassagePill';
 import PrototypeFounderLetterPill from './PrototypeFounderLetterPill';
 import { PROTOTYPE_DRAFT_NOTE_SLUG, noteParamSlug } from './proto-route-slugs';
@@ -863,6 +866,14 @@ export default function PrototypeSidebarHomeView({
     [season, studyArc],
   );
 
+  // ── Generative recall Phase 2 (backend queries) ──
+  const crossRefGapsQuery = useCrossRefGaps();
+  const topCrossRefGap = crossRefGapsQuery.data?.[0];
+
+  const connectSuggestionsQuery = useConnectSuggestions();
+  const topConnectSuggestion = connectSuggestionsQuery.data?.[0];
+  const connectNote = useConnectNote();
+
   // ── Recall carousel (Home resurfacing) ──
   // Fold the per-kind recall/trend memos above into one varied, ranked, snoozable carousel. Each
   // opportunity is enriched with its fingerprint theme/tone where we have it; only snoozing
@@ -1026,6 +1037,47 @@ export default function PrototypeSidebarHomeView({
       });
     }
 
+    // Phase 2 — backend-powered generative cards
+    if (topCrossRefGap) {
+      const id = `crossref-gap:${topCrossRefGap.from.displayRef}|${topCrossRefGap.to.displayRef}`;
+      out.push({
+        id,
+        kind: 'crossrefGap',
+        isGenerative: true,
+        score: Math.min(0.9, 0.6 + topCrossRefGap.votes / 20),
+        eyebrow: 'An unwritten cross-reference',
+        title: topCrossRefGap.to.displayRef,
+        meta: `Cross-referenced from ${topCrossRefGap.from.displayRef} — start here?`,
+        iconName: 'arrow-right-arrow-left',
+        onOpen: () =>
+          startDraftNote({
+            title: topCrossRefGap.to.displayRef,
+            contentHtml: buildVotdScripturePillHtml(topCrossRefGap.to.displayRef, 'NET'),
+          }),
+      });
+    }
+
+    if (topConnectSuggestion && homeSpaceId) {
+      const pairKey = [topConnectSuggestion.noteAId, topConnectSuggestion.noteBId].sort().join('|');
+      out.push({
+        id: `connect:${pairKey}`,
+        kind: 'connectNotes',
+        isGenerative: true,
+        score: Math.min(0.85, 0.5 + topConnectSuggestion.score / 10),
+        eyebrow: `${topConnectSuggestion.reason} — link them?`,
+        title: `${topConnectSuggestion.noteATitle} & ${topConnectSuggestion.noteBTitle}`,
+        meta: 'These two notes seem related — connect them with one tap',
+        iconName: 'link',
+        onOpen: () => {
+          connectNote.mutate({
+            parentNoteId: topConnectSuggestion.noteAId,
+            linkedNoteId: topConnectSuggestion.noteBId,
+            spaceId: homeSpaceId,
+          });
+        },
+      });
+    }
+
     return out;
   }, [
     continueNote,
@@ -1049,6 +1101,10 @@ export default function PrototypeSidebarHomeView({
     recurringPerson,
     bareHighlight,
     reflectionPrompt,
+    topCrossRefGap,
+    topConnectSuggestion,
+    homeSpaceId,
+    connectNote,
     startDraftNote,
   ]);
 
