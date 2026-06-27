@@ -28,6 +28,7 @@ import {
   homeThreadGreetingTone,
   pickContinueNote,
   pickRevisitNote,
+  revisitTouchTimeMs,
   forgettingAwarePriority,
   deriveStudyArcs,
   studyArcSinceLabel,
@@ -202,6 +203,72 @@ describe('pickRevisitNote', () => {
     const scratchA = { id: 'a', updatedAt: '2026-01-01T00:00:00Z', content: '<p>ok</p>' };
     const scratchB = { id: 'b', updatedAt: '2026-02-01T00:00:00Z', content: '<p>ok</p>' };
     expect(pickRevisitNote([scratchA, scratchB], opts)?.id).toBe('a');
+  });
+
+  describe('fallbackMinAgeMs', () => {
+    const fallbackOpts = { ...opts, fallbackMinAgeMs: DAY };
+
+    it('uses fallback when the strict pool is empty', () => {
+      const recent = { id: 'a', updatedAt: '2026-06-05T00:00:00Z', content: 'x'.repeat(120) };
+      const older = { id: 'b', updatedAt: '2026-06-01T00:00:00Z', content: 'x'.repeat(120) };
+      expect(pickRevisitNote([recent, older], fallbackOpts)?.id).toBe('b');
+    });
+
+    it('returns undefined when strict pool is empty and fallback is not configured', () => {
+      const recent = { id: 'a', updatedAt: '2026-06-05T00:00:00Z' };
+      expect(pickRevisitNote([recent], opts)).toBeUndefined();
+    });
+
+    it('prefers the strict tier when a 14d+ candidate exists', () => {
+      const veryOld = { id: 'old', updatedAt: '2026-01-01T00:00:00Z', content: 'x'.repeat(120) };
+      const weekOld = { id: 'week', updatedAt: '2026-06-05T00:00:00Z', content: 'x'.repeat(120) };
+      expect(pickRevisitNote([veryOld, weekOld], fallbackOpts)?.id).toBe('old');
+    });
+
+    it('fallback respects excludeIds', () => {
+      const a = { id: 'a', updatedAt: '2026-06-05T00:00:00Z', content: 'x'.repeat(120) };
+      const b = { id: 'b', updatedAt: '2026-06-01T00:00:00Z', content: 'x'.repeat(120) };
+      expect(pickRevisitNote([a, b], { ...fallbackOpts, excludeIds: ['b'] })?.id).toBe('a');
+    });
+
+    it('fallback prefers high-meaning note over an equally-aged thin one', () => {
+      const notes = [
+        { id: 'rich', updatedAt: '2026-06-05T00:00:00Z', content: 'x'.repeat(120) },
+        { id: 'thin', updatedAt: '2026-06-05T00:00:00Z', content: 'hi' },
+      ];
+      expect(
+        pickRevisitNote(notes, {
+          ...fallbackOpts,
+          meaningWeightById: { rich: 0.9, thin: 0.1 },
+        })?.id,
+      ).toBe('rich');
+    });
+
+    it('fallback ranks a 5-day-old note above a 2-hour-old note via forgetting curve', () => {
+      const fresh = { id: 'fresh', updatedAt: '2026-06-12T10:00:00Z', content: 'x'.repeat(120) };
+      const fading = { id: 'fading', updatedAt: '2026-06-07T12:00:00Z', content: 'x'.repeat(120) };
+      expect(
+        pickRevisitNote([fresh, fading], {
+          ...fallbackOpts,
+          meaningWeightById: { fresh: 0.9, fading: 0.9 },
+        })?.id,
+      ).toBe('fading');
+    });
+
+    it('tertiary tier surfaces a note when strict and fallback pools are empty', () => {
+      const active = { id: 'active', updatedAt: '2026-06-12T10:00:00Z', content: 'x'.repeat(120) };
+      const other = { id: 'other', updatedAt: '2026-06-12T08:00:00Z', content: 'x'.repeat(120) };
+      expect(
+        pickRevisitNote([active, other], {
+          nowMs: NOW,
+          minAgeMs: 14 * DAY,
+          fallbackMinAgeMs: DAY,
+          tertiaryMinAgeMs: 0,
+          excludeIds: ['active'],
+          meaningWeightById: { other: 0.8 },
+        })?.id,
+      ).toBe('other');
+    });
   });
 
   it('uses last edit time when judging age, not visit-only opens', () => {
@@ -1237,6 +1304,37 @@ describe('pickRevisitNote forgetting-aware mode', () => {
       meaningWeightById: { fresh: 1 },
     });
     expect(pick).toBeUndefined();
+  });
+
+  it('prefers lastRecallEngagedAt over a more recent edit for fading priority', () => {
+    const DAY = 24 * 60 * 60 * 1000;
+    const now = Date.now();
+    const editedRecently = {
+      id: 'a',
+      content: 'x'.repeat(120),
+      updatedAt: new Date(now - 1 * DAY),
+    };
+    const recallMs = now - 20 * DAY;
+    const pick = pickRevisitNote([editedRecently], {
+      nowMs: now,
+      minAgeMs: 14 * DAY,
+      meaningWeightById: { a: 0.9 },
+      lastRecallEngagedAtById: { a: recallMs },
+    });
+    expect(pick?.id).toBe('a');
+  });
+});
+
+describe('revisitTouchTimeMs', () => {
+  it('prefers lastRecallEngagedAt when set', () => {
+    const note = { id: 'a', updatedAt: '2026-06-12T00:00:00Z' };
+    const recallMs = Date.parse('2026-01-01T00:00:00Z');
+    expect(revisitTouchTimeMs(note, { a: recallMs })).toBe(recallMs);
+  });
+
+  it('falls back to last edit when recall time is absent', () => {
+    const note = { id: 'a', updatedAt: '2026-06-01T00:00:00Z' };
+    expect(revisitTouchTimeMs(note)).toBe(Date.parse('2026-06-01T00:00:00Z'));
   });
 });
 

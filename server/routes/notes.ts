@@ -76,6 +76,7 @@ import { deleteNotesCascadeForUser, deleteSingleNoteCascadeForUser } from '../ut
 import { isOnboardingSystemNote } from '../utils/purge-onboarding-content';
 import { recordDeletedEntities } from '../utils/sync-deletion-log';
 import { getUserNoteFingerprints } from '../utils/note-fingerprint';
+import { recordNoteRecallEngaged } from '../utils/note-recall-state';
 import {
   dedupeNoteTagsForResponse,
   fetchNoteTagsForResponse,
@@ -1154,10 +1155,39 @@ route.get('/api/notes/fingerprints', requireAuth, async (c) => {
       people: f.people,
       places: f.places,
       passageCount: f.passageCount,
+      recallStabilityDays: f.recallStabilityDays,
+      lastRecallEngagedAt: f.lastRecallEngagedAt?.toISOString() ?? null,
     }));
     return c.json({ success: true, fingerprints: compact });
   } catch (error) {
     const standardError = handleAPIError(error, { endpoint: '/api/notes/fingerprints', action: 'get_fingerprints' });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+
+// ─── POST /api/notes/recall-engaged ───────────────────────────────────────────
+// Workstream B: user opened a resurfaced note — bump stability and record engagement time.
+route.post('/api/notes/recall-engaged', requireAuth, rateLimit('write'), async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const { noteId } = await c.req.json();
+    if (!noteId || typeof noteId !== 'string') {
+      return c.json({ error: 'Note ID is required' }, 400);
+    }
+
+    const result = await recordNoteRecallEngaged(auth.userId, noteId.trim());
+    if (!result) {
+      return c.json({ error: 'Note not found or recall state unavailable' }, 404);
+    }
+
+    return c.json({
+      success: true,
+      noteId: result.noteId,
+      recallStabilityDays: result.recallStabilityDays,
+      lastRecallEngagedAt: result.lastRecallEngagedAt?.toISOString() ?? null,
+    });
+  } catch (error) {
+    const standardError = handleAPIError(error, { endpoint: '/api/notes/recall-engaged', action: 'recall_engaged' });
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });

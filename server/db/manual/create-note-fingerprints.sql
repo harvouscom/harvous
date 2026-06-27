@@ -15,6 +15,8 @@ CREATE TABLE IF NOT EXISTS "NoteFingerprints" (
   "emotionalTone" text,
   "toneScores" text,
   "meaningWeight" real DEFAULT 0 NOT NULL,
+  "recallStabilityDays" real,
+  "lastRecallEngagedAt" timestamp with time zone,
   "computedAt" timestamp with time zone NOT NULL
 );
 

@@ -1824,6 +1824,7 @@ export default function PrototypeSidebar() {
             noteTotal={pages?.pages?.[0]?.total}
             scriptureBooks={scriptureBooks}
             scriptureSettled={!scriptureQuery.isPending || scriptureQuery.data != null}
+            activeNoteId={activeNoteFullId}
             onOpenNote={onNoteRow}
             prefetchNote={prefetchNote}
             onOpenScriptureBook={(bookOrder) => {

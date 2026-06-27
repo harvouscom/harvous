@@ -1,11 +1,12 @@
 import { useRef, useState } from 'react';
 import Icon, { type IconName } from '@/components/react/Icon';
 import type { RecallCandidate } from '@/utils/prototype-home-trends';
+import ProtoThreadTrailOrb from './ProtoThreadTrailOrb';
 
 /**
  * One swipeable carousel of recall opportunities on the prototype Home — a fading meaningful note, a
  * highlight, a theme taking shape, a passage you return to — replacing the old stack of single cards.
- * Each card opens its target or can be snoozed ("not now"). Swipe/pager pattern mirrors FeaturedCarousel.
+ * Each card opens its target or can be snoozed ("not now"). Swipe + horizontal thread spine for paging.
  * Selection/ordering is done upstream by selectRecallOpportunities; this is presentational.
  */
 
@@ -57,9 +58,6 @@ export default function PrototypeRecallCarousel({
   };
 
   if (!active) return null;
-
-  const canGoPrev = len > 1 && index > 0;
-  const canGoNext = len > 1 && index < len - 1;
 
   return (
     <div
@@ -115,38 +113,20 @@ export default function PrototypeRecallCarousel({
       </div>
 
       {len > 1 ? (
-        <div className="proto-recall-carousel__pager" role="navigation" aria-label="Recall carousel">
-          <button
-            type="button"
-            className="proto-recall-carousel__pager-btn"
-            aria-label="Previous recall item"
-            disabled={!canGoPrev}
-            onClick={goPrev}
-          >
-            <Icon name="caret-left" size={18} />
-          </button>
-          <div className="proto-recall-carousel__dots" role="tablist" aria-label="Recall positions">
-            {opportunities.map((op, idx) => (
-              <button
-                key={op.id}
-                type="button"
-                className={`proto-recall-carousel__dot${idx === index ? ' proto-recall-carousel__dot--active' : ''}`}
-                onClick={() => setActiveIndex(idx)}
-                aria-label={`Show recall item ${idx + 1} of ${len}`}
-                aria-selected={idx === index}
-                role="tab"
-              />
-            ))}
-          </div>
-          <button
-            type="button"
-            className="proto-recall-carousel__pager-btn"
-            aria-label="Next recall item"
-            disabled={!canGoNext}
-            onClick={goNext}
-          >
-            <Icon name="caret-right" size={18} />
-          </button>
+        <div className="proto-recall-carousel__spine" role="tablist" aria-label="Recall positions">
+          {opportunities.map((op, idx) => (
+            <button
+              key={op.id}
+              type="button"
+              className="proto-recall-carousel__spine-step"
+              onClick={() => setActiveIndex(idx)}
+              aria-label={`Show recall item ${idx + 1} of ${len}`}
+              aria-selected={idx === index}
+              role="tab"
+            >
+              <ProtoThreadTrailOrb active={idx === index} />
+            </button>
+          ))}
         </div>
       ) : null}
     </div>

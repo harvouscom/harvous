@@ -12,6 +12,10 @@ export interface NoteFingerprint {
   people: string[];
   places: string[];
   passageCount: number;
+  /** Workstream B: spaced-repetition stability in days after recall re-engagement. */
+  recallStabilityDays?: number | null;
+  /** Workstream B: ISO timestamp of last recall-card open. */
+  lastRecallEngagedAt?: string | null;
 }
 
 interface FingerprintsResponse {
@@ -20,9 +24,8 @@ interface FingerprintsResponse {
 }
 
 /**
- * The user's note fingerprints, keyed by noteId. Feeds forgetting-aware resurfacing (meaningWeight)
- * and the inspector read-out (tone/themes). Server-derived, so this is a read-only cache; it degrades
- * to an empty map before the backfill runs, leaving the Home cards on their existing recency logic.
+ * The user's note fingerprints, keyed by noteId. Feeds forgetting-aware resurfacing (meaningWeight,
+ * recall stability, last recall time) and the inspector read-out (tone/themes). Server-derived.
  */
 export function useNoteFingerprints() {
   const authReady = useAuthReady();
@@ -48,5 +51,31 @@ export function useNoteFingerprints() {
     return out;
   }, [query.data]);
 
-  return { ...query, fingerprintsById: byId, meaningWeightById };
+  const recallStabilityById = useMemo(() => {
+    const out: Record<string, number> = {};
+    for (const f of query.data ?? []) {
+      if (f.recallStabilityDays != null && f.recallStabilityDays > 0) {
+        out[f.noteId] = f.recallStabilityDays;
+      }
+    }
+    return out;
+  }, [query.data]);
+
+  const lastRecallEngagedAtById = useMemo(() => {
+    const out: Record<string, number> = {};
+    for (const f of query.data ?? []) {
+      if (!f.lastRecallEngagedAt) continue;
+      const ms = Date.parse(f.lastRecallEngagedAt);
+      if (ms > 0) out[f.noteId] = ms;
+    }
+    return out;
+  }, [query.data]);
+
+  return {
+    ...query,
+    fingerprintsById: byId,
+    meaningWeightById,
+    recallStabilityById,
+    lastRecallEngagedAtById,
+  };
 }

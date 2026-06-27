@@ -316,6 +316,8 @@ async function persistFingerprint(noteId: string, userId: string, data: NoteFing
 export interface StoredNoteFingerprint extends NoteFingerprintData {
   noteId: string;
   computedAt: Date;
+  recallStabilityDays: number | null;
+  lastRecallEngagedAt: Date | null;
 }
 
 function parseJsonArray(value: string | null): string[] {
@@ -347,6 +349,8 @@ function deserializeFingerprint(row: typeof NoteFingerprints.$inferSelect): Stor
     toneScores,
     meaningWeight: row.meaningWeight,
     computedAt: row.computedAt,
+    recallStabilityDays: row.recallStabilityDays ?? null,
+    lastRecallEngagedAt: row.lastRecallEngagedAt ?? null,
   };
 }
 

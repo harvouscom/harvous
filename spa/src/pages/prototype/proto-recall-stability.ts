@@ -1,14 +1,9 @@
 /**
- * localStorage-backed forgetting-curve stability for the prototype Home view (memory layer
- * Workstream B). Each time the user re-engages a resurfaced note (opens the "Worth another look"
- * card), its stability grows — pushing its next forgetting-aware resurfacing further out, the way
- * spaced repetition lengthens intervals after a successful recall. Space-scoped. Mirrors the safe-IO
- * pattern in proto-recall-cooldown.ts and proto-pinned-stores.ts.
- *
- * Stability (in days) feeds `pickRevisitNote`'s `stabilityById`; notes with no entry use the default
- * base stability. No grading — re-engagement is the only signal, kept deterministic and offline.
+ * Forgetting-curve stability for prototype Home (memory layer Workstream B). Server is authoritative
+ * via GET /api/notes/fingerprints; localStorage is a fallback when offline or before sync.
  */
 
+import { api } from '../../lib/api';
 import { DEFAULT_BASE_STABILITY_DAYS } from '@/utils/prototype-home-trends';
 
 const KEY_PREFIX = 'harvous.prototype.recallStability.';
@@ -62,16 +57,42 @@ function safeWrite(spaceId: string, map: StabilityMap): void {
   }
 }
 
-/** Per-note stability (days) for this space — fed to `pickRevisitNote`'s `stabilityById`. */
+/** Merge server stability with local fallback — higher value wins per note. */
+export function mergeStabilityMaps(server: StabilityMap, local: StabilityMap): StabilityMap {
+  const out = { ...local };
+  for (const [id, days] of Object.entries(server)) {
+    out[id] = Math.max(out[id] ?? 0, days);
+  }
+  return out;
+}
+
+/** Per-note stability (days) for this space — local fallback only; prefer server map from fingerprints. */
 export function stabilityById(spaceId: string | undefined | null): StabilityMap {
   if (!spaceId) return {};
   return safeRead(spaceId);
 }
 
-/** Record that the user re-engaged a resurfaced note, lengthening its forgetting interval. */
-export function recordRecallEngaged(spaceId: string | undefined | null, noteId: string): void {
-  if (!spaceId || !noteId) return;
-  const map = safeRead(spaceId);
-  map[noteId] = nextStability(map[noteId]);
-  safeWrite(spaceId, map);
+/**
+ * Record that the user re-engaged a resurfaced note. Updates localStorage immediately; syncs to the
+ * server in the background. Call `onSynced` after a successful API write (e.g. invalidate fingerprints).
+ */
+export function recordRecallEngaged(
+  spaceId: string | undefined | null,
+  noteId: string,
+  options?: { onSynced?: () => void },
+): void {
+  if (!noteId) return;
+
+  if (spaceId) {
+    const map = safeRead(spaceId);
+    map[noteId] = nextStability(map[noteId]);
+    safeWrite(spaceId, map);
+  }
+
+  void api
+    .post<{ success?: boolean }>('/api/notes/recall-engaged', { noteId })
+    .then(() => options?.onSynced?.())
+    .catch(() => {
+      // offline or table missing — local fallback already applied
+    });
 }

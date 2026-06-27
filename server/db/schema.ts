@@ -413,6 +413,10 @@ export const NoteFingerprints = pgTable('NoteFingerprints', {
   toneScores: text('toneScores'),
   /** Composite meaning score in [0,1] — body depth, passages, highlights, tags, deliberate org. */
   meaningWeight: real('meaningWeight').notNull().default(0),
+  /** Workstream B: spaced-repetition stability (days) after recall re-engagement; null = default base. */
+  recallStabilityDays: real('recallStabilityDays'),
+  /** Workstream B: last time the user opened this note via a recall card (ms since epoch in app layer). */
+  lastRecallEngagedAt: ts('lastRecallEngagedAt'),
   computedAt: ts('computedAt').notNull(),
 }, (table) => [
   index('NoteFingerprints_userIdIndex').on(table.userId),

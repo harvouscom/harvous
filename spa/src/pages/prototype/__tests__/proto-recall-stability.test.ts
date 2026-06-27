@@ -1,4 +1,4 @@
-import { describe, expect, it, beforeEach } from 'vitest';
+import { describe, expect, it, beforeEach, vi } from 'vitest';
 import {
   nextStability,
   recordRecallEngaged,
@@ -7,6 +7,12 @@ import {
   MAX_STABILITY_DAYS,
 } from '../proto-recall-stability';
 import { DEFAULT_BASE_STABILITY_DAYS } from '@/utils/prototype-home-trends';
+
+vi.mock('../../lib/api', () => ({
+  api: {
+    post: vi.fn().mockResolvedValue({ success: true }),
+  },
+}));
 
 const SPACE = 'space_home';
 

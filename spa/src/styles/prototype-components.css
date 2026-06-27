@@ -6748,49 +6748,52 @@ button.proto-appearance-hero__card {
   outline-offset: -2px;
 }
 
-.proto-recall-carousel__pager {
+.proto-recall-carousel__spine {
+  position: relative;
   display: flex;
+  flex-direction: row;
   align-items: center;
   justify-content: center;
-  gap: 10px;
+  padding: 2px 0 0;
 }
 
-.proto-recall-carousel__pager-btn {
+.proto-recall-carousel__spine::before {
+  content: '';
+  position: absolute;
+  left: 18px;
+  right: 18px;
+  top: 50%;
+  height: 2px;
+  transform: translateY(-50%);
+  border-radius: 1px;
+  background: var(--pds-border-control);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.proto-recall-carousel__spine-step {
   appearance: none;
   border: 0;
   background: transparent;
   cursor: pointer;
-  color: var(--pds-text-secondary);
+  padding: 2px 10px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 2px;
+  position: relative;
+  z-index: 1;
 }
 
-.proto-recall-carousel__pager-btn:disabled {
-  opacity: 0.3;
-  cursor: default;
-}
-
-.proto-recall-carousel__dots {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.proto-recall-carousel__dot {
-  appearance: none;
-  border: 0;
-  cursor: pointer;
-  width: 6px;
-  height: 6px;
+.proto-recall-carousel__spine-step:focus-visible {
+  outline: 2px solid var(--pds-accent-focus-border);
+  outline-offset: 2px;
   border-radius: 50%;
-  padding: 0;
-  background: var(--pds-border-control);
-  transition: background 0.2s ease, transform 0.2s ease;
 }
 
-.proto-recall-carousel__dot--active {
-  background: var(--pds-text-secondary);
-  transform: scale(1.25);
+.proto-recall-carousel__spine .proto-thread-trail__orb {
+  margin-top: 0;
+}
+
+.proto-recall-carousel__spine .proto-select-orb-idle {
+  background: var(--proto-trail-dot-surface, var(--pds-bg-page));
 }

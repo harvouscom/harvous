@@ -9,6 +9,7 @@
 import { useUser } from '@clerk/clerk-react';
 import { useCallback, useMemo, useRef, useState, Fragment } from 'react';
 import { useNavigate } from '@tanstack/react-router';
+import { useQueryClient } from '@tanstack/react-query';
 import { resolveProfileFirstName } from '@/utils/nav-avatar-initials';
 import Icon, { type IconName } from '@/components/react/Icon';
 import { prototypeNoteRouteTo } from '@/lib/prototype-path';
@@ -47,6 +48,7 @@ import {
   localDayIndex,
   pickContinueNote,
   pickRevisitNote,
+  REVISIT_FALLBACK_MIN_AGE_MS,
   pickSpotlightThread,
   selectHomeLeadTheme,
   selectRecallOpportunities,
@@ -72,7 +74,7 @@ import {
   prototypeHighlightSubtitlePreview,
 } from './proto-highlight-subtitle';
 import { loadPinnedHighlightIds } from './proto-pinned-stores';
-import { stabilityById, recordRecallEngaged } from './proto-recall-stability';
+import { stabilityById, recordRecallEngaged, mergeStabilityMaps } from './proto-recall-stability';
 import { activeCooldownIds, recordRecallSnoozed } from './proto-recall-cooldown';
 import PrototypeRecallCarousel, { type RecallOpportunity } from './PrototypeRecallCarousel';
 import { useNoteFingerprints } from '../../hooks/queries/useNoteFingerprints';
@@ -107,6 +109,8 @@ type Props = {
   noteTotal?: number;
   scriptureBooks: ScriptureIndexBook[];
   scriptureSettled: boolean;
+  /** Currently open note in the main pane — suppresses redundant "continue" card. */
+  activeNoteId?: string;
   onOpenNote: (row: SpaceNoteRow) => void;
   prefetchNote: (row: SpaceNoteRow) => void;
   onOpenScriptureBook: (bookOrder: number) => void;
@@ -490,6 +494,7 @@ export default function PrototypeSidebarHomeView({
   noteTotal,
   scriptureBooks,
   scriptureSettled,
+  activeNoteId,
   onOpenNote,
   prefetchNote,
   onOpenScriptureBook,
@@ -503,6 +508,7 @@ export default function PrototypeSidebarHomeView({
   const votdQuery = useVotdToday({ enabled: Boolean(homeSpaceId) });
 
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const {
     setSidebarListMode,
     setSidebarLayer,
@@ -565,33 +571,88 @@ export default function PrototypeSidebarHomeView({
   // Memory layer Workstream B: forgetting-aware resurfacing. meaningWeight (server fingerprints) +
   // per-note stability (lengthened each time the user re-engages a recall) rank the "Worth another
   // look" pick toward meaningful, fading notes. Degrades to recency logic before fingerprints exist.
-  const { meaningWeightById, fingerprintsById } = useNoteFingerprints();
-  const recallStability = useMemo(() => stabilityById(homeSpaceId), [homeSpaceId]);
+  const { meaningWeightById, fingerprintsById, recallStabilityById, lastRecallEngagedAtById } =
+    useNoteFingerprints();
+  const localRecallStability = useMemo(() => stabilityById(homeSpaceId), [homeSpaceId]);
+  const recallStability = useMemo(
+    () => mergeStabilityMaps(recallStabilityById, localRecallStability),
+    [recallStabilityById, localRecallStability],
+  );
+  const recallDayIndex = useMemo(() => localDayIndex(new Date()), []);
+  const [recallTick, setRecallTick] = useState(0);
 
   const continueNote = useMemo(() => pickContinueNote(notes), [notes]);
+  const continueIsActive = Boolean(continueNote && activeNoteId && continueNote.id === activeNoteId);
   const spotlightHighlight = useMemo(() => pickSpotlightHighlight(highlights, homeSpaceId), [highlights, homeSpaceId]);
-  const revisitNote = useMemo(
-    () =>
-      countForLogic >= REVISIT_MIN_NOTES && !hasMoreNotes
-        ? pickRevisitNote(notes, {
-            nowMs: Date.now(),
-            excludeIds: [continueNote?.id, spotlightHighlight?.parentNoteId].filter((id): id is string => Boolean(id)),
-            minAgeMs: REVISIT_MIN_AGE_MS,
-            rotationDayIndex: localDayIndex(new Date()),
-            meaningWeightById,
-            stabilityById: recallStability,
-          })
-        : undefined,
-    [notes, continueNote, countForLogic, hasMoreNotes, spotlightHighlight, meaningWeightById, recallStability],
+  const recallSnoozedIds = useMemo(
+    () => activeCooldownIds(homeSpaceId, recallDayIndex),
+    // recallTick forces a re-read of the snooze store after the user snoozes an item.
+    [homeSpaceId, recallDayIndex, recallTick],
   );
+  const revisitExcludeIds = useMemo(
+    () =>
+      [
+        activeNoteId,
+        continueNote?.id,
+        spotlightHighlight?.parentNoteId,
+        ...recallSnoozedIds,
+      ].filter((id): id is string => Boolean(id)),
+    [activeNoteId, continueNote, spotlightHighlight, recallSnoozedIds],
+  );
+  const activeContinueExcludeIds = useMemo(
+    () => [activeNoteId, ...recallSnoozedIds].filter((id): id is string => Boolean(id)),
+    [activeNoteId, recallSnoozedIds],
+  );
+  const canPickRevisitStandard = countForLogic >= REVISIT_MIN_NOTES && !hasMoreNotes;
+  const canPickRevisitActiveContinue = continueIsActive && notes.length >= 2;
+  const revisitNote = useMemo(() => {
+    const pickBase = {
+      nowMs: Date.now(),
+      minAgeMs: REVISIT_MIN_AGE_MS,
+      fallbackMinAgeMs: REVISIT_FALLBACK_MIN_AGE_MS,
+      rotationDayIndex: recallDayIndex,
+      meaningWeightById,
+      stabilityById: recallStability,
+      lastRecallEngagedAtById,
+    };
+
+    if (continueIsActive && canPickRevisitActiveContinue) {
+      return pickRevisitNote(notes, {
+        ...pickBase,
+        excludeIds: activeContinueExcludeIds,
+        tertiaryMinAgeMs: 0,
+      });
+    }
+
+    if (!canPickRevisitStandard) return undefined;
+
+    return pickRevisitNote(notes, {
+      ...pickBase,
+      excludeIds: revisitExcludeIds,
+    });
+  }, [
+    notes,
+    continueIsActive,
+    canPickRevisitActiveContinue,
+    canPickRevisitStandard,
+    activeContinueExcludeIds,
+    revisitExcludeIds,
+    recallDayIndex,
+    meaningWeightById,
+    recallStability,
+    lastRecallEngagedAtById,
+  ]);
+  const revisitOnHome = continueIsActive ? revisitNote : undefined;
 
   // Opening the resurfaced note re-engages it: lengthen its forgetting interval before routing.
   const handleOpenRevisitNote = useCallback(
     (row: SpaceNoteRow) => {
-      recordRecallEngaged(homeSpaceId, row.id);
+      recordRecallEngaged(homeSpaceId, row.id, {
+        onSynced: () => void queryClient.invalidateQueries({ queryKey: ['note-fingerprints'] }),
+      });
       onOpenNote(row);
     },
-    [homeSpaceId, onOpenNote],
+    [homeSpaceId, onOpenNote, queryClient],
   );
   const spotlightThread = useMemo(
     () => pickSpotlightThread(threads, { excludeId: lead.kind === 'thread' ? lead.thread.id : undefined }),
@@ -734,45 +795,48 @@ export default function PrototypeSidebarHomeView({
   // Fold the per-kind recall/trend memos above into one varied, ranked, snoozable carousel. Each
   // opportunity is enriched with its fingerprint theme/tone where we have it; only snoozing
   // ("not now") rests it via the recall-cooldown store; the set rotates daily.
-  const [recallTick, setRecallTick] = useState(0);
-  const recallDayIndex = useMemo(() => localDayIndex(new Date()), []);
-  const recallSnoozedIds = useMemo(
-    () => activeCooldownIds(homeSpaceId, recallDayIndex),
-    // recallTick forces a re-read of the snooze store after the user snoozes an item.
-    [homeSpaceId, recallDayIndex, recallTick],
-  );
 
   const recallCandidates = useMemo<RecallOpportunity[]>(() => {
     const out: RecallOpportunity[] = [];
 
-    if (revisitNote) {
-      const fp = fingerprintsById.get(revisitNote.id);
-      const rel = protoRelativeCaptionAbbrev(revisitNote.updatedAt ?? revisitNote.createdAt ?? null);
+    const pushRevisitOpportunity = (note: SpaceNoteRow) => {
+      if (revisitOnHome?.id === note.id) return;
+      if (out.some((o) => o.id === note.id)) return;
+      const fp = fingerprintsById.get(note.id);
+      const rel = protoRelativeCaptionAbbrev(note.updatedAt ?? note.createdAt ?? null);
       const tone = studyArcToneLabel(fp?.emotionalTone ?? null);
       const meta = [rel, fp?.themes?.[0], tone].filter(Boolean).join(' · ');
       out.push({
-        id: revisitNote.id,
+        id: note.id,
         kind: 'revisitNote',
-        score: meaningWeightById[revisitNote.id] ?? 0.5,
+        score: meaningWeightById[note.id] ?? 0.5,
         eyebrow: 'Worth another look',
-        title: stripServerAutoUntitledNoteTitleForDisplay(revisitNote.title?.trim() ?? '') || 'New Note',
+        title: stripServerAutoUntitledNoteTitleForDisplay(note.title?.trim() ?? '') || 'New Note',
         meta,
         iconName: 'arrow-rotate-left',
-        onOpen: () => handleOpenRevisitNote(revisitNote),
+        onOpen: () => handleOpenRevisitNote(note),
       });
+    };
+
+    if (revisitNote) {
+      pushRevisitOpportunity(revisitNote);
     }
 
     if (spotlightHighlight) {
-      out.push({
-        id: spotlightHighlight.id,
-        kind: 'highlight',
-        score: 0.55,
-        eyebrow: 'A highlight to revisit',
-        title: prototypeHighlightListTitle(spotlightHighlight),
-        meta: prototypeHighlightSubtitlePreview(spotlightHighlight, spotlightHighlight.parentNoteTitle),
-        iconName: highlightEntryKindIconName(spotlightHighlight.entryKind),
-        onOpen: () => onOpenHighlight(spotlightHighlight),
-      });
+      if (continueNote && spotlightHighlight.parentNoteId === continueNote.id) {
+        if (revisitNote) pushRevisitOpportunity(revisitNote);
+      } else {
+        out.push({
+          id: spotlightHighlight.id,
+          kind: 'highlight',
+          score: 0.55,
+          eyebrow: 'A highlight to revisit',
+          title: prototypeHighlightListTitle(spotlightHighlight),
+          meta: prototypeHighlightSubtitlePreview(spotlightHighlight, spotlightHighlight.parentNoteTitle),
+          iconName: highlightEntryKindIconName(spotlightHighlight.entryKind),
+          onOpen: () => onOpenHighlight(spotlightHighlight),
+        });
+      }
     }
 
     if (studyArc) {
@@ -833,7 +897,9 @@ export default function PrototypeSidebarHomeView({
 
     return out;
   }, [
+    continueNote,
     revisitNote,
+    revisitOnHome,
     spotlightHighlight,
     studyArc,
     studyArcCopy,
@@ -981,13 +1047,23 @@ export default function PrototypeSidebarHomeView({
             </div>
           </button>
         </div>
-      ) : continueNote ? (
+      ) : continueNote && !continueIsActive ? (
         <div className="proto-home-section">
           <HomeNoteCard
             eyebrow={homeContinueCardEyebrow(countForLogic)}
             iconName="pen-to-square"
             note={continueNote}
             onOpenNote={onOpenNote}
+            prefetchNote={prefetchNote}
+          />
+        </div>
+      ) : revisitOnHome ? (
+        <div className="proto-home-section">
+          <HomeNoteCard
+            eyebrow="Worth another look"
+            iconName="arrow-rotate-left"
+            note={revisitOnHome}
+            onOpenNote={handleOpenRevisitNote}
             prefetchNote={prefetchNote}
           />
         </div>
