@@ -873,7 +873,7 @@ function threadProposalSubtitle(proposal: ThreadProposal): string {
   const n = proposal.notes.length;
   switch (proposal.variant) {
     case 'arc':
-      return `${n} ${n === 1 ? 'note' : 'notes'} · a through-line in your study`;
+      return `${n} ${n === 1 ? 'note' : 'notes'} · on your mind`;
     case 'crossref':
       return `${n} ${n === 1 ? 'note connects' : 'notes connect'} these passages`;
     default:

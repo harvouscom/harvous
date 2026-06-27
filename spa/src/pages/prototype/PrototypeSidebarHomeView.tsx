@@ -208,8 +208,7 @@ function HomeGreeting({
         const chipClass = isPassage
           ? 'proto-glass-surface proto-home-greeting__chip proto-home-greeting__chip--passage'
           : 'proto-glass-surface proto-home-greeting__chip proto-home-greeting__chip--thread';
-        const iconName: IconName =
-          trend.kind === 'passage' ? 'book' : trend.kind === 'arc' ? 'arrows-turn-to-dots' : 'arrow-right-arrow-left';
+        const iconName: IconName = trend.kind === 'passage' ? 'book' : 'arrow-right-arrow-left';
         const iconSize = isPassage ? 11 : 10;
         return (
           <Fragment key={`${label}-${i}`}>
@@ -782,10 +781,10 @@ export default function PrototypeSidebarHomeView({
         id,
         kind: 'arc',
         score: Math.min(1, studyArc.noteCount / 8),
-        eyebrow: 'A through-line in your study',
+        eyebrow: 'Seems to be on your mind',
         title: studyArc.theme,
         meta: studyArcCopy ?? '',
-        iconName: 'arrows-turn-to-dots',
+        iconName: 'arrow-right-arrow-left',
         onOpen: openStudyArc,
       });
     }
