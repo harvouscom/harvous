@@ -365,7 +365,7 @@ export default function HighlightDockWeb({
             <Icon name="reply" size={10} aria-hidden />
             <span className="highlight-dock-web__respond-label">Respond</span>
             <Icon
-              name="chevron-down"
+              name="caret-down"
               size={9}
               aria-hidden
               className={`highlight-dock-web__respond-chevron${

@@ -246,7 +246,7 @@ export default function ListViewMenu({
           </span>
           <span className="proto-sidebar-list-view__label">{listModeShortLabel(sidebarListMode)}</span>
           <span className="proto-sidebar-list-view__chevron" aria-hidden>
-            <Icon name="chevron-down" size={11} />
+            <Icon name="caret-down" size={11} />
           </span>
         </button>
       )}

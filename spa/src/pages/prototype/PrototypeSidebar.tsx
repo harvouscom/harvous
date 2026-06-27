@@ -1739,7 +1739,7 @@ export default function PrototypeSidebar() {
       {backTarget && !isHomeLayer ? (
         <div className="proto-sidebar-back-row">
           <button type="button" className="proto-sidebar-back-row__button" onClick={backTarget.action}>
-            <Icon name="chevron-left" size={13} className="proto-sidebar-back-row__chevron" aria-hidden />
+            <Icon name="caret-left" size={13} className="proto-sidebar-back-row__chevron" aria-hidden />
             {backTarget.kind ? (
               <span className="proto-sidebar-back-row__kind">{backTarget.kind}</span>
             ) : null}

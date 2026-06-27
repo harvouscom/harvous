@@ -90,7 +90,7 @@ export default function SignUpPage() {
 
             <div className="auth-page__footer">
               <p className="auth-page__footer-switch">
-                Already have an account?<a href={signInHref}>Log in →</a>
+                Already have an account?<a href={signInHref}>Sign in →</a>
               </p>
               <p className="auth-page__secured-by">Secured by Clerk</p>
             </div>

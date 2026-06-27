@@ -1309,7 +1309,7 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
                       >
                         <span className="space-switcher-dropdown__label">Add Existing Space</span>
                         <span className="space-switcher-dropdown__icon-slot" aria-hidden="true">
-                          <Icon name={isShowingExistingSpaces ? "chevron-up" : "chevron-down"} size={20} style={{ color: 'var(--color-deep-grey)' }} />
+                          <Icon name={isShowingExistingSpaces ? "caret-up" : "caret-down"} size={20} style={{ color: 'var(--color-deep-grey)' }} />
                         </span>
                       </button>
                       <div

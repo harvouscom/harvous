@@ -126,7 +126,7 @@ export default function PrototypeSettingsLayout() {
                 aria-label="Back to settings list"
                 onClick={goToSettingsList}
               >
-                <Icon name="chevron-left" size={20} />
+                <Icon name="caret-left" size={20} />
               </button>
             ) : null}
           </div>

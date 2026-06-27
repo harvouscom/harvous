@@ -1729,7 +1729,7 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
                         >
                           <span className="mobile-nav__space-panel-label">Add Existing Space</span>
                           <span className="mobile-nav__space-panel-check" aria-hidden="true">
-                            <Icon name={isShowingExistingSpaces ? "chevron-up" : "chevron-down"} size={20} style={{ color: 'var(--color-deep-grey)' }} />
+                            <Icon name={isShowingExistingSpaces ? "caret-up" : "caret-down"} size={20} style={{ color: 'var(--color-deep-grey)' }} />
                           </span>
                         </button>
                         {isShowingExistingSpaces && availableSpaces.map((s) => {

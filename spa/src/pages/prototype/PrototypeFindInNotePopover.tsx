@@ -150,7 +150,7 @@ export default function PrototypeFindInNotePopover({
         onClick={() => runFind('prev')}
         aria-label="Previous match"
       >
-        <Icon name="chevron-up" size={12} aria-hidden />
+        <Icon name="caret-up" size={12} aria-hidden />
       </button>
       <button
         type="button"
@@ -158,7 +158,7 @@ export default function PrototypeFindInNotePopover({
         onClick={() => runFind('next')}
         aria-label="Next match"
       >
-        <Icon name="chevron-down" size={12} aria-hidden />
+        <Icon name="caret-down" size={12} aria-hidden />
       </button>
       <button type="button" className="proto-find-popover__btn" onClick={onDismiss} aria-label="Close find">
         <Icon name="xmark" size={12} aria-hidden />

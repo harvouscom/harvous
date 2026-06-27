@@ -34,6 +34,9 @@ import {
   studyArcSinceLabel,
   studyArcToneLabel,
   selectRecallOpportunities,
+  compareRecallUsefulness,
+  orderRecallWithSoftVariety,
+  recallKindTier,
   pickRecallTrend,
   recallTrendLine,
   deriveContinueBook,
@@ -1439,16 +1442,22 @@ describe('selectRecallOpportunities', () => {
     expect(out.map((o) => o.id)).toEqual(['b']);
   });
 
-  it('interleaves kinds for variety rather than grouping one kind', () => {
+  it('orders by usefulness tier before score', () => {
+    const cands = [
+      c('gap', 'crossrefGap', 0.95),
+      c('anno', 'annotateHighlight', 0.5),
+    ];
+    expect(selectRecallOpportunities(cands).map((o) => o.id)).toEqual(['anno', 'gap']);
+  });
+
+  it('soft-varies the tail when mixed tiers exist', () => {
     const cands = [
       c('n1', 'revisitNote', 0.9),
       c('n2', 'revisitNote', 0.85),
       c('h1', 'highlight', 0.8),
-      c('a1', 'arc', 0.7),
+      c('gap', 'crossrefGap', 0.7),
     ];
-    const out = selectRecallOpportunities(cands).map((o) => o.kind);
-    // strongest kind (revisitNote) leads, then highlight, then arc, before the 2nd revisitNote
-    expect(out).toEqual(['revisitNote', 'highlight', 'arc', 'revisitNote']);
+    expect(selectRecallOpportunities(cands).map((o) => o.id)).toEqual(['n1', 'gap', 'n2', 'h1']);
   });
 
   it('caps at the limit', () => {
@@ -1456,20 +1465,22 @@ describe('selectRecallOpportunities', () => {
     expect(selectRecallOpportunities(cands, { limit: 2 })).toHaveLength(2);
   });
 
-  it('rotates daily but is stable within a day', () => {
+  it('rotates the tail daily but pins the lead and stays stable within a day', () => {
     const cands = [c('a', 'arc', 0.9), c('p', 'passage', 0.8), c('x', 'crossref', 0.7)];
     const day0 = selectRecallOpportunities(cands, { dayIndex: 0 }).map((o) => o.id);
     const day0again = selectRecallOpportunities(cands, { dayIndex: 0 }).map((o) => o.id);
     const day1 = selectRecallOpportunities(cands, { dayIndex: 1 }).map((o) => o.id);
-    expect(day0).toEqual(day0again); // deterministic within a day
-    expect(day1[0]).not.toBe(day0[0]); // lead rotates the next day
+    expect(day0).toEqual(day0again);
+    expect(day0[0]).toBe('a');
+    expect(day1[0]).toBe('a');
+    expect(day1).not.toEqual(day0);
   });
 
   it('surfaces a newly-qualifying candidate as soon as it is included', () => {
     const before = selectRecallOpportunities([c('a', 'arc', 0.9)]).map((o) => o.id);
     const after = selectRecallOpportunities([c('a', 'arc', 0.9), c('new', 'passage', 0.95)]).map((o) => o.id);
     expect(before).toEqual(['a']);
-    expect(after).toContain('new');
+    expect(after[0]).toBe('new');
   });
 });
 

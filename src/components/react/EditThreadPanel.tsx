@@ -1629,7 +1629,7 @@ export default function EditThreadPanel({
                           </div>
                           <div className="size-4 flex-center shrink-0">
                             <Icon
-                              name={isAdminDropdownOpen ? 'chevron-up' : 'chevron-down'}
+                              name={isAdminDropdownOpen ? 'caret-up' : 'caret-down'}
                               size={16}
                               style={{ color: 'var(--color-deep-grey)' }}
                             />

@@ -270,7 +270,7 @@ export default function HarvousAuthForm({
             {isBusy ? (
               <span className="harvous-auth-form__spinner" aria-hidden />
             ) : mode === 'signIn' ? (
-              'Log in with email'
+              'Sign in with email'
             ) : (
               'Send sign-in code'
             )}

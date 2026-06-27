@@ -43,7 +43,7 @@ function NoteTemplateHeader({ selectedTemplateName, isOpen, onClick, ref }: Note
       </div>
       <div className="note-template-header__caret" aria-hidden="true">
         <Icon
-          name={isOpen ? 'chevron-up' : 'chevron-down'}
+          name={isOpen ? 'caret-up' : 'caret-down'}
           size={20}
           style={{ color: 'var(--color-deep-grey)' }}
         />

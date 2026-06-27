@@ -67,7 +67,7 @@ export function SettingsSubScreen({
           aria-label="Back to account"
           style={{ marginLeft: -6 }}
         >
-          <Icon name="chevron-left" size={18} />
+          <Icon name="caret-left" size={18} />
         </button>
         <h1 className="pds-list-title" style={{ margin: 0 }}>{title}</h1>
       </div>
@@ -112,7 +112,7 @@ export function SettingsRow({
         ) : null}
         {trailing === 'chevron' ? (
           <span style={{ display: 'flex', color: 'var(--pds-text-tertiary)' }} aria-hidden>
-            <Icon name="chevron-right" size={12} />
+            <Icon name="caret-right" size={12} />
           </span>
         ) : null}
       </span>

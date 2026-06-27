@@ -42,7 +42,7 @@ useEffect(() => {
 }, []);
 
 // Usage in JSX
-<i className="fas fa-chevron-down"></i>
+<i className="fas fa-caret-down"></i>
 <i className="fas fa-plus"></i>
 ```
 
@@ -57,7 +57,7 @@ See `src/components/react/TiptapEditor.tsx` and `src/components/react/NewNotePan
 ## Available Font Awesome Icons
 
 ### Common Icons Used in Project
-- `chevron-down` - Dropdown arrows
+- `caret-down` - Dropdown arrows
 - `circle-check` - Success states
 - `triangle-exclamation` - Error states
 - `plus` - Add buttons

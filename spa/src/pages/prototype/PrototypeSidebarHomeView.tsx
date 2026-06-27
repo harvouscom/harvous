@@ -479,7 +479,7 @@ function HomeNoteCard({
           </span>
           <p className="pds-list-title proto-home-card__title">{title}</p>
           <span className="proto-home-card__chevron" aria-hidden>
-            <Icon name="chevron-right" size={11} />
+            <Icon name="caret-right" size={11} />
           </span>
         </div>
         {preview ? <p className="pds-list-preview proto-home-card__preview">{preview}</p> : null}
@@ -1233,7 +1233,7 @@ export default function PrototypeSidebarHomeView({
                 </span>
                 <p className="pds-list-title proto-home-card__title">No notes yet</p>
                 <span className="proto-home-card__chevron" aria-hidden>
-                  <Icon name="chevron-right" size={11} />
+                  <Icon name="caret-right" size={11} />
                 </span>
               </div>
               <p className="pds-list-preview proto-home-card__preview">Create your first note...</p>
@@ -1279,7 +1279,7 @@ export default function PrototypeSidebarHomeView({
                 </span>
                 <p className="pds-list-title proto-home-card__title">{spotlightThread.title}</p>
                 <span className="proto-home-card__chevron" aria-hidden>
-                  <Icon name="chevron-right" size={11} />
+                  <Icon name="caret-right" size={11} />
                 </span>
               </div>
               <div className="proto-home-card__meta">
@@ -1313,7 +1313,7 @@ export default function PrototypeSidebarHomeView({
                   {looseCount} notes haven&apos;t found a home yet
                 </p>
                 <span className="proto-home-card__chevron" aria-hidden>
-                  <Icon name="chevron-right" size={11} />
+                  <Icon name="caret-right" size={11} />
                 </span>
               </div>
             </div>

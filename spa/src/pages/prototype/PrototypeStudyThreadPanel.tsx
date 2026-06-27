@@ -107,7 +107,7 @@ export default function PrototypeStudyThreadPanel({ noteId, spaceId }: Prototype
               aria-label="Back to note details"
               onClick={backFromThreadPanelToInspector}
             >
-              <Icon name="chevron-right" size={14} />
+              <Icon name="caret-right" size={14} />
             </button>
           ) : (
             <>
@@ -127,7 +127,7 @@ export default function PrototypeStudyThreadPanel({ noteId, spaceId }: Prototype
                 aria-label="Close thread panel"
                 onClick={closeThreadPanel}
               >
-                <Icon name="chevron-right" size={14} />
+                <Icon name="caret-right" size={14} />
               </button>
             </>
           )}

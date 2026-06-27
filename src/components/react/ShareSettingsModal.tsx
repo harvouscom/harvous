@@ -86,7 +86,7 @@ export default function ShareSettingsModal({
             </span>
           </div>
           <div className="share-settings-modal__access-chevron">
-            <Icon name="chevron-down" size={12} style={{ color: 'var(--color-pebble-grey)' }} />
+            <Icon name="caret-down" size={12} style={{ color: 'var(--color-pebble-grey)' }} />
           </div>
         </button>
       </div>

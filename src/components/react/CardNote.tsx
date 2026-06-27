@@ -283,7 +283,7 @@ const CardNote: React.FC<CardNoteProps> = ({
                               {uniqueScriptureRefs.length} {uniqueScriptureRefs.length === 1 ? 'scripture note' : 'scripture notes'}
                             </span>
                             <Icon 
-                              name="chevron-down" 
+                              name="caret-down" 
                               size={10} 
                               style={{ 
                                 transform: isScriptureRefsExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
@@ -551,7 +551,7 @@ const CardNote: React.FC<CardNoteProps> = ({
                               {uniqueScriptureRefs.length} {uniqueScriptureRefs.length === 1 ? 'scripture note' : 'scripture notes'}
                             </span>
                             <Icon 
-                              name="chevron-down" 
+                              name="caret-down" 
                               size={10} 
                               style={{ 
                                 transform: isScriptureRefsExpanded ? 'rotate(180deg)' : 'rotate(0deg)',

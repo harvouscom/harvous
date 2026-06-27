@@ -274,7 +274,7 @@ export default function ReferenceDockWeb({
                     >
                       <Icon name="book-open" size={13} className="reference-dock-web__scripture-ref-icon" aria-hidden />
                       <span className="reference-dock-web__scripture-ref-label">{ref.canonical}</span>
-                      <Icon name="chevron-right" size={11} className="reference-dock-web__scripture-ref-chevron" aria-hidden />
+                      <Icon name="caret-right" size={11} className="reference-dock-web__scripture-ref-chevron" aria-hidden />
                     </button>
                   ))}
                 </div>

@@ -278,7 +278,7 @@ export default function StudyDockCardShell({
                   aria-expanded={expanded}
                   aria-label="Collapse"
                 >
-                  <Icon name="chevron-down" size={12} />
+                  <Icon name="caret-down" size={12} />
                 </button>
               ) : null}
               <button

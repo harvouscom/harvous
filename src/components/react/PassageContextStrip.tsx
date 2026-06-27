@@ -95,7 +95,7 @@ function NavRow({
         <span className="passage-context-strip__row-label">{label}</span>
         {secondary ? <span className="passage-context-strip__row-secondary">{secondary}</span> : null}
       </span>
-      <Icon name="chevron-right" size={11} className="passage-context-strip__row-chevron" aria-hidden />
+      <Icon name="caret-right" size={11} className="passage-context-strip__row-chevron" aria-hidden />
     </button>
   );
 }

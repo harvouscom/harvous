@@ -104,7 +104,7 @@ export default function PrototypeRecallCarousel({
               </span>
               <p className="pds-list-title proto-home-card__title">{active.title}</p>
               <span className="proto-home-card__chevron" aria-hidden>
-                <Icon name="chevron-right" size={11} />
+                <Icon name="caret-right" size={11} />
               </span>
             </div>
             {active.meta ? (
@@ -125,7 +125,7 @@ export default function PrototypeRecallCarousel({
             disabled={!canGoPrev}
             onClick={goPrev}
           >
-            <Icon name="chevron-left" size={14} />
+            <Icon name="caret-left" size={14} />
           </button>
           <div className="proto-recall-carousel__dots" role="tablist" aria-label="Recall positions">
             {opportunities.map((op, idx) => (
@@ -147,7 +147,7 @@ export default function PrototypeRecallCarousel({
             disabled={!canGoNext}
             onClick={goNext}
           >
-            <Icon name="chevron-right" size={14} />
+            <Icon name="caret-right" size={14} />
           </button>
         </div>
       ) : null}

@@ -155,7 +155,7 @@ export default function ThreadVisibilityDropdown({
           </div>
           <div className="size-4 flex-center shrink-0">
             <Icon 
-              name={isOpen ? 'chevron-up' : 'chevron-down'} 
+              name={isOpen ? 'caret-up' : 'caret-down'} 
               size={16} 
               style={{ 
                 color: 'var(--color-deep-grey)'
