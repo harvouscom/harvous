@@ -1383,6 +1383,20 @@ export function recallTrendGreetingParts(input: RecallTrendLineInput): RecallTre
   }
 }
 
+/** Recall carousel meta for connect-suggestion cards (API reason → warm copy). */
+export function connectSuggestionRecallMeta(reason: string): string {
+  switch (reason) {
+    case 'Shared passage':
+      return 'Same passage in both — link them?';
+    case 'Cross-reference':
+      return 'Referenced together — link them?';
+    case 'Shared theme':
+      return 'Same theme across your notes — link them?';
+    default:
+      return 'These notes seem related — link them?';
+  }
+}
+
 // ─── Generative recall: pure derivations ─────────────────────────────────────────
 // Cards that prompt creating something new, computed from data already on Home. Each derive is pure;
 // the view turns the result into a RecallOpportunity (display + tap → seed a draft note / annotate).

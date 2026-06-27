@@ -40,6 +40,7 @@ import {
   deriveRecurringPerson,
   pickBareHighlight,
   deriveReflectionPrompt,
+  connectSuggestionRecallMeta,
   recallTrendGreetingParts,
   pickRevisitHighlight,
   pickSpotlightThread,
@@ -1532,6 +1533,18 @@ describe('recallTrendGreetingParts', () => {
   it('returns null when required labels are missing', () => {
     expect(recallTrendGreetingParts({ kind: 'arc', theme: '' })).toBeNull();
     expect(recallTrendGreetingParts({ kind: 'crossref', fromRef: 'A', toRef: '' })).toBeNull();
+  });
+});
+
+describe('connectSuggestionRecallMeta', () => {
+  it('maps API connect reasons to warm recall carousel meta', () => {
+    expect(connectSuggestionRecallMeta('Shared passage')).toBe('Same passage in both — link them?');
+    expect(connectSuggestionRecallMeta('Cross-reference')).toBe('Referenced together — link them?');
+    expect(connectSuggestionRecallMeta('Shared theme')).toBe('Same theme across your notes — link them?');
+  });
+
+  it('falls back for unknown reasons', () => {
+    expect(connectSuggestionRecallMeta('Something else')).toBe('These notes seem related — link them?');
   });
 });
 

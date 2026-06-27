@@ -58,6 +58,7 @@ import {
   deriveRecurringPerson,
   pickBareHighlight,
   deriveReflectionPrompt,
+  connectSuggestionRecallMeta,
   studyArcSinceLabel,
   studyArcToneLabel,
   type HomeLeadTheme,
@@ -956,7 +957,7 @@ export default function PrototypeSidebarHomeView({
         id,
         kind: 'crossref',
         score: Math.min(1, crossRefConnection.noteCount / 8),
-        eyebrow: 'A cross-reference in your notes',
+        eyebrow: 'Linked in your study',
         title: `${crossRefConnection.from.displayRef} and ${crossRefConnection.to.displayRef}`,
         meta: `Across ${crossRefConnection.noteCount} of your notes`,
         iconName: 'arrow-right-arrow-left',
@@ -1016,7 +1017,7 @@ export default function PrototypeSidebarHomeView({
         score: 0.5,
         eyebrow: 'Add a thought',
         title: prototypeHighlightListTitle(bareHighlight),
-        meta: 'You highlighted this but never reflected on it',
+        meta: 'Worth a quick reflection',
         iconName: 'pen-to-square',
         onOpen: () => onOpenHighlight(bareHighlight),
       });
@@ -1045,9 +1046,9 @@ export default function PrototypeSidebarHomeView({
         kind: 'crossrefGap',
         isGenerative: true,
         score: Math.min(0.9, 0.6 + topCrossRefGap.votes / 20),
-        eyebrow: 'An unwritten cross-reference',
+        eyebrow: 'A link worth making',
         title: topCrossRefGap.to.displayRef,
-        meta: `Cross-referenced from ${topCrossRefGap.from.displayRef} — start here?`,
+        meta: `Referenced from ${topCrossRefGap.from.displayRef} — start here?`,
         iconName: 'arrow-right-arrow-left',
         onOpen: () =>
           startDraftNote({
@@ -1064,9 +1065,9 @@ export default function PrototypeSidebarHomeView({
         kind: 'connectNotes',
         isGenerative: true,
         score: Math.min(0.85, 0.5 + topConnectSuggestion.score / 10),
-        eyebrow: `${topConnectSuggestion.reason} — link them?`,
+        eyebrow: 'Link these notes?',
         title: `${topConnectSuggestion.noteATitle} & ${topConnectSuggestion.noteBTitle}`,
-        meta: 'These two notes seem related — connect them with one tap',
+        meta: connectSuggestionRecallMeta(topConnectSuggestion.reason),
         iconName: 'link',
         onOpen: () => {
           connectNote.mutate({

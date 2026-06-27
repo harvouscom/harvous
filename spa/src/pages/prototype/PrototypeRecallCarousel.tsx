@@ -81,7 +81,7 @@ export default function PrototypeRecallCarousel({
       aria-label="Recall opportunities"
     >
       <div
-        className={`proto-glass-surface proto-glass-surface--panel proto-home-card proto-recall-card${active.isGenerative ? ' proto-recall-card--generative' : ''}`}
+        className="proto-glass-surface proto-glass-surface--panel proto-home-card proto-recall-card"
       >
         <button
           type="button"

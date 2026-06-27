@@ -1169,7 +1169,7 @@ route.get('/api/notes/fingerprints', requireAuth, async (c) => {
 
 // ─── GET /api/notes/crossref-gaps ──────────────────────────────────────────────
 // Generative recall Phase 2: passages cross-referenced FROM the user's cited passages that they
-// haven't written about yet. Powers the "unwritten cross-reference" card in the recall carousel.
+// haven't written about yet. Powers the "A link worth making" generative card in the recall carousel.
 route.get('/api/notes/crossref-gaps', requireAuth, async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
