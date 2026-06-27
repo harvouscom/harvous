@@ -42,6 +42,13 @@ import {
   deriveContinueBook,
   deriveRecurringPerson,
   pickBareHighlight,
+  isHighlightUnannotated,
+  findUnannotatedHighlightForRef,
+  findUnannotatedHighlightForChapter,
+  findHighlightForRef,
+  findHighlightForChapter,
+  scriptureRefsMatch,
+  highlightMatchesChapter,
   deriveReflectionPrompt,
   connectSuggestionRecallMeta,
   recallTrendGreetingParts,
@@ -1636,6 +1643,64 @@ describe('pickBareHighlight', () => {
 
   it('returns undefined when every highlight is annotated', () => {
     expect(pickBareHighlight([{ id: 'x', notesBody: 'reflection' }])).toBeUndefined();
+  });
+});
+
+describe('highlight ref matching for recall', () => {
+  it('scriptureRefsMatch normalizes case and spacing', () => {
+    expect(scriptureRefsMatch('romans 8:28', 'Romans 8:28')).toBe(true);
+    expect(scriptureRefsMatch('Romans 8:28', 'John 3:16')).toBe(false);
+  });
+
+  it('findUnannotatedHighlightForRef picks oldest matching unannotated row', () => {
+    const out = findUnannotatedHighlightForRef(
+      [
+        { id: 'annotated', scriptureReference: 'Romans 8:28', miniNoteBody: 'done', recencyMs: 1 },
+        { id: 'newer', scriptureReference: 'Romans 8:28', recencyMs: 200 },
+        { id: 'older', scriptureReference: 'Romans 8:28', recencyMs: 50 },
+        { id: 'other', scriptureReference: 'John 3:16', recencyMs: 10 },
+      ],
+      'Romans 8:28',
+    );
+    expect(out?.id).toBe('older');
+  });
+
+  it('findUnannotatedHighlightForChapter matches book and chapter', () => {
+    const out = findUnannotatedHighlightForChapter(
+      [
+        { id: 'v1', scriptureReference: 'Romans 9:14', recencyMs: 100 },
+        { id: 'v2', scriptureReference: 'Romans 8:1', recencyMs: 50 },
+      ],
+      'Romans',
+      9,
+    );
+    expect(out?.id).toBe('v1');
+  });
+
+  it('highlightMatchesChapter rejects wrong chapter', () => {
+    expect(
+      highlightMatchesChapter({ id: 'x', scriptureReference: 'Romans 8:28' }, 'Romans', 9),
+    ).toBe(false);
+  });
+
+  it('findHighlightForRef includes annotated highlights', () => {
+    const out = findHighlightForRef(
+      [
+        { id: 'annotated', scriptureReference: 'Romans 8:28', miniNoteBody: 'done', recencyMs: 1 },
+        { id: 'older', scriptureReference: 'Romans 8:28', recencyMs: 50 },
+      ],
+      'Romans 8:28',
+    );
+    expect(out?.id).toBe('annotated');
+  });
+
+  it('findHighlightForChapter includes annotated highlights', () => {
+    const out = findHighlightForChapter(
+      [{ id: 'v1', scriptureReference: 'Romans 9:14', miniNoteBody: 'note', recencyMs: 100 }],
+      'Romans',
+      9,
+    );
+    expect(out?.id).toBe('v1');
   });
 });
 

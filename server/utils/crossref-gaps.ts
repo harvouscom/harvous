@@ -1,9 +1,10 @@
 /**
  * Cross-reference gaps: passages the Treasury of Scripture Knowledge links FROM a user's cited
- * passages that the user has NOT cited in any note. These are the "you studied X but never the
- * connected Y" prompts for the generative recall carousel. Deterministic, no AI.
+ * passages that the user has NOT cited in any note or passage highlight. These are the "you studied X
+ * but never the connected Y" prompts for the generative recall carousel. Deterministic, no AI.
  */
 
+import { normalizeScriptureReference, parseScriptureReference } from '@/utils/scripture-detector';
 import {
   db,
   eq,
@@ -11,9 +12,11 @@ import {
   or,
   gte,
   desc,
+  isNotNull,
   Notes,
   ScriptureMetadata,
   ScriptureCrossReferences,
+  StudyThreadEntries,
 } from '../db';
 
 export interface VerseRef {
@@ -32,6 +35,30 @@ const verseKey = (v: VerseRef) => `${v.book}|${v.chapter}|${v.verse}`;
 
 function displayRef(v: VerseRef): string {
   return `${v.book} ${v.chapter}:${v.verse}`;
+}
+
+/** Expand a stored passage/highlight ref into per-verse keys (same-chapter ranges). Pure. */
+export function verseKeysFromScriptureReference(reference: string): string[] {
+  const normalized = normalizeScriptureReference(reference.trim()) ?? reference.trim();
+  if (!normalized) return [];
+  const parsed = parseScriptureReference(normalized.replace(/,\s+/g, ','));
+  if (!parsed) return [];
+  const verseStart = Array.isArray(parsed.verse) ? parsed.verse[0] : parsed.verse;
+  const verseEnd = Array.isArray(parsed.verse) ? parsed.verse[1] : verseStart;
+  const keys: string[] = [];
+  for (let v = verseStart; v <= verseEnd; v++) {
+    keys.push(verseKey({ book: parsed.book, chapter: parsed.chapter, verse: v }));
+  }
+  return keys;
+}
+
+/** Merge highlight/passage refs into a cited-verse key set. Mutates `citedKeys`. Pure aside from mutation. */
+export function addHighlightRefsToCitedKeys(citedKeys: Set<string>, references: string[]): void {
+  for (const ref of references) {
+    for (const k of verseKeysFromScriptureReference(ref)) {
+      citedKeys.add(k);
+    }
+  }
 }
 
 /** Pure ranking: from a set of cross-ref rows, pick gaps the user hasn't cited. */
@@ -60,7 +87,7 @@ export function rankCrossRefGaps(
 
 /**
  * Find cross-reference gaps for a user: passages TSK links FROM their cited passages that they
- * haven't written about. Returns up to `limit` gaps, ranked by TSK vote count (editorial weight).
+ * haven't written about or highlighted. Returns up to `limit` gaps, ranked by TSK vote count.
  */
 export async function getCrossRefGaps(
   userId: string,
@@ -89,6 +116,22 @@ export async function getCrossRefGaps(
       deduped.push(r);
     }
   }
+
+  const highlighted = await db
+    .select({ scriptureReference: StudyThreadEntries.scriptureReference })
+    .from(StudyThreadEntries)
+    .where(
+      and(
+        eq(StudyThreadEntries.userId, userId),
+        eq(StudyThreadEntries.isArchived, false),
+        isNotNull(StudyThreadEntries.scriptureReference),
+      ),
+    );
+
+  addHighlightRefsToCitedKeys(
+    citedKeys,
+    highlighted.map((r) => r.scriptureReference).filter((ref): ref is string => Boolean(ref?.trim())),
+  );
 
   const sourceChunk = deduped.slice(0, 50);
   const fromAny = or(

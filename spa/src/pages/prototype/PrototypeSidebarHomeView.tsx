@@ -57,6 +57,11 @@ import {
   deriveContinueBook,
   deriveRecurringPerson,
   pickBareHighlight,
+  isHighlightUnannotated,
+  findUnannotatedHighlightForRef,
+  findUnannotatedHighlightForChapter,
+  findHighlightForRef,
+  findHighlightForChapter,
   deriveReflectionPrompt,
   connectSuggestionRecallMeta,
   studyArcSinceLabel,
@@ -112,6 +117,47 @@ const SUBJECT_CONNECTION_MIN = 3;
 const CROSSREF_CONNECTION_MIN = 2;
 // A passage must be cited by at least this many distinct notes to resurface on Home.
 const PASSAGE_CONNECTION_MIN = 2;
+
+function pushAnnotateHighlightRecallCard(
+  out: RecallOpportunity[],
+  highlight: PrototypeHighlightStudyThreadRow,
+  onOpenHighlight: (row: PrototypeHighlightStudyThreadRow) => void,
+  usedHighlightIds: Set<string>,
+) {
+  if (usedHighlightIds.has(highlight.id)) return;
+  usedHighlightIds.add(highlight.id);
+  out.push({
+    id: `annotate:${highlight.id}`,
+    kind: 'annotateHighlight',
+    score: 0.55,
+    eyebrow: 'Add a thought',
+    title: prototypeHighlightListTitle(highlight),
+    meta: 'Worth a quick reflection',
+    iconName: 'pen-to-square',
+    onOpen: () => onOpenHighlight(highlight),
+  });
+}
+
+function pushRevisitHighlightRecallCard(
+  out: RecallOpportunity[],
+  highlight: PrototypeHighlightStudyThreadRow,
+  onOpenHighlight: (row: PrototypeHighlightStudyThreadRow) => void,
+  usedHighlightIds: Set<string>,
+  meta: string,
+) {
+  if (usedHighlightIds.has(highlight.id)) return;
+  usedHighlightIds.add(highlight.id);
+  out.push({
+    id: highlight.id,
+    kind: 'highlight',
+    score: 0.55,
+    eyebrow: 'A highlight to revisit',
+    title: prototypeHighlightListTitle(highlight),
+    meta,
+    iconName: highlightEntryKindIconName(highlight.entryKind),
+    onOpen: () => onOpenHighlight(highlight),
+  });
+}
 
 type Props = {
   homeSpaceId: string;
@@ -854,13 +900,16 @@ export default function PrototypeSidebarHomeView({
     return deriveRecurringPerson(input, { limit: 1 })[0];
   }, [notes, fingerprintsById, hasMoreNotes]);
 
-  const bareHighlight = useMemo(() => {
-    const withRecency = highlights.map((h) => ({
-      ...h,
-      recencyMs: Date.parse(prototypeHighlightRecencyIso(h) ?? '') || 0,
-    }));
-    return pickBareHighlight(withRecency);
-  }, [highlights]);
+  const highlightsWithRecency = useMemo(
+    () =>
+      highlights.map((h) => ({
+        ...h,
+        recencyMs: Date.parse(prototypeHighlightRecencyIso(h) ?? '') || 0,
+      })),
+    [highlights],
+  );
+
+  const bareHighlight = useMemo(() => pickBareHighlight(highlightsWithRecency), [highlightsWithRecency]);
 
   const reflectionPrompt = useMemo(
     () => deriveReflectionPrompt({ seasonLabel: season?.label, arcTheme: studyArc?.theme }),
@@ -882,6 +931,7 @@ export default function PrototypeSidebarHomeView({
 
   const recallCandidates = useMemo<RecallOpportunity[]>(() => {
     const out: RecallOpportunity[] = [];
+    const usedHighlightIds = new Set<string>();
 
     const pushRevisitOpportunity = (note: SpaceNoteRow) => {
       if (revisitOnHome?.id === note.id) return;
@@ -909,6 +959,8 @@ export default function PrototypeSidebarHomeView({
     if (spotlightHighlight) {
       if (continueNote && spotlightHighlight.parentNoteId === continueNote.id) {
         if (revisitNote) pushRevisitOpportunity(revisitNote);
+      } else if (isHighlightUnannotated(spotlightHighlight)) {
+        pushAnnotateHighlightRecallCard(out, spotlightHighlight, onOpenHighlight, usedHighlightIds);
       } else {
         out.push({
           id: spotlightHighlight.id,
@@ -982,17 +1034,41 @@ export default function PrototypeSidebarHomeView({
     // ── Generative opportunities ("go make something new") ──
     if (continueBookSuggestion) {
       const ref = `${continueBookSuggestion.book} ${continueBookSuggestion.nextChapter}`;
-      out.push({
-        id: `book:${continueBookSuggestion.book}:${continueBookSuggestion.nextChapter}`,
-        kind: 'continueBook',
-        isGenerative: true,
-        score: Math.min(0.85, 0.5 + continueBookSuggestion.citedCount / 20),
-        eyebrow: `Keep going in ${continueBookSuggestion.book}`,
-        title: ref,
-        meta: `You've studied ${continueBookSuggestion.citedCount} ${continueBookSuggestion.citedCount === 1 ? 'chapter' : 'chapters'} — start the next?`,
-        iconName: 'book',
-        onOpen: () => startDraftNote({ title: ref, contentHtml: buildVotdScripturePillHtml(ref, 'NET') }),
-      });
+      const chapterHighlight = findUnannotatedHighlightForChapter(
+        highlightsWithRecency,
+        continueBookSuggestion.book,
+        continueBookSuggestion.nextChapter,
+      );
+      if (chapterHighlight) {
+        pushAnnotateHighlightRecallCard(out, chapterHighlight, onOpenHighlight, usedHighlightIds);
+      } else {
+        const revisitChapterHighlight = findHighlightForChapter(
+          highlightsWithRecency,
+          continueBookSuggestion.book,
+          continueBookSuggestion.nextChapter,
+        );
+        if (revisitChapterHighlight) {
+          pushRevisitHighlightRecallCard(
+            out,
+            revisitChapterHighlight,
+            onOpenHighlight,
+            usedHighlightIds,
+            prototypeHighlightSubtitlePreview(revisitChapterHighlight, revisitChapterHighlight.parentNoteTitle),
+          );
+        } else {
+          out.push({
+            id: `book:${continueBookSuggestion.book}:${continueBookSuggestion.nextChapter}`,
+            kind: 'continueBook',
+            isGenerative: true,
+            score: Math.min(0.85, 0.5 + continueBookSuggestion.citedCount / 20),
+            eyebrow: `Keep going in ${continueBookSuggestion.book}`,
+            title: ref,
+            meta: `You've studied ${continueBookSuggestion.citedCount} ${continueBookSuggestion.citedCount === 1 ? 'chapter' : 'chapters'} — start the next?`,
+            iconName: 'book',
+            onOpen: () => startDraftNote({ title: ref, contentHtml: buildVotdScripturePillHtml(ref, 'NET') }),
+          });
+        }
+      }
     }
 
     if (recurringPerson) {
@@ -1009,18 +1085,8 @@ export default function PrototypeSidebarHomeView({
       });
     }
 
-    if (bareHighlight && bareHighlight.id !== spotlightHighlight?.id) {
-      out.push({
-        id: `annotate:${bareHighlight.id}`,
-        kind: 'annotateHighlight',
-        isGenerative: true,
-        score: 0.5,
-        eyebrow: 'Add a thought',
-        title: prototypeHighlightListTitle(bareHighlight),
-        meta: 'Worth a quick reflection',
-        iconName: 'pen-to-square',
-        onOpen: () => onOpenHighlight(bareHighlight),
-      });
+    if (bareHighlight && !usedHighlightIds.has(bareHighlight.id)) {
+      pushAnnotateHighlightRecallCard(out, bareHighlight, onOpenHighlight, usedHighlightIds);
     }
 
     if (reflectionPrompt) {
@@ -1040,22 +1106,38 @@ export default function PrototypeSidebarHomeView({
 
     // Phase 2 — backend-powered generative cards
     if (topCrossRefGap) {
-      const id = `crossref-gap:${topCrossRefGap.from.displayRef}|${topCrossRefGap.to.displayRef}`;
-      out.push({
-        id,
-        kind: 'crossrefGap',
-        isGenerative: true,
-        score: Math.min(0.9, 0.6 + topCrossRefGap.votes / 20),
-        eyebrow: 'A link worth making',
-        title: topCrossRefGap.to.displayRef,
-        meta: `Referenced from ${topCrossRefGap.from.displayRef} — start here?`,
-        iconName: 'arrow-right-arrow-left',
-        onOpen: () =>
-          startDraftNote({
+      const gapHighlight = findUnannotatedHighlightForRef(highlightsWithRecency, topCrossRefGap.to.displayRef);
+      if (gapHighlight) {
+        pushAnnotateHighlightRecallCard(out, gapHighlight, onOpenHighlight, usedHighlightIds);
+      } else {
+        const revisitGapHighlight = findHighlightForRef(highlightsWithRecency, topCrossRefGap.to.displayRef);
+        if (revisitGapHighlight) {
+          pushRevisitHighlightRecallCard(
+            out,
+            revisitGapHighlight,
+            onOpenHighlight,
+            usedHighlightIds,
+            prototypeHighlightSubtitlePreview(revisitGapHighlight, revisitGapHighlight.parentNoteTitle),
+          );
+        } else {
+          const id = `crossref-gap:${topCrossRefGap.from.displayRef}|${topCrossRefGap.to.displayRef}`;
+          out.push({
+            id,
+            kind: 'crossrefGap',
+            isGenerative: true,
+            score: Math.min(0.9, 0.6 + topCrossRefGap.votes / 20),
+            eyebrow: 'A link worth making',
             title: topCrossRefGap.to.displayRef,
-            contentHtml: buildVotdScripturePillHtml(topCrossRefGap.to.displayRef, 'NET'),
-          }),
-      });
+            meta: `Referenced from ${topCrossRefGap.from.displayRef} — start here?`,
+            iconName: 'arrow-right-arrow-left',
+            onOpen: () =>
+              startDraftNote({
+                title: topCrossRefGap.to.displayRef,
+                contentHtml: buildVotdScripturePillHtml(topCrossRefGap.to.displayRef, 'NET'),
+              }),
+          });
+        }
+      }
     }
 
     if (topConnectSuggestion && homeSpaceId) {
@@ -1101,6 +1183,7 @@ export default function PrototypeSidebarHomeView({
     continueBookSuggestion,
     recurringPerson,
     bareHighlight,
+    highlightsWithRecency,
     reflectionPrompt,
     topCrossRefGap,
     topConnectSuggestion,

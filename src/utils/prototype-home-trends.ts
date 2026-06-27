@@ -1,6 +1,7 @@
 import { normalizeDate } from './sorting';
 import { noteFolderMembershipLabels, type NoteFolderLabelSource } from './note-folder-display';
 import { stripServerAutoUntitledNoteTitleForDisplay } from './server-auto-untitled-note-display';
+import { normalizeScriptureReference, parseScriptureReference } from './scripture-detector';
 
 /**
  * Pure helpers for the prototype sidebar Home space view: the "continue where
@@ -1532,6 +1533,72 @@ export interface BareHighlightInput {
   notesBody?: string | null;
   /** Touch time (ms) — oldest unannotated surfaces first. */
   recencyMs?: number;
+}
+
+export interface HighlightRefMatchInput extends BareHighlightInput {
+  scriptureReference?: string | null;
+}
+
+/** Case-insensitive scripture ref compare after normalization. */
+export function scriptureRefsMatch(a: string, b: string): boolean {
+  const ta = (normalizeScriptureReference(a.trim()) ?? a.trim()).toLowerCase();
+  const tb = (normalizeScriptureReference(b.trim()) ?? b.trim()).toLowerCase();
+  return ta.length > 0 && ta === tb;
+}
+
+export function highlightMatchesScriptureRef(row: HighlightRefMatchInput, ref: string): boolean {
+  const hr = (row.scriptureReference ?? '').trim();
+  if (!hr) return false;
+  return scriptureRefsMatch(hr, ref);
+}
+
+export function highlightMatchesChapter(row: HighlightRefMatchInput, book: string, chapter: number): boolean {
+  const hr = (row.scriptureReference ?? '').trim();
+  if (!hr) return false;
+  const parsed = parseScriptureReference(normalizeScriptureReference(hr) ?? hr);
+  if (!parsed) return false;
+  if (parsed.book.localeCompare(book.trim(), undefined, { sensitivity: 'accent' }) !== 0) return false;
+  return parsed.chapter === chapter;
+}
+
+function pickOldestHighlightByRecency<T extends BareHighlightInput>(matches: T[]): T | undefined {
+  if (matches.length === 0) return undefined;
+  return [...matches].sort((a, b) => (a.recencyMs ?? 0) - (b.recencyMs ?? 0))[0];
+}
+
+/** Any highlight on a verse ref — oldest first. */
+export function findHighlightForRef<T extends HighlightRefMatchInput>(highlights: T[], ref: string): T | undefined {
+  const matches = highlights.filter((h) => highlightMatchesScriptureRef(h, ref));
+  return pickOldestHighlightByRecency(matches);
+}
+
+/** Any highlight anywhere in a book chapter — oldest first. */
+export function findHighlightForChapter<T extends HighlightRefMatchInput>(
+  highlights: T[],
+  book: string,
+  chapter: number,
+): T | undefined {
+  const matches = highlights.filter((h) => highlightMatchesChapter(h, book, chapter));
+  return pickOldestHighlightByRecency(matches);
+}
+
+/** Unannotated highlight on a verse ref — oldest first (same policy as pickBareHighlight). */
+export function findUnannotatedHighlightForRef<T extends HighlightRefMatchInput>(
+  highlights: T[],
+  ref: string,
+): T | undefined {
+  const matches = highlights.filter((h) => isHighlightUnannotated(h) && highlightMatchesScriptureRef(h, ref));
+  return pickOldestHighlightByRecency(matches);
+}
+
+/** Unannotated highlight anywhere in a book chapter — oldest first. */
+export function findUnannotatedHighlightForChapter<T extends HighlightRefMatchInput>(
+  highlights: T[],
+  book: string,
+  chapter: number,
+): T | undefined {
+  const matches = highlights.filter((h) => isHighlightUnannotated(h) && highlightMatchesChapter(h, book, chapter));
+  return pickOldestHighlightByRecency(matches);
 }
 
 /** True when a highlight has no annotation (both annotation fields empty). Pure. */

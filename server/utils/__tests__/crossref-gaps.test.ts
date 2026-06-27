@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { rankCrossRefGaps } from '../crossref-gaps';
+import { rankCrossRefGaps, verseKeysFromScriptureReference, addHighlightRefsToCitedKeys } from '../crossref-gaps';
 
 const v = (book: string, chapter: number, verse: number) => ({ book, chapter, verse });
 
@@ -35,5 +35,26 @@ describe('rankCrossRefGaps', () => {
       { from: v('A', 1, 1), to: v('D', 1, 1), votes: 1 },
     ];
     expect(rankCrossRefGaps(crossRefs, cited, { limit: 2 })).toHaveLength(2);
+  });
+
+  it('excludes targets covered by passage highlights', () => {
+    const cited = new Set<string>();
+    addHighlightRefsToCitedKeys(cited, ['Genesis 50:20']);
+    const crossRefs = [{ from: v('Romans', 8, 28), to: v('Genesis', 50, 20), votes: 8 }];
+    expect(rankCrossRefGaps(crossRefs, cited)).toHaveLength(0);
+  });
+});
+
+describe('verseKeysFromScriptureReference', () => {
+  it('expands a single verse ref', () => {
+    expect(verseKeysFromScriptureReference('Romans 8:28')).toEqual(['Romans|8|28']);
+  });
+
+  it('expands a verse range', () => {
+    expect(verseKeysFromScriptureReference('Romans 8:28-30')).toEqual([
+      'Romans|8|28',
+      'Romans|8|29',
+      'Romans|8|30',
+    ]);
   });
 });
