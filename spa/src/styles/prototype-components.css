@@ -4516,6 +4516,16 @@ button.proto-home-card--tappable:focus-visible {
   font-weight: 600;
 }
 
+/* Trend line — a quieter second sentence under the greeting (the strongest recall trend). */
+.proto-home-greeting__trend {
+  margin: 0;
+  padding: 0 4px 2px;
+  font-family: var(--pds-font-body);
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--pds-text-secondary);
+}
+
 /* Inline stat chips — same glass recipe as the cards, shrunk to pill size. */
 .proto-home-greeting__chip {
   display: inline-flex;
@@ -6702,4 +6712,109 @@ button.proto-appearance-hero__card {
 
 .proto-support-version.scripture-pill-chrome__attribution {
   margin-top: 24px;
+}
+
+/* ── Recall carousel (Home resurfacing) ─────────────────────────────────── */
+.proto-recall-carousel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.proto-recall-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+.proto-recall-card__main {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+  padding: 9px 10px 8px;
+  color: var(--pds-text-primary);
+  font-family: var(--pds-font-body);
+  border-radius: 14px 14px 0 0;
+  transition: background 0.38s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.proto-recall-card__main:hover {
+  background: var(--pds-bg-control-strong);
+}
+
+.proto-recall-card__main:focus-visible {
+  outline: 2px solid var(--pds-accent-focus-border);
+  outline-offset: -2px;
+}
+
+.proto-recall-card__snooze {
+  appearance: none;
+  border: 0;
+  border-top: 0.5px solid var(--pds-border-control);
+  background: transparent;
+  width: 100%;
+  padding: 7px 10px;
+  cursor: pointer;
+  font-family: var(--pds-font-body);
+  font-size: 12px;
+  color: var(--pds-text-secondary);
+  text-align: center;
+  transition: color 0.2s ease, background 0.2s ease;
+}
+
+.proto-recall-card__snooze:hover {
+  color: var(--pds-text-primary);
+  background: var(--pds-bg-control-strong);
+}
+
+.proto-recall-carousel__pager {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+
+.proto-recall-carousel__pager-btn {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  color: var(--pds-text-secondary);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px;
+}
+
+.proto-recall-carousel__pager-btn:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.proto-recall-carousel__dots {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.proto-recall-carousel__dot {
+  appearance: none;
+  border: 0;
+  cursor: pointer;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  padding: 0;
+  background: var(--pds-border-control);
+  transition: background 0.2s ease, transform 0.2s ease;
+}
+
+.proto-recall-carousel__dot--active {
+  background: var(--pds-text-secondary);
+  transform: scale(1.25);
 }

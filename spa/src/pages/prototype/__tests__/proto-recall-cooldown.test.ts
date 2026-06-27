@@ -2,6 +2,7 @@ import { describe, expect, it, beforeEach } from 'vitest';
 import {
   activeCooldownIds,
   recordRecallOpened,
+  recordRecallSnoozed,
   RECALL_COOLDOWN_DAYS,
 } from '../proto-recall-cooldown';
 
@@ -45,5 +46,15 @@ describe('proto-recall-cooldown', () => {
     recordRecallOpened(undefined, 'note_b', 100); // no-op, no throw
     recordRecallOpened(SPACE, '', 100); // no-op, no throw
     expect(activeCooldownIds(SPACE, 100).has('')).toBe(false);
+  });
+
+  it('snoozes synthetic trend opportunity ids', () => {
+    recordRecallSnoozed(SPACE, 'arc:grace', 100);
+    recordRecallSnoozed(SPACE, 'passage:John 3:16', 100);
+    const active = activeCooldownIds(SPACE, 105);
+    expect(active.has('arc:grace')).toBe(true);
+    expect(active.has('passage:John 3:16')).toBe(true);
+    // A different theme is a different opportunity — not suppressed by snoozing 'arc:grace'.
+    expect(active.has('arc:hope')).toBe(false);
   });
 });

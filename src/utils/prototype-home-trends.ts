@@ -1142,3 +1142,143 @@ export function studyArcToneLabel(tone: string | null): string | null {
   };
   return map[tone] ?? null;
 }
+
+// ─── Recall carousel (Home resurfacing redesign) ─────────────────────────────────
+// The Home recall surface is one swipeable carousel of varied, ranked recall opportunities — a
+// fading meaningful note, a highlight, a theme taking shape, a passage you return to, a cross-ref —
+// instead of a stack of single cards. The pure layer here filters snoozed items, interleaves by kind
+// for variety, and rotates daily; the view builds the rich (display + tap) candidates. Snooze reuses
+// proto-recall-cooldown. See docs/future/MEMORY_LAYER_ASSESSMENT.md.
+
+export type RecallOpportunityKind =
+  | 'revisitNote'
+  | 'highlight'
+  | 'arc'
+  | 'passage'
+  | 'crossref'
+  | 'subject';
+
+/** Kinds that summarize a trend across notes — eligible for the greeting trend line. */
+export const RECALL_TREND_KINDS: readonly RecallOpportunityKind[] = ['arc', 'passage', 'crossref', 'subject'];
+
+export function isRecallTrendKind(kind: RecallOpportunityKind): boolean {
+  return RECALL_TREND_KINDS.includes(kind);
+}
+
+/** Minimal shape the selection logic needs; the view extends this with display + tap handlers. */
+export interface RecallCandidate {
+  /** Stable id for snooze + React key: note/highlight id, or synthetic ('arc:grace', 'passage:John 3:16'). */
+  id: string;
+  kind: RecallOpportunityKind;
+  /** Strength within its kind (normalized ~0..1 so kinds compare sensibly). */
+  score: number;
+}
+
+export interface SelectRecallOptions {
+  snoozedIds?: Iterable<string>;
+  /** Calendar day index (localDayIndex) — rotates the set daily; omit to keep insertion order. */
+  dayIndex?: number;
+  rotationSalt?: number;
+  limit?: number;
+}
+
+/**
+ * Order a set of recall candidates for the carousel: drop snoozed ids, interleave across kinds
+ * (round-robin, strongest kind first) so the set is varied rather than five of one kind, then rotate
+ * daily so the lead stays fresh while remaining stable within a day. Pure and deterministic. A
+ * newly-qualifying candidate appears as soon as the caller includes it — nothing here suppresses it.
+ */
+export function selectRecallOpportunities<T extends RecallCandidate>(
+  candidates: T[],
+  options: SelectRecallOptions = {},
+): T[] {
+  const snoozed = new Set(options.snoozedIds ?? []);
+  const limit = options.limit ?? 6;
+
+  const live = candidates.filter((c) => !snoozed.has(c.id));
+  if (live.length === 0) return [];
+
+  const byKind = new Map<RecallOpportunityKind, T[]>();
+  for (const c of live) {
+    const arr = byKind.get(c.kind);
+    if (arr) arr.push(c);
+    else byKind.set(c.kind, [c]);
+  }
+  for (const arr of byKind.values()) {
+    arr.sort((a, b) => b.score - a.score || a.id.localeCompare(b.id));
+  }
+
+  // Kinds ordered by their strongest candidate, so the best kind leads the interleave.
+  const kinds = [...byKind.keys()].sort((a, b) => {
+    const sa = byKind.get(a)![0]!.score;
+    const sb = byKind.get(b)![0]!.score;
+    return sb - sa || a.localeCompare(b);
+  });
+
+  const interleaved: T[] = [];
+  for (let round = 0; ; round++) {
+    let added = false;
+    for (const kind of kinds) {
+      const item = byKind.get(kind)![round];
+      if (item) {
+        interleaved.push(item);
+        added = true;
+      }
+    }
+    if (!added) break;
+  }
+
+  let ordered = interleaved;
+  if (options.dayIndex != null && interleaved.length > 1) {
+    const salt = options.rotationSalt ?? 0;
+    const len = interleaved.length;
+    const offset = (((options.dayIndex + salt) % len) + len) % len;
+    ordered = [...interleaved.slice(offset), ...interleaved.slice(0, offset)];
+  }
+
+  return ordered.slice(0, Math.max(0, limit));
+}
+
+/** Strongest trend candidate (for the greeting trend line), ignoring snooze (the line isn't dismissible). */
+export function pickRecallTrend<T extends RecallCandidate>(candidates: T[]): T | undefined {
+  let best: T | undefined;
+  for (const c of candidates) {
+    if (!isRecallTrendKind(c.kind)) continue;
+    if (!best || c.score > best.score || (c.score === best.score && c.id.localeCompare(best.id) < 0)) {
+      best = c;
+    }
+  }
+  return best;
+}
+
+export interface RecallTrendLineInput {
+  kind: RecallOpportunityKind;
+  theme?: string;
+  subject?: string;
+  noteCount?: number;
+  since?: string;
+  toneLabel?: string | null;
+  passageRef?: string;
+  fromRef?: string;
+  toRef?: string;
+}
+
+/** One-sentence greeting trend line for the strongest trend opportunity. Pure. */
+export function recallTrendLine(input: RecallTrendLineInput): string {
+  switch (input.kind) {
+    case 'arc': {
+      const base = `Lately you keep returning to ${input.theme ?? 'a theme'}`;
+      const since = input.since ? ` — across ${input.noteCount ?? 0} notes since ${input.since}` : '';
+      const tone = input.toneLabel ? `, ${input.toneLabel}` : '';
+      return `${base}${since}${tone}.`;
+    }
+    case 'subject':
+      return `${input.subject ?? 'A theme'} is taking shape across ${input.noteCount ?? 0} of your notes.`;
+    case 'passage':
+      return `You keep returning to ${input.passageRef ?? 'a passage'}.`;
+    case 'crossref':
+      return `${input.fromRef ?? 'Two passages'} and ${input.toRef ?? ''} keep surfacing together in your notes.`.replace(' and .', '.');
+    default:
+      return '';
+  }
+}

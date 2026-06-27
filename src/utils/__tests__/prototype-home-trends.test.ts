@@ -32,6 +32,9 @@ import {
   deriveStudyArcs,
   studyArcSinceLabel,
   studyArcToneLabel,
+  selectRecallOpportunities,
+  pickRecallTrend,
+  recallTrendLine,
   pickRevisitHighlight,
   pickSpotlightThread,
   stableStringHash,
@@ -1314,5 +1317,85 @@ describe('study arc formatters', () => {
     expect(studyArcToneLabel('lament')).toBe('often in lament');
     expect(studyArcToneLabel(null)).toBeNull();
     expect(studyArcToneLabel('unknown')).toBeNull();
+  });
+});
+
+describe('selectRecallOpportunities', () => {
+  type C = { id: string; kind: any; score: number };
+  const c = (id: string, kind: string, score: number): C => ({ id, kind, score });
+
+  it('returns empty for no candidates', () => {
+    expect(selectRecallOpportunities([])).toEqual([]);
+  });
+
+  it('drops snoozed ids', () => {
+    const out = selectRecallOpportunities([c('a', 'highlight', 0.9), c('b', 'arc', 0.8)], {
+      snoozedIds: ['a'],
+    });
+    expect(out.map((o) => o.id)).toEqual(['b']);
+  });
+
+  it('interleaves kinds for variety rather than grouping one kind', () => {
+    const cands = [
+      c('n1', 'revisitNote', 0.9),
+      c('n2', 'revisitNote', 0.85),
+      c('h1', 'highlight', 0.8),
+      c('a1', 'arc', 0.7),
+    ];
+    const out = selectRecallOpportunities(cands).map((o) => o.kind);
+    // strongest kind (revisitNote) leads, then highlight, then arc, before the 2nd revisitNote
+    expect(out).toEqual(['revisitNote', 'highlight', 'arc', 'revisitNote']);
+  });
+
+  it('caps at the limit', () => {
+    const cands = [c('a', 'arc', 0.9), c('p', 'passage', 0.8), c('x', 'crossref', 0.7)];
+    expect(selectRecallOpportunities(cands, { limit: 2 })).toHaveLength(2);
+  });
+
+  it('rotates daily but is stable within a day', () => {
+    const cands = [c('a', 'arc', 0.9), c('p', 'passage', 0.8), c('x', 'crossref', 0.7)];
+    const day0 = selectRecallOpportunities(cands, { dayIndex: 0 }).map((o) => o.id);
+    const day0again = selectRecallOpportunities(cands, { dayIndex: 0 }).map((o) => o.id);
+    const day1 = selectRecallOpportunities(cands, { dayIndex: 1 }).map((o) => o.id);
+    expect(day0).toEqual(day0again); // deterministic within a day
+    expect(day1[0]).not.toBe(day0[0]); // lead rotates the next day
+  });
+
+  it('surfaces a newly-qualifying candidate as soon as it is included', () => {
+    const before = selectRecallOpportunities([c('a', 'arc', 0.9)]).map((o) => o.id);
+    const after = selectRecallOpportunities([c('a', 'arc', 0.9), c('new', 'passage', 0.95)]).map((o) => o.id);
+    expect(before).toEqual(['a']);
+    expect(after).toContain('new');
+  });
+});
+
+describe('pickRecallTrend + recallTrendLine', () => {
+  type C = { id: string; kind: any; score: number };
+  it('picks the strongest trend kind, ignoring non-trend kinds', () => {
+    const cands: C[] = [
+      { id: 'n', kind: 'revisitNote', score: 0.99 },
+      { id: 'arc:grace', kind: 'arc', score: 0.6 },
+      { id: 'passage:John 3', kind: 'passage', score: 0.8 },
+    ];
+    expect(pickRecallTrend(cands)?.id).toBe('passage:John 3');
+  });
+
+  it('returns undefined when there are no trend candidates', () => {
+    expect(pickRecallTrend([{ id: 'n', kind: 'revisitNote' as any, score: 1 }])).toBeUndefined();
+  });
+
+  it('formats an arc trend line with theme, span, and tone', () => {
+    expect(
+      recallTrendLine({ kind: 'arc', theme: 'Grace', noteCount: 9, since: 'January', toneLabel: 'often in lament' }),
+    ).toBe('Lately you keep returning to Grace — across 9 notes since January, often in lament.');
+  });
+
+  it('formats passage and crossref trend lines', () => {
+    expect(recallTrendLine({ kind: 'passage', passageRef: 'Romans 8:28' })).toBe(
+      'You keep returning to Romans 8:28.',
+    );
+    expect(recallTrendLine({ kind: 'crossref', fromRef: 'Romans 3:21', toRef: 'Leviticus 14:4' })).toBe(
+      'Romans 3:21 and Leviticus 14:4 keep surfacing together in your notes.',
+    );
   });
 });

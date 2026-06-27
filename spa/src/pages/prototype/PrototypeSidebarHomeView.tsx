@@ -7,7 +7,7 @@
  * Copy follows docs/BRAND_VOICE.md — friend-over-coffee, no hype, no em dashes.
  */
 import { useUser } from '@clerk/clerk-react';
-import { useCallback, useMemo, useRef } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import { resolveProfileFirstName } from '@/utils/nav-avatar-initials';
 import Icon, { type IconName } from '@/components/react/Icon';
@@ -49,6 +49,9 @@ import {
   pickRevisitNote,
   pickSpotlightThread,
   selectHomeLeadTheme,
+  selectRecallOpportunities,
+  pickRecallTrend,
+  recallTrendLine,
   studyArcSinceLabel,
   studyArcToneLabel,
   type HomeLeadTheme,
@@ -69,6 +72,8 @@ import {
 } from './proto-highlight-subtitle';
 import { loadPinnedHighlightIds } from './proto-pinned-stores';
 import { stabilityById, recordRecallEngaged } from './proto-recall-stability';
+import { activeCooldownIds, recordRecallSnoozed, recordRecallOpened } from './proto-recall-cooldown';
+import PrototypeRecallCarousel, { type RecallOpportunity } from './PrototypeRecallCarousel';
 import { useNoteFingerprints } from '../../hooks/queries/useNoteFingerprints';
 import PrototypeDailyPassagePill from './PrototypeDailyPassagePill';
 import PrototypeFounderLetterPill from './PrototypeFounderLetterPill';
@@ -142,12 +147,14 @@ function HomeGreeting({
   countForLogic,
   hasMoreForLogic,
   lead,
+  trendLine,
   onOpenScriptureBook,
 }: {
   notes: SpaceNoteRow[];
   countForLogic: number;
   hasMoreForLogic: boolean;
   lead: HomeLeadTheme;
+  trendLine?: string;
   onOpenScriptureBook: (bookOrder: number) => void;
 }) {
   const { user } = useUser();
@@ -373,6 +380,7 @@ function HomeGreeting({
         <span className="proto-home-greeting__hello">{hello}</span>{' '}
         {leadSentence}
       </p>
+      {trendLine ? <p className="proto-home-greeting__trend">{trendLine}</p> : null}
       {seasonLine}
     </>
   );
@@ -655,6 +663,178 @@ export default function PrototypeSidebarHomeView({
     if (originNote) onOpenNote(originNote);
   }, [studyArc, notes, onOpenNote]);
 
+  // ── Recall carousel (Home resurfacing) ──
+  // Fold the per-kind recall/trend memos above into one varied, ranked, snoozable carousel. Each
+  // opportunity is enriched with its fingerprint theme/tone where we have it; opening or snoozing
+  // ("not now") rests it via the recall-cooldown store; the set rotates daily.
+  const [recallTick, setRecallTick] = useState(0);
+  const recallDayIndex = useMemo(() => localDayIndex(new Date()), []);
+  const recallSnoozedIds = useMemo(
+    () => activeCooldownIds(homeSpaceId, recallDayIndex),
+    // recallTick forces a re-read of the snooze store after the user snoozes an item.
+    [homeSpaceId, recallDayIndex, recallTick],
+  );
+
+  const recallCandidates = useMemo<RecallOpportunity[]>(() => {
+    const out: RecallOpportunity[] = [];
+    const wrapOpen = (id: string, action: () => void) => () => {
+      recordRecallOpened(homeSpaceId, id, recallDayIndex);
+      action();
+    };
+
+    if (revisitNote) {
+      const fp = fingerprintsById.get(revisitNote.id);
+      const rel = protoRelativeCaptionAbbrev(revisitNote.updatedAt ?? revisitNote.createdAt ?? null);
+      const tone = studyArcToneLabel(fp?.emotionalTone ?? null);
+      const meta = [rel, fp?.themes?.[0], tone].filter(Boolean).join(' · ');
+      out.push({
+        id: revisitNote.id,
+        kind: 'revisitNote',
+        score: meaningWeightById[revisitNote.id] ?? 0.5,
+        eyebrow: 'Worth another look',
+        title: stripServerAutoUntitledNoteTitleForDisplay(revisitNote.title?.trim() ?? '') || 'New Note',
+        meta,
+        iconName: 'arrow-rotate-left',
+        onOpen: wrapOpen(revisitNote.id, () => handleOpenRevisitNote(revisitNote)),
+      });
+    }
+
+    if (spotlightHighlight) {
+      out.push({
+        id: spotlightHighlight.id,
+        kind: 'highlight',
+        score: 0.55,
+        eyebrow: 'A highlight to revisit',
+        title: prototypeHighlightListTitle(spotlightHighlight),
+        meta: prototypeHighlightSubtitlePreview(spotlightHighlight, spotlightHighlight.parentNoteTitle),
+        iconName: highlightEntryKindIconName(spotlightHighlight.entryKind),
+        onOpen: wrapOpen(spotlightHighlight.id, () => onOpenHighlight(spotlightHighlight)),
+      });
+    }
+
+    if (studyArc) {
+      const id = `arc:${studyArc.theme.toLowerCase()}`;
+      out.push({
+        id,
+        kind: 'arc',
+        score: Math.min(1, studyArc.noteCount / 8),
+        eyebrow: 'A through-line in your study',
+        title: studyArc.theme,
+        meta: studyArcCopy ?? '',
+        iconName: 'arrows-turn-to-dots',
+        onOpen: wrapOpen(id, openStudyArc),
+      });
+    }
+
+    if (subjectConnection) {
+      const id = `subject:${subjectConnection.subject.toLowerCase()}`;
+      out.push({
+        id,
+        kind: 'subject',
+        score: Math.min(1, subjectConnection.noteCount / 8),
+        eyebrow: 'A theme taking shape in your notes',
+        title: subjectConnection.subject,
+        meta: `Across ${subjectConnection.noteCount} of your notes`,
+        iconName: 'arrow-right-arrow-left',
+        onOpen: wrapOpen(id, openSubjectConnection),
+      });
+    }
+
+    if (crossRefConnection) {
+      const id = `crossref:${crossRefConnection.from.displayRef}|${crossRefConnection.to.displayRef}`;
+      out.push({
+        id,
+        kind: 'crossref',
+        score: Math.min(1, crossRefConnection.noteCount / 8),
+        eyebrow: 'A cross-reference in your notes',
+        title: `${crossRefConnection.from.displayRef} and ${crossRefConnection.to.displayRef}`,
+        meta: `Across ${crossRefConnection.noteCount} of your notes`,
+        iconName: 'arrow-right-arrow-left',
+        onOpen: wrapOpen(id, openCrossRefConnection),
+      });
+    }
+
+    if (passageConnection) {
+      const id = `passage:${passageConnection.displayRef}`;
+      out.push({
+        id,
+        kind: 'passage',
+        score: Math.min(1, passageConnection.noteCount / 8),
+        eyebrow: 'A passage you keep returning to',
+        title: passageConnection.displayRef,
+        meta: `Across ${passageConnection.noteCount} of your notes`,
+        iconName: 'book',
+        onOpen: wrapOpen(id, openPassageConnection),
+      });
+    }
+
+    return out;
+  }, [
+    revisitNote,
+    spotlightHighlight,
+    studyArc,
+    studyArcCopy,
+    subjectConnection,
+    crossRefConnection,
+    passageConnection,
+    fingerprintsById,
+    meaningWeightById,
+    homeSpaceId,
+    recallDayIndex,
+    handleOpenRevisitNote,
+    onOpenHighlight,
+    openStudyArc,
+    openSubjectConnection,
+    openCrossRefConnection,
+    openPassageConnection,
+  ]);
+
+  const recallOpportunities = useMemo(
+    () =>
+      selectRecallOpportunities(recallCandidates, {
+        snoozedIds: recallSnoozedIds,
+        dayIndex: recallDayIndex,
+        limit: 6,
+      }),
+    [recallCandidates, recallSnoozedIds, recallDayIndex],
+  );
+
+  const recallTrendText = useMemo(() => {
+    const trend = pickRecallTrend(recallCandidates);
+    if (!trend) return '';
+    if (trend.kind === 'arc' && studyArc) {
+      return recallTrendLine({
+        kind: 'arc',
+        theme: studyArc.theme,
+        noteCount: studyArc.noteCount,
+        since: studyArcSinceLabel(studyArc.firstMs, Date.now()),
+        toneLabel: studyArcToneLabel(studyArc.dominantTone),
+      });
+    }
+    if (trend.kind === 'subject' && subjectConnection) {
+      return recallTrendLine({ kind: 'subject', subject: subjectConnection.subject, noteCount: subjectConnection.noteCount });
+    }
+    if (trend.kind === 'passage' && passageConnection) {
+      return recallTrendLine({ kind: 'passage', passageRef: passageConnection.displayRef });
+    }
+    if (trend.kind === 'crossref' && crossRefConnection) {
+      return recallTrendLine({
+        kind: 'crossref',
+        fromRef: crossRefConnection.from.displayRef,
+        toRef: crossRefConnection.to.displayRef,
+      });
+    }
+    return '';
+  }, [recallCandidates, studyArc, subjectConnection, passageConnection, crossRefConnection]);
+
+  const handleRecallSnooze = useCallback(
+    (id: string) => {
+      recordRecallSnoozed(homeSpaceId, id, recallDayIndex);
+      setRecallTick((t) => t + 1);
+    },
+    [homeSpaceId, recallDayIndex],
+  );
+
   const onCreateFirstNote = useCallback(() => {
     if (!homeSpaceId) return;
     if (isMobileSidebar) closeDrawer();
@@ -685,6 +865,7 @@ export default function PrototypeSidebarHomeView({
           countForLogic={countForLogic}
           hasMoreForLogic={hasMoreForLogic}
           lead={lead}
+          trendLine={recallTrendText}
           onOpenScriptureBook={onOpenScriptureBook}
         />
       </div>
@@ -738,43 +919,9 @@ export default function PrototypeSidebarHomeView({
         </div>
       ) : null}
 
-      {spotlightHighlight ? (
+      {recallOpportunities.length > 0 ? (
         <div className="proto-home-section">
-          <button
-            type="button"
-            className="proto-glass-surface proto-glass-surface--panel proto-home-card proto-home-card--tappable"
-            onClick={() => onOpenHighlight(spotlightHighlight)}
-          >
-            <p className="proto-caption proto-home-card__eyebrow">A highlight to revisit</p>
-            <div className="proto-home-card__body">
-              <div className="proto-home-card__title-row">
-                <span className="proto-home-card__icon-orb" aria-hidden>
-                  <Icon name={highlightEntryKindIconName(spotlightHighlight.entryKind)} size={13} />
-                </span>
-                <p className="pds-list-title proto-home-card__title">
-                  {prototypeHighlightListTitle(spotlightHighlight)}
-                </p>
-                <span className="proto-home-card__chevron" aria-hidden>
-                  <Icon name="chevron-right" size={11} />
-                </span>
-              </div>
-              <p className="pds-list-preview proto-home-card__excerpt">
-                {prototypeHighlightSubtitlePreview(spotlightHighlight, spotlightHighlight.parentNoteTitle)}
-              </p>
-            </div>
-          </button>
-        </div>
-      ) : null}
-
-      {revisitNote ? (
-        <div className="proto-home-section">
-          <HomeNoteCard
-            eyebrow="Worth another look"
-            iconName="arrow-rotate-left"
-            note={revisitNote}
-            onOpenNote={handleOpenRevisitNote}
-            prefetchNote={prefetchNote}
-          />
+          <PrototypeRecallCarousel opportunities={recallOpportunities} onSnooze={handleRecallSnooze} />
         </div>
       ) : null}
 
@@ -801,118 +948,6 @@ export default function PrototypeSidebarHomeView({
               <div className="proto-home-card__meta">
                 <span className="proto-home-card__meta-item">
                   {spotlightThread.noteCount} {spotlightThread.noteCount === 1 ? 'note' : 'notes'}
-                </span>
-              </div>
-            </div>
-          </button>
-        </div>
-      ) : null}
-
-      {subjectConnection ? (
-        <div className="proto-home-section">
-          <button
-            type="button"
-            className="proto-glass-surface proto-glass-surface--panel proto-home-card proto-home-card--tappable"
-            onClick={openSubjectConnection}
-          >
-            <p className="proto-caption proto-home-card__eyebrow">A theme taking shape in your notes</p>
-            <div className="proto-home-card__body">
-              <div className="proto-home-card__title-row">
-                <span className="proto-home-card__icon-orb" aria-hidden>
-                  <Icon name="arrow-right-arrow-left" size={13} />
-                </span>
-                <p className="pds-list-title proto-home-card__title">{subjectConnection.subject}</p>
-                <span className="proto-home-card__chevron" aria-hidden>
-                  <Icon name="chevron-right" size={11} />
-                </span>
-              </div>
-              <div className="proto-home-card__meta">
-                <span className="proto-home-card__meta-item">
-                  Across {subjectConnection.noteCount} of your notes
-                </span>
-              </div>
-            </div>
-          </button>
-        </div>
-      ) : null}
-
-      {studyArc ? (
-        <div className="proto-home-section">
-          <button
-            type="button"
-            className="proto-glass-surface proto-glass-surface--panel proto-home-card proto-home-card--tappable"
-            onClick={openStudyArc}
-          >
-            <p className="proto-caption proto-home-card__eyebrow">A through-line in your study</p>
-            <div className="proto-home-card__body">
-              <div className="proto-home-card__title-row">
-                <span className="proto-home-card__icon-orb" aria-hidden>
-                  <Icon name="arrows-turn-to-dots" size={13} />
-                </span>
-                <p className="pds-list-title proto-home-card__title">{studyArc.theme}</p>
-                <span className="proto-home-card__chevron" aria-hidden>
-                  <Icon name="chevron-right" size={11} />
-                </span>
-              </div>
-              <div className="proto-home-card__meta">
-                <span className="proto-home-card__meta-item">{studyArcCopy}</span>
-              </div>
-            </div>
-          </button>
-        </div>
-      ) : null}
-
-      {crossRefConnection ? (
-        <div className="proto-home-section">
-          <button
-            type="button"
-            className="proto-glass-surface proto-glass-surface--panel proto-home-card proto-home-card--tappable"
-            onClick={openCrossRefConnection}
-          >
-            <p className="proto-caption proto-home-card__eyebrow">A cross-reference in your notes</p>
-            <div className="proto-home-card__body">
-              <div className="proto-home-card__title-row">
-                <span className="proto-home-card__icon-orb" aria-hidden>
-                  <Icon name="arrow-right-arrow-left" size={13} />
-                </span>
-                <p className="pds-list-title proto-home-card__title">
-                  {crossRefConnection.from.displayRef} and {crossRefConnection.to.displayRef}
-                </p>
-                <span className="proto-home-card__chevron" aria-hidden>
-                  <Icon name="chevron-right" size={11} />
-                </span>
-              </div>
-              <div className="proto-home-card__meta">
-                <span className="proto-home-card__meta-item">
-                  Across {crossRefConnection.noteCount} of your notes
-                </span>
-              </div>
-            </div>
-          </button>
-        </div>
-      ) : null}
-
-      {passageConnection ? (
-        <div className="proto-home-section">
-          <button
-            type="button"
-            className="proto-glass-surface proto-glass-surface--panel proto-home-card proto-home-card--tappable"
-            onClick={openPassageConnection}
-          >
-            <p className="proto-caption proto-home-card__eyebrow">A passage you keep returning to</p>
-            <div className="proto-home-card__body">
-              <div className="proto-home-card__title-row">
-                <span className="proto-home-card__icon-orb" aria-hidden>
-                  <Icon name="book" size={13} />
-                </span>
-                <p className="pds-list-title proto-home-card__title">{passageConnection.displayRef}</p>
-                <span className="proto-home-card__chevron" aria-hidden>
-                  <Icon name="chevron-right" size={11} />
-                </span>
-              </div>
-              <div className="proto-home-card__meta">
-                <span className="proto-home-card__meta-item">
-                  Across {passageConnection.noteCount} of your notes
                 </span>
               </div>
             </div>

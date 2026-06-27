@@ -1,9 +1,10 @@
 /**
- * localStorage-backed recall cooldown for the prototype Home view. When the user
- * opens a recall/review card ("Worth another look" note or "A highlight to
- * revisit"), we record the calendar day so the same item isn't resurfaced again
- * for a while. Space-scoped; notes and highlights share one store (ids don't
- * collide). Mirrors the safe-IO pattern in proto-pinned-stores.ts.
+ * localStorage-backed recall cooldown / snooze for the prototype Home recall carousel. When the user
+ * opens a recall opportunity OR snoozes it ("not now"), we record the calendar day so the same item
+ * isn't resurfaced again for a while; `activeCooldownIds` then excludes it from the carousel until the
+ * window passes. Space-scoped; all opportunity kinds share one store keyed by a stable opportunity id —
+ * note/highlight ids or synthetic trend ids ('arc:grace', 'passage:John 3:16'), which don't collide.
+ * Mirrors the safe-IO pattern in proto-pinned-stores.ts.
  */
 
 const KEY_PREFIX = 'harvous.prototype.recallCooldown.';
@@ -62,7 +63,20 @@ export function recordRecallOpened(
   safeWrite(spaceId, map);
 }
 
-/** Ids opened within the cooldown window — excluded from recall picks. */
+/**
+ * Snooze a recall opportunity ("not now"): same store + window as opening one, so it rests before
+ * resurfacing. Alias of {@link recordRecallOpened} for call-site clarity in the carousel.
+ */
+export function recordRecallSnoozed(
+  spaceId: string | undefined | null,
+  id: string,
+  todayDayIndex: number,
+  windowDays: number = RECALL_COOLDOWN_DAYS,
+): void {
+  recordRecallOpened(spaceId, id, todayDayIndex, windowDays);
+}
+
+/** Ids opened or snoozed within the cooldown window — excluded from recall picks. */
 export function activeCooldownIds(
   spaceId: string | undefined | null,
   todayDayIndex: number,
