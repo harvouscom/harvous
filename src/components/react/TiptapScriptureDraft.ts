@@ -110,10 +110,20 @@ export function makeScriptureDraftGrowPlugin() {
       if (!draftType) return null;
       const growth = computeScriptureDraftGrowth(newState.doc, newState.selection.from);
       if (!growth) return null;
-      // Reuse the existing draft's attrs (e.g. a carried translation) so the regrown span has
-      // identical marks and merges into one pill instead of splitting.
+      // Reuse the anchor draft's attrs (e.g. a carried translation) so the regrown span keeps them.
       const existing = getMarkInstanceAt(newState.doc, growth.from, draftType);
+      const ranges = collectScripturePillRanges(newState.doc, 'scriptureDraft');
       const tr = newState.tr;
+      // Single-draft invariant: iOS can split a growing draft into multiple draft fragments while
+      // typing a range (e.g. "John 3:16" + a stray "17"). Two fragments make
+      // findDetachedScriptureDraft treat the earlier one as detached and commit it early, dropping
+      // the rest of the range. Strip every draft fragment overlapping the grown span, then re-apply
+      // ONE contiguous draft over the whole span so exactly one dashed pill remains.
+      for (const r of ranges) {
+        if (r.start < growth.to && r.end > growth.from) {
+          tr.removeMark(r.start, r.end, draftType);
+        }
+      }
       tr.addMark(growth.from, growth.to, draftType.create(existing ? { ...existing.attrs } : {}));
       tr.setMeta('addToHistory', false);
       return tr;
@@ -343,14 +353,37 @@ export function computeScriptureDraftGrowth(
 ): { from: number; to: number } | null {
   const ranges = collectScripturePillRanges(doc, 'scriptureDraft');
   if (ranges.length === 0) return null;
-  const anchor = ranges.reduce(
+  // Merge draft fragments separated only by reference-continuation chars in the same block into one
+  // run: on iOS a growing draft can split into several fragments (e.g. "John 3:16" + "17") that all
+  // belong to the same reference-in-progress and must collapse back into a single pill — anchored at
+  // the FIRST fragment's start so the earlier text is never dropped.
+  const runs: Array<{ start: number; end: number }> = [{ start: ranges[0].start, end: ranges[0].end }];
+  for (let i = 1; i < ranges.length; i++) {
+    const cur = runs[runs.length - 1];
+    const next = ranges[i];
+    const gap = doc.textBetween(cur.end, next.start);
+    let sameBlock = false;
+    try {
+      const $cur = doc.resolve(cur.end);
+      const $next = doc.resolve(next.start);
+      sameBlock = $cur.start($cur.depth) === $next.start($next.depth);
+    } catch {
+      sameBlock = false;
+    }
+    if (sameBlock && (gap === '' || /^[\d:,\-–—]+$/.test(gap))) {
+      cur.end = next.end;
+    } else {
+      runs.push({ start: next.start, end: next.end });
+    }
+  }
+  const run = runs.reduce(
     (best, r) => (Math.abs(r.end - caret) < Math.abs(best.end - caret) ? r : best),
-    ranges[0],
+    runs[0],
   );
-  const to = extendRangeOverTrailingContinuation(doc, anchor.end);
+  const to = extendRangeOverTrailingContinuation(doc, run.end);
   // Already a single contiguous range with nothing more to absorb.
-  if (ranges.length === 1 && anchor.end === to) return null;
-  return { from: anchor.start, to };
+  if (ranges.length === 1 && run.start === ranges[0].start && to === ranges[0].end) return null;
+  return { from: run.start, to };
 }
 
 /**
@@ -423,6 +456,11 @@ export function confirmScriptureDraftView(
   tr.replaceWith(range.from, consumeTo, pillNode);
 
   const pillEnd = range.from + reference.length;
+  // Clear stored marks BEFORE the trailing spacer is inserted: ensureScripturePillSpacing →
+  // tr.insertText reads tr.storedMarks, so an active bold/italic mark (from typing the reference
+  // while a formatting button was on) would otherwise land on the inserted space and keep the
+  // formatting "on" for everything typed after the committed pill.
+  tr.setStoredMarks([]);
   // One trailing spacer so prose after the pill is editable (shared pill-spacing rule).
   ensureScripturePillSpacing(tr);
 

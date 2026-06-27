@@ -6465,11 +6465,22 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     };
     const resolveOnBlur = () => {
       if (!isEditorValid(editor)) return;
-      // Confirm whichever draft exists (caret-inside or detached).
-      const inside = getScriptureDraftRange(editor.state);
-      const detached = findDetachedScriptureDraft(editor.state);
-      const target = inside ?? detached;
-      if (target) confirmScriptureDraftView(editor.view, target.to);
+      // Defer + re-check focus: iOS fires transient blurs (keyboard layout switch to reach "-",
+      // predictive-bar taps) that would otherwise commit a half-typed range. If focus is back in
+      // the editor a frame later it wasn't a real blur — leave the draft open. Only commit when
+      // focus has genuinely left the editor surface (tap-away / ✓ already handles its own commit).
+      setTimeout(() => {
+        if (!isEditorValid(editor)) return;
+        if (editor.isFocused) return;
+        const active = typeof document !== 'undefined' ? document.activeElement : null;
+        const dom = editor.view?.dom as HTMLElement | undefined;
+        if (dom && active && (dom === active || dom.contains(active))) return;
+        // Confirm whichever draft exists (caret-inside or detached).
+        const inside = getScriptureDraftRange(editor.state);
+        const detached = findDetachedScriptureDraft(editor.state);
+        const target = inside ?? detached;
+        if (target) confirmScriptureDraftView(editor.view, target.to);
+      }, 120);
     };
     const onConfirmed = (e: Event) => {
       const reference = (e as CustomEvent<{ reference: string }>).detail?.reference;
@@ -6505,6 +6516,12 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       }
       try {
         const vw = typeof window !== 'undefined' ? window.innerWidth : 9999;
+        // iOS: getBoundingClientRect()/coordsAtPos() are relative to the visual viewport, but the
+        // portal button is position:fixed (layout viewport). While the keyboard is up,
+        // visualViewport.offsetTop > 0, so without this correction the ✓ renders ~a line too high.
+        const vv = typeof window !== 'undefined' ? window.visualViewport : null;
+        const ox = vv?.offsetLeft ?? 0;
+        const oy = vv?.offsetTop ?? 0;
         // Anchor the ✓ to the draft pill's DOM rect so it sits inline beside the pill —
         // vertically centered on the pill, flush to its right edge. coordsAtPos returns a thin
         // caret box that on iOS renders the button above the taller inline-flex pill.
@@ -6513,8 +6530,8 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
           const rect = draftEl.getBoundingClientRect();
           setScriptureDraftConfirm({
             to,
-            top: rect.top + rect.height / 2,
-            left: Math.min(rect.right + 6, vw - 30),
+            top: rect.top + rect.height / 2 + oy,
+            left: Math.min(rect.right + 6, vw - 30) + ox,
           });
           return;
         }
@@ -6522,8 +6539,8 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
         const coords = editor.view.coordsAtPos(to);
         setScriptureDraftConfirm({
           to,
-          top: (coords.top + coords.bottom) / 2,
-          left: Math.min(coords.right + 6, vw - 30),
+          top: (coords.top + coords.bottom) / 2 + oy,
+          left: Math.min(coords.right + 6, vw - 30) + ox,
         });
       } catch {
         setScriptureDraftConfirm(null);

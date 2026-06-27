@@ -57,6 +57,9 @@ const draftSchema = new Schema({
     text: { group: 'inline' },
   },
   marks: {
+    bold: {
+      toDOM: () => ['strong', 0],
+    },
     scriptureDraft: {
       attrs: { translation: { default: null }, pillAccent: { default: null } },
       inclusive: false,
@@ -161,6 +164,45 @@ describe('confirmScriptureDraftView', () => {
     confirmScriptureDraftView(view, draftEnd);
     expect(pillMark(getState())?.attrs.translation).toBe('ESV');
   });
+
+  it('does not bleed an active bold mark onto the trailing spacer or stored marks', () => {
+    // User typed the reference with bold active: the draft text carries draft+bold and bold is in
+    // storedMarks. After commit, neither the inserted spacer nor stored marks should keep bold.
+    const draftMark = draftSchema.marks.scriptureDraft.create();
+    const boldMark = draftSchema.marks.bold.create();
+    const doc = draftSchema.node('doc', null, [
+      draftSchema.node('paragraph', null, [
+        draftSchema.text('John 3:16', [draftMark, boldMark]),
+        draftSchema.text('x'), // following prose forces a trailing spacer between pill and "x"
+      ]),
+    ]);
+    let state = EditorState.create({ doc });
+    state = state.apply(state.tr.setStoredMarks([boldMark]));
+    const view = {
+      get state() {
+        return state;
+      },
+      dispatch(tr: any) {
+        state = state.apply(tr);
+      },
+      dom: { dispatchEvent: () => true },
+      focus: () => {},
+    };
+    const draftEnd = 1 + 'John 3:16'.length;
+    confirmScriptureDraftView(view, draftEnd);
+
+    // Stored marks cleared so newly typed text after the pill isn't bold.
+    expect(state.storedMarks ?? []).toHaveLength(0);
+
+    // The spacer inserted between the pill and "x" carries no bold mark.
+    const pillEnd = 1 + 'John 3:16'.length;
+    expect(state.doc.textBetween(pillEnd, pillEnd + 1)).toBe(' ');
+    let spacerMarks: any[] = [];
+    state.doc.nodesBetween(pillEnd, pillEnd + 1, (node: any) => {
+      if (node.isText && node.text === ' ') spacerMarks = node.marks;
+    });
+    expect(spacerMarks.some((m: any) => m.type.name === 'bold')).toBe(false);
+  });
 });
 
 describe('computeScriptureDraftGrowth', () => {
@@ -181,6 +223,25 @@ describe('computeScriptureDraftGrowth', () => {
   it('stops at non-continuation text (does not swallow following prose)', () => {
     const { view } = draftView('Exodus 5:1', ' and more');
     expect(computeScriptureDraftGrowth(view.state.doc, view.state.selection.from)).toBeNull();
+  });
+
+  it('unifies split draft fragments from the FIRST fragment, even with the caret near the last', () => {
+    // iOS split: "John 3:16"[draft] + "-"[plain] + "17"[draft]. Growth must cover the whole
+    // reference starting at the first fragment, not just the fragment nearest the caret.
+    const draftMark = draftSchema.marks.scriptureDraft.create();
+    const doc = draftSchema.node('doc', null, [
+      draftSchema.node('paragraph', null, [
+        draftSchema.text('John 3:16', [draftMark]),
+        draftSchema.text('-'),
+        draftSchema.text('17', [draftMark]),
+      ]),
+    ]);
+    const state = EditorState.create({ doc });
+    const caret = state.doc.content.size - 1; // right after "17"
+    const growth = computeScriptureDraftGrowth(state.doc, caret);
+    expect(growth).not.toBeNull();
+    expect(growth!.from).toBe(1);
+    expect(state.doc.textBetween(growth!.from, growth!.to)).toBe('John 3:16-17');
   });
 });
 
@@ -254,5 +315,25 @@ describe('makeScriptureDraftGrowPlugin (end-to-end)', () => {
     const ranges = collectScripturePillRanges(state.doc, 'scriptureDraft');
     expect(ranges).toHaveLength(1);
     expect(state.doc.textBetween(ranges[0].start, ranges[0].end)).toBe('Exodus 5:1-2');
+  });
+
+  it('collapses a split into two draft fragments into one pill on the next edit', () => {
+    const draftMark = draftSchema.marks.scriptureDraft.create();
+    // Pre-split state: "John 3:1"[draft] + "-"[plain] + "2"[draft] — two separate draft fragments.
+    const doc = draftSchema.node('doc', null, [
+      draftSchema.node('paragraph', null, [
+        draftSchema.text('John 3:1', [draftMark]),
+        draftSchema.text('-'),
+        draftSchema.text('2', [draftMark]),
+      ]),
+    ]);
+    let state = EditorState.create({ doc, plugins: [makeScriptureDraftGrowPlugin()] });
+    expect(collectScripturePillRanges(state.doc, 'scriptureDraft')).toHaveLength(2);
+    // Type "0" after "2" (plain, as on iOS). The plugin should unify everything into one draft.
+    const end = state.doc.content.size - 1;
+    state = state.apply(state.tr.insertText('0', end));
+    const ranges = collectScripturePillRanges(state.doc, 'scriptureDraft');
+    expect(ranges).toHaveLength(1);
+    expect(state.doc.textBetween(ranges[0].start, ranges[0].end)).toBe('John 3:1-20');
   });
 });
