@@ -7,7 +7,7 @@
  * Copy follows docs/BRAND_VOICE.md — friend-over-coffee, no hype, no em dashes.
  */
 import { useUser } from '@clerk/clerk-react';
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, useState, Fragment } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import { resolveProfileFirstName } from '@/utils/nav-avatar-initials';
 import Icon, { type IconName } from '@/components/react/Icon';
@@ -51,13 +51,14 @@ import {
   selectHomeLeadTheme,
   selectRecallOpportunities,
   pickRecallTrend,
-  recallTrendLine,
+  recallTrendGreetingParts,
   studyArcSinceLabel,
   studyArcToneLabel,
   type HomeLeadTheme,
   type HomeSubjectPassageInput,
   type HomePassageConnectionInput,
   type StudyArcNoteInput,
+  type RecallTrendGreetingParts,
 } from '@/utils/prototype-home-trends';
 import chapterSubjectsData from '@/data/chapter-subjects.json';
 import { currentLiturgicalSeason } from '@/utils/liturgical-season';
@@ -142,19 +143,27 @@ function pickSpotlightHighlight(
   })[0];
 }
 
+type HomeGreetingTrendKind = 'arc' | 'subject' | 'passage' | 'crossref';
+
+type HomeGreetingTrend = {
+  kind: HomeGreetingTrendKind;
+  parts: RecallTrendGreetingParts;
+  onOpen: () => void;
+};
+
 function HomeGreeting({
   notes,
   countForLogic,
   hasMoreForLogic,
   lead,
-  trendLine,
+  trend,
   onOpenScriptureBook,
 }: {
   notes: SpaceNoteRow[];
   countForLogic: number;
   hasMoreForLogic: boolean;
   lead: HomeLeadTheme;
-  trendLine?: string;
+  trend?: HomeGreetingTrend;
   onOpenScriptureBook: (bookOrder: number) => void;
 }) {
   const { user } = useUser();
@@ -189,7 +198,44 @@ function HomeGreeting({
       }),
     [rhythm, weeklyDays, lastActivityMs, countForLogic],
   );
-  const savedSoFarEnd = activityTail ? <>, {activityTail}.</> : <>.</>;
+  const activityClause = activityTail ? <>, {activityTail}</> : null;
+
+  const trendClause = trend ? (
+    <>
+      {trend.parts.prefix}
+      {trend.parts.labels.map((label, i) => {
+        const isPassage = trend.kind === 'passage';
+        const chipClass = isPassage
+          ? 'proto-glass-surface proto-home-greeting__chip proto-home-greeting__chip--passage'
+          : 'proto-glass-surface proto-home-greeting__chip proto-home-greeting__chip--thread';
+        const iconName: IconName =
+          trend.kind === 'passage' ? 'book' : trend.kind === 'arc' ? 'arrows-turn-to-dots' : 'arrow-right-arrow-left';
+        const iconSize = isPassage ? 11 : 10;
+        return (
+          <Fragment key={`${label}-${i}`}>
+            {i > 0 ? ' and ' : null}
+            <button
+              type="button"
+              className={chipClass}
+              aria-label={`Open ${label}`}
+              onClick={trend.onOpen}
+            >
+              <Icon name={iconName} size={iconSize} aria-hidden />
+              <span>{label}</span>
+            </button>
+          </Fragment>
+        );
+      })}
+      {trend.parts.suffix}
+    </>
+  ) : null;
+
+  const sentenceEnd = (
+    <>
+      {activityClause}
+      {trendClause}.
+    </>
+  );
 
   const singleNoteAddedRel = useMemo(() => {
     if (countForLogic !== 1 || hasMoreForLogic || notes.length === 0) return '';
@@ -340,10 +386,10 @@ function HomeGreeting({
           {layout.showCount ? (
             <>
               {' '}
-              {countChip} saved so far{savedSoFarEnd}
+              {countChip} saved so far{sentenceEnd}
             </>
           ) : (
-            savedSoFarEnd
+            sentenceEnd
           )}
         </>
       );
@@ -354,7 +400,7 @@ function HomeGreeting({
           {layout.beforeChip}
           {countChip}
           {layout.afterChip}
-          {savedSoFarEnd}
+          {sentenceEnd}
         </>
       );
     }
@@ -365,10 +411,10 @@ function HomeGreeting({
         {layout.afterChip}
         {layout.showCount ? (
           <>
-            {countChip} saved so far{savedSoFarEnd}
+            {countChip} saved so far{sentenceEnd}
           </>
         ) : (
-          savedSoFarEnd
+          sentenceEnd
         )}
       </>
     );
@@ -380,7 +426,6 @@ function HomeGreeting({
         <span className="proto-home-greeting__hello">{hello}</span>{' '}
         {leadSentence}
       </p>
-      {trendLine ? <p className="proto-home-greeting__trend">{trendLine}</p> : null}
       {seasonLine}
     </>
   );
@@ -816,33 +861,46 @@ export default function PrototypeSidebarHomeView({
     [recallCandidates, recallSnoozedIds, recallDayIndex],
   );
 
-  const recallTrendText = useMemo(() => {
+  const recallTrendGreeting = useMemo((): HomeGreetingTrend | undefined => {
     const trend = pickRecallTrend(recallCandidates);
-    if (!trend) return '';
+    if (!trend) return undefined;
+
     if (trend.kind === 'arc' && studyArc) {
-      return recallTrendLine({
-        kind: 'arc',
-        theme: studyArc.theme,
-        noteCount: studyArc.noteCount,
-        since: studyArcSinceLabel(studyArc.firstMs, Date.now()),
-        toneLabel: studyArcToneLabel(studyArc.dominantTone),
-      });
+      const parts = recallTrendGreetingParts({ kind: 'arc', theme: studyArc.theme });
+      if (!parts) return undefined;
+      return { kind: 'arc', parts, onOpen: openStudyArc };
     }
     if (trend.kind === 'subject' && subjectConnection) {
-      return recallTrendLine({ kind: 'subject', subject: subjectConnection.subject, noteCount: subjectConnection.noteCount });
+      const parts = recallTrendGreetingParts({ kind: 'subject', subject: subjectConnection.subject });
+      if (!parts) return undefined;
+      return { kind: 'subject', parts, onOpen: openSubjectConnection };
     }
     if (trend.kind === 'passage' && passageConnection) {
-      return recallTrendLine({ kind: 'passage', passageRef: passageConnection.displayRef });
+      const parts = recallTrendGreetingParts({ kind: 'passage', passageRef: passageConnection.displayRef });
+      if (!parts) return undefined;
+      return { kind: 'passage', parts, onOpen: openPassageConnection };
     }
     if (trend.kind === 'crossref' && crossRefConnection) {
-      return recallTrendLine({
+      const parts = recallTrendGreetingParts({
         kind: 'crossref',
         fromRef: crossRefConnection.from.displayRef,
         toRef: crossRefConnection.to.displayRef,
       });
+      if (!parts) return undefined;
+      return { kind: 'crossref', parts, onOpen: openCrossRefConnection };
     }
-    return '';
-  }, [recallCandidates, studyArc, subjectConnection, passageConnection, crossRefConnection]);
+    return undefined;
+  }, [
+    recallCandidates,
+    studyArc,
+    subjectConnection,
+    passageConnection,
+    crossRefConnection,
+    openStudyArc,
+    openSubjectConnection,
+    openPassageConnection,
+    openCrossRefConnection,
+  ]);
 
   const handleRecallSnooze = useCallback(
     (id: string) => {
@@ -882,7 +940,7 @@ export default function PrototypeSidebarHomeView({
           countForLogic={countForLogic}
           hasMoreForLogic={hasMoreForLogic}
           lead={lead}
-          trendLine={recallTrendText}
+          trend={recallTrendGreeting}
           onOpenScriptureBook={onOpenScriptureBook}
         />
       </div>

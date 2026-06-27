@@ -4516,16 +4516,6 @@ button.proto-home-card--tappable:focus-visible {
   font-weight: 600;
 }
 
-/* Trend line — a quieter second sentence under the greeting (the strongest recall trend). */
-.proto-home-greeting__trend {
-  margin: 0;
-  padding: 0 4px 2px;
-  font-family: var(--pds-font-body);
-  font-size: 13px;
-  line-height: 1.6;
-  color: var(--pds-text-secondary);
-}
-
 /* Inline stat chips — same glass recipe as the cards, shrunk to pill size. */
 .proto-home-greeting__chip {
   display: inline-flex;

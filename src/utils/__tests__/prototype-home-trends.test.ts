@@ -35,6 +35,7 @@ import {
   selectRecallOpportunities,
   pickRecallTrend,
   recallTrendLine,
+  recallTrendGreetingParts,
   pickRevisitHighlight,
   pickSpotlightThread,
   stableStringHash,
@@ -1397,5 +1398,37 @@ describe('pickRecallTrend + recallTrendLine', () => {
     expect(recallTrendLine({ kind: 'crossref', fromRef: 'Romans 3:21', toRef: 'Leviticus 14:4' })).toBe(
       'Romans 3:21 and Leviticus 14:4 keep surfacing together in your notes.',
     );
+  });
+});
+
+describe('recallTrendGreetingParts', () => {
+  it('returns compact inline fragments without note counts', () => {
+    expect(recallTrendGreetingParts({ kind: 'arc', theme: 'John' })).toEqual({
+      prefix: ', lately returning to ',
+      labels: ['John'],
+      suffix: '',
+    });
+    expect(recallTrendGreetingParts({ kind: 'subject', subject: 'Grace' })).toEqual({
+      prefix: ', ',
+      labels: ['Grace'],
+      suffix: ' keeps taking shape',
+    });
+    expect(recallTrendGreetingParts({ kind: 'passage', passageRef: 'Romans 8:28' })).toEqual({
+      prefix: ', often back at ',
+      labels: ['Romans 8:28'],
+      suffix: '',
+    });
+    expect(
+      recallTrendGreetingParts({ kind: 'crossref', fromRef: 'Romans 3:21', toRef: 'Leviticus 14:4' }),
+    ).toEqual({
+      prefix: ', lately ',
+      labels: ['Romans 3:21', 'Leviticus 14:4'],
+      suffix: ' keep surfacing together',
+    });
+  });
+
+  it('returns null when required labels are missing', () => {
+    expect(recallTrendGreetingParts({ kind: 'arc', theme: '' })).toBeNull();
+    expect(recallTrendGreetingParts({ kind: 'crossref', fromRef: 'A', toRef: '' })).toBeNull();
   });
 });

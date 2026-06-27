@@ -1282,3 +1282,38 @@ export function recallTrendLine(input: RecallTrendLineInput): string {
       return '';
   }
 }
+
+/** Inline greeting fragments — chip labels + prose prefix/suffix (no note counts or em dashes). */
+export interface RecallTrendGreetingParts {
+  prefix: string;
+  labels: string[];
+  suffix: string;
+}
+
+export function recallTrendGreetingParts(input: RecallTrendLineInput): RecallTrendGreetingParts | null {
+  switch (input.kind) {
+    case 'arc': {
+      const theme = input.theme?.trim();
+      if (!theme) return null;
+      return { prefix: ', lately returning to ', labels: [theme], suffix: '' };
+    }
+    case 'subject': {
+      const subject = input.subject?.trim();
+      if (!subject) return null;
+      return { prefix: ', ', labels: [subject], suffix: ' keeps taking shape' };
+    }
+    case 'passage': {
+      const passageRef = input.passageRef?.trim();
+      if (!passageRef) return null;
+      return { prefix: ', often back at ', labels: [passageRef], suffix: '' };
+    }
+    case 'crossref': {
+      const fromRef = input.fromRef?.trim();
+      const toRef = input.toRef?.trim();
+      if (!fromRef || !toRef) return null;
+      return { prefix: ', lately ', labels: [fromRef, toRef], suffix: ' keep surfacing together' };
+    }
+    default:
+      return null;
+  }
+}
