@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { Drawer, DrawerContent } from '@/components/ui/drawer';
@@ -32,6 +32,8 @@ export interface PrototypeConnectNoteSheetProps {
   onConnectedWithThread?: (studyThreadId: string, linkedNoteId: string, linkedNoteTitle: string) => void;
   /** Optional loaded space notes — enables Unsorted / All notes scope toggle. */
   spaceNotes?: SpaceNoteRow[];
+  /** Already-connected note ids (excluded from the picker alongside parentNoteId). */
+  connectedNoteIds?: string[];
 }
 
 function normalizedSpacePathId(spaceId: string): string {
@@ -47,6 +49,7 @@ export default function PrototypeConnectNoteSheet({
   anchorInfo,
   onConnectedWithThread,
   spaceNotes = [],
+  connectedNoteIds = [],
 }: PrototypeConnectNoteSheetProps) {
   const { isMobileSidebar } = useProtoShell();
   const queryClient = useQueryClient();
@@ -63,6 +66,10 @@ export default function PrototypeConnectNoteSheet({
   const sidPath = normalizedSpacePathId(spaceId);
   const isPending = connectMutation.isPending || createHighlightMutation.isPending;
   const canSubmit = selectedIds.length === 1 && !isPending;
+  const excludeNoteIds = useMemo(
+    () => [...new Set([parentNoteId, ...connectedNoteIds])],
+    [parentNoteId, connectedNoteIds],
+  );
 
   useEffect(() => {
     if (!open) {
@@ -129,10 +136,14 @@ export default function PrototypeConnectNoteSheet({
       connectMutation.mutate(
         { parentNoteId, linkedNoteId, spaceId },
         {
-          onSuccess: () => {
+          onSuccess: (data) => {
             onOpenChange(false);
             try {
-              window.toast?.success('Note connected');
+              if (data?.alreadyLinked) {
+                window.toast?.info('Already connected');
+              } else {
+                window.toast?.success('Note connected');
+              }
             } catch {
               /* ignore */
             }
@@ -202,7 +213,7 @@ export default function PrototypeConnectNoteSheet({
         key={open ? 'open' : 'closed'}
         spaceId={spaceId}
         spaceNotes={spaceNotes}
-        excludeNoteIds={[parentNoteId]}
+        excludeNoteIds={excludeNoteIds}
         selectedIds={selectedIds}
         onSelectedIdsChange={setSelectedIds}
         onSelectedNoteChange={setSelectedNote}

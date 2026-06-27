@@ -125,6 +125,7 @@ import {
   openOrFocusReference,
   openOrFocusScripture,
   pruneStudyDockStack,
+  resolveScriptureLinkPassageContext,
   scriptureDockStableKey,
   serializeStudyDockStack,
   setActiveDockEntry,
@@ -6771,7 +6772,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
               // Still mark as scripture even if verse fetch fails
               localStorage.setItem('newNoteType', 'scripture');
               localStorage.setItem('newNoteScriptureReference', detection.primaryReference);
-              localStorage.setItem('newNoteScriptureVersion', 'NET');
+              localStorage.setItem('newNoteScriptureVersion', getCachedProfileData()?.defaultTranslation ?? getEffectiveDefaultTranslation());
               localStorage.setItem('newNoteTitle', detection.primaryReference);
               localStorage.setItem('newNoteContent', extractedContent);
             }
@@ -8717,6 +8718,8 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                               range: null,
                               focusTitle: excerpt.slice(0, 80),
                               entryKind: 'scriptureLink',
+                              scriptureReference: entry.session.reference,
+                              scripturePassageTranslation: entry.session.translation || 'NET',
                             },
                             { openedFromDockId: entry.id },
                           ),
@@ -8738,6 +8741,8 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                                 range: null,
                                 focusTitle: word.slice(0, 80),
                                 entryKind: 'scriptureLink',
+                                scriptureReference: entry.session.reference,
+                                scripturePassageTranslation: entry.session.translation || 'NET',
                               },
                               { openedFromDockId: entry.id },
                             ),
@@ -8815,8 +8820,57 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                       }}
                       onAccentChange={(nextAccent) => {
                         if (!isStudyHighlightAccentKey(nextAccent)) return;
-                        if (!editor || !isEditorValid(editor) || entry.kind !== 'highlight') return;
+                        if (entry.kind !== 'highlight') return;
                         const sid = entry.session.studyThreadEntryId;
+
+                        if (entry.session.entryKind === 'scriptureLink') {
+                          void (async () => {
+                            if (sid) {
+                              try {
+                                await fetch(`/api/study-threads/${sid}`, {
+                                  method: 'PATCH',
+                                  credentials: 'include',
+                                  headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({ highlightAccentRaw: nextAccent }),
+                                });
+                                syncStudyThreadList(sourceNoteId);
+                              } catch {
+                                /* ignore */
+                              }
+                            }
+                            const passage = resolveScriptureLinkPassageContext(
+                              studyDockStackRef.current,
+                              entry,
+                              sourceNoteId ?? null,
+                            );
+                            if (passage && sid) {
+                              window.dispatchEvent(
+                                new CustomEvent('passageStudyPaintChanged', {
+                                  detail: {
+                                    sourceNoteId: passage.sourceNoteId,
+                                    reference: passage.reference,
+                                    translation: passage.translation,
+                                    word: passage.word,
+                                    threadId: sid,
+                                    accent: nextAccent,
+                                    entryKind: 'scriptureLink',
+                                    action: 'patch',
+                                  },
+                                }),
+                              );
+                            }
+                            setStudyDockStack((s) =>
+                              updateDockEntry(s, entry.id, (e) =>
+                                e.kind === 'highlight'
+                                  ? { ...e, session: { ...e.session, accent: nextAccent } }
+                                  : e,
+                              ),
+                            );
+                          })();
+                          return;
+                        }
+
+                        if (!editor || !isEditorValid(editor)) return;
                         const range =
                           entry.session.range ?? (sid ? findHighlightRangeByStudyThreadId(editor, sid) : null);
                         if (!range) return;
@@ -8860,8 +8914,49 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                         })();
                       }}
                       onRemove={() => {
-                        if (!editor || !isEditorValid(editor) || entry.kind !== 'highlight') return;
+                        if (entry.kind !== 'highlight') return;
                         const sid = entry.session.studyThreadEntryId;
+
+                        if (entry.session.entryKind === 'scriptureLink') {
+                          void (async () => {
+                            if (sid) {
+                              try {
+                                await fetch(`/api/study-threads/${sid}`, {
+                                  method: 'DELETE',
+                                  credentials: 'include',
+                                });
+                                syncStudyThreadList(sourceNoteId);
+                              } catch {
+                                /* ignore */
+                              }
+                            }
+                            const passage = resolveScriptureLinkPassageContext(
+                              studyDockStackRef.current,
+                              entry,
+                              sourceNoteId ?? null,
+                            );
+                            if (passage && sid) {
+                              window.dispatchEvent(
+                                new CustomEvent('passageStudyPaintChanged', {
+                                  detail: {
+                                    sourceNoteId: passage.sourceNoteId,
+                                    reference: passage.reference,
+                                    translation: passage.translation,
+                                    word: passage.word,
+                                    threadId: sid,
+                                    accent: entry.session.accent,
+                                    entryKind: 'scriptureLink',
+                                    action: 'delete',
+                                  },
+                                }),
+                              );
+                            }
+                            setStudyDockStack((s) => closeDockEntry(s, entry.id));
+                          })();
+                          return;
+                        }
+
+                        if (!editor || !isEditorValid(editor)) return;
                         const range =
                           entry.session.range ?? (sid ? findHighlightRangeByStudyThreadId(editor, sid) : null);
                         void (async () => {
@@ -9100,9 +9195,13 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                       onDone={() => {
                         setStudyDockStack((s) => closeDockEntry(s, entry.id));
                       }}
-                      onOpenScripturePassage={(ref) =>
-                        openScripturePassage(ref, 'KJV', entry.id)
-                      }
+                      onOpenScripturePassage={(ref) => {
+                        const translation =
+                          session.passageReference?.translation ||
+                          getCachedProfileData()?.defaultTranslation ||
+                          getEffectiveDefaultTranslation();
+                        openScripturePassage(ref, translation, entry.id);
+                      }}
                     />
                   );
                 }

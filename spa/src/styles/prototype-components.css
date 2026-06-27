@@ -6722,11 +6722,17 @@ button.proto-appearance-hero__card {
 }
 
 .proto-recall-card {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: 0;
   padding: 0;
-  overflow: hidden;
+}
+
+.proto-recall-card:hover .proto-daily-passage-pill__dismiss,
+.proto-recall-card:focus-within .proto-daily-passage-pill__dismiss {
+  opacity: 1;
+  pointer-events: auto;
 }
 
 .proto-recall-card__main {
@@ -6739,7 +6745,7 @@ button.proto-appearance-hero__card {
   padding: 9px 10px 8px;
   color: var(--pds-text-primary);
   font-family: var(--pds-font-body);
-  border-radius: 14px 14px 0 0;
+  border-radius: 14px;
   transition: background 0.38s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
@@ -6750,26 +6756,6 @@ button.proto-appearance-hero__card {
 .proto-recall-card__main:focus-visible {
   outline: 2px solid var(--pds-accent-focus-border);
   outline-offset: -2px;
-}
-
-.proto-recall-card__snooze {
-  appearance: none;
-  border: 0;
-  border-top: 0.5px solid var(--pds-border-control);
-  background: transparent;
-  width: 100%;
-  padding: 7px 10px;
-  cursor: pointer;
-  font-family: var(--pds-font-body);
-  font-size: 12px;
-  color: var(--pds-text-secondary);
-  text-align: center;
-  transition: color 0.2s ease, background 0.2s ease;
-}
-
-.proto-recall-card__snooze:hover {
-  color: var(--pds-text-primary);
-  background: var(--pds-bg-control-strong);
 }
 
 .proto-recall-carousel__pager {

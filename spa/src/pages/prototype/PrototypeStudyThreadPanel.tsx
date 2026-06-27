@@ -3,7 +3,7 @@
  * Layout mirrors PrototypeInspectorPane: minimal header + proto-inspector-section body blocks.
  * Name/auto/lock use proto-fte-* classes (same as PrototypeFolderTagEditor).
  */
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import Icon from '@/components/react/Icon';
 import PrototypeConnectNoteSheet from './PrototypeConnectNoteSheet';
@@ -85,6 +85,11 @@ export default function PrototypeStudyThreadPanel({ noteId, spaceId }: Prototype
   const toggleLock = () => {
     updateTitle.mutate({ repNoteId, spaceId: effectiveSpaceId, pinned: !isLocked });
   };
+
+  const connectedNoteIds = useMemo(
+    () => (thread?.nodes ?? []).map((n) => n.id).filter((id) => id !== noteId),
+    [thread?.nodes, noteId],
+  );
 
   return (
     <>
@@ -253,6 +258,7 @@ export default function PrototypeStudyThreadPanel({ noteId, spaceId }: Prototype
           spaceId={effectiveSpaceId}
           parentNoteId={noteId}
           anchorRect={connectAnchorRect}
+          connectedNoteIds={connectedNoteIds}
         />
       ) : null}
     </>

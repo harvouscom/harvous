@@ -1,5 +1,9 @@
 import { db, Notes, NoteConnections, eq, and, or, first } from '../db';
-import { collectStudyThreadGraph, type StudyThreadGraph } from './study-thread-graph';
+import {
+  collectStudyThreadGraph,
+  studyThreadGraphHasEdgeOnNote,
+  type StudyThreadGraph,
+} from './study-thread-graph';
 
 function normalizeScopeSpaceId(spaceId: string | null | undefined): string | null {
   if (!spaceId || !spaceId.trim()) return null;
@@ -28,9 +32,46 @@ export async function resolveStudyThreadScopeSpaceId(
   return normalizeScopeSpaceId(focus?.spaceId ?? null);
 }
 
+async function fetchDirectConnectionsOnNote(
+  focusNoteId: string,
+  userId: string,
+): Promise<Array<{ fromNoteId: string; toNoteId: string; spaceId: string | null }>> {
+  return db
+    .select({
+      fromNoteId: NoteConnections.fromNoteId,
+      toNoteId: NoteConnections.toNoteId,
+      spaceId: NoteConnections.spaceId,
+    })
+    .from(NoteConnections)
+    .where(
+      and(
+        eq(NoteConnections.userId, userId),
+        or(
+          eq(NoteConnections.fromNoteId, focusNoteId),
+          eq(NoteConnections.toNoteId, focusNoteId),
+        ),
+      ),
+    )
+    .limit(50);
+}
+
+/**
+ * When scoped BFS misses edges that note details would show, fall back to unscoped traversal.
+ * Exported for unit tests.
+ */
+export function shouldFallbackToUnscopedStudyThreadGraph(
+  focusNoteId: string,
+  graph: StudyThreadGraph,
+  directConnectionCount: number,
+): boolean {
+  if (directConnectionCount === 0) return false;
+  return !studyThreadGraphHasEdgeOnNote(focusNoteId, graph.edges);
+}
+
 /**
  * Loads the connection cluster for a note in the resolved space scope.
- * If the first BFS finds no edges, infers spaceId from any edge touching the focus note.
+ * If scoped BFS misses edges that exist on the focus note (null/wrong spaceId on rows),
+ * re-runs BFS without space filtering so the thread popover matches note details.
  */
 export async function collectStudyThreadGraphForScope(
   focusNoteId: string,
@@ -49,24 +90,8 @@ export async function collectStudyThreadGraphForScope(
     maxNodes,
   });
 
-  if (graph.edges.length === 0) {
-    const touchRows = await db
-      .select({
-        fromNoteId: NoteConnections.fromNoteId,
-        toNoteId: NoteConnections.toNoteId,
-        spaceId: NoteConnections.spaceId,
-      })
-      .from(NoteConnections)
-      .where(
-        and(
-          eq(NoteConnections.userId, userId),
-          or(
-            eq(NoteConnections.fromNoteId, focusNoteId),
-            eq(NoteConnections.toNoteId, focusNoteId),
-          ),
-        ),
-      )
-      .limit(20);
+  if (!studyThreadGraphHasEdgeOnNote(focusNoteId, graph.edges)) {
+    const touchRows = await fetchDirectConnectionsOnNote(focusNoteId, userId);
 
     const inferred = touchRows
       .map((r) => normalizeScopeSpaceId(r.spaceId))
@@ -76,6 +101,13 @@ export async function collectStudyThreadGraphForScope(
       scopeSpaceId = inferred;
       graph = await collectStudyThreadGraph(focusNoteId, userId, {
         spaceId: scopeSpaceId,
+        maxNodes,
+      });
+    }
+
+    if (shouldFallbackToUnscopedStudyThreadGraph(focusNoteId, graph, touchRows.length)) {
+      graph = await collectStudyThreadGraph(focusNoteId, userId, {
+        spaceId: null,
         maxNodes,
       });
     }

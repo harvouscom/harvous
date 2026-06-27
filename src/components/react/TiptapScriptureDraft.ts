@@ -5,6 +5,7 @@ import {
   matchAnchoredTrailingTranslationAbbreviation,
 } from '@/utils/scripture-detector';
 import { getTranslationAbbreviationDisplay } from '@/data/translations';
+import { getEffectiveDefaultTranslation } from '@/utils/profile-cache';
 import { collectScripturePillRanges, ensureScripturePillSpacing } from '@/utils/scripture-pill-spacing';
 
 /**
@@ -407,6 +408,9 @@ export function confirmScriptureDraftView(
     }
   } catch {
     /* ignore */
+  }
+  if (!translation) {
+    translation = getEffectiveDefaultTranslation();
   }
   const pillNode = state.schema.text(reference, [
     pillType.create({

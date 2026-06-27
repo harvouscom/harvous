@@ -15,6 +15,7 @@ import {
   openOrFocusReference,
   openOrFocusScripture,
   pruneStudyDockStack,
+  resolveScriptureLinkPassageContext,
   scriptureDockStableKey,
   serializeStudyDockStack,
   STUDY_DOCK_STACK_MAX_ENTRIES,
@@ -327,5 +328,72 @@ describe('highlight dock deep-link helpers', () => {
     expect(stack.entries[0].kind === 'highlight' ? stack.entries[0].session.excerpt : '').toBe(
       'For God so loved the world',
     );
+  });
+
+  it('buildHighlightDockSessionFromStudyThread copies scripture passage context for scriptureLink rows', () => {
+    const row = {
+      id: 'st_scripture_1',
+      entryKind: 'scriptureLink',
+      highlightAccentRaw: 'violet',
+      scripturePassageExcerpt: 'the world',
+      scriptureReference: 'John 3:16',
+      scripturePassageTranslation: 'NET',
+      sourceSnippet: 'the world',
+    };
+    const session = buildHighlightDockSessionFromStudyThread(row, null);
+    expect(session.entryKind).toBe('scriptureLink');
+    expect(session.scriptureReference).toBe('John 3:16');
+    expect(session.scripturePassageTranslation).toBe('NET');
+    expect(session.accent).toBe('violet');
+  });
+});
+
+describe('resolveScriptureLinkPassageContext', () => {
+  it('prefers session scripture fields when present', () => {
+    let stack = openOrFocusHighlight(emptyStudyDockStack(), {
+      studyThreadEntryId: 'st_1',
+      accent: 'warmAmber',
+      excerpt: 'the world',
+      range: null,
+      entryKind: 'scriptureLink',
+      scriptureReference: 'John 3:16',
+      scripturePassageTranslation: 'ESV',
+    });
+    const highlightEntry = stack.entries[0];
+    expect(highlightEntry.kind).toBe('highlight');
+    if (highlightEntry.kind !== 'highlight') return;
+    const ctx = resolveScriptureLinkPassageContext(stack, highlightEntry, 'note_abc');
+    expect(ctx).toEqual({
+      sourceNoteId: 'note_abc',
+      reference: 'John 3:16',
+      translation: 'ESV',
+      word: 'the world',
+    });
+  });
+
+  it('falls back to parent scripture dock when session fields are missing', () => {
+    let stack = openOrFocusScripture(emptyStudyDockStack(), scriptureSession);
+    const scriptureEntry = stack.entries[0];
+    stack = openOrFocusHighlight(
+      stack,
+      {
+        studyThreadEntryId: 'st_2',
+        accent: 'skyBlue',
+        excerpt: 'so loved',
+        range: null,
+        entryKind: 'scriptureLink',
+      },
+      { openedFromDockId: scriptureEntry.id },
+    );
+    const highlightEntry = stack.entries.find((e) => e.kind === 'highlight');
+    expect(highlightEntry?.kind).toBe('highlight');
+    if (!highlightEntry || highlightEntry.kind !== 'highlight') return;
+    const ctx = resolveScriptureLinkPassageContext(stack, highlightEntry, 'note_xyz');
+    expect(ctx).toEqual({
+      sourceNoteId: 'note_xyz',
+      reference: 'John 3:16',
+      translation: 'NET',
+      word: 'so loved',
+    });
   });
 });

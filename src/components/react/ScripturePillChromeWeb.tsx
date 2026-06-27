@@ -453,6 +453,7 @@ export default function ScripturePillChromeWeb({
         word: string;
         threadId: string;
         accent: string;
+        entryKind?: string;
         action: 'save' | 'patch' | 'delete';
       }>).detail;
       if (!detail || String(detail.sourceNoteId) !== String(sourceNoteId ?? '')) return;
@@ -470,13 +471,16 @@ export default function ScripturePillChromeWeb({
         id: detail.threadId,
         excerpt: detail.word,
         accentRaw: detail.accent || 'warmAmber',
-        entryKind: 'reference',
+        entryKind: detail.entryKind ?? 'reference',
       };
       setPassagePaints((prev) => {
         const idx = prev.findIndex((p) => p.id === detail.threadId);
         if (idx < 0) return [...prev, paint];
         const next = [...prev];
-        next[idx] = paint;
+        next[idx] = {
+          ...paint,
+          entryKind: detail.entryKind ?? prev[idx]?.entryKind ?? 'reference',
+        };
         return next;
       });
     };

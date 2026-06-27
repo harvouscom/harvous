@@ -32,6 +32,8 @@ export interface PrototypeStudyThreadPopoverProps {
   noteId: string;
   spaceId: string;
   anchorRect?: DOMRect | null;
+  /** Note ids already linked to the focus note — excluded from the connect picker. */
+  connectedNoteIds?: string[];
 }
 
 export default function PrototypeStudyThreadPopover({
@@ -40,6 +42,7 @@ export default function PrototypeStudyThreadPopover({
   noteId,
   spaceId,
   anchorRect = null,
+  connectedNoteIds = [],
 }: PrototypeStudyThreadPopoverProps) {
   const navigate = useNavigate();
   const { isMobileSidebar } = useProtoShell();
@@ -254,6 +257,7 @@ export default function PrototypeStudyThreadPopover({
           spaceId={effectiveSpaceId}
           parentNoteId={noteId}
           anchorRect={connectAnchorRect}
+          connectedNoteIds={connectedNoteIds}
         />
       ) : null}
     </div>

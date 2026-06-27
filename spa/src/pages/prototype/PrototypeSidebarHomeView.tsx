@@ -919,12 +919,6 @@ export default function PrototypeSidebarHomeView({
         </div>
       ) : null}
 
-      {recallOpportunities.length > 0 ? (
-        <div className="proto-home-section">
-          <PrototypeRecallCarousel opportunities={recallOpportunities} onSnooze={handleRecallSnooze} />
-        </div>
-      ) : null}
-
       {spotlightThread ? (
         <div className="proto-home-section">
           <button
@@ -981,6 +975,12 @@ export default function PrototypeSidebarHomeView({
               </div>
             </div>
           </button>
+        </div>
+      ) : null}
+
+      {recallOpportunities.length > 0 ? (
+        <div className="proto-home-section">
+          <PrototypeRecallCarousel opportunities={recallOpportunities} onSnooze={handleRecallSnooze} />
         </div>
       ) : null}
     </div>

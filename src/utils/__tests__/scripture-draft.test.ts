@@ -1,4 +1,9 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
+
+vi.mock('@/utils/profile-cache', () => ({
+  getEffectiveDefaultTranslation: () => 'ESV',
+}));
+
 import { Schema } from '@tiptap/pm/model';
 import { EditorState, TextSelection } from '@tiptap/pm/state';
 import {
@@ -149,6 +154,12 @@ describe('confirmScriptureDraftView', () => {
     expect(pillMark(getState())?.attrs.translation).toBe('ESV');
     // The " ESV" was consumed, not left as prose.
     expect(getState().doc.textContent.replace(/\s+/g, '')).toBe('Exodus5:1');
+  });
+
+  it('applies the profile default translation when none is carried or typed', () => {
+    const { view, draftEnd, getState } = draftView('John 3:16');
+    confirmScriptureDraftView(view, draftEnd);
+    expect(pillMark(getState())?.attrs.translation).toBe('ESV');
   });
 });
 

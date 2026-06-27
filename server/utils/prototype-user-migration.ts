@@ -38,6 +38,7 @@ export interface PrototypeUserMigrationResult {
   collectionsUpdated: number;
   connectionsMigrated: number;
   connectionsSkipped: number;
+  connectionSpaceIdsBackfilled: number;
   onboardingPurged: PurgeOnboardingResult;
 }
 
@@ -388,18 +389,66 @@ export async function migrateLinkedFromNoteConnectionsForUser(userId: string): P
   return { migrated, skipped };
 }
 
+function normalizeConnectionSpaceId(spaceId: string | null | undefined): string | null {
+  if (!spaceId || !spaceId.trim()) return null;
+  const t = spaceId.trim();
+  return t.startsWith('space_') ? t : `space_${t}`;
+}
+
+/**
+ * Sets NoteConnections.spaceId from the from-note's space when the edge was stored with null.
+ * Idempotent — only updates rows where spaceId IS NULL and the from-note has a space.
+ */
+export async function backfillNullNoteConnectionSpaceIdsForUser(userId: string): Promise<number> {
+  const nullEdges = await db
+    .select({
+      id: NoteConnections.id,
+      fromNoteId: NoteConnections.fromNoteId,
+    })
+    .from(NoteConnections)
+    .where(and(eq(NoteConnections.userId, userId), isNull(NoteConnections.spaceId)));
+
+  if (nullEdges.length === 0) return 0;
+
+  const fromIds = [...new Set(nullEdges.map((e) => e.fromNoteId))];
+  const noteRows = await db
+    .select({ id: Notes.id, spaceId: Notes.spaceId })
+    .from(Notes)
+    .where(and(eq(Notes.userId, userId), inArray(Notes.id, fromIds)));
+
+  const spaceByNoteId = new Map(
+    noteRows
+      .map((r) => [r.id, normalizeConnectionSpaceId(r.spaceId)] as const)
+      .filter((entry): entry is [string, string] => Boolean(entry[1])),
+  );
+
+  let updated = 0;
+  for (const edge of nullEdges) {
+    const spaceId = spaceByNoteId.get(edge.fromNoteId);
+    if (!spaceId) continue;
+    await db
+      .update(NoteConnections)
+      .set({ spaceId })
+      .where(and(eq(NoteConnections.id, edge.id), isNull(NoteConnections.spaceId)));
+    updated += 1;
+  }
+  return updated;
+}
+
 /** Run migration steps for one authenticated user (additive only). */
 export async function runPrototypeUserMigration(userId: string): Promise<PrototypeUserMigrationResult> {
   const onboardingPurged = await purgeOnboardingContentForUser(userId);
   const junctionsRepaired = await repairMissingNoteThreadJunctionsForUser(userId);
   const collectionsUpdated = await backfillCollectionsFromThreadsForUser(userId);
   const { migrated, skipped } = await migrateLinkedFromNoteConnectionsForUser(userId);
+  const connectionSpaceIdsBackfilled = await backfillNullNoteConnectionSpaceIdsForUser(userId);
   return {
     onboardingPurged,
     junctionsRepaired,
     collectionsUpdated,
     connectionsMigrated: migrated,
     connectionsSkipped: skipped,
+    connectionSpaceIdsBackfilled,
   };
 }
 

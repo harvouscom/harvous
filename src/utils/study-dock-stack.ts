@@ -34,6 +34,9 @@ export type HighlightDockSession = {
   focusTitle?: string;
   miniNoteBody?: string;
   entryKind?: 'miniNote' | 'scriptureLink' | 'reference' | 'linkedNote' | 'workspace';
+  /** Passage context for `scriptureLink` highlights (no editor mark — painted inline in scripture dock). */
+  scriptureReference?: string | null;
+  scripturePassageTranslation?: string | null;
 };
 
 /** Snapshot passed through deep-link navigation when the editor mark may not be ready yet. */
@@ -44,6 +47,8 @@ export type HighlightDockOpenMetadata = {
   focusTitle?: string;
   miniNoteBody?: string;
   linkedNoteId?: string | null;
+  scriptureReference?: string | null;
+  scripturePassageTranslation?: string | null;
 };
 
 /** Minimal study-thread fields needed to build a highlight dock session without a DOM mark. */
@@ -56,6 +61,9 @@ export type HighlightDockStudyThreadSource = {
   focusTitle?: string | null;
   miniNoteBody?: string | null;
   linkedNoteId?: string | null;
+  scriptureReference?: string | null;
+  scripturePassageTranslation?: string | null;
+  scripturePassageExcerpt?: string | null;
 };
 
 function normalizeHighlightDockEntryKind(
@@ -100,6 +108,8 @@ export function buildHighlightDockOpenMetadataFromStudyThread(
     focusTitle: (row.focusTitle ?? '').trim() || deriveHighlightFocusTitle(excerpt),
     miniNoteBody: row.miniNoteBody ?? '',
     linkedNoteId: row.linkedNoteId ?? null,
+    scriptureReference: (row.scriptureReference ?? '').trim() || null,
+    scripturePassageTranslation: (row.scripturePassageTranslation ?? '').trim() || null,
   };
 }
 
@@ -117,6 +127,8 @@ export function buildHighlightDockSessionForDeepLink(
       focusTitle: metadata.focusTitle,
       miniNoteBody: metadata.miniNoteBody,
       entryKind: metadata.entryKind ?? 'miniNote',
+      scriptureReference: metadata.scriptureReference ?? null,
+      scripturePassageTranslation: metadata.scripturePassageTranslation ?? null,
     };
   }
   return {
@@ -134,6 +146,45 @@ export function buildHighlightDockSessionFromStudyThread(
 ): HighlightDockSession {
   const metadata = buildHighlightDockOpenMetadataFromStudyThread(row);
   return buildHighlightDockSessionForDeepLink(row.id, metadata, range ?? null);
+}
+
+export type ScriptureLinkPassageContext = {
+  sourceNoteId: string;
+  reference: string;
+  translation: string;
+  word: string;
+};
+
+/** Resolve passage paint coordinates for a scriptureLink highlight dock entry. */
+export function resolveScriptureLinkPassageContext(
+  stack: StudyDockStack,
+  highlightEntry: Extract<StudyDockEntry, { kind: 'highlight' }>,
+  sourceNoteId: string | null,
+): ScriptureLinkPassageContext | null {
+  if (highlightEntry.session.entryKind !== 'scriptureLink') return null;
+  const word = highlightEntry.session.excerpt.trim();
+  if (!word || !sourceNoteId) return null;
+
+  const sessionRef = (highlightEntry.session.scriptureReference ?? '').trim();
+  const sessionTrans = (highlightEntry.session.scripturePassageTranslation ?? '').trim();
+  if (sessionRef && sessionTrans) {
+    return { sourceNoteId, reference: sessionRef, translation: sessionTrans, word };
+  }
+
+  const parentId = highlightEntry.openedFromDockId;
+  if (parentId) {
+    const parent = stack.entries.find((e) => e.id === parentId);
+    if (parent?.kind === 'scripture') {
+      return {
+        sourceNoteId,
+        reference: parent.session.reference,
+        translation: parent.session.translation || 'NET',
+        word,
+      };
+    }
+  }
+
+  return null;
 }
 
 /** Dictionary reference dock — either a not-yet-saved suggestion or a saved reference highlight. */

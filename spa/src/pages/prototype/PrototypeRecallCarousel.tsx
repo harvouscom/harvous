@@ -81,6 +81,18 @@ export default function PrototypeRecallCarousel({
       aria-label="Recall opportunities"
     >
       <div className="proto-glass-surface proto-glass-surface--panel proto-home-card proto-recall-card">
+        <button
+          type="button"
+          className="proto-daily-passage-pill__dismiss"
+          aria-label="Not now — remind me later"
+          onClick={() => {
+            onSnooze(active.id);
+            setActiveIndex((i) => clampIndex(i, len - 1));
+          }}
+        >
+          <Icon name="xmark" size={10} aria-hidden />
+          <span>Not now</span>
+        </button>
         <button type="button" className="proto-recall-card__main" onClick={active.onOpen}>
           <p className="proto-caption proto-home-card__eyebrow">{active.eyebrow}</p>
           <div className="proto-home-card__body">
@@ -99,17 +111,6 @@ export default function PrototypeRecallCarousel({
               </div>
             ) : null}
           </div>
-        </button>
-        <button
-          type="button"
-          className="proto-recall-card__snooze"
-          aria-label="Not now — remind me later"
-          onClick={() => {
-            onSnooze(active.id);
-            setActiveIndex((i) => clampIndex(i, len - 1));
-          }}
-        >
-          Not now
         </button>
       </div>
 

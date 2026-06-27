@@ -741,7 +741,10 @@ route.post('/api/notes/connect-link', requireAuth, rateLimit('write'), async (c)
     }
 
     // Insert edge — unique constraint handles the "already linked" case.
-    const spaceId = normalizeOwnedNoteSpaceId(parent.spaceId ?? null) ?? null;
+    const spaceId =
+      normalizeOwnedNoteSpaceId(parent.spaceId ?? null) ??
+      normalizeOwnedNoteSpaceId(linked.spaceId ?? null) ??
+      null;
     try {
       await db.insert(NoteConnections).values({
         id: generateNoteId(),
@@ -754,6 +757,19 @@ route.post('/api/notes/connect-link', requireAuth, rateLimit('write'), async (c)
     } catch (err: any) {
       // Unique constraint violation = already connected.
       if (err?.code === '23505' || err?.message?.includes('unique') || err?.message?.includes('duplicate')) {
+        if (spaceId) {
+          await db
+            .update(NoteConnections)
+            .set({ spaceId })
+            .where(
+              and(
+                eq(NoteConnections.fromNoteId, parentNoteId),
+                eq(NoteConnections.toNoteId, linkedNoteId),
+                eq(NoteConnections.userId, auth.userId),
+                isNull(NoteConnections.spaceId),
+              ),
+            );
+        }
         return c.json({ success: true, alreadyLinked: true });
       }
       throw err;

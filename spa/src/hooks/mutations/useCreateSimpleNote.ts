@@ -16,6 +16,7 @@ import { mergeNoteTagsInCache, previewNoteTagsFromContent, type NoteTagRow } fro
 import type { SpaceNoteRow } from '../queries/useSpace';
 import { isOfflineError } from './withOfflineQueue';
 import { createNoteOffline } from '@/utils/offline-mutations';
+import { getEffectiveDefaultTranslation } from '@/utils/profile-cache';
 import { getPersistedUserId } from '@/utils/user-id';
 import { isOfflineModeEnabled } from '@/utils/offline-mode';
 
@@ -94,6 +95,7 @@ export function useCreateSimpleNote() {
           content,
           noteType,
           threadId: '',
+          scriptureVersion: getEffectiveDefaultTranslation(),
           ...(linkedFromNoteId ? { linkedFromNoteId } : {}),
         });
       } catch (err) {

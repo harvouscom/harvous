@@ -3,7 +3,7 @@
  * Sections: Info · Tags · Connected Notes · Folders
  * Standalone — no SPA CSS variables or shared styles.
  */
-import { useCallback, useEffect, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react';
 import { Link, useNavigate } from '@tanstack/react-router';
 import { prototypeHomeRouteTo, prototypeNoteRouteTo } from '@/lib/prototype-path';
 import type { NoteDetail, LinkedNoteRef } from '../../hooks/queries/useNote';
@@ -62,6 +62,10 @@ export default function PrototypeInspectorPane({ note, spaceId = '' }: Prototype
   const linkedFromNotes = note.linkedFromNotes ?? [];
   const linkedToNotes = note.linkedToNotes ?? [];
   const hasConnections = linkedFromNotes.length > 0 || linkedToNotes.length > 0;
+  const connectedNoteIds = useMemo(
+    () => [...linkedFromNotes.map((n) => n.id), ...linkedToNotes.map((n) => n.id)],
+    [linkedFromNotes, linkedToNotes],
+  );
 
   return (
     <div className="proto-inspector">
@@ -160,6 +164,7 @@ export default function PrototypeInspectorPane({ note, spaceId = '' }: Prototype
           spaceId={spaceId}
           parentNoteId={note.id}
           anchorRect={connectAnchorRect}
+          connectedNoteIds={connectedNoteIds}
         />
       ) : null}
 

@@ -8,6 +8,14 @@ export type StudyThreadGraph = {
   degreeMap: Map<string, number>;
 };
 
+/** True when at least one edge in the graph touches `noteId`. */
+export function studyThreadGraphHasEdgeOnNote(
+  noteId: string,
+  edges: StudyThreadGraphEdge[],
+): boolean {
+  return edges.some((e) => e.fromId === noteId || e.toId === noteId);
+}
+
 /**
  * Bidirectional BFS over NoteConnections. When spaceId is set, only edges in that
  * space are traversed (matches GET /api/spaces/:id/study-threads).

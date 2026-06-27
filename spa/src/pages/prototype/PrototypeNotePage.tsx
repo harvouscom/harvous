@@ -617,11 +617,11 @@ export default function PrototypeNotePage() {
 
       draftPersistPromiseRef.current = (async () => {
         try {
-          const res = await createNoteMutationRef.current.mutateAsync({
-            spaceId,
-            title: newTitle,
-            content: newContent,
-          });
+        const res = await createNoteMutationRef.current.mutateAsync({
+          spaceId,
+          title: newTitle,
+          content: newContent,
+        });
           const createdId = getNoteIdFromCreateResponse(res);
           if (!createdId) {
             throw new Error('Create succeeded but response had no note id');
@@ -743,6 +743,14 @@ export default function PrototypeNotePage() {
 
   useEffect(() => () => closeStudyThreadPopover(), [closeStudyThreadPopover]);
 
+  const connectedNoteIds = useMemo(() => {
+    if (!note) return [];
+    return [
+      ...(note.linkedFromNotes ?? []).map((n) => n.id),
+      ...(note.linkedToNotes ?? []).map((n) => n.id),
+    ];
+  }, [note]);
+
   const studyThreadPopoverLayer =
     !isDraft && studyThreadPopoverOpen ? (
       <PrototypeStudyThreadPopover
@@ -753,6 +761,7 @@ export default function PrototypeNotePage() {
         noteId={noteId}
         spaceId={effectiveSpaceId}
         anchorRect={studyThreadPopoverAnchorRect}
+        connectedNoteIds={connectedNoteIds}
       />
     ) : null;
 
