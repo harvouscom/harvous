@@ -8,6 +8,14 @@ This doc records the bugs we hit, the fixes we shipped, and the iOS limitations 
 future work doesn't re-derive the same ground. Pairs with the `ios-scripture-draft-lessons` agent
 memory and `docs/SCRIPTURE_PILL_IMPLEMENTATION.md` / `docs/SCRIPTURE_FLOW.md`.
 
+**Status (device-verified, June 2026):** The core mobile draft flow is **working on iPhone** after
+Round 14 (v1.217.188): range entry (`Numbers 5:5-10`), draft idle caret beside the ✓, post-commit
+caret after the pill + spacer, and no far-right / before-pill / baseline drift regressions. See
+[Current working architecture](#current-working-architecture-round-14) before changing caret or draft
+code.
+
+---
+
 ## How the draft flow works (mental model)
 
 Typing a reference goes through a transient **draft** before becoming a committed pill:
@@ -20,13 +28,17 @@ Typing a reference goes through a transient **draft** before becoming a committe
    per keystroke. **Mobile**: that plugin is disabled (see Round 3 #1); the same logic runs on the
    debounced idle timer via `unifyScriptureDraftAtCursor` instead.
 3. **Confirm** — `confirmScriptureDraftView` replaces the draft text with a committed `scripturePill`
-   mark + a trailing spacer, applies the translation, and places the caret after the pill. Triggered
-   by the floating ✓ button, a real blur/tap-away, or (desktop) a non-continuation keystroke.
+   mark + a trailing spacer, applies the translation, and places the caret after the pill. On mobile,
+   `resyncMobileCaret` then forces the **native** selection to match (PM selection alone is not enough
+   on iOS). Triggered by the floating ✓ button, Enter, or (desktop) a non-continuation keystroke.
+   Mobile does **not** auto-confirm on blur while a draft is active.
 
 Key files:
 - `src/components/react/TiptapScriptureDraft.ts` — the draft mark, grow plugin,
   `computeScriptureDraftGrowth`, `unifyScriptureDraftAtCursor`, `confirmScriptureDraftView`,
-  `editScripturePillAsDraft`.
+  `editScripturePillAsDraft`, **`resyncMobileCaret`**, **`canSafelyResyncMobileDraftIdleCaret`**,
+  **`scheduleMobileDraftTailCaretSync`**, **`findScripturePillElementAtMark`** (internal),
+  **`trailingOffsetForPmCaret`**.
 - `src/components/react/TiptapEditor.tsx` — mobile `onUpdate` detection/idle timer, the floating ✓
   positioning effect (`updatePos`), `resolveDetachedDraft`/`resolveOnBlur`, pill tap handlers, the
   delete-confirm floater (`ScripturePillDeleteConfirm`).
@@ -35,7 +47,47 @@ Key files:
 - `src/utils/pwa-prompt.ts` — `isMobileDevice()` (the mobile/desktop branch gate).
 - `src/styles/study-dock-carousel.css`, `spa/src/styles/prototype-shell.css` — study-dock layout.
 
-Tests: `src/utils/__tests__/scripture-draft.test.ts` (desktop mark path), `src/utils/__tests__/scripture-draft-mobile.test.ts` (mobile decoration path).
+Tests: `src/utils/__tests__/scripture-draft.test.ts` (desktop mark path),
+`src/utils/__tests__/scripture-draft-mobile.test.ts` (mobile mark path; mocks `isMobileDevice()`).
+
+---
+
+## Current working architecture (Round 14)
+
+The shipped mobile path is the **`scriptureDraft` mark** + debounced unify — not the Round 6
+decoration draft (reverted in Round 8). Caret painting is the hard part; document mutation is
+debounced to avoid iOS desync.
+
+```mermaid
+flowchart TD
+  subgraph typing [While typing]
+    K[Keystroke] --> H{Plain range tail?}
+    H -->|yes| T[scheduleMobileDraftTailCaretSync]
+    H -->|no| U[250ms timer: detect + unify]
+  end
+  subgraph idle [Draft idle ~260ms]
+    P[Show floating checkmark] --> G{canSafelyResyncMobileDraftIdleCaret}
+    G -->|yes| R["resyncMobileCaret markFrom/markTo draftIdle"]
+    G -->|tail chars| S[skip idle resync]
+  end
+  subgraph confirm [Confirm]
+    C[confirmScriptureDraftView] --> D[PM selection after pill + spacer]
+    D --> F["resyncMobileCaret double rAF markFrom/markTo"]
+  end
+```
+
+**Caret resync rules (do not regress):**
+
+| When | Call | Must NOT |
+|------|------|----------|
+| User pauses at draft end (✓ visible) | `resyncMobileCaret({ pos: anchor, draftIdle: true, markFrom, markTo })` | Resync during plain tail (`-10`); resync on enter or unify |
+| Range tail keystrokes | `scheduleMobileDraftTailCaretSync` → plain `domAtPos` | After-span placement inside draft mark |
+| Confirm (✓ / Enter) | `resyncMobileCaret({ focus: true, pos: caretPos, markFrom, markTo: pillEnd })` | `querySelector` for pill lookup; `textContent.length` for offset |
+| Placement | `findScripturePillElementAtMark` + `setNativeSelectionAfterInlinePill` + `posAtDOM >= markTo` | Last text node inside `.scripture-pill-draft` during tail entry |
+
+**Guards still required:** `hasActiveDraft` timer gate, mobile blur refocus (no confirm), `midRangeEntry`
+confirm rejection, `isCaretAttached` detached logic, bold `setStoredMarks([])` + draft mark
+`excludes: 'bold italic'`.
 
 ---
 
@@ -52,8 +104,9 @@ this. The two defensive strategies that work:
   Critically, **re-dispatching a ProseMirror selection is a no-op here**: PM recorded that it already
   synced the DOM selection (iOS moved the *painted* caret without firing a `selectionchange` PM
   acted on), so its desired-vs-current comparison matches and it skips the DOM update. You must set
-  the browser `Selection` directly (via `view.domAtPos`) — that's what `resyncMobileCaret` does, and
-  it's effectively what typing a real character would do.
+  the browser `Selection` directly — see **`resyncMobileCaret`** in `TiptapScriptureDraft.ts`.
+  Bare `domAtPos` inside `inline-flex` pill spans often mis-paints; the working fix places the
+  caret **after** the pill span using PM `markFrom`/`markTo` and validates with `posAtDOM`.
 
 ---
 
@@ -77,7 +130,7 @@ this. The two defensive strategies that work:
 | 3 | Floating ✓ overlapped the char being typed | ✓ sits at the draft's right edge = where the next char lands | Hide ✓ on editor `update`; re-show ~260ms after the last input (`selectionUpdate` only shows immediately when NOT within 260ms of a keystroke). Relies on TipTap emitting `update` before `selectionUpdate`. |
 | 4 | Docks pushed right / squeezed with no sidebar | Sidebar-clearance offset is `padding-left: var(--proto-sidebar-w-clamped)` on `.study-dock-carousel__track`, but the reset rules targeted the `__slot` (already 0) and the only track reset was gated to `@media (min-width: 900px)` | Add track `padding-left: 0` resets under `.proto-shell--no-sidebar`, `.proto-shell--sidebar-collapsed`, and `@media (max-width: 899px)` (drawer offset stays on the slot). Add `min-width: min(100%, 320px)` floor to the single-dock card. **The offset is on the TRACK, not the slot.** |
 
-### Round 4 (current)
+### Round 4
 
 | # | Symptom | Root cause | Fix |
 |---|---------|-----------|-----|
@@ -149,7 +202,7 @@ Range dash still broken on device after Round 8 revert.
 | 2 | Draft styling stripped after typing `-` alone | `confirmScriptureDraftView` on invalid ref (`Numbers 5:5-`) called `removeMark` | **Keep draft open** when continuation tail chars exist but `draftTextToReference` is not yet valid |
 | 3 | Caret jumps while typing tail | ✓ re-show called `resyncMobileCaret` even when caret is past the draft mark | Skip resync when `hasDraftContinuationTailInDoc` and caret is past draft end (later removed entirely in Round 10) |
 
-### Round 10 (current)
+### Round 10
 
 Session caret hardening regressed range dash typing; bold stuck after incomplete drafts.
 
@@ -200,6 +253,10 @@ Round 13 moved the caret off the line end but it painted **before** the pill.
 | 1 | Caret before pill (not after) | Pill DOM resolved at `markFrom` (left edge outside mark) + `querySelector` first pill + `textContent.length` for trailing offset | **`findScripturePillElementAtMark`**: probe `domAtPos` inside marked text; **`trailingOffsetForPmCaret(markTo, pos)`**; parent child-index placement + **`posAtDOM >= markTo`** validation |
 | 2 | Draft idle used wrong pill element | Shared `getScriptureDraftAnchorElement` querySelector fallback | Draft idle passes **`markFrom` / `markTo`** from `getScriptureDraftRange`; caret path never uses querySelector |
 
+**Device-verified resolved (June 2026):** iPhone Safari confirms range typing, draft-idle caret beside ✓,
+post-commit caret after pill + spacer, correct baseline — no far-right, before-pill, or dash-entry
+regressions. This is the baseline; treat any caret change as high-risk.
+
 ---
 
 ## iOS limitations & gotchas (durable)
@@ -211,27 +268,40 @@ Round 13 moved the caret off the line end but it painted **before** the pill.
 - **`position: fixed` ≠ `getBoundingClientRect()` coords when the keyboard is up.** Always add
   `visualViewport.offsetTop/offsetLeft`.
 - **Programmatic `view.focus()` / selection after a mutation can leave the caret mispainted.**
-  Re-assert selection on the next frame.
+  Re-assert native selection on the next frame via `resyncMobileCaret`; use double rAF on confirm only.
+- **Caret placement must use PM mark ranges, not DOM heuristics alone.** Resolve the pill element from
+  inside the mark (`findScripturePillElementAtMark`), place after the span (`setNativeSelectionAfterInlinePill`),
+  validate `posAtDOM >= markTo`. Never `querySelector` on the caret path; never last-text-node-inside-draft
+  during range tail entry.
 - **Editing a committed pill happens in the dock, not inline** — mobile has no reliable inline
   reference-edit affordance. Tap the pill (or the floating Edit pencil) → scripture dock →
   `ScriptureReferencePickerStrip`.
 - **The study-dock sidebar offset lives on `.study-dock-carousel__track`** — when changing dock
   layout, reset/inherit padding on the *track*, and re-check `--no-sidebar` / `--sidebar-collapsed` /
   `@media (max-width: 899px)` / `--drawer-open` states.
-- **`isMobileDevice()`** (`src/utils/pwa-prompt.ts`) returns false in jsdom, so the default unit tests exercise the desktop (mark) path. Mobile draft behavior is covered by `src/utils/__tests__/scripture-draft-mobile.test.ts` (mocked mobile). Caret paint still needs device verification.
+- **`isMobileDevice()`** (`src/utils/pwa-prompt.ts`) returns false in jsdom, so the default unit tests exercise the desktop (mark) path. Mobile draft behavior is covered by `src/utils/__tests__/scripture-draft-mobile.test.ts` (mocked mobile). **Caret paint cannot be tested in jsdom** — always re-check on iPhone after caret changes.
 
 ## Open issues / needs device verification
 
-- **Round 14 caret after pill** — verify on iPhone: caret after dashed draft and after committed pill (not before); `Numbers 5:5-10` range typing still works.
-- **Round 10 bold** — after abandoning an incomplete draft, bold should not stick on subsequent plain typing.
 - **Dock sizing (Round 3 #4)** — verify the dock fills the column and animates correctly at the
   430px / 620px breakpoints and with the sidebar collapsed (desktop ⌘\) vs absent (mobile).
+
+## Resolved (device-verified June 2026)
+
+- Range entry (`Numbers 5:5-10`, `John 3:16-18`) with debounced unify
+- Draft idle caret beside ✓ (not line end, not before pill, on baseline)
+- Post-commit caret after pill + trailing spacer
+- Bold not stuck after abandoning incomplete draft (Round 10)
+- Mobile blur does not commit partial refs during keyboard-layer switch (Round 9)
 
 ## How to verify
 
 - Unit: `npx vitest run src/utils/__tests__/scripture-draft.test.ts src/utils/__tests__/scripture-draft-mobile.test.ts` (+ the pill/format suites).
 - Types: `npx tsc -p tsconfig.json --noEmit` (pre-existing errors elsewhere are unrelated).
-- Device (the only way to confirm the iOS-specific items): in `prototypeNative`, type
-  `John 3:16-18` then `Hebrews 11:2-7`, confirm each (✓ / tap-away), and check: the range stays one
-  pill, the caret lands right after the committed pill, bold isn't stuck on, and the Edit pencil
-  opens the dock.
+- Device (required after any caret/draft change): in `prototypeNative` on iPhone, type
+  `John 3:16-18` then `Numbers 5:5-10`, confirm each (✓ / Enter), and check:
+  - Range stays one pill; dash and tail digits visible while typing
+  - Caret beside ✓ when paused in draft (after pill, on baseline)
+  - Caret after committed pill + spacer (not before, not line end)
+  - Bold not stuck on subsequent plain typing after abandoning a draft
+  - Edit pencil opens the scripture dock (not inline draft edit)
