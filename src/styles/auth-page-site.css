@@ -26,6 +26,17 @@
   --auth-desktop-outer-padding-top: 24px;
 }
 
+/* ---------- Auth layout scroll (sign-in / sign-up inside locked #root) ---------- */
+
+.empty-layout {
+  flex: 1;
+  min-height: 0;
+  max-height: 100svh;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+}
+
 /* ---------- Root container ---------- */
 
 .auth-page.auth-page--site {
@@ -152,7 +163,7 @@
   background-color: transparent !important;
   min-height: 0 !important;
   position: relative;
-  z-index: 1;
+  z-index: 2;
 }
 
 @media (max-width: 959px) {
@@ -347,15 +358,29 @@
   justify-content: center;
   min-height: 0;
   margin: 2px 0 4px;
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  max-height: 80px;
 }
 .harvous-auth-form__captcha:empty {
   display: none;
+}
+.harvous-auth-form__captcha iframe {
+  max-width: 100%;
 }
 
 .harvous-auth-form__name-row {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 10px;
+}
+
+@media (max-width: 480px) {
+  .harvous-auth-form__name-row {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
 }
 
 .harvous-auth-form__input {

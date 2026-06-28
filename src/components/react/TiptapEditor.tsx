@@ -32,6 +32,7 @@ import {
   getScriptureDraftAnchorPos,
   getScriptureDraftAnchorElement,
   findDetachedScriptureDraft,
+  unifyScriptureDraftAtCursor,
   SCRIPTURE_DRAFT_CONFIRMED_EVENT,
 } from './TiptapScriptureDraft';
 import { BoldCustom } from './TiptapBoldCustom';
@@ -4209,8 +4210,15 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
             }
             mobileScriptureDetectionTimer.current = setTimeout(() => {
               if (!editor || editor.isDestroyed) return;
-              if (draftMode) runScriptureDraftDetectionAtCursor(editor);
-              else runScriptureDetectionAtCursor(editor);
+              if (draftMode) {
+                runScriptureDraftDetectionAtCursor(editor);
+                // Debounced grow: the per-keystroke grow plugin is disabled on mobile (mutating the
+                // draft mark mid-type desyncs iOS contenteditable), so snap a range tail typed as
+                // plain text into the draft now that the user has paused.
+                if (editor.view) unifyScriptureDraftAtCursor(editor.view);
+              } else {
+                runScriptureDetectionAtCursor(editor);
+              }
               // Live-ish: flip the pill's translation label when an abbreviation is typed after it.
               tryConsumeTranslationAbbrevAfterPill(editor);
             }, 250);
@@ -6547,18 +6555,39 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       }
     };
 
+    // Hide the ✓ while actively typing — it sits at the draft's right edge, exactly where the next
+    // character lands, so leaving it up covers the char being typed. Re-show + reposition once the
+    // user pauses (same idle cadence as the mobile draft grow), so it reappears at the grown pill.
+    let lastTypeAt = 0;
+    let idleTimer: ReturnType<typeof setTimeout> | null = null;
+    const onDocUpdate = () => {
+      lastTypeAt = Date.now();
+      setScriptureDraftConfirm(null);
+      if (idleTimer) clearTimeout(idleTimer);
+      idleTimer = setTimeout(() => {
+        idleTimer = null;
+        updatePos();
+      }, 260);
+    };
+    const onSelectionChange = () => {
+      // During active typing the idle timer owns re-showing the ✓; don't flash it at the caret.
+      if (Date.now() - lastTypeAt < 260) return;
+      updatePos();
+    };
+
     updatePos();
-    editor.on('update', updatePos);
-    editor.on('selectionUpdate', updatePos);
+    editor.on('update', onDocUpdate);
+    editor.on('selectionUpdate', onSelectionChange);
     window.addEventListener('scroll', updatePos, true);
     window.addEventListener('resize', updatePos);
     const vv = typeof window !== 'undefined' ? window.visualViewport : null;
     vv?.addEventListener('resize', updatePos);
     vv?.addEventListener('scroll', updatePos);
     return () => {
+      if (idleTimer) clearTimeout(idleTimer);
       if (editor && !editor.isDestroyed) {
-        editor.off('update', updatePos);
-        editor.off('selectionUpdate', updatePos);
+        editor.off('update', onDocUpdate);
+        editor.off('selectionUpdate', onSelectionChange);
       }
       window.removeEventListener('scroll', updatePos, true);
       window.removeEventListener('resize', updatePos);

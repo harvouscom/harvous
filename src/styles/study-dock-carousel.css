@@ -142,6 +142,9 @@
 
 .study-dock-carousel__track > .study-dock-carousel__item--expanded-slot:only-child .study-dock-card__outer {
   width: 100%;
+  /* Proper minimum width so a lone open dock never renders cramped; min() keeps it from
+     overflowing on very narrow viewports (falls back to the full column width there). */
+  min-width: min(100%, 320px);
   max-width: var(--study-dock-max-width);
   margin-left: auto;
   margin-right: auto;
@@ -166,6 +169,7 @@
 
 .study-dock-carousel__track > .study-dock-carousel__item--compact:only-child .study-dock-card__outer {
   width: 100%;
+  min-width: min(100%, 320px);
   max-width: var(--study-dock-max-width);
   margin-left: auto;
   margin-right: auto;

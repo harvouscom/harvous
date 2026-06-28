@@ -7,6 +7,7 @@ import {
 import { getTranslationAbbreviationDisplay } from '@/data/translations';
 import { getEffectiveDefaultTranslation } from '@/utils/profile-cache';
 import { collectScripturePillRanges, ensureScripturePillSpacing } from '@/utils/scripture-pill-spacing';
+import { isMobileDevice } from '@/utils/pwa-prompt';
 
 /**
  * Inline "edit-mode" scripture reference. Unlike the committed `scripturePill` mark
@@ -95,40 +96,59 @@ export const ScriptureDraft = Mark.create<ScriptureDraftOptions>({
 });
 
 /**
+ * Build the single `addMark` that grows/merges the draft to cover the full reference-in-progress
+ * (re-derived from the text), or null when nothing needs changing. `computeScriptureDraftGrowth`
+ * already merges split fragments into one run anchored at the first fragment, so one `addMark` over
+ * that span (covering the `-`/gap between fragments) collapses them into a single pill — no
+ * `removeMark` needed, which keeps the DOM mutation minimal.
+ */
+function buildScriptureDraftGrowthTr(state: any): any | null {
+  const draftType = state.schema.marks.scriptureDraft;
+  if (!draftType) return null;
+  const growth = computeScriptureDraftGrowth(state.doc, state.selection.from);
+  if (!growth) return null;
+  // Reuse the anchor draft's attrs (e.g. a carried translation) so the regrown span keeps them.
+  const existing = getMarkInstanceAt(state.doc, growth.from, draftType);
+  const tr = state.tr;
+  tr.addMark(growth.from, growth.to, draftType.create(existing ? { ...existing.attrs } : {}));
+  tr.setMeta('addToHistory', false);
+  return tr;
+}
+
+/**
  * Plugin that keeps the draft mark covering the full reference-in-progress: after each edit it
  * extends the mark over any trailing reference-continuation chars (e.g. the "-2" of a range) that
- * landed as plain text. Re-derives the span from the text every transaction, so it never relies on
- * iOS preserving an inclusive mark across keystrokes (which split into multiple draft pills) — the
- * mark is non-inclusive and one `addMark` over the whole span keeps it a single pill.
+ * landed as plain text.
+ *
+ * DESKTOP ONLY. On iOS, mutating the draft mark on every keystroke desyncs the contenteditable —
+ * the just-typed char paints detached (under the floating ✓ / far right) and the caret jumps. So on
+ * mobile this returns null and the draft is grown on a debounced idle pass instead
+ * (`unifyScriptureDraftAtCursor`, driven by the editor's mobile onUpdate timer), keeping the range
+ * tail as plain text mid-type and snapping it into the pill once the user pauses.
  */
 export function makeScriptureDraftGrowPlugin() {
   return new Plugin({
     key: new PluginKey('scriptureDraftGrow'),
     appendTransaction(transactions, _oldState, newState) {
       if (!transactions.some((t) => t.docChanged)) return null;
-      const draftType = newState.schema.marks.scriptureDraft;
-      if (!draftType) return null;
-      const growth = computeScriptureDraftGrowth(newState.doc, newState.selection.from);
-      if (!growth) return null;
-      // Reuse the anchor draft's attrs (e.g. a carried translation) so the regrown span keeps them.
-      const existing = getMarkInstanceAt(newState.doc, growth.from, draftType);
-      const ranges = collectScripturePillRanges(newState.doc, 'scriptureDraft');
-      const tr = newState.tr;
-      // Single-draft invariant: iOS can split a growing draft into multiple draft fragments while
-      // typing a range (e.g. "John 3:16" + a stray "17"). Two fragments make
-      // findDetachedScriptureDraft treat the earlier one as detached and commit it early, dropping
-      // the rest of the range. Strip every draft fragment overlapping the grown span, then re-apply
-      // ONE contiguous draft over the whole span so exactly one dashed pill remains.
-      for (const r of ranges) {
-        if (r.start < growth.to && r.end > growth.from) {
-          tr.removeMark(r.start, r.end, draftType);
-        }
-      }
-      tr.addMark(growth.from, growth.to, draftType.create(existing ? { ...existing.attrs } : {}));
-      tr.setMeta('addToHistory', false);
-      return tr;
+      if (isMobileDevice()) return null;
+      return buildScriptureDraftGrowthTr(newState);
     },
   });
+}
+
+/**
+ * Mobile (debounced) equivalent of the grow plugin: grow/merge the draft into one contiguous span
+ * NOW, as a single dispatch. Called from the editor's mobile onUpdate idle timer so the draft snaps
+ * to include a range tail once the user pauses, instead of mutating on every keystroke (which iOS
+ * can't keep in sync). Returns true if it changed the doc.
+ */
+export function unifyScriptureDraftAtCursor(view: any): boolean {
+  if (!view || !view.state) return false;
+  const tr = buildScriptureDraftGrowthTr(view.state);
+  if (!tr) return false;
+  view.dispatch(tr);
+  return true;
 }
 
 /** The mark instance of `markType` on the text node at `pos` (or just after it), or null. */

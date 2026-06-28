@@ -109,6 +109,15 @@
   padding-left: 0;
 }
 
+/* The sidebar-clearance offset actually lives on the carousel TRACK (study-dock-carousel.css), not
+   the slot — so the slot resets above are no-ops against it. Drop the track offset too whenever the
+   sidebar isn't occupying its grid column, otherwise the dock band stays pushed right and squeezed
+   narrow (the slot still reserves the inspector gutter via padding-right). */
+.proto-shell--no-sidebar .proto-shell__study-dock-layer .study-dock-carousel__track,
+.proto-shell--sidebar-collapsed .proto-shell__study-dock-layer .study-dock-carousel__track {
+  padding-left: 0;
+}
+
 /* Desktop note inspector (absolute in note pane) — keep the carousel clear of the
    inspector whether it's docked or floating over the editor. */
 .proto-shell:has(.proto-note-pane-row--inspector-open) .proto-shell__study-dock-layer__slot:not(:empty) {
@@ -553,6 +562,12 @@ html.harvous-prototype-route .proto-shell__detail-toolbar-cell::after {
   .proto-shell__study-dock-layer__slot:not(:empty) {
     padding-left: 0;
     transition: padding-left 0.26s cubic-bezier(0.32, 0.72, 0.24, 1);
+  }
+
+  /* The real clearance offset is on the track (study-dock-carousel.css); zero it on mobile so the
+     dock band starts at the column's left edge. The drawer-open push stays on the slot above. */
+  .proto-shell__study-dock-layer .study-dock-carousel__track {
+    padding-left: 0;
   }
 
   /* …but while the drawer is slid in it floats over the left edge (position:fixed, left:8px,

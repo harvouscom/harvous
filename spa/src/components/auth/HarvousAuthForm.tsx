@@ -3,9 +3,23 @@ import { useSignIn, useSignUp } from '@clerk/clerk-react';
 import type { SignUpResource } from '@clerk/types';
 import { useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
+import { useAuthFormKeyboardScroll } from '../../hooks/useAuthFormKeyboardScroll';
 import { seedProfileNamesAfterSignUp } from '../../hooks/queries/useProfile';
 import { getColorSchemeSnapshot, subscribeColorScheme } from '../../lib/prototype-background';
 import { postAuthRedirectPath } from '../../utils/post-auth-redirect';
+
+function useDesktopAutoFocusEnabled(): boolean {
+  return useSyncExternalStore(
+    (onStoreChange) => {
+      if (typeof window === 'undefined') return () => {};
+      const mq = window.matchMedia('(pointer: fine)');
+      mq.addEventListener('change', onStoreChange);
+      return () => mq.removeEventListener('change', onStoreChange);
+    },
+    () => typeof window !== 'undefined' && window.matchMedia('(pointer: fine)').matches,
+    () => false
+  );
+}
 
 function missingIncludesName(missing: string[], part: 'first' | 'last'): boolean {
   const keys =
@@ -74,6 +88,8 @@ export default function HarvousAuthForm({
   const queryClient = useQueryClient();
   const colorScheme = useSyncExternalStore(subscribeColorScheme, getColorSchemeSnapshot, () => 'light');
   const captchaTheme = colorScheme === 'dark' ? 'dark' : 'light';
+  const desktopAutoFocus = useDesktopAutoFocusEnabled();
+  useAuthFormKeyboardScroll();
 
   type Step = 'enterEmail' | 'enterCode';
   const [step, setStep] = useState<Step>('enterEmail');
@@ -223,9 +239,11 @@ export default function HarvousAuthForm({
           {mode === 'signUp' ? (
             <div className="harvous-auth-form__name-row">
               <input
+                id="signup-first-name"
+                name="given-name"
                 type="text"
                 autoComplete="given-name"
-                autoFocus
+                autoFocus={desktopAutoFocus}
                 placeholder="First name"
                 className="harvous-auth-form__input"
                 value={firstName}
@@ -233,6 +251,8 @@ export default function HarvousAuthForm({
                 aria-label="First name"
               />
               <input
+                id="signup-last-name"
+                name="family-name"
                 type="text"
                 autoComplete="family-name"
                 placeholder="Last name"
@@ -244,10 +264,12 @@ export default function HarvousAuthForm({
             </div>
           ) : null}
           <input
+            id={mode === 'signUp' ? 'signup-email' : 'signin-email'}
+            name="email"
             type="email"
             inputMode="email"
             autoComplete="email"
-            autoFocus={mode === 'signIn'}
+            autoFocus={mode === 'signIn' && desktopAutoFocus}
             placeholder="Enter your email"
             className="harvous-auth-form__input"
             value={email}

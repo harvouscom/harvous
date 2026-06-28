@@ -11,6 +11,7 @@ import {
   confirmScriptureDraftView,
   computeScriptureDraftGrowth,
   makeScriptureDraftGrowPlugin,
+  unifyScriptureDraftAtCursor,
   editScripturePillAsDraft,
 } from '@/components/react/TiptapScriptureDraft';
 import { collectScripturePillRanges } from '@/utils/scripture-pill-spacing';
@@ -317,7 +318,7 @@ describe('makeScriptureDraftGrowPlugin (end-to-end)', () => {
     expect(state.doc.textBetween(ranges[0].start, ranges[0].end)).toBe('Exodus 5:1-2');
   });
 
-  it('collapses a split into two draft fragments into one pill on the next edit', () => {
+  it('collapses a split into two draft fragments into one pill on the next edit (addMark-only)', () => {
     const draftMark = draftSchema.marks.scriptureDraft.create();
     // Pre-split state: "John 3:1"[draft] + "-"[plain] + "2"[draft] — two separate draft fragments.
     const doc = draftSchema.node('doc', null, [
@@ -329,11 +330,59 @@ describe('makeScriptureDraftGrowPlugin (end-to-end)', () => {
     ]);
     let state = EditorState.create({ doc, plugins: [makeScriptureDraftGrowPlugin()] });
     expect(collectScripturePillRanges(state.doc, 'scriptureDraft')).toHaveLength(2);
-    // Type "0" after "2" (plain, as on iOS). The plugin should unify everything into one draft.
+    // Type "0" after "2" (plain, as on iOS). The plugin (desktop path in jsdom) should unify
+    // everything into one draft via a single addMark over the merged span — no removeMark.
     const end = state.doc.content.size - 1;
     state = state.apply(state.tr.insertText('0', end));
     const ranges = collectScripturePillRanges(state.doc, 'scriptureDraft');
     expect(ranges).toHaveLength(1);
     expect(state.doc.textBetween(ranges[0].start, ranges[0].end)).toBe('John 3:1-20');
+  });
+});
+
+// ── unifyScriptureDraftAtCursor (mobile debounced grow — single dispatch, no plugin) ─────────────
+
+describe('unifyScriptureDraftAtCursor', () => {
+  function viewOver(doc: any) {
+    let state = EditorState.create({ doc });
+    state = state.apply(
+      state.tr.setSelection(TextSelection.create(state.doc, state.doc.content.size - 1)),
+    );
+    return {
+      get state() {
+        return state;
+      },
+      dispatch(tr: any) {
+        state = state.apply(tr);
+      },
+    };
+  }
+
+  it('merges a split draft into one pill in a single dispatch', () => {
+    const draftMark = draftSchema.marks.scriptureDraft.create();
+    const view = viewOver(
+      draftSchema.node('doc', null, [
+        draftSchema.node('paragraph', null, [
+          draftSchema.text('John 3:16', [draftMark]),
+          draftSchema.text('-'),
+          draftSchema.text('17', [draftMark]),
+        ]),
+      ]),
+    );
+    expect(collectScripturePillRanges(view.state.doc, 'scriptureDraft')).toHaveLength(2);
+    expect(unifyScriptureDraftAtCursor(view)).toBe(true);
+    const ranges = collectScripturePillRanges(view.state.doc, 'scriptureDraft');
+    expect(ranges).toHaveLength(1);
+    expect(view.state.doc.textBetween(ranges[0].start, ranges[0].end)).toBe('John 3:16-17');
+  });
+
+  it('returns false when the draft already covers its full reference', () => {
+    const draftMark = draftSchema.marks.scriptureDraft.create();
+    const view = viewOver(
+      draftSchema.node('doc', null, [
+        draftSchema.node('paragraph', null, [draftSchema.text('John 3:16', [draftMark])]),
+      ]),
+    );
+    expect(unifyScriptureDraftAtCursor(view)).toBe(false);
   });
 });
