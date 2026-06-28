@@ -116,7 +116,7 @@ Key additions:
 - Mobile branches in `enterScriptureDraftView`, `unifyScriptureDraftAtCursor`, `findDraftRange`, `getScriptureDraftAnchorPos`, `findDetachedScriptureDraft`, `confirmScriptureDraftView`, `cancelScriptureDraftView`
 - Tests: `src/utils/__tests__/scripture-draft-mobile.test.ts` (mocks `isMobileDevice()` → true)
 
-### Round 7 (current)
+### Round 7
 
 Cannot finish verse ranges like `Number 5:5-10` — draft stuck or commits at `Number 5:5` only.
 
@@ -124,15 +124,26 @@ Cannot finish verse ranges like `Number 5:5-10` — draft stuck or commits at `N
 |---|---------|-----------|-----|
 | 1 | `-10` never folds into draft; unify never runs mid-range | `detectScriptureReferenceEndingAtCursor` returns null when tail after match is `-` (not empty/whitespace), so `shouldScheduleDraftDetection` is false and the mobile 250ms timer is **cancelled** | **`hasActiveDraft` gate** on `needsScripturePass` — keep the debounced timer armed while any draft exists so `unifyScriptureDraftAtCursor` runs during range entry |
 | 2 | Draft commits at `Number 5:5` when reaching `-` on iOS keyboard | `resolveOnBlur` confirms after 120ms even with no continuation tail typed; keyboard-layer switch blurs the field | **`hasDraftContinuationTailInDoc`** + two-phase blur defer (120ms focus check, then +350ms if no tail yet on mobile) |
-| 3 | Decoration end swallowed `-` on insert | Plugin mapped `to` with default bias, expanding decoration on every char at boundary | Non-inclusive `to` mapping with bias `-1` (Round 6 follow-up, same release arc) |
+| 3 | Decoration end swallowed `-` on insert | Plugin mapped `to` with default bias, expanding decoration on every char at boundary | Non-inclusive `to` mapping with bias `-1` (Round 6 follow-up) |
 
 Helpers: `hasActiveScriptureDraft`, `hasDraftContinuationTailInDoc` in `TiptapScriptureDraft.ts`.
+
+### Round 8 (current)
+
+Round 6's **mobile decoration draft** regressed range typing on device — the mark-based path (debounced unify) had been working; only caret painting was wrong.
+
+| # | Change | Why |
+|---|--------|-----|
+| 1 | **Reverted decoration draft** — mobile uses `scriptureDraft` mark again (same as pre-Round-6) | Decoration layer broke `Number 5:5-10` style entry despite passing jsdom tests |
+| 2 | **Kept Round 5–6 caret hardening** — `applyNativeCaret`, double-rAF + 16ms retry, resync on ✓ re-show | Fixes painted caret at line end after mark mutations |
+| 3 | **`applyNativeCaret` respects range tail** — when PM selection is past the draft mark with continuation chars (`-10`), use `domAtPos` instead of draft pill end | Prevents ✓ re-show resync from stealing the caret mid-range |
+| 4 | **Kept Round 7 timer + blur defer** | Still needed on the mark path |
 
 ---
 
 ## iOS limitations & gotchas (durable)
 
-- **No per-keystroke doc mutation on mobile.** The grow plugin is desktop-only. On mobile the in-progress draft uses **inline decorations** (plugin state), not the `scriptureDraft` mark — grow/unify only updates decoration range metadata. Confirm still replaces text with a committed pill mark.
+- **No per-keystroke doc mutation on mobile.** The grow plugin is desktop-only. On mobile the draft uses the **`scriptureDraft` mark** with debounced `unifyScriptureDraftAtCursor` (~250ms idle) to fold range tails in one `addMark`.
 - **The ✓ confirm must be a portal OUTSIDE the editor.** iOS refuses to type next to an inline
   `contentEditable=false` widget. It's `position: fixed` and needs the `visualViewport` offset
   correction whenever the keyboard is up.
