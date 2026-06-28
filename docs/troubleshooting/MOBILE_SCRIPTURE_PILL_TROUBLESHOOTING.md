@@ -48,8 +48,12 @@ end, and an inclusive mark can split into two pill fragments. Almost every bug b
 this. The two defensive strategies that work:
 
 - **Don't mutate the doc on every keystroke on mobile** — debounce to an idle pass instead.
-- **After an unavoidable programmatic mutation (commit), re-assert the selection on the next frame**
-  so the contenteditable repaints.
+- **After an unavoidable programmatic mutation, force the native caret back on the next frame.**
+  Critically, **re-dispatching a ProseMirror selection is a no-op here**: PM recorded that it already
+  synced the DOM selection (iOS moved the *painted* caret without firing a `selectionchange` PM
+  acted on), so its desired-vs-current comparison matches and it skips the DOM update. You must set
+  the browser `Selection` directly (via `view.domAtPos`) — that's what `resyncMobileCaret` does, and
+  it's effectively what typing a real character would do.
 
 ---
 
@@ -77,8 +81,22 @@ this. The two defensive strategies that work:
 
 | # | Symptom | Root cause | Fix |
 |---|---------|-----------|-----|
-| 1 | After committing a pill, the caret still jumps to the far right instead of right after the pill | iOS leaves the *visible* caret painted at the line end after the commit mutation (the ProseMirror selection is correct — desktop renders fine) | In `confirmScriptureDraftView`: add `tr.scrollIntoView()`, and on mobile re-assert the selection in a `requestAnimationFrame` after dispatch so the contenteditable repaints the caret. **Best-effort — needs on-device confirmation (see Open Issues).** |
+| 1 | After committing a pill, the caret still jumps to the far right instead of right after the pill | iOS leaves the *visible* caret painted at the line end after the commit mutation (the ProseMirror selection is correct — desktop renders fine) | First attempt: `tr.scrollIntoView()` + a rAF re-dispatch of the same PM selection. **This did not fully work** — re-dispatching the same selection is a no-op (see Round 5). |
 | 2 | The "Edit" (pencil) in the pill's floating delete menu tried to edit inline, which doesn't work on mobile | Inline `editScripturePillAsDraft` is unreliable on iOS | The delete-confirm `onEdit` (prototypeNative) now opens the **scripture dock** for the pill (builds a `ScripturePillDockSession` from the pill mark at the boundaries) instead of converting to an inline draft. |
+
+### Round 5 (current)
+
+The caret desync wasn't just a commit problem — it happens on **every** programmatic draft mutation
+(draft creation, range-grow/unify, and commit), and the Round-4 rAF re-dispatch didn't fix it
+because **re-dispatching the same ProseMirror selection is a no-op** (PM thinks the DOM is already
+synced; see "The root iOS problem"). The user could see it: caret stuck far right while still in
+edit mode; typing a space fixed it; pressing Return made the caret *vanish* (the Enter→confirm path
+didn't pass `focus: true`, so the field was left unfocused).
+
+| # | Symptom | Root cause | Fix |
+|---|---------|-----------|-----|
+| 1 | Caret stuck far right while still in draft/edit mode (and "-N" range tail sometimes rendered as a second dashed fragment) | The draft mark's `addMark` (creation + grow) restructures the contenteditable; iOS strands the painted caret. Round-4's re-dispatch of the same PM selection was a no-op. | New `resyncMobileCaret(view)` sets the native `Selection` directly via `view.domAtPos` on the next frame (mobile only). Called from `enterScriptureDraftView`, `unifyScriptureDraftAtCursor`, and `confirmScriptureDraftView`. |
+| 2 | Pressing Return/Enter made the caret disappear | The Enter→confirm handler called `confirmScriptureDraftView(view)` without `{ focus: true }`, so after the commit the field was left blurred and the caret vanished | Pass `{ focus: true }`; `resyncMobileCaret` re-focuses + re-places the caret. |
 
 ---
 
@@ -105,11 +123,13 @@ this. The two defensive strategies that work:
 
 ## Open issues / needs device verification
 
-- **Post-commit caret resync (Round 4 #1)** is a best-effort fix. If the caret still lands far
-  right on device, candidates to try next: explicitly setting the native `Selection` via
-  `view.domAtPos` after dispatch; a brief blur/refocus; or deferring the whole commit's
-  `setSelection` to a second transaction. Verify on a real iPhone — a desktop browser preview can't
-  reproduce it (gated behind `isMobileDevice()`).
+- **Caret resync (Round 5)** now sets the native `Selection` directly (`resyncMobileCaret`). If the
+  caret STILL drifts on device, the remaining lever is to **stop using a mark for the in-progress
+  draft on mobile and render it as a ProseMirror inline `Decoration` instead** — decorations style
+  the range without restructuring the document, so there's no contenteditable mutation and no caret
+  desync at all. That's the real fix if patching the caret keeps recurring; it's a larger rewrite of
+  the draft layer. Verify the current fix on a real iPhone first — a desktop preview can't reproduce
+  it (gated behind `isMobileDevice()`).
 - **Dock sizing (Round 3 #4)** — verify the dock fills the column and animates correctly at the
   430px / 620px breakpoints and with the sidebar collapsed (desktop ⌘\) vs absent (mobile).
 

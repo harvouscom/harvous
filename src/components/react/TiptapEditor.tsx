@@ -4653,7 +4653,8 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
           }
           if (event.key === 'Enter' || event.key === 'NumpadEnter') {
             event.preventDefault();
-            confirmScriptureDraftView(view);
+            // focus:true so the caret stays visible after the commit instead of vanishing on iOS.
+            confirmScriptureDraftView(view, undefined, { focus: true });
             return true;
           }
           // Double-space confirms (desktop only — never intercept space on mobile: it breaks

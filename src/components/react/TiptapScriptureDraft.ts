@@ -148,6 +148,9 @@ export function unifyScriptureDraftAtCursor(view: any): boolean {
   const tr = buildScriptureDraftGrowthTr(view.state);
   if (!tr) return false;
   view.dispatch(tr);
+  // iOS: the addMark that folds the range tail into the draft restructures the DOM — re-place the
+  // visible caret so it doesn't strand at the line end.
+  resyncMobileCaret(view);
   return true;
 }
 
@@ -269,6 +272,44 @@ export function draftTextToReference(text: string): string | null {
 
 // ── Mutations ───────────────────────────────────────────────────────────────────
 
+/**
+ * iOS only: force the native caret to ProseMirror's selection position on the next frame.
+ *
+ * A programmatic mark change (adding/growing the draft) restructures the contenteditable, and iOS
+ * leaves the *visible* caret stuck at the line end even though ProseMirror's selection is correct.
+ * Re-dispatching a ProseMirror selection does NOT help — PM recorded that it already synced the DOM
+ * selection (iOS moved the painted caret without telling PM), so the comparison is a no-op. We set
+ * the DOM `Selection` directly instead, which is what typing a real character effectively does.
+ * Setting it to PM's own selection position keeps PM's domObserver a no-op (no spurious transaction).
+ */
+export function resyncMobileCaret(view: any, opts?: { focus?: boolean }): void {
+  if (!isMobileDevice() || !view) return;
+  requestAnimationFrame(() => {
+    try {
+      if (!view || view.isDestroyed) return;
+      if (opts?.focus) {
+        try {
+          view.focus();
+        } catch {
+          /* ignore */
+        }
+      }
+      const pos = Math.min(view.state.selection.from, view.state.doc.content.size);
+      const dom = view.domAtPos(pos);
+      if (!dom || !dom.node) return;
+      const sel = typeof window !== 'undefined' ? window.getSelection() : null;
+      if (!sel) return;
+      const range = document.createRange();
+      range.setStart(dom.node, dom.offset);
+      range.collapse(true);
+      sel.removeAllRanges();
+      sel.addRange(range);
+    } catch {
+      /* ignore */
+    }
+  });
+}
+
 /** Wrap [from, to) in the draft mark and place the caret at its (inclusive) end. */
 export function enterScriptureDraftView(view: any, from: number, to: number): boolean {
   const { state } = view;
@@ -299,6 +340,9 @@ export function enterScriptureDraftView(view: any, from: number, to: number): bo
   }
   tr.setMeta('addToHistory', true);
   view.dispatch(tr);
+  // iOS: wrapping the reference in the draft mark restructures the DOM and strands the visible caret
+  // at the line end; force it back to the draft end.
+  resyncMobileCaret(view);
   return true;
 }
 
@@ -502,24 +546,10 @@ export function confirmScriptureDraftView(
     }
   }
 
-  // iOS: after a programmatic commit (replaceWith + new selection) the *visible* caret can stick at
-  // the line end even though the selection is logically right after the pill — the contenteditable
-  // doesn't repaint it. Re-assert the same selection on the next frame so ProseMirror notices the
-  // DOM selection drifted and re-syncs it. Desktop syncs correctly on the first dispatch.
-  if (isMobileDevice()) {
-    requestAnimationFrame(() => {
-      if (!view || view.isDestroyed) return;
-      try {
-        const pos = Math.min(view.state.selection.from, view.state.doc.content.size);
-        const reTr = view.state.tr.setSelection(TextSelection.create(view.state.doc, pos));
-        reTr.setMeta('addToHistory', false);
-        view.dispatch(reTr);
-        if (opts?.focus) view.focus();
-      } catch {
-        /* ignore */
-      }
-    });
-  }
+  // iOS: after the commit mutation the visible caret can stick at the line end (or vanish, after an
+  // Enter-confirm that left the field unfocused) even though the selection is logically right after
+  // the pill. Force the native caret back to the right spot next frame (re-focusing if needed).
+  resyncMobileCaret(view, { focus: opts?.focus });
 
   try {
     view.dom.dispatchEvent(
