@@ -35,6 +35,8 @@ import {
   hasDraftContinuationTailInDoc,
   unifyScriptureDraftAtCursor,
   scheduleMobileDraftTailCaretSync,
+  canSafelyResyncMobileDraftIdleCaret,
+  resyncMobileCaret,
   SCRIPTURE_DRAFT_CONFIRMED_EVENT,
 } from './TiptapScriptureDraft';
 import { BoldCustom } from './TiptapBoldCustom';
@@ -6643,6 +6645,12 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       idleTimer = setTimeout(() => {
         idleTimer = null;
         updatePos();
+        if (canSafelyResyncMobileDraftIdleCaret(editor.state)) {
+          const anchor = getScriptureDraftAnchorPos(editor.state);
+          if (anchor != null) {
+            resyncMobileCaret(editor.view, { pos: anchor, draftIdle: true });
+          }
+        }
       }, 260);
     };
     const onSelectionChange = () => {

@@ -337,6 +337,88 @@ export function draftTextToReference(text: string): string | null {
 
 // ── Mutations ───────────────────────────────────────────────────────────────────
 
+/**
+ * True when it is safe to resync the native caret on draft idle (✓ re-show). Skips mid-range tail
+ * typing — that path uses `scheduleMobileDraftTailCaretSync` instead.
+ */
+export function canSafelyResyncMobileDraftIdleCaret(state: any): boolean {
+  if (!isMobileDevice()) return false;
+  const range = getScriptureDraftRange(state);
+  if (!range) return false;
+  if (hasDraftContinuationTailInDoc(state, range.to)) return false;
+  const anchor = getScriptureDraftAnchorPos(state);
+  if (anchor == null) return false;
+  return state.selection.from === anchor;
+}
+
+function setNativeSelection(node: Node, offset: number): boolean {
+  try {
+    const sel = typeof window !== 'undefined' ? window.getSelection() : null;
+    if (!sel) return false;
+    const range = document.createRange();
+    range.setStart(node, offset);
+    range.collapse(true);
+    sel.removeAllRanges();
+    sel.addRange(range);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** Last text node inside `root`, caret at its end — draft-idle fallback only (no plain tail). */
+function findLastTextNodeEnd(root: Node): { node: Text; offset: number } | null {
+  let result: { node: Text; offset: number } | null = null;
+  const walk = (n: Node): void => {
+    if (result) return;
+    if (n.nodeType === Node.TEXT_NODE) {
+      const text = n as Text;
+      result = { node: text, offset: text.length };
+      return;
+    }
+    for (let i = n.childNodes.length - 1; i >= 0; i--) {
+      walk(n.childNodes[i]);
+      if (result) return;
+    }
+  };
+  walk(root);
+  return result;
+}
+
+/** Trailing spacer text node after a committed (non-draft) pill — post-confirm fallback. */
+function findCommittedPillTrailingSpace(
+  view: any,
+  pillFrom: number,
+): { node: Node; offset: number } | null {
+  try {
+    const dom = view.domAtPos(Math.max(pillFrom, 0));
+    if (!dom?.node) return null;
+    let el: Node | null = dom.node;
+    if (el.nodeType === Node.TEXT_NODE) el = el.parentNode;
+    while (el && el !== view.dom) {
+      if (
+        el instanceof HTMLElement &&
+        el.classList.contains('scripture-pill') &&
+        !el.classList.contains('scripture-pill-draft')
+      ) {
+        let sib: Node | null = el.nextSibling;
+        while (sib) {
+          if (sib.nodeType === Node.TEXT_NODE) {
+            const text = sib as Text;
+            return { node: text, offset: text.length };
+          }
+          sib = sib.nextSibling;
+        }
+        break;
+      }
+      el = el.parentNode;
+    }
+  } catch {
+    /* ignore */
+  }
+  return null;
+}
+
 /** Remove bold/italic from the draft span and any plain-text range tail when abandoning a draft. */
 function stripProseFormattingFromDraftSpan(tr: any, state: any, from: number, to: number): void {
   const end = extendRangeOverTrailingContinuation(state.doc, to);
@@ -355,7 +437,10 @@ function stripProseFormattingFromDraftSpan(tr: any, state: any, from: number, to
  * selection (iOS moved the painted caret without telling PM), so the comparison is a no-op. We set
  * the DOM `Selection` directly instead, which is what typing a real character effectively does.
  */
-export function resyncMobileCaret(view: any, opts?: { focus?: boolean }): void {
+export function resyncMobileCaret(
+  view: any,
+  opts?: { focus?: boolean; pos?: number; draftIdle?: boolean; committedPillFrom?: number },
+): void {
   if (!isMobileDevice() || !view) return;
   requestAnimationFrame(() => {
     try {
@@ -367,16 +452,32 @@ export function resyncMobileCaret(view: any, opts?: { focus?: boolean }): void {
           /* ignore */
         }
       }
-      const pos = Math.min(view.state.selection.from, view.state.doc.content.size);
-      const dom = view.domAtPos(pos);
-      if (!dom || !dom.node) return;
-      const sel = typeof window !== 'undefined' ? window.getSelection() : null;
-      if (!sel) return;
-      const range = document.createRange();
-      range.setStart(dom.node, dom.offset);
-      range.collapse(true);
-      sel.removeAllRanges();
-      sel.addRange(range);
+      const pos = Math.min(opts?.pos ?? view.state.selection.from, view.state.doc.content.size);
+
+      if (opts?.committedPillFrom != null) {
+        const trailing = findCommittedPillTrailingSpace(view, opts.committedPillFrom);
+        if (trailing && setNativeSelection(trailing.node, trailing.offset)) return;
+      }
+
+      let applied = false;
+      try {
+        const dom = view.domAtPos(pos);
+        if (dom?.node) applied = setNativeSelection(dom.node, dom.offset);
+      } catch {
+        /* ignore */
+      }
+
+      if (
+        !applied &&
+        opts?.draftIdle &&
+        canSafelyResyncMobileDraftIdleCaret(view.state)
+      ) {
+        const draftEl = getScriptureDraftAnchorElement(view, pos);
+        if (draftEl) {
+          const end = findLastTextNodeEnd(draftEl);
+          if (end) setNativeSelection(end.node, end.offset);
+        }
+      }
     } catch {
       /* ignore */
     }
@@ -621,7 +722,11 @@ export function confirmScriptureDraftView(
   view.dispatch(tr);
 
   if (opts?.focus) {
-    resyncMobileCaret(view, { focus: true });
+    resyncMobileCaret(view, {
+      focus: true,
+      pos: caretPos,
+      committedPillFrom: range.from,
+    });
   }
 
   try {

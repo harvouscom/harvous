@@ -12,6 +12,7 @@ import { Schema } from '@tiptap/pm/model';
 import { EditorState, TextSelection } from '@tiptap/pm/state';
 import {
   cancelScriptureDraftView,
+  canSafelyResyncMobileDraftIdleCaret,
   confirmScriptureDraftView,
   computeScriptureDraftGrowth,
   enterScriptureDraftView,
@@ -256,5 +257,38 @@ describe('mobile mark-based draft', () => {
         expect(node.marks.some((m: any) => m.type.name === 'bold')).toBe(false);
       }
     });
+  });
+
+  it('canSafelyResyncMobileDraftIdleCaret is true when caret is at anchor with no tail', () => {
+    const text = 'John 3:16';
+    const from = 1;
+    const to = from + text.length;
+    const { view, getState } = mobileView([draftSchema.text(text)]);
+    enterScriptureDraftView(view, from, to);
+    view.dispatch(getState().tr.setSelection(TextSelection.create(getState().doc, to)));
+    expect(canSafelyResyncMobileDraftIdleCaret(getState())).toBe(true);
+  });
+
+  it('canSafelyResyncMobileDraftIdleCaret is false when a range tail exists', () => {
+    const text = 'Numbers 5:5';
+    const from = 1;
+    const to = from + text.length;
+    const { view, getState } = mobileView([draftSchema.text(text)]);
+    enterScriptureDraftView(view, from, to);
+    view.dispatch(getState().tr.insertText('-10', to));
+    const anchor = getScriptureDraftAnchorPos(getState());
+    view.dispatch(getState().tr.setSelection(TextSelection.create(getState().doc, anchor!)));
+    expect(hasDraftContinuationTailInDoc(getState(), to)).toBe(true);
+    expect(canSafelyResyncMobileDraftIdleCaret(getState())).toBe(false);
+  });
+
+  it('canSafelyResyncMobileDraftIdleCaret is false when caret is not at anchor', () => {
+    const text = 'John 3:16';
+    const from = 1;
+    const to = from + text.length;
+    const { view, getState } = mobileView([draftSchema.text(text)]);
+    enterScriptureDraftView(view, from, to);
+    view.dispatch(getState().tr.setSelection(TextSelection.create(getState().doc, from)));
+    expect(canSafelyResyncMobileDraftIdleCaret(getState())).toBe(false);
   });
 });

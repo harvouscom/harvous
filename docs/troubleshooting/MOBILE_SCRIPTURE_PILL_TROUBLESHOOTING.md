@@ -170,6 +170,17 @@ Dash appears but caret vanishes before typing `-10` digits.
 | 1 | Caret gone right after `-` | `resyncMobileCaret` on draft enter repositioned native selection at the mark boundary; iOS keyboard-layer blur for `-` dropped focus without refocus | **Remove enter resync**; **`scheduleMobileDraftTailCaretSync`** after tail chars; **blur refocus** while draft active (no confirm) |
 | 2 | Caret lost after idle unify | `addMark` over tail without focus/selection restore | **unify**: re-set selection to tail end + `view.focus()` on mobile |
 
+### Round 12
+
+Range typing works (Round 11); caret still paints at line end beside the ✓ and after confirm.
+
+| # | Change | Why |
+|---|--------|-----|
+| 1 | **`canSafelyResyncMobileDraftIdleCaret`** — guard: no plain continuation tail, caret at anchor | Prevents ✓ re-show resync from stealing the caret mid-range (same lesson as Round 9–10) |
+| 2 | **Idle resync beside ✓** — 260ms idle timer in `TiptapEditor.tsx` calls `resyncMobileCaret({ pos: anchor, draftIdle: true })` after `updatePos` | Aligns painted caret with pill right edge when user pauses (not while typing `-10`) |
+| 3 | **Post-commit resync** — `confirmScriptureDraftView` passes `committedPillFrom` + `caretPos`; DOM fallback finds trailing spacer after `.scripture-pill:not(.scripture-pill-draft)` | `domAtPos` alone often mis-paints after pill commit on iOS |
+| 4 | **Still avoided** — enter resync, unify resync, resync during plain tail (`scheduleMobileDraftTailCaretSync` owns that), last-text-node-inside-draft during tail, double-rAF globally | These regressed range dash typing in Rounds 5–10 |
+
 ---
 
 ## iOS limitations & gotchas (durable)
@@ -192,9 +203,8 @@ Dash appears but caret vanishes before typing `-10` digits.
 
 ## Open issues / needs device verification
 
-- **Round 11 range tail** — re-verify `Numbers 5:5-10` on iPhone: dash stays visible, caret remains for `-10`, ✓ confirms full range.
+- **Round 12 caret paint** — verify on iPhone: draft idle caret beside ✓; post-commit caret after pill + spacer; `Numbers 5:5-10` range typing still works.
 - **Round 10 bold** — after abandoning an incomplete draft, bold should not stick on subsequent plain typing.
-- Caret may still paint at line end after confirm (pre-session known issue; minimal resync on enter/confirm only).
 - **Dock sizing (Round 3 #4)** — verify the dock fills the column and animates correctly at the
   430px / 620px breakpoints and with the sidebar collapsed (desktop ⌘\) vs absent (mobile).
 
