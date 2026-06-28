@@ -366,51 +366,61 @@ function setNativeSelection(node: Node, offset: number): boolean {
   }
 }
 
+/** Trailing plain-text offset after a pill/draft mark end — used for native caret placement. */
+export function trailingOffsetForPmCaret(markTo: number, targetPos: number): number {
+  return targetPos - markTo;
+}
+
 function isScripturePillElement(el: HTMLElement, draft: boolean): boolean {
   if (!el.classList.contains('scripture-pill')) return false;
   return draft ? el.classList.contains('scripture-pill-draft') : !el.classList.contains('scripture-pill-draft');
 }
 
-function findScripturePillElement(view: any, pos: number, draft: boolean): HTMLElement | null {
-  if (draft) return getScriptureDraftAnchorElement(view, pos);
+/** Resolve pill DOM from inside the marked text — never querySelector (wrong pill on leading marks). */
+function findScripturePillElementAtMark(
+  view: any,
+  markFrom: number,
+  markTo: number,
+  draft: boolean,
+): HTMLElement | null {
+  if (markTo <= markFrom) return null;
   try {
-    const dom = view.domAtPos(Math.max(pos, 0));
+    const docSize = view.state.doc.content.size;
+    const insidePos = Math.max(markFrom + 1, markTo - 1);
+    const probe = Math.min(Math.max(insidePos, 0), Math.max(0, docSize - 1));
+    const dom = view.domAtPos(probe);
     if (!dom?.node) return null;
     let el: Node | null = dom.node;
     if (el.nodeType === Node.TEXT_NODE) el = el.parentNode;
     while (el && el !== view.dom) {
-      if (el instanceof HTMLElement && isScripturePillElement(el, false)) return el;
+      if (el instanceof HTMLElement && isScripturePillElement(el, draft)) return el;
       el = el.parentNode;
     }
   } catch {
     /* ignore */
   }
+  return null;
+}
+
+function recoveredPosAtDom(view: any, node: Node, offset: number): number | null {
   try {
-    const found = view.dom?.querySelector?.('.scripture-pill:not(.scripture-pill-draft)');
-    return found instanceof HTMLElement ? found : null;
+    return view.posAtDOM(node, offset);
   } catch {
     return null;
   }
 }
 
-/**
- * Place the native caret just after an inline pill span (outside inline-flex), optionally into the
- * following text node. Avoids iOS painting the caret inside the pill box (wrong baseline / line end).
- */
-function setNativeSelectionAfterInlinePill(
-  pillEl: HTMLElement,
-  offsetInNextText = 0,
-): boolean {
+function placementMeetsMarkEnd(view: any, node: Node, offset: number, markTo: number): boolean {
+  const recovered = recoveredPosAtDom(view, node, offset);
+  return recovered != null && recovered >= markTo;
+}
+
+function setNativeSelectionAtParentChildIndex(parent: Node, childIndex: number): boolean {
   try {
-    const next = pillEl.nextSibling;
-    if (next?.nodeType === Node.TEXT_NODE) {
-      const text = next as Text;
-      return setNativeSelection(text, Math.min(Math.max(0, offsetInNextText), text.length));
-    }
     const sel = typeof window !== 'undefined' ? window.getSelection() : null;
     if (!sel) return false;
     const range = document.createRange();
-    range.setStartAfter(pillEl);
+    range.setStart(parent, Math.min(childIndex, parent.childNodes.length));
     range.collapse(true);
     sel.removeAllRanges();
     sel.addRange(range);
@@ -420,10 +430,68 @@ function setNativeSelectionAfterInlinePill(
   }
 }
 
-function runMobileCaretResync(
+/**
+ * Place the native caret just after an inline pill span (outside inline-flex), using PM markTo +
+ * targetPos for the trailing offset. Validates with posAtDOM so the caret is not before the pill.
+ */
+function setNativeSelectionAfterInlinePill(
   view: any,
-  opts?: { focus?: boolean; pos?: number; draftIdle?: boolean; committedPillFrom?: number },
-): void {
+  pillEl: HTMLElement,
+  markTo: number,
+  targetPos: number,
+): boolean {
+  const trailingOffset = trailingOffsetForPmCaret(markTo, targetPos);
+
+  const next = pillEl.nextSibling;
+  if (
+    next?.nodeType === Node.TEXT_NODE &&
+    (pillEl.compareDocumentPosition(next) & Node.DOCUMENT_POSITION_FOLLOWING)
+  ) {
+    const text = next as Text;
+    const offset = Math.min(Math.max(0, trailingOffset), text.length);
+    if (setNativeSelection(text, offset) && placementMeetsMarkEnd(view, text, offset, markTo)) {
+      return true;
+    }
+  }
+
+  const parent = pillEl.parentNode;
+  if (parent) {
+    const childIndex = Array.prototype.indexOf.call(parent.childNodes, pillEl);
+    if (childIndex >= 0) {
+      const afterIndex = childIndex + 1;
+      if (setNativeSelectionAtParentChildIndex(parent, afterIndex)) {
+        const sel = typeof window !== 'undefined' ? window.getSelection() : null;
+        if (sel && sel.rangeCount > 0) {
+          const r = sel.getRangeAt(0);
+          if (placementMeetsMarkEnd(view, r.startContainer, r.startOffset, markTo)) return true;
+        }
+      }
+    }
+  }
+
+  try {
+    const sel = typeof window !== 'undefined' ? window.getSelection() : null;
+    if (!sel) return false;
+    const range = document.createRange();
+    range.setStartAfter(pillEl);
+    range.collapse(true);
+    sel.removeAllRanges();
+    sel.addRange(range);
+    return placementMeetsMarkEnd(view, range.startContainer, range.startOffset, markTo);
+  } catch {
+    return false;
+  }
+}
+
+type MobileCaretResyncOpts = {
+  focus?: boolean;
+  pos?: number;
+  draftIdle?: boolean;
+  markFrom?: number;
+  markTo?: number;
+};
+
+function runMobileCaretResync(view: any, opts?: MobileCaretResyncOpts): void {
   try {
     if (!view || view.isDestroyed) return;
     if (opts?.focus) {
@@ -435,17 +503,11 @@ function runMobileCaretResync(
     }
     const pos = Math.min(opts?.pos ?? view.state.selection.from, view.state.doc.content.size);
 
-    if (opts?.draftIdle && canSafelyResyncMobileDraftIdleCaret(view.state)) {
-      const draftEl = getScriptureDraftAnchorElement(view, pos);
-      if (draftEl && setNativeSelectionAfterInlinePill(draftEl, 0)) return;
-    }
-
-    if (opts?.committedPillFrom != null) {
-      const pillEl = findScripturePillElement(view, opts.committedPillFrom, false);
-      if (pillEl) {
-        const pillDocEnd = opts.committedPillFrom + (pillEl.textContent?.length ?? 0);
-        const trailingOffset = pos - pillDocEnd;
-        if (setNativeSelectionAfterInlinePill(pillEl, trailingOffset)) return;
+    if (opts?.markFrom != null && opts?.markTo != null) {
+      const draft = opts.draftIdle === true;
+      if (!draft || canSafelyResyncMobileDraftIdleCaret(view.state)) {
+        const pillEl = findScripturePillElementAtMark(view, opts.markFrom, opts.markTo, draft);
+        if (pillEl && setNativeSelectionAfterInlinePill(view, pillEl, opts.markTo, pos)) return;
       }
     }
 
@@ -478,10 +540,7 @@ function stripProseFormattingFromDraftSpan(tr: any, state: any, from: number, to
  * selection (iOS moved the painted caret without telling PM), so the comparison is a no-op. We set
  * the DOM `Selection` directly instead, which is what typing a real character effectively does.
  */
-export function resyncMobileCaret(
-  view: any,
-  opts?: { focus?: boolean; pos?: number; draftIdle?: boolean; committedPillFrom?: number },
-): void {
+export function resyncMobileCaret(view: any, opts?: MobileCaretResyncOpts): void {
   if (!isMobileDevice() || !view) return;
   // Post-confirm: wait for PM DOM patch before placing the caret outside the pill span.
   if (opts?.focus) {
@@ -734,7 +793,8 @@ export function confirmScriptureDraftView(
     resyncMobileCaret(view, {
       focus: true,
       pos: caretPos,
-      committedPillFrom: range.from,
+      markFrom: range.from,
+      markTo: pillEnd,
     });
   }
 

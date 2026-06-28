@@ -21,6 +21,7 @@ import {
   getScriptureDraftRange,
   hasActiveScriptureDraft,
   hasDraftContinuationTailInDoc,
+  trailingOffsetForPmCaret,
   unifyScriptureDraftAtCursor,
 } from '@/components/react/TiptapScriptureDraft';
 import { collectScripturePillRanges } from '@/utils/scripture-pill-spacing';
@@ -290,5 +291,11 @@ describe('mobile mark-based draft', () => {
     enterScriptureDraftView(view, from, to);
     view.dispatch(getState().tr.setSelection(TextSelection.create(getState().doc, from)));
     expect(canSafelyResyncMobileDraftIdleCaret(getState())).toBe(false);
+  });
+
+  it('trailingOffsetForPmCaret uses PM mark end not DOM text length', () => {
+    const markTo = 10;
+    expect(trailingOffsetForPmCaret(markTo, markTo)).toBe(0);
+    expect(trailingOffsetForPmCaret(markTo, markTo + 1)).toBe(1);
   });
 });

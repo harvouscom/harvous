@@ -6647,8 +6647,14 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
         updatePos();
         if (canSafelyResyncMobileDraftIdleCaret(editor.state)) {
           const anchor = getScriptureDraftAnchorPos(editor.state);
-          if (anchor != null) {
-            resyncMobileCaret(editor.view, { pos: anchor, draftIdle: true });
+          const draftRange = getScriptureDraftRange(editor.state);
+          if (anchor != null && draftRange) {
+            resyncMobileCaret(editor.view, {
+              pos: anchor,
+              draftIdle: true,
+              markFrom: draftRange.from,
+              markTo: draftRange.to,
+            });
           }
         }
       }, 260);

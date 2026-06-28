@@ -191,6 +191,15 @@ Round 12 did not move the caret horizontally; idle resync could lift it off the 
 | 2 | Draft-idle path never reached after-span fallback | `domAtPos` returned "success" first, skipping fallback | **Reorder**: draft-idle and post-commit paths run before generic `domAtPos` |
 | 3 | Post-commit still mis-timed | Single rAF before PM DOM patch | **Double rAF on confirm only** (`focus: true`) |
 
+### Round 14
+
+Round 13 moved the caret off the line end but it painted **before** the pill.
+
+| # | Symptom | Root cause | Fix |
+|---|---------|-----------|-----|
+| 1 | Caret before pill (not after) | Pill DOM resolved at `markFrom` (left edge outside mark) + `querySelector` first pill + `textContent.length` for trailing offset | **`findScripturePillElementAtMark`**: probe `domAtPos` inside marked text; **`trailingOffsetForPmCaret(markTo, pos)`**; parent child-index placement + **`posAtDOM >= markTo`** validation |
+| 2 | Draft idle used wrong pill element | Shared `getScriptureDraftAnchorElement` querySelector fallback | Draft idle passes **`markFrom` / `markTo`** from `getScriptureDraftRange`; caret path never uses querySelector |
+
 ---
 
 ## iOS limitations & gotchas (durable)
@@ -213,7 +222,7 @@ Round 12 did not move the caret horizontally; idle resync could lift it off the 
 
 ## Open issues / needs device verification
 
-- **Round 13 caret paint** — verify on iPhone: caret on prose baseline after draft idle and after confirm; `Numbers 5:5-10` range typing still works.
+- **Round 14 caret after pill** — verify on iPhone: caret after dashed draft and after committed pill (not before); `Numbers 5:5-10` range typing still works.
 - **Round 10 bold** — after abandoning an incomplete draft, bold should not stick on subsequent plain typing.
 - **Dock sizing (Round 3 #4)** — verify the dock fills the column and animates correctly at the
   430px / 620px breakpoints and with the sidebar collapsed (desktop ⌘\) vs absent (mobile).
