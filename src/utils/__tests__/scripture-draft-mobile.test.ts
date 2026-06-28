@@ -11,6 +11,7 @@ vi.mock('@/utils/profile-cache', () => ({
 import { Schema } from '@tiptap/pm/model';
 import { EditorState, TextSelection } from '@tiptap/pm/state';
 import {
+  cancelScriptureDraftView,
   confirmScriptureDraftView,
   computeScriptureDraftGrowth,
   enterScriptureDraftView,
@@ -45,6 +46,10 @@ const draftSchema = new Schema({
       },
       inclusive: false,
       toDOM: () => ['span', 0],
+    },
+    bold: {
+      parseDOM: [{ tag: 'strong' }],
+      toDOM: () => ['strong', 0],
     },
   },
 });
@@ -196,5 +201,48 @@ describe('mobile mark-based draft', () => {
     expect(confirmScriptureDraftView(view, to)).toBeNull();
     expect(collectScripturePillRanges(getState().doc, 'scriptureDraft')).toHaveLength(1);
     expect(getState().doc.textBetween(from, from + base.length + 1)).toBe('Numbers 5:5-');
+  });
+
+  it('enterScriptureDraftView clears storedMarks', () => {
+    const text = 'John 3:16';
+    const from = 1;
+    const to = from + text.length;
+    const { view, getState } = mobileView([draftSchema.text(text)]);
+    view.dispatch(
+      getState()
+        .tr.setStoredMarks([draftSchema.marks.bold.create()])
+        .setSelection(TextSelection.create(getState().doc, to)),
+    );
+    expect(enterScriptureDraftView(view, from, to)).toBe(true);
+    expect(getState().storedMarks ?? []).toHaveLength(0);
+  });
+
+  it('unifyScriptureDraftAtCursor clears storedMarks', () => {
+    const text = 'John 3:16';
+    const from = 1;
+    const to = from + text.length;
+    const { view, getState } = mobileView([draftSchema.text(text + '-17')]);
+    enterScriptureDraftView(view, from, to);
+    view.dispatch(getState().tr.setStoredMarks([draftSchema.marks.bold.create()]));
+    expect(unifyScriptureDraftAtCursor(view)).toBe(true);
+    expect(getState().storedMarks ?? []).toHaveLength(0);
+  });
+
+  it('cancelScriptureDraftView strips bold and clears storedMarks', () => {
+    const base = 'Numbers 5:5';
+    const from = 1;
+    const to = from + base.length;
+    const bold = draftSchema.marks.bold.create();
+    const { view, getState } = mobileView([draftSchema.text(base, [bold])]);
+    enterScriptureDraftView(view, from, to);
+    view.dispatch(getState().tr.setStoredMarks([bold]));
+    expect(cancelScriptureDraftView(view)).toBe(true);
+    expect(collectScripturePillRanges(getState().doc, 'scriptureDraft')).toHaveLength(0);
+    expect(getState().storedMarks ?? []).toHaveLength(0);
+    getState().doc.nodesBetween(from, to, (node: any) => {
+      if (node.isText) {
+        expect(node.marks.some((m: any) => m.type.name === 'bold')).toBe(false);
+      }
+    });
   });
 });

@@ -43,6 +43,7 @@ export const ScriptureDraft = Mark.create<ScriptureDraftOptions>({
   // the draft stays fixed to the detected reference, range tails stay plain text, and confirm
   // (extendRangeOverTrailingContinuation) absorbs them into one clean committed pill.
   inclusive: false,
+  excludes: 'bold italic',
 
   addOptions() {
     return { HTMLAttributes: {} };
@@ -111,6 +112,7 @@ function buildScriptureDraftGrowthTr(state: any): any | null {
   const existing = getMarkInstanceAt(state.doc, growth.from, draftType);
   const tr = state.tr;
   tr.addMark(growth.from, growth.to, draftType.create(existing ? { ...existing.attrs } : {}));
+  tr.setStoredMarks([]);
   tr.setMeta('addToHistory', false);
   return tr;
 }
@@ -148,7 +150,6 @@ export function unifyScriptureDraftAtCursor(view: any): boolean {
   const tr = buildScriptureDraftGrowthTr(view.state);
   if (!tr) return false;
   view.dispatch(tr);
-  resyncMobileCaret(view);
   return true;
 }
 
@@ -320,123 +321,26 @@ export function draftTextToReference(text: string): string | null {
 
 // ── Mutations ───────────────────────────────────────────────────────────────────
 
-/** Last text node under `root` (depth-first), for native caret placement inside pills. */
-function getLastTextNodeIn(root: Node): Text | null {
-  if (root.nodeType === Node.TEXT_NODE) return root as Text;
-  let last: Text | null = null;
-  for (let i = 0; i < root.childNodes.length; i++) {
-    const found = getLastTextNodeIn(root.childNodes[i]);
-    if (found) last = found;
-  }
-  return last;
-}
-
-/** Committed pill span (not draft) nearest `pos`, or null. */
-function findCommittedPillElement(view: any, pos: number): HTMLElement | null {
-  try {
-    const { node } = view.domAtPos(Math.max(pos - 1, 0));
-    let el: Node | null = node;
-    while (el && el !== view.dom) {
-      if (
-        el instanceof HTMLElement &&
-        el.classList?.contains('scripture-pill') &&
-        !el.classList?.contains('scripture-pill-draft')
-      ) {
-        return el;
-      }
-      el = el.parentNode;
-    }
-  } catch {
-    /* ignore */
-  }
-  return null;
-}
-
-/** Place native selection at ProseMirror's `pos` via domAtPos. */
-function setNativeSelectionAtDomPos(view: any, pos: number): boolean {
-  try {
-    const dom = view.domAtPos(Math.min(pos, view.state.doc.content.size));
-    if (!dom?.node) return false;
-    const sel = typeof window !== 'undefined' ? window.getSelection() : null;
-    if (!sel) return false;
-    const range = document.createRange();
-    range.setStart(dom.node, dom.offset);
-    range.collapse(true);
-    sel.removeAllRanges();
-    sel.addRange(range);
-    return true;
-  } catch {
-    return false;
-  }
+/** Remove bold/italic from the draft span and any plain-text range tail when abandoning a draft. */
+function stripProseFormattingFromDraftSpan(tr: any, state: any, from: number, to: number): void {
+  const end = extendRangeOverTrailingContinuation(state.doc, to);
+  const bold = state.schema.marks.bold;
+  const italic = state.schema.marks.italic;
+  if (bold) tr.removeMark(from, end, bold);
+  if (italic) tr.removeMark(from, end, italic);
 }
 
 /**
- * Set the browser Selection to `pos`, preferring the last text node inside a draft/pill span
- * (same anchor strategy as the floating ✓) before falling back to `view.domAtPos`.
+ * iOS only: force the native caret to ProseMirror's selection position on the next frame.
  *
- * When the caret is in a plain-text range tail after the draft mark (e.g. `-10` after
- * `Numbers 5:5`), use PM's position directly — anchoring to the draft pill end would steal
- * the caret from the tail the user is typing.
- */
-function applyNativeCaret(view: any, pos: number): void {
-  if (!view || view.isDestroyed) return;
-
-  const pmPos = Math.min(pos, view.state.doc.content.size);
-  const draftRange = getScriptureDraftRange(view.state);
-  if (draftRange && pmPos > draftRange.to) {
-    const gap = view.state.doc.textBetween(draftRange.to, pmPos);
-    if (gap === '' || /^[\d:,\-–—]+$/.test(gap)) {
-      if (setNativeSelectionAtDomPos(view, pmPos)) return;
-    }
-  }
-
-  const sel = typeof window !== 'undefined' ? window.getSelection() : null;
-  if (!sel) return;
-
-  const draftEl = getScriptureDraftAnchorElement(view, pmPos);
-  if (draftEl) {
-    const textNode = getLastTextNodeIn(draftEl);
-    if (textNode) {
-      const range = document.createRange();
-      range.setStart(textNode, textNode.length);
-      range.collapse(true);
-      sel.removeAllRanges();
-      sel.addRange(range);
-      return;
-    }
-  }
-
-  const pillEl = findCommittedPillElement(view, pmPos);
-  if (pillEl) {
-    let next: Node | null = pillEl.nextSibling;
-    while (next) {
-      if (next.nodeType === Node.TEXT_NODE) {
-        const textNode = next as Text;
-        const dom = view.domAtPos(pmPos);
-        const offset =
-          dom?.node === textNode
-            ? dom.offset
-            : Math.min(pmPos > 0 ? 1 : 0, textNode.length);
-        const range = document.createRange();
-        range.setStart(textNode, offset);
-        range.collapse(true);
-        sel.removeAllRanges();
-        sel.addRange(range);
-        return;
-      }
-      next = next.nextSibling;
-    }
-  }
-
-  setNativeSelectionAtDomPos(view, pmPos);
-}
-
-/**
- * iOS only: force the native caret to ProseMirror's selection position after PM's DOM patch lands.
+ * A programmatic mark change (adding/growing the draft) restructures the contenteditable, and iOS
+ * leaves the *visible* caret stuck at the line end even though ProseMirror's selection is correct.
+ * Re-dispatching a ProseMirror selection does NOT help — PM recorded that it already synced the DOM
+ * selection (iOS moved the painted caret without telling PM), so the comparison is a no-op. We set
+ * the DOM `Selection` directly instead, which is what typing a real character effectively does.
  */
 export function resyncMobileCaret(view: any, opts?: { focus?: boolean }): void {
   if (!isMobileDevice() || !view) return;
-
   requestAnimationFrame(() => {
     try {
       if (!view || view.isDestroyed) return;
@@ -447,18 +351,16 @@ export function resyncMobileCaret(view: any, opts?: { focus?: boolean }): void {
           /* ignore */
         }
       }
-      requestAnimationFrame(() => {
-        try {
-          if (!view || view.isDestroyed) return;
-          applyNativeCaret(view, view.state.selection.from);
-          setTimeout(() => {
-            if (!view || view.isDestroyed) return;
-            applyNativeCaret(view, view.state.selection.from);
-          }, 16);
-        } catch {
-          /* ignore */
-        }
-      });
+      const pos = Math.min(view.state.selection.from, view.state.doc.content.size);
+      const dom = view.domAtPos(pos);
+      if (!dom || !dom.node) return;
+      const sel = typeof window !== 'undefined' ? window.getSelection() : null;
+      if (!sel) return;
+      const range = document.createRange();
+      range.setStart(dom.node, dom.offset);
+      range.collapse(true);
+      sel.removeAllRanges();
+      sel.addRange(range);
     } catch {
       /* ignore */
     }
@@ -488,8 +390,8 @@ export function enterScriptureDraftView(view: any, from: number, to: number): bo
   tr.addMark(from, to, draftType.create({}));
   if (caretInside) {
     tr.setSelection(TextSelection.create(tr.doc, to));
-    tr.setStoredMarks([]);
   }
+  tr.setStoredMarks([]);
   tr.setMeta('addToHistory', true);
   view.dispatch(tr);
   resyncMobileCaret(view);
@@ -622,6 +524,7 @@ export function confirmScriptureDraftView(
       return null;
     }
     tr.removeMark(range.from, range.to, draftType);
+    stripProseFormattingFromDraftSpan(tr, state, range.from, range.to);
     tr.setStoredMarks([]);
     tr.setMeta('addToHistory', true);
     view.dispatch(tr);
@@ -673,7 +576,9 @@ export function confirmScriptureDraftView(
   tr.setMeta('addToHistory', true);
   view.dispatch(tr);
 
-  resyncMobileCaret(view, { focus: opts?.focus });
+  if (opts?.focus) {
+    resyncMobileCaret(view, { focus: true });
+  }
 
   try {
     view.dom.dispatchEvent(
@@ -704,6 +609,7 @@ export function cancelScriptureDraftView(view: any): boolean {
   if (!range) return false;
   const tr = state.tr;
   tr.removeMark(range.from, range.to, draftType);
+  stripProseFormattingFromDraftSpan(tr, state, range.from, range.to);
   tr.setStoredMarks([]);
   tr.setMeta('addToHistory', true);
   view.dispatch(tr);

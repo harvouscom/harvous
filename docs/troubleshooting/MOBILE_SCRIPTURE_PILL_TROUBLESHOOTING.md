@@ -128,15 +128,15 @@ Cannot finish verse ranges like `Number 5:5-10` — draft stuck or commits at `N
 
 Helpers: `hasActiveScriptureDraft`, `hasDraftContinuationTailInDoc` in `TiptapScriptureDraft.ts`.
 
-### Round 8 (current)
+### Round 8
 
 Round 6's **mobile decoration draft** regressed range typing on device — the mark-based path (debounced unify) had been working; only caret painting was wrong.
 
 | # | Change | Why |
 |---|--------|-----|
 | 1 | **Reverted decoration draft** — mobile uses `scriptureDraft` mark again (same as pre-Round-6) | Decoration layer broke `Number 5:5-10` style entry despite passing jsdom tests |
-| 2 | **Kept Round 5–6 caret hardening** — `applyNativeCaret`, double-rAF + 16ms retry, resync on ✓ re-show | Fixes painted caret at line end after mark mutations |
-| 3 | **`applyNativeCaret` respects range tail** — when PM selection is past the draft mark with continuation chars (`-10`), use `domAtPos` instead of draft pill end | Prevents ✓ re-show resync from stealing the caret mid-range |
+| 2 | **Kept Round 5–6 caret hardening** — `applyNativeCaret`, double-rAF + 16ms retry, resync on ✓ re-show | Fixes painted caret at line end after mark mutations (later reverted in Round 10) |
+| 3 | **`applyNativeCaret` respects range tail** | Prevents ✓ re-show resync from stealing the caret mid-range (later simplified in Round 10) |
 | 4 | **Kept Round 7 timer + blur defer** | Still needed on the mark path |
 
 ### Round 9
@@ -147,7 +147,19 @@ Range dash still broken on device after Round 8 revert.
 |---|---------|-----------|-----|
 | 1 | Draft commits or vanishes when reaching `-` | iOS keyboard-layer switch fires `blur`; deferred blur-confirm commits `Numbers 5:5` before the tail is typed | **Disable blur-confirm on mobile while any draft is active** — confirm via ✓ / Enter / selection-leave only |
 | 2 | Draft styling stripped after typing `-` alone | `confirmScriptureDraftView` on invalid ref (`Numbers 5:5-`) called `removeMark` | **Keep draft open** when continuation tail chars exist but `draftTextToReference` is not yet valid |
-| 3 | Caret jumps while typing tail | ✓ re-show called `resyncMobileCaret` even when caret is past the draft mark | Skip resync when `hasDraftContinuationTailInDoc` and caret is past draft end |
+| 3 | Caret jumps while typing tail | ✓ re-show called `resyncMobileCaret` even when caret is past the draft mark | Skip resync when `hasDraftContinuationTailInDoc` and caret is past draft end (later removed entirely in Round 10) |
+
+### Round 10 (current)
+
+Session caret hardening regressed range dash typing; bold stuck after incomplete drafts.
+
+| # | Change | Why |
+|---|--------|-----|
+| 1 | **Reverted `applyNativeCaret`** — `resyncMobileCaret` back to single-rAF `domAtPos` only | DOM-first placement inside `.scripture-pill-draft` stole the caret at the non-inclusive mark boundary where `-` must land |
+| 2 | **Removed `resyncMobileCaret` from unify and ✓ re-show** | Idle resync fought mid-range typing and caused toolbar flicker |
+| 3 | **Resync only on enter + user confirm** (`{ focus: true }`) | Matches pre-session behavior that typed correctly |
+| 4 | **Bold fix** — `setStoredMarks([])` on enter/grow; `excludes: 'bold italic'` on draft mark; strip bold on cancel/failed confirm; `BoldCustom` guards draft + pill | Bold stuck/flickered after incomplete drafts |
+| 5 | **Kept Round 7–9 guards** — `hasActiveDraft` timer, mobile blur skip, `midRangeEntry` confirm, `isCaretAttached` detached logic | Still needed on mark path |
 
 ---
 
@@ -167,11 +179,13 @@ Range dash still broken on device after Round 8 revert.
 - **The study-dock sidebar offset lives on `.study-dock-carousel__track`** — when changing dock
   layout, reset/inherit padding on the *track*, and re-check `--no-sidebar` / `--sidebar-collapsed` /
   `@media (max-width: 899px)` / `--drawer-open` states.
-- **`isMobileDevice()`** (`src/utils/pwa-prompt.ts`) returns false in jsdom, so the default unit tests exercise the desktop (mark) path. Mobile decoration behavior is covered by `src/utils/__tests__/scripture-draft-mobile.test.ts` (mocked mobile). Caret paint still needs device verification.
+- **`isMobileDevice()`** (`src/utils/pwa-prompt.ts`) returns false in jsdom, so the default unit tests exercise the desktop (mark) path. Mobile draft behavior is covered by `src/utils/__tests__/scripture-draft-mobile.test.ts` (mocked mobile). Caret paint still needs device verification.
 
 ## Open issues / needs device verification
 
-- **Round 7 range tail** — re-verify `Number 5:5-10` and `John 3:16-18` on iPhone: timer stays armed during `-` entry, blur does not commit early, ✓ confirms full range.
+- **Round 10 range tail** — re-verify `Numbers 5:5-10` on iPhone after caret hardening revert: dash types as plain text after draft mark, ✓ confirms full range.
+- **Round 10 bold** — after abandoning an incomplete draft, bold should not stick on subsequent plain typing.
+- Caret may still paint at line end after confirm (pre-session known issue; minimal resync on enter/confirm only).
 - **Dock sizing (Round 3 #4)** — verify the dock fills the column and animates correctly at the
   430px / 620px breakpoints and with the sidebar collapsed (desktop ⌘\) vs absent (mobile).
 
