@@ -30,21 +30,23 @@
 
   var path = window.location.pathname;
   var host = window.location.hostname;
-  var protoHosts = ['new.harvous.com', 'app.harvous.com'];
-  var onDedicated = protoHosts.indexOf(host) >= 0;
-  if (onDedicated) {
-    if (path.indexOf('/sign-in') === 0 || path.indexOf('/sign-up') === 0) return;
-    if (
-      path !== '/' &&
-      !path.startsWith('/prototype') &&
-      !path.startsWith('/n/') &&
-      !path.startsWith('/settings') &&
-      !path.startsWith('/space/')
-    ) {
-      return;
-    }
-  } else if (!path.startsWith('/prototype')) {
+  var shellPath = window.__harvousPrototypeShellPath;
+  if (!shellPath || !shellPath.isPrototypeShellPath(path, host)) {
     return;
+  }
+
+  /** iOS standalone PWA: skip image wallpapers at first paint (WebKit compositor OOM). */
+  function isIosStandalonePwa() {
+    var ua = navigator.userAgent || '';
+    var isIos = /iPhone|iPad|iPod/.test(ua);
+    var isPwa =
+      window.matchMedia('(display-mode: standalone), (display-mode: minimal-ui)').matches ||
+      window.navigator.standalone === true;
+    return isIos && isPwa;
+  }
+
+  function shouldReduceCompositorLoad() {
+    return isIosStandalonePwa() && window.matchMedia('(max-width: 899px)').matches;
   }
 
   var PROTO_BG_KEY = 'harvous-proto-bg';
@@ -239,5 +241,9 @@
     root.classList.add(WALLPAPER_CLASS, WALLPAPER_IMAGE_CLASS);
   }
 
-  applyBackground(readBackground());
+  var bootBg = readBackground();
+  if (shouldReduceCompositorLoad() && bootBg && bootBg.kind === 'image-preset') {
+    bootBg = null;
+  }
+  applyBackground(bootBg);
 })();

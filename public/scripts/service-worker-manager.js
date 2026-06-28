@@ -85,6 +85,17 @@
         p.indexOf('/invitations/') === 0;
     }
 
+    function isPrototypeShellPage() {
+      var el = document.documentElement;
+      if (el.classList.contains('harvous-prototype-route')) return true;
+      if (document.querySelector('.proto-shell-frame')) return true;
+      var shellPath = window.__harvousPrototypeShellPath;
+      if (shellPath && shellPath.isPrototypeShellPath(window.location.pathname, window.location.hostname)) {
+        return true;
+      }
+      return false;
+    }
+
     // --- iOS PWA silent-update detection ---
     // On iOS, when the PWA is killed and relaunched, the new service worker is
     // already the controller before this script runs, so 'controllerchange' is
@@ -139,6 +150,20 @@
         console.log('Major version update detected. Skipping automatic reload.');
         reloadingForUpdate = false; // Allow future updates to trigger toast
         // TODO: In the future, could show a different notification here for major updates
+        return;
+      }
+
+      // Prototype shell: avoid cache-clear + reload loops on iOS PWA (WebKit process kill).
+      // The page already runs the new worker; notify the user to reload when convenient.
+      if (isPrototypeShellPage()) {
+        reloadingForUpdate = false;
+        if (!isNoUpdateToastPath() && window.toast && typeof window.toast.info === 'function') {
+          try {
+            window.toast.info('Harvous has been updated');
+          } catch (error) {
+            console.log('Prototype update toast failed:', error);
+          }
+        }
         return;
       }
 

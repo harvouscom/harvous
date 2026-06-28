@@ -368,6 +368,28 @@ export function readBackgroundForMode(mode: 'light' | 'dark'): ProtoBg {
   }
 }
 
+/** iOS home-screen PWA — WebKit is prone to renderer kills with image wallpapers + blur. */
+export function isIosStandalonePwa(): boolean {
+  if (typeof window === 'undefined') return false;
+  const isIos = /iPhone|iPad|iPod/.test(navigator.userAgent);
+  const isPwa =
+    window.matchMedia('(display-mode: standalone), (display-mode: minimal-ui)').matches ||
+    (navigator as Navigator & { standalone?: boolean }).standalone === true;
+  return isIos && isPwa;
+}
+
+/** Prefer Paper + reduced blur on iOS standalone at mobile widths. */
+export function shouldReducePrototypeCompositorOnMobile(): boolean {
+  if (typeof window === 'undefined') return false;
+  return isIosStandalonePwa() && window.matchMedia('(max-width: 899px)').matches;
+}
+
+function stripHeavyBackgroundForMobile(bg: ProtoBg): ProtoBg {
+  if (!shouldReducePrototypeCompositorOnMobile() || !bg) return bg;
+  if (bg.kind === 'image-preset') return null;
+  return bg;
+}
+
 export function writeBackgroundForMode(mode: 'light' | 'dark', bg: ProtoBg): void {
   try {
     const key = modeKey(mode);
@@ -386,7 +408,7 @@ export function writeBackgroundForMode(mode: 'light' | 'dark', bg: ProtoBg): voi
 }
 
 export function readActiveBackground(): ProtoBg {
-  return readBackgroundForMode(isDarkAppearance() ? 'dark' : 'light');
+  return stripHeavyBackgroundForMobile(readBackgroundForMode(isDarkAppearance() ? 'dark' : 'light'));
 }
 
 // ─── Wallpaper classes ───────────────────────────────────────────────────────

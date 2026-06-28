@@ -1,7 +1,7 @@
 // Service Worker for Harvous PWA
 // Simple, reliable caching with stale-while-revalidate strategy
 
-const CACHE_NAME = 'harvous-cache-v1-217-186';
+const CACHE_NAME = 'harvous-cache-v1-217-187';
 const NAV_API_CACHE = 'harvous-nav-api-v10';
 const CACHE_MAX_AGE = 24 * 60 * 60 * 1000; // 24 hours
 
@@ -87,9 +87,44 @@ const safeCachePut = async (cache, request, response) => {
   }
 };
 
-const isNoteOrThreadPage = (pathname) => {
+const DEDICATED_PROTOTYPE_HOSTS = new Set(['app.harvous.com', 'new.harvous.com', 'localhost']);
+const NON_PROTOTYPE_PREFIXES = [
+  '/sign-in',
+  '/sign-up',
+  '/spaces/join',
+  '/shared/',
+  '/invitations/',
+  '/upgrade',
+  '/api/',
+];
+const RESERVED_PROTOTYPE_SEGMENTS = new Set(['settings', 'space', 'search']);
+
+function prototypeLogicalPath(pathname) {
+  if (pathname.startsWith('/prototype')) {
+    const rest = pathname.slice('/prototype'.length);
+    return rest || '/';
+  }
+  return pathname;
+}
+
+function isNonPrototypeAppPath(logical) {
+  return NON_PROTOTYPE_PREFIXES.some((p) => logical === p || logical.startsWith(p));
+}
+
+const isPrototypeNoteSlugPath = (pathname, hostname) => {
+  if (!DEDICATED_PROTOTYPE_HOSTS.has(hostname)) return false;
+  const logical = prototypeLogicalPath(pathname);
+  if (isNonPrototypeAppPath(logical)) return false;
+  const trimmed = logical.replace(/^\/+/, '').replace(/\/+$/, '');
+  if (!trimmed || trimmed.includes('/')) return false;
+  if (RESERVED_PROTOTYPE_SEGMENTS.has(trimmed)) return false;
+  return true;
+};
+
+const isNoteOrThreadPage = (pathname, hostname) => {
   if (/^\/\d+$/.test(pathname)) return true;
   if (/^\/(note|thread)\//.test(pathname)) return true;
+  if (isPrototypeNoteSlugPath(pathname, hostname)) return true;
   return false;
 };
 
@@ -366,7 +401,7 @@ self.addEventListener('fetch', (event) => {
 
   // Navigation requests (pages)
   if (event.request.mode === 'navigate') {
-    const isNoteOrThread = isNoteOrThreadPage(url.pathname);
+    const isNoteOrThread = isNoteOrThreadPage(url.pathname, url.hostname);
     const isIndexPage = url.pathname === '/';
     const isOnline = navigator.onLine;
 

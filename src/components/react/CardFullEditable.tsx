@@ -16,6 +16,7 @@ import { getEffectiveDefaultTranslation } from '@/utils/profile-cache';
 import { getCachedProfileData } from '@/utils/profile-cache';
 import { isNoteUnlocked, lockNote } from '@/utils/note-unlock-state';
 import { useIsOffline } from '@/hooks/useIsOffline';
+import { isMobileDevice } from '@/utils/pwa-prompt';
 import '@/styles/card-full-editable.css';
 import Icon from './Icon';
 import SharedNoteCTAFooter from './SharedNoteCTAFooter';
@@ -309,7 +310,7 @@ export default function CardFullEditable({
     editorChromeMode === 'prototypeNative'
       ? (prototypeNoteActionsChrome ?? !!(noteActionsPortalTarget || prototypeNoteActionBar))
       : false;
-  const eagerTiptap = editorChromeMode === 'prototypeNative' && alwaysEditing;
+  const eagerTiptap = editorChromeMode === 'prototypeNative' && alwaysEditing && !isMobileDevice();
   const TiptapEditorComponent = eagerTiptap ? TiptapEditorEager : TiptapEditorLazy;
   const prototypeAlwaysEditing =
     editorChromeMode === 'prototypeNative' &&

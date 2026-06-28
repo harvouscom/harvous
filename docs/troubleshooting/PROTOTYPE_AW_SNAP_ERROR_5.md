@@ -4,6 +4,8 @@
 
 Chrome shows **Aw, Snap!** with **Error code: 5** on `/prototype` shortly after load (often ~5 seconds), while the tab renderer process dies. This is a **GPU compositor or memory kill**, not a normal API error (no JSON error toast).
 
+On **iOS standalone PWA**, the same class of failure often surfaces as **"A problem repeatedly occurred on …"** (WebKit killed the content process after repeated load/crash attempts). Note deep-links like `new.harvous.com/fXvv5uY` are especially heavy: full shell + eager TipTap + glass compositing.
+
 ## What usually causes it
 
 1. **Stacked `backdrop-filter` (blur) layers** over a custom canvas wallpaper, especially a **large image data URL** in `localStorage` (`harvous-proto-bg`). Each blur forces the compositor to snapshot and blur pixels behind the layer; stacked blurs over a full-screen background can exhaust GPU memory.
@@ -30,6 +32,9 @@ Chrome shows **Aw, Snap!** with **Error code: 5** on `/prototype` shortly after 
 | Shell frame + panel glass | [spa/src/styles/prototype-shell.css](../../spa/src/styles/prototype-shell.css) |
 | Shared glass recipe | [spa/src/styles/prototype-components.css](../../spa/src/styles/prototype-components.css) (`.proto-glass-surface`) |
 | Skip IndexedDB sync on prototype | [src/utils/sync-init.ts](../../src/utils/sync-init.ts) (`isPrototypeShellRoute`) |
+| iOS PWA compositor guard (Paper wallpaper, no shell blur) | [spa/src/lib/prototype-background.ts](../../spa/src/lib/prototype-background.ts), [spa/src/styles/prototype-shell.css](../../spa/src/styles/prototype-shell.css) (`html.ios-pwa`) |
+| Base62 note slug boot + SW navigate | [public/scripts/prototype-shell-path.js](../../public/scripts/prototype-shell-path.js), [public/sw.js](../../public/sw.js) |
+| Lazy TipTap on mobile prototype notes | [src/components/react/CardFullEditable.tsx](../../src/components/react/CardFullEditable.tsx) |
 | Light list refresh after sync / tab focus | [spa/src/lib/refresh-client-data.ts](../../spa/src/lib/refresh-client-data.ts) (`refreshPrototypeLists`), [spa/src/layouts/SimplifiedPrototypeLayout.tsx](../../spa/src/layouts/SimplifiedPrototypeLayout.tsx) |
 | Canvas attachment guard | [spa/src/styles/prototype-tokens.css](../../spa/src/styles/prototype-tokens.css) |
 

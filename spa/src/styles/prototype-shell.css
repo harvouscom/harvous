@@ -1096,6 +1096,20 @@ html.harvous-proto-wallpaper-image .proto-editor-bottom-bar {
   }
 }
 
+/* iOS standalone PWA: drop shell blur + html wallpaper to avoid WebKit process kills. */
+@media (max-width: 899px) {
+  html.ios-pwa.harvous-prototype-route {
+    background-image: none !important;
+    background-color: var(--pds-canvas-default) !important;
+  }
+
+  html.ios-pwa.harvous-prototype-route .proto-shell-frame {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    background: var(--pds-bg-page);
+  }
+}
+
 .proto-popover-shell__content {
   position: relative;
   z-index: 1;

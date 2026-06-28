@@ -366,57 +366,98 @@ function setNativeSelection(node: Node, offset: number): boolean {
   }
 }
 
-/** Last text node inside `root`, caret at its end — draft-idle fallback only (no plain tail). */
-function findLastTextNodeEnd(root: Node): { node: Text; offset: number } | null {
-  let result: { node: Text; offset: number } | null = null;
-  const walk = (n: Node): void => {
-    if (result) return;
-    if (n.nodeType === Node.TEXT_NODE) {
-      const text = n as Text;
-      result = { node: text, offset: text.length };
-      return;
-    }
-    for (let i = n.childNodes.length - 1; i >= 0; i--) {
-      walk(n.childNodes[i]);
-      if (result) return;
-    }
-  };
-  walk(root);
-  return result;
+function isScripturePillElement(el: HTMLElement, draft: boolean): boolean {
+  if (!el.classList.contains('scripture-pill')) return false;
+  return draft ? el.classList.contains('scripture-pill-draft') : !el.classList.contains('scripture-pill-draft');
 }
 
-/** Trailing spacer text node after a committed (non-draft) pill — post-confirm fallback. */
-function findCommittedPillTrailingSpace(
-  view: any,
-  pillFrom: number,
-): { node: Node; offset: number } | null {
+function findScripturePillElement(view: any, pos: number, draft: boolean): HTMLElement | null {
+  if (draft) return getScriptureDraftAnchorElement(view, pos);
   try {
-    const dom = view.domAtPos(Math.max(pillFrom, 0));
+    const dom = view.domAtPos(Math.max(pos, 0));
     if (!dom?.node) return null;
     let el: Node | null = dom.node;
     if (el.nodeType === Node.TEXT_NODE) el = el.parentNode;
     while (el && el !== view.dom) {
-      if (
-        el instanceof HTMLElement &&
-        el.classList.contains('scripture-pill') &&
-        !el.classList.contains('scripture-pill-draft')
-      ) {
-        let sib: Node | null = el.nextSibling;
-        while (sib) {
-          if (sib.nodeType === Node.TEXT_NODE) {
-            const text = sib as Text;
-            return { node: text, offset: text.length };
-          }
-          sib = sib.nextSibling;
-        }
-        break;
-      }
+      if (el instanceof HTMLElement && isScripturePillElement(el, false)) return el;
       el = el.parentNode;
     }
   } catch {
     /* ignore */
   }
-  return null;
+  try {
+    const found = view.dom?.querySelector?.('.scripture-pill:not(.scripture-pill-draft)');
+    return found instanceof HTMLElement ? found : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Place the native caret just after an inline pill span (outside inline-flex), optionally into the
+ * following text node. Avoids iOS painting the caret inside the pill box (wrong baseline / line end).
+ */
+function setNativeSelectionAfterInlinePill(
+  pillEl: HTMLElement,
+  offsetInNextText = 0,
+): boolean {
+  try {
+    const next = pillEl.nextSibling;
+    if (next?.nodeType === Node.TEXT_NODE) {
+      const text = next as Text;
+      return setNativeSelection(text, Math.min(Math.max(0, offsetInNextText), text.length));
+    }
+    const sel = typeof window !== 'undefined' ? window.getSelection() : null;
+    if (!sel) return false;
+    const range = document.createRange();
+    range.setStartAfter(pillEl);
+    range.collapse(true);
+    sel.removeAllRanges();
+    sel.addRange(range);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function runMobileCaretResync(
+  view: any,
+  opts?: { focus?: boolean; pos?: number; draftIdle?: boolean; committedPillFrom?: number },
+): void {
+  try {
+    if (!view || view.isDestroyed) return;
+    if (opts?.focus) {
+      try {
+        view.focus();
+      } catch {
+        /* ignore */
+      }
+    }
+    const pos = Math.min(opts?.pos ?? view.state.selection.from, view.state.doc.content.size);
+
+    if (opts?.draftIdle && canSafelyResyncMobileDraftIdleCaret(view.state)) {
+      const draftEl = getScriptureDraftAnchorElement(view, pos);
+      if (draftEl && setNativeSelectionAfterInlinePill(draftEl, 0)) return;
+    }
+
+    if (opts?.committedPillFrom != null) {
+      const pillEl = findScripturePillElement(view, opts.committedPillFrom, false);
+      if (pillEl) {
+        const pillDocEnd = opts.committedPillFrom + (pillEl.textContent?.length ?? 0);
+        const trailingOffset = pos - pillDocEnd;
+        if (setNativeSelectionAfterInlinePill(pillEl, trailingOffset)) return;
+      }
+    }
+
+    try {
+      const dom = view.domAtPos(pos);
+      if (dom?.node) setNativeSelection(dom.node, dom.offset);
+    } catch {
+      /* ignore */
+    }
+  } catch {
+    /* ignore */
+  }
 }
 
 /** Remove bold/italic from the draft span and any plain-text range tail when abandoning a draft. */
@@ -442,46 +483,14 @@ export function resyncMobileCaret(
   opts?: { focus?: boolean; pos?: number; draftIdle?: boolean; committedPillFrom?: number },
 ): void {
   if (!isMobileDevice() || !view) return;
-  requestAnimationFrame(() => {
-    try {
-      if (!view || view.isDestroyed) return;
-      if (opts?.focus) {
-        try {
-          view.focus();
-        } catch {
-          /* ignore */
-        }
-      }
-      const pos = Math.min(opts?.pos ?? view.state.selection.from, view.state.doc.content.size);
-
-      if (opts?.committedPillFrom != null) {
-        const trailing = findCommittedPillTrailingSpace(view, opts.committedPillFrom);
-        if (trailing && setNativeSelection(trailing.node, trailing.offset)) return;
-      }
-
-      let applied = false;
-      try {
-        const dom = view.domAtPos(pos);
-        if (dom?.node) applied = setNativeSelection(dom.node, dom.offset);
-      } catch {
-        /* ignore */
-      }
-
-      if (
-        !applied &&
-        opts?.draftIdle &&
-        canSafelyResyncMobileDraftIdleCaret(view.state)
-      ) {
-        const draftEl = getScriptureDraftAnchorElement(view, pos);
-        if (draftEl) {
-          const end = findLastTextNodeEnd(draftEl);
-          if (end) setNativeSelection(end.node, end.offset);
-        }
-      }
-    } catch {
-      /* ignore */
-    }
-  });
+  // Post-confirm: wait for PM DOM patch before placing the caret outside the pill span.
+  if (opts?.focus) {
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => runMobileCaretResync(view, opts));
+    });
+    return;
+  }
+  requestAnimationFrame(() => runMobileCaretResync(view, opts));
 }
 
 let draftTailCaretSyncRaf: number | null = null;

@@ -181,6 +181,16 @@ Range typing works (Round 11); caret still paints at line end beside the ✓ and
 | 3 | **Post-commit resync** — `confirmScriptureDraftView` passes `committedPillFrom` + `caretPos`; DOM fallback finds trailing spacer after `.scripture-pill:not(.scripture-pill-draft)` | `domAtPos` alone often mis-paints after pill commit on iOS |
 | 4 | **Still avoided** — enter resync, unify resync, resync during plain tail (`scheduleMobileDraftTailCaretSync` owns that), last-text-node-inside-draft during tail, double-rAF globally | These regressed range dash typing in Rounds 5–10 |
 
+### Round 13
+
+Round 12 did not move the caret horizontally; idle resync could lift it off the prose baseline.
+
+| # | Symptom | Root cause | Fix |
+|---|---------|-----------|-----|
+| 1 | Caret unchanged horizontally; slightly above baseline | `domAtPos` ran first inside `inline-flex` pill; inner-text fallback also inside the span | **After-span placement**: `setNativeSelectionAfterInlinePill` uses `setStartAfter(pill)` or offset in the next text sibling — never inside the pill box |
+| 2 | Draft-idle path never reached after-span fallback | `domAtPos` returned "success" first, skipping fallback | **Reorder**: draft-idle and post-commit paths run before generic `domAtPos` |
+| 3 | Post-commit still mis-timed | Single rAF before PM DOM patch | **Double rAF on confirm only** (`focus: true`) |
+
 ---
 
 ## iOS limitations & gotchas (durable)
@@ -203,7 +213,7 @@ Range typing works (Round 11); caret still paints at line end beside the ✓ and
 
 ## Open issues / needs device verification
 
-- **Round 12 caret paint** — verify on iPhone: draft idle caret beside ✓; post-commit caret after pill + spacer; `Numbers 5:5-10` range typing still works.
+- **Round 13 caret paint** — verify on iPhone: caret on prose baseline after draft idle and after confirm; `Numbers 5:5-10` range typing still works.
 - **Round 10 bold** — after abandoning an incomplete draft, bold should not stick on subsequent plain typing.
 - **Dock sizing (Round 3 #4)** — verify the dock fills the column and animates correctly at the
   430px / 620px breakpoints and with the sidebar collapsed (desktop ⌘\) vs absent (mobile).

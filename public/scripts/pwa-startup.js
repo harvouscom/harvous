@@ -105,20 +105,11 @@ var PWA_SHELL_RELOAD_KEY = 'harvous_pwa_shell_reload';
 var PWA_SHELL_WATCHDOG_MS = 7000;
 
 function isPrototypeShellRoute() {
-  var path = window.location.pathname;
-  var host = window.location.hostname;
-  var protoHosts = ['new.harvous.com', 'app.harvous.com'];
-  if (protoHosts.indexOf(host) >= 0) {
-    if (path.indexOf('/sign-in') === 0 || path.indexOf('/sign-up') === 0) return false;
-    return (
-      path === '/' ||
-      path.indexOf('/prototype') === 0 ||
-      path.indexOf('/n/') === 0 ||
-      path.indexOf('/settings') === 0 ||
-      path.indexOf('/space/') === 0
-    );
+  var shellPath = window.__harvousPrototypeShellPath;
+  if (shellPath) {
+    return shellPath.isPrototypeShellPath(window.location.pathname, window.location.hostname);
   }
-  return path.indexOf('/prototype') === 0;
+  return window.location.pathname.indexOf('/prototype') === 0;
 }
 
 function hasPrototypeShellMounted() {
