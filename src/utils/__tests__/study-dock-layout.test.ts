@@ -1,5 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { syncFormatToolbarPaperInset, syncStudyDockCenterOffset } from '../study-dock-layout';
+import {
+  syncFormatToolbarPaperInset,
+  syncFormatToolbarReservedHeight,
+  syncStudyDockCenterOffset,
+} from '../study-dock-layout';
 
 function mockMatchMedia(desktop: boolean) {
   vi.stubGlobal(
@@ -184,5 +188,52 @@ describe('syncFormatToolbarPaperInset', () => {
     expect(syncFormatToolbarPaperInset()).toBe(0);
     expect(shell.style.getPropertyValue('--proto-format-toolbar-paper-inset')).toBe('0px');
     expect(shell.style.getPropertyValue('--proto-format-toolbar-paper-right-inset')).toBe('380px');
+  });
+});
+
+describe('syncFormatToolbarReservedHeight', () => {
+  beforeEach(() => {
+    document.body.innerHTML = '';
+    document.documentElement.style.removeProperty('--proto-format-toolbar-reserved-height');
+  });
+
+  afterEach(() => {
+    document.documentElement.style.removeProperty('--proto-format-toolbar-reserved-height');
+    vi.unstubAllGlobals();
+  });
+
+  it('returns 0 and removes the CSS variable when the format bar is missing', () => {
+    document.documentElement.style.setProperty('--proto-format-toolbar-reserved-height', '52px');
+
+    expect(syncFormatToolbarReservedHeight()).toBe(0);
+    expect(document.documentElement.style.getPropertyValue('--proto-format-toolbar-reserved-height')).toBe(
+      '',
+    );
+  });
+
+  it('returns 0 and removes the CSS variable when the bar is not in format mode', () => {
+    const formatBar = document.createElement('div');
+    formatBar.className = 'proto-editor-bottom-bar';
+    formatBar.dataset.mode = 'hidden';
+    mockRect(formatBar, { height: 52 });
+    document.body.appendChild(formatBar);
+
+    expect(syncFormatToolbarReservedHeight()).toBe(0);
+    expect(document.documentElement.style.getPropertyValue('--proto-format-toolbar-reserved-height')).toBe(
+      '',
+    );
+  });
+
+  it('measures the format bar height when in format mode', () => {
+    const formatBar = document.createElement('div');
+    formatBar.className = 'proto-editor-bottom-bar';
+    formatBar.dataset.mode = 'format';
+    mockRect(formatBar, { height: 48 });
+    document.body.appendChild(formatBar);
+
+    expect(syncFormatToolbarReservedHeight()).toBe(48);
+    expect(document.documentElement.style.getPropertyValue('--proto-format-toolbar-reserved-height')).toBe(
+      '48px',
+    );
   });
 });

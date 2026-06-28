@@ -277,6 +277,10 @@ export default function StudyDockCarouselWeb({
     if (paper instanceof HTMLElement) {
       ro.observe(paper);
     }
+    const formatBar = document.querySelector('.proto-editor-bottom-bar[data-mode="format"]');
+    if (formatBar instanceof HTMLElement) {
+      ro.observe(formatBar);
+    }
 
     const afterLayout = window.setTimeout(() => updateStudyDockExpandedMaxHeight(track), 360);
     return () => {

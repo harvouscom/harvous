@@ -71,6 +71,19 @@
   overflow: visible;
 }
 
+/* Format bar overlays the paper (out of flow), so the chrome row collapses to 0 height.
+   Push study docks up by the measured toolbar height when format mode is active. */
+.proto-shell__editor-chrome-row[data-mode='format'] .proto-shell__study-dock-layer {
+  bottom: calc(100% + var(--proto-format-toolbar-reserved-height, 52px));
+  transition: bottom 0.42s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .proto-shell__editor-chrome-row[data-mode='format'] .proto-shell__study-dock-layer {
+    transition: none;
+  }
+}
+
 /* Shadow room lives on `.study-dock-card__outer` padding — not an extra track gap. */
 .proto-shell__study-dock-layer .study-dock-carousel__track {
   padding-bottom: 0;

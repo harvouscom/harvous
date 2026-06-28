@@ -170,6 +170,7 @@ function PrototypeAuthenticatedChrome({ userId }: { userId?: string }) {
     sidebarWidthMax,
     inspectorOpen,
     hideSidebar,
+    editorChromeMode,
   } = useProtoShell();
   const shellRef = useRef<HTMLDivElement | null>(null);
   const resizeHandleRef = useRef<HTMLDivElement | null>(null);
@@ -189,7 +190,7 @@ function PrototypeAuthenticatedChrome({ userId }: { userId?: string }) {
       '.proto-shell__study-dock-layer .study-dock-carousel__track',
     );
     updateStudyDockExpandedMaxHeight(track);
-  }, [isNoteRoute, sidebarWidth, desktopSidebarCollapsed, hideSidebar]);
+  }, [isNoteRoute, sidebarWidth, desktopSidebarCollapsed, hideSidebar, editorChromeMode]);
 
   useEffect(() => {
     if (!userId) return;

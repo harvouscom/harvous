@@ -176,6 +176,31 @@ export function syncFormatToolbarPaperInset(): number {
   return insetPx;
 }
 
+/**
+ * Measure the overlay format toolbar and sync `--proto-format-toolbar-reserved-height`
+ * on `document.documentElement` so the study dock layer clears the bar in format mode.
+ */
+export function syncFormatToolbarReservedHeight(): number {
+  if (typeof document === 'undefined') return 0;
+
+  const root = document.documentElement;
+  const formatBar = document.querySelector('.proto-editor-bottom-bar[data-mode="format"]');
+
+  if (!(formatBar instanceof HTMLElement)) {
+    root.style.removeProperty('--proto-format-toolbar-reserved-height');
+    return 0;
+  }
+
+  const height = Math.round(formatBar.getBoundingClientRect().height);
+  if (height <= 0) {
+    root.style.removeProperty('--proto-format-toolbar-reserved-height');
+    return 0;
+  }
+
+  root.style.setProperty('--proto-format-toolbar-reserved-height', `${height}px`);
+  return height;
+}
+
 /** Recompute expanded study dock max-height and dock center offset (track required for offset). */
 export function updateStudyDockExpandedMaxHeight(track?: HTMLElement | null): void {
   if (typeof document === 'undefined') return;
@@ -183,6 +208,7 @@ export function updateStudyDockExpandedMaxHeight(track?: HTMLElement | null): vo
     syncStudyDockCenterOffset(track);
   }
   syncFormatToolbarPaperInset();
+  syncFormatToolbarReservedHeight();
   const chromeRow = document.querySelector('.proto-shell__editor-chrome-row');
   if (!chromeRow) return;
   const rect = chromeRow.getBoundingClientRect();
