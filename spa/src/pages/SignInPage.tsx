@@ -8,7 +8,6 @@ import ClassicAuthMeshColumn from '../components/auth/ClassicAuthMeshColumn';
 import HarvousAuthForm from '../components/auth/HarvousAuthForm';
 import { useClerkSignInSubtitlePatch } from '../hooks/useClerkSignInSubtitlePatch';
 import { useAuthHeroImage } from '../hooks/useAuthHeroImage';
-import { hasClerkSessionCookieHint } from '../hooks/queries/useProfile';
 import { postAuthRedirectPath } from '../utils/post-auth-redirect';
 
 export default function SignInPage() {
@@ -35,7 +34,7 @@ export default function SignInPage() {
     ? `/sign-up?redirect_url=${encodeURIComponent(redirectRaw)}`
     : '/sign-up';
 
-  if (isSignedIn || (!isLoaded && hasClerkSessionCookieHint())) {
+  if (isLoaded && isSignedIn) {
     return null;
   }
 

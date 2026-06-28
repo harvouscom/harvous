@@ -6,7 +6,6 @@ import DevModeBadge from '../components/DevModeBadge';
 import ClerkPrebuiltAuth from '../components/auth/ClerkPrebuiltAuth';
 import ClassicAuthMeshColumn from '../components/auth/ClassicAuthMeshColumn';
 import HarvousAuthForm from '../components/auth/HarvousAuthForm';
-import { hasClerkSessionCookieHint } from '../hooks/queries/useProfile';
 import { useAuthHeroImage } from '../hooks/useAuthHeroImage';
 import { postAuthRedirectPath } from '../utils/post-auth-redirect';
 
@@ -46,7 +45,7 @@ export default function SignUpPage() {
     ? `/sign-in?redirect_url=${encodeURIComponent(redirectRaw)}`
     : '/sign-in';
 
-  if (isSignedIn || (!isLoaded && hasClerkSessionCookieHint())) {
+  if (isLoaded && isSignedIn) {
     return null;
   }
 

@@ -167,6 +167,12 @@
         return;
       }
 
+      // Auth / shared / join pages: never reload mid-flow (preserves in-progress sign-in email).
+      if (isNoUpdateToastPath()) {
+        reloadingForUpdate = false;
+        return;
+      }
+
       function clearCachesAndReload() {
         caches.keys()
           .then(function(names) {

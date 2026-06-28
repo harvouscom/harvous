@@ -7,6 +7,12 @@ import { useAuthFormKeyboardScroll } from '../../hooks/useAuthFormKeyboardScroll
 import { seedProfileNamesAfterSignUp } from '../../hooks/queries/useProfile';
 import { getColorSchemeSnapshot, subscribeColorScheme } from '../../lib/prototype-background';
 import { postAuthRedirectPath } from '../../utils/post-auth-redirect';
+import {
+  clearAuthDraft,
+  readAuthDraft,
+  writeAuthDraft,
+  type AuthFormStep,
+} from '../../utils/auth-form-draft';
 
 function useDesktopAutoFocusEnabled(): boolean {
   return useSyncExternalStore(
@@ -91,11 +97,23 @@ export default function HarvousAuthForm({
   const desktopAutoFocus = useDesktopAutoFocusEnabled();
   useAuthFormKeyboardScroll();
 
-  type Step = 'enterEmail' | 'enterCode';
-  const [step, setStep] = useState<Step>('enterEmail');
-  const [email, setEmail] = useState('');
-  const [firstName, setFirstName] = useState('');
-  const [lastName, setLastName] = useState('');
+  type Step = AuthFormStep;
+
+  function initialFormState() {
+    const draft = readAuthDraft(mode);
+    return {
+      step: (draft?.step ?? 'enterEmail') as Step,
+      email: draft?.email ?? '',
+      firstName: draft?.firstName ?? '',
+      lastName: draft?.lastName ?? '',
+    };
+  }
+
+  const [initial] = useState(initialFormState);
+  const [step, setStep] = useState<Step>(initial.step);
+  const [email, setEmail] = useState(initial.email);
+  const [firstName, setFirstName] = useState(initial.firstName);
+  const [lastName, setLastName] = useState(initial.lastName);
   const [code, setCode] = useState('');
   const [isBusy, setIsBusy] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -108,6 +126,15 @@ export default function HarvousAuthForm({
     }, 40);
     return () => window.clearTimeout(id);
   }, [step]);
+
+  useEffect(() => {
+    writeAuthDraft({
+      mode,
+      step,
+      email,
+      ...(mode === 'signUp' ? { firstName, lastName } : {}),
+    });
+  }, [mode, step, email, firstName, lastName]);
 
   const isValidEmail = (s: string) => {
     const t = s.trim();
@@ -132,6 +159,7 @@ export default function HarvousAuthForm({
   }
 
   function redirectAfterAuth() {
+    clearAuthDraft();
     const params = new URLSearchParams(window.location.search);
     const target = postAuthRedirectPath(params.get('redirect_url'));
     navigate({ to: target as any });
@@ -227,6 +255,7 @@ export default function HarvousAuthForm({
   }
 
   function useDifferentEmail() {
+    clearAuthDraft();
     setStep('enterEmail');
     setCode('');
     setErrorMessage(null);
