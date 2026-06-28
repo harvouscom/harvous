@@ -41,6 +41,8 @@ import {
   serializeNoteSecondaryCollections,
 } from '../utils/note-secondary-collections';
 import { handleAPIError } from '@/utils/error-handling';
+import { formatNoteDefaultTitle } from '@/utils/date-formatting';
+import { isTiptapBodyEmpty } from '@/utils/prototype-note-empty';
 import { tryConsumeNoteCreates, MAX_NOTE_CREATES_PER_SYNC_PUSH, getClientIP } from '@/utils/rate-limit';
 import { generateNoteId, generateThreadId, generateSpaceId, generateStudyThreadEntryId } from '@/utils/ids';
 import { ensureUnorganizedThread } from '../utils/unorganized-thread';
@@ -251,6 +253,9 @@ async function processNoteMutation(userId: string, operation: string, entityId: 
     let noteType = data.noteType || 'default';
     let noteTitle = data.title;
     let noteContent = data.content;
+    if (!noteTitle?.trim() && noteContent && !isTiptapBodyEmpty(noteContent)) {
+      noteTitle = formatNoteDefaultTitle(new Date());
+    }
     if (noteType === 'default' && noteTitle && noteTitle.length >= 5) {
       try {
         const detection = await detectScripture(noteTitle);

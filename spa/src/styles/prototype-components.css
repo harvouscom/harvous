@@ -1092,7 +1092,7 @@ html.harvous-proto-wallpaper-color .proto-sidebar-search__field:focus-within {
   color: var(--pds-text-primary);
 }
 
-.proto-sidebar-search input {
+.proto-sidebar-search__field input {
   flex: 1;
   min-width: 0;
   box-sizing: border-box;
@@ -1111,8 +1111,8 @@ html.harvous-proto-wallpaper-color .proto-sidebar-search__field:focus-within {
   -webkit-appearance: none;
 }
 
-.proto-sidebar-search input::-webkit-search-decoration,
-.proto-sidebar-search input::-webkit-search-cancel-button {
+.proto-sidebar-search__field input::-webkit-search-decoration,
+.proto-sidebar-search__field input::-webkit-search-cancel-button {
   -webkit-appearance: none;
   appearance: none;
 }
@@ -1191,7 +1191,7 @@ html.harvous-proto-wallpaper-color .proto-sidebar-search__field:focus-within {
   opacity: 0.75;
 }
 
-.proto-sidebar-search input::placeholder {
+.proto-sidebar-search__field input::placeholder {
   color: var(--pds-text-tertiary);
 }
 
@@ -1930,6 +1930,30 @@ html.harvous-proto-wallpaper-color .proto-sidebar-search__field:focus-within {
   word-break: break-word;
 }
 
+.proto-inspector-added-by-chip {
+  transform: none;
+  vertical-align: baseline;
+}
+
+.proto-inspector-added-by-chip__avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  overflow: hidden;
+  flex-shrink: 0;
+  color: var(--pds-text-secondary);
+}
+
+.proto-inspector-added-by-chip__photo {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
 .proto-inspector-note-id-btn {
   font-family:
     ui-monospace,
@@ -2519,7 +2543,8 @@ html.harvous-proto-wallpaper-color .proto-fte-field:focus-within {
 .proto-inspector-delete {
   margin-top: auto;
   flex-shrink: 0;
-  padding: 0 14px 14px;
+  /* Match native deleteSection top inset; 8px bottom + parent 8px padding ≈ 16px below button */
+  padding: 16px 14px 8px;
 }
 
 /* Connected note row links inside inspector */
@@ -2677,52 +2702,6 @@ html.harvous-proto-wallpaper-color .proto-fte-field:focus-within {
   font-size: 13px;
   font-weight: 500;
   line-height: 1;
-}
-
-/* ─── Search input (connect note sheet) ──────────────────────────────────── */
-.proto-search-input-wrap {
-  position: relative;
-  margin-bottom: 24px;
-}
-
-.proto-search-input-wrap__icon {
-  position: absolute;
-  left: 12px;
-  top: 50%;
-  translate: 0 -50%;
-  width: 16px;
-  height: 16px;
-  opacity: 0.38;
-  pointer-events: none;
-  color: var(--pds-text-primary);
-}
-
-.proto-search-input {
-  width: 100%;
-  padding: 10px 14px 10px 36px;
-  border: 0.5px solid var(--pds-border-control);
-  border-radius: var(--pds-radius-input);
-  background: var(--pds-bg-faint);
-  font-family: var(--pds-font-body);
-  font-size: 0.9375rem;
-  font-weight: 400;
-  color: var(--pds-text-primary);
-  outline: none;
-}
-
-.proto-search-input:focus {
-  background: var(--pds-bg-chrome-opaque);
-  border-color: var(--pds-accent-active-border);
-  box-shadow: 0 0 0 2px var(--pds-accent-active-ring);
-}
-
-html.harvous-proto-wallpaper-image .proto-search-input:focus,
-html.harvous-proto-wallpaper-color .proto-search-input:focus {
-  background: var(--pds-bg-toolbar);
-}
-
-.proto-search-input::placeholder {
-  color: var(--pds-text-tertiary);
 }
 
 /* ─── Quiet link / button utilities ──────────────────────────────────────── */
@@ -2924,12 +2903,6 @@ html.harvous-proto-wallpaper-color .proto-search-input:focus {
   padding: 0 14px 6px;
 }
 
-.proto-create-folder-sheet .proto-search-input-wrap,
-.proto-create-thread-sheet .proto-search-input-wrap,
-.proto-add-notes-sheet .proto-search-input-wrap {
-  margin-bottom: 0;
-}
-
 .proto-add-notes-sheet:not(.proto-create-folder-sheet):not(.proto-create-thread-sheet) .proto-connect-note-sheet__search-wrap {
   padding: 10px 14px 6px;
 }
@@ -2968,10 +2941,6 @@ html.harvous-proto-wallpaper-color .proto-search-input:focus {
 .proto-add-notes-sheet__scoped-list .proto-add-notes-sheet__search-in-panel {
   flex-shrink: 0;
   padding: 0 8px 6px;
-}
-
-.proto-add-notes-sheet__scoped-list .proto-add-notes-sheet__search-in-panel .proto-search-input-wrap {
-  margin-bottom: 0;
 }
 
 .proto-add-notes-sheet__scoped-list .proto-chip-bar {

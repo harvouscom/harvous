@@ -122,6 +122,13 @@ describe('pickContinueNote', () => {
     expect(pickContinueNote([dateless, dated])).toBe(dated);
     expect(pickContinueNote([dateless])).toBe(dateless);
   });
+
+  it('skips excluded ids and returns the next most recently edited note', () => {
+    const active = { id: 'active', updatedAt: '2026-06-11T10:00:00Z' };
+    const previous = { id: 'previous', updatedAt: '2026-06-10T10:00:00Z' };
+    expect(pickContinueNote([active, previous], { excludeIds: ['active'] })).toBe(previous);
+    expect(pickContinueNote([active, previous], { excludeIds: ['active'] }).id).not.toBe('active');
+  });
 });
 
 describe('pickRevisitNote', () => {

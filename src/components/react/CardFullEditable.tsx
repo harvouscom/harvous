@@ -42,6 +42,7 @@ import {
 } from '@/utils/prototype-folder-auto-assign';
 import { shouldAllowPrimaryFolderUpdate } from '@/utils/should-allow-primary-folder-update';
 import { stripServerAutoUntitledNoteTitleForDisplay } from '@/utils/server-auto-untitled-note-display';
+import { formatNoteDefaultTitle } from '@/utils/date-formatting';
 import type { HighlightDockOpenMetadata } from '@/utils/study-dock-stack';
 
 // Prototype notes use alwaysEditing — load TipTap synchronously so the body is typeable on first paint.
@@ -251,6 +252,8 @@ interface CardFullEditableProps {
   prototypeDraftPersistRemount?: { content: string } | null;
   /** Bumped with `prototypeDraftPersistRemount` so remount runs even when CardFullEditable remounts. */
   prototypeDraftPersistRemountTick?: number;
+  /** ISO timestamp for default date title on first body edit (prototype compose / reopened notes). */
+  noteCreatedAtIso?: string | null;
   /** Space the note belongs to — passed to TiptapEditor for connect-from-selection. */
   spaceId?: string;
 }
@@ -304,6 +307,7 @@ export default function CardFullEditable({
   prototypeBodyMountId = null,
   prototypeDraftPersistRemount = null,
   prototypeDraftPersistRemountTick = 0,
+  noteCreatedAtIso = null,
   spaceId,
 }: CardFullEditableProps) {
   const effectivePrototypeNoteActionsChrome =
@@ -373,6 +377,12 @@ export default function CardFullEditable({
   // post-save pill injection), this is a clean "real user edit" signal — used to
   // guard against refetch-clobber re-seeds and to gate the local draft backstop.
   const userEditedSinceOpenRef = useRef(false);
+  /** True once the user set a non-empty title this session — blocks auto date title. */
+  const hadNonemptyTitleRef = useRef(false);
+  /** Note creation time for default title; null until first body keystroke on draft compose. */
+  const defaultTitleDateRef = useRef<Date | null>(null);
+  const noteCreatedAtIsoRef = useRef(noteCreatedAtIso);
+  noteCreatedAtIsoRef.current = noteCreatedAtIso;
   // Mirror editorChromeMode so unmount cleanup isn't a stale closure
   const editorChromeModeRef = useRef(editorChromeMode);
   editorChromeModeRef.current = editorChromeMode;
@@ -569,6 +579,14 @@ export default function CardFullEditable({
         noteType === 'default'
           ? stripServerAutoUntitledNoteTitleForDisplay(title)
           : (title ?? '');
+      hadNonemptyTitleRef.current = initialTitle.trim().length > 0;
+      const createdIso = noteCreatedAtIsoRef.current;
+      if (createdIso) {
+        const parsed = new Date(createdIso);
+        defaultTitleDateRef.current = Number.isNaN(parsed.getTime()) ? null : parsed;
+      } else {
+        defaultTitleDateRef.current = null;
+      }
       folderSuggestSnapshotRef.current = {
         title: initialTitle,
         body: plainBodyForFolderSnapshot(content ?? ''),
@@ -2384,8 +2402,10 @@ export default function CardFullEditable({
             // Otherwise, insert the capitalized letter at the start
             if (editTitle.length === 0) {
               setEditTitle(capitalized);
+              hadNonemptyTitleRef.current = true;
             } else {
               setEditTitle(capitalized + editTitle);
+              hadNonemptyTitleRef.current = true;
             }
             // Set cursor position after the capitalized letter
             setTimeout(() => {
@@ -2408,6 +2428,7 @@ export default function CardFullEditable({
     if (isProto) {
       hasLocalContentUpdate.current = true;
     }
+    const priorBody = editContentRef.current;
     const canonical = canonicalizeNoteHtmlLineBreaks(newContent);
     editContentRef.current = canonical;
     liveBodyHtmlRef.current = canonical;
@@ -2418,7 +2439,28 @@ export default function CardFullEditable({
     // (above) but skip the dirty flag + save so opening a note never changes its sort position.
     if (isProto && meta?.programmatic) return;
     userEditedSinceOpenRef.current = true;
-    setHasChanges(editTitle !== displayTitle || canonical !== displayContent);
+
+    let titleForChanges = editTitleRef.current;
+    if (
+      isProto &&
+      noteType === 'default' &&
+      !readOnlyLikeScripture &&
+      !hadNonemptyTitleRef.current &&
+      editTitleRef.current.trim() === '' &&
+      isTiptapBodyEmpty(priorBody) &&
+      !isTiptapBodyEmpty(canonical)
+    ) {
+      const d = defaultTitleDateRef.current ?? new Date();
+      if (!defaultTitleDateRef.current) {
+        defaultTitleDateRef.current = d;
+      }
+      const autoTitle = formatNoteDefaultTitle(d);
+      editTitleRef.current = autoTitle;
+      titleForChanges = autoTitle;
+      setEditTitle(autoTitle);
+    }
+
+    setHasChanges(titleForChanges !== displayTitle || canonical !== displayContent);
   };
 
   const resolveThreadContext = (): string => {
@@ -2492,6 +2534,9 @@ export default function CardFullEditable({
     e.target.style.height = '0px';
     e.target.style.height = `${Math.max(TITLE_SINGLE_ROW_MIN_HEIGHT_PX, e.target.scrollHeight)}px`;
     userEditedSinceOpenRef.current = true;
+    if (newValue.trim().length > 0) {
+      hadNonemptyTitleRef.current = true;
+    }
     if (editorChromeMode === 'prototypeNative') {
       hasLocalContentUpdate.current = true;
     }

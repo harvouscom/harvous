@@ -15,6 +15,43 @@ export type AnchoredPopoverPositionOptions = {
   vhFraction?: number;
 };
 
+/** Main-column inset — matches `.proto-inspector-desktop` / `.proto-side-panel`. */
+export const PROTO_MAIN_COLUMN_PANEL_INSET = 8;
+
+export function resolveMainColumnPopoverHost(): Element | null {
+  if (typeof document === 'undefined') return null;
+  return (
+    document.querySelector('.proto-shell__right-panel-host') ??
+    document.querySelector('.proto-shell__main-inner')
+  );
+}
+
+/** Fixed top-right of the prototype main column (stable while browsing connected notes). */
+export function computeMainColumnTopRightPopoverPosition(
+  cardEl: HTMLElement,
+  options: { inset?: number; viewportMargin?: number } = {},
+): { top: number; left: number } {
+  const inset = options.inset ?? PROTO_MAIN_COLUMN_PANEL_INSET;
+  const viewportMargin = options.viewportMargin ?? 12;
+  const hostRect = resolveMainColumnPopoverHost()?.getBoundingClientRect();
+  const cardWidth = cardEl.getBoundingClientRect().width;
+  const vw = typeof window !== 'undefined' ? window.innerWidth : 800;
+
+  if (hostRect) {
+    const top = Math.max(viewportMargin, hostRect.top + inset);
+    const left = Math.max(
+      viewportMargin,
+      Math.min(hostRect.right - cardWidth - inset, vw - cardWidth - viewportMargin),
+    );
+    return { top, left };
+  }
+
+  return {
+    top: Math.max(viewportMargin, inset),
+    left: Math.max(viewportMargin, vw - cardWidth - inset),
+  };
+}
+
 export function computeAnchoredPopoverPosition(
   cardEl: HTMLElement,
   anchorRect: DOMRect | null,

@@ -165,9 +165,24 @@ export function useSyncQueueStatus(userIdProp?: string | null): SyncQueueStatus 
       }
     };
 
-    checkRef.current = check;
-    check();
-    const interval = setInterval(check, 5000);
+    const POLL_MS_HEALTHY = 5000;
+    const POLL_MS_PENDING = 1000;
+    let intervalMs = POLL_MS_HEALTHY;
+
+    const checkAndReschedule = async () => {
+      await check();
+      const nextMs = prevPendingRef.current > 0 ? POLL_MS_PENDING : POLL_MS_HEALTHY;
+      if (nextMs !== intervalMs) {
+        intervalMs = nextMs;
+        clearInterval(interval);
+        interval = setInterval(() => { void checkAndReschedule(); }, intervalMs);
+      }
+    };
+
+    let interval = setInterval(() => { void checkAndReschedule(); }, intervalMs);
+
+    checkRef.current = checkAndReschedule;
+    void checkAndReschedule();
 
     const handleOnline = async () => {
       // Re-arm the one-shot self-heal so reconnecting always gets a fresh auto-retry of any
@@ -182,7 +197,7 @@ export function useSyncQueueStatus(userIdProp?: string | null): SyncQueueStatus 
         }
         wentOfflineRef.current = false;
       }
-      check();
+      void checkAndReschedule();
     };
     window.addEventListener('online', handleOnline);
 

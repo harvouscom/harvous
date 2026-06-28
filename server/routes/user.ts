@@ -609,9 +609,20 @@ app.post('/api/user/update-appearance', requireAuth, rateLimit('write'), async (
       bgDark: bgDark ?? null,
     });
 
-    await db.update(UserMetadata)
-      .set({ appearanceSettings, updatedAt: nowISO() })
-      .where(eq(UserMetadata.userId, auth.userId));
+    const existing = first(await db.select().from(UserMetadata).where(eq(UserMetadata.userId, auth.userId)).limit(1));
+    if (existing) {
+      await db.update(UserMetadata)
+        .set({ appearanceSettings, updatedAt: nowISO() })
+        .where(eq(UserMetadata.userId, auth.userId));
+    } else {
+      await db.insert(UserMetadata).values({
+        id: crypto.randomUUID(),
+        userId: auth.userId,
+        appearanceSettings,
+        createdAt: nowISO(),
+        updatedAt: nowISO(),
+      });
+    }
 
     broadcastInvalidation(auth.userId, { type: 'userMetadata:updated' });
 

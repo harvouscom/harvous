@@ -1,6 +1,30 @@
 /** Short month names for "MMM YYYY" format. Avoids iOS PWA ignoring en-US and showing full month. */
 const MONTHS_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
+/** Full month names for default note titles (e.g. "June 28, 2026"). Local calendar fields. */
+const MONTHS_LONG = [
+  'January',
+  'February',
+  'March',
+  'April',
+  'May',
+  'June',
+  'July',
+  'August',
+  'September',
+  'October',
+  'November',
+  'December',
+];
+
+/**
+ * Default note title when the user has not set one — long local date, e.g. "June 28, 2026".
+ * Hard-coded month names avoid iOS PWA locale quirks (same as getRelativeTime).
+ */
+export function formatNoteDefaultTitle(date: Date): string {
+  return `${MONTHS_LONG[date.getMonth()]} ${date.getDate()}, ${date.getFullYear()}`;
+}
+
 /**
  * Format a date as "MMM YYYY" in UTC. Uses hard-coded month abbreviations to avoid
  * iOS PWA ignoring toLocaleDateString('en-US', { month: 'short' }) and showing full month names.

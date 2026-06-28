@@ -639,8 +639,15 @@ export default function PrototypeSidebarHomeView({
   const recallDayIndex = useMemo(() => localDayIndex(new Date()), []);
   const [recallTick, setRecallTick] = useState(0);
 
-  const continueNote = useMemo(() => pickContinueNote(notes), [notes]);
-  const continueIsActive = Boolean(continueNote && activeNoteId && continueNote.id === activeNoteId);
+  const continueCandidate = useMemo(() => pickContinueNote(notes), [notes]);
+  const continueIsActive = Boolean(
+    continueCandidate && activeNoteId && continueCandidate.id === activeNoteId,
+  );
+  const continueNote = useMemo(() => {
+    if (continueIsActive) return continueCandidate;
+    if (!activeNoteId) return continueCandidate;
+    return pickContinueNote(notes, { excludeIds: [activeNoteId] }) ?? continueCandidate;
+  }, [notes, activeNoteId, continueIsActive, continueCandidate]);
   const spotlightHighlight = useMemo(() => pickSpotlightHighlight(highlights, homeSpaceId), [highlights, homeSpaceId]);
   const recallSnoozedIds = useMemo(
     () => activeCooldownIds(homeSpaceId, recallDayIndex),

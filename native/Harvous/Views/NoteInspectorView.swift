@@ -51,6 +51,11 @@ struct NoteInspectorView: View {
     var onConnectionsChanged: (() -> Void)? = nil
     var onDeleteConfirmed: () -> Void = {}
     @Environment(\.modelContext) private var modelContext
+    @EnvironmentObject private var appRouter: HarvousAppRouter
+    @Bindable private var bridge = HarvousClerkBridge.shared
+    #if os(macOS)
+    @Environment(\.openWindow) private var openWindow
+    #endif
     @State private var draftTag = ""
     @State private var simpleNoteIdCopied = false
     @State private var allResourceLines: [String] = []
@@ -512,8 +517,8 @@ struct NoteInspectorView: View {
                 infoSimpleNoteIdRow(displayText: simpleNoteIdCopied ? "Copied" : formatSimpleNoteId(sid))
             }
             infoRow("Created", value: note.createdAt.formatted(date: .abbreviated, time: .shortened))
-            infoRow("Added by", value: note.addedBySourceLabel)
-            infoRow("Modified", value: note.updatedAt.formatted(date: .abbreviated, time: .shortened))
+            infoAddedByRow
+            infoRow("Edited", value: note.updatedAt.formatted(date: .abbreviated, time: .shortened))
             infoRow("Reading", value: readingTimeLabel)
             infoRow("Words", value: wordCount)
             if note.isPublic {
@@ -584,6 +589,61 @@ struct NoteInspectorView: View {
                 .font(HarvousTypography.inspectorCompact)
                 .foregroundStyle(.primary)
         }
+    }
+
+    private var infoAddedByRow: some View {
+        HStack(alignment: .top) {
+            Text("Added by")
+                .font(HarvousTypography.inspectorCompactMedium)
+                .foregroundStyle(.secondary)
+                .frame(width: 64, alignment: .leading)
+            if note.addedBy == "harvous" {
+                Text("Harvous")
+                    .font(HarvousTypography.inspectorCompact)
+                    .foregroundStyle(.primary)
+            } else {
+                addedByUserChip
+            }
+        }
+    }
+
+    private var addedByUserChip: some View {
+        Button(action: openAccountSettings) {
+            HStack(spacing: 4) {
+                HarvousProfileOrb(
+                    imageUrl: bridge.currentProfile?.imageUrl,
+                    size: 14,
+                    glyphEdgePt: 9
+                )
+                Text("You")
+                    .font(HarvousFonts.font(size: 12, weight: .semibold, design: .default))
+            }
+            .foregroundStyle(.primary)
+            .padding(.horizontal, 9)
+            .padding(.vertical, 2)
+            .background {
+                Capsule()
+                    .fill(Color.primary.opacity(0.07))
+            }
+            .overlay {
+                Capsule()
+                    .strokeBorder(Color.primary.opacity(0.18), lineWidth: 0.5)
+            }
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Open account settings")
+        #if os(macOS)
+        .help("Account settings")
+        #endif
+    }
+
+    private func openAccountSettings() {
+        #if os(macOS)
+        appRouter.macSettingsDeepLink = .account
+        openWindow(id: HarvousMacPreferencesWindow.sceneID)
+        #else
+        appRouter.openYouTabWithSettings(detail: .account)
+        #endif
     }
 
     private var wordCount: String {
@@ -836,5 +896,6 @@ private struct InspectorConnectionRow: View {
     note.simpleNoteId = 42
     return NoteInspectorView(note: note)
         .frame(width: 280)
+        .environmentObject(HarvousAppRouter())
         .modelContainer(for: [Note.self], inMemory: true)
 }

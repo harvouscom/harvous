@@ -5,6 +5,7 @@ import {
   pushQueue,
   flushPushQueue,
   recordPushQueueOutcome,
+  clearStaleSyncingIfIdle,
   recoverPrototypeSyncQueueIfBloated,
   SYNC_QUEUE_UNHEALTHY_THRESHOLD,
   retryStuckQueue,
@@ -585,6 +586,70 @@ describe('sync-manager', () => {
 
       const state = await offlineDB.syncState.where('userId').equals(testUserId).first();
       expect(state?.syncError).toBe('Push failed: 502 Bad Gateway');
+    });
+  });
+
+  describe('clearStaleSyncingIfIdle', () => {
+    it('clears isSyncing when the queue is empty', async () => {
+      await offlineDB.syncState.add({
+        userId: testUserId,
+        lastSyncCursor: null,
+        lastSyncTimestamp: null,
+        lastBootstrapTimestamp: null,
+        isSyncing: true,
+        syncError: null,
+      });
+
+      await clearStaleSyncingIfIdle(testUserId);
+
+      const state = await offlineDB.syncState.where('userId').equals(testUserId).first();
+      expect(state?.isSyncing).toBe(false);
+    });
+
+    it('does not clear isSyncing when pending ops remain', async () => {
+      await offlineDB.syncState.add({
+        userId: testUserId,
+        lastSyncCursor: null,
+        lastSyncTimestamp: null,
+        lastBootstrapTimestamp: null,
+        isSyncing: true,
+        syncError: null,
+      });
+      await offlineDB.syncQueue.add({
+        userId: testUserId,
+        operation: 'update',
+        entityType: 'note',
+        entityId: 'note_pending',
+        data: { title: 'Pending', content: '<p></p>' },
+        timestamp: Date.now(),
+        retryCount: 0,
+      });
+
+      await clearStaleSyncingIfIdle(testUserId);
+
+      const state = await offlineDB.syncState.where('userId').equals(testUserId).first();
+      expect(state?.isSyncing).toBe(true);
+    });
+  });
+
+  describe('flushPushQueue with empty queue', () => {
+    it('clears stale isSyncing without pending work', async () => {
+      await offlineDB.syncState.add({
+        userId: testUserId,
+        lastSyncCursor: null,
+        lastSyncTimestamp: null,
+        lastBootstrapTimestamp: null,
+        isSyncing: true,
+        syncError: 'Push failed: 502 Bad Gateway',
+      });
+
+      const result = await flushPushQueue(testUserId);
+      expect(result.success).toBe(true);
+      expect(result.pushedCount).toBe(0);
+
+      const state = await offlineDB.syncState.where('userId').equals(testUserId).first();
+      expect(state?.isSyncing).toBe(false);
+      expect(state?.syncError).toBeNull();
     });
   });
 

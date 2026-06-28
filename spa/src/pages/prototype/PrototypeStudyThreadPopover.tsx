@@ -1,9 +1,9 @@
 /**
  * Study thread popover — same floating pattern as PrototypeConnectNoteSheet.
- * Desktop: ProtoPopoverShell anchored to trigger button.
+ * Desktop: fixed top-right of the main column.
  * Mobile: Drawer bottom sheet.
  */
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from '@tanstack/react-router';
 import { Drawer, DrawerContent } from '@/components/ui/drawer';
@@ -22,7 +22,7 @@ import { prototypeNoteRouteTo } from '@/lib/prototype-path';
 import { noteParamSlug } from './proto-route-slugs';
 import { stripServerAutoUntitledNoteTitleForDisplay } from '@/utils/server-auto-untitled-note-display';
 import { studyThreadDisplayTitle } from '../../utils/study-thread-display-title';
-import { computeAnchoredPopoverPosition } from './proto-anchored-popover-position';
+import { useProtoAnchoredPopoverPosition } from './useProtoAnchoredPopoverPosition';
 
 // ─── Main popover ─────────────────────────────────────────────────────────────
 
@@ -31,7 +31,6 @@ export interface PrototypeStudyThreadPopoverProps {
   onOpenChange: (open: boolean) => void;
   noteId: string;
   spaceId: string;
-  anchorRect?: DOMRect | null;
   /** Note ids already linked to the focus note — excluded from the connect picker. */
   connectedNoteIds?: string[];
 }
@@ -41,7 +40,6 @@ export default function PrototypeStudyThreadPopover({
   onOpenChange,
   noteId,
   spaceId,
-  anchorRect = null,
   connectedNoteIds = [],
 }: PrototypeStudyThreadPopoverProps) {
   const navigate = useNavigate();
@@ -50,14 +48,27 @@ export default function PrototypeStudyThreadPopover({
   const effectiveSpaceId = (spaceId && spaceId.trim().length > 0 ? spaceId : null) ?? homeSpaceId ?? null;
 
   const cardRef = useRef<HTMLDivElement | null>(null);
-  const anchorRectRef = useRef(anchorRect);
-  anchorRectRef.current = anchorRect;
-  const [position, setPosition] = useState<{ top: number; left: number } | null>(null);
 
   const [connectOpen, setConnectOpen] = useState(false);
-  const [connectAnchorRect, setConnectAnchorRect] = useState<DOMRect | null>(null);
 
-  const { data: thread, isLoading, isError } = usePrototypeStudyThread(noteId, effectiveSpaceId);
+  // Pin thread fetch to the note where the popover was opened — route noteId only drives trail focus.
+  const sessionQueryNoteIdRef = useRef<string | null>(null);
+  if (open) {
+    if (!sessionQueryNoteIdRef.current) sessionQueryNoteIdRef.current = noteId;
+  } else {
+    sessionQueryNoteIdRef.current = null;
+  }
+  const threadQueryNoteId = sessionQueryNoteIdRef.current ?? noteId;
+
+  const { data: thread, isLoading, isError } = usePrototypeStudyThread(threadQueryNoteId, effectiveSpaceId);
+
+  const effectiveConnectedNoteIds = useMemo(
+    () =>
+      thread?.nodes?.length
+        ? thread.nodes.map((n) => n.id).filter((id) => id !== noteId)
+        : connectedNoteIds,
+    [thread?.nodes, noteId, connectedNoteIds],
+  );
 
   // ── Thread name state ──────────────────────────────────────────────────────
   const nodeCount = thread?.nodeCount ?? 0;
@@ -109,38 +120,12 @@ export default function PrototypeStudyThreadPopover({
     isMobileSidebar && typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches;
   const shouldUsePopover = open && !shouldUseSheetPresentation;
 
-  const syncPopoverPosition = () => {
-    const card = cardRef.current;
-    if (!card) return;
-    setPosition(
-      computeAnchoredPopoverPosition(card, anchorRectRef.current, {
-        maxHeightPx: 600,
-        vhFraction: 0.8,
-      }),
-    );
-  };
-
-  useLayoutEffect(() => {
-    if (!shouldUsePopover) {
-      setPosition(null);
-      return;
-    }
-    syncPopoverPosition();
-  }, [shouldUsePopover, anchorRect, nodeCount, isLoading, isError, connectOpen, titleDraft, editingTitle]);
-
-  useEffect(() => {
-    if (!shouldUsePopover) return undefined;
-    const card = cardRef.current;
-    if (!card) return undefined;
-    const ro = new ResizeObserver(() => syncPopoverPosition());
-    ro.observe(card);
-    const onResize = () => syncPopoverPosition();
-    window.addEventListener('resize', onResize);
-    return () => {
-      ro.disconnect();
-      window.removeEventListener('resize', onResize);
-    };
-  }, [shouldUsePopover, open]);
+  const { position } = useProtoAnchoredPopoverPosition(
+    cardRef,
+    {},
+    { enabled: shouldUsePopover, maxHeightPx: 600, vhFraction: 0.8, strategy: 'main-column-top-right' },
+    [nodeCount, isLoading, isError, connectOpen, titleDraft, editingTitle],
+  );
 
   useDismissOnOutside(cardRef, () => onOpenChange(false), shouldUsePopover, {
     ignoreSelector: '.proto-sidebar-root, .proto-inspector, .proto-inspector-mobile-panel, .proto-inspector-desktop',
@@ -168,7 +153,7 @@ export default function PrototypeStudyThreadPopover({
 
       {/* Scrollable body */}
       <div className="proto-study-thread-popover__body">
-        {isLoading ? (
+        {isLoading && !thread ? (
           <p className="proto-inspector-muted" style={{ padding: '8px 14px' }}>Loading…</p>
         ) : isError || !thread?.success ? (
           <p className="proto-inspector-muted" style={{ padding: '8px 14px' }}>Could not load thread.</p>
@@ -233,7 +218,7 @@ export default function PrototypeStudyThreadPopover({
                 </p>
                 {effectiveSpaceId ? (
                   <button type="button" className="proto-inspector-connect-btn" title="Connect another note"
-                    onClick={(e) => { setConnectAnchorRect(e.currentTarget.getBoundingClientRect()); setConnectOpen(true); }}>
+                    onClick={() => setConnectOpen(true)}>
                     <Icon name="plus" size={12} aria-hidden />
                     Connect
                   </button>
@@ -256,8 +241,8 @@ export default function PrototypeStudyThreadPopover({
           onOpenChange={setConnectOpen}
           spaceId={effectiveSpaceId}
           parentNoteId={noteId}
-          anchorRect={connectAnchorRect}
-          connectedNoteIds={connectedNoteIds}
+          placement="main-column-top-right"
+          connectedNoteIds={effectiveConnectedNoteIds}
         />
       ) : null}
     </div>

@@ -34,7 +34,6 @@ export default function PrototypeStudyThreadPanel({ noteId, spaceId }: Prototype
   const { data: thread, isLoading, isError } = usePrototypeStudyThread(noteId, effectiveSpaceId);
 
   const [connectOpen, setConnectOpen] = useState(false);
-  const [connectAnchorRect, setConnectAnchorRect] = useState<DOMRect | null>(null);
 
   const openNote = (id: string) => {
     navigate({ to: prototypeNoteRouteTo(), params: { noteId: noteParamSlug(id) } });
@@ -135,7 +134,7 @@ export default function PrototypeStudyThreadPanel({ noteId, spaceId }: Prototype
       </div>
 
       <div className="proto-side-panel__body">
-        {isLoading ? (
+        {isLoading && !thread ? (
           <p className="proto-inspector-muted" style={{ padding: '12px 14px' }}>Loading…</p>
         ) : isError || !thread?.success ? (
           <p className="proto-inspector-muted" style={{ padding: '12px 14px' }}>Could not load thread.</p>
@@ -232,7 +231,7 @@ export default function PrototypeStudyThreadPanel({ noteId, spaceId }: Prototype
                     type="button"
                     className="proto-inspector-connect-btn"
                     title="Connect another note"
-                    onClick={(e) => { setConnectAnchorRect(e.currentTarget.getBoundingClientRect()); setConnectOpen(true); }}
+                    onClick={() => setConnectOpen(true)}
                   >
                     <Icon name="plus" size={12} aria-hidden />
                     Connect
@@ -257,7 +256,7 @@ export default function PrototypeStudyThreadPanel({ noteId, spaceId }: Prototype
           onOpenChange={setConnectOpen}
           spaceId={effectiveSpaceId}
           parentNoteId={noteId}
-          anchorRect={connectAnchorRect}
+          placement="main-column-top-right"
           connectedNoteIds={connectedNoteIds}
         />
       ) : null}

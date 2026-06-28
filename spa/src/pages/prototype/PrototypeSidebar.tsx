@@ -76,6 +76,7 @@ import {
   togglePinnedThreadClusterId,
 } from './proto-pinned-stores';
 import PrototypeSidebarSearchResults from './PrototypeSidebarSearchResults';
+import PrototypeSearchInput from './components/PrototypeSearchInput';
 import type { SidebarSearchResult } from './sidebar-search-types';
 import {
   buildFoldersFromNotes,
@@ -88,6 +89,7 @@ import PrototypeCreateFolderSheet from './PrototypeCreateFolderSheet';
 import PrototypeCreateThreadSheet from './PrototypeCreateThreadSheet';
 
 
+import { resolvePrototypeToolbarNoteId } from '@/utils/prototype-compose-url';
 import { noteParamSlug, normalizeNoteIdFromParam, isPrototypeDraftNoteSlug } from './proto-route-slugs';
 import { PROTOTYPE_NOTE_LIST_NAV_SEARCH } from '@/utils/prototype-sidebar-highlight-active';
 
@@ -902,6 +904,7 @@ export default function PrototypeSidebar() {
     sidebarTagSearchIntent,
     clearSidebarTagSearchIntent,
     ensureSidebarExpanded,
+    composePersistedNoteId,
   } = useProtoShell();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -1171,11 +1174,14 @@ export default function PrototypeSidebar() {
   ]);
 
   const noteSlugFromPath = matchPrototypeNoteId(pathname);
-  const activeNoteSlug = noteSlugFromPath;
+  const isDraftNoteRoute = noteSlugFromPath != null && isPrototypeDraftNoteSlug(noteSlugFromPath);
   const activeNoteFullId =
-    activeNoteSlug && !isPrototypeDraftNoteSlug(activeNoteSlug)
-      ? normalizeNoteIdFromParam(activeNoteSlug)
-      : undefined;
+    resolvePrototypeToolbarNoteId(
+      composePersistedNoteId,
+      noteSlugFromPath,
+      isDraftNoteRoute,
+      normalizeNoteIdFromParam,
+    ) ?? undefined;
 
   const notesForMode = useMemo(() => {
     const base =
@@ -1761,50 +1767,32 @@ export default function PrototypeSidebar() {
       ) : null}
       {!isHomeLayer && !sidebarThreadProposal ? (
       <div className="proto-sidebar-search">
-        <div className="proto-sidebar-search__field">
-          <span className="proto-sidebar-search__icon" aria-hidden>
-            <Icon name="magnifying-glass" size={14} />
-          </span>
-          <input
-            ref={searchInputRef}
-            id="proto-sidebar-search-input"
-            type="search"
-            placeholder="Search"
-            value={q}
-            onChange={(e) => {
-              const next = e.target.value;
-              setQ(next);
-              if (tagFilter && next.trim().toLowerCase() !== tagFilter.tagName.trim().toLowerCase()) {
-                setTagFilter(null);
+        <PrototypeSearchInput
+          inputRef={searchInputRef}
+          id="proto-sidebar-search-input"
+          placeholder="Search"
+          ariaLabel="Search"
+          value={q}
+          onChange={(next) => {
+            setQ(next);
+            if (tagFilter && next.trim().toLowerCase() !== tagFilter.tagName.trim().toLowerCase()) {
+              setTagFilter(null);
+            }
+          }}
+          onClear={() => {
+            setQ('');
+            setTagFilter(null);
+          }}
+          onKeyDown={(e) => {
+            // Drop from the search field straight into the list results.
+            if (e.key === 'ArrowDown') {
+              const scrollRoot = scrollRootRef.current;
+              if (scrollRoot && moveListRowFocus(scrollRoot, 1)) {
+                e.preventDefault();
               }
-            }}
-            onKeyDown={(e) => {
-              // Drop from the search field straight into the list results.
-              if (e.key === 'ArrowDown') {
-                const scrollRoot = scrollRootRef.current;
-                if (scrollRoot && moveListRowFocus(scrollRoot, 1)) {
-                  e.preventDefault();
-                }
-              }
-            }}
-            autoComplete="off"
-            aria-label="Search"
-          />
-          {q ? (
-            <button
-              type="button"
-              className="proto-sidebar-search__clear"
-              aria-label="Clear search"
-              onClick={() => {
-                setQ('');
-                setTagFilter(null);
-                searchInputRef.current?.focus();
-              }}
-            >
-              <Icon name="circle-xmark" size={15} aria-hidden />
-            </button>
-          ) : null}
-        </div>
+            }
+          }}
+        />
       </div>
       ) : null}
 

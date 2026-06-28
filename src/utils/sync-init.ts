@@ -7,6 +7,7 @@ import {
   startBackgroundSync,
   flushPushQueue,
   recoverPrototypeSyncQueueIfBloated,
+  clearStaleSyncingIfIdle,
 } from './sync-manager';
 import { isOfflineModeEnabled } from './offline-mode';
 import { isPrototypeShellPath } from '@/lib/prototype-path';
@@ -58,22 +59,25 @@ export async function initializeSync(
   // created/edited offline reach the server when connectivity returns.
   if (isPrototypeShellRoute()) {
     const flushQueue = async () => {
-      if (navigator.onLine) {
-        try {
+      try {
+        if (navigator.onLine) {
           await recoverPrototypeSyncQueueIfBloated(userId);
           await flushPushQueue(userId);
-        } catch (error) {
-          console.error('[initializeSync] Prototype flush failed:', error);
+        } else {
+          await clearStaleSyncingIfIdle(userId);
         }
+      } catch (error) {
+        console.error('[initializeSync] Prototype flush failed:', error);
       }
     };
 
     if (options?.deferInitialWork) {
       let cleanup: (() => void) | undefined;
       let cancelled = false;
+      // Flush immediately so stale isSyncing / pending ops don't leave the sync chip stuck on
+      // "Saving…" while the background loop waits for idle (up to ~4s).
+      void flushQueue();
       scheduleDeferredWork(async () => {
-        if (cancelled) return;
-        await flushQueue();
         if (cancelled) return;
         cleanup = startBackgroundSync(userId, 300000, { pushOnly: true });
       });

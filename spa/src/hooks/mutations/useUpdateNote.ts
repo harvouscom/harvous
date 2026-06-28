@@ -123,6 +123,7 @@ export function useUpdateNote() {
             ...prev,
             title: variables.title,
             content: processed,
+            updatedAt: data?.note?.updatedAt ?? new Date().toISOString(),
             // Authoritative full content now in cache — clear any list-preview flag.
             __contentIsPreview: false,
             ...(variables.primaryCollection !== undefined ? { primaryCollection: variables.primaryCollection } : {}),

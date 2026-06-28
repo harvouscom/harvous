@@ -109,10 +109,15 @@ function lastEditedTime(note: HomeContinueNoteInput): number {
  * `sortNotesByLastVisited` floats pinned notes first, so `notes[0]` is the
  * wrong answer for "pick up where you left off". Visit-only opens are ignored.
  */
-export function pickContinueNote<T extends HomeContinueNoteInput>(notes: T[]): T | undefined {
+export function pickContinueNote<T extends HomeContinueNoteInput>(
+  notes: T[],
+  opts: { excludeIds?: Iterable<string> } = {},
+): T | undefined {
+  const exclude = new Set(opts.excludeIds ?? []);
   let best: T | undefined;
   let bestTime = -1;
   for (const note of notes) {
+    if (note.id != null && exclude.has(note.id)) continue;
     const t = lastEditedTime(note);
     if (t > bestTime) {
       best = note;

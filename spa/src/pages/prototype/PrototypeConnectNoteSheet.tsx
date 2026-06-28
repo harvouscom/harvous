@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { Drawer, DrawerContent } from '@/components/ui/drawer';
@@ -11,7 +11,12 @@ import { useDismissOnOutside } from '../../hooks/usePopoverDismiss';
 import { useProtoShell } from '../../layouts/proto-shell-context';
 import { PrototypeAddNotesPicker, type AddNotesCandidate } from './PrototypeAddNotesSheet';
 import type { SpaceNoteRow } from '../../hooks/queries/useSpace';
-import { computeAnchoredPopoverPosition } from './proto-anchored-popover-position';
+import {
+  useProtoAnchoredPopoverPosition,
+  type ProtoAnchoredPopoverStrategy,
+} from './useProtoAnchoredPopoverPosition';
+
+export type { ProtoAnchoredPopoverStrategy as ProtoPopoverPlacement };
 
 export interface ConnectNoteAnchorInfo {
   sourceSnippet: string;
@@ -25,6 +30,10 @@ export interface PrototypeConnectNoteSheetProps {
   onOpenChange: (open: boolean) => void;
   spaceId: string;
   parentNoteId: string;
+  /** `main-column-top-right` for inspector flows; default `anchor` for editor/toolbar triggers. */
+  placement?: ProtoAnchoredPopoverStrategy;
+  /** Live trigger element — used when placement is `anchor`. */
+  anchorEl?: HTMLElement | null;
   anchorRect?: DOMRect | null;
   /** When provided, the connection is created as an anchored study-thread highlight (linkedNote kind). */
   anchorInfo?: ConnectNoteAnchorInfo;
@@ -45,6 +54,8 @@ export default function PrototypeConnectNoteSheet({
   onOpenChange,
   spaceId,
   parentNoteId,
+  placement = 'anchor',
+  anchorEl = null,
   anchorRect = null,
   anchorInfo,
   onConnectedWithThread,
@@ -56,9 +67,6 @@ export default function PrototypeConnectNoteSheet({
   const connectMutation = useConnectNote();
   const createHighlightMutation = useCreateHighlight();
   const cardRef = useRef<HTMLDivElement | null>(null);
-  const anchorRectRef = useRef(anchorRect);
-  anchorRectRef.current = anchorRect;
-  const [position, setPosition] = useState<{ top: number; left: number } | null>(null);
   const [connectError, setConnectError] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [selectedNote, setSelectedNote] = useState<AddNotesCandidate | null>(null);
@@ -159,33 +167,12 @@ export default function PrototypeConnectNoteSheet({
 
   const shouldUsePopover = open && !shouldUseSheetPresentation;
 
-  const syncPopoverPosition = () => {
-    const card = cardRef.current;
-    if (!card) return;
-    setPosition(computeAnchoredPopoverPosition(card, anchorRectRef.current));
-  };
-
-  useLayoutEffect(() => {
-    if (!shouldUsePopover) {
-      setPosition(null);
-      return;
-    }
-    syncPopoverPosition();
-  }, [shouldUsePopover, anchorRect, selectedIds.length, connectError]);
-
-  useEffect(() => {
-    if (!shouldUsePopover) return undefined;
-    const card = cardRef.current;
-    if (!card) return undefined;
-    const ro = new ResizeObserver(() => syncPopoverPosition());
-    ro.observe(card);
-    const onResize = () => syncPopoverPosition();
-    window.addEventListener('resize', onResize);
-    return () => {
-      ro.disconnect();
-      window.removeEventListener('resize', onResize);
-    };
-  }, [shouldUsePopover, open]);
+  const { position } = useProtoAnchoredPopoverPosition(
+    cardRef,
+    { anchorEl, anchorRect },
+    { enabled: shouldUsePopover, strategy: placement },
+    [selectedIds.length, connectError],
+  );
 
   useDismissOnOutside(cardRef, () => onOpenChange(false), shouldUsePopover);
 

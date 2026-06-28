@@ -139,7 +139,6 @@ export default function PrototypeNotePage() {
     studyDockCarouselHostEl,
     setEditorChromeMode,
     studyThreadPopoverOpen,
-    studyThreadPopoverAnchorRect,
     closeStudyThreadPopover,
   } = useProtoShell();
   const prevComposeSessionEpochRef = useRef(composeSessionEpoch);
@@ -760,7 +759,6 @@ export default function PrototypeNotePage() {
         }}
         noteId={noteId}
         spaceId={effectiveSpaceId}
-        anchorRect={studyThreadPopoverAnchorRect}
         connectedNoteIds={connectedNoteIds}
       />
     ) : null;
@@ -980,6 +978,7 @@ export default function PrototypeNotePage() {
                 prototypeBodyMountId={editorSessionKey}
                 prototypeDraftPersistRemount={draftPersistRemountRef.current}
                 prototypeDraftPersistRemountTick={draftPersistRemountTick}
+                noteCreatedAtIso={editorNote.createdAt ?? null}
               />
               </div>
             </div>

@@ -63,6 +63,25 @@ describe('getPrototypeSyncChipPresentation', () => {
     expect(backlog.variant).toBe('syncing');
   });
 
+  it('shows Saving… for stale isSyncing with an empty queue', () => {
+    const stale = getPrototypeSyncChipPresentation({
+      ...healthyOnline,
+      isSyncing: true,
+      pendingCount: 0,
+    });
+    expect(stale.visible).toBe(true);
+    expect(stale.label).toBe('Saving…');
+  });
+
+  it('hides the chip after stale isSyncing is cleared with no pending work', () => {
+    const afterFlush = getPrototypeSyncChipPresentation({
+      ...healthyOnline,
+      isSyncing: false,
+      pendingCount: 0,
+    });
+    expect(afterFlush.visible).toBe(false);
+  });
+
   it('treats absurd queue size as an error without showing digits', () => {
     const result = getPrototypeSyncChipPresentation({
       ...healthyOnline,

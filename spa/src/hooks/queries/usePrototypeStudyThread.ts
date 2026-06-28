@@ -55,6 +55,8 @@ export function usePrototypeStudyThread(noteId: string | undefined, spaceId?: st
   return useQuery({
     queryKey: studyThreadQueryKey(noteId, scopeId),
     enabled: Boolean(noteId && scopeId),
+    staleTime: 60_000,
+    placeholderData: (previousData) => previousData,
     queryFn: async () => {
       const fullId = normalizeNoteIdFromParam(noteId!);
       const qs = scopeId ? `?spaceId=${encodeURIComponent(scopeId)}` : '';

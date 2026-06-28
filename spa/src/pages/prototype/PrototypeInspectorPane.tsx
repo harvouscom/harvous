@@ -3,11 +3,15 @@
  * Sections: Info · Tags · Connected Notes · Folders
  * Standalone — no SPA CSS variables or shared styles.
  */
-import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react';
-import { Link, useNavigate } from '@tanstack/react-router';
-import { prototypeHomeRouteTo, prototypeNoteRouteTo } from '@/lib/prototype-path';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useUser } from '@clerk/clerk-react';
+import { Link, useNavigate, useRouterState } from '@tanstack/react-router';
+import { prototypeHomeRouteTo, prototypeNoteRouteTo, prototypeSettingsAccountRouteTo } from '@/lib/prototype-path';
 import type { NoteDetail, LinkedNoteRef } from '../../hooks/queries/useNote';
-import { formatNoteAddedBySource } from '@/utils/note-added-by-display';
+import { normalizeNoteAddedBy } from '@/utils/note-added-by-display';
+import { resolveClerkProfileImageUrl } from '../../lib/clerk-profile-image';
+import { storeSettingsOpenerPath } from '../../lib/prototype-settings-opener';
+import { useProfile } from '../../hooks/queries/useProfile';
 import { stripServerAutoUntitledNoteTitleForDisplay } from '@/utils/server-auto-untitled-note-display';
 import Icon from '@/components/react/Icon';
 import { toast } from '@/utils/toast';
@@ -27,9 +31,7 @@ interface PrototypeInspectorPaneProps {
 
 export default function PrototypeInspectorPane({ note, spaceId = '' }: PrototypeInspectorPaneProps) {
   const [connectOpen, setConnectOpen] = useState(false);
-  const [connectAnchorRect, setConnectAnchorRect] = useState<DOMRect | null>(null);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
-  const [deleteAnchorRect, setDeleteAnchorRect] = useState<DOMRect | null>(null);
   const navigate = useNavigate();
   const { closeInspector, closeDrawer, isMobileSidebar, openStudyThreadPopover } = useProtoShell();
   const deleteNote = useDeleteNote();
@@ -55,7 +57,8 @@ export default function PrototypeInspectorPane({ note, spaceId = '' }: Prototype
   };
 
   const createdStr = note.createdAt ? formatDate(new Date(note.createdAt)) : '—';
-  const updatedStr = note.updatedAt ? formatDate(new Date(note.updatedAt)) : '—';
+  const modifiedSource = note.updatedAt ?? note.createdAt;
+  const updatedStr = modifiedSource ? formatDate(new Date(modifiedSource)) : '—';
 
   const wordCount = estimateWords(note.content ?? '');
 
@@ -77,8 +80,8 @@ export default function PrototypeInspectorPane({ note, spaceId = '' }: Prototype
             <InspectorSimpleNoteIdRow simpleNoteId={note.simpleNoteId} />
           ) : null}
           <InspectorRow label="Created" value={createdStr} />
-          <InspectorRow label="Added by" value={formatNoteAddedBySource(note.addedBy)} />
-          <InspectorRow label="Modified" value={updatedStr} />
+          <InspectorRow label="Added by" value={<InspectorAddedByValue addedBy={note.addedBy} />} />
+          <InspectorRow label="Edited" value={updatedStr} />
           <InspectorRow label="Words" value={String(wordCount)} />
           {note.noteType && note.noteType !== 'default' ? (
             <InspectorRow label="Type" value={capitalize(note.noteType)} />
@@ -104,10 +107,7 @@ export default function PrototypeInspectorPane({ note, spaceId = '' }: Prototype
               className="proto-inspector-connect-btn"
               title="Connect another note"
               aria-label="Connect another note"
-              onClick={(e: ReactMouseEvent<HTMLButtonElement>) => {
-                setConnectAnchorRect(e.currentTarget.getBoundingClientRect());
-                setConnectOpen(true);
-              }}
+              onClick={() => setConnectOpen(true)}
             >
               <Icon name="plus" size={12} aria-hidden />
               Connect
@@ -141,7 +141,7 @@ export default function PrototypeInspectorPane({ note, spaceId = '' }: Prototype
             <button
               type="button"
               className="proto-inspector-view-thread"
-              onClick={(e) => openStudyThreadPopover(e.currentTarget.getBoundingClientRect())}
+              onClick={() => openStudyThreadPopover()}
             >
               <Icon name="arrow-right-arrow-left" size={11} aria-hidden />
               <span>Open thread</span>
@@ -163,7 +163,7 @@ export default function PrototypeInspectorPane({ note, spaceId = '' }: Prototype
           onOpenChange={setConnectOpen}
           spaceId={spaceId}
           parentNoteId={note.id}
-          anchorRect={connectAnchorRect}
+          placement="main-column-top-right"
           connectedNoteIds={connectedNoteIds}
         />
       ) : null}
@@ -174,10 +174,7 @@ export default function PrototypeInspectorPane({ note, spaceId = '' }: Prototype
             type="button"
             className="proto-inspector-delete-btn"
             disabled={deleteNote.isPending}
-            onClick={(e) => {
-              setDeleteAnchorRect(e.currentTarget.getBoundingClientRect());
-              setDeleteConfirmOpen(true);
-            }}
+            onClick={() => setDeleteConfirmOpen(true)}
           >
             <Icon name="trash-can" size={12} aria-hidden />
             Delete note
@@ -185,16 +182,15 @@ export default function PrototypeInspectorPane({ note, spaceId = '' }: Prototype
         </div>
       ) : null}
 
-      {deleteConfirmOpen && deleteAnchorRect ? (
+      {deleteConfirmOpen ? (
         <ProtoConfirmDialog
-          anchorRect={deleteAnchorRect}
+          placement="main-column-top-right"
           confirmLabel="Delete"
           busy={deleteNote.isPending}
           onConfirm={onDeleteConfirm}
           onCancel={() => {
             if (!deleteNote.isPending) {
               setDeleteConfirmOpen(false);
-              setDeleteAnchorRect(null);
             }
           }}
         />
@@ -268,12 +264,65 @@ function ConnectedNoteRow({
   );
 }
 
-function InspectorRow({ label, value }: { label: string; value: string }) {
+function InspectorRow({ label, value }: { label: string; value: ReactNode }) {
   return (
     <div className="proto-inspector-row">
       <span className="proto-inspector-row-label">{label}</span>
       <span className="proto-inspector-row-value">{value}</span>
     </div>
+  );
+}
+
+function InspectorAddedByValue({ addedBy }: { addedBy?: string | null }) {
+  const { user } = useUser();
+  const { data: profile } = useProfile();
+  const navigate = useNavigate();
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const searchRaw = useRouterState({ select: (s) => s.location.searchStr });
+  const [photoLoadFailed, setPhotoLoadFailed] = useState(false);
+
+  const avatarImageUrl = useMemo(
+    () => resolveClerkProfileImageUrl(user, profile?.profileImageUrl),
+    [user, profile?.profileImageUrl],
+  );
+
+  useEffect(() => {
+    setPhotoLoadFailed(false);
+  }, [avatarImageUrl]);
+
+  if (normalizeNoteAddedBy(addedBy) === 'harvous') {
+    return 'Harvous';
+  }
+
+  const showProfilePhoto = Boolean(avatarImageUrl) && !photoLoadFailed;
+
+  const openAccountSettings = () => {
+    storeSettingsOpenerPath(`${pathname}${searchRaw ?? ''}`);
+    void navigate({ to: prototypeSettingsAccountRouteTo() });
+  };
+
+  return (
+    <button
+      type="button"
+      className="proto-glass-surface proto-home-greeting__chip proto-inspector-added-by-chip"
+      aria-label="Open account settings"
+      title="Account settings"
+      onClick={openAccountSettings}
+    >
+      <span className="proto-inspector-added-by-chip__avatar" aria-hidden>
+        {showProfilePhoto ? (
+          <img
+            src={avatarImageUrl!}
+            alt=""
+            className="proto-inspector-added-by-chip__photo"
+            onError={() => setPhotoLoadFailed(true)}
+          />
+        ) : (
+          <Icon name="circle-user" size={10} />
+        )}
+      </span>
+      <span>You</span>
+    </button>
   );
 }
 

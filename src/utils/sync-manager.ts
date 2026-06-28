@@ -923,6 +923,24 @@ export async function flushPushQueue(userId: string): Promise<SyncResult> {
 }
 
 /**
+ * Clear a stale `isSyncing` flag when the queue is empty (e.g. interrupted classic sync).
+ * Safe to call offline — does not attempt a network push.
+ */
+export async function clearStaleSyncingIfIdle(userId: string): Promise<void> {
+  await ensureDatabaseOpen();
+  const pending = await retryIndexedDBOperation(async () =>
+    offlineDB.syncQueue
+      .where('userId')
+      .equals(userId)
+      .filter((op) => op.retryCount < 5)
+      .count(),
+  );
+  if (pending === 0) {
+    await recordPushQueueOutcome(userId, { success: true, pushedCount: 0 });
+  }
+}
+
+/**
  * Prototype is online-first — a bloated local queue cannot drain and blocks the sync chip.
  * Clears the entire queue when pending exceeds the unhealthy threshold (server data is authoritative).
  */

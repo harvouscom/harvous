@@ -155,8 +155,7 @@ type ProtoShellContextValue = {
   closeInspector: () => void;
   /** Study thread popover from inspector — persists while switching notes in the sidebar. */
   studyThreadPopoverOpen: boolean;
-  studyThreadPopoverAnchorRect: DOMRect | null;
-  openStudyThreadPopover: (anchorRect?: DOMRect | null) => void;
+  openStudyThreadPopover: () => void;
   closeStudyThreadPopover: () => void;
   /** Study thread panel — reusable expandable right-side layer over a note. */
   threadPanelNoteId: string | null;
@@ -207,7 +206,6 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
   const [inspectorExiting, setInspectorExiting] = useState(false);
   const inspectorExitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [studyThreadPopoverOpen, setStudyThreadPopoverOpen] = useState(false);
-  const [studyThreadPopoverAnchorRect, setStudyThreadPopoverAnchorRect] = useState<DOMRect | null>(null);
   const [threadPanelNoteId, setThreadPanelNoteId] = useState<string | null>(null);
   const [threadPanelExiting, setThreadPanelExiting] = useState(false);
   const [threadPanelExpanded, setThreadPanelExpanded] = useState(false);
@@ -331,11 +329,9 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
   );
   const closeStudyThreadPopover = useCallback(() => {
     setStudyThreadPopoverOpen(false);
-    setStudyThreadPopoverAnchorRect(null);
   }, []);
 
-  const openStudyThreadPopover = useCallback((anchorRect: DOMRect | null = null) => {
-    setStudyThreadPopoverAnchorRect(anchorRect);
+  const openStudyThreadPopover = useCallback(() => {
     setStudyThreadPopoverOpen(true);
   }, []);
 
@@ -574,7 +570,6 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
       openInspector,
       closeInspector,
       studyThreadPopoverOpen,
-      studyThreadPopoverAnchorRect,
       openStudyThreadPopover,
       closeStudyThreadPopover,
       threadPanelNoteId,
@@ -630,7 +625,6 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
       openInspector,
       closeInspector,
       studyThreadPopoverOpen,
-      studyThreadPopoverAnchorRect,
       openStudyThreadPopover,
       closeStudyThreadPopover,
       threadPanelNoteId,

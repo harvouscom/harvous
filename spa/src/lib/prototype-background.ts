@@ -627,25 +627,42 @@ function clearPendingAppearance(): void {
 }
 
 /** Push any pending local edit to the account. Keeps the marker on failure (offline) so it retries. */
-async function flushPendingAppearance(): Promise<void> {
+async function flushPendingAppearance(): Promise<boolean> {
   const raw = readPendingAppearance();
-  if (!raw) return;
+  if (!raw) return true;
   const parsed = parseAccountAppearance(raw);
-  if (!parsed) { clearPendingAppearance(); return; }
+  if (!parsed) { clearPendingAppearance(); return true; }
   try {
-    await api.post(APPEARANCE_UPDATE_ENDPOINT, {
+    const res = await api.post<{ appearanceSettings?: string }>(APPEARANCE_UPDATE_ENDPOINT, {
       colorScheme: parsed.colorScheme,
       bgLight: parsed.bgLight,
       bgDark: parsed.bgDark,
     });
+    if (typeof res.appearanceSettings === 'string') {
+      lastKnownAccountAppearanceRaw = res.appearanceSettings;
+    }
     // Only clear if no newer edit landed while the request was in flight.
     if (readPendingAppearance() === raw) clearPendingAppearance();
+    return true;
   } catch {
     /* keep pending; retried on `online` / next init */
+    appearanceSeedAttempted = false;
+    return false;
   }
 }
 
 let pushDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+
+/** Last account JSON seen from the server — used to skip no-op pushes. */
+let lastKnownAccountAppearanceRaw: string | null = null;
+
+function localAppearanceMatchesAccount(localSerialized: string): boolean {
+  if (lastKnownAccountAppearanceRaw == null) return false;
+  const local = parseAccountAppearance(localSerialized);
+  const account = parseAccountAppearance(lastKnownAccountAppearanceRaw);
+  if (!local || !account) return false;
+  return serializeAppearance(local) === serializeAppearance(account);
+}
 
 /**
  * Write-through: persist the device's current local appearance to the account.
@@ -653,7 +670,9 @@ let pushDebounceTimer: ReturnType<typeof setTimeout> | null = null;
  * the network flush so rapid preset taps collapse into one request.
  */
 export function schedulePushAppearanceToAccount(delayMs = 500): void {
-  setPendingAppearance(serializeAppearance(readLocalAppearanceSettings()));
+  const serialized = serializeAppearance(readLocalAppearanceSettings());
+  if (localAppearanceMatchesAccount(serialized)) return;
+  setPendingAppearance(serialized);
   if (pushDebounceTimer) clearTimeout(pushDebounceTimer);
   pushDebounceTimer = setTimeout(() => { void flushPendingAppearance(); }, delayMs);
 }
@@ -682,6 +701,7 @@ function handleAppearanceAccountSync(raw: string | null): void {
     schedulePushAppearanceToAccount(0); // seed from this device once
     return;
   }
+  lastKnownAccountAppearanceRaw = raw;
   hydrateAppearanceFromAccount(raw);
 }
 

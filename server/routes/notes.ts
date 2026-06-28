@@ -60,7 +60,7 @@ import { awardCreationBonusXP, revokeXPOnDeletion, revokeAllXPForItem } from '..
 import { generateAutoTags, applyAutoTags, removeAutoTags, regenerateAutoTags } from '../utils/auto-tag-generator';
 import { processScriptureReferences } from '../utils/process-scripture-references';
 import { canonicalizeNoteHtmlLineBreaks } from '@/utils/note-html-linebreaks';
-import { getNextUntitledNoteName } from '../utils/untitled-naming';
+import { formatNoteDefaultTitle } from '@/utils/date-formatting';
 import { ensureUnorganizedThread } from '../utils/unorganized-thread';
 import { MY_PILE_THREAD_TITLE } from '@/utils/my-pile-thread';
 import { moveScriptureNotesToThread } from '../utils/move-scripture-notes-to-thread';
@@ -240,7 +240,7 @@ route.post('/api/notes/create', requireAuth, rateLimitNoteCreate(), async (c) =>
 
     let capitalizedTitle: string;
     if (!title || !title.trim()) {
-      capitalizedTitle = await getNextUntitledNoteName(auth.userId);
+      capitalizedTitle = truncateAndCapitalizeTitle(formatNoteDefaultTitle(new Date()));
     } else {
       capitalizedTitle = truncateAndCapitalizeTitle(title);
     }
@@ -293,6 +293,7 @@ route.post('/api/notes/create', requireAuth, rateLimitNoteCreate(), async (c) =>
       shareTokenCreatedAt: shouldAutoShare ? now : null,
       contentEncrypted,
       createdAt: now,
+      updatedAt: now,
       lastVisited: now,
       linkedFromNoteId: resolvedLinkedFromNoteId,
     }).returning())!;
