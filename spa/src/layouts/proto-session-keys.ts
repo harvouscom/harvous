@@ -15,3 +15,9 @@ export const PROTO_FOUNDER_LETTER_DISMISSED_KEY = 'harvous-prototype-founder-let
 
 /** Dev-only: force the founder letter pill for UI testing (`import.meta.env.DEV` only). */
 export const PROTO_FOUNDER_LETTER_PREVIEW_KEY = 'harvous-prototype-founder-letter-preview';
+
+/** Client flag: user dismissed the install web app card on prototype home. */
+export const PROTO_INSTALL_WEB_APP_DISMISSED_KEY = 'harvous-prototype-install-web-app-dismissed';
+
+/** Dev-only: force the install web app card for UI testing (`import.meta.env.DEV` only). */
+export const PROTO_INSTALL_WEB_APP_PREVIEW_KEY = 'harvous-prototype-install-web-app-preview';

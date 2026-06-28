@@ -4479,6 +4479,80 @@ button.proto-home-card--tappable:focus-visible {
   user-select: none;
 }
 
+/* Mobile home — Add to Home Screen card (main pane empty state). */
+.proto-install-web-app-card {
+  position: relative;
+  flex-shrink: 0;
+  width: fit-content;
+  max-width: calc(100% - 32px);
+  margin: 16px auto 0;
+  align-self: center;
+  padding: 14px 22px 12px;
+  text-align: center;
+}
+
+.proto-install-web-app-card .proto-daily-passage-pill__dismiss {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.proto-install-web-app-card__heading {
+  margin: 0;
+  overflow: visible;
+  text-overflow: unset;
+  white-space: normal;
+  font-family: var(--pds-font-display);
+  font-size: 1.0625rem;
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--pds-text-primary);
+}
+
+.proto-install-web-app-card__learn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  margin: 10px auto 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  font-family: var(--pds-font-body);
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--pds-accent-text, var(--pds-text-primary));
+  cursor: pointer;
+}
+
+.proto-install-web-app-card__learn:hover {
+  text-decoration: underline;
+}
+
+.proto-install-web-app-card__learn:focus-visible {
+  outline: 2px solid var(--pds-accent-focus-border);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+.proto-install-web-app-sheet__steps {
+  margin: 0 0 12px;
+  padding-left: 1.2rem;
+  font-family: var(--pds-font-body);
+  font-size: 0.9375rem;
+  line-height: 1.5;
+  color: var(--pds-text-secondary);
+}
+
+.proto-install-web-app-sheet__steps li + li {
+  margin-top: 6px;
+}
+
+@media (min-width: 900px) {
+  .proto-install-web-app-card {
+    display: none;
+  }
+}
+
 .proto-home-tag-chips {
   display: flex;
   flex-wrap: wrap;
@@ -6610,6 +6684,58 @@ button.proto-appearance-hero__card {
 .proto-founder-letter-sheet__body {
   overflow: visible;
   padding: 40px 0 24px;
+}
+
+@media (max-width: 600px) {
+  .proto-founder-letter-sheet__body {
+    padding-top: 28px;
+    padding-bottom: 20px;
+  }
+
+  .proto-founder-letter-sheet .proto-paper-stack {
+    padding: 10px 12px 14px;
+  }
+
+  .proto-founder-letter-sheet .proto-paper-leaf--back,
+  .proto-founder-letter-sheet .proto-paper-leaf--mid {
+    inset: 10px 12px 14px;
+  }
+
+  .proto-founder-letter-sheet .proto-paper-leaf--main {
+    --proto-founder-letter-pad-y: 28px;
+    --proto-founder-letter-pad-x: 20px;
+  }
+
+  .proto-founder-letter-sheet .proto-prose-letter {
+    font-size: 0.9375rem;
+    line-height: 1.6;
+  }
+
+  .proto-founder-letter-sheet .proto-prose-letter p {
+    margin-bottom: 1em;
+  }
+
+  .proto-founder-letter-sheet .proto-founder-letter__columns {
+    gap: 24px;
+  }
+
+  .proto-founder-letter-sheet .proto-founder-letter__signoff {
+    margin-top: 20px;
+  }
+
+  .proto-founder-letter-sheet .proto-founder-letter__signature {
+    height: 2.75rem;
+  }
+
+  .proto-founder-letter-sheet .proto-founder-letter__avatar {
+    width: 2.25rem;
+    height: 2.25rem;
+  }
+
+  .proto-founder-letter-sheet .proto-founder-letter__name,
+  .proto-founder-letter-sheet .proto-founder-letter__title {
+    font-size: 0.8125rem;
+  }
 }
 
 /* ─── Settings: Get Support (founder contact) ─────────────────────────────── */
