@@ -24,7 +24,6 @@ import { ScripturePill } from './TiptapScripturePill';
 import {
   ScriptureDraft,
   enterScriptureDraftView,
-  editScripturePillAsDraft,
   confirmScriptureDraftView,
   confirmAnyScriptureDraftView,
   cancelScriptureDraftView,
@@ -8368,7 +8367,35 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                     if (!confirm || !editor || !isEditorValid(editor)) return;
                     setDeleteConfirmPill(null);
                     deleteConfirmPillRef.current = null;
-                    editScripturePillAsDraft(editor.view, confirm.boundaries.start, confirm.boundaries.end);
+                    // Mobile can't edit the reference inline reliably, so "Edit" opens the scripture
+                    // dock (with its book/chapter/verse/translation picker) for this pill instead of
+                    // converting it back to an inline draft.
+                    const { start, end } = confirm.boundaries;
+                    let pillMark: any = null;
+                    editor.state.doc.nodesBetween(start, end, (node: any) => {
+                      if (!pillMark && node.isText) {
+                        const m = node.marks.find((x: any) => x.type?.name === 'scripturePill');
+                        if (m) pillMark = m;
+                      }
+                    });
+                    setTranslationPicker(null);
+                    suppressScriptureDockDismiss();
+                    const session: ScripturePillDockSession = {
+                      boundaries: { from: start, to: end },
+                      reference: confirm.reference,
+                      translation: pillMark?.attrs?.translation ?? null,
+                      noteId: pillMark?.attrs?.noteId ?? null,
+                      pillAccent: pillMark?.attrs?.pillAccent ?? null,
+                    };
+                    setStudyDockStack((s) => openOrFocusScripture(s, session));
+                    requestAnimationFrame(() => {
+                      try {
+                        window.getSelection()?.removeAllRanges();
+                      } catch {
+                        /* ignore */
+                      }
+                      releaseEditorFocusForStudyDock();
+                    });
                   }
                 : undefined
             }

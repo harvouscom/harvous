@@ -487,8 +487,10 @@ export function confirmScriptureDraftView(
   let caret = pillEnd;
   const charAfter = tr.doc.textBetween(pillEnd, Math.min(pillEnd + 1, tr.doc.content.size));
   if (charAfter === ' ') caret = pillEnd + 1;
-  tr.setSelection(TextSelection.create(tr.doc, Math.min(caret, tr.doc.content.size)));
+  const caretPos = Math.min(caret, tr.doc.content.size);
+  tr.setSelection(TextSelection.create(tr.doc, caretPos));
   tr.setStoredMarks([]);
+  tr.scrollIntoView();
   tr.setMeta('addToHistory', true);
   view.dispatch(tr);
 
@@ -498,6 +500,25 @@ export function confirmScriptureDraftView(
     } catch {
       /* ignore */
     }
+  }
+
+  // iOS: after a programmatic commit (replaceWith + new selection) the *visible* caret can stick at
+  // the line end even though the selection is logically right after the pill — the contenteditable
+  // doesn't repaint it. Re-assert the same selection on the next frame so ProseMirror notices the
+  // DOM selection drifted and re-syncs it. Desktop syncs correctly on the first dispatch.
+  if (isMobileDevice()) {
+    requestAnimationFrame(() => {
+      if (!view || view.isDestroyed) return;
+      try {
+        const pos = Math.min(view.state.selection.from, view.state.doc.content.size);
+        const reTr = view.state.tr.setSelection(TextSelection.create(view.state.doc, pos));
+        reTr.setMeta('addToHistory', false);
+        view.dispatch(reTr);
+        if (opts?.focus) view.focus();
+      } catch {
+        /* ignore */
+      }
+    });
   }
 
   try {
