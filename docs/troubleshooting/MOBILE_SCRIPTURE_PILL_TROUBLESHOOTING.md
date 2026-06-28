@@ -35,7 +35,7 @@ Key files:
 - `src/utils/pwa-prompt.ts` — `isMobileDevice()` (the mobile/desktop branch gate).
 - `src/styles/study-dock-carousel.css`, `spa/src/styles/prototype-shell.css` — study-dock layout.
 
-Tests: `src/utils/__tests__/scripture-draft.test.ts`.
+Tests: `src/utils/__tests__/scripture-draft.test.ts` (desktop mark path), `src/utils/__tests__/scripture-draft-mobile.test.ts` (mobile decoration path).
 
 ---
 
@@ -84,7 +84,7 @@ this. The two defensive strategies that work:
 | 1 | After committing a pill, the caret still jumps to the far right instead of right after the pill | iOS leaves the *visible* caret painted at the line end after the commit mutation (the ProseMirror selection is correct — desktop renders fine) | First attempt: `tr.scrollIntoView()` + a rAF re-dispatch of the same PM selection. **This did not fully work** — re-dispatching the same selection is a no-op (see Round 5). |
 | 2 | The "Edit" (pencil) in the pill's floating delete menu tried to edit inline, which doesn't work on mobile | Inline `editScripturePillAsDraft` is unreliable on iOS | The delete-confirm `onEdit` (prototypeNative) now opens the **scripture dock** for the pill (builds a `ScripturePillDockSession` from the pill mark at the boundaries) instead of converting to an inline draft. |
 
-### Round 5 (current)
+### Round 5
 
 The caret desync wasn't just a commit problem — it happens on **every** programmatic draft mutation
 (draft creation, range-grow/unify, and commit), and the Round-4 rAF re-dispatch didn't fix it
@@ -98,12 +98,29 @@ didn't pass `focus: true`, so the field was left unfocused).
 | 1 | Caret stuck far right while still in draft/edit mode (and "-N" range tail sometimes rendered as a second dashed fragment) | The draft mark's `addMark` (creation + grow) restructures the contenteditable; iOS strands the painted caret. Round-4's re-dispatch of the same PM selection was a no-op. | New `resyncMobileCaret(view)` sets the native `Selection` directly via `view.domAtPos` on the next frame (mobile only). Called from `enterScriptureDraftView`, `unifyScriptureDraftAtCursor`, and `confirmScriptureDraftView`. |
 | 2 | Pressing Return/Enter made the caret disappear | The Enter→confirm handler called `confirmScriptureDraftView(view)` without `{ focus: true }`, so after the commit the field was left blurred and the caret vanished | Pass `{ focus: true }`; `resyncMobileCaret` re-focuses + re-places the caret. |
 
+**Round 5 was insufficient on device** — single-rAF + bare `domAtPos` still left the painted caret at the line end.
+
+### Round 6 (current)
+
+Two-pronged fix: harden caret resync for the mark path (post-commit and any legacy mark mutations), and **switch the mobile in-progress draft to ProseMirror inline `Decoration`s** so create/grow/unify no longer restructure the document while typing.
+
+| # | Symptom | Root cause | Fix |
+|---|---------|-----------|-----|
+| 1 | Caret still at line end after Round 5 | Single rAF ran before PM's DOM patch finished; `domAtPos` inside `inline-flex` pill spans mispaints on iOS | **`applyNativeCaret`**: double-rAF + 16ms retry; DOM-first placement via last text node inside `.scripture-pill-draft` / committed pill (same anchor as ✓); focus on first rAF, selection on second |
+| 2 | Caret drifts after debounced unify pauses | ✓ re-show did not re-assert native selection | Call `resyncMobileCaret` when the floating ✓ reappears (~260ms idle) in the `updatePos` effect |
+| 3 | Caret drifts during draft create/grow on mobile | Any `addMark` mid-type restructures contenteditable (root iOS problem) | **Mobile decoration draft**: `makeScriptureDraftDecorationPlugin()` tracks `{ from, to, attrs }` in plugin state and renders `Decoration.inline` with `scripture-pill-draft` styling — **no mark mutation** on enter/unify. Confirm still `replaceWith` a committed pill. Desktop keeps the mark + grow plugin. |
+| 4 | Enter-confirm focus fight | Sync `view.focus()` before rAF resync reset selection | Focus moved into first rAF inside `resyncMobileCaret`; removed sync focus from `confirmScriptureDraftView` |
+
+Key additions:
+- `makeScriptureDraftDecorationPlugin`, `scriptureDraftDecorationKey` in `TiptapScriptureDraft.ts`
+- Mobile branches in `enterScriptureDraftView`, `unifyScriptureDraftAtCursor`, `findDraftRange`, `getScriptureDraftAnchorPos`, `findDetachedScriptureDraft`, `confirmScriptureDraftView`, `cancelScriptureDraftView`
+- Tests: `src/utils/__tests__/scripture-draft-mobile.test.ts` (mocks `isMobileDevice()` → true)
+
 ---
 
 ## iOS limitations & gotchas (durable)
 
-- **No per-keystroke doc mutation on mobile.** The grow plugin is desktop-only. Anything that needs
-  to reshape the draft while typing must run on the debounced idle timer, not synchronously.
+- **No per-keystroke doc mutation on mobile.** The grow plugin is desktop-only. On mobile the in-progress draft uses **inline decorations** (plugin state), not the `scriptureDraft` mark — grow/unify only updates decoration range metadata. Confirm still replaces text with a committed pill mark.
 - **The ✓ confirm must be a portal OUTSIDE the editor.** iOS refuses to type next to an inline
   `contentEditable=false` widget. It's `position: fixed` and needs the `visualViewport` offset
   correction whenever the keyboard is up.
@@ -117,25 +134,17 @@ didn't pass `focus: true`, so the field was left unfocused).
 - **The study-dock sidebar offset lives on `.study-dock-carousel__track`** — when changing dock
   layout, reset/inherit padding on the *track*, and re-check `--no-sidebar` / `--sidebar-collapsed` /
   `@media (max-width: 899px)` / `--drawer-open` states.
-- **`isMobileDevice()`** (`src/utils/pwa-prompt.ts`) returns false in jsdom, so unit tests exercise
-  the desktop (synchronous) path. Mobile-only behavior (debounce, caret resync) can't be covered by
-  the current unit tests and needs device/preview verification.
+- **`isMobileDevice()`** (`src/utils/pwa-prompt.ts`) returns false in jsdom, so the default unit tests exercise the desktop (mark) path. Mobile decoration behavior is covered by `src/utils/__tests__/scripture-draft-mobile.test.ts` (mocked mobile). Caret paint still needs device verification.
 
 ## Open issues / needs device verification
 
-- **Caret resync (Round 5)** now sets the native `Selection` directly (`resyncMobileCaret`). If the
-  caret STILL drifts on device, the remaining lever is to **stop using a mark for the in-progress
-  draft on mobile and render it as a ProseMirror inline `Decoration` instead** — decorations style
-  the range without restructuring the document, so there's no contenteditable mutation and no caret
-  desync at all. That's the real fix if patching the caret keeps recurring; it's a larger rewrite of
-  the draft layer. Verify the current fix on a real iPhone first — a desktop preview can't reproduce
-  it (gated behind `isMobileDevice()`).
+- **Round 6 caret + decoration draft** — re-verify on iPhone Safari (scenarios A–E below). The decoration path should eliminate mid-type desync; hardened `resyncMobileCaret` handles post-commit `replaceWith`.
 - **Dock sizing (Round 3 #4)** — verify the dock fills the column and animates correctly at the
   430px / 620px breakpoints and with the sidebar collapsed (desktop ⌘\) vs absent (mobile).
 
 ## How to verify
 
-- Unit: `npx vitest run src/utils/__tests__/scripture-draft.test.ts` (+ the pill/format suites).
+- Unit: `npx vitest run src/utils/__tests__/scripture-draft.test.ts src/utils/__tests__/scripture-draft-mobile.test.ts` (+ the pill/format suites).
 - Types: `npx tsc -p tsconfig.json --noEmit` (pre-existing errors elsewhere are unrelated).
 - Device (the only way to confirm the iOS-specific items): in `prototypeNative`, type
   `John 3:16-18` then `Hebrews 11:2-7`, confirm each (✓ / tap-away), and check: the range stays one

@@ -32,6 +32,7 @@ import {
   getScriptureDraftAnchorElement,
   findDetachedScriptureDraft,
   unifyScriptureDraftAtCursor,
+  resyncMobileCaret,
   SCRIPTURE_DRAFT_CONFIRMED_EVENT,
 } from './TiptapScriptureDraft';
 import { BoldCustom } from './TiptapBoldCustom';
@@ -6541,6 +6542,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
             top: rect.top + rect.height / 2 + oy,
             left: Math.min(rect.right + 6, vw - 30) + ox,
           });
+          resyncMobileCaret(editor.view);
           return;
         }
         // Fallback: the caret coordinate at the draft end.
@@ -6550,6 +6552,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
           top: (coords.top + coords.bottom) / 2 + oy,
           left: Math.min(coords.right + 6, vw - 30) + ox,
         });
+        resyncMobileCaret(editor.view);
       } catch {
         setScriptureDraftConfirm(null);
       }

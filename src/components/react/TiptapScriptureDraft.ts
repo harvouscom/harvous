@@ -1,5 +1,6 @@
 import { Mark, getMarkRange } from '@tiptap/core';
 import { Plugin, PluginKey, TextSelection } from '@tiptap/pm/state';
+import { Decoration, DecorationSet } from '@tiptap/pm/view';
 import {
   detectScriptureReferences,
   matchAnchoredTrailingTranslationAbbreviation,
@@ -91,9 +92,75 @@ export const ScriptureDraft = Mark.create<ScriptureDraftOptions>({
   },
 
   addProseMirrorPlugins() {
-    return [makeScriptureDraftGrowPlugin()];
+    const plugins = [makeScriptureDraftGrowPlugin()];
+    if (isMobileDevice()) {
+      plugins.push(makeScriptureDraftDecorationPlugin());
+    }
+    return plugins;
   },
 });
+
+/** Mobile-only in-progress draft tracked as inline decorations (no mark mutations while typing). */
+export type ScriptureDraftDecorationState = {
+  from: number;
+  to: number;
+  attrs: { translation?: string | null; pillAccent?: string | null };
+} | null;
+
+export const scriptureDraftDecorationKey = new PluginKey<ScriptureDraftDecorationState>(
+  'scriptureDraftDecoration',
+);
+
+/** Plugin state + inline decoration styling for the mobile draft path. */
+export function makeScriptureDraftDecorationPlugin() {
+  return new Plugin({
+    key: scriptureDraftDecorationKey,
+    state: {
+      init(): ScriptureDraftDecorationState {
+        return null;
+      },
+      apply(tr, value): ScriptureDraftDecorationState {
+        const meta = tr.getMeta(scriptureDraftDecorationKey);
+        if (meta !== undefined) return meta;
+        if (value && tr.docChanged) {
+          const from = tr.mapping.map(value.from);
+          const to = tr.mapping.map(value.to);
+          if (from >= to) return null;
+          return { ...value, from, to };
+        }
+        return value;
+      },
+    },
+    props: {
+      decorations(state) {
+        const draft = scriptureDraftDecorationKey.getState(state);
+        if (!draft) return DecorationSet.empty;
+        const decoAttrs: Record<string, string> = {
+          class: 'scripture-pill scripture-pill-draft',
+          style: DRAFT_STYLE,
+        };
+        if (draft.attrs.translation) {
+          decoAttrs['data-scripture-translation'] = draft.attrs.translation;
+          decoAttrs['data-scripture-translation-label'] = getTranslationAbbreviationDisplay(
+            draft.attrs.translation,
+          );
+        }
+        return DecorationSet.create(state.doc, [
+          Decoration.inline(draft.from, draft.to, decoAttrs),
+        ]);
+      },
+    },
+  });
+}
+
+function getDecorationDraftState(state: any): ScriptureDraftDecorationState {
+  if (!isMobileDevice()) return null;
+  return scriptureDraftDecorationKey.getState(state) ?? null;
+}
+
+function usesMobileDraftDecoration(state: any): boolean {
+  return getDecorationDraftState(state) != null;
+}
 
 /**
  * Build the single `addMark` that grows/merges the draft to cover the full reference-in-progress
@@ -103,10 +170,18 @@ export const ScriptureDraft = Mark.create<ScriptureDraftOptions>({
  * `removeMark` needed, which keeps the DOM mutation minimal.
  */
 function buildScriptureDraftGrowthTr(state: any): any | null {
+  const growth = computeScriptureDraftGrowth(state.doc, state.selection.from, state);
+  if (!growth) return null;
+  if (isMobileDevice()) {
+    const current = getDecorationDraftState(state);
+    if (!current) return null;
+    const tr = state.tr;
+    tr.setMeta(scriptureDraftDecorationKey, { ...current, from: growth.from, to: growth.to });
+    tr.setMeta('addToHistory', false);
+    return tr;
+  }
   const draftType = state.schema.marks.scriptureDraft;
   if (!draftType) return null;
-  const growth = computeScriptureDraftGrowth(state.doc, state.selection.from);
-  if (!growth) return null;
   // Reuse the anchor draft's attrs (e.g. a carried translation) so the regrown span keeps them.
   const existing = getMarkInstanceAt(state.doc, growth.from, draftType);
   const tr = state.tr;
@@ -148,9 +223,10 @@ export function unifyScriptureDraftAtCursor(view: any): boolean {
   const tr = buildScriptureDraftGrowthTr(view.state);
   if (!tr) return false;
   view.dispatch(tr);
-  // iOS: the addMark that folds the range tail into the draft restructures the DOM — re-place the
-  // visible caret so it doesn't strand at the line end.
-  resyncMobileCaret(view);
+  // iOS mark path: the addMark restructures the DOM — re-place the visible caret.
+  if (!usesMobileDraftDecoration(view.state)) {
+    resyncMobileCaret(view);
+  }
   return true;
 }
 
@@ -171,8 +247,11 @@ function getMarkInstanceAt(doc: any, pos: number, markType: any): any | null {
 
 // ── Range helpers ─────────────────────────────────────────────────────────────
 
-/** Resolve the draft mark range covering (or ending at) `pos`. */
+/** Resolve the draft range covering (or ending at) `pos`. */
 function findDraftRange(state: any, pos: number): { from: number; to: number } | null {
+  const deco = getDecorationDraftState(state);
+  if (deco) return { from: deco.from, to: deco.to };
+
   const draftType = state.schema.marks.scriptureDraft;
   if (!draftType) return null;
   const size = state.doc.content.size;
@@ -204,6 +283,11 @@ export function isInsideScriptureDraft(state: any): boolean {
  * caret), or null when there is no draft. The button is rendered outside the editor.
  */
 export function getScriptureDraftAnchorPos(state: any): number | null {
+  const deco = getDecorationDraftState(state);
+  if (deco) {
+    return extendRangeOverTrailingContinuation(state.doc, deco.to);
+  }
+
   const ranges = collectScripturePillRanges(state.doc, 'scriptureDraft');
   if (ranges.length === 0) return null;
   const caret = state.selection.from;
@@ -245,6 +329,13 @@ export function getScriptureDraftAnchorElement(view: any, pos: number): HTMLElem
 
 /** True when the doc contains a draft mark whose range does NOT contain the caret. */
 export function findDetachedScriptureDraft(state: any): { from: number; to: number } | null {
+  const deco = getDecorationDraftState(state);
+  if (deco) {
+    const caret = state.selection.from;
+    if (caret < deco.from || caret > deco.to) return { from: deco.from, to: deco.to };
+    return null;
+  }
+
   const ranges = collectScripturePillRanges(state.doc, 'scriptureDraft');
   if (ranges.length === 0) return null;
   const caret = state.selection.from;
@@ -272,18 +363,111 @@ export function draftTextToReference(text: string): string | null {
 
 // ── Mutations ───────────────────────────────────────────────────────────────────
 
+/** Last text node under `root` (depth-first), for native caret placement inside pills. */
+function getLastTextNodeIn(root: Node): Text | null {
+  if (root.nodeType === Node.TEXT_NODE) return root as Text;
+  let last: Text | null = null;
+  for (let i = 0; i < root.childNodes.length; i++) {
+    const found = getLastTextNodeIn(root.childNodes[i]);
+    if (found) last = found;
+  }
+  return last;
+}
+
+/** Committed pill span (not draft) nearest `pos`, or null. */
+function findCommittedPillElement(view: any, pos: number): HTMLElement | null {
+  try {
+    const { node } = view.domAtPos(Math.max(pos - 1, 0));
+    let el: Node | null = node;
+    while (el && el !== view.dom) {
+      if (
+        el instanceof HTMLElement &&
+        el.classList?.contains('scripture-pill') &&
+        !el.classList?.contains('scripture-pill-draft')
+      ) {
+        return el;
+      }
+      el = el.parentNode;
+    }
+  } catch {
+    /* ignore */
+  }
+  return null;
+}
+
 /**
- * iOS only: force the native caret to ProseMirror's selection position on the next frame.
+ * Set the browser Selection to `pos`, preferring the last text node inside a draft/pill span
+ * (same anchor strategy as the floating ✓) before falling back to `view.domAtPos`.
+ */
+function applyNativeCaret(view: any, pos: number): void {
+  if (!view || view.isDestroyed) return;
+  const sel = typeof window !== 'undefined' ? window.getSelection() : null;
+  if (!sel) return;
+
+  const pmPos = Math.min(pos, view.state.doc.content.size);
+
+  const draftEl = getScriptureDraftAnchorElement(view, pmPos);
+  if (draftEl) {
+    const textNode = getLastTextNodeIn(draftEl);
+    if (textNode) {
+      const range = document.createRange();
+      range.setStart(textNode, textNode.length);
+      range.collapse(true);
+      sel.removeAllRanges();
+      sel.addRange(range);
+      return;
+    }
+  }
+
+  const pillEl = findCommittedPillElement(view, pmPos);
+  if (pillEl) {
+    let next: Node | null = pillEl.nextSibling;
+    while (next) {
+      if (next.nodeType === Node.TEXT_NODE) {
+        const textNode = next as Text;
+        const dom = view.domAtPos(pmPos);
+        const offset =
+          dom?.node === textNode
+            ? dom.offset
+            : Math.min(pmPos > 0 ? 1 : 0, textNode.length);
+        const range = document.createRange();
+        range.setStart(textNode, offset);
+        range.collapse(true);
+        sel.removeAllRanges();
+        sel.addRange(range);
+        return;
+      }
+      next = next.nextSibling;
+    }
+  }
+
+  try {
+    const dom = view.domAtPos(pmPos);
+    if (!dom?.node) return;
+    const range = document.createRange();
+    range.setStart(dom.node, dom.offset);
+    range.collapse(true);
+    sel.removeAllRanges();
+    sel.addRange(range);
+  } catch {
+    /* ignore */
+  }
+}
+
+/**
+ * iOS only: force the native caret to ProseMirror's selection position after PM's DOM patch lands.
  *
  * A programmatic mark change (adding/growing the draft) restructures the contenteditable, and iOS
  * leaves the *visible* caret stuck at the line end even though ProseMirror's selection is correct.
  * Re-dispatching a ProseMirror selection does NOT help — PM recorded that it already synced the DOM
  * selection (iOS moved the painted caret without telling PM), so the comparison is a no-op. We set
  * the DOM `Selection` directly instead, which is what typing a real character effectively does.
- * Setting it to PM's own selection position keeps PM's domObserver a no-op (no spurious transaction).
+ * Skipped on the mobile decoration draft path (no doc mutation while typing).
  */
 export function resyncMobileCaret(view: any, opts?: { focus?: boolean }): void {
   if (!isMobileDevice() || !view) return;
+  if (usesMobileDraftDecoration(view.state)) return;
+
   requestAnimationFrame(() => {
     try {
       if (!view || view.isDestroyed) return;
@@ -294,16 +478,18 @@ export function resyncMobileCaret(view: any, opts?: { focus?: boolean }): void {
           /* ignore */
         }
       }
-      const pos = Math.min(view.state.selection.from, view.state.doc.content.size);
-      const dom = view.domAtPos(pos);
-      if (!dom || !dom.node) return;
-      const sel = typeof window !== 'undefined' ? window.getSelection() : null;
-      if (!sel) return;
-      const range = document.createRange();
-      range.setStart(dom.node, dom.offset);
-      range.collapse(true);
-      sel.removeAllRanges();
-      sel.addRange(range);
+      requestAnimationFrame(() => {
+        try {
+          if (!view || view.isDestroyed) return;
+          applyNativeCaret(view, view.state.selection.from);
+          setTimeout(() => {
+            if (!view || view.isDestroyed) return;
+            applyNativeCaret(view, view.state.selection.from);
+          }, 16);
+        } catch {
+          /* ignore */
+        }
+      });
     } catch {
       /* ignore */
     }
@@ -329,6 +515,20 @@ export function enterScriptureDraftView(view: any, from: number, to: number): bo
 
   const sel = state.selection;
   const caretInside = sel.empty && sel.from >= from && sel.from <= to;
+
+  if (isMobileDevice()) {
+    if (getDecorationDraftState(state)) return false;
+    const tr = state.tr;
+    if (caretInside) {
+      tr.setSelection(TextSelection.create(tr.doc, to));
+      tr.setStoredMarks([]);
+    }
+    tr.setMeta(scriptureDraftDecorationKey, { from, to, attrs: {} });
+    tr.setMeta('addToHistory', true);
+    view.dispatch(tr);
+    return true;
+  }
+
   const tr = state.tr;
   tr.addMark(from, to, draftType.create({}));
   // Snap the caret to the draft end when it's still within the detected range, but do NOT
@@ -340,8 +540,7 @@ export function enterScriptureDraftView(view: any, from: number, to: number): bo
   }
   tr.setMeta('addToHistory', true);
   view.dispatch(tr);
-  // iOS: wrapping the reference in the draft mark restructures the DOM and strands the visible caret
-  // at the line end; force it back to the draft end.
+  // iOS mark path: wrapping the reference restructures the DOM and strands the visible caret.
   resyncMobileCaret(view);
   return true;
 }
@@ -414,7 +613,15 @@ function extendRangeOverTrailingContinuation(doc: any, to: number, maxScan = 12)
 export function computeScriptureDraftGrowth(
   doc: any,
   caret: number,
+  state?: any,
 ): { from: number; to: number } | null {
+  const deco = state ? getDecorationDraftState(state) : null;
+  if (deco) {
+    const to = extendRangeOverTrailingContinuation(doc, deco.to);
+    if (to === deco.to) return null;
+    return { from: deco.from, to };
+  }
+
   const ranges = collectScripturePillRanges(doc, 'scriptureDraft');
   if (ranges.length === 0) return null;
   // Merge draft fragments separated only by reference-continuation chars in the same block into one
@@ -470,6 +677,8 @@ export function confirmScriptureDraftView(
   const range = findDraftRange(state, atPos ?? state.selection.from);
   if (!range) return null;
 
+  const decoDraft = getDecorationDraftState(state);
+
   // Absorb any range tail that ended up as plain text just after the draft (iOS).
   const effectiveTo = Math.max(range.to, extendRangeOverTrailingContinuation(state.doc, range.to));
   const rawText = state.doc.textBetween(range.from, effectiveTo);
@@ -478,7 +687,11 @@ export function confirmScriptureDraftView(
 
   if (!reference) {
     // Not a valid reference — strip the draft styling, keep the typed text as prose.
-    tr.removeMark(range.from, range.to, draftType);
+    if (decoDraft) {
+      tr.setMeta(scriptureDraftDecorationKey, null);
+    } else {
+      tr.removeMark(range.from, range.to, draftType);
+    }
     tr.setStoredMarks([]);
     tr.setMeta('addToHistory', true);
     view.dispatch(tr);
@@ -486,7 +699,9 @@ export function confirmScriptureDraftView(
   }
 
   // Preserve the translation/accent carried in from the pill being edited (backspace → Edit).
-  const carried = getMarkInstanceAt(state.doc, range.from, draftType);
+  const carried = decoDraft
+    ? { attrs: decoDraft.attrs }
+    : getMarkInstanceAt(state.doc, range.from, draftType);
   let translation = carried?.attrs?.translation ?? null;
   let consumeTo = effectiveTo;
   // Consume a typed trailing translation abbreviation (e.g. "Exodus 5:6-9 ESV") so typing one
@@ -536,19 +751,13 @@ export function confirmScriptureDraftView(
   tr.setStoredMarks([]);
   tr.scrollIntoView();
   tr.setMeta('addToHistory', true);
+  if (decoDraft) {
+    tr.setMeta(scriptureDraftDecorationKey, null);
+  }
   view.dispatch(tr);
 
-  if (opts?.focus) {
-    try {
-      view.focus();
-    } catch {
-      /* ignore */
-    }
-  }
-
-  // iOS: after the commit mutation the visible caret can stick at the line end (or vanish, after an
-  // Enter-confirm that left the field unfocused) even though the selection is logically right after
-  // the pill. Force the native caret back to the right spot next frame (re-focusing if needed).
+  // iOS mark path: after commit the visible caret can stick at the line end. Decoration path skips
+  // resync (no mid-type doc mutation). Focus is applied on the first rAF inside resyncMobileCaret.
   resyncMobileCaret(view, { focus: opts?.focus });
 
   try {
@@ -567,6 +776,10 @@ export function confirmScriptureDraftView(
  * from the live document rather than a captured offset.
  */
 export function confirmAnyScriptureDraftView(view: any): string | null {
+  const deco = getDecorationDraftState(view.state);
+  if (deco) {
+    return confirmScriptureDraftView(view, deco.to, { focus: true });
+  }
   const ranges = collectScripturePillRanges(view.state.doc, 'scriptureDraft');
   if (ranges.length === 0) return null;
   const caret = view.state.selection.from;
@@ -584,7 +797,11 @@ export function cancelScriptureDraftView(view: any): boolean {
   const range = getScriptureDraftRange(state);
   if (!range) return false;
   const tr = state.tr;
-  tr.removeMark(range.from, range.to, draftType);
+  if (getDecorationDraftState(state)) {
+    tr.setMeta(scriptureDraftDecorationKey, null);
+  } else {
+    tr.removeMark(range.from, range.to, draftType);
+  }
   tr.setStoredMarks([]);
   tr.setMeta('addToHistory', true);
   view.dispatch(tr);
