@@ -186,4 +186,15 @@ describe('mobile mark-based draft', () => {
     const ref = confirmScriptureDraftView(view, to, { focus: true });
     expect(ref).toBe('Numbers 5:5-10');
   });
+
+  it('keeps the draft open when confirm is called on an incomplete range tail', () => {
+    const base = 'Numbers 5:5';
+    const from = 1;
+    const to = from + base.length;
+    const { view, getState } = mobileView([draftSchema.text(base + '-')]);
+    enterScriptureDraftView(view, from, to);
+    expect(confirmScriptureDraftView(view, to)).toBeNull();
+    expect(collectScripturePillRanges(getState().doc, 'scriptureDraft')).toHaveLength(1);
+    expect(getState().doc.textBetween(from, from + base.length + 1)).toBe('Numbers 5:5-');
+  });
 });

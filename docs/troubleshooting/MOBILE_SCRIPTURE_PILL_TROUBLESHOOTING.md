@@ -139,6 +139,16 @@ Round 6's **mobile decoration draft** regressed range typing on device — the m
 | 3 | **`applyNativeCaret` respects range tail** — when PM selection is past the draft mark with continuation chars (`-10`), use `domAtPos` instead of draft pill end | Prevents ✓ re-show resync from stealing the caret mid-range |
 | 4 | **Kept Round 7 timer + blur defer** | Still needed on the mark path |
 
+### Round 9
+
+Range dash still broken on device after Round 8 revert.
+
+| # | Symptom | Root cause | Fix |
+|---|---------|-----------|-----|
+| 1 | Draft commits or vanishes when reaching `-` | iOS keyboard-layer switch fires `blur`; deferred blur-confirm commits `Numbers 5:5` before the tail is typed | **Disable blur-confirm on mobile while any draft is active** — confirm via ✓ / Enter / selection-leave only |
+| 2 | Draft styling stripped after typing `-` alone | `confirmScriptureDraftView` on invalid ref (`Numbers 5:5-`) called `removeMark` | **Keep draft open** when continuation tail chars exist but `draftTextToReference` is not yet valid |
+| 3 | Caret jumps while typing tail | ✓ re-show called `resyncMobileCaret` even when caret is past the draft mark | Skip resync when `hasDraftContinuationTailInDoc` and caret is past draft end |
+
 ---
 
 ## iOS limitations & gotchas (durable)

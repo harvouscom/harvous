@@ -6496,6 +6496,10 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       if (!isEditorValid(editor)) return;
       if (blurConfirmTimer) clearTimeout(blurConfirmTimer);
       if (blurDeferTimer) clearTimeout(blurDeferTimer);
+      // Mobile: never auto-confirm on blur while a draft is open. iOS fires transient blurs when
+      // switching keyboard layers to reach "-" — that was committing "Numbers 5:5" before the user
+      // could type the range tail. Confirm via ✓, Enter, or selection leaving the draft instead.
+      if (isMobileDevice() && hasActiveScriptureDraft(editor.state)) return;
       // Defer + re-check focus: iOS fires transient blurs (keyboard layout switch to reach "-",
       // predictive-bar taps) that would otherwise commit a half-typed range. If focus is back in
       // the editor a frame later it wasn't a real blur — leave the draft open. Only commit when
@@ -6578,7 +6582,15 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
             top: rect.top + rect.height / 2 + oy,
             left: Math.min(rect.right + 6, vw - 30) + ox,
           });
-          resyncMobileCaret(editor.view);
+          const draftRange = getScriptureDraftRange(editor.state);
+          const caret = editor.state.selection.from;
+          const typingRangeTail =
+            draftRange != null &&
+            caret > draftRange.to &&
+            hasDraftContinuationTailInDoc(editor.state, draftRange.to);
+          if (!typingRangeTail) {
+            resyncMobileCaret(editor.view);
+          }
           return;
         }
         // Fallback: the caret coordinate at the draft end.
@@ -6588,7 +6600,15 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
           top: (coords.top + coords.bottom) / 2 + oy,
           left: Math.min(coords.right + 6, vw - 30) + ox,
         });
-        resyncMobileCaret(editor.view);
+        const draftRange = getScriptureDraftRange(editor.state);
+        const caret = editor.state.selection.from;
+        const typingRangeTail =
+          draftRange != null &&
+          caret > draftRange.to &&
+          hasDraftContinuationTailInDoc(editor.state, draftRange.to);
+        if (!typingRangeTail) {
+          resyncMobileCaret(editor.view);
+        }
       } catch {
         setScriptureDraftConfirm(null);
       }

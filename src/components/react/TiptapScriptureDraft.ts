@@ -610,7 +610,17 @@ export function confirmScriptureDraftView(
   const reference = draftTextToReference(rawText);
   const tr = state.tr;
 
-  if (!reference) {
+  const hasPlainTail = effectiveTo > range.to;
+  const tailText = hasPlainTail ? state.doc.textBetween(range.to, effectiveTo) : '';
+  const midRangeEntry =
+    hasPlainTail &&
+    /^[\d:,\-–—]+$/.test(tailText) &&
+    (!reference || reference.length < rawText.trim().length);
+
+  if (!reference || midRangeEntry) {
+    if (midRangeEntry) {
+      return null;
+    }
     tr.removeMark(range.from, range.to, draftType);
     tr.setStoredMarks([]);
     tr.setMeta('addToHistory', true);
