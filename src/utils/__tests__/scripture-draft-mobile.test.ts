@@ -228,6 +228,18 @@ describe('mobile mark-based draft', () => {
     expect(getState().storedMarks ?? []).toHaveLength(0);
   });
 
+  it('unifyScriptureDraftAtCursor keeps the caret after the range tail on mobile', () => {
+    const text = 'John 3:16';
+    const from = 1;
+    const to = from + text.length;
+    const fullLen = from + 'John 3:16-17'.length;
+    const { view, getState } = mobileView([draftSchema.text(text + '-17')]);
+    enterScriptureDraftView(view, from, to);
+    view.dispatch(getState().tr.setSelection(TextSelection.create(getState().doc, fullLen)));
+    expect(unifyScriptureDraftAtCursor(view)).toBe(true);
+    expect(getState().selection.from).toBe(fullLen);
+  });
+
   it('cancelScriptureDraftView strips bold and clears storedMarks', () => {
     const base = 'Numbers 5:5';
     const from = 1;

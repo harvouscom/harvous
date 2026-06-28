@@ -147,9 +147,25 @@ export function makeScriptureDraftGrowPlugin() {
  */
 export function unifyScriptureDraftAtCursor(view: any): boolean {
   if (!view || !view.state) return false;
+  const caret = view.state.selection.from;
+  const growth = computeScriptureDraftGrowth(view.state.doc, caret);
+  if (!growth) return false;
   const tr = buildScriptureDraftGrowthTr(view.state);
   if (!tr) return false;
   view.dispatch(tr);
+  if (isMobileDevice()) {
+    const pos = Math.min(Math.max(caret, growth.to), view.state.doc.content.size);
+    const focusTr = view.state.tr
+      .setSelection(TextSelection.create(view.state.doc, pos))
+      .setStoredMarks([])
+      .setMeta('addToHistory', false);
+    view.dispatch(focusTr);
+    try {
+      view.focus();
+    } catch {
+      /* ignore */
+    }
+  }
   return true;
 }
 
@@ -367,6 +383,35 @@ export function resyncMobileCaret(view: any, opts?: { focus?: boolean }): void {
   });
 }
 
+let draftTailCaretSyncRaf: number | null = null;
+
+/**
+ * iOS: after a range tail char lands as plain text past the draft mark, re-focus and re-place the
+ * native caret at PM's position. Skipped on enter/unify/✓ re-show — only while continuation tail exists.
+ */
+export function scheduleMobileDraftTailCaretSync(view: any): void {
+  if (!isMobileDevice() || !view) return;
+  if (draftTailCaretSyncRaf != null) {
+    cancelAnimationFrame(draftTailCaretSyncRaf);
+  }
+  draftTailCaretSyncRaf = requestAnimationFrame(() => {
+    draftTailCaretSyncRaf = null;
+    try {
+      if (!view || view.isDestroyed) return;
+      const range = getScriptureDraftRange(view.state);
+      if (!range || !hasDraftContinuationTailInDoc(view.state, range.to)) return;
+      try {
+        view.focus();
+      } catch {
+        /* ignore */
+      }
+      resyncMobileCaret(view);
+    } catch {
+      /* ignore */
+    }
+  });
+}
+
 /** Wrap [from, to) in the draft mark and place the caret at its (inclusive) end. */
 export function enterScriptureDraftView(view: any, from: number, to: number): boolean {
   const { state } = view;
@@ -394,7 +439,6 @@ export function enterScriptureDraftView(view: any, from: number, to: number): bo
   tr.setStoredMarks([]);
   tr.setMeta('addToHistory', true);
   view.dispatch(tr);
-  resyncMobileCaret(view);
   return true;
 }
 

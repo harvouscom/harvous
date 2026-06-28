@@ -157,9 +157,18 @@ Session caret hardening regressed range dash typing; bold stuck after incomplete
 |---|--------|-----|
 | 1 | **Reverted `applyNativeCaret`** — `resyncMobileCaret` back to single-rAF `domAtPos` only | DOM-first placement inside `.scripture-pill-draft` stole the caret at the non-inclusive mark boundary where `-` must land |
 | 2 | **Removed `resyncMobileCaret` from unify and ✓ re-show** | Idle resync fought mid-range typing and caused toolbar flicker |
-| 3 | **Resync only on enter + user confirm** (`{ focus: true }`) | Matches pre-session behavior that typed correctly |
+| 3 | **Resync only on user confirm** (`{ focus: true }`) | Matches pre-session behavior that typed correctly; enter resync removed in Round 11 |
 | 4 | **Bold fix** — `setStoredMarks([])` on enter/grow; `excludes: 'bold italic'` on draft mark; strip bold on cancel/failed confirm; `BoldCustom` guards draft + pill | Bold stuck/flickered after incomplete drafts |
 | 5 | **Kept Round 7–9 guards** — `hasActiveDraft` timer, mobile blur skip, `midRangeEntry` confirm, `isCaretAttached` detached logic | Still needed on mark path |
+
+### Round 11
+
+Dash appears but caret vanishes before typing `-10` digits.
+
+| # | Symptom | Root cause | Fix |
+|---|---------|-----------|-----|
+| 1 | Caret gone right after `-` | `resyncMobileCaret` on draft enter repositioned native selection at the mark boundary; iOS keyboard-layer blur for `-` dropped focus without refocus | **Remove enter resync**; **`scheduleMobileDraftTailCaretSync`** after tail chars; **blur refocus** while draft active (no confirm) |
+| 2 | Caret lost after idle unify | `addMark` over tail without focus/selection restore | **unify**: re-set selection to tail end + `view.focus()` on mobile |
 
 ---
 
@@ -183,7 +192,7 @@ Session caret hardening regressed range dash typing; bold stuck after incomplete
 
 ## Open issues / needs device verification
 
-- **Round 10 range tail** — re-verify `Numbers 5:5-10` on iPhone after caret hardening revert: dash types as plain text after draft mark, ✓ confirms full range.
+- **Round 11 range tail** — re-verify `Numbers 5:5-10` on iPhone: dash stays visible, caret remains for `-10`, ✓ confirms full range.
 - **Round 10 bold** — after abandoning an incomplete draft, bold should not stick on subsequent plain typing.
 - Caret may still paint at line end after confirm (pre-session known issue; minimal resync on enter/confirm only).
 - **Dock sizing (Round 3 #4)** — verify the dock fills the column and animates correctly at the

@@ -34,6 +34,7 @@ import {
   hasActiveScriptureDraft,
   hasDraftContinuationTailInDoc,
   unifyScriptureDraftAtCursor,
+  scheduleMobileDraftTailCaretSync,
   SCRIPTURE_DRAFT_CONFIRMED_EVENT,
 } from './TiptapScriptureDraft';
 import { BoldCustom } from './TiptapBoldCustom';
@@ -4226,6 +4227,17 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
               tryConsumeTranslationAbbrevAfterPill(editor);
             }, 250);
           }
+
+          if (
+            draftMode &&
+            hasActiveDraft &&
+            editor.view
+          ) {
+            const range = getScriptureDraftRange(editor.state);
+            if (range && hasDraftContinuationTailInDoc(editor.state, range.to)) {
+              scheduleMobileDraftTailCaretSync(editor.view);
+            }
+          }
         }
       } else {
         const { from: deskFrom, to: deskTo } = editor.state.selection;
@@ -6478,6 +6490,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
 
     let blurConfirmTimer: ReturnType<typeof setTimeout> | null = null;
     let blurDeferTimer: ReturnType<typeof setTimeout> | null = null;
+    let blurRefocusTimer: ReturnType<typeof setTimeout> | null = null;
 
     const confirmDraftIfStillBlurred = () => {
       if (!isEditorValid(editor)) return;
@@ -6495,10 +6508,32 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       if (!isEditorValid(editor)) return;
       if (blurConfirmTimer) clearTimeout(blurConfirmTimer);
       if (blurDeferTimer) clearTimeout(blurDeferTimer);
+      if (blurRefocusTimer) clearTimeout(blurRefocusTimer);
       // Mobile: never auto-confirm on blur while a draft is open. iOS fires transient blurs when
       // switching keyboard layers to reach "-" — that was committing "Numbers 5:5" before the user
       // could type the range tail. Confirm via ✓, Enter, or selection leaving the draft instead.
-      if (isMobileDevice() && hasActiveScriptureDraft(editor.state)) return;
+      if (isMobileDevice() && hasActiveScriptureDraft(editor.state)) {
+        const refocusAfterKeyboardBlur = () => {
+          if (!isEditorValid(editor)) return;
+          if (!hasActiveScriptureDraft(editor.state)) return;
+          if (editor.isFocused) return;
+          const active = typeof document !== 'undefined' ? document.activeElement : null;
+          const dom = editor.view?.dom as HTMLElement | undefined;
+          if (dom && active && (dom === active || dom.contains(active))) return;
+          try {
+            editor.view.focus();
+            const range = getScriptureDraftRange(editor.state);
+            if (range && hasDraftContinuationTailInDoc(editor.state, range.to)) {
+              scheduleMobileDraftTailCaretSync(editor.view);
+            }
+          } catch {
+            /* ignore */
+          }
+        };
+        requestAnimationFrame(refocusAfterKeyboardBlur);
+        blurRefocusTimer = setTimeout(refocusAfterKeyboardBlur, 100);
+        return;
+      }
       // Defer + re-check focus: iOS fires transient blurs (keyboard layout switch to reach "-",
       // predictive-bar taps) that would otherwise commit a half-typed range. If focus is back in
       // the editor a frame later it wasn't a real blur — leave the draft open. Only commit when
@@ -6539,6 +6574,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     return () => {
       if (blurConfirmTimer) clearTimeout(blurConfirmTimer);
       if (blurDeferTimer) clearTimeout(blurDeferTimer);
+      if (blurRefocusTimer) clearTimeout(blurRefocusTimer);
       if (editor && !editor.isDestroyed) {
         editor.off('selectionUpdate', resolveDetachedDraft);
         editor.off('blur', resolveOnBlur);
