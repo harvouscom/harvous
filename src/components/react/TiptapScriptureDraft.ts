@@ -302,6 +302,30 @@ export function getScriptureDraftAnchorPos(state: any): number | null {
   return extendRangeOverTrailingContinuation(state.doc, target.end);
 }
 
+/** True when an inline scripture draft (mark or mobile decoration) is in progress. */
+export function hasActiveScriptureDraft(state: any): boolean {
+  return getScriptureDraftAnchorPos(state) != null;
+}
+
+/**
+ * True when reference-continuation chars exist as plain text immediately after the draft end
+ * (e.g. `-10` typed after `Number 5:5`). Used to avoid blur-confirming a partial reference
+ * while the user is switching keyboards to reach the dash key.
+ */
+export function hasDraftContinuationTailInDoc(state: any, draftTo: number): boolean {
+  try {
+    const size = state.doc.content.size;
+    if (draftTo >= size) return false;
+    const $to = state.doc.resolve(Math.min(draftTo, size - 1));
+    const blockEnd = $to.end($to.depth);
+    if (draftTo >= blockEnd) return false;
+    const slice = state.doc.textBetween(draftTo, blockEnd);
+    return /^[\d:,\-–—]/.test(slice);
+  } catch {
+    return false;
+  }
+}
+
 /**
  * The draft pill's DOM element nearest `pos`, for anchoring the floating ✓ inline beside the pill.
  * Walks up from the DOM node at the position to the enclosing `.scripture-pill-draft` span; falls

@@ -31,6 +31,8 @@ import {
   getScriptureDraftAnchorPos,
   getScriptureDraftAnchorElement,
   findDetachedScriptureDraft,
+  hasActiveScriptureDraft,
+  hasDraftContinuationTailInDoc,
   unifyScriptureDraftAtCursor,
   resyncMobileCaret,
   SCRIPTURE_DRAFT_CONFIRMED_EVENT,
@@ -4186,8 +4188,10 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
           const $mobFrom = editor.state.doc.resolve(mobFrom);
           const thisEditorId = String(editor.view?.dom?.id || 'default');
           const draftMode = editorChromeMode === 'prototypeNative';
+          const hasActiveDraft = draftMode && hasActiveScriptureDraft(editor.state);
           const needsScripturePass =
             Array.from(pendingTranslationPills.values()).some(e => e.editorId === thisEditorId) ||
+            hasActiveDraft ||
             (draftMode
               ? shouldScheduleDraftDetection(
                   editor.state.doc,
@@ -6472,23 +6476,53 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       }
       confirmScriptureDraftView(editor.view, detached.to);
     };
+
+    let blurConfirmTimer: ReturnType<typeof setTimeout> | null = null;
+    let blurDeferTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const confirmDraftIfStillBlurred = () => {
+      if (!isEditorValid(editor)) return;
+      if (editor.isFocused) return;
+      const active = typeof document !== 'undefined' ? document.activeElement : null;
+      const dom = editor.view?.dom as HTMLElement | undefined;
+      if (dom && active && (dom === active || dom.contains(active))) return;
+      const inside = getScriptureDraftRange(editor.state);
+      const detached = findDetachedScriptureDraft(editor.state);
+      const target = inside ?? detached;
+      if (target) confirmScriptureDraftView(editor.view, target.to);
+    };
+
     const resolveOnBlur = () => {
       if (!isEditorValid(editor)) return;
+      if (blurConfirmTimer) clearTimeout(blurConfirmTimer);
+      if (blurDeferTimer) clearTimeout(blurDeferTimer);
       // Defer + re-check focus: iOS fires transient blurs (keyboard layout switch to reach "-",
       // predictive-bar taps) that would otherwise commit a half-typed range. If focus is back in
       // the editor a frame later it wasn't a real blur — leave the draft open. Only commit when
       // focus has genuinely left the editor surface (tap-away / ✓ already handles its own commit).
-      setTimeout(() => {
+      blurConfirmTimer = setTimeout(() => {
+        blurConfirmTimer = null;
         if (!isEditorValid(editor)) return;
         if (editor.isFocused) return;
         const active = typeof document !== 'undefined' ? document.activeElement : null;
         const dom = editor.view?.dom as HTMLElement | undefined;
         if (dom && active && (dom === active || dom.contains(active))) return;
-        // Confirm whichever draft exists (caret-inside or detached).
-        const inside = getScriptureDraftRange(editor.state);
-        const detached = findDetachedScriptureDraft(editor.state);
-        const target = inside ?? detached;
-        if (target) confirmScriptureDraftView(editor.view, target.to);
+
+        const range = getScriptureDraftRange(editor.state);
+        if (
+          isMobileDevice() &&
+          range &&
+          !hasDraftContinuationTailInDoc(editor.state, range.to)
+        ) {
+          // No range tail typed yet — defer confirm so keyboard-switch blurs can refocus first.
+          blurDeferTimer = setTimeout(() => {
+            blurDeferTimer = null;
+            confirmDraftIfStillBlurred();
+          }, 350);
+          return;
+        }
+
+        confirmDraftIfStillBlurred();
       }, 120);
     };
     const onConfirmed = (e: Event) => {
@@ -6500,6 +6534,8 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     editor.on('blur', resolveOnBlur);
     editor.view.dom.addEventListener(SCRIPTURE_DRAFT_CONFIRMED_EVENT, onConfirmed);
     return () => {
+      if (blurConfirmTimer) clearTimeout(blurConfirmTimer);
+      if (blurDeferTimer) clearTimeout(blurDeferTimer);
       if (editor && !editor.isDestroyed) {
         editor.off('selectionUpdate', resolveDetachedDraft);
         editor.off('blur', resolveOnBlur);

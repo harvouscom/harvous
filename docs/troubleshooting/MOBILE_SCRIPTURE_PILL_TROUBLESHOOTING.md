@@ -100,7 +100,7 @@ didn't pass `focus: true`, so the field was left unfocused).
 
 **Round 5 was insufficient on device** — single-rAF + bare `domAtPos` still left the painted caret at the line end.
 
-### Round 6 (current)
+### Round 6
 
 Two-pronged fix: harden caret resync for the mark path (post-commit and any legacy mark mutations), and **switch the mobile in-progress draft to ProseMirror inline `Decoration`s** so create/grow/unify no longer restructure the document while typing.
 
@@ -115,6 +115,18 @@ Key additions:
 - `makeScriptureDraftDecorationPlugin`, `scriptureDraftDecorationKey` in `TiptapScriptureDraft.ts`
 - Mobile branches in `enterScriptureDraftView`, `unifyScriptureDraftAtCursor`, `findDraftRange`, `getScriptureDraftAnchorPos`, `findDetachedScriptureDraft`, `confirmScriptureDraftView`, `cancelScriptureDraftView`
 - Tests: `src/utils/__tests__/scripture-draft-mobile.test.ts` (mocks `isMobileDevice()` → true)
+
+### Round 7 (current)
+
+Cannot finish verse ranges like `Number 5:5-10` — draft stuck or commits at `Number 5:5` only.
+
+| # | Symptom | Root cause | Fix |
+|---|---------|-----------|-----|
+| 1 | `-10` never folds into draft; unify never runs mid-range | `detectScriptureReferenceEndingAtCursor` returns null when tail after match is `-` (not empty/whitespace), so `shouldScheduleDraftDetection` is false and the mobile 250ms timer is **cancelled** | **`hasActiveDraft` gate** on `needsScripturePass` — keep the debounced timer armed while any draft exists so `unifyScriptureDraftAtCursor` runs during range entry |
+| 2 | Draft commits at `Number 5:5` when reaching `-` on iOS keyboard | `resolveOnBlur` confirms after 120ms even with no continuation tail typed; keyboard-layer switch blurs the field | **`hasDraftContinuationTailInDoc`** + two-phase blur defer (120ms focus check, then +350ms if no tail yet on mobile) |
+| 3 | Decoration end swallowed `-` on insert | Plugin mapped `to` with default bias, expanding decoration on every char at boundary | Non-inclusive `to` mapping with bias `-1` (Round 6 follow-up, same release arc) |
+
+Helpers: `hasActiveScriptureDraft`, `hasDraftContinuationTailInDoc` in `TiptapScriptureDraft.ts`.
 
 ---
 
@@ -138,7 +150,7 @@ Key additions:
 
 ## Open issues / needs device verification
 
-- **Round 6 caret + decoration draft** — re-verify on iPhone Safari (scenarios A–E below). The decoration path should eliminate mid-type desync; hardened `resyncMobileCaret` handles post-commit `replaceWith`.
+- **Round 7 range tail** — re-verify `Number 5:5-10` and `John 3:16-18` on iPhone: timer stays armed during `-` entry, blur does not commit early, ✓ confirms full range.
 - **Dock sizing (Round 3 #4)** — verify the dock fills the column and animates correctly at the
   430px / 620px breakpoints and with the sidebar collapsed (desktop ⌘\) vs absent (mobile).
 

@@ -172,6 +172,13 @@ describe('detectScriptureReferenceEndingAtCursor', () => {
     expect(result!.reference).toBe('Exodus 5:1');
     expect(state.doc.textBetween(result!.from!, result!.to!)).toBe('Exodus 5:1');
   });
+
+  it('returns null mid-range when continuation tail follows cursor-ending ref', () => {
+    const text = 'Number 5:5-';
+    const state = stateFromPlainText(text);
+    const cursorPos = 1 + text.length;
+    expect(detectScriptureReferenceEndingAtCursor(state.doc, cursorPos)).toBeNull();
+  });
 });
 
 describe('findScriptureReferenceAtCursor chapter-only prefix guard', () => {

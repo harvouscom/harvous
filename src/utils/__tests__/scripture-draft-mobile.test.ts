@@ -17,6 +17,8 @@ import {
   findDetachedScriptureDraft,
   getScriptureDraftAnchorPos,
   getScriptureDraftRange,
+  hasActiveScriptureDraft,
+  hasDraftContinuationTailInDoc,
   makeScriptureDraftDecorationPlugin,
   scriptureDraftDecorationKey,
   unifyScriptureDraftAtCursor,
@@ -166,5 +168,30 @@ describe('mobile decoration draft', () => {
     view.dispatch(getState().tr.insertText('-', to));
     view.dispatch(getState().tr.setSelection(TextSelection.create(getState().doc, to + 1)));
     expect(findDetachedScriptureDraft(getState())).toBeNull();
+  });
+
+  it('hasDraftContinuationTailInDoc detects range tail after draft end', () => {
+    const text = 'Number 5:5';
+    const from = 1;
+    const to = from + text.length;
+    const { view, getState } = mobileView([draftSchema.text(text)]);
+    enterScriptureDraftView(view, from, to);
+    expect(hasDraftContinuationTailInDoc(getState(), to)).toBe(false);
+    expect(hasActiveScriptureDraft(getState())).toBe(true);
+    view.dispatch(getState().tr.insertText('-10', to));
+    expect(hasDraftContinuationTailInDoc(getState(), to)).toBe(true);
+  });
+
+  it('unifies and confirms Numbers 5:5-10 with plain range tail', () => {
+    const base = 'Numbers 5:5';
+    const full = 'Numbers 5:5-10';
+    const from = 1;
+    const to = from + base.length;
+    const { view, getState } = mobileView([draftSchema.text(full)]);
+    enterScriptureDraftView(view, from, to);
+    expect(unifyScriptureDraftAtCursor(view)).toBe(true);
+    expect(scriptureDraftDecorationKey.getState(getState())?.to).toBe(from + full.length);
+    const ref = confirmScriptureDraftView(view, to, { focus: true });
+    expect(ref).toBe('Numbers 5:5-10');
   });
 });
