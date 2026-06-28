@@ -123,8 +123,10 @@ export function makeScriptureDraftDecorationPlugin() {
         const meta = tr.getMeta(scriptureDraftDecorationKey);
         if (meta !== undefined) return meta;
         if (value && tr.docChanged) {
-          const from = tr.mapping.map(value.from);
-          const to = tr.mapping.map(value.to);
+          const from = tr.mapping.map(value.from, 1);
+          // Non-inclusive end (matches the scriptureDraft mark): chars typed AT `to` land as plain
+          // text outside the decoration until unify extends the range via plugin meta.
+          const to = tr.mapping.map(value.to, -1);
           if (from >= to) return null;
           return { ...value, from, to };
         }
@@ -327,22 +329,47 @@ export function getScriptureDraftAnchorElement(view: any, pos: number): HTMLElem
   }
 }
 
-/** True when the doc contains a draft mark whose range does NOT contain the caret. */
+/** Reference-continuation characters that can trail a draft (verse/range punctuation). */
+const DRAFT_CONTINUATION_RE = /[\d:,\-–—]/;
+
+/**
+ * True when the caret is inside a draft or typing a reference-continuation tail after it (e.g. the
+ * `-18` of a range as plain text). Used so we do not treat the draft as "detached" mid-range.
+ */
+function isCaretAttachedToScriptureDraft(state: any, from: number, to: number): boolean {
+  const caret = state.selection.from;
+  if (caret >= from && caret <= to) return true;
+  if (caret <= to) return false;
+  try {
+    const gap = state.doc.textBetween(to, caret);
+    const $from = state.doc.resolve(from);
+    const $caret = state.doc.resolve(caret);
+    if ($from.start($from.depth) !== $caret.start($caret.depth)) return false;
+    if (gap === '') return true;
+    return /^[\d:,\-–—]+$/.test(gap);
+  } catch {
+    return false;
+  }
+}
+
+/** True when the doc contains a draft whose range does NOT contain the caret (or its range tail). */
 export function findDetachedScriptureDraft(state: any): { from: number; to: number } | null {
   const deco = getDecorationDraftState(state);
   if (deco) {
-    const caret = state.selection.from;
-    if (caret < deco.from || caret > deco.to) return { from: deco.from, to: deco.to };
-    return null;
+    if (isCaretAttachedToScriptureDraft(state, deco.from, deco.to)) return null;
+    return { from: deco.from, to: deco.to };
   }
 
   const ranges = collectScripturePillRanges(state.doc, 'scriptureDraft');
   if (ranges.length === 0) return null;
-  const caret = state.selection.from;
   for (const r of ranges) {
-    if (caret < r.start || caret > r.end) return { from: r.start, to: r.end };
+    if (isCaretAttachedToScriptureDraft(state, r.start, r.end)) return null;
   }
-  return null;
+  const caret = state.selection.from;
+  const dist = (r: { start: number; end: number }) =>
+    Math.min(Math.abs(r.end - caret), Math.abs(r.start - caret));
+  const target = ranges.reduce((best, r) => (dist(r) < dist(best) ? r : best), ranges[0]);
+  return { from: target.start, to: target.end };
 }
 
 // ── Text → reference ───────────────────────────────────────────────────────────
@@ -574,9 +601,6 @@ export function editScripturePillAsDraft(view: any, from: number, to: number): b
   }
   return true;
 }
-
-/** Reference-continuation characters that can trail a draft (verse/range punctuation). */
-const DRAFT_CONTINUATION_RE = /[\d:,\-–—]/;
 
 /**
  * Extend `to` forward over a contiguous run of reference-continuation chars in the same

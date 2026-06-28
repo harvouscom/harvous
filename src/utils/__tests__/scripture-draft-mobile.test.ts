@@ -14,6 +14,7 @@ import {
   confirmScriptureDraftView,
   computeScriptureDraftGrowth,
   enterScriptureDraftView,
+  findDetachedScriptureDraft,
   getScriptureDraftAnchorPos,
   getScriptureDraftRange,
   makeScriptureDraftDecorationPlugin,
@@ -139,5 +140,31 @@ describe('mobile decoration draft', () => {
     enterScriptureDraftView(view, from, to);
     const growth = computeScriptureDraftGrowth(getState().doc, getState().selection.from, getState());
     expect(growth).toEqual({ from, to: from + 'John 3:16-17'.length });
+  });
+
+  it('keeps decoration end non-inclusive when a range dash is typed (until unify)', () => {
+    const text = 'John 3:16';
+    const from = 1;
+    const to = from + text.length;
+    const { view, getState } = mobileView([draftSchema.text(text)]);
+    enterScriptureDraftView(view, from, to);
+    const insertAt = to;
+    view.dispatch(getState().tr.insertText('-', insertAt));
+    const deco = scriptureDraftDecorationKey.getState(getState());
+    expect(deco?.to).toBe(to);
+    expect(getState().doc.textBetween(from, from + text.length + 1)).toBe('John 3:16-');
+    expect(unifyScriptureDraftAtCursor(view)).toBe(true);
+    expect(scriptureDraftDecorationKey.getState(getState())?.to).toBe(from + 'John 3:16-'.length);
+  });
+
+  it('does not treat a draft as detached while typing a range tail', () => {
+    const text = 'John 3:16';
+    const from = 1;
+    const to = from + text.length;
+    const { view, getState } = mobileView([draftSchema.text(text)]);
+    enterScriptureDraftView(view, from, to);
+    view.dispatch(getState().tr.insertText('-', to));
+    view.dispatch(getState().tr.setSelection(TextSelection.create(getState().doc, to + 1)));
+    expect(findDetachedScriptureDraft(getState())).toBeNull();
   });
 });
